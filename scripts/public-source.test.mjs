@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { preparePublicSource } from './public-source.mjs';
 
 test('every local README image belongs to the public source inventory', () => {
@@ -17,6 +18,27 @@ test('every local README image belongs to the public source inventory', () => {
   for (const image of images) {
     assert.ok(settings.files.includes(image), `README image missing from the public inventory: ${image}`);
     assert.ok(fs.statSync(new URL(image, root)).isFile(), `README image missing from source: ${image}`);
+  }
+});
+
+test('README documentation links and application Markdown imports survive public export', () => {
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  const inventory = new Set(JSON.parse(fs.readFileSync(path.join(root, 'scripts/public-source.settings.json'), 'utf8')).files);
+  const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+  const documents = [...readme.matchAll(/\[[^\]]*\]\((docs\/[^)\s]+)\)/gu)]
+    .map(match => match[1].split('#')[0]);
+  const source = path.join(root, 'apps/tower/src');
+  for (const file of fs.readdirSync(source, { recursive: true })) {
+    if (!/\.(?:ts|tsx)$/u.test(file)) continue;
+    const filename = path.join(source, file);
+    const text = fs.readFileSync(filename, 'utf8');
+    for (const match of text.matchAll(/(?:from\s+|import\s*)['"]([^'"]+\.md\?raw)['"]/gu)) {
+      documents.push(path.relative(root, path.resolve(path.dirname(filename), match[1].replace(/\?raw$/u, ''))).split(path.sep).join('/'));
+    }
+  }
+  for (const document of documents) {
+    assert.ok(inventory.has(document), `Public document missing from the inventory: ${document}`);
+    assert.ok(fs.statSync(path.join(root, document)).isFile(), `Public document missing from source: ${document}`);
   }
 });
 

@@ -84,10 +84,12 @@
     "docs/playbooks/serp-authority-gate.md",
     "docs/playbooks/serp-opportunity-execution.md",
     "docs/playbooks/serp-snippet-standard.md",
+    "docs/project-setup.md",
     "docs/playbooks/task-key-chain.md",
     "docs/playbooks/triangulate-before-acting.md",
     "docs/playbooks/utm-taxonomy.md",
     "docs/release-policy.md",
+    "docs/templates/project-freeze-register.md",
     "docs/runbooks/one-runtime-cutover.md"
   ]
 }
