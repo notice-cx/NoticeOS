@@ -4,6 +4,8 @@ import { type ConnectionReads } from "@shared/connection-status";
 import type { CountdownConfig } from "@shared/dashboard";
 import { ageMs, formatAge } from "@shared/freshness";
 import type { AssetCard, SystemBand } from "@shared/wall";
+import { compiledSourceVersion } from "@shared/source-version";
+import { compiledAppRelease } from "@shared/app-release";
 import { BrandLockup } from "@/components/BrandLockup";
 import {
   formatMeetingClock,
@@ -126,6 +128,9 @@ export function WallStrip({ countdown, meetings, heldSince = null, nowMs }: Wall
     </span>
   ) : null;
   const emoji = countdown?.emoji?.trim() ?? "";
+  const version = compiledSourceVersion();
+  const release = compiledAppRelease();
+  const versionDate = version ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(version.committedAt)) : null;
   return (
     <header
       data-wall-strip
@@ -139,7 +144,18 @@ export function WallStrip({ countdown, meetings, heldSince = null, nowMs }: Wall
           className="shrink-0 whitespace-nowrap rounded text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [&_.brand-wordmark]:sr-only sm:[&_.brand-wordmark]:not-sr-only"
           data-strip-home
         >
-          <BrandLockup size="text" className="text-wall-strip-countdown! leading-normal!" />
+          <BrandLockup size="text" className="text-wall-strip-countdown! leading-none!" />
+          <span
+            className="block text-wall-list-meta font-normal text-muted-foreground tabular-nums"
+            title={version ? `Commit ${version.commit} · ${version.committedAt}${version.modified ? " · local edits" : ""}` : "Source commit unavailable"}
+            data-strip-version
+          >
+            {version ? <>
+              <span className="font-mono">{version.commit.slice(0, 7)}</span>
+              <span> · <time dateTime={version.committedAt}>{versionDate}</time></span>
+              {version.modified ? <span className="block sm:inline"><span className="hidden sm:inline"> · </span>local edits</span> : null}
+            </> : release ? `Build ${release.slice(0, 7)}` : "Version unavailable"}
+          </span>
         </a>
         <div className="flex min-w-0 flex-col border-l border-border/60 pl-6">
           <time

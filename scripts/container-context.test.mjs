@@ -3,7 +3,9 @@ import * as fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { execFileSync } from 'node:child_process';
 import { prepareContainerContext, publicContainerPath } from './container-context.mjs';
+import { sourceVersion } from './source-version.mjs';
 
 const required = ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json', 'LICENSE', 'THIRD_PARTY_NOTICES.md',
   'deploy/compose/licenses/beads-1.3.1-LICENSE.txt', 'deploy/compose/licenses/dolt-2.4.0-LICENSE.txt', 'deploy/compose/licenses/sources.json',
@@ -44,6 +46,20 @@ test('a source symlink or symlinked ancestor refuses before making a build conte
     assert.throws(() => prepareContainerContext({ ...own, files: [...required, 'scripts/file.mjs'] }), /regular files/);
     assert.equal(fs.existsSync(own.destination), false);
   }
+});
+
+test('a Git-free image context carries the exact committed source and timestamp', t => {
+  const own = fixture(t);
+  const date = '2026-10-05T12:34:00.000Z';
+  const git = (...args) => execFileSync('git', args, { cwd: own.root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date } }).trim();
+  git('-c', 'init.defaultBranch=main', 'init'); git('add', '.');
+  git('-c', 'core.hooksPath=/dev/null', '-c', 'user.name=Synthetic', '-c', 'user.email=synthetic@example.com', 'commit', '-m', 'synthetic');
+  const expected = { commit: git('rev-parse', 'HEAD'), committedAt: date, modified: false };
+  const context = prepareContainerContext({ ...own, files: required });
+  assert.equal(fs.existsSync(path.join(context.directory, '.git')), false);
+  assert.deepEqual(context.version, expected);
+  assert.deepEqual(sourceVersion(context.directory), expected);
 });
 
 test('existing, missing-input or in-checkout contexts refuse without writes', t => {

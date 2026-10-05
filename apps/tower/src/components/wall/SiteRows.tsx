@@ -54,8 +54,8 @@ const ROW =
 /**
  * How the site region is drawn, by the number of sites alone
  * (docs/25-the-wall.md § Density): one site in depth (`focus`), two or three
- * in taller rows with larger charts (`comfortable`), four and more with
- * figures beside charts (`compact`). Both row tiers fill the region.
+ * in taller rows with larger charts (`comfortable`), four and more in
+ * compact rows. Both row tiers fill the region.
  */
 export type SiteRowDensity = "focus" | "comfortable" | "compact";
 
@@ -84,19 +84,18 @@ interface RowStyle {
   live: string;
   /** How heavy the row's charts are drawn (`ChartWeight`). */
   weight: ChartWeight;
-  /** The pace and weekly change. */
+  /** A saved daily reading when hourly data is unavailable. */
   figure: string;
-  week: string;
   /** The words after the change ("vs prior 4 wk"), a step under its figure. */
   weekUnit: string;
   /** Muted words in a figure's place: "no revenue source", "Waiting…". */
   quiet: string;
   /**
-   * `beside`: each chart with its figure to its right (`today`,
-   * `trend` size the boxes). `filling`: the figure over a chart that takes
-   * the rest of the cell, both ways.
+   * Row charts keep their content floor; filling charts use the extra height
+   * available without selected totals. Today overlays its pace; the four-week
+   * comparison sits outside its plot.
    */
-  charts: "beside" | "filling";
+  charts: "row" | "filling";
   today: string;
   trend: string;
   /** What holds the four-week chart with its first and last day under it. */
@@ -104,7 +103,7 @@ interface RowStyle {
 }
 
 const ROW_SIZE: Record<RowSize, RowStyle> = {
-  // Compact rows keep figures beside charts; pulse totals take their own line.
+  // Compact rows share their height with pulse totals beneath the site name.
   compact: {
     table:
       "sites:grid-cols-[minmax(12.5rem,1.2fr)_auto_minmax(9rem,0.7fr)_minmax(min-content,1fr)] sites-wide:grid-cols-[minmax(14.5rem,1.2fr)_auto_minmax(9rem,0.7fr)_minmax(min-content,1fr)] sites:grid-rows-[auto] sites:auto-rows-[minmax(min-content,1fr)]",
@@ -114,15 +113,14 @@ const ROW_SIZE: Record<RowSize, RowStyle> = {
     live: "text-[length:var(--text-wall-site-live)]",
     weight: "row",
     figure: "text-[length:var(--text-wall-site-stat)] leading-tight",
-    week: "text-[length:var(--text-wall-site-stat)] leading-tight",
     weekUnit: "text-[length:var(--text-wall-site-label)]",
     quiet: "text-wall-body",
-    charts: "beside",
-    today: "h-20 w-full min-w-16 sites:h-auto sites:w-auto sites:min-h-12 sites:flex-1 sites:self-stretch",
-    trend: "h-20 w-full sites:h-10 sites:min-h-10 sites:flex-1",
-    trendFrame: "min-w-16 sites:flex-1 sites:self-stretch sites:flex sites:flex-col sites:justify-center",
+    charts: "row",
+    today: "h-20 w-full min-w-0 sites:h-auto sites:min-h-12 sites:flex-1",
+    trend: "h-20 w-full min-w-0 sites:h-auto sites:min-h-10 sites:flex-1",
+    trendFrame: "min-h-0 flex-1",
   },
-  // With fewer sites, figures stand above the larger charts.
+  // With fewer sites, charts use the larger share of the region's height.
   comfortable: {
     table:
       "sites:grid-cols-[minmax(15rem,1.2fr)_auto_minmax(9rem,0.7fr)_minmax(9rem,1fr)] sites-wide:grid-cols-[minmax(18rem,1.2fr)_auto_minmax(9rem,0.7fr)_minmax(12rem,1fr)] sites:grid-rows-[auto] sites:auto-rows-[minmax(min-content,1fr)]",
@@ -132,7 +130,6 @@ const ROW_SIZE: Record<RowSize, RowStyle> = {
     live: "text-[length:var(--text-wall-site-live)]",
     weight: "roomy",
     figure: "text-[length:var(--text-wall-site-stat)] leading-tight",
-    week: "text-[length:var(--text-wall-site-stat)] leading-tight",
     weekUnit: "text-[length:var(--text-wall-site-label)]",
     quiet: "text-lg",
     charts: "filling",
@@ -142,10 +139,10 @@ const ROW_SIZE: Record<RowSize, RowStyle> = {
   },
 };
 
-/** Selected totals leave the existing beside charts more room within each row. */
+/** Selected totals share a comfortable row's height with its charts. */
 function rowStyle(size: RowSize, totals: boolean): RowStyle {
   const style = ROW_SIZE[size];
-  return size === "comfortable" && totals ? { ...style, charts: "beside", today: ROW_SIZE.compact.today, trend: "h-20 w-full sites:h-auto sites:min-h-10 sites:flex-1", trendFrame: ROW_SIZE.compact.trendFrame } : style;
+  return size === "comfortable" && totals ? { ...style, charts: "row", today: ROW_SIZE.compact.today, trend: ROW_SIZE.compact.trend, trendFrame: ROW_SIZE.compact.trendFrame } : style;
 }
 
 /** The weekday a week ago IS today's weekday, on the operator's saved clock —
@@ -402,9 +399,9 @@ function TodayCell({
     );
   }
   const figure = pace ? (
-    <PaceFigure pace={pace} className={style.figure} />
+    <PaceFigure pace={pace} className={COMPARISON_TYPE} />
   ) : (
-    <span className={`${style.figure} text-muted-foreground`}>—</span>
+    <span className={`${COMPARISON_TYPE} text-muted-foreground`}>—</span>
   );
   const chart = (box: string) =>
     hourly ? (
@@ -412,16 +409,10 @@ function TodayCell({
         <TodayVsLastWeek hourly={hourly} weight={style.weight} nowHour={nowHour} />
       </span>
     ) : null;
-  return style.charts === "filling" ? (
-    <span role="cell" className={cn(FILLING_CELL, "relative pb-5 sites:pb-5")} data-site-today>
-      {figure}
-      {chart(FILLING_CHART)}
-      {pace ? <PaceWindow pace={pace} className="absolute bottom-0 right-0" /> : null}
-    </span>
-  ) : (
-    <span role="cell" className="relative col-span-2 flex min-w-0 flex-col-reverse items-stretch gap-3 pb-5 sites:col-span-1 sites:flex-row sites:items-center sites:self-stretch" data-site-today>
-      {chart(style.today)}
-      {figure}
+  return (
+    <span role="cell" className={cn(CHART_CELL, "pb-5")} data-site-today>
+      <span className={COMPARISON_OVERLAY} data-site-comparison>{figure}</span>
+      {chart(style.charts === "filling" ? FILLING_CHART : style.today)}
       {pace ? <PaceWindow pace={pace} className="absolute bottom-0 right-0" /> : null}
     </span>
   );
@@ -562,7 +553,8 @@ function WeeksAxis({ weeks }: { weeks: FourWeeks }) {
 
 /** Daily active users over the last four weeks as one line in the traffic
  * colour over the four weeks before, dashed — weekday under weekday — with
- * the two spans' change beside it and the first and last day under it. */
+ * the two spans' smaller change to its right, top-aligned and outside the plot,
+ * with the dates under the line. */
 function TrendCell({ asset, size, totals }: { asset: AssetCard; size: RowSize; totals: boolean }) {
   const weeks = fourWeeks(asset.activeUsers);
   const style = rowStyle(size, totals);
@@ -571,14 +563,14 @@ function TrendCell({ asset, size, totals }: { asset: AssetCard; size: RowSize; t
     <PeriodChange
       change={weeks.change}
       span="four-weeks"
-      className={style.week}
-      unit={style.weekUnit}
+      className={COMPARISON_TYPE}
+      unit="text-[length:calc(var(--wall-micro-size)*var(--wall-boost-micro,1))]"
       stacked
     />
   ) : null;
   const chart = (box: string, frame: string) =>
     drawn ? (
-      <span className={`flex min-w-0 flex-col gap-0.5 ${frame}`}>
+      <span className={`flex min-w-0 flex-col gap-0.5 self-stretch ${frame}`}>
         <span
           className={`relative block text-traffic ${box}`}
           role="img"
@@ -590,15 +582,10 @@ function TrendCell({ asset, size, totals }: { asset: AssetCard; size: RowSize; t
         <WeeksAxis weeks={drawn} />
       </span>
     ) : null;
-  return style.charts === "filling" ? (
-    <span role="cell" className={FILLING_CELL} data-site-trend>
-      {change}
-      {chart(FILLING_CHART, "min-h-0 flex-1")}
-    </span>
-  ) : (
-    <span role="cell" className="col-span-2 flex min-w-0 flex-col-reverse items-stretch gap-3 sites:col-span-1 sites:flex-row sites:items-center sites:self-stretch" data-site-trend>
-      {chart(style.trend, style.trendFrame)}
-      {change}
+  return (
+    <span role="cell" className={cn(CHART_CELL, "flex-row items-start gap-2")} data-site-trend>
+      {chart(style.charts === "filling" ? FILLING_CHART : style.trend, style.charts === "filling" ? "min-h-0 flex-1" : style.trendFrame)}
+      {change ? <span className="flex shrink-0 justify-end [&>[data-site-week]]:items-end" data-site-comparison>{change}</span> : null}
     </span>
   );
 }
@@ -638,6 +625,11 @@ function FourWeekLine({ weeks, weight }: { weeks: FourWeeks; weight: ChartWeight
  * none to share). */
 const FILLING_CELL = "col-span-2 flex min-h-0 min-w-0 flex-col justify-center gap-1 self-stretch py-4 sites:col-span-1 sites:py-1";
 const FILLING_CHART = "relative h-20 w-full min-w-0 sites:h-auto sites:min-h-10 sites:flex-1";
+
+/** Today's small pace floats over its plot without taking width or height. */
+const CHART_CELL = "relative col-span-2 flex min-h-0 min-w-0 flex-col self-stretch sites:col-span-1";
+const COMPARISON_TYPE = "text-[length:calc(var(--wall-detail-size)*var(--wall-boost-detail,1))] leading-tight";
+const COMPARISON_OVERLAY = "absolute right-0 top-0 z-10 bg-background/85 pl-1 text-right";
 
 /** Signal level and colour both carry health; the site page owns the details. */
 function SiteHealth({ mark, hasData, site }: { mark: SiteMark | null; hasData: boolean; site: string }) {

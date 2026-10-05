@@ -76,7 +76,7 @@ describe("the site rows", () => {
     // Ahead of last week is on pace (paceTone, operator 2026-09-23).
     expect(today.querySelector("[data-tone]")?.getAttribute("data-tone")).toBe("pace-on");
     // The last four weeks solid over the four before dashed (the charts'
-    // comparison line), the same two spans' change beside them, and the first
+    // comparison line), the same two spans' smaller change to their right, and the first
     // and last day under them (bead ro-trai.26).
     const weeks = menus.querySelector("[data-site-trend]")!;
     expect(weeks.querySelector("[data-trend-line]")?.getAttribute("stroke-dasharray")).toBeNull();
@@ -482,8 +482,7 @@ describe("the density tiers", () => {
     expect(menus.querySelector("[data-live-count]")?.getAttribute("data-value")).toBe("21");
     expect(menus.querySelector("[data-site-today]")?.textContent).toBe("6.9%to 12 PM");
     expect(menus.querySelector("[data-site-money]")).toBeNull();
-    // Both charts take the rest of their cell, under their figure: today over
-    // last week, and the 30-day line.
+    // Both charts fill their cell: today over last week, and the four-week line.
     expect(menus.querySelector('[data-site-today] [data-site-chart="filling"] [data-today]')).not.toBeNull();
     expect(menus.querySelector('[data-site-trend] [data-site-chart="filling"] [data-trend-line]')).not.toBeNull();
     // A step larger: the live figure and the others.
@@ -495,11 +494,13 @@ describe("the density tiers", () => {
     expect(table.className).toContain("sites:auto-rows-[minmax(min-content,1fr)]");
   });
 
-  it("keeps comfortable figures beside charts when selected totals need the row", () => {
+  it("overlays today's pace and keeps the four-week comparison outside its plot", () => {
     const container = draw(wallFixturePayload().assets.slice(0, 3));
     const menus = row(container, "menus.example");
-    expect(menus.querySelector('[data-site-today] [data-site-chart="beside"] [data-today]')).not.toBeNull();
-    expect(menus.querySelector('[data-site-trend] [data-site-chart="beside"] [data-trend-line]')).not.toBeNull();
+    expect(menus.querySelector('[data-site-today] [data-site-chart="row"] [data-today]')).not.toBeNull();
+    expect(menus.querySelector('[data-site-trend] [data-site-chart="row"] [data-trend-line]')).not.toBeNull();
+    expect(menus.querySelector('[data-site-today] [data-site-comparison]')?.textContent).toBe("6.9%");
+    expect(menus.querySelector('[data-site-trend] [data-site-comparison]')?.textContent).toBe("12%vs prior 4 wk");
     expect(menus.querySelector('[data-site-total="itemsRated"]')?.textContent).toContain("13,904");
     expect(menus.querySelector('[data-site-today]')?.textContent).toBe("6.9%to 12 PM");
     expect(menus.querySelector('[data-live-count]')?.className).toContain("text-[length:var(--text-wall-site-live)]");
@@ -520,9 +521,9 @@ describe("the density tiers", () => {
   it("lets compact rows grow their charts and type with the available room", () => {
     const container = draw(wallFixturePayload().assets);
     const menus = row(container, "menus.example");
-    expect(menus.querySelector('[data-site-chart="beside"]')?.className).toContain("flex-1");
-    // The four-week line beside the comparison %, in the traffic colour.
-    expect(menus.querySelector('[data-site-trend] [data-site-chart="beside"]')?.className).toContain("text-traffic");
+    expect(menus.querySelector('[data-site-chart="row"]')?.className).toContain("flex-1");
+    // The four-week line before its small comparison %, in the traffic colour.
+    expect(menus.querySelector('[data-site-trend] [data-site-chart="row"]')?.className).toContain("text-traffic");
     expect(menus.querySelector("[data-site-trend] [data-trend-line]")).not.toBeNull();
     // A step under the TV's stat size since the minute pulse sits under it
     // (bead ro-trai.27): the row keeps its 56 px floor and the column its width.

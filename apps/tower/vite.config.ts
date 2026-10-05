@@ -45,6 +45,7 @@ import { demoViewerLane } from "./vite/demo-viewer-lane";
 import { stripJsonc } from "../../scripts/jsonc.mjs";
 import { serverWorkspaceProfile, workspaceDevSecretKeys, workspaceWorkerConfig } from "./vite/workspace-profile";
 import { appReleaseLane, sourceAppRelease } from './vite/app-release';
+import { sourceVersion } from '../../scripts/source-version.mjs';
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -200,6 +201,7 @@ const CONTRACT_SOURCE = /[\\/]packages[\\/]contract[\\/]src[\\/]/;
 
 export default defineConfig(({ command }) => {
   const appRelease = sourceAppRelease(path.resolve(rootDir, '../..'));
+  const appSourceVersion = sourceVersion(path.resolve(rootDir, '../..'));
   // Check reserved local-variable collisions before any host adapter is
   // constructed or installation custody is read. The callback seals reloads.
   if (command === "serve") for (const relative of ["apps/tower/wrangler.jsonc", "workers/ingest/wrangler.jsonc"]) {
@@ -380,6 +382,7 @@ export default defineConfig(({ command }) => {
   },
   define: {
     __NOTICEOS_RELEASE__: JSON.stringify(appRelease),
+    __NOTICEOS_SOURCE_VERSION__: JSON.stringify(appSourceVersion),
     __DEMO_VIEWER__: JSON.stringify(demoLaunch?.installation.viewer ?? null),
     __MONTHLY_CAPS__: JSON.stringify(monthlyCaps),
     __FLAG_DEFAULTS__: JSON.stringify(constants.flag_defaults),

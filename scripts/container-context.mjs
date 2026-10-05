@@ -5,6 +5,7 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { gitSourceVersion } from './source-version.mjs';
 
 const ROOT_FILES = new Set(['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json', 'LICENSE', 'THIRD_PARTY_NOTICES.md']);
 const TOOL_NOTICES = ['deploy/compose/licenses/beads-1.3.1-LICENSE.txt',
@@ -71,8 +72,9 @@ export function prepareContainerContext({ root, destination, files } = {}) {
     }
     // A second guard applies even if somebody mistakenly builds the checkout.
     fs.writeFileSync(path.join(destination, '.dockerignore'), '**/.git\n**/.beads\n**/.env*\n**/.dev.*\n**/node_modules\ninstallation\n.local\n.wrangler\nartifacts\npostgres\n**/secrets\n**/backups\n', { flag: 'wx' });
-    fs.writeFileSync(path.join(destination, 'container-source.json'), JSON.stringify({ schema: 'noticeos-container-source/1', files: inventory }, null, 2) + '\n', { flag: 'wx' });
-    return { directory: destination, files: inventory };
+    const version = gitSourceVersion(root);
+    fs.writeFileSync(path.join(destination, 'container-source.json'), JSON.stringify({ schema: 'noticeos-container-source/1', version, files: inventory }, null, 2) + '\n', { flag: 'wx' });
+    return { directory: destination, files: inventory, version };
   } catch (error) {
     fs.rmSync(destination, { recursive: true, force: true });
     throw error;

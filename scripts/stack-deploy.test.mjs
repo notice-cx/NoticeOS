@@ -47,6 +47,9 @@ function fixture(t) {
       if(control.buildThrows) throw new Error('PRIVATE-SENTINEL');
       if(control.buildTimeout) return {code:124,timedOut:true,stdout:''};
       assert.equal(fs.existsSync(path.join(context,'installation')),false); assert.equal(fs.existsSync(path.join(context,'.beads')),false);
+      const version=JSON.parse(fs.readFileSync(path.join(context,'container-source.json'),'utf8')).version;
+      assert.equal(version.commit,git('rev-parse','HEAD'));assert.equal(version.modified,false);
+      assert.ok(Number.isFinite(Date.parse(version.committedAt)));
       const labels=Object.fromEntries(step.flatMap((word,i)=>word==='--label'?[step[i+1].split('=')]:[]));
       images.set(control.builtImage,{Id:control.builtImage,Os:'linux',Architecture:'arm64',Config:{Labels:labels}});
       fs.writeFileSync(step[step.indexOf('--iidfile')+1],control.builtImage);

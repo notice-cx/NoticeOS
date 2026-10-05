@@ -111,10 +111,11 @@ describe("the Wall's today cell", () => {
     expect(today.querySelector("[data-tone]")?.getAttribute("data-tone")).toBe("neutral");
   });
 
-  it("once they do: the percent with the hours it compares beside it", () => {
+  it("once they do: the percent over the chart with its cutoff below", () => {
     const today = drawRow(SIX_HOURS, LATE_MORNING);
-    expect(today.querySelector('[data-pace-window="shown"]')?.textContent).toBe("10% behindto 6 AM");
-    expect(today.querySelector('[data-pace-window="shown"] [aria-label]')?.getAttribute("aria-label"))
+    expect(today.querySelector('[data-site-comparison]')?.textContent).toBe("10%");
+    expect(today.querySelector('[data-pace-window="shown"]')?.textContent).toBe("to 6 AM");
+    expect(today.querySelector('[data-site-comparison] [aria-label]')?.getAttribute("aria-label"))
       .toMatch(/^10% behind; completed hours today vs /u);
     // The direction figure and the chart agree on the same comparable hours.
     const tones = [...today.querySelectorAll("[data-tone]")].map((element) => element.getAttribute("data-tone"));

@@ -251,6 +251,37 @@ describe("the strip", () => {
     expect(el.querySelector("[data-system-state]")).toBeNull();
   });
 
+  it("identifies the served commit and its local date and time beneath the logo", () => {
+    const version = { commit: "c".repeat(40), committedAt: "2026-10-05T12:34:00.000Z", modified: false };
+    vi.stubGlobal("__NOTICEOS_SOURCE_VERSION__", version);
+    try {
+      const view = inLocale("en-US", () => strip());
+      const line = view.container.querySelector("[data-strip-home] [data-strip-version]")!;
+      const when = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(version.committedAt));
+      expect(line.textContent).toBe(`ccccccc · ${when}`);
+      expect(line).toHaveAttribute("title", `Commit ${version.commit} · ${version.committedAt}`);
+      expect(line.querySelector("time")).toHaveAttribute("datetime", version.committedAt);
+      expect(line).toHaveClass("text-wall-list-meta", "text-muted-foreground", "tabular-nums");
+      expect(line.previousElementSibling).toHaveClass("brand-lockup");
+      view.unmount();
+      vi.stubGlobal("__NOTICEOS_SOURCE_VERSION__", { ...version, modified: true });
+      expect(strip().container.querySelector("[data-strip-version]")?.textContent).toContain("local edits");
+    } finally { vi.unstubAllGlobals(); }
+  });
+
+  it("uses the actual release identity when the source commit is unavailable", () => {
+    vi.stubGlobal("__NOTICEOS_SOURCE_VERSION__", null);
+    vi.stubGlobal("__NOTICEOS_RELEASE__", "d".repeat(64));
+    try {
+      const view = strip();
+      expect(view.container.querySelector("[data-strip-version]")?.textContent).toBe("Build ddddddd");
+      expect(view.container.querySelector("[data-strip-version] time")).toBeNull();
+      view.unmount();
+      vi.stubGlobal("__NOTICEOS_RELEASE__", undefined);
+      expect(strip().container.querySelector("[data-strip-version]")?.textContent).toBe("Version unavailable");
+    } finally { vi.unstubAllGlobals(); }
+  });
+
   it("never draws source/system aggregate failures in the header", () => {
     const view = strip({ system: { ...HEALTHY, hasPulse: false, spendTodayUsd: 9 }, assets: [site("a.example", "degraded")] });
     expect(view.container.querySelector("[data-system-state]")).toBeNull();

@@ -174,6 +174,7 @@ export async function buildApplicationImage({ root = ROOT, dockerHost, platform,
       const blob = createHash(algorithm).update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
       if (blob !== row.object) fail('The public build input changed while preparing the committed source.');
     }
+    if (context.version?.commit !== source.commit || context.version.modified) fail('The image source version does not match the committed source.');
     const manifest = hash(regular(path.join(context.directory,'container-source.json'), 10 * 1024 * 1024));
     const iid = path.join(parent, 'image.id');
     let result;
