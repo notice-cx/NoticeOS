@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import * as fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import { createServer as createHttpServer } from 'node:http';
 import { containerEnvironment } from '../deploy/compose/entrypoint.mjs';
 import { containerHealthy } from '../deploy/compose/health.mjs';
 
@@ -41,4 +47,41 @@ test('container health requires a fresh supervised runner and both answering int
   assert.equal(await check({}, async () => { throw new Error('Own fixture refused'); }), false);
   assert.equal(await containerHealthy({ read: async () => JSON.stringify(state), now: () => now,
     backupStatus: async () => ({ configured: true, available: false }) }), false);
+});
+
+
+test('container Vite serve supplies the refresh runtime even when ambient NODE_ENV is production', async () => {
+  const env = containerEnvironment({ NODE_ENV: 'production' }, { fs: io(), readClient: () => profile });
+  assert.equal(env.NODE_ENV, 'development');
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const require = createRequire(path.join(root, 'apps/tower/package.json'));
+  const { createServer } = await import(require.resolve('vite'));
+  const { default: react } = await import(require.resolve('@vitejs/plugin-react'));
+  const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-container-refresh-'));
+  const previous = process.env.NODE_ENV;
+  const httpServer = createHttpServer();
+  let server;
+  try {
+    process.env.NODE_ENV = env.NODE_ENV;
+    fs.symlinkSync(path.join(root, 'apps/tower/node_modules'), path.join(fixture, 'node_modules'));
+    fs.writeFileSync(path.join(fixture, 'Brand.tsx'), 'export function Brand() { return <strong>NoticeOS</strong>; }\n');
+    server = await createServer({ root: fixture, configFile: false, envFile: false,
+      cacheDir: path.join(fixture, 'cache'), plugins: [react()],
+      optimizeDeps: { noDiscovery: true, include: [] },
+      server: { middlewareMode: true, hmr: { server: httpServer } } });
+    assert.equal(server.config.isProduction, false);
+    const html = await server.transformIndexHtml('/', '<html><body><div id="root"></div></body></html>');
+    assert.match(html, /window\.\$RefreshReg\$/u);
+    assert.match(html, /\/@react-refresh/u);
+    const component = await server.transformRequest('/Brand.tsx');
+    assert.ok(component);
+    assert.match(component.code, /\$RefreshReg\$/u);
+    assert.match(component.code, /\/@react-refresh/u, 'refresh registrations have their runtime wrapper');
+  } finally {
+    await server?.close();
+    await new Promise(resolve => httpServer.close(() => resolve()));
+    if (previous === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previous;
+    fs.rmSync(fixture, { recursive: true, force: true });
+  }
 });

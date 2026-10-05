@@ -46,7 +46,7 @@ RUN pnpm install --frozen-lockfile \
     && ln -s /state/workers/ingest/.dev.secrets.json workers/ingest/.dev.secrets.json \
     && ln -s /state/workers/ingest/.dev.vars workers/ingest/.dev.vars
 RUN mkdir -p /etc/noticeos && cp db/dolt/host/backup-metadata.sh /etc/noticeos/backup-metadata.sh
-ENV NODE_ENV=production NOTICEOS_HOME=/state NOTICEOS_INSTALLATION_DIR=/state/installation
+ENV NOTICEOS_HOME=/state NOTICEOS_INSTALLATION_DIR=/state/installation
 ENV NOTICEOS_TASK_CLIENT_PROFILE=/state/task-client.json BEADS_BD_BIN=/usr/local/bin/bd
 ENV NOTICEOS_VITE_CACHE_DIR=/state/.local/vite-cache WRANGLER_SEND_METRICS=false
 USER node

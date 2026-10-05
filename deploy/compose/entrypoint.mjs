@@ -25,7 +25,8 @@ export function containerEnvironment(env = process.env, { fs: io = fs, readClien
     typeof bindings.OPERATOR_TOKEN !== 'string' || !bindings.OPERATOR_TOKEN.trim()) throw new Error('The prepared bootstrap credentials are incomplete.');
   const selected = {};
   for (const key of ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TOWER_ALLOWED_HOSTS']) if (env[key] !== undefined) selected[key] = env[key];
-  return { ...selected, HOME: '/state/dolt/client-home', TMPDIR: '/tmp', NODE_ENV: 'production',
+  // The standalone runtime serves through Vite; its React transforms need development mode.
+  return { ...selected, HOME: '/state/dolt/client-home', TMPDIR: '/tmp', NODE_ENV: 'development',
     // Docker forwards published ports to the container interface, not its loopback.
     // Host exposure remains controlled by the Compose port binding.
     OS_UP_HOST: '1',
