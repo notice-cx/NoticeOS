@@ -1,0 +1,263 @@
+/**
+ * Replay one alert rule over the stored pulses — "how often would this have
+ * fired in the last 30 days with these settings?" (bead `ro-u072`, docs/15
+ * principle 1 "show, then ask").
+ *
+ * IT LIVES HERE BECAUSE THE RULER DOES. `evaluatePulse` is pure, so a replay is
+ * possible anywhere; what is not portable is the BASELINE it must be judged
+ * against. The nightly lane judges a pulse against four matching weekdays
+ * assembled from the `pulses` table (`seasonalInputsFrom` in db.ts), and this
+ * Worker owns that read. A preview computed in the Tower against a flat `avg7d`
+ * would produce a number that looks exactly like this one and means something
+ * else — in the single place the operator is being asked to trust a number.
+ *
+ * READ-ONLY. Nothing here writes a flag, a disposition, or a config value. The
+ * settings that arrive are CANDIDATES; saving them is a separate operator action
+ * through the D18 write lane.
+ *
+ * ONE WIDE READ, THIRTY REPLAYS. The window needs each day's own envelope plus
+ * the four weeks behind it, so the days overlap almost entirely: reading them
+ * per day would be thirty near-identical queries. One read spans the whole
+ * horizon and `seasonalInputsFrom` — which only ever looks at dates strictly
+ * before the day it is judging — is called once per day over it.
+ */
+
+import {
+  evaluatePulse,
+  isBacktestableRule,
+  RULE_BACKTEST_WINDOW_DAYS,
+  type PulseEnvelope,
+  type RuleBacktest,
+  type RuleBacktestDay,
+  type RuleBacktestInput,
+  type RuleBacktestIssue,
+  type RuleBacktestResult,
+  type RuleConfig,
+  type RuleVerdict,
+} from '@noticeos/contract';
+import { assetKnown } from './asset-registry.js';
+import {
+  parsePulseHistory,
+  readReportHistory,
+  pulseDay,
+  seasonalHistorySpanDays,
+  seasonalInputsFrom,
+  shiftDate,
+} from './db.js';
+
+/** The rule id `evaluatePulse` returns when `requireHistoricalBaseline` stands a
+ * metric down for want of a complete same-weekday cohort. */
+const SEASONAL_BASELINE_RULE_ID = 'flow-seasonal-baseline';
+
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+/** The asset-id shape the store uses (`example.com`, `home-os`). */
+const ASSET_PATTERN = /^[a-z0-9][a-z0-9.-]{0,62}$/;
+
+/**
+ * Bounds the replay refuses outright.
+ *
+ * They are the same bounds the Tower's own field validators enforce
+ * (`apps/tower/src/lib/knob-validators.ts`), restated here because this runtime
+ * is the authority: a candidate that arrived over the binding was never typed
+ * into that field. A value outside them is not a stricter rule, it is a config
+ * that would break the detector — `alpha` at 0 silences every rule, `alpha` at 1
+ * fires on every reading, and a non-positive window has no days in it.
+ */
+function configIssues(config: unknown): RuleBacktestIssue[] {
+  const issues: RuleBacktestIssue[] = [];
+  const c = config as Partial<RuleConfig> | null | undefined;
+  if (!c || typeof c !== 'object') {
+    return [{ path: 'config', code: 'required', message: 'config must be an object' }];
+  }
+  const number = (path: string, value: unknown, min: number, max: number) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      issues.push({ path, code: 'type', message: `${path} must be a finite number` });
+      return;
+    }
+    if (value <= min || value > max) {
+      issues.push({
+        path,
+        code: 'range',
+        message: `${path} must be greater than ${min} and at most ${max}`,
+      });
+    }
+  };
+  number('config.alpha', c.alpha, 0, 1);
+  number('config.minBaselinePerDay', c.minBaselinePerDay, 0, 100_000);
+  number('config.lowVolumeWindowHours', c.lowVolumeWindowHours, 0, 24 * 90);
+  return issues;
+}
+
+function inputIssues(input: RuleBacktestInput): RuleBacktestIssue[] {
+  const issues: RuleBacktestIssue[] = [];
+  if (typeof input?.asset !== 'string' || !ASSET_PATTERN.test(input.asset)) {
+    issues.push({ path: 'asset', code: 'format', message: 'asset must be a store asset id' });
+  }
+  if (input?.metric != null && (typeof input.metric !== 'string' || input.metric.length > 120)) {
+    issues.push({ path: 'metric', code: 'format', message: 'metric must be a metric name' });
+  }
+  if (input?.through !== undefined && !DATE_PATTERN.test(String(input.through))) {
+    issues.push({ path: 'through', code: 'format', message: 'through must be YYYY-MM-DD' });
+  }
+  return [...issues, ...configIssues(input?.config)];
+}
+
+/**
+ * The replay.
+ *
+ * Refusals come back as RESULTS — "no preview for this rule", "no such asset",
+ * "that value is out of range" are all sentences a panel renders in place of a
+ * strip, and none of them is an exception. Only a store failure throws.
+ */
+export async function backtestRule(
+  env: IngestEnv,
+  input: RuleBacktestInput,
+): Promise<RuleBacktestResult> {
+  const issues = inputIssues(input);
+  if (issues.length > 0) return { ok: false, error: 'validation', issues };
+  if (!isBacktestableRule(input.ruleId)) {
+    return { ok: false, error: 'unsupported_rule', ruleId: String(input.ruleId) };
+  }
+  const ruleId = input.ruleId;
+
+  if (!(await assetKnown(env.STORE, input.asset))) return { ok: false, error: 'unknown_asset', asset: input.asset };
+
+  const config = input.config;
+  const metric = input.metric ?? null;
+  const lastDay = input.through ?? pulseDay(new Date().toISOString());
+  const firstDay = shiftDate(lastDay, -(RULE_BACKTEST_WINDOW_DAYS - 1));
+  // The oldest day in the window still needs its own four weeks behind it.
+  const readFrom = shiftDate(firstDay, -seasonalHistorySpanDays(config));
+
+  // The nightly lane's own read (`readReportHistory`), through the window's
+  // last day.
+  const rows = await readReportHistory(env, input.asset, readFrom, shiftDate(lastDay, 1));
+  const history = parsePulseHistory(rows);
+
+  const storedDays = await storedFiringDays(
+    env,
+    input.asset,
+    ruleId,
+    metric,
+    firstDay,
+    lastDay,
+  );
+
+  const days: RuleBacktestDay[] = [];
+  for (let offset = RULE_BACKTEST_WINDOW_DAYS - 1; offset >= 0; offset--) {
+    const date = shiftDate(lastDay, -offset);
+    days.push(replayDay(date, history, config, ruleId, metric, storedDays.has(date)));
+  }
+
+  return {
+    ok: true,
+    backtest: {
+      asset: input.asset,
+      ruleId,
+      metric,
+      config,
+      windowDays: RULE_BACKTEST_WINDOW_DAYS,
+      firstDay,
+      lastDay,
+      days,
+      wouldFire: days.filter((day) => day.state === 'fired').length,
+      judged: days.filter((day) => day.state === 'fired' || day.state === 'quiet').length,
+      reported: days.filter((day) => day.state !== 'no-report').length,
+      firedInStore: storedDays.size,
+    },
+  };
+}
+
+/**
+ * One day, replayed.
+ *
+ * The day is judged with exactly the options the nightly lane passes, including
+ * `requireHistoricalBaseline: true` — the preview must inherit the lane's own
+ * refusal to guess, or it would promise alerts on days the real detector stays
+ * silent through.
+ */
+function replayDay(
+  date: string,
+  history: ReadonlyMap<string, PulseEnvelope>,
+  config: RuleConfig,
+  ruleId: string,
+  metric: string | null,
+  stored: boolean,
+): RuleBacktestDay {
+  const envelope = history.get(date);
+  if (!envelope) return { date, state: 'no-report', firings: [], stored };
+
+  const seasonal = seasonalInputsFrom(history, envelope, config);
+  const verdicts = evaluatePulse(envelope, {
+    config,
+    baselineByMetric: seasonal.baselineByMetric,
+    windowObservedByMetric: seasonal.windowObservedByMetric,
+    requireHistoricalBaseline: true,
+  }).filter((verdict) => metric === null || verdictMetric(verdict) === metric);
+
+  const firings = verdicts
+    .filter((verdict) => verdict.outcome === 'fired' && verdict.ruleId === ruleId)
+    .map((verdict) => ({
+      metric: String(verdict.inputs.metric ?? ''),
+      severity: verdict.flag!.severity,
+    }));
+  if (firings.length > 0) return { date, state: 'fired', firings, stored };
+
+  // Nothing fired — but "it ran and stayed silent" and "it never ran" are
+  // different facts, and a strip that drew them alike would claim evidence
+  // nobody has. `flow-seasonal-baseline` is the lane standing a metric down for
+  // want of a cohort; `not-applicable` on this rule is the metric sitting in the
+  // OTHER volume regime that day, which this rule cannot speak about either.
+  const ran = verdicts.some(
+    (verdict) => verdict.ruleId === ruleId && verdict.outcome === 'ok',
+  );
+  if (ran) return { date, state: 'quiet', firings: [], stored };
+
+  const noBaseline = verdicts.some(
+    (verdict) => verdict.ruleId === SEASONAL_BASELINE_RULE_ID,
+  );
+  return {
+    date,
+    state: 'unjudged',
+    firings: [],
+    reason: noBaseline ? 'no-baseline' : 'out-of-regime',
+    stored,
+  };
+}
+
+function verdictMetric(verdict: RuleVerdict): string | null {
+  const value = verdict.inputs.metric;
+  return typeof value === 'string' ? value : null;
+}
+
+/**
+ * The days this rule ACTUALLY fired on, from the stored alerts — reality, beside the
+ * replay.
+ *
+ * Distinct DAYS rather than rows, so it is the same unit as `wouldFire`: a rule
+ * that fired twice on one day is one day the operator was interrupted. Every
+ * stored firing counts, whatever the operator later did with it — a
+ * dispositioned alert still fired.
+ */
+async function storedFiringDays(
+  env: IngestEnv,
+  asset: string,
+  ruleId: string,
+  metric: string | null,
+  firstDay: string,
+  lastDay: string,
+): Promise<Set<string>> {
+  // On Postgres (bead ro-ujb9.76.5.2): the UTC day each alert fired on, and
+  // never one a same-day report retry replaced — D1 had deleted those.
+  const rows = await env.STORE.read((tx) =>
+    tx.query<{ day: string }>(
+      `SELECT DISTINCT ((fired_at AT TIME ZONE 'UTC')::date)::text AS day
+         FROM noticeos.current_flags
+        WHERE asset_id = $1 AND rule_id = $2
+          AND (fired_at AT TIME ZONE 'UTC')::date BETWEEN $3::date AND $4::date
+          AND ($5::text IS NULL OR metric = $5)`,
+      [asset, ruleId, firstDay, lastDay, metric],
+    ),
+  );
+  return new Set(rows.map((row) => row.day));
+}

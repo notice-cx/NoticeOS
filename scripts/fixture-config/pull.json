@@ -1,0 +1,31 @@
+[
+  {
+    "asset": "meals.example",
+    "url": "https://meals.example/api/internal/metrics",
+    "enabled": true,
+    "format": "prometheus",
+    "metrics": {
+      "signups": {
+        "counter": "profiles"
+      },
+      "plansSaved": {
+        "counter": "saved_calculator_results"
+      },
+      "recipesSaved": {
+        "counter": "saved_recipes"
+      },
+      "leads": {
+        "counter": "leads"
+      },
+      "feedback": {
+        "counter": "feedback"
+      }
+    }
+  },
+  {
+    "asset": "nosh.example",
+    "url": "https://nosh.example/api/admin/overview",
+    "enabled": true,
+    "format": "envelope"
+  }
+]

@@ -1,0 +1,1204 @@
+{
+  "analyzedAt": "2026-09-22T06:00:00.000Z",
+  "configuration": {
+    "valueEventsVersion": 1
+  },
+  "asset": "meals.example",
+  "input": "<input>",
+  "archiveCount": 105,
+  "datasets": [
+    {
+      "name": "bing-webmaster-ai-overview",
+      "rows": 5,
+      "file": "<output>/bing-webmaster-ai-overview.csv"
+    },
+    {
+      "name": "bing-webmaster-ai-pages",
+      "rows": 1,
+      "file": "<output>/bing-webmaster-ai-pages.csv"
+    },
+    {
+      "name": "bing-webmaster-ai-queries",
+      "rows": 2,
+      "file": "<output>/bing-webmaster-ai-queries.csv"
+    },
+    {
+      "name": "bing-webmaster-crawl-issues",
+      "rows": 8,
+      "file": "<output>/bing-webmaster-crawl-issues.csv"
+    },
+    {
+      "name": "bing-webmaster-crawl-stats",
+      "rows": 14,
+      "file": "<output>/bing-webmaster-crawl-stats.csv"
+    },
+    {
+      "name": "bing-webmaster-feeds",
+      "rows": 3,
+      "file": "<output>/bing-webmaster-feeds.csv"
+    },
+    {
+      "name": "bing-webmaster-pages",
+      "rows": 4,
+      "file": "<output>/bing-webmaster-pages.csv"
+    },
+    {
+      "name": "bing-webmaster-queries",
+      "rows": 8,
+      "file": "<output>/bing-webmaster-queries.csv"
+    },
+    {
+      "name": "bing-webmaster-rank-traffic",
+      "rows": 7,
+      "file": "<output>/bing-webmaster-rank-traffic.csv"
+    },
+    {
+      "name": "clarity-url-3d",
+      "rows": 8,
+      "file": "<output>/clarity-url-3d.csv"
+    },
+    {
+      "name": "dataforseo-backlinks-anchors",
+      "rows": 1,
+      "file": "<output>/dataforseo-backlinks-anchors.csv"
+    },
+    {
+      "name": "dataforseo-backlinks-new-lost",
+      "rows": 2,
+      "file": "<output>/dataforseo-backlinks-new-lost.csv"
+    },
+    {
+      "name": "dataforseo-backlinks-referring-domains",
+      "rows": 1,
+      "file": "<output>/dataforseo-backlinks-referring-domains.csv"
+    },
+    {
+      "name": "dataforseo-backlinks-summary",
+      "rows": 2,
+      "file": "<output>/dataforseo-backlinks-summary.csv"
+    },
+    {
+      "name": "dataforseo-keyword-ideas",
+      "rows": 2,
+      "file": "<output>/dataforseo-keyword-ideas.csv"
+    },
+    {
+      "name": "dataforseo-llm-mentions-chatgpt",
+      "rows": 1,
+      "file": "<output>/dataforseo-llm-mentions-chatgpt.csv"
+    },
+    {
+      "name": "dataforseo-llm-mentions-google",
+      "rows": 2,
+      "file": "<output>/dataforseo-llm-mentions-google.csv"
+    },
+    {
+      "name": "dataforseo-on-page-summary",
+      "rows": 0,
+      "file": "<output>/dataforseo-on-page-summary.csv"
+    },
+    {
+      "name": "dataforseo-ranked-keywords",
+      "rows": 5,
+      "file": "<output>/dataforseo-ranked-keywords.csv"
+    },
+    {
+      "name": "dataforseo-serp-competitors",
+      "rows": 1,
+      "file": "<output>/dataforseo-serp-competitors.csv"
+    },
+    {
+      "name": "dataforseo-serp-panel",
+      "rows": 7,
+      "file": "<output>/dataforseo-serp-panel.csv"
+    },
+    {
+      "name": "ga4-events",
+      "rows": 5,
+      "file": "<output>/ga4-events.csv"
+    },
+    {
+      "name": "ga4-events-28d",
+      "rows": 2,
+      "file": "<output>/ga4-events-28d.csv"
+    },
+    {
+      "name": "ga4-js-errors",
+      "rows": 4,
+      "file": "<output>/ga4-js-errors.csv"
+    },
+    {
+      "name": "ga4-landing-page-acquisition",
+      "rows": 2,
+      "file": "<output>/ga4-landing-page-acquisition.csv"
+    },
+    {
+      "name": "ga4-landing-pages",
+      "rows": 2,
+      "file": "<output>/ga4-landing-pages.csv"
+    },
+    {
+      "name": "ga4-page-events",
+      "rows": 2,
+      "file": "<output>/ga4-page-events.csv"
+    },
+    {
+      "name": "ga4-pages-screens",
+      "rows": 9,
+      "file": "<output>/ga4-pages-screens.csv"
+    },
+    {
+      "name": "ga4-traffic-acquisition",
+      "rows": 12,
+      "file": "<output>/ga4-traffic-acquisition.csv"
+    },
+    {
+      "name": "ga4-traffic-sources",
+      "rows": 3,
+      "file": "<output>/ga4-traffic-sources.csv"
+    },
+    {
+      "name": "gsc-country",
+      "rows": 36,
+      "file": "<output>/gsc-country.csv"
+    },
+    {
+      "name": "gsc-device",
+      "rows": 4,
+      "file": "<output>/gsc-device.csv"
+    },
+    {
+      "name": "gsc-page",
+      "rows": 60,
+      "file": "<output>/gsc-page.csv"
+    },
+    {
+      "name": "gsc-page-country",
+      "rows": 3,
+      "file": "<output>/gsc-page-country.csv"
+    },
+    {
+      "name": "gsc-page-query",
+      "rows": 12,
+      "file": "<output>/gsc-page-query.csv"
+    },
+    {
+      "name": "gsc-query",
+      "rows": 96,
+      "file": "<output>/gsc-query.csv"
+    },
+    {
+      "name": "gsc-search-appearance-pages",
+      "rows": 3,
+      "file": "<output>/gsc-search-appearance-pages.csv"
+    },
+    {
+      "name": "posthog-events",
+      "rows": 3,
+      "file": "<output>/posthog-events.csv"
+    },
+    {
+      "name": "posthog-exceptions",
+      "rows": 3,
+      "file": "<output>/posthog-exceptions.csv"
+    },
+    {
+      "name": "posthog-funnels",
+      "rows": 2,
+      "file": "<output>/posthog-funnels.csv"
+    },
+    {
+      "name": "posthog-paths",
+      "rows": 1,
+      "file": "<output>/posthog-paths.csv"
+    },
+    {
+      "name": "posthog-rageclicks",
+      "rows": 1,
+      "file": "<output>/posthog-rageclicks.csv"
+    },
+    {
+      "name": "posthog-web-daily",
+      "rows": 5,
+      "file": "<output>/posthog-web-daily.csv"
+    },
+    {
+      "name": "posthog-web-vitals",
+      "rows": 2,
+      "file": "<output>/posthog-web-vitals.csv"
+    },
+    {
+      "name": "index-coverage",
+      "rows": 7,
+      "file": "<output>/index-coverage.csv"
+    }
+  ],
+  "executive": {
+    "file": "<output>/executive.json",
+    "insightCount": 8,
+    "queryTrendProviders": 1
+  },
+  "archives": [
+    {
+      "file": "<input>/bing-webmaster/ai-overview/2026-08-04.json",
+      "integration": "bing-webmaster",
+      "report": "ai-overview",
+      "reportDate": "2026-08-04",
+      "providerRows": 3,
+      "providerTruncated": false,
+      "flattenedRows": 3
+    },
+    {
+      "file": "<input>/bing-webmaster/ai-overview/2026-09-01.json",
+      "integration": "bing-webmaster",
+      "report": "ai-overview",
+      "reportDate": "2026-09-01",
+      "providerRows": 5,
+      "providerTruncated": false,
+      "flattenedRows": 5
+    },
+    {
+      "file": "<input>/bing-webmaster/ai-pages/2026-09-01.json",
+      "integration": "bing-webmaster",
+      "report": "ai-pages",
+      "reportDate": "2026-09-01",
+      "providerRows": 1,
+      "providerTruncated": false,
+      "flattenedRows": 1
+    },
+    {
+      "file": "<input>/bing-webmaster/ai-queries/2026-09-01.json",
+      "integration": "bing-webmaster",
+      "report": "ai-queries",
+      "reportDate": "2026-09-01",
+      "providerRows": 2,
+      "providerTruncated": false,
+      "flattenedRows": 2
+    },
+    {
+      "file": "<input>/bing-webmaster/crawl-issues/2026-09-20.json",
+      "integration": "bing-webmaster",
+      "report": "crawl-issues",
+      "reportDate": "2026-09-20",
+      "providerRows": 5,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/bing-webmaster/crawl-issues/2026-09-21.json",
+      "integration": "bing-webmaster",
+      "report": "crawl-issues",
+      "reportDate": "2026-09-21",
+      "providerRows": 5,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/bing-webmaster/crawl-stats/2026-09-19.json",
+      "integration": "bing-webmaster",
+      "report": "crawl-stats",
+      "reportDate": "2026-09-19",
+      "providerRows": 3,
+      "providerTruncated": false,
+      "flattenedRows": 3
+    },
+    {
+      "file": "<input>/bing-webmaster/crawl-stats/2026-09-20.json",
+      "integration": "bing-webmaster",
+      "report": "crawl-stats",
+      "reportDate": "2026-09-20",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/bing-webmaster/crawl-stats/2026-09-21.json",
+      "integration": "bing-webmaster",
+      "report": "crawl-stats",
+      "reportDate": "2026-09-21",
+      "providerRows": 3,
+      "providerTruncated": false,
+      "flattenedRows": 3
+    },
+    {
+      "file": "<input>/bing-webmaster/feeds/2026-09-20.json",
+      "integration": "bing-webmaster",
+      "report": "feeds",
+      "reportDate": "2026-09-20",
+      "providerRows": 1,
+      "providerTruncated": false,
+      "flattenedRows": 1
+    },
+    {
+      "file": "<input>/bing-webmaster/feeds/2026-09-21.json",
+      "integration": "bing-webmaster",
+      "report": "feeds",
+      "reportDate": "2026-09-21",
+      "providerRows": 2,
+      "providerTruncated": false,
+      "flattenedRows": 2
+    },
+    {
+      "file": "<input>/bing-webmaster/pages/2026-09-21.json",
+      "integration": "bing-webmaster",
+      "report": "pages",
+      "reportDate": "2026-09-21",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/bing-webmaster/queries/2026-09-14.json",
+      "integration": "bing-webmaster",
+      "report": "queries",
+      "reportDate": "2026-09-14",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/bing-webmaster/queries/2026-09-21.json",
+      "integration": "bing-webmaster",
+      "report": "queries",
+      "reportDate": "2026-09-21",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/bing-webmaster/rank-traffic/2026-09-20.json",
+      "integration": "bing-webmaster",
+      "report": "rank-traffic",
+      "reportDate": "2026-09-20",
+      "providerRows": 7,
+      "providerTruncated": false,
+      "flattenedRows": 7
+    },
+    {
+      "file": "<input>/clarity/url-3d/2026-09-20.json",
+      "integration": "clarity",
+      "report": "url-3d",
+      "reportDate": "2026-09-20",
+      "collectedAt": "2026-09-20T04:30:00.000Z",
+      "providerRows": 5,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/clarity/url-3d/2026-09-21.json",
+      "integration": "clarity",
+      "report": "url-3d",
+      "reportDate": "2026-09-21",
+      "collectedAt": "2026-09-21T04:30:00.000Z",
+      "providerRows": 5,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/dataforseo/backlinks-anchors/2026-09-14.json",
+      "integration": "dataforseo",
+      "report": "backlinks-anchors",
+      "reportDate": "2026-09-14",
+      "providerRows": 1,
+      "providerTruncated": false,
+      "flattenedRows": 1
+    },
+    {
+      "file": "<input>/dataforseo/backlinks-new-lost/2026-09-14.json",
+      "integration": "dataforseo",
+      "report": "backlinks-new-lost",
+      "reportDate": "2026-09-14",
+      "providerRows": 1,
+      "providerTruncated": false,
+      "flattenedRows": 2
+    },
+    {
+      "file": "<input>/dataforseo/backlinks-referring-domains/2026-09-14.json",
+      "integration": "dataforseo",
+      "report": "backlinks-referring-domains",
+      "reportDate": "2026-09-14",
+      "providerRows": 1,
+      "providerTruncated": false,
+      "flattenedRows": 1
+    },
+    {
+      "file": "<input>/dataforseo/backlinks-summary/2026-09-07.json",
+      "integration": "dataforseo",
+      "report": "backlinks-summary",
+      "reportDate": "2026-09-07",
+      "providerRows": 1,
+      "providerTruncated": false,
+      "flattenedRows": 1
+    },
+    {
+      "file": "<input>/dataforseo/backlinks-summary/2026-09-14.json",
+      "integration": "dataforseo",
+      "report": "backlinks-summary",
+      "reportDate": "2026-09-14",
+      "providerRows": 1,
+      "providerTruncated": false,
+      "flattenedRows": 1
+    },
+    {
+      "file": "<input>/dataforseo/backlinks-summary/2026-09-21.json",
+      "integration": "dataforseo",
+      "report": "backlinks-summary",
+      "reportDate": "2026-09-21",
+      "providerRows": 1,
+      "providerTruncated": false,
+      "flattenedRows": 0
+    },
+    {
+      "file": "<input>/dataforseo/keyword-ideas/2026-09-14.json",
+      "integration": "dataforseo",
+      "report": "keyword-ideas",
+      "reportDate": "2026-09-14",
+      "providerRows": 1,
+      "providerTruncated": false,
+      "flattenedRows": 2
+    },
+    {
+      "file": "<input>/dataforseo/llm-mentions-chatgpt/2026-09-14.json",
+      "integration": "dataforseo",
+      "report": "llm-mentions-chatgpt",
+      "reportDate": "2026-09-14",
+      "providerRows": 1,
+      "providerTruncated": false,
+      "flattenedRows": 1
+    },
+    {
+      "file": "<input>/dataforseo/llm-mentions-google/2026-09-14.json",
+      "integration": "dataforseo",
+      "report": "llm-mentions-google",
+      "reportDate": "2026-09-14",
+      "providerRows": 1,
+      "providerTruncated": false,
+      "flattenedRows": 2
+    },
+    {
+      "file": "<input>/dataforseo/on-page-summary/2026-09-14.json",
+      "integration": "dataforseo",
+      "report": "on-page-summary",
+      "reportDate": "2026-09-14",
+      "providerRows": 1,
+      "providerTruncated": false,
+      "flattenedRows": 0
+    },
+    {
+      "file": "<input>/dataforseo/ranked-keywords/2026-09-07.json",
+      "integration": "dataforseo",
+      "report": "ranked-keywords",
+      "reportDate": "2026-09-07",
+      "providerRows": 1,
+      "providerTruncated": false,
+      "flattenedRows": 2
+    },
+    {
+      "file": "<input>/dataforseo/ranked-keywords/2026-09-14.json",
+      "integration": "dataforseo",
+      "report": "ranked-keywords",
+      "reportDate": "2026-09-14",
+      "providerRows": 1,
+      "providerTruncated": false,
+      "flattenedRows": 3
+    },
+    {
+      "file": "<input>/dataforseo/serp-competitors/2026-09-14.json",
+      "integration": "dataforseo",
+      "report": "serp-competitors",
+      "reportDate": "2026-09-14",
+      "providerRows": 1,
+      "providerTruncated": false,
+      "flattenedRows": 1
+    },
+    {
+      "file": "<input>/dataforseo/serp-panel/2026-09-07.json",
+      "integration": "dataforseo",
+      "report": "serp-panel",
+      "reportDate": "2026-09-07",
+      "providerRows": 2,
+      "providerTruncated": true,
+      "flattenedRows": 2
+    },
+    {
+      "file": "<input>/dataforseo/serp-panel/2026-09-14.json",
+      "integration": "dataforseo",
+      "report": "serp-panel",
+      "reportDate": "2026-09-14",
+      "providerRows": 5,
+      "providerTruncated": true,
+      "flattenedRows": 5
+    },
+    {
+      "file": "<input>/extra/bing-ai-overview-2026-09-01.json",
+      "integration": "bing-webmaster",
+      "report": "ai-overview",
+      "reportDate": "2026-09-01",
+      "providerRows": 5,
+      "providerTruncated": false,
+      "flattenedRows": 5
+    },
+    {
+      "file": "<input>/extra/bing-crawl-stats-2026-09-20.json",
+      "integration": "bing-webmaster",
+      "report": "crawl-stats",
+      "reportDate": "2026-09-20",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/extra/gsc-country-2026-09-20.json",
+      "integration": "gsc",
+      "report": "country",
+      "reportDate": "2026-09-20",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/extra/gsc-query-2026-09-20.json",
+      "integration": "gsc",
+      "report": "query",
+      "reportDate": "2026-09-20",
+      "providerRows": 6,
+      "providerTruncated": false,
+      "flattenedRows": 6
+    },
+    {
+      "file": "<input>/extra/posthog-web-daily-2026-09-21.json",
+      "integration": "posthog",
+      "report": "web-daily",
+      "reportDate": "2026-09-21",
+      "providerRows": 5,
+      "providerTruncated": false,
+      "flattenedRows": 5
+    },
+    {
+      "file": "<input>/ga4/events-28d/2026-09-20.json",
+      "integration": "ga4",
+      "report": "events-28d",
+      "reportDate": "2026-09-20",
+      "providerRows": 2,
+      "providerTruncated": false,
+      "flattenedRows": 2
+    },
+    {
+      "file": "<input>/ga4/events/2026-09-20.json",
+      "integration": "ga4",
+      "report": "events",
+      "reportDate": "2026-09-20",
+      "providerRows": 5,
+      "providerTruncated": false,
+      "flattenedRows": 5
+    },
+    {
+      "file": "<input>/ga4/js-errors/2026-09-20.json",
+      "integration": "ga4",
+      "report": "js-errors",
+      "reportDate": "2026-09-20",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/ga4/landing-page-acquisition/2026-09-20.json",
+      "integration": "ga4",
+      "report": "landing-page-acquisition",
+      "reportDate": "2026-09-20",
+      "providerRows": 2,
+      "providerTruncated": false,
+      "flattenedRows": 2
+    },
+    {
+      "file": "<input>/ga4/landing-pages/2026-09-20.json",
+      "integration": "ga4",
+      "report": "landing-pages",
+      "reportDate": "2026-09-20",
+      "providerRows": 2,
+      "providerTruncated": false,
+      "flattenedRows": 2
+    },
+    {
+      "file": "<input>/ga4/page-events/2026-09-20.json",
+      "integration": "ga4",
+      "report": "page-events",
+      "reportDate": "2026-09-20",
+      "providerRows": 2,
+      "providerTruncated": false,
+      "flattenedRows": 2
+    },
+    {
+      "file": "<input>/ga4/pages-screens/2026-09-18.json",
+      "integration": "ga4",
+      "report": "pages-screens",
+      "reportDate": "2026-09-18",
+      "providerRows": 3,
+      "providerTruncated": false,
+      "flattenedRows": 3
+    },
+    {
+      "file": "<input>/ga4/pages-screens/2026-09-19.json",
+      "integration": "ga4",
+      "report": "pages-screens",
+      "reportDate": "2026-09-19",
+      "providerRows": 3,
+      "providerTruncated": false,
+      "flattenedRows": 3
+    },
+    {
+      "file": "<input>/ga4/pages-screens/2026-09-20.json",
+      "integration": "ga4",
+      "report": "pages-screens",
+      "reportDate": "2026-09-20",
+      "providerRows": 3,
+      "providerTruncated": false,
+      "flattenedRows": 3
+    },
+    {
+      "file": "<input>/ga4/traffic-acquisition/2026-09-18.json",
+      "integration": "ga4",
+      "report": "traffic-acquisition",
+      "reportDate": "2026-09-18",
+      "providerRows": 3,
+      "providerTruncated": false,
+      "flattenedRows": 3
+    },
+    {
+      "file": "<input>/ga4/traffic-acquisition/2026-09-19.json",
+      "integration": "ga4",
+      "report": "traffic-acquisition",
+      "reportDate": "2026-09-19",
+      "providerRows": 3,
+      "providerTruncated": false,
+      "flattenedRows": 3
+    },
+    {
+      "file": "<input>/ga4/traffic-acquisition/2026-09-20.json",
+      "integration": "ga4",
+      "report": "traffic-acquisition",
+      "reportDate": "2026-09-20",
+      "providerRows": 3,
+      "providerTruncated": false,
+      "flattenedRows": 3
+    },
+    {
+      "file": "<input>/ga4/traffic-acquisition/latest.json",
+      "integration": "ga4",
+      "report": "traffic-acquisition",
+      "reportDate": "latest",
+      "providerRows": 3,
+      "providerTruncated": false,
+      "flattenedRows": 3
+    },
+    {
+      "file": "<input>/ga4/traffic-sources/2026-09-20.json",
+      "integration": "ga4",
+      "report": "traffic-sources",
+      "reportDate": "2026-09-20",
+      "providerRows": 3,
+      "providerTruncated": false,
+      "flattenedRows": 3
+    },
+    {
+      "file": "<input>/gsc/country/2026-09-14.json",
+      "integration": "gsc",
+      "report": "country",
+      "reportDate": "2026-09-14",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/country/2026-09-15.json",
+      "integration": "gsc",
+      "report": "country",
+      "reportDate": "2026-09-15",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/country/2026-09-16.json",
+      "integration": "gsc",
+      "report": "country",
+      "reportDate": "2026-09-16",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/country/2026-09-17.json",
+      "integration": "gsc",
+      "report": "country",
+      "reportDate": "2026-09-17",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/country/2026-09-18.json",
+      "integration": "gsc",
+      "report": "country",
+      "reportDate": "2026-09-18",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/country/2026-09-19.json",
+      "integration": "gsc",
+      "report": "country",
+      "reportDate": "2026-09-19",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/country/2026-09-20.json",
+      "integration": "gsc",
+      "report": "country",
+      "reportDate": "2026-09-20",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/country/2026-09-21.json",
+      "integration": "gsc",
+      "report": "country",
+      "reportDate": "2026-09-21",
+      "providerRows": 0,
+      "providerTruncated": false,
+      "flattenedRows": 0
+    },
+    {
+      "file": "<input>/gsc/device/2026-09-20.json",
+      "integration": "gsc",
+      "report": "device",
+      "reportDate": "2026-09-20",
+      "providerRows": 3,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/page-country/2026-09-20.json",
+      "integration": "gsc",
+      "report": "page-country",
+      "reportDate": "2026-09-20",
+      "providerRows": 3,
+      "providerTruncated": false,
+      "flattenedRows": 3
+    },
+    {
+      "file": "<input>/gsc/page-query/2026-09-19.json",
+      "integration": "gsc",
+      "report": "page-query",
+      "reportDate": "2026-09-19",
+      "providerRows": 6,
+      "providerTruncated": false,
+      "flattenedRows": 6
+    },
+    {
+      "file": "<input>/gsc/page-query/2026-09-20.json",
+      "integration": "gsc",
+      "report": "page-query",
+      "reportDate": "2026-09-20",
+      "providerRows": 6,
+      "providerTruncated": true,
+      "flattenedRows": 6
+    },
+    {
+      "file": "<input>/gsc/page/2026-09-05.json",
+      "integration": "gsc",
+      "report": "page",
+      "reportDate": "2026-09-05",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/page/2026-09-06.json",
+      "integration": "gsc",
+      "report": "page",
+      "reportDate": "2026-09-06",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/page/2026-09-07.json",
+      "integration": "gsc",
+      "report": "page",
+      "reportDate": "2026-09-07",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/page/2026-09-08.json",
+      "integration": "gsc",
+      "report": "page",
+      "reportDate": "2026-09-08",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/page/2026-09-09.json",
+      "integration": "gsc",
+      "report": "page",
+      "reportDate": "2026-09-09",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/page/2026-09-10.json",
+      "integration": "gsc",
+      "report": "page",
+      "reportDate": "2026-09-10",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/page/2026-09-11.json",
+      "integration": "gsc",
+      "report": "page",
+      "reportDate": "2026-09-11",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/page/2026-09-13.json",
+      "integration": "gsc",
+      "report": "page",
+      "reportDate": "2026-09-13",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/page/2026-09-14.json",
+      "integration": "gsc",
+      "report": "page",
+      "reportDate": "2026-09-14",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/page/2026-09-15.json",
+      "integration": "gsc",
+      "report": "page",
+      "reportDate": "2026-09-15",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/page/2026-09-16.json",
+      "integration": "gsc",
+      "report": "page",
+      "reportDate": "2026-09-16",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/page/2026-09-17.json",
+      "integration": "gsc",
+      "report": "page",
+      "reportDate": "2026-09-17",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/page/2026-09-18.json",
+      "integration": "gsc",
+      "report": "page",
+      "reportDate": "2026-09-18",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/page/2026-09-19.json",
+      "integration": "gsc",
+      "report": "page",
+      "reportDate": "2026-09-19",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/page/2026-09-20.json",
+      "integration": "gsc",
+      "report": "page",
+      "reportDate": "2026-09-20",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/gsc/query/2026-09-05.json",
+      "integration": "gsc",
+      "report": "query",
+      "reportDate": "2026-09-05",
+      "providerRows": 6,
+      "providerTruncated": false,
+      "flattenedRows": 6
+    },
+    {
+      "file": "<input>/gsc/query/2026-09-06.json",
+      "integration": "gsc",
+      "report": "query",
+      "reportDate": "2026-09-06",
+      "providerRows": 6,
+      "providerTruncated": false,
+      "flattenedRows": 6
+    },
+    {
+      "file": "<input>/gsc/query/2026-09-07.json",
+      "integration": "gsc",
+      "report": "query",
+      "reportDate": "2026-09-07",
+      "providerRows": 6,
+      "providerTruncated": false,
+      "flattenedRows": 6
+    },
+    {
+      "file": "<input>/gsc/query/2026-09-08.json",
+      "integration": "gsc",
+      "report": "query",
+      "reportDate": "2026-09-08",
+      "providerRows": 6,
+      "providerTruncated": false,
+      "flattenedRows": 6
+    },
+    {
+      "file": "<input>/gsc/query/2026-09-09.json",
+      "integration": "gsc",
+      "report": "query",
+      "reportDate": "2026-09-09",
+      "providerRows": 6,
+      "providerTruncated": false,
+      "flattenedRows": 6
+    },
+    {
+      "file": "<input>/gsc/query/2026-09-10.json",
+      "integration": "gsc",
+      "report": "query",
+      "reportDate": "2026-09-10",
+      "providerRows": 6,
+      "providerTruncated": false,
+      "flattenedRows": 6
+    },
+    {
+      "file": "<input>/gsc/query/2026-09-11.json",
+      "integration": "gsc",
+      "report": "query",
+      "reportDate": "2026-09-11",
+      "providerRows": 6,
+      "providerTruncated": false,
+      "flattenedRows": 6
+    },
+    {
+      "file": "<input>/gsc/query/2026-09-13.json",
+      "integration": "gsc",
+      "report": "query",
+      "reportDate": "2026-09-13",
+      "providerRows": 6,
+      "providerTruncated": false,
+      "flattenedRows": 6
+    },
+    {
+      "file": "<input>/gsc/query/2026-09-14.json",
+      "integration": "gsc",
+      "report": "query",
+      "reportDate": "2026-09-14",
+      "providerRows": 6,
+      "providerTruncated": false,
+      "flattenedRows": 6
+    },
+    {
+      "file": "<input>/gsc/query/2026-09-15.json",
+      "integration": "gsc",
+      "report": "query",
+      "reportDate": "2026-09-15",
+      "providerRows": 6,
+      "providerTruncated": false,
+      "flattenedRows": 6
+    },
+    {
+      "file": "<input>/gsc/query/2026-09-16.json",
+      "integration": "gsc",
+      "report": "query",
+      "reportDate": "2026-09-16",
+      "providerRows": 6,
+      "providerTruncated": false,
+      "flattenedRows": 6
+    },
+    {
+      "file": "<input>/gsc/query/2026-09-17.json",
+      "integration": "gsc",
+      "report": "query",
+      "reportDate": "2026-09-17",
+      "providerRows": 6,
+      "providerTruncated": false,
+      "flattenedRows": 6
+    },
+    {
+      "file": "<input>/gsc/query/2026-09-18.json",
+      "integration": "gsc",
+      "report": "query",
+      "reportDate": "2026-09-18",
+      "providerRows": 6,
+      "providerTruncated": false,
+      "flattenedRows": 6
+    },
+    {
+      "file": "<input>/gsc/query/2026-09-19.json",
+      "integration": "gsc",
+      "report": "query",
+      "reportDate": "2026-09-19",
+      "providerRows": 6,
+      "providerTruncated": false,
+      "flattenedRows": 6
+    },
+    {
+      "file": "<input>/gsc/query/2026-09-20.json",
+      "integration": "gsc",
+      "report": "query",
+      "reportDate": "2026-09-20",
+      "providerRows": 6,
+      "providerTruncated": false,
+      "flattenedRows": 6
+    },
+    {
+      "file": "<input>/gsc/search-appearance-pages/2026-09-20.json",
+      "integration": "gsc",
+      "report": "search-appearance-pages",
+      "reportDate": "2026-09-20",
+      "providerRows": 3,
+      "providerTruncated": false,
+      "flattenedRows": 3
+    },
+    {
+      "file": "<input>/late/gsc-country-2026-09-18.json",
+      "integration": "gsc",
+      "report": "country",
+      "reportDate": "2026-09-18",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/posthog/events/2026-09-14.json",
+      "integration": "posthog",
+      "report": "events",
+      "reportDate": "2026-09-14",
+      "flattenedRows": 1
+    },
+    {
+      "file": "<input>/posthog/events/2026-09-21.json",
+      "integration": "posthog",
+      "report": "events",
+      "reportDate": "2026-09-21",
+      "providerRows": 2,
+      "providerTruncated": false,
+      "flattenedRows": 2
+    },
+    {
+      "file": "<input>/posthog/exceptions/2026-09-14.json",
+      "integration": "posthog",
+      "report": "exceptions",
+      "reportDate": "2026-09-14",
+      "providerRows": 0,
+      "providerTruncated": false,
+      "flattenedRows": 0
+    },
+    {
+      "file": "<input>/posthog/exceptions/2026-09-21.json",
+      "integration": "posthog",
+      "report": "exceptions",
+      "reportDate": "2026-09-21",
+      "providerRows": 3,
+      "providerTruncated": false,
+      "flattenedRows": 3
+    },
+    {
+      "file": "<input>/posthog/funnels/2026-09-21.json",
+      "integration": "posthog",
+      "report": "funnels",
+      "reportDate": "2026-09-21",
+      "providerRows": 2,
+      "providerTruncated": false,
+      "flattenedRows": 2
+    },
+    {
+      "file": "<input>/posthog/paths/2026-09-21.json",
+      "integration": "posthog",
+      "report": "paths",
+      "reportDate": "2026-09-21",
+      "providerRows": 1,
+      "providerTruncated": false,
+      "flattenedRows": 1
+    },
+    {
+      "file": "<input>/posthog/rageclicks/2026-09-21.json",
+      "integration": "posthog",
+      "report": "rageclicks",
+      "reportDate": "2026-09-21",
+      "providerRows": 1,
+      "providerTruncated": false,
+      "flattenedRows": 1
+    },
+    {
+      "file": "<input>/posthog/web-daily/2026-09-20.json",
+      "integration": "posthog",
+      "report": "web-daily",
+      "reportDate": "2026-09-20",
+      "providerRows": 4,
+      "providerTruncated": false,
+      "flattenedRows": 4
+    },
+    {
+      "file": "<input>/posthog/web-daily/2026-09-21.json",
+      "integration": "posthog",
+      "report": "web-daily",
+      "reportDate": "2026-09-21",
+      "providerRows": 5,
+      "providerTruncated": false,
+      "flattenedRows": 5
+    },
+    {
+      "file": "<input>/posthog/web-vitals/2026-09-21.json",
+      "integration": "posthog",
+      "report": "web-vitals",
+      "reportDate": "2026-09-21",
+      "providerRows": 2,
+      "providerTruncated": false,
+      "flattenedRows": 2
+    }
+  ],
+  "caveats": [
+    "Absent provider rows remain unknown; this tool does not manufacture zeroes.",
+    "GSC page/query datasets are top-row exports and can omit anonymized or low-volume data.",
+    "GA4 Data API rows are aggregate/modelled reports, not raw event or session sequences.",
+    "GA4 attribution families (traffic-acquisition, traffic-sources, landing-page-acquisition) carry provisional=1 on a report day not yet confirmed by a collection at least two days after it: GA4 is still attributing that day, so its channel and source/medium split reads high on Unassigned / (not set) / (data not available) and low on the real channels. Leave provisional=1 days out of any change; an empty provisional cell means the collection date could not be read.",
+    "The GA4 js-errors family reads event parameters, which GA4 answers only once an operator registers them as custom dimensions and never backfills; an absent family is unknown, not an error-free property.",
+    "Clarity rows are a trailing 72-hour, sampled read capped at 1,000 rows per metric block with no pagination, and clarity.ms is adblock-DNS-listed (undercounts ~15-25%): treat them as behavior rankings, never as population counts.",
+    "Bing top-query/page snapshots update weekly; crawl statistics update daily, and repeated snapshots are revisions rather than additive rows.",
+    "index-coverage.csv is DERIVED from the already-archived Bing crawl-stats and feeds families and states BING's index, not Google's: site-level per measured day (row_grain=site-day) plus the submitted sitemap counts (row_grain=sitemap), with no ratio between them because they carry different dates. It says nothing about any individual URL, and an absent file means the Bing lane did not collect — never that nothing is indexed.",
+    "The bing-webmaster-ai-* families are operator-downloaded AI Performance exports, not API collections: report_date is the day the file was exported, the query and page families are period totals with no per-day breakdown, and an absent family means nobody has dropped that export yet — never that Bing cited nothing.",
+    "DataForSEO rankings, backlinks, and LLM mentions are weekly provider snapshots; analysis compares stored snapshots and never repulls history.",
+    "DataForSEO API cost is preserved on each report family so the metered lane remains auditable.",
+    "The tracked SERP panel is a top-20 read in the United States · English market of hand-picked head terms on BOTH devices: one row per query per `device`, so nothing may be summed across devices without filtering first. An empty rank means no result inside that depth, and an empty AI Overview column means unknown, never absent.",
+    "PostHog families (posthog-*.csv) are server-side aggregates over each archive's own trailing window (window_start–window_end, inclusive, in the PostHog project's timezone): read one report_date at a time, and never add `people` across rows, days or report dates — it is a unique-person count over that row's window. posthog-web-daily is resolved newest-archive-wins per date. provider_truncated=true means the family hit its row limit and is a top-N read. An empty file is PostHog answering with no rows; a missing file is a family nobody collected.",
+    "PostHog undercounts in known directions: browsers that block it are invisible, so its totals run below GA4; its browser library drops known bots that GA4 keeps, so a GA4-only spike can be a crawler; signed-in events arrive only after consent, so they are a floor; server-side events (any `$lib` other than the browser library) use account ids that do not join browser ids; and a site that sends its first-party events by name only has events with no properties by design, not by defect."
+  ]
+}

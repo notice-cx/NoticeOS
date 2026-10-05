@@ -1,0 +1,10 @@
+asset,report_date,collected_at,data_state,provider_truncated,activeUsers,keyEvents,screenPageViews,unifiedPagePathScreen,window_end,window_start
+meals.example,2026-09-18,2026-09-19T12:15:00.000Z,revision-window,false,223,12,413,/planner,2026-09-18,2026-09-18
+meals.example,2026-09-18,2026-09-19T12:15:00.000Z,revision-window,false,96,1,176,/recipes/soup,2026-09-18,2026-09-18
+meals.example,2026-09-18,2026-09-19T12:15:00.000Z,revision-window,false,,,33,/guides/protein,2026-09-18,2026-09-18
+meals.example,2026-09-19,2026-09-20T12:15:00.000Z,revision-window,false,230,13,420,/planner,2026-09-19,2026-09-19
+meals.example,2026-09-19,2026-09-20T12:15:00.000Z,revision-window,false,103,1,183,/recipes/soup,2026-09-19,2026-09-19
+meals.example,2026-09-19,2026-09-20T12:15:00.000Z,revision-window,false,,,33,/guides/protein,2026-09-19,2026-09-19
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,revision-window,false,237,14,427,/planner,2026-09-20,2026-09-20
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,revision-window,false,90,1,150,/recipes/soup,2026-09-20,2026-09-20
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,revision-window,false,,,33,/guides/protein,2026-09-20,2026-09-20

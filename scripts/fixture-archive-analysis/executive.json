@@ -1,0 +1,1086 @@
+{
+  "schemaVersion": 1,
+  "asset": "meals.example",
+  "generatedAt": "2026-09-22T06:00:00.000Z",
+  "windowStart": "2026-08-04",
+  "windowEnd": "latest",
+  "sourceArchiveCount": 105,
+  "items": [
+    {
+      "key": "measurement-integrity",
+      "kind": "warning",
+      "title": "100.0% of sessions are unattributed",
+      "summary": "2,504 of 2,504 sessions (100.0%) carry no usable acquisition attribution — GA4 reported them as (not set) source / medium. Past 10% every channel, landing-page, and campaign split on this property inherits that uncertainty.",
+      "whyItMatters": "Every other card is computed from these numbers, so a measurement fault is not one more finding — it bounds how far any of the others can be trusted. The measurement channel is also operator-only by invariant (doc 01): the OS reports the fault, it never repairs the ruler.",
+      "primary": {
+        "value": "100.0%",
+        "label": "unattributed sessions"
+      },
+      "confidence": "high",
+      "windowStart": "2026-09-20",
+      "windowEnd": "2026-09-20",
+      "evidence": [
+        {
+          "label": "Unattributed sessions",
+          "value": "2,504",
+          "detail": "100.0% of 2,504 · (not set) source / medium"
+        },
+        {
+          "label": "Rule",
+          "value": "measurement-integrity",
+          "detail": "rule: measurement-integrity"
+        }
+      ],
+      "sources": [
+        "ga4/traffic-sources"
+      ],
+      "caveat": "GA4 omits an event with no occurrences, so an event absent from a week that reported other events is read as zero for that event only. Unassigned sessions are a GA4 attribution outcome and can also reflect consent state rather than a broken tag."
+    },
+    {
+      "key": "value-event-not-key-event",
+      "kind": "warning",
+      "title": "plan_save_click is a declared value event GA4 counts zero of",
+      "summary": "plan_save_click fired 52 times across 1 reported date and GA4 recorded 0 key events for it. config/value-events.json declares 5 value events for this property; 1 of them is carrying real volume that no conversion figure can see. calculation_complete is configured correctly, which is what makes this a settings gap rather than a collection failure.",
+      "whyItMatters": "Key events are what GA4 counts as conversions, so an unconfigured value event does not read as a small number — it reads as zero, everywhere, including in cards that then explain the zero as user behavior. This is a measurement fault: it bounds the other numbers rather than adding to them.",
+      "primary": {
+        "value": "52",
+        "label": "plan_save_click events, 0 counted"
+      },
+      "confidence": "medium",
+      "windowStart": "2026-09-20",
+      "windowEnd": "2026-09-20",
+      "evidence": [
+        {
+          "label": "plan_save_click",
+          "value": "52",
+          "detail": "events across 1 reported dates · 0 key events"
+        },
+        {
+          "label": "Declared and counted",
+          "value": "calculation_complete",
+          "detail": "410 key events — the comparison that rules out a broken export"
+        },
+        {
+          "label": "Declared value events",
+          "value": "5",
+          "detail": "config/value-events.json"
+        },
+        {
+          "label": "Rule",
+          "value": "value-event-not-key-event",
+          "detail": "rule: value-event-not-key-event"
+        }
+      ],
+      "sources": [
+        "ga4/events"
+      ],
+      "caveat": "GA4 applies a key-event change going forward only, so a window spanning one shows both states and the series steps rather than trends — annotate the change date instead of reading the step as behavior. This card compares an operator declaration against a provider setting; it cannot tell which of the two is wrong, and it never edits either. The measurement channel is operator-only by invariant (doc 01)."
+    },
+    {
+      "key": "bing-crawl-issues",
+      "kind": "warning",
+      "title": "Bing reports 2 URLs with crawl issues",
+      "summary": "HTTP 4xx is the most common reported issue. Treat this as a technical-search incident.",
+      "whyItMatters": "Crawl failures can suppress discovery and rankings while making healthy content look unsuccessful in search analytics.",
+      "primary": {
+        "value": "2",
+        "label": "affected URLs"
+      },
+      "confidence": "high",
+      "windowStart": "2026-09-21",
+      "windowEnd": "2026-09-21",
+      "evidence": [
+        {
+          "label": "Leading issue",
+          "value": "HTTP 4xx"
+        },
+        {
+          "label": "Highest-linked URL",
+          "value": "/moved",
+          "detail": "7 reported inlinks · HTTP 301"
+        },
+        {
+          "label": "Latest crawl errors",
+          "value": "3",
+          "detail": "Provider date 2026-09-20"
+        },
+        {
+          "label": "URLs in Bing index",
+          "value": "2,655"
+        }
+      ],
+      "sources": [
+        "bing-webmaster/crawl-issues",
+        "bing-webmaster/crawl-stats"
+      ],
+      "caveat": "Bing says fixed crawl issues can remain in this API response for several days; verify the affected URL before acting."
+    },
+    {
+      "key": "posthog-once-event-repeats",
+      "kind": "warning",
+      "title": "first_plan_created fires 1.2 times per person — its name promises once",
+      "summary": "PostHog counted 480 first_plan_created events from 400 people over 2026-09-15–2026-09-21. Check where the event is sent before building any activation number on it.",
+      "whyItMatters": "An event named for a first time is how new activity gets counted. If it fires on every repeat, any funnel or conversion built on it overstates first-timers by that factor, and fixing it later will look like a drop.",
+      "primary": {
+        "value": "1.2×",
+        "label": "Events per person"
+      },
+      "confidence": "high",
+      "windowStart": "2026-09-15",
+      "windowEnd": "2026-09-21",
+      "evidence": [
+        {
+          "label": "Rule",
+          "value": "posthog-once-event-repeats",
+          "detail": "rule: posthog-once-event-repeats"
+        },
+        {
+          "label": "first_plan_created",
+          "value": "480 events · 400 people",
+          "detail": "1.2 per person; the line is 1.1."
+        }
+      ],
+      "sources": [
+        "posthog/events"
+      ],
+      "caveat": "People is PostHog’s unique-person count over the window. One human counted as two people — two devices before signing in, or events sent before consent — raises people and lowers the ratio, so the excess is a floor. The rule reads event names only: whether an event should happen once is what its name promises, not something PostHog checks."
+    },
+    {
+      "key": "posthog-error-concentration",
+      "kind": "warning",
+      "title": "One error is 66% of 212 exceptions",
+      "summary": "“TypeError: Cannot read properties of null (reading 'plan')” accounts for 140 of 212 exceptions over 2026-09-15–2026-09-21, from 90 people. It carries a source file, so it is thrown by code the site serves.",
+      "whyItMatters": "When one message is most of the error volume, fixing it is most of the fix — and until it is fixed, every other error is hard to see behind it.",
+      "primary": {
+        "value": "66%",
+        "label": "Of all exceptions"
+      },
+      "confidence": "high",
+      "windowStart": "2026-09-15",
+      "windowEnd": "2026-09-21",
+      "evidence": [
+        {
+          "label": "Rule",
+          "value": "posthog-error-concentration",
+          "detail": "rule: posthog-error-concentration"
+        },
+        {
+          "label": "Dominant message",
+          "value": "TypeError: Cannot read properties of null (reading 'plan')",
+          "detail": "90 people · 140 times · 110 sessions · has a source file · mostly on /planner"
+        },
+        {
+          "label": "#1 after it by people",
+          "value": "Error: Script error.",
+          "detail": "55 people · 60 times · 58 sessions · no source file · mostly on /"
+        },
+        {
+          "label": "#2 after it by people",
+          "value": "RangeError: Invalid time value",
+          "detail": "9 people · 12 times · 10 sessions · source file unknown · mostly on /recipes/soup"
+        }
+      ],
+      "sources": [
+        "posthog/exceptions"
+      ],
+      "caveat": "Counts cover the top 100 messages by volume, and people never add across messages — one person can hit several."
+    },
+    {
+      "key": "posthog-rage-click-cluster",
+      "kind": "warning",
+      "title": "Rage clicks cluster on /planner: the save-plan button frustrates 7.5% of its visitors",
+      "summary": "Over 2026-09-15–2026-09-21, 30 of the 400 people who viewed /planner rage-clicked the save-plan button (7.5%). Watch a session on that element before changing it.",
+      "whyItMatters": "Repeated clicks on one control are people telling the page it did not respond the way they expected. On a form they usually mean an input that looks editable but is not yet, or one that ignores the first tap.",
+      "primary": {
+        "value": "7.5%",
+        "label": "Of page visitors"
+      },
+      "confidence": "medium",
+      "windowStart": "2026-09-15",
+      "windowEnd": "2026-09-21",
+      "evidence": [
+        {
+          "label": "Rule",
+          "value": "posthog-rage-click-cluster",
+          "detail": "rule: posthog-rage-click-cluster"
+        },
+        {
+          "label": "/planner · save-plan button",
+          "value": "7.5%",
+          "detail": "30 of 400 page visitors (7.5%) · 90 clicks · 67% on desktop"
+        }
+      ],
+      "sources": [
+        "posthog/rageclicks"
+      ],
+      "caveat": "A rage click is PostHog’s own heuristic — several fast clicks in one spot — so on a control people click repeatedly by design it can overstate frustration. Page visitors are people with a page view on that path in the window; both counts are unique people over the window and neither adds across elements."
+    },
+    {
+      "key": "posthog-slow-segment",
+      "kind": "warning",
+      "title": "iOS Mobile visitors to /planner wait past Google’s lines",
+      "summary": "Over 2026-09-15–2026-09-21, iOS Mobile visitors to /planner measured LCP 3,100 ms (needs improvement) · INP not measured at the 75th percentile, across 820 measurements. Google’s good lines are 2,500 ms for LCP and 200 ms for INP. Mac OS X Desktop visitors on the same page are inside both (LCP 1,900 ms (good) · INP 90 ms (good)).",
+      "whyItMatters": "Slow paint and slow response on a segment this size is a real audience waiting, and Google reads the same field data for page experience. A fix aimed at the segment that fails beats a site-wide average that hides it.",
+      "primary": {
+        "value": "3,100 ms",
+        "label": "LCP at p75"
+      },
+      "confidence": "medium",
+      "windowStart": "2026-09-15",
+      "windowEnd": "2026-09-21",
+      "evidence": [
+        {
+          "label": "Rule",
+          "value": "posthog-slow-segment",
+          "detail": "rule: posthog-slow-segment"
+        },
+        {
+          "label": "/planner · iOS Mobile",
+          "value": "LCP 3,100 ms (needs improvement) · INP not measured · 820 measurements"
+        },
+        {
+          "label": "/planner · Mac OS X Desktop",
+          "value": "LCP 1,900 ms (good) · INP 90 ms (good) · 610 measurements",
+          "detail": "Inside both lines on the same page."
+        }
+      ],
+      "sources": [
+        "posthog/web-vitals"
+      ],
+      "caveat": "Real-visitor 75th percentiles from PostHog’s web-vitals capture: only browsers that report these metrics send them, and only visitors whose browser does not block PostHog. Google judges a page on its own Chrome field data over 28 days, so this is where to look in Search Console’s Core Web Vitals report, not Google’s verdict."
+    },
+    {
+      "key": "dataforseo-ranking-opportunity",
+      "kind": "recommendation",
+      "title": "Move “weekly meal plan” up from #8",
+      "summary": "DataForSEO estimates 2,400 monthly searches for this query in the United States · English market. /planner already ranks on page one, making it a concrete page to improve before creating something new.",
+      "whyItMatters": "This combines current rank, estimated demand, competition, and CPC so an existing near-win can outrank a speculative content idea.",
+      "primary": {
+        "value": "2,400",
+        "label": "estimated searches / month"
+      },
+      "confidence": "high",
+      "windowStart": "2026-09-14",
+      "windowEnd": "2026-09-14",
+      "evidence": [
+        {
+          "label": "Current organic rank",
+          "value": "#8"
+        },
+        {
+          "label": "Ranking page",
+          "value": "/planner"
+        },
+        {
+          "label": "Keyword difficulty",
+          "value": "28"
+        },
+        {
+          "label": "Estimated CPC",
+          "value": "$1.25"
+        },
+        {
+          "label": "Estimated visits",
+          "value": "120.0"
+        }
+      ],
+      "sources": [
+        "dataforseo/ranked-keywords"
+      ],
+      "caveat": "Search volume, difficulty, CPC, and estimated visits are provider-modelled estimates for the United States · English market. They prioritize review; they do not predict causal traffic or revenue."
+    }
+  ],
+  "suppressedItems": [
+    {
+      "key": "query-cannibalization",
+      "kind": "recommendation",
+      "title": "2 of the property’s own pages compete for “weekly meal plan”"
+    },
+    {
+      "key": "bing-search-opportunity",
+      "kind": "recommendation",
+      "title": "Improve Bing visibility for “\"how many cups in a quart\"”"
+    },
+    {
+      "key": "query-language-drift",
+      "kind": "recommendation",
+      "title": "Review the KOR locale: 24.8% of impressions at 0.8% CTR"
+    },
+    {
+      "key": "dataforseo-ranking-gain",
+      "kind": "discovery",
+      "title": "“weekly meal plan” rose 6 positions"
+    },
+    {
+      "key": "dataforseo-backlink-growth",
+      "kind": "discovery",
+      "title": "Referring-domain momentum is positive"
+    },
+    {
+      "key": "llm-grounding-traffic",
+      "kind": "discovery",
+      "title": "44.7% of captured search impressions are machine grounding, not people"
+    },
+    {
+      "key": "dataforseo-llm-visibility",
+      "kind": "discovery",
+      "title": "7 DataForSEO-tracked AI mentions"
+    },
+    {
+      "key": "search-appearance-leader",
+      "kind": "discovery",
+      "title": "Recipe is the leading search treatment"
+    },
+    {
+      "key": "posthog-funnel-drop-plan",
+      "kind": "insight",
+      "title": "Plan saved: the biggest loss is Viewed /planner → plan_save_click on /planner, where 13% continue"
+    },
+    {
+      "key": "feature-usage-calculation_complete",
+      "kind": "insight",
+      "title": "The calculator is completing meaningful user jobs"
+    },
+    {
+      "key": "page-movers",
+      "kind": "insight",
+      "title": "2 pages moved by 10+ clicks week over week"
+    }
+  ],
+  "searchQueries": {
+    "google": {
+      "provider": "google",
+      "currentStart": "2026-09-14",
+      "currentEnd": "2026-09-20",
+      "previousStart": "2026-09-06",
+      "previousEnd": "2026-09-13",
+      "daysPerWindow": 7,
+      "movers": [
+        {
+          "query": "meal planner",
+          "currentImpressions": 1327,
+          "previousImpressions": 1036,
+          "impressionDelta": 291,
+          "impressionDeltaPercent": 28.08880308880309,
+          "currentPosition": 3.235192162773173,
+          "previousPosition": 3.0530888030888033,
+          "positionImprovement": -0.18210335968436953
+        },
+        {
+          "query": "crème brûlée calories",
+          "currentImpressions": 1397,
+          "previousImpressions": 1131,
+          "impressionDelta": 266,
+          "impressionDeltaPercent": 23.51900972590628,
+          "currentPosition": 11.798210450966355,
+          "previousPosition": 11.563660477453581,
+          "positionImprovement": -0.23454997351277385
+        },
+        {
+          "query": "weekly meal plan",
+          "currentImpressions": 1251,
+          "previousImpressions": 1127,
+          "impressionDelta": 124,
+          "impressionDeltaPercent": 11.002661934338953,
+          "currentPosition": 4.980575539568345,
+          "previousPosition": 4.7534161490683235,
+          "positionImprovement": -0.2271593905000211
+        },
+        {
+          "query": "meal prep ideas",
+          "currentImpressions": 1293,
+          "previousImpressions": 1220,
+          "impressionDelta": 73,
+          "impressionDeltaPercent": 5.983606557377049,
+          "currentPosition": 10.09907192575406,
+          "previousPosition": 9.869508196721311,
+          "positionImprovement": -0.22956372903274946
+        }
+      ],
+      "evidence": [
+        {
+          "label": "Grounding queries excluded",
+          "value": "5,286",
+          "detail": "33.7% of captured impressions · 2 quoted-literal queries · 370 clicks"
+        }
+      ],
+      "source": "gsc/query",
+      "caveat": "Search Console query exports are top rows and can omit anonymized or low-volume demand. Only queries present in both windows are ranked. Quoted-literal grounding queries are excluded before ranking, the same series the CTR and position rules read."
+    },
+    "bing": null,
+    "dataforseo": {
+      "observedAt": "2026-09-14",
+      "queries": [
+        {
+          "query": "meal planner",
+          "monthlySearches": 5400,
+          "organicPosition": 4,
+          "previousOrganicPosition": null,
+          "positionImprovement": null,
+          "keywordDifficulty": 28,
+          "estimatedVisits": 270,
+          "page": "/",
+          "intent": "informational",
+          "aiOverview": "present",
+          "aiCitationPosition": null,
+          "aioDevices": [
+            {
+              "device": "mobile",
+              "aioPresent": true,
+              "aioCitesUs": true
+            },
+            {
+              "device": "desktop",
+              "aioPresent": false,
+              "aioCitesUs": false
+            }
+          ]
+        },
+        {
+          "query": "weekly meal plan",
+          "monthlySearches": 2400,
+          "organicPosition": 8,
+          "previousOrganicPosition": 14,
+          "positionImprovement": 6,
+          "keywordDifficulty": 28,
+          "estimatedVisits": 120,
+          "page": "/planner",
+          "intent": "informational",
+          "aiOverview": "present",
+          "aiCitationPosition": null,
+          "aioDevices": [
+            {
+              "device": "mobile",
+              "aioPresent": true,
+              "aioCitesUs": false
+            }
+          ]
+        },
+        {
+          "query": "meal prep ideas",
+          "monthlySearches": 900,
+          "organicPosition": 12,
+          "previousOrganicPosition": 9,
+          "positionImprovement": -3,
+          "keywordDifficulty": 28,
+          "estimatedVisits": 45,
+          "page": "/recipes/soup",
+          "intent": "informational",
+          "aiOverview": "present",
+          "aiCitationPosition": null,
+          "aioDevices": [
+            {
+              "device": "desktop",
+              "aioPresent": null,
+              "aioCitesUs": null
+            }
+          ]
+        }
+      ],
+      "source": "dataforseo/ranked-keywords",
+      "caveat": "Monthly searches, difficulty, and estimated visits are DataForSEO estimates for the United States · English market—not property impressions. Organic and AI-reference positions are ranks among equivalent result types. Live AI Overview presence and citation come from the tracked dataforseo/serp-panel panel observed 2026-09-14, read on each device separately — a term can be walled on the phone and clear on the desktop, and neither reading stands for the other. A query outside that panel, or one whose overview failed to load, is unknown rather than clear."
+    }
+  },
+  "searchPages": {
+    "provider": "google",
+    "currentStart": "2026-09-14",
+    "currentEnd": "2026-09-20",
+    "previousStart": "2026-09-06",
+    "previousEnd": "2026-09-13",
+    "daysPerWindow": 7,
+    "pages": [
+      {
+        "page": "https://meals.example/recipes/soup",
+        "path": "/recipes/soup",
+        "currentClicks": 74,
+        "previousClicks": 88,
+        "clickDelta": -14,
+        "clickDeltaPercent": -15.909090909090908,
+        "currentImpressions": 1111,
+        "previousImpressions": 1218,
+        "impressionDelta": -107,
+        "impressionDeltaPercent": -8.784893267651888,
+        "currentPosition": 6.686318631863187,
+        "previousPosition": 6.453694581280788,
+        "positionImprovement": -0.2326240505823982,
+        "currentCtr": 0.0666066606660666,
+        "previousCtr": 0.0722495894909688,
+        "leadingQuery": null
+      },
+      {
+        "page": "https://meals.example/planner",
+        "path": "/planner",
+        "currentClicks": 68,
+        "previousClicks": 82,
+        "clickDelta": -14,
+        "clickDeltaPercent": -17.073170731707318,
+        "currentImpressions": 1110,
+        "previousImpressions": 1127,
+        "impressionDelta": -17,
+        "impressionDeltaPercent": -1.5084294587400178,
+        "currentPosition": 4.927297297297296,
+        "previousPosition": 4.7534161490683235,
+        "positionImprovement": -0.17388114822897283,
+        "currentCtr": 0.06126126126126126,
+        "previousCtr": 0.07275953859804792,
+        "leadingQuery": {
+          "query": "weekly meal plan",
+          "impressions": 273,
+          "clicks": 23,
+          "position": 4.3538461538461535,
+          "aioDevices": [
+            {
+              "device": "mobile",
+              "aioPresent": true,
+              "aioCitesUs": false
+            }
+          ]
+        }
+      },
+      {
+        "page": "https://meals.example/",
+        "path": "/",
+        "currentClicks": 79,
+        "previousClicks": 76,
+        "clickDelta": 3,
+        "clickDeltaPercent": 3.9473684210526314,
+        "currentImpressions": 1199,
+        "previousImpressions": 1036,
+        "impressionDelta": 163,
+        "impressionDeltaPercent": 15.733590733590733,
+        "currentPosition": 3.1855713094245206,
+        "previousPosition": 3.0530888030888033,
+        "positionImprovement": -0.13248250633571734,
+        "currentCtr": 0.0658882402001668,
+        "previousCtr": 0.07335907335907337,
+        "leadingQuery": null
+      },
+      {
+        "page": "https://meals.example/guides/protein",
+        "path": "/guides/protein",
+        "currentClicks": 80,
+        "previousClicks": 77,
+        "clickDelta": 3,
+        "clickDeltaPercent": 3.896103896103896,
+        "currentImpressions": 1022,
+        "previousImpressions": 1309,
+        "impressionDelta": -287,
+        "impressionDeltaPercent": -21.92513368983957,
+        "currentPosition": 8.334735812133072,
+        "previousPosition": 8.153934300993125,
+        "positionImprovement": -0.18080151113994702,
+        "currentCtr": 0.07827788649706457,
+        "previousCtr": 0.058823529411764705,
+        "leadingQuery": {
+          "query": "weekly meal plan",
+          "impressions": 299,
+          "clicks": 15,
+          "position": 6.053511705685619,
+          "aioDevices": [
+            {
+              "device": "mobile",
+              "aioPresent": true,
+              "aioCitesUs": false
+            }
+          ]
+        }
+      }
+    ],
+    "evidence": [
+      {
+        "label": "Grounding queries excluded from the leading-query join",
+        "value": "676",
+        "detail": "44.7% of captured page/query impressions · 2 quoted-literal queries · 40 clicks. The click and impression totals on each row are the page family’s own and are NOT decontaminated: a page row carries no query to classify."
+      }
+    ],
+    "source": "gsc/page",
+    "caveat": "Search Console page exports are top rows: a page reported in only one of the two weeks is unknown rather than zero and is left out, so this understates movement at the export boundary. Page clicks and impressions are the page family’s own totals and carry no query dimension, so the grounding-query exclusion the CTR rules apply cannot be applied to them; it is applied to the leading-query join only, and the lane states what it removed there. The leading query is the page’s largest query by impressions in the current window, not the one it earns most clicks on."
+  },
+  "productUse": null,
+  "searchIntelligence": {
+    "observedAt": "2026-09-14",
+    "costUsd": 0.272,
+    "referringDomains": [
+      {
+        "domain": "blog.example.org",
+        "rank": 220,
+        "backlinks": 14,
+        "spamScore": 0,
+        "firstSeen": "2026-01-02 00:00:00 +00:00"
+      }
+    ],
+    "anchors": {
+      "sampled": 1,
+      "spammy": 0,
+      "spammyDomains": 0,
+      "top": [
+        {
+          "anchor": "meal planner, free",
+          "referringDomains": 12,
+          "backlinks": 40,
+          "spamScore": 0
+        }
+      ]
+    },
+    "keywordIdeas": [
+      {
+        "keyword": "cheap meal plan",
+        "searchVolume": 1300,
+        "difficulty": 0,
+        "cpc": 0,
+        "intent": null
+      },
+      {
+        "keyword": "meal plan for two",
+        "searchVolume": 880,
+        "difficulty": 12,
+        "cpc": 0.9,
+        "intent": "commercial"
+      }
+    ],
+    "competitors": [
+      {
+        "domain": "recipes.example",
+        "intersections": 120,
+        "competitorKeywords": 91000,
+        "overlapShare": 0.0013186813186813187,
+        "avgPosition": 6.2
+      }
+    ],
+    "rankings": {
+      "keywords": 3,
+      "top3": 0,
+      "top10": 2,
+      "top20": 3,
+      "estimatedVisits": 435,
+      "estimatedPaidTrafficCost": 609.0000000000001,
+      "aiOverviewReferences": 0
+    },
+    "backlinks": {
+      "rank": 412,
+      "backlinks": 800,
+      "referringDomains": 240,
+      "newReferringDomains": 14,
+      "lostReferringDomains": 3
+    },
+    "ai": {
+      "googleMentions": 7,
+      "googleSearchVolume": 900,
+      "chatgptMentions": null,
+      "chatgptSearchVolume": null
+    }
+  },
+  "serpPanel": {
+    "reportDate": "2026-09-14",
+    "trackedDepth": 20,
+    "market": {
+      "locationCode": 2840,
+      "languageCode": "en"
+    },
+    "queries": [
+      {
+        "query": "meal planner",
+        "device": "mobile",
+        "label": "Head terms",
+        "bestRank": 2,
+        "bestUrl": "https://meals.example/",
+        "aioPresent": true,
+        "aioCitesUs": true,
+        "composition": {
+          "top3Domains": [
+            "reference.example",
+            "meals.example",
+            "recipes.example"
+          ],
+          "organicResults": 4,
+          "secondRank": 5,
+          "secondUrl": "https://meals.example/planner",
+          "serpFeatures": [
+            "ai_overview"
+          ]
+        }
+      },
+      {
+        "query": "meal planner",
+        "device": "desktop",
+        "label": "Head terms",
+        "bestRank": 3,
+        "bestUrl": "https://meals.example/",
+        "aioPresent": false,
+        "aioCitesUs": false,
+        "composition": {
+          "top3Domains": [
+            "meals.example"
+          ],
+          "organicResults": 1,
+          "secondRank": null,
+          "secondUrl": null,
+          "serpFeatures": []
+        }
+      },
+      {
+        "query": "weekly meal plan",
+        "device": "mobile",
+        "label": "Head terms",
+        "bestRank": null,
+        "bestUrl": null,
+        "aioPresent": true,
+        "aioCitesUs": false,
+        "composition": {
+          "top3Domains": [
+            "reference.example"
+          ],
+          "organicResults": 1,
+          "secondRank": null,
+          "secondUrl": null,
+          "serpFeatures": [
+            "ai_overview",
+            "people_also_ask"
+          ]
+        }
+      },
+      {
+        "query": "meal prep ideas",
+        "device": "desktop",
+        "label": null,
+        "bestRank": null,
+        "bestUrl": null,
+        "aioPresent": null,
+        "aioCitesUs": null,
+        "composition": {
+          "top3Domains": [
+            "recipes.example"
+          ],
+          "organicResults": 1,
+          "secondRank": null,
+          "secondUrl": null,
+          "serpFeatures": [
+            "ai_overview"
+          ]
+        }
+      },
+      {
+        "query": "crème brûlée calories",
+        "device": "mobile",
+        "label": null,
+        "bestRank": null,
+        "bestUrl": null,
+        "aioPresent": null,
+        "aioCitesUs": null,
+        "composition": null,
+        "providerStatus": "Invalid Field: keyword.",
+        "providerAttempts": 3
+      }
+    ]
+  },
+  "product": {
+    "source": "posthog",
+    "observedAt": "2026-09-21",
+    "collectedAt": "2026-09-22T12:31:00.000Z",
+    "families": [
+      {
+        "family": "web-daily",
+        "reportDate": "2026-09-21",
+        "windowStart": "2026-08-25",
+        "windowEnd": "2026-09-21",
+        "rows": 4,
+        "truncated": false
+      },
+      {
+        "family": "events",
+        "reportDate": "2026-09-21",
+        "windowStart": "2026-09-15",
+        "windowEnd": "2026-09-21",
+        "rows": 2,
+        "truncated": false
+      },
+      {
+        "family": "exceptions",
+        "reportDate": "2026-09-21",
+        "windowStart": "2026-09-15",
+        "windowEnd": "2026-09-21",
+        "rows": 3,
+        "truncated": false
+      },
+      {
+        "family": "rageclicks",
+        "reportDate": "2026-09-21",
+        "windowStart": "2026-09-15",
+        "windowEnd": "2026-09-21",
+        "rows": 1,
+        "truncated": true
+      },
+      {
+        "family": "web-vitals",
+        "reportDate": "2026-09-21",
+        "windowStart": "2026-09-15",
+        "windowEnd": "2026-09-21",
+        "rows": 2,
+        "truncated": false
+      },
+      {
+        "family": "funnels",
+        "reportDate": "2026-09-21",
+        "windowStart": "2026-09-15",
+        "windowEnd": "2026-09-21",
+        "rows": 2,
+        "truncated": false
+      }
+    ],
+    "webDaily": {
+      "windowStart": "2026-09-17",
+      "windowEnd": "2026-09-21",
+      "reportDate": "2026-09-21",
+      "days": [
+        {
+          "date": "2026-09-17",
+          "people": 326,
+          "pageviews": 913,
+          "sessions": 459
+        },
+        {
+          "date": "2026-09-18",
+          "people": 338,
+          "pageviews": 925,
+          "sessions": 471
+        },
+        {
+          "date": "2026-09-19",
+          "people": 305,
+          "pageviews": 932,
+          "sessions": 428
+        },
+        {
+          "date": "2026-09-20",
+          "people": 312,
+          "pageviews": 939,
+          "sessions": 435
+        },
+        {
+          "date": "2026-09-21",
+          "people": 319,
+          "pageviews": 946,
+          "sessions": 442
+        }
+      ]
+    },
+    "funnels": [
+      {
+        "id": "plan",
+        "name": "Plan saved",
+        "windowStart": "2026-09-15",
+        "windowEnd": "2026-09-21",
+        "steps": [
+          {
+            "step": 1,
+            "event": "$pageview",
+            "path": "/planner",
+            "people": 900
+          },
+          {
+            "step": 2,
+            "event": "plan_save_click",
+            "path": "/planner",
+            "people": 120
+          }
+        ],
+        "conversion": 0.13333333333333333,
+        "largestDrop": {
+          "fromStep": 1,
+          "toStep": 2,
+          "lostPeople": 780,
+          "stepConversion": 0.13333333333333333
+        },
+        "prior": null
+      }
+    ],
+    "vitals": {
+      "windowStart": "2026-09-15",
+      "windowEnd": "2026-09-21",
+      "reportDate": "2026-09-21",
+      "minMeasurements": 500,
+      "lines": {
+        "lcp": {
+          "good": 2500,
+          "poor": 4000
+        },
+        "inp": {
+          "good": 200,
+          "poor": 500
+        },
+        "cls": {
+          "good": 0.1,
+          "poor": 0.25
+        }
+      },
+      "segments": [
+        {
+          "path": "/planner",
+          "device": "Mobile",
+          "os": "iOS",
+          "measurements": 820,
+          "lcpP75": 3100,
+          "inpP75": null,
+          "clsP75": 0.02,
+          "lcpRating": "needs-improvement",
+          "inpRating": null,
+          "clsRating": "good"
+        },
+        {
+          "path": "/planner",
+          "device": "Desktop",
+          "os": "Mac OS X",
+          "measurements": 610,
+          "lcpP75": 1900,
+          "inpP75": 90,
+          "clsP75": 0.01,
+          "lcpRating": "good",
+          "inpRating": "good",
+          "clsRating": "good"
+        }
+      ],
+      "unmeasuredSegments": 0
+    },
+    "exceptions": {
+      "windowStart": "2026-09-15",
+      "windowEnd": "2026-09-21",
+      "reportDate": "2026-09-21",
+      "total": 212,
+      "truncated": false,
+      "noise": null,
+      "top": [
+        {
+          "type": "TypeError",
+          "message": "Cannot read properties of null (reading 'plan')",
+          "count": 140,
+          "people": 90,
+          "sessions": 110,
+          "maxPerSession": 3,
+          "hasSourceFile": true,
+          "topPath": "/planner",
+          "topBrowser": "Safari"
+        },
+        {
+          "type": "Error",
+          "message": "Script error.",
+          "count": 60,
+          "people": 55,
+          "sessions": 58,
+          "maxPerSession": 1,
+          "hasSourceFile": false,
+          "topPath": "/",
+          "topBrowser": "Chrome"
+        },
+        {
+          "type": "RangeError",
+          "message": "Invalid time value",
+          "count": 12,
+          "people": 9,
+          "sessions": 10,
+          "maxPerSession": 2,
+          "hasSourceFile": null,
+          "topPath": "/recipes/soup",
+          "topBrowser": null
+        }
+      ]
+    },
+    "rageClicks": {
+      "windowStart": "2026-09-15",
+      "windowEnd": "2026-09-21",
+      "reportDate": "2026-09-21",
+      "shareLine": 0.05,
+      "clusters": [
+        {
+          "path": "/planner",
+          "tag": "button",
+          "text": "Save",
+          "attr": "save-plan",
+          "clicks": 90,
+          "people": 30,
+          "pagePeople": 400,
+          "share": 0.075,
+          "desktopShare": 0.6666666666666666,
+          "element": "save-plan button"
+        }
+      ]
+    },
+    "onceEvents": [
+      {
+        "event": "first_plan_created",
+        "count": 480,
+        "people": 400,
+        "perPerson": 1.2
+      }
+    ],
+    "checks": [
+      {
+        "key": "posthog-slow-segment",
+        "label": "Real-visitor speed",
+        "state": "fired",
+        "detail": "1 measured segment(s) cross a line; worst is iOS Mobile on /planner."
+      },
+      {
+        "key": "posthog-rage-click-cluster",
+        "label": "Rage clicks",
+        "state": "fired",
+        "detail": "1 element(s) over the 5% line; worst is the save-plan button on /planner."
+      },
+      {
+        "key": "posthog-error-concentration",
+        "label": "Errors",
+        "state": "fired",
+        "detail": "One message is 66% of 212 exceptions."
+      },
+      {
+        "key": "posthog-funnel-drop",
+        "label": "Funnels",
+        "state": "fired",
+        "detail": "1 funnel(s) ranked; the deepest drop keeps 13% in Plan saved."
+      },
+      {
+        "key": "posthog-once-event-repeats",
+        "label": "Once-only events",
+        "state": "fired",
+        "detail": "1 once-only event(s) repeat; first_plan_created fires 1.2 times per person."
+      }
+    ],
+    "caveat": "PostHog counts only browsers that load it, so its totals run below Google Analytics; it drops known bots that Google Analytics keeps; signed-in events wait for consent, so they are floors; and server-side events use account ids that do not join browser visitors. People are unique within each figure’s own window and never add across rows or days."
+  },
+  "clarity": {
+    "source": "clarity",
+    "reportDate": "2026-09-21",
+    "collectedAt": "2026-09-21T04:30:00.000Z",
+    "windowHours": 72,
+    "truncated": false,
+    "page": {
+      "url": "https://meals.example/planner",
+      "sessions": 115,
+      "scriptErrors": 19
+    },
+    "unattributedSessions": 0
+  },
+  "methodology": [
+    "Every finding is generated by a deterministic rule over named GA4, GSC, Bing Webmaster, and DataForSEO report rows.",
+    "Product-use stage signals use one rolling 28-day GA4 aggregate so returning users are not added more than once per event; independent event totals are not a cohort conversion.",
+    "Google and Bing query movers compare seven reported dates with the preceding seven and include only queries present in both; DataForSEO adds a current query baseline even before a second local snapshot exists.",
+    "Bing snapshot reports are revision history: rules read only the latest snapshot and never add repeated weekly rows together.",
+    "DataForSEO rankings, backlinks, and LLM mentions are stored weekly snapshots; current facts use the latest snapshot and movement rules compare locally retained history without repulling it.",
+    "DataForSEO demand, difficulty, traffic, and AI-volume values are provider estimates used for prioritization—not causal ROI or user counts. Exact report cost is retained.",
+    "Tracked-panel AI Overview evidence is one live result page in the United States · English market per hand-picked head term PER DEVICE—phone and desktop are two different pages and are never folded into one verdict. It enriches queries the ranking inventory already carries and gates the striking-distance recommendation, withholding a term whose overview was read on either device and does not cite this property there. An untracked query or a failed overview load stays unknown—never recorded as no overview—and an unknown term is offered exactly as it was before the panel existed.",
+    "Quoted-literal queries are classified as machine grounding and excluded from the CTR and position rules, never silently: each affected card states the excluded impressions and their share, and the excluded traffic gets its own card. The classifier covers the quoted signature only, so it is a floor for that behavior rather than its measure.",
+    "No archived family carries query by device, so the device rule charges the whole grounding exclusion to whichever surface is clicking worse — a worst case that can only make that rule quieter, never louder.",
+    "Cards recommending page consolidation set aside queries whose pages report near-identical impressions at near-identical positions, or no clicks at all: that is one SERP block crediting several of the property’s URLs, not pages competing.",
+    "Value events are an operator declaration in config/value-events.json compared against GA4’s own key-event counts. The OS reports the disagreement and never edits either side; the measurement channel is operator-only by invariant.",
+    "Page-grain and country-grain rules read GSC top-row exports: a page or country below the export cut-off is unknown, never zero, so week-over-week page movement compares only pages reported in both weeks.",
+    "Page decisions compare the same two seven-date windows the query movers do, at page grain. A page row carries no query, so the grounding-query exclusion cannot be applied to its clicks and impressions — it is applied only to the leading query joined onto each page, and the lane says so rather than letting one row imply the other was corrected.",
+    "Reclamation matches compare an operator-supplied export of open outreach targets against GA4 referral hosts. Without that export the rule is silent, and it never marks a link won: that stays a human confirmation on the page.",
+    "Measurement-integrity findings bound the rest of the page rather than adding to it, and the OS only reports them — the measurement channel is operator-only by invariant.",
+    "Rules over GA4’s channel and source/medium reports read settled days only. A day GA4 was still attributing when it was collected (provisional=1, until a collection two days after it) reads high on Unassigned and low on the real channels, so it is set aside rather than labelled, and each card built beside such days names them. A report holding only unsettled days raises no finding until it settles.",
+    "Where two observers rank the same problem — Clarity’s sampled trailing 72-hour script errors and GA4’s js_error events over completed dates — a disagreement about the worst page is reported as its own finding, with each observer’s page, unit, and window stated separately. The units are not convertible, so the OS never merges, averages, or ranks the two observers against each other.",
+    "JavaScript error messages are ranked as masked buckets rather than raw text, which carries each occurrence’s URL, build hash, and line number. GA4 answers for that parameter only after an operator registered it and backfills nothing, so events reported earlier carry no message, are counted in their own row rather than ranked, and can never be triaged. A property whose message dimension is unregistered has no such rows at all, and its error card claims exactly what it claimed before the triage family existed.",
+    "PostHog product findings read each family’s newest archive over its own window: rage clicks against the page’s visitors (over 5% of at least 200), exceptions with one message holding half the volume and no source file set aside as probable third-party noise, events named first_* or *_created that fire over 10% more often than people, 75th-percentile LCP and INP against Google’s 2,500 ms and 200 ms lines on top-page segments with at least 500 measurements, and each funnel’s largest step-to-step loss against the read ending seven days earlier. A rule below its floor reports not enough data rather than firing.",
+    "The page keeps the eight most severe cards. Every card the cut drops is listed in suppressedItems with its rule id and title — a finding the system decides not to show is still a finding it may not decide not to mention.",
+    "Missing provider rows remain unknown and never justify a deprecation recommendation.",
+    "Recommendations are directional evidence, not causal claims; deploy annotations and outcome watch still decide whether a change worked."
+  ]
+}

@@ -1,0 +1,132 @@
+// Explicit projection, shared by the Worker and local runner. Unknown keys,
+// raw errors, documents, credentials and provider response bodies never enter
+// the trace. Field names remain available beside their operator-facing labels.
+//
+// Authored TypeScript (bead ro-ujb9.61): `pnpm config:generate` writes the
+// `.mjs` the Worker and Node import and the `.d.mts` beside it.
+
+import type { WorkflowOutputValue, WorkflowStepOutput } from '../packages/contract/src/workflows.js';
+
+/** An operation's result as this projection reads it: any shape, every key guarded. */
+type Probe = { readonly [key: string]: unknown } | null | undefined;
+type Row = { readonly [key: string]: unknown };
+type ItemState = WorkflowStepOutput['items'][number]['state'];
+
+const METRICS: Readonly<Record<string, string>> = {
+  attempted: 'Attempted', succeeded: 'Succeeded', failed: 'Failed', skipped: 'Skipped', unchanged: 'Unchanged',
+  checked: 'Checked', found: 'Found', fresh: 'Fresh', sent: 'Sent', stale: 'Stale',
+  notExpected: 'Not expected', fired: 'Alerts created', refreshed: 'Alerts refreshed', resolved: 'Alerts resolved',
+  egressGated: 'Alerts withheld', filed: 'Tasks filed', closed: 'Closed', drift: 'Projects with drift',
+  written: 'Rows written', providerRows: 'Provider rows', observationCount: 'Observations', retries: 'Retries',
+  assets: 'Assets', checks: 'Checks', scanned: 'Scanned', evaluated: 'Evaluated', readings: 'Readings', overdue: 'Overdue', value: 'Measured value', costUsd: 'Provider cost', code: 'Exit code', seconds: 'Duration in seconds',
+  pulseId: 'Report ID', envelopeFlags: 'Reported alerts', centralFlags: 'Central alerts', resolvedAnomalies: 'Anomalies resolved', resolvedFreshness: 'Freshness alerts resolved',
+};
+const COUNTS: Readonly<Record<string, string>> = { open: 'Open tasks', ready: 'Ready tasks', inProgress: 'In progress', blocked: 'Blocked', deferred: 'Deferred', waiting: 'Waiting', highPriority: 'High priority', closedRecent: 'Recently closed' };
+// Why the unpublished-commit check could not read a site's remote (its
+// `failed` items' `reason`, bead ro-ujb9.188).
+const REMOTE_READ_REASONS: Readonly<Record<string, string>> = {
+  'remote-sign-in-refused': 'Remote sign-in refused', 'remote-unreachable': 'Remote unreachable', 'git-read-failed': 'Git could not read the branch',
+};
+// The notifier's `skipped` codes, and the remote-read reasons above.
+const REASONS: Readonly<Record<string, string>> = {
+  'nothing-to-say': 'No new notifications', 'no-credential': 'Notification account is not connected', 'store-unavailable': 'Notification history is unavailable', 'delivery-failed': 'Notification delivery failed',
+  ...REMOTE_READ_REASONS,
+};
+const DETAILS: readonly unknown[] = ['No Mediavine report is due.', 'Mediavine needs to be reconnected.'];
+const VERDICTS: readonly unknown[] = ['ship_confirmed', 'kill_confirmed', 'inconclusive', 'unmeasurable'];
+const LABELS: Readonly<Record<string, string>> = { ...METRICS, ...COUNTS, projects: 'Projects', projectsRead: 'Projects read', projectsFailed: 'Projects unavailable', savedSettings: 'Saved settings', defaultSettings: 'Default settings', ok: 'Operation confirmed', providerTruncated: 'Provider limited the result', check: 'Check', finding: 'Finding', dataState: 'Data', status: 'HTTP status', reportDate: 'Reporting date', date: 'Reporting date', integration: 'Integration', report: 'Report', reason: 'Reason', outcome: 'Dispatch result', verdict: 'Outcome', id: 'Window' };
+const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 1e15;
+const name = (value: unknown): string | null => typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,119}$/.test(value) ? value : null;
+const entry = (key: string, label: string, value: WorkflowOutputValue['value']): WorkflowOutputValue => ({ key, label, value, ...(key === 'costUsd' ? { unit: 'USD' as const } : {}) });
+function numbers(value: Probe, labels: Readonly<Record<string, string>>): WorkflowOutputValue[] {
+  return Object.entries(labels).flatMap(([key, label]) => {
+    const number = Array.isArray(value?.[key]) ? (value![key] as unknown[]).length : value?.[key];
+    return finite(number) ? [entry(key, label, number)] : [];
+  });
+}
+function fields(value: Probe): WorkflowOutputValue[] {
+  const result: WorkflowOutputValue[] = [];
+  if (typeof value?.ok === 'boolean') result.push(entry('ok', 'Operation confirmed', value.ok));
+  if (typeof value?.providerTruncated === 'boolean') result.push(entry('providerTruncated', 'Provider limited the result', value.providerTruncated));
+  if (name(value?.check)) result.push(entry('check', 'Check', value!.check as string));
+  if (name(value?.check) && ['ok', 'warn', 'error', 'unreachable'].includes(value?.status as string)) result.push(entry('finding', 'Finding', value!.status as string));
+  if (value?.status === 'unchanged') result.push(entry('dataState', 'Data', 'Unchanged'));
+  if (finite(value?.status)) result.push(entry('status', 'HTTP status', value!.status as number));
+  if (typeof value?.reportDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.reportDate)) result.push(entry('reportDate', 'Reporting date', value.reportDate));
+  if (typeof value?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.date)) result.push(entry('date', 'Reporting date', value.date));
+  if (VERDICTS.includes(value?.outcome)) result.push(entry('verdict', 'Outcome', value!.outcome as string));
+  if (name(value?.id)) result.push(entry('id', 'Window', value!.id as string));
+  for (const key of ['integration', 'report']) if (name(value?.[key])) result.push(entry(key, key === 'integration' ? 'Integration' : 'Report', value![key] as string));
+  const reason = Object.hasOwn(REASONS, value?.skipped as PropertyKey) ? value!.skipped : value?.reason;
+  if (Object.hasOwn(REASONS, reason as PropertyKey)) result.push(entry('reason', 'Reason', REASONS[reason as string] as string));
+  if (DETAILS.includes(value?.detail)) result.push(entry('reason', 'Reason', value!.detail as string));
+  if (['ran', 'failed', 'skipped'].includes(value?.outcome as string)) result.push(entry('outcome', 'Dispatch result', value!.outcome as string));
+  return result;
+}
+function itemState(value: Probe): ItemState {
+  if (name(value?.check) && ['ok', 'warn', 'error', 'unreachable'].includes(value?.status as string)) return value!.error ? 'failed' : 'succeeded';
+  if (value?.ok === false || value?.status === 'error') return 'failed';
+  if (value?.ok === true || ['success', 'unchanged'].includes(value?.status as string)) return 'succeeded';
+  if (value?.status === 'skipped') return 'skipped';
+  return 'unknown';
+}
+
+/**
+ * How many sites a step could not read, when every item of its `failed` list
+ * is a site whose remote the unpublished-commit check could not read (bead
+ * ro-ujb9.233); otherwise null. The step summary names those as sites, since
+ * nothing was collected from them.
+ */
+export function unreadSiteCount(value: unknown): number | null {
+  const failed = (value as Probe)?.failed;
+  if (!Array.isArray(failed) || failed.length === 0) return null;
+  return failed.every((item: Probe) => name(item?.asset) && Object.hasOwn(REMOTE_READ_REASONS, item?.reason as PropertyKey)) ? failed.length : null;
+}
+
+export function captureWorkflowOutput(value: unknown): WorkflowStepOutput | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value === 'boolean') return { version: 1, metrics: [], fields: [entry('ok', 'Operation confirmed', value)], items: [], totalItems: 0, truncated: false };
+  if (typeof value !== 'object' || Array.isArray(value)) return undefined;
+  // From here `value` is a plain object of unknown shape; `Row` is how it is read.
+  const metrics = numbers(value as Row, METRICS);
+  const details = fields(value as Row);
+  const primary: Probe[] = Array.isArray((value as Row).outcomes) ? (value as Row).outcomes as Probe[] : Array.isArray((value as Row).projects) ? (value as Row).projects as Probe[] : Array.isArray((value as Row).closed) ? (value as Row).closed as Probe[] : [];
+  const failures: Probe[] = Array.isArray((value as Row).failed) ? (value as Row).failed as Probe[] : [];
+  const collection = [...primary, ...failures.filter((item) => !primary.includes(item))];
+  const items = collection.slice(0, 50).map((item, index) => ({
+    label: name(item?.asset) ?? name(item?.id) ?? `Item ${index + 1}`,
+    state: failures.includes(item) ? 'failed' as const : primary === (value as Row).closed ? 'succeeded' as const : itemState(item),
+    fields: [...fields(item), ...numbers(item, METRICS), ...numbers(item?.counts as Probe, COUNTS), ...numbers(item?.result as Probe, METRICS)].slice(0, 24),
+  }));
+  if (Array.isArray((value as Row).projects)) {
+    metrics.unshift(entry('projects', 'Projects', ((value as Row).projects as Probe[]).length), entry('projectsRead', 'Projects read', ((value as Row).projects as Probe[]).filter((item) => item?.ok === true).length), entry('projectsFailed', 'Projects unavailable', ((value as Row).projects as Probe[]).filter((item) => item?.ok === false).length));
+  }
+  // Configuration values can contain account material; disclose only provenance.
+  if ((value as Row).sources && typeof (value as Row).sources === 'object') {
+    const sources = Object.values((value as Row).sources as object);
+    metrics.push(entry('savedSettings', 'Saved settings', sources.filter((source) => source === 'store').length), entry('defaultSettings', 'Default settings', sources.filter((source) => source === 'file').length));
+  }
+  if (!metrics.length && !details.length && !items.length) return undefined;
+  return { version: 1, metrics: metrics.slice(0, 32), fields: details, items, totalItems: collection.length, truncated: collection.length > items.length };
+}
+
+export function isWorkflowStepOutput(value: unknown): value is WorkflowStepOutput {
+  const only = (item: unknown, keys: readonly string[]): item is { readonly [key: string]: unknown } => item as boolean && typeof item === 'object' && !Array.isArray(item) && Object.keys(item!).every((key) => keys.includes(key));
+  const validValue = (item: { readonly [key: string]: unknown }) => {
+    if (!Object.hasOwn(LABELS, item.key as PropertyKey) || item.label !== LABELS[item.key as string]) return false;
+    if (['ok', 'providerTruncated'].includes(item.key as string)) return typeof item.value === 'boolean';
+    if (['integration', 'report', 'check', 'id'].includes(item.key as string)) return Boolean(name(item.value));
+    if (['reportDate', 'date'].includes(item.key as string)) return typeof item.value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.value);
+    if (item.key === 'reason') return [...Object.values(REASONS), ...DETAILS].includes(item.value);
+    if (item.key === 'finding') return ['ok', 'warn', 'error', 'unreachable'].includes(item.value as string);
+    if (item.key === 'outcome') return ['ran', 'failed', 'skipped'].includes(item.value as string);
+    if (item.key === 'verdict') return VERDICTS.includes(item.value);
+    if (item.key === 'dataState') return item.value === 'Unchanged';
+    return finite(item.value);
+  };
+  const values = (entries: unknown, limit: number) => Array.isArray(entries) && entries.length <= limit && entries.every((item: unknown) =>
+    only(item, ['key', 'label', 'value', 'unit']) && validValue(item) && (item.unit === undefined || item.key === 'costUsd' && item.unit === 'USD'));
+  return Boolean(only(value, ['version', 'metrics', 'fields', 'items', 'totalItems', 'truncated']) && value.version === 1 && values(value.metrics, 32) && values(value.fields, 16) && Array.isArray(value.items) && value.items.length <= 50 &&
+    Number.isInteger(value.totalItems) && (value.totalItems as number) >= value.items.length && typeof value.truncated === 'boolean' &&
+    value.items.every((item: unknown) => only(item, ['label', 'state', 'fields']) && (name(item.label) || /^Item \d+$/.test(item.label as string)) && ['succeeded', 'failed', 'skipped', 'unknown'].includes(item.state as string) && values(item.fields, 24)));
+}

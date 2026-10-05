@@ -1,0 +1,36 @@
+// HOW A HUMAN GATE READS: the ask it holds, not the mechanism's name
+// (bead ro-ujb9.201).
+//
+// `bd` titles every gate "Gate: human" and has no reason FIELD: `bd gate create
+// -r/--reason` writes the ask into the description under a generated first
+// line, as `Ad-hoc gate blocking <id>\n\nReason: <text>` (verified against bd
+// 1.1.2 and its own --help, 2026-08-02). The operator's inbox exists so a gate
+// can be answered without opening it, so every reader that shows a gate — the
+// runner's task snapshot and the Tower's live task read — titles it with this
+// reason, through this one module rather than a copy each.
+//
+// Authored TypeScript: `pnpm config:generate` writes the `.mjs` the runner and
+// the Tower import, and the `.d.mts` beside it.
+
+/** A gate's reason is free text an operator typed, and the route caps a title
+ * at 512. Bounded here so a long reason costs the gate its tail rather than
+ * costing the whole project its snapshot. */
+export const GATE_REASON_MAX = 400;
+
+/**
+ * The ask inside a gate's description, or null for a gate created without a
+ * reason — which keeps that gate's own title as the fallback rather than
+ * inventing a label for it.
+ */
+export function gateReason(description: unknown): string | null {
+  if (typeof description !== "string") return null;
+  const match = /(?:^|\n)Reason:[ \t]*([\s\S]+)$/.exec(description);
+  const reason = match ? (match[1] ?? "").trim() : "";
+  return reason === "" ? null : reason.slice(0, GATE_REASON_MAX);
+}
+
+/** The title a human gate is shown by: the ask it holds, or its own title when
+ * it holds none. */
+export function gateTitle(title: string, description: unknown): string {
+  return gateReason(description) ?? title;
+}

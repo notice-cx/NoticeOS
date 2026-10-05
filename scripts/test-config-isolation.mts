@@ -1,0 +1,371 @@
+// Unit tests run on FIXTURE configuration, never on the checkout's own
+// `config/` or this installation's folder (beads ro-ujb9.92, ro-ujb9.125).
+//
+// WHY. The installation folder (`installation/`, scripts/installation.mts) is
+// the operator's configuration: `pnpm config:export` writes the saved settings
+// back into it. `config/*.json` holds the product's defaults, which change
+// with the product. A test that passes only because of today's values in
+// either fails on a stranger's clean install, or the day a setting or a
+// default changes — the journey harness was isolated from both for the same
+// reason (ro-ujb9.89). So, in the Tower and ingest unit suites:
+//
+//   - an IMPORT of a repo config file from source code (the ingest's compiled
+//     fallback copies, the contract's compiled clock) is answered with the
+//     suite's own fixture copy, `test/fixture-config/<name>.json`. A config file
+//     the suite holds no copy of fails the import rather than falling through to
+//     the owner's (`fixtureConfigPlugin`);
+//   - TEST code (any file under the suite's test directory) importing one is
+//     refused, and so is test code reading one with `node:fs`
+//     (`installOwnerConfigReadGuard`, Tower and contract — the ingest suite
+//     runs in workerd, which has no host filesystem).
+//
+// Not seen by either: a COMPUTED dynamic import (`import(/* @vite-ignore */
+// path)`), which vitest hands to Node rather than to Vite's resolver. Nothing
+// in the suites does that, and a literal specifier is refused.
+//
+// The contract suite (packages/contract) is wired the same way as the Tower's
+// (bead ro-ujb9.97): its compiled clock gets its own test/fixture-config/ copy.
+//
+// The ROOT SCRIPT suite (`pnpm test:scripts`, bead ro-ujb9.97) is wired
+// differently, because there is no test directory to tell test code from the
+// code under test: node --test runs each scripts/*.test.mjs in its own process,
+// and the script it drives runs inside that process too. So the whole process
+// is the test. `installScriptTestConfigGuard` (preloaded by
+// scripts/script-tests-setup.mjs through package.json's --import) refuses ANY
+// read or import of the checkout's config in it — by the test, or by a script
+// reaching for its default path — and a test that needs a document reads
+// scripts/fixture-config/'s frozen copy or a temp repo instead.
+//
+// The exception is a seed-validation or generation-input test: a test whose
+// purpose needs the exact shipped source document. Each names the files it reads and
+// why; nothing else may read the checkout's config. Pinned by
+// scripts/test-config-isolation.test.mjs.
+//
+// Authored TypeScript (bead ro-ujb9.100): `pnpm config:generate` writes the
+// `.mjs` the suites and the root test preload import and the `.d.mts` beside
+// it; the Tower's vitest config and test setup compile against this source.
+
+import fs from "node:fs";
+import path from "node:path";
+import * as nodeModule from "node:module";
+import { fileURLToPath } from "node:url";
+import { DEFAULT_INSTALLATION_DIR, installationDir } from "./installation.mjs";
+import { CONFIG_DOCUMENT_FILES } from "./config-documents.mjs";
+
+const { syncBuiltinESMExports } = nodeModule;
+
+export const REPO_ROOT: string = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+/** The checkout's configuration directory: the product's defaults, which a
+ * change to the product may change under a test. */
+export const OWNER_CONFIG_DIR: string = path.join(REPO_ROOT, "config");
+/** This installation's own folder (bead ro-ujb9.125): the operator's saved
+ * documents, change history and host files. Guarded exactly like `config/`,
+ * and named `installation/…` in a `files` entry wherever it really is. */
+export const OWNER_INSTALLATION_DIR: string = installationDir({ root: REPO_ROOT });
+
+export interface SeedValidationTest {
+  readonly files: readonly string[];
+  readonly why: string;
+}
+
+/**
+ * The only test files that may read the checkout's config, keyed by their
+ * repo-relative path. Each validates the REAL seed file, so reading a fixture
+ * copy instead would make it check nothing. A `files` entry is a path, or a
+ * pattern where `*` stands for one path segment and `**` for any number.
+ */
+export const SEED_VALIDATION_TESTS: Readonly<Record<string, SeedValidationTest>> = Object.freeze({
+  "apps/tower/test/integration-monitoring-coverage.test.ts": Object.freeze({
+    files: Object.freeze(["config/integrations.json"]),
+    why: "Every data source the shipped catalog lists must have an integration-health monitor or a declared monitoring gap.",
+  }),
+  "apps/tower/test/integrations-seed.test.ts": Object.freeze({
+    files: Object.freeze(["config/integrations.json", "installation/integrations.json", "installation/neutral-names.json"]),
+    why: "The shipped catalog must declare every lane's facts, and this installation's register must render as a complete integrations matrix and a readable unblock list.",
+  }),
+  "workers/ingest/test/config-seeds.test.ts": Object.freeze({
+    files: Object.freeze(["config/serp-panel.json", "installation/serp-panel.json"]),
+    why: "Every shipped and saved SERP panel must fit the DataForSEO reserve.",
+  }),
+  // The root script suite (bead ro-ujb9.97).
+  "scripts/config-knobs.test.mjs": Object.freeze({
+    files: Object.freeze(["config/signal-panels.json", "installation/signal-panels.json"]),
+    why: "Every declared knob must resolve in its own shipped file, and the value that file holds must satisfy the knob's rule — a rule that refuses the seed refuses the operator's own data.",
+  }),
+  "scripts/config-registers.test.mjs": Object.freeze({
+    files: Object.freeze(["config/*.json", "installation/*.json"]),
+    why: "Every register's container must resolve in the shipped defaults and in this installation's copy with the shape it claims, and every row either holds must satisfy its register; a fixture would pass forever.",
+  }),
+  "scripts/fresh-install.test.mjs": Object.freeze({
+    files: Object.freeze(["config/*.json"]),
+    why: "It proves a clone with no installation folder seeds exactly the product defaults: no sites, no task projects, no host links, UTC.",
+  }),
+  "scripts/config-defaults.test.mjs": Object.freeze({
+    files: Object.freeze(["config/*.json"]),
+    why: "The complete released default envelope must match each shipped generic document; a fixture cannot prove that release parity.",
+  }),
+  "scripts/config-contract-generation.test.mjs": Object.freeze({
+    files: CONFIG_DOCUMENT_FILES,
+    why: "The isolated compiler must receive the exact generic default JSON types imported by its copied sources; no installation document is read.",
+  }),
+  "scripts/postgres-platform-provisioning.test.mjs": Object.freeze({
+    files: Object.freeze(["config/*.json"]),
+    why: "New-workspace preparation must seed the complete released defaults and activation must refuse drift from that exact release; no installation document is read.",
+  }),
+  "scripts/contract-dist.test.mjs": Object.freeze({
+    files: Object.freeze(["config/constants.json"]),
+    why: "The contract build compiles the checkout's constants.json in; the test compares the emitted copy with its source, which holds for any saved value.",
+  }),
+  "scripts/grep-visible.test.mjs": Object.freeze({
+    files: Object.freeze(["config/**/*.md"]),
+    why: "It scans every tracked source and prose file for bytes that hide it from grep; config/'s READMEs and decision log are prose it must see. It reads no setting.",
+  }),
+  "scripts/handoff-kinds.test.mjs": Object.freeze({
+    files: Object.freeze(["config/beads.README.md"]),
+    why: "The task-hub contract's handoff-metadata table is one of the statements of the legal handoff kinds this keeps in step.",
+  }),
+  "scripts/spoke-stanza.test.mjs": Object.freeze({
+    files: Object.freeze(["config/beads.README.md", "config/beads.json", "installation/beads.json"]),
+    why: "It checks the operator's checked-out spoke repos, named by this installation's task-hub map, against the canonical stanza in the contract; a fixture map names no repo on disk.",
+  }),
+  "scripts/ux-gate.test.mjs": Object.freeze({
+    files: Object.freeze(["config/*.json", "installation/beads.json"]),
+    why: "The Tower renders the shipped config documents' text verbatim, so the UX gate measures the real files against its record (bead ro-ujb9.96.6.13); a fixture would measure nothing the desk shows. An exception's bead id is checked against this installation's task projects.",
+  }),
+  "scripts/neutral-code-gate.test.mjs": Object.freeze({
+    files: Object.freeze(["config/*.json", "installation/*.json", "config/**/*.md"]),
+    why: "The gate forbids the names this installation's own documents key rows by (bead ro-ujb9.118), in product code, in the product defaults (bead ro-ujb9.125) and in the prose that ships beside them (bead ro-ujb9.149); checking against a fixture list would prove nothing about the real one.",
+  }),
+  "scripts/new-install-names.test.mjs": Object.freeze({
+    files: Object.freeze(["config/*.json"]),
+    why: "It proves the product defaults a fresh clone seeds carry no pre-rename name (bead ro-ujb9.77.5); a fixture would prove nothing about the shipped defaults.",
+  }),
+  "scripts/product-name.test.mjs": Object.freeze({
+    files: Object.freeze(["config/**/*.md"]),
+    why: "It reads every living document for the product's old name (D26, bead ro-ujb9.77.1); config/'s READMEs are prose a stranger reads. It reads no setting.",
+  }),
+  "scripts/ui-lexicon.test.mjs": Object.freeze({
+    files: Object.freeze(["config/integrations.json"]),
+    why: "The Tower renders this shipped seed file's prose verbatim; this lints that copy for the retired words.",
+  }),
+  "scripts/ui-noun.test.mjs": Object.freeze({
+    files: Object.freeze(["config/integrations.json"]),
+    why: "The Tower renders this shipped seed file's prose verbatim; this lints that copy for an asset called a property (D20).",
+  }),
+});
+
+/** Whether `config/<name>` is named by a `files` entry: `**` crosses
+ * directories, `*` does not. */
+export function matchesFilePattern(pattern: string, configFile: string): boolean {
+  const source = pattern
+    .split(/(\*\*\/|\*)/)
+    .map((part) => (part === "**/" ? "(?:[^/]+/)*" : part === "*" ? "[^/]*" : part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")))
+    .join("");
+  return new RegExp(`^${source}$`).test(configFile);
+}
+
+function pathText(target: unknown): string | null {
+  try {
+    if (target instanceof URL) return fileURLToPath(target);
+    if (typeof target === "string") return target.startsWith("file:") ? fileURLToPath(target) : target;
+    if (Buffer.isBuffer(target)) return target.toString("utf8");
+  } catch { /* not a file path */ }
+  return null;
+}
+
+/** `config/<name>` for a path inside the checkout's config directory,
+ * `installation/<name>` for one inside this installation's folder, else null.
+ * Another directory called `config` or `installation` (a temp repo, the
+ * journey fixture repo) is not the operator's and is not matched. */
+export function ownerConfigFile(target: unknown): string | null {
+  const text = pathText(target);
+  if (text === null) return null;
+  const resolved = path.resolve(text.split("?")[0]!);
+  const inside = (dir: string) => resolved.startsWith(dir + path.sep) ? path.relative(dir, resolved).split(path.sep).join("/") : null;
+  const installed = inside(OWNER_INSTALLATION_DIR);
+  if (installed !== null) return `${DEFAULT_INSTALLATION_DIR}/${installed}`;
+  const configured = inside(OWNER_CONFIG_DIR);
+  return configured === null ? null : `config/${configured}`;
+}
+
+/** Whether this test file may read this config file: only a listed
+ * seed-validation test, and only the files it is listed for. */
+export function mayReadOwnerConfig(testFile: unknown, configFile: string | null): boolean {
+  const text = pathText(testFile);
+  if (text === null || configFile === null) return false;
+  const relative = path.relative(REPO_ROOT, path.resolve(text)).split(path.sep).join("/");
+  return Object.hasOwn(SEED_VALIDATION_TESTS, relative) &&
+    SEED_VALIDATION_TESTS[relative]!.files.some((pattern) => matchesFilePattern(pattern, configFile));
+}
+
+function refusal(who: string, configFile: string, fixtures = "import the suite's copy from test/fixture-config/"): string {
+  return `${who} reads the checkout's ${configFile}. Unit tests run on fixture configuration (bead ro-ujb9.92): ` +
+    `${fixtures} or build a synthetic document in the test. Only a seed-validation ` +
+    "test listed in scripts/test-config-isolation.mts may read the real file.";
+}
+
+/** The slice of Vite's plugin shape the fixture plugin fills. */
+export interface FixtureConfigPlugin {
+  name: string;
+  enforce: "pre";
+  resolveId(source: string, importer: string | undefined): string | null;
+}
+
+/**
+ * A Vite plugin for a suite's vitest config. Every import of a repo config file
+ * is answered with `fixtureDir/<name>.json`; one from a file under `testDir` is
+ * refused unless that file is a listed seed-validation test.
+ */
+export function fixtureConfigPlugin({ fixtureDir, testDir }: { fixtureDir: string; testDir: string }): FixtureConfigPlugin {
+  const tests = path.resolve(testDir) + path.sep;
+  return {
+    name: "noticeos:fixture-config",
+    enforce: "pre",
+    resolveId(source, importer) {
+      if (!importer || typeof source !== "string") return null;
+      const bare = source.split("?")[0]!;
+      if (!bare.endsWith(".json") || !(bare.startsWith(".") || path.isAbsolute(bare))) return null;
+      const from = importer.split("?")[0]!;
+      const configFile = ownerConfigFile(path.resolve(path.dirname(from), bare));
+      if (configFile === null) return null;
+      if (path.resolve(from).startsWith(tests)) {
+        if (mayReadOwnerConfig(from, configFile)) return null;
+        throw new Error(refusal(path.relative(REPO_ROOT, from), configFile));
+      }
+      // Product code compiles the product's defaults in, never one
+      // installation's files (bead ro-ujb9.125).
+      if (!configFile.startsWith("config/")) {
+        throw new Error(`${path.relative(REPO_ROOT, from)} imports ${configFile}; product code reads the store instead.`);
+      }
+      const fixture = path.join(fixtureDir, configFile.slice("config/".length));
+      if (!fs.existsSync(fixture)) {
+        throw new Error(`${path.relative(REPO_ROOT, from)} imports ${configFile}, and this suite holds no fixture copy of it at ` +
+          `${path.relative(REPO_ROOT, fixture)}. Add one; tests never fall back to the checkout's own (bead ro-ujb9.92).`);
+      }
+      return fixture + source.slice(bare.length);
+    },
+  };
+}
+
+const GUARDED = Symbol.for("noticeos.owner-config-read-guard");
+const THIS_FILE = fileURLToPath(import.meta.url);
+
+/** Why a config read is refused, asked before the read happens; null lets it through. */
+type ReadRefusal = (target: unknown) => Error | null;
+/** node:fs (or fs.promises) seen as the named entry points the guard wraps, plus its installed mark. */
+type ReadEntryPoints = Record<string | symbol, unknown>;
+
+/** The file of the first stack frame outside this module and Node's own
+ * internals (`node:fs`, `<anonymous>`): the code that asked for the read. */
+export function readCallerFile(): string | null {
+  const limit = Error.stackTraceLimit;
+  Error.stackTraceLimit = 50;
+  const stack = new Error().stack ?? "";
+  Error.stackTraceLimit = limit;
+  for (const line of stack.split("\n").slice(1)) {
+    const match = /\(?((?:file:\/\/)?\/[^():]+?):\d+:\d+\)?$/.exec(line.trim());
+    const file = match ? pathText(match[1]!.split("?")[0]) : null;
+    if (file !== null && path.resolve(file) !== THIS_FILE) return path.resolve(file);
+  }
+  return null;
+}
+
+/**
+ * Refuse TEST CODE (a file under `testDir`) reading the checkout's config with
+ * `node:fs`, unless that file is a listed seed-validation test for that file.
+ * The read is refused before the filesystem is touched. Tooling a test drives
+ * — a real Vite server it boots, whose vite.config.ts compiles config in — is
+ * not test code and reads what it reads. Installed once per process.
+ */
+export function installOwnerConfigReadGuard({ testDir, allowed = mayReadOwnerConfig }: {
+  testDir: string;
+  allowed?: (callerFile: string, configFile: string) => boolean;
+}): void {
+  const tests = path.resolve(testDir) + path.sep;
+  guardConfigReads((target) => {
+    const configFile = ownerConfigFile(target);
+    if (configFile === null) return null;
+    const caller = readCallerFile();
+    if (caller === null || !caller.startsWith(tests) || allowed(caller, configFile)) return null;
+    return new Error(refusal(path.relative(REPO_ROOT, caller), configFile));
+  });
+}
+
+/** The repo-relative path of a root script test (`scripts/<name>.test.mjs`),
+ * else null — the node --test runner itself, or a script run on its own. */
+export function scriptTestFile(target: unknown): string | null {
+  const text = pathText(target);
+  if (text === null) return null;
+  const resolved = path.resolve(text);
+  if (path.dirname(resolved) !== path.join(REPO_ROOT, "scripts") || !resolved.endsWith(".test.mjs")) return null;
+  return path.relative(REPO_ROOT, resolved).split(path.sep).join("/");
+}
+
+/**
+ * The root script suite's guard (bead ro-ujb9.97). node --test runs each
+ * `scripts/*.test.mjs` in a process of its own (`process.argv[1]`), and the
+ * script under test runs in that same process, so every read of the checkout's
+ * config there is on that test's behalf — whoever's frame asked. Refused with
+ * `node:fs` and as an `import`, before the file is touched, unless the test is a
+ * listed seed-validation test for that file. Anything else — the runner, a
+ * script run on its own — is left alone. Returns whether it installed.
+ */
+export function installScriptTestConfigGuard({ testFile = process.argv[1], allowed = mayReadOwnerConfig }: {
+  testFile?: unknown;
+  allowed?: (testFile: string, configFile: string) => boolean;
+} = {}): boolean {
+  const test = scriptTestFile(testFile);
+  if (test === null || (fs as unknown as ReadEntryPoints)[GUARDED]) return false;
+  const refused: ReadRefusal = (target) => {
+    const configFile = ownerConfigFile(target);
+    if (configFile === null || allowed(path.join(REPO_ROOT, test), configFile)) return null;
+    return new Error(refusal(test, configFile,
+      "read scripts/fixture-config/'s frozen copy, point the script at a temp repo,"));
+  };
+  guardConfigReads(refused);
+  // `import … from '../config/x.json'` reaches the file through Node's loader,
+  // not through node:fs. Synchronous in-thread hooks landed in Node 22.15; on an
+  // older 22 only the node:fs half is armed.
+  if (typeof nodeModule.registerHooks === "function") {
+    nodeModule.registerHooks({
+      resolve(specifier, context, nextResolve) {
+        const resolved = nextResolve(specifier, context);
+        const error = refused(resolved.url);
+        if (error) throw error;
+        return resolved;
+      },
+    });
+  }
+  return true;
+}
+
+/** Wrap node:fs's read entry points so `refused(target)` is asked before the
+ * filesystem is touched. Installed once per process. */
+function guardConfigReads(refused: ReadRefusal): void {
+  if ((fs as unknown as ReadEntryPoints)[GUARDED]) return;
+  const guard = (owner: ReadEntryPoints, name: string, { callback = false }: { callback?: boolean } = {}) => {
+    const original = owner[name];
+    if (typeof original !== "function") return;
+    owner[name] = function guardedConfigRead(this: unknown, target: unknown, ...rest: unknown[]) {
+      const error = refused(target);
+      if (error) {
+        const done = callback ? rest.findLast((value): value is (error: Error) => void => typeof value === "function") : undefined;
+        if (done) { queueMicrotask(() => done(error)); return undefined; }
+        throw error;
+      }
+      return original.call(this, target, ...rest);
+    };
+  };
+  for (const name of ["readFileSync", "openSync", "createReadStream"]) guard(fs as unknown as ReadEntryPoints, name);
+  for (const name of ["readFile", "open"]) guard(fs as unknown as ReadEntryPoints, name, { callback: true });
+  for (const name of ["readFile", "open"]) {
+    const original = (fs.promises as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>)[name]!;
+    (fs.promises as unknown as ReadEntryPoints)[name] = async function guardedConfigRead(this: unknown, target: unknown, ...rest: unknown[]) {
+      const error = refused(target);
+      if (error) throw error;
+      return original.call(this, target, ...rest);
+    };
+  }
+  syncBuiltinESMExports();
+  Object.defineProperty(fs, GUARDED, { value: true });
+}

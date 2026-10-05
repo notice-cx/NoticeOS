@@ -1,0 +1,4 @@
+asset,report_date,collected_at,data_state,provider_truncated,clicks,ctr,impressions,page,position,row_grain,searchAppearance
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,9,0.06716417910447761,134,,3.1,searchAppearance,RECIPE
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,5,0.034013605442176874,147,https://meals.example/recipes/soup,4.8,page,RECIPE
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,18,0.1125,160,https://meals.example/guides/protein,6.5,page,RECIPE

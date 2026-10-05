@@ -1,0 +1,289 @@
+/** Pure hosted task planning, not authentication or execution.
+ * Before every call, the server must authorize the selected workspace and
+ * named action. A workspace UUID, capability handle or plan does not establish
+ * that authority. Requests cannot supply workspace selection or physical facts.
+ * The eventual executor supplies its authenticated actor and process setup;
+ * it must not append flags after the terminal `--` in these fixed arguments.
+ * Command execution is not qualified here, including history's internal
+ * checkout with --readonly. The executor proof must exercise the exact plans.
+ */
+import { TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
+
+export const HOSTED_TASK_LIMITS = Object.freeze({
+  projects: 4096, identifier: 128, title: 512, body: 8192,
+  comment: 4096, reason: 2048, rows: 200, labels: 32, label: 128, metadataValue: 2048,
+});
+
+export type HostedTaskStatus = 'open' | 'in_progress' | 'blocked' | 'deferred' | 'closed';
+export type HostedTaskType = 'task' | 'bug' | 'feature' | 'epic' | 'chore';
+export type HostedTaskOperation =
+  | { readonly kind: 'list'; readonly limit: number; readonly status?: HostedTaskStatus }
+  | { readonly kind: 'show'; readonly taskId: string }
+  | { readonly kind: 'history'; readonly taskId: string; readonly limit: number }
+  | { readonly kind: 'comments'; readonly taskId: string }
+  | { readonly kind: 'ready' }
+  | { readonly kind: 'epics' }
+  /** Server-only ordinary poll; HTTP command parsers never construct it. */
+  | { readonly kind: 'snapshot'; readonly closedSince: string }
+  /** Complete lists remain process/output/time bounded, never silently sampled. */
+  | { readonly kind: 'active-board'; readonly statuses: readonly Exclude<HostedTaskStatus, 'closed'>[] }
+  | { readonly kind: 'closed-board'; readonly since: string; readonly until: string }
+  | { readonly kind: 'create'; readonly title: string; readonly description?: string;
+      readonly type?: HostedTaskType; readonly priority?: number; readonly labels?: readonly string[];
+      readonly parent?: string; readonly acceptance?: string; readonly metadata?: Readonly<Record<string, string>> }
+  | { readonly kind: 'update'; readonly taskId: string; readonly status?: HostedTaskStatus;
+      readonly priority?: number; readonly title?: string; readonly description?: string; readonly claim?: true;
+      readonly assignee?: string; readonly parent?: string; readonly defer?: string; readonly acceptance?: string;
+      readonly addLabels?: readonly string[]; readonly removeLabels?: readonly string[] }
+  | { readonly kind: 'comment'; readonly taskId: string; readonly text: string }
+  | { readonly kind: 'close'; readonly taskId: string; readonly reason: string }
+  | { readonly kind: 'respond'; readonly taskId: string; readonly response: string }
+  | { readonly kind: 'dismiss'; readonly taskId: string; readonly reason?: string }
+  | { readonly kind: 'resolve-gate'; readonly taskId: string; readonly reason?: string };
+
+/** Server-owned opaque handle; do not put paths/secrets in its description. */
+export interface HostedTaskProject {
+  readonly workspaceId: string;
+  readonly projectId: string;
+  readonly capability: symbol;
+}
+export interface HostedTaskRequest {
+  readonly projectId: string;
+  readonly operation: HostedTaskOperation;
+}
+export interface HostedTaskPlan {
+  readonly capability: symbol;
+  readonly kind: HostedTaskOperation['kind'];
+  /** Classification for shared named-action policy, never permission. */
+  readonly readOnly: boolean;
+  readonly argv: readonly string[];
+}
+export type HostedTaskPlanner = (serverSelectedWorkspaceId: string, request: HostedTaskRequest) => HostedTaskPlan;
+
+function invalid(): never { throw new Error('Invalid hosted task plan input.'); }
+
+/** Data properties only: malformed JavaScript callers cannot smuggle getters. */
+function record(input: unknown): Record<string, unknown> {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) invalid();
+  const prototype = Object.getPrototypeOf(input);
+  if (prototype !== Object.prototype && prototype !== null) invalid();
+  const values: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+  for (const key of Reflect.ownKeys(input)) {
+    if (typeof key !== 'string') invalid();
+    const descriptor = Object.getOwnPropertyDescriptor(input, key);
+    if (!descriptor || !('value' in descriptor)) invalid();
+    values[key] = descriptor.value as unknown;
+  }
+  return values;
+}
+function keys(value: Record<string, unknown>, required: string[], optional: string[] = []): void {
+  if (required.some(key => !Object.hasOwn(value, key))
+      || Object.keys(value).some(key => !required.includes(key) && !optional.includes(key))) invalid();
+}
+function workspace(value: unknown): string {
+  if (typeof value !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u.test(value)) invalid();
+  return value;
+}
+function project(value: unknown): string {
+  if (typeof value !== 'string' || value.length > HOSTED_TASK_LIMITS.identifier
+      || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(value)) invalid();
+  return value;
+}
+function task(value: unknown): string {
+  // Same prefix/hash/child shape the standalone lane accepts; no flag or path.
+  if (typeof value !== 'string' || value.length > HOSTED_TASK_LIMITS.identifier
+      || !/^[a-z0-9]+-{1,2}[a-z0-9]+(\.[0-9]+)*$/iu.test(value)) invalid();
+  return value;
+}
+function text(value: unknown, max: number, empty = false): string {
+  if (typeof value !== 'string' || value.length > max || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value)
+      || (!empty && !value.trim())) invalid();
+  return value;
+}
+function integer(value: unknown, min: number, max: number): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max) invalid();
+  return value;
+}
+function choice(value: unknown, values: readonly string[]): string {
+  if (typeof value !== 'string' || !values.includes(value)) invalid();
+  return value;
+}
+const STATUSES: readonly string[] = ['open', 'in_progress', 'blocked', 'deferred', 'closed'];
+const TYPES: readonly string[] = ['task', 'bug', 'feature', 'epic', 'chore'];
+function labelList(value: unknown, empty = false): readonly string[] {
+  if (!Array.isArray(value) || value.length > HOSTED_TASK_LIMITS.labels || !empty && value.length === 0
+    || Reflect.ownKeys(value).length !== value.length + 1) invalid();
+  const labels: string[] = [];
+  for (let index = 0; index < value.length; index++) {
+    const field = Object.getOwnPropertyDescriptor(value, String(index));
+    if (!field || !('value' in field)) invalid();
+    const label = text(field.value, HOSTED_TASK_LIMITS.label);
+    if (/[\r\n\t,]/u.test(label) || label.trim() !== label || labels.includes(label)) invalid();
+    labels.push(label);
+  }
+  return Object.freeze(labels);
+}
+function deferDate(value: unknown): string {
+  if (value === '') return value;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(value)
+    || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0, 10) !== value) invalid();
+  return value;
+}
+function handoffMetadata(value: unknown): Readonly<Record<string, string>> {
+  const row = record(value); keys(row, [], Object.values(TASK_METADATA).map(field => field.name));
+  const result: Record<string, string> = Object.create(null) as Record<string, string>;
+  for (const [key, entry] of Object.entries(row)) result[key] = text(entry, HOSTED_TASK_LIMITS.metadataValue);
+  return Object.freeze(result);
+}
+
+function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'argv'> {
+  const op = record(input);
+  const kind = choice(op.kind, ['list', 'show', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board',
+    'snapshot', 'create', 'update', 'comment', 'close', 'respond', 'dismiss', 'resolve-gate']) as HostedTaskOperation['kind'];
+  const readOnly = ['list', 'show', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board', 'snapshot'].includes(kind);
+  const argv = ['--sandbox', '--json', ...(readOnly ? ['--readonly'] : [])];
+  switch (kind) {
+    case 'list':
+      keys(op, ['kind', 'limit'], ['status']);
+      argv.push('list', `--limit=${integer(op.limit, 1, HOSTED_TASK_LIMITS.rows)}`);
+      if (Object.hasOwn(op, 'status')) argv.push(`--status=${choice(op.status, STATUSES)}`);
+      break;
+    case 'show':
+      keys(op, ['kind', 'taskId']);
+      argv.push('show', '--', task(op.taskId));
+      break;
+    case 'history':
+      keys(op, ['kind', 'taskId', 'limit']);
+      argv.push('history', `--limit=${integer(op.limit, 1, HOSTED_TASK_LIMITS.rows)}`, '--', task(op.taskId));
+      break;
+    case 'comments':
+      keys(op, ['kind', 'taskId']);
+      argv.push('comments', '--', task(op.taskId));
+      break;
+    case 'ready':
+      keys(op, ['kind']); argv.push('ready', '--limit=0');
+      break;
+    case 'snapshot':
+      keys(op, ['kind', 'closedSince']);
+      if (typeof op.closedSince !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(op.closedSince)
+        || !Number.isFinite(Date.parse(op.closedSince)) || new Date(op.closedSince).toISOString().slice(0, 10) !== op.closedSince) invalid();
+      // The executor derives the complete fixed read batch from beadsPollArgs.
+      break;
+    case 'epics':
+      keys(op, ['kind']); argv.push('epic', 'status');
+      break;
+    case 'active-board': {
+      keys(op, ['kind', 'statuses']);
+      if (!Array.isArray(op.statuses) || op.statuses.length < 1 || op.statuses.length > 4) invalid();
+      const statuses: string[] = [];
+      for (let index = 0; index < op.statuses.length; index++) {
+        const property = Object.getOwnPropertyDescriptor(op.statuses, String(index));
+        if (!property || !('value' in property)) invalid();
+        const status = choice(property.value, ['open', 'in_progress', 'blocked', 'deferred']);
+        if (statuses.includes(status)) invalid(); statuses.push(status);
+      }
+      if (Reflect.ownKeys(op.statuses).length !== op.statuses.length + 1) invalid();
+      argv.push('list', `--status=${statuses.join(',')}`, '--limit=0', '--include-gates');
+      break;
+    }
+    case 'closed-board': {
+      keys(op, ['kind', 'since', 'until']);
+      if (typeof op.since !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(op.since)
+        || typeof op.until !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(op.until)) invalid();
+      const since = Date.parse(op.since), until = Date.parse(op.until);
+      if (!Number.isFinite(since) || !Number.isFinite(until) || new Date(since).toISOString().slice(0, 10) !== op.since
+        || new Date(until).toISOString() !== op.until || until < since || until - since > 8 * 86400000) invalid();
+      argv.push('list', '--status=closed', `--closed-after=${op.since}`, `--closed-before=${op.until}`, '--limit=0', '--include-gates');
+      break;
+    }
+    case 'create':
+      keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata']);
+      argv.push('create');
+      if (Object.hasOwn(op, 'description')) argv.push(`--description=${text(op.description, HOSTED_TASK_LIMITS.body, true)}`);
+      if (Object.hasOwn(op, 'type')) argv.push(`--type=${choice(op.type, TYPES)}`);
+      if (Object.hasOwn(op, 'priority')) argv.push(`--priority=${integer(op.priority, 0, 4)}`);
+      if (Object.hasOwn(op, 'labels')) {
+        const labels = labelList(op.labels, true); if (labels.length) argv.push(`--labels=${labels.join(',')}`);
+      }
+      if (Object.hasOwn(op, 'parent')) argv.push(`--parent=${task(op.parent)}`);
+      if (Object.hasOwn(op, 'acceptance')) argv.push(`--acceptance=${text(op.acceptance, HOSTED_TASK_LIMITS.body, true)}`);
+      if (Object.hasOwn(op, 'metadata')) argv.push(`--metadata=${JSON.stringify(handoffMetadata(op.metadata))}`);
+      argv.push(`--title=${text(op.title, HOSTED_TASK_LIMITS.title)}`, '--');
+      break;
+    case 'update': {
+      const fields = ['status', 'priority', 'title', 'description', 'claim', 'assignee', 'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels'];
+      keys(op, ['kind', 'taskId'], fields);
+      if (!fields.some(key => Object.hasOwn(op, key))) invalid();
+      argv.push('update');
+      if (Object.hasOwn(op, 'status')) argv.push(`--status=${choice(op.status, STATUSES)}`);
+      if (Object.hasOwn(op, 'priority')) argv.push(`--priority=${integer(op.priority, 0, 4)}`);
+      if (Object.hasOwn(op, 'title')) argv.push(`--title=${text(op.title, HOSTED_TASK_LIMITS.title)}`);
+      if (Object.hasOwn(op, 'description')) argv.push(`--description=${text(op.description, HOSTED_TASK_LIMITS.body, true)}`);
+      if (Object.hasOwn(op, 'claim')) { if (op.claim !== true || Object.hasOwn(op, 'assignee') || Object.hasOwn(op, 'status')) invalid(); argv.push('--claim'); }
+      if (Object.hasOwn(op, 'assignee')) argv.push(`--assignee=${text(op.assignee, HOSTED_TASK_LIMITS.identifier, true)}`);
+      if (Object.hasOwn(op, 'parent')) argv.push(`--parent=${op.parent === '' ? '' : task(op.parent)}`);
+      if (Object.hasOwn(op, 'defer')) argv.push(`--defer=${deferDate(op.defer)}`);
+      if (Object.hasOwn(op, 'acceptance')) argv.push(`--acceptance=${text(op.acceptance, HOSTED_TASK_LIMITS.body, true)}`);
+      if (Object.hasOwn(op, 'addLabels')) argv.push(`--add-label=${labelList(op.addLabels).join(',')}`);
+      if (Object.hasOwn(op, 'removeLabels')) argv.push(`--remove-label=${labelList(op.removeLabels).join(',')}`);
+      argv.push('--', task(op.taskId));
+      break;
+    }
+    case 'comment':
+      keys(op, ['kind', 'taskId', 'text']);
+      argv.push('comments', 'add', '--', task(op.taskId), text(op.text, HOSTED_TASK_LIMITS.comment));
+      break;
+    case 'close':
+      keys(op, ['kind', 'taskId', 'reason']);
+      argv.push('close', `--reason=${text(op.reason, HOSTED_TASK_LIMITS.reason)}`, '--', task(op.taskId));
+      break;
+    case 'respond':
+      keys(op, ['kind', 'taskId', 'response']);
+      argv.push('human', 'respond', `--response=${text(op.response, HOSTED_TASK_LIMITS.comment)}`, '--', task(op.taskId));
+      break;
+    case 'dismiss':
+    case 'resolve-gate':
+      keys(op, ['kind', 'taskId'], ['reason']);
+      argv.push(...(kind === 'dismiss' ? ['human', 'dismiss'] : ['gate', 'resolve']));
+      if (Object.hasOwn(op, 'reason')) argv.push(`--reason=${text(op.reason, HOSTED_TASK_LIMITS.reason)}`);
+      argv.push('--', task(op.taskId));
+      break;
+  }
+  return { kind, readOnly, argv: Object.freeze(argv) };
+}
+
+/** Semantic action classification after the same strict command validation.
+ * It grants nothing; shared current admission decides who may perform it. */
+export function hostedTaskAction(operation: HostedTaskOperation): 'tasks.read' | 'tasks.write' | 'tasks.decide' {
+  const plan = command(operation);
+  return plan.readOnly ? 'tasks.read' : ['respond', 'dismiss', 'resolve-gate'].includes(plan.kind) ? 'tasks.decide' : 'tasks.write';
+}
+
+/** No authorization, role/demo policy, environment, IO or runtime executor.
+ * Call only after shared named-action admission. Never forward a JSON body's
+ * workspace field here; the workspace argument is selected by the server.
+ */
+export function createHostedTaskPlanner(projects: readonly HostedTaskProject[]): HostedTaskPlanner {
+  if (!Array.isArray(projects) || projects.length > HOSTED_TASK_LIMITS.projects) invalid();
+  const directory = new Map<string, Map<string, symbol>>();
+  const capabilities = new Set<symbol>();
+  for (let index = 0; index < projects.length; index++) {
+    const descriptor = Object.getOwnPropertyDescriptor(projects, String(index));
+    if (!descriptor || !('value' in descriptor)) invalid();
+    const entry = record(descriptor.value as unknown);
+    keys(entry, ['workspaceId', 'projectId', 'capability']);
+    const owner = workspace(entry.workspaceId), id = project(entry.projectId);
+    if (typeof entry.capability !== 'symbol' || capabilities.has(entry.capability)) invalid();
+    const owned = directory.get(owner) ?? new Map<string, symbol>();
+    if (owned.has(id)) invalid();
+    owned.set(id, entry.capability); capabilities.add(entry.capability); directory.set(owner, owned);
+  }
+  return (serverSelectedWorkspaceId, request) => {
+    const owner = workspace(serverSelectedWorkspaceId);
+    const input = record(request);
+    keys(input, ['projectId', 'operation']);
+    const capability = directory.get(owner)?.get(project(input.projectId));
+    if (capability === undefined) invalid();
+    return Object.freeze({ capability, ...command(input.operation) });
+  };
+}

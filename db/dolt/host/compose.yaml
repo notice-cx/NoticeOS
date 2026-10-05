@@ -1,0 +1,41 @@
+# Additive to the Postgres file: the explicit project and postgres-data stay
+# unchanged. Dolt-only operations name this file and the dolt service only.
+name: noticeos
+services:
+  dolt:
+    # Official stable multi-architecture index (Linux amd64 + arm64).
+    image: dolthub/dolt-sql-server:2.4.0@sha256:8771be743f1b81b1e9d8d12b9587798446fa0bf34c56ec5b7b14539f895daa0b
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 60s
+    entrypoint: [/bin/bash, /etc/noticeos/start.sh]
+    environment:
+      HOME: /var/lib/dolt/.noticeos-home
+      DOLT_ROOT_PATH: /var/lib/dolt/.noticeos-home
+      DOLT_DISABLE_EVENT_FLUSH: "1"
+    secrets: [dolt_root, dolt_noticeos]
+    volumes:
+      - dolt-data:/var/lib/dolt
+      - ./server.yaml:/etc/noticeos/server.yaml:ro
+      - ./start.sh:/etc/noticeos/start.sh:ro
+      - ./sql.sh:/etc/noticeos/sql.sh:ro
+      - ./capture.sh:/etc/noticeos/capture.sh:ro
+      - ./backup-metadata.sh:/etc/noticeos/backup-metadata.sh:ro
+      - ./restore.sh:/etc/noticeos/restore.sh:ro
+      - ./restore-native.sh:/etc/noticeos/restore-native.sh:ro
+    ports:
+      - 127.0.0.1:${NOTICEOS_DOLT_PORT:?explicit task-hub port required}:3306
+    healthcheck:
+      test: [CMD, /bin/bash, /etc/noticeos/sql.sh, noticeos, SELECT 1]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+      start_interval: 1s
+volumes:
+  dolt-data: {}
+secrets:
+  dolt_root:
+    file: ${NOTICEOS_DOLT_SECRETS:?explicit secrets directory required}/root
+  dolt_noticeos:
+    file: ${NOTICEOS_DOLT_SECRETS:?explicit secrets directory required}/noticeos

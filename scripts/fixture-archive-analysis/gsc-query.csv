@@ -1,0 +1,97 @@
+asset,report_date,collected_at,data_state,provider_truncated,clicks,ctr,impressions,position,query,row_grain
+meals.example,2026-09-05,2026-09-06T12:15:00.000Z,provider-final,false,12,0.1,120,2.5,meal planner,query
+meals.example,2026-09-05,2026-09-06T12:15:00.000Z,provider-final,false,8,0.06015037593984962,133,4.2,weekly meal plan,query
+meals.example,2026-09-05,2026-09-06T12:15:00.000Z,provider-final,false,4,0.0273972602739726,146,5.9,"high protein, ""easy"" dinners",query
+meals.example,2026-09-05,2026-09-06T12:15:00.000Z,provider-final,false,17,0.1069182389937107,159,7.6,"""how many cups in a quart""",query
+meals.example,2026-09-05,2026-09-06T12:15:00.000Z,provider-final,false,13,0.0755813953488372,172,9.3,meal prep ideas,query
+meals.example,2026-09-05,2026-09-06T12:15:00.000Z,provider-final,false,9,0.04864864864864865,185,11,crème brûlée calories,query
+meals.example,2026-09-06,2026-09-07T12:15:00.000Z,provider-final,false,19,0.14960629921259844,127,2.8,meal planner,query
+meals.example,2026-09-06,2026-09-07T12:15:00.000Z,provider-final,false,15,0.10714285714285714,140,4.5,weekly meal plan,query
+meals.example,2026-09-06,2026-09-07T12:15:00.000Z,provider-final,false,11,0.0718954248366013,153,6.2,"high protein, ""easy"" dinners",query
+meals.example,2026-09-06,2026-09-07T12:15:00.000Z,provider-final,false,7,0.04216867469879518,166,7.9,"""how many cups in a quart""",query
+meals.example,2026-09-06,2026-09-07T12:15:00.000Z,provider-final,false,3,0.01675977653631285,179,9.6,meal prep ideas,query
+meals.example,2026-09-06,2026-09-07T12:15:00.000Z,provider-final,false,16,0.08333333333333333,192,11.3,crème brûlée calories,query
+meals.example,2026-09-07,2026-09-08T12:15:00.000Z,provider-final,false,9,0.06716417910447761,134,3.1,meal planner,query
+meals.example,2026-09-07,2026-09-08T12:15:00.000Z,provider-final,false,5,0.034013605442176874,147,4.8,weekly meal plan,query
+meals.example,2026-09-07,2026-09-08T12:15:00.000Z,provider-final,false,18,0.1125,160,6.5,"high protein, ""easy"" dinners",query
+meals.example,2026-09-07,2026-09-08T12:15:00.000Z,provider-final,false,14,0.08092485549132948,173,8.2,"""how many cups in a quart""",query
+meals.example,2026-09-07,2026-09-08T12:15:00.000Z,provider-final,false,10,0.053763440860215055,186,9.9,meal prep ideas,query
+meals.example,2026-09-07,2026-09-08T12:15:00.000Z,provider-final,false,6,0.03015075376884422,199,11.6,crème brûlée calories,query
+meals.example,2026-09-08,2026-09-09T12:15:00.000Z,provider-final,false,16,0.11347517730496454,141,3.4,meal planner,query
+meals.example,2026-09-08,2026-09-09T12:15:00.000Z,provider-final,false,12,0.07792207792207792,154,5.1,weekly meal plan,query
+meals.example,2026-09-08,2026-09-09T12:15:00.000Z,provider-final,false,8,0.04790419161676647,167,6.8,"high protein, ""easy"" dinners",query
+meals.example,2026-09-08,2026-09-09T12:15:00.000Z,provider-final,false,4,0.022222222222222223,180,8.5,"""how many cups in a quart""",query
+meals.example,2026-09-08,2026-09-09T12:15:00.000Z,provider-final,false,17,0.08808290155440414,193,10.2,meal prep ideas,query
+meals.example,2026-09-08,2026-09-09T12:15:00.000Z,provider-final,false,13,0.06310679611650485,206,11.9,crème brûlée calories,query
+meals.example,2026-09-09,2026-09-10T12:15:00.000Z,provider-final,false,6,0.04054054054054054,148,3.7,meal planner,query
+meals.example,2026-09-09,2026-09-10T12:15:00.000Z,provider-final,false,19,0.11801242236024845,161,5.4,weekly meal plan,query
+meals.example,2026-09-09,2026-09-10T12:15:00.000Z,provider-final,false,15,0.08620689655172414,174,7.1,"high protein, ""easy"" dinners",query
+meals.example,2026-09-09,2026-09-10T12:15:00.000Z,provider-final,false,11,0.058823529411764705,187,8.8,"""how many cups in a quart""",query
+meals.example,2026-09-09,2026-09-10T12:15:00.000Z,provider-final,false,7,0.035,200,10.5,meal prep ideas,query
+meals.example,2026-09-09,2026-09-10T12:15:00.000Z,provider-final,false,3,0.024390243902439025,123,12.2,crème brûlée calories,query
+meals.example,2026-09-10,2026-09-11T12:15:00.000Z,provider-final,false,13,0.08387096774193549,155,2.5,meal planner,query
+meals.example,2026-09-10,2026-09-11T12:15:00.000Z,provider-final,false,9,0.05357142857142857,168,4.2,weekly meal plan,query
+meals.example,2026-09-10,2026-09-11T12:15:00.000Z,provider-final,false,5,0.027624309392265192,181,5.9,"high protein, ""easy"" dinners",query
+meals.example,2026-09-10,2026-09-11T12:15:00.000Z,provider-final,false,18,0.09278350515463918,194,7.6,"""how many cups in a quart""",query
+meals.example,2026-09-10,2026-09-11T12:15:00.000Z,provider-final,false,14,0.06763285024154589,207,9.3,meal prep ideas,query
+meals.example,2026-09-10,2026-09-11T12:15:00.000Z,provider-final,false,10,0.07692307692307693,130,11,crème brûlée calories,query
+meals.example,2026-09-11,2026-09-12T12:15:00.000Z,provider-final,false,3,0.018518518518518517,162,2.8,meal planner,query
+meals.example,2026-09-11,2026-09-12T12:15:00.000Z,provider-final,false,16,0.09142857142857143,175,4.5,weekly meal plan,query
+meals.example,2026-09-11,2026-09-12T12:15:00.000Z,provider-final,false,12,0.06382978723404255,188,6.2,"high protein, ""easy"" dinners",query
+meals.example,2026-09-11,2026-09-12T12:15:00.000Z,provider-final,false,8,0.03980099502487562,201,7.9,"""how many cups in a quart""",query
+meals.example,2026-09-11,2026-09-12T12:15:00.000Z,provider-final,false,4,0.03225806451612903,124,9.6,meal prep ideas,query
+meals.example,2026-09-11,2026-09-12T12:15:00.000Z,provider-final,false,17,0.12408759124087591,137,11.3,crème brûlée calories,query
+meals.example,2026-09-13,2026-09-14T12:15:00.000Z,provider-final,false,10,0.05917159763313609,169,3.1,meal planner,query
+meals.example,2026-09-13,2026-09-14T12:15:00.000Z,provider-final,false,6,0.03296703296703297,182,4.8,weekly meal plan,query
+meals.example,2026-09-13,2026-09-14T12:15:00.000Z,provider-final,false,19,0.09743589743589744,195,6.5,"high protein, ""easy"" dinners",query
+meals.example,2026-09-13,2026-09-14T12:15:00.000Z,provider-final,false,15,0.07211538461538461,208,8.2,"""how many cups in a quart""",query
+meals.example,2026-09-13,2026-09-14T12:15:00.000Z,provider-final,false,11,0.08396946564885496,131,9.9,meal prep ideas,query
+meals.example,2026-09-13,2026-09-14T12:15:00.000Z,provider-final,false,7,0.04861111111111111,144,11.6,crème brûlée calories,query
+meals.example,2026-09-14,2026-09-15T12:15:00.000Z,provider-final,false,17,0.09659090909090909,176,3.4,meal planner,query
+meals.example,2026-09-14,2026-09-15T12:15:00.000Z,provider-final,false,13,0.06878306878306878,189,5.1,weekly meal plan,query
+meals.example,2026-09-14,2026-09-15T12:15:00.000Z,provider-final,false,9,0.04455445544554455,202,6.8,"high protein, ""easy"" dinners",query
+meals.example,2026-09-14,2026-09-15T12:15:00.000Z,provider-final,false,5,0.04,125,8.5,"""how many cups in a quart""",query
+meals.example,2026-09-14,2026-09-15T12:15:00.000Z,provider-final,false,18,0.13043478260869565,138,10.2,meal prep ideas,query
+meals.example,2026-09-14,2026-09-15T12:15:00.000Z,provider-final,false,14,0.09271523178807947,151,11.9,crème brûlée calories,query
+meals.example,2026-09-15,2026-09-16T12:15:00.000Z,provider-final,false,7,0.03825136612021858,183,3.7,meal planner,query
+meals.example,2026-09-15,2026-09-16T12:15:00.000Z,provider-final,false,3,0.015306122448979591,196,5.4,weekly meal plan,query
+meals.example,2026-09-15,2026-09-16T12:15:00.000Z,provider-final,false,16,0.07655502392344497,209,7.1,"high protein, ""easy"" dinners",query
+meals.example,2026-09-15,2026-09-16T12:15:00.000Z,provider-final,false,12,0.09090909090909091,132,8.8,"""how many cups in a quart""",query
+meals.example,2026-09-15,2026-09-16T12:15:00.000Z,provider-final,false,8,0.05517241379310345,145,10.5,meal prep ideas,query
+meals.example,2026-09-15,2026-09-16T12:15:00.000Z,provider-final,false,4,0.02531645569620253,158,12.2,crème brûlée calories,query
+meals.example,2026-09-16,2026-09-17T12:15:00.000Z,provider-final,false,14,0.07368421052631578,190,2.5,meal planner,query
+meals.example,2026-09-16,2026-09-17T12:15:00.000Z,provider-final,false,10,0.04926108374384237,203,4.2,weekly meal plan,query
+meals.example,2026-09-16,2026-09-17T12:15:00.000Z,provider-final,false,6,0.047619047619047616,126,5.9,"high protein, ""easy"" dinners",query
+meals.example,2026-09-16,2026-09-17T12:15:00.000Z,provider-final,false,19,0.1366906474820144,139,7.6,"""how many cups in a quart""",query
+meals.example,2026-09-16,2026-09-17T12:15:00.000Z,provider-final,false,15,0.09868421052631579,152,9.3,meal prep ideas,query
+meals.example,2026-09-16,2026-09-17T12:15:00.000Z,provider-final,false,11,0.06666666666666667,165,11,crème brûlée calories,query
+meals.example,2026-09-17,2026-09-18T12:15:00.000Z,provider-final,false,4,0.02030456852791878,197,2.8,meal planner,query
+meals.example,2026-09-17,2026-09-18T12:15:00.000Z,provider-final,false,17,0.14166666666666666,120,4.5,weekly meal plan,query
+meals.example,2026-09-17,2026-09-18T12:15:00.000Z,provider-final,false,13,0.09774436090225563,133,6.2,"high protein, ""easy"" dinners",query
+meals.example,2026-09-17,2026-09-18T12:15:00.000Z,provider-final,false,9,0.06164383561643835,146,7.9,"""how many cups in a quart""",query
+meals.example,2026-09-17,2026-09-18T12:15:00.000Z,provider-final,false,5,0.031446540880503145,159,9.6,meal prep ideas,query
+meals.example,2026-09-17,2026-09-18T12:15:00.000Z,provider-final,false,18,0.10465116279069768,172,11.3,crème brûlée calories,query
+meals.example,2026-09-18,2026-09-19T12:15:00.000Z,provider-final,false,11,0.05392156862745098,204,3.1,meal planner,query
+meals.example,2026-09-18,2026-09-19T12:15:00.000Z,provider-final,false,7,0.05511811023622047,127,4.8,weekly meal plan,query
+meals.example,2026-09-18,2026-09-19T12:15:00.000Z,provider-final,false,3,0.02142857142857143,140,6.5,"high protein, ""easy"" dinners",query
+meals.example,2026-09-18,2026-09-19T12:15:00.000Z,provider-final,false,16,0.10457516339869281,153,8.2,"""how many cups in a quart""",query
+meals.example,2026-09-18,2026-09-19T12:15:00.000Z,provider-final,false,12,0.07228915662650602,166,9.9,meal prep ideas,query
+meals.example,2026-09-18,2026-09-19T12:15:00.000Z,provider-final,false,8,0.0446927374301676,179,11.6,crème brûlée calories,query
+meals.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-final,false,18,0.1487603305785124,121,3.4,meal planner,query
+meals.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-final,false,14,0.1044776119402985,134,5.1,weekly meal plan,query
+meals.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-final,false,10,0.06802721088435375,147,6.8,"high protein, ""easy"" dinners",query
+meals.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-final,false,6,0.0375,160,8.5,"""how many cups in a quart""",query
+meals.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-final,false,19,0.10982658959537572,173,10.2,meal prep ideas,query
+meals.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-final,false,15,0.08064516129032258,186,11.9,crème brûlée calories,query
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,false,8,0.0625,128,3.7,meal planner,query
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,false,4,0.028368794326241134,141,5.4,weekly meal plan,query
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,false,17,0.11038961038961038,154,7.1,"high protein, ""easy"" dinners",query
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,false,13,0.07784431137724551,167,8.8,"""how many cups in a quart""",query
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,false,9,0.05,180,10.5,meal prep ideas,query
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,false,5,0.025906735751295335,193,12.2,crème brûlée calories,query
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,false,8,0.0625,128,3.7,meal planner,query
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,false,4,0.028368794326241134,141,5.4,weekly meal plan,query
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,false,17,0.11038961038961038,154,7.1,"high protein, ""easy"" dinners",query
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,false,13,0.07784431137724551,167,8.8,"""how many cups in a quart""",query
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,false,9,0.05,180,10.5,meal prep ideas,query
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,false,5,0.025906735751295335,193,12.2,crème brûlée calories,query

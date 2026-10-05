@@ -1,0 +1,26 @@
+{
+  "name": "@noticeos/ingest",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "description": "NoticeOS pulse ingest + ledger Worker with freshness and asset-#0 crons (docs/02, docs/06).",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "wrangler deploy --dry-run",
+    "dev": "node ../../scripts/ingest-dev.mjs",
+    "cf-typegen": "wrangler types --env-interface=IngestEnv"
+  },
+  "dependencies": {
+    "@noticeos/contract": "workspace:*",
+    "@noticeos/mediavine": "workspace:*",
+    "@noticeos/postgres": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.18.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9",
+    "wrangler": "^4.107.0"
+  }
+}

@@ -1,0 +1,9 @@
+asset,report_date,collected_at,data_state,provider_truncated,http_code,in_links,issue_names,issues,url
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,404,3,Code4xx|BlockedByRobotsTxt,20,https://meals.example/old-page
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,301,7,Code301|TimeOutErrors,257,https://meals.example/moved
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,200,1,,0,https://meals.example/fine
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,200,0,,x,https://meals.example/odd
+meals.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,404,4,Code4xx|BlockedByRobotsTxt,20,https://meals.example/old-page
+meals.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,301,7,Code301|TimeOutErrors,257,https://meals.example/moved
+meals.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,200,1,,0,https://meals.example/fine
+meals.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,200,0,,x,https://meals.example/odd

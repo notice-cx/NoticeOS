@@ -1,0 +1,20 @@
+{
+  "about": "The UX gate's own rules (scripts/ux-gate.mjs, beads ro-ujb9.94 and ro-ujb9.96.3): the word budgets, the directories it always reads, the files it follows imports from, and the files it never reads. Tightening is free. Loosening is an operator-only exception: a raised budget or a new notDeskCopy entry carries kind (trust-safety, legal or destructive-confirmation), approvedBy (a bead id), reason and priorArt (a docs/briefs section citing three researched comparables), exactly like a raise in apps/tower/ux-budget.json; a scan directory or trace root leaves only when it no longer exists. Every commit that changes this file is audited. Agents never edit this file; see scripts/README.md, UX gate.",
+  "budgets": {
+    "label": { "words": 12 },
+    "failure": { "words": 18 },
+    "accessible": { "words": 24 }
+  },
+  "scanDirs": ["apps/tower/src", "apps/tower/shared", "apps/tower/worker"],
+  "traceRoots": ["apps/tower/vite.config.ts"],
+  "notDeskCopy": {
+    "apps/tower/worker/mcp-route.ts": { "reason": "speaks to agents: its tool descriptions are a published interface" },
+    "apps/tower/src/components/registry.ts": { "reason": "the machine-readable component index (doc 14), documentation for agents" },
+    "apps/tower/src/routes/KitchenSinkRoute.tsx": { "reason": "the /dev gallery, rendered only under import.meta.env.DEV" },
+    "apps/tower/src/routes/AssetStateGalleryRoute.tsx": { "reason": "the /dev asset-state gallery, rendered only under import.meta.env.DEV" },
+    "apps/tower/shared/materiality.ts": { "reason": "the material-state contract: a record read by a test, rendered nowhere" },
+    "apps/tower/src/lib/task-handoff.ts": { "reason": "writes the task command an agent runs; the command is the payload" },
+    "apps/tower/src/lib/page-decision-markdown.ts": { "reason": "writes the Markdown brief \"Copy Markdown\" hands to an agent; a document, not a screen" },
+    "apps/tower/src/lib/query-decision-markdown.ts": { "reason": "writes the Markdown brief \"Copy Markdown\" hands to an agent; a document, not a screen" }
+  }
+}

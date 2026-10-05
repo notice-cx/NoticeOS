@@ -1,0 +1,13 @@
+/** Shared server registry identity. This exports no executable capability. */
+export const DEMO_ACTIVITY_DEFINITION = Object.freeze({
+  key: 'demo-activity', version: 'v1',
+  steps: Object.freeze([
+    Object.freeze({ key: 'observations', kind: 'database', action: 'workflows.run' }),
+    Object.freeze({ key: 'task', kind: 'effect', action: 'tasks.write' }),
+    Object.freeze({ key: 'task-summary', kind: 'database', action: 'workflows.run' }),
+  ] as const),
+});
+export function demoActivityPrefix(scenarioHash: string): string {
+  if (!/^[0-9a-f]{64}$/u.test(scenarioHash)) throw new Error('Demo scenario identity unavailable.');
+  return `demo-v1/${scenarioHash.slice(0, 20)}/`;
+}

@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    // The repo root, not `src`. `os-time-zone.ts` imports `config/constants.json`
+    // (bead ro-py40) and tsc copies an import specifier into the emitted JS
+    // verbatim. Rooted at `src`, that JSON is outside the program's root, so tsc
+    // emitted the reference and nothing to satisfy it: `dist` reached out of its
+    // own tree for a file a published package would not carry (bead ro-l9ru).
+    // Rooted at the repo root, tsc emits the JSON it resolved at the depth the
+    // specifier already names, so `dist` is self-contained. The price is the
+    // mirrored `packages/contract/src` path inside `dist`; nothing pays it while
+    // the exports map points at `src`, and `scripts/contract-dist.test.mjs` is
+    // what fails if an emit reaches outside `dist` again.
+    "rootDir": "../.."
+  },
+  "include": ["src/**/*.ts", "src/**/*.mts"],
+  "exclude": ["test/**/*.ts"]
+}

@@ -1,0 +1,13 @@
+{
+  "assets": {
+    "meals.example": {
+      "valueEvents": [
+        "calculation_complete",
+        "printable_download",
+        "sign_up",
+        "plan_save_click",
+        "auth_complete"
+      ]
+    }
+  }
+}

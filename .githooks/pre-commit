@@ -1,0 +1,37 @@
+#!/bin/sh
+# NoticeOS pre-commit hook (bead ro-ujb9.94). Installed by `pnpm install`:
+# the root `prepare` script runs scripts/install-git-hooks.mjs, which points
+# core.hooksPath at this directory. Bypassing it with `git commit --no-verify`
+# is not allowed (AGENTS.md).
+#
+# The UX gate judges the STAGED files the Tower renders (apps/tower/{src,shared,
+# worker} and every module or config document they import) and the staged UX
+# baseline; a commit that touches no source file pays one `git diff`.
+root="$(git rev-parse --show-toplevel)" || exit 1
+if ! command -v node >/dev/null 2>&1; then
+  echo "pre-commit: node is not on PATH, so the UX gate cannot run. Install Node 22+ and retry." >&2
+  exit 1
+fi
+if [ -f "$root/scripts/ux-gate.mjs" ]; then
+  node "$root/scripts/ux-gate.mjs" --staged || exit 1
+fi
+# The flow gate's record (bead ro-ujb9.95): a staged apps/tower/ux-flows.json
+# may only go down, unless the operator's approved exception says otherwise.
+# The flows themselves are walked in a browser by `pnpm test:journeys`.
+if [ -f "$root/scripts/ux-flow-gate.mjs" ]; then
+  node "$root/scripts/ux-flow-gate.mjs" --staged || exit 1
+fi
+# The neutral-code gate (bead ro-ujb9.118): staged product code may name none of
+# this installation's own sites, asset ids or domains, and no time zone. A
+# staged config document or migration rechecks every product file.
+if [ -f "$root/scripts/neutral-code-gate.mjs" ]; then
+  node "$root/scripts/neutral-code-gate.mjs" --staged || exit 1
+fi
+
+# core.hooksPath replaces .git/hooks, so a repository-local pre-commit hook
+# (one somebody installed before this directory existed) still runs after.
+local_hook="$(git rev-parse --git-common-dir)/hooks/pre-commit"
+if [ -x "$local_hook" ]; then
+  exec "$local_hook" "$@"
+fi
+exit 0

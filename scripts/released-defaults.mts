@@ -1,0 +1,23 @@
+// Complete released defaults for trusted new-workspace preparation. The ordinary
+// collector imports only config-defaults, so task coordination is not bundled.
+import beadsJson from '../config/beads.json' with { type: 'json' };
+import { collectorDefaultDocument } from './config-defaults.mjs';
+import { CONFIG_DOCUMENT_FILES, configDocumentKey, documentRefusal, serializeDocument } from './config-documents.mjs';
+
+export interface ReleasedDefaultDocument {
+  readonly key: string;
+  readonly file: string;
+  readonly body: string;
+}
+
+/** Initial defaults are the full released register, never caller settings. */
+export function releasedDefaultDocuments(): readonly ReleasedDefaultDocument[] {
+  return Object.freeze([...CONFIG_DOCUMENT_FILES].sort().map(file => {
+    const key = configDocumentKey(file);
+    const document = file === 'config/beads.json' ? structuredClone(beadsJson) : collectorDefaultDocument(file);
+    if (key === null || document === null || documentRefusal(file, document) !== null) {
+      throw new Error('Released defaults refused');
+    }
+    return Object.freeze({ key, file, body: serializeDocument(document) });
+  }));
+}

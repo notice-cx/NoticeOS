@@ -1,0 +1,89 @@
+{
+  "asset": "asset.example",
+  "targets": [
+    {
+      "tier": 1,
+      "segment": "extension",
+      "linksToDead": "dead.example.gov/",
+      "replaceWith": "https://asset.example/food-groups",
+      "contact": "county@example.edu",
+      "notes": "VERIFIED both links, anchor \"Visit DeadSite.gov online\"",
+      "domain": "county.example.edu",
+      "referringPage": "https://county.example.edu/food/meals",
+      "status": "clicked",
+      "statusAt": "2026-07-14",
+      "lastVerifiedAt": "2026-07-14",
+      "outcomeNote": "Wave 1 sent 2026-06-16; recipient clicked."
+    },
+    {
+      "tier": 1,
+      "segment": "library",
+      "linksToDead": "dead.example.gov/",
+      "replaceWith": "https://asset.example/",
+      "contact": null,
+      "notes": "No published address; use the reference-desk form",
+      "domain": "guides.example.edu",
+      "referringPage": "https://guides.example.edu/nutrition",
+      "status": "queued",
+      "statusAt": null,
+      "lastVerifiedAt": null,
+      "outcomeNote": null
+    },
+    {
+      "tier": 2,
+      "segment": "editorial",
+      "linksToDead": "dead.example.gov/protein",
+      "replaceWith": "https://asset.example/food-groups",
+      "contact": null,
+      "notes": "DR92 — reach via the editorial feedback form",
+      "domain": "news.example.com",
+      "referringPage": "https://news.example.com/articles/protein",
+      "status": "queued",
+      "statusAt": null,
+      "lastVerifiedAt": null,
+      "outcomeNote": null
+    },
+    {
+      "tier": null,
+      "segment": "federal",
+      "linksToDead": null,
+      "replaceWith": null,
+      "contact": null,
+      "notes": "Do NOT pitch — federal hosts repoint to an official successor, never an independent site",
+      "domain": "one.example.gov",
+      "referringPage": "",
+      "status": "skip",
+      "statusAt": null,
+      "lastVerifiedAt": null,
+      "outcomeNote": null
+    },
+    {
+      "tier": null,
+      "segment": "federal",
+      "linksToDead": null,
+      "replaceWith": null,
+      "contact": null,
+      "notes": "Do NOT pitch — federal hosts repoint to an official successor, never an independent site",
+      "domain": "two.example.gov",
+      "referringPage": "",
+      "status": "skip",
+      "statusAt": null,
+      "lastVerifiedAt": null,
+      "outcomeNote": null
+    },
+    {
+      "tier": null,
+      "segment": "federal",
+      "linksToDead": null,
+      "replaceWith": null,
+      "contact": null,
+      "notes": "Do NOT pitch — federal hosts repoint to an official successor, never an independent site",
+      "domain": "three.example.gov",
+      "referringPage": "",
+      "status": "skip",
+      "statusAt": null,
+      "lastVerifiedAt": null,
+      "outcomeNote": null
+    }
+  ]
+}

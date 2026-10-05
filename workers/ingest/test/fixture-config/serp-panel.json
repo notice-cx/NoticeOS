@@ -1,0 +1,103 @@
+{
+  "assets": {
+    "meals.example": {
+      "queries": [
+        "my plate",
+        "meals",
+        "meals calculator",
+        "meals calorie calculator",
+        "meals plan",
+        "meals gov",
+        "dri calculator",
+        "usda dri calculator",
+        "meals quiz",
+        "food groups",
+        "5 food groups",
+        "meals for older adults",
+        "what is meals",
+        "meals recipes",
+        "2000 calorie meal plan",
+        "free meal plans",
+        "water intake calculator",
+        "how many ounces of water should i drink a day",
+        "weight loss percentage calculator",
+        "ffmi calculator",
+        "meals worksheets",
+        "food group worksheet",
+        "meal planning template",
+        "myfitnesspal alternative",
+        "waist to height ratio calculator",
+        "canada food guide",
+        "where to find free diet plans",
+        "where to find free meal plans",
+        "calorie deficit calculator",
+        "high fiber cereals"
+      ]
+    },
+    "nosh.example": {
+      "queries": [
+        { "query": "chipotle calorie calculator", "label": "Calculator seam" },
+        { "query": "starbucks calorie calculator", "label": "Calculator seam" },
+        { "query": "starbucks nutrition calculator", "label": "Calculator seam" },
+        { "query": "subway calorie calculator", "label": "Calculator seam" },
+        { "query": "taco bell nutrition calculator", "label": "Calculator seam" },
+        { "query": "chick fil a nutrition calculator", "label": "Calculator seam" },
+        { "query": "burger king nutrition calculator", "label": "Calculator seam" },
+        { "query": "panera nutrition calculator", "label": "Calculator seam" },
+        { "query": "whataburger nutrition", "label": "Calculator seam" },
+        { "query": "big mac calories", "label": "Item head" },
+        { "query": "mcchicken calories", "label": "Item head" },
+        { "query": "whopper calories", "label": "Item head" },
+        { "query": "highest protein jack in the box", "label": "Guide anomaly" },
+        { "query": "healthiest fast food options 2026", "label": "Guide anomaly" },
+        { "query": "wingstop vegetarian", "label": "Guide anomaly" },
+        { "query": "low sodium taco bell", "label": "Guide anomaly" },
+        { "query": "healthiest fast food", "label": "Category head" },
+        { "query": "wendys glp1", "label": "GLP-1" },
+        { "query": "glp 1 fast food options", "label": "GLP-1" },
+        { "query": "fast food nutrition statistics", "label": "Stats hub" },
+        { "query": "wingstop nutrition", "label": "Restaurant hubs" },
+        { "query": "taco bell nutrition", "label": "Restaurant hubs" },
+        { "query": "jersey mike nutrition", "label": "Restaurant hubs" }
+      ]
+    },
+    "areas.example": {
+      "queries": [
+        { "query": "search for area code", "label": "Generic lookup" },
+        { "query": "area code lookup", "label": "Generic lookup" },
+        { "query": "area code finder", "label": "Generic lookup" },
+        { "query": "area code lookup by number", "label": "Generic lookup" },
+        { "query": "who called me", "label": "Per-number wedge" },
+        { "query": "who called me from this number", "label": "Per-number wedge" },
+        { "query": "is this number a scam", "label": "Per-number wedge" },
+        { "query": "317-689-1054", "label": "Per-number wedge" },
+        { "query": "213 area code scam", "label": "Scam NPA" },
+        { "query": "833 area code scam", "label": "Scam NPA" },
+        { "query": "area code for los angeles", "label": "City reverse" },
+        { "query": "989 area code", "label": "No-AIO NPA" },
+        { "query": "phone carrier lookup", "label": "Carrier tool" },
+        { "query": "short code lookup", "label": "Short-code tool" },
+        { "query": "555 area code", "label": "Linkbait" }
+      ]
+    },
+    "fees.example": {
+      "queries": [
+        { "query": "routing number lookup", "label": "Visibility recovery" },
+        { "query": "bank routing number", "label": "Visibility recovery" },
+        { "query": "031100649", "label": "Visibility recovery" },
+        { "query": "243074385", "label": "Visibility recovery" },
+        { "query": "routing number on check", "label": "Check-guide wedge" },
+        { "query": "how to fill out a check", "label": "Check-guide wedge" },
+        { "query": "how to void a check", "label": "Check-guide wedge" },
+        { "query": "ein number lookup", "label": "EIN lookup" },
+        { "query": "ein lookup", "label": "EIN lookup" },
+        { "query": "walmart ein number", "label": "EIN lookup" },
+        { "query": "chase customer service number", "label": "Verified contacts" },
+        { "query": "sofi customer service number", "label": "Verified contacts" },
+        { "query": "firstbank routing number", "label": "Named bank changes" },
+        { "query": "first bank colorado routing number", "label": "Named bank changes" },
+        { "query": "happen bank", "label": "Named bank changes" }
+      ]
+    }
+  }
+}

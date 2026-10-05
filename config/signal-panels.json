@@ -1,0 +1,14 @@
+{
+  "readme": "config/signal-panels.README.md",
+  "contractRef": "docs/20-signal-panels.md",
+  "version": 1,
+  "updated": "2026-08-05",
+  "refresh": {
+    "cadenceRef": "scripts/os-up.mjs CONFIG.panelRefreshCron",
+    "windowDays": 35,
+    "freshnessMaxAgeDays": 7,
+    "providerCallsPerPass": 0,
+    "providerCostUsdPerPass": 0
+  },
+  "assets": {}
+}

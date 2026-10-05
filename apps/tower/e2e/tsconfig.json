@@ -1,0 +1,7 @@
+{
+  "extends": "../tsconfig.app.json",
+  "compilerOptions": {
+    "paths": { "@/*": ["../src/*"], "@shared/*": ["../shared/*"] }
+  },
+  "include": ["*.ts", "../test/worker-globals.d.ts"]
+}

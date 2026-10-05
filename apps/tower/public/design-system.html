@@ -1,0 +1,2806 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>NoticeOS design system</title>
+    <link rel="stylesheet" href="./brand/notice.css" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./brand/notice-icon-32.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./brand/notice-icon-32-dark.png" media="(prefers-color-scheme: dark)" />
+    <style>
+      :root {
+        --canvas: var(--brand-canvas);
+        --surface: var(--brand-surface);
+        --raised: var(--brand-raised);
+        --ink: var(--brand-ink);
+        --muted: var(--brand-muted);
+        --line: var(--brand-line);
+        --control-line: var(--brand-control-line);
+        --blue: var(--brand-blue);
+        --accent: var(--brand-accent);
+        --accent-hover: var(--brand-accent-hover);
+        --on-accent: var(--brand-on-accent);
+        --accent-soft: var(--brand-accent-soft);
+        --success: var(--brand-success);
+        --success-soft: var(--brand-success-soft);
+        --danger: var(--brand-danger);
+        --danger-soft: var(--brand-danger-soft);
+        --warning: var(--brand-warning);
+        --warning-soft: var(--brand-warning-soft);
+        --neutral: var(--brand-neutral);
+        --neutral-soft: var(--brand-neutral-soft);
+        --cyan: var(--brand-cyan);
+        --violet: var(--brand-violet);
+        --radius: var(--brand-radius);
+        --shadow: var(--brand-shadow);
+        --fast: var(--brand-fast);
+        --standard: var(--brand-standard);
+        color-scheme: light;
+      }
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+        scroll-padding-top: 96px;
+      }
+      body {
+        margin: 0;
+        background: var(--canvas);
+        color: var(--ink);
+        font:
+          14px/1.55 Inter,
+          system-ui,
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+      button,
+      a,
+      input,
+      select,
+      summary {
+        -webkit-tap-highlight-color: transparent;
+      }
+      button,
+      a {
+        touch-action: manipulation;
+      }
+      button {
+        cursor: pointer;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+        text-underline-offset: 4px;
+      }
+      :focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 3px;
+      }
+      button:disabled {
+        opacity: 0.46;
+        cursor: not-allowed;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h1,
+      h2,
+      h3 {
+        line-height: 1.15;
+        letter-spacing: -0.035em;
+      }
+      h1 {
+        font-size: clamp(40px, 5vw, 68px);
+        font-weight: 650;
+      }
+      h2 {
+        font-size: 28px;
+        font-weight: 620;
+      }
+      h3 {
+        font-size: 17px;
+        font-weight: 620;
+      }
+      small,
+      .small {
+        font-size: 12px;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .mono,
+      code {
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: 11px;
+      }
+      .num {
+        font-variant-numeric: tabular-nums;
+      }
+      .eyebrow {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 650;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .wrap {
+        flex-wrap: wrap;
+      }
+      .between {
+        justify-content: space-between;
+      }
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .gap8 {
+        gap: 8px;
+      }
+      .grid {
+        display: grid;
+        gap: 16px;
+      }
+      .two {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .three {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .four {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+      .panel {
+        min-width: 0;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+      .pad {
+        padding: 24px;
+      }
+      .rule {
+        border-top: 1px solid var(--line);
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 9px;
+        border-radius: 99px;
+        font-size: 11px;
+        font-weight: 560;
+        white-space: nowrap;
+        background: var(--raised);
+        color: var(--muted);
+      }
+      .pill.success {
+        color: var(--success);
+        background: var(--success-soft);
+      }
+      .pill.danger {
+        color: var(--danger);
+        background: var(--danger-soft);
+      }
+      .pill.warning {
+        color: var(--warning);
+        background: var(--warning-soft);
+      }
+      .pill.running {
+        color: var(--accent);
+        background: var(--accent-soft);
+      }
+      .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        flex-shrink: 0;
+      }
+      .icon {
+        width: 17px;
+        height: 17px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.7;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex-shrink: 0;
+      }
+      .btn {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        min-height: 44px;
+        padding: 8px 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        background: var(--surface);
+        color: var(--ink);
+        font-weight: 560;
+        font-size: 12px;
+        transition:
+          background var(--fast),
+          border-color var(--fast);
+      }
+      .btn:hover:not(:disabled) {
+        background: var(--raised);
+        text-decoration: none;
+      }
+      .btn.primary {
+        color: var(--on-accent);
+        background: var(--accent);
+        border-color: var(--accent);
+      }
+      .btn.primary:hover:not(:disabled) {
+        background: var(--accent-hover);
+        border-color: var(--accent-hover);
+      }
+      .btn.ghost {
+        border-color: transparent;
+        background: transparent;
+      }
+      .btn.destructive {
+        color: var(--danger);
+        background: var(--danger-soft);
+        border-color: transparent;
+      }
+      .btn.icon-btn {
+        padding: 8px;
+        min-width: 44px;
+      }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45em;
+        white-space: nowrap;
+        font-size: 20px;
+        line-height: 1;
+      }
+      .brand > span {
+        font-family: var(--brand-wordmark-font);
+        letter-spacing: -0.04em;
+        font-weight: 600;
+      }
+      .brand .os {
+        font-weight: 400;
+        color: var(--muted);
+      }
+      .logo-stage .brand .os {
+        color: inherit;
+        opacity: 0.7;
+      }
+      .brand svg,
+      .mark {
+        flex-shrink: 0;
+        width: auto;
+        aspect-ratio: 354 / 394;
+      }
+      .brand svg {
+        height: 1.4cap;
+      }
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        height: 72px;
+        border-bottom: 1px solid var(--line);
+        background: var(--surface);
+      }
+      .top-inner {
+        max-width: 1512px;
+        height: 100%;
+        margin: auto;
+        padding: 0 32px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .page {
+        max-width: 1512px;
+        display: grid;
+        grid-template-columns: 200px minmax(0, 1fr);
+        gap: 40px;
+        margin: auto;
+        padding: 36px 32px 64px;
+      }
+      .toc {
+        align-self: start;
+        position: sticky;
+        top: 108px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .toc a {
+        min-height: 44px;
+        padding: 9px 12px;
+        border-radius: 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .toc a:hover,
+      .toc a[aria-current] {
+        color: var(--accent);
+        background: var(--accent-soft);
+        text-decoration: none;
+      }
+      .toc .eyebrow {
+        padding: 0 12px 16px;
+      }
+      .toc-note {
+        padding: 22px 12px;
+        font-size: 11px;
+        color: var(--muted);
+        border-top: 1px solid var(--line);
+        margin-top: 24px;
+        line-height: 1.7;
+      }
+      main {
+        min-width: 0;
+      }
+      section {
+        margin-bottom: 64px;
+      }
+      .section-head {
+        margin-bottom: 24px;
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 20px;
+      }
+      .section-head .eyebrow {
+        margin-bottom: 9px;
+      }
+      .section-head p {
+        max-width: 390px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .hero {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 24px;
+        align-items: center;
+        padding: 40px;
+        position: relative;
+        overflow: hidden;
+      }
+      .hero-copy {
+        position: relative;
+        z-index: 1;
+      }
+      .hero h1 {
+        margin: 20px 0;
+      }
+      .hero p {
+        max-width: 400px;
+        color: var(--muted);
+        font-size: 15px;
+      }
+      .hero .principles {
+        margin-top: 28px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .hero-art {
+        display: grid;
+        place-items: center;
+        min-height: 270px;
+        position: relative;
+      }
+      .hero-art::before {
+        content: "";
+        position: absolute;
+        width: 250px;
+        height: 250px;
+        border: 1px solid var(--line);
+        border-radius: 50%;
+      }
+      .hero-art::after {
+        content: "";
+        position: absolute;
+        width: 310px;
+        height: 310px;
+        border: 1px dashed var(--line);
+        border-radius: 50%;
+      }
+      .hero-art svg {
+        width: 180px;
+        height: 180px;
+        z-index: 1;
+      }
+      .hero-note {
+        margin-top: 14px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .logo-stage {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 174px;
+        border-radius: 10px;
+      }
+      .logo-stage.light {
+        background: #fff;
+        color: #171b2b;
+        border: 1px solid #d8deea;
+      }
+      .logo-stage.dark {
+        background: #0d1019;
+        color: #f0f3ff;
+      }
+      .logo-stage .brand {
+        font-size: 32px;
+        gap: 16px;
+      }
+      .logo-note {
+        margin-top: 12px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .sizes {
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+        gap: 14px;
+        min-height: 155px;
+      }
+      .size-demo {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .swatches {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .swatch {
+        text-align: left;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 0;
+        overflow: hidden;
+        background: var(--surface);
+        color: var(--ink);
+        transition: transform var(--fast);
+      }
+      .swatch:hover {
+        transform: translateY(-2px);
+      }
+      .swatch-color {
+        height: 82px;
+        display: block;
+        background: var(--swatch);
+        border-bottom: 1px solid var(--line);
+      }
+      .swatch-info {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding: 11px;
+      }
+      .swatch strong {
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .swatch code {
+        color: var(--muted);
+        font-size: 10px;
+      }
+      .contrast {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      .type-sample {
+        font-size: clamp(32px, 4vw, 52px);
+        font-weight: 620;
+        line-height: 1.12;
+        letter-spacing: -0.045em;
+        margin: 20px 0 24px;
+      }
+      .type-row {
+        display: grid;
+        grid-template-columns: 100px 1fr auto;
+        align-items: baseline;
+        gap: 10px;
+        border-top: 1px solid var(--line);
+        padding: 14px 0;
+      }
+      .type-row:last-child {
+        padding-bottom: 0;
+      }
+      .space-bars {
+        display: flex;
+        align-items: end;
+        gap: 20px;
+        min-height: 105px;
+        padding: 12px 0;
+      }
+      .space-unit {
+        display: grid;
+        justify-items: center;
+        gap: 12px;
+      }
+      .space-unit i {
+        background: var(--accent);
+        border-radius: 3px;
+        width: var(--size);
+        height: var(--size);
+      }
+      .radii {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 24px;
+      }
+      .radius-box {
+        height: 64px;
+        flex: 1;
+        display: grid;
+        place-items: center;
+        background: var(--raised);
+        border: 1px solid var(--line);
+        font-size: 11px;
+      }
+      .fields {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      label.field {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        font-size: 12px;
+        font-weight: 560;
+      }
+      input,
+      select,
+      textarea {
+        min-height: 44px;
+        color: var(--ink);
+        background: var(--surface);
+        border: 1px solid var(--control-line);
+        border-radius: 8px;
+        padding: 10px 11px;
+        width: 100%;
+        min-width: 0;
+        outline-offset: 2px;
+      }
+      input::placeholder {
+        color: var(--muted);
+      }
+      input:disabled {
+        background: var(--raised);
+        color: var(--muted);
+      }
+      input[aria-invalid="true"] {
+        border-color: var(--danger);
+      }
+      .field small {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 400;
+      }
+      .field small.error {
+        color: var(--danger);
+      }
+      .switch {
+        border: 0;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        background: transparent;
+        position: relative;
+        flex-shrink: 0;
+      }
+      .switch::before {
+        content: "";
+        position: absolute;
+        width: 36px;
+        height: 22px;
+        left: 4px;
+        top: 11px;
+        border-radius: 99px;
+        background: var(--neutral);
+        transition: background var(--fast);
+      }
+      .switch::after {
+        content: "";
+        position: absolute;
+        left: 7px;
+        top: 14px;
+        height: 16px;
+        width: 16px;
+        background: #fff;
+        border-radius: 50%;
+        transition: transform var(--fast);
+      }
+      .switch[aria-checked="true"]::before {
+        background: var(--accent);
+      }
+      .switch[aria-checked="true"]::after {
+        transform: translateX(14px);
+        background: var(--on-accent);
+      }
+      .control-line {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 0;
+        border-top: 1px solid var(--line);
+      }
+      .check {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+      }
+      .check input {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--accent);
+      }
+      .status-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .status-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .status-item small {
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .note {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 14px 16px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .note.warning {
+        color: var(--warning);
+        border-color: var(--warning);
+        background: var(--warning-soft);
+      }
+      .note.danger {
+        color: var(--danger);
+        border-color: var(--danger);
+        background: var(--danger-soft);
+      }
+      .demo-label {
+        color: var(--muted);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-weight: 600;
+      }
+      .app-demo {
+        display: grid;
+        grid-template-columns: 145px minmax(0, 1fr);
+        overflow: hidden;
+      }
+      .demo-nav {
+        border-right: 1px solid var(--line);
+        padding: 18px 10px;
+        background: var(--surface);
+      }
+      .demo-nav .brand {
+        margin: 3px 0 23px 4px;
+        font-size: 15px;
+        gap: 7px;
+      }
+      .demo-nav button {
+        min-height: 44px;
+        width: 100%;
+        background: none;
+        border: 0;
+        border-radius: 7px;
+        color: var(--muted);
+        padding: 10px 9px;
+        font-size: 11px;
+        text-align: left;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin: 2px 0;
+      }
+      .demo-nav button[aria-pressed="true"] {
+        color: var(--accent);
+        background: var(--accent-soft);
+        font-weight: 600;
+      }
+      .demo-main {
+        min-width: 0;
+        padding: 24px;
+      }
+      .demo-main h3 {
+        font-size: 22px;
+      }
+      .demo-sub {
+        color: var(--muted);
+        font-size: 11px;
+        margin: 5px 0 20px;
+      }
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        padding: 18px 0 20px;
+      }
+      .metric-label {
+        font-size: 10px;
+        color: var(--muted);
+      }
+      .metric-value {
+        font-size: 25px;
+        font-weight: 620;
+        letter-spacing: -0.04em;
+        line-height: 1.5;
+        font-variant-numeric: tabular-nums;
+      }
+      .metric-note {
+        color: var(--muted);
+        font-size: 10px;
+      }
+      .table-wrap {
+        overflow: auto;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        min-width: 485px;
+        text-align: left;
+        font-size: 11px;
+      }
+      th {
+        color: var(--muted);
+        font-weight: 500;
+        border-bottom: 1px solid var(--line);
+        padding: 10px 8px;
+        white-space: nowrap;
+      }
+      td {
+        padding: 13px 8px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: middle;
+      }
+      td:last-child {
+        white-space: nowrap;
+      }
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      td:first-child {
+        min-width: 160px;
+        padding-left: 0;
+      }
+      td strong {
+        font-weight: 600;
+      }
+      td small {
+        display: block;
+        font-size: 10px;
+        color: var(--muted);
+        margin-top: 3px;
+      }
+      .history {
+        display: flex;
+        gap: 3px;
+        align-items: end;
+        height: 26px;
+        min-width: 84px;
+      }
+      .history i {
+        display: block;
+        width: 5px;
+        height: var(--h, 16px);
+        border-radius: 2px;
+        background: var(--success);
+        opacity: 0.7;
+      }
+      .history i.failed {
+        background: var(--danger);
+        opacity: 1;
+      }
+      .history i.empty {
+        background: var(--line);
+        height: 4px;
+      }
+      .demo-view[hidden] {
+        display: none;
+      }
+      .stage-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        margin: 20px 0;
+      }
+      .stage {
+        text-align: left;
+        position: relative;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        color: var(--ink);
+        border-radius: 10px;
+        padding: 14px 12px;
+        min-width: 0;
+      }
+      .stage[aria-pressed="true"] {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 1px var(--accent);
+      }
+      .stage small {
+        display: block;
+        color: var(--muted);
+        font-size: 10px;
+        margin-top: 5px;
+      }
+      .stage-state {
+        display: block;
+        color: var(--success);
+        font-size: 11px;
+        margin-bottom: 13px;
+      }
+      .stage-state.failed {
+        color: var(--danger);
+      }
+      .stage-state.idle {
+        color: var(--neutral);
+      }
+      .stage-state.running {
+        color: var(--accent);
+      }
+      .stage strong {
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .stage-output {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--canvas);
+        padding: 20px;
+      }
+      .output-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin: 16px 0;
+      }
+      .output-metrics > div {
+        padding: 12px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+      .output-metrics strong {
+        display: block;
+        font-size: 20px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .output-metrics small {
+        color: var(--muted);
+        font-size: 10px;
+      }
+      details summary {
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 11px;
+        padding: 10px 0;
+      }
+      pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        padding: 14px;
+        background: var(--raised);
+        border-radius: 8px;
+        font:
+          11px/1.6 ui-monospace,
+          monospace;
+      }
+      .health-cards {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        margin: 20px 0;
+      }
+      .health-cards > div {
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        padding: 13px;
+      }
+      .health-cards strong {
+        display: block;
+        color: var(--success);
+        font-size: 12px;
+        margin-top: 8px;
+      }
+      .integration {
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 11px;
+      }
+      .integration p {
+        color: var(--muted);
+        font-size: 11px;
+        margin: 12px 0 18px;
+        min-height: 34px;
+      }
+      .provider-icon {
+        height: 34px;
+        width: 34px;
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--line);
+        background: var(--brand-provider-surface);
+        border-radius: 9px;
+      }
+      .provider-icon img {
+        width: 24px;
+        height: 24px;
+        object-fit: contain;
+      }
+      .onboarding {
+        margin-top: 18px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .onboarding span {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .onboarding b {
+        display: grid;
+        place-items: center;
+        width: 20px;
+        height: 20px;
+        border: 1px solid var(--line);
+        border-radius: 50%;
+        font-size: 10px;
+        font-weight: 500;
+      }
+      .onboarding .current {
+        color: var(--accent);
+      }
+      .onboarding .current b {
+        background: var(--accent-soft);
+        border-color: var(--accent);
+      }
+      .tv {
+        background: #0d1019;
+        color: #f0f3ff;
+        padding: 28px;
+        border-radius: 14px;
+      }
+      .tv .muted,
+      .tv .metric-label,
+      .tv .metric-note {
+        color: #a4aec3;
+      }
+      .tv .metrics {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        padding-top: 28px;
+      }
+      .tv .metric-value {
+        font-size: 30px;
+      }
+      .tv-chart {
+        height: 95px;
+        width: 100%;
+        overflow: visible;
+        margin-top: 20px;
+      }
+      .tv-chart .chart-grid {
+        stroke: #303a4f;
+        stroke-width: 1;
+      }
+      .tv-chart .revenue {
+        stroke: #69dade;
+        fill: none;
+        stroke-width: 2.5;
+      }
+      .tv-chart .cost {
+        stroke: #b9a0ff;
+        fill: none;
+        stroke-width: 2;
+        stroke-dasharray: 5 4;
+      }
+      .empty {
+        min-height: 190px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        gap: 10px;
+        padding: 24px;
+      }
+      .empty .icon {
+        width: 26px;
+        height: 26px;
+        color: var(--muted);
+      }
+      .empty p {
+        font-size: 11px;
+        color: var(--muted);
+        max-width: 220px;
+      }
+      .skeleton {
+        background: var(--raised);
+        height: 9px;
+        border-radius: 4px;
+        margin: 13px 0;
+      }
+      .skeleton.big {
+        height: 27px;
+        width: 35%;
+        margin-bottom: 24px;
+      }
+      .skeleton-row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      .skeleton-row .circle {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--raised);
+        flex-shrink: 0;
+      }
+      .token-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0 24px;
+      }
+      .token-list > div {
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 11px;
+      }
+      .token-list code {
+        color: var(--muted);
+      }
+      .review {
+        padding: 28px;
+        border: 1px solid var(--accent);
+        border-radius: 14px;
+        background: var(--accent-soft);
+      }
+      .review h2 {
+        font-size: 24px;
+        margin: 8px 0 14px;
+      }
+      .review p {
+        max-width: 650px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        color: var(--muted);
+        font-size: 11px;
+        margin-top: 32px;
+      }
+      .toast {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        z-index: 20;
+        max-width: calc(100vw - 48px);
+        padding: 14px 18px;
+        background: var(--ink);
+        color: var(--canvas);
+        border-radius: 10px;
+        font-size: 12px;
+        box-shadow: var(--shadow);
+      }
+      .toast[hidden] {
+        display: none;
+      }
+      dialog {
+        color: var(--ink);
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 28px;
+        width: min(440px, calc(100vw - 32px));
+        box-shadow: var(--shadow);
+      }
+      dialog::backdrop {
+        background: #070c1d80;
+      }
+      dialog p {
+        margin: 14px 0 24px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      @media (max-width: 1150px) {
+        .page {
+          grid-template-columns: 155px minmax(0, 1fr);
+          gap: 24px;
+        }
+        .hero {
+          padding: 28px;
+        }
+        .hero-art::after {
+          width: 250px;
+          height: 250px;
+        }
+        .hero-art::before {
+          width: 210px;
+          height: 210px;
+        }
+        .hero-art svg {
+          width: 140px;
+          height: 140px;
+        }
+        .swatches {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        .app-demo {
+          grid-template-columns: 122px minmax(0, 1fr);
+        }
+        .demo-main {
+          padding: 18px;
+        }
+        .demo-nav .brand {
+          font-size: 12px;
+        }
+      }
+      @media (max-width: 900px) {
+        .page {
+          display: block;
+          padding: 24px;
+        }
+        .toc {
+          position: relative;
+          top: 0;
+          flex-direction: row;
+          flex-wrap: wrap;
+          margin-bottom: 28px;
+          gap: 4px;
+        }
+        .toc .eyebrow,
+        .toc-note {
+          display: none;
+        }
+        .toc a {
+          min-height: 44px;
+          padding: 8px 11px;
+          min-height: 44px;
+          display: inline-flex;
+          align-items: center;
+        }
+        .hero-art::after {
+          width: 270px;
+          height: 270px;
+        }
+        .hero-art svg {
+          width: 150px;
+          height: 150px;
+        }
+        .top-inner {
+          padding: 0 24px;
+        }
+      }
+      @media (max-width: 600px) {
+        .topbar .btn.ghost {
+          display: none;
+        }
+        html {
+          scroll-padding-top: 86px;
+        }
+        .page {
+          padding: 20px 16px 40px;
+        }
+        .top-inner {
+          padding: 0 16px;
+        }
+        .topbar {
+          height: 64px;
+        }
+        .topbar .preview-tag {
+          display: none;
+        }
+        .topbar .brand {
+          font-size: 18px;
+        }
+        .btn {
+          min-height: 44px;
+        }
+        .topbar .btn {
+          font-size: 11px;
+          padding: 8px 10px;
+        }
+        .hero {
+          grid-template-columns: 1fr;
+          padding: 24px;
+        }
+        .hero-art {
+          min-height: 180px;
+        }
+        .hero-art::after {
+          width: 180px;
+          height: 180px;
+        }
+        .hero-art::before {
+          width: 148px;
+          height: 148px;
+        }
+        .hero-art svg {
+          width: 108px;
+          height: 108px;
+        }
+        .hero h1 {
+          font-size: 42px;
+        }
+        .two,
+        .three,
+        .four,
+        .fields {
+          grid-template-columns: 1fr;
+        }
+        .pad {
+          padding: 20px;
+        }
+        .section-head {
+          display: block;
+        }
+        .section-head p {
+          margin-top: 12px;
+        }
+        section {
+          margin-bottom: 44px;
+        }
+        h2 {
+          font-size: 25px;
+        }
+        .swatches {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+        }
+        .swatch-color {
+          height: 70px;
+        }
+        .swatch-info {
+          padding: 9px;
+        }
+        .swatch strong {
+          font-size: 10px;
+        }
+        .app-demo {
+          display: block;
+        }
+        .demo-nav {
+          display: flex;
+          overflow: auto;
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+          padding: 8px;
+        }
+        .demo-nav .brand {
+          display: none;
+        }
+        .demo-nav button {
+          min-height: 44px;
+          width: auto;
+          white-space: nowrap;
+          min-height: 44px;
+        }
+        .demo-main {
+          padding: 18px 14px;
+        }
+        .stage-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+        .output-metrics {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 7px;
+        }
+        .output-metrics > div {
+          padding: 9px;
+        }
+        .output-metrics strong {
+          font-size: 18px;
+        }
+        .stage-output {
+          padding: 14px;
+        }
+        .health-cards {
+          grid-template-columns: 1fr;
+        }
+        .health-cards > div {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .health-cards strong {
+          margin: 0;
+        }
+        .tv {
+          padding: 20px;
+        }
+        .tv .metrics {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          row-gap: 20px;
+        }
+        .tv .metric-value {
+          font-size: 28px;
+        }
+        .type-row {
+          grid-template-columns: 76px 1fr;
+        }
+        .type-row code {
+          grid-column: 2;
+        }
+        .space-bars {
+          gap: 14px;
+        }
+        .status-grid {
+          grid-template-columns: 1fr;
+        }
+        .token-list {
+          grid-template-columns: 1fr;
+        }
+        .footer {
+          flex-direction: column;
+        }
+        .logo-stage .brand {
+          font-size: 27px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        *,
+        *::before,
+        *::after {
+          transition: none !important;
+          animation: none !important;
+        }
+      }
+      @media print {
+        .topbar,
+        .toc,
+        .toast {
+          display: none;
+        }
+        .page {
+          display: block;
+          padding: 0;
+        }
+        section {
+          break-inside: avoid;
+        }
+        body {
+          background: #fff;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <symbol id="i-arrow" viewBox="0 0 24 24">
+          <path d="M5 12h14m-5-5 5 5-5 5" />
+        </symbol>
+        <symbol id="i-sun" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="4" />
+          <path
+            d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"
+          />
+        </symbol>
+        <symbol id="i-play" viewBox="0 0 24 24">
+          <path d="m8 5 11 7-11 7Z" />
+        </symbol>
+        <symbol id="i-flow" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="6" height="6" rx="2" />
+          <rect x="15" y="15" width="6" height="6" rx="2" />
+          <path d="M6 9v9h9M9 6h9v9" />
+        </symbol>
+        <symbol id="i-heart" viewBox="0 0 24 24">
+          <path d="M3 12h4l3-7 4 14 3-7h4" />
+        </symbol>
+        <symbol id="i-plug" viewBox="0 0 24 24">
+          <path d="M8 3v5m8-5v5M6 8h12v4a6 6 0 0 1-12 0V8Zm6 10v4" />
+        </symbol>
+        <symbol id="i-check" viewBox="0 0 24 24">
+          <path d="m5 12 4 4L19 6" />
+        </symbol>
+        <symbol id="i-alert" viewBox="0 0 24 24">
+          <path d="m12 3 10 18H2L12 3Zm0 5v5m0 4h.01" />
+        </symbol>
+        <symbol id="i-search" viewBox="0 0 24 24">
+          <circle cx="10" cy="10" r="6" />
+          <path d="m15 15 6 6" />
+        </symbol>
+        <symbol id="i-inbox" viewBox="0 0 24 24">
+          <path d="m5 4-3 9v7h20v-7l-3-9H5Zm-3 9h6l2 3h4l2-3h6" />
+        </symbol>
+        <symbol id="i-copy" viewBox="0 0 24 24">
+          <rect x="8" y="8" width="12" height="13" rx="2" />
+          <path d="M15 8V3H3v12h5" />
+        </symbol>
+        <symbol id="notice-mark" viewBox="0 0 354 394">
+          <path fill-rule="evenodd" fill="currentColor" d="M0 0H354V394H0ZM100 0H237V137ZM117 137H237V257H117ZM117 257V394H254Z" />
+        </symbol>
+      </defs>
+    </svg>
+    <header class="topbar">
+      <div class="top-inner">
+        <a class="brand" href="#identity" aria-label="NoticeOS design system"
+          ><svg height="34" aria-hidden="true"><use href="#notice-mark" /></svg><span>Notice<span class="os">OS</span></span></a
+        >
+        <div class="row gap8">
+          <span class="pill preview-tag">Notice identity · Design system v2</span
+          ><button class="btn" id="theme-toggle">
+            <svg class="icon"><use href="#i-sun" /></svg
+            ><span>Dark theme</span></button
+          ><a class="btn ghost" href="#review"
+            >Reference & assets <svg class="icon"><use href="#i-arrow" /></svg
+          ></a>
+        </div>
+      </div>
+    </header>
+    <div class="page">
+      <nav class="toc" aria-label="Design system sections">
+        <span class="eyebrow">The Notice identity</span
+        ><a href="#identity" aria-current="location">01 · Identity</a
+        ><a href="#palette">02 · Color</a><a href="#type">03 · Typography</a
+        ><a href="#geometry">04 · Geometry</a
+        ><a href="#components">05 · Components</a
+        ><a href="#workflows">06 · In the product</a
+        ><a href="#states">07 · Feedback</a><a href="#review">08 · Assets</a>
+        <p class="toc-note">
+          The approved visual language for NoticeOS.<br /><br />All examples
+          use illustrative data. This page is isolated from the product’s
+          styling and settings.
+        </p>
+      </nav>
+      <main>
+        <section id="identity">
+          <div class="hero panel">
+            <div class="hero-copy">
+              <span class="eyebrow">NoticeOS / Notice identity</span>
+              <h1>Your startup.<br />In clear view.</h1>
+              <p>
+                A calm operating system for understanding the business,
+                coordinating work and knowing what happens next.
+              </p>
+              <div class="principles">
+                <span class="pill">Precise</span
+                ><span class="pill">Composed</span
+                ><span class="pill">In motion</span>
+              </div>
+            </div>
+            <div class="hero-art">
+              <svg class="mark" height="180" role="img" aria-label="The Notice mark"><use href="#notice-mark" /></svg>
+            </div>
+          </div>
+          <p class="hero-note">
+            Adopted September 23, 2026 (D35) · the Notice mark and a NoticeOS
+            wordmark in Stack Sans Notch, as www.notice.cx wears them.
+          </p>
+          <div class="grid two" style="margin-top: 24px">
+            <div class="panel pad">
+              <div class="logo-stage light">
+                <span class="brand"
+                  ><svg height="56" aria-hidden="true"><use href="#notice-mark" /></svg><span>Notice<span class="os">OS</span></span></span
+                >
+              </div>
+              <p class="logo-note">Primary lockup · ink wordmark on paper</p>
+            </div>
+            <div class="panel pad">
+              <div class="logo-stage dark">
+                <span class="brand"
+                  ><svg height="56" aria-hidden="true"><use href="#notice-mark" /></svg><span>Notice<span class="os">OS</span></span></span
+                >
+              </div>
+              <p class="logo-note">Reversed lockup · paper wordmark on ink</p>
+            </div>
+          </div>
+          <div class="grid two" style="margin-top: 16px">
+            <div class="panel pad">
+              <h3>Recognizable at every size</h3>
+              <div class="sizes">
+                <div class="size-demo">
+                  <svg class="mark" height="16" role="img" aria-label="16 pixel icon"><use href="#notice-mark" /></svg><span>16 · Tab</span>
+                </div>
+                <div class="size-demo">
+                  <svg class="mark" height="24" role="img" aria-label="24 pixel icon"><use href="#notice-mark" /></svg><span>24 · Compact</span>
+                </div>
+                <div class="size-demo">
+                  <svg class="mark" height="40" role="img" aria-label="40 pixel icon"><use href="#notice-mark" /></svg><span>40 · App</span>
+                </div>
+                <div class="size-demo">
+                  <svg class="mark" height="64" role="img" aria-label="64 pixel icon"><use href="#notice-mark" /></svg><span>64 · Identity</span>
+                </div>
+              </div>
+            </div>
+            <div class="panel pad stack">
+              <h3>One mark. A disciplined system.</h3>
+              <p class="muted small">
+                An N cut by a square notch: one solid shape, drawn in the ink
+                of the surface it sits on and never recolored.
+              </p>
+              <p class="muted small">
+                Keep the proportions fixed. Leave at least one quarter of the
+                icon’s width clear around a lockup. Use blue for identity and
+                interaction; operational states keep their own colors.
+              </p>
+              <a class="btn" href="./brand/notice-mark.svg" download
+                >Download the mark (SVG)
+                <svg class="icon"><use href="#i-arrow" /></svg
+              ></a>
+            </div>
+          </div>
+        </section>
+
+        <section id="palette">
+          <div class="section-head">
+            <div>
+              <div class="eyebrow">02 / Color</div>
+              <h2>Quiet foundations.<br />A clear point of focus.</h2>
+            </div>
+            <p>
+              Ink and paper do most of the work. Notice blue identifies the
+              product and guides actions. Click a swatch to copy its current
+              theme value.
+            </p>
+          </div>
+          <div class="swatches" id="brand-swatches"></div>
+          <div class="grid two" style="margin-top: 16px">
+            <div class="panel pad stack">
+              <h3>State has a separate language</h3>
+              <div class="status-grid">
+                <div class="status-item">
+                  <span class="pill success">✓ Succeeded</span
+                  ><small>Recorded success</small>
+                </div>
+                <div class="status-item">
+                  <span class="pill danger">× Failed</span
+                  ><small>Action needed</small>
+                </div>
+                <div class="status-item">
+                  <span class="pill warning">! Attention</span
+                  ><small>A known caveat</small>
+                </div>
+                <div class="status-item">
+                  <span class="pill">− Paused</span
+                  ><small>Intentionally inactive</small>
+                </div>
+              </div>
+              <p class="small muted">
+                Every state has a label and a distinct symbol. Blue never means
+                that a workflow succeeded, and gray never pretends that missing
+                evidence is healthy.
+              </p>
+            </div>
+            <div class="panel pad stack">
+              <h3>Data is a different kind of color</h3>
+              <div class="row wrap">
+                <span class="pill" style="color: var(--cyan)">━ Revenue</span
+                ><span class="pill" style="color: var(--violet)"
+                  >┄ Expenses</span
+                >
+              </div>
+              <p class="small muted">
+                Cyan and violet identify business series. Labels and line
+                patterns keep comparisons readable without color. Red and green
+                remain available for actual outcomes and failures.
+              </p>
+              <div class="row gap8">
+                <span class="pill running">◉ Running</span
+                ><span class="small muted"
+                  >Blue also marks active execution.</span
+                >
+              </div>
+            </div>
+          </div>
+          <div
+            class="contrast"
+            id="contrast-checks"
+            aria-label="Calculated text contrast"
+          ></div>
+        </section>
+
+        <section id="type">
+          <div class="section-head">
+            <div>
+              <div class="eyebrow">03 / Typography</div>
+              <h2>Readable before expressive.</h2>
+            </div>
+            <p>
+              Inter brings consistent shapes to the interface, the numbers and
+              the brand. It is served locally; the page makes no font-service
+              requests.
+            </p>
+          </div>
+          <div class="grid two">
+            <div class="panel pad">
+              <span class="eyebrow">Inter Variable / Display</span>
+              <p class="type-sample">
+                Know what’s happening.<br /><span style="color: var(--accent)"
+                  >Act on what matters.</span
+                >
+              </p>
+              <p class="muted small">
+                Open shapes, restrained weight and tight display spacing.
+                Sentence case keeps the product approachable.
+              </p>
+            </div>
+            <div class="panel pad">
+              <div class="type-row">
+                <span class="small muted">Page title</span
+                ><span
+                  style="
+                    font-size: 28px;
+                    font-weight: 620;
+                    letter-spacing: -0.035em;
+                  "
+                  >Workflows</span
+                ><code>28 / 32 · 620</code>
+              </div>
+              <div class="type-row">
+                <span class="small muted">Section</span
+                ><span style="font-size: 20px; font-weight: 600"
+                  >Execution history</span
+                ><code>20 / 26 · 600</code>
+              </div>
+              <div class="type-row">
+                <span class="small muted">Body</span
+                ><span>See what ran and why.</span><code>14 / 22 · 400</code>
+              </div>
+              <div class="type-row">
+                <span class="small muted">Supporting</span
+                ><span class="small muted">Updated 1 minute ago</span
+                ><code>12 / 18 · 400</code>
+              </div>
+              <div class="type-row">
+                <span class="small muted">Metric</span
+                ><span
+                  class="num"
+                  style="
+                    font-size: 32px;
+                    font-weight: 620;
+                    letter-spacing: -0.035em;
+                  "
+                  >$24,860</span
+                ><code>32 / 38 · tabular</code>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="geometry">
+          <div class="section-head">
+            <div>
+              <div class="eyebrow">04 / Geometry & motion</div>
+              <h2>Room to understand.</h2>
+            </div>
+            <p>
+              A four-pixel rhythm, clear containment and familiar outline icons.
+              Motion acknowledges an action; it does not compete with the work.
+            </p>
+          </div>
+          <div class="grid two">
+            <div class="panel pad">
+              <h3>Spacing & corners</h3>
+              <div class="space-bars" aria-label="Spacing scale">
+                <div class="space-unit">
+                  <i style="--size: 4px"></i><code>4</code>
+                </div>
+                <div class="space-unit">
+                  <i style="--size: 8px"></i><code>8</code>
+                </div>
+                <div class="space-unit">
+                  <i style="--size: 12px"></i><code>12</code>
+                </div>
+                <div class="space-unit">
+                  <i style="--size: 16px"></i><code>16</code>
+                </div>
+                <div class="space-unit">
+                  <i style="--size: 24px"></i><code>24</code>
+                </div>
+                <div class="space-unit">
+                  <i style="--size: 32px"></i><code>32</code>
+                </div>
+                <div class="space-unit">
+                  <i style="--size: 40px"></i><code>40</code>
+                </div>
+              </div>
+              <div class="radii">
+                <div class="radius-box" style="border-radius: 8px">
+                  8 · Controls
+                </div>
+                <div class="radius-box" style="border-radius: 14px">
+                  14 · Panels
+                </div>
+                <div class="radius-box" style="border-radius: 22px">
+                  22 · Brand
+                </div>
+              </div>
+            </div>
+            <div class="panel pad stack">
+              <h3>Icons & interaction</h3>
+              <div class="row wrap" style="padding: 16px 0">
+                <svg class="icon"><use href="#i-flow" /></svg
+                ><svg class="icon"><use href="#i-heart" /></svg
+                ><svg class="icon"><use href="#i-plug" /></svg
+                ><svg class="icon"><use href="#i-search" /></svg
+                ><svg class="icon"><use href="#i-inbox" /></svg
+                ><svg class="icon"><use href="#i-check" /></svg
+                ><svg class="icon"><use href="#i-alert" /></svg>
+              </div>
+              <div class="token-list">
+                <div><span>Small feedback</span><code>150ms</code></div>
+                <div><span>Panel transitions</span><code>220ms</code></div>
+                <div><span>Touch controls</span><code>44px minimum</code></div>
+                <div>
+                  <span>Keyboard focus</span><code>3px visible ring</code>
+                </div>
+              </div>
+              <p class="muted small">
+                Honor reduced motion. Keep hover feedback subtle. Use one icon
+                family with consistent stroke weight, always paired with words
+                where meaning could be ambiguous.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section id="components">
+          <div class="section-head">
+            <div>
+              <div class="eyebrow">05 / Components</div>
+              <h2>Clear choices. Useful feedback.</h2>
+            </div>
+            <p>
+              Try the controls. All changes here are local demonstrations;
+              nothing is saved to NoticeOS.
+            </p>
+          </div>
+          <div class="grid two">
+            <div class="panel pad stack">
+              <h3>Action hierarchy</h3>
+              <div class="row wrap">
+                <button
+                  class="btn primary"
+                  data-toast="Primary action preview. No product changes were made."
+                >
+                  Create workflow
+                  <svg class="icon"><use href="#i-arrow" /></svg></button
+                ><button class="btn" data-toast="Secondary action preview.">
+                  View history</button
+                ><button class="btn ghost" data-toast="Quiet action preview.">
+                  Cancel
+                </button>
+              </div>
+              <div class="row wrap">
+                <button class="btn primary" disabled>Saving…</button
+                ><button class="btn destructive" id="open-dialog">
+                  Pause workflow</button
+                ><button
+                  class="btn icon-btn"
+                  aria-label="Search example"
+                  data-toast="Search action preview."
+                >
+                  <svg class="icon"><use href="#i-search" /></svg>
+                </button>
+              </div>
+              <p class="small muted">
+                One primary action per decision. Destructive or interrupting
+                actions explain their impact before they proceed.
+              </p>
+              <div class="control-line">
+                <span class="small">Workflow enabled</span
+                ><button
+                  class="switch"
+                  role="switch"
+                  aria-label="Example workflow enabled"
+                  aria-checked="true"
+                ></button>
+              </div>
+              <div class="row wrap">
+                <label class="check"
+                  ><input type="checkbox" checked /> Notify on failure</label
+                ><label class="check"
+                  ><input type="checkbox" /> Include a summary</label
+                >
+              </div>
+            </div>
+            <form class="panel pad stack" id="demo-form">
+              <h3>Configuration</h3>
+              <div class="fields">
+                <label class="field"
+                  >Workflow name<input
+                    value="Weekly growth review"
+                    aria-label="Example workflow name"
+                  /><small
+                    >Describe the outcome, not the implementation.</small
+                  ></label
+                ><label class="field"
+                  >Schedule<select aria-label="Example workflow frequency">
+                    <option>Every Monday</option>
+                    <option>Every day</option>
+                    <option>On demand</option></select
+                  ><small>Shown in your local time.</small></label
+                ><label class="field"
+                  >Destination<input
+                    placeholder="Choose a channel"
+                    aria-invalid="true"
+                    aria-describedby="destination-error"
+                  /><small class="error" id="destination-error"
+                    >Choose where this update should arrive.</small
+                  ></label
+                ><label class="field"
+                  >Last execution<input value="1 minute ago" disabled /><small
+                    title="2026-09-09 20:15:00 UTC"
+                    >Exact UTC reference on hover.</small
+                  ></label
+                >
+              </div>
+              <div class="row between">
+                <span class="small muted">Example form</span
+                ><button class="btn primary" type="submit">Save preview</button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <section id="workflows">
+          <div class="section-head">
+            <div>
+              <div class="eyebrow">06 / In the product</div>
+              <h2>The identity earns its place.</h2>
+            </div>
+            <p>
+              Three operating surfaces using the same foundations. These are
+              visual examples with fictional data, not live product readings.
+            </p>
+          </div>
+          <div class="panel app-demo">
+            <aside class="demo-nav" aria-label="Example product navigation">
+              <span class="brand"
+                ><svg height="24" aria-hidden="true"><use href="#notice-mark" /></svg><span>Notice<span class="os">OS</span></span></span
+              ><button data-view="workflow" aria-pressed="true">
+                <svg class="icon"><use href="#i-flow" /></svg>Workflows</button
+              ><button data-view="health" aria-pressed="false">
+                <svg class="icon"><use href="#i-heart" /></svg>System health</button
+              ><button data-view="integrations" aria-pressed="false">
+                <svg class="icon"><use href="#i-plug" /></svg>Integrations
+              </button>
+            </aside>
+            <div class="demo-main">
+              <div class="demo-view" id="view-workflow">
+                <div class="row between wrap">
+                  <div>
+                    <h3>Workflows</h3>
+                    <p class="demo-sub">
+                      The work that moves your business forward.
+                    </p>
+                  </div>
+                  <span class="demo-label">Illustrative data</span>
+                </div>
+                <div class="metrics">
+                  <div>
+                    <div class="metric-label">Enabled workflows</div>
+                    <div class="metric-value">12</div>
+                    <div class="metric-note">Across 4 categories</div>
+                  </div>
+                  <div>
+                    <div class="metric-label">Successful runs</div>
+                    <div class="metric-value">
+                      98.7<span style="font-size: 15px">%</span>
+                    </div>
+                    <div class="metric-note">Over the last 7 days</div>
+                  </div>
+                  <div>
+                    <div class="metric-label">Needs attention</div>
+                    <div class="metric-value" style="color: var(--danger)">
+                      1
+                    </div>
+                    <div class="metric-note">Search data unavailable</div>
+                  </div>
+                </div>
+                <div class="row between wrap rule" style="padding-top: 14px">
+                  <span class="pill">All categories</span
+                  ><span class="small muted">Latest run ↓</span>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Workflow</th>
+                        <th>State</th>
+                        <th>Last 24 hours</th>
+                        <th>Last run</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>
+                          <strong>Growth review</strong
+                          ><small>Find changes worth acting on</small>
+                        </td>
+                        <td><span class="pill success">✓ Succeeded</span></td>
+                        <td>
+                          <div
+                            class="history"
+                            data-history="success"
+                            aria-label="12 successful example runs"
+                          ></div>
+                        </td>
+                        <td class="num" title="2026-09-09 20:15:00 UTC">
+                          1 minute ago
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>
+                          <strong>Revenue brief</strong
+                          ><small>Summarize business performance</small>
+                        </td>
+                        <td><span class="pill success">✓ Succeeded</span></td>
+                        <td>
+                          <div
+                            class="history"
+                            data-history="success"
+                            aria-label="12 successful example runs"
+                          ></div>
+                        </td>
+                        <td class="num" title="2026-09-09 19:58:00 UTC">
+                          18 minutes ago
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>
+                          <strong>Search visibility review</strong
+                          ><small>Surface new growth opportunities</small>
+                        </td>
+                        <td><span class="pill danger">× Failed</span></td>
+                        <td>
+                          <div
+                            class="history"
+                            data-history="failure"
+                            aria-label="11 successful and one failed example runs"
+                          ></div>
+                        </td>
+                        <td class="num" title="2026-09-09 19:34:00 UTC">
+                          42 minutes ago
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>
+                          <strong>Weekly planning brief</strong
+                          ><small>Prepare next week’s priorities</small>
+                        </td>
+                        <td><span class="pill">− Paused</span></td>
+                        <td>
+                          <div
+                            class="history"
+                            data-history="empty"
+                            aria-label="No example runs"
+                          ></div>
+                        </td>
+                        <td class="muted">Not running</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="demo-view" id="view-health" hidden>
+                <div class="row between wrap">
+                  <div>
+                    <h3>System health</h3>
+                    <p class="demo-sub">
+                      Service activity, collection and maintenance.
+                    </p>
+                  </div>
+                  <span class="demo-label">Illustrative data</span>
+                </div>
+                <div class="note warning row">
+                  <svg class="icon"><use href="#i-alert" /></svg
+                  ><span
+                    ><strong>One source needs attention</strong><br />Search
+                    data is delayed. The rest of the system is reporting.</span
+                  >
+                </div>
+                <div class="health-cards">
+                  <div>
+                    <small class="muted">Scheduler</small
+                    ><strong>✓ Reporting</strong>
+                  </div>
+                  <div>
+                    <small class="muted">Execution tracking</small
+                    ><strong>✓ Reporting</strong>
+                  </div>
+                  <div>
+                    <small class="muted">Retained history</small
+                    ><strong>✓ Available</strong>
+                  </div>
+                </div>
+                <div class="control-line">
+                  <div>
+                    <strong class="small">Search data collection</strong>
+                    <p class="small muted">
+                      Last successful collection 1 hour ago
+                    </p>
+                  </div>
+                  <span class="pill danger">× Failed</span>
+                </div>
+                <div class="control-line">
+                  <div>
+                    <strong class="small">Task board refresh</strong>
+                    <p class="small muted">Updated 1 minute ago</p>
+                  </div>
+                  <span class="pill success">✓ Succeeded</span>
+                </div>
+                <button
+                  class="btn"
+                  data-toast="This would open the recorded failure in NoticeOS."
+                >
+                  Inspect failed operation
+                  <svg class="icon"><use href="#i-arrow" /></svg>
+                </button>
+              </div>
+              <div class="demo-view" id="view-integrations" hidden>
+                <div class="row between wrap">
+                  <div>
+                    <h3>Integrations</h3>
+                    <p class="demo-sub">
+                      Connect the tools that power your startup.
+                    </p>
+                  </div>
+                  <span class="demo-label">Illustrative data</span>
+                </div>
+                <div class="grid two">
+                  <div class="integration">
+                    <div class="row between">
+                      <span class="provider-icon" aria-hidden="true"><img src="./integrations/google.svg" alt="" width="24" height="24" /></span
+                      ><span class="pill success">✓ Connected</span>
+                    </div>
+                    <h3 style="margin-top: 16px; font-size: 15px">Google</h3>
+                    <p>
+                      Traffic and search visibility from Analytics and Search
+                      Console.
+                    </p>
+                    <button
+                      class="btn"
+                      data-toast="Example connection settings. No provider request was sent."
+                    >
+                      Manage connection
+                    </button>
+                  </div>
+                  <div class="integration">
+                    <div class="row between">
+                      <span class="provider-icon" aria-hidden="true"><img src="./integrations/dataforseo.png" alt="" width="24" height="24" /></span
+                      ><span class="pill">− Not connected</span>
+                    </div>
+                    <h3 style="margin-top: 16px; font-size: 15px">
+                      DataForSEO
+                    </h3>
+                    <p>
+                      Rankings, backlinks and competitors for informed growth
+                      decisions.
+                    </p>
+                    <button
+                      class="btn primary"
+                      data-toast="Example onboarding. No credentials are requested or stored."
+                    >
+                      Set up integration
+                    </button>
+                  </div>
+                </div>
+                <div class="onboarding" aria-label="Example setup sequence">
+                  <span><b>1</b>Connect</span
+                  ><span class="current"><b>2</b>Choose assets</span
+                  ><span><b>3</b>Verify</span><span><b>4</b>Settings</span>
+                </div>
+                <p class="small muted" style="margin-top: 16px">
+                  A stored credential and a verified collection are distinct
+                  facts.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel pad" style="margin-top: 20px">
+            <div class="row between wrap">
+              <div>
+                <span class="demo-label"
+                  >Agentic workflow concept / Interactive example</span
+                >
+                <h3 style="margin-top: 8px">Growth review</h3>
+              </div>
+              <div class="row gap8">
+                <button class="btn" id="fail-run">Show failed run</button
+                ><button class="btn primary" id="run-preview">
+                  <svg class="icon"><use href="#i-play" /></svg>Run preview
+                </button>
+              </div>
+            </div>
+            <div
+              class="stage-grid"
+              id="stages"
+              aria-label="Example execution stages"
+            ></div>
+            <div class="stage-output" aria-live="polite">
+              <div class="row between wrap">
+                <h3 id="output-title">Collect evidence</h3>
+                <span class="pill success" id="output-state">✓ Succeeded</span>
+              </div>
+              <p
+                class="small muted"
+                id="output-description"
+                style="margin-top: 8px"
+              ></p>
+              <div class="output-metrics" id="output-metrics"></div>
+              <div class="note" id="output-note"></div>
+              <details>
+                <summary>View captured fields</summary>
+                <pre id="output-json"></pre>
+              </details>
+            </div>
+          </div>
+
+          <div class="tv" style="margin-top: 20px">
+            <div class="row between wrap">
+              <span class="brand" style="font-size: 18px"
+                ><svg height="30" aria-hidden="true"><use href="#notice-mark" /></svg><span>Notice<span class="os">OS</span></span></span
+              ><span class="demo-label" style="color: #a4aec3"
+                >TV overview / Illustrative data</span
+              >
+            </div>
+            <div class="metrics">
+              <div>
+                <div class="metric-label">Monthly revenue</div>
+                <div class="metric-value">$24,860</div>
+                <div class="metric-note">Current month</div>
+              </div>
+              <div>
+                <div class="metric-label">Monthly expenses</div>
+                <div class="metric-value">$6,420</div>
+                <div class="metric-note">Recorded expenses</div>
+              </div>
+              <div>
+                <div class="metric-label">Visits today</div>
+                <div class="metric-value">12,408</div>
+                <div class="metric-note">Across 6 assets</div>
+              </div>
+              <div>
+                <div class="metric-label">Workflows</div>
+                <div class="metric-value">
+                  18<span style="font-size: 18px; color: #a4aec3"> / 19</span>
+                </div>
+                <div class="metric-note" style="color: #ff8491">
+                  1 needs attention
+                </div>
+              </div>
+            </div>
+            <svg
+              class="tv-chart"
+              viewBox="0 0 800 95"
+              preserveAspectRatio="none"
+              role="img"
+              aria-label="Illustrative revenue and expense trend, not live business data"
+            >
+              <path class="chart-grid" d="M0 20H800M0 50H800M0 80H800" />
+              <path
+                class="revenue"
+                d="M0 70 45 67 90 73 135 58 180 60 225 48 270 53 315 39 360 45 405 31 450 33 495 23 540 28 585 17 630 23 675 10 720 16 765 5 800 10"
+              />
+              <path
+                class="cost"
+                d="M0 81 45 78 90 82 135 77 180 74 225 77 270 69 315 72 360 73 405 68 450 71 495 65 540 68 585 62 630 65 675 59 720 61 765 55 800 57"
+              />
+            </svg>
+            <div class="row between small muted">
+              <span>Sep 1</span
+              ><span
+                ><span style="color: #69dade">━ Revenue</span> &nbsp;
+                <span style="color: #b9a0ff">┄ Expenses</span></span
+              ><span>Sep 30</span>
+            </div>
+          </div>
+        </section>
+
+        <section id="states">
+          <div class="section-head">
+            <div>
+              <div class="eyebrow">07 / Feedback & content</div>
+              <h2>Honest in every state.</h2>
+            </div>
+            <p>
+              Unknown, empty, loading and failed are different experiences. Each
+              tells the operator what is known and what they can do next.
+            </p>
+          </div>
+          <div class="grid three">
+            <div class="panel empty">
+              <svg class="icon"><use href="#i-inbox" /></svg>
+              <h3>No runs yet</h3>
+              <p>
+                This workflow is ready. Its first execution will appear here.
+              </p>
+              <button
+                class="btn"
+                data-toast="First-run preview. No workflow was executed."
+              >
+                View schedule
+              </button>
+            </div>
+            <div class="panel pad">
+              <span class="demo-label">Loading example</span>
+              <div class="skeleton big"></div>
+              <div class="skeleton-row">
+                <span class="circle"></span>
+                <div style="flex: 1">
+                  <div class="skeleton"></div>
+                  <div class="skeleton" style="width: 65%"></div>
+                </div>
+              </div>
+              <div class="skeleton-row">
+                <span class="circle"></span>
+                <div style="flex: 1">
+                  <div class="skeleton"></div>
+                  <div class="skeleton" style="width: 80%"></div>
+                </div>
+              </div>
+              <p class="small muted" style="margin-top: 15px">
+                Reserve space while data arrives. Avoid perpetual decorative
+                motion.
+              </p>
+            </div>
+            <div class="panel pad stack">
+              <span class="pill">? Unconfirmed</span>
+              <h3>Current state unavailable</h3>
+              <p class="small muted">
+                The service has not reported recently. Previously recorded runs
+                remain available.
+              </p>
+              <button
+                class="btn"
+                data-toast="Connection retry preview. No network request was made."
+              >
+                Try again
+              </button>
+            </div>
+          </div>
+          <div class="note danger row" style="margin-top: 16px">
+            <svg class="icon"><use href="#i-alert" /></svg
+            ><span
+              ><strong>Search data could not be collected.</strong> The request
+              timed out. The next scheduled attempt is in 15 minutes.</span
+            >
+          </div>
+          <div class="grid two" style="margin-top: 16px">
+            <div class="panel pad stack">
+              <h3>Voice</h3>
+              <p class="small muted">
+                Lead with the situation. Explain the consequence. Give the next
+                useful action. Use plain language and specific evidence.
+              </p>
+              <div class="note">
+                <strong>“The workflow failed at Collect evidence.”</strong
+                ><br />A precise result the operator can investigate.
+              </div>
+            </div>
+            <div class="panel pad stack">
+              <h3>Data & time</h3>
+              <p class="small muted">
+                Relative ages for scanning. Local time when the exact instant
+                matters. UTC reference on hover. Counts use aligned numerals.
+              </p>
+              <div class="row wrap">
+                <span class="pill num" title="2026-09-09 20:15:00 UTC"
+                  >1 minute ago</span
+                ><span class="small num" title="2026-09-09 20:15:00 UTC"
+                  >Sep 9 · 1:15 PM PDT</span
+                ><span class="pill">— No evidence</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="review" style="margin-bottom: 0">
+          <div class="review">
+            <span class="eyebrow">08 / Reference & assets</span>
+            <h2>One system, across NoticeOS.</h2>
+            <p>
+              The Notice identity was adopted on September 23, 2026 (D35). This
+              reference shares its palette and fonts with NoticeOS. Its examples
+              use illustrative data and never change product settings.
+            </p>
+            <div class="row wrap" style="margin-top: 20px">
+              <button class="btn primary" id="download-tokens">
+                Download design tokens
+                <svg class="icon"><use href="#i-arrow" /></svg></button
+              ><a class="btn" href="./brand/notice-design-system.zip" download>Download HTML bundle</a>
+              <a class="btn ghost" href="#identity">Back to identity</a>
+            </div>
+          </div>
+          <div class="footer">
+            <span
+              >NoticeOS · design system · Version 2 · September
+              2026</span
+            ><span
+              ><a href="./fonts/Inter-LICENSE.txt"
+                >Inter / SIL Open Font License</a
+              > · <a href="./fonts/StackSansNotch-LICENSE.txt"
+                >Stack Sans Notch / SIL Open Font License</a
+              ></span
+            >
+          </div>
+        </section>
+      </main>
+    </div>
+    <div class="toast" role="status" id="toast" hidden></div>
+    <dialog id="pause-dialog" aria-labelledby="pause-title">
+      <span class="pill warning">Example confirmation</span>
+      <h2 id="pause-title" style="margin-top: 16px; font-size: 24px">
+        Pause this workflow?
+      </h2>
+      <p>
+        Scheduled runs will stop until you enable it again. Previous executions
+        stay available. This dialog is a design demonstration.
+      </p>
+      <div class="row" style="justify-content: flex-end">
+        <button class="btn" id="cancel-dialog">Keep running</button
+        ><button class="btn destructive" id="confirm-dialog">
+          Pause preview
+        </button>
+      </div>
+    </dialog>
+    <script>
+      const $ = (selector) => document.querySelector(selector);
+      let toastTimer;
+      function notify(message) {
+        clearTimeout(toastTimer);
+        $("#toast").textContent = message;
+        $("#toast").hidden = false;
+        toastTimer = setTimeout(() => ($("#toast").hidden = true), 3200);
+      }
+      const palette = [
+        ["Notice blue", "--blue"],
+        ["Action", "--accent"],
+        ["Paper / canvas", "--canvas"],
+        ["Surface", "--surface"],
+        ["Ink / text", "--ink"],
+        ["Supporting", "--muted"],
+      ];
+      const tokenNames = [
+        "canvas",
+        "surface",
+        "raised",
+        "ink",
+        "muted",
+        "line",
+        "control-line",
+        "blue",
+        "accent",
+        "accent-hover",
+        "on-accent",
+        "accent-soft",
+        "success",
+        "success-soft",
+        "danger",
+        "danger-soft",
+        "warning",
+        "warning-soft",
+        "neutral",
+        "neutral-soft",
+        "cyan",
+        "violet",
+      ];
+      function token(name) {
+        return getComputedStyle(document.documentElement)
+          .getPropertyValue(name)
+          .trim();
+      }
+      function luminance(hex) {
+        const h = hex.replace("#", "");
+        const vals = [0, 2, 4]
+          .map((i) => parseInt(h.slice(i, i + 2), 16) / 255)
+          .map((v) =>
+            v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4,
+          );
+        return vals[0] * 0.2126 + vals[1] * 0.7152 + vals[2] * 0.0722;
+      }
+      function ratio(a, b) {
+        const x = luminance(a),
+          y = luminance(b);
+        return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+      }
+      async function copy(value) {
+        try {
+          await navigator.clipboard.writeText(value);
+          notify(`${value} copied`);
+        } catch {
+          notify(`Color value: ${value}`);
+        }
+      }
+      function renderPalette() {
+        $("#brand-swatches").replaceChildren(
+          ...palette.map(([name, variable]) => {
+            const button = document.createElement("button");
+            button.className = "swatch";
+            button.setAttribute("aria-label", `Copy ${name} color`);
+            const color = document.createElement("span");
+            color.className = "swatch-color";
+            color.style.setProperty("--swatch", `var(${variable})`);
+            const info = document.createElement("span");
+            info.className = "swatch-info";
+            const label = document.createElement("strong");
+            label.textContent = name;
+            const value = document.createElement("code");
+            value.textContent = token(variable).toUpperCase();
+            info.append(label, value);
+            button.append(color, info);
+            button.onclick = () => copy(token(variable));
+            return button;
+          }),
+        );
+        const checks = [
+          ["Body", "--ink", "--surface"],
+          ["Supporting", "--muted", "--surface"],
+          ["Primary action", "--on-accent", "--accent"],
+          ["Success", "--success", "--success-soft"],
+          ["Failure", "--danger", "--danger-soft"],
+          ["Warning", "--warning", "--warning-soft"],
+        ];
+        $("#contrast-checks").replaceChildren(
+          ...checks.map(([label, fg, bg]) => {
+            const r = ratio(token(fg), token(bg));
+            const el = document.createElement("span");
+            el.className = `pill ${r >= 4.5 ? "success" : "danger"}`;
+            el.textContent = `${label} ${r.toFixed(1)}:1 ${r >= 4.5 ? "AA" : "Review"}`;
+            el.title =
+              "Calculated WCAG contrast for normal text; AA threshold 4.5:1.";
+            return el;
+          }),
+        );
+      }
+      $("#theme-toggle").onclick = () => {
+        const dark = document.documentElement.dataset.theme !== "dark";
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+        $("#theme-toggle span").textContent = dark
+          ? "Light theme"
+          : "Dark theme";
+        renderPalette();
+      };
+      document
+        .querySelectorAll("[data-toast]")
+        .forEach(
+          (button) => (button.onclick = () => notify(button.dataset.toast)),
+        );
+      document
+        .querySelectorAll('[role="switch"]')
+        .forEach(
+          (button) =>
+            (button.onclick = () =>
+              button.setAttribute(
+                "aria-checked",
+                String(button.getAttribute("aria-checked") !== "true"),
+              )),
+        );
+      $("#demo-form").onsubmit = (event) => {
+        event.preventDefault();
+        notify("Preview confirmation. No settings were saved.");
+      };
+      $("#open-dialog").onclick = () => $("#pause-dialog").showModal();
+      $("#cancel-dialog").onclick = () => $("#pause-dialog").close();
+      $("#confirm-dialog").onclick = () => {
+        $("#pause-dialog").close();
+        notify(
+          "Pause confirmation preview completed. No real workflow was paused.",
+        );
+      };
+      document.querySelectorAll("[data-view]").forEach(
+        (button) =>
+          (button.onclick = () => {
+            document
+              .querySelectorAll("[data-view]")
+              .forEach((item) =>
+                item.setAttribute("aria-pressed", String(item === button)),
+              );
+            document
+              .querySelectorAll(".demo-view")
+              .forEach(
+                (view) =>
+                  (view.hidden = view.id !== `view-${button.dataset.view}`),
+              );
+          }),
+      );
+      const heights = [12, 19, 16, 22, 14, 25, 18, 15, 23, 18, 25, 20];
+      document.querySelectorAll("[data-history]").forEach((history) =>
+        heights.forEach((height, i) => {
+          const mark = document.createElement("i");
+          mark.style.setProperty("--h", `${height}px`);
+          if (history.dataset.history === "empty") mark.className = "empty";
+          if (history.dataset.history === "failure" && i === 10)
+            mark.className = "failed";
+          history.append(mark);
+        }),
+      );
+      const stages = [
+        {
+          name: "Collect evidence",
+          type: "Data · 1.2s",
+          description:
+            "A structured view of the signals this execution actually collected.",
+          metrics: [
+            ["6", "Assets checked"],
+            ["28", "Signals captured"],
+            ["0", "Missing sources"],
+          ],
+          note: "Traffic and revenue evidence is ready for analysis.",
+          fields: { assets: 6, signals: 28, missingSources: 0 },
+        },
+        {
+          name: "Analyze changes",
+          type: "Model · 2.8s",
+          description:
+            "Model-assisted interpretation with evidence, cost and uncertainty visible.",
+          metrics: [
+            ["3", "Findings"],
+            ["$0.02", "Model cost"],
+            ["1,240", "Tokens used"],
+          ],
+          note: "Two traffic changes and one revenue change are ready for review. These are illustrative observations.",
+          fields: { findings: 3, costUsd: 0.02, tokens: 1240 },
+        },
+        {
+          name: "Prepare review",
+          type: "Action · 0.4s",
+          description:
+            "Turn evidence into a concrete review that the operator can inspect.",
+          metrics: [
+            ["1", "Review created"],
+            ["3", "Linked findings"],
+            ["0", "Unlinked claims"],
+          ],
+          note: "The review includes the underlying sources and a suggested next action.",
+          fields: { reviews: 1, linkedFindings: 3, unlinkedClaims: 0 },
+        },
+        {
+          name: "Deliver update",
+          type: "Notification · 0.3s",
+          description:
+            "Confirm whether the finished update reached its destination.",
+          metrics: [
+            ["1", "Update delivered"],
+            ["1", "Destination"],
+            ["0", "Retries needed"],
+          ],
+          note: "Example update delivered to the selected channel.",
+          fields: { delivered: 1, destinations: 1, retries: 0 },
+        },
+      ];
+      let selected = 0,
+        failed = false,
+        running = false,
+        runTimer;
+      function renderStages() {
+        const focusedStage = [...$("#stages").children].indexOf(
+          document.activeElement,
+        );
+        $("#stages").replaceChildren(
+          ...stages.map((stage, i) => {
+            const button = document.createElement("button");
+            button.className = "stage";
+            button.setAttribute("aria-pressed", String(i === selected));
+            const state = document.createElement("span");
+            state.className = "stage-state";
+            state.textContent = "✓ Succeeded";
+            if (running) {
+              state.classList.add(i === 0 ? "running" : "idle");
+              state.textContent = i === 0 ? "◉ Running" : "− Queued";
+            } else if (failed && i === 1) {
+              state.classList.add("failed");
+              state.textContent = "× Failed";
+            } else if (failed && i > 1) {
+              state.classList.add("idle");
+              state.textContent = "− Not run";
+            }
+            const name = document.createElement("strong");
+            name.textContent = stage.name;
+            const type = document.createElement("small");
+            type.textContent =
+              stage.type.split(" · ")[0] +
+              (running
+                ? " · " + (i === 0 ? "In progress" : "Waiting")
+                : failed && i === 1
+                  ? " · 15s"
+                  : failed && i > 1
+                    ? " · Not run"
+                    : " · " + stage.type.split(" · ")[1]);
+            button.append(state, name, type);
+            button.onclick = () => {
+              selected = i;
+              renderStages();
+            };
+            return button;
+          }),
+        );
+        const stage = stages[selected],
+          isFailed = failed && selected === 1,
+          skipped = failed && selected > 1,
+          queued = running && selected > 0;
+        $("#output-title").textContent = stage.name;
+        $("#output-state").className =
+          `pill ${running && !queued ? "running" : queued ? "" : isFailed ? "danger" : skipped ? "" : "success"}`;
+        $("#output-state").textContent = queued
+          ? "− Queued"
+          : running
+            ? "◉ Running"
+            : isFailed
+              ? "× Failed"
+              : skipped
+                ? "− Not run"
+                : "✓ Succeeded";
+        $("#output-description").textContent = stage.description;
+        $("#output-metrics").replaceChildren();
+        const metrics = running
+          ? [["—", "Awaiting output"]]
+          : isFailed
+            ? [
+                ["2", "Attempts"],
+                ["15s", "Time before failure"],
+                ["0", "Findings returned"],
+              ]
+            : skipped
+              ? [["—", "No execution evidence"]]
+              : stage.metrics;
+        metrics.forEach(([value, label]) => {
+          const card = document.createElement("div");
+          const number = document.createElement("strong");
+          number.textContent = value;
+          const name = document.createElement("small");
+          name.textContent = label;
+          card.append(number, name);
+          $("#output-metrics").append(card);
+        });
+        $("#output-note").className = `note ${isFailed ? "danger" : ""}`;
+        $("#output-note").textContent = queued
+          ? "Waiting for the previous step to finish. No output is available yet."
+          : running
+            ? "Waiting for this example execution to finish."
+            : isFailed
+              ? "The model request timed out. Later steps did not run; no completed analysis was recorded."
+              : skipped
+                ? "This step did not run because an earlier stage failed."
+                : stage.note;
+        $("#output-json").textContent = JSON.stringify(
+          running
+            ? { status: queued ? "queued" : "running", output: null }
+            : isFailed
+              ? { error: "request_timeout", attempts: 2, output: null }
+              : skipped
+                ? { status: "not_run", output: null }
+                : stage.fields,
+          null,
+          2,
+        );
+        $("#fail-run").textContent = failed
+          ? "Show successful run"
+          : "Show failed run";
+        $("#run-preview").disabled = running;
+        $("#fail-run").disabled = running;
+        if (focusedStage >= 0)
+          $("#stages").children[focusedStage].focus({ preventScroll: true });
+      }
+      $("#fail-run").onclick = () => {
+        failed = !failed;
+        selected = failed ? 1 : 0;
+        renderStages();
+      };
+      $("#run-preview").onclick = () => {
+        clearTimeout(runTimer);
+        running = true;
+        failed = false;
+        selected = 0;
+        renderStages();
+        runTimer = setTimeout(() => {
+          running = false;
+          renderStages();
+          notify("Example execution completed. No real workflow ran.");
+        }, 1400);
+      };
+      $("#download-tokens").onclick = () => {
+        const prior = document.documentElement.dataset.theme;
+        const result = {
+          name: "NoticeOS",
+          version: "2.0",
+          status: "adopted 2026-09-23 (D35)",
+          themes: {},
+        };
+        for (const theme of ["light", "dark"]) {
+          document.documentElement.dataset.theme = theme;
+          result.themes[theme] = Object.fromEntries(
+            tokenNames.map((name) => [name, token(`--${name}`)]),
+          );
+        }
+        document.documentElement.dataset.theme = prior;
+        const url = URL.createObjectURL(
+          new Blob([JSON.stringify(result, null, 2)], {
+            type: "application/json",
+          }),
+        );
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "noticeos-design-tokens.json";
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      };
+      const sections = [...document.querySelectorAll("main section")];
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const entry = entries.find((item) => item.isIntersecting);
+          if (!entry) return;
+          document.querySelectorAll(".toc a").forEach((link) => {
+            if (link.hash === `#${entry.target.id}`)
+              link.setAttribute("aria-current", "location");
+            else link.removeAttribute("aria-current");
+          });
+        },
+        { rootMargin: "-15% 0px -65% 0px" },
+      );
+      sections.forEach((section) => observer.observe(section));
+      renderPalette();
+      renderStages();
+    </script>
+  </body>
+</html>

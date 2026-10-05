@@ -1,0 +1,32 @@
+# Application slice: use explicitly prepared services on the named network.
+# No database setup, migration, remote image publishing or service adoption.
+services:
+  noticeos:
+    image: ${NOTICEOS_APP_IMAGE:?Set the exact locally built application image}
+    user: "${NOTICEOS_APP_UID:-1000}:${NOTICEOS_APP_GID:-1000}"
+    init: true
+    restart: unless-stopped
+    read_only: true
+    stop_grace_period: 15s
+    ports:
+      - "127.0.0.1:${NOTICEOS_TOWER_PORT:?Choose a loopback Tower port}:5173"
+    volumes:
+      - type: bind
+        source: ${NOTICEOS_STATE_DIR:?Set an absolute prepared installation folder}
+        target: /state
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${NOTICEOS_SPOKES_DIR:?Set an absolute synthetic or declared spoke folder}
+        target: /spokes
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /tmp:mode=1777
+      - /opt/noticeos/apps/tower/node_modules/.vite-temp:mode=1777
+    networks:
+      - installation
+networks:
+  installation:
+    external: true
+    name: ${NOTICEOS_NETWORK:?Name the explicit installation network}

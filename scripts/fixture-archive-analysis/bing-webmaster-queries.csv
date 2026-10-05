@@ -1,0 +1,9 @@
+asset,report_date,collected_at,data_state,provider_truncated,avg_click_position,avg_impression_position,clicks,impressions,provider_date,query
+meals.example,2026-09-14,2026-09-15T12:15:00.000Z,provider-snapshot,false,3,4.5,4,90,2026-09-14,meal planner
+meals.example,2026-09-14,2026-09-15T12:15:00.000Z,provider-snapshot,false,4,5.5,6,103,2026-09-14,weekly meal plan
+meals.example,2026-09-14,2026-09-15T12:15:00.000Z,provider-snapshot,false,5,6.5,8,116,2026-09-14,"high protein, ""easy"" dinners"
+meals.example,2026-09-14,2026-09-15T12:15:00.000Z,provider-snapshot,false,6,7.5,10,129,2026-09-14,"""how many cups in a quart"""
+meals.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,3,4.5,11,97,2026-09-21,meal planner
+meals.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,4,5.5,13,110,2026-09-21,weekly meal plan
+meals.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,5,6.5,4,123,2026-09-21,"high protein, ""easy"" dinners"
+meals.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,6,7.5,6,136,2026-09-21,"""how many cups in a quart"""

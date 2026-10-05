@@ -1,0 +1,11 @@
+{
+  "name": "@noticeos/mediavine",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "description": "Mediavine publisher reports client shared by NoticeOS and its CLI.",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc --noEmit", "test": "vitest run", "build": "tsc -p tsconfig.build.json" },
+  "devDependencies": { "typescript": "^6.0.3", "vitest": "^4.1.9" }
+}

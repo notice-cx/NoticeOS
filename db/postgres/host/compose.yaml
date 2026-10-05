@@ -1,0 +1,94 @@
+# NoticeOS: the installation's own Postgres, as a Compose service
+# (bead ro-ujb9.76.12; the operator's choice on ro-ujb9.76.32, 2026-09-29).
+# The steps, one command each, are README.md beside this file.
+#
+# Plain Compose Specification and the official multi-architecture image, so
+# the same file runs on macOS (arm64) and Linux (x64) under any container app
+# that implements the specification. It names nothing of one installation:
+# the port and the secrets folder are the two things an installation may
+# change, each with a default that works.
+#
+#   NOTICEOS_POSTGRES_PORT     the host port, published on 127.0.0.1 only (5432)
+#   NOTICEOS_POSTGRES_SECRETS  the folder `pnpm postgres:secrets` wrote (./secrets)
+#
+# The project is named, so its volume is always noticeos_postgres-data,
+# whatever folder or checkout the file is run from. The runner, the Tower
+# and the task hub join this project later (ro-ujb9.9) as services beside
+# this one, reaching it as postgres:5432 on the project's network; nothing
+# here is renamed then, and the loopback port can close once nothing outside
+# the project uses it.
+
+name: noticeos
+
+services:
+  postgres:
+    # PostgreSQL 18, pinned by the digest of its multi-architecture index. A
+    # minor update is a commit that changes this line (README.md, "Updating").
+    image: postgres:18.6@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    # Back by itself when the container app starts and when the server dies;
+    # only an explicit `stop` keeps it down.
+    restart: unless-stopped
+    # A small init as the first process, so a crashed server ends the
+    # container and the restart above brings it back.
+    init: true
+    # A clean shutdown (a checkpoint) may take longer than Compose's 10 s.
+    stop_grace_period: 60s
+    # Parallel queries use shared memory beyond the default 64 MB.
+    shm_size: 256mb
+    command:
+      - postgres
+      - -c
+      - hba_file=/etc/noticeos/pg_hba.conf
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - timezone=UTC
+      - -c
+      - log_timezone=UTC
+    environment:
+      # The image needs a superuser password. It gets a SCRAM verifier whose
+      # password nobody keeps: the superuser logs in only on the container's
+      # own socket (pg_hba.conf).
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres
+      # Text compares by code point, as D1 does, built into Postgres rather
+      # than taken from the operating system; data pages carry checksums.
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale-provider=builtin --locale=C.UTF-8 --data-checksums
+    secrets:
+      - postgres
+      - noticeos_owner
+      - noticeos_maint
+      - noticeos_app
+    volumes:
+      # The official 18+ image stores data under <major>/docker below this
+      # volume. An existing 17 volume requires an approved dump/restore.
+      - postgres-data:/var/lib/postgresql
+      - ./pg_hba.conf:/etc/noticeos/pg_hba.conf:ro
+      - ../roles.sql:/etc/noticeos/roles.sql:ro
+      - ./first-start.sh:/docker-entrypoint-initdb.d/10-noticeos.sh:ro
+    # This machine only: the address is fixed, only the port may change.
+    ports:
+      - 127.0.0.1:${NOTICEOS_POSTGRES_PORT:-5432}:5432
+    # Healthy once the real server answers on TCP: during the first start the
+    # image runs a server on its socket alone.
+    healthcheck:
+      test: [CMD, pg_isready, --host=127.0.0.1, --dbname=noticeos, --username=noticeos_app, --quiet]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 120s
+      start_interval: 1s
+
+volumes:
+  postgres-data: {}
+
+# Files, never environment values: each holds a SCRAM-SHA-256 verifier, not a
+# password (`pnpm postgres:secrets`).
+secrets:
+  postgres:
+    file: ${NOTICEOS_POSTGRES_SECRETS:-./secrets}/postgres
+  noticeos_owner:
+    file: ${NOTICEOS_POSTGRES_SECRETS:-./secrets}/noticeos_owner
+  noticeos_maint:
+    file: ${NOTICEOS_POSTGRES_SECRETS:-./secrets}/noticeos_maint
+  noticeos_app:
+    file: ${NOTICEOS_POSTGRES_SECRETS:-./secrets}/noticeos_app

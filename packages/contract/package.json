@@ -1,0 +1,58 @@
+{
+  "name": "@noticeos/contract",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "description": "Shared NoticeOS signal contracts: pulse envelopes, provider read models, and volume-aware flag rules (docs/02).",
+  "exports": {
+    "./product-use": {
+      "types": "./src/product-use.d.mts",
+      "default": "./src/product-use.mjs"
+    },
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./configuration": {
+      "types": "./src/configuration.d.mts",
+      "default": "./src/configuration.mjs"
+    },
+    "./task-metadata": {
+      "types": "./src/task-metadata.d.mts",
+      "default": "./src/task-metadata.mjs"
+    },
+    "./task-gate": {
+      "types": "./src/task-gate.d.mts",
+      "default": "./src/task-gate.mjs"
+    },
+    "./ledger-coverage": {
+      "types": "./src/ledger-coverage.d.mts",
+      "default": "./src/ledger-coverage.mjs"
+    },
+    "./*": {
+      "types": "./src/*.ts",
+      "default": "./src/*.ts"
+    },
+    "./task-snapshot": {
+      "types": "./src/task-snapshot.d.mts",
+      "default": "./src/task-snapshot.mjs"
+    },
+    "./watch-series": {
+      "types": "./src/watch-series.d.mts",
+      "default": "./src/watch-series.mjs"
+    }
+  },
+  "scripts": {
+    "typecheck": "node ../../scripts/generate-config-contract.mjs --check && tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

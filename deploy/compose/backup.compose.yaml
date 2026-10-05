@@ -1,0 +1,90 @@
+# Add to the explicit database and app definitions of a prepared installation.
+# Operator profile and exporter roots are private read-only declarations.
+services:
+  postgres:
+    volumes:
+      - pg-backup-socket:/var/run/postgresql
+  dolt:
+    volumes:
+      - type: bind
+        source: ${NOTICEOS_BACKUP_STAGING_DIR:?Declare the private shared staging folder}
+        target: /backup-staging
+        bind: {create_host_path: false}
+  noticeos:
+    volumes:
+      - type: bind
+        source: ${NOTICEOS_BACKUP_TRANSPORT_DIR:?Declare the private request channel}
+        target: /backup-transport
+        bind: {create_host_path: false}
+  backup:
+    image: ${NOTICEOS_APP_IMAGE:?Set the exact locally built backup-capable application image}
+    user: "0:0"
+    init: true
+    restart: unless-stopped
+    read_only: true
+    stop_grace_period: 60s
+    cap_drop: [ALL]
+    cap_add: [DAC_OVERRIDE, CHOWN, SETUID, SETGID]
+    security_opt: [no-new-privileges:true]
+    entrypoint: [node, deploy/compose/backup-entrypoint.mjs]
+    healthcheck:
+      test: [CMD, node, deploy/compose/backup-health.mjs]
+      interval: 5s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    tmpfs: [/tmp:mode=1777]
+    volumes:
+      - type: bind
+        source: ${NOTICEOS_STATE_DIR:?Declare the prepared installation folder}
+        target: /state
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${NOTICEOS_SPOKES_DIR:?Declare only the prepared task spokes}
+        target: /spokes
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${NOTICEOS_BACKUP_PROFILE_DIR:?Declare the private operator-owned worker profile folder}
+        target: /run/backup-worker
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${NOTICEOS_POSTGRES_SECRETS:?Declare the existing protected Postgres custody folder}
+        target: /run/postgres-secrets
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${NOTICEOS_DOLT_SECRETS:?Declare the existing protected task custody folder}
+        target: /run/dolt-secrets
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${NOTICEOS_BACKUP_STAGING_DIR:?Declare the private shared staging folder}
+        target: /backup-staging
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${NOTICEOS_BACKUP_TRANSPORT_DIR:?Declare the private request channel}
+        target: /backup-transport
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${NOTICEOS_BACKUP_ASSETS_DIR:?Declare only the prepared exporter checkouts}
+        target: /backup-assets
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${NOTICEOS_BACKUP_OFFSITE_PARENT:?Declare the existing handoff parent}
+        target: /backup-offsite
+        bind: {create_host_path: false}
+      - dolt-backup-source:/dolt-data:ro
+      - pg-backup-socket:/postgres-socket:ro
+    networks: [installation]
+volumes:
+  pg-backup-socket: {}
+  dolt-backup-source:
+    external: true
+    name: ${NOTICEOS_DOLT_BACKUP_VOLUME:?Declare the exact existing task data volume}
+networks:
+  installation:
+    external: true
+    name: ${NOTICEOS_NETWORK:?Name the explicit installation network}

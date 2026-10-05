@@ -1,0 +1,3 @@
+asset,report_date,collected_at,data_state,provider_truncated,event,funnel_id,name,path,people,project_time_zone,row_grain,row_limit,step,window_end,window_start
+meals.example,2026-09-21,2026-09-22T12:31:00.000Z,provider-snapshot,false,$pageview,plan,Plan saved,/planner,900,America/Los_Angeles,funnel-step,100,1,2026-09-21,2026-09-15
+meals.example,2026-09-21,2026-09-22T12:31:00.000Z,provider-snapshot,false,plan_save_click,plan,Plan saved,/planner,120,America/Los_Angeles,funnel-step,100,2,2026-09-21,2026-09-15

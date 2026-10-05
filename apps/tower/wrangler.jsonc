@@ -1,0 +1,59 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "noticeos-tower",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-07-05",
+  // node-postgres, the Postgres driver (packages/postgres), needs Node's
+  // events, streams and crypto.
+  "compatibility_flags": ["nodejs_compat"],
+  // Existing standalone deployment. Hosted/demo deployments explicitly
+  // replace this server binding and provision their separate identity inputs.
+  "vars": { "NOTICEOS_WORKSPACE_PROFILE": "standalone" },
+  // The Cloudflare Vite plugin sets `assets.directory` to the client build
+  // output automatically — do NOT set it here. We only declare routing:
+  //   - not_found_handling SPA  -> unmatched non-API routes serve index.html
+  //     (React Router owns /, /wall, /dev/kitchen-sink client-side).
+  //   - run_worker_first /api/* -> only API paths invoke the Worker; every
+  //     other request is served statically and never costs a Worker invocation.
+  "assets": {
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  // The private RPC capability, and the reason two credentials never come here:
+  // the Google service-account key and the operator bearer both stay in ingest,
+  // while Tower asks it for the bounded realtime read (`ga4Realtime()`) and for
+  // the operator's timeline writes (`createAnnotation()`). The binding is the
+  // authorization — no ingest URL, no duplicated credential.
+  "services": [
+    {
+      "binding": "INGEST",
+      "service": "noticeos-ingest"
+    }
+  ],
+  // The operational store (D25; the port pattern is
+  // docs/briefs/2026-09-29-postgres-port-pattern.md), the same binding the
+  // ingest declares. Deployed, `id` is the host's Hyperdrive configuration,
+  // created with --caching-disabled and logging in as noticeos_app
+  // (ro-ujb9.76.12); this placeholder is not one. Locally the connection
+  // string comes from the environment,
+  // CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES, never from this
+  // file: it carries a password.
+  "hyperdrive": [
+    {
+      "binding": "POSTGRES",
+      "id": "00000000000000000000000000000000"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  // The Tower's own share of the hourly tick (worker/tower-cron.ts, bead
+  // ro-ujb9.96.7.29): System health's four connection counts, recorded with the
+  // model that states them. Must equal the ingest's hourly expression
+  // (workers/ingest/wrangler.jsonc, scripts/scheduled-jobs.mts `freshness`).
+  // Locally the runner fires it through the ingest door instead.
+  "triggers": {
+    "crons": ["0 * * * *"]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "readme": "config/tower.README.md",
+  "countdown": {
+    "emoji": "🌁",
+    "label": "SF MOVE 2026!",
+    "targetAt": "2026-11-16T08:00:00.000Z"
+  },
+  "wall": null
+}

@@ -1,0 +1,3 @@
+asset,report_date,collected_at,data_state,provider_truncated,landingPage,newUsers,sessions
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,revision-window,false,/planner,700,950
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,revision-window,false,/recipes/soup,200,240

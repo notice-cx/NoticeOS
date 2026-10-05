@@ -1,0 +1,24 @@
+import { useTasksAcross, useTasksLive, useTaskProjects } from "./useTasks";
+import { useWork } from "./useWork";
+import { readTaskBoard, taskBoardProjects, taskCatalogProjects, type TaskBoardFilters } from "@/lib/task-board-read";
+
+/** The route receives one read with source limits and row actions already
+ * decided — and the snapshot read's own state, so a failed first read is drawn
+ * as a failure rather than a wait (bead `ro-ujb9.218`). */
+export function useTaskBoard(scope: string | null, filters: TaskBoardFilters) {
+  const capabilities = useTasksLive();
+  const { data, isPending, isError, error, isFetching, refetch } = useWork();
+  const catalog = useTaskProjects();
+  const roster = capabilities.projectSelection ? taskCatalogProjects(catalog.data ?? [], data) : undefined;
+  const projects = roster === undefined ? taskBoardProjects(data, scope) : roster.filter(row => scope === null || row.asset === scope);
+  const queries = useTasksAcross(projects.map(project => project.asset));
+  const reads = new Map(projects.map((project, index) => [project.asset, queries[index]!]));
+  return {
+    data, isPending: capabilities.projectSelection ? catalog.isPending : isPending,
+    isError: capabilities.projectSelection ? catalog.isError : isError,
+    error: capabilities.projectSelection ? catalog.error : error,
+    isFetching: isFetching || catalog.isFetching,
+    refetch: capabilities.projectSelection ? catalog.refetch : refetch,
+    ...readTaskBoard({ capabilities, snapshot: data, scope, reads, filters, roster }),
+  };
+}

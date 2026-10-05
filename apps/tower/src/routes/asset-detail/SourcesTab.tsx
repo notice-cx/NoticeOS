@@ -1,0 +1,760 @@
+import { useDemoReadonly } from '@/lib/browser-context';
+import type { AssetDetailFor } from "@shared/asset-detail-views";
+import { Ban, Check } from "lucide-react";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import type {
+  AssetGa4Config,
+  FetchFailure,
+  HygieneCheckHistory,
+  HygieneHistory,
+  HygieneStatus,
+  PulseMetric,
+} from "@shared/asset-detail";
+import { assetSetupChecklist } from "@shared/asset-setup";
+import { productReportSummary } from "@shared/product-reports";
+import { NIGHTLY_REPORT_LANE_ID, PROPERTY_DATA_SOURCE_IDS, UPTIME_LANE_ID, integrationLabel, type AssetIntegrationLane, type AssetIntegrations, type IntegrationEvidence } from "@shared/integrations";
+import { ageMs, formatAge } from "@shared/freshness";
+import { integrationFailureMessage, type IntegrationHealthItem } from "@noticeos/contract/integration-health";
+import { integrationProvider } from "@noticeos/contract/integrations";
+import { connectionFacts, laneStatus, sourceReadings, sourcesSummary, type ConnectionKind } from "@shared/connection-status";
+import { connectable, connectHref, connectsInPanel, firstToConnect, providerName } from "@shared/connect-panel";
+import { connectBlockers } from "@shared/integrations-page";
+import { ProviderConnectPanel, providerPanelOpening, type ProviderPanelOpening } from "@/routes/integrations/ProviderConnectPanel";
+import { INTEGRATION_HEALTH_KEY } from "@/hooks/useIntegrationHealth";
+import { INTEGRATION_PROVIDERS_KEY, useIntegrationProviders } from "@/hooks/useIntegrationProviders";
+import { useWall } from "@/hooks/useWall";
+import { CADENCE_HOURS } from "@shared/wall";
+import type { SeriesPointOrGap } from "@shared/surface";
+import { AgeBadge } from "@/components/AgeBadge";
+import { EvidencePopover } from "@/components/EvidencePopover";
+import { InfoTooltip } from "@/components/InfoTooltip";
+import { ConnectionFacts, IntegrationStateChip } from "@/components/IntegrationStateChip";
+import { useConnections } from "@/hooks/useConnections";
+import { ScheduledLanesPanel } from "@/components/ScheduledLanes";
+import { StateChip, type StateTone, type StatusSubject } from "@/components/StateChip";
+import { Sparkline } from "@/components/surface/Sparkline";
+import { ListPanel, ListRow, type ListRowTone } from "@/components/surface/ListPanel";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { humanizeMetric, pullFailureCause, READINGS_SHOWN } from "@shared/alert-language";
+import { formatInt, formatSeriesDate, formatTimestamp } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import { Eyebrow, Hero, Panel, LaneAge } from "@/routes/asset-detail/shared";
+import { SetupChecklistPanel } from "@/routes/asset-detail/SetupChecklist";
+import { MediavineSettings } from '@/routes/asset-detail/MediavineSettings';
+import {
+  GA4_LANE_ID,
+  Ga4LaneConfig,
+  LaneConfig,
+  LanePostureAction,
+  NotApplicableLanes,
+} from "@/routes/asset-detail/LaneConfig";
+import { declineReason } from "@shared/lane-decline";
+
+/**
+ * THE SOURCES TAB — where this asset's numbers come from (`ro-pbzu.4`),
+ * restyled to doc 21 under `ro-78qo.5`.
+ *
+ * IT TOOK THE SETUP CHECKLIST FROM OVERVIEW. Doc 21 replaces that section on the
+ * Overview with a one-line `StatusBanner` and says its full checklist moves
+ * here, which is also where it belongs: three of its four items are about data
+ * sources, and the operator who reads "2 of 6 done" has to arrive on this tab to
+ * do anything about it. It leads the tab and is the declared hero while the
+ * asset is still being set up — on a live asset it renders nothing at all and
+ * the data sources take the first screen.
+ *
+ * EVERY SOURCE'S PARAGRAPH IS OFF THE PAGE. Twelve sources each carried a
+ * "Working means …" line and several carried a note running to four sentences
+ * about a credential nobody has provisioned — a wall of small text on a tab the
+ * operator opens to check one thing. What a state means in general is one
+ * sentence in `About`; what THIS source's own record says is inside its row.
+ * What is still OWED stays on the face of the row, because that is the next
+ * action rather than an explanation.
+ */
+export function SourcesTab({
+  data,
+  nowMs,
+}: {
+  data: AssetDetailFor<"sources">;
+  nowMs: number;
+}) {
+  const { credentials, items } = useConnections();
+  const readings = sourceReadings(data.asset.id, data.integrations.sources, { credentials, items }, nowMs);
+  const setup = assetSetupChecklist({
+    id: data.asset.id,
+    displayName: data.asset.displayName,
+    status: data.asset.status,
+    sources: readings,
+    firstReportAt: data.asset.firstReportAt,
+    reportDays: data.asset.reportDays,
+    latestReportAt: data.freshness.pulseReceivedAt,
+    noNightlyReport: data.asset.noNightlyReport,
+    nowMs,
+  });
+  const sources = (
+    <IntegrationsSection
+      integrations={data.integrations}
+      asset={data.asset.id}
+      isOs={data.asset.isOs}
+      ga4Config={data.ga4Config}
+      nowMs={nowMs}
+    />
+  );
+  return (
+    <div className="flex flex-col gap-3.5">
+      {/* The hero is whichever block answers the tab's question TODAY. While the
+          asset is still being set up that is what is still owed; once it is live
+          there is no checklist at all, and the question becomes "are my sources
+          working". */}
+      <Hero>{sources}</Hero>
+      {/* Closed on arrival, a new site's included (bead `ro-ujb9.96.7.5`):
+          each source row above already carries its own Connect, so the
+          checklist is the count, not the next step — mockup
+          docs/artifacts/ux-audit-2026-09-23/mockup/e2-sources.jpg shows the
+          rows alone. */}
+      {setup ? <SetupChecklistPanel setup={setup} /> : null}
+      {data.scheduledLanes !== null ? (
+        <ScheduledLanesPanel lanes={data.scheduledLanes} nowMs={nowMs} />
+      ) : null}
+      {/* Only a site whose report the OS fetches has fetches to fail. */}
+      {data.wiring.pull ? <FetchFailuresPanel failures={data.fetchFailures} nowMs={nowMs} /> : null}
+      {/* Nothing to show until the first nightly report: its absence is the
+          header's "Nightly report · never" and the Nightly report source row,
+          so an empty panel here would say it a third time (bead
+          `ro-ujb9.96.7.5`). */}
+      {data.metrics.length > 0 || data.freshness.pulseReceivedAt !== null ? (
+        <PulseMetricsSection
+          metrics={data.metrics}
+          reportDate={data.wiring.lastPulseDate}
+          pulseReceivedAt={data.freshness.pulseReceivedAt}
+          nowMs={nowMs}
+        />
+      ) : null}
+      <SiteHealthSection hygiene={data.hygiene} nowMs={nowMs} />
+    </div>
+  );
+}
+
+// --- integrations (observed health + file-backed applicability) -------------
+
+/** Attention first, then the settled ones. A source that needs something is the
+ * reason this panel exists; a working one is a tick you scroll past. */
+const KIND_RANK: Record<ConnectionKind | "not-applicable", number> = {
+  failing: 0, overdue: 1, unknown: 2, "not-checked": 3, collecting: 4, "key-accepted": 5, working: 6,
+  "not-connected": 7, "not-using": 8, "not-applicable": 9,
+};
+
+/** The row's mark, from the same status its chip shows. */
+const KIND_TONE: Record<ConnectionKind | "not-applicable", ListRowTone> = {
+  failing: "error", overdue: "warn", working: "ok", "key-accepted": "ok", collecting: "info", "not-checked": "info",
+  unknown: "info", "not-connected": "info", "not-using": "info", "not-applicable": "info",
+};
+
+type LaneReading = ReturnType<typeof laneStatus>;
+
+/**
+ * THE ASSET'S DATA SOURCES, as doc 21's list — each row wearing the ONE status
+ * the connection model gives this asset's site (bead `ro-ujb9.96.7.3`), so a
+ * source never reads Not connected here while its provider reads Working on
+ * Integrations. A row opens in place on what it needs: the provider to
+ * connect, the failure and what to do, the missing report dates' count, and
+ * the source's own settings.
+ *
+ * `limit` is seven, the direct sources an asset has: this panel IS the tab's
+ * question, and a panel showing three of six has hidden half the work.
+ */
+function IntegrationsSection({
+  integrations,
+  asset,
+  isOs,
+  ga4Config,
+  nowMs,
+}: {
+  integrations: AssetIntegrations;
+  /** Whose page this is — the `{asset}` a per-asset config register is scoped to. */
+  asset: string;
+  /** The System's own page — which scope rule makes a source not apply. */
+  isOs: boolean;
+  ga4Config: AssetGa4Config;
+  nowMs: number;
+}) {
+  const demoReadonly = useDemoReadonly();
+  const { credentials, items } = useConnections();
+  // THE CONNECT PANEL OPENS OVER THIS PAGE (bead `ro-ujb9.96.7.4`): a row's
+  // Connect for a provider that connects in the panel opens it here, with
+  // this site first, instead of leaving the site for Integrations and coming
+  // back. Every other provider still links to its own page.
+  const providers = useIntegrationProviders();
+  const wall = useWall();
+  const queryClient = useQueryClient();
+  // Where the panel opened is fixed when it opens: a key accepted in it makes
+  // the provider connected, and the panel must go on to that key's sites.
+  const [connecting, setConnecting] = useState<{ provider: string; opened: ProviderPanelOpening } | null>(null);
+  const panel = (providers.data?.providers ?? []).find((status) => status.provider.id === connecting?.provider) ?? null;
+  const blockers = providers.data ? connectBlockers(providers.data) : [];
+  // Until the providers are read, a row's Connect is the link to the same
+  // panel on Integrations — never a press that does nothing.
+  const openPanel = providers.data && !demoReadonly ? (provider: string) => {
+    const status = providers.data.providers.find((entry) => entry.provider.id === provider);
+    if (status) setConnecting({ provider, opened: providerPanelOpening(status) });
+  } : undefined;
+  const names = new Map((wall.data?.assets ?? []).map((entry) => [entry.id, entry.displayName]));
+  const changed = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: INTEGRATION_PROVIDERS_KEY }),
+      queryClient.invalidateQueries({ queryKey: INTEGRATION_HEALTH_KEY }),
+      queryClient.invalidateQueries({ queryKey: ["asset-detail", asset] }),
+    ]);
+  };
+  const read = (lane: AssetIntegrationLane) => laneStatus({
+    laneId: lane.catalog.id, assetId: asset, cell: lane.cell, scope: lane.catalog.scope, credentials, items, nowMs,
+  });
+  const applicable = integrations.lanes
+    .filter((l) => l.cell.declared !== "not-applicable")
+    .map((lane) => ({ lane, reading: read(lane) }))
+    .sort((a, b) => KIND_RANK[a.reading.kind] - KIND_RANK[b.reading.kind] || a.lane.catalog.label.localeCompare(b.lane.catalog.label));
+  const notApplicable = integrations.lanes.filter((l) => l.cell.declared === "not-applicable");
+  const direct = applicable.filter(({ lane }) => PROPERTY_DATA_SOURCE_IDS.has(lane.catalog.id) || lane.catalog.id === NIGHTLY_REPORT_LANE_ID);
+  const optional = applicable.filter((entry) => !direct.includes(entry));
+  // The one tally rule (`sourcesSummary`) the tab's hover also counts with.
+  const count = sourcesSummary(direct.map(({ reading }) => reading)).tally;
+  // The first source still to connect carries the page's one primary action
+  // (docs/15 principle 4); every other Connect is the outline weight. The
+  // same rule picks Home's next first-run step (`firstToConnect`).
+  const firstConnect = firstToConnect(direct.map(({ lane, reading }) => ({
+    id: lane.cell.laneId, label: lane.catalog.label, kind: reading.kind, provider: reading.provider,
+  })))?.id ?? null;
+  return (
+    <div id="integrations" className="flex scroll-mt-4 flex-col gap-2">
+      <ListPanel
+        title="Data sources"
+        count={count ? <span className="tabular-nums">{count}</span> : undefined}
+        limit={7}
+        empty="No data source applies to this site yet."
+        action={{ label: "Connect account", to: "/integrations" }}
+      >
+        {direct.map(({ lane, reading }) => (
+          <LaneRow key={lane.cell.laneId} lane={lane} reading={reading} asset={asset} ga4Config={ga4Config} nowMs={nowMs} primary={lane.cell.laneId === firstConnect} onConnect={openPanel} />
+        ))}
+      </ListPanel>
+      {/* The sources beyond the site's own data — revenue, deploys — as a
+          second list in plain words (bead `ro-ujb9.164`). It was a closed
+          "Additional connections · N" disclosure around a panel with the same
+          title: a press to learn what it held, and its name said twice.
+          `ListPanel` keeps three rows and discloses the rest itself. */}
+      {optional.length > 0 ? (
+        <ListPanel title="More sources" count={<span className="tabular-nums">{optional.length}</span>} limit={3}>
+          {optional.map(({ lane, reading }) => <LaneRow key={lane.cell.laneId} lane={lane} reading={reading} asset={asset} ga4Config={ga4Config} nowMs={nowMs} onConnect={openPanel} />)}
+        </ListPanel>
+      ) : null}
+      {/* No file name here (bead `ro-ujb9.96.6.23`): since D22 a site's sources
+          are set in the Tower and kept in the store, so the seed file's path
+          told a stranger nothing they could act on. */}
+      {notApplicable.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1">
+          <NotApplicableLanes lanes={notApplicable} asset={asset} isOs={isOs} />
+        </div>
+      ) : null}
+      {panel && connecting ? (
+        <ProviderConnectPanel
+          status={panel}
+          opened={connecting.opened}
+          asset={asset}
+          // This page has no blocker banner, so the panel says why Connect is
+          // off, once, with the command that clears it (bead `ro-e70g`).
+          canConnect={blockers.length === 0}
+          blockers={blockers}
+          items={items ?? []}
+          names={names}
+          onClose={() => setConnecting(null)}
+          onChanged={changed}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function LaneRow({
+  lane,
+  reading,
+  asset,
+  ga4Config,
+  nowMs,
+  primary = false,
+  onConnect,
+}: {
+  lane: AssetIntegrationLane;
+  reading: LaneReading;
+  asset: string;
+  ga4Config: AssetGa4Config;
+  nowMs: number;
+  /** This row's Connect is the page's one primary action. */
+  primary?: boolean;
+  /** Open a provider's connect panel over this page. */
+  onConnect?: (provider: string) => void;
+}) {
+  const demoReadonly = useDemoReadonly();
+  const { catalog, cell } = lane;
+  const { kind, site, provider } = reading;
+  const subject: StatusSubject = `source:${asset}:${catalog.id}`;
+  const failure: IntegrationHealthItem | null = site?.failure ?? null;
+  const identity = [cell.ref, cell.since ? `since ${cell.since}` : null]
+    .filter((part): part is string => Boolean(part))
+    .join(" · ");
+  const spec = provider ? integrationProvider(provider) : null;
+  // ONE ACTION ON THE FACE (bead `ro-ujb9.96.7.5`, mockup
+  // docs/artifacts/ux-audit-2026-09-23/mockup/e2-sources.jpg): a source whose
+  // provider is not connected shows Connect where its status would be — the
+  // press itself says "not connected", so the row never shows both — and it
+  // goes straight to the connect panel opened for this asset, without opening
+  // the row first.
+  // It carries the status it stands for, so every screen's status reader
+  // still finds this source Not connected (bead `ro-ujb9.96.7.16`).
+  const stands = { "aria-label": `${demoReadonly ? 'View' : 'Connect'} ${spec ? providerName(spec) : ""}`, "data-source-connect": catalog.id, "data-status-for": subject, "data-connection": "not-connected" };
+  const connect = spec && connectable(reading) ? (
+    // A provider that connects in the panel opens it over this page (bead
+    // `ro-ujb9.96.7.4`); any other opens its own page on Integrations.
+    connectsInPanel(spec) && onConnect ? (
+      <Button type="button" size="sm" variant={primary ? "default" : "outline"} disabled={demoReadonly} onClick={() => onConnect(spec.id)} {...stands}>
+        Connect
+      </Button>
+    ) : (
+      <Button asChild size="sm" variant={primary ? "default" : "outline"}>
+        <Link to={connectHref(spec.id, asset)} {...stands}>
+          {demoReadonly ? 'View' : 'Connect'}
+        </Link>
+      </Button>
+    )
+  ) : undefined;
+  // A FAILING SOURCE'S ONE ACTION IS FIX (bead `ro-ujb9.96.7.4`), beside its
+  // Failing chip and the reason under its name — the connection itself, in
+  // the panel over this page (its key, this site's status) for a provider
+  // that connects there, else the provider's own page. It replaced a
+  // sentence telling the operator what to go and review.
+  const fix = kind === "failing" && spec ? (
+    connectsInPanel(spec) && onConnect ? (
+      <Button type="button" size="sm" variant="outline" onClick={() => onConnect(spec.id)} aria-label={`Fix ${providerName(spec)}`} data-source-fix={catalog.id}>
+        Fix
+      </Button>
+    ) : (
+      <Button asChild size="sm" variant="outline">
+        <Link to={`/integrations?provider=${spec.id}`} aria-label={`Fix ${providerName(spec)}`} data-source-fix={catalog.id}>Fix</Link>
+      </Button>
+    )
+  ) : undefined;
+  return (
+    <ListRow
+      tone={KIND_TONE[kind]}
+      marks={{ "data-subject": subject }}
+      rowActions={connect ?? fix}
+      rowActionsInline
+      title={integrationLabel(catalog.id, catalog.label)}
+      caption={
+        kind === "failing" && failure ? <span className="text-error">{integrationFailureMessage(failure)}</span>
+          : site && connectionFacts(site).length > 0 ? <ConnectionFacts status={site} subject={subject} />
+            // A skipped source's reason is WHY it reads Not using — one line
+            // beside the chip, not a paragraph in the body (bead `ro-ujb9.96.6.4`),
+            // in the operator's words: the stored prefix is the product's
+            // (`declineReason`, bead `ro-ujb9.96.7.13`).
+            : kind === "not-using" && cell.note ? <span className="wrap-anywhere" data-lane-reason>{declineReason(cell.note) ?? cell.note}</span>
+              : catalog.id === UPTIME_LANE_ID && cell.evidence[0]?.at ? <UptimeCheck evidence={cell.evidence[0]} nowMs={nowMs} />
+                : undefined
+      }
+      value={connect ? undefined : <IntegrationStateChip state={kind === "not-applicable" ? "not-applicable" : kind} subject={subject} lane={catalog.id} />}
+      // The one decision the file owns — in use, or Not using with a reason
+      // chip — as the expanded row's action (bead `ro-ujb9.96.7.13`), the same
+      // for every source and provider. A derived source has no cell to decide on.
+      actions={cell.since === "" ? undefined : <LanePostureAction lane={lane} asset={asset} />}
+    >
+      {/* No link for a source nothing on Integrations connects (bead
+          `ro-ujb9.133`): it shows only once something arrived for it, and
+          its evidence is what the row has to say. */}
+      {kind === "not-connected" && cell.laneId === NIGHTLY_REPORT_LANE_ID ? <Link to="/health" className="inline-flex min-h-11 w-fit items-center text-sm font-medium text-foreground underline underline-offset-4">Nightly report in System health →</Link> : null}
+      <span className="flex flex-wrap items-center gap-2">
+        {identity ? <span className="tabular-nums">{identity}</span> : null}
+        {cell.evidence.length > 0 ? (
+          <EvidencePopover evidence={cell.evidence} nowMs={nowMs} contextLabel={catalog.label} />
+        ) : null}
+        {/* No documentation pointer on the row (bead `ro-ujb9.96.7.4`): its
+            one action — Connect — is how it gets set up. */}
+      </span>
+
+      {/* The per-asset configuration of THIS lane (bead `ro-vu8d.4`): what is
+          still owed, which property this asset maps to, and the one posture the
+          file owns. It sits under the verdict, which is the doc-14 disclosure
+          order — the row answers "is this working" before "what have we told
+          it". A derived lane (`nightly-report`, `egress`) has no cell in the
+          register and so has nothing here to edit. */}
+      {/* Ad revenue unconnected: the row's Connect is its one action, so its
+          revenue section is not even asked for (bead ro-ujb9.96.7.6). */}
+      {cell.laneId === 'ad-network' ? (connect ? null : <MediavineSettings asset={asset} />) : cell.since === "" ? null : <LaneConfig lane={lane} asset={asset} />}
+
+      {cell.laneId === GA4_LANE_ID ? <Ga4LaneConfig asset={asset} config={ga4Config} /> : null}
+    </ListRow>
+  );
+}
+
+/**
+ * WHEN THE OS LAST LOOKED (bead `ro-ujb9.165`): the uptime row's one fact
+ * beside its Up or Down — the check's age, and for a site that did not answer,
+ * what it answered with. The chip carries the verdict; this dates it, the way
+ * Better Stack and UptimeRobot date a monitor's last check
+ * (docs/briefs/2026-09-23-uptime.md#prior-art). An Up whose first try failed
+ * says so after the age (bead `ro-ujb9.180`): "checked 12m ago · 1 failed try".
+ */
+function UptimeCheck({ evidence, nowMs }: { evidence: IntegrationEvidence; nowMs: number }) {
+  const age = formatAge(ageMs(nowMs, evidence.at));
+  const down = evidence.polarity === "against";
+  // No proof on an answer that is not Down: the OS could not reach the network.
+  const offline = !down && evidence.verification === undefined;
+  return (
+    <span className={cn("tabular-nums", down && "text-error")} data-uptime-check>
+      {down ? `${evidence.detail} · checked ${age} ago`
+        : offline ? `offline ${age} ago`
+          : evidence.detail ? `checked ${age} ago · ${evidence.detail}` : `checked ${age} ago`}
+    </span>
+  );
+}
+
+/**
+ * EVERY FAILED NIGHTLY FETCH, ONE LINE EACH (bead `ro-ujb9.220`): a mark, the
+ * cause in the provider's own words, and when. The open alert says what failed
+ * last night; this is the nights behind it, so a 503 on Monday and a 401 on
+ * Tuesday read as two nights rather than "2 nights, latest 401". A red mark is
+ * the outage still open, a muted one a past outage. The full response rides the
+ * cause's hover.
+ */
+function FetchFailuresPanel({ failures, nowMs }: { failures: FetchFailure[]; nowMs: number }) {
+  const rows = failures;
+  return (
+    <ListPanel
+      title="Failed fetches"
+      count={rows.length > 0 ? <span className="tabular-nums">{rows.length}</span> : undefined}
+      limit={READINGS_SHOWN}
+      empty="No record yet"
+    >
+      {rows.map((failure) => {
+        const cause = pullFailureCause(failure.ruleInputs) ?? failure.message ?? "Fetch failed";
+        const response = typeof failure.ruleInputs?.error === "string" ? failure.ruleInputs.error : cause;
+        return (
+          <ListRow
+            key={failure.at}
+            tone={failure.ongoing ? "error" : "info"}
+            glyph="✗"
+            marks={{ "data-fetch-failure": failure.ongoing ? "ongoing" : "past" }}
+            title={<span title={response}>{cause}</span>}
+            value={
+              <time dateTime={failure.at} title={formatTimestamp(failure.at)} className="tabular-nums">
+                {formatAge(ageMs(nowMs, failure.at))} ago
+              </time>
+            }
+          />
+        );
+      })}
+    </ListPanel>
+  );
+}
+
+// --- daily metrics ---------------------------------------------------------
+function PulseMetricsSection({
+  metrics,
+  reportDate,
+  pulseReceivedAt,
+  nowMs,
+}: {
+  metrics: PulseMetric[];
+  reportDate: string | null;
+  pulseReceivedAt: string | null;
+  nowMs: number;
+}) {
+  return (
+    <Panel
+      title="Daily metrics"
+      count={
+        <LaneAge iso={pulseReceivedAt} nowMs={nowMs} cadenceHours={CADENCE_HOURS.pulse} />
+      }
+    >
+      {metrics.length === 0 ? (
+        <span className="text-xs text-muted-foreground">
+          Nothing yet — metrics appear with this site's first nightly report.
+        </span>
+      ) : (
+        // `stacked` (bead `ro-md80`): the 30-day trend was off the right edge
+        // at 390px, and a metric row without its shape is a number with no
+        // direction.
+        <Table stacked>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Metric</TableHead>
+              <TableHead className="text-right">Latest report · 24h{reportDate ? <> <span className="block text-xs font-normal">{formatSeriesDate(reportDate)}</span></> : null}</TableHead>
+              <TableHead className="text-right">Prior reports · avg / day</TableHead>
+              <TableHead className="w-36">History · daily counts</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {metrics.map((m) => {
+              const summary = productReportSummary(m, reportDate);
+              return (
+              <TableRow key={m.name}>
+                {/* THE OPERATOR'S WORDS, NOT THE ENVELOPE'S KEY (doc 17 rule 1).
+                    `signups` is fine; `plansSaved` and `recipesSaved` are the
+                    asset's own identifiers wearing camel case on a view surface.
+                    `humanizeMetric` is the same one `translateAlert` puts in
+                    every alert headline, so "Plans saved" cannot be two
+                    different words on two screens (doc 14). The raw key stays
+                    the row's React key and the hover title, because it is what
+                    the operator greps the envelope for. */}
+                <TableCell className="font-medium" title={m.name}>
+                  <span className="inline-flex items-center gap-1.5">{metricLabel(m.name)}
+                    <InfoTooltip label={`${metricLabel(m.name)} report details`}>
+                      <span className="block">Latest count: the last reported 24-hour period, not a live rolling total.</span>
+                      <span className="block">{summary.previousMean === null ? "No prior reports to compare." : `Comparison: ${summary.previousCount} observed reports, ${formatSeriesDate(summary.previousFirst!)}–${formatSeriesDate(summary.previousLast!)}; the latest report is excluded.`}</span>
+                      <span className="block">{summary.first && summary.last ? `Chart: daily counts · ${formatSeriesDate(summary.first)}–${formatSeriesDate(summary.last)} · UTC report dates` : "No report history."}</span>
+                    </InfoTooltip>
+                  </span>
+                </TableCell>
+                <TableCell label={`Latest report · 24h${reportDate ? ` · ${formatSeriesDate(reportDate)}` : ""}`} className="text-right tabular-nums">
+                  {numOrDash(m.last24h)}
+                </TableCell>
+                <TableCell
+                  label="Prior reports · avg / day"
+                  className="text-right tabular-nums text-muted-foreground"
+                >
+                  {summary.previousMean === null ? "No prior reports" : <>
+                    <span className="block">{summary.previousMean.toFixed(1)} · {summary.previousCount} {summary.previousCount === 1 ? "report" : "reports"}</span>
+                  </>}
+                </TableCell>
+                <TableCell label="History · daily counts">
+                  <Sparkline
+                    data={summary.series}
+                    size="cell"
+                    average={false}
+                    readout
+                    ariaLabel={`${metricLabel(m.name)} daily report counts`}
+                  />
+                  {summary.missingDays > 0 ? <span className="block text-xs text-muted-foreground">{summary.missingDays} missing {summary.missingDays === 1 ? "day" : "days"}</span> : null}
+                </TableCell>
+              </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      )}
+    </Panel>
+  );
+}
+
+function numOrDash(n: number | null): string {
+  return n === null ? "—" : formatInt(n);
+}
+
+/** The envelope's metric key as a sentence subject — "plansSaved" → "Plans
+ * saved". One humaniser for the desk: this is `translateAlert`'s. */
+function metricLabel(metric: string): string {
+  const words = humanizeMetric(metric);
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : metric;
+}
+
+/**
+ * The four hygiene statuses, in words and in colour.
+ *
+ * `error` and `unreachable` stay apart, exactly as they are at rest: "the origin
+ * answered, but not with anything usable" is evidence about the asset, and
+ * "we never reached the origin" is evidence about the fetch. Only the first is
+ * an accusation, so only the first takes the error tone; a night we could not
+ * look reads muted, because a gap in observation is not a finding.
+ */
+const HYGIENE_STATE: Record<HygieneStatus, { label: string; tone: StateTone }> = {
+  ok: { label: "Fine", tone: "affirmative" },
+  warn: { label: "Flagged", tone: "caution" },
+  error: { label: "Bad response", tone: "critical" },
+  unreachable: { label: "Not reached", tone: "na" },
+};
+
+/** doc 14: a series of fewer than three points is a number, not a shape. Two
+ * nights of readings drawn as a line invent a trend out of one segment. */
+const HYGIENE_MIN_SERIES = 3;
+
+/**
+ * One check's measured series, as a number and — when there is enough of it to
+ * be a shape — a line.
+ *
+ * A failed check retains its dated empty position rather than becoming zero
+ * or disappearing between successful checks.
+ */
+function HygieneSeries({
+  history,
+  unit,
+  ariaLabel,
+  nowMs,
+}: {
+  history: HygieneCheckHistory;
+  unit: string;
+  ariaLabel: string;
+  nowMs: number;
+}) {
+  const points: SeriesPointOrGap[] = history.readings.map((reading) => ({ t: reading.date, v: reading.value }));
+  const observations = points.filter((point) => point.v !== null).length;
+  const latest = history.latest;
+  const state = latest ? HYGIENE_STATE[latest.status] : null;
+  return (
+    <div
+      className="min-w-0 rounded-md border border-border p-3"
+      data-hygiene-check={history.check}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <Eyebrow>{ariaLabel}</Eyebrow>
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          {state ? <StateChip label={state.label} tone={state.tone} subject={`hygiene:${history.check}`} /> : null}
+          <AgeBadge
+            iso={latest?.observedAt ?? null}
+            cadenceHours={CADENCE_HOURS.hygiene}
+            nowMs={nowMs}
+          />
+        </div>
+      </div>
+      {/* Doc 21's SMALL-MULTIPLE value: the reading is the large ink and its
+          unit the caption under it, rather than two lines of the same weight.
+          `text-xl` and not the 28px KPI type, because three of these sit in one
+          strip and the KPI scale belongs to a number that leads a screen. */}
+      <div className="mt-2 flex flex-col gap-0.5">
+        <span className="text-xl font-semibold tabular-nums">
+          {latest?.value !== null && latest?.value !== undefined
+            ? formatInt(latest.value)
+            : "—"}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          {latest ? unit : "never checked"}
+        </span>
+      </div>
+      {/* Doc 21's full-width sparkline. `Spark`'s range form printed a y-axis
+          gutter and dated x labels inside 250px, where the first x label
+          overprinted the zero — three numbers fighting for the same corner to
+          scale a shape whose figure is already stated above it in KPI type. The
+          line is the shape; the number is the number. */}
+      {observations >= HYGIENE_MIN_SERIES ? (
+        <Sparkline
+          className="mt-2"
+          data={points}
+          size="wide"
+          area
+          readout
+          format={(value) => `${formatInt(value)} ${unit}`}
+          ariaLabel={`${ariaLabel} over the stored nightly history`}
+        />
+      ) : null}
+      {observations >= HYGIENE_MIN_SERIES ? (
+        <InfoTooltip className="mt-1" label={`${ariaLabel} trend details`} trigger="7-day average">{formatSeriesDate(points[0]!.t)}–{formatSeriesDate(points.at(-1)!.t)} · observed checks only</InfoTooltip>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The nightly served-layer history (bead `ro-gct`).
+ *
+ * The hygiene guard has written one row per (asset, check, day) since 2026-07-31
+ * and nothing anywhere read it back — the checks only ever reached a human when
+ * a rule fired. That is backwards for this family: all three founding cases are
+ * SLOW declines nobody noticed (a home page serving 88 words for months, an AI
+ * crawler quietly disallowed, a sitemap shrinking week by week). A rule fires on
+ * a step change; only the history shows a slope.
+ *
+ * Read-only and absent when empty, the same rule `WatchesStrip` and
+ * `ReclamationSection` follow: the Tower cannot run a check, so a section with
+ * no readings is a dead end rather than an invitation.
+ */
+function SiteHealthSection({
+  hygiene,
+  nowMs,
+}: {
+  hygiene: HygieneHistory | null;
+  nowMs: number;
+}) {
+  // The hourly uptime check writes the home-page reading on its own (bead
+  // `ro-ujb9.165`); this section is the nightly sweep's history, so it waits
+  // for that sweep rather than drawing two "never" tiles on a new site.
+  if (!hygiene || (hygiene.robots.latest === null && hygiene.sitemap.latest === null)) return null;
+  const robotsState = hygiene.robots.latest
+    ? HYGIENE_STATE[hygiene.robots.latest.status]
+    : null;
+  return (
+    <Panel title="Site health" count={`last ${hygiene.windowDays} days`}>
+      <div className="grid gap-3.5 sm:grid-cols-3">
+        <HygieneSeries
+          history={hygiene.htmlDepth}
+          unit="words of visible text"
+          ariaLabel="Served home page"
+          nowMs={nowMs}
+        />
+
+        <div
+          className="min-w-0 rounded-md border border-border p-3"
+          data-hygiene-check="robots-ai-access"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <Eyebrow>AI crawler access</Eyebrow>
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              {robotsState ? (
+                <StateChip label={robotsState.label} tone={robotsState.tone} subject="hygiene:robots-ai-access" />
+              ) : null}
+              <AgeBadge
+                iso={hygiene.robots.latest?.observedAt ?? null}
+                cadenceHours={CADENCE_HOURS.hygiene}
+                nowMs={nowMs}
+              />
+            </div>
+          </div>
+          {hygiene.bots.length === 0 ? (
+            <span className="mt-2 block text-xs text-muted-foreground">
+              No robots.txt to resolve — nothing is claimed about any crawler.
+            </span>
+          ) : (
+            <ul className="mt-2 flex flex-col gap-1" data-hygiene-bots>
+              {hygiene.bots.map((bot) => (
+                <li
+                  key={bot.bot}
+                  className="flex items-center justify-between gap-2 text-xs"
+                  data-hygiene-bot={bot.bot}
+                >
+                  <span className="truncate text-muted-foreground">{bot.bot}</span>
+                  {/* Glyph AND word: allowed/blocked survives a glance and a
+                      screenshot with the colour stripped (doc 14). */}
+                  <span
+                    className={cn(
+                      "flex shrink-0 items-center gap-1 font-medium",
+                      bot.allowed ? "text-foreground" : "text-error",
+                    )}
+                  >
+                    {bot.allowed ? (
+                      <Check className="size-3.5" aria-hidden />
+                    ) : (
+                      <Ban className="size-3.5" aria-hidden />
+                    )}
+                    {bot.allowed ? "allowed" : "blocked"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <HygieneSeries
+          history={hygiene.sitemap}
+          unit="URLs listed"
+          ariaLabel="Sitemap"
+          nowMs={nowMs}
+        />
+      </div>
+    </Panel>
+  );
+}

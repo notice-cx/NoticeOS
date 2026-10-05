@@ -1,0 +1,1543 @@
+// Authored configuration pipeline. Generate its Node runtime and declarations
+// with pnpm config:generate; config:check rejects stale generated files.
+import {
+  ASSET_STATUSES as ASSET_STATUS, STORE_COLUMNS as ASSET_COLUMNS,
+  DISPLAY_NAME_MAX, CONFIG_ASSET_KEY_RE as ASSET_ID_RE,
+  NO_NIGHTLY_REPORT_POINTER, noNightlyReportOpRefusal,
+} from '../packages/contract/src/configuration.mjs';
+import type { Changeset, ChangesetOp, JsonValue, FileJsonSetOp, FileJsonInsertOp, FileJsonDeleteOp } from '../packages/contract/src/configuration.mjs';
+export type { Changeset, ChangesetOp, JsonValue, FileJsonSetOp, FileJsonSetGuardedOp, FileJsonSetFirstOp, FileJsonInsertOp, FileJsonDeleteOp, StoreAssetSetOp } from '../packages/contract/src/configuration.mjs';
+export { ASSET_STATUS, DISPLAY_NAME_MAX, ASSET_ID_RE };
+
+/** `builtIn`: the saved document holds no key at this pointer, so `current` is
+ * the built-in copy's value there and the write creates the key (`shownValue`). */
+export type Resolved = { op: ChangesetOp; current: JsonValue | typeof MISSING; expect?: JsonValue | typeof MISSING; builtIn?: true };
+export type Mismatch = { op: ChangesetOp; current: JsonValue | typeof MISSING; expect: JsonValue | typeof MISSING };
+export interface StoreLane { column(asset: string, column: string): Promise<JsonValue | typeof MISSING> }
+export type DocumentReader = (file: string) => Promise<unknown>;
+type FileOp = FileJsonSetOp | FileJsonInsertOp | FileJsonDeleteOp;
+type RegisterMatch = NonNullable<ReturnType<typeof matchRegister>>;
+
+import {
+  ASSET_PARAM,
+  SETTABLE_FILES,
+  assetIdFields,
+  documentStamp,
+  assetRosterFile,
+  candidateRefusal,
+  clusterSpellingRefusal,
+  containerRegExp,
+  fieldOf,
+  fieldRefusal,
+  isRowToken,
+  knobEntries,
+  knobsForFile,
+  laneStatuses,
+  legalRowPointer,
+  liveSearchLaneRefusal,
+  matchKnob,
+  matchRegister,
+  positionedInsert,
+  readOnlyFieldRefusal,
+  readOnlyRowRefusal,
+  registerEntries,
+  registerFiles,
+  registerStamps,
+  registersForFile,
+  rosterAssetIds,
+  rowRefusal,
+  rowValue,
+} from './config-registers.mjs';
+
+export { CONFIG_KNOBS, CONFIG_REGISTERS, DOCUMENT_STAMPS } from './config-registers.mjs';
+
+// The Wall's layout contract — the one rule for "can the television draw
+// this", read here so EVERY door runs it (bead `ro-lzmq.3`). It moved out of
+// `apps/tower/shared/` for exactly this: a TypeScript rule is a rule this
+// pipeline cannot reach, and the CLI was committing layouts the Wall could not
+// draw. `wall-layout.mjs` has no `node:` import either, so the bundle is safe.
+import { wallOpRefusal } from './wall-layout.mjs';
+import { schedulesOpRefusal } from './scheduled-jobs.mjs';
+import { productUseStagesRefusal } from '../packages/contract/src/product-use.mjs';
+
+// ── the SAFETY allowlist — the hard boundary neither entry point will cross ──
+// File ops may ONLY touch these files; store ops ONLY these two columns. The
+// allowlist stays EXPLICIT (never a config/ glob): each file is a deliberate,
+// audited editability surface, and it is now declared once, in
+// `config-registers.mjs`. integrations.json is the per-asset lane register
+// (config/integrations.README.md) the Tower edits status/reason on; tower.json
+// owns the shared Home/Wall display settings.
+export const ALLOWED_FILES: ReadonlySet<string> = new Set(SETTABLE_FILES);
+export const STORE_COLUMNS: ReadonlySet<string> = new Set(ASSET_COLUMNS);
+/**
+ * EVERY config file the store holds a document for (epic `ro-syok`).
+ *
+ * Derived, never listed by hand: the four wholesale-settable files, every file a
+ * register names, and every file a knob names. A file this list does not carry
+ * is a file no surface can edit, so putting it in the store would be storing
+ * something nothing reads through the store.
+ *
+ * It is what `pnpm config:seed` loads, what `pnpm config:export` writes back,
+ * and what the two Workers ask the store for before falling back to the copy
+ * compiled into them.
+ */
+export const CONFIG_DOCUMENT_FILES = Object.freeze(
+  [
+    ...new Set([
+      ...SETTABLE_FILES,
+      ...registerFiles(),
+      ...knobEntries().map(([, knob]) => knob.file),
+    ]),
+  ].sort(),
+);
+
+/** A config file's name as the Postgres store keys its document and its
+ * changes: the file's name without folder or `.json`, `config/tower.json` →
+ * `tower` (db/postgres/model.json, config_documents.file). Null for a path
+ * that is not a top-level `config/*.json` of that grammar. */
+export function configDocumentKey(file: string): string | null {
+  return /^config\/([a-z0-9][a-z0-9-]*)\.json$/u.exec(file)?.[1] ?? null;
+}
+
+/** The config file a stored document key names: `tower` → `config/tower.json`. */
+export function configDocumentFile(documentKey: string): string {
+  return `config/${documentKey}.json`;
+}
+
+// ── the ADD/REMOVE allowlist — narrower still than the one above ─────────────
+//
+// `file-json-set` edits a value that is already there and never creates
+// structure; that is what makes a settings write different from an arbitrary
+// file write. Adding an asset needs the opposite — a KEY that does not exist yet
+// — so it gets its own op kinds and its own, tighter allowlist (bead ro-z349.1).
+//
+// It is tighter in two ways. A row may only be added at a DECLARED container's
+// own pointer, and the shape of what may be added there is pinned:
+//
+//   config/integrations.json  /assets/<asset-id>   an object — that asset's lanes
+//   config/counters.json      /assets/<asset-id>   an object — that asset's cards
+//   config/pull.json          /-                   an object with an `asset` key
+//   config/signal-panels.json /assets/<asset-id>   an object — its panel roster row
+//   config/serp-panel.json    /assets/<asset-id>   an object — its tracked queries
+//   config/value-events.json  /assets/<asset-id>   an object — its value events
+//   config/ga4-custom-dimensions.json
+//                             /assets/<asset-id>   an object — its registered dimensions
+//
+// So these ops cannot reach the catalog, the states, the flag defaults, the
+// refresh cadence or any other part of a file — only the per-asset register
+// keyed by an asset id, which is exactly the surface "add an asset" and "remove
+// an asset" need.
+//
+// THE LAST FOUR ARE HERE BECAUSE A DELETE HAS TO REACH THEM (beads `ro-sk7q`
+// and `ro-vyer`, 2026-09-04/05). All four key entries by asset id, and none of
+// them was on this list — so the Settings tab's Delete neither listed nor
+// removed them, and deleting an asset that bought a tracked SERP panel left
+// config/serp-panel.json naming an id the store no longer had, silently, since
+// the confirmation never mentioned the file. A file this list does not know
+// about is worse than one it fails on: the failure at least prints a changeset.
+//
+// The two GA4 declarations joined last, and joining them is a decision about the
+// asset lifecycle rather than a consequence of the register work — which is why
+// `scripts/config-apply-core.test.mjs` pins this key set: an asset's own value
+// events and registered dimensions are part of what the asset IS, so they leave
+// with it. Being ADDABLE is not the same as being written on Create, and the
+// wizard writes neither: an entry holding `[]` is a claim ("this asset declares
+// no value events") that nobody has made yet.
+//
+// config/counters.json, config/signal-panels.json, config/serp-panel.json,
+// config/value-events.json and config/ga4-custom-dimensions.json are
+// deliberately NOT in ALLOWED_FILES above: `file-json-set` still may not edit a
+// counter card or rewrite a tracked query. Being able to add or remove an asset's
+// whole entry is not the same permission as being able to rewrite one, and the
+// two allowlists say so separately.
+//
+// IT IS DERIVED NOW (bead ro-x5gu.1) — the registers in `config-registers.mjs`
+// marked `assetRegister`, which are exactly the five an asset is born into and
+// deleted out of. It stays exported because it is the vocabulary the CLI's diff
+// and the asset lifecycle grew up speaking, and it stays the ASSET LIFECYCLE's
+// list rather than a list of everything insert/delete may touch: other
+// containers are declared too (the domain orders, the recurring costs, an
+// asset's tracked queries, the task-hub spokes, the data-source catalog), and
+// they are reached through `matchRegister`, which is the only thing that can
+// answer for a file carrying more than one container — and several now do.
+//
+// One consequence worth naming: `config/signal-panels.json` may now also be SET
+// inside a row (`/assets/<id>/enabled`), because the roster is a per-asset
+// setting an operator changes rather than only a row an asset is born with.
+// A tracked query is still only rewritten through the register that declares
+// one, and `file-json-set` still cannot reach `/refresh` — only the two numbers
+// INSIDE it that `CONFIG_KNOBS` names, one exact pointer each.
+export const ADDABLE_CONTAINERS: ReadonlyMap<string, { shape: "object" | "array"; parent: string }> = new Map(
+  registerEntries()
+    .filter(([, register]) => register.assetRegister === true)
+    .map(([, register]) => [register.file, { shape: register.shape, parent: register.container }]),
+);
+
+/**
+ * THE KEYS A WHOLESALE-EDITABLE FILE MAY GAIN OR LOSE (epic `ro-lzmq`).
+ *
+ * `config/tower.json` may be SET at any pointer, but a pointer set never
+ * CREATES a key — "we never create structure" is the oldest rule here. So the
+ * Wall's saved layout could not be written the first time: a file nobody has
+ * saved a layout in carries no layout there — `null`, or no `/wall` at all
+ * (`readsAsUnsaved` below) — because the default layout must have exactly one
+ * representation and that one is in the code.
+ *
+ * A register is the wrong shape for it. Registers are LISTS of rows keyed by an
+ * asset; this is one document at one pointer. So it is declared here, exactly as
+ * narrowly as it reads: this file, this pointer, nothing under it, nothing else.
+ *
+ * `/countdown` JOINS IT for the same reason (2026-09-05, bead `ro-fqag`). The
+ * countdown is optional (bead `ro-py40`) and a clone that has none had no way to
+ * get one from the product: `/settings` could edit the three fields and never
+ * create them, so the only path to a first countdown was hand-editing the file —
+ * the terminal step D18 retired for every other setting. It is added and removed
+ * WHOLE, at this pointer, because the emoji, the words and the moment are one
+ * landmark and a half-written countdown is worse than none.
+ *
+ * `/no_nightly_report` JOINS IT (2026-09-23, bead `ro-ujb9.96.8`): the list of
+ * assets the operator declared as sending no nightly report. A fresh install
+ * declares none, and the key stays absent until the first asset's Settings
+ * switch writes it.
+ *
+ * WHAT a document must CONTAIN is decided per document. The Wall's layout is
+ * checked by the contract's own validator (`./wall-layout.mjs`, bead
+ * `ro-lzmq.3`), which every door runs; the countdown is checked by the form that
+ * writes it and by `parseDashboardConfig` at build time, which is the two-step
+ * it has always had; the no-report list by `noNightlyReportOpRefusal` in the
+ * contract, which every door runs too.
+ */
+export const ADDABLE_DOCUMENTS: ReadonlyMap<string, readonly string[]> = new Map([
+  ['config/tower.json', ['/wall', '/countdown']],
+  ['config/constants.json', ['/schedules', NO_NIGHTLY_REPORT_POINTER]],
+]);
+
+/** Is this exact pointer one of the declared documents above? */
+export function declaredDocument(file: string, pointer: string): boolean {
+  const match = matchRegister(file, pointer);
+  return (ADDABLE_DOCUMENTS.get(file) ?? []).includes(pointer) ||
+    (match?.register.addableContainer === true && match.rest.length === 0);
+}
+
+/**
+ * A DECLARED DOCUMENT NOBODY HAS SAVED IS ONE STATE, HOWEVER ITS FILE SPELLS IT
+ * (bead `ro-nuz9`).
+ *
+ * The product's `config/tower.json` ships `"wall": null`; a store seeded
+ * without that key, the journey fixture, and a first write taken back by its
+ * Undo (a delete) hold no `/wall` at all. Every reader already treats the two
+ * alike — `parseDashboardConfig` drops a `null` layout, and the schedules and
+ * the no-report list read `null` or absent as "none saved" — so the page a Save
+ * is made from cannot tell them apart either. The guard could: the TV layout
+ * editor sent `expect: null`, a fresh store held no key, and the first Save of
+ * the TV layout on a new installation was refused as "Changed elsewhere".
+ *
+ * So at a declared document's own pointer — and nowhere else — a stored `null`
+ * reads as absent, and a guard of `null` means absent. Either spelling of "not
+ * saved yet" (`expect: null`, `expectAbsent: true`, an insert) matches either
+ * spelling in the store, and the write then creates the key when there is
+ * none. A document that IS saved is compared exactly as before, so a stale
+ * Save of one is still refused.
+ */
+function readsAsUnsaved(file: string, pointer: string, value: JsonValue | typeof MISSING): JsonValue | typeof MISSING {
+  return value === null && declaredDocument(file, pointer) ? MISSING : value;
+}
+
+/**
+ * A KEY THE SAVED DOCUMENT DOES NOT HOLD READS AS THE BUILT-IN COPY — the same
+ * rule for a key that the ingest has always applied to a whole document (bead
+ * `ro-dk4u`).
+ *
+ * Every reader is store-first per key: the Tower's `resolveTowerConfig` and
+ * the ingest's `ruleConfigFromConstants` answer a key the stored document lacks
+ * from the copy compiled into them. A store seeded before a key existed (or by
+ * older code) therefore SHOWS the built-in `monthly_caps.data_usd`, and the
+ * Settings Save is guarded by that value. The guard was compared with the
+ * stored document, where the key resolved nowhere, so the Save was refused as
+ * "Changed elsewhere" — for an edit nobody else made — and a set could not
+ * create the key anyway.
+ *
+ * So where the saved document holds no key, a set is compared with what the
+ * page showed: the built-in copy's value at that pointer, read through the
+ * door's own `readBuiltIn`. The write then creates the key, and the object
+ * keys on the way to it; once the key exists it is guarded by the saved value
+ * exactly as before. The built-in copy is also the licence: only a key it
+ * holds may be created, through object keys only (an array index is a
+ * position, never a key), and never inside a register, whose rows are born by
+ * `file-json-insert` alone. A mistyped pointer still resolves nowhere and is
+ * refused.
+ */
+async function shownValue(
+  op: FileJsonSetOp,
+  saved: JsonValue | typeof MISSING,
+  builtIn: (file: string) => Promise<unknown>,
+): Promise<JsonValue | typeof MISSING> {
+  if (saved !== MISSING || matchRegister(op.file, op.pointer) !== null) return saved;
+  let cur: unknown = await builtIn(op.file);
+  for (const tok of parsePointer(op.pointer)) {
+    if (cur === null || typeof cur !== 'object' || Array.isArray(cur)) return MISSING;
+    if (!Object.prototype.hasOwnProperty.call(cur, tok)) return MISSING;
+    cur = (cur as Record<string, unknown>)[tok];
+  }
+  return cur as JsonValue;
+}
+
+/** Create the missing object keys on the way to a pointer — only for a set
+ * whose key the built-in copy licensed (`shownValue`). A key that holds
+ * something other than an object is a document of another shape, refused. */
+function createParents(doc: unknown, pointer: string): void {
+  let cur = doc;
+  for (const tok of parsePointer(pointer).slice(0, -1)) {
+    if (cur === null || typeof cur !== 'object' || Array.isArray(cur)) {
+      throw new ChangesetError(`pointer ${pointer} walks into a non-object at "${tok}"`);
+    }
+    const holder = cur as Record<string, unknown>;
+    if (!Object.prototype.hasOwnProperty.call(holder, tok)) holder[tok] = {};
+    cur = holder[tok];
+  }
+}
+
+/**
+ * KEYS THE PRODUCT RETIRED, which an installation's stored copy may still
+ * carry (bead `ro-ujb9.96.6.20`). This licenses a DELETE and nothing else: no
+ * insert, and no first write, so a retired paragraph can leave a store and
+ * never come back through this pipeline.
+ *
+ * `config/integrations.json` once carried the file-level `honestyRule` and
+ * `stateMeaning` paragraphs and, per catalog row, `liveMeans`,
+ * `credentialNote` and `perProperty` (bead `ro-ujb9.96.6.1` stopped rendering
+ * them). The row fields were optional register fields, so a delete was
+ * licensed by `optionalField`; the file-level two never were, so an older
+ * store had no way to drop them. Once the register stopped declaring the row
+ * fields, neither half had a licence — this is it, one pattern per key.
+ *
+ * `config/signal-panels.json` (`purpose`, `refresh.costNote`) and
+ * `config/entities.json` (`purpose`) described the document itself and no
+ * screen drew them (bead `ro-ujb9.96.6.16`); each file's README says it now.
+ *
+ * `config/counters.json` `intervalMinutes` restated the counters job's schedule
+ * and could disagree with it (bead `ro-ujb9.222`); nothing reads it now.
+ */
+export const RETIRED_KEYS: ReadonlyMap<string, readonly RegExp[]> = new Map([
+  [
+    'config/integrations.json',
+    [/^\/honestyRule$/, /^\/stateMeaning$/, /^\/catalog\/\d+\/(?:liveMeans|credentialNote|perProperty)$/],
+  ],
+  ['config/signal-panels.json', [/^\/purpose$/, /^\/refresh\/costNote$/]],
+  ['config/entities.json', [/^\/purpose$/]],
+  ['config/counters.json', [/^\/intervalMinutes$/]],
+]);
+
+/** Is this pointer a key the product retired from this file? */
+export function retiredKey(file: string, pointer: string): boolean {
+  return (RETIRED_KEYS.get(file) ?? []).some((pattern) => pattern.test(pointer));
+}
+
+/** The RFC-6901 token that means "past the last element" — RFC 6902's `add`
+ * spells an array append this way, and so do we. */
+const ARRAY_APPEND_TOKEN = '-';
+
+/** A validation/apply refusal. The CLI prints it as a clean `✘` line; the lane
+ * turns it into a 422 body. Never a stack trace either way. */
+export class ChangesetError extends Error {}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RFC 6901 JSON Pointer — resolve (get) and set on a parsed JSON value.
+// ─────────────────────────────────────────────────────────────────────────────
+function unescapeToken(t: string): string {
+  return t.replace(/~1/g, '/').replace(/~0/g, '~');
+}
+
+export function parsePointer(pointer: string): string[] {
+  if (pointer === '') return [];
+  if (!pointer.startsWith('/')) {
+    throw new ChangesetError(`invalid JSON pointer (must start with "/"): ${JSON.stringify(pointer)}`);
+  }
+  return pointer.slice(1).split('/').map(unescapeToken);
+}
+
+/** "there is nothing there" — a pointer that resolves nowhere, or an asset the
+ * store does not have. Distinct from a present `null`, and rendered `(absent)`. */
+export const MISSING = Symbol('missing');
+
+/**
+ * DOES THIS OP EXPECT NOTHING TO BE THERE? — the wire spelling of MISSING
+ * (bead `ro-j71v`).
+ *
+ * `expect` is a JSON value, and JSON cannot say "absent": an empty string is a
+ * value somebody wrote down, and a key nobody has written yet is a different
+ * fact. Conflating them is what refused every FIRST mapping save on an asset's
+ * Sources tab as stale — each mapping field in `config/integrations.json` is
+ * sparse, so the browser's `expect: ""` was compared against MISSING and lost,
+ * and the operator was told somebody else had changed a value that had never
+ * existed.
+ *
+ * So a `file-json-set` says which of the two it means: `expect` for a value,
+ * `expectAbsent: true` for a key that is not there, never both. It is the same
+ * word the mismatch list has always put on the wire coming BACK (the dev write
+ * lane and `workers/ingest/src/config-store.ts` both serialize MISSING that
+ * way); this is that word understood going out.
+ */
+export function expectsAbsent(op: unknown): boolean {
+  return op !== null && typeof op === 'object' && 'expectAbsent' in op && op.expectAbsent === true;
+}
+
+/** Resolve a pointer; returns MISSING if any segment is absent. */
+export function pointerGet(doc: unknown, pointer: string): JsonValue | typeof MISSING {
+  const tokens = parsePointer(pointer);
+  let cur = doc;
+  for (const tok of tokens) {
+    if (Array.isArray(cur)) {
+      if (!/^\d+$/.test(tok)) return MISSING;
+      const i = Number(tok);
+      if (i >= cur.length) return MISSING;
+      cur = cur[i];
+    } else if (cur !== null && typeof cur === 'object') {
+      if (!Object.prototype.hasOwnProperty.call(cur, tok)) return MISSING;
+      cur = (cur as Record<string, unknown>)[tok];
+    } else {
+      return MISSING;
+    }
+  }
+  return cur as JsonValue;
+}
+
+/**
+ * Set a pointer's target in-place; every parent must already exist (we never
+ * create structure — a changeset only edits values that are already there).
+ *
+ * `create` is the ONE exception, and it is a single object key wide: the LAST
+ * token may be a key the container does not have yet, which is what a first
+ * write into a declared optional field needs (bead `ro-j71v`). Every parent is
+ * still walked, not invented, and an array index is never created — an index
+ * that is not a position in this list is a claim about a list that has moved,
+ * which is `pointerInsert`'s question rather than this one's. The one other
+ * key a set may create is one the built-in copy holds (`createParents`, bead
+ * `ro-dk4u`).
+ */
+export function pointerSet(doc: unknown, pointer: string, value: JsonValue, { create = false }: { create?: boolean } = {}): void {
+  const tokens = parsePointer(pointer);
+  if (tokens.length === 0) {
+    throw new ChangesetError('refusing to replace the whole document (empty pointer)');
+  }
+  let cur = doc;
+  for (let i = 0; i < tokens.length - 1; i++) {
+    const tok = tokens[i]!;
+    if (Array.isArray(cur)) {
+      const idx = Number(tok);
+      if (!/^\d+$/.test(tok) || idx >= cur.length) {
+        throw new ChangesetError(`pointer ${pointer} walks off an array at "${tok}"`);
+      }
+      cur = cur[idx];
+    } else if (cur !== null && typeof cur === 'object') {
+      if (!Object.prototype.hasOwnProperty.call(cur, tok)) {
+        throw new ChangesetError(`pointer ${pointer} walks through a missing key "${tok}"`);
+      }
+      cur = (cur as Record<string, unknown>)[tok];
+    } else {
+      throw new ChangesetError(`pointer ${pointer} walks into a non-object at "${tok}"`);
+    }
+  }
+  const last = tokens[tokens.length - 1]!;
+  if (Array.isArray(cur)) {
+    const idx = Number(last);
+    if (!/^\d+$/.test(last) || idx >= cur.length) {
+      throw new ChangesetError(`pointer ${pointer} sets an out-of-range array index "${last}"`);
+    }
+    cur[idx] = value;
+  } else if (cur !== null && typeof cur === 'object') {
+    if (!create && !Object.prototype.hasOwnProperty.call(cur, last)) {
+      throw new ChangesetError(`pointer ${pointer} sets a missing key "${last}"`);
+    }
+    (cur as Record<string, unknown>)[last] = value;
+  } else {
+    throw new ChangesetError(`pointer ${pointer} cannot set into a non-object`);
+  }
+}
+
+/** Walk to a pointer's PARENT container, returning `[container, lastToken]`.
+ * Shared by insert and delete, which both need the container rather than the
+ * value — and both refuse to invent the container itself. */
+function pointerParent(doc: unknown, pointer: string): [unknown, string] {
+  const tokens = parsePointer(pointer);
+  if (tokens.length === 0) {
+    throw new ChangesetError(`pointer ${JSON.stringify(pointer)} names the whole document`);
+  }
+  let cur = doc;
+  for (let i = 0; i < tokens.length - 1; i++) {
+    const tok = tokens[i]!;
+    if (Array.isArray(cur)) {
+      const idx = Number(tok);
+      if (!/^\d+$/.test(tok) || idx >= cur.length) {
+        throw new ChangesetError(`pointer ${pointer} walks off an array at "${tok}"`);
+      }
+      cur = cur[idx];
+    } else if (cur !== null && typeof cur === 'object') {
+      if (!Object.prototype.hasOwnProperty.call(cur, tok)) {
+        throw new ChangesetError(`pointer ${pointer} walks through a missing key "${tok}"`);
+      }
+      cur = (cur as Record<string, unknown>)[tok];
+    } else {
+      throw new ChangesetError(`pointer ${pointer} walks into a non-object at "${tok}"`);
+    }
+  }
+  return [cur, tokens[tokens.length - 1]!];
+}
+
+/**
+ * Add a value at a pointer that resolves NOWHERE — a new object key, or `-` to
+ * append to an array.
+ *
+ * It REFUSES TO OVERWRITE. An insert whose key is already taken is a bug in
+ * whoever built the op (an asset id typed twice, a wizard re-submitted), and the
+ * one thing this must never do is silently replace somebody's configuration with
+ * a new asset's defaults. `resolveOps()` catches that first as a mismatch; this
+ * is the second lock, on the write itself.
+ */
+export function pointerInsert(doc: unknown, pointer: string, value: JsonValue): void {
+  const [container, last] = pointerParent(doc, pointer);
+  if (Array.isArray(container)) {
+    // `-` appends; an INDEX splices in at that position, shifting the rest down
+    // — which is what RFC 6902's `add` has always meant for an array, and what
+    // undoing a removal needs (bead `ro-asj9`). A delete splices, so an undo
+    // that could only append returned the row at the end of the list: the row
+    // came back, its neighbours' order did not. Past the end is refused rather
+    // than silently appended, because an index that is not a position in this
+    // list is a claim about a list that has moved.
+    if (last === ARRAY_APPEND_TOKEN) {
+      container.push(value);
+      return;
+    }
+    const idx = Number(last);
+    if (!/^\d+$/.test(last) || idx > container.length) {
+      throw new ChangesetError(
+        `pointer ${pointer} inserts at "${last}": only "-" (append) or an index from 0 to ${container.length} is allowed`,
+      );
+    }
+    container.splice(idx, 0, value);
+    return;
+  }
+  if (container === null || typeof container !== 'object') {
+    throw new ChangesetError(`pointer ${pointer} cannot insert into a non-object`);
+  }
+  if (Object.prototype.hasOwnProperty.call(container, last)) {
+    throw new ChangesetError(`pointer ${pointer} already exists — refusing to overwrite it`);
+  }
+  (container as Record<string, unknown>)[last] = value;
+}
+
+/**
+ * Remove the value at a pointer. An object key is deleted; an array element is
+ * SPLICED OUT rather than holed, because the array is a list of entries and a
+ * `null` in the middle of it would be a new kind of entry nobody handles.
+ */
+export function pointerDelete(doc: unknown, pointer: string): void {
+  const [container, last] = pointerParent(doc, pointer);
+  if (Array.isArray(container)) {
+    const idx = Number(last);
+    if (!/^\d+$/.test(last) || idx >= container.length) {
+      throw new ChangesetError(`pointer ${pointer} removes an out-of-range array index "${last}"`);
+    }
+    container.splice(idx, 1);
+    return;
+  }
+  if (container === null || typeof container !== 'object') {
+    throw new ChangesetError(`pointer ${pointer} cannot remove from a non-object`);
+  }
+  if (!Object.prototype.hasOwnProperty.call(container, last)) {
+    throw new ChangesetError(`pointer ${pointer} removes a missing key "${last}"`);
+  }
+  delete (container as Record<string, unknown>)[last];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Value equality — JSON scalar/array/object deep-equal for the expect guard.
+// ─────────────────────────────────────────────────────────────────────────────
+export function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== typeof b) return false;
+  if (a === null || b === null) return a === b;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((x, i) => deepEqual(x, b[i]));
+  }
+  if (typeof a === 'object') {
+    const ka = Object.keys(a);
+    const kb = Object.keys(b as object);
+    if (ka.length !== kb.length) return false;
+    return ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && deepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+  }
+  return false;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Schema validation + SAFETY allowlist. Rejections name the exact op.
+// ─────────────────────────────────────────────────────────────────────────────
+export function validateSchemaAndSafety(input: unknown): void {
+  if (input === null || typeof input !== 'object' || Array.isArray(input)) {
+    throw new ChangesetError('changeset must be a JSON object');
+  }
+  const cs = input as Record<string, unknown>;
+  if (cs.version !== 1) {
+    throw new ChangesetError(`unsupported changeset version ${JSON.stringify(cs.version)} (this tool speaks version 1)`);
+  }
+  if (typeof cs.slug !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(cs.slug)) {
+    throw new ChangesetError(`slug must be kebab-case, got ${JSON.stringify(cs.slug)}`);
+  }
+  if (typeof cs.createdAt !== 'string' || Number.isNaN(Date.parse(cs.createdAt))) {
+    throw new ChangesetError(`createdAt must be an ISO-8601 timestamp, got ${JSON.stringify(cs.createdAt)}`);
+  }
+  if (!Array.isArray(cs.ops) || cs.ops.length === 0) {
+    throw new ChangesetError('ops must be a non-empty array');
+  }
+
+  cs.ops.forEach((raw: unknown, i: number) => {
+    const at = `op #${i + 1}`;
+    if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new ChangesetError(`${at}: must be an object`);
+    }
+    const op = raw as Record<string, unknown>;
+    if (op.kind === 'file-json-set') {
+      if (typeof op.pointer !== 'string' || (op.pointer !== '' && !op.pointer.startsWith('/'))) {
+        throw new ChangesetError(`${at}: pointer must be an RFC 6901 JSON Pointer, got ${JSON.stringify(op.pointer)}`);
+      }
+      if (op.pointer === '') {
+        throw new ChangesetError(`${at}: refusing to replace an entire file (empty pointer)`);
+      }
+      // ONE GUARD, AND IT SAYS WHICH FACT IT MEANS (bead `ro-j71v`): a value it
+      // read, or the absence it read. Both at once is two claims about the same
+      // pointer, so it is refused rather than resolved by precedence.
+      if ('expectAbsent' in op && op.expectAbsent !== true) {
+        throw new ChangesetError(
+          `${at}: "expectAbsent" is true or is not there at all, got ${JSON.stringify(op.expectAbsent)}`,
+        );
+      }
+      if ('expect' in op && expectsAbsent(op)) {
+        // A value and an absent key are different claims about the pointer.
+        throw new ChangesetError(`${at}: send "expect" or "expectAbsent", never both`);
+      }
+      if (!('expect' in op) && !expectsAbsent(op)) {
+        throw new ChangesetError(`${at}: missing "expect" (the concurrency guard)`);
+      }
+      if (!('value' in op)) throw new ChangesetError(`${at}: missing "value"`);
+      validateSetTarget(at, raw as FileJsonSetOp);
+    } else if (op.kind === 'file-json-insert' || op.kind === 'file-json-delete') {
+      validateAddRemove(at, raw as FileJsonInsertOp | FileJsonDeleteOp);
+    } else if (op.kind === 'store-asset-set') {
+      if (typeof op.asset !== 'string' || !ASSET_ID_RE.test(op.asset)) {
+        throw new ChangesetError(`${at}: asset id ${JSON.stringify(op.asset)} is not a valid asset key`);
+      }
+      if (!STORE_COLUMNS.has(op.column as string)) {
+        throw new ChangesetError(
+          `${at}: column ${JSON.stringify(op.column)} is not store-editable — only ${[...STORE_COLUMNS].join(', ')} (db/README sanctions these two)`,
+        );
+      }
+      if (!('expect' in op)) throw new ChangesetError(`${at}: missing "expect" (the concurrency guard)`);
+      if (!('value' in op)) throw new ChangesetError(`${at}: missing "value"`);
+      if (op.column === 'status' && !(ASSET_STATUS as readonly unknown[]).includes(op.value)) {
+        throw new ChangesetError(
+          `${at}: status must be one of ${ASSET_STATUS.join(' | ')}, got ${JSON.stringify(op.value)}`,
+        );
+      }
+      if (op.column === 'sense_only' && op.value !== 0 && op.value !== 1) {
+        throw new ChangesetError(`${at}: sense_only must be 0 or 1, got ${JSON.stringify(op.value)}`);
+      }
+      if (
+        op.column === 'display_name' &&
+        (typeof op.value !== 'string' ||
+          op.value.trim().length === 0 ||
+          op.value.trim().length > DISPLAY_NAME_MAX)
+      ) {
+        throw new ChangesetError(
+          `${at}: display_name must be 1–${DISPLAY_NAME_MAX} characters, got ${JSON.stringify(op.value)}`,
+        );
+      }
+    } else {
+      throw new ChangesetError(`${at}: unknown op kind ${JSON.stringify(op.kind)}`);
+    }
+
+    // The Wall's layout is the one value in `config/tower.json` whose SHAPE
+    // decides whether a screen in another room draws anything at all — a row
+    // without widgets, two rows claiming the remaining height, a widget type
+    // that does not exist — and none of that is expressible as a register field.
+    // So the contract states it and this asks, AFTER the op's own kind and
+    // pointer are known to be legal, which keeps "unknown op kind" the answer to
+    // an unknown op kind (bead `ro-lzmq.3`).
+    const undrawable = wallOpRefusal(op, at);
+    if (undrawable !== null) throw new ChangesetError(undrawable);
+    const unschedulable = schedulesOpRefusal(raw as ChangesetOp);
+    if (unschedulable !== null) throw new ChangesetError(unschedulable);
+    const undeclarable = noNightlyReportOpRefusal(op);
+    if (undeclarable !== null) throw new ChangesetError(`${at}: ${undeclarable}`);
+  });
+
+  // Removing an array entry SPLICES it, which renumbers every entry after it —
+  // so a second index-addressed op in the same file would have been resolved
+  // against indices that no longer exist by the time it is applied. Rather than
+  // guess an order that makes both true, the pipeline refuses: one entry spliced
+  // per changeset, which is also all "remove an asset" ever needs. An insert
+  // that names a POSITION splices in the same way (bead `ro-asj9`) and counts
+  // here for the same reason; an APPEND does not, because it renumbers nothing.
+  const arraySplices = new Map();
+  for (const op of cs.ops as ChangesetOp[]) {
+    if (op.kind !== 'file-json-delete' && op.kind !== 'file-json-insert') continue;
+    const row = rowMatch(op.file, op.pointer, op.kind);
+    if (row === null || row.register.shape !== 'array') continue;
+    if (op.kind === 'file-json-insert' && row.token === ARRAY_APPEND_TOKEN) continue;
+    const where = `${op.file}${row.container}`;
+    const seen = (arraySplices.get(where) ?? 0) + 1;
+    arraySplices.set(where, seen);
+    if (seen > 1) {
+      // Either splice renumbers the rest, so a second index would miss.
+      throw new ChangesetError(
+        `${op.file}: only one entry may be spliced in or out per changeset; send the next separately`,
+      );
+    }
+  }
+}
+
+/**
+ * The array container and index an insert names a POSITION in, or `null` when it
+ * is an append or an object key (bead `ro-asj9`).
+ *
+ * Read from the same `rowMatch` the safety check used, so the pointer this
+ * resolves against is the one that was licensed — never a second parse.
+ */
+function arrayPosition(op: FileOp) {
+  const row = rowMatch(op.file, op.pointer, op.kind);
+  if (row === null || row.register.shape !== 'array') return null;
+  if (row.token === ARRAY_APPEND_TOKEN) return null;
+  return { container: row.container, index: Number(row.token) };
+}
+
+/**
+ * Which register a pointer names ONE ROW of, or null.
+ *
+ * The pointer is rebuilt from the declaration rather than merely tested against
+ * it: a row is exactly one reference token past the container, and it must BE an
+ * index (or `-` on an insert) for an array and an asset id for an object.
+ * `/assets/example.com/gsc` is an edit to somebody's lane, not an asset being
+ * added or removed, and it matches nothing here.
+ */
+function rowMatch(file: string, pointer: string, kind: string) {
+  if (typeof pointer !== 'string') return null;
+  for (const [key, register] of registersForFile(file)) {
+    const m = containerRegExp(register).exec(pointer);
+    if (m === null) continue;
+    const tail = pointer.slice(m[0].length);
+    if (!tail.startsWith('/')) continue;
+    const token = tail.slice(1);
+    if (token.includes('/')) continue;
+    const legal =
+      register.shape === 'array' && kind === 'file-json-insert'
+        ? token === ARRAY_APPEND_TOKEN || (positionedInsert(register) && isRowToken(register, token))
+        : isRowToken(register, token);
+    if (legal) return { key, register, token, container: m[0] };
+  }
+  return null;
+}
+
+/**
+ * The safety check for `file-json-set` — WHERE a value may be written.
+ *
+ * Four answers, in this order, and the order is the permission model:
+ *
+ *  1. A DECLARED FIELD of a declared register's row. The narrowest permission,
+ *     and one of the two that validate the value: `/domains/3/paidUsd` is a
+ *     non-negative number in `config/domain-costs.json` because the register
+ *     says so, and a string there is refused naming the field and the rule.
+ *     A field the register marks `readOnly` is refused outright (bead
+ *     `ro-xhy5`): it may be set when the row is created and not afterwards, and
+ *     a whole-row set that MOVES one is the same rename by another pointer.
+ *  2. A DECLARED KNOB — one exact scalar pointer, one of
+ *     `config/signal-panels.json`'s `/refresh` pair (bead `ro-x5gu.8`). Just as narrow as (1) and checked the same way,
+ *     by the `RegisterField` the knob carries. Exact only: `/refresh` itself,
+ *     and anything under a knob's pointer, is refused.
+ *  3. Anywhere at all in one of the four wholesale-editable files. The original
+ *     rule, unchanged: those four ARE settings from top to bottom, and a value
+ *     the Tower renders in one of them needs nothing to license it.
+ *  4. Refused, naming the file — and, when the pointer landed inside a register
+ *     whose fields it is not one of, or in a file that declares knobs, naming
+ *     what it could have been instead.
+ */
+function containerRefusal(match: Pick<RegisterMatch, 'key' | 'register'>, value: unknown): string | null {
+  if (match.key === 'product-use-stages') return productUseStagesRefusal(value);
+  if (!Array.isArray(value)) return 'The declared list must be an array';
+  for (const row of value) {
+    const refusal = rowRefusal(match.register, row);
+    if (refusal !== null) return refusal;
+  }
+  return null;
+}
+
+function validateSetTarget(at: string, op: FileJsonSetOp): void {
+  const match = matchRegister(op.file, op.pointer);
+  const register = match?.register ?? null;
+
+  // A FIRST write is licensed before anything else, because it is the only set
+  // that may leave a key behind that was not there when it started.
+  if (expectsAbsent(op)) {
+    const refusal = firstWriteRefusal(match, op);
+    if (refusal !== null) {
+      throw new ChangesetError(`${at}: ${op.file} ${op.pointer} — ${refusal}`);
+    }
+  }
+
+  if (register?.addableContainer === true && match!.rest.length === 0) {
+    const refusal = containerRefusal(match!, op.value);
+    if (refusal !== null) throw new ChangesetError(`${at}: ${refusal}`);
+    return;
+  }
+
+  if (register?.fields) {
+    const [rowToken, fieldName, ...deeper] = match!.rest;
+    if (rowToken !== undefined && isRowToken(register, rowToken) && deeper.length === 0) {
+      // The ROW itself, validated as a whole row. A string list has nothing
+      // below the row to address, and a row that changes SHAPE — a bare tracked
+      // query gaining its cluster label, an optional field cleared away rather
+      // than written as null — is one value replacing another at that pointer,
+      // guarded by the previous row as `expect`.
+      if (fieldName === undefined) {
+        const refusal =
+          rowRefusal(register, op.value) ?? readOnlyRowRefusal(register, op.expect as JsonValue, op.value);
+        if (refusal !== null) {
+          throw new ChangesetError(`${at}: ${op.file} ${op.pointer} — ${refusal}`);
+        }
+        return;
+      }
+      const field = fieldOf(register, fieldName);
+      if (field !== null) {
+        // A `readOnly` field is refused HERE and not only in the browser (bead
+        // `ro-xhy5`), because a rule the UI alone keeps is a suggestion: this is
+        // also the door a hand-written rename changeset comes through, and a
+        // rename needs edits in files this pipeline cannot make.
+        const refusal = readOnlyFieldRefusal(field) ?? fieldRefusal(field, op.value);
+        if (refusal !== null) {
+          throw new ChangesetError(`${at}: ${op.file} ${op.pointer} — ${refusal}`);
+        }
+        return;
+      }
+    }
+  }
+
+  const knob = matchKnob(op.file, op.pointer);
+  if (knob !== null) {
+    const refusal = fieldRefusal(knob.knob.field, op.value);
+    if (refusal !== null) {
+      throw new ChangesetError(`${at}: ${op.file} ${op.pointer} — ${refusal}`);
+    }
+    return;
+  }
+
+  if (ALLOWED_FILES.has(op.file)) return;
+
+  if (register?.fields) {
+    throw new ChangesetError(
+      `${at}: pointer ${JSON.stringify(op.pointer)} is not a declared field in ${op.file} — ` +
+        `${register.container}/<row>/<field>, where <field> is one of ` +
+        `${register.fields.map((f) => f.name).join(', ')} (${register.describe})`,
+    );
+  }
+  // A file that declares knobs answers with THEM rather than with the four
+  // wholesale-editable files, which are not what the writer was reaching for:
+  // `/refresh` was one token away from a pointer that would have worked.
+  const knobs = knobsForFile(op.file);
+  if (knobs.length > 0) {
+    throw new ChangesetError(
+      `${at}: pointer ${JSON.stringify(op.pointer)} is not a settable knob in ${op.file} — ` +
+        `the declared knobs are ${knobs.map(([, k]) => `${k.pointer} (${k.field.describe})`).join(', ')}`,
+    );
+  }
+  throw new ChangesetError(
+    `${at}: file ${JSON.stringify(op.file)} is not editable — the allowlist is ${[...ALLOWED_FILES].join(', ')}`,
+  );
+}
+
+/**
+ * WHERE A FIRST WRITE MAY LAND — the whole permission `expectAbsent` carries
+ * (bead `ro-j71v`).
+ *
+ * ONE thing: a value into a DECLARED OPTIONAL FIELD of a row that is already
+ * there. That is exactly the state the Sources tab is in before an operator maps
+ * an asset — `config/integrations.json` holds the lane row, and `propertyId`,
+ * `siteUrl`, `locationCode` and `languageCode` are each absent until something
+ * writes one, because the declaration says they are not required.
+ *
+ * AND one declared DOCUMENT (`ADDABLE_DOCUMENTS`), at its own exact pointer
+ * (bead `ro-ujb9.96.8`). A document may already be born by `file-json-insert`
+ * under the same guard — nothing is there yet — and taken away by
+ * `file-json-delete`; a first write is that same birth spelled as a setting, so
+ * a Settings control can create one and its Undo (the delete) can take it back
+ * without a second kind of save. It widens nothing an insert could not already
+ * do at that pointer.
+ *
+ * Everything else keeps the old rule that this pipeline never creates
+ * structure. The ROW is not born here (that is `file-json-insert`, under its own
+ * allowlist), no parent is invented, an array index is not a key, and a REQUIRED
+ * field is not licensed either: a row missing one is a broken row, not a field
+ * awaiting its first save.
+ */
+function firstWriteRefusal(match: RegisterMatch | null, op: FileJsonSetOp): string | null {
+  if (optionalField(match) !== null) return null;
+  if (declaredDocument(op.file, op.pointer)) return null;
+  return '"expectAbsent" opens only a declared OPTIONAL field or document; add a row with file-json-insert';
+}
+
+/**
+ * THE ONE POINTER A KEY MAY APPEAR AT AND GO FROM — one declared OPTIONAL field
+ * of a row that is already there, or null.
+ *
+ * Written once because two ops turn on it and they are each other's inverse: an
+ * `expectAbsent` set writes that key (bead `ro-j71v`) and a `file-json-delete`
+ * takes it away again (bead `ro-pkpz`). A single predicate is what makes
+ * "whatever a first save may create, an undo may remove" true by construction
+ * rather than by two lists agreeing.
+ *
+ * Everything it excludes, it excludes for both: a ROW (that is
+ * `file-json-insert` and its own allowlist), a REQUIRED field (a row missing one
+ * is broken, not blank), an array index (not an object key), and anything
+ * deeper than one field of one row.
+ */
+function optionalField(match: RegisterMatch | null) {
+  const register = match?.register ?? null;
+  if (!register?.fields) return null;
+  const [rowToken, fieldName, ...deeper] = match!.rest;
+  if (rowToken === undefined || fieldName === undefined || deeper.length > 0) return null;
+  if (!isRowToken(register, rowToken)) return null;
+  const field = fieldOf(register, fieldName);
+  return field !== null && field.required !== true ? field : null;
+}
+
+/**
+ * The safety check for `file-json-insert` / `file-json-delete`.
+ *
+ * These two are the only ops that change the SHAPE of a config file, so the
+ * question they have to answer is narrower than "is this file editable": it is
+ * "does some register name this exact row, and is the thing being added shaped
+ * like one of its rows". Both halves come from the declaration — the legal
+ * pointers are rebuilt from it, and the value is checked against its fields.
+ *
+ * A DELETE HAS ONE MORE LEGAL POINTER THAN AN INSERT (bead `ro-pkpz`): one
+ * declared OPTIONAL field of a row that already exists, which is the exact
+ * mirror of the `expectAbsent` set that wrote it. The asymmetry is deliberate. A
+ * field's first value is a SET that says the key was not there, so an insert has
+ * nothing to do at a field, and licensing one there would widen the permission
+ * that keeps "a row may be added" separate from "this file may be rewritten".
+ */
+function validateAddRemove(at: string, op: FileJsonInsertOp | FileJsonDeleteOp): void {
+  // A key the product retired leaves by a delete, guarded like any other
+  // (bead `ro-ujb9.96.6.20`). Delete only: an insert there is refused below.
+  if (op.kind === 'file-json-delete' && typeof op.pointer === 'string' && retiredKey(op.file, op.pointer)) {
+    validateDeleteGuard(at, op);
+    return;
+  }
+  const registers = registersForFile(op.file);
+  // The declared DOCUMENTS above are the other way a key may appear or go: one
+  // exact pointer in one file, licensed on its own rather than as a row.
+  const document = declaredDocument(op.file, op.pointer);
+  if (!document && registers.length === 0) {
+    throw new ChangesetError(
+      `${at}: ${JSON.stringify(op.kind)} may not touch ${JSON.stringify(op.file)} — ` +
+        `the registers are in ${registerFiles().join(', ')}`,
+    );
+  }
+  if (typeof op.pointer !== 'string' || !op.pointer.startsWith('/')) {
+    throw new ChangesetError(
+      `${at}: pointer must be an RFC 6901 JSON Pointer, got ${JSON.stringify(op.pointer)}`,
+    );
+  }
+
+  if (document) {
+    if (op.kind === 'file-json-insert') {
+      if (!('value' in op)) throw new ChangesetError(`${at}: missing "value"`);
+      if ('expect' in op) {
+        throw new ChangesetError(
+          `${at}: file-json-insert takes no "expect" — its guard is fixed at "nothing is there yet"`,
+        );
+      }
+      const match = matchRegister(op.file, op.pointer);
+      if (match?.register.addableContainer === true) {
+        const refusal = containerRefusal(match, op.value);
+        if (refusal !== null) throw new ChangesetError(`${at}: ${refusal}`);
+      }
+      return;
+    }
+    validateDeleteGuard(at, op);
+    return;
+  }
+
+  // THE FIELD A FIRST WRITE CREATED, taken away again (bead `ro-pkpz`). Licensed
+  // by `optionalField` — the same predicate `expectAbsent` turns on — so the two
+  // halves cannot drift into disagreeing about what a first save may leave
+  // behind. Delete only: see the note above the function.
+  if (op.kind === 'file-json-delete' && optionalField(matchRegister(op.file, op.pointer)) !== null) {
+    validateDeleteGuard(at, op);
+    return;
+  }
+
+  const row = rowMatch(op.file, op.pointer, op.kind);
+  if (row === null) {
+    const legal = registers
+      .map(([, register]) => `${legalRowPointer(register, op.kind)} (${register.describe})`)
+      .join(' or ');
+    throw new ChangesetError(
+      `${at}: ${JSON.stringify(op.pointer)} is not a row of ${op.file}; pointer must be ${legal}` +
+        (op.kind === 'file-json-delete' ? ', or a declared OPTIONAL field' : ''),
+    );
+  }
+  const { register } = row;
+
+  if (op.kind === 'file-json-insert') {
+    if (!('value' in op)) throw new ChangesetError(`${at}: missing "value"`);
+    const refusal = rowRefusal(register, op.value);
+    if (refusal !== null) throw new ChangesetError(`${at}: ${refusal}`);
+    // An entry in an OPAQUE array register carries its own key — that field is
+    // what makes the entry findable later, and an entry without one would be an
+    // append nobody could ever address for removal.
+    if (
+      register.fields === null &&
+      register.shape === 'array' &&
+      register.keyField != null &&
+      !ASSET_ID_RE.test(String((op.value as Record<string, JsonValue>)[register.keyField] ?? ''))
+    ) {
+      throw new ChangesetError(
+        `${at}: an entry appended to ${op.file} needs an "${register.keyField}" id`,
+      );
+    }
+    // No `expect`: the guard on an insert is fixed at ABSENCE, and a field that
+    // looked settable would read as somewhere to weaken it.
+    if ('expect' in op) {
+      throw new ChangesetError(
+        `${at}: file-json-insert takes no "expect" — its guard is fixed at "nothing is there yet"`,
+      );
+    }
+    return;
+  }
+
+  validateDeleteGuard(at, op);
+}
+
+/** What a `file-json-delete` must carry, wherever it is licensed: the value it
+ * believes it is removing, and no `value` of its own. One function, so a row, a
+ * declared document pointer and a declared optional field are all guarded the
+ * same way and refused in the same words. */
+function validateDeleteGuard(at: string, op: FileJsonInsertOp | FileJsonDeleteOp): void {
+  if (!('expect' in op)) {
+    throw new ChangesetError(
+      `${at}: missing "expect" — a delete must name the value it believes it is removing`,
+    );
+  }
+  if ('value' in op) {
+    throw new ChangesetError(`${at}: file-json-delete takes no "value"`);
+  }
+}
+
+/**
+ * AN `asset-id` FIELD HAS TO NAME AN ASSET THAT EXISTS (bead `ro-x5gu.10`).
+ *
+ * `fieldRefusal` judges the SHAPE of an asset id and nothing more — a
+ * declaration is plain ESM and cannot know which assets this OS holds — so
+ * `myplate.fod` passed every check and booked a recurring cost against an asset
+ * no row in `assets` has, quietly leaving it out of the by-asset split on
+ * /financials while the total went on including it.
+ *
+ * THE CANDIDATES COME FROM THE ROSTER REGISTER, not from the `assets` table. The
+ * store's asset table is unreachable from here on purpose: this module is the
+ * document half of the pipeline, shared by `pnpm config:apply`, the dev write
+ * lane and the ingest Worker, and none of them may make that a second question.
+ * `config/integrations.json` `/assets` is the config-side list of every asset —
+ * the wizard files an entry on Create and Delete removes one — and it is also
+ * the list the Tower's integration matrix filters the store by. So this check is
+ * deliberately WEAKER than the browser's, never stricter: every id the browser
+ * accepts (config ∩ store) is in the roster, and what this catches is the typo
+ * that is in neither. The browser is where an operator meets the refusal; this
+ * is what stops a hand-written changeset from getting past it.
+ *
+ * Absent or empty roster ⇒ refuses nothing (`candidateRefusal`'s own rule).
+ */
+function unknownAssetRefusal(op: FileJsonSetOp | FileJsonInsertOp, candidates: string[] | null): string | null {
+  if (op.kind !== 'file-json-set' && op.kind !== 'file-json-insert') return null;
+  const match = matchRegister(op.file, op.pointer);
+  const register = match?.register ?? null;
+  if (register === null || register.fields === null) return null;
+  const fields = assetIdFields(register);
+  if (fields.length === 0) return null;
+  const [rowToken, fieldName, ...deeper] = match!.rest;
+  if (rowToken === undefined || deeper.length > 0) return null;
+  // A whole ROW arrives as the op's value — every insert, and a set that
+  // replaces a row rather than one of its fields.
+  if (fieldName === undefined) {
+    const values = rowValue(register, op.value);
+    for (const field of fields) {
+      const refusal = candidateRefusal(field, candidates, values[field.name]);
+      if (refusal !== null) return refusal;
+    }
+    return null;
+  }
+  if (!isRowToken(register, rowToken)) return null;
+  const field = fields.find((f) => f.name === fieldName);
+  return field === undefined ? null : candidateRefusal(field, candidates, op.value);
+}
+
+/**
+ * A ROSTER ROW MAY ONLY BE TURNED ON WHEN THE ASSET HAS A LIVE SEARCH LANE
+ * (bead `ro-uko8`).
+ *
+ * The rule is `config/signal-panels.README.md`'s own — its validation snippet
+ * fails a roster with the same sentence — and it is declared on the register as
+ * `requiresLiveSearchLane`, so this reads it rather than restating it. The facts
+ * are one document away: `config/integrations.json` `/assets/<asset>`, exactly
+ * what the README's snippet opens.
+ *
+ * WHERE THE ASSET COMES FROM. This register is keyed BY asset id, so the row
+ * token is the asset — `/assets/<asset>` for a whole row, `/assets/<asset>/
+ * enabled` for the field.
+ */
+function rosterRefusal(op: FileJsonSetOp | FileJsonInsertOp, match: RegisterMatch, lanes: Record<string, string> | null): string | null {
+  const { register, rest } = match;
+  if (register.requiresLiveSearchLane !== true) return null;
+  const [rowToken, fieldName, ...deeper] = rest;
+  if (rowToken === undefined || deeper.length > 0) return null;
+  if (!isRowToken(register, rowToken)) return null;
+  const enabled = fieldOf(register, 'enabled');
+  if (enabled === null) return null;
+  const value =
+    fieldName === undefined
+      ? rowValue(register, op.value)[enabled.name]
+      : fieldName === enabled.name
+        ? op.value
+        : undefined;
+  if (value === undefined) return null;
+  return liveSearchLaneRefusal(enabled, lanes, value);
+}
+
+/**
+ * ONE CLUSTER, ONE SPELLING (bead `ro-cnsj`).
+ *
+ * The rule is `config/serp-panel.README.md`'s and the collector's, and it is
+ * declared as `clusterField` on the register. Unlike the two rules above, the
+ * only fact it needs is the LIST the op is writing into — already loaded here.
+ *
+ * The row being written is excluded from the comparison: its own spelling is not
+ * a clash with itself, so recasing a cluster only one row uses is allowed, which
+ * is exactly what the collector permits (it refuses two spellings COEXISTING,
+ * never a rename).
+ */
+function clusterRefusal(op: FileJsonSetOp | FileJsonInsertOp, match: RegisterMatch, rows: JsonValue[]): string | null {
+  const { register, rest } = match;
+  const cluster = fieldOf(register, register.clusterField!);
+  if (cluster === null) return null;
+  const [rowToken, fieldName, ...deeper] = rest;
+  if (rowToken === undefined || deeper.length > 0) return null;
+
+  // One FIELD of one row — the relabel this bead is about.
+  if (fieldName !== undefined) {
+    if (fieldName !== cluster.name || !isRowToken(register, rowToken)) return null;
+    return clusterSpellingRefusal(register, rows, rowToken, cluster, op.value);
+  }
+
+  // A whole ROW: an append, or a set replacing the row at that index.
+  const appending = op.kind === 'file-json-insert' && rowToken === ARRAY_APPEND_TOKEN;
+  if (!appending && !isRowToken(register, rowToken)) return null;
+  return clusterSpellingRefusal(
+    register,
+    rows,
+    appending ? null : rowToken,
+    cluster,
+    rowValue(register, op.value)[cluster.name],
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A WHOLE DOCUMENT, judged by the declarations every Save is judged by.
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * The first thing wrong with a whole config document, naming where, or null
+ * (bead `ro-ujb9.222`).
+ *
+ * A Save is judged op by op: a row it adds against its register, a field or
+ * knob it sets against its declaration. A document that arrives WHOLE — the
+ * product default a Worker compiles in as its fallback — never passed through
+ * an op, so this walks it with the same declarations: every register's rows
+ * (`rowRefusal`, each row's key by `isRowToken`) and every knob's value
+ * (`fieldRefusal`). A list at the top of the document must be there, in its
+ * declared shape; a list inside one site's entry may be absent, which is "not
+ * declared".
+ */
+export function documentRefusal(file: string, doc: unknown): string | null {
+  const registers = registersForFile(file);
+  const isObject = (value: unknown) => value !== null && typeof value === 'object' && !Array.isArray(value);
+  const rootIsList = registers.some(([, register]) => register.container === '' && register.shape === 'array');
+  if (rootIsList ? !Array.isArray(doc) : !isObject(doc)) {
+    return `the document must be a JSON ${rootIsList ? 'array' : 'object'}`;
+  }
+  for (const [key, register] of registers) {
+    // A per-site container is one list per entry of the site map above it.
+    const [holder, below] = register.container.split(`/${ASSET_PARAM}`) as [string, string | undefined];
+    const sites = below === undefined ? null : pointerGet(doc, holder);
+    const containers =
+      below === undefined
+        ? [holder]
+        : isObject(sites)
+          ? Object.keys(sites as object).map((site) => `${holder}/${site}${below}`)
+          : [];
+    for (const container of containers) {
+      const rows = pointerGet(doc, container);
+      if (rows === MISSING) {
+        if (below === undefined) return `${container} is missing (${register.describe})`;
+        continue;
+      }
+      if (register.shape === 'array' ? !Array.isArray(rows) : !isObject(rows)) {
+        return `${container || 'the document'} must be a JSON ${register.shape} (${register.describe})`;
+      }
+      if (register.addableContainer === true) {
+        const refusal = containerRefusal({ register, key }, rows);
+        if (refusal !== null) return `${container} — ${refusal}`;
+      }
+      const entries: [string, unknown][] = Array.isArray(rows)
+        ? rows.map((row, index) => [String(index), row])
+        : Object.entries(rows as object);
+      for (const [token, row] of entries) {
+        if (!isRowToken(register, token)) return `${container}/${token} is not a valid key (${register.describe})`;
+        const refusal = rowRefusal(register, row);
+        if (refusal !== null) return `${container}/${token} — ${refusal}`;
+      }
+    }
+  }
+  for (const [, knob] of knobsForFile(file)) {
+    const value = pointerGet(doc, knob.pointer);
+    const refusal = fieldRefusal(knob.field, value === MISSING ? undefined : value);
+    if (refusal !== null) return `${knob.pointer} — ${refusal}`;
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Resolve every op against current reality; collect ALL expect mismatches.
+// Nothing is written here — this is the read-only checkpoint. A changeset with
+// one mismatch applies NONE of its ops, in every entry point.
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * `readDocument(file)` is the ONE thing a caller supplies: give back the parsed
+ * JSON document that repo-relative path names, or throw. The terminal and the
+ * dev write lane back it with `fs.readFile`; the Workers back it with a
+ * `config_documents` row, falling back to the copy compiled into them.
+ *
+ * Each document is read at most once and handed back in `documents`, because
+ * `applyDocumentOps` mutates exactly those objects and the caller is the one who
+ * knows where to put them afterwards.
+ *
+ * `readBuiltIn(file)` is the copy a door's readers fall back to — what the
+ * Workers compiled in, the product's `config/` default on disk — and what a key
+ * the saved document lacks is compared with (`shownValue`, bead `ro-dk4u`).
+ * Every door passes it; without one, such a key resolves nowhere, as it did
+ * before. A built-in copy that cannot be read is no built-in copy.
+ */
+export async function resolveOps(cs: Changeset, store: StoreLane | null, { readDocument, readBuiltIn }: { readDocument: DocumentReader; readBuiltIn?: DocumentReader }): Promise<{ resolved: Resolved[]; mismatches: Mismatch[]; documents: Map<string, unknown> }> {
+  const documents = new Map<string, unknown>(); // relPath -> parsed JSON (read once, mutated at apply)
+  const resolved: Resolved[] = [];
+  const mismatches: Mismatch[] = [];
+
+  const builtIns = new Map<string, unknown>(); // relPath -> the door's built-in copy, never mutated
+  async function builtIn(rel: string) {
+    if (!builtIns.has(rel)) {
+      let doc: unknown = null;
+      try {
+        doc = readBuiltIn ? ((await readBuiltIn(rel)) ?? null) : null;
+      } catch {
+        doc = null;
+      }
+      builtIns.set(rel, doc);
+    }
+    return builtIns.get(rel);
+  }
+
+  async function loadDocument(rel: string) {
+    if (documents.has(rel)) return documents.get(rel);
+    let doc;
+    try {
+      doc = await readDocument(rel);
+    } catch (err) {
+      if (err instanceof ChangesetError) throw err;
+      throw new ChangesetError(`could not read/parse ${rel}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    if (doc === null || doc === undefined) {
+      throw new ChangesetError(`could not read/parse ${rel}: nothing holds that document`);
+    }
+    documents.set(rel, doc);
+    return doc;
+  }
+
+  /** The roster document, read at most once — the source of both cross-file
+   * facts below. An install without it (a throwaway test root, an early
+   * checkout, an unseeded store) answers `null`, and every rule reading it then
+   * refuses nothing rather than refusing everything. */
+  let rosterDoc: unknown;
+  async function roster() {
+    if (rosterDoc !== undefined) return rosterDoc;
+    try {
+      rosterDoc = (await readDocument(assetRosterFile())) ?? null;
+    } catch {
+      rosterDoc = null;
+    }
+    return rosterDoc;
+  }
+  /** The asset ids it declares. */
+  async function rosterIds() {
+    return rosterAssetIds(await roster());
+  }
+  /** One asset's lane statuses out of it, as `laneStatuses` shapes them. */
+  async function lanesOf(asset: string) {
+    const doc = await roster();
+    const assets = doc === null || typeof doc !== 'object' ? undefined : (doc as Record<string, unknown>).assets;
+    if (assets === null || assets === undefined || typeof assets !== 'object') return null;
+    return laneStatuses((assets as Record<string, unknown>)[asset]);
+  }
+
+  cs.ops.forEach((op) => {
+    resolved.push({ op, current: MISSING });
+  });
+
+  for (const r of resolved) {
+    const { op } = r;
+    if (op.kind === 'file-json-set' || op.kind === 'file-json-insert') {
+      const refusal = unknownAssetRefusal(op, await rosterIds());
+      if (refusal !== null) {
+        throw new ChangesetError(`${op.file} ${op.pointer} — ${refusal}`);
+      }
+      const match = matchRegister(op.file, op.pointer);
+      // The one cross-DOCUMENT row rule a register declares (bead `ro-uko8`).
+      if (match?.register.requiresLiveSearchLane === true) {
+        const laneRule = rosterRefusal(op, match, await lanesOf(match.rest[0]!));
+        if (laneRule !== null) {
+          throw new ChangesetError(`${op.file} ${op.pointer} — ${laneRule}`);
+        }
+      }
+      // And the one that needs only the list being written into (bead `ro-cnsj`).
+      if (match?.register.clusterField !== undefined) {
+        const rows = pointerGet(await loadDocument(op.file), match.container);
+        const spelling = clusterRefusal(op, match, Array.isArray(rows) ? rows : []);
+        if (spelling !== null) {
+          throw new ChangesetError(`${op.file} ${op.pointer} — ${spelling}`);
+        }
+      }
+    }
+    if (op.kind === 'file-json-set' || op.kind === 'file-json-delete') {
+      const doc = await loadDocument(op.file);
+      const saved = pointerGet(doc, op.pointer);
+      // A set is compared with what the page showed; a delete removes only
+      // what is saved (bead `ro-dk4u`).
+      const shown = op.kind === 'file-json-set' ? await shownValue(op, saved, builtIn) : saved;
+      r.current = readsAsUnsaved(op.file, op.pointer, shown);
+      if (saved === MISSING && r.current !== MISSING) r.builtIn = true;
+      // A FIRST write guards on absence and says so, so the comparison below is
+      // the ordinary one (bead `ro-j71v`): a field somebody else has already
+      // filled in reports as a mismatch beside every other stale op, and the
+      // operator is told the truth rather than that an empty string moved. A
+      // declared document's `null` guard says the same (bead `ro-nuz9`).
+      if (expectsAbsent(op)) r.expect = MISSING;
+      else if (op.kind === 'file-json-set' && op.expect !== undefined) r.expect = readsAsUnsaved(op.file, op.pointer, op.expect);
+    } else if (op.kind === 'file-json-insert') {
+      // An insert's guard is that NOTHING is there. So its `expect` is MISSING,
+      // and the comparison below is the ordinary one — an insert onto a key that
+      // is already taken reports as a mismatch beside every other stale op,
+      // rather than as a special kind of failure the caller has to learn.
+      const doc = await loadDocument(op.file);
+      const at = arrayPosition(op);
+      if (at === null) {
+        r.current = readsAsUnsaved(op.file, op.pointer, pointerGet(doc, op.pointer));
+        r.expect = MISSING;
+      } else {
+        // AN INDEXED ARRAY INSERT SHIFTS rather than fills a hole (bead
+        // `ro-asj9`), so "nothing is there" is not the question it answers — the
+        // row at that index is the one being pushed down. What has to still be
+        // true is that the index IS a position in this list, and an insert past
+        // the end is refused here rather than quietly appended.
+        const rows = pointerGet(doc, at.container);
+        const length = Array.isArray(rows) ? rows.length : -1;
+        if (at.index > length) {
+          throw new ChangesetError(
+            `${op.file} ${op.pointer}: nothing to insert before — ` +
+              `${at.container} holds ${length < 0 ? 'no list' : `${length} entr${length === 1 ? 'y' : 'ies'}`}`,
+          );
+        }
+        r.current = MISSING;
+        r.expect = MISSING;
+      }
+    } else {
+      if (!store) {
+        throw new ChangesetError(
+          `op names the store (${op.asset}.${op.column}); write store columns through PATCH /api/assets/:id`,
+        );
+      }
+      r.current = await store.column(op.asset, op.column);
+    }
+    const expect = ('expect' in r ? r.expect : 'expect' in op ? op.expect : MISSING) as JsonValue | typeof MISSING;
+    if (!deepEqual(r.current, expect)) {
+      mismatches.push({ op, current: r.current, expect });
+    }
+  }
+
+  return { resolved, mismatches, documents };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Apply the DOCUMENT half — mutate the parsed documents in place and say which
+// ones changed. Persisting them is the caller's: the terminal and the dev lane
+// write files, the ingest Worker writes `config_documents` rows. The store half
+// (the two editable `assets` columns) belongs to the caller too.
+// ─────────────────────────────────────────────────────────────────────────────
+export function applyDocumentOps(resolved: Resolved[], documents: Map<string, unknown>, { at }: { at?: string } = {}): string[] {
+  const touched = new Set<string>();
+  const stageLists = new Map<string, Set<string>>();
+  for (const r of resolved) {
+    const { op } = r;
+    if (op.kind !== 'store-asset-set') {
+      const match = matchRegister(op.file, op.pointer);
+      const container = match?.key === 'product-use-stages' ? match.container
+        : match?.key === 'value-events-assets' && match.rest.length === 1
+          ? `${op.pointer}/productUseStages` : null;
+      if (container !== null) {
+        const lists = stageLists.get(op.file) ?? new Set<string>();
+        lists.add(container); stageLists.set(op.file, lists);
+      }
+    }
+    if (op.kind === 'file-json-set') {
+      // The one set that may leave behind a key that was not there — the field
+      // or document whose absence this op's own guard just proved (beads
+      // `ro-j71v`, `ro-nuz9`), or the key it saved for the first time over the
+      // built-in copy's value (bead `ro-dk4u`).
+      const doc = documents.get(op.file);
+      if (r.builtIn === true) createParents(doc, op.pointer);
+      pointerSet(doc, op.pointer, op.value, { create: expectsAbsent(op) || r.expect === MISSING || r.builtIn === true });
+    } else if (op.kind === 'file-json-insert') {
+      const doc = documents.get(op.file);
+      // A declared document spelled `null` is one nobody has saved
+      // (`readsAsUnsaved`), so an insert fills that key rather than refusing to
+      // overwrite it.
+      if (declaredDocument(op.file, op.pointer) && pointerGet(doc, op.pointer) === null) {
+        pointerSet(doc, op.pointer, op.value);
+      } else {
+        pointerInsert(doc, op.pointer, op.value);
+      }
+    } else if (op.kind === 'file-json-delete') {
+      pointerDelete(documents.get(op.file), op.pointer);
+    } else {
+      continue;
+    }
+    touched.add(op.file);
+  }
+  // A row/field can be valid on its own while breaking uniqueness, the list
+  // bound or a comparison. Judge the FINAL batch before any caller persists it;
+  // a valid rename batch and deletion of malformed stored rows can recover.
+  for (const [file, containers] of stageLists) {
+    for (const container of containers) {
+      const value = pointerGet(documents.get(file), container);
+      if (value === MISSING) continue; // List Undo or holder deletion.
+      const refusal = productUseStagesRefusal(value);
+      if (refusal !== null) throw new ChangesetError(`${file} ${container} — ${refusal}`);
+    }
+  }
+  const date = applyDate(at);
+  stampRows(resolved, documents, date);
+  stampDocuments(touched, documents, date);
+  return [...touched];
+}
+
+/**
+ * THE DAY A CHANGESET IS APPLIED, as a config file spells a date.
+ *
+ * `at` is the changeset's own `createdAt` wherever a caller has one, so the
+ * stamp, the archived changeset and the `config_changes` row all name the same
+ * instant. UTC, because that is how every other date this repo writes down is
+ * spelled (`apps/tower/shared/asset-wizard.ts` `isoDate`) and a config file read
+ * from two machines must not disagree about which day it changed.
+ */
+function applyDate(at: string | null | undefined): string {
+  const ms = at === undefined || at === null ? Date.now() : Date.parse(at);
+  return new Date(Number.isNaN(ms) ? Date.now() : ms).toISOString().slice(0, 10);
+}
+
+/**
+ * MOVE A ROW'S DECISION DATE WHEN THE DECISION MOVES (bead `ro-6kd6`).
+ *
+ * The pairs are declared on the register (`stamps`); this is what applies them.
+ * Only a `file-json-set` that actually CHANGES the watched field counts: an
+ * insert is a new row whose author supplies its own date, a delete has no row
+ * left to date, and re-saving the value that was already there decided nothing.
+ *
+ * Both spellings of a set are handled, because both reach one row — the field
+ * on its own (`/assets/<asset>/enabled`, which is what the Growth tab sends) and
+ * the whole row replaced at its own pointer.
+ *
+ * THE UNDO IS STILL AN UNDO. The inverse op puts `enabled` back and re-stamps
+ * `since` to the day the undo happened, which is the honest reading: the
+ * decision standing in that row was taken then. One changeset either way — one
+ * archive, one commit, one audit row.
+ *
+ * Like every stamp here, it REFRESHES and never invents: a row whose optional
+ * date was never written down does not gain one.
+ */
+function stampRows(resolved: Resolved[], documents: Map<string, unknown>, date: string): void {
+  for (const r of resolved) {
+    const { op } = r;
+    if (op.kind !== 'file-json-set') continue;
+    const match = matchRegister(op.file, op.pointer);
+    if (match === null) continue;
+    const stamps = registerStamps(match.register);
+    if (stamps.length === 0) continue;
+    const [rowToken, fieldName, ...deeper] = match!.rest;
+    if (rowToken === undefined || deeper.length > 0) continue;
+    if (!isRowToken(match.register, rowToken)) continue;
+    for (const stamp of stamps) {
+      const [before, after] =
+        fieldName === undefined
+          ? [rowValue(match.register, r.current === MISSING ? null : r.current)[stamp.when], rowValue(match.register, op.value)[stamp.when]]
+          : fieldName === stamp.when
+            ? [r.current, op.value]
+            : [undefined, undefined];
+      if (before === undefined && after === undefined) continue;
+      if (deepEqual(before, after)) continue;
+      const pointer = `${match.container}/${rowToken}/${stamp.field}`;
+      const doc = documents.get(op.file);
+      if (pointerGet(doc, pointer) === MISSING) continue;
+      pointerSet(doc, pointer, date);
+    }
+  }
+}
+
+/**
+ * REFRESH THE DATE A FILE STATES ABOUT ITSELF (bead `ro-auav`).
+ *
+ * `DOCUMENT_STAMPS` names the pointer, once per file that carries one; this is
+ * the whole rule, and it runs here — the one place every entry point applies its
+ * ops — so the terminal, the dev write lane and the ingest Worker cannot end up
+ * with three answers to "when did this file last change". There is no per-file
+ * branch: a file the declaration does not name is stamped by nothing.
+ *
+ * IT REFRESHES WHAT IS THERE AND NEVER INVENTS IT. An absent pointer stays
+ * absent — a document that has never claimed a date is not lying about one, and
+ * creating structure is the one thing this pipeline has never done.
+ */
+function stampDocuments(touched: Set<string>, documents: Map<string, unknown>, date: string): void {
+  for (const rel of touched) {
+    const pointer = documentStamp(rel);
+    if (pointer === null) continue;
+    const doc = documents.get(rel);
+    if (pointerGet(doc, pointer) === MISSING) continue;
+    pointerSet(doc, pointer, date);
+  }
+}
+
+/**
+ * How a config document is SERIALIZED, everywhere it is written.
+ *
+ * Stable 2-space JSON with a trailing newline — the shape `applyFileOps` has
+ * always written, and now also the shape `pnpm config:export` writes and the
+ * shape `body_json` holds. One function so an export and a save cannot produce
+ * two byte-different spellings of the same document and make every export look
+ * like a change.
+ */
+export function serializeDocument(doc: unknown): string {
+  return JSON.stringify(doc, null, 2) + '\n';
+}

@@ -1,0 +1,4 @@
+/** A Postgres migration filename: four digits, then lower-case letters,
+ * digits or underscores. Capture 1 is its version; no filesystem or store
+ * access is needed to recognize a name. */
+export const MIGRATION_FILE = /^(\d{4})_[a-z0-9_]+\.sql$/u;

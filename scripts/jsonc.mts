@@ -1,0 +1,62 @@
+// JSONC → JSON text. wrangler.jsonc has comments (and possibly trailing
+// commas), so they are stripped string-aware before JSON.parse. One copy for
+// the runner's cron list, the deploy's store check, `pnpm start`'s Worker
+// configs and the unit suites' (scripts/worker-config-folder.mts).
+//
+// Authored TypeScript: `pnpm config:generate` writes the `.mjs` the scripts
+// import and the `.d.mts` beside it.
+
+export function stripJsonc(text: string): string {
+  let out = '';
+  let inStr = false;
+  let strCh = '';
+  let inLine = false;
+  let inBlock = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charAt(i);
+    const n = text.charAt(i + 1);
+    if (inLine) {
+      if (c === '\n') {
+        inLine = false;
+        out += c;
+      }
+      continue;
+    }
+    if (inBlock) {
+      if (c === '*' && n === '/') {
+        inBlock = false;
+        i++;
+      }
+      continue;
+    }
+    if (inStr) {
+      out += c;
+      if (c === '\\') {
+        out += n;
+        i++;
+        continue;
+      }
+      if (c === strCh) inStr = false;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      inStr = true;
+      strCh = c;
+      out += c;
+      continue;
+    }
+    if (c === '/' && n === '/') {
+      inLine = true;
+      i++;
+      continue;
+    }
+    if (c === '/' && n === '*') {
+      inBlock = true;
+      i++;
+      continue;
+    }
+    out += c;
+  }
+  // Drop trailing commas (comment-free now): `,}` / `,]`.
+  return out.replace(/,(\s*[}\]])/g, '$1');
+}

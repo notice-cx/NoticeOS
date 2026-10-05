@@ -1,0 +1,52 @@
+/** Portable PostHog archive shape. No schema library, storage, or runtime globals. */
+// ── The six PostHog families and their row fields (beads ro-ghis.1, ro-ghis.4) ──
+// ONE definition for two runtimes. The collector's zod row schemas
+// (`posthog.ts`) must name exactly these fields — a field missing or extra there
+// is a compile error — and the plain-Node flattener
+// (`scripts/signal-archive.mjs`) reads the generated `.mjs` sibling, so a
+// field added here reaches the collector's check and the flattened
+// `posthog-<family>.csv` together. Before this file each side carried its own
+// list, because the flattener cannot import TypeScript.
+//
+// `grain` is what one row of that family counts ("one row per day", "per event
+// name"); the flattener writes it as each CSV row's `row_grain`. `fields` are
+// the contract row's own keys, in declaration order. The flattened CSV sorts
+// its columns, so this order is for readers of this file, not the CSV.
+
+/** The families, in the order a run collects them. */
+export const POSTHOG_FAMILIES = [
+  'web-daily',
+  'events',
+  'exceptions',
+  'rageclicks',
+  'web-vitals',
+  'funnels',
+] as const;
+export type PosthogFamily = (typeof POSTHOG_FAMILIES)[number];
+
+export interface PosthogFamilyRow {
+  readonly grain: string;
+  readonly fields: readonly string[];
+}
+
+/** Every family's row grain and contract fields. */
+export const POSTHOG_FAMILY_ROWS = {
+  'web-daily': { grain: 'day', fields: ['date', 'pageviews', 'people', 'sessions'] },
+  events: { grain: 'event', fields: ['event', 'count', 'people', 'firstSeen', 'lastSeen'] },
+  exceptions: {
+    grain: 'exception-message',
+    fields: ['type', 'message', 'count', 'people', 'sessions', 'maxPerSession', 'hasSourceFile', 'topPath', 'topBrowser'],
+  },
+  rageclicks: {
+    grain: 'page-element',
+    fields: ['path', 'tag', 'text', 'attr', 'clicks', 'people', 'desktopClicks', 'mobileClicks', 'tabletClicks', 'pagePeople'],
+  },
+  'web-vitals': {
+    grain: 'page-device-os',
+    fields: ['path', 'device', 'os', 'lcpP75', 'inpP75', 'clsP75', 'fcpP75', 'measurements'],
+  },
+  funnels: { grain: 'funnel-step', fields: ['funnelId', 'name', 'step', 'event', 'path', 'people'] },
+} as const satisfies Readonly<Record<PosthogFamily, PosthogFamilyRow>>;
+
+/** The contract field names of one family's rows. */
+export type PosthogFamilyField<F extends PosthogFamily> = (typeof POSTHOG_FAMILY_ROWS)[F]['fields'][number];

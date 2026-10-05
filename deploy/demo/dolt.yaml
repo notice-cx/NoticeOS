@@ -1,0 +1,18 @@
+log_level: warning
+log_format: json
+behavior:
+  read_only: false
+  autocommit: true
+  dolt_transaction_commit: false
+  event_scheduler: "OFF"
+listener:
+  host: 127.0.0.1
+  port: 3306
+  read_timeout_millis: 30000
+  write_timeout_millis: 30000
+data_dir: /dolt
+cfg_dir: /dolt/.doltcfg
+privilege_file: /dolt/.doltcfg/privileges.db
+branch_control_file: /dolt/.doltcfg/branch_control.db
+metrics:
+  port: -1

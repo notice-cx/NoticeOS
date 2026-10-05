@@ -1,0 +1,160 @@
+/** Tower-compatible Tasks API in the trusted Node server. The private directory
+ * supplies selectors, not authorization; every child command independently
+ * reloads current session, workspace and physical mapping before dispatch.
+ */
+import type { TaskDirectory, TaskProjectCatalogEntry } from '../packages/postgres/src/task-directory.mjs';
+import type { WorkspaceAdmission } from './workspace-admission.mjs';
+import type { HostedTaskExecutor } from './hosted-task-executor.mjs';
+import { hostedTaskAction, type HostedTaskOperation, type HostedTaskStatus, type HostedTaskRequest } from './hosted-task-command.mjs';
+import { readHostedTaskCommand } from './hosted-task-http.mjs';
+import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
+import { toLiveTask, toComment, toEpic } from './task-row.mjs';
+import type { WorkspaceActor } from '../packages/postgres/src/identity.mjs';
+
+export interface HostedTasksApiOptions {
+  readonly profile: 'hosted' | 'demo';
+  readonly trustedOrigin: string;
+  readonly demoWorkspaceId?: string;
+  readonly admission: WorkspaceAdmission;
+  readonly directory: Pick<TaskDirectory, 'catalog'>;
+  readonly executor: Pick<HostedTaskExecutor, 'execute'>;
+  readonly workspaceActors?: (workspaceId: string) => Promise<readonly WorkspaceActor[]>;
+}
+const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
+const STATUSES: readonly HostedTaskStatus[] = ['open', 'in_progress', 'blocked', 'deferred', 'closed'];
+function invalid(): never { throw new Error('Hosted Tasks request refused'); }
+function response(status: number, value: unknown): Response {
+  return Response.json(value, { status, headers: { 'cache-control': 'no-store' } });
+}
+function rows(value: unknown): unknown[] {
+  if (!Array.isArray(value)) invalid(); return value;
+}
+function record(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) invalid();
+  return value as Record<string, unknown>;
+}
+function selections(url: URL, allowed: readonly string[]): Record<string, string> {
+  const value: Record<string, string> = Object.create(null) as Record<string, string>;
+  for (const [key, entry] of url.searchParams) {
+    if (!allowed.includes(key) || Object.hasOwn(value, key)) invalid(); value[key] = entry;
+  }
+  return value;
+}
+
+export function createHostedTasksApi(options: HostedTasksApiOptions): (original: Request) => Promise<Response> {
+  const origin = createBrowserRequestPolicy(options.trustedOrigin).origin;
+  const { profile, directory, executor, workspaceActors } = options;
+  const admission: WorkspaceAdmission = options.admission;
+  if (!['hosted', 'demo'].includes(profile) || typeof admission?.withAdmission !== 'function'
+    || typeof directory?.catalog !== 'function' || typeof executor?.execute !== 'function') invalid();
+  const demo = profile === 'demo' && typeof options.demoWorkspaceId === 'string' && UUID.test(options.demoWorkspaceId)
+    ? options.demoWorkspaceId : undefined;
+  if (profile === 'demo' && !demo || profile === 'hosted' && options.demoWorkspaceId !== undefined) invalid();
+  return async original => {
+    let url: URL, workspace: string, project: TaskProjectCatalogEntry | undefined;
+    let proof: Request;
+    let mutation: HostedTaskRequest | undefined;
+    let query: Record<string, string> | undefined, statuses: HostedTaskStatus[] | undefined;
+    try {
+      if (!(original instanceof Request)) invalid();
+      url = new URL(original.url);
+      if (url.origin !== origin || url.hash || url.username || url.password) invalid();
+      proof = new Request(original.url, { method: original.method, headers: new Headers(original.headers), signal: original.signal });
+      const header = original.headers.get(WORKSPACE_SELECTION_HEADER);
+      workspace = profile === 'demo' ? demo! : header ?? '';
+      if (!UUID.test(workspace) || profile === 'demo' && header !== null && header !== demo) invalid();
+      const path = url.pathname;
+      if (!/^\/api\/tasks(?:\/(?:projects|capabilities|[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*(?:\/(?:history|comments|close|respond|dismiss))?))?$/iu.test(path)
+        && !/^\/api\/gates\/[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*\/resolve$/iu.test(path)) invalid();
+      if (original.method === 'GET' && original.body !== null) invalid();
+      if (path === '/api/tasks/projects' || path === '/api/tasks/capabilities') {
+        if (original.method !== 'GET' || url.search !== '') invalid();
+      } else if (original.method !== 'GET') {
+        mutation = await readHostedTaskCommand(original, url, workspace);
+      } else {
+        const match = /^\/api\/tasks(?:\/([a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*)(?:\/(history))?)?$/iu.exec(path);
+        if (!match) invalid();
+        query = selections(url, match[1] ? match[2] ? ['project', 'limit'] : ['project'] : ['project', 'status']);
+        if (!query.project || !UUID.test(query.project)) invalid();
+        if (match[2] && query.limit !== undefined && (!/^[1-9]\d{0,2}$/u.test(query.limit) || Number(query.limit) > 200)) invalid();
+        if (!match[1]) {
+          const selectedStatuses = query.status === undefined ? [...STATUSES] : query.status.split(',');
+          if (selectedStatuses.length < 1 || selectedStatuses.length > 5 || new Set(selectedStatuses).size !== selectedStatuses.length
+            || selectedStatuses.some(status => !STATUSES.includes(status as HostedTaskStatus))) invalid();
+          statuses = selectedStatuses as HostedTaskStatus[];
+        }
+      }
+    } catch { return response(400, { error: 'invalid_hosted_task_request' }); }
+    try {
+      const action = original.method === 'GET' ? 'tasks.read' : hostedTaskAction(mutation!.operation);
+      return await admission.withAdmission(action, { requestedWorkspaceId: workspace, correlationId: 'hosted-tasks-api' }, proof, async context => {
+        const catalog = await directory.catalog(workspace);
+        admission.assertContext(context, action);
+        if (url.pathname === '/api/tasks/projects' || url.pathname === '/api/tasks/capabilities') {
+          if (original.method !== 'GET' || url.search !== '') invalid();
+          return response(200, url.pathname.endsWith('/projects') ? { projects: catalog } : {
+            live: true, writable: context.allowedActions.includes('tasks.write'), projectSelection: true,
+            operations: ['create', 'update', 'comment', 'close', ...(context.allowedActions.includes('tasks.decide') ? ['respond', 'dismiss', 'resolve'] : [])],
+            editableFields: ['status', 'priority', 'title', 'description', 'claim', 'assignee', 'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels'],
+          });
+        }
+        if (original.method !== 'GET') {
+          // Parsing consumes the original stream once before admission; neither
+          // a body tee nor a caller-supplied command/context is forwarded.
+          if (!mutation) invalid();
+          project = catalog.find(entry => entry.projectId === mutation!.projectId);
+          if (!project) invalid();
+          const result = await executor.execute(proof, workspace, mutation);
+          if (url.pathname === '/api/tasks' && original.method === 'POST') {
+            const created = record(Array.isArray(result) ? result[0] : result);
+            if (typeof created.id !== 'string' || !project) invalid();
+            return response(200, { id: created.id, project: project.logicalKey });
+          }
+          return response(200, result);
+        }
+        const match = /^\/api\/tasks(?:\/([a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*)(?:\/(history))?)?$/iu.exec(url.pathname);
+        if (!match) invalid();
+        const taskId = match[1], history = match[2];
+        if (!query) invalid();
+        project = catalog.find(entry => entry.projectId === query!.project);
+        if (!project) invalid();
+        const readAt = new Date().toISOString(), deadline = Date.now() + 30000;
+        // Names are presentation only. An unavailable roster does not invent a
+        // name or stop the underlying task read; hosted UUIDs remain unknown.
+        let actors: readonly WorkspaceActor[] = [];
+        try { actors = await workspaceActors?.(workspace) ?? []; } catch { /* Unknown is an honest display state. */ }
+        admission.assertContext(context, action);
+        const controls = Object.freeze({ deadline, signal: original.signal });
+        const run = (operation: HostedTaskOperation) => executor.execute(proof, workspace,
+          { projectId: project!.projectId, operation }, controls);
+        if (history) {
+          if (query.limit !== undefined && !/^[1-9]\d{0,2}$/u.test(query.limit)) invalid();
+          return response(200, await run({ kind: 'history', taskId: taskId!, limit: query.limit ? Number(query.limit) : 100 }));
+        }
+        const ready = new Set(rows(await run({ kind: 'ready' })).map(row => record(row).id).filter((id): id is string => typeof id === 'string'));
+        if (taskId) {
+          const shown = await run({ kind: 'show', taskId });
+          const row = Array.isArray(shown) ? shown[0] : shown;
+          const task = toLiveTask(row, ready);
+          if (task.id !== taskId) invalid();
+          const comments = rows(await run({ kind: 'comments', taskId })).map(toComment);
+          return response(200, { project: project.logicalKey, prefix: project.prefix, repo: '', readAt, task, comments, actors });
+        }
+        if (!statuses) invalid();
+        const closedSince = new Date(Date.parse(readAt) - 7 * 86400000).toISOString().slice(0, 10);
+        const tasks = new Map<string, ReturnType<typeof toLiveTask>>();
+        const active = statuses.filter((status): status is Exclude<HostedTaskStatus, 'closed'> => status !== 'closed');
+        for (const row of active.length ? rows(await run({ kind: 'active-board', statuses: active })) : []) {
+          const task = toLiveTask(row, ready); if (!task.id) invalid(); tasks.set(task.id, task);
+        }
+        if (statuses.includes('closed')) for (const row of rows(await run({ kind: 'closed-board', since: closedSince, until: readAt }))) {
+          const task = toLiveTask(row, ready); if (!task.id) invalid();
+          if (task.status === 'closed' && task.closedAt !== null && task.closedAt >= `${closedSince}T00:00:00.000Z` && task.closedAt <= readAt) tasks.set(task.id, task);
+        }
+        let epics = null;
+        try { epics = rows(await run({ kind: 'epics' })).map(toEpic).filter(value => value !== null); } catch { /* Unknown stays null; never invent progress. */ }
+        return response(200, { project: project.logicalKey, prefix: project.prefix, repo: '', readAt, closedSince, tasks: [...tasks.values()], epics, actors });
+      });
+    } catch { return response(403, { error: 'hosted_task_refused' }); }
+  };
+}

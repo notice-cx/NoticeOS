@@ -1,0 +1,36 @@
+{
+  "ok": true,
+  "asset": "asset.example",
+  "targets": [
+    {
+      "domain": "county.example.edu",
+      "referringPage": "https://county.example.edu/food/meals",
+      "replaceWith": "https://asset.example/food-groups",
+      "status": "clicked"
+    },
+    {
+      "domain": "guides.example.edu",
+      "referringPage": "https://guides.example.edu/nutrition",
+      "replaceWith": "https://asset.example/",
+      "status": "queued"
+    },
+    {
+      "domain": "zoo.example.org",
+      "referringPage": "https://zoo.example.org/kids/food",
+      "replaceWith": "https://asset.example/kids",
+      "status": "sent"
+    },
+    {
+      "domain": "art.example.org",
+      "referringPage": "https://art.example.org/still-life",
+      "replaceWith": null,
+      "status": "replied"
+    },
+    {
+      "domain": "www.Museum.example.org",
+      "referringPage": "",
+      "replaceWith": "https://asset.example/",
+      "status": "opened"
+    }
+  ]
+}

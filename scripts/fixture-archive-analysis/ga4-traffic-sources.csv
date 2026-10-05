@@ -1,0 +1,4 @@
+asset,report_date,collected_at,data_state,provider_truncated,provisional,sessionMedium,sessionSource,sessions
+meals.example,2026-09-20,2026-09-22T12:15:00.000Z,revision-window,false,0,organic,google,1800
+meals.example,2026-09-20,2026-09-22T12:15:00.000Z,revision-window,false,0,(none),(direct),660
+meals.example,2026-09-20,2026-09-22T12:15:00.000Z,revision-window,false,0,referral,chatgpt.com,44

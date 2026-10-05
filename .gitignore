@@ -1,0 +1,53 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+*.tsbuildinfo
+
+# scripts/contract-dist.test.mjs builds inside the workspace so Node can resolve
+# `zod` from it; the run removes it, this covers a run that was killed
+/packages/contract/dist-loadcheck-*/
+
+# test artifacts
+coverage/
+playwright-report/
+test-results/
+# the flow gate's walk (results.json + the screenshot each failure names)
+/apps/tower/e2e/ux-flows-results/
+
+# point-in-time visual review output; keep only the generation instructions
+/docs/artifacts/viewport-audit/*
+!/docs/artifacts/viewport-audit/README.md
+
+# cloudflare / wrangler
+# No trailing slash on these two: inside a runtime copy (.local/runtime/, bead
+# ro-ujb9.113) they are LINKS to the home checkout's store and state, and a
+# pattern ending in / matches only directories, so the links would read as
+# untracked files and the deploy would call the copy dirty.
+.wrangler
+
+# local runner state (logs, D1 backups, the runtime copies) — never committed
+.local
+
+# secrets & local env
+.dev.vars
+.dev.secrets.json
+# the Postgres service's secret files (pnpm postgres:secrets)
+/db/postgres/host/secrets/
+.env
+.env.*
+
+# macOS
+.DS_Store
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads.gate.lock
+.beads/proxieddb/
+
+# bv (beads viewer) local config and caches
+.bv/

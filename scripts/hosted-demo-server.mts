@@ -1,0 +1,360 @@
+/** Preview-only built demo entry. The public origin is server configuration;
+ * proxy headers and browser selectors never select authority or a runtime. */
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { readFileSync, realpathSync, lstatSync, openSync, closeSync, fstatSync, constants } from 'node:fs';
+import { openHostedTaskRuntime, captureHostedTaskRuntimeOptions, type HostedTaskRuntimeOptions } from './hosted-task-runtime.mjs';
+import { startHostedDemo, type HostedDemoRuntimeOptions } from './hosted-demo-runtime.mjs';
+import { demoScenarioHash, generateDemoScenario } from './demo-scenario.mjs';
+import { createBrowserRequestPolicy } from './browser-request-policy.mjs';
+import { PRODUCT_ENV } from './product-env.mjs';
+import type { Readable } from 'node:stream';
+
+export interface HostedDemoServerOptions {
+  readonly version: 1;
+  readonly publicOrigin: string;
+  /** An unpublished Docker-network or loopback listener, never inferred from headers. */
+  readonly listen: { readonly host: '127.0.0.1' | '0.0.0.0'; readonly port: number };
+  readonly artifactRoot: string;
+  readonly workerStateRoot: string;
+  readonly workspaceDatabaseUrl: string;
+  readonly tasks: HostedTaskRuntimeOptions;
+  readonly activity: HostedDemoRuntimeOptions;
+}
+export interface DemoWorkerArtifact {
+  readonly main: string;
+  readonly modulesRoot: string;
+  readonly compatibilityDate: string;
+  readonly compatibilityFlags: readonly string[];
+}
+export interface DemoArtifactManifest {
+  readonly version: 1;
+  readonly release: string;
+  readonly client: 'client';
+  readonly tower: DemoWorkerArtifact;
+  readonly ingest: DemoWorkerArtifact;
+  readonly files: Readonly<Record<string, string>>;
+  readonly publicFiles: readonly string[];
+}
+interface Runtime {
+  handle(request: Request): Promise<Response>;
+  close(): Promise<void>;
+}
+interface Activity {
+  status(): { running: boolean; error: string | null };
+  close(): Promise<void>;
+}
+interface Workers {
+  getWorker(name: string): Promise<{ fetch(request: Request): Promise<Response> }>;
+  dispatchFetch(url: string, init: { method: string; headers: Record<string, string>; body?: ArrayBuffer; signal: AbortSignal }): Promise<Response>;
+  dispose(): Promise<void>;
+}
+/** Trusted in-process test composition only. Never read from JSON or env. */
+export interface HostedDemoServerAdapters {
+  openTasks(options: HostedTaskRuntimeOptions): Promise<Runtime>;
+  startActivity(options: HostedDemoRuntimeOptions): Promise<Activity>;
+  openWorkers(options: Record<string, unknown>): Workers;
+}
+const RELEASE_HEADER = 'x-noticeos-release';
+const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
+const HASH = /^[a-f0-9]{64}$/u;
+function refused(): never { throw new Error('Compiled demo configuration unavailable.'); }
+function record(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) refused();
+  const result: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+  for (const key of Reflect.ownKeys(value)) {
+    const entry = Object.getOwnPropertyDescriptor(value, key);
+    if (typeof key !== 'string' || !entry || !('value' in entry)) refused();
+    result[key] = entry.value as unknown;
+  }
+  return result;
+}
+function exact(value: Record<string, unknown>, keys: readonly string[]): void {
+  if (keys.some(key => !Object.hasOwn(value, key)) || Object.keys(value).some(key => !keys.includes(key))) refused();
+}
+function absolute(value: unknown): string {
+  if (typeof value !== 'string' || !path.isAbsolute(value) || /[\r\n\0]/u.test(value)) refused();
+  return path.resolve(value);
+}
+function relative(value: unknown): string {
+  if (typeof value !== 'string' || !value || value.length > 1024 || value.startsWith('/')
+    || /[\\\r\n\0?#%]/u.test(value) || value.split('/').some(part => !part || part === '.' || part === '..')) refused();
+  return value;
+}
+function plainFile(root: string, name: string): string {
+  const filename = path.join(root, relative(name));
+  if (realpathSync(filename) !== filename || !lstatSync(filename).isFile()) refused();
+  return filename;
+}
+const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+
+/** Read a bounded private file without following links or exposing its values. */
+export function readHostedDemoRuntimeFile(filename: string): HostedDemoServerOptions {
+  const resolved = absolute(filename);
+  if (resolved !== filename || realpathSync(filename) !== resolved) refused();
+  const fd = openSync(filename, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const stat = fstatSync(fd);
+    if (!stat.isFile() || stat.uid !== process.getuid?.() || stat.mode & 0o077 || stat.size > 2 * 1024 * 1024) refused();
+    return JSON.parse(readFileSync(fd, 'utf8')) as HostedDemoServerOptions;
+  } catch { refused(); } finally { closeSync(fd); }
+}
+
+export function captureHostedDemoServerOptions(input: HostedDemoServerOptions): HostedDemoServerOptions {
+  const raw = record(input);
+  exact(raw, ['version', 'publicOrigin', 'listen', 'artifactRoot', 'workerStateRoot', 'workspaceDatabaseUrl', 'tasks', 'activity']);
+  if (raw.version !== 1 || typeof raw.publicOrigin !== 'string') refused();
+  const publicOrigin = createBrowserRequestPolicy(raw.publicOrigin).origin;
+  if (!publicOrigin.startsWith('https://')) refused();
+  const listen = record(raw.listen); exact(listen, ['host', 'port']);
+  if (!['127.0.0.1', '0.0.0.0'].includes(listen.host as string) || !Number.isInteger(listen.port)
+    || (listen.port as number) < 1024 || (listen.port as number) > 65535) refused();
+  const tasks = captureHostedTaskRuntimeOptions(raw.tasks as HostedTaskRuntimeOptions);
+  if (tasks.profile !== 'demo' || tasks.trustedOrigin !== publicOrigin || !tasks.demoWorkspaceId) refused();
+  const activity = structuredClone(raw.activity) as HostedDemoRuntimeOptions;
+  const activityRecord = record(raw.activity);
+  if (Object.keys(activityRecord).some(key => !['sourceRoot', 'configurationRoot', 'scenario', 'workspaceId', 'serviceId', 'connectionString',
+    'grantConnectionString', 'directoryConnectionString', 'projects', 'binary', 'doltBinary', 'scratchRoot'].includes(key))) refused();
+  if (!activity || activity.workspaceId !== tasks.demoWorkspaceId || !UUID.test(activity.serviceId)
+    || activity.now !== undefined || activity.scenario.manifest.workspaceId !== tasks.demoWorkspaceId
+    || demoScenarioHash(generateDemoScenario(activity.scenario.manifest)) !== demoScenarioHash(activity.scenario)) refused();
+  if (typeof raw.workspaceDatabaseUrl !== 'string' || !/^postgres(?:ql)?:\/\//u.test(raw.workspaceDatabaseUrl)) refused();
+  if (!Array.isArray(activity.projects) || activity.projects.length > tasks.targets.length
+    || new Set(activity.projects.map(project => project.mapping.projectId)).size !== activity.projects.length
+    || activity.directoryConnectionString !== tasks.directoryConnectionString
+    || activity.binary.path !== tasks.binary.path || activity.binary.sha256 !== tasks.binary.sha256
+    || activity.doltBinary.path !== tasks.doltBinary.path || activity.doltBinary.sha256 !== tasks.doltBinary.sha256) refused();
+  for (const project of activity.projects) {
+    const held = tasks.targets.find(row => row.mapping.projectId === project.mapping.projectId);
+    if (!held || Object.keys(held.mapping).some(key => held.mapping[key as keyof typeof held.mapping] !== project.mapping[key as keyof typeof held.mapping])
+      || Object.keys(held.target).some(key => held.target[key as keyof typeof held.target] !== project.target[key as keyof typeof held.target])) refused();
+  }
+  absolute(activity.sourceRoot); absolute(activity.scratchRoot);
+  if (activity.configurationRoot !== undefined) absolute(activity.configurationRoot);
+  // No customer cookies/mail/provider credentials or ambient worker overrides.
+  return Object.freeze({ version: 1, publicOrigin,
+    listen: Object.freeze({ host: listen.host as '127.0.0.1' | '0.0.0.0', port: listen.port as number }),
+    artifactRoot: absolute(raw.artifactRoot), workerStateRoot: absolute(raw.workerStateRoot),
+    workspaceDatabaseUrl: raw.workspaceDatabaseUrl, tasks, activity });
+}
+
+/** The same file inventory is checked before any pool, timer or listener. */
+export function readDemoArtifact(rootInput: string): DemoArtifactManifest {
+  const root = absolute(rootInput);
+  if (realpathSync(root) !== root) refused();
+  const filename = plainFile(root, 'manifest.json');
+  if (lstatSync(filename).size > 2 * 1024 * 1024) refused();
+  const raw = record(JSON.parse(readFileSync(filename, 'utf8')));
+  exact(raw, ['version', 'release', 'client', 'tower', 'ingest', 'files', 'publicFiles']);
+  if (raw.version !== 1 || typeof raw.release !== 'string' || !HASH.test(raw.release) || raw.client !== 'client') refused();
+  const files = record(raw.files);
+  if (!Object.keys(files).length || Object.keys(files).length > 4096) refused();
+  let size = 0;
+  for (const [name, hash] of Object.entries(files)) {
+    const file = plainFile(root, name), stat = lstatSync(file); size += stat.size;
+    if (typeof hash !== 'string' || !HASH.test(hash) || size > 128 * 1024 * 1024 || digest(readFileSync(file)) !== hash) refused();
+  }
+  function worker(input: unknown): DemoWorkerArtifact {
+    const entry = record(input); exact(entry, ['main', 'modulesRoot', 'compatibilityDate', 'compatibilityFlags']);
+    const main = relative(entry.main), modulesRoot = relative(entry.modulesRoot);
+    if (!Object.hasOwn(files, main) || !main.startsWith(modulesRoot + '/') || typeof entry.compatibilityDate !== 'string' || !/^\d{4}-\d\d-\d\d$/u.test(entry.compatibilityDate)
+      || !Array.isArray(entry.compatibilityFlags) || entry.compatibilityFlags.length !== 1 || entry.compatibilityFlags[0] !== 'nodejs_compat') refused();
+    return Object.freeze({ main, modulesRoot, compatibilityDate: entry.compatibilityDate as string, compatibilityFlags: Object.freeze(['nodejs_compat']) });
+  }
+  if (!Array.isArray(raw.publicFiles) || raw.publicFiles.length > 4096 || new Set(raw.publicFiles).size !== raw.publicFiles.length) refused();
+  const publicFiles = raw.publicFiles.map(value => {
+    const name = relative(value);
+    if (!name.startsWith('client/') || name.split('/').some(part => part.startsWith('.') || /^(?:wrangler|manifest|package|tsconfig)(?:\.|$)/u.test(part))
+      || !['.html', '.js', '.css', '.json', '.svg', '.png', '.ico', '.webp', '.woff2', '.txt', '.md', '.zip'].includes(path.extname(name))
+      || !Object.hasOwn(files, name)) refused(); return name;
+  });
+  if (!publicFiles.includes('client/index.html')) refused();
+  return Object.freeze({ version: 1, release: raw.release, client: 'client', tower: worker(raw.tower), ingest: worker(raw.ingest),
+    files: Object.freeze(files as Record<string, string>), publicFiles: Object.freeze(publicFiles) });
+}
+
+const TYPES: Readonly<Record<string, string>> = Object.freeze({ '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon',
+  '.webp': 'image/webp', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8', '.zip': 'application/zip' });
+// Fixed built app routes, including its public legacy aliases (App.tsx).
+const PAGE = /^\/(?:|wall(?:\/edit)?|financials|settings|integrations|workflows(?:\/[^/]+)?|tasks(?:\/[^/]+)?|work|(?:assets|properties)(?:\/[^/]+(?:\/[^/]+)?)?|alerts(?:\/[^/]+)?|health(?:\/operations(?:\/[^/]+)?)?)$/u;
+function page(pathname: string): boolean {
+  return !/\.(?:m?[jt]sx?|map|json|env|css|html)$/iu.test(pathname) && !pathname.includes('%') && PAGE.test(pathname);
+}
+function json(status: number, value: unknown): Response {
+  return Response.json(value, { status, headers: { 'cache-control': 'no-store' } });
+}
+
+/** Request URL is reconstructed from configured public authority, never a
+ * forwarded header. The listener must remain behind the declared TLS edge. */
+export function demoRequestTarget(origin: string, incoming: IncomingMessage): URL {
+  const configured = new URL(origin);
+  const hosts = incoming.rawHeaders.filter((_entry, i, all) => i % 2 === 1 && all[i - 1]!.toLowerCase() === 'host');
+  if (hosts.length !== 1 || hosts[0] !== configured.host || !incoming.url?.startsWith('/') || incoming.url.startsWith('//')
+    || /[\r\n\\]/u.test(incoming.url) || incoming.url.length > 8192) refused();
+  const target = new URL(incoming.url, origin);
+  if (target.origin !== origin || target.hash) refused();
+  return target;
+}
+async function body(incoming: IncomingMessage, signal: AbortSignal): Promise<Uint8Array | undefined> {
+  if (['GET', 'HEAD'].includes(incoming.method ?? '')) {
+    if (incoming.headers['transfer-encoding'] !== undefined || incoming.headers['content-length'] && incoming.headers['content-length'] !== '0') refused();
+    return undefined;
+  }
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = []; let size = 0, settled = false;
+    const done = (error?: Error) => {
+      if (settled) return; settled = true;
+      incoming.off('data', data); incoming.off('end', end); incoming.off('error', fail); signal.removeEventListener('abort', abort);
+      if (error) { incoming.pause(); reject(error); } else resolve(Buffer.concat(chunks));
+    };
+    const data = (chunk: Buffer) => { size += chunk.length; if (size > 256 * 1024) done(new Error('Body too large')); else chunks.push(chunk); };
+    const end = () => done(); const fail = (error: Error) => done(error); const abort = () => done(new Error('Request interrupted'));
+    incoming.on('data', data); incoming.once('end', end); incoming.once('error', fail); signal.addEventListener('abort', abort, { once: true });
+    if (signal.aborted) abort();
+  });
+}
+async function responseBytes(response: Response, signal: AbortSignal): Promise<Buffer> {
+  if (!response.body) return Buffer.alloc(0);
+  const reader = response.body.getReader(), chunks: Buffer[] = [];
+  let size = 0;
+  let stop: () => void = () => undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    stop = () => reject(new Error('Request interrupted'));
+    if (signal.aborted) stop(); else signal.addEventListener('abort', stop, { once: true });
+  });
+  // Observe cancellation; a hostile stream cannot extend the gateway deadline.
+  const cancel = () => { void reader.cancel().catch(() => undefined); };
+  signal.addEventListener('abort', cancel, { once: true });
+  try {
+    while (true) {
+      const next = await Promise.race([reader.read(), aborted]);
+      if (next.done) return Buffer.concat(chunks);
+      size += next.value.byteLength; if (size > 8 * 1024 * 1024) throw new Error('Response too large');
+      chunks.push(Buffer.from(next.value));
+    }
+  } catch (error) { cancel(); throw error; }
+  finally { signal.removeEventListener('abort', cancel); signal.removeEventListener('abort', stop); reader.releaseLock(); }
+}
+
+export async function startHostedDemoServer(input: HostedDemoServerOptions, adapters?: HostedDemoServerAdapters): Promise<{
+  readonly publicOrigin: string; close(): Promise<void>;
+}> {
+  const configuration = captureHostedDemoServerOptions(input), artifact = readDemoArtifact(configuration.artifactRoot);
+  const open = adapters ?? (() => {
+    const require = createRequire(new URL('../workers/ingest/package.json', import.meta.url));
+    const wrangler = createRequire(require.resolve('wrangler/package.json'));
+    const { Miniflare, Log } = wrangler('miniflare') as { Miniflare: new (options: Record<string, unknown>) => Workers; Log: new (level: number) => unknown };
+    return { openTasks: openHostedTaskRuntime, startActivity: startHostedDemo,
+      openWorkers: options => new Miniflare({ ...options, log: new Log(0),
+        handleRuntimeStdio: (stdout: Readable, stderr: Readable) => { stdout.resume(); stderr.resume(); } }) } satisfies HostedDemoServerAdapters;
+  })();
+  const binding = { [PRODUCT_ENV.workspaceProfile.name]: 'demo', [PRODUCT_ENV.workspaceOrigin.name]: configuration.publicOrigin,
+    [PRODUCT_ENV.workspaceDatabase.name]: configuration.workspaceDatabaseUrl,
+    [PRODUCT_ENV.identityDatabase.name]: configuration.tasks.identity.connectionString,
+    [PRODUCT_ENV.identitySecret.name]: configuration.tasks.identity.sessionSecret,
+    [PRODUCT_ENV.demoWorkspace.name]: configuration.tasks.demoWorkspaceId,
+    [PRODUCT_ENV.demoActivityService.name]: configuration.activity.serviceId,
+    [PRODUCT_ENV.demoScenarioHash.name]: demoScenarioHash(configuration.activity.scenario) };
+  const worker = (name: string, entry: DemoWorkerArtifact) => ({ name, modules: true,
+    modulesRules: [{ type: 'ESModule', include: ['**/*.js', '**/*.mjs'] }],
+    modulesRoot: path.join(configuration.artifactRoot, entry.modulesRoot), scriptPath: path.join(configuration.artifactRoot, entry.main),
+    compatibilityDate: entry.compatibilityDate, compatibilityFlags: [...entry.compatibilityFlags], bindings: binding,
+    outboundService: async () => new Response('Demo external fetch refused.', { status: 403 }) });
+  let tasks: Runtime | undefined, activity: Activity | undefined, workers: Workers | undefined;
+  const dispatch = async (proof: Request): Promise<Response> => workers!.dispatchFetch(proof.url, { method: proof.method,
+    headers: Object.fromEntries(proof.headers), signal: proof.signal,
+    ...(['GET', 'HEAD'].includes(proof.method) ? {} : { body: await proof.arrayBuffer() }) });
+  const pending = new Set<Promise<void>>(), aborts = new Set<AbortController>();
+  let closing: Promise<void> | undefined, ready = false;
+  const server = createServer((incoming, outgoing) => {
+    if (pending.size >= 32) { outgoing.writeHead(503, { 'connection': 'close' }); outgoing.end(); return; }
+    const abort = new AbortController(); aborts.add(abort);
+    const stop = () => { abort.abort(); outgoing.destroy(); }; const disconnected = () => { if (!outgoing.writableEnded) stop(); };
+    const timeout = setTimeout(stop, 35000); timeout.unref();
+    incoming.once('aborted', stop); outgoing.once('close', disconnected);
+    const work = (async () => {
+      let response: Response;
+      try {
+        const target = demoRequestTarget(configuration.publicOrigin, incoming);
+        const headers = new Headers();
+        for (let i = 0; i < incoming.rawHeaders.length; i += 2) {
+          const key = incoming.rawHeaders[i]!;
+          if (key.toLowerCase() === 'forwarded' || key.toLowerCase().startsWith('x-forwarded-')) continue;
+          headers.append(key, incoming.rawHeaders[i + 1]!);
+        }
+        const method = incoming.method ?? '';
+        const bytes = await body(incoming, abort.signal);
+        const proof = new Request(target, { method, headers, signal: abort.signal, ...(bytes === undefined ? {} : { body: bytes as BodyInit }) });
+        if (!ready || abort.signal.aborted) response = json(503, { error: 'demo_unavailable' });
+        else if (target.pathname === '/__noticeos_health') {
+          let healthy = method === 'GET' && !target.search && activity!.status().running && !activity!.status().error;
+          if (healthy) {
+            const workerHealth = await dispatch(new Request(configuration.publicOrigin + '/api/session', { signal: abort.signal }));
+            const taskHealth = await tasks!.handle(new Request(configuration.publicOrigin + '/api/tasks/projects', { signal: abort.signal }));
+            healthy = workerHealth.ok && taskHealth.ok;
+            await responseBytes(workerHealth, abort.signal); await responseBytes(taskHealth, abort.signal);
+          }
+          response = json(healthy ? 200 : 503, { ok: healthy });
+        }
+        else if (target.pathname.startsWith('/api/')) {
+          const clientRelease = headers.get(RELEASE_HEADER);
+          if (clientRelease !== null && clientRelease !== artifact.release) response = json(409, { error: 'app_release_changed' });
+          else if (target.pathname === '/api/app-release') response = method === 'GET' && !target.search ? json(200, { release: artifact.release }) : json(405, { error: 'method_not_allowed' });
+          else if (target.pathname === '/api/tasks' || target.pathname.startsWith('/api/tasks/') || target.pathname.startsWith('/api/gates/')) response = await tasks!.handle(proof);
+          else response = await dispatch(proof);
+          const amended = new Headers(response.headers); amended.set(RELEASE_HEADER, artifact.release); amended.set('cache-control', 'no-store');
+          response = new Response(response.body, { status: response.status, statusText: response.statusText, headers: amended });
+        } else if (!['GET', 'HEAD'].includes(method)) response = json(405, { error: 'method_not_allowed' });
+        else {
+          const named = 'client' + target.pathname;
+          const selected = artifact.publicFiles.includes(named) ? named : page(target.pathname) ? 'client/index.html' : null;
+          if (!selected) response = json(404, { error: 'not_found' });
+          else {
+            const bytes = readFileSync(plainFile(configuration.artifactRoot, selected));
+            if (digest(bytes) !== artifact.files[selected]) refused();
+            response = new Response(bytes, { headers: { 'content-type': TYPES[path.extname(selected)] ?? 'application/octet-stream',
+              'cache-control': selected.endsWith('.html') ? 'no-cache' : 'public, max-age=3600' } });
+          }
+        }
+      } catch {
+        response = json(400, { error: 'invalid_demo_request' }); response.headers.set('connection', 'close');
+      }
+      if (abort.signal.aborted || outgoing.destroyed) { void response.body?.cancel().catch(() => undefined); return; }
+      const bytes = await responseBytes(response, abort.signal);
+      outgoing.writeHead(response.status, Object.fromEntries(response.headers));
+      outgoing.end(incoming.method === 'HEAD' ? undefined : bytes);
+    })().catch(() => { outgoing.destroy(); }).finally(() => {
+      clearTimeout(timeout); incoming.off('aborted', stop); outgoing.off('close', disconnected); aborts.delete(abort); pending.delete(work);
+    });
+    pending.add(work);
+  });
+  server.maxConnections = 64; server.headersTimeout = 5000; server.requestTimeout = 10000;
+  server.on('upgrade', (_request, socket) => socket.destroy());
+  const close = (): Promise<void> => closing ??= (async () => {
+    ready = false; for (const abort of aborts) abort.abort();
+    const stopped = new Promise<void>((resolve, reject) => server.close(error => error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING' ? reject(error) : resolve()));
+    server.closeAllConnections();
+    await stopped; await Promise.allSettled([...pending]);
+    const results = await Promise.allSettled([Promise.resolve().then(() => activity?.close()), Promise.resolve().then(() => tasks?.close()), Promise.resolve().then(() => workers?.dispose())]);
+    for (const result of results) if (result.status === 'rejected') throw result.reason;
+  })();
+  try {
+    tasks = await open.openTasks(configuration.tasks);
+    workers = open.openWorkers({ host: '127.0.0.1', port: 0, cf: false, inspectorPort: undefined,
+      defaultPersistRoot: configuration.workerStateRoot, logRequests: false, telemetry: { enabled: false }, workers: [
+        { ...worker('tower', artifact.tower), serviceBindings: { INGEST: 'ingest' } }, worker('ingest', artifact.ingest),
+      ] });
+    await workers.getWorker('tower');
+    activity = await open.startActivity(configuration.activity);
+    ready = true;
+    await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(configuration.listen.port, configuration.listen.host, () => { server.off('error', reject); resolve(); }); });
+    return Object.freeze({ publicOrigin: configuration.publicOrigin, close });
+  } catch {
+    try { await close(); } catch { /* startup remains unavailable */ }
+    refused();
+  }
+}

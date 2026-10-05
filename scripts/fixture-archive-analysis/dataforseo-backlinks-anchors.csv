@@ -1,0 +1,2 @@
+asset,report_date,collected_at,data_state,provider_truncated,anchor,backlinks,backlinks_spam_score,broken_backlinks,broken_pages,first_seen,lost_date,provider_cost_usd,rank,referring_domains,referring_domains_nofollow,referring_main_domains,referring_pages,row_grain
+meals.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,false,"meal planner, free",40,,,,,,0.02,100,12,,,,anchor

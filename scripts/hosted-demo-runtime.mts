@@ -1,0 +1,107 @@
+/** Native deployment composition for one already seeded demo tenant. Opening
+ * it never provisions a workspace, changes schema or reads an installation.
+ * Its only outward adapter is the fixed, scoped Beads executor. */
+import { openWorkspaceStore } from '../packages/postgres/src/store.mjs';
+import { openWorkspaceServiceGrant } from '../packages/postgres/src/service-grant.mjs';
+import { openTaskDirectory, type TaskProjectMapping } from '../packages/postgres/src/task-directory.mjs';
+import { createWorkspaceAdmission } from './workspace-admission.mjs';
+import { createHostedTaskExecutor, type HostedTaskTarget, type HostedTaskExecutorOptions } from './hosted-task-executor.mjs';
+import { createHostedDemo, type HostedDemoOptions, type HostedDemoTick, type DemoActivityWriter } from './hosted-demo.mjs';
+import { buildDemoWorkerHelpers } from './demo-evaluator.mjs';
+
+export interface HostedDemoRuntimeOptions {
+  readonly sourceRoot: string;
+  /** Server-owned defaults root; isolated fixtures use their frozen config. */
+  readonly configurationRoot?: string;
+  readonly scenario: HostedDemoOptions['scenario'];
+  readonly workspaceId: string;
+  readonly serviceId: string;
+  readonly connectionString: string;
+  readonly grantConnectionString: string;
+  readonly directoryConnectionString: string;
+  readonly projects: readonly { readonly asset: string; readonly prefix: string; readonly mapping: TaskProjectMapping; readonly target: HostedTaskTarget }[];
+  readonly binary: HostedTaskExecutorOptions['binary'];
+  readonly doltBinary: HostedTaskExecutorOptions['doltBinary'];
+  readonly scratchRoot: string;
+  /** Trusted server clock; disposable qualification can hold a reporting day. */
+  readonly now?: HostedDemoOptions['now'];
+}
+
+export async function openHostedDemo(options: HostedDemoRuntimeOptions): Promise<ReturnType<typeof createHostedDemo>> {
+  const { workspaceId, serviceId, sourceRoot, configurationRoot, connectionString, grantConnectionString, directoryConnectionString, scratchRoot, now } = options;
+  const scenario = structuredClone(options.scenario), binary = Object.freeze({ ...options.binary }), doltBinary = Object.freeze({ ...options.doltBinary });
+  const projects = options.projects.map(row => Object.freeze({ asset: row.asset, prefix: row.prefix,
+    mapping: Object.freeze({ ...row.mapping }), target: Object.freeze({ ...row.target }) }));
+  if (projects.some(row => row.mapping.workspaceId !== workspaceId)
+    || new Set(projects.map(row => row.mapping.projectId)).size !== projects.length) throw new Error('Demo project binding refused.');
+  const allocations = new Map(projects.map(row => [row.mapping.projectId, row]));
+  const resources: { close(): Promise<void> }[] = [];
+  let demo: ReturnType<typeof createHostedDemo> | undefined;
+  try {
+    const store = openWorkspaceStore(connectionString, { workspaceId });
+    resources.push(store);
+    const grant = openWorkspaceServiceGrant({ connectionString: grantConnectionString, principalId: serviceId, workspaceId });
+    resources.push(grant);
+    const directory = openTaskDirectory({ connectionString: directoryConnectionString });
+    resources.push(directory);
+    const admission = createWorkspaceAdmission({ kind: 'service', profile: Symbol('demo task service'), authority: async () => {
+      const facts = await grant.facts();
+      if (!facts || facts.principalId !== serviceId || facts.workspaceId !== workspaceId) throw new Error('Demo service refused.');
+      return facts;
+    } });
+    const tasks = createHostedTaskExecutor({ admission, directory, binary, doltBinary, scratchRoot,
+      resolveTarget: async mapping => {
+        const held = allocations.get(mapping.projectId);
+        if (!held || Object.keys(held.mapping).some(key => held.mapping[key as keyof TaskProjectMapping] !== mapping[key as keyof TaskProjectMapping])) return null;
+        return held.target;
+      } });
+    const helpers = await buildDemoWorkerHelpers(sourceRoot, { activity: true, configurationRoot });
+    if (typeof helpers.writeDemoActivity !== 'function' || typeof helpers.writeDemoTaskSnapshot !== 'function') throw new Error('Released demo input writer absent.');
+    const write: DemoActivityWriter['write'] = helpers.writeDemoActivity;
+    const snapshot: DemoActivityWriter['snapshot'] = helpers.writeDemoTaskSnapshot;
+    demo = createHostedDemo({ workspaceId, serviceId, scenario, store, grant, writer: { write, snapshot }, tasks, now,
+      projects: projects.map(row => ({ asset: row.asset, prefix: row.prefix, projectId: row.mapping.projectId })) });
+    const opened = demo;
+    let closing: Promise<void> | undefined;
+    return Object.freeze({ tick: () => opened.tick(), close() {
+      if (closing) return closing;
+      closing = (async () => {
+        try { await opened.close(); } finally { await directory.close(); }
+      })(); return closing;
+    } });
+  } catch (error) {
+    await Promise.allSettled([demo?.close(), ...resources.map(resource => resource.close())]); throw error;
+  }
+}
+
+/** One minute timer, one in-flight tick, no backlog of timers. Each tick's
+ * database journal arbitrates concurrent hosts and limits catch-up to seven
+ * days. No swallowed failure is reported as a healthy running simulator. */
+export async function startHostedDemo(options: HostedDemoRuntimeOptions): Promise<{
+  status(): { running: boolean; last: HostedDemoTick | null; error: 'activity-unavailable' | null };
+  close(): Promise<void>;
+}> {
+  const demo = await openHostedDemo(options);
+  let stopped = false, closing: Promise<void> | undefined, pending: Promise<void> | undefined;
+  let last: HostedDemoTick | null = null, error: 'activity-unavailable' | null = null;
+  const run = (): Promise<void> => {
+    if (stopped || pending) return pending ?? Promise.resolve();
+    const work = (async () => {
+      try {
+        last = await demo.tick();
+        error = last.days.some(day => !['succeeded', 'busy'].includes(day.receipt.state)) ? 'activity-unavailable' : null;
+      } catch { error = 'activity-unavailable'; }
+    })();
+    pending = work; void work.then(() => { if (pending === work) pending = undefined; }); return work;
+  };
+  await run();
+  const timer = setInterval(() => { void run(); }, 60000);
+  timer.unref();
+  return Object.freeze({ status: () => ({ running: !stopped, last: last ? structuredClone(last) : null, error }),
+    close() {
+      if (closing) return closing;
+      stopped = true; clearInterval(timer);
+      closing = (async () => { await demo.close(); await pending; })(); return closing;
+    },
+  });
+}

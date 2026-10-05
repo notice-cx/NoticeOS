@@ -1,0 +1,48 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "noEmitOnError": true,
+    "declaration": true,
+    "rootDir": ".",
+    "types": [],
+    "lib": [
+      "ES2023",
+      "DOM"
+    ]
+  },
+  "include": [
+    "scripts/workflow-history-view.mts",
+    "packages/contract/src/configuration.mts",
+    "packages/contract/src/product-use.mts",
+    "packages/contract/src/ledger-coverage.mts",
+    "packages/contract/src/posthog-families.mts",
+    "packages/contract/src/search-market.mts",
+    "packages/contract/src/task-metadata.mts",
+    "packages/contract/src/task-gate.mts",
+    "packages/contract/src/watch-series.mts",
+    "packages/contract/src/task-snapshot.mts",
+    "scripts/config-documents.mts",
+    "scripts/config-defaults.mts",
+    "scripts/released-defaults.mts",
+    "scripts/hosted-task-command.mts",
+    "scripts/workspace-admission.mts",
+    "scripts/browser-request-policy.mts",
+    "scripts/identity-protocol.mts",
+    "scripts/workspace-operations.mts",
+    "scripts/demo-viewer-policy.mts",
+    "scripts/demo-visit.mts",
+    "scripts/workflow-output.mts",
+    "scripts/workflow-trace.mts",
+    "scripts/workflow-definitions.mts",
+    "scripts/scheduled-jobs.mts",
+    "scripts/os-deploy-events.mts",
+    "scripts/wall-layout.mts",
+    "scripts/wall-fit-measure.mts",
+    "scripts/config-registers.mts",
+    "scripts/product-env.mts",
+    "scripts/os-log.mts",
+    "scripts/jsonc.mts",
+    "scripts/postgres-migration-files.mts"
+  ]
+}

@@ -1,0 +1,192 @@
+// A VITE DEV SERVER A TEST STARTS AND STOPS (beads ro-ujb9.186, ro-ujb9.192).
+//
+// Vite 8 starts a dependency optimizer when a dev server begins listening: a
+// rolldown scan and bundle running in the background. Closing the server while
+// that is still running kills the process inside rolldown's native code
+// (SIGSEGV or SIGBUS), or leaves the close waiting forever. A test server is
+// closed seconds after it starts, which is exactly then: the Tower's door e2e
+// test killed its Vitest worker that way, and the journey fixture servers
+// crashed or hung at their SIGTERM.
+//
+// So every Vite dev server a test or the journeys start in-process is created
+// by `createTestViteServer`, which gives it:
+//
+//   - a close that first waits for any optimizer run still in flight. It
+//     replaces the server's own `close`, which Vite's SIGTERM handler calls
+//     too, so a server stopped by a signal waits the same way;
+//   - no dependency optimizer at all when no page is loaded from it
+//     (`pages: false`), because a throwaway server has nothing to optimize;
+//   - its own cache folder in the OS temp dir, removed when its process
+//     exits, so no two runs, and no run and `pnpm dev`, share one;
+//   - no file watcher: nothing edits the source while a test runs, and a
+//     watcher is what restarts a server, whose new `close` would not wait.
+//
+// The Workers' debugger port, the fourth protection, is an option of the
+// Cloudflare plugin itself: apps/tower/vite.config.ts, the only config that
+// loads that plugin, asks the kernel for it.
+//
+// It never imports Vite (scripts/ cannot resolve it): the caller hands in
+// Vite's `createServer`, and only the parts read here are typed. Authored
+// TypeScript: `pnpm config:generate` writes the `.mjs` and the `.d.mts`.
+
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+/** The parts of a Vite dependency optimizer read here. */
+export interface OptimizerLike {
+  /** Set while the first run scans the project for dependencies. */
+  readonly scanProcessing?: Promise<void> | undefined;
+  /** Each dependency found and not yet bundled carries its bundle's promise. */
+  readonly metadata: {
+    readonly discovered: Readonly<Record<string, { readonly processing?: Promise<void> | undefined }>>;
+  };
+}
+
+/** The parts of a Vite dev server read and replaced here. */
+export interface TestViteServerLike {
+  readonly environments: Readonly<Record<string, { readonly depsOptimizer?: OptimizerLike | undefined } | undefined>>;
+  close(): Promise<void>;
+}
+
+/** The parts of a Vite inline config written here. */
+export interface TestViteConfigLike {
+  cacheDir?: string;
+  plugins?: readonly unknown[];
+  server?: object;
+}
+
+/** The parts of a Vite plugin this module writes. */
+export interface OptimizerOffPlugin {
+  readonly name: string;
+  readonly enforce: 'post';
+  configEnvironment(name: string, options: { optimizeDeps?: Record<string, unknown> }): void;
+}
+
+/** What `createTestViteServer` needs besides the config. */
+export interface TestViteServerOptions {
+  /** Whether a browser loads pages from it: only then does it run the dependency optimizer. */
+  pages: boolean;
+  /** How long a close waits for the optimizer before closing anyway. */
+  optimizerTimeoutMs?: number;
+}
+
+/** The prefix of every test server's cache folder in the OS temp dir. */
+export const TEST_VITE_CACHE_PREFIX: string = 'noticeos-vite-test-';
+
+/** How long a close waits for the optimizer by default: a cold bundle of the Tower's dependencies on a loaded host. */
+export const OPTIMIZER_TIMEOUT_MS: number = 60_000;
+
+/**
+ * The client environment's dependency optimizer, off. A plugin rather than
+ * `optimizeDeps` in the inline config because Vite merges `include` lists and
+ * the React plugin adds to it: only an empty list, set last, turns it off.
+ */
+export function optimizerOff(): OptimizerOffPlugin {
+  return {
+    name: 'test-vite-server:optimizer-off',
+    enforce: 'post',
+    configEnvironment(name, options) {
+      if (name === 'client') options.optimizeDeps = { ...options.optimizeDeps, noDiscovery: true, include: [] };
+    },
+  };
+}
+
+/** The optimizer work a server still has in flight: a scan, or a bundle some dependency waits on. */
+export function optimizerWork(server: TestViteServerLike): Promise<void>[] {
+  const work: Promise<void>[] = [];
+  for (const environment of Object.values(server.environments)) {
+    const optimizer = environment?.depsOptimizer;
+    if (!optimizer) continue;
+    if (optimizer.scanProcessing) work.push(optimizer.scanProcessing);
+    for (const dependency of Object.values(optimizer.metadata.discovered)) {
+      if (dependency.processing) work.push(dependency.processing);
+    }
+  }
+  return work;
+}
+
+/**
+ * Resolves true once no optimizer work is in flight, or false when `timeoutMs`
+ * passes first. A finished run can leave its settled promise on a dependency,
+ * so a promise counts once it has settled, and each pass looks again for work
+ * a run started meanwhile.
+ */
+export async function optimizerIdle(server: TestViteServerLike, timeoutMs: number = OPTIMIZER_TIMEOUT_MS): Promise<boolean> {
+  const settled = new WeakSet<Promise<void>>();
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const pending = optimizerWork(server).filter((work) => !settled.has(work));
+    if (pending.length === 0) return true;
+    const left = deadline - Date.now();
+    if (left <= 0) return false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<void>((resolve) => { timer = setTimeout(resolve, left); });
+    const allSettled = Promise.all(pending.map((work) => work.then(
+      () => { settled.add(work); },
+      () => { settled.add(work); },
+    ))).then(() => undefined);
+    await Promise.race([allSettled, timedOut]);
+    clearTimeout(timer);
+  }
+}
+
+function running(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+/**
+ * A new cache folder in `parent` for this process, removed when it exits. A
+ * folder whose process is gone (killed before its exit handler ran) is removed
+ * by the next one made; a live process's folder is never touched.
+ */
+export function testViteCacheDir(parent: string = os.tmpdir()): string {
+  for (const name of readdirSync(parent)) {
+    const pid = new RegExp(`^${TEST_VITE_CACHE_PREFIX}(\\d+)-`, 'u').exec(name)?.[1];
+    if (pid === undefined || running(Number(pid))) continue;
+    // Another process starting at the same moment may remove it first.
+    try { rmSync(path.join(parent, name), { recursive: true, force: true, maxRetries: 3 }); } catch { /* gone */ }
+  }
+  const dir = mkdtempSync(path.join(parent, `${TEST_VITE_CACHE_PREFIX}${process.pid}-`));
+  process.once('exit', () => rmSync(dir, { recursive: true, force: true, maxRetries: 3 }));
+  return dir;
+}
+
+/** `config` as a test server starts it: its own cache, no watcher, and no optimizer unless pages load. */
+export function testViteConfig<C extends TestViteConfigLike>(config: C, options: Pick<TestViteServerOptions, 'pages'>): C {
+  const tested: TestViteConfigLike = {
+    ...config,
+    cacheDir: testViteCacheDir(),
+    server: { ...config.server, watch: null },
+    plugins: [...(config.plugins ?? []), ...(options.pages ? [] : [optimizerOff()])],
+  };
+  return tested as C;
+}
+
+/** Makes every close of `server`, Vite's own on SIGTERM included, wait for its optimizer first. */
+export function closeAfterOptimizer<S extends TestViteServerLike>(server: S, timeoutMs: number = OPTIMIZER_TIMEOUT_MS): S {
+  const close = server.close.bind(server);
+  let closing: Promise<void> | undefined;
+  // Assigning through Vite's server proxy replaces the method its own SIGTERM handler calls.
+  server.close = () => {
+    closing ??= optimizerIdle(server, timeoutMs).then(() => close());
+    return closing;
+  };
+  return server;
+}
+
+/** A Vite dev server a test starts: see the top of this file. */
+export async function createTestViteServer<C extends TestViteConfigLike, S extends TestViteServerLike>(
+  createServer: (config?: C) => Promise<S>,
+  // Typed by the `createServer` handed in, so a caller's literal is checked against Vite's own config type.
+  config: NoInfer<C>,
+  options: TestViteServerOptions,
+): Promise<S> {
+  const server = await createServer(testViteConfig(config, options));
+  return closeAfterOptimizer(server, options.optimizerTimeoutMs);
+}

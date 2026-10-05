@@ -1,0 +1,116 @@
+// The declared task server and its isolated client environment.
+import { createHash } from "node:crypto";
+import * as fs from "node:fs";
+import path from "node:path";
+
+export interface DoltProfile {
+  project: string;
+  composeFile: string;
+  secretsDir: string;
+  credentialsFile: string;
+  port: number;
+}
+export interface DoltPlan { root: string; home: string; port: number }
+export type DoltEnvironment = Record<string, string | undefined>;
+const PROFILE_KEYS = ['composeFile', 'credentialsFile', 'port', 'project', 'secretsDir'];
+const forbiddenPorts = new Set([3306, 3307, 3308, 4747, 5173, 5432, 8791]);
+
+function canonical(file: string): string {
+  if (fs.existsSync(file)) return fs.realpathSync(file);
+  const parent = path.dirname(file);
+  return parent === file ? file : path.join(canonical(parent), path.basename(file));
+}
+
+export function startDoltPlan(plan: DoltPlan): DoltProfile {
+  return {
+    project: `noticeos-start-${createHash('sha256').update(canonical(plan.home)).digest('hex').slice(0, 16)}`,
+    composeFile: path.join(plan.root, 'db', 'dolt', 'host', 'compose.yaml'),
+    secretsDir: path.join(plan.home, 'dolt', 'secrets'),
+    credentialsFile: path.join(plan.home, 'dolt', 'credentials'),
+    port: plan.port + 3,
+  };
+}
+
+function absolutePath(value: unknown): value is string {
+  return typeof value === 'string' && path.isAbsolute(value) && !/[\r\n\0]/u.test(value);
+}
+
+export function isDoltProjectName(value: unknown): value is string {
+  return typeof value === 'string' && /^[a-z0-9][a-z0-9_-]{0,62}$/u.test(value);
+}
+
+/** Runtime declarations may join an existing installation project. Resource
+ * creation requires validateIsolatedDoltProfile instead. */
+export function validateDoltProfile(profile: unknown): DoltProfile {
+  if (!profile || typeof profile !== 'object' || Array.isArray(profile)) throw new Error('Invalid declared Dolt profile.');
+  const candidate = profile as Record<string, unknown>;
+  if (Object.keys(candidate).sort().join() !== PROFILE_KEYS.join() ||
+    !isDoltProjectName(candidate.project) ||
+    typeof candidate.port !== 'number' || !Number.isInteger(candidate.port) || candidate.port < 1024 || candidate.port > 65535 || forbiddenPorts.has(candidate.port) ||
+    !absolutePath(candidate.composeFile) || !absolutePath(candidate.secretsDir) || !absolutePath(candidate.credentialsFile) ||
+    path.dirname(candidate.secretsDir) !== path.dirname(candidate.credentialsFile) ||
+    path.basename(candidate.secretsDir) !== 'secrets' || path.basename(candidate.credentialsFile) !== 'credentials') {
+    throw new Error('Invalid declared Dolt profile.');
+  }
+  return { project: candidate.project, port: candidate.port, composeFile: candidate.composeFile,
+    secretsDir: candidate.secretsDir, credentialsFile: candidate.credentialsFile };
+}
+
+/** Fresh setup and restore never adopt a shared installation project. */
+export function validateIsolatedDoltProfile(profile: unknown): DoltProfile {
+  const checked = validateDoltProfile(profile);
+  if (!/^noticeos-start-[0-9a-f]{16}$/u.test(checked.project)) throw new Error('Task resource creation requires an isolated project.');
+  return checked;
+}
+
+export function readDoltProfile(home: string, { fs: io = fs }: { fs?: Pick<typeof fs, 'lstatSync' | 'readFileSync'> } = {}): DoltProfile | null {
+  const file = path.join(home, 'dolt', 'profile.json');
+  let stat: fs.Stats;
+  try { stat = io.lstatSync(file); } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null; throw new Error('Dolt profile cannot be read.'); }
+  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('Dolt profile must be a regular file.');
+  try {
+    const profile = validateDoltProfile(JSON.parse(io.readFileSync(file, 'utf8')));
+    if (profile.secretsDir !== path.join(home, 'dolt', 'secrets') || profile.credentialsFile !== path.join(home, 'dolt', 'credentials')) throw new Error('Wrong installation.');
+    return profile;
+  } catch { throw new Error('Invalid declared Dolt profile.'); }
+}
+
+/** Only tooling variables survive. All database/cloud credentials and Beads
+ * selectors are replaced with this installation's explicit declarations. */
+export function doltEnvironment(profile: DoltProfile, env: DoltEnvironment = process.env): DoltEnvironment {
+  validateDoltProfile(profile);
+  const selected: DoltEnvironment = {};
+  for (const key of ['PATH', 'TMPDIR', 'LANG', 'LC_ALL', 'LC_CTYPE', 'DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_CONFIG']) {
+    if (env[key] !== undefined) selected[key] = env[key];
+  }
+  // Docker's selected local context is client metadata, separate from Beads'
+  // credentials/configuration. Preserve its declared location before changing
+  // HOME; never copy the Docker configuration into the installation.
+  if (!selected.DOCKER_CONFIG && env.HOME) selected.DOCKER_CONFIG = path.join(env.HOME, '.docker');
+  return {
+    ...selected,
+    HOME: path.join(path.dirname(profile.credentialsFile), 'client-home'),
+    XDG_CONFIG_HOME: path.join(path.dirname(profile.credentialsFile), 'client-home', '.config'),
+    BEADS_CREDENTIALS_FILE: profile.credentialsFile,
+    BEADS_DOLT_SERVER_MODE: '1', BEADS_DOLT_SERVER_HOST: '127.0.0.1',
+    BEADS_DOLT_SERVER_PORT: String(profile.port), BEADS_DOLT_SERVER_USER: 'noticeos',
+    BEADS_DOLT_AUTO_START: '0',
+    BD_DISABLE_METRICS: '1', BD_DISABLE_ERROR_REPORTING: '1', DO_NOT_TRACK: '1',
+    DOLT_DISABLE_EVENT_FLUSH: '1',
+    NOTICEOS_DOLT_PORT: String(profile.port), NOTICEOS_DOLT_SECRETS: profile.secretsDir,
+  };
+}
+
+export function readDoltCredentials(profile: DoltProfile): { root: string; noticeos: string; credentials: string } {
+  const read = (file: string): string => {
+    const stat = fs.lstatSync(file);
+    if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077)) throw new Error('Dolt credentials must be private regular files.');
+    return fs.readFileSync(file, 'utf8');
+  };
+  const root = read(path.join(profile.secretsDir, 'root'));
+  const noticeos = read(path.join(profile.secretsDir, 'noticeos'));
+  const credentials = read(profile.credentialsFile);
+  if (!/^[0-9a-f]{64}\n$/u.test(root) || !/^[0-9a-f]{64}\n$/u.test(noticeos) ||
+    credentials !== `[127.0.0.1:${profile.port}]\npassword=${noticeos.trim()}\n`) throw new Error('Dolt credentials do not match the declared profile.');
+  return { root, noticeos, credentials };
+}

@@ -1,0 +1,103 @@
+import { Fragment, type ReactNode } from "react";
+import { Link } from "react-router-dom";
+import { cn } from "@/lib/utils";
+
+export interface PageHeaderCrumb {
+  label: string;
+  to: string;
+}
+
+export interface PageHeaderProps {
+  /** What this page is. A plain string, or a rich identity row (favicon, name,
+   * severity dot, badges) — either way it is the page's one `h1`. */
+  title: ReactNode;
+  /** One line saying what the page answers. */
+  description?: ReactNode;
+  /** Where this page sits, above the title. Rendered small, separated by `/`. */
+  breadcrumb?: PageHeaderCrumb[];
+  /** Right-aligned page-level controls; wraps under the title on narrow widths. */
+  actions?: ReactNode;
+  /** A fact ABOUT the page rather than a control — an age badge, a period —
+   * seated inline beside the description. */
+  meta?: ReactNode;
+  /** Full-width slot under the header, for tabs and section navigators. */
+  children?: ReactNode;
+  className?: string;
+}
+
+/**
+ * One page header for every desk surface (bead `ro-pbzu.1`).
+ *
+ * Before this, each route drew its own: a different heading size, a different
+ * back link ("← Home" on `/work` and `/health`, "← All properties" on
+ * `/financials` and the asset page), and the changeset cart on three pages
+ * out of five. Navigation now lives in the shell, so what a page owes the
+ * operator is only what it IS — hence no back link and no cart here, and none
+ * on any page that uses this.
+ *
+ * It is layout, not vocabulary: it introduces no state color, no chip, and no
+ * word of its own. `title` is deliberately a `ReactNode` so the asset page
+ * can keep its identity row (favicon, name, severity, domain, status badges)
+ * as the heading instead of duplicating the name above it — one representation
+ * per fact (doc 14).
+ */
+export function PageHeader({
+  title,
+  description,
+  breadcrumb,
+  actions,
+  meta,
+  children,
+  className,
+}: PageHeaderProps) {
+  return (
+    <header className={cn("flex flex-col gap-2", className)} data-page-header>
+      {breadcrumb && breadcrumb.length > 0 ? (
+        <nav
+          aria-label="Breadcrumb"
+          className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"
+        >
+          {breadcrumb.map((crumb, index) => (
+            <Fragment key={crumb.to}>
+              {index > 0 ? <span aria-hidden>/</span> : null}
+              <Link
+                to={crumb.to}
+                // A crumb is a LINK IN A NAV ROW, not a word in running text, so
+                // the 44px floor covers it (bead `ro-78qo.19`). The target is
+                // claimed rather than added — `OwnerChip`'s pattern: the
+                // negative margin hands the height back to the layout while the
+                // box keeps it, so the header does not grow on a phone.
+                className="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center"
+              >
+                {crumb.label}
+              </Link>
+            </Fragment>
+          ))}
+        </nav>
+      ) : null}
+
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h1 className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
+            {title}
+          </h1>
+          {description || meta ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {description ? (
+                <p className="text-sm text-muted-foreground">{description}</p>
+              ) : null}
+              {meta}
+            </div>
+          ) : null}
+        </div>
+        {actions ? (
+          <div className="flex flex-wrap items-center gap-2">{actions}</div>
+        ) : null}
+      </div>
+
+      {children}
+    </header>
+  );
+}
+
+export default PageHeader;

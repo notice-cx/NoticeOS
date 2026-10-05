@@ -1,0 +1,21 @@
+{
+  "schema": "noticeos-packaged-license-sources/1",
+  "licenses": [
+    {
+      "component": "Beads",
+      "version": "1.3.1",
+      "license": "MIT",
+      "file": "beads-1.3.1-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/gastownhall/beads/v1.3.1/LICENSE",
+      "sha256": "caa2c60efbbf71e18b45ef6006a18213f8a42554b235af88883f6f1ec240b7db"
+    },
+    {
+      "component": "Dolt",
+      "version": "2.4.0",
+      "license": "Apache-2.0",
+      "file": "dolt-2.4.0-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/dolthub/dolt/v2.4.0/LICENSE",
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "mediavine.webp": {
+    "source": "https://www.mediavine.com/wp-content/uploads/2025/11/mediavine-favicon-320x320.webp",
+    "reference": "https://www.mediavine.com/",
+    "retrieved": "2026-09-09",
+    "sha256": "b952741fa104449fad2cbd5d0ee60d8e8dc7c90665f410b5dddbbcbbb75a366e"
+  },
+  "dataforseo.png": {
+    "source": "https://dataforseo.com/wp-content/uploads/2022/04/cropped-favicon_512-1-192x192.png",
+    "reference": "https://dataforseo.com/",
+    "retrieved": "2026-09-09",
+    "sha256": "fa420d8b76e4d666071ca7a782ac742dae56341b9de8c504df341d81a8a39f78"
+  },
+  "bing.png": {
+    "source": "https://www.bing.com/webmasters/Content/PWA/iOS/logo/bing-logo-180.png",
+    "reference": "https://www.bing.com/webmasters/",
+    "retrieved": "2026-09-09",
+    "sha256": "383a5c4a5ea4608a1ecac35f083d3e92eb71a46399c24fda128d9eb55e6bb31b"
+  },
+  "discord.svg": {
+    "source": "https://cdn.prod.website-files.com/6257adef93867e50d84d30e2/66e3d80db9971f10a9757c99_Symbol.svg",
+    "reference": "https://discord.com/branding",
+    "retrieved": "2026-09-09",
+    "sha256": "296286aa112c4400af8e96191ab888f81abd4bd1d5dc7294112a622ef43581b1"
+  },
+  "clarity.png": {
+    "source": "https://clarity.microsoft.com/blog/wp-content/uploads/2025/02/siteIcon.png",
+    "reference": "https://clarity.microsoft.com/blog/a-behind-the-scenes-look-the-new-clarity-app-icon/",
+    "retrieved": "2026-09-09",
+    "sha256": "71c524b91e4d51c0dc59bd7abfa781891532c410f010e03aa3e4532f925de9ae"
+  },
+  "google.svg": {
+    "source": "https://blog.google/static/blogv2/images/super-g-aurora.svg",
+    "reference": "https://blog.google/company-news/inside-google/company-announcements/gradient-g-logo-design/",
+    "retrieved": "2026-09-09",
+    "sha256": "af3b6eda0266ea1abcaf9e45674f3de73757c70c4cb0db7149ca6e14c582bdb7"
+  },
+  "posthog.svg": {
+    "source": "https://posthog.com/brand/posthog-logomark.svg",
+    "reference": "https://posthog.com/handbook/company/brand-assets",
+    "retrieved": "2026-09-22",
+    "sha256": "0fcd1cbdd0366188c9829735662f2bcaedb868a4380a48ca45ca444133a61913"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "$comment": "See config/recurring-costs.README.md. Amounts are USD per month.",
+  "costs": [
+    {
+      "id": "claude-code",
+      "label": "Claude Code (Max)",
+      "asset": "root-os",
+      "family": "inference",
+      "amountUsdPerMonth": 200,
+      "from": "2026-06",
+      "note": "The OS's own agent inference. Portfolio overhead — not attributable to any one asset."
+    },
+    {
+      "id": "cloudflare",
+      "label": "Cloudflare paid plan",
+      "asset": "root-os",
+      "family": "infra",
+      "amountUsdPerMonth": 5,
+      "from": "2026-06",
+      "note": "Workers/D1/R2 for the OS and every asset. Portfolio overhead."
+    }
+  ]
+}

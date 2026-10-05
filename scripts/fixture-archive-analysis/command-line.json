@@ -1,0 +1,44 @@
+[
+  {
+    "args": [
+      "--help"
+    ],
+    "status": 0,
+    "stdout": "Usage:\n  pnpm signals:analyze -- --asset example.com [options]\n\nOptions:\n  --asset <id>        required property id\n  --in <directory>    default .local/signal-dumps/downloads/<asset>\n  --out <directory>   default .local/signal-dumps/analysis/<asset>\n  --reclamation-targets <path>\n                      this property's OPEN outreach targets, as\n                      pnpm reclamation:open-targets writes them. When\n                      absent the reclamation rule stays silent.\n\n",
+    "stderr": ""
+  },
+  {
+    "args": [
+      "--asset"
+    ],
+    "status": 1,
+    "stdout": "Usage:\n  pnpm signals:analyze -- --asset example.com [options]\n\nOptions:\n  --asset <id>        required property id\n  --in <directory>    default .local/signal-dumps/downloads/<asset>\n  --out <directory>   default .local/signal-dumps/analysis/<asset>\n  --reclamation-targets <path>\n                      this property's OPEN outreach targets, as\n                      pnpm reclamation:open-targets writes them. When\n                      absent the reclamation rule stays silent.\n\n",
+    "stderr": "--asset needs a value.\n"
+  },
+  {
+    "args": [
+      "--asset",
+      "Not A Site"
+    ],
+    "status": 1,
+    "stdout": "Usage:\n  pnpm signals:analyze -- --asset example.com [options]\n\nOptions:\n  --asset <id>        required property id\n  --in <directory>    default .local/signal-dumps/downloads/<asset>\n  --out <directory>   default .local/signal-dumps/analysis/<asset>\n  --reclamation-targets <path>\n                      this property's OPEN outreach targets, as\n                      pnpm reclamation:open-targets writes them. When\n                      absent the reclamation rule stays silent.\n\n",
+    "stderr": "--asset is required and must be a property id such as example.com.\n"
+  },
+  {
+    "args": [
+      "--asset",
+      "meals.example",
+      "--bogus",
+      "x"
+    ],
+    "status": 1,
+    "stdout": "Usage:\n  pnpm signals:analyze -- --asset example.com [options]\n\nOptions:\n  --asset <id>        required property id\n  --in <directory>    default .local/signal-dumps/downloads/<asset>\n  --out <directory>   default .local/signal-dumps/analysis/<asset>\n  --reclamation-targets <path>\n                      this property's OPEN outreach targets, as\n                      pnpm reclamation:open-targets writes them. When\n                      absent the reclamation rule stays silent.\n\n",
+    "stderr": "Unknown option: --bogus\n"
+  },
+  {
+    "args": [],
+    "status": 1,
+    "stdout": "Usage:\n  pnpm signals:analyze -- --asset example.com [options]\n\nOptions:\n  --asset <id>        required property id\n  --in <directory>    default .local/signal-dumps/downloads/<asset>\n  --out <directory>   default .local/signal-dumps/analysis/<asset>\n  --reclamation-targets <path>\n                      this property's OPEN outreach targets, as\n                      pnpm reclamation:open-targets writes them. When\n                      absent the reclamation rule stays silent.\n\n",
+    "stderr": "--asset is required and must be a property id such as example.com.\n"
+  }
+]

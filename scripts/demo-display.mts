@@ -1,0 +1,73 @@
+// Ordinary saved display settings for the positively owned synthetic scenario.
+import { DEFAULT_WALL_LAYOUT, wallLayoutWidgets } from './wall-layout.mjs';
+import { generateDemoScenario, demoScenarioHash, shiftDemoDay, type DemoScenario } from './demo-scenario.mjs';
+import { deepEqual } from './config-documents.mjs';
+import { lstatSync, realpathSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+
+interface SavedDocument { file: string; version: number | null; source: string; body: unknown; }
+interface DisplayHelpers {
+  getConfigDocuments(capability: unknown, files: string[]): Promise<SavedDocument[]>;
+  seedConfigDocuments(capability: unknown, input: { actor: string; documents: ReturnType<typeof generateDemoDisplay> }, now: number): Promise<{ ok: boolean; skipped?: unknown[] }>;
+}
+
+/** Only observed nightly totals are selected; no counter fetch source exists. */
+export function generateDemoDisplay(scenario: DemoScenario) {
+  if (demoScenarioHash(generateDemoScenario(scenario.manifest)) !== demoScenarioHash(scenario)) {
+    throw new Error('Demo display facts differ from their declared scenario.');
+  }
+  const sites = scenario.assets.filter(asset => !asset.isOs);
+  const layout = structuredClone(DEFAULT_WALL_LAYOUT);
+  const siteWidget = wallLayoutWidgets(layout).find(widget => widget.type === 'sites');
+  if (!siteWidget) throw new Error('The released Wall has no site region.');
+  siteWidget.settings = { pulseMetrics: Object.fromEntries(sites.map(asset => [asset.id, [asset.event!]])) };
+  const labels: Record<string, string> = {
+    brief_exports: 'Brief exports', source_saves: 'Source saves', completed_checks: 'Completed checks',
+  };
+  return {
+    'config/tower.json': {
+      readme: 'config/tower.README.md',
+      wall: { layout, history: [] },
+      countdown: {
+        emoji: '📅', label: 'Portfolio review',
+        targetAt: `${shiftDemoDay(scenario.manifest.referenceDate, 14)}T17:00:00.000Z`,
+      },
+    },
+    'config/counters.json': {
+      assets: Object.fromEntries(sites.map(asset => [asset.id, {
+        heading: 'All-time totals',
+        cards: [{ metric: asset.event!, label: labels[asset.event!]! }],
+      }])),
+    },
+  };
+}
+
+/** The normal versioned writer; existing documents or exports are never adopted. */
+export async function seedDemoDisplay({ home, installation, scenario, capability, helpers }: {
+  home: string; installation: string; scenario: DemoScenario; capability: unknown; helpers: DisplayHelpers;
+}) {
+  if (installation !== path.join(home, 'installation')) throw new Error('Demo display needs its own installation folder.');
+  const folder = lstatSync(installation, { throwIfNoEntry: false });
+  if (!folder?.isDirectory() || folder.isSymbolicLink() || realpathSync(installation) !== installation) {
+    throw new Error('Demo display needs its canonical installation folder.');
+  }
+  const documents = generateDemoDisplay(scenario);
+  const files = Object.keys(documents);
+  if (files.some(file => lstatSync(path.join(installation, path.basename(file)), { throwIfNoEntry: false }))) {
+    throw new Error('Demo display refuses existing exports.');
+  }
+  const held = await helpers.getConfigDocuments(capability, files);
+  if (held.length !== files.length || files.some(file => !held.some(document => document.file === file && document.version === null && document.source === 'file'))) {
+    throw new Error('Demo display refuses existing saved settings.');
+  }
+  const seeded = await helpers.seedConfigDocuments(capability, { actor: 'synthetic-demo-seeder', documents }, Date.parse(scenario.manifest.cutoff));
+  if (!seeded.ok || seeded.skipped?.length) throw new Error('Demo display settings were not saved completely.');
+  const stored = await helpers.getConfigDocuments(capability, files);
+  if (stored.length !== files.length || files.some(file => !stored.some(document => document.file === file && document.version === 1 && document.source === 'store' && deepEqual(document.body, documents[file as keyof typeof documents])))) {
+    throw new Error('Saved demo display settings differ from their declared scenario.');
+  }
+  for (const [file, body] of Object.entries(documents)) {
+    writeFileSync(path.join(installation, path.basename(file)), `${JSON.stringify(body, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
+  }
+  return { files, documents };
+}

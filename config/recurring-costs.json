@@ -1,0 +1,4 @@
+{
+  "$comment": "See config/recurring-costs.README.md. Amounts are USD per month.",
+  "costs": []
+}

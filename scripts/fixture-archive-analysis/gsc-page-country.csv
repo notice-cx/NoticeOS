@@ -1,0 +1,4 @@
+asset,report_date,collected_at,data_state,provider_truncated,clicks,country,ctr,impressions,page,position,row_grain
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,false,3,kor,0.018518518518518517,162,https://meals.example/guides/protein,2.8,page+country
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,false,16,kor,0.09142857142857143,175,https://meals.example/planner,4.5,page+country
+meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,false,12,usa,0.06382978723404255,188,https://meals.example/planner,6.2,page+country

@@ -1,0 +1,15 @@
+{
+  "readme": "config/constants.README.md",
+  "decisions_ref": "config/decisions.md",
+  "os_time_zone": "UTC",
+  "operator_rate_usd_per_min": 2,
+  "explore_sleeve": 0.15,
+  "monthly_caps": {
+    "data_usd": 25
+  },
+  "flag_defaults": {
+    "alpha": 0.01,
+    "min_baseline_per_day": 3,
+    "low_volume_window_hours": 72
+  }
+}

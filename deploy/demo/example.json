@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "publicOrigin": "https://demo.example.com",
+  "seed": "public-preview",
+  "cutoff": "REPLACE_WITH_EXACT_UTC_TIMESTAMP",
+  "release": "REPLACE_WITH_FULL_SOURCE_COMMIT_SHA",
+  "serviceExpiresAt": "REPLACE_WITH_OPERATOR_APPROVED_UTC_EXPIRY"
+}

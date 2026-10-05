@@ -1,0 +1,22 @@
+{
+  "assets": {
+    "meals.example": {
+      "source": {
+        "kind": "prometheus",
+        "url": "https://meals.example/api/internal/metrics",
+        "enabled": true
+      },
+      "cards": [
+        { "metric": "signups", "counter": "profiles", "label": "Accounts" },
+        { "metric": "leads", "counter": "leads", "label": "Leads" }
+      ]
+    },
+    "nosh.example": {
+      "heading": "Current catalog",
+      "cards": [
+        { "metric": "catalogItems", "label": "Items rated" },
+        { "metric": "catalogRestaurants", "label": "Restaurants" }
+      ]
+    }
+  }
+}

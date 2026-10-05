@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    // Both Workers enable nodejs_compat; ingest RPC types include node:crypto.
+    "types": ["node"]
+  },
+  "include": [
+    "worker",
+    "shared",
+    "worker-configuration.d.ts",
+    "../../workers/ingest/worker-configuration.d.ts"
+  ]
+}

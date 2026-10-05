@@ -1,0 +1,91 @@
+/* NoticeOS: the Notice identity (decision D35, 2026-09-23), the same one
+   www.notice.cx wears. Shared by the product and the standalone design-system
+   reference. Brand/action, operational state and chart series have distinct
+   roles: nothing here is a severity, a status or a series colour, and no such
+   token may point at the brand blue (docs/14-ui-standards.md § The Notice
+   identity, apps/tower/test/brand-identity.test.ts).
+
+   Dark is the default, and `[data-theme="dark"]` draws one subtree dark inside
+   a light page — the product's television preview on a light desk (bead
+   ro-c0l3). `data-theme` is this file's own switch, as `[data-theme="light"]`
+   is below. */
+@font-face {
+  font-family: Inter;
+  src: url("../fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+/* The wordmark's face, served from this app (SIL Open Font License 1.1,
+   fonts/StackSansNotch-LICENSE.txt); never a font CDN. */
+@font-face {
+  font-family: "Stack Sans Notch";
+  src: url("../fonts/StackSansNotch-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+[data-theme="dark"],
+:root {
+  --brand-provider-surface: #ffffff;
+  --brand-font: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --brand-wordmark-font: "Stack Sans Notch", Inter, ui-sans-serif, system-ui, sans-serif;
+  --brand-radius-control: 8px;
+  --brand-radius-panel: 14px;
+  --brand-canvas: #0d1019;
+  --brand-surface: #151a26;
+  --brand-raised: #1e2636;
+  --brand-ink: #f0f3ff;
+  --brand-muted: #a4aec3;
+  --brand-line: #303a4f;
+  --brand-control-line: #63718c;
+  /* The Notice blue: the website's accent on its paper surfaces, the same in
+     both themes. On this dark canvas it is too dark to read as text, so the
+     accent below is the tint the website draws it in on its dark surfaces. */
+  --brand-blue: #2745d4;
+  --brand-accent: #b0b9ff;
+  --brand-accent-hover: #c4cbff;
+  --brand-on-accent: #111526;
+  --brand-accent-soft: #242e52;
+  --brand-success: #69d99a;
+  --brand-success-soft: #172f25;
+  --brand-danger: #ff8491;
+  --brand-danger-soft: #391e29;
+  --brand-warning: #f5c06a;
+  --brand-warning-soft: #342b1d;
+  --brand-neutral: #a4aec3;
+  --brand-neutral-soft: #222a3a;
+  --brand-cyan: #69dade;
+  --brand-violet: #b9a0ff;
+  --brand-radius: 14px;
+  --brand-shadow: 0 12px 40px #00000012;
+  --brand-fast: 150ms;
+  --brand-standard: 220ms;
+}
+.light,
+:root[data-theme="light"] {
+  --brand-canvas: #f6f7fb;
+  --brand-surface: #ffffff;
+  --brand-raised: #edf0f6;
+  --brand-ink: #171b2b;
+  --brand-muted: #586176;
+  --brand-line: #d8deea;
+  --brand-control-line: #7a859b;
+  --brand-blue: #2745d4;
+  --brand-accent: var(--brand-blue);
+  --brand-accent-hover: #213bb4;
+  --brand-on-accent: #ffffff;
+  --brand-accent-soft: #eef0ff;
+  --brand-success: #18794e;
+  --brand-success-soft: #e9f6ee;
+  --brand-danger: #c52a3a;
+  --brand-danger-soft: #fff0f1;
+  --brand-warning: #8c5a00;
+  --brand-warning-soft: #fff4dc;
+  --brand-neutral: #5e677b;
+  --brand-neutral-soft: #edf0f6;
+  --brand-cyan: #087985;
+  --brand-violet: #7046b8;
+  --brand-radius: 14px;
+  --brand-shadow: 0 12px 40px #1823470a;
+  --brand-fast: 150ms;
+  --brand-standard: 220ms;
+}

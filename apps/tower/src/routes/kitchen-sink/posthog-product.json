@@ -1,0 +1,523 @@
+{
+  "source": "posthog",
+  "observedAt": "2026-09-22",
+  "collectedAt": "2026-09-23T12:30:04.120Z",
+  "families": [
+    {
+      "family": "web-daily",
+      "reportDate": "2026-09-22",
+      "windowStart": "2026-08-26",
+      "windowEnd": "2026-09-22",
+      "rows": 28,
+      "truncated": false
+    },
+    {
+      "family": "events",
+      "reportDate": "2026-09-22",
+      "windowStart": "2026-09-08",
+      "windowEnd": "2026-09-22",
+      "rows": 3,
+      "truncated": false
+    },
+    {
+      "family": "exceptions",
+      "reportDate": "2026-09-22",
+      "windowStart": "2026-09-08",
+      "windowEnd": "2026-09-22",
+      "rows": 4,
+      "truncated": false
+    },
+    {
+      "family": "rageclicks",
+      "reportDate": "2026-09-22",
+      "windowStart": "2026-09-08",
+      "windowEnd": "2026-09-22",
+      "rows": 9,
+      "truncated": false
+    },
+    {
+      "family": "web-vitals",
+      "reportDate": "2026-09-22",
+      "windowStart": "2026-09-08",
+      "windowEnd": "2026-09-22",
+      "rows": 8,
+      "truncated": false
+    },
+    {
+      "family": "funnels",
+      "reportDate": "2026-09-22",
+      "windowStart": "2026-09-16",
+      "windowEnd": "2026-09-22",
+      "rows": 4,
+      "truncated": false
+    }
+  ],
+  "webDaily": {
+    "windowStart": "2026-08-26",
+    "windowEnd": "2026-09-22",
+    "reportDate": "2026-09-22",
+    "days": [
+      {
+        "date": "2026-08-26",
+        "people": 6200,
+        "pageviews": 31000,
+        "sessions": 9300
+      },
+      {
+        "date": "2026-08-27",
+        "people": 6225,
+        "pageviews": 31125,
+        "sessions": 9338
+      },
+      {
+        "date": "2026-08-28",
+        "people": 6250,
+        "pageviews": 31250,
+        "sessions": 9375
+      },
+      {
+        "date": "2026-08-29",
+        "people": 4675,
+        "pageviews": 23375,
+        "sessions": 7013
+      },
+      {
+        "date": "2026-08-30",
+        "people": 4700,
+        "pageviews": 23500,
+        "sessions": 7050
+      },
+      {
+        "date": "2026-08-31",
+        "people": 6325,
+        "pageviews": 31625,
+        "sessions": 9488
+      },
+      {
+        "date": "2026-09-01",
+        "people": 6350,
+        "pageviews": 31750,
+        "sessions": 9525
+      },
+      {
+        "date": "2026-09-02",
+        "people": 6375,
+        "pageviews": 31875,
+        "sessions": 9563
+      },
+      {
+        "date": "2026-09-03",
+        "people": 6400,
+        "pageviews": 32000,
+        "sessions": 9600
+      },
+      {
+        "date": "2026-09-04",
+        "people": 6425,
+        "pageviews": 32125,
+        "sessions": 9638
+      },
+      {
+        "date": "2026-09-05",
+        "people": 4850,
+        "pageviews": 24250,
+        "sessions": 7275
+      },
+      {
+        "date": "2026-09-06",
+        "people": 4875,
+        "pageviews": 24375,
+        "sessions": 7313
+      },
+      {
+        "date": "2026-09-07",
+        "people": 6500,
+        "pageviews": 32500,
+        "sessions": 9750
+      },
+      {
+        "date": "2026-09-08",
+        "people": 6525,
+        "pageviews": 32625,
+        "sessions": 9788
+      },
+      {
+        "date": "2026-09-09",
+        "people": 6550,
+        "pageviews": 32750,
+        "sessions": 9825
+      },
+      {
+        "date": "2026-09-10",
+        "people": 6575,
+        "pageviews": 32875,
+        "sessions": 9863
+      },
+      {
+        "date": "2026-09-11",
+        "people": 6600,
+        "pageviews": 33000,
+        "sessions": 9900
+      },
+      {
+        "date": "2026-09-12",
+        "people": 5025,
+        "pageviews": 25125,
+        "sessions": 7538
+      },
+      {
+        "date": "2026-09-13",
+        "people": 5050,
+        "pageviews": 25250,
+        "sessions": 7575
+      },
+      {
+        "date": "2026-09-14",
+        "people": 6675,
+        "pageviews": 33375,
+        "sessions": 10013
+      },
+      {
+        "date": "2026-09-15",
+        "people": 6700,
+        "pageviews": 33500,
+        "sessions": 10050
+      },
+      {
+        "date": "2026-09-16",
+        "people": 6725,
+        "pageviews": 33625,
+        "sessions": 10088
+      },
+      {
+        "date": "2026-09-17",
+        "people": 6750,
+        "pageviews": 33750,
+        "sessions": 10125
+      },
+      {
+        "date": "2026-09-18",
+        "people": 6775,
+        "pageviews": 33875,
+        "sessions": 10163
+      },
+      {
+        "date": "2026-09-19",
+        "people": 5200,
+        "pageviews": 26000,
+        "sessions": 7800
+      },
+      {
+        "date": "2026-09-20",
+        "people": 5225,
+        "pageviews": 26125,
+        "sessions": 7838
+      },
+      {
+        "date": "2026-09-21",
+        "people": 6850,
+        "pageviews": 34250,
+        "sessions": 10275
+      },
+      {
+        "date": "2026-09-22",
+        "people": 6875,
+        "pageviews": 34375,
+        "sessions": 10313
+      }
+    ]
+  },
+  "funnels": [
+    {
+      "id": "calculator",
+      "name": "Calculator",
+      "windowStart": "2026-09-16",
+      "windowEnd": "2026-09-22",
+      "steps": [
+        {
+          "step": 1,
+          "event": "$pageview",
+          "path": "/calculator",
+          "people": 18826
+        },
+        {
+          "step": 2,
+          "event": "calculator_started",
+          "path": null,
+          "people": 15864
+        },
+        {
+          "step": 3,
+          "event": "calculator_completed",
+          "path": null,
+          "people": 15394
+        },
+        {
+          "step": 4,
+          "event": "plan_saved",
+          "path": null,
+          "people": 1232
+        }
+      ],
+      "conversion": 0.06544141081483056,
+      "largestDrop": {
+        "fromStep": 3,
+        "toStep": 4,
+        "lostPeople": 14162,
+        "stepConversion": 0.08003118097960245
+      },
+      "prior": {
+        "windowStart": "2026-09-09",
+        "windowEnd": "2026-09-15",
+        "conversion": 0.08166666666666667,
+        "stepConversion": 0.1
+      }
+    }
+  ],
+  "vitals": {
+    "windowStart": "2026-09-08",
+    "windowEnd": "2026-09-22",
+    "reportDate": "2026-09-22",
+    "minMeasurements": 500,
+    "lines": {
+      "lcp": {
+        "good": 2500,
+        "poor": 4000
+      },
+      "inp": {
+        "good": 200,
+        "poor": 500
+      },
+      "cls": {
+        "good": 0.1,
+        "poor": 0.25
+      }
+    },
+    "segments": [
+      {
+        "path": "/calculator",
+        "device": "Desktop",
+        "os": "Chrome OS",
+        "measurements": 22298,
+        "lcpP75": 3844,
+        "inpP75": 744,
+        "clsP75": 0.02,
+        "lcpRating": "needs-improvement",
+        "inpRating": "poor",
+        "clsRating": "good"
+      },
+      {
+        "path": "/calculator",
+        "device": "Desktop",
+        "os": "Windows",
+        "measurements": 12500,
+        "lcpP75": 2146,
+        "inpP75": 224,
+        "clsP75": 0.02,
+        "lcpRating": "good",
+        "inpRating": "needs-improvement",
+        "clsRating": "good"
+      },
+      {
+        "path": "/",
+        "device": "Desktop",
+        "os": "Windows",
+        "measurements": 9000,
+        "lcpP75": 3256,
+        "inpP75": 150,
+        "clsP75": 0.02,
+        "lcpRating": "needs-improvement",
+        "inpRating": "good",
+        "clsRating": "good"
+      },
+      {
+        "path": "/calculator",
+        "device": "Mobile",
+        "os": "iOS",
+        "measurements": 30000,
+        "lcpP75": 1709,
+        "inpP75": 144,
+        "clsP75": 0.02,
+        "lcpRating": "good",
+        "inpRating": "good",
+        "clsRating": "good"
+      },
+      {
+        "path": "/calculator",
+        "device": "Desktop",
+        "os": "Mac OS X",
+        "measurements": 11139,
+        "lcpP75": 1655,
+        "inpP75": 136,
+        "clsP75": 0.02,
+        "lcpRating": "good",
+        "inpRating": "good",
+        "clsRating": "good"
+      },
+      {
+        "path": "/",
+        "device": "Mobile",
+        "os": "iOS",
+        "measurements": 14000,
+        "lcpP75": 1645,
+        "inpP75": 120,
+        "clsP75": 0.02,
+        "lcpRating": "good",
+        "inpRating": "good",
+        "clsRating": "good"
+      },
+      {
+        "path": "/",
+        "device": "Tablet",
+        "os": "Android",
+        "measurements": 600,
+        "lcpP75": 2000,
+        "inpP75": null,
+        "clsP75": null,
+        "lcpRating": "good",
+        "inpRating": null,
+        "clsRating": null
+      }
+    ],
+    "unmeasuredSegments": 1
+  },
+  "exceptions": {
+    "windowStart": "2026-09-08",
+    "windowEnd": "2026-09-22",
+    "reportDate": "2026-09-22",
+    "total": 48640,
+    "truncated": false,
+    "noise": {
+      "type": "TypeError",
+      "message": "Load failed",
+      "count": 40975,
+      "people": 1314,
+      "sessions": 2900,
+      "maxPerSession": 402,
+      "hasSourceFile": false,
+      "topPath": "/calculator",
+      "topBrowser": "Safari",
+      "share": 0.8424136513157895
+    },
+    "top": [
+      {
+        "type": "Error",
+        "message": "Script error.",
+        "count": 5000,
+        "people": 1438,
+        "sessions": 1700,
+        "maxPerSession": 12,
+        "hasSourceFile": false,
+        "topPath": "/",
+        "topBrowser": "Chrome"
+      },
+      {
+        "type": "TypeError",
+        "message": "Cannot read properties of undefined (reading 'default')",
+        "count": 1900,
+        "people": 264,
+        "sessions": 300,
+        "maxPerSession": 30,
+        "hasSourceFile": true,
+        "topPath": "/calculator",
+        "topBrowser": "Chrome"
+      },
+      {
+        "type": "TypeError",
+        "message": "m._result.default",
+        "count": 765,
+        "people": 117,
+        "sessions": 130,
+        "maxPerSession": 9,
+        "hasSourceFile": true,
+        "topPath": "/my",
+        "topBrowser": "Firefox"
+      }
+    ]
+  },
+  "rageClicks": {
+    "windowStart": "2026-09-08",
+    "windowEnd": "2026-09-22",
+    "reportDate": "2026-09-22",
+    "shareLine": 0.05,
+    "clusters": [
+      {
+        "path": "/calculator",
+        "tag": "input",
+        "text": null,
+        "attr": "heightFeet",
+        "clicks": 2400,
+        "people": 1493,
+        "pagePeople": 18826,
+        "share": 0.07930521619037502,
+        "desktopShare": 0.9958333333333333,
+        "element": "heightFeet input"
+      },
+      {
+        "path": "/calculator",
+        "tag": "input",
+        "text": null,
+        "attr": "heightInches",
+        "clicks": 1500,
+        "people": 1041,
+        "pagePeople": 18826,
+        "share": 0.055295867417401466,
+        "desktopShare": 0.996,
+        "element": "heightInches input"
+      },
+      {
+        "path": "/calculator",
+        "tag": "input",
+        "text": null,
+        "attr": "age",
+        "clicks": 1200,
+        "people": 987,
+        "pagePeople": 18826,
+        "share": 0.05242749389142675,
+        "desktopShare": 0.9958333333333333,
+        "element": "age input"
+      }
+    ]
+  },
+  "onceEvents": [
+    {
+      "event": "first_meal_logged",
+      "count": 1597,
+      "people": 527,
+      "perPerson": 3.030360531309298
+    }
+  ],
+  "checks": [
+    {
+      "key": "posthog-slow-segment",
+      "label": "Real-visitor speed",
+      "state": "fired",
+      "detail": "3 measured segment(s) cross a line; worst is Chrome OS Desktop on /calculator."
+    },
+    {
+      "key": "posthog-rage-click-cluster",
+      "label": "Rage clicks",
+      "state": "fired",
+      "detail": "3 element(s) over the 5% line; worst is the heightFeet input on /calculator."
+    },
+    {
+      "key": "posthog-error-concentration",
+      "label": "Errors",
+      "state": "fired",
+      "detail": "84% of 48,640 exceptions are one message with no source file."
+    },
+    {
+      "key": "posthog-funnel-drop",
+      "label": "Funnels",
+      "state": "fired",
+      "detail": "1 funnel(s) ranked; the deepest drop keeps 8% in Calculator."
+    },
+    {
+      "key": "posthog-once-event-repeats",
+      "label": "Once-only events",
+      "state": "fired",
+      "detail": "1 once-only event(s) repeat; first_meal_logged fires 3.0 times per person."
+    }
+  ],
+  "caveat": "PostHog counts only browsers that load it, so its totals run below Google Analytics; it drops known bots that Google Analytics keeps; signed-in events wait for consent, so they are floors; and server-side events use account ids that do not join browser visitors. People are unique within each figure’s own window and never add across rows or days."
+}

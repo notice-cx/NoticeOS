@@ -1,0 +1,122 @@
+# Explicit project name supplied with -p; never adopt a preexisting project.
+x-app: &app-image
+  image: ${NOTICEOS_DEMO_IMAGE:?Set one exact locally built demo image}
+services:
+  prepare:
+    <<: *app-image
+    profiles: [setup]
+    user: "0:0"
+    entrypoint: [node, deploy/demo/prepare.mjs]
+    read_only: true
+    network_mode: none
+    volumes:
+      - bootstrap:/setup
+      - state:/state
+      - dolt:/dolt
+      - type: bind
+        source: ${NOTICEOS_DEMO_CONFIG:?Set an absolute nonsecret demo configuration}
+        target: /config/demo.json
+        read_only: true
+        bind:
+          create_host_path: false
+  postgres:
+    image: postgres:18.6@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    restart: unless-stopped
+    stop_grace_period: 90s
+    shm_size: 256mb
+    environment:
+      POSTGRES_DB: noticeos
+      POSTGRES_PASSWORD_FILE: /setup/postgres-password
+      POSTGRES_INITDB_ARGS: --data-checksums --locale-provider=builtin --builtin-locale=C.UTF-8
+      TZ: UTC
+    command: [postgres, -c, timezone=UTC]
+    volumes:
+      - postgres:/var/lib/postgresql
+      - bootstrap:/setup:ro
+    networks: [private]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -h 127.0.0.1 -U postgres -d noticeos]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+  dolt:
+    <<: *app-image
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    init: true
+    entrypoint: [node, deploy/demo/dolt-start.mjs]
+    restart: unless-stopped
+    read_only: true
+    stop_grace_period: 90s
+    environment:
+      HOME: /tmp/home
+    tmpfs: [/tmp:mode=1777]
+    volumes:
+      - dolt:/dolt
+      - bootstrap:/setup:ro
+    networks: [private, ingress]
+    ports:
+      - "127.0.0.1:${NOTICEOS_DEMO_HTTP_PORT:?Choose an unused loopback HTTP port}:8080"
+    healthcheck:
+      test: [CMD, node, deploy/demo/health.mjs, --dolt]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+  setup:
+    <<: *app-image
+    profiles: [setup]
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    init: true
+    entrypoint: [node, scripts/hosted-demo-setup.mjs, --request, /setup/bootstrap.json]
+    network_mode: service:dolt
+    read_only: true
+    environment:
+      HOME: /tmp/home
+    tmpfs: [/tmp:mode=1777]
+    volumes:
+      - state:/state
+      - bootstrap:/setup:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      dolt:
+        condition: service_healthy
+  app:
+    <<: *app-image
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    init: true
+    restart: unless-stopped
+    network_mode: service:dolt
+    read_only: true
+    stop_grace_period: 90s
+    environment:
+      HOME: /tmp/home
+    tmpfs: [/tmp:mode=1777]
+    volumes:
+      - state:/state
+    depends_on:
+      postgres:
+        condition: service_healthy
+      dolt:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, deploy/demo/health.mjs, --runtime, /state/runtime/runtime.json]
+      interval: 10s
+      timeout: 4s
+      start_period: 120s
+      retries: 6
+networks:
+  private:
+    internal: true
+  ingress:
+    driver: bridge
+volumes:
+  postgres:
+  dolt:
+  state:
+  bootstrap:

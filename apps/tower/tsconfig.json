@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Solution-style config: no files of its own. The editor's TS server looks
+  // for tsconfig.json and, without one, fell back to an inferred project with
+  // no paths, no jest-dom types, and a default lib - producing floods of
+  // false "Cannot find module @shared/*" diagnostics. The two real configs
+  // below remain the only build/typecheck entry points.
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.worker.json" }
+  ]
+}

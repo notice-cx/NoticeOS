@@ -1,0 +1,887 @@
+@import "tailwindcss";
+
+/*
+  Identity tokens live in public/brand/notice.css (the Notice identity, D35),
+  shared with the design-system reference. Application aliases and specialized
+  scales live here. The brand accent feeds brand roles only — primary actions,
+  selection, focus — and no severity, status or series token points at it
+  (apps/tower/test/brand-identity.test.ts).
+  Components consume tokens via utilities; color literals stay out of components.
+
+  Dark is the DEFAULT theme (the Wall theme). `.light` flips the same variables;
+  every utility that reads a --color-* token re-resolves automatically because
+  @theme inline keeps the var reference live. The approved palette uses explicit sRGB values; specialized measurement
+  and TV scales retain their own perceptual colors.
+
+  Severity is the attention color system: error / warn / info, plus the
+  reserved emerald for milestone-KIND items. Asset health and integration
+  connectivity are scoped state systems: --healthy means a reporting asset
+  has no open error/warn; --connected means the OS can consume a source end to
+  end. --trend-positive / --trend-negative are the scoped, non-severity
+  diverging scale for a completed value versus its like-for-like baseline.
+  --chart-week-band gives alternating calendar weeks enough contrast to remain
+  legible on the dark Wall. --chart-distorted is its
+  sibling for a day a reporting-timezone change moved hours into or out of
+  (ro-kukv.8): the band is a tinted week band and the ink draws the day's
+  bracket and pin. They are a caveat about the MEASUREMENT, not a severity —
+  nothing is wrong with the asset, the day is simply not comparable — but they
+  sit in the warn hue because the ⚠ that already states this fact in prose is
+  warn, and one fact must not wear two colors. Lower chroma than --warn so two
+  marked columns never outshout a real alert dot on the same card.
+  --search-bing is provider identity, never status or
+  severity, and is always paired with a text label.
+  Sparklines otherwise use --spark.
+  --urgent is the one deliberate step between warn amber and error red, so a
+  ramp that has to read as five distinguishable steps at 3 meters — the
+  countdown's proximity bands (doc 10) — does not have to invent its own scale.
+  It is NOT a fourth severity: doc 02's info/warn/error enum is unchanged and no
+  flag may map to it. Hue, chroma, and lightness interpolate between --warn and
+  --error so the ramp escalates monotonically in both themes.
+
+  THE TV IS DARK ON A LIGHT DESK TOO (bead ro-c0l3). `[data-theme="dark"]`
+  re-declares the dark set on one subtree, so a light desk's `.light` stops at
+  its edge: the TV layout editor's preview (`WallPreview`) carries it and draws
+  the television as the television draws itself. The brand palette under these
+  names takes the same switch (public/brand/notice.css).
+*/
+
+[data-theme="dark"],
+:root {
+  --wall-label-size: 0.8125rem;
+  --wall-label-line: 1rem;
+  --wall-body-size: 0.875rem;
+  --wall-body-line: 1.25rem;
+  --wall-detail-size: 0.75rem;
+  --wall-detail-line: 1rem;
+  --wall-micro-size: 0.625rem;
+  --wall-micro-line: 0.875rem;
+  --wall-axis-size: 0.5625rem;
+  --wall-axis-line: 0.75rem;
+  --wall-stat-size: 1.875rem;
+  --wall-stat-line: 2.375rem;
+  /* The header's shared sans hierarchy: supporting labels, meeting titles,
+     the local clock and the countdown value (ro-trai.49). */
+  --wall-strip-size: 1.125rem;
+  --wall-strip-line: 1.5rem;
+  --wall-strip-label-size: 0.875rem;
+  --wall-strip-label-line: 1.125rem;
+  --wall-strip-time-size: 1.875rem;
+  --wall-strip-time-line: 2.375rem;
+  --wall-strip-countdown-size: 2.25rem;
+  --wall-strip-countdown-line: 2.875rem;
+  --background: var(--brand-canvas);
+  --foreground: var(--brand-ink);
+  --card: var(--brand-surface);
+  --card-foreground: var(--brand-ink);
+  --muted: var(--brand-raised);
+  --muted-foreground: var(--brand-muted);
+  --border: var(--brand-line);
+  --ring: var(--brand-accent);
+
+  --error: var(--brand-danger);
+  --error-foreground: var(--brand-canvas);
+  --warn: var(--brand-warning);
+  --warn-foreground: var(--brand-canvas);
+  --urgent: oklch(0.73 0.18 50);
+  --info: var(--brand-muted);
+  --info-foreground: oklch(0.16 0.01 250);
+  --milestone: oklch(0.72 0.17 155);
+  --milestone-foreground: oklch(0.16 0.02 155);
+  --healthy: var(--brand-success);
+  --connected: var(--brand-success);
+  --connected-foreground: oklch(0.16 0.02 145);
+  --trend-positive: oklch(0.76 0.15 150);
+  --trend-negative: oklch(0.7 0.17 25);
+  --chart-week-band: oklch(0.3 0.014 250);
+  --chart-distorted: oklch(0.8 0.11 75);
+  --search-bing: oklch(0.72 0.14 245);
+  /* Financial series identity, never a profit/loss verdict. Names and line
+     patterns carry the same distinction without color. */
+  --financial-revenue: var(--brand-cyan);
+  --financial-cost: var(--brand-violet);
+  /* Traffic series IDENTITY (bead ro-trai.19, doc 14 § Tokens): the Wall's
+     audience series — daily visitors, the 30-day trend, search clicks — beside
+     money's cyan, never a verdict on them. A saturated azure, 258°, chosen by
+     measurement against its neighbours (OKLab ΔE ×100 on the TV's black):
+     money cyan 22, the `info` slate 16, pace green 24. It shares the blue family
+     with --search-bing (ΔE 7), so the two never draw on one chart: Bing's blue
+     stays on the desk beside the word "Bing", and the Wall reads search as one
+     audience series. */
+  --traffic: oklch(0.66 0.17 258);
+  /* Today's PACE against the same hours last week (operator 2026-09-23, bead
+     ro-trai.19, doc 14 § Tokens): on pace, a little behind, far behind. A
+     scoped COMPARISON scale made of existing hues, never an alert — "a little
+     behind" is the warn hue used as a step of this scale, not a warning, and
+     the arrow and % always ride beside it. Aliases, so the one place a pace's
+     colours are chosen is here (`paceTone` in DeltaChip picks the step). */
+  --pace-on: var(--trend-positive);
+  --pace-behind: var(--warn);
+  --pace-far-behind: var(--trend-negative);
+
+  --spark: oklch(0.64 0.025 250);
+  --error-soft: var(--brand-danger-soft);
+  --warn-soft: var(--brand-warning-soft);
+  --healthy-soft: var(--brand-success-soft);
+  --connected-soft: var(--brand-success-soft);
+  --input: var(--brand-control-line);
+  --primary: var(--brand-accent);
+  --primary-foreground: var(--brand-on-accent);
+  --primary-hover: var(--brand-accent-hover);
+  --accent-soft: var(--brand-accent-soft);
+}
+
+/* THE TELEVISION IS A BOX, NOT A VIEWPORT (bead `ro-lzmq.5`).
+   `.wall-root` is drawn at 1920×1080 twice: as the whole viewport on the TV,
+   and as a 1920×1080 box scaled into a pane by the editor's preview at
+   `/wall/edit`. Everything inside it — this file's type ramp below, and every
+   widget's own `sm:` / `md:` / `lg:` / `xl:` / `2xl:` rule — used to key on the
+   VIEWPORT, so on a 1440 desk the preview drew desk type and on a phone it drew
+   the phone's arrangement: three rows became a column, the assets grid stacked,
+   and the fit check measured 2,315px about a layout that fits the television
+   perfectly. The preview was showing a Wall that does not exist.
+
+   The fix is to key both on the BOX. `.wall-root` declares a query container
+   named `wall`, and the five breakpoint variants are redefined to fire on the
+   viewport OR on that container — so nothing outside the Wall changes (no
+   ancestor is named `wall`, and the container half never matches), and inside
+   it every widget draws the arrangement the television draws at any desk width.
+   The numbers still live once, in the theme; `@slot` twice is what lets one
+   variant carry two queries, which is the thing plain CSS could not express and
+   why this gap was left open in `ro-lzmq.2`. */
+@custom-variant sm {
+  @media (width >= theme(--breakpoint-sm)) {
+    @slot;
+  }
+  @container wall (width >= theme(--breakpoint-sm)) {
+    @slot;
+  }
+}
+
+@custom-variant md {
+  @media (width >= theme(--breakpoint-md)) {
+    @slot;
+  }
+  @container wall (width >= theme(--breakpoint-md)) {
+    @slot;
+  }
+}
+
+@custom-variant lg {
+  @media (width >= theme(--breakpoint-lg)) {
+    @slot;
+  }
+  @container wall (width >= theme(--breakpoint-lg)) {
+    @slot;
+  }
+}
+
+@custom-variant xl {
+  @media (width >= theme(--breakpoint-xl)) {
+    @slot;
+  }
+  @container wall (width >= theme(--breakpoint-xl)) {
+    @slot;
+  }
+}
+
+@custom-variant 2xl {
+  @media (width >= theme(--breakpoint-2xl)) {
+    @slot;
+  }
+  @container wall (width >= theme(--breakpoint-2xl)) {
+    @slot;
+  }
+}
+
+/* The television is an emissive surface, not a dark desktop. Its canvas and
+   cards share true black so unused pixels emit no light and every state color
+   keeps the same visual baseline. This scope deliberately leaves desk routes
+   on the softer dark tokens above. */
+.wall-root {
+  /* The query container the variants above and the type ramp below both read.
+     Inline-size only: the Wall's height is the viewport's business (the kiosk
+     clip below), and a size container would have to be told its own height
+     before it could report one. */
+  container-type: inline-size;
+  container-name: wall;
+
+  --wall-label-size: 0.9375rem;
+  --wall-label-line: 1.125rem;
+  --wall-body-size: 1rem;
+  --wall-body-line: 1.375rem;
+  --wall-detail-size: 0.875rem;
+  --wall-detail-line: 1.125rem;
+  --wall-micro-size: 0.8125rem;
+  --wall-micro-line: 1rem;
+  --wall-axis-size: 0.75rem;
+  --wall-axis-line: 0.875rem;
+  --wall-stat-size: 2rem;
+  --wall-stat-line: 2.5rem;
+  /* D28's revenue figure (docs/25-the-wall.md): the largest type on the
+     screen, one step above the hero, 7.5rem on the TV. Its line is 1.2× the
+     size — the font's own ascent and descent — so the glyphs never paint
+     outside their box (`pnpm wall:fit --strict`). */
+  --wall-display-size: 5.5rem;
+  --wall-display-line: 6.625rem;
+  --background: oklch(0 0 0);
+  --card: oklch(0 0 0);
+
+  /* The floors of the scaled TV layout (§ THE TV LAYOUT, SCALED, below): each
+     small step's boost, max(1, its floor ÷ (its TV size × the scale)). On the
+     TV and off the scaled layout `--wall-scale` is unset, so every boost is 1. */
+  --wall-boost-axis: max(1, 11 / 13 / var(--wall-scale, 1));
+  --wall-boost-micro: max(1, 11 / 14 / var(--wall-scale, 1));
+  --wall-boost-detail: max(1, 12 / 16 / var(--wall-scale, 1));
+  --wall-boost-label: max(1, 12 / 16 / var(--wall-scale, 1));
+  --wall-boost-body: max(1, 13 / 18 / var(--wall-scale, 1));
+  --wall-boost-base: max(1, 14 / 20 / var(--wall-scale, 1));
+  --wall-boost-lg: max(1, 14 / 22 / var(--wall-scale, 1));
+  /* The gap between regions side by side, for the row tracks that compute a
+     widget's share of its row (`wallRowTracks`, bead ro-trai.31). */
+  --wall-region-gap-x: --theme(--spacing-wall-region-x);
+}
+
+/* THE TV LAYOUT, SCALED (bead ro-trai.31, operator 2026-09-23, docs/25-the-
+   wall.md § Laptop, tablet and phone). A landscape screen at least 1024 px
+   wide — a laptop, a landscape tablet, a desk monitor — draws the TV's layout,
+   the whole Wall zoomed by ONE number, `--wall-scale`: min(width ÷ 1920,
+   height ÷ 1080), set by the route from `wallScreen` (lib/wall-screen.ts).
+   A 13-inch MacBook Air's 1470 × 830 is the TV at 77 %.
+
+   ZOOM, NOT A TRANSFORM. Layout happens at the scaled size: in its own pixels
+   the Wall is always at least 1920 × 1080, so every `tv:` rule and the TV's
+   type ramp fire exactly as on the TV, text is drawn sharp at its final size,
+   and a screen of another shape (16:10, 4:3) gives its extra height to the
+   fill row — the site rows. The TV's scale is 1 and the editor's preview sets
+   none, so neither changes.
+
+   READABLE FLOORS. Scaled, the small type would shrink with everything else —
+   the TV's 13 px axis words to 7 px on a landscape tablet. Each small step is
+   drawn at max(its TV size × the scale, its floor), by multiplying its size
+   and its line by its boost (declared on `.wall-root` above):
+     axis 13 px, micro 14 px (a list's label and meta)  → 11 px
+     detail 16 px (text-xs), label 16 px                → 12 px
+     body 18 px (a list's main line, text-sm)          → 13 px
+     text-base 20 px, text-lg 22 px (a site's name)    → 14 px
+   The larger steps stay proportional, and every box keeps its TV size in the
+   Wall's own pixels, so the floored words sit in the rows the TV budgets. More
+   site rows than the region holds scroll inside it (SiteRows) — the Wall never
+   falls back to one column for them. */
+.wall-root[data-wall-scaled] {
+  zoom: var(--wall-scale);
+  min-height: calc(100vh / var(--wall-scale));
+}
+
+/* THE TV'S LAYOUT (beads ro-trai.24, ro-trai.29, ro-trai.31, docs/25-the-
+   wall.md § Laptop, tablet and phone). Saved rows describe the TV's
+   composition, and `tv:` is where it is drawn: the Wall 1,776 px wide and up
+   in its own pixels (the 1800 px kiosk less its 0.75rem padding each side) —
+   the TV itself, the editor's 1920 preview box, and every landscape screen at
+   least 1024 px wide, which draws the TV's box scaled (§ THE TV LAYOUT,
+   SCALED). Everything else — a portrait tablet, a phone — is `stack:`, one
+   column of whole widgets in a fixed reading order (`WallCanvas`): one rule,
+   by the screen's shape, rather than one per device. */
+@custom-variant tv {
+  @container wall (width >= calc(1800px - 1.5rem)) {
+    @slot;
+  }
+}
+
+@custom-variant stack {
+  @container wall (width < calc(1800px - 1.5rem)) {
+    @slot;
+  }
+}
+
+/* THE SITE REGION IS ITS OWN BOX (bead `ro-trai.18`). The site table switches
+   to its columns on the region's OWN width, not the Wall's: in D28's
+   arrangement the region is one track of a column beside the feed, about 1,380
+   px of a 1920 TV — and it was about 670 px of a 1440 window (until
+   ro-trai.29 stacked that window and ro-trai.31 drew it the TV's layout,
+   scaled), where the Wall-wide `xl:` still fired and the table's ~950 px of
+   columns ran over each other and under the feed. `sites:` is where the table
+   fits (64rem); `sites-wide:` where the TV's larger charts and gaps fit
+   (80rem) — true of the region in D28's arrangement, on the TV and scaled.
+   Below `sites:` (a portrait tablet, a phone) each row stacks on two columns. */
+[data-wall-sites] {
+  container: wall-sites / inline-size;
+}
+
+@custom-variant sites {
+  @container wall-sites (width >= 64rem) {
+    @slot;
+  }
+}
+
+@custom-variant sites-wide {
+  @container wall-sites (width >= 80rem) {
+    @slot;
+  }
+}
+
+/* The TV's layout drawn smaller than the TV (§ THE TV LAYOUT, SCALED): a
+   laptop or a landscape tablet, never the TV itself, whose scale is 1. Where
+   the floored small type needs room the TV's boxes do not give it — a site's
+   issue mark on a 1024-wide tablet (bead ro-trai.36) — the scaled layout
+   makes it here, and the TV stays exactly as it is. */
+@custom-variant scaled (&:where([data-wall-scaled] *));
+
+/* The strip's words on a one-column Wall wider than a phone — a portrait
+   tablet — between the phone's rows and the TV's line (bead ro-trai.24). */
+@container wall (width >= 40rem) {
+  .wall-root * {
+    --wall-strip-size: 1.25rem;
+    --wall-strip-line: 1.625rem;
+    --wall-strip-label-size: 0.875rem;
+    --wall-strip-label-line: 1.125rem;
+    --wall-strip-time-size: 2rem;
+    --wall-strip-time-line: 2.625rem;
+    --wall-strip-countdown-size: 2.5rem;
+    --wall-strip-countdown-line: 3.125rem;
+  }
+}
+
+
+/* The production Wall is a 4K DietPi kiosk rendered at 2× scaling: Chrome
+   exposes a 1920×1080 CSS viewport while the operator reads it from across the
+   room. At that geometry, reclaim the remaining vertical slack for type rather
+   than carrying desktop-size labels into large, mostly empty TV containers.
+   The two-class selectors intentionally outrank Tailwind's one-class desktop
+   utilities, while the gate keeps narrow responsive views unchanged.
+
+   THE GATE IS THE BOX, NOT THE VIEWPORT (bead `ro-lzmq.5`). This ramp is what
+   makes TV type TV-sized, and a preview drawn without it is a preview a fit
+   check reads as roomier than the television. `@container wall` is true of the
+   1920 viewport the kiosk has AND of the 1920 box `/wall/edit` scales into its
+   pane, so the ramp is declared once and both surfaces get it — which is the
+   fix `ro-lzmq.2` could not write, because a media query cannot ask about a box.
+   The height half of the old gate went with the kiosk clip below, where it
+   belongs: a container cannot style itself, and how tall the screen is has
+   nothing to do with how big the type should be.
+
+   The properties land on `.wall-root *` rather than on `.wall-root`: a query
+   container's own declarations cannot be conditioned on its own size, so the
+   ramp is handed to every descendant instead. They inherit the same values they
+   used to inherit from the root, and nothing on the root itself reads them. */
+@container wall (width >= 1800px) {
+  .wall-root * {
+    --wall-label-size: 1rem;
+    --wall-label-line: 1.25rem;
+    --wall-body-size: 1.125rem;
+    --wall-body-line: 1.5rem;
+    --wall-detail-size: 1rem;
+    --wall-detail-line: 1.25rem;
+    --wall-micro-size: 0.875rem;
+    --wall-micro-line: 1.125rem;
+    --wall-axis-size: 0.8125rem;
+    --wall-axis-line: 1rem;
+    --wall-stat-size: 2.25rem;
+    --wall-stat-line: 2.75rem;
+    --wall-display-size: 7.5rem;
+    --wall-display-line: 9rem;
+    /* 64 px groups inside a 96 px strip: real 16 px padding on both sides. */
+    --wall-strip-size: 1.25rem;
+    --wall-strip-line: 1.625rem;
+    --wall-strip-label-size: 0.875rem;
+    --wall-strip-label-line: 1.125rem;
+    --wall-strip-time-size: 2.25rem;
+    --wall-strip-time-line: 2.875rem;
+    --wall-strip-countdown-size: 2.5rem;
+    --wall-strip-countdown-line: 3.125rem;
+  }
+
+  /* Each with its floor on a scaled Wall (§ THE TV LAYOUT, SCALED). */
+  .wall-root .text-xs {
+    font-size: calc(var(--wall-detail-size) * var(--wall-boost-detail));
+    line-height: calc(var(--wall-detail-line) * var(--wall-boost-detail));
+  }
+
+  .wall-root .text-sm {
+    font-size: calc(var(--wall-body-size) * var(--wall-boost-body));
+    line-height: calc(var(--wall-body-line) * var(--wall-boost-body));
+  }
+
+  .wall-root .text-base {
+    font-size: calc(1.25rem * var(--wall-boost-base));
+    line-height: calc(1.625rem * var(--wall-boost-base));
+  }
+
+  .wall-root .text-lg {
+    font-size: calc(1.375rem * var(--wall-boost-lg));
+    line-height: calc(1.75rem * var(--wall-boost-lg));
+  }
+
+  .wall-root .text-xl {
+    font-size: 1.625rem;
+    line-height: 2rem;
+  }
+
+  /* A line 1.25× the size, above the font's own ascent and descent (1.21×),
+     so the glyphs never paint below their box (bead ro-trai.37: "on pace
+     for $1,695" hung 1 px under a 36 px line). */
+  .wall-root .text-2xl {
+    font-size: 2rem;
+    line-height: 2.5rem;
+  }
+}
+
+/* A kiosk with scrollbars is a broken poster, and nobody is standing at the TV
+   to scroll it. Content is supposed to FIT this geometry, but the fit contract
+   has now broken twice on data growth alone (bead ro-wb5d: one asset's
+   new card stacked column 5 to 1096px, and DailyBars' nowrap axis labels paint
+   7px past the viewport) — so when it breaks, the TV clips instead of growing
+   bars. The operator accepted losing the bottom of an overflowing card over
+   seeing scrollbars (2026-08-10). Gated to this TV VIEWPORT on purpose: the
+   phone and desk wall views must keep scrolling, and so must the editor's
+   preview, which is a box on a page and not a screen of its own.
+
+   Since bead `ro-pimj` the content FITS again and this clip is a backstop
+   rather than the thing holding the kiosk together — `pnpm wall:fit` says so
+   and is the only thing that can, because jsdom has no layout and this rule
+   hides the failure from anyone looking at the page. It stays because the next
+   fact the Wall gains will exceed the budget again, and a clipped card is still
+   better than a scrollbar nobody is there to move. */
+@media (min-width: 1800px) and (min-height: 900px) {
+  .wall-root {
+    /* A scaled Wall (a desk window a little shorter than the TV) is zoomed,
+       so its screen height in its own pixels is 100vh over the scale. */
+    height: calc(100vh / var(--wall-scale, 1));
+    overflow: hidden;
+  }
+}
+
+.light {
+  --background: var(--brand-canvas);
+  --foreground: var(--brand-ink);
+  --card: var(--brand-surface);
+  --card-foreground: var(--brand-ink);
+  --muted: var(--brand-raised);
+  --muted-foreground: var(--brand-muted);
+  --border: var(--brand-line);
+  --ring: var(--brand-accent);
+
+  --error: var(--brand-danger);
+  --error-foreground: oklch(0.99 0 0);
+  --warn: var(--brand-warning);
+  --warn-foreground: var(--brand-surface);
+  --urgent: oklch(0.62 0.17 50);
+  --info: var(--brand-muted);
+  --info-foreground: oklch(0.99 0 0);
+  --milestone: oklch(0.6 0.16 155);
+  --milestone-foreground: oklch(0.99 0 0);
+  --healthy: var(--brand-success);
+  --connected: var(--brand-success);
+  --connected-foreground: oklch(0.99 0 0);
+  --trend-positive: oklch(0.55 0.14 150);
+  --trend-negative: oklch(0.58 0.16 25);
+  --chart-week-band: oklch(0.94 0.006 250);
+  --chart-distorted: oklch(0.62 0.12 75);
+  --search-bing: oklch(0.53 0.16 245);
+  --financial-revenue: var(--brand-cyan);
+  --financial-cost: var(--brand-violet);
+  /* Light theme's audience azure (bead ro-ujb9.77.3): the old deep blue sat
+     ΔE 3 from the Notice blue accent, the same colour to the eye. This one is
+     the dark theme's family, ΔE 11 from the accent (8 under colour-blind
+     simulation), at least 11.6 from every light severity and series colour,
+     and still reads as text on the canvas (4.6:1). */
+  --traffic: oklch(0.55 0.15 256);
+  --pace-on: var(--trend-positive);
+  --pace-behind: var(--warn);
+  --pace-far-behind: var(--trend-negative);
+
+  --spark: oklch(0.55 0.025 250);
+  --error-soft: var(--brand-danger-soft);
+  --warn-soft: var(--brand-warning-soft);
+  --healthy-soft: var(--brand-success-soft);
+  --connected-soft: var(--brand-success-soft);
+  --input: var(--brand-control-line);
+  --primary: var(--brand-accent);
+  --primary-foreground: var(--brand-on-accent);
+  --primary-hover: var(--brand-accent-hover);
+  --accent-soft: var(--brand-accent-soft);
+}
+
+@theme inline {
+  --font-sans: var(--brand-font);
+  --radius-md: var(--brand-radius-control);
+  --radius-lg: var(--brand-radius-panel);
+  --radius-xl: var(--brand-radius-panel);
+  --color-error-soft: var(--error-soft);
+  --color-warn-soft: var(--warn-soft);
+  --color-healthy-soft: var(--healthy-soft);
+  --color-connected-soft: var(--connected-soft);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+
+  --color-error: var(--error);
+  --color-error-foreground: var(--error-foreground);
+  --color-warn: var(--warn);
+  --color-warn-foreground: var(--warn-foreground);
+  --color-urgent: var(--urgent);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-milestone: var(--milestone);
+  --color-milestone-foreground: var(--milestone-foreground);
+  --color-healthy: var(--healthy);
+  --color-connected: var(--connected);
+  --color-connected-foreground: var(--connected-foreground);
+  --color-trend-positive: var(--trend-positive);
+  --color-trend-negative: var(--trend-negative);
+  --color-chart-week-band: var(--chart-week-band);
+  --color-chart-distorted: var(--chart-distorted);
+  --color-search-bing: var(--search-bing);
+  --color-financial-revenue: var(--financial-revenue);
+  --color-financial-cost: var(--financial-cost);
+  --color-traffic: var(--traffic);
+  --color-pace-on: var(--pace-on);
+  --color-pace-behind: var(--pace-behind);
+  --color-pace-far-behind: var(--pace-far-behind);
+  --color-spark: var(--spark);
+
+  /* TV type scale — tokens, not per-component choices (doc 14). The small
+     steps carry their floor on a scaled Wall (bead ro-trai.31, § THE TV
+     LAYOUT, SCALED); the boost is 1 everywhere else. */
+  --text-wall-label: calc(var(--wall-label-size) * var(--wall-boost-label, 1));
+  --text-wall-label--line-height: calc(var(--wall-label-line) * var(--wall-boost-label, 1));
+  --text-wall-body: calc(var(--wall-body-size) * var(--wall-boost-body, 1));
+  --text-wall-body--line-height: calc(var(--wall-body-line) * var(--wall-boost-body, 1));
+  --text-wall-detail: calc(var(--wall-detail-size) * var(--wall-boost-detail, 1));
+  --text-wall-detail--line-height: calc(var(--wall-detail-line) * var(--wall-boost-detail, 1));
+  --text-wall-micro: calc(var(--wall-micro-size) * var(--wall-boost-micro, 1));
+  --text-wall-micro--line-height: calc(var(--wall-micro-line) * var(--wall-boost-micro, 1));
+  --text-wall-axis: calc(var(--wall-axis-size) * var(--wall-boost-axis, 1));
+  --text-wall-axis--line-height: calc(var(--wall-axis-line) * var(--wall-boost-axis, 1));
+  --text-wall-stat: var(--wall-stat-size);
+  --text-wall-stat--line-height: var(--wall-stat-line);
+  --text-wall-display: var(--wall-display-size);
+  --text-wall-display--line-height: var(--wall-display-line);
+  /* The Wall's large live figure (its site rows' live users). The 4rem hero
+     and 2.25rem steps of the old ramp left with `Stat`, their only reader
+     (bead `ro-trai.25`). */
+  --text-wall-hero-sm: 3rem;
+  --text-wall-hero-sm--line-height: 3.25rem;
+  /* The header's four type steps share the interface sans family. */
+  --text-wall-strip: var(--wall-strip-size);
+  --text-wall-strip--line-height: var(--wall-strip-line);
+  --text-wall-strip-label: max(var(--wall-strip-label-size), calc(11px / var(--wall-scale, 1)));
+  --text-wall-strip-label--line-height: max(var(--wall-strip-label-line), calc(14px / var(--wall-scale, 1)));
+  --text-wall-strip-countdown: var(--wall-strip-countdown-size);
+  --text-wall-strip-countdown--line-height: var(--wall-strip-countdown-line);
+  --text-wall-strip-time: var(--wall-strip-time-size);
+  --text-wall-strip-time--line-height: var(--wall-strip-time-line);
+  /* The countdown's emoji (bead `ro-trai.3`): the old countdown panel's
+     picture, kept as a picture on its tile — sized from the strip's words, so
+     it grows with them. */
+  --text-wall-strip-emoji: 1.125em;
+  --text-wall-strip-emoji--line-height: 1;
+  /* The strip's marks — the brand's icon and the countdown's tile, two
+     capitals tall; the system state's glyph, whose drawn stroke is about one
+     capital tall in its box — each centred on the capitals of the strip's one
+     baseline (bead `ro-trai.24`). In `cap`, so they follow the words' size. */
+  --spacing-wall-strip-mark: 2cap;
+  --spacing-wall-strip-glyph: 1.5cap;
+  /* THE WALL'S LIST RAMP (bead `ro-trai.23`, docs/25-the-wall.md § Type): a
+     row of a Wall list — Needs you and the Live feed alike — is a label, a
+     main line and a meta, and the two lists draw them at the same three steps,
+     so neither reads louder than the other. Urgency is weight and colour,
+     never a larger size. */
+  --text-wall-list-label: calc(var(--wall-micro-size) * var(--wall-boost-micro, 1));
+  --text-wall-list-label--line-height: calc(var(--wall-micro-line) * var(--wall-boost-micro, 1));
+  --text-wall-list-line: calc(var(--wall-body-size) * var(--wall-boost-body, 1));
+  --text-wall-list-line--line-height: calc(var(--wall-body-line) * var(--wall-boost-body, 1));
+  --text-wall-list-meta: calc(var(--wall-micro-size) * var(--wall-boost-micro, 1));
+  --text-wall-list-meta--line-height: calc(var(--wall-micro-line) * var(--wall-boost-micro, 1));
+
+  /* Revenue band and site-row floor; rows expand to fill their region. */
+  --spacing-wall-band: 21rem;
+  --spacing-wall-site-row-min: 3.5rem;
+
+  /* D28'S FRAME (docs/25-the-wall.md § Budget, bead `ro-trai.11`): the page
+     inset (24px top and bottom, 32px sides), 20px between stacked regions —
+     the strip and the body, the revenue band and the site rows — and 28px
+     between regions side by side: revenue and Needs you, the column and the
+     feed. 24 + 96 + 20 + 916 + 24 is the TV's 1080. */
+  --spacing-wall-inset-x: 2rem;
+  --spacing-wall-inset-y: 1.5rem;
+  --spacing-wall-region: 1.25rem;
+  --spacing-wall-region-x: 1.75rem;
+
+  /* The degraded state's `!` is a glyph set in text, so its size is a font size
+     rather than a box, named for the mark it fills so no component writes a
+     pixel literal for it. */
+  --text-mark-degraded: 0.4375rem;
+  --text-mark-degraded--line-height: 1;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--brand-font);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* A subtree drawn dark inside a light page (the TV preview, bead ro-c0l3)
+     re-resolves what this layer reads as well. Tailwind declares the
+     `--color-*` names once, on :root, so under a light desk they hold the
+     light values; and text with no colour class inherits `color` as the value
+     body resolved — dark ink, on the TV's black. */
+  [data-theme="dark"] {
+    --color-border: var(--border);
+    --color-foreground: var(--foreground);
+    color: var(--color-foreground);
+  }
+}
+
+/* THE NOTICEOS LOCKUP (D35, bead ro-ujb9.77.3): the Notice mark in the
+   current ink and the wordmark set in Stack Sans Notch, as www.notice.cx sets
+   it — "Notice" at 600 with the website's tight tracking, "OS" lighter and in
+   the muted ink. The mark is drawn in capitals of the surrounding words
+   (1.4 of them, the website's proportion), so it follows every size. */
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  color: var(--foreground);
+  white-space: nowrap;
+  line-height: 1.2;
+  font-size: 1.3125rem;
+}
+.brand-mark {
+  flex-shrink: 0;
+  height: 1.4cap;
+  width: auto;
+  aspect-ratio: 354 / 394;
+}
+.brand-wordmark {
+  font-family: var(--brand-wordmark-font);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+.brand-os {
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+.brand-lockup--compact {
+  font-size: 1.125rem;
+}
+/* SET IN A LINE OF TEXT (the Wall's strip, bead ro-trai.24): the lockup flows
+   as words do — its name at the line's own size, on the line's baseline, and
+   its mark with its middle on the capitals' middle, which for a mark 1.4
+   capitals tall is lowering it by 0.2 of one. */
+.brand-lockup--text {
+  display: inline-block;
+  font-size: 1em;
+}
+.brand-lockup--text .brand-wordmark {
+  margin-inline-start: 0.35em;
+}
+.brand-lockup--text .brand-mark {
+  display: inline-block;
+  vertical-align: -0.2cap;
+}
+
+/* Original provider colors sit on a consistent white identity surface in both
+   themes. This is vendor artwork, separate from connection-state colors. */
+.integration-logo {
+  display: inline-grid;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--brand-radius-panel);
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.integration-logo[data-has-logo="true"] {
+  background: var(--brand-provider-surface);
+}
+.integration-logo[data-size="small"] {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--brand-radius-control);
+}
+.integration-logo[data-size="large"] {
+  width: 48px;
+  height: 48px;
+}
+.integration-logo__image {
+  width: 70%;
+  height: 70%;
+  object-fit: contain;
+}
+/* These originals include their own clear space. Preserve it and their shapes. */
+.integration-logo[data-provider-logo="bing-webmaster"] .integration-logo__image {
+  width: 100%;
+  height: 100%;
+}
+.integration-logo[data-provider-logo="mediavine"] .integration-logo__image {
+  width: 80%;
+  height: 80%;
+}
+.integration-logo__glyph {
+  width: 55%;
+  height: 55%;
+}
+
+/* The Wall feed's arrival (bead ro-trai.9, docs/25 § Feed): a new row opens its
+   own height at the top, so the rows below slide down rather than jump, and
+   keeps a tint of its tone that fades over two minutes. */
+@keyframes wall-feed-arrive {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transform: translateY(-0.5rem);
+  }
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes wall-feed-tint {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.wall-feed-arrive {
+  animation: wall-feed-arrive 240ms ease-out;
+}
+
+.wall-feed-tint {
+  animation: wall-feed-tint 120s linear forwards;
+}
+
+/* THE CHARTS' MOTION (bead ro-trai.19, doc 14 § Charts). A live series' newest
+   point breathes: a ring of its own ink grows out of the dot and fades, once
+   every 2.4 s — enough to say "this is still being counted" from across a
+   room, never enough to pull the eye from a real alert. The ring's start and
+   end widths are the point's own (`ChartPoint` sets them). A line or area whose
+   readings change keeps its shape and moves to the new one (a new hour or day
+   changes the path's length, and that draw simply replaces the old one). */
+@keyframes chart-point-breathe {
+  from {
+    stroke-width: var(--chart-breathe-from);
+    stroke-opacity: 0.45;
+  }
+  to {
+    stroke-width: var(--chart-breathe-to);
+    stroke-opacity: 0;
+  }
+}
+
+.chart-point-breathe {
+  animation: chart-point-breathe 2.4s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+}
+
+.chart-morph {
+  transition: d 700ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* A day still being counted, drawn as a bar: diagonal hatching in the bar's
+   own ink over a faint wash of it, so an unfinished day never reads as a low
+   one (doc 14: only the partial calendar day is provisional). */
+.chart-bar-provisional {
+  background-image: repeating-linear-gradient(
+    135deg,
+    currentColor 0 2px,
+    transparent 2px 7px
+  );
+}
+
+/* A screen's code usually arrives before anyone could read the word "Loading",
+   so `RouteLoading`'s line waits before it appears (bead ro-82x): a word that
+   flashes on every page load is noise. `both` holds it invisible through the
+   delay. Screen readers are not delayed — opacity leaves the text in the
+   accessibility tree, and its status region announces it at once. */
+@keyframes route-loading-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.route-loading-label {
+  animation: route-loading-reveal 200ms ease-out 400ms both;
+}
+
+/* A native 4K browser otherwise fits twice as many CSS pixels into the same TV
+   as the 1080p Wall it replaces, turning chart labels into fine print. The Wall
+   and its asset drill-down share the same distance-readable density: native
+   3840×2160 behaves like a 4K desktop configured to 150% scaling, without
+   affecting 2560×1440 or 1920×1080 modes. */
+@media (min-width: 3200px) and (min-height: 1800px) {
+  .wall-root,
+  .asset-detail-root {
+    min-height: calc(100vh / 1.5);
+    zoom: 1.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wall-feed-arrive {
+    animation: none;
+  }
+
+  /* Still, never animated: the point keeps its halo, the line jumps. */
+  .chart-point-breathe {
+    display: none;
+  }
+
+  .chart-morph {
+    transition: none;
+  }
+
+  /* Still delayed — the delay is about noise, not motion — but no fade. */
+  .route-loading-label {
+    animation-duration: 1ms;
+  }
+}
+
+/* Stacked cards keep a readable phone scale. */
+[data-wall-sites] {
+  --text-wall-site-name: 1.125rem;
+  --text-wall-site-live: 1.875rem;
+  --text-wall-site-stat: 1.125rem;
+  --text-wall-site-label: 1rem;
+}
+
+/* Same cascade layer as the named container above: the TV needs its height
+   as well as width. Descendant type reads that height, not the viewport. */
+@container wall (width >= calc(1800px - 1.5rem)) {
+  [data-wall-sites]:not([data-wall-sites="none"]) {
+    container-type: size;
+    --text-wall-site-name: clamp(max(1.125rem, 14px / var(--wall-scale, 1)), calc((100cqh - 2rem) / var(--site-rows, 6) * 0.24), 2rem);
+    --text-wall-site-live: clamp(1.875rem, calc((100cqh - 2rem) / var(--site-rows, 6) * 0.38), 3.5rem);
+    --text-wall-site-stat: clamp(max(1.125rem, 14px / var(--wall-scale, 1)), calc((100cqh - 2rem) / var(--site-rows, 6) * 0.25), 2rem);
+    --text-wall-site-label: clamp(max(1rem, 12px / var(--wall-scale, 1)), calc((100cqh - 2rem) / var(--site-rows, 6) * 0.20), 1.375rem);
+  }
+}

@@ -1,0 +1,107 @@
+/** Pure execution-history projection, shared by standalone files and hosted rows. */
+import type { WorkflowRun } from '../packages/contract/src/workflows.js';
+import { isWorkflowStepOutput } from './workflow-output.mjs';
+import { jobRunName } from './scheduled-jobs.mjs';
+import { WORKFLOW_DEFINITIONS, type WorkflowDefinition } from './workflow-definitions.mjs';
+export interface WorkflowBucket {
+  at: string; succeeded: number; failed: number; skipped: number; runId: string | null;
+}
+export interface WorkflowSummary {
+  id: string; latest: WorkflowRun | null; active: WorkflowRun | null;
+  history: WorkflowBucket[]; runs: WorkflowRun[];
+}
+const HOUR = 3_600_000;
+const isObject = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object');
+
+function validTrace(value: unknown, definitions: readonly WorkflowDefinition[]): value is WorkflowRun {
+  if (!isObject(value) || typeof value.id !== 'string' || typeof value.workflowId !== 'string' ||
+      !definitions.some((w) => w.id === value.workflowId) ||
+      typeof value.startedAt !== 'string' || !Number.isFinite(Date.parse(value.startedAt)) ||
+      (value.finishedAt !== undefined && (typeof value.finishedAt !== 'string' || !Number.isFinite(Date.parse(value.finishedAt)))) ||
+      (value.definitionVersion !== null && (!Number.isInteger(value.definitionVersion) || Number(value.definitionVersion) < 1)) ||
+      !['running', 'succeeded', 'failed', 'skipped', 'unknown'].includes(String(value.state)) || !Array.isArray(value.steps)) return false;
+  return value.steps.length <= 100 && value.steps.every((step: unknown) => isObject(step) &&
+    typeof step.id === 'string' && Number.isInteger(step.attempt) && Number(step.attempt) > 0 && typeof step.startedAt === 'string' && Number.isFinite(Date.parse(step.startedAt)) &&
+    (step.summary === undefined || typeof step.summary === 'string') &&
+    ['running', 'succeeded', 'failed', 'skipped', 'waiting'].includes(String(step.state)) &&
+    (step.finishedAt === undefined || (typeof step.finishedAt === 'string' && Number.isFinite(Date.parse(step.finishedAt)))));
+}
+
+function readTrace(value: unknown, definitions: readonly WorkflowDefinition[]): WorkflowRun[] {
+  if (!validTrace(value, definitions)) return [];
+  return [{ id: value.id, workflowId: value.workflowId, definitionVersion: value.definitionVersion, startedAt: value.startedAt,
+    ...(value.finishedAt ? { finishedAt: value.finishedAt } : {}), state: value.state,
+    steps: value.steps!.map((step) => ({ id: step.id, attempt: step.attempt, startedAt: step.startedAt, state: step.state,
+      ...(step.finishedAt ? { finishedAt: step.finishedAt } : {}), ...(step.summary ? { summary: step.summary.slice(0, 500) } : {}),
+      ...(isWorkflowStepOutput(step.output) ? { output: step.output } : {}),
+    })),
+  }];
+}
+
+/**
+ * A MANUAL FIRING as the run history reads it (bead `ro-ujb9.96.7.19`): a job
+ * step a person ran now from the connect panel, recorded by the ingest in
+ * `job_runs` (`GET /api/job-runs?trigger=manual`) because the runner that
+ * writes the file below never saw it. Shaped as a file record, marked manual.
+ */
+export function manualRecords(runs: unknown): unknown[] {
+  if (!Array.isArray(runs)) return [];
+  return runs.flatMap((run) => {
+    if (!isObject(run) || typeof run.job !== 'string' || typeof run.startedAt !== 'string' || typeof run.finishedAt !== 'string') return [];
+    const at = Date.parse(run.startedAt);
+    const ms = Date.parse(run.finishedAt) - at;
+    if (!Number.isFinite(at) || !Number.isFinite(ms) || ms < 0) return [];
+    return [{ job: run.job, at: new Date(at).toISOString(), ms, outcome: run.outcome, trigger: 'manual' }];
+  });
+}
+
+// Reconstruct only typed operational evidence. The older log's free-text detail
+// is deliberately absent: it may contain arbitrary subprocess/provider output.
+export function buildWorkflowHistory(records: unknown[], traces: unknown[], active: unknown[], now: number, selectedId?: string, definitions: readonly WorkflowDefinition[] = WORKFLOW_DEFINITIONS) {
+  const byTrace = new Map(traces.flatMap(value => readTrace(value, definitions)).map((r) => [r.id, r]));
+  const names = new Map(definitions.map((w) => [jobRunName(w), w.id]));
+  const runs: WorkflowRun[] = records.flatMap((record) => {
+    if (!isObject(record) || typeof record.job !== 'string' || typeof record.at !== 'string' ||
+      !['ran', 'failed', 'skipped'].includes(String(record.outcome)) || typeof record.ms !== 'number' || !Number.isFinite(record.ms) || record.ms < 0) return [];
+    const workflowId = names.get(record.job);
+    const at = Date.parse(record.at);
+    if (!workflowId || !Number.isFinite(at) || at > now || at < now - 30 * 24 * HOUR) return [];
+    const id = `${workflowId}@${new Date(at).toISOString()}`;
+    const trace = byTrace.get(id);
+    return [{ id, workflowId, definitionVersion: trace?.definitionVersion ?? null, startedAt: new Date(at).toISOString(),
+      finishedAt: new Date(at + record.ms).toISOString(), state: record.outcome === 'failed' || record.workflowState === 'failed' || trace?.state === 'failed' ? 'failed' : record.outcome === 'skipped' || record.workflowState === 'skipped' || trace?.state === 'skipped' ? 'skipped' : 'succeeded',
+      ...(record.trigger === 'manual' ? { trigger: { kind: 'manual' as const } } : {}),
+      steps: trace?.steps ?? null } satisfies WorkflowRun];
+  });
+  const recordedIds = new Set(runs.map((run) => run.id));
+  // A failed ledger write can itself be observed. Keep that trace visible even
+  // when the coarse append is absent; never fall back to an earlier green run.
+  for (const trace of byTrace.values()) {
+    const at = Date.parse(trace.startedAt);
+    if (!recordedIds.has(trace.id) && trace.finishedAt && trace.state !== 'running' && at <= now && at >= now - 30 * 24 * HOUR) runs.push(trace);
+  }
+  return summarizeWorkflowHistory(runs, active.flatMap(value => readTrace(value, definitions)), now, selectedId, definitions);
+}
+
+/** Callers validate their source and can replace bucket counts with complete
+ * database aggregates when the retained detail page is deliberately bounded. */
+export function summarizeWorkflowHistory(records: readonly WorkflowRun[], active: readonly WorkflowRun[],
+  now: number, selectedId?: string, definitions: readonly WorkflowDefinition[] = WORKFLOW_DEFINITIONS) {
+  const runs = [...records].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  const completedIds = new Set(runs.map((run) => run.id));
+  const activeRuns = active.filter((run) => run.state === 'running' && !run.finishedAt && !completedIds.has(run.id) && Date.parse(run.startedAt) <= now);
+  const firstHour = Math.floor(now / HOUR) * HOUR - 23 * HOUR;
+  const workflows: WorkflowSummary[] = definitions.map((workflow) => {
+    const own = runs.filter((run) => run.workflowId === workflow.id);
+    const history: WorkflowBucket[] = Array.from({ length: 24 }, (_, i) => ({ at: new Date(firstHour + i * HOUR).toISOString(), succeeded: 0, failed: 0, skipped: 0, runId: null }));
+    for (const run of own) {
+      const bucket = history[Math.floor((Date.parse(run.startedAt) - firstHour) / HOUR)];
+      if (!bucket || (run.state !== 'succeeded' && run.state !== 'failed' && run.state !== 'skipped')) continue;
+      bucket[run.state]++;
+      if (!bucket.runId || run.state === 'failed') bucket.runId = run.id;
+    }
+    return { id: workflow.id, latest: own[0] ?? null, active: activeRuns.find((r) => r.workflowId === workflow.id) ?? null,
+      history, runs: own.slice(0, 30).map((run) => ({ ...run, steps: null })) };
+  });
+  return { workflows, selectedRun: selectedId ? runs.find((r) => r.id === selectedId) ?? activeRuns.find((r) => r.id === selectedId) ?? null : null };
+}

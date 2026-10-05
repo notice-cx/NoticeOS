@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400" width="640" height="400" role="img" aria-labelledby="title description">
+  <title id="title">Your business evidence and work, together</title>
+  <desc id="description">Four parts of NoticeOS: traffic and signals; revenue and costs; tasks and workflows; changes and outcomes. This is a product overview diagram, not a screenshot.</desc>
+  <rect width="640" height="400" rx="20" fill="#0D1019"/>
+  <g font-family="system-ui, -apple-system, Segoe UI, sans-serif">
+    <text x="32" y="47" fill="#F0F3FF" font-size="24" font-weight="600">One view of your business</text>
+    <text x="32" y="77" fill="#A4AEC3" font-size="17">Evidence, attention and the work behind it</text>
+    <g fill="#151A26" stroke="#30394E" stroke-width="1">
+      <rect x="24" y="104" width="288" height="128" rx="12"/>
+      <rect x="328" y="104" width="288" height="128" rx="12"/>
+      <rect x="24" y="248" width="288" height="128" rx="12"/>
+      <rect x="328" y="248" width="288" height="128" rx="12"/>
+    </g>
+    <g fill="none" stroke="#B0B9FF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M48 146h10l6-13 8 26 8-13h12"/>
+      <path d="M352 134h36v24h-36z M362 146h16 M370 140v12"/>
+      <path d="m48 280 4 4 8-8 M68 281h22 M48 296h12 M68 296h22"/>
+      <path d="M358 291a13 13 0 1 0 5-13 M353 277h10v10 M371 285v9l6 4"/>
+    </g>
+    <g fill="#F0F3FF" font-size="23" font-weight="600">
+      <text x="48" y="194">Traffic &amp; signals</text>
+      <text x="352" y="194">Revenue &amp; costs</text>
+      <text x="48" y="338">Tasks &amp; workflows</text>
+      <text x="352" y="338">Changes &amp; outcomes</text>
+    </g>
+    <g fill="#A4AEC3" font-size="16">
+      <text x="48" y="218">See changes and missing data</text>
+      <text x="352" y="218">Keep amounts and coverage clear</text>
+      <text x="48" y="362">Follow ownership and blockers</text>
+      <text x="352" y="362">Review the recorded outcome</text>
+    </g>
+  </g>
+</svg>

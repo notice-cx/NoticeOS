@@ -1,0 +1,52 @@
+{
+  "hub": {
+    "host": "127.0.0.1",
+    "port": 3308,
+    "user": "root",
+    "dataDir": ".local/beads-dolt"
+  },
+  "spokes": [
+    {
+      "asset": "root-os",
+      "prefix": "ro",
+      "database": "ro",
+      "repo": "."
+    },
+    {
+      "asset": "meals.example",
+      "prefix": "mp",
+      "database": "mp",
+      "repo": "../meals.example"
+    },
+    {
+      "asset": "nosh.example",
+      "prefix": "nom",
+      "database": "nom",
+      "repo": "../nom"
+    },
+    {
+      "asset": "pacer.example",
+      "prefix": "pft",
+      "database": "pft",
+      "repo": "../pacer.example"
+    },
+    {
+      "asset": "pullups.example",
+      "prefix": "pts",
+      "database": "pts",
+      "repo": "../pullups.example"
+    },
+    {
+      "asset": "areas.example",
+      "prefix": "ac",
+      "database": "ac",
+      "repo": "../areas.example"
+    },
+    {
+      "asset": "fees.example",
+      "prefix": "fin",
+      "database": "fin",
+      "repo": "../fees.example"
+    }
+  ]
+}

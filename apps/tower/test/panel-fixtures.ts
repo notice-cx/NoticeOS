@@ -1,0 +1,116 @@
+import { dataForSeoReportsFor } from "@noticeos/contract";
+import type { TestStore } from "./postgres-store";
+import { writeArchiveRun, writeArchiveRuns, type TestArchiveRun } from "./provider-reports";
+
+// The two store shapes behind an asset's serp-panel review obligation, written
+// exactly as their writers write them. Shared by the Wall's card tests and the
+// asset page's, because both surfaces are fed by the SAME two readers
+// (`cardPanelReviewsOf` + `loadLatestPanelLandings`) and a fixture that drifted
+// on one side would test a store the other never sees (bead `ro-elf`).
+
+/** The counts shape a current poller writes. */
+export function workCounts(overrides: Record<string, number> = {}) {
+  return {
+    open: 12,
+    highPriority: 3,
+    ready: 9,
+    inProgress: 2,
+    blocked: 1,
+    closedRecent: 4,
+    ...overrides,
+  };
+}
+
+/** One project inside a beads snapshot. Note what is NOT here by default:
+ * `panelReview`. A snapshot written before the field existed omits the key
+ * entirely, which is the ordinary state of the store until the operator
+ * restarts the poller — so that is what the default fixture reproduces. */
+export function workProject(overrides: Record<string, unknown> = {}) {
+  return {
+    asset: "meals.example",
+    prefix: "mp",
+    ok: true,
+    error: null,
+    counts: workCounts(),
+    priorities: [1, 2, 8, 3, 1],
+    ready: [],
+    inProgress: [],
+    recentlyClosed: [],
+    ...overrides,
+  };
+}
+
+/** An open review bead on meals's panel, due a week after the landing. */
+export function panelReviewBead(overrides: Record<string, unknown> = {}) {
+  return {
+    beadId: "mp-4a2",
+    panelDate: "2026-07-01",
+    dueAt: "2026-07-08T06:00:00.000Z",
+    status: "open",
+    ...overrides,
+  };
+}
+
+/** One task-hub photograph, in the test's own Postgres copy of its sites
+ * (on Postgres since bead ro-ujb9.76.4.3; test/sites.ts): written only by the
+ * tests that read it. */
+export async function seedSnapshot(
+  of: TestStore | TestStore,
+  capturedAt: string,
+  projects: unknown[],
+): Promise<void> {
+  await (of.call).write((tx) =>
+    tx.execute(
+      `INSERT INTO noticeos.task_snapshots (workspace_id, captured_at, payload) VALUES ($1::uuid, $2::timestamptz, $3::jsonb)`,
+      [tx.workspaceId, capturedAt, JSON.stringify({ projects })],
+    ),
+  );
+}
+
+/** One report run for a tracked-SERP panel collection, in the test's own
+ * Postgres copy of its sites (on Postgres since bead ro-ujb9.76.5.4). `report_date`
+ * is the PANEL DAY — the fact the review is matched against — and `finished_at`
+ * is only when the archive was written, which is why the two are separate
+ * arguments and why a backfill can make them disagree. */
+export async function insertPanelRun(
+  raw: TestStore,
+  asset: string,
+  panelDate: string,
+  finishedAt: string,
+  status: "success" | "unchanged" | "error" = "success",
+  report = "serp-panel",
+): Promise<void> {
+  await writeArchiveRun(raw.call, panelRun(asset, panelDate, finishedAt, status, report));
+}
+
+function panelRun(asset: string, panelDate: string, finishedAt: string, status: "success" | "unchanged" | "error", report: string): TestArchiveRun {
+  return {
+    id: `${asset}-${report}-${panelDate}-${finishedAt}-${status}`,
+    asset, integration: "dataforseo", report, credential_ref: "dataforseo", property_ref: asset,
+    report_date: panelDate, finished_at: finishedAt, status, provider_rows: 20, request_count: 20,
+    object_key: `dumps/${asset}/${finishedAt}.json.gz`, content_sha256: "a".repeat(64), object_bytes: 2048,
+    error_code: "provider_error", error_message: "the provider returned 500",
+  };
+}
+
+/** One coherent weekly collection, using the same family contract as both
+ * payload builders. `panel` is supplied by the test's injected config. */
+export async function insertDataForSeoCollection(
+  raw: TestStore,
+  asset: string,
+  panelDate: string,
+  finishedAt: string,
+  options: {
+    panel: boolean;
+    status?: "success" | "unchanged" | "error";
+    omit?: readonly string[];
+  },
+): Promise<void> {
+  const panelAssets = new Set(options.panel ? [asset] : []);
+  await writeArchiveRuns(
+    raw.call,
+    dataForSeoReportsFor(asset, panelAssets)
+      .filter((report) => !options.omit?.includes(report))
+      .map((report) => panelRun(asset, panelDate, finishedAt, options.status ?? "success", report)),
+  );
+}

@@ -1,0 +1,835 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, within } from "./render";
+import { MemoryRouter } from "react-router-dom";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { AlertHistoryRow } from "@shared/alert-history";
+import type { AttentionItem, SnoozedItem, WallPayload } from "@shared/wall";
+
+const state = vi.hoisted(() => ({
+  data: null as WallPayload | null,
+  isPending: false,
+}));
+
+vi.mock("@/hooks/useWall", () => ({
+  useWall: () => ({ data: state.data, isPending: state.isPending, isError: false }),
+}));
+
+vi.mock("@/hooks/useNow", () => ({
+  useNow: () => Date.parse("2026-08-01T12:00:00.000Z"),
+}));
+
+// The strip reads one page of the settled archive for its "Settled · 7d" figure
+// (bead `ro-78qo.7`); the History view reads it with its own query. One stand-in
+// serves both, and `history.data` is what each test sets.
+const history = vi.hoisted(() => ({
+  data: undefined as unknown,
+  isError: false,
+}));
+
+vi.mock("@/hooks/useAlertHistory", () => ({
+  // The key FlagActions invalidates after every action (bead ro-ujb9.195).
+  ALERT_HISTORY_KEY: ["alert-history"],
+  useAlertHistory: () => ({
+    data: history.data,
+    isPending: history.data === undefined,
+    isError: history.isError,
+    error: null,
+  }),
+}));
+
+import { AlertsRoute } from "@/routes/AlertsRoute";
+
+// A task source connected, as this installation's is (D32, bead
+// ro-ujb9.143): the task screens here render exactly as before it existed.
+vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
+
+/** An open flag whose rule the translator has never heard of, so the headline is
+ * the store's own message — the fallback every surface renders. */
+function alert(overrides: Partial<AttentionItem> = {}): AttentionItem {
+  return {
+    id: 1,
+    asset: "meals.example",
+    assetDisplayName: "Meal Planner",
+    severity: "warn",
+    kind: "anomaly",
+    message: "Signups well below normal",
+    firedAt: "2026-08-01T09:00:00.000Z",
+    metric: null,
+    ruleId: "rule-the-translator-does-not-know",
+    ruleInputs: null,
+    correlatedChanges: [],
+    occurrences: 1,
+    firstFiredAt: "2026-08-01T09:00:00.000Z",
+    ...overrides,
+  };
+}
+
+/** One row of the settled archive, closed on the given day. Only the two dates
+ * the strip reads are meaningful; the rest is a valid `FlagRecord` so the
+ * History view could render it unchanged. */
+function settledRow(id: number, resolvedAt: string): AlertHistoryRow {
+  return {
+    flag: {
+      id,
+      firedAt: "2026-07-01T09:00:00.000Z",
+      firstFiredAt: "2026-07-01T09:00:00.000Z",
+      severity: "warn",
+      kind: "anomaly",
+      metric: null,
+      message: "Signups well below normal",
+      ruleId: "rule-the-translator-does-not-know",
+      ruleInputs: null,
+      correlatedChanges: [],
+      disposition: null,
+      dispositionAt: null,
+      dispositionNote: null,
+      snoozeUntil: null,
+      ackExpiry: null,
+      resolvedAt,
+      liveness: { state: "historical" },
+      occurrences: 1,
+    },
+    asset: { id: "meals.example", domain: "meals.example", displayName: "Meal Planner" },
+  };
+}
+
+/** Only the slices `/alerts` reads: the flags and the asset names its filter
+ * offers. Everything else on the payload is another page's business. */
+function payload(attention: AttentionItem[], snoozed: SnoozedItem[] = []): WallPayload {
+  return {
+    generatedAt: "2026-08-01T12:00:00.000Z",
+    portfolio: { netTrendCurrency: 'USD', netTrendAllCurrency: 'USD',
+      period: "2026-08",
+      booked: { currency: 'USD', revenue: 0, cost: 0, net: 0 },
+      forecast: { currency: 'USD', revenue: 0, cost: 0, net: 0 },
+      netTrend: [],
+      netTrendAll: [],
+      trendGranularity: "monthly",
+      bookedDelta: null,
+      residue: {
+        booked: { currency: 'USD', revenue: 0, cost: 0, net: 0 },
+        forecast: { currency: 'USD', revenue: 0, cost: 0, net: 0 },
+      },
+      firstRun: true,
+      daysIn: 1,
+      periodIsCurrent: true,
+    },
+    system: {
+      assetId: "root-os",
+      hasPulse: true,
+      spendTodayUsd: 1,
+      dailyCapUsd: 2,
+      ingest: { fresh: 2, stale: 0, notExpected: 0, expected: 2 },
+      scheduledLanes: [],
+    },
+    dashboard: {
+      countdown: { emoji: "🌁", label: "SF", targetAt: "2026-09-01T07:00:00.000Z" },
+    },
+    assets: [
+      assetCard("meals.example", "Meal Planner"),
+      assetCard("areas.example", "Areas"),
+    ],
+    attention,
+    snoozed,
+    operator: {
+      waiting: 0,
+      urgent: 0,
+      measuredProjects: 1,
+      urgentMeasuredProjects: 1,
+      projectCount: 1,
+      capturedAt: "2026-08-01T11:59:30.000Z",
+    },
+    ledgerRecordedAt: null,
+  };
+}
+
+function assetCard(id: string, displayName: string): WallPayload["assets"][number] {
+  return { netByMonthCurrency: 'USD',
+    id,
+    displayName,
+    status: "live",
+    senseOnly: false,
+    worstSeverity: null,
+    openError: 0,
+    openWarn: 0,
+    booked: { currency: 'USD', revenue: 0, cost: 0, net: 0 },
+    forecast: { currency: 'USD', revenue: 0, cost: 0, net: 0 },
+    netPeriod: "2026-08",
+    pulseReceivedAt: "2026-08-01T11:00:00.000Z",
+    firstReportAt: null,
+    dataSources: [],
+    activeUsers: {
+      series: [],
+      provisionalFrom: null,
+      collectedAt: null,
+      timeZoneChanges: [],
+    },
+    work: null,
+    panelReview: null,
+    searchClicks: { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] },
+    netByMonth: [],
+    netByMonthProvisionalFrom: null,
+    latestPanelDate: null,
+  };
+}
+
+function renderAlerts(
+  attention: AttentionItem[],
+  url = "/alerts",
+  snoozed: SnoozedItem[] = [],
+) {
+  state.data = payload(attention, snoozed);
+  return render(
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter initialEntries={[url]}>
+        <AlertsRoute />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+afterEach(() => {
+  state.data = null;
+  state.isPending = false;
+  history.data = undefined;
+  history.isError = false;
+});
+
+/** One KPI's whole cell, by the metric name the strip marks it with. */
+function kpi(container: HTMLElement, label: string): HTMLElement {
+  const found = container.querySelector<HTMLElement>(`[data-kpi="${label}"]`);
+  if (found === null) throw new Error(`no KPI labelled ${label} on the strip`);
+  return found;
+}
+
+/**
+ * Open the row whose line matches, the way an operator does.
+ *
+ * The whole point of the rebuild (bead `ro-78qo.7`): the four verbs are INSIDE
+ * the row and never printed under it, so a test that wants a verb has to open
+ * the row first — which is the assertion, not a workaround for one.
+ */
+function openRow(name: RegExp | string): HTMLElement {
+  const row = screen.getByRole("button", { name });
+  fireEvent.click(row);
+  return row.closest("li") as HTMLElement;
+}
+
+describe("/alerts — the portfolio's open exceptions", () => {
+  it('links filed open and closed tasks inside the alert without changing its severity', () => {
+    renderAlerts([alert({ handoffBeads: [
+      { kind: 'alert', key: '1', beadId: 'mp-repair', status: 'open', closedAt: null },
+      { kind: 'alert', key: '1', beadId: 'mp-review', status: 'closed', closedAt: '2026-07-31T12:00:00.000Z' },
+    ] })]);
+    const row = openRow(/Signups well below normal/);
+    const open = within(row).getByRole('link', { name: 'Filed as work, still open, task mp-repair' });
+    expect(open).toHaveAttribute('href', '/tasks/mp-repair');
+    expect(open.closest('button')).toBeNull();
+    const closed = within(row).getByRole('link', { name: 'Task recorded closed; outcome not verified, task mp-review' });
+    expect(closed).toHaveAttribute('href', '/tasks/mp-review');
+    expect(row.querySelector('[data-handoff-bead="closed"]')).not.toHaveClass('text-healthy');
+    expect(within(row).getByRole('button', { name: 'Resolve alert' })).toBeInTheDocument();
+  });
+
+  it.each([undefined, []])('shows no task marker without a recorded handoff (%j)', (handoffBeads) => {
+    renderAlerts([alert({ handoffBeads })]);
+    const row = openRow(/Signups well below normal/);
+    expect(row.querySelector('[data-handoff-bead]')).toBeNull();
+    expect(within(row).getByRole('button', { name: /^File task for/ })).toBeInTheDocument();
+  });
+  /**
+   * Doc 21, bead `ro-78qo.7`. The page printed four buttons under every row, so
+   * five alerts meant twenty verbs on screen and the queue's own severity was
+   * the quietest ink on it. A row is one line now and the verbs are inside it.
+   */
+  it("gives each alert one line, with its four verbs behind the row", () => {
+    const { container } = renderAlerts([
+      alert(),
+      alert({
+        id: 2,
+        asset: "areas.example",
+        assetDisplayName: "Areas",
+        severity: "error",
+        message: "Clicks fell off a cliff",
+      }),
+    ]);
+
+    expect(screen.getByRole("heading", { level: 1, name: "Alerts" })).toBeInTheDocument();
+    // Not printed under every row any more — nothing is, until a row opens.
+    expect(screen.queryByRole("button", { name: "Mark alert read" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Resolve alert" })).toBeNull();
+    // The strip owns the total, so the page states it exactly once.
+    expect(kpi(container, "Open").textContent).toContain("2");
+
+    const row = openRow(/Signups well below normal/);
+    expect(within(row).getByRole("button", { name: "Mark alert read" })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "Snooze alert" })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "Resolve alert" })).toBeInTheDocument();
+    // The composer names its subject, so a page of these does not read as a
+    // column of identical "File task".
+    expect(within(row).getByRole("button", { name: /^File task for/ })).toBeInTheDocument();
+    expect(within(row).getByRole("link", { name: "Open Meal Planner" })).toHaveAttribute(
+      "href",
+      "/assets/meals.example",
+    );
+    // Still exactly one alert's worth of verbs: opening one row opens one row.
+    expect(screen.getAllByRole("button", { name: "Mark alert read" })).toHaveLength(1);
+  });
+
+  it("reads its filters from the URL, so a filtered view is a link", () => {
+    const { container } = renderAlerts(
+      [
+        alert(),
+        alert({ id: 2, asset: "areas.example", assetDisplayName: "Areas", severity: "error", message: "Clicks fell off a cliff" }),
+      ],
+      "/alerts?asset=areas.example",
+    );
+
+    expect(screen.getByText("Clicks fell off a cliff")).toBeInTheDocument();
+    expect(screen.queryByText("Signups well below normal")).toBeNull();
+    // The strip stays portfolio-wide — "how bad is it tonight" does not change
+    // because a dropdown did — and the panel says what a filter left on screen.
+    expect(kpi(container, "Open").textContent).toContain("2");
+    expect(screen.getByText("1 of 2 open")).toBeInTheDocument();
+    expect(screen.getByLabelText("Site")).toHaveValue("areas.example");
+  });
+
+  it("narrows by severity and kind from the same query string", () => {
+    renderAlerts(
+      [
+        alert({ id: 1, severity: "error", kind: "anomaly", message: "An error anomaly" }),
+        alert({ id: 2, severity: "warn", kind: "anomaly", message: "A warning anomaly" }),
+        alert({ id: 3, severity: "error", kind: "opportunity", message: "An error opportunity" }),
+      ],
+      "/alerts?severity=error&kind=anomaly",
+    );
+
+    expect(screen.getByText("An error anomaly")).toBeInTheDocument();
+    expect(screen.queryByText("A warning anomaly")).toBeNull();
+    expect(screen.queryByText("An error opportunity")).toBeNull();
+  });
+
+  /**
+   * Bead `ro-ujb9.197`. The Open list holds warnings and errors only, and a
+   * milestone is always info-severity, so "Milestones" could only ever empty
+   * the list — which read as "there are no milestones".
+   */
+  it("offers only the kinds an open row can be, and reads an old milestone link as every kind", () => {
+    renderAlerts(
+      [
+        alert({ id: 1, kind: "anomaly", message: "A warning anomaly" }),
+        alert({ id: 2, kind: "opportunity", message: "A warning opportunity" }),
+      ],
+      "/alerts?kind=milestone",
+    );
+
+    const kind = screen.getByLabelText("Kind") as HTMLSelectElement;
+    expect([...kind.options].map((option) => option.textContent)).toEqual([
+      "Any kind",
+      "Anomalies",
+      "Opportunities",
+    ]);
+    expect(kind).toHaveValue("all");
+    expect(screen.getByText("A warning anomaly")).toBeInTheDocument();
+    expect(screen.getByText("A warning opportunity")).toBeInTheDocument();
+    // Not a filtered view: the panel states no "N of M open".
+    expect(screen.queryByText(/^\d+ of \d+ open$/)).toBeNull();
+  });
+
+  it("narrows the page when the operator picks a filter", () => {
+    renderAlerts([
+      alert(),
+      alert({ id: 2, asset: "areas.example", assetDisplayName: "Areas", message: "Clicks fell off a cliff" }),
+    ]);
+
+    fireEvent.change(screen.getByLabelText("Site"), {
+      target: { value: "areas.example" },
+    });
+
+    expect(screen.getByText("Clicks fell off a cliff")).toBeInTheDocument();
+    expect(screen.queryByText("Signups well below normal")).toBeNull();
+  });
+
+  // `ro-kukv.6`: the never-reported row stands for four assets and carries each
+  // of their actions. Filtering to one of them must not hide the only row that
+  // can act on it just because another asset leads the group.
+  it("keeps a cross-asset row when the filter picks any asset it stands for", () => {
+    renderAlerts([
+      alert({
+        id: 7,
+        asset: "fees.example",
+        assetDisplayName: "Fee Codes",
+        severity: "error",
+        ruleId: "ingest-freshness",
+        ruleInputs: { rule: "ingest-freshness", state: "never-reported" },
+        occurrences: 2,
+        members: [
+          { id: 7, asset: "fees.example", assetDisplayName: "Fee Codes", firedAt: "2026-07-05T09:00:00.000Z" },
+          { id: 8, asset: "areas.example", assetDisplayName: "Areas", firedAt: "2026-07-06T09:00:00.000Z" },
+        ],
+      }),
+    ]);
+
+    fireEvent.change(screen.getByLabelText("Site"), {
+      target: { value: "areas.example" },
+    });
+
+    expect(screen.getByText("Two sites have no nightly reports")).toBeInTheDocument();
+    expect(screen.queryByText("No open alerts match these filters")).toBeNull();
+  });
+
+  /**
+   * Bead `ro-ujb9.199`. These links interpolated the raw site id, and "Open
+   * <site>" always landed on the Overview — where the sidebar and the command
+   * palette open a site with no number yet on its Data sources.
+   */
+  it("opens a site where the nav does, and builds every site link with the id encoded", () => {
+    const firstNumberYet = { ...assetCard("meals.example", "Meal Planner"), pulseReceivedAt: null };
+    state.data = {
+      ...payload([
+        alert({
+          correlatedChanges: [
+            { id: 3, at: "2026-08-01T08:00:00.000Z", kind: "deploy", ref: "abc1234", note: "shipped" },
+          ],
+        }),
+        alert({
+          id: 7,
+          asset: "areas.example",
+          assetDisplayName: "Areas",
+          ruleId: "ingest-freshness",
+          ruleInputs: { rule: "ingest-freshness", state: "never-reported" },
+          occurrences: 2,
+          members: [
+            { id: 7, asset: "areas.example", assetDisplayName: "Areas", firedAt: "2026-07-05T09:00:00.000Z" },
+            { id: 8, asset: "meals.example", assetDisplayName: "Meal Planner", firedAt: "2026-07-06T09:00:00.000Z" },
+          ],
+        }),
+      ]),
+      assets: [firstNumberYet, assetCard("areas.example", "Areas")],
+    };
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={["/alerts"]}>
+          <AlertsRoute />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    // "Open Meal Planner" goes where the sidebar sends a site with no number
+    // yet: its Data sources.
+    const row = openRow(/Signups well below normal/);
+    expect(within(row).getByRole("link", { name: "Open Meal Planner" }))
+      .toHaveAttribute("href", "/assets/meals.example/sources");
+    expect(within(row).getByRole("link", { name: /config|deploy|before/i }))
+      .toHaveAttribute("href", "/assets/meals.example#timeline");
+
+    // A grouped row's members open the same way: Areas has reported, so its
+    // Overview; Meal Planner has not, so its Data sources.
+    const grouped = openRow(/Two sites have no nightly reports/);
+    expect(within(grouped).getByRole("link", { name: "Areas" }))
+      .toHaveAttribute("href", "/assets/areas.example");
+    expect(within(grouped).getByRole("link", { name: "Meal Planner" }))
+      .toHaveAttribute("href", "/assets/meals.example/sources");
+  });
+
+  it("never calls a filtered blank an all-clear", () => {
+    renderAlerts([alert()], "/alerts?asset=areas.example");
+
+    expect(
+      screen.getByText("No open alerts match these filters"),
+    ).toBeInTheDocument();
+    // The portfolio is NOT clear — one alert is open, it is just filtered out.
+    expect(screen.queryByText("All clear")).toBeNull();
+  });
+
+  it("states the all-clear when nothing at all is open", () => {
+    const { container } = renderAlerts([]);
+
+    expect(screen.getByText("All clear")).toBeInTheDocument();
+    expect(screen.getByText("No open warnings or errors.")).toBeInTheDocument();
+    expect(container.querySelectorAll("[data-kpi] ~ *")).not.toHaveLength(0);
+    expect(kpi(container, "Open").textContent).toContain("0");
+  });
+
+  it("distinguishes an old first detection from a recent confirmation without nesting controls", () => {
+    const { container } = renderAlerts([alert({
+      firstFiredAt: "2026-07-01T09:00:00.000Z",
+      verification: {
+        state: "confirmed", lastConfirmedAt: "2026-08-01T09:00:00.000Z",
+        lastEvaluatedAt: "2026-08-01T09:00:00.000Z", source: "Nightly report", reason: "report-still-flags",
+      },
+    })]);
+    const row = screen.getByText("Signups well below normal").closest("li")!;
+    expect(row).toHaveTextContent("Confirmed 3h ago");
+    expect(row).toHaveTextContent("first seen");
+    expect(row.querySelector("button button")).toBeNull();
+    expect(container.querySelectorAll('[role="tooltip"]')).toHaveLength(0);
+  });
+
+  /**
+   * Bead `ro-ujb9.96.6.7`. An opened row printed its verification twice — the
+   * caption and a tooltip trigger under it — plus the rule's stored statistics
+   * line. It now leads with the chips, and everything checkable is ONE press
+   * away in the Evidence panel: the rule's numbers, then the checks.
+   */
+  it("opens onto one Evidence panel holding the numbers and the checks, said once", () => {
+    renderAlerts([alert({
+      firstFiredAt: "2026-07-01T09:00:00.000Z",
+      ruleId: "flow-poisson-low",
+      metric: "signups",
+      message: "22 in last24h (avg7d 39.3, P(<=22)~=0.0020)",
+      ruleInputs: { metric: "signups", observed: 22, baselinePerDay: 39.3, pLowerTail: 0.002, alpha: 0.01 },
+      verification: {
+        state: "unverified", lastConfirmedAt: "2026-07-20T09:00:00.000Z",
+        lastEvaluatedAt: "2026-07-20T09:00:00.000Z", source: "Central metric rule", reason: "confirmation-stale",
+      },
+    })]);
+    const row = openRow(/Signups well below normal/);
+    const body = row.querySelector("[data-list-row-body]") as HTMLElement;
+    // The caption says "Last known"; the opened body does not say it again.
+    expect(body.textContent).not.toContain("Last known");
+    expect(within(body).queryByRole("button", { name: "Alert verification details" })).toBeNull();
+    fireEvent.click(within(body).getByRole("button", { name: /^Why this fired/ }));
+    const panel = screen.getByRole("dialog");
+    expect(panel).toHaveTextContent("Arrived");
+    expect(panel).toHaveTextContent(/First seen\s*·/);
+    expect(panel).toHaveTextContent(/Last confirmed\s*·/);
+    expect(panel).toHaveTextContent("Central metric rule");
+    expect(panel).toHaveTextContent("Last check is past its freshness window");
+    // A rows-only panel: no explainer paragraph over the rows, and the stored
+    // statistics line is not quoted under the numbers it was written from.
+    expect(panel.querySelector("p")).toBeNull();
+    expect(panel.textContent).not.toContain("avg7d");
+    expect(body.textContent).not.toContain("avg7d");
+  });
+
+  it("keeps unverified and legacy alerts visible as last known, not newly confirmed", () => {
+    renderAlerts([alert(), alert({
+      id: 2, message: "Old check needs verification",
+      verification: {
+        state: "unverified", lastConfirmedAt: "2026-07-01T09:00:00.000Z",
+        lastEvaluatedAt: "2026-07-01T09:00:00.000Z", source: "Daily hygiene check", reason: "confirmation-stale",
+      },
+    })]);
+    for (const headline of ["Signups well below normal", "Old check needs verification"]) {
+      const row = screen.getByText(headline).closest("li")!;
+      expect(row).toHaveTextContent("Last known");
+      expect(row).not.toHaveTextContent("Confirmed");
+    }
+    expect(screen.queryByText("All clear")).toBeNull();
+  });
+
+  it("keeps each grouped asset's verification separate from the group's last-known summary", () => {
+    const confirmed = {
+      state: "confirmed" as const, lastConfirmedAt: "2026-08-01T09:00:00.000Z",
+      lastEvaluatedAt: "2026-08-01T09:00:00.000Z", source: "Report status", reason: "source-confirms" as const,
+    };
+    renderAlerts([alert({
+      ruleId: "ingest-freshness", ruleInputs: { rule: "ingest-freshness", state: "never-reported" },
+      occurrences: 2,
+      verification: { ...confirmed, state: "unverified", lastConfirmedAt: null, reason: "mixed-states" },
+      members: [
+        { id: 7, asset: "fees.example", assetDisplayName: "Fee Codes", firedAt: "2026-07-05T09:00:00.000Z", verification: confirmed },
+        { id: 8, asset: "areas.example", assetDisplayName: "Areas", firedAt: "2026-07-06T09:00:00.000Z" },
+      ],
+    })]);
+    const row = screen.getByText("Two sites have no nightly reports").closest("li")!;
+    expect(row).toHaveTextContent("Last known");
+    fireEvent.click(within(row).getByRole("button", { expanded: false }));
+    expect(row.querySelector('[data-attention-group-member="fees.example"]')).toHaveTextContent("Confirmed 3h ago");
+    expect(row.querySelector('[data-attention-group-member="areas.example"]')).toHaveTextContent("Last known");
+    expect(row.querySelector("button button")).toBeNull();
+  });
+
+  /**
+   * Doc 21, bead `ro-78qo.7`. The old page said how bad the rows were in a pair
+   * of counts beside the filters; the strip says it in the loudest type on the
+   * screen, and each count carries the SHAPE of its own share — "9 open" is a
+   * shrug when it is nine warnings and an emergency when it is nine errors.
+   */
+  describe("the strip says how bad tonight is", () => {
+    it("keeps open status visible without claiming a fresh verification", () => {
+      const { container } = renderAlerts([alert({ id: 1 })]);
+      const open = kpi(container, "Open");
+      expect(open).toHaveTextContent("1");
+      expect(open).toHaveTextContent("unresolved");
+      expect(open).not.toHaveTextContent("still true tonight");
+      expect(screen.queryByText(/Distinct unresolved alert conditions/)).toBeNull();
+      fireEvent.click(within(open).getByRole("button", { name: "About Open" }));
+      // The tooltip holds the declared gap as a state, not a methodology note.
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Condition history not recorded");
+      expect(screen.getByRole("tooltip").textContent!.split(/\s+/).length).toBeLessThanOrEqual(12);
+      expect(open.querySelectorAll("button")).toHaveLength(1);
+    });
+
+    it("splits the queue into errors and warnings, each with its share", () => {
+      const { container } = renderAlerts([
+        alert({ id: 1, severity: "error" }),
+        alert({ id: 2, severity: "error" }),
+        alert({ id: 3, severity: "warn" }),
+      ]);
+
+      expect(kpi(container, "Open").textContent).toContain("3");
+      expect(kpi(container, "Errors").textContent).toContain("2");
+      expect(kpi(container, "Errors").textContent).toContain("of 3 open");
+      expect(kpi(container, "Warnings").textContent).toContain("1");
+      // The bar is each severity's share of the whole, so neither repeats the
+      // other and the total above them is stated once.
+      expect(
+        container.querySelector('[data-severity-share="error"]')?.getAttribute("aria-label"),
+      ).toBe("2 of the 3 open alerts are errors");
+      expect(
+        container.querySelector('[data-severity-share="warn"]')?.getAttribute("aria-label"),
+      ).toBe("1 of the 3 open alerts are warnings");
+    });
+
+    it("stays portfolio-wide while a filter narrows the list", () => {
+      const { container } = renderAlerts(
+        [
+          alert({ id: 1, severity: "error" }),
+          alert({
+            id: 2,
+            severity: "warn",
+            asset: "areas.example",
+            assetDisplayName: "Areas",
+          }),
+        ],
+        "/alerts?asset=meals.example",
+      );
+
+      // Two are open tonight whatever the dropdown says; one is on screen.
+      expect(kpi(container, "Open").textContent).toContain("2");
+      expect(screen.getByText("1 of 2 open")).toBeInTheDocument();
+    });
+
+    it("says how much of the queue started this week, and its median age", () => {
+      const { container } = renderAlerts([
+        // Yesterday, and four weeks ago.
+        alert({ id: 1, firstFiredAt: "2026-07-31T12:00:00.000Z" }),
+        alert({ id: 2, firstFiredAt: "2026-07-04T12:00:00.000Z" }),
+      ]);
+
+      expect(kpi(container, "Started · 7d").textContent).toContain("1");
+      expect(kpi(container, "Started · 7d").textContent).toContain("1 standing longer");
+      // Half of two is the midpoint of one day and twenty-eight.
+      expect(kpi(container, "Median age").textContent).toContain("half of 2 are older");
+    });
+
+    it("counts what settled this week, and marks the figure a floor when the page cannot reach back", () => {
+      history.data = {
+        rows: [
+          settledRow(1, "2026-07-30T12:00:00.000Z"),
+          settledRow(2, "2026-07-01T12:00:00.000Z"),
+        ],
+        total: 2,
+        offset: 0,
+        limit: 100,
+        hasMore: false,
+        generatedAt: "2026-08-01T12:00:00.000Z",
+      };
+      const exact = renderAlerts([alert()]);
+      // One of the two closed inside the week, and the page holds every settled
+      // row there is, so the count is a count rather than a floor.
+      expect(kpi(exact.container, "Settled · 7d").textContent).toContain("1");
+      expect(kpi(exact.container, "Settled · 7d").textContent).not.toContain("1+");
+      exact.unmount();
+
+      history.data = {
+        rows: [settledRow(1, "2026-07-30T12:00:00.000Z")],
+        total: 400,
+        offset: 0,
+        limit: 100,
+        hasMore: true,
+        generatedAt: "2026-08-01T12:00:00.000Z",
+      };
+      const floor = renderAlerts([alert()]);
+      expect(kpi(floor.container, "Settled · 7d").textContent).toContain("1+");
+      expect(kpi(floor.container, "Settled · 7d").textContent).toContain("at least");
+    });
+
+    describe("condition KPIs never imply raw firing history is comparable", () => {
+      // The payload carries no nightly rollup since bead ro-trai.44 (nothing
+      // drew it), so the Open and Median age tiles have no series to draw.
+      it("does not suggest a database change would make raw snapshots comparable", () => {
+        const { container } = renderAlerts([alert()]);
+        for (const name of ["Open", "Median age"]) {
+          expect(kpi(container, name).querySelector("[data-spark]")).toBeNull();
+          expect(kpi(container, name).getAttribute("data-series")).toBe("unavailable");
+        }
+        const reason = kpi(container, "Open").getAttribute("data-series-reason") ?? "";
+        expect(reason).toBe("Condition history not recorded");
+        expect(reason).not.toMatch(/database|migration|schema/i);
+        expect(reason).not.toMatch(/\byet\b/);
+      });
+    });
+
+    /**
+     * Doc 21's acceptance, held here so a regression fails in `pnpm test`: every
+     * number shows a series, shows how it divides, or declares in words that it
+     * has neither yet.
+     */
+    it("gives every KPI a series, a composition or a declared gap", () => {
+      const { container } = renderAlerts([
+        alert({ id: 1, severity: "error" }),
+        alert({ id: 2, severity: "warn" }),
+      ]);
+
+      for (const cell of container.querySelectorAll("[data-kpi]")) {
+        const answered =
+          cell.querySelector("[data-spark]") !== null ||
+          cell.querySelector("[data-composition]") !== null ||
+          cell.getAttribute("data-series") === "unavailable";
+        expect(answered, `${cell.getAttribute("data-kpi")} shows a bare number`).toBe(
+          true,
+        );
+        if (cell.getAttribute("data-series") === "unavailable") {
+          expect(cell.getAttribute("data-series-reason")).toBeTruthy();
+        }
+      }
+    });
+  });
+
+  it("keeps the recurrence chip on the row's own line", () => {
+    renderAlerts([
+      alert({ id: 1, severity: "error", occurrences: 4, firstFiredAt: "2026-07-30T12:00:00.000Z" }),
+    ]);
+
+    const row = screen.getByRole("button", { name: /Signups well below normal/ });
+    expect(row.textContent).toContain("4× in 2d");
+    // The ring carries the severity and the mark carries the kind, so neither
+    // is colour alone (doc 14, doc 21's row glyphs).
+    expect(row.querySelector(".text-error")).not.toBeNull();
+    expect(row.textContent).toContain("△");
+  });
+
+  it("offers every asset in the store as a filter, not only the ones alerting", () => {
+    renderAlerts([alert()]);
+
+    const select = screen.getByLabelText("Site");
+    const options = within(select).getAllByRole("option").map((o) => o.textContent);
+    expect(options).toEqual(["Every site", "Meal Planner", "Areas"]);
+  });
+
+  it("offers no site filter with one site to pick, unless a link already narrows (ro-ujb9.130)", () => {
+    const oneSite = (url: string) => {
+      const data = payload([alert()], []);
+      state.data = { ...data, assets: data.assets.slice(0, 1) };
+      return render(
+        <QueryClientProvider client={new QueryClient()}>
+          <MemoryRouter initialEntries={[url]}>
+            <AlertsRoute />
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+    };
+
+    const plain = oneSite("/alerts");
+    expect(screen.queryByLabelText("Site")).toBeNull();
+    expect(screen.queryByText("Every site")).toBeNull();
+    plain.unmount();
+
+    oneSite("/alerts?asset=meals.example");
+    expect(screen.getByLabelText("Site")).toHaveValue("meals.example");
+  });
+
+  /**
+   * `ro-c7qq`. A snooze that produced no visible row would be a mute with a
+   * friendlier name, so the page carries the ledger of what was silenced.
+   */
+  describe("Snoozed — the honest half of a snooze", () => {
+    function snoozed(overrides: Partial<SnoozedItem> = {}): SnoozedItem {
+      return {
+        ...alert({ id: 9, message: "Signups well below normal" }),
+        snoozeUntil: "2026-08-04T12:00:00.000Z",
+        ...overrides,
+      };
+    }
+
+    it("lists a parked condition with its count, its date and an Unsnooze", () => {
+      const { container } = renderAlerts([], "/alerts", [snoozed()]);
+      const section = container.querySelector("[data-snoozed-alerts]")!;
+
+      expect(section.textContent).toContain("Snoozed");
+      expect(section.textContent).toContain("1 parked");
+      expect(section.textContent).toContain("Meal Planner");
+      expect(section.textContent).toContain("Signups well below normal");
+      // Glyph + date + how long, not the word "snoozed" on its own.
+      expect(section.querySelector('[data-snooze-state="active"]')).not.toBeNull();
+      expect(section.textContent).toContain("Aug 4, 2026");
+      expect(section.textContent).toContain("Last known");
+      expect(section.textContent).toContain("first seen");
+      expect(section.querySelector("button button")).toBeNull();
+
+      // Unsnooze is the one verb this row has, and it lives where every other
+      // verb on this page does: inside the row (bead `ro-78qo.7`).
+      expect(screen.queryByRole("button", { name: "Unsnooze alert" })).toBeNull();
+      const row = openRow(/Signups well below normal/);
+      expect(
+        within(row).getByRole("button", { name: "Unsnooze alert" }),
+      ).toBeInTheDocument();
+      // The checks behind "Last known" are in the row's Evidence panel, not a
+      // second copy of the caption (bead `ro-ujb9.96.6.7`).
+      expect(within(row).getByRole("button", { name: /^Why this fired/ })).toHaveTextContent("Evidence");
+      expect(within(row).queryByRole("button", { name: "Alert verification details" })).toBeNull();
+    });
+
+    it("stays out of the open count and the severity split", () => {
+      const { container } = renderAlerts([], "/alerts", [
+        snoozed({ severity: "error" }),
+      ]);
+      // The strip counts what NEEDS attention. A parked row appearing in it
+      // would put the number the operator reads first out of agreement with
+      // the list under it.
+      expect(kpi(container, "Open").textContent).toContain("0");
+      expect(kpi(container, "Errors").textContent).toContain("0");
+    });
+
+    /**
+     * `ro-w13s`. Snooze is offered on every open row of the asset page's state
+     * hero, info and milestone included, while this ledger used to carry the
+     * open table's error/warn scope — so parking an info row hid it portfolio-
+     * wide, which is the one thing this section exists to prevent.
+     */
+    it("lists a parked info row the open list above it could never carry", () => {
+      const { container } = renderAlerts([], "/alerts", [
+        snoozed({
+          id: 11,
+          severity: "info",
+          kind: "milestone",
+          message: "1,000th signup",
+        }),
+      ]);
+      const section = container.querySelector("[data-snoozed-alerts]")!;
+      expect(section.textContent).toContain("1,000th signup");
+
+      // The severity is the ROW'S OWN, carried by the ring, so a parked error
+      // still reads as an error; the `◦` mark is what says parked. Doc 21's
+      // mark set has no milestone glyph — a milestone is info-severity and its
+      // mark is the same quiet one — so this ledger states the kind in words
+      // when it has to, rather than growing a colour the vocabulary lacks.
+      const row = within(section as HTMLElement).getByRole("button", {
+        name: /1,000th signup/,
+      });
+      expect(row.textContent).toContain("◦");
+
+      // Widening the LEDGER widens no count: the strip still answers for what
+      // needs attention.
+      expect(kpi(container, "Open").textContent).toContain("0");
+      expect(kpi(container, "Warnings").textContent).toContain("0");
+    });
+
+    it("is absent entirely when nothing is parked", () => {
+      const { container } = renderAlerts([alert()]);
+      // "Snoozed (0)" is a heading about a thing that has not happened.
+      expect(container.querySelector("[data-snoozed-alerts]")).toBeNull();
+    });
+
+    it("survives a filter that hides every open row — a ledger a dropdown can shorten is one that can hide the row it was set to hide", () => {
+      const { container } = renderAlerts([alert()], "/alerts?severity=error", [
+        snoozed(),
+      ]);
+      expect(screen.getByText("No open alerts match these filters")).toBeInTheDocument();
+      expect(container.querySelector("[data-snoozed-alerts]")).not.toBeNull();
+    });
+  });
+});

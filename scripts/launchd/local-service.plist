@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  NoticeOS local runner as a launchd user agent.
+
+  TEMPLATE — generated and installed by `pnpm os:install`; never edit the
+  installed copy by hand. Placeholders:
+    __LABEL__         the service's label: com.noticeos.local, or the label a
+                      service installed before the NoticeOS rename keeps
+                      (scripts/resource-names.mts)
+    __NODE_PATH__     absolute path to node
+    __NODE_BIN_DIR__  dir holding node + pnpm
+    __RUNTIME_ROOT__  the runtime copy the service runs: <home>/.local/runtime/current,
+                      a link `pnpm os:deploy` moves (merging never does)
+    __HOME_ROOT__     the home checkout: the store, .local/, secrets, task inventory
+  A declared task-store home may be included without endpoint or credentials.
+
+  Install instructions are in scripts/README.md ("launchd service").
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>__LABEL__</string>
+
+  <!-- Run Node directly so package-manager startup failures cannot disappear
+       before the runner opens its own persistent log. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE_PATH__</string>
+    <string>__RUNTIME_ROOT__/scripts/os-up.mjs</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__RUNTIME_ROOT__</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- Lets a replacement runner distinguish its own freshly orphaned child
+         from an unrelated foreground process. The runner also reads the
+         names a plist installed before the rename set
+         (scripts/product-env.mts). -->
+    <key>NOTICEOS_MANAGED</key>
+    <string>1</string>
+    <!-- Where the state stays while the code runs from the runtime copy
+         (scripts/os-runtime.mjs, bead ro-ujb9.113). -->
+    <key>NOTICEOS_HOME</key>
+    <string>__HOME_ROOT__</string>
+__DOLT_HOME_ENV__
+    <!-- launchd starts with a bare PATH; node/pnpm/wrangler need their bin dir. -->
+    <key>PATH</key>
+    <string>__NODE_BIN_DIR__:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <!-- LAN exposure is the default. Uncomment to force the Tower to loopback:
+    <key>OS_UP_HOST</key>
+    <string>0</string>
+    -->
+  </dict>
+
+  <!-- Start at load, and keep it alive if it ever exits. -->
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <!-- The runner owns one rotated, redacted combined log. Duplicating it here
+       would create two unbounded histories with different retention. -->
+  <key>StandardOutPath</key>
+  <string>/dev/null</string>
+  <key>StandardErrorPath</key>
+  <string>/dev/null</string>
+</dict>
+</plist>

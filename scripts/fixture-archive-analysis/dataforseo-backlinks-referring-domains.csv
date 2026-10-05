@@ -1,0 +1,2 @@
+asset,report_date,collected_at,data_state,provider_truncated,backlinks,backlinks_spam_score,broken_backlinks,broken_pages,domain,first_seen,lost_date,provider_cost_usd,rank,referring_domains,referring_ips,referring_pages,referring_subnets,row_grain
+meals.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,false,14,,,,blog.example.org,2026-01-02 00:00:00 +00:00,,0.02,220,,,,,referring-domain

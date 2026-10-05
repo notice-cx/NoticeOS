@@ -1,0 +1,68 @@
+{
+  "name": "@noticeos/postgres",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "description": "The one Postgres connection and transaction helper the Workers and the scripts share: the application role, one named workspace per transaction, exact values.",
+  "exports": {
+    ".": {
+      "types": "./src/store.d.mts",
+      "default": "./src/store.mjs"
+    },
+    "./identity": {
+      "types": "./src/identity.d.mts",
+      "default": "./src/identity.mjs"
+    },
+    "./email-code": {
+      "types": "./src/email-code.d.mts",
+      "default": "./src/email-code.mjs"
+    },
+    "./membership": {
+      "types": "./src/membership.d.mts",
+      "default": "./src/membership.mjs"
+    },
+    "./browser-session": {
+      "types": "./src/browser-session.d.mts",
+      "default": "./src/browser-session.mjs"
+    },
+    "./task-directory": {
+      "types": "./src/task-directory.d.mts",
+      "default": "./src/task-directory.mjs"
+    },
+    "./task-catalog": {
+      "types": "./src/task-catalog.d.mts",
+      "default": "./src/task-catalog.mjs"
+    },
+    "./platform-provisioning": {
+      "types": "./src/platform-provisioning.d.mts",
+      "default": "./src/platform-provisioning.mjs"
+    },
+    "./integration-oauth-custody": {
+      "types": "./src/integration-oauth-custody.d.mts",
+      "default": "./src/integration-oauth-custody.mjs"
+    },
+    "./service-grant": {
+      "types": "./src/service-grant.d.mts",
+      "default": "./src/service-grant.mjs"
+    },
+    "./mutation-audit": {
+      "types": "./src/mutation-audit.d.mts",
+      "default": "./src/mutation-audit.mjs"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@better-auth/core": "1.7.7",
+    "pg": "8.23.0",
+    "better-auth": "1.7.7",
+    "@better-auth/kysely-adapter": "1.7.7",
+    "kysely": "0.29.6"
+  }
+}

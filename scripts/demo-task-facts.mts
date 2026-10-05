@@ -1,0 +1,145 @@
+// Dated synthetic work, shared by the real hub import and its history seed.
+import { createHash } from 'node:crypto';
+
+export type DemoTaskStatus = 'open' | 'in_progress' | 'blocked' | 'deferred' | 'closed';
+export interface DemoTaskEvent { at: string; status: DemoTaskStatus; assignee: string; }
+export interface DemoTaskFact {
+  id: string; asset: string; prefix: string; title: string; description: string;
+  acceptance: string; issueType: 'task' | 'epic' | 'gate'; priority: number;
+  events: DemoTaskEvent[]; parent?: string; blocks?: string; dependsOn?: string;
+  human?: boolean; deferUntil?: string;
+  closeEvidence?: string;
+  comments: { author: string; text: string; at: string }[];
+}
+type Asset = { id: string; prefix: string; name: string; createdAt: string };
+const DAY = 86_400_000;
+const at = (day: string, offset: number, hour = 12) => new Date(Date.parse(`${day}T00:00:00Z`) + offset * DAY + hour * 3_600_000).toISOString();
+type TaskBrief = readonly [context: string, acceptance: string, opening: string, evidence: string];
+const BRIEFS: Record<string, readonly TaskBrief[]> = {
+  lb: [
+    ["Brief exports fell despite continued visits; inspect index navigation.", "Link reproduction, navigation verification, repair annotation, and registered follow-up.", "Search works. Returning through the brief library breaks exporting.", "The repair annotation links verification and separate readback."],
+    ["Exporting fails after returning through the brief library.", "Record the brief, index action, and failed export for repair.", "Start from the index return path, not search.", "The index return failure is recorded for repair."],
+    ["Returning to the index must preserve usable brief navigation.", "Verify entry, return navigation, and exporting; record the dated result.", "Check returning to the index as well as fresh entry.", "Entry, return navigation, and exporting pass before closure."],
+    ["The shipped repair has a registered 28-day comparison.", "Record report days, sessions delta, and outcome after the deadline.", "Use the registered window. Keep revenue attribution separate.", "Registered windows and the evaluator outcome are recorded."],
+    ["Accumulating briefs make the brief library difficult to scan.", "Draft project groups and a route checklist for separate verification.", "Group by projects. Keep the template filter parked.", "The project-group draft and route checklist are ready."],
+    ["The completed subscription month needs its own ledger check.", "Check subscription income and reconciled state separately from usage.", "Use the subscription entry, not combined revenue.", "The subscription month and reconciled booking state match."],
+    ["Brief library verification needs the unfinished grouped draft.", "After draft closure, check routes and record missing links.", "Waiting for the grouped draft; other brief work can proceed.", "The completed index draft has its route checklist."],
+    ["A template filter remains an unselected proposal.", "At the wake-up date, choose a bounded discovery task.", "Keep this parked until the brief library is accepted.", "The template-filter proposal has a scheduled discovery decision."],
+  ],
+  pw: [
+    ["Source saves dropped for two days; visits continue.", "Link reproduction, restore saving, and verify; retain the original alert.", "Starting with the save action. Keep the alert open.", "Saving and reopening pass the separate verification checklist."],
+    ["The source-save alert needs a repeatable failing action.", "Record the source, preview, and failed save for repair.", "Sources open. Saving fails after the source preview.", "The preview-save failure is reproduced for the repair."],
+    ["Collection label revisions need Mara’s decision first.", "After approval, revise labels and retain the before/after list.", "The label draft awaits Mara. Save repair can continue.", "The revised labels match Mara’s recorded decision."],
+    ["Source-save verification awaits the repair.", "Run the failing save flow, reopen it, and record results.", "Use the reported route once the restore task closes.", "Saving and reopening pass the reported route checklist."],
+    ["Saved-source links can be checked during the repair.", "Open each index link; file broken targets against named sources.", "This check needs neither save repair nor label approval.", "Saved-source links reach their named source routes."],
+    ["Monthly licensing reconciliation remains separate from the missing day.", "Check monthly corrections and reconciled state; retain the daily gap.", "Use the completed month. The recent gap remains visible.", "Monthly corrections reconcile; the daily gap stays visible."],
+    ["One recent daily report is missing.", "Identify the missing day; never substitute a zero observation.", "Collection resumed. The earlier missing day still needs explicit treatment.", "Recovered report checked; the earlier daily gap remains."],
+    ["Shared research folders remain a discovery proposal.", "At the wake-up date, decide a bounded discovery scope.", "Park shared-folder exploration while existing source saving is repaired.", "Shared research folders have a scheduled discovery decision."],
+  ],
+  fr: [
+    ["CSV input handling needs verification before more examples.", "Check empty, zero, and numeric inputs; record concrete failures.", "Start with inputs; more examples cannot repair rejected values.", "The CSV input checklist is recorded."],
+    ["First usage reports cover only the short post-launch period.", "Verify launch bounds and identify provisional recent days.", "Check available days before interpreting a change.", "Usage begins at launch; recent days remain provisional."],
+    ["Sample files must match accepted CSV inputs.", "Check examples against accepted inputs; hold unsupported cases.", "Waiting for the input checklist before accepting examples.", "Sample files match the accepted input checklist."],
+    ["CSV acceptance includes keyboard operation.", "After input acceptance, complete those cases using the keyboard.", "Reuse accepted input cases; record every unreachable control.", "Keyboard operation completes the accepted input cases."],
+    ["Published help links need checking while CSV work continues.", "Open named help routes; separate failures from missing usage days.", "These links can be checked before CSV input acceptance.", "Published help links open their named routes."],
+    ["Operating costs exist; monetization is unconfigured.", "Check initial costs; leave unconfigured subscription and licensing revenue absent.", "Record operating costs without inventing disconnected revenue.", "Initial costs are recorded; unconfigured monetization remains absent."],
+    ["The next comparison must begin no earlier than launch.", "Choose available days and retain provisional indicators.", "A mature-site window would fabricate this site’s earlier history.", "The next comparison uses only actual post-launch days."],
+    ["Saved validation rules remain a discovery proposal.", "At the wake-up date, define evidence for bounded discovery.", "Keep this parked until input and keyboard checks finish.", "Saved rules have a bounded discovery decision."],
+  ],
+  no: [
+    ["Portfolio recovery must preserve operational records and task history.", "Verify restored databases, task history, and configuration on isolated resources.", "Server startup alone is insufficient; inspect restored task history.", "Recovery checks include task history and configuration readbacks."],
+    ["Task-board refresh must retain identity, empty queues, and failures.", "Compare snapshot identities and counts; distinguish unavailable from empty.", "An unavailable project must never appear as an empty queue.", "Board refresh preserves identities and distinguishes unavailable counts."],
+    ["The next operating-cost budget needs Mara’s decision.", "Record approved scope after the gate; preserve existing cost history.", "Next budget approval does not authorize rewriting previous costs.", "Mara’s next budget scope preserves previous cost history."],
+    ["Project-map verification awaits the shared budget decision.", "After approval, verify all four project identities and snapshot reads.", "These projects already exist; this review never reinitializes them.", "All four projects match their current snapshot identities."],
+    ["Collection history includes a failed attempt and later recovery.", "Inspect both recorded attempts; never recollect to rewrite history.", "Read the recorded attempts, rather than starting another collection.", "The failed attempt and later recovery remain inspectable."],
+    ["Shared costs belong to the OS, separate from property revenue.", "Check OS cost entries, booking states, and recorded periods.", "Keep portfolio overhead separate; use the ledger’s recorded amounts.", "Shared costs retain OS ownership, periods, booking states."],
+    ["Portfolio report links must preserve task-board asset identities.", "Open three property links and the OS; check target identities.", "Compare with the four-project map, not display names.", "All four portfolio links open their declared identities."],
+    ["A further portfolio import needs bounded discovery first.", "At the wake-up date, choose scope without copying an installation.", "Park this until task, recovery, and report checks finish.", "The next import has a scheduled bounded discovery decision."],
+  ],
+};
+
+/** Facts describe fictional work, never provider execution or causal returns. */
+export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }: { assets: readonly Asset[]; seed: string; referenceDate: string; cutoff: string }) {
+  const id = (asset: Asset, key: string) => `${asset.prefix}-${createHash('sha256').update(`${seed}\0${asset.id}\0${key}`).digest('hex').slice(0, 6)}`;
+  const tasks: DemoTaskFact[] = [];
+  const projectTitles: Record<string, readonly string[]> = {
+    lb: ['Restore brief navigation', 'Reproduce the navigation failure', 'Verify the navigation repair', 'Read the repair follow-up', 'Group the brief library', 'Check the completed subscription report', 'Verify the refreshed brief library', 'Explore a template filter'],
+    pw: ['Restore source saving', 'Reproduce the source-save failure', 'Revise the collection labels', 'Verify restored source saving', 'Check the saved-source links', 'Reconcile the completed licensing report', 'Verify the recovered daily report', 'Explore shared research folders'],
+    fr: ['Check CSV input handling', 'Verify the first usage reports', 'Review sample CSV files', 'Verify keyboard CSV use', 'Check the published help links', 'Record the initial operating costs', 'Review the next coverage comparison', 'Explore saved validation rules'],
+    no: ['Verify the portfolio backup restore', 'Check the task-board refresh', 'Review the next operating-cost budget', 'Verify the refreshed task projects', 'Inspect the recorded collection recovery', 'Reconcile the shared operating costs', 'Check the portfolio report links', 'Explore the next portfolio import'],
+  };
+  const projects = assets.map(asset => ({ asset: asset.id, prefix: asset.prefix, database: `demo_${asset.prefix}` }));
+  for (const asset of assets) {
+    const titles = projectTitles[asset.prefix];
+    if (!titles || titles.length !== 8) throw new Error('The task scenario needs its four declared projects.');
+    const epic = id(asset, 'epic');
+    const older = asset.prefix === 'fr' ? -23 : -390;
+    const events = (start: number, status: DemoTaskStatus, finish: number, owner: string): DemoTaskEvent[] => {
+      const first = at(referenceDate, start);
+      const last = at(referenceDate, finish, 15);
+      const history: DemoTaskEvent[] = [{ at: first, status: 'open', assignee: 'Mara' }];
+      if (status === 'closed') history.push({ at: new Date(Date.parse(first) + 3_600_000).toISOString(), status: 'in_progress', assignee: owner });
+      history.push({ at: last, status, assignee: owner });
+      return history;
+    };
+    tasks.push({ id: epic, asset: asset.id, prefix: asset.prefix, title: `${asset.name} operating work`, description: 'Synthetic work container; unfinished children keep this epic open.', acceptance: 'Required children need accepted evidence before this epic closes.', issueType: 'epic', priority: 2, events: [{ at: at(referenceDate, older), status: 'open', assignee: 'Mara' }], comments: [] });
+    for (const [index, title] of titles.entries()) {
+      let start = asset.prefix === 'fr' ? -22 + index : older + index * 31;
+      let finish = asset.prefix === 'fr' ? -15 + index : -7 - index;
+      let status: DemoTaskStatus = index < 2 || index === 5 || index === 6 ? 'closed' : index === 7 ? 'deferred' : index === 3 ? 'blocked' : 'open';
+      if (asset.prefix === 'lb' && index < 4) { start = -60 + index; finish = [-42, -45, -43, -13][index]!; status = 'closed'; }
+      if (asset.prefix === 'pw' && index < 4) { start = -2; finish = -1; status = index === 0 ? 'in_progress' : index === 1 ? 'closed' : 'open'; }
+      if (asset.prefix === 'fr' && index === 0) { status = 'in_progress'; finish = -2; }
+      if (asset.prefix === 'pw' && index === 6) finish = -2;
+      if (index === 6 && asset.prefix === 'lb') status = 'open';
+      if (index === 7) finish = -1;
+      const owner = index === 2 || index === 5 || index === 7 ? 'Mara' : index === 3 || index === 6 ? 'Verifier' : 'Builder';
+      const brief = BRIEFS[asset.prefix]![index]!;
+      const task: DemoTaskFact = { id: id(asset, `task-${index}`), asset: asset.id, prefix: asset.prefix, title, description: `${brief[0]} Asset: /assets/${asset.id}`, acceptance: brief[1], issueType: 'task', priority: asset.prefix === 'pw' && index === 0 ? 1 : 2, events: events(start, status, finish, owner), parent: epic, comments: [], ...(status === 'closed' ? { closeEvidence: brief[3] } : {}) };
+      if (index === 3 && asset.prefix !== 'lb') task.dependsOn = id(asset, 'task-0');
+      if (index === 3 && asset.prefix === 'no') task.dependsOn = id(asset, 'task-2');
+      if (index === 6 && asset.prefix === 'lb') task.dependsOn = id(asset, 'task-4');
+      if (index === 7) task.deferUntil = at(referenceDate, 14);
+      task.comments.push({ author: 'Mara', at: task.events[0]!.at, text: brief[2] });
+      if (status === 'in_progress') task.comments.push({ author: owner, at: task.events.at(-1)!.at, text: 'Checking the agreed cases; verification remains open.' });
+      if (task.dependsOn) task.comments.push({ author: owner, at: task.events.at(-1)!.at, text: `Waiting for /tasks/${task.dependsOn} before verification.` });
+      if (status === 'closed') task.comments.push({ author: 'Verifier', at: task.events.at(-1)!.at, text: `${brief[3]} Evidence: /tasks/${task.id} · /assets/${asset.id}` });
+      tasks.push(task);
+    }
+    if (asset.prefix === 'pw' || asset.prefix === 'no') {
+      const blocked = id(asset, 'task-2');
+      tasks.push({ id: id(asset, 'human-gate'), asset: asset.id, prefix: asset.prefix, title: asset.prefix === 'pw' ? 'Approve revised collection labels' : 'Approve the next operating-cost budget', description: 'Synthetic operator decision; this gate blocks only its declared task.', acceptance: 'Mara records the decision before the blocked task proceeds.', issueType: 'gate', priority: 2, human: true, blocks: blocked, events: [{ at: at(referenceDate, -1), status: 'open', assignee: 'Mara' }], comments: [{ author: 'Builder', at: at(referenceDate, -1), text: 'Waiting for the stated decision; unrelated ready work remains available.' }] });
+    }
+  }
+  if (tasks.some(task => task.events.some(event => event.at > cutoff || event.at < assets.find(asset => asset.id === task.asset)!.createdAt) || task.comments.some(comment => comment.at > cutoff))) throw new Error('Task history falls outside its declared asset lifetime or cutoff.');
+  const first = assets.find(asset => asset.prefix === 'lb')!; const second = assets.find(asset => asset.prefix === 'pw')!;
+  return { projects, tasks, storyIds: { repair: id(first, 'task-0'), readback: id(first, 'task-3'), problem: id(second, 'task-0') } };
+}
+
+/** Import the dated facts through bd; no task-table SQL writer exists here. */
+export function demoTaskIssuesAt(tasks: readonly DemoTaskFact[], instant: string): Record<string, unknown>[] {
+  if (!Number.isFinite(Date.parse(instant)) || new Date(instant).toISOString() !== instant) throw new Error('An exact task-history instant is required.');
+  return tasks.flatMap(task => {
+    const events = task.events.filter(event => event.at <= instant);
+    const state = events.at(-1);
+    if (!state) return [];
+    const comments = task.comments.filter(comment => comment.at <= instant);
+    const updated = [...events.map(event => event.at), ...comments.map(comment => comment.at)].sort().at(-1)!;
+    const dependencies = [
+      ...(task.parent ? [{ issue_id: task.id, depends_on_id: task.parent, type: 'parent-child' }] : []),
+      ...(task.dependsOn ? [{ issue_id: task.id, depends_on_id: task.dependsOn, type: 'blocks' }] : []),
+      ...tasks.filter(gate => gate.blocks === task.id && gate.events[0]!.at <= instant).map(gate => ({ issue_id: task.id, depends_on_id: gate.id, type: 'blocks' })),
+    ];
+    return [{ id: task.id, title: task.title, description: task.description, acceptance_criteria: task.acceptance,
+      issue_type: task.issueType, priority: task.priority, status: state.status, assignee: state.assignee,
+      owner: 'Mara', created_by: 'Mara', created_at: task.events[0]!.at, updated_at: updated,
+      ...(events.some(event => event.status === 'in_progress') ? { started_at: events.find(event => event.status === 'in_progress')!.at } : {}),
+      ...(state.status === 'closed' ? { closed_at: state.at, close_reason: task.closeEvidence } : {}),
+      ...(state.status === 'deferred' ? { defer_until: task.deferUntil } : {}),
+      ...(task.issueType === 'gate' ? { await_type: 'human', ephemeral: true } : {}),
+      labels: ['synthetic-demo', ...(task.human ? ['human'] : [])],
+      metadata: { synthetic: true }, dependencies,
+      comments: comments.map(comment => ({ author: comment.author, text: comment.text, created_at: comment.at })),
+    }];
+  });
+}

@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Worker globals come from worker-configuration.d.ts; nodejs_compat imports
+    // use the root's explicit @types/node dependency, including without tests.
+    // cloudflare:test types are pulled in explicitly by test/env.d.ts.
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "worker-configuration.d.ts"]
+}

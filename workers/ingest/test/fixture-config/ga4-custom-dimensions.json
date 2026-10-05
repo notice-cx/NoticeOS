@@ -1,0 +1,10 @@
+{
+  "assets": {
+    "meals.example": {
+      "eventParams": ["message", "source"]
+    },
+    "nosh.example": {
+      "eventParams": ["message", "source"]
+    }
+  }
+}

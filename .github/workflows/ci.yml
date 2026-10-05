@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm -r typecheck
+      # The Postgres proofs — the D27 workspace-isolation denial, the edge
+      # cases and the migration runner (bead ro-ujb9.76.15), and the Workers'
+      # suites on the store they are moving to (epic ro-ujb9.76,
+      # docs/briefs/2026-09-29-postgres-port-pattern.md) — run here and never
+      # skip: PostgreSQL 18's server binaries go on PATH before the first suite
+      # that starts a server (installed from PGDG if the runner lacks them), and
+      # NOTICEOS_REQUIRE_POSTGRES turns a server that cannot start into a
+      # failure.
+      - run: (test -x /usr/lib/postgresql/18/bin/initdb && test -x /usr/lib/postgresql/17/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-17 postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
+      - run: pnpm -r test
+        env:
+          NOTICEOS_REQUIRE_POSTGRES: '1'
+      - run: pnpm test:scripts
+        env:
+          NOTICEOS_REQUIRE_POSTGRES: '1'
+          NOTICEOS_TEST_POSTGRES17_BIN: /usr/lib/postgresql/17/bin
+      - run: pnpm -r build
+
+      # The fifth gate: the isolated browser journeys, then the UX flow gate
+      # (bead ro-ujb9.95), which walks every declared operator flow and fails
+      # when one gains a step, an empty step, a repeated check, a duplicate
+      # status or an ungrouped list (apps/tower/ux-flows.json).
+      - run: pnpm --filter @noticeos/tower run journey:install --with-deps
+      - run: pnpm test:journeys
+        env:
+          # Browser workers, each with its own fixture server, and flow-gate
+          # lanes (bead ro-ujb9.167). Unset, a run takes half the machine's
+          # cores, which on a small runner is 1; the runner already carried
+          # the flow gate's 3 lanes, so the journeys share that count.
+          JOURNEY_WORKERS: 3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: user-journey-browser-evidence
+          path: |
+            apps/tower/e2e/playwright-report/
+            apps/tower/e2e/test-results/
+            apps/tower/e2e/ux-flows-results/
+          retention-days: 14

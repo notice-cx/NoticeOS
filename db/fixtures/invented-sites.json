@@ -1,0 +1,40 @@
+{
+  "about": "Synthetic site rows shared by the ingest and Tower tests (ro-ujb9.76.40). Their identities, order, statuses, posture and dates are explicit fixture data; no operational test needs historical D1 seed migrations. New installations still start with no sites.",
+  "os": {
+    "id": "root-os", "domain": "os.example", "displayName": "NoticeOS",
+    "status": "live", "senseOnly": 0, "isOs": 1,
+    "createdAt": "2026-07-05T00:00:00.000Z", "updatedAt": "2026-07-06T14:30:00.000Z"
+  },
+  "sites": [
+    {
+      "id": "meals.example", "domain": "meals.example", "displayName": "Meal Planner",
+      "status": "onboarding", "senseOnly": 0, "isOs": 0,
+      "createdAt": "2026-07-05T00:00:00.000Z", "updatedAt": "2026-07-05T00:00:00.000Z"
+    },
+    {
+      "id": "nosh.example", "domain": "nosh.example", "displayName": "Nosh",
+      "status": "onboarding", "senseOnly": 0, "isOs": 0,
+      "createdAt": "2026-07-05T00:00:00.000Z", "updatedAt": "2026-07-05T00:00:00.000Z"
+    },
+    {
+      "id": "pacer.example", "domain": "pacer.example", "displayName": "Pacer Test",
+      "status": "onboarding", "senseOnly": 1, "isOs": 0,
+      "createdAt": "2026-07-05T00:00:00.000Z", "updatedAt": "2026-07-05T00:00:00.000Z"
+    },
+    {
+      "id": "areas.example", "domain": "areas.example", "displayName": "Area Lookup",
+      "status": "onboarding", "senseOnly": 1, "isOs": 0,
+      "createdAt": "2026-07-05T00:00:00.000Z", "updatedAt": "2026-07-05T00:00:00.000Z"
+    },
+    {
+      "id": "fees.example", "domain": "fees.example", "displayName": "Fee Codes",
+      "status": "pre-launch", "senseOnly": 1, "isOs": 0,
+      "createdAt": "2026-07-05T00:00:00.000Z", "updatedAt": "2026-07-05T00:00:00.000Z"
+    },
+    {
+      "id": "pullups.example", "domain": "pullups.example", "displayName": "Pull-up Standards",
+      "status": "onboarding", "senseOnly": 1, "isOs": 0,
+      "createdAt": "2026-08-02T00:00:00.000Z", "updatedAt": "2026-08-02T00:00:00.000Z"
+    }
+  ]
+}

@@ -1,0 +1,254 @@
+// Private server fact reader. This is neither admission nor task readiness.
+// The trusted executor authorizes the original request before calling it and
+// rechecks the current unrevoked mapping before every effect. No handler or
+// physical connection credential is exposed by this module.
+import { Pool, type PoolClient } from 'pg';
+import { createHash } from 'node:crypto';
+
+export interface TaskProjectMapping {
+  readonly workspaceId: string;
+  readonly projectId: string;
+  readonly executorRef: string;
+  /** Stable vault handle; its secret value may rotate without changing owner. */
+  readonly credentialRef: string;
+  readonly databaseKey: string;
+}
+export interface TaskDirectory {
+  project(workspaceId: string, projectId: string): Promise<TaskProjectMapping | null>;
+  /** Selection metadata only; caller admission and executor readiness stay separate. */
+  catalog(workspaceId: string): Promise<readonly TaskProjectCatalogEntry[]>;
+  /** Native direct-Postgres coordination only. Every hosted mutation must
+   * finish its owned subprocess/profile cleanup before this callback settles. */
+  withProjectMutation<T>(workspaceId: string, projectId: string,
+    controls: TaskMutationControls, work: (lease: TaskMutationLease) => Promise<T>): Promise<T>;
+  close(): Promise<void>;
+}
+export interface TaskMutationControls {
+  readonly signal?: AbortSignal;
+  readonly deadline: number;
+}
+export interface TaskMutationLease {
+  /** Fixed-selector fresh read on the held connection; never reacquire a pool slot. */
+  project(): Promise<TaskProjectMapping | null>;
+  readonly signal: AbortSignal;
+}
+export interface TaskProjectCatalogEntry {
+  readonly projectId: string;
+  readonly logicalKey: string;
+  readonly displayName: string;
+  readonly prefix: string;
+}
+export class TaskDirectoryRefused extends Error {
+  override name = 'TaskDirectoryRefused';
+}
+const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
+const ROLE = 'noticeos_task_directory';
+const ROLE_SQL = `SELECT session_user::text AS session_role,current_user::text AS acting_role,
+  r.rolsuper OR r.rolbypassrls OR r.rolcreatedb OR r.rolcreaterole OR r.rolreplication AS elevated,
+  EXISTS(SELECT 1 FROM pg_catalog.pg_roles other WHERE other.rolname<>current_user
+    AND pg_catalog.pg_has_role(current_user,other.oid,'MEMBER')) AS another_role,
+  pg_catalog.has_schema_privilege(current_user,'noticeos','USAGE') OR
+  pg_catalog.has_schema_privilege(current_user,'noticeos_identity','USAGE') OR
+  pg_catalog.has_schema_privilege(current_user,'noticeos_platform','CREATE') OR
+  pg_catalog.has_table_privilege(current_user,'noticeos_platform.task_project_directory','SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') OR
+  pg_catalog.has_any_column_privilege(current_user,'noticeos_platform.task_project_directory','SELECT,INSERT,UPDATE,REFERENCES') AS broad_access,
+  pg_catalog.has_function_privilege(current_user,'noticeos_platform.resolve_task_project(uuid,uuid)','EXECUTE') AS resolver
+  FROM pg_catalog.pg_roles r WHERE r.rolname=current_user`;
+function connection(input: unknown): string {
+  if (typeof input !== 'string') {
+    throw new TaskDirectoryRefused('Task directory requires an explicit PostgreSQL connection');
+  }
+  let value: URL;
+  try { value = new URL(input); } catch {
+    throw new TaskDirectoryRefused('Task directory requires an explicit PostgreSQL connection');
+  }
+  if (!['postgres:', 'postgresql:'].includes(value.protocol) || !value.hostname
+    || !value.username || value.pathname.length < 2 || value.hash) {
+    throw new TaskDirectoryRefused('Task directory requires an explicit PostgreSQL connection');
+  }
+  // Operator connection parameters cannot disable this reader's fixed bounds.
+  for (const key of ['statement_timeout', 'lock_timeout', 'query_timeout', 'connectionTimeoutMillis', 'connect_timeout', 'options']) {
+    value.searchParams.delete(key);
+  }
+  return value.href;
+}
+export function openTaskDirectory(options: { readonly connectionString: string }): TaskDirectory {
+  const connectionString = connection(options.connectionString);
+  // Construction and malformed project input perform no connection/query.
+  // The executor can establish current admission before the first read.
+  let pool: Pool | undefined;
+  let opening: Promise<Pool> | undefined;
+  function connected(): Promise<Pool> {
+    if (opening) return opening;
+    opening = (async () => {
+      const candidate = new Pool({ connectionString, max: 2, connectionTimeoutMillis: 5000,
+        idleTimeoutMillis: 1000, statement_timeout: 5000, lock_timeout: 5000, query_timeout: 6000 });
+      candidate.on('error', () => undefined);
+      try {
+        const row = (await candidate.query(ROLE_SQL)).rows[0] as Record<string, unknown> | undefined;
+        if (row?.session_role !== ROLE || row.acting_role !== ROLE || row.elevated !== false
+          || row.another_role !== false || row.broad_access !== false || row.resolver !== true) {
+          throw new TaskDirectoryRefused('Task directory requires its separate read-only runtime role');
+        }
+        pool = candidate;
+        return candidate;
+      } catch {
+        await candidate.end();
+        throw new TaskDirectoryRefused('Task directory connection refused');
+      }
+    })();
+    return opening;
+  }
+  let closed = false;
+  let closing: Promise<void> | undefined;
+  const pending = new Set<Promise<unknown>>();
+  function track<T>(work: Promise<T>): Promise<T> {
+    pending.add(work);
+    void work.then(() => pending.delete(work), () => pending.delete(work));
+    return work;
+  }
+  async function catalog(workspaceId: string): Promise<readonly TaskProjectCatalogEntry[]> {
+    try {
+      const client = await connected();
+      const rows = (await client.query({
+        text: 'SELECT * FROM noticeos_platform.task_project_catalog($1::uuid)', values: [workspaceId],
+      })).rows as Record<string, unknown>[];
+      if (rows.length > 4096) throw new TaskDirectoryRefused('Task catalog refused');
+      const projects = new Set<string>(), keys = new Set<string>(), prefixes = new Set<string>();
+      const result = rows.map(row => {
+        if (typeof row.project_id !== 'string' || !UUID.test(row.project_id)
+          || typeof row.logical_key !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,63}$/u.test(row.logical_key)
+          || typeof row.display_name !== 'string' || row.display_name.length < 1 || row.display_name.length > 80
+          || row.display_name.trim() !== row.display_name || /[\u0000-\u001f\u007f]/u.test(row.display_name)
+          || typeof row.issue_prefix !== 'string' || !/^[a-z0-9]{1,32}$/u.test(row.issue_prefix)
+          || projects.has(row.project_id) || keys.has(row.logical_key) || prefixes.has(row.issue_prefix)) {
+          throw new TaskDirectoryRefused('Task catalog refused');
+        }
+        projects.add(row.project_id); keys.add(row.logical_key); prefixes.add(row.issue_prefix);
+        return Object.freeze({ projectId: row.project_id, logicalKey: row.logical_key,
+          displayName: row.display_name, prefix: row.issue_prefix });
+      });
+      return Object.freeze(result);
+    } catch (error) {
+      if (error instanceof TaskDirectoryRefused) throw error;
+      throw new TaskDirectoryRefused('Task catalog read refused');
+    }
+  }
+  async function read(workspaceId: string, projectId: string, held?: PoolClient): Promise<TaskProjectMapping | null> {
+    try {
+      const client = held ?? await connected();
+      const rows = (await client.query({
+        text: 'SELECT * FROM noticeos_platform.resolve_task_project($1::uuid,$2::uuid)',
+        values: [workspaceId, projectId],
+      })).rows as Record<string, unknown>[];
+      if (rows.length === 0) return null;
+      const row = rows[0];
+      if (rows.length !== 1 || !row || row.workspace_id !== workspaceId || row.project_id !== projectId
+        || typeof row.executor_ref !== 'string' || !UUID.test(row.executor_ref)
+        || typeof row.credential_ref !== 'string' || !UUID.test(row.credential_ref)
+        || typeof row.database_key !== 'string' || !/^n_[0-9a-f]{32}$/u.test(row.database_key)) {
+        throw new TaskDirectoryRefused('Task directory facts refused');
+      }
+      return Object.freeze({ workspaceId, projectId, executorRef: row.executor_ref,
+        credentialRef: row.credential_ref, databaseKey: row.database_key });
+    } catch (error) {
+      if (error instanceof TaskDirectoryRefused) throw error;
+      throw new TaskDirectoryRefused('Task directory read refused');
+    }
+  }
+  async function mutation<T>(workspaceId: string, projectId: string,
+    controls: TaskMutationControls, work: (lease: TaskMutationLease) => Promise<T>): Promise<T> {
+    const abort = new AbortController();
+    const stop = () => abort.abort();
+    const check = () => {
+      if (abort.signal.aborted || Date.now() >= controls.deadline) {
+        throw new TaskDirectoryRefused('Task mutation lease refused');
+      }
+    };
+    let client: PoolClient | undefined, transaction = false, live = true, lost = false;
+    const connectionLost = () => { lost = true; stop(); };
+    const timer = setTimeout(stop, Math.max(0, controls.deadline - Date.now()));
+    controls.signal?.addEventListener('abort', stop, { once: true });
+    if (controls.signal?.aborted) stop();
+    try {
+      check();
+      client = await (await connected()).connect();
+      client.on('error', connectionLost); client.on('end', connectionLost);
+      check();
+      await client.query('BEGIN'); transaction = true;
+      // Domain separated, fixed server selectors. A hash collision can only
+      // cause a busy refusal; it cannot grant another project's authority.
+      const key = createHash('sha256').update(`noticeos-task-mutation-v1:${workspaceId}:${projectId}`)
+        .digest().readBigInt64BE(0).toString();
+      check();
+      const result = await client.query('SELECT pg_catalog.pg_try_advisory_xact_lock($1::bigint) AS acquired', [key]);
+      check();
+      if (result.rows[0]?.acquired !== true) throw new TaskDirectoryRefused('Task project is busy');
+      const held = client;
+      const lease: TaskMutationLease = Object.freeze({ signal: abort.signal,
+        async project() {
+          if (!live) throw new TaskDirectoryRefused('Task mutation lease is closed');
+          check(); const result = await read(workspaceId, projectId, held); check(); return result;
+        },
+      });
+      // Never race-and-abandon work: its signal stops owned CLI children, and
+      // normal unlock waits for their close and scratch cleanup.
+      const value = await work(lease); check(); return value;
+    } catch (error) {
+      if (error instanceof TaskDirectoryRefused) throw error;
+      throw new TaskDirectoryRefused('Task mutation lease refused');
+    } finally {
+      live = false;
+      clearTimeout(timer); controls.signal?.removeEventListener('abort', stop);
+      if (client) {
+        try { if (transaction && !lost) await client.query('ROLLBACK'); }
+        catch { lost = true; throw new TaskDirectoryRefused('Task mutation lease retirement refused'); }
+        finally {
+          client.removeListener('error', connectionLost); client.removeListener('end', connectionLost);
+          client.release(lost || abort.signal.aborted);
+        }
+      }
+    }
+  }
+  return Object.freeze({
+    project(workspaceId: string, projectId: string) {
+      if (closed) return Promise.reject(new TaskDirectoryRefused('Task directory is closed'));
+      if (typeof workspaceId !== 'string' || !UUID.test(workspaceId)
+        || typeof projectId !== 'string' || !UUID.test(projectId)) {
+        return Promise.reject(new TaskDirectoryRefused('Task directory requires explicit workspace and project UUIDs'));
+      }
+      return track(read(workspaceId, projectId));
+    },
+    catalog(workspaceId: string) {
+      if (closed) return Promise.reject(new TaskDirectoryRefused('Task directory is closed'));
+      if (typeof workspaceId !== 'string' || !UUID.test(workspaceId)) {
+        return Promise.reject(new TaskDirectoryRefused('Task directory requires explicit workspace UUID'));
+      }
+      return track(catalog(workspaceId));
+    },
+    withProjectMutation<T>(workspaceId: string, projectId: string, controls: TaskMutationControls,
+      work: (lease: TaskMutationLease) => Promise<T>) {
+      if (closed) return Promise.reject(new TaskDirectoryRefused('Task directory is closed'));
+      if (typeof workspaceId !== 'string' || !UUID.test(workspaceId)
+        || typeof projectId !== 'string' || !UUID.test(projectId)
+        || !controls || !Number.isFinite(controls.deadline) || controls.deadline <= Date.now()
+        || controls.deadline > Date.now() + 30_000
+        || controls.signal !== undefined && !(controls.signal instanceof AbortSignal)
+        || typeof work !== 'function') {
+        return Promise.reject(new TaskDirectoryRefused('Task mutation lease requires bounded server selectors'));
+      }
+      // Snapshot trusted controls before awaiting any connection.
+      return track(mutation(workspaceId, projectId,
+        Object.freeze({ deadline: controls.deadline, signal: controls.signal }), work));
+    },
+    close() {
+      if (closing) return closing;
+      closed = true;
+      closing = (async () => {
+        await Promise.allSettled([...pending]);
+        await pool?.end();
+      })();
+      return closing;
+    },
+  });
+}

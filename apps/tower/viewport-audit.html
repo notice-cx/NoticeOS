@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NoticeOS viewport audit</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-width: max-content;
+        background: #090e14;
+      }
+
+      iframe {
+        display: block;
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <iframe id="audit-frame" title="Tower viewport under audit"></iframe>
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const requestedPath = params.get("path") || "/";
+      const targetPath =
+        requestedPath.startsWith("/") && !requestedPath.startsWith("//")
+          ? requestedPath
+          : "/";
+      const boundedPixels = (name, fallback, maximum) => {
+        const value = Number(params.get(name));
+        return Number.isFinite(value) && value > 0
+          ? Math.min(Math.round(value), maximum)
+          : fallback;
+      };
+      const width = boundedPixels("width", 1440, 2400);
+      const height = boundedPixels("height", 1800, 10000);
+      const frame = document.querySelector("#audit-frame");
+
+      frame.style.width = `${width}px`;
+      frame.style.height = `${height}px`;
+      frame.src = targetPath;
+      document.title = `NoticeOS viewport audit · ${width}px · ${targetPath}`;
+    </script>
+  </body>
+</html>

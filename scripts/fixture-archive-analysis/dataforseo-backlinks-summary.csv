@@ -1,0 +1,3 @@
+asset,report_date,collected_at,data_state,provider_truncated,backlinks,backlinks_spam_score,broken_backlinks,broken_pages,crawled_pages,external_links_count,first_seen,internal_links_count,lost_date,provider_cost_usd,rank,referring_domains,referring_domains_nofollow,referring_ips,referring_main_domains,referring_main_domains_nofollow,referring_pages,referring_subnets,row_grain,target
+meals.example,2026-09-07,2026-09-08T12:45:00.000Z,provider-snapshot,false,780,2,4,,,,,,,0.02,412,231,,,,,700,,domain-summary,meals.example
+meals.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,false,800,2,4,,,,,,,0.02,412,240,,,,,700,,domain-summary,meals.example

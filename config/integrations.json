@@ -1,0 +1,120 @@
+{
+  "readme": "config/integrations.README.md",
+  "changesetRef": "config/changesets/README.md",
+  "version": 1,
+  "updated": "2026-09-23",
+  "states": [
+    "live",
+    "degraded",
+    "needs-setup",
+    "skipped",
+    "not-applicable"
+  ],
+  "catalog": [
+    {
+      "id": "gsc",
+      "label": "Google Search Console (GSC API)",
+      "docRef": "docs/11-integrations.md#the-catalog",
+      "scope": "property",
+      "layer": "provider",
+      "credential": "shared"
+    },
+    {
+      "id": "bing-webmaster",
+      "label": "Bing Webmaster Tools API",
+      "docRef": "docs/11-integrations.md#the-catalog",
+      "scope": "property",
+      "layer": "provider",
+      "credential": "shared"
+    },
+    {
+      "id": "ga4",
+      "label": "Google Analytics 4 (GA4 Data API)",
+      "docRef": "docs/11-integrations.md#the-catalog",
+      "scope": "property",
+      "layer": "provider",
+      "credential": "shared"
+    },
+    {
+      "id": "clarity",
+      "label": "Microsoft Clarity (data-export API)",
+      "docRef": "docs/11-integrations.md#the-catalog",
+      "scope": "property",
+      "layer": "provider",
+      "credential": "per-property"
+    },
+    {
+      "id": "posthog",
+      "label": "PostHog (product analytics)",
+      "docRef": "docs/11-integrations.md#posthog",
+      "scope": "property",
+      "layer": "provider",
+      "credential": "per-property"
+    },
+    {
+      "id": "dataforseo",
+      "label": "DataForSEO search intelligence",
+      "docRef": "docs/11-integrations.md#the-catalog",
+      "scope": "property",
+      "layer": "provider",
+      "credential": "shared"
+    },
+    {
+      "id": "uptime",
+      "label": "Uptime monitoring",
+      "docRef": "docs/11-integrations.md#the-catalog",
+      "scope": "both",
+      "layer": "provider",
+      "credential": "shared"
+    },
+    {
+      "id": "ad-network",
+      "label": "Ad network reporting (AdSense now; Raptive/Mediavine on approval)",
+      "docRef": "docs/11-integrations.md#the-catalog",
+      "scope": "property",
+      "layer": "provider",
+      "credential": "shared"
+    },
+    {
+      "id": "affiliate-cj",
+      "label": "Affiliate — CJ (Commission Junction), the portfolio's primary network",
+      "docRef": "docs/11-integrations.md#the-catalog",
+      "scope": "property",
+      "layer": "provider",
+      "credential": "shared"
+    },
+    {
+      "id": "affiliate-amazon",
+      "label": "Affiliate — Amazon Associates (secondary; off portfolio-wide)",
+      "docRef": "docs/11-integrations.md#the-catalog",
+      "scope": "property",
+      "layer": "provider",
+      "credential": "shared"
+    },
+    {
+      "id": "deploy-annotations",
+      "label": "Deploy-webhook annotations",
+      "docRef": "docs/11-integrations.md#the-catalog",
+      "scope": "property",
+      "layer": "property",
+      "credential": "per-property"
+    },
+    {
+      "id": "github-app",
+      "label": "GitHub App (Act substrate + crown-jewel credential)",
+      "docRef": "docs/11-integrations.md#the-catalog",
+      "scope": "both",
+      "layer": "provider",
+      "credential": "shared"
+    },
+    {
+      "id": "discord-webhooks",
+      "label": "Discord operator-notification webhooks (the System's own)",
+      "docRef": "docs/11-integrations.md#the-catalog",
+      "scope": "portfolio",
+      "layer": "provider",
+      "credential": "shared"
+    }
+  ],
+  "assets": {}
+}

@@ -1,0 +1,606 @@
+{
+  "targets": {
+    "workspaces": {
+      "revision": {
+        "insert": false,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Provisioned by the owner role; new hosted workspaces start provisioning, and only platform setup activates or suspends them. Fresh standalone bootstrap creates active. The application only reads its own."
+    },
+    "workspace_counters": {
+      "revision": {
+        "insert": true,
+        "update": [
+          "last_number"
+        ],
+        "delete": false
+      },
+      "rule": "The last number each workspace handed out per numbered table, and the last place in its list of sites, started and advanced by the numbering trigger in the inserting transaction; it never moves back (ro-ujb9.76.21, ro-ujb9.76.52)."
+    },
+    "assets": {
+      "revision": {
+        "insert": true,
+        "update": [
+          "status",
+          "sense_only",
+          "display_name",
+          "list_position",
+          "updated_at"
+        ],
+        "delete": false
+      },
+      "rule": "Identity never changes; a site is retired, never deleted, since history references it. A new site takes the next place in the list from the workspace's counter; a move deals the places of the sites it spans out again (ro-ujb9.76.52)."
+    },
+    "pulses": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "A retry is a new revision."
+    },
+    "flags": {
+      "revision": {
+        "insert": true,
+        "update": [
+          "disposition",
+          "disposition_at",
+          "disposition_note",
+          "snooze_until",
+          "ack_expiry",
+          "hypothesis_ref",
+          "incident_ref",
+          "resolved_at",
+          "replaced_by_pulse_id"
+        ],
+        "delete": false
+      },
+      "rule": "The occurrence is fixed; only its disposition and resolution move, or, untouched, a same-day report retry replaces it."
+    },
+    "flag_evidence": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only."
+    },
+    "flag_tunes": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only."
+    },
+    "annotations": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only."
+    },
+    "counter_readings": {
+      "revision": {
+        "insert": true,
+        "update": "all",
+        "delete": false
+      },
+      "rule": "Current state, replaced in place."
+    },
+    "measurement_series": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "A series, once named, is permanent."
+    },
+    "signal_runs": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only."
+    },
+    "signal_observations": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only; a revised value is a new row under a later run."
+    },
+    "archive_objects": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only; objects are immutable."
+    },
+    "archive_runs": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only."
+    },
+    "research_log": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only."
+    },
+    "asset_insight_snapshots": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only for the application; republishing identical content is a no-op. Older snapshots move as maintenance."
+    },
+    "asset_insight_snapshot_moves": {
+      "revision": {
+        "insert": false,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Read-only for the application: the mover records moves as noticeos_maint. A move names a stored snapshot by its site and hash, never one of the site's two newest."
+    },
+    "watch_windows": {
+      "revision": {
+        "insert": true,
+        "update": [
+          "status",
+          "outcome",
+          "closed_at",
+          "outcome_note",
+          "last_checked_at",
+          "readback_bead",
+          "readback_posted_at"
+        ],
+        "delete": false
+      },
+      "rule": "The registration is fixed; the close is one-way."
+    },
+    "watch_window_readings": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only, one per offset."
+    },
+    "hygiene_checks": {
+      "revision": {
+        "insert": true,
+        "update": [
+          "observed_at",
+          "status",
+          "value_num",
+          "detail"
+        ],
+        "delete": false
+      },
+      "rule": "A same-day re-run replaces that day's reading; earlier days never change."
+    },
+    "reclamation_targets": {
+      "revision": {
+        "insert": true,
+        "update": [
+          "status",
+          "status_at",
+          "outcome_note",
+          "last_verified_at",
+          "updated_at"
+        ],
+        "delete": false
+      },
+      "rule": "What the research found is fixed; the funnel status moves."
+    },
+    "item_dispositions": {
+      "revision": {
+        "insert": true,
+        "update": [
+          "status",
+          "updated_at",
+          "note"
+        ],
+        "delete": true
+      },
+      "rule": "Display state; an undo removes it."
+    },
+    "ledger_entries": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Immutable; a correction is a new entry. Three kinds (D36), each naming its currency (D37): revenue and cost name money and its booking state; a change names a shipped change by its id and class and the prediction it shipped with (value per month, chance of success, full cost, days to signal), is booked once, books no money, and a correction of it repeats that prediction (D38)."
+    },
+    "mediavine_sites": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": true
+      },
+      "rule": "A fixed mapping, replaced by delete and insert."
+    },
+    "mediavine_runs": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only."
+    },
+    "mediavine_daily": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only; the newest per day is current."
+    },
+    "mediavine_state": {
+      "revision": {
+        "insert": true,
+        "update": "all",
+        "delete": true
+      },
+      "rule": "Retry state."
+    },
+    "integration_connections": {
+      "revision": {
+        "insert": true,
+        "update": [
+          "scope",
+          "updated_at",
+          "last_used_at",
+          "last_ok_at",
+          "last_error",
+          "account",
+          "scopes",
+          "connected_at",
+          "expires_at",
+          "expiry_source",
+          "balance_usd",
+          "balance_seen_at"
+        ],
+        "delete": true
+      },
+      "rule": "A disconnect removes the connection and its secrets. Its non-secret facts (whose account, when it expires, the last credit seen) change in place, never the secret."
+    },
+    "connection_secrets": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": true
+      },
+      "rule": "A rotation writes the next version and removes the old one; ciphertext is never rewritten in place."
+    },
+    "integration_leases": {
+      "revision": {
+        "insert": true,
+        "update": "all",
+        "delete": true
+      },
+      "rule": "Coordination state."
+    },
+    "capability_targets": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "A monitored target, once named, is permanent; state and events refer to it by target_seq."
+    },
+    "integration_capability_state": {
+      "revision": {
+        "insert": true,
+        "update": "all",
+        "delete": false
+      },
+      "rule": "Current state per target, rewritten in place."
+    },
+    "integration_health_events": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only."
+    },
+    "config_documents": {
+      "revision": {
+        "insert": true,
+        "update": [
+          "body",
+          "version",
+          "updated_at",
+          "updated_by"
+        ],
+        "delete": false
+      },
+      "rule": "Versioned; every change also appends config_changes."
+    },
+    "config_changes": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only."
+    },
+    "notifications": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only; the unique key is the dedupe."
+    },
+    "job_runs": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": true
+      },
+      "rule": "Written once; swept after 90 days (retention)."
+    },
+    "egress_checks": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only."
+    },
+    "analytical_exports": {
+      "revision": {
+        "insert": false,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Read-only for the application: the export job records, as noticeos_maint, the last day each dataset covers."
+    },
+    "task_snapshots": {
+      "revision": {
+        "insert": true,
+        "update": [
+          "captured_at",
+          "payload"
+        ],
+        "delete": true
+      },
+      "rule": "An unchanged board re-stamps its photograph; a replaced one keeps only what the Wall feed reads; swept after 2 days."
+    },
+    "task_daily_counts": {
+      "revision": {
+        "insert": true,
+        "update": "all",
+        "delete": true
+      },
+      "rule": "One row per project per day, upserted; swept after 400 days."
+    },
+    "connection_daily_counts": {
+      "revision": {
+        "insert": true,
+        "update": "all",
+        "delete": true
+      },
+      "rule": "One row per source per day, upserted; swept after 400 days."
+    },
+    "connection_status_daily_counts": {
+      "revision": {
+        "insert": true,
+        "update": "all",
+        "delete": true
+      },
+      "rule": "One row per day, upserted; swept after 400 days."
+    },
+    "alert_daily_counts": {
+      "revision": {
+        "insert": true,
+        "update": "all",
+        "delete": true
+      },
+      "rule": "One row per site per day, upserted; swept after 400 days."
+    },
+    "current_pulses": {
+      "view": true,
+      "rule": "The newest revision of each day's report, numbered by the day's first revision (day_number)."
+    },
+    "current_flags": {
+      "view": true,
+      "rule": "Every alert a retry did not replace, with its severity, message and inputs from its newest flag_evidence reading."
+    },
+    "financial_ledger": {
+      "view": true,
+      "rule": "What financial readers read: money only, never a change entry."
+    },
+    "mediavine_current_daily": {
+      "view": true,
+      "rule": "The newest daily fact per site and day."
+    },
+    "hosted_job_occurrences": {
+      "revision": {
+        "insert": true,
+        "update": [
+          "state",
+          "attempt",
+          "lease_id",
+          "lease_expires_at",
+          "effect_step",
+          "steps",
+          "updated_at"
+        ],
+        "delete": false
+      },
+      "rule": "Workspace job identity and input digests are fixed; fenced execution state and bounded checkpoints evolve."
+    },
+    "hosted_job_attempts": {
+      "revision": {
+        "insert": true,
+        "update": [
+          "state",
+          "finished_at"
+        ],
+        "delete": false
+      },
+      "rule": "Attempt identity and start are fixed; terminal result is recorded after execution."
+    },
+    "hosted_scheduler_status": {
+      "revision": {
+        "insert": true,
+        "update": [
+          "service_id",
+          "session_id",
+          "observed_at",
+          "running",
+          "payload"
+        ],
+        "delete": false
+      },
+      "rule": "Workspace-owned current scheduler observation and timer lease; execution ownership remains in the fenced job journal."
+    },
+    "workspace_mutation_audit": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only actor evidence recorded in the same transaction as an asset or finding effect. Historical and standalone authors stay explicitly unknown; no free-form values or notes are copied."
+    }
+  },
+  "retention": {
+    "_rule": "What the operational store keeps (D25; REVIEW.md item 4). A row older than its window leaves Postgres for the named analytical dataset (Parquet read with DuckDB, ro-ujb9.67), never simply deleted: the trigger history_leaves_only_when_exported refuses a removal inside the window or past the last day analytical_exports records, and its arguments are the `by` column and `keep` window below (scripts/postgres-model.test.mjs compares them). A `dropped` table is a cache or rebuildable, and is swept. Only noticeos_maint removes rows under these rules (the application still sweeps its own caches one workspace at a time); a table not listed keeps every row.",
+    "signal_observations": {
+      "keep": "13 months",
+      "by": "observed_date",
+      "beyond": "dataset signal_observations"
+    },
+    "signal_runs": {
+      "keep": "13 months",
+      "by": "finished_at",
+      "beyond": "dataset signal_runs"
+    },
+    "archive_runs": {
+      "keep": "13 months",
+      "by": "finished_at",
+      "beyond": "dataset archive_runs"
+    },
+    "archive_objects": {
+      "keep": "13 months",
+      "by": "first_stored_at",
+      "beyond": "dataset archive_objects; the objects stay in object storage"
+    },
+    "hygiene_checks": {
+      "keep": "13 months",
+      "by": "observed_on",
+      "beyond": "dataset hygiene_checks"
+    },
+    "egress_checks": {
+      "keep": "13 months",
+      "by": "observed_at",
+      "beyond": "dataset egress_checks"
+    },
+    "asset_insight_snapshots": {
+      "keep": "each site's two newest",
+      "beyond": "dataset insight_snapshots, one recorded move per snapshot (asset_insight_snapshot_moves)"
+    },
+    "job_runs": {
+      "keep": "90 days",
+      "by": "started_at",
+      "beyond": "dropped: the runner's own log is the record"
+    },
+    "task_snapshots": {
+      "keep": "2 days",
+      "by": "captured_at",
+      "beyond": "dropped: the task hub is the authority (D32)"
+    },
+    "task_daily_counts": {
+      "keep": "400 days",
+      "by": "day",
+      "beyond": "dropped, as today's sweep does"
+    },
+    "connection_daily_counts": {
+      "keep": "400 days",
+      "by": "day",
+      "beyond": "dropped, as today's sweep does"
+    },
+    "connection_status_daily_counts": {
+      "keep": "400 days",
+      "by": "day",
+      "beyond": "dropped, as today's sweep does"
+    },
+    "alert_daily_counts": {
+      "keep": "400 days",
+      "by": "day",
+      "beyond": "dropped, as today's sweep does"
+    }
+  },
+  "maintenance": {
+    "_rule": "noticeos_maint (roles.sql, REVIEW.md item 3): BYPASSRLS, NOLOGIN, owns nothing, creates nothing, updates nothing. What spans workspaces runs as it: the retention sweeps and moves. A job that works one workspace at a time, including the capacity readback, runs as noticeos_app and names it with SET LOCAL instead. It reads every table; it removes rows only from the tables `retention` lists, where the triggers still hold; it inserts only into `insert`. scripts/postgres-model.test.mjs compares these with what Postgres granted.",
+    "insert": [
+      "analytical_exports",
+      "asset_insight_snapshot_moves"
+    ]
+  },
+  "reference": {
+    "_rule": "Shared vocabulary in schema noticeos_ref (REVIEW.md item 1): no workspace_id, no row security, read and never written by the application and maintenance, changed only by migrations. 0001_baseline.sql seeds it.",
+    "integrations": "An integration a row may name, and the provider whose connection serves it.",
+    "metric_kinds": "A daily metric an integration reports, and the unit of its values.",
+    "check_kinds": "A check the nightly hygiene lane runs."
+  },
+  "nullIdentity": {
+    "_rule": "Every nullable column that takes part in a unique key or a link, and what its NULL means (ro-ujb9.71). In a unique key, 'one' is NULLS NOT DISTINCT (a NULL is one value, so two NULL rows collide), 'many' lets any number of NULL rows coexist, and 'excluded' is a partial index that skips NULL rows. In a link, a NULL means no parent: the link is not checked for that row. scripts/postgres-model.test.mjs compares this list with what Postgres built.",
+    "alert_daily_counts.asset_id": {
+      "unique": "one",
+      "means": "The whole-workspace row (the legacy '*'): one per day."
+    },
+    "assets.domain": {
+      "unique": "excluded",
+      "means": "A site with no public domain (the OS's own); only domains take part in the one-site-per-domain rule."
+    },
+    "capability_targets.asset_id": {
+      "unique": "one",
+      "means": "A capability of the account, not one site: one target per provider, revision, capability, target and family."
+    },
+    "measurement_series.time_zone": {
+      "unique": "one",
+      "means": "The provider reports no zone: one series, never a wildcard that matches every zone."
+    },
+    "ledger_entries.external_id": {
+      "unique": "many",
+      "means": "Booked by hand, with no export behind it; any number may exist."
+    },
+    "ledger_entries.supersedes_id": {
+      "unique": "excluded",
+      "means": "An original entry, not a correction; only corrections take part in the one-successor rule."
+    },
+    "ledger_entries.ref": {
+      "unique": "excluded",
+      "means": "A revenue or cost entry that points at nothing. Only a change's first entry takes part in the one-entry-per-change rule, and a change entry always names its change (a row check)."
+    },
+    "archive_runs.object_seq": {
+      "means": "A failed run stored nothing; a success or unchanged run always names its object (a row check)."
+    },
+    "flags.pulse_id": {
+      "means": "Raised without a report (the freshness, pull, egress and quota lanes); the site link still holds."
+    },
+    "flags.replaced_by_pulse_id": {
+      "means": "Not replaced: the alert stands."
+    },
+    "research_log.asset_id": {
+      "means": "Research about no one site (a market scan)."
+    }
+  }
+}
