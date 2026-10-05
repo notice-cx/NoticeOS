@@ -10,6 +10,15 @@
 **A self-hosted operating desk for your websites and software products.**
 See traffic, revenue, costs, alerts and work together—on your laptop, phone or TV.
 
+[![CI](https://github.com/notice-cx/NoticeOS/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/notice-cx/NoticeOS/actions/workflows/ci.yml)
+[![License: AGPL v3](https://img.shields.io/badge/license-AGPLv3-blue.svg)](LICENSE)
+
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![React 19](https://img.shields.io/badge/React-19-20232A?logo=react&logoColor=61DAFB)](https://react.dev/)
+[![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Dolt 2](https://img.shields.io/badge/Dolt-2-6B45CB)](https://www.dolthub.com/)
+[![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](deploy/compose/README.md)
+
 ![NoticeOS brings together traffic and signals, revenue and costs, tasks and workflows, and changes and outcomes.](docs/images/noticeos-overview.svg)
 
 - **Know what needs attention.** See collection failures, unusual traffic and missing evidence.
