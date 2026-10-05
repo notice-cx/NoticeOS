@@ -153,7 +153,10 @@ reviewed at TV dimensions (`docs/artifacts/rename-2026-09-23/`).
   `trend-negative`: this is the one sanctioned use of the warn HUE as a
   comparison step rather than a warning, scoped to the pace — "a little behind
   last week at this hour" is not an alert, and nothing else may borrow it.
-  Colour is never alone: ahead, behind or on pace accompanies the arrow and %.
+  Colour is never alone: the Wall shows the arrow and %, with ahead, behind or
+  on pace in its accessible description; desk comparisons keep those words
+  beside the figure. The Wall's small completed-hours cutoff sits in a corner,
+  leaving the chart's width to the plot and percentage (bead `ro-trai.51`).
   A missing comparison receives no verdict. Revenue projections against a
   finished month stay neutral, with above, below or level with stated in words.
   One derivation, `paceTone` in `components/DeltaChip.tsx`, decides the step for

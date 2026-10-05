@@ -71,7 +71,8 @@ describe("the site rows", () => {
     expect(today.querySelector("[data-last-week]")?.getAttribute("stroke-dasharray")).toMatch(/^[\d.]+ [\d.]+$/);
     expect(today.querySelector("[data-last-week]")?.getAttribute("data-chart-line")).toBe("ghost");
     expect(today.querySelector("[data-filling-hour] [data-chart-breathe]")).not.toBeNull();
-    expect(today.textContent).toBe("6.9% aheadto 12 PM");
+    expect(today.textContent).toBe("6.9%to 12 PM");
+    expect(today.querySelector('[aria-label*="6.9% ahead; completed hours"]')).not.toBeNull();
     // Ahead of last week is on pace (paceTone, operator 2026-09-23).
     expect(today.querySelector("[data-tone]")?.getAttribute("data-tone")).toBe("pace-on");
     // The last four weeks solid over the four before dashed (the charts'
@@ -169,7 +170,8 @@ describe("the site rows", () => {
     // Never colour alone: the arrow and the number stay.
     const chip = row(container, "menus.example").querySelector("[data-site-today] span[aria-label]")!;
     expect(chip.querySelector("svg")).not.toBeNull();
-    expect(chip.textContent).toMatch(/^\d+% behind$/);
+    expect(chip.textContent).toMatch(/^\d+%$/);
+    expect(chip.getAttribute("aria-label")).toMatch(/% behind; completed hours today vs last Tue$/);
     // The one-site tile reads the same step from the same derivation.
     const only = wallFixturePayload().assets.find((asset) => asset.id === "menus.example")!;
     const tile = draw([only], { realtime: shaped }).querySelector('[data-focus-tile="today"]')!;
@@ -478,7 +480,7 @@ describe("the density tiers", () => {
     // The same cells as a compact row: live, today, 30 days, money.
     const menus = row(container, "menus.example");
     expect(menus.querySelector("[data-live-count]")?.getAttribute("data-value")).toBe("21");
-    expect(menus.querySelector("[data-site-today]")?.textContent).toBe("6.9% aheadto 12 PM");
+    expect(menus.querySelector("[data-site-today]")?.textContent).toBe("6.9%to 12 PM");
     expect(menus.querySelector("[data-site-money]")).toBeNull();
     // Both charts take the rest of their cell, under their figure: today over
     // last week, and the 30-day line.
@@ -499,7 +501,7 @@ describe("the density tiers", () => {
     expect(menus.querySelector('[data-site-today] [data-site-chart="beside"] [data-today]')).not.toBeNull();
     expect(menus.querySelector('[data-site-trend] [data-site-chart="beside"] [data-trend-line]')).not.toBeNull();
     expect(menus.querySelector('[data-site-total="itemsRated"]')?.textContent).toContain("13,904");
-    expect(menus.querySelector('[data-site-today]')?.textContent).toBe("6.9% aheadto 12 PM");
+    expect(menus.querySelector('[data-site-today]')?.textContent).toBe("6.9%to 12 PM");
     expect(menus.querySelector('[data-live-count]')?.className).toContain("text-[length:var(--text-wall-site-live)]");
   });
 

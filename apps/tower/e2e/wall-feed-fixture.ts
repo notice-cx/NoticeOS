@@ -140,8 +140,8 @@ export async function seedWallFeedAlertsAndReports(store: WorkspaceStore, nowIso
 
 /** The task hub's photograph a minute ago, on Postgres where the feed reads it
  * (bead ro-ujb9.76.4.3). Tasks done: one six minutes ago, one at 52, and three
- * within a quarter hour of each other five hours ago (one line, "3 tasks done
- * across 3 sites"); one task filed 19 minutes ago. */
+ * within a quarter hour of each other five hours ago (three named lines);
+ * one task filed 19 minutes ago. */
 export async function seedWallFeedTasks(store: WorkspaceStore, nowIso: string): Promise<void> {
   const now = Date.parse(nowIso);
   const ago = (minutes: number) => new Date(now - minutes * MINUTE).toISOString();

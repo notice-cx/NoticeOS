@@ -342,32 +342,25 @@ function PulseTotals({ asset, choices, nowMs, cell = false, inline = false }: { 
 /** The pace's tone: none while its hours carry no verdict (bead ro-trai.43). */
 const paceStep = (pace: IntradayUsersPace | null) => (pace?.paceChange == null ? "neutral" : paceTone(pace.paceChange));
 
-/**
- * THE PACE AND THE HOURS IT COMPARES (bead `ro-trai.43`): "↑6.6%" over
- * "to 12 PM", the window said beside the claim rather than in a tooltip. While
- * those hours cannot carry a verdict (`PACE_VERDICT_MINIMUM`) it is the window
- * alone, muted — how far the provider's data reaches — and no percent.
- */
-function PaceFigure({ pace, className, unit }: { pace: IntradayUsersPace; className: string; unit: string }) {
-  const window = paceWindowLabel(pace);
-  if (pace.paceChange === null) {
-    return (
-      <span className={cn("whitespace-nowrap text-muted-foreground tabular-nums", unit)} data-pace-window="silent">
-        {window}
-      </span>
-    );
-  }
+/** The visible arrow carries direction; accessible text spells it out. */
+function PaceFigure({ pace, className }: { pace: IntradayUsersPace; className: string }) {
+  if (pace.paceChange === null) return null;
   return (
-    <span className="inline-flex flex-col items-start whitespace-nowrap" data-pace-window="shown">
-      <DeltaChip
-        value={pace.paceChange}
-        render={(value) => `${formatPercent(value)}%`}
-        tone={paceTone(pace.paceChange)}
-        directionLabel={paceDirectionLabel(pace.paceChange) ?? undefined}
-        meaning={`${formatPercent(Math.abs(pace.paceChange))}% ${paceDirectionLabel(pace.paceChange)}; completed hours today vs ${pace.priorDayLabel}`}
-        className={`whitespace-nowrap ${className} font-semibold`}
-      />
-      <span className={cn("leading-tight text-muted-foreground tabular-nums", unit)}>{window}</span>
+    <DeltaChip
+      value={pace.paceChange}
+      render={(value) => `${formatPercent(value)}%`}
+      tone={paceTone(pace.paceChange)}
+      meaning={`${formatPercent(Math.abs(pace.paceChange))}% ${paceDirectionLabel(pace.paceChange)}; completed hours today vs ${pace.priorDayLabel}`}
+      className={`whitespace-nowrap ${className} font-semibold`}
+    />
+  );
+}
+
+/** The cutoff stays visible without taking width from the hourly chart. */
+function PaceWindow({ pace, className }: { pace: IntradayUsersPace; className?: string }) {
+  return (
+    <span className={cn("whitespace-nowrap text-wall-micro text-muted-foreground tabular-nums", className)} data-pace-window={pace.paceChange === null ? "silent" : "shown"}>
+      {paceWindowLabel(pace)}
     </span>
   );
 }
@@ -409,7 +402,7 @@ function TodayCell({
     );
   }
   const figure = pace ? (
-    <PaceFigure pace={pace} className={style.figure} unit={style.weekUnit} />
+    <PaceFigure pace={pace} className={style.figure} />
   ) : (
     <span className={`${style.figure} text-muted-foreground`}>—</span>
   );
@@ -420,14 +413,16 @@ function TodayCell({
       </span>
     ) : null;
   return style.charts === "filling" ? (
-    <span role="cell" className={FILLING_CELL} data-site-today>
+    <span role="cell" className={cn(FILLING_CELL, "relative pb-5 sites:pb-5")} data-site-today>
       {figure}
       {chart(FILLING_CHART)}
+      {pace ? <PaceWindow pace={pace} className="absolute bottom-0 right-0" /> : null}
     </span>
   ) : (
-    <span role="cell" className="col-span-2 flex min-w-0 flex-col-reverse items-stretch gap-3 sites:col-span-1 sites:flex-row sites:items-center sites:self-stretch" data-site-today>
+    <span role="cell" className="relative col-span-2 flex min-w-0 flex-col-reverse items-stretch gap-3 pb-5 sites:col-span-1 sites:flex-row sites:items-center sites:self-stretch" data-site-today>
       {chart(style.today)}
       {figure}
+      {pace ? <PaceWindow pace={pace} className="absolute bottom-0 right-0" /> : null}
     </span>
   );
 }
@@ -716,6 +711,7 @@ function FocusTile({
   label,
   weight,
   figures,
+  headingMeta,
   axis,
   children,
 }: {
@@ -723,6 +719,7 @@ function FocusTile({
   label: string;
   weight: string;
   figures: ReactNode;
+  headingMeta?: ReactNode;
   axis: ReactNode;
   children: ReactNode;
 }) {
@@ -732,7 +729,10 @@ function FocusTile({
       className={cn("flex min-h-0 min-w-0 flex-col gap-3 rounded-xl bg-muted/40 p-5", weight)}
       data-focus-tile={kind}
     >
-      <h3 className={`${eyebrow} whitespace-nowrap`}>{label}</h3>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 className={`${eyebrow} whitespace-nowrap`}>{label}</h3>
+        {headingMeta}
+      </div>
       <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-1">{figures}</div>
       {/* The chart takes the height the tile has left on the TV; below the
           TV the Wall is one column of content height, where it keeps the
@@ -784,6 +784,7 @@ function TodayFocusTile({
       kind="today"
       label={`Today vs ${lastWeekday}`}
       weight="sites:flex-[5_1_0%]"
+      headingMeta={today.pace ? <PaceWindow pace={today.pace} /> : null}
       figures={
         <>
           {/* The live count and its minute pulse lead the tile, as they lead
@@ -800,7 +801,7 @@ function TodayFocusTile({
             />
           </span>
           {today.todayUsers !== null ? <Figure value={formatInt(today.todayUsers)} unit="today" data="today" second /> : null}
-          {today.pace ? <PaceFigure pace={today.pace} className="text-2xl" unit="text-wall-body" /> : null}
+          {today.pace ? <PaceFigure pace={today.pace} className="text-2xl" /> : null}
         </>
       }
       axis={

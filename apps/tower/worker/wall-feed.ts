@@ -22,8 +22,8 @@ import { minorToMajorUnits } from '@noticeos/contract/money';
 // 2. revenue folds per report day, nightly reports per night, spend per
 //    provider per run, insight refreshes per run, and the OS's own successful
 //    deploys into one line for the whole window (bead ro-trai.38);
-// 3. consecutive lines of the same kind within 15 minutes fold into one line
-//    with a count ("3 tasks done").
+// 3. consecutive foldable lines of the same kind within 15 minutes fold
+//    with a count. Created and completed tasks keep their individual titles.
 // A failure never folds into a success and is never superseded: every failed
 // collection, job and source is its own event.
 
@@ -1180,8 +1180,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
       asset: known(row.asset),
       text: row.title?.trim() || row.id,
       tone: done ? "healthy" : "neutral",
-      foldKey: done ? "task-done" : "task-filed",
-      many: done ? (n, s) => across(`${plural(n, "task")} done`, s) : (n, s) => across(plural(n, "new task"), s),
+      foldKey: null,
     });
   }
 

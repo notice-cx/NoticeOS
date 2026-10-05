@@ -154,7 +154,9 @@ function insight(id: string, a: string, generatedAt: string, findings: [string, 
  *   15:30 cost           DataForSEO · $0.12 for 1 lookup
  *   15:02 collected      DataForSEO · 2 sites, none failed
  *   15:02 cost           DataForSEO · $0.41 for 2 reports
- *   14:25 task done      3 tasks done across 2 sites (14:25, 14:20, 14:15)
+ *   14:25 task done      Feed reads the store
+ *   14:20 task done      Feed folds runs
+ *   14:15 task done      Standards table loads
  *   14:00 source failed  Money (a failed PostHog report, no health event)
  *   13:00 cost           Booked $12.00 infra cost (NoticeOS)
  *   12:00 setting saved
@@ -383,7 +385,7 @@ needsPostgres("buildWallFeed", () => {
 
   const lines = (items: WallFeedItem[]) => items.map((item) => `${item.at.slice(11, 16)} ${item.kind} ${item.site ?? "-"} · ${item.text}`);
 
-  it("states every source once, newest first, inside the window only, with the three folds", async () => {
+  it("states every source once, newest first, inside the window only, keeping tasks named", async () => {
     const feed = await buildWallFeed(pg.call, DEPS);
     expect(feed.since).toBe(SINCE);
     expect(lines(feed.items)).toEqual([
@@ -403,7 +405,9 @@ needsPostgres("buildWallFeed", () => {
       "15:30 cost Recipes · DataForSEO · $0.12 for 1 lookup",
       "15:02 collected - · DataForSEO · 2 sites, none failed",
       "15:02 cost - · DataForSEO · $0.41 for 2 reports",
-      "14:25 task-done - · 3 tasks done across 2 sites",
+      "14:25 task-done NoticeOS · Feed reads the store",
+      "14:20 task-done NoticeOS · Feed folds runs",
+      "14:15 task-done Fitness · Standards table loads",
       "14:00 source-failed Money · PostHog report failed",
       "13:00 cost NoticeOS · Booked $12.00 infra cost for September",
       "12:00 setting-saved - · Moved the feed to the right",
@@ -435,6 +439,34 @@ needsPostgres("buildWallFeed", () => {
     await snapshot(pg.call, at("19:28"), {}, { "unknown.example.com": [["un-1", "Stray task", at("19:27")]] });
     const next = await buildWallFeed(pg.call, DEPS);
     expect(next.items[0]).toMatchObject({ kind: "task-filed", asset: null, site: null, text: "Stray task" });
+  });
+
+  it("keeps adjacent created and completed tasks individually named, once per event", async () => {
+    const created: Record<string, [string, string, string][]> = {
+      "menus.example.com": [
+        ["mn-8", "Menus show opening hours", at("19:27")],
+        ["mn-9", "Menus show delivery prices", at("19:26")],
+      ],
+    };
+    const closed: Record<string, [string, string, string][]> = {
+      "recipes.example.com": [["mp-1", "Recipe cards load faster", at("19:24")]],
+      "codes.example.com": [["ac-1", "Lookup page shows the local time", at("18:38")]],
+    };
+    await snapshot(pg.call, at("19:28"), closed, created);
+    await snapshot(pg.call, at("19:29"), closed, created);
+    const { items } = await buildWallFeed(pg.call, DEPS);
+    expect(items.filter((item) => item.kind === "task-filed").map((item) => [item.text, item.count, item.asset])).toEqual([
+      ["Menus show opening hours", 1, "menus.example.com"],
+      ["Menus show delivery prices", 1, "menus.example.com"],
+      ["Menu import skips closed restaurants", 1, "menus.example.com"],
+    ]);
+    expect(items.filter((item) => item.kind === "task-done").map((item) => [item.text, item.count, item.asset])).toEqual([
+      ["Recipe cards load faster", 1, "recipes.example.com"],
+      ["Lookup page shows the local time", 1, "codes.example.com"],
+      ["Feed reads the store", 1, "os.example.com"],
+      ["Feed folds runs", 1, "os.example.com"],
+      ["Standards table loads", 1, "fitness.example.com"],
+    ]);
   });
 
   it("states an OS deploy as Deployed, and a failed deploy and its rollback as their own lines (ro-trai.8)", async () => {
@@ -490,7 +522,7 @@ needsPostgres("buildWallFeed", () => {
   it("folds counts, and never folds a failure into a success", async () => {
     const { items } = await buildWallFeed(pg.call, DEPS);
     const byText = (text: string) => items.find((item) => item.text === text)!;
-    expect(byText("3 tasks done across 2 sites")).toMatchObject({ count: 3, asset: null, tone: "healthy", label: "Task done" });
+    expect(byText("Feed reads the store")).toMatchObject({ count: 1, asset: "os.example.com", tone: "healthy", label: "Task done" });
     expect(byText("2 sites reported $55.25 for Sep 21")).toMatchObject({ count: 2, tone: "revenue" });
     expect(byText("Nightly reports from 4 sites")).toMatchObject({ count: 4, tone: "neutral" });
     // The failed Google run is its own line beside the Google collection, once
@@ -528,7 +560,7 @@ needsPostgres("buildWallFeed", () => {
       expect(feedWordCount(item.text), item.text).toBeLessThanOrEqual(12);
       if (item.asset) expect(item.site).toBeTruthy();
     }
-    const names = new Map([["recipes.example.com", "Recipes"], ["menus.example.com", "Menus"], ["codes.example.com", "Codes"], ["money.example.com", "Money"], ["os.example.com", "NoticeOS"]]);
+    const names = new Map([["recipes.example.com", "Recipes"], ["menus.example.com", "Menus"], ["codes.example.com", "Codes"], ["money.example.com", "Money"], ["os.example.com", "NoticeOS"], ["fitness.example.com", "Fitness"]]);
     for (const item of items.filter((i) => i.asset)) expect(item.site).toBe(names.get(item.asset!));
   });
 

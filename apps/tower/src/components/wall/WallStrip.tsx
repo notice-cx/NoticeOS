@@ -139,7 +139,7 @@ export function WallStrip({ countdown, meetings, heldSince = null, nowMs }: Wall
           className="shrink-0 whitespace-nowrap rounded text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [&_.brand-wordmark]:sr-only sm:[&_.brand-wordmark]:not-sr-only"
           data-strip-home
         >
-          <BrandLockup size="text" className="leading-normal!" />
+          <BrandLockup size="text" className="text-wall-strip-countdown! leading-normal!" />
         </a>
         <div className="flex min-w-0 flex-col border-l border-border/60 pl-6">
           <time

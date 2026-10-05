@@ -4,7 +4,7 @@ import { test, expect } from "./journey-test";
 import { JOURNEY_ASSET, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_SITE, JOURNEY_TIME_ZONE } from "./fixtures";
 import { measureWallFit, wallFitVerdict } from "../../../scripts/wall-fit-measure.mjs";
 import { wallLayoutWidgets, type WallConfig } from "../../../scripts/wall-layout.mjs";
-import { WALL_FEED_TV_ROWS } from "@shared/wall-feed";
+import { WALL_FEED_TV_ROWS, type WallFeedPayload } from "@shared/wall-feed";
 import {
   WALL_FIXTURE_NOW, WALL_FIXTURE_TIME_ZONE, WALL_FIXTURE_VARIANTS, wallFixtureCalendar, wallFixtureHealth, wallFixturePayload,
   wallFixtureProviders, wallFixtureRealtime,
@@ -1393,6 +1393,64 @@ test("a setting the saved settings lack saves from the value shown, then saves o
 // The live feed (beads ro-trai.6, ro-trai.9): stored events read by the real
 // Worker over the fixture store, and one new stored event arriving at the top
 // within one 30-second poll. The fixture's clock is the journey server's own.
+test("Wall feedback keeps the brand large, pace compact and each stored task named", async ({ page, request }, testInfo) => {
+  test.skip(testInfo.project.name === "mobile", "walks the commented screen, TV and phone in one fixture");
+  await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
+  expect((await request.post("/__journey/wall-feed")).ok()).toBe(true);
+  await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload("six") }));
+  await page.route("**/api/ga4/realtime", (route) => route.fulfill({ json: wallFixtureRealtime(20, "six") }));
+  await page.route("**/api/calendar/upcoming", (route) => route.fulfill({ json: wallFixtureCalendar() }));
+  await page.route("**/api/integrations/health", (route) => route.fulfill({ json: wallFixtureHealth("six") }));
+  await page.route("**/api/integrations/providers", (route) => route.fulfill({ json: wallFixtureProviders() }));
+  const stored = await (await request.get("/api/wall/feed")).json() as WallFeedPayload;
+  const tasks = stored.items.filter((item) => item.kind === "task-done" || item.kind === "task-filed");
+  expect(tasks.map((item) => item.text)).toEqual([
+    "Recipe cards load faster", "Menu import skips closed restaurants", "Lookup page shows the local time",
+    "Pantry list keeps its order", "Map loads on phones", "Delivery zones show on the map",
+  ]);
+  expect(tasks.every((item) => item.count === 1)).toBe(true);
+  for (const [width, height] of [[1507, 1237], [1920, 1080], [390, 844]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto("/wall");
+    await expect(page.locator('[data-site-row="menus.example"] [data-pace-window]')).toHaveText("to 12 PM");
+    await expect(page.locator('[data-wall-feed] [data-feed-item]').first()).toContainText("Recipe cards load faster");
+    await page.evaluate(() => document.fonts.ready);
+    const found = await page.evaluate(() => {
+      const brand = document.querySelector('[data-strip-home] .brand-mark')!.getBoundingClientRect();
+      const clock = document.querySelector('[data-strip-clock-group]')!.getBoundingClientRect();
+      const today = document.querySelector('[data-site-row="menus.example"] [data-site-today]')!;
+      const cutoff = today.querySelector('[data-pace-window]')!;
+      const chip = today.querySelector('[aria-label*="completed hours"]')!;
+      const cell = today.getBoundingClientRect();
+      const chart = today.querySelector('[data-site-chart]')!.getBoundingClientRect();
+      const caption = cutoff.getBoundingClientRect();
+      return {
+        brandHeight: brand.height, clockHeight: clock.height,
+        pace: chip.textContent, meaning: chip.getAttribute('aria-label'),
+        cutoffPosition: getComputedStyle(cutoff).position,
+        cutoffRight: cell.right - caption.right, cutoffBottom: cell.bottom - caption.bottom,
+        cutoffBelowChart: caption.top >= chart.bottom - 1,
+        cellWidth: cell.width, chartWidth: chart.width,
+      };
+    });
+    expect(found.brandHeight).toBeGreaterThan(found.clockHeight * 0.55);
+    expect(found.pace).toBe("6.9%");
+    expect(found.meaning).toContain("6.9% ahead; completed hours today vs last Tue");
+    expect(found.cutoffPosition).toBe("absolute");
+    expect(Math.abs(found.cutoffRight)).toBeLessThan(1);
+    expect(Math.abs(found.cutoffBottom)).toBeLessThan(1);
+    expect(found.cutoffBelowChart).toBe(true);
+    expect(found.chartWidth).toBeGreaterThan(found.cellWidth * 0.5);
+    const measured = await page.evaluate(measureWallFit);
+    if ("error" in measured) throw new Error(measured.error);
+    expect(wallFitVerdict(measured).overWidth).toBeLessThanOrEqual(1);
+    if (width > height) expect(wallFitVerdict(measured).fits).toBe(true);
+    expect(measured.ink).toEqual([]);
+    expect(measured.clipped).toEqual([]);
+    await page.screenshot({ path: testInfo.outputPath(`wall-feedback-${width}.png`), fullPage: width < height });
+  }
+});
+
 test("the Wall's live feed shows the stored events newest first, and a new one arrives at the top within one poll", async ({ page, request }, testInfo) => {
   test.skip(testInfo.project.name === "mobile", "the feed's arrival is a TV behaviour; the phone Wall stacks the same column");
   test.setTimeout(90_000);
