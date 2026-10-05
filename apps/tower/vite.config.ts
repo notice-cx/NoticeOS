@@ -45,7 +45,9 @@ import { demoViewerLane } from "./vite/demo-viewer-lane";
 import { stripJsonc } from "../../scripts/jsonc.mjs";
 import { serverWorkspaceProfile, workspaceDevSecretKeys, workspaceWorkerConfig } from "./vite/workspace-profile";
 import { appReleaseLane, sourceAppRelease } from './vite/app-release';
-import { sourceVersion } from '../../scripts/source-version.mjs';
+import { gitSourceVersion, sourceVersion } from '../../scripts/source-version.mjs';
+import { developmentDependencies, prepareDevelopmentWorkerConfigs } from '../../deploy/compose/development.mjs';
+import { liveSource } from './vite/live-source';
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -55,7 +57,11 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url));
 // beside that installation's own secrets — wrangler reads a Worker's `.dev.vars`
 // from beside the config it is given, so this is what keeps a started Tower off
 // any other installation's secrets.
-const namedWorkerConfigRoot = readProductEnv(process.env, "workerConfigRoot");
+const liveSourceRoot = process.env.NOTICEOS_LIVE_SOURCE_ROOT;
+if (liveSourceRoot) developmentDependencies({source:liveSourceRoot,metadataFile:'/dependency-image.json'});
+const namedWorkerConfigRoot = liveSourceRoot
+  ? prepareDevelopmentWorkerConfigs({source:path.resolve(rootDir,'../..'),home:process.env.NOTICEOS_HOME})
+  : readProductEnv(process.env, "workerConfigRoot");
 const workerConfigRoot = namedWorkerConfigRoot ? path.resolve(namedWorkerConfigRoot) : null;
 const serverConfigRoot = workerConfigRoot ?? path.resolve(rootDir, "../..");
 const serverProfile = serverWorkspaceProfile([
@@ -201,7 +207,7 @@ const CONTRACT_SOURCE = /[\\/]packages[\\/]contract[\\/]src[\\/]/;
 
 export default defineConfig(({ command }) => {
   const appRelease = sourceAppRelease(path.resolve(rootDir, '../..'));
-  const appSourceVersion = sourceVersion(path.resolve(rootDir, '../..'));
+  const appSourceVersion = liveSourceRoot ? gitSourceVersion(liveSourceRoot,{declared:true}) : sourceVersion(path.resolve(rootDir,'../..'));
   // Check reserved local-variable collisions before any host adapter is
   // constructed or installation custody is read. The callback seals reloads.
   if (command === "serve") for (const relative of ["apps/tower/wrangler.jsonc", "workers/ingest/wrangler.jsonc"]) {
@@ -224,8 +230,7 @@ export default defineConfig(({ command }) => {
     // protection enabled and admit only this machine's own names, read from
     // the machine at start, plus any the operator adds (vite/allowed-hosts.ts).
     allowedHosts: towerAllowedHosts(),
-    // No dev error overlay, anywhere. This dev server IS production (the wall
-    // TV and the desk both read it), and vite broadcasts internal server
+    // No error overlay on the unattended Wall; Vite broadcasts internal server
     // errors to every connected client — on 2026-08-11 one transient workerd
     // dispatch failure painted a stack trace over the healthy, running wall
     // for half an hour because a kiosk has nobody to press dismiss (ro-l2ji).
@@ -238,6 +243,7 @@ export default defineConfig(({ command }) => {
     ws: process.env.NOTICEOS_IMMUTABLE_APP === '1' ? false : undefined,
   },
   plugins: [
+    ...(liveSourceRoot ? [liveSource({sourceRoot:liveSourceRoot,codeRoot:path.resolve(rootDir,'../..')})] : []),
     // First, and `enforce: "pre"`: the runner guard has to strip the door mark
     // off LAN requests before the Cloudflare plugin dispatches them to the
     // Worker. See vite/runner-door.ts.
@@ -383,6 +389,7 @@ export default defineConfig(({ command }) => {
   define: {
     __NOTICEOS_RELEASE__: JSON.stringify(appRelease),
     __NOTICEOS_SOURCE_VERSION__: JSON.stringify(appSourceVersion),
+    __NOTICEOS_LIVE_SOURCE__: JSON.stringify(Boolean(liveSourceRoot)),
     __DEMO_VIEWER__: JSON.stringify(demoLaunch?.installation.viewer ?? null),
     __MONTHLY_CAPS__: JSON.stringify(monthlyCaps),
     __FLAG_DEFAULTS__: JSON.stringify(constants.flag_defaults),

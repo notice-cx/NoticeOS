@@ -5,6 +5,7 @@
 // lane asks isShuttingDown() before it starts work.
 
 import fs from 'node:fs/promises';
+import path from 'node:path';
 import { ensureSharedStateLinks, linkConflictLines, samePath } from '../os-runtime.mjs';
 import { CONFIG, RUNNER_STATE_FILE } from './config.mjs';
 import { listListenerOwners } from './door-ownership.mjs';
@@ -31,7 +32,24 @@ export const MANAGED_ORPHAN_MAX_AGE_MS = 120_000;
  * The subsequent runnerDatabase check validates the application's Postgres
  * login, workspace and schema before any heartbeat, child or schedule starts.
  */
-export async function runtimeCopyRefusal({ codeRoot, homeRoot, ensureLinks = ensureSharedStateLinks }) {
+export async function runtimeCopyRefusal({ codeRoot, homeRoot, liveSourceRoot = null, ensureLinks = ensureSharedStateLinks, fsp = fs }) {
+  if (liveSourceRoot) {
+    // Live code uses the installation's generated Worker configs and secret
+    // paths. Its archive and runner state must be the same mounted directories,
+    // rather than a second state tree hiding in the host checkout.
+    try {
+      const sameDirectory = async (a,b) => {
+        const [first,second] = await Promise.all([fsp.lstat(a),fsp.lstat(b)]);
+        return first.isDirectory() && second.isDirectory() && first.ino > 0 &&
+          first.dev === second.dev && first.ino === second.ino;
+      };
+      if (!await sameDirectory(codeRoot,liveSourceRoot)) throw new Error('source');
+      for (const relative of ['.local','.wrangler']) {
+        if (!await sameDirectory(path.join(codeRoot,relative),path.join(homeRoot,relative))) throw new Error('state');
+      }
+      return null;
+    } catch {return 'REFUSING development startup: checkout or installation state mounts do not match.';}
+  }
   if (samePath(codeRoot, homeRoot)) return null;
   const links = await ensureLinks({ codeRoot, homeRoot });
   if (links.conflicts.length > 0) {

@@ -11,9 +11,13 @@ function version(value) {
 }
 
 /** Git is optional, bounded and local. A parent repository is never this source. */
-export function gitSourceVersion(root) {
+export function gitSourceVersion(root, { declared = false } = {}) {
+  if(declared) {
+    try {const own=lstatSync(path.join(root,'.git'));if(own.isSymbolicLink() || !(own.isDirectory() || own.isFile())) return null;}
+    catch{return null;}
+  }
   const git = args => {
-    const result = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 2000, maxBuffer: 64 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
+    const result = spawnSync('git', [...(declared ? ['-c', `safe.directory=${root}`, '-c', `core.worktree=${root}`] : []), '-C', root, ...args], { encoding: 'utf8', timeout: 2000, maxBuffer: 64 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
     return result.status === 0 ? result.stdout.trim() : null;
   };
   try {

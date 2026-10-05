@@ -50,6 +50,17 @@ test('container health requires a fresh supervised runner and both answering int
     backupStatus: async () => ({ configured: true, available: false }) }), false);
 });
 
+test('live source is explicit, checks dependencies and keeps the same installation boundaries', () => {
+  let checked=0;const options={fs:io(),readClient:()=>profile,checkDependencies:()=>{checked++;}};
+  const prepared=containerEnvironment({NOTICEOS_LIVE_SOURCE_ROOT:'/foreign'},options);
+  assert.equal(checked,0);assert.equal(prepared.NOTICEOS_LIVE_SOURCE_ROOT,undefined);
+  const dev=containerEnvironment({NOTICEOS_CONTAINER_MODE:'development'},options);
+  assert.equal(checked,1);assert.equal(dev.NOTICEOS_IMMUTABLE_APP,'0');assert.equal(dev.NOTICEOS_LIVE_SOURCE_ROOT,'/source');
+  for(const key of ['NOTICEOS_HOME','NOTICEOS_TASK_CLIENT_PROFILE','NOTICEOS_BACKUP_CLIENT_PROFILE']) assert.equal(dev[key],prepared[key]);
+  assert.throws(()=>containerEnvironment({NOTICEOS_CONTAINER_MODE:'unknown'},options),/Choose/);
+  assert.throws(()=>containerEnvironment({NOTICEOS_CONTAINER_MODE:'development'},{...options,checkDependencies:()=>{throw new Error('lock drift');}}),/lock drift/);
+});
+
 
 test('container Vite serve supplies the refresh runtime even when ambient NODE_ENV is production', async () => {
   const env = containerEnvironment({ NODE_ENV: 'production' }, { fs: io(), readClient: () => profile });

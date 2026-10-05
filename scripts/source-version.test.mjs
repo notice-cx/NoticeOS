@@ -52,3 +52,14 @@ test('Git-free archives preserve sealed provenance and never invent missing or i
   fs.unlinkSync(manifest); fs.symlinkSync(path.join(f.root, 'missing'), manifest);
   assert.equal(sourceVersion(f.root), null);
 });
+
+test('declared development source tolerates container UID ownership without changing Git configuration',t=>{
+ const f=fixture(t);f.git('init');fs.writeFileSync(path.join(f.root,'source.ts'),'synthetic');f.git('add','.');
+ f.git('-c','core.hooksPath=/dev/null','-c','user.name=Synthetic','-c','user.email=synthetic@example.com','commit','-m','synthetic');
+ const config=fs.readFileSync(path.join(f.root,'.git/config'),'utf8');
+ const previous=process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER;process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER='1';
+ try {assert.equal(gitSourceVersion(f.root),null);assert.equal(gitSourceVersion(f.root,{declared:true})?.committedAt,DATE);}
+ finally {if(previous===undefined) delete process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER;else process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER=previous;}
+ assert.equal(fs.readFileSync(path.join(f.root,'.git/config'),'utf8'),config);
+ const nested=path.join(f.root,'nested');fs.mkdirSync(nested);assert.equal(gitSourceVersion(nested,{declared:true}),null);
+});

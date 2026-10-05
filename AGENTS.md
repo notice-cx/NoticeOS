@@ -254,6 +254,16 @@ on an existing installation; its absence grants no exception. Honor approvals
 already given for the same target and action. Automated tests always use isolated
 fixtures, never an existing installation or provider account.
 
+An owner can explicitly designate a named local Compose installation as
+**development** and authorize it to follow a mounted checkout. Record that
+designation and its exact stack, source path and routine access scope in ignored
+`.local/stack-development/authorization.json`. Within that recorded scope,
+ordinary app reads, live source edits, refreshes and app-only restarts need no
+production approval or deployment gate. This applies to that installation only;
+production targets and operator-only database, credential and measurement
+changes keep their existing rules. Development mode retains the installation's
+data; automated tests still use disposable fixtures.
+
 `pnpm start` is **not** the live OS: it runs a separate, new installation out
 of `.local/start/` on :4747 for a fresh clone (bead `ro-ujb9.126`,
 [scripts/README.md](scripts/README.md#a-new-installation-in-one-command-pnpm-start)).

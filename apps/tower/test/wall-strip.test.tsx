@@ -282,6 +282,16 @@ describe("the strip", () => {
     } finally { vi.unstubAllGlobals(); }
   });
 
+  it("marks development as live source alongside its real commit and timestamp",()=>{
+    vi.stubGlobal("__NOTICEOS_SOURCE_VERSION__",{commit:"c".repeat(40),committedAt:"2026-10-05T12:34:00.000Z",modified:false});
+    vi.stubGlobal("__NOTICEOS_LIVE_SOURCE__",true);
+    try {
+      const line=strip().container.querySelector("[data-strip-version]")!;
+      expect(line.textContent).toContain("DEV · ccccccc");expect(line.textContent).toContain("live source");
+      expect(line.querySelector("time")).toHaveAttribute("datetime","2026-10-05T12:34:00.000Z");
+    } finally {vi.unstubAllGlobals();}
+  });
+
   it("never draws source/system aggregate failures in the header", () => {
     const view = strip({ system: { ...HEALTHY, hasPulse: false, spendTodayUsd: 9 }, assets: [site("a.example", "degraded")] });
     expect(view.container.querySelector("[data-system-state]")).toBeNull();

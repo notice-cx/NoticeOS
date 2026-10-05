@@ -683,7 +683,7 @@ async function supervise({ exposeTowerToLan }) {
 
   // A runner running from a runtime copy starts nothing until its copy is linked
   // to home's state and home's store exists (bead ro-ujb9.113).
-  const copyRefusal = await runtimeCopyRefusal({ codeRoot: REPO_ROOT, homeRoot: HOME_ROOT });
+  const copyRefusal = await runtimeCopyRefusal({ codeRoot: REPO_ROOT, homeRoot: HOME_ROOT, liveSourceRoot: process.env.NOTICEOS_LIVE_SOURCE_ROOT });
   if (copyRefusal) {
     log('ERROR', copyRefusal);
     process.exit(EXIT_RUNTIME_COPY);

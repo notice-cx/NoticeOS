@@ -4,7 +4,7 @@ import { main, readSelector, validateSelector, parseServices, stackControl } fro
 
 const selector = { project: 'synthetic-stack', files: ['/fixture/compose.yaml'], envFile: '/fixture/compose.env', dockerHost: 'unix:///fixture/docker.sock' };
 const rows = (backup = true) => ['noticeos','postgres','dolt',...(backup ? ['backup'] : [])].map((Service, i) => ({ Project: selector.project, Service, ID: String(i + 1).repeat(64), State: 'running', Health: 'healthy' }));
-function fixture({ inventory = rows(), failure, changeAt, ndjson = false, revision = null, main = 'a'.repeat(40) } = {}) {
+function fixture({ inventory = rows(), failure, changeAt, ndjson = false, revision = null, main = 'a'.repeat(40), development=false } = {}) {
   const calls = []; let inspections = 0; let output = '';
   const run = async (command, args, options) => {
     assert.ok(options.timeoutMs <= 130000);
@@ -12,7 +12,7 @@ function fixture({ inventory = rows(), failure, changeAt, ndjson = false, revisi
     assert.equal(command, 'docker');
     if (args[2] === 'inspect') {
       assert.deepEqual(args, ['--host',selector.dockerHost,'inspect','--format','{{json .Config.Labels}}',inventory[0].ID]);
-      return { code:0, stdout:JSON.stringify({ 'com.docker.compose.project':selector.project,'com.docker.compose.service':'noticeos','org.opencontainers.image.revision':revision }) };
+      return { code:0, stdout:JSON.stringify({ 'com.docker.compose.project':selector.project,'com.docker.compose.service':'noticeos','org.opencontainers.image.revision':revision,...(development?{'cx.noticeos.runtime':'development','cx.noticeos.checkout':'/fixture/source'}:{}) }) };
     }
     assert.deepEqual(args.slice(0, 9), ['--host',selector.dockerHost,'compose','--project-name',selector.project,'-f',selector.files[0],'--env-file',selector.envFile]);
     assert.equal(options.env.DO_NOT_FORWARD, undefined);
@@ -51,6 +51,11 @@ test('status distinguishes the deployed source from main without reporting an un
     assert.ok(!own.output().includes('PRIVATE-SENTINEL'));
     assert.equal(own.writes().length,0);
   }
+});
+test('development status reports mounted HEAD rather than the dependency image revision',async()=>{
+ const own=fixture({development:true,revision:'b'.repeat(40)});await stackControl('status',selector,{...own,root:'/fixture/source'});
+ assert.match(own.output(),/mode: development/);assert.ok(own.output().includes('app source: '+'a'.repeat(40)));
+ assert.match(own.output(),/live source; deployments unnecessary/);assert.equal(own.writes().length,0);
 });
 test('missing, extra, duplicate and foreign services refuse before any mutation', async () => {
   for (const inventory of [rows().slice(1), [...rows(), { ...rows()[0], Service: 'foreign' }], rows().map((row,i) => i === 0 ? { ...row, Project: 'foreign' } : row), rows().map((row,i) => i === 0 ? { ...row, Service: 'backup' } : row)]) {

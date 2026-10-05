@@ -9,7 +9,7 @@ import { sourceVersion } from './source-version.mjs';
 
 const required = ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json', 'LICENSE', 'THIRD_PARTY_NOTICES.md',
   'deploy/compose/licenses/beads-1.3.1-LICENSE.txt', 'deploy/compose/licenses/dolt-2.4.0-LICENSE.txt', 'deploy/compose/licenses/sources.json',
-  'apps/tower/wrangler.jsonc', 'workers/ingest/wrangler.jsonc', 'db/postgres/tables.json', 'deploy/compose/Dockerfile', 'deploy/compose/entrypoint.mjs', 'deploy/compose/health.mjs'];
+  'apps/tower/wrangler.jsonc', 'workers/ingest/wrangler.jsonc', 'db/postgres/tables.json', 'deploy/compose/Dockerfile', 'deploy/compose/entrypoint.mjs', 'deploy/compose/development.mjs', 'deploy/compose/health.mjs'];
 function fixture(t) {
   const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-container-context-'));
   const root = path.join(parent, 'source'); fs.mkdirSync(root);

@@ -4,8 +4,12 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { readDeclaredTaskClient } from '../../scripts/task-client.mjs';
 import { probeTcp } from '../../scripts/runner/host-tools.mjs';
+import { developmentDependencies } from './development.mjs';
 
-export function containerEnvironment(env = process.env, { fs: io = fs, readClient = readDeclaredTaskClient } = {}) {
+export function containerEnvironment(env = process.env, { fs: io = fs, readClient = readDeclaredTaskClient, checkDependencies = developmentDependencies } = {}) {
+  const mode = env.NOTICEOS_CONTAINER_MODE ?? 'prepared';
+  if (!['prepared', 'development'].includes(mode)) throw new Error('Choose prepared or development container mode.');
+  if (mode === 'development') checkDependencies({ fs: io, metadataFile:'/dependency-image.json' });
   const home = '/state';
   const profileFile = path.join(home, 'task-client.json');
   const profile = readClient(profileFile);
@@ -33,7 +37,8 @@ export function containerEnvironment(env = process.env, { fs: io = fs, readClien
     NOTICEOS_HOME: home, NOTICEOS_INSTALLATION_DIR: '/state/installation', NOTICEOS_TASK_CLIENT_PROFILE: profileFile,
     NOTICEOS_BACKUP_CLIENT_PROFILE: '/state/backup-client.json',
     BEADS_BD_BIN: '/usr/local/bin/bd', NOTICEOS_VITE_CACHE_DIR: '/state/.local/vite-cache', WRANGLER_SEND_METRICS: 'false',
-    NOTICEOS_IMMUTABLE_APP: '1',
+    NOTICEOS_IMMUTABLE_APP: mode === 'development' ? '0' : '1',
+    ...(mode === 'development' ? { NOTICEOS_LIVE_SOURCE_ROOT: '/source' } : {}),
     CLOUDFLARE_CF_FETCH_ENABLED: 'false',
     WRANGLER_CACHE_DIR: '/state/.wrangler/cache',
     GIT_TERMINAL_PROMPT: '0' };

@@ -78,8 +78,17 @@ export async function stackControl(action, input, { run = runCommand, out = proc
       if (inspected.code !== 0) refuse('Application revision inspection failed.');
       const labels = JSON.parse(inspected.stdout);
       if (labels?.['com.docker.compose.project'] !== selector.project || labels?.['com.docker.compose.service'] !== 'noticeos') refuse('Application revision identity changed.');
+      const development = labels['cx.noticeos.runtime'] === 'development';
       const revision = labels['org.opencontainers.image.revision'];
       if (/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(revision ?? '')) running = revision;
+      if (development) {
+        if (labels['cx.noticeos.checkout'] !== root) refuse('Run status from the development checkout.');
+        const head = await run('git', ['rev-parse','--verify','HEAD^{commit}'], { cwd:root,env:ownEnv,timeoutMs:20000 });
+        const commit = head.stdout?.trim();
+        if (head.code !== 0 || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(commit ?? '')) refuse('Development source inspection failed.');
+        out.write(`mode: development (mounted checkout)\napp source: ${commit}\nupdate: live source; deployments unnecessary\n`);
+        return;
+      }
       const source = await run('git', ['rev-parse','--verify','main^{commit}'], { cwd: root, env: ownEnv, timeoutMs: 20000 });
       if (source.code === 0 && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(source.stdout.trim())) main = source.stdout.trim();
     } catch { refuse('Application revision inspection failed; raw output is withheld.'); }

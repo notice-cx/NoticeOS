@@ -70,7 +70,8 @@ function metadata(row, project, service) {
       labels['com.docker.compose.project'] !== project || labels['com.docker.compose.service'] !== service) fail('Container identity does not match the declared stack.');
   const mounts = (row.Mounts ?? []).map(mount => {
     if (!['bind','volume','tmpfs'].includes(mount.Type) || typeof mount.Source !== 'string' || typeof mount.Destination !== 'string') fail('Container mounts are invalid.');
-    return { type: mount.Type, source: mount.Source, target: mount.Destination, writable: mount.RW === true };
+    return { type: mount.Type, source: mount.Source, target: mount.Destination, writable: mount.RW === true,
+      ...(mount.Type==='volume'?{name:mount.Name}:{}), };
   }).sort((a,b) => a.target.localeCompare(b.target));
   return { id: row.Id, image: row.Image, state: row.State?.Status, health: row.State?.Health?.Status ?? null,
     revision: REVISION.test(labels[REVISION_LABEL] ?? '') ? labels[REVISION_LABEL] : null, mounts };
@@ -199,6 +200,7 @@ export async function prepareDeployment({ root = ROOT, selectorFile, baselineCom
   const inputHashes = inputSeal(selectorFile, selector);
   const before = await snapshot(run, selector, env);
   const model = await composition(run, selector, env);
+  if (model.value.services.noticeos.environment?.NOTICEOS_CONTAINER_MODE === 'development') fail('This stack follows live source. Use stack:dev --disable before a prepared-image deployment.');
   const old = await imageMetadata(run, selector, before.noticeos.image, env);
   const source = await currentSource(run, root);
   const dir = directory(selectorFile);
@@ -343,6 +345,9 @@ async function snapshotForRecovery(run,selector,env) {
   }
   return result;
 }
+export { snapshot as stackSnapshot, snapshotForRecovery as stackRecoverySnapshot,
+  composition as stackComposition, compose as stackCompose, atomic as stackAtomic,
+  inputSeal as stackInputSeal, sameInputs as stackSameInputs };
 export async function main(argv=process.argv.slice(2),options={}) {
   const out=options.out ?? process.stdout; const err=options.err ?? process.stderr;
   if (argv.length===1 && ['--help','-h'].includes(argv[0])) {out.write(HELP+'\n');return 0;}

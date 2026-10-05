@@ -4,7 +4,7 @@ import { type ConnectionReads } from "@shared/connection-status";
 import type { CountdownConfig } from "@shared/dashboard";
 import { ageMs, formatAge } from "@shared/freshness";
 import type { AssetCard, SystemBand } from "@shared/wall";
-import { compiledSourceVersion } from "@shared/source-version";
+import { compiledLiveSource, compiledSourceVersion } from "@shared/source-version";
 import { compiledAppRelease } from "@shared/app-release";
 import { BrandLockup } from "@/components/BrandLockup";
 import {
@@ -129,6 +129,7 @@ export function WallStrip({ countdown, meetings, heldSince = null, nowMs }: Wall
   ) : null;
   const emoji = countdown?.emoji?.trim() ?? "";
   const version = compiledSourceVersion();
+  const liveSource = compiledLiveSource();
   const release = compiledAppRelease();
   const versionDate = version ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(version.committedAt)) : null;
   return (
@@ -150,10 +151,11 @@ export function WallStrip({ countdown, meetings, heldSince = null, nowMs }: Wall
             title={version ? `Commit ${version.commit} · ${version.committedAt}${version.modified ? " · local edits" : ""}` : "Source commit unavailable"}
             data-strip-version
           >
+            {liveSource ? <span>DEV · </span> : null}
             {version ? <>
               <span className="font-mono">{version.commit.slice(0, 7)}</span>
               <span> · <time dateTime={version.committedAt}>{versionDate}</time></span>
-              {version.modified ? <span className="block sm:inline"><span className="hidden sm:inline"> · </span>local edits</span> : null}
+              {liveSource || version.modified ? <span className="block sm:inline"><span className="hidden sm:inline"> · </span>{liveSource ? "live source" : "local edits"}</span> : null}
             </> : release ? `Build ${release.slice(0, 7)}` : "Version unavailable"}
           </span>
         </a>

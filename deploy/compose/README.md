@@ -1,4 +1,4 @@
-# Prepared application container
+# Application container
 
 This service packages the existing runner, Tower, ingest and Beads task lane.
 It starts an **already prepared installation**. It never initializes or
@@ -203,6 +203,63 @@ your Docker engine's startup setting. A manual stop remains stopped until an
 explicit start. On macOS, OrbStack's login startup starts the engine after the
 user signs in; it does not provide startup before login. Before-login hosting
 requires an engine managed as a system service, such as on a Linux host.
+
+## Follow a checkout during local development
+
+For a local installation whose owner wants edits to appear immediately, use
+the existing stack selector from its source checkout:
+
+```sh
+pnpm stack:dev
+pnpm stack:status
+```
+
+This is an explicit development mode for that installation. The app mounts
+the checkout's source directories read-only and enables Vite live refresh on
+the existing Tower port. UI, styles, Worker and shared source edits appear
+without a build, deployment or app restart. The Wall caption shows **DEV**,
+the checkout commit and time, and **live source**. Committing refreshes its
+source stamp too. Status reports the live checkout rather than the dependency
+image's old source label.
+
+Image-scoped Docker volumes keep its Linux dependencies; host `node_modules`
+are shadowed by those volumes. A first switch copies the image's dependencies
+once, with 4 GiB headroom while retaining 8 GiB free. Later UI edits copy
+nothing. Existing state mounts keep archives and runner records in the
+installation; generated Worker configs link to its existing secret file.
+The command replaces only the app, preserves the stores,
+backups and their volumes, and applies no migration. Its dependency check has
+no network or installation mounts. A changed lockfile refuses startup rather
+than silently using mismatched dependencies. Prepare a matching dependency
+image with the existing artifact builder, disable development, then select it
+with `pnpm stack:dev --image sha256:ID`.
+
+The whole checkout is mounted as a directory, so atomic editor saves and Git
+checkouts are observed too. Changes to Node runner code need an app-only
+restart with `pnpm stack:dev`; UI and Worker module edits refresh live. Worker
+config and dependency changes restart Vite and recheck the dependency image.
+The [Docker bind mount contract](https://docs.docker.com/reference/compose-file/services/#volumes)
+and [Vite watcher options](https://vite.dev/config/server-options.html#server-watch)
+describe the underlying mechanisms. Native file events are used; polling is
+not enabled across the checkout.
+
+Restore the original prepared app and selector with:
+
+```sh
+pnpm stack:dev --disable
+```
+
+The private `stack-development/previous.json` and journal beside the selector
+record recovery. The switch shares the deployment lock and restores the old
+app if startup fails, provided the stores and declarations still match.
+`stack:deploy` refuses a development selector until development is disabled.
+Neither mode removes the checkout or its dependencies.
+
+Agents record the owner's named local-development designation and routine
+access scope in ignored `.local/stack-development/authorization.json`.
+That scope removes repeated deployment approvals for this local app; other
+installations retain their approval rules. Live development uses the existing
+installation's data and schedules. Automated tests use isolated fixtures.
 
 ## Download and publish stored signal reports
 

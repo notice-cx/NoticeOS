@@ -64,6 +64,16 @@ test('the Tower child is told the door the scheduler fires at', () => {
   assert.deepEqual(ingestDoorEnv(CONFIG), { OS_UP_INGEST_DOOR_HOST: '127.0.0.1', OS_UP_INGEST_DOOR_PORT: '8853' });
 });
 
+test('live source needs the same checkout and shared state inodes before startup', async () => {
+  const rows = {'/code':1,'/source':1,'/code/.local':2,'/state/.local':2,'/code/.wrangler':3,'/state/.wrangler':3};
+  const fsp={lstat:async file=>({dev:8,ino:rows[file],isDirectory:()=>true})};
+  const check=()=>runtimeCopyRefusal({codeRoot:'/code',homeRoot:'/state',liveSourceRoot:'/source',fsp,
+    ensureLinks:()=>assert.fail('live mode must not create links in its read-only source')});
+  assert.equal(await check(),null);
+  rows['/code/.wrangler']=4;assert.match(await check(),/state mounts do not match/);
+  rows['/code/.wrangler']=3;rows['/source']=5;assert.match(await check(),/state mounts do not match/);
+});
+
 test('os-up.mjs still offers the same lifecycle guards', () => {
   for (const name of ['EXIT_ALREADY_RUNNING', 'EXIT_RUNTIME_COPY', 'MANAGED_ORPHAN_MAX_AGE_MS', 'ingestDoorEnv',
     'managedOrphanDecision', 'runnerArmDecision', 'runtimeCopyRefusal']) {

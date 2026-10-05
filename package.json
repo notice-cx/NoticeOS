@@ -67,7 +67,8 @@
     "stack:start": "node scripts/stack-control.mjs start",
     "stack:stop": "node scripts/stack-control.mjs stop",
     "stack:restart": "node scripts/stack-control.mjs restart",
-    "stack:deploy": "node scripts/stack-deploy.mjs"
+    "stack:deploy": "node scripts/stack-deploy.mjs",
+    "stack:dev": "node scripts/stack-development.mjs"
   },
   "devDependencies": {
     "@duckdb/node-api": "1.5.5-r.5",
