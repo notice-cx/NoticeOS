@@ -597,7 +597,7 @@ function wallLegibility(scope: string) {
   return { clipped, wrapped };
 }
 
-/** The header's groups and type as drawn, without assuming one baseline. */
+/** The header's four widgets and shared type as drawn. */
 function stripGroups() {
   const strip = document.querySelector("[data-wall-strip]")!;
   const box = strip.getBoundingClientRect();
@@ -605,9 +605,9 @@ function stripGroups() {
     const r = el.getBoundingClientRect();
     return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
   };
-  const groups = ["[data-strip-clock-group]", "[data-strip-agenda]", "[data-strip-countdown]"]
+  const groups = ["[data-strip-home]", "[data-strip-clock-group]", "[data-strip-agenda]", "[data-strip-countdown]"]
     .map((selector) => ({ selector, ...rect(strip.querySelector(selector)!) }));
-  const labels = ["[data-strip-date]", "[data-strip-day-period]", "[data-strip-meeting-when]", "[data-strip-countdown-unit]"]
+  const labels = ["[data-strip-version]", "[data-strip-date]", "[data-strip-day-period]", "[data-strip-meeting-cue]", "[data-strip-countdown-unit]"]
     .flatMap((selector) => {
       const el = strip.querySelector(selector);
       if (!el) return [];
@@ -970,7 +970,6 @@ test.describe(() => {
         expect(found.height, `${at}: at least the TV's 96px header, scaled`).toBeGreaterThanOrEqual(96 * scale - 1);
         const expectedHeight = Math.max(96 * scale, Math.max(...found.groups.map((group) => group.height)) + 32 * scale);
         expect(Math.abs(found.height - expectedHeight), `${at}: readable groups plus real padding determine height`).toBeLessThanOrEqual(1);
-        if (width === 1920) expect(found.height, "unscaled TV header stays 96px").toBe(96);
         for (const label of found.labels) expect(label.size * scale, `${at}: ${label.selector} meets the 11px physical floor`).toBeGreaterThanOrEqual(10.95);
         for (const group of found.groups) {
           expect(group.top - found.box.top, `${at}: ${group.selector} has real top padding`).toBeGreaterThanOrEqual(16 * scale - 1);

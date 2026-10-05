@@ -66,26 +66,38 @@ row "body"   fill  [ column 3.1 ┌ row auto [ revenue 1.55 ][ needs 1 ] ┐ ][ 
 
 ### Strip
 
-- Three coherent groups: brand and local time/date; the next meeting today;
-  the countdown. One sans-serif family, tabular figures, shared label and
-  value steps. The TV strip is 96 px high, with 16 px of real padding above
-  and below its groups. Scaled laptop headers can grow to keep supporting
-  text at least 11 physical pixels. Narrower portrait screens wrap whole groups.
+- Four aligned widgets: brand/version, local time/date, meeting/status,
+  and event/countdown. Brand, clock and meeting share main/supporting baselines;
+  a quiet divider sits between each adjacent widget. One sans-serif family,
+  tabular figures and shared type steps. The TV strip is at least 96 px high,
+  or 104 px with the countdown, with 16 px of real padding around its groups.
+  Scaled laptop headers can grow to keep supporting
+  text at least 11 physical pixels. Portrait tablets place branding, clock
+  and countdown together, with a full-width meeting row. Phones pair branding
+  with the clock and give the meeting title its own line between the meeting
+  times and status. Missing widgets leave no empty agenda block.
 - The clock uses the locale's own format with no seconds. AM/PM is smaller
   and muted where the locale has one. The date sits below the time.
-- The meeting gives its title, start time and distance. A clear day reads
+- The meeting title shares the clock's size; start time precedes it and
+  relative time follows it, both at the title's size and muted on its baseline.
+  AM/PM and H/M use the clock's smaller supporting step. Period spacing matches
+  the clock; duration suffixes have their own smaller gap from the numerals.
+  Up next or Now sits on the supporting row. A clear day reads
   "No meetings today"; no readable calendar leaves the group out.
-- The countdown puts its large number in a small inset tile, with the
-  days-left unit and event label beside it. An emoji appears beside the label
-  only when set. Reaching the target has its own state; the last day switches
+- The countdown uses two aligned columns: emoji/event name above a plain
+  large number and muted unit. The event name uses the intermediate type step;
+  its emoji matches that size and appears only when set. Reaching the target has
+  its own state; the last day switches
   to hours, then minutes.
   An unset countdown draws no block.
 - Aggregate source and system badges are absent. Concrete OS, scheduled-job
   and data-spend problems join Needs you; asset and source problems remain
   there and in each site's health indicator.
 - The brand is the TV's one link, Home (doc 14). Its logotype uses the
-  countdown's large type step, filling the clock group's vertical space;
-  the phone keeps the mark alone (bead `ro-trai.51`).
+  brand type step, filling the main row. The source metadata is distributed
+  across the logotype's width, with the monospace hash sharing the caption's
+  baseline. DEV identifies mounted development; an asterisk marks local edits
+  to that commit (bead `ro-trai.56`).
 - If the Wall's own poll fails, keep the last values and show their age:
   "Refreshed 3m ago · reconnecting". Successful polls need no age caption.
 
@@ -300,10 +312,11 @@ Every size on the Wall is a token in
   age, or the clock time) `text-wall-list-meta`. Neither list is louder than
   the other; Needs you shows urgency by weight and colour, never by size.
   At 1920 they are 14, 18 and 14 px.
-- **Strip**: `text-wall-strip` for meeting and countdown labels (20 px on
-  TV), `text-wall-strip-label` for supporting words (14 px),
-  `text-wall-strip-time` for the clock (36 px), and
-  `text-wall-strip-countdown` for days remaining (40 px). All share the sans
+- **Strip**: `text-wall-strip-time` for the clock, meeting title and times,
+  and countdown value (36 px on TV); `text-wall-strip-label` for supporting
+  words, clock periods and duration suffixes (14 px); `text-wall-strip` for
+  the countdown's event name (20 px);
+  `text-wall-strip-brand` for the logotype (40 px). All share the sans
   family and responsive steps for tablet and phone.
   Beneath the logo, muted small print identifies the served source commit and
   its commit date and time in the viewer's time zone. Images carry this metadata;
@@ -318,7 +331,7 @@ Every size on the Wall is a token in
 | Region | Size |
 |---|---|
 | Page inset | 24 px top and bottom, 32 px sides |
-| Strip | 96 px, including 16 px vertical padding, then a 20 px gap |
+| Strip | 96 px minimum; 104 px with countdown. Includes 16 px vertical padding, then a 20 px gap |
 | Body | The height left by the strip; main column beside the feed, 28 px apart |
 | Revenue + Needs you | 336 px when filled, then a 20 px gap |
 | Site rows | Headings and flexible rows with content floors, including selected pulse totals |

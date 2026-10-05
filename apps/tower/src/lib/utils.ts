@@ -23,6 +23,7 @@ export const THEME_TEXT_SIZES = [
   "wall-strip-label",
   "wall-strip-countdown",
   "wall-strip-time",
+  "wall-strip-brand",
   "wall-strip-emoji",
   "wall-list-label",
   "wall-list-line",

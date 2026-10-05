@@ -196,12 +196,12 @@ describe("the strip's time, meeting and countdown", () => {
   it("says the next meeting today with its start and distance", () => {
     const next = stripMeeting(withMeetingIn(2.5 * HOUR), NOW);
     expect(next).toMatchObject({ title: "Partner sync", inProgress: false });
-    expect(next !== null && typeof next === "object" ? next.when : "").toMatch(/· in 2h 30m$/u);
+    expect(next !== null && typeof next === "object" ? next.distance : "").toBe("in 2h 30m");
   });
 
   it("says a meeting under way by how long is left", () => {
     const now = stripMeeting(withMeetingIn(-10 * MINUTE), NOW);
-    expect(now).toMatchObject({ title: "Partner sync", when: "now · 20m left", inProgress: true });
+    expect(now).toMatchObject({ title: "Partner sync", distance: "20m left", inProgress: true });
   });
 
   it("says No meetings today only when a calendar could be read", () => {
@@ -236,7 +236,7 @@ describe("the strip", () => {
   it("groups the clock/date, next meeting and countdown within a bounded TV header", () => {
     const view = strip();
     const el = view.container.querySelector("[data-wall-strip]")!;
-    expect(el).toHaveClass("tv:min-h-24", "tv:flex", "grid", "py-4");
+    expect(el).toHaveClass("tv:min-h-24", "wall-strip", "grid", "py-4");
     expect(el).toHaveAttribute("aria-label", "Time, meetings and countdown");
     const clock = stripClock(NOW);
     const period = clock.dayPeriod ?? "";
@@ -261,8 +261,8 @@ describe("the strip", () => {
       expect(line.textContent).toBe(`ccccccc · ${when}`);
       expect(line).toHaveAttribute("title", `Commit ${version.commit} · ${version.committedAt}`);
       expect(line.querySelector("time")).toHaveAttribute("datetime", version.committedAt);
-      expect(line).toHaveClass("text-wall-list-meta", "text-muted-foreground", "tabular-nums");
-      expect(line.previousElementSibling).toHaveClass("brand-lockup");
+      expect(line).toHaveClass("text-wall-strip-label", "text-muted-foreground", "tabular-nums");
+      expect(line.previousElementSibling?.querySelector(".brand-lockup")).not.toBeNull();
       view.unmount();
       vi.stubGlobal("__NOTICEOS_SOURCE_VERSION__", { ...version, modified: true });
       expect(strip().container.querySelector("[data-strip-version]")?.textContent).toContain("local edits");
@@ -282,12 +282,12 @@ describe("the strip", () => {
     } finally { vi.unstubAllGlobals(); }
   });
 
-  it("marks development as live source alongside its real commit and timestamp",()=>{
+  it("identifies development once alongside its real commit and timestamp",()=>{
     vi.stubGlobal("__NOTICEOS_SOURCE_VERSION__",{commit:"c".repeat(40),committedAt:"2026-10-05T12:34:00.000Z",modified:false});
     vi.stubGlobal("__NOTICEOS_LIVE_SOURCE__",true);
     try {
       const line=strip().container.querySelector("[data-strip-version]")!;
-      expect(line.textContent).toContain("DEV · ccccccc");expect(line.textContent).toContain("live source");
+      expect(line.textContent).toContain("DEV · ccccccc");expect(line.textContent).not.toContain("live source");
       expect(line.querySelector("time")).toHaveAttribute("datetime","2026-10-05T12:34:00.000Z");
     } finally {vi.unstubAllGlobals();}
   });
@@ -299,13 +299,14 @@ describe("the strip", () => {
   });
 
   it.each([
-    [2.5 * HOUR, "Up next", /· in 2h 30m$/u],
-    [-10 * MINUTE, "Now", /^now · 20m left$/u],
-  ])("labels the meeting as upcoming or current (%s)", (offset, label, when) => {
+    [2.5 * HOUR, "Up next", "in 2H 30M"],
+    [-10 * MINUTE, "Now", "20M left"],
+  ])("labels the meeting as upcoming or current (%s)", (offset, label, distance) => {
     const view = strip({ meetings: withMeetingIn(offset) });
-    expect(view.container.querySelector("[data-strip-meeting]")?.firstElementChild?.textContent).toBe(label);
+    expect(view.container.querySelector("[data-strip-meeting-cue]")?.textContent).toBe(label);
     expect(view.container.querySelector("[data-strip-meeting-title]")?.textContent).toBe("Partner sync");
-    expect(view.container.querySelector("[data-strip-meeting-when]")?.textContent).toMatch(when);
+    expect(view.container.querySelector("[data-strip-meeting-distance]")?.textContent).toBe(distance);
+    expect(view.container.querySelector("[data-strip-meeting-when]")?.textContent).not.toMatch(/in|left|now/u);
   });
 
   it.each([
@@ -332,6 +333,7 @@ describe("the strip", () => {
     const view = strip({ countdown: undefined, meetings: null });
     expect(view.container.querySelector("[data-strip-countdown]")).toBeNull();
     expect(view.container.querySelector("[data-strip-meeting]")).toBeNull();
+    expect(view.container.querySelector("[data-strip-agenda]")).toBeNull();
     expect(view.container.querySelector("[data-strip-time]")).not.toBeNull();
   });
 

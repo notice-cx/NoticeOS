@@ -82,17 +82,40 @@ export function stripCountdown(nowMs: number, targetAt: string): string | null {
 export function stripMeeting(
   data: CalendarUpcoming | null | undefined,
   nowMs: number,
-): { title: string; when: string; inProgress: boolean } | "none-today" | null {
+): { title: string; when: string; dayPeriod: string | null; dayPeriodFirst: boolean; distance: string; inProgress: boolean } | "none-today" | null {
   if (!meetingsPanelHasContent(data)) return null;
   const { hero } = meetingsView(data, nowMs);
   if (!hero) return "none-today";
   const inProgress = isInProgress(hero, nowMs);
   const distance = formatMeetingDistance(hero, nowMs);
+  const clock = stripClock(Date.parse(hero.startsAt));
   return {
     title: hero.title,
-    when: inProgress ? distance : `${formatMeetingClock(hero.startsAt, nowMs)} · ${distance}`,
+    when: formatMeetingClock(hero.startsAt, nowMs),
+    dayPeriod: clock.dayPeriod,
+    dayPeriodFirst: clock.dayPeriodFirst,
+    distance: inProgress ? distance.replace(/^now · /u, "") : distance,
     inProgress,
   };
+}
+
+/** Keep the locale's clock text/order, shrinking only its day period. */
+function meetingClockText(text: string, dayPeriod: string | null, dayPeriodFirst: boolean) {
+  const at = dayPeriod === null ? -1 : text.indexOf(dayPeriod);
+  if (at === -1 || dayPeriod === null) return text;
+  const before = text.slice(0, at);
+  const after = text.slice(at + dayPeriod.length);
+  return <>
+    {dayPeriodFirst ? before : before.trimEnd()}
+    <span className={cn("text-wall-strip-label font-medium", dayPeriodFirst ? "mr-1.5" : "ml-1.5")} data-strip-meeting-period>{dayPeriod}</span>
+    {dayPeriodFirst ? after.trimStart() : after}
+  </>;
+}
+
+function meetingDistanceText(text: string) {
+  return text.split(/([hm])\b/u).map((part, index) => part === "h" || part === "m"
+    ? <span key={index} className="ml-1 text-wall-strip-label font-medium" data-strip-meeting-unit>{part.toUpperCase()}</span>
+    : part);
 }
 
 export interface WallStripProps {
@@ -131,87 +154,102 @@ export function WallStrip({ countdown, meetings, heldSince = null, nowMs }: Wall
   const version = compiledSourceVersion();
   const liveSource = compiledLiveSource();
   const release = compiledAppRelease();
-  const versionDate = version ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(version.committedAt)) : null;
+  const hasAgenda = meeting !== null || heldSince !== null;
+  const versionDate = version ? new Intl.DateTimeFormat(undefined, {
+    month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  }).format(new Date(version.committedAt)) : null;
+  const heldCaption = heldSince !== null ? (
+    <span className="flex items-center gap-1.5 text-wall-strip-label text-muted-foreground tabular-nums" data-strip-held data-strip-meta>
+      <ClockAlert className="size-4 shrink-0" aria-hidden />
+      Refreshed {formatAge(ageMs(nowMs, heldSince))} ago · reconnecting
+    </span>
+  ) : null;
   return (
     <header
       data-wall-strip
       aria-label="Time, meetings and countdown"
-      className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-6 gap-y-5 rounded-xl bg-muted/40 px-5 py-4 text-wall-strip tv:flex tv:min-h-24 tv:gap-8 tv:px-6"
+      className="wall-strip grid min-w-0 rounded-xl bg-muted/40 px-3 py-4 tv:min-h-24 tv:px-6"
+      data-strip-has-agenda={hasAgenda || undefined}
     >
-      <div className="col-span-2 flex min-w-0 items-center gap-6 tv:shrink-0" data-strip-clock-group>
-        <a
-          href={demoDocumentUrl("/")}
-          title="Leave TV mode for the desk home."
-          className="shrink-0 whitespace-nowrap rounded text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [&_.brand-wordmark]:sr-only sm:[&_.brand-wordmark]:not-sr-only"
-          data-strip-home
+      <a
+        href={demoDocumentUrl("/")}
+        aria-label="NoticeOS"
+        title="Leave TV mode for the desk home."
+        className="wall-strip-widget wall-strip-brand rounded text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        data-strip-home
+      >
+        <span className="wall-strip-brand-primary" data-strip-primary>
+          <BrandLockup size="text" className="text-wall-strip-brand! leading-none!" />
+        </span>
+        <span
+          className="wall-strip-version text-wall-strip-label font-normal text-muted-foreground tabular-nums"
+          title={version ? `Commit ${version.commit} · ${version.committedAt}${version.modified ? " · local edits" : ""}` : "Source commit unavailable"}
+          data-strip-version
+          data-strip-meta
         >
-          <BrandLockup size="text" className="text-wall-strip-countdown! leading-none!" />
-          <span
-            className="block text-wall-list-meta font-normal text-muted-foreground tabular-nums"
-            title={version ? `Commit ${version.commit} · ${version.committedAt}${version.modified ? " · local edits" : ""}` : "Source commit unavailable"}
-            data-strip-version
-          >
-            {liveSource ? <span>DEV · </span> : null}
-            {version ? <>
-              <span className="font-mono">{version.commit.slice(0, 7)}</span>
-              <span> · <time dateTime={version.committedAt}>{versionDate}</time></span>
-              {liveSource || version.modified ? <span className="block sm:inline"><span className="hidden sm:inline"> · </span>{liveSource ? "live source" : "local edits"}</span> : null}
-            </> : release ? `Build ${release.slice(0, 7)}` : "Version unavailable"}
-          </span>
-        </a>
-        <div className="flex min-w-0 flex-col border-l border-border/60 pl-6">
-          <time
-            dateTime={new Date(nowMs).toISOString()}
-            className="whitespace-nowrap text-wall-strip-time font-medium tracking-tight tabular-nums"
-            data-strip-time
-          >
-            {clock.dayPeriodFirst ? dayPeriod : null}
-            {clock.time}
-            {clock.dayPeriodFirst ? null : dayPeriod}
-          </time>
-          <span className="whitespace-nowrap text-wall-strip-label text-muted-foreground tabular-nums" data-strip-date>
-            {stripDate(nowMs)}
-          </span>
-        </div>
+          {liveSource ? <><span>DEV</span><span aria-hidden> · </span></> : null}
+          {version ? <>
+            <span className="font-mono">{version.commit.slice(0, 7)}{version.modified && liveSource ? "*" : null}</span>
+            <span aria-hidden> · </span>
+            <time dateTime={version.committedAt}>{versionDate}</time>
+            {version.modified && !liveSource ? <span> · local edits</span> : null}
+          </> : release ? `Build ${release.slice(0, 7)}` : "Version unavailable"}
+        </span>
+      </a>
+      <div className="wall-strip-widget wall-strip-clock" data-strip-clock-group>
+        <span className="wall-strip-divider border-border/60" aria-hidden data-strip-separator />
+        <time
+          dateTime={new Date(nowMs).toISOString()}
+          className="whitespace-nowrap text-wall-strip-time font-medium tracking-tight tabular-nums"
+          data-strip-time
+          data-strip-primary
+        >
+          {clock.dayPeriodFirst ? dayPeriod : null}
+          {clock.time}
+          {clock.dayPeriodFirst ? null : dayPeriod}
+        </time>
+        <span className="whitespace-nowrap text-wall-strip-label text-muted-foreground tabular-nums" data-strip-date data-strip-meta>
+          {stripDate(nowMs)}
+        </span>
       </div>
-      <div className={cn("col-span-2 flex min-w-0 flex-col tv:flex-1", meeting === null && heldSince === null && "hidden tv:flex")} data-strip-agenda>
+      {hasAgenda ? <div className="wall-strip-widget wall-strip-agenda" data-strip-agenda>
+        <span className="wall-strip-divider border-border/60" aria-hidden data-strip-separator />
         {meeting !== null ? (
           meeting === "none-today" ? (
-            <span className="text-wall-strip-label text-muted-foreground" data-strip-meeting="none">No meetings today</span>
+            <span className="text-wall-strip-time font-medium text-muted-foreground" data-strip-meeting="none" data-strip-primary>No meetings today</span>
           ) : (
-            <div className="flex min-w-0 flex-col" data-strip-meeting>
-              {heldSince === null ? <span className="text-wall-strip-label text-muted-foreground">{meeting.inProgress ? "Now" : "Up next"}</span> : null}
-              <span className="truncate font-medium" title={meeting.title} data-strip-meeting-title>{meeting.title}</span>
-              <span className="text-wall-strip-label text-muted-foreground tabular-nums" data-strip-meeting-when>{meeting.when}</span>
+            <div className="wall-strip-meeting" data-strip-meeting>
+              <div className="wall-strip-meeting-primary min-w-0 text-wall-strip-time font-medium tracking-tight" data-strip-primary>
+                <span className="whitespace-nowrap font-normal text-muted-foreground tabular-nums" data-strip-meeting-when>{meetingClockText(meeting.when, meeting.dayPeriod, meeting.dayPeriodFirst)}</span>
+                <span className="min-w-0 truncate" title={meeting.title} data-strip-meeting-title>{meeting.title}</span>
+                <span className="whitespace-nowrap font-normal text-muted-foreground tabular-nums" data-strip-meeting-distance>{meetingDistanceText(meeting.distance)}</span>
+              </div>
+              <div className="flex min-w-0 flex-wrap items-start gap-x-3" data-strip-meta>
+                {heldSince === null ? <span className="text-wall-strip-label text-muted-foreground" data-strip-meeting-cue>{meeting.inProgress ? "Now" : "Up next"}</span> : null}
+                {heldCaption}
+              </div>
             </div>
           )
-        ) : null}
-        {heldSince !== null ? (
-          <span className="flex items-center gap-1.5 text-wall-strip-label text-muted-foreground tabular-nums" data-strip-held>
-            <ClockAlert className="size-4 shrink-0" aria-hidden />
-            Refreshed {formatAge(ageMs(nowMs, heldSince))} ago · reconnecting
-          </span>
-        ) : null}
-      </div>
+        ) : <span className="text-wall-strip-time font-medium text-muted-foreground" data-strip-primary>Reconnecting</span>}
+        {meeting === null || meeting === "none-today" ? heldCaption : null}
+      </div> : null}
       {countdown && left !== null ? (
         <div
-          className="col-span-2 flex min-w-0 items-center gap-4 tv:max-w-sm tv:shrink-0"
+          className="wall-strip-widget wall-strip-countdown text-wall-strip"
           data-strip-countdown
           data-countdown-state={reached ? "reached" : "remaining"}
         >
+          <span className="wall-strip-divider border-border/60" aria-hidden data-strip-separator />
           <span
-            className={cn("grid min-w-16 shrink-0 place-items-center rounded-lg border border-border/60 bg-background/50 px-3 py-1.5 font-medium tracking-tight tabular-nums tv:h-16", reached ? "text-wall-strip text-muted-foreground" : "text-wall-strip-countdown")}
+            className={cn("row-start-2 whitespace-nowrap text-wall-strip-time font-medium tracking-tight tabular-nums", reached && "text-muted-foreground")}
             data-strip-countdown-days
+            data-strip-primary
           >
             <span data-strip-countdown-value>{count}</span>{unit ? <span className="sr-only"> {unit}</span> : null}
           </span>
-          <div className="flex min-w-0 flex-col">
-            {!reached ? <span className="whitespace-nowrap text-wall-strip-label text-muted-foreground" aria-hidden data-strip-countdown-unit>{unit} remaining</span> : null}
-            <div className="flex min-w-0 items-center gap-2">
-              {emoji ? <span aria-hidden className="grid size-wall-strip-mark shrink-0 select-none place-items-center text-wall-strip-emoji" data-strip-countdown-emoji>{emoji}</span> : null}
-              <span className="truncate font-medium" title={countdown.label} data-strip-countdown-label>{countdown.label}</span>
-            </div>
-          </div>
+          {!reached ? <span className="col-start-2 row-start-2 whitespace-nowrap text-wall-strip-label text-muted-foreground" aria-hidden data-strip-countdown-unit data-strip-meta>{unit} remaining</span> : null}
+          {emoji ? <span aria-hidden className="col-start-1 row-start-1 grid size-wall-strip-mark select-none place-items-center justify-self-center text-wall-strip-emoji" data-strip-countdown-emoji>{emoji}</span> : null}
+          <span className="col-start-2 row-start-1 min-w-0 truncate font-medium" title={countdown.label} data-strip-countdown-label>{countdown.label}</span>
         </div>
       ) : null}
     </header>

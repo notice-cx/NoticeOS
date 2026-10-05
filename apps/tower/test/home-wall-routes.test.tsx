@@ -1049,7 +1049,7 @@ describe("Home — the operator's overview", () => {
     expect(screen.queryByText("Local time")).toBeNull();
     expect(screen.queryByText("SF Trip - August 2026")).toBeNull();
     expect(screen.queryByRole("button", { name: "Configure" })).toBeNull();
-    expect(screen.queryByText("now · 25m left")).toBeNull();
+    expect(container.querySelector("[data-strip-meeting]")).toBeNull();
     expect(screen.queryByText("Monthly net")).toBeNull();
     expect(screen.queryByText("Chart key")).toBeNull();
     // The asset GRID and its cards are `/assets`; Home has a table instead.
@@ -1968,7 +1968,8 @@ describe("Home and Wall phase scoping", () => {
     // The strip keeps identity, time, the meeting and the countdown; system
     // concerns belong to Needs you rather than an aggregate header badge.
     expect(strip!.textContent).toContain("SF Trip - August 2026");
-    expect(strip!.querySelector("[data-strip-meeting]")?.textContent).toContain("now · 25m left");
+    expect(strip!.querySelector("[data-strip-meeting-distance]")).toHaveTextContent("25M left");
+    expect(strip!.querySelector("[data-strip-meeting-cue]")).toHaveTextContent("Now");
     expect(strip!.querySelector("[data-strip-clock-group]")).not.toBeNull();
     expect(strip!.querySelector("[data-strip-agenda]")).not.toBeNull();
     expect(strip!.querySelector("[data-strip-countdown-value]")).not.toBeNull();

@@ -63,10 +63,11 @@
      the local clock and the countdown value (ro-trai.49). */
   --wall-strip-size: 1.125rem;
   --wall-strip-line: 1.5rem;
-  --wall-strip-label-size: 0.875rem;
+  --wall-strip-label-size: 0.75rem;
   --wall-strip-label-line: 1.125rem;
-  --wall-strip-time-size: 1.875rem;
-  --wall-strip-time-line: 2.375rem;
+  --wall-strip-time-size: 1.5rem;
+  --wall-strip-time-line: 2.25rem;
+  --wall-strip-brand-size: 2rem;
   --wall-strip-countdown-size: 2.25rem;
   --wall-strip-countdown-line: 2.875rem;
   --background: var(--brand-canvas);
@@ -336,6 +337,7 @@
     --wall-strip-label-line: 1.125rem;
     --wall-strip-time-size: 2rem;
     --wall-strip-time-line: 2.625rem;
+    --wall-strip-brand-size: 2.5rem;
     --wall-strip-countdown-size: 2.5rem;
     --wall-strip-countdown-line: 3.125rem;
   }
@@ -386,6 +388,7 @@
     --wall-strip-label-line: 1.125rem;
     --wall-strip-time-size: 2.25rem;
     --wall-strip-time-line: 2.875rem;
+    --wall-strip-brand-size: 2.5rem;
     --wall-strip-countdown-size: 2.5rem;
     --wall-strip-countdown-line: 3.125rem;
   }
@@ -580,16 +583,18 @@
   --text-wall-strip-countdown--line-height: var(--wall-strip-countdown-line);
   --text-wall-strip-time: var(--wall-strip-time-size);
   --text-wall-strip-time--line-height: var(--wall-strip-time-line);
+  --text-wall-strip-brand: var(--wall-strip-brand-size);
+  --text-wall-strip-brand--line-height: var(--wall-strip-time-line);
   /* The countdown's emoji (bead `ro-trai.3`): the old countdown panel's
      picture, kept as a picture on its tile — sized from the strip's words, so
      it grows with them. */
-  --text-wall-strip-emoji: 1.125em;
+  --text-wall-strip-emoji: 1em;
   --text-wall-strip-emoji--line-height: 1;
   /* The strip's marks — the brand's icon and the countdown's tile, two
      capitals tall; the system state's glyph, whose drawn stroke is about one
      capital tall in its box — each centred on the capitals of the strip's one
      baseline (bead `ro-trai.24`). In `cap`, so they follow the words' size. */
-  --spacing-wall-strip-mark: 2cap;
+  --spacing-wall-strip-mark: 1em;
   --spacing-wall-strip-glyph: 1.5cap;
   /* THE WALL'S LIST RAMP (bead `ro-trai.23`, docs/25-the-wall.md § Type): a
      row of a Wall list — Needs you and the Live feed alike — is a label, a
@@ -698,6 +703,80 @@
 .brand-lockup--text .brand-mark {
   display: inline-block;
   vertical-align: -0.2cap;
+}
+
+/* One two-row rhythm; dividers follow whole widgets as the strip reflows. */
+.wall-strip {
+  --wall-strip-half-gap: calc(var(--spacing) * 2);
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  column-gap: calc(var(--spacing) * 4);
+  row-gap: calc(var(--spacing) * 4);
+}
+.wall-strip-widget {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  grid-template-rows: var(--wall-strip-time-line) minmax(var(--wall-strip-label-line), auto);
+}
+.wall-strip-brand-primary { display: flex; align-items: center; }
+.wall-strip-version {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  contain: inline-size;
+  white-space: nowrap;
+}
+.wall-strip-clock { justify-self: stretch; }
+.wall-strip-agenda, .wall-strip-countdown { grid-column: 1 / -1; }
+.wall-strip-agenda { grid-template-rows: auto minmax(var(--wall-strip-label-line), auto); }
+.wall-strip-meeting {
+  display: grid;
+  min-width: 0;
+  grid-row: 1 / 3;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: subgrid;
+}
+.wall-strip-meeting-primary {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: calc(var(--spacing) * 3);
+}
+.wall-strip-meeting-primary > [data-strip-meeting-title] { grid-column: 1 / -1; grid-row: 2; }
+.wall-strip-meeting-primary > [data-strip-meeting-distance] { grid-column: 2; grid-row: 1; justify-self: end; }
+.wall-strip-countdown {
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: var(--wall-strip-line) var(--wall-strip-time-line);
+  column-gap: calc(var(--spacing) * 3);
+  align-items: baseline;
+}
+.wall-strip-divider { position: absolute; pointer-events: none; }
+.wall-strip-clock > .wall-strip-divider {
+  top: 50%; height: calc(var(--wall-strip-time-line) + var(--wall-strip-label-line)); left: calc(-1 * var(--wall-strip-half-gap)); transform: translateY(-50%); border-left-width: 1px;
+}
+.wall-strip-agenda > .wall-strip-divider, .wall-strip-countdown > .wall-strip-divider {
+  left: 0; right: 0; top: calc(var(--spacing) * -2); border-top-width: 1px;
+}
+@container wall (width >= 40rem) {
+  .wall-strip { --wall-strip-half-gap: calc(var(--spacing) * 3); column-gap: calc(var(--spacing) * 6); grid-template-columns: max-content max-content minmax(0, 1fr); }
+  .wall-strip-brand { justify-self: start; }
+  .wall-strip-agenda { grid-column: 1 / -1; grid-row: 2; }
+  .wall-strip-meeting-primary { display: flex; }
+  .wall-strip-meeting-primary > [data-strip-meeting-when], .wall-strip-meeting-primary > [data-strip-meeting-distance] { flex-shrink: 0; }
+  .wall-strip-countdown { grid-column: 3; grid-row: 1; }
+  .wall-strip-countdown > .wall-strip-divider {
+    top: 50%; height: calc(var(--wall-strip-time-line) + var(--wall-strip-label-line)); right: auto; left: calc(-1 * var(--wall-strip-half-gap)); transform: translateY(-50%); border-top-width: 0; border-left-width: 1px;
+  }
+}
+@container wall (width >= calc(1800px - 1.5rem)) {
+  .wall-strip { grid-template-columns: max-content max-content minmax(0, 1fr) max-content; }
+  .wall-strip-widget { grid-column: auto !important; grid-row: 1; }
+  .wall-strip-agenda > .wall-strip-divider, .wall-strip-countdown > .wall-strip-divider {
+    top: 50%; height: calc(var(--wall-strip-time-line) + var(--wall-strip-label-line)); right: auto; left: calc(-1 * var(--wall-strip-half-gap)); transform: translateY(-50%); border-top-width: 0; border-left-width: 1px;
+  }
+  .wall-strip-countdown { max-width: 24rem; }
+  .wall-strip:not([data-strip-has-agenda]) .wall-strip-countdown { grid-column: 4 !important; }
 }
 
 /* Original provider colors sit on a consistent white identity surface in both
