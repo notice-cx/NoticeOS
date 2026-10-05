@@ -2,6 +2,7 @@
 // copy completeness, publication and handoff belong here. See ../CONTEXT.md.
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
 import { claimBackup, BACKUP_OWNER_FAILURE } from './backup-claim.mjs';
 import { beadsDatabaseName, readTaskHost, taskHostFile } from './task-project-config.mjs';
@@ -273,10 +274,11 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
   // `persist_wal 0` overrides Apple's default so the last connection to close
   // removes them again, leaving an idle source exactly as found. A live
   // writer's sidecars stay untouched because this is not the last connection.
-  // `-ifexists` never creates a missing source. Never `?immutable=1`: it
+  // URI `mode=rw` never creates a missing source and works with older Linux
+  // CLIs that lack `-ifexists`. Never `?immutable=1`: it
   // skips locking and the WAL, so a live source loses committed data.
   const snapshot = (source, output) => command('sqlite3', [
-    '-ifexists', source, '.timeout 5000', '.filectrl persist_wal 0', `.backup ${JSON.stringify(output)}`,
+    '-bail', `${pathToFileURL(source).href}?mode=rw`, '.timeout 5000', '.filectrl persist_wal 0', `.backup ${JSON.stringify(output)}`,
   ]);
 
   async function freshDirectory(base) {

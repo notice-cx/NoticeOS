@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import fs from 'node:fs/promises';
 import { rmSync, writeSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
 import os from 'node:os';
 import { EventEmitter } from 'node:events';
@@ -64,10 +64,11 @@ async function fixture(t, prefix = 'host-backup-') {
       assert.ok(args.includes('--no-password'));
       output = 'postgres/noticeos.dump';
     } else if (binary === 'sqlite3') {
-      assert.equal(args[0], '-ifexists');
+      assert.equal(args[0], '-bail');
+      assert.equal(new URL(args[1]).search, '?mode=rw');
       assert.deepEqual(args.slice(2, 4), ['.timeout 5000', '.filectrl persist_wal 0']);
       assert.equal(args.length, 5);
-      source = args[1];
+      source = fileURLToPath(args[1]);
       output = JSON.parse(args[4].slice('.backup '.length));
     } else {
       assert.equal(binary, '/controlled/bd');
@@ -1154,7 +1155,7 @@ test('a command exit of zero without a copied artifact cannot claim success', as
 });
 
 test('real SQLite snapshots include committed WAL data and remain independently readable without sidecars', async (t) => {
-  const f = await fixture(t, 'host backup "quoted" \'-');
+  const f = await fixture(t, 'host backup "quoted" \' ?#% café-');
   await fs.rm(f.r2, { recursive: true });
   await fs.mkdir(f.r2);
   const source = path.join(f.r2, 'active.sqlite');
@@ -1162,7 +1163,7 @@ test('real SQLite snapshots include committed WAL data and remain independently 
   t.after(() => writer.close());
   writer.exec('PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE evidence (value TEXT); INSERT INTO evidence VALUES (\'committed in WAL\');');
   assert.ok((await fs.stat(source + '-wal')).size > 0);
-  // Quotes and spaces exercise SQLite dot-command filename escaping.
+  // Quotes, spaces and URI delimiters exercise source and output escaping.
   f.settings.offsiteBackupDir = null;
   const result = await f.run({ spawn: realSqlite(f) });
   assert.equal(result.ok, true, result.detail);
@@ -1244,7 +1245,7 @@ test('a source that vanishes before its snapshot is a failed copy, never a creat
   const result = await f.run({ spawn: (binary, args, options) => {
     if (binary !== 'sqlite3') return f.fakeSpawn(binary, args, options);
     // Removed between the inventory's lstat and the sqlite3 open.
-    if (args[1] === source) rmSync(source);
+    if (fileURLToPath(args[1]) === source) rmSync(source);
     return spawn(binary, args, options);
   } });
   assert.equal(result.stages.r2.status, 'failed');
@@ -1307,6 +1308,7 @@ test('a process killed between publication renames retains the good set and the 
   const script = `
     import fs from 'node:fs/promises';
     import { writeSync } from 'node:fs';
+    import { fileURLToPath } from 'node:url';
     import { EventEmitter } from 'node:events';
     import { runBackup } from ${JSON.stringify(pathToFileURL(path.resolve('scripts/host-backup.mjs')).href)};
     const settings = JSON.parse(process.argv[1]);
@@ -1316,7 +1318,7 @@ test('a process killed between publication renames retains the good set and the 
       queueMicrotask(async () => {
         if (child.stdout) child.stdout.emit('data', 'unix:///synthetic/docker.sock');
         else if (binary === 'docker') writeSync(options.stdio[1], Buffer.from('PGDMP complete-new-dump'));
-        else if (binary === 'sqlite3') await fs.copyFile(args[1], JSON.parse(args[4].slice('.backup '.length)));
+        else if (binary === 'sqlite3') await fs.copyFile(fileURLToPath(args[1]), JSON.parse(args[4].slice('.backup '.length)));
         else {
           const folder = args[4].split('file://')[1].slice(0, -2);
           await fs.mkdir(folder, { recursive: true }); await fs.writeFile(folder + '/snapshot', 'hub');
