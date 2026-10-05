@@ -7,6 +7,19 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { preparePublicSource } from './public-source.mjs';
 
+test('every local README image belongs to the public source inventory', () => {
+  const root = new URL('../', import.meta.url);
+  const readme = fs.readFileSync(new URL('README.md', root), 'utf8');
+  const settings = JSON.parse(fs.readFileSync(new URL('scripts/public-source.settings.json', root), 'utf8'));
+  const images = [...readme.matchAll(/!\[[^\]]*\]\(([^)\s]+)\)/gu)]
+    .map(match => match[1]).filter(file => !/^[a-z]+:/iu.test(file));
+  assert.ok(images.length > 0);
+  for (const image of images) {
+    assert.ok(settings.files.includes(image), `README image missing from the public inventory: ${image}`);
+    assert.ok(fs.statSync(new URL(image, root)).isFile(), `README image missing from source: ${image}`);
+  }
+});
+
 function fixture(t) {
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-public-source-'));
   const root = path.join(temporary, 'private');
