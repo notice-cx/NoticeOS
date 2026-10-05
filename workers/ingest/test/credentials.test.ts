@@ -33,7 +33,7 @@ import {
   validateCredentialFields,
 } from '../src/credentials.js';
 import { DISCORD_TEST_MESSAGE, probeCredential } from '../src/credential-probes.js';
-import { integrationProvider } from '@noticeos/contract';
+import { INTEGRATION_PROVIDER_IDS, integrationProvider } from '@noticeos/contract';
 import { runBingSignals } from '../src/bing-signals.js';
 import { forgetConfigCache, seedConfigDocuments } from '../src/config-store.js';
 import {
@@ -350,19 +350,7 @@ describe('summaries — names and metadata, never values', () => {
     expect(state.keyPresent).toBe(true);
     // Every provider in the catalog, in catalog order — a card that says "not
     // connected" is a card, not a missing row.
-    expect(state.summaries.map((summary) => summary.provider)).toEqual([
-      'mediavine',
-      'google',
-      // Not a card — the Google card asks for it in place (`companionOf`) — but
-      // it IS a credential, so the store answers for it like any other.
-      'google-oauth-app',
-      'bing-webmaster',
-      'dataforseo',
-      'calendar',
-      'discord',
-      'clarity',
-      'posthog',
-    ]);
+    expect(state.summaries.map((summary) => summary.provider)).toEqual(INTEGRATION_PROVIDER_IDS);
 
     const bing = state.summaries.find((summary) => summary.provider === 'bing-webmaster')!;
     expect(bing.source).toBe('store');

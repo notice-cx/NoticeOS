@@ -369,9 +369,9 @@ describe('the Google lanes', () => {
     const google = state.summaries.find((entry) => entry.provider === 'google')!;
     expect(google.propertyMap).toEqual({ needed: false, answersFor: [] });
     // Every other provider keeps it absent — there is no map to describe.
-    expect(
-      state.summaries.filter((entry) => entry.provider !== 'google').map((e) => e.propertyMap),
-    ).toEqual([undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined]);
+    for (const entry of state.summaries.filter((entry) => entry.provider !== 'google')) {
+      expect(entry).not.toHaveProperty('propertyMap');
+    }
 
     const unmapped = await withCredentialPropertyMaps(
       env,
