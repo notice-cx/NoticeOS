@@ -102,6 +102,42 @@ UI copy, flow length and installation-neutral code are checked by the normal
 commit hooks and CI. Fix the underlying flow or source instead of disabling
 the checks or changing their budgets.
 
+## Commit messages and pull request titles
+
+Use [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/)
+for commits and pull request titles:
+
+```text
+type(scope): describe the change
+```
+
+- Choose `feat` for a new capability, `fix` for a bug, `perf` for performance,
+  `refactor` for restructuring without changing behavior, `docs` for documentation,
+  `test` for tests, `build` for dependencies or build tooling, `ci` for automation,
+  `chore` for other maintenance, or `revert` for a reversal.
+- Use a scope when it helps locate the change, such as `tower`, `wall`, `ingest`,
+  `postgres` or `compose`. Omit it for a change spanning the product.
+- Keep the subject at most 72 characters, including the prefix. Start the
+  description with a lowercase imperative verb: “add”, “fix”, “preserve”.
+  Use no trailing period, emoji or task ID in the subject.
+- Keep one coherent change per commit. Add a body when the reason, tradeoff or
+  validation needs explanation; do not repeat the subject.
+- Put issue references in the footer (`Fixes: #123`). Maintainer work tracked
+  in Beads uses `Refs: <bead-id>`; public contributors do not need a Beads ID.
+- Mark a breaking change with `!` before the colon and a `BREAKING CHANGE:`
+  footer explaining its impact and upgrade steps. This does not replace the
+  repository's migration and compatibility requirements.
+
+```text
+fix(compose): restore dashboard rendering
+feat(wall): add configurable pulse metrics
+docs: clarify the first-run setup
+```
+
+Give the PR title the same format so it can serve as the final commit title
+when squash merging. Apply this standard to new commits; do not amend existing
+commits or rewrite published history to make them conform.
+
 ## Submit a reviewable change
 
 Explain the concrete before/after behavior, the source paths changed and the

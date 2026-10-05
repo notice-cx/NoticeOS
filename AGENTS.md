@@ -430,4 +430,4 @@ always the truth.
 `bd` never commits or pushes. This repo's own git rules win over any
 generic workflow advice. The operator authorizes separate commits for completed,
 verified pieces of requested work without another prompt. Include the bead id;
-stage only the intended changes. **Never push and never amend commits.**
+stage only the intended changes. Follow the [commit and PR title standard](CONTRIBUTING.md#commit-messages-and-pull-request-titles); put the bead ID in a `Refs:` footer. **Never push and never amend commits.**
