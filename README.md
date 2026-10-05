@@ -1,9 +1,6 @@
 # NoticeOS
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="apps/tower/public/brand/notice-mark-light.svg" />
-  <img src="apps/tower/public/brand/notice-mark.svg" alt="" width="50" height="56" />
-</picture>
+[![A sunlit desk beside a bay window overlooking the city and water.](docs/images/noticeos-bay-window.png)](https://www.notice.cx/bay-window.webp)
 
 ## Your startup. In clear view.
 
