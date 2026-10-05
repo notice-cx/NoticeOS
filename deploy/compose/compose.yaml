@@ -8,6 +8,8 @@ services:
     restart: unless-stopped
     read_only: true
     stop_grace_period: 15s
+    environment:
+      TOWER_ALLOWED_HOSTS: ${TOWER_ALLOWED_HOSTS:-}
     ports:
       - "127.0.0.1:${NOTICEOS_TOWER_PORT:?Choose a loopback Tower port}:5173"
     volumes:

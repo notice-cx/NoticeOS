@@ -24,8 +24,11 @@ export function containerEnvironment(env = process.env, { fs: io = fs, readClien
   if (typeof bindings.CREDENTIALS_KEY !== 'string' || !bindings.CREDENTIALS_KEY.trim() ||
     typeof bindings.OPERATOR_TOKEN !== 'string' || !bindings.OPERATOR_TOKEN.trim()) throw new Error('The prepared bootstrap credentials are incomplete.');
   const selected = {};
-  for (const key of ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE']) if (env[key] !== undefined) selected[key] = env[key];
+  for (const key of ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TOWER_ALLOWED_HOSTS']) if (env[key] !== undefined) selected[key] = env[key];
   return { ...selected, HOME: '/state/dolt/client-home', TMPDIR: '/tmp', NODE_ENV: 'production',
+    // Docker forwards published ports to the container interface, not its loopback.
+    // Host exposure remains controlled by the Compose port binding.
+    OS_UP_HOST: '1',
     NOTICEOS_HOME: home, NOTICEOS_INSTALLATION_DIR: '/state/installation', NOTICEOS_TASK_CLIENT_PROFILE: profileFile,
     NOTICEOS_BACKUP_CLIENT_PROFILE: '/state/backup-client.json',
     BEADS_BD_BIN: '/usr/local/bin/bd', NOTICEOS_VITE_CACHE_DIR: '/state/.local/vite-cache', WRANGLER_SEND_METRICS: 'false',

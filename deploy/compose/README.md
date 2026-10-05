@@ -40,6 +40,7 @@ The Compose service requires these host declarations:
 | `NOTICEOS_NETWORK` | Existing network shared by this installation's Postgres and Dolt |
 | `NOTICEOS_TOWER_PORT` | Unoccupied host port; binding is always `127.0.0.1` |
 | `NOTICEOS_APP_UID`, `NOTICEOS_APP_GID` | Owner of the private mounted files; default `1000:1000` |
+| `TOWER_ALLOWED_HOSTS` | Additional hostnames for Tower, separated by commas or spaces |
 
 The state mount appears at `/state`. Settings exports and host task links live
 in `/state/installation`; bootstrap secrets use the existing
@@ -73,7 +74,12 @@ continue to be connected through the Tower.
 Postgres and Dolt are separately managed durable services. Only Tower port
 5173 is published, through the declared loopback host binding. The ingest
 door stays on loopback inside the application container. The app has a read
-only image and no Docker socket. Vite's configuration cache uses an ephemeral
+only image. Tower listens on the container interface so Docker can forward
+the published port; this does not expose the host port beyond loopback.
+An operator can override the host binding for an existing trusted private LAN.
+Standalone has no login, so that override gives reachable clients read and write
+access. Keep the hostname allowlist; never set it to allow every host.
+The app has no Docker socket. Vite's configuration cache uses an ephemeral
 tmpfs; other runtime caches use the state mount. Optional development metadata
 and telemetry requests are disabled. The health check requires a fresh,
 supervised runner, an armed scheduler, and both internal health endpoints.

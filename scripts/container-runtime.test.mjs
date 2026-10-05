@@ -13,8 +13,11 @@ function io(defect) {
 }
 
 test('container startup declares its mounts and internal services and strips ambient installation selectors', () => {
-  const env = containerEnvironment({ PATH: '/own/bin', DATABASE_URL: 'private', NOTICEOS_HOME: '/other', BEADS_DOLT_PASSWORD: 'private', DOCKER_HOST: 'foreign' }, { fs: io(), readClient: () => profile });
+  const env = containerEnvironment({ PATH: '/own/bin', DATABASE_URL: 'private', NOTICEOS_HOME: '/other', BEADS_DOLT_PASSWORD: 'private', DOCKER_HOST: 'foreign', OS_UP_HOST: '0', TOWER_ALLOWED_HOSTS: 'office.example' }, { fs: io(), readClient: () => profile });
   assert.equal(env.NOTICEOS_HOME, '/state'); assert.equal(env.NOTICEOS_TASK_CLIENT_PROFILE, '/state/task-client.json');
+  assert.equal(env.OS_UP_HOST, '1');
+  assert.equal(env.TOWER_ALLOWED_HOSTS, 'office.example');
+  assert.equal(containerEnvironment({}, { fs: io(), readClient: () => profile }).TOWER_ALLOWED_HOSTS, undefined);
   assert.equal(env.NOTICEOS_VITE_CACHE_DIR, '/state/.local/vite-cache');
   assert.equal(env.CLOUDFLARE_CF_FETCH_ENABLED, 'false');
   assert.equal(env.NOTICEOS_BACKUP_CLIENT_PROFILE, '/state/backup-client.json');
