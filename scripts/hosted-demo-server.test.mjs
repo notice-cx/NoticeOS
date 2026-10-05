@@ -229,7 +229,11 @@ async function launchFixture(t, mode, { signal = 'SIGTERM', group = false, grace
   let stdout='',stderr='',timer;
   child.stdout.on('data',chunk=>{stdout+=chunk}); child.stderr.on('data',chunk=>{stderr+=chunk});
   const closed=new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',(code,signal)=>resolve({code,signal}));});
-  const events=()=>readFileSync(trace,'utf8').trim().split('\n').map(line=>JSON.parse(line));
+  const events=(publishedOnly=false)=>{
+    const text=readFileSync(trace,'utf8');
+    const lines=publishedOnly?text.split('\n').slice(0,-1):text.trim().split('\n');
+    return lines.map(line=>JSON.parse(line));
+  };
   const gone=pid=>{try{process.kill(pid,0);return false}catch(error){assert.equal(error.code,'ESRCH');return true}};
   const wait=predicate=>new Promise((resolve,reject)=>{
     const until=setTimeout(()=>{clearInterval(check);reject(new Error('Owned fixture deadline: '+stdout+' '+stderr))},7000);
@@ -238,6 +242,13 @@ async function launchFixture(t, mode, { signal = 'SIGTERM', group = false, grace
   try {
     if(!['startup-failure','disconnect','disconnect-deadline','unexpected-exit','immediate-stop'].includes(mode)){
       await wait(()=>stdout.includes(mode==='startup-stop'?'startup-entered':'Demo preview ready.'));
+      // Readiness arrives on stdout; detached-child custody arrives on IPC.
+      // Acquire the recorded child before interrupting either process.
+      if(['deadline','orphan-deadline','fixture-failure','detached-normal'].includes(mode))await wait(()=>{
+        const saved=events(true),descendants=saved.filter(record=>record.event==='descendant');
+        return descendants.length===1&&descendants.every(record=>
+          saved.some(owned=>owned.event==='noticeos-demo-group-owned'&&owned.pid===record.pid));
+      });
       if(mode==='fixture-failure')assert.fail('Synthetic fixture assertion after acquisition');
       if(mode==='orphan-deadline')child.kill('SIGKILL');else if(group)process.kill(-child.pid,signal);else child.kill(signal);
     }
