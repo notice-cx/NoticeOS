@@ -51,9 +51,14 @@ export function providerName(provider: Pick<IntegrationProvider, "label">): stri
  * or "login" where the provider issues two values (a login and its password).
  * Null for a provider nothing is typed for.
  */
-export function secretNoun(provider: Pick<IntegrationProvider, "fields">): string | null {
+export function secretNoun(provider: Pick<IntegrationProvider, "fields"> & Partial<Pick<IntegrationProvider, "connect">>): string | null {
   const typed = provider.fields.filter((field) => field.managed !== true);
   if (typed.length === 0) return null;
+  const secrets = typed.filter((field) => field.secret);
+  if (typed.length > 1 && provider.connect?.credential === 'api-key' && secrets.length === 1) {
+    const label = secrets[0]!.label;
+    return /^[A-Z]{2}/.test(label) ? label : label.charAt(0).toLowerCase() + label.slice(1);
+  }
   if (typed.length > 1) return "login";
   const label = typed[0]!.label;
   // "API key" keeps its capitals; "Project tokens" reads "project tokens".
@@ -61,7 +66,7 @@ export function secretNoun(provider: Pick<IntegrationProvider, "fields">): strin
 }
 
 /** What replacing that secret is called on the connection: "Replace API key". */
-export function replaceLabel(provider: Pick<IntegrationProvider, "fields">): string | null {
+export function replaceLabel(provider: Pick<IntegrationProvider, "fields"> & Partial<Pick<IntegrationProvider, "connect">>): string | null {
   const noun = secretNoun(provider);
   return noun === null ? null : `Replace ${noun}`;
 }

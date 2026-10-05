@@ -244,6 +244,8 @@ export function acceptedAs(
 export interface ConnectFacts {
   /** Bing Webmaster Tools: verified sites the key can read. */
   sites?: number;
+  /** Cloudflare: D1 databases the account token can list. */
+  databases?: number;
   /** DataForSEO: prepaid credit in USD, the digits the account endpoint
    * reported (`ExactUsd`). */
   creditUsd?: ExactUsd | null;
@@ -662,9 +664,23 @@ export type IntegrationProviderId =
   | 'discord'
   | 'mediavine'
   | 'clarity'
-  | 'posthog';
+  | 'posthog'
+  | 'cloudflare';
 
 export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
+  {
+    id: 'cloudflare', label: 'Cloudflare (D1 backups)', scope: 'shared', lanes: [],
+    docRef: 'docs/11-integrations.md#cloudflare-d1-backups',
+    expiry: { known: 'operator' }, test: { cost: 'free' },
+    connect: { kind: 'key', credential: 'api-key', sites: false },
+    fields: [
+      { name: 'CLOUDFLARE_ACCOUNT_ID', label: 'Account ID', kind: 'text', required: true, secret: false,
+        link: { url: 'https://dash.cloudflare.com/', label: 'Find account' } },
+      { name: 'CLOUDFLARE_API_TOKEN', label: 'API token', kind: 'password', required: true, secret: true,
+        link: { url: 'https://developers.cloudflare.com/fundamentals/api/get-started/account-owned-tokens/', label: 'Create token' },
+        grants: ['Account: D1 Edit'] },
+    ],
+  },
   {
     id: 'mediavine', label: 'Mediavine', scope: 'shared', lanes: ['ad-network'],
     docRef: 'docs/11-integrations.md#mediavine-revenue',
@@ -1668,6 +1684,7 @@ export interface ProbeResult {
 
 export interface ProbeFacts {
   sites?: number;
+  databases?: number;
   projects?: number;
   /** Calendar feeds that answered, of `feedsTotal`. */
   feeds?: number;
@@ -1750,6 +1767,7 @@ export function probeLine(result: ProbeResult): string {
     PROBE_OUTCOME_WORDS[result.outcome],
     result.status !== undefined ? `HTTP ${result.status}` : null,
     count(facts.sites, 'site', 'sites'),
+    count(facts.databases, 'database', 'databases'),
     count(facts.projects, 'project', 'projects'),
     facts.feedsTotal !== undefined ? `${facts.feeds ?? 0} of ${facts.feedsTotal} feeds` : null,
     count(facts.tokens, 'token', 'tokens'),

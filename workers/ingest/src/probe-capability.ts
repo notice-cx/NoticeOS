@@ -10,6 +10,7 @@ import type { IntegrationProviderId } from '@noticeos/contract';
  * panel lands on the same health row a later Test would update.
  */
 export const PROBE_CAPABILITY: Record<IntegrationProviderId, string> = {
+  cloudflare: 'cloudflare-test',
   google: 'google-test',
   'bing-webmaster': 'bing-discovery',
   dataforseo: 'dataforseo-test',

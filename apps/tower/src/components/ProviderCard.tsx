@@ -649,6 +649,7 @@ function ProbeResultValues({ result, children }: { result: ProbeResult; children
   const values: { key: string; label: string; mono?: boolean }[] = [];
   if (result.status !== undefined) values.push({ key: "status", label: `HTTP ${result.status}` });
   if (facts.sites !== undefined) values.push({ key: "sites", label: `${facts.sites} ${siteNoun(facts.sites)}` });
+  if (facts.databases !== undefined) values.push({ key: "databases", label: `${facts.databases} ${facts.databases === 1 ? "database" : "databases"}` });
   if (facts.projects !== undefined) values.push({ key: "projects", label: `${facts.projects} ${facts.projects === 1 ? "project" : "projects"}` });
   if (facts.region !== undefined) values.push({ key: "region", label: facts.region.toUpperCase() });
   if (facts.feedsTotal !== undefined) values.push({ key: "feeds", label: `${facts.feeds ?? 0} of ${facts.feedsTotal} feeds` });

@@ -562,6 +562,9 @@ function AcceptedFacts({ provider, facts }: { provider: ConnectSubject; facts: C
   if (facts.feeds !== undefined) {
     rows.push({ value: String(facts.feeds), label: facts.feeds === 1 ? "feed" : "feeds" });
   }
+  if (facts.databases !== undefined) {
+    rows.push({ value: String(facts.databases), label: facts.databases === 1 ? "database" : "databases" });
+  }
   const credit = exactUsd(facts.creditUsd);
   if (credit !== null) {
     rows.push({ value: formatUsd(credit, { cents: true }), label: "credit" });

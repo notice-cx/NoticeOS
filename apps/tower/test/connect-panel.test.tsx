@@ -91,6 +91,19 @@ describe("the row's one status", () => {
 });
 
 describe("the connect panel", () => {
+  it("shows Cloudflare database access without calling databases sites or echoing its token", async () => {
+    const provider = integrationProvider("cloudflare")!;
+    const value = crypto.randomUUID();
+    renderPanel(provider, vi.fn(async () => ({ verdict: "accepted", checkedAt: AT, facts: { databases: 2 } }) as ConnectVerdict));
+    const dialog = screen.getByRole("dialog", { name: "Cloudflare" });
+    fireEvent.change(within(dialog).getByLabelText("Account ID"), { target: { value: "a".repeat(32) } });
+    fireEvent.change(within(dialog).getByLabelText("API token"), { target: { value } });
+    await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Connect" })));
+    expect(dialog.querySelector('[data-connect-fact="databases"]')).toHaveTextContent("2databases");
+    expect(dialog.querySelector('[data-connect-fact="sites"]')).toBeNull();
+    expect(dialog.innerHTML).not.toContain(value);
+  });
+
   it("opens empty, with where to get the key beside its field", () => {
     renderPanel(BING, vi.fn());
     const dialog = screen.getByRole("dialog", { name: "Bing Webmaster Tools" });

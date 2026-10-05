@@ -998,6 +998,10 @@ export async function putCredential(
   const issues = validateCredentialFields(provider, raw as Record<string, unknown>);
   if (issues.length > 0) return { ok: false, error: 'validation', issues };
 
+  if (provider.id === 'cloudflare' && !/^[a-f0-9]{32}$/u.test(String(raw.CLOUDFLARE_ACCOUNT_ID))) {
+    return { ok: false, error: 'validation', issues: [issue('CLOUDFLARE_ACCOUNT_ID', 'invalid', 'Account ID must contain 32 hexadecimal characters.')] };
+  }
+
   const previous = await readRow(env.STORE, provider.id);
   const fields: Record<string, string> = {};
   for (const field of provider.fields) {

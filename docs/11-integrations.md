@@ -1388,6 +1388,29 @@ a fifth property live; the guarded local asset-state changeset moved its lifecyc
 to `live` while retaining `sense_only=1`, so it now participates in launched-
 property collectors without enabling an Act loop.
 
+## Cloudflare D1 backups
+
+Connect **Cloudflare** in **Integrations** with the account ID and an
+[account-owned API token](https://developers.cloudflare.com/fundamentals/api/get-started/account-owned-tokens/)
+restricted to that account's D1 resources. Use **Account → D1 → Edit**;
+Cloudflare documents this scope for its
+[D1 REST API setup](https://developers.cloudflare.com/d1/tutorials/import-to-d1-with-rest-api/).
+Do not grant DNS, Workers deployment or unrelated account permissions.
+The API reference does not publish a narrower accepted-permission list for
+[export](https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/export/);
+NoticeOS does not promise that a read-only token can export.
+
+Connect and Check read the account's database list. That proves list access,
+not export permission. The token uses the existing encrypted workspace store;
+it is never returned to the browser. The account connection is separate from
+any Cloudflare credential used to host NoticeOS itself.
+
+Selected database backups are tracked by `ro-vu8d.29.2` and `ro-vu8d.29.3`.
+No provider is activated by committing this adapter. A real export needs the
+owner's approval for the exact account, database and verification scope:
+Cloudflare's running export temporarily blocks queries and must be polled
+until completion. The API download URL expires after one hour.
+
 ## Provider-reported issues and recommendations
 
 These are not interchangeable with traffic anomalies. A provider finding must

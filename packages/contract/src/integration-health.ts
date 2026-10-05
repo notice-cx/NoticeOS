@@ -20,6 +20,7 @@ const monitor = (id: string, label: string, lanes: readonly string[], owner: str
 
 /** Adding a connected provider requires a monitoring decision at compile time. */
 export const INTEGRATION_MONITORS = {
+  cloudflare: [monitor('cloudflare-test', 'D1 account access', [], 'cloudflare-d1-client', 'account', 'event', 'live-only', 'Review the Cloudflare account and D1 token permissions.')],
   google: [
     // Saved Google collection schedule.
     monitor('ga4-daily', 'Analytics daily reports', ['ga4'], 'google-signals', 'property', 'scheduled', 'signal_runs', 'Review the property connection or the failed collection.'),

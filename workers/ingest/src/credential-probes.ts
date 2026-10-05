@@ -68,6 +68,7 @@ import { parseGoogleTargets } from './google-signals.js';
 import { SignalError } from './signal-store.js';
 import { discoverMediavineSites } from './mediavine-connection.js';
 import { discordWebhookAnswer } from './notifier.js';
+import { CloudflareD1Error, listD1Databases } from './cloudflare-d1-client.js';
 import { POSTHOG_KEY_SLOT, posthogOrigin, resolvePosthogKeys } from './posthog-dumps.js';
 import { POSTHOG_ACCOUNT_KEY_SLOT, readPosthogAccount } from './posthog-account.js';
 import { posthogSettings, type LaneRegister } from './lane-mapping.js';
@@ -207,6 +208,10 @@ async function runProbe(
   fetchImpl: typeof fetch,
   nowMs: number,
 ): Promise<ProbeFound> {
+  if (provider === 'cloudflare') {
+    try { return { ok: true, result: { outcome: 'answered', facts: { databases: (await listD1Databases(fields, fetchImpl)).length } } }; }
+    catch (error) { return { ok: false, result: error instanceof CloudflareD1Error && error.code === 'access_denied' ? { outcome: 'refused', fix: { kind: 'replace' } } : { outcome: 'unreachable' } }; }
+  }
   if (provider === 'google') return probeGoogle(env, fields, fetchImpl, nowMs);
   if (provider === 'google-oauth-app') return probeGoogleOAuthApp(fields);
   if (provider === 'bing-webmaster') return probeBing(fields, fetchImpl);

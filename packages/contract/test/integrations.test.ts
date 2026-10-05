@@ -57,8 +57,9 @@ function summary(provider: IntegrationProviderId): CredentialSummary {
 }
 
 describe('INTEGRATION_PROVIDERS', () => {
-  it('is the nine credentials the product can hold, eight of them cards', () => {
+  it('lists each supported credential and keeps the OAuth prerequisite off its own card', () => {
     expect(INTEGRATION_PROVIDER_IDS).toEqual([
+      'cloudflare',
       'mediavine',
       'google',
       'google-oauth-app',
@@ -74,6 +75,7 @@ describe('INTEGRATION_PROVIDERS', () => {
     // app · Not connected" beside "Google · Connected" would state one
     // connection twice (bead `ro-vu8d.3`).
     expect(integrationProviderCards().map((provider) => provider.id)).toEqual([
+      'cloudflare',
       'mediavine',
       'google',
       'bing-webmaster',
@@ -138,7 +140,7 @@ describe('INTEGRATION_PROVIDERS', () => {
     // every browser that starts a sign-in, and an operator who cannot
     // proof-read it against the console cannot see a mismatch that produces
     // `invalid_client`.
-    expect(clear).toEqual(['MEDIAVINE_USER', 'GOOGLE_OAUTH_CLIENT_ID', 'DATAFORSEO_LOGIN']);
+    expect(clear).toEqual(['CLOUDFLARE_ACCOUNT_ID', 'MEDIAVINE_USER', 'GOOGLE_OAUTH_CLIENT_ID', 'DATAFORSEO_LOGIN']);
   });
 
   it('looks a provider up by id, and answers null for anything else', () => {
@@ -232,10 +234,10 @@ describe('INTEGRATION_PROVIDERS', () => {
     // The Tower opens the one-panel save-and-test for these and the ingest
     // refuses it for every other provider, from this one declaration.
     const panel = INTEGRATION_PROVIDERS.filter((provider) => provider.connect?.kind === 'key');
-    expect(panel.map((provider) => provider.id)).toEqual(['mediavine', 'bing-webmaster', 'dataforseo', 'calendar', 'discord', 'posthog']);
+    expect(panel.map((provider) => provider.id)).toEqual(['cloudflare', 'mediavine', 'bing-webmaster', 'dataforseo', 'calendar', 'discord', 'posthog']);
     // Discord and the calendar feeds connect the whole installation: no site
     // list follows the answer (bead `ro-ujb9.96.7.14`).
-    expect(panel.filter((provider) => provider.connect!.sites === false).map((provider) => provider.id)).toEqual(['calendar', 'discord']);
+    expect(panel.filter((provider) => provider.connect!.sites === false).map((provider) => provider.id)).toEqual(['cloudflare', 'calendar', 'discord']);
     // Clarity connects in the panel too, a token pasted per site (bead
     // `ro-ujb9.96.7.9`): no one key, and no free read to prove it.
     const perSite = INTEGRATION_PROVIDERS.filter((provider) => provider.connect?.kind === 'site-tokens');
@@ -264,7 +266,7 @@ describe('INTEGRATION_PROVIDERS', () => {
       .map((provider) => [provider.id, acceptedAs(provider)]));
     expect(named).toEqual({
       mediavine: 'sign-in', google: 'sign-in', 'bing-webmaster': 'key', dataforseo: 'key',
-      calendar: 'url', discord: 'url', clarity: 'key', posthog: 'key',
+      calendar: 'url', discord: 'url', clarity: 'key', posthog: 'key', cloudflare: 'key',
     });
     // The stored credential's own way in decides where a provider has two:
     // Google on a service-account key is a key, and a sign-in is a sign-in.
@@ -522,6 +524,8 @@ describe('the account credit a card reports', () => {
     expect(usdCents('-0.125')).toBe('-0.13');
     expect(usdCents('12345678.123456')).toBe('12345678.12');
     expect(probeLine({ outcome: 'answered', facts: { creditUsd: '1.005' } })).toBe('Answered · $1.01 credit');
+    expect(probeLine({ outcome: 'answered', facts: { databases: 1 } })).toBe('Answered · 1 database');
+    expect(probeLine({ outcome: 'answered', facts: { databases: 2 } })).toBe('Answered · 2 databases');
   });
 });
 

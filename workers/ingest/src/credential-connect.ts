@@ -43,6 +43,7 @@ import { POSTHOG_ACCOUNT_KEY_SLOT, readPosthogAccount } from './posthog-account.
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
 import { PROBE_CAPABILITY } from './probe-capability.js';
 import { SignalError } from './signal-store.js';
+import { CloudflareD1Error, listD1Databases } from './cloudflare-d1-client.js';
 
 /** How long the panel's Checking waits on a provider before calling it
  * unreachable — a person is watching a spinner. */
@@ -143,6 +144,10 @@ export async function askProvider(
   fields: Record<string, string>,
   fetchImpl: typeof fetch,
 ): Promise<CandidateAnswer> {
+  if (provider.id === 'cloudflare') {
+    try { return { verdict: 'accepted', facts: { databases: (await listD1Databases(fields, fetchImpl)).length } }; }
+    catch (error) { return { verdict: error instanceof CloudflareD1Error && ['access_denied', 'invalid_configuration'].includes(error.code) ? 'refused' : 'unreachable' }; }
+  }
   if (provider.id === 'bing-webmaster') return askBing(fields, fetchImpl);
   if (provider.id === 'dataforseo') return askDataForSeo(fields, fetchImpl);
   if (provider.id === 'posthog') return askPosthog(fields, fetchImpl);
