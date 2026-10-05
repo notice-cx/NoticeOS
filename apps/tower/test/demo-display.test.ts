@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { evaluatePulse } from '@noticeos/contract';
 import { generateDemoScenario } from '../../../scripts/demo-scenario.mjs';
 import { fillDemo } from '../../../scripts/demo-store.mjs';
@@ -13,39 +13,58 @@ import { buildWallPayload } from '../worker/wall-payload';
 import { readDashboardConfig } from '../shared/dashboard';
 import { PRODUCT_ENV } from '../../../scripts/product-env.mjs';
 
-const homes: string[] = [];
-afterEach(() => {
-  try { for (const home of homes.splice(0)) fs.rmSync(home, { recursive: true, force: true }); }
-  finally { vi.unstubAllEnvs(); }
-});
 type DisplayHelpers = Parameters<typeof seedDemoDisplay>[0]['helpers'];
 type Reporter = (capability: unknown, now: number) => Promise<unknown>;
 type Observation = { asset: string; capabilities: string[]; metrics: Record<string, { last24h: number; avg7d: number; total: number }> };
+type ReleasedHelpers = DisplayHelpers & { runAssetZeroPulse: Reporter; provenance: { artifacts: Record<string, string> } };
 
-it('saved demo display and the released OS observer reach ordinary Wall readers without any scheduler evidence', async () => {
+let home: string | undefined;
+let installation: string;
+let fixture: Awaited<ReturnType<typeof createTestStore>> | undefined;
+let helpers: ReleasedHelpers;
+let capability: unknown;
+let recordDemoOsObservation: (capability: unknown, scenario: ReturnType<typeof generateDemoScenario>, reporter: Reporter) => Promise<Observation>;
+const scenario = generateDemoScenario({ seed: 'display-store', cutoff: '2026-10-01T07:00:00.000Z', release: 'a'.repeat(40) });
+
+// Compilation and the relational seed are integration-fixture preparation,
+// separately bounded on shared CI runners. The reader keeps its normal deadline.
+beforeAll(async () => {
   const root = path.resolve(import.meta.dirname, '../../..');
-  const home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-demo-display-reader-'))); homes.push(home);
-  const installation = path.join(home, 'installation'); fs.mkdirSync(installation, { mode: 0o700 });
+  home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-demo-display-reader-')));
+  installation = path.join(home, 'installation'); fs.mkdirSync(installation, { mode: 0o700 });
   vi.stubEnv(PRODUCT_ENV.home.name, home);
   vi.stubEnv(PRODUCT_ENV.installationDir.name, installation);
   // Native JS entry points have no authored declarations. The test binds only
   // their narrow display/reporter interface and exercises their actual bytes.
   const evaluator = await import(pathToFileURL(path.join(root, 'scripts/demo-evaluator.mjs')).href) as unknown as {
-    buildDemoWorkerHelpers(root: string): Promise<DisplayHelpers & { runAssetZeroPulse: Reporter; provenance: { artifacts: Record<string, string> } }>;
+    buildDemoWorkerHelpers(root: string): Promise<ReleasedHelpers>;
     demoStoreCapability(store: unknown, workspace: string): unknown;
   };
   const seed = await import(pathToFileURL(path.join(root, 'scripts/demo-seed.mjs')).href) as unknown as {
     recordDemoOsObservation(capability: unknown, scenario: ReturnType<typeof generateDemoScenario>, reporter: Reporter): Promise<Observation>;
   };
-  const helpers = await evaluator.buildDemoWorkerHelpers(root);
-  expect(Object.keys(helpers.provenance.artifacts).sort()).toEqual(['configuration', 'jobs', 'reports', 'snapshots', 'watch']);
-  const scenario = generateDemoScenario({ seed: 'display-store', cutoff: '2026-10-01T07:00:00.000Z', release: 'a'.repeat(40) });
-  const fixture = await createTestStore();
+  helpers = await evaluator.buildDemoWorkerHelpers(root);
+  recordDemoOsObservation = seed.recordDemoOsObservation;
+  fixture = await createTestStore({ scope: 'suite' });
   await fixture.call.write(tx => fillDemo(tx, scenario, { evaluatePulse, developmentProfile: { setting: 'noticeos.profile', value: 'development' } }));
-  const capability = evaluator.demoStoreCapability(fixture.store, fixture.workspaceId);
+  capability = evaluator.demoStoreCapability(fixture.store, fixture.workspaceId);
+}, 30_000);
+
+afterAll(async () => {
+  // End the owned connections before removing the files they can still use.
+  try { await fixture?.close(); }
+  finally {
+    try { if (home) fs.rmSync(home, { recursive: true, force: true }); }
+    finally { vi.unstubAllEnvs(); }
+  }
+});
+
+it('saved demo display and the released OS observer reach ordinary Wall readers without any scheduler evidence', async () => {
+  if (!home || !fixture) throw new Error('The disposable demo fixture is absent.');
+  expect(Object.keys(helpers.provenance.artifacts).sort()).toEqual(['configuration', 'jobs', 'reports', 'snapshots', 'watch']);
   const display = await seedDemoDisplay({ home, installation, scenario, capability, helpers });
   expect(display.documents).toEqual(generateDemoDisplay(scenario));
-  const report = await seed.recordDemoOsObservation(capability, scenario, helpers.runAssetZeroPulse);
+  const report = await recordDemoOsObservation(capability, scenario, helpers.runAssetZeroPulse);
   expect(report.capabilities).not.toContain('cronRunSuccess');
   expect(Object.keys(report.metrics)).not.toContain('heartbeat');
   expect(report.metrics.pulsesReceived?.total).toBe(scenario.pulses.length);
