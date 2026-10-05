@@ -305,6 +305,12 @@ database. Historical `ro-` references identify this product's development work.
 Public contributors do not need access to a maintainer's private hub; follow
 [CONTRIBUTING.md](CONTRIBUTING.md) when no hub is configured.
 
+**A relocated maintainer checkout keeps its existing task authority.** If
+`.beads/` is missing after a source cutover, establish the existing hub and
+reconnect the checkout before building or filing duplicate work. Follow
+[Moving a maintainer checkout](config/beads.README.md#moving-a-maintainer-checkout);
+missing local connection files do not establish that the project has no hub.
+
 - **Found new work? File a bead.** `bd create` in the repo that owns it — never
   a TODO comment, a follow-up list, a parked-items section, a brief's loose
   ends, or a memory note. A register nobody can query is a register nobody

@@ -171,6 +171,38 @@ the saved project. The local setup checklist shows the entry to fill in. This
 explicit host step grants access to the checkout; a database setting cannot
 select an arbitrary directory.
 
+### Moving a maintainer checkout
+
+Moving source to another checkout does not create a new task project. The
+existing database, prefix and project identity remain authoritative. This
+procedure is for maintainers with an established hub; public contributors
+follow [CONTRIBUTING.md](../CONTRIBUTING.md) without private hub access.
+
+1. Establish the exact existing service and database from the previous
+   checkout's connection metadata and protected host-client declaration.
+   Obtain the operator's authorization for the new checkout's access.
+2. Create the new checkout's private `.beads/` directory and copy only the
+   existing `metadata.json`. Set `no-git-ops: true`, `import.auto: false` and
+   `export.auto: false` in its `config.yaml`, with the same connection and
+   prefix. Keep `sync.remote` absent. Do not run `bd init`, import a JSONL
+   export, copy a database, or create another project.
+3. For the bundled Docker adapter, add the exact checkout path to the
+   protected host plan's `spokes` list and create its regular
+   `.beads.gate.lock` file. Preserve the accepted image, network, client
+   profile, credentials and other allowed checkout paths. Do not restart
+   the hub or substitute the retired native service.
+4. From the new checkout, run `bd ready`, `bd list` and `bd show` for a known
+   task. Claim with the actual agent's `--actor`. Verify another existing
+   spoke still works. Local connection files, exports and credentials stay
+   excluded from public source.
+
+The host client's allowed checkout list and the application's
+[`task-host.json`](task-host.README.md) inventory are distinct access
+boundaries. Changing the client list grants agent CLI access only; changing
+the application's repository links is a separate operator action. Preserve
+old client binaries, credentials and recovery paths while a declaration
+still references them.
+
 ### The spoke stanza
 
 Every spoke's `CLAUDE.md` (and its `AGENTS.md`, where it has one) carries the SAME safety

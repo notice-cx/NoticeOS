@@ -43,6 +43,8 @@ test-results/
 .DS_Store
 
 # Beads / Dolt files (added by bd init)
+# Maintainer hub connections are local to each public-source checkout.
+/.beads/
 .dolt/
 *.db
 .beads-credential-key
