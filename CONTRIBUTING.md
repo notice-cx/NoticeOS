@@ -67,7 +67,37 @@ pnpm --filter @noticeos/tower run journey:install
 Linux CI adds `--with-deps`. This uses the checkout's test-browser cache and
 fresh browser profiles, not a personal Chrome profile.
 
-## Run focused checks, then the release gates
+## Local verification
+
+Choose checks from the diff and the critical paths it affects. Full repository
+gates run in GitHub CI on pushes to `main` and pull requests; do not duplicate
+them locally by default. Target at least 80% less local execution time and CPU
+work than a full pass, while retaining the checks needed to assess the change.
+
+- Prose or images: check links, formatting, inclusion in the public source and
+  the affected preview. Runtime suites are unnecessary.
+- UI: run related rendering/interaction tests and affected flow checks. Use a
+  focused browser journey when the changed behavior needs a real browser.
+- Worker or script logic: run its tests and affected callers' critical paths.
+  Include refusal, timeout and cleanup behavior where those paths change.
+- Store, tenancy or backups: keep the relevant isolated database, ownership,
+  failure-preservation and restore proofs. Never substitute production reads.
+- Shared types/configuration: typecheck the changed package and its affected
+  consumers. Build only when bundling or generated output is part of the change.
+
+An independent verifier owns completion evidence. Builders can run small probes
+while debugging; avoid running the same complete verification plan in both
+roles. Reuse independently passing evidence when its code, tests, shared
+dependencies/configuration, runtime and fixture inputs are unchanged. A prose
+edit does not invalidate a runtime check. After a relevant edit or failure,
+rerun only the affected checks; add checks for a specific unresolved risk.
+
+Record selected commands and why they cover the change, relevant input hashes,
+runtime/fixture versions, results, skip reasons, execution time and owned-resource
+cleanup in one compact receipt. Reuse one qualified source/dependency/browser
+bundle. Compare recorded execution time with the most recent full pass when
+available; distinguish measured command time from total elapsed work and CPU
+estimates. A change spanning most of the system can justify wider coverage.
 
 From the repository root, these examples run existing suites through their
 usual isolated harnesses:
@@ -81,7 +111,7 @@ NOTICEOS_REQUIRE_POSTGRES=1 node --import ./scripts/script-tests-setup.mjs --tes
 Keep the root suite's `--import` preload when running one script test. A
 recursive workspace test does not run `scripts/*.test.mjs`.
 
-Before a release candidate is accepted, all five CI gates must pass:
+CI runs these five full gates; release acceptance still requires passing CI:
 
 ```sh
 pnpm -r typecheck

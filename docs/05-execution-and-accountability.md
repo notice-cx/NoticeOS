@@ -34,10 +34,19 @@ work, and a confident report doesn't imply good work.)
    before/after screenshots (desktop + mobile) are mandatory claim
    artifacts, rendered in review ([doc 16](16-replacing-the-chat-workflow.md)
    flow P).
-3. **The orchestrator re-executes.** Gate commands (typecheck, tests, builds,
-   integrity checks) are re-run by the verifier — an agent's own transcript of
-   its passing tests is inadmissible. Verification cost is part of every
-   change's fully-loaded cost; it is never skipped to save it.
+3. **Independent, change-scoped verification.** The verifier selects checks
+   for changed logic and affected critical paths; a builder's own passing
+   transcript is inadmissible. One focused independent run supplies completion
+   evidence. Reuse passing evidence when its tested code, tests, shared
+   dependencies/configuration and runtime inputs are unchanged. After relevant
+   changes or failures, rerun affected checks; broaden only for a concrete
+   unresolved risk. Full repository gates run in CI rather than being repeated
+   locally by default (owner, 2026-10-05; `ro-ujb9.341`). Local verification
+   targets at least 80% less execution time and CPU work than a full pass;
+   record actual command time and never omit a critical check for the budget.
+   The selection and compact evidence contract is in
+   [CONTRIBUTING.md](../CONTRIBUTING.md#local-verification). Verification cost
+   remains part of each change's fully-loaded cost.
 4. **Separation of duties.** Builder ≠ verifier ≠ scorer. The verifier is
    adversarial by construction, prefers mechanical checks (exit codes, greps,
    byte-diffs) over judgment, is never the model instance that authored the

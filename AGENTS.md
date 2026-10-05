@@ -59,9 +59,9 @@ present** — never wire them so an empty set fails.
   [doc 06](docs/06-operations.md#bootstrap-secrets-vs-integration-credentials);
   link it, never restate it. Secrets never appear in a log line, a response body,
   or a test fixture.
-- **Tests: vitest.** Gate commands are **re-executed by the verifier**
-  ([doc 05](docs/05-execution-and-accountability.md)) — an agent's own transcript
-  of passing tests is inadmissible.
+- **Tests: vitest.** An independent verifier owns the change-scoped completion
+  checks ([doc 05](docs/05-execution-and-accountability.md)); a builder's own
+  transcript is inadmissible. Reuse verified checks whose inputs are unchanged.
 - **SQL is snake_case.** Table and column names snake_case; migrations are
   numbered and **append-only** ([doc 02](docs/02-signal-contract.md)) — the store
   is history, never truncated.
@@ -168,13 +168,29 @@ and its pause check unavailable (D43).
 One job (`.github/workflows/ci.yml`) on push to `main` and every PR:
 `pnpm install --frozen-lockfile` → `pnpm -r typecheck` → `pnpm -r test` →
 `pnpm test:scripts` → `pnpm -r build` → `pnpm test:journeys` (the isolated
-browser journeys, then the UX flow gate, bead `ro-ujb9.95`). **All five gate
-commands green before any merge.** The separate root suite is load-bearing: recursive pnpm commands
+browser journeys, then the UX flow gate, bead `ro-ujb9.95`). **The full gates run
+in CI; they are not a mandatory local pre-merge run** (owner, 2026-10-05).
+Locally test directly changed logic and affected critical paths, with the
+smallest relevant typecheck, build or browser check. Do not run every workspace,
+the full root suite or all journeys by default. Documentation and image changes
+need their own checks, not runtime suites. The separate root suite is load-bearing: recursive pnpm commands
 visit workspaces, not `scripts/*.test.mjs`, where runner, migration, collector,
 backup, and task-hub safety contracts live. But **CI-green ≠ safe**
 ([doc 01](docs/01-architecture.md)): CI gates "does it build"; the failures that
 threaten ROI are *outcome* failures, caught downstream by post-ship
 outcome-watch and auto-rollback — never by CI alone.
+
+**Local verification budget** (owner, 2026-10-05; `ro-ujb9.341`): target at least
+80% less execution time and CPU work than a full local pass. One independent
+focused run supplies completion evidence; builders use smaller probes when
+debugging instead of automatically duplicating that run. Carry passing evidence
+forward when its tested code, tests, shared dependencies/configuration and runtime
+inputs are unchanged. Rerun only affected checks after relevant edits or failures;
+broaden only to resolve a concrete risk. Batch independent checks, reuse the
+qualified bundle, and keep one compact receipt per completed piece. Record actual
+command time; do not invent CPU measurements or omit a critical check to meet a
+budget. Selection examples and evidence requirements live in
+[CONTRIBUTING.md](CONTRIBUTING.md#local-verification).
 
 ## Temporary test storage and cleanup
 
