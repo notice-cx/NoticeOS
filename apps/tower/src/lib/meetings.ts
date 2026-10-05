@@ -8,6 +8,20 @@
 
 import type { CalendarUpcoming, UpcomingMeeting } from "@noticeos/contract";
 
+export type CalendarReadState = "loading" | "failed" | "partial";
+
+export function calendarReadState(read: {
+  data?: CalendarUpcoming;
+  isError?: boolean;
+  isPending?: boolean;
+  fetchStatus?: string;
+}): CalendarReadState | undefined {
+  if (read.isError) return "failed";
+  if (read.data && read.data.feedsOk < read.data.feedsConfigured) return "partial";
+  if (read.isPending && read.fetchStatus !== "idle") return "loading";
+  return undefined;
+}
+
 /** How many meetings follow the hero. Three is what the panel's fixed height
  * can hold beside a hero at TV type size (bead `ro-wb5d`). */
 export const MEETING_FOLLOWER_CAP = 3;

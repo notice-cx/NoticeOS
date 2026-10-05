@@ -34,7 +34,8 @@ this file owns *which* counters exist, their group heading and labels.
     [docs/11 §Credential naming](../docs/11-integrations.md#credential-naming--the-asset_token-convention).
   - `enabled: false` pauses the fast lane; the totals stand, fed by the nightly
     report again.
-- **`assets.<id>.heading`** — optional visible heading for the group. Defaults
+- **`assets.<id>.heading`** — optional heading for the asset's Overview group;
+  the Wall displays metric names and values without this caption. Defaults
   to `All-time totals`; use a more truthful grain when the values are not
   lifetime activity (a catalog, for example: `Current catalog`).
 - **`assets.<id>.cards[]`** — rendered in order on the asset card:

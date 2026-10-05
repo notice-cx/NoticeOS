@@ -233,6 +233,32 @@ describe("the strip", () => {
       />,
     );
 
+  it("distinguishes calendar loading from an initial failed read", () => {
+    const pending = strip({ meetings: null, calendarState: "loading" });
+    expect(pending.container.querySelector("[data-strip-calendar-status]")).toHaveTextContent("Loading events");
+    expect(pending.container.querySelector("[role='alert']")).toBeNull();
+    pending.unmount();
+
+    const failed = strip({ meetings: null, calendarState: "failed" });
+    expect(failed.container.querySelector("[data-strip-agenda] [role='alert']")).toHaveTextContent("Calendar unavailable");
+    expect(failed.container.querySelector("[data-strip-calendar-status]")).toHaveTextContent("Retrying automatically");
+    expect(failed.container.textContent).not.toContain("No meetings today");
+  });
+
+  it("keeps a cached meeting visible with the calendar read age", () => {
+    const failed = strip({ calendarState: "failed" });
+    expect(failed.container.querySelector("[data-strip-meeting-title]")).toHaveTextContent("Partner sync");
+    expect(failed.container.querySelector("[data-strip-calendar-status]")).toHaveTextContent("Cached · 1m old · retrying");
+    expect(failed.container.querySelector("[data-strip-meeting-cue]")).toBeNull();
+  });
+
+  it("never calls a partially readable calendar clear", () => {
+    const partial = strip({ meetings: { ...CALENDAR, feedsConfigured: 2 }, calendarState: "partial" });
+    expect(partial.container.querySelector("[data-strip-meeting='none']")).toHaveTextContent("Calendar incomplete");
+    expect(partial.container.querySelector("[data-strip-calendar-status]")).toHaveTextContent("Some calendars unavailable");
+    expect(partial.container.textContent).not.toContain("No meetings today");
+  });
+
   it("groups the clock/date, next meeting and countdown within a bounded TV header", () => {
     const view = strip();
     const el = view.container.querySelector("[data-wall-strip]")!;

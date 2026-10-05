@@ -19,6 +19,7 @@ import {
   type WallLayout,
 } from "@shared/wall-layout";
 import { WallCanvas } from "@/components/WallCanvas";
+import type { CalendarReadState } from "@/lib/meetings";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +45,7 @@ export interface WallPreviewProps {
   layout: WallLayout;
   data: WallPayload;
   meetings?: CalendarUpcoming | null;
+  calendarState?: CalendarReadState;
   ga4Realtime?: Ga4RealtimePayload;
   ga4RealtimeError?: boolean;
   /** The reads each source mark's status comes from, as on the TV. */
@@ -99,6 +101,7 @@ export function WallPreview({
   layout,
   data,
   meetings,
+  calendarState,
   ga4Realtime,
   ga4RealtimeError,
   connections,
@@ -150,7 +153,7 @@ export function WallPreview({
     const box = boxRef.current;
     if (!box || !onMeasure) return;
     onMeasure(box.scrollHeight);
-  }, [layout, data, meetings, nowMs, scale, onMeasure]);
+  }, [layout, data, meetings, calendarState, nowMs, scale, onMeasure]);
 
   const handleDrop = useCallback(
     (event: DragEvent<HTMLElement>, rowId: string, index: number) => {
@@ -222,6 +225,7 @@ export function WallPreview({
             layout={layout}
             data={data}
             meetings={meetings}
+            calendarState={calendarState}
             ga4Realtime={ga4Realtime}
             ga4RealtimeError={ga4RealtimeError}
             connections={connections}

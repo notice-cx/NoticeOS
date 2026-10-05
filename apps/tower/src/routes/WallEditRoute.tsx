@@ -26,6 +26,7 @@ import { WallWidgetPanel } from "@/components/wall/WallWidgetPanel";
 import { Button } from "@/components/ui/button";
 import { fieldClass } from "@/components/ui/field";
 import { useCalendarUpcoming } from "@/hooks/useCalendarUpcoming";
+import { calendarReadState } from "@/lib/meetings";
 import { useConfigSave } from "@/hooks/useConfigSave";
 import { useConfigWritable } from "@/hooks/useConfigWritable";
 import { useConnections } from "@/hooks/useConnections";
@@ -262,6 +263,7 @@ export function WallEditRoute() {
                 layout={state.layout}
                 data={data}
                 meetings={upcoming.data}
+                calendarState={calendarReadState(upcoming)}
                 ga4Realtime={realtime.data}
                 ga4RealtimeError={realtime.isError}
                 connections={{ credentials, items }}

@@ -26,6 +26,7 @@ import { owesNightlyReport } from "@noticeos/contract/reporting";
 import { humanizeMetric, translateAlert } from "@shared/alert-language";
 import { sourceReadings, type ConnectionReads } from "@shared/connection-status";
 import { isAmber } from "@shared/freshness";
+import type { CalendarReadState } from "@/lib/meetings";
 import {
   AMBER_MULTIPLIER,
   CADENCE_HOURS,
@@ -161,6 +162,7 @@ export interface WallIssueInputs {
   attention: readonly AttentionItem[];
   /** The credentials and monitoring reads every source status comes from. */
   connections: ConnectionReads;
+  calendarState?: CalendarReadState;
   nowMs: number;
 }
 
@@ -169,10 +171,19 @@ export interface WallIssueInputs {
  * order Needs you shows and a site's mark takes its label from). A problem
  * whose onset is unknown sorts after the dated ones of its severity.
  */
-export function wallIssues({ assets, attention, connections, nowMs }: WallIssueInputs): WallIssue[] {
+export function wallIssues({ assets, attention, connections, calendarState, nowMs }: WallIssueInputs): WallIssue[] {
   const byId = new Map(assets.map((asset) => [asset.id, asset]));
   const declared = (id: string) => byId.get(id)?.noNightlyReport === true;
   const issues: WallIssue[] = [];
+  if (calendarState === "failed" || calendarState === "partial") {
+    issues.push({
+      key: "calendar-read",
+      severity: calendarState === "failed" ? "error" : "warn",
+      assets: [], site: "Calendar",
+      line: calendarState === "failed" ? "Events unavailable · check Integrations" : "Some feeds unavailable · check Integrations",
+      mark: "Calendar unavailable", since: null, conditions: ["signal-freshness"],
+    });
+  }
   // Sites an open alert already reports as late or silent: the alert is the row.
   const reportAlerted = new Set<string>();
 

@@ -56,6 +56,7 @@ import { WallStrip, type WallStripProps } from "@/components/wall/WallStrip";
 import { useNow } from "@/hooks/useNow";
 import { cn } from "@/lib/utils";
 import { wallIssues } from "@/lib/wall-issues";
+import type { CalendarReadState } from "@/lib/meetings";
 import {
   filterWallAssets,
   filterWallAttention,
@@ -86,6 +87,7 @@ export interface WallCanvasProps {
   nowMs: number;
   /** The surface's own upcoming-meetings poll. */
   meetings?: CalendarUpcoming | null;
+  calendarState?: CalendarReadState;
   /** The independent 30-second GA4 read; failure never blanks a card. */
   ga4Realtime?: Ga4RealtimePayload;
   ga4RealtimeError?: boolean;
@@ -178,6 +180,7 @@ export function WallCanvas({
   data,
   nowMs,
   meetings,
+  calendarState,
   ga4Realtime,
   ga4RealtimeError = false,
   lastGood = false,
@@ -194,6 +197,7 @@ export function WallCanvas({
             connections={connections}
             countdown={data.dashboard.countdown}
             meetings={meetings}
+            calendarState={calendarState}
             heldSince={lastGood ? data.generatedAt : null}
           />
         );
@@ -207,6 +211,7 @@ export function WallCanvas({
               assets: filterWallAssets(data.assets, widget.settings),
               attention: filterWallAttention(data.attention, widget.settings),
               connections: connections ?? NO_READS,
+              calendarState,
               nowMs,
             })}
             operator={data.operator}

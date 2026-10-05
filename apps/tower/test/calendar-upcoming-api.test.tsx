@@ -5,6 +5,7 @@ import type { CalendarUpcoming } from "@noticeos/contract";
 import { handleCalendarUpcomingRequest } from "../worker/calendar-upcoming-route";
 import { useCalendarUpcoming } from "@/hooks/useCalendarUpcoming";
 import { fetchCalendarUpcoming } from "@/lib/api";
+import { calendarReadState } from "@/lib/meetings";
 
 const snapshot: CalendarUpcoming = {
   fetchedAt: "2026-08-10T16:00:00.000Z",
@@ -280,5 +281,39 @@ describe("useCalendarUpcoming", () => {
     const state = client.getQueryState(["calendar-upcoming"]);
     expect(state?.status).toBe("error");
     expect(state?.data).toEqual(snapshot);
+  });
+
+  it("exposes an initial failed read and clears it when the next poll recovers", async () => {
+    fetchSpy.mockImplementation(async () => Response.json({ error: "calendar_upcoming_unavailable" }, { status: 503 }));
+    const hook = renderCalendar();
+    expect(calendarReadState(hook.result.current)).toBe("loading");
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(calendarReadState(hook.result.current)).toBe("failed");
+    expect(hook.result.current.data).toBeUndefined();
+
+    fetchSpy.mockImplementation(async () => Response.json(snapshot));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(calendarReadState(hook.result.current)).toBeUndefined();
+    expect(hook.result.current.data).toEqual(snapshot);
+  });
+
+  it("holds readable events when all feeds fail, then accepts recovery and removal", async () => {
+    const hook = renderCalendar();
+    await vi.advanceTimersByTimeAsync(0);
+    fetchSpy.mockImplementation(async () => Response.json({
+      ...snapshot, feedsOk: 0, meetings: [],
+      calendars: snapshot.calendars.map(feed => ({ ...feed, status: "unreachable" })),
+    }));
+    await vi.advanceTimersByTimeAsync(65_000);
+    expect(calendarReadState(hook.result.current)).toBe("failed");
+    expect(hook.result.current.data).toEqual(snapshot);
+
+    fetchSpy.mockImplementation(async () => Response.json(snapshot));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(calendarReadState(hook.result.current)).toBeUndefined();
+    fetchSpy.mockImplementation(async () => Response.json({ ...snapshot, feedsConfigured: 0, feedsOk: 0, calendars: [], meetings: [] }));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(calendarReadState(hook.result.current)).toBeUndefined();
+    expect(hook.result.current.data?.feedsConfigured).toBe(0);
   });
 });

@@ -317,7 +317,6 @@ function PulseTotals({ asset, choices, nowMs, cell = false, inline = false }: { 
   if (!cards.length || !asset.counters) return null;
   return (
     <div role={cell ? "cell" : undefined} className={cn("flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-1 pb-1", inline && "gap-y-0 pb-0", !inline && "col-span-full sites:pl-10")} data-site-totals={asset.id}>
-      <span className="text-wall-micro uppercase tracking-wider text-muted-foreground">{asset.counters.heading}</span>
       <dl className={cn("flex min-w-0 flex-wrap items-baseline gap-x-6 gap-y-1", inline && "gap-x-3 gap-y-0")}>
         {cards.map((card) => {
           const cadence = card.source === "nightly" ? CADENCE_HOURS.pulse : asset.counters!.cadenceHours;

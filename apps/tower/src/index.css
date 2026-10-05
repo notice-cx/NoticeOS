@@ -724,7 +724,6 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  contain: inline-size;
   white-space: nowrap;
 }
 .wall-strip-clock { justify-self: stretch; }
@@ -757,6 +756,13 @@
 }
 .wall-strip-agenda > .wall-strip-divider, .wall-strip-countdown > .wall-strip-divider {
   left: 0; right: 0; top: calc(var(--spacing) * -2); border-top-width: 1px;
+}
+@container wall (width < 40rem) {
+  .wall-strip { align-items: start; }
+  .wall-strip-version { contain: inline-size; flex-wrap: wrap; }
+}
+@container wall (width < 22rem) {
+  .wall-strip { --wall-strip-half-gap: calc(var(--spacing) * 1.5); column-gap: calc(var(--spacing) * 3); }
 }
 @container wall (width >= 40rem) {
   .wall-strip { --wall-strip-half-gap: calc(var(--spacing) * 3); column-gap: calc(var(--spacing) * 6); grid-template-columns: max-content max-content minmax(0, 1fr); }

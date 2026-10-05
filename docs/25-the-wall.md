@@ -83,7 +83,14 @@ row "body"   fill  [ column 3.1 ┌ row auto [ revenue 1.55 ][ needs 1 ] ┐ ][ 
   AM/PM and H/M use the clock's smaller supporting step. Period spacing matches
   the clock; duration suffixes have their own smaller gap from the numerals.
   Up next or Now sits on the supporting row. A clear day reads
-  "No meetings today"; no readable calendar leaves the group out.
+  "No meetings today" only follows a readable calendar. A pending first read
+  says Loading events; a failed read stays visible and adds a Calendar alert
+  to Needs you, with Integrations as the repair destination. Failed reads retain
+  the last readable events with their age; a partially readable calendar shows
+  a warning and never claims an unreadable calendar is clear. Recovery clears
+  the alert automatically. An unconfigured calendar leaves the group out.
+  Provider results are reused for five minutes; the browser polls each minute.
+  Its last-good snapshot is held in memory and does not survive a full reload.
 - The countdown uses two aligned columns: emoji/event name above a plain
   large number and muted unit. The event name uses the intermediate type step;
   its emoji matches that size and appears only when set. Reaching the target has
@@ -95,9 +102,12 @@ row "body"   fill  [ column 3.1 ┌ row auto [ revenue 1.55 ][ needs 1 ] ┐ ][ 
   there and in each site's health indicator.
 - The brand is the TV's one link, Home (doc 14). Its logotype uses the
   brand type step, filling the main row. The source metadata is distributed
-  across the logotype's width, with the monospace hash sharing the caption's
+  across the brand group's width, with the monospace hash sharing the caption's
   baseline. DEV identifies mounted development; an asterisk marks local edits
   to that commit (bead `ro-trai.56`).
+  The caption contributes its natural width on desktops, preserving the widget
+  gap. On phones it can wrap within the brand's width instead of touching the
+  clock date (bead `ro-trai.60`).
 - If the Wall's own poll fails, keep the last values and show their age:
   "Refreshed 3m ago · reconnecting". Successful polls need no age caption.
 
@@ -193,6 +203,10 @@ which draws the TV's layout scaled, § Laptop, tablet and phone), and under
 *Bead `ro-trai.13`.* How the site region is drawn depends on one number — how
 many sites the Wall shows. Selected totals change how a row shares its room, without changing its tier or type scale. The
 strip, revenue, Needs you and the feed are the same in every tier.
+
+Selected totals show each metric's value and name without a group caption.
+Individual labels come from the asset's Card totals setup; the Wall editor
+selects which metrics appear.
 
 | Sites | Tier | The site region |
 |---|---|---|

@@ -61,6 +61,17 @@ const neverReported = (members: [string, string][]) =>
 const SITES = [asset("meals.example", "Meal Planner"), asset("nosh.example", "Nosh"), asset("areas.example", "Area Lookup")];
 
 describe("the Wall's issue list", () => {
+  it("alerts calendar failures, warns on partial reads, and stays quiet while loading", () => {
+    const input = { assets: [], attention: [], connections: NO_READS, nowMs: NOW };
+    expect(wallIssues({ ...input, calendarState: "failed" })).toEqual([
+      expect.objectContaining({ key: "calendar-read", severity: "error", site: "Calendar", assets: [] }),
+    ]);
+    expect(wallIssues({ ...input, calendarState: "partial" })).toEqual([
+      expect.objectContaining({ key: "calendar-read", severity: "warn" }),
+    ]);
+    expect(wallIssues({ ...input, calendarState: "loading" })).toEqual([]);
+    expect(wallIssues(input)).toEqual([]);
+  });
   it("puts errors before warnings and the newest first within each", () => {
     const issues = wallIssues({
       assets: SITES,

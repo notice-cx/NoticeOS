@@ -21,7 +21,15 @@ export function useCalendarUpcoming() {
   return useQuery<CalendarUpcoming>({
     enabled: !demoReadonly,
     queryKey: ["calendar-upcoming"],
-    queryFn: ({ signal }) => fetchCalendarUpcoming(signal),
+    queryFn: async ({ signal }) => {
+      const snapshot = await fetchCalendarUpcoming(signal);
+      // A configured calendar that answered with no readable feed is a failed
+      // read, not a successful empty day. Reject so Query retains its last data.
+      if (snapshot.feedsConfigured > 0 && snapshot.feedsOk === 0) {
+        throw new Error("Calendar feeds are unavailable");
+      }
+      return snapshot;
+    },
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,

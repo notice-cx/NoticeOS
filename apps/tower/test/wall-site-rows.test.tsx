@@ -511,7 +511,7 @@ describe("the density tiers", () => {
     const menus = row(container, "menus.example"), totals = menus.querySelector('[data-site-totals]')!;
     expect(totals.closest('[role="cell"]')).toBe(menus.querySelector('[data-site-name]'));
     expect(totals.querySelector('[role="cell"]')).toBeNull();
-    expect(totals.textContent).toContain("Current catalog");
+    expect(totals.textContent).not.toContain("Current catalog");
     expect(totals.querySelector('[data-site-total="itemsRated"]')?.textContent).toContain("13,904");
     expect(totals.querySelector('[data-site-total="restaurants"]')?.textContent).toContain("1,286");
     expect(totals.textContent).toContain("Items rated");

@@ -463,9 +463,9 @@ describe("the top strip", () => {
     const strip = view.container.querySelector("[data-wall-row='strip'] > [data-wall-slot] > [data-wall-strip]")!;
     // Numerals, and the locale's day period where it has one (bead ro-trai.3).
     expect(strip.querySelector("[data-strip-time]")?.textContent).toMatch(/^\d{1,2}[:.]\d{2}(AM|PM)?$/u);
-    expect(strip.querySelector("[data-strip-meeting]")?.firstElementChild?.textContent).toBe("Now");
+    expect(strip.querySelector("[data-strip-meeting-cue]")?.textContent).toBe("Now");
     expect(strip.querySelector("[data-strip-meeting-title]")?.textContent).toBe("Standup");
-    expect(strip.querySelector("[data-strip-meeting-when]")?.textContent).toBe("now · 25m left");
+    expect(strip.querySelector("[data-strip-meeting-distance]")?.textContent).toBe("25M left");
     expect(strip.querySelector("[data-strip-countdown]")?.textContent).toContain("SF Trip");
     expect(strip.querySelector("[data-system-state]")).toBeNull();
     expect(strip.querySelector("a[data-strip-home]")).toHaveAttribute("href", "/");
@@ -479,6 +479,19 @@ describe("the top strip", () => {
 
     const held = canvas(DEFAULT_WALL_LAYOUT, {}, MEETINGS, true);
     expect(held.container.querySelector("[data-strip-held]")?.textContent).toBe("Refreshed 3m ago · reconnecting");
+  });
+
+  it("alerts an independent calendar failure, retains events, and clears on recovery", () => {
+    const view = render(<WallCanvas layout={DEFAULT_WALL_LAYOUT} data={PAYLOAD} nowMs={NOW} meetings={MEETINGS} calendarState="failed" />);
+    expect(view.container.querySelector("[data-strip-meeting-title]")).toHaveTextContent("Standup");
+    expect(view.container.querySelector("[data-strip-calendar-status]")).toHaveTextContent("Cached");
+    expect(view.container.querySelector("[data-wall-needs] [role='alert']")).toHaveTextContent("Calendar");
+    expect(view.container.querySelector("[data-wall-needs] [role='alert']")).toHaveTextContent("Events unavailable");
+
+    view.rerender(<WallCanvas layout={DEFAULT_WALL_LAYOUT} data={PAYLOAD} nowMs={NOW} meetings={MEETINGS} />);
+    expect(view.container.querySelector("[data-strip-calendar-status]")).toBeNull();
+    expect(view.container.querySelector("[data-wall-needs] [role='alert']")).toBeNull();
+    expect(view.container.querySelector("[data-strip-meeting-title]")).toHaveTextContent("Standup");
   });
 });
 

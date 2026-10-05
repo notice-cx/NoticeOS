@@ -104,6 +104,7 @@ export function NeedsYou({ issues, operator, system, nowMs }: NeedsYouProps) {
             return (
               <li
                 key={issue.key}
+                role={issue.key === "calendar-read" ? "alert" : undefined}
                 className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 rounded-lg bg-muted/60 px-4 py-3"
                 data-needs-row={issue.severity}
                 data-material-condition={issue.conditions.join(" ") || undefined}

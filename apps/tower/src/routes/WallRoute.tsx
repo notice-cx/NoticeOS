@@ -10,6 +10,7 @@ import { useConnections } from "@/hooks/useConnections";
 import { useGa4Realtime } from "@/hooks/useGa4Realtime";
 import { useWall } from "@/hooks/useWall";
 import { useWallScreen } from "@/hooks/useWallScreen";
+import { calendarReadState } from "@/lib/meetings";
 
 /**
  * The layout the TV draws, read with the contract's own rule. The Worker has
@@ -91,6 +92,7 @@ export function WallRoute() {
         data={data}
         nowMs={now}
         meetings={upcoming.data}
+        calendarState={calendarReadState(upcoming)}
         ga4Realtime={realtime.data}
         ga4RealtimeError={realtime.isError}
         lastGood={isError}
