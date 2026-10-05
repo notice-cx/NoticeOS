@@ -8,12 +8,52 @@ import { WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { parsePointer, validateSchemaAndSafety } from './config-documents.mjs';
 import { fieldOf, isRowToken, matchKnob, matchRegister } from './config-registers.mjs';
 import { WATCH_QUERY_MAX_CHARS, WATCH_SERIES } from '../packages/contract/src/watch-series.mjs';
+import { CLOUDFLARE_D1_PATH, cloudflareAccountId, d1DatabaseId, d1Selection } from '../packages/contract/src/cloudflare-d1.mjs';
 export { watchQueryHistoryRange } from '../packages/contract/src/watch-series.mjs';
 export class OperationRefused extends Error {
     name = 'OperationRefused';
     constructor() { super('Workspace operation is not supported.'); }
 }
 function refuse() { throw new OperationRefused(); }
+export function isCloudflareD1Request(request) {
+    return request instanceof Request && new URL(request.url).pathname === CLOUDFLARE_D1_PATH;
+}
+/** The original request is the only selector supplied to either receiver. */
+export async function cloudflareD1Request(request) {
+    if (!isCloudflareD1Request(request) || request.url.length > 2048)
+        refuse();
+    const url = new URL(request.url);
+    if (url.hash || url.username || url.password)
+        refuse();
+    const keys = [...url.searchParams.keys()];
+    if (new Set(keys).size !== keys.length)
+        refuse();
+    if (request.method === 'GET' && request.body === null) {
+        if (keys.length === 0)
+            return { kind: 'status' };
+        if (keys.length === 1 && url.searchParams.get('view') === 'databases')
+            return { kind: 'databases' };
+        if (keys.length !== 4 || !keys.every(key => ['view', 'accountId', 'databaseId', 'runId'].includes(key)) || url.searchParams.get('view') !== 'artifact')
+            refuse();
+        const accountId = url.searchParams.get('accountId'), databaseId = url.searchParams.get('databaseId'), runId = url.searchParams.get('runId');
+        if (!cloudflareAccountId(accountId) || !d1DatabaseId(databaseId) || !d1DatabaseId(runId))
+            refuse();
+        return { kind: 'artifact', accountId, databaseId, runId };
+    }
+    if (keys.length || !['PUT', 'POST'].includes(request.method))
+        refuse();
+    const body = await jsonBody(request);
+    if (request.method === 'PUT') {
+        const selection = d1Selection(body);
+        if (!selection)
+            refuse();
+        return { kind: 'select', selection };
+    }
+    onlyKeys(body, ['accountId', 'databaseId']);
+    if (!cloudflareAccountId(body.accountId) || !d1DatabaseId(body.databaseId))
+        refuse();
+    return { kind: 'export', accountId: body.accountId, databaseId: body.databaseId };
+}
 export const GOOGLE_INTEGRATION_START = '/api/integrations/google/oauth/start';
 export const GOOGLE_INTEGRATION_CALLBACK = '/api/integrations/google/oauth/callback';
 export const GOOGLE_INTEGRATION_PROPERTIES = '/api/integrations/google/properties';
@@ -577,6 +617,11 @@ export async function towerOperation(request) {
     const method = request.method;
     if (/%|\\/u.test(pathname))
         refuse();
+    if (pathname === CLOUDFLARE_D1_PATH) {
+        const selected = await cloudflareD1Request(request);
+        return operation(selected.kind === 'status' ? 'integrations.summary.read' : selected.kind === 'databases' ? 'provider.read'
+            : selected.kind === 'select' ? 'integrations.write' : 'workflows.run', ['cloudflareD1']);
+    }
     if (method === 'GET' && pathname === '/api/health')
         return publicRead;
     if (pathname === '/api/runner/scheduled' && method === 'GET')

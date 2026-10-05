@@ -1405,7 +1405,29 @@ not export permission. The token uses the existing encrypted workspace store;
 it is never returned to the browser. The account connection is separate from
 any Cloudflare credential used to host NoticeOS itself.
 
-Selected database backups are tracked by `ro-vu8d.29.2` and `ro-vu8d.29.3`.
+Choose each D1 database and its portfolio asset in the same connection panel,
+then press **Back up selected**. Nothing infers an asset from a database name.
+Token replacement preserves selections; changing accounts requires an explicit
+selection for the new account. Hosted calls recheck owner membership in both
+Workers; demo visitors cannot list provider databases, select targets, export,
+or retrieve private SQL.
+
+An export polls the native API with the original continuation bookmark, then
+downloads SQL without sending the API token or following redirects. The current
+bounds are 100 selected databases, three minutes per export and 4 GiB per SQL
+artifact. SQL streams through 8 MiB multipart buffers with a SHA-256 hash into
+the existing private object binding, under workspace/account/database/run IDs.
+Receipts live in the workspace's provider-coordination row; a transaction checks
+the current connection, selection and run lease before publishing completion.
+An expired run cannot publish over its successor. A failure keeps the last
+complete backup; successful publication retains the current and previous
+complete SQL objects. Storage operations with an unknown completion outcome
+are not promoted. **Export stored** proves stored bytes, not a restore drill.
+
+Downloads accept only HTTPS Cloudflare R2 storage endpoints. Cloudflare's D1
+export reference does not guarantee a download hostname; the first approved
+account check must confirm that boundary. Other hosts are refused, not followed.
+Nightly complete-set inclusion remains tracked by `ro-vu8d.29.3`.
 No provider is activated by committing this adapter. A real export needs the
 owner's approval for the exact account, database and verification scope:
 Cloudflare's running export temporarily blocks queries and must be polled

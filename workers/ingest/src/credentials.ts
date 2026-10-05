@@ -36,6 +36,7 @@
 // probes live next door in credential-probes.ts, which is allowed to know about
 // both.
 import { type Transaction, type WorkspaceStore, javascriptInstant } from '@noticeos/postgres';
+import { timingSafeEqual } from 'node:crypto';
 import {
   CREDENTIAL_BLOCKER_LEADS,
   CREDENTIALS_KEY_COMMAND,
@@ -63,6 +64,7 @@ import {
 } from '@noticeos/contract';
 import { getConfigDocument } from './config-store.js';
 import { workspaceProfile } from '../../../scripts/product-env.mjs';
+import { CLOUDFLARE_D1_TARGETS, cloudflareAccountId, d1Selection, storedD1Selection, type D1Selection } from '@noticeos/contract/cloudflare-d1';
 
 /** Only the server's standalone profile may resolve legacy provider bindings. */
 export function usesLegacyCredentialBindings(env: IngestEnv): boolean {
@@ -647,6 +649,7 @@ function assetsHeldBy(
   provider: IntegrationProvider,
   fields: Record<string, string>,
 ): string[] {
+  if (provider.id === 'cloudflare') return [...new Set(storedD1Selection(fields)?.targets.map(target => target.asset) ?? [])].sort();
   if (provider.scope !== 'per-asset') return [];
   const map = provider.fields.find((field) => field.kind === 'asset-map');
   return map === undefined ? [] : credentialAssetKeys(fields[map.name]);
@@ -827,6 +830,10 @@ export function validateCredentialFields(
   fields: Record<string, unknown>,
 ): CredentialIssue[] {
   const issues: CredentialIssue[] = [];
+  if (provider.id === 'cloudflare') {
+    if (Object.hasOwn(fields, CLOUDFLARE_D1_TARGETS)) issues.push(issue(CLOUDFLARE_D1_TARGETS, 'invalid', 'Choose databases in the Cloudflare panel.'));
+    if (!cloudflareAccountId(fields.CLOUDFLARE_ACCOUNT_ID)) issues.push(issue('CLOUDFLARE_ACCOUNT_ID', 'invalid', 'Account ID must contain 32 hexadecimal characters.'));
+  }
   const known = new Map(provider.fields.map((field) => [field.name, field]));
 
   for (const name of Object.keys(fields)) {
@@ -1008,7 +1015,11 @@ export async function putCredential(
     const value = raw[field.name];
     if (typeof value === 'string' && value !== '') fields[field.name] = value;
   }
-  Object.assign(fields, await carriedManagedFields(env, provider, previous, fields));
+  try { Object.assign(fields, await carriedManagedFields(env, provider, previous, fields)); }
+  catch (error) {
+    if (error instanceof CredentialKeyError) return { ok: false, error: 'key_missing', message: 'Reconnect after restoring the credential key.' };
+    throw error;
+  }
 
   // WHETHER THE RESULT WORKS AT ALL, judged on what will actually be stored.
   // `required` cannot express Google's *either a sign-in or a service account*,
@@ -1097,10 +1108,13 @@ export async function putCredential(
         facts.balanceSeenAt,
       ],
     );
-    await replaceSecret(
+    if (provider.id === 'cloudflare' && previous && connection!.connection_id !== previous.connection_id) {
+      throw new Error('Cloudflare connection changed. Try again.');
+    }
+    const replaced = await replaceSecret(
       tx,
       connection!.connection_id,
-      null,
+      provider.id === 'cloudflare' ? previous?.secret_version ?? 0 : null,
       {
         ciphertext: sealed.ciphertext,
         iv: sealed.iv,
@@ -1111,6 +1125,7 @@ export async function putCredential(
       },
       now,
     );
+    if (!replaced) throw new Error('Cloudflare connection changed. Try again.');
   });
 
   const row = await readRow(env.STORE, provider.id);
@@ -1146,7 +1161,7 @@ async function carriedManagedFields(
   try {
     held = await open(env, previous);
   } catch (error) {
-    if (error instanceof CredentialKeyError) return {};
+    if (error instanceof CredentialKeyError && provider.id !== 'cloudflare') return {};
     throw error;
   }
   const carried: Record<string, string> = {};
@@ -1554,6 +1569,51 @@ export interface ResolvedCredential {
    * manifest dishonest in exchange.
    */
   legacySlots: Record<string, string>;
+}
+
+/** A provider call's captured connection must still be current before publishing
+ * its selection or artifact. Fingerprints are private and timing-safe. */
+async function sameCredentialFields(a: Record<string, string>, b: Record<string, string>): Promise<boolean> {
+  const digest = (fields: Record<string, string>) => crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(Object.entries(fields).sort(([x], [y]) => x.localeCompare(y)))));
+  const [left, right] = await Promise.all([digest(a), digest(b)]);
+  return timingSafeEqual(new Uint8Array(left), new Uint8Array(right));
+}
+/** Hold the current connection and export lease while publishing the SQL
+ * receipt. Selection, disconnect, resealing and token replacement lock
+ * this same connection row; no generation can change between check and publish. */
+export async function publishCloudflareBackup(env: IngestEnv, captured: ResolvedCredential, lease: string, owner: string, publish: (tx: Transaction) => Promise<void>): Promise<boolean> {
+  await assertCredentialOwner(env, captured, 'cloudflare');
+  const row = await readRow(env.STORE, 'cloudflare');
+  if (!row || row.connection_id !== captured.connectionId || captured.source !== 'store'
+    || !await sameCredentialFields(await open(env, row), captured.fields)) return false;
+  return env.STORE.write(async tx => {
+    const [connection] = await tx.query<{ connection_id: string }>('SELECT connection_id FROM noticeos.integration_connections WHERE provider = $1 FOR UPDATE', ['cloudflare']);
+    if (connection?.connection_id !== row.connection_id) return false;
+    const [secret] = await tx.query<{ version: number }>('SELECT max(secret_version) AS version FROM noticeos.connection_secrets WHERE connection_id = $1', [row.connection_id]);
+    if (secret?.version !== row.secret_version) return false;
+    const [owned] = await tx.query<{ owner: string }>('SELECT owner FROM noticeos.integration_leases WHERE lease_key = $1 AND owner = $2 AND expires_at > $3::timestamptz FOR UPDATE', [lease, owner, new Date()]);
+    if (!owned) return false;
+    await publish(tx);
+    return true;
+  });
+}
+export async function saveCloudflareSelection(env: IngestEnv, captured: ResolvedCredential, selection: D1Selection): Promise<boolean> {
+  await assertCredentialOwner(env, captured, 'cloudflare');
+  if (!d1Selection(selection) || selection.accountId !== captured.fields.CLOUDFLARE_ACCOUNT_ID) return false;
+  const row = await readRow(env.STORE, 'cloudflare');
+  if (!row || row.connection_id !== captured.connectionId || captured.source !== 'store') return false;
+  const current = await open(env, row);
+  if (!await sameCredentialFields(current, captured.fields)) return false;
+  const fields = { ...current, [CLOUDFLARE_D1_TARGETS]: JSON.stringify(selection) };
+  const sealed = await seal(env, fields); const at = new Date().toISOString();
+  return env.STORE.write(async tx => {
+    const saved = await replaceSecret(tx, row.connection_id, row.secret_version, {
+      ciphertext: sealed.ciphertext, iv: sealed.iv, keyVersion: await currentKeyVersion(tx),
+      fieldNames: Object.keys(fields), assetIds: [...new Set(selection.targets.map(target => target.asset))].sort(),
+    }, at);
+    if (saved) await tx.execute('UPDATE noticeos.integration_connections SET updated_at = $1::timestamptz WHERE connection_id = $2', [at, row.connection_id]);
+    return saved;
+  });
 }
 
 /** Internal session persistence. Guarded on the secret version it read, so a

@@ -145,7 +145,10 @@ export async function askProvider(
   fetchImpl: typeof fetch,
 ): Promise<CandidateAnswer> {
   if (provider.id === 'cloudflare') {
-    try { return { verdict: 'accepted', facts: { databases: (await listD1Databases(fields, fetchImpl)).length } }; }
+    try {
+      const databases = await listD1Databases(fields, fetchImpl);
+      return { verdict: 'accepted', facts: { databases: databases.length, cloudflareD1: { accountId: fields.CLOUDFLARE_ACCOUNT_ID!, databases } } };
+    }
     catch (error) { return { verdict: error instanceof CloudflareD1Error && ['access_denied', 'invalid_configuration'].includes(error.code) ? 'refused' : 'unreachable' }; }
   }
   if (provider.id === 'bing-webmaster') return askBing(fields, fetchImpl);

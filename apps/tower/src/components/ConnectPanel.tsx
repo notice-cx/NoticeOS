@@ -283,7 +283,7 @@ export function ConnectPanel({
       <div aria-live="polite" className="flex flex-col gap-3 empty:hidden" data-connect-facts>
         {/* With the site list following, the list IS the sites: only the
             facts it cannot show (DataForSEO's credit) stay here. */}
-        <AcceptedFacts provider={provider} facts={next && !rotated ? { ...accepted.facts, sites: undefined, projects: undefined } : accepted.facts} />
+        <AcceptedFacts provider={provider} facts={next && !rotated ? { ...accepted.facts, sites: undefined, projects: undefined, databases: undefined } : accepted.facts} />
       </div>
       {next && !rotated ? next(accepted, onClose) : (
         // Focus follows the answer: the form it was in has just gone.

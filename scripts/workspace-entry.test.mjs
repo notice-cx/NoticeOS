@@ -51,6 +51,28 @@ function fixture() {
 }
 const use = async call => call.withStore({}, async store => ({ workspace: store.workspaceId, actor: call.context.principalId }));
 
+test('D1 selection, export and private SQL reads use fresh owner admission and demo refusal', async () => {
+  const accountId = 'a'.repeat(32), databaseId = randomUUID(), runId = randomUUID();
+  const requests = workspace => [
+    new Request(origin + '/api/integrations/cloudflare/d1?view=databases', { headers: { origin, 'x-noticeos-workspace-id': workspace, [WORKSPACE_SESSION_HEADER]: session } }),
+    ...[['PUT', { version: 1, accountId, targets: [{ databaseId, asset: 'example.com' }] }], ['POST', { accountId, databaseId }]].map(([method, body]) => new Request(origin + '/api/integrations/cloudflare/d1', {
+      method, headers: { origin, 'content-type': 'application/json', 'x-noticeos-workspace-id': workspace, [WORKSPACE_SESSION_HEADER]: session }, body: JSON.stringify(body),
+    })),
+    new Request(origin + `/api/integrations/cloudflare/d1?view=artifact&accountId=${accountId}&databaseId=${databaseId}&runId=${runId}`, { headers: { origin, 'x-noticeos-workspace-id': workspace, [WORKSPACE_SESSION_HEADER]: session } }),
+  ];
+  const f = fixture();
+  for (const original of requests(a)) assert.deepEqual(await withWorkspaceEntry(env, original, use, f.adapters), { workspace: a, actor: principal });
+  assert.equal(f.calls.memberships, 4); assert.equal(f.calls.closed, 4);
+  for (const original of requests(b)) await assert.rejects(withWorkspaceEntry(env, original, use, f.adapters));
+  const before = f.calls.opened;
+  for (const original of requests(demo)) await assert.rejects(withWorkspaceEntry({ ...env, NOTICEOS_WORKSPACE_PROFILE: 'demo' }, original, use, f.adapters));
+  assert.equal(f.calls.opened, before);
+  const foreign = requests(a)[2];
+  const changed = new Request(foreign, { headers: { origin: 'https://foreign.example.test', 'content-type': 'application/json', 'x-noticeos-workspace-id': a } });
+  await assert.rejects(withWorkspaceEntry(env, changed, use, f.adapters));
+  assert.equal(f.calls.opened, before);
+});
+
 test('profile is explicit and malformed/absent inputs never select standalone', () => {
   for (const input of [{}, null, { NOTICEOS_WORKSPACE_PROFILE: '' }, { NOTICEOS_WORKSPACE_PROFILE: ' standalone ' }, { NOTICEOS_WORKSPACE_PROFILE: {} }]) {
     assert.throws(() => workspaceProfile(input));

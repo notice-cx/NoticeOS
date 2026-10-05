@@ -130,11 +130,12 @@ describe('INTEGRATION_PROVIDERS', () => {
   });
 
   it('marks every secret field as one a form must mask', () => {
+    // Managed connection metadata never renders a credential form control.
     // The one deliberate exception is the DataForSEO API login: it identifies
     // the account rather than authenticating it, and a masked field an operator
     // cannot proof-read is a support ticket.
     const clear = INTEGRATION_PROVIDERS.flatMap((provider) =>
-      provider.fields.filter((field) => !field.secret).map((field) => field.name),
+      provider.fields.filter((field) => !field.secret && !field.managed).map((field) => field.name),
     );
     // The OAuth client ID joins it for the same reason: Google publishes it to
     // every browser that starts a sign-in, and an operator who cannot

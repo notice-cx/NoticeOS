@@ -10,6 +10,7 @@ import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from './browse
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { towerOperation, isHostedStoredRead, isHostedGoogleDiscovery, liveProviderReadRequest, connectionReadinessRequest, credentialWriteRequest, credentialWriteInput, providerCollectionRequest, providerCollectionInput, storedResearchReadRequest, assetMutationRequest, assetMutationInput, watchQueryHistoryRequest, watchQueryHistoryRange } from './workspace-operations.mjs';
 import { ingestOperation } from './workspace-operations.mjs';
+import { isCloudflareD1Request } from './workspace-operations.mjs';
 import { googleOAuthRequest, GOOGLE_INTEGRATION_START } from './workspace-operations.mjs';
 import { deepEqual } from './config-documents.mjs';
 import { TOWER_CONFIG_FILES } from '../packages/contract/src/configuration.mjs';
@@ -246,14 +247,15 @@ export async function withWorkspaceEntry(env, request, work, adapters = dependen
     if ((!settings && !googleStart && !storedResearch && !isHostedStoredRead(proof) && !isHostedGoogleDiscovery(proof)
         && !connectionReadinessRequest(proof) && !credentialWriteRequest(proof)
         && !providerCollectionRequest(proof) && !liveProviderReadRequest(proof) && !assetMutationRequest(proof)
-        && !watchQueryHistoryRequest(proof))
+        && !watchQueryHistoryRequest(proof) && !isCloudflareD1Request(proof))
         || selected.kind !== 'workspace' || selected.action === null)
         refuse();
     const origin = binding(env, 'workspaceOrigin');
     const browser = createBrowserRequestPolicy(origin);
     if (new URL(proof.url).origin !== browser.origin)
         refuse();
-    if (proof.method === 'PUT' || googleStart || storedResearch || assetMutationRequest(proof))
+    if (proof.method === 'PUT' || googleStart || storedResearch || assetMutationRequest(proof)
+        || (isCloudflareD1Request(proof) && proof.method === 'POST'))
         browser.assertEffect(proof);
     if (googleStart)
         await googleOAuthRequest(proof, origin, 'start');

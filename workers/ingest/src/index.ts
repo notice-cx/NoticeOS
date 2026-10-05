@@ -5,6 +5,8 @@ import { configReadFiles, assetMutationArguments, storedResearchArguments, watch
 import type { WorkspaceStore } from '@noticeos/postgres';
 import { integrationProvider } from '@noticeos/contract';
 import { ingestOperation } from '../../../scripts/workspace-operations.mjs';
+import { cloudflareD1Request } from '../../../scripts/workspace-operations.mjs';
+import { handleD1Request } from './cloudflare-d1.js';
 
 /** The selected store must own every requested portfolio target before
  * opening credentials or asking a provider. Collector mapping rules follow. */
@@ -686,6 +688,17 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
     }
     if (proof !== undefined) throw new WorkspaceEntryRefused();
     return withCallStore(this.env, this.ctx, (env) => connectCredential(env, input));
+  }
+
+  /** Fixed Request-only receiver; hosted authority is resolved again here. */
+  async cloudflareD1(original: Request): Promise<Response> {
+    const selected = await cloudflareD1Request(original);
+    await ingestOperation('cloudflareD1', original);
+    if (workspaceProfile(this.env) !== 'standalone') {
+      return withWorkspaceEntry(this.env, original, call => call.withStore(this.ctx,
+        store => handleD1Request({ ...this.env, STORE: store }, selected, original.signal)));
+    }
+    return withCallStore(this.env, this.ctx, env => handleD1Request(env, selected, original.signal));
   }
 
   /**

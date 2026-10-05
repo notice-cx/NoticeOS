@@ -29,6 +29,7 @@ import { ScheduleRows } from "@/routes/workflows/ScheduleEditor";
 import { useInlineConfigSave } from "@/hooks/useConfigSave";
 import { useConfigSaveDelay } from "@/hooks/config-backed-queries";
 import { useGoogleOAuthStart } from '@/hooks/useGoogleOAuthStart';
+import { CloudflareD1Panel } from './CloudflareD1Panel';
 
 
 /** Which view of the panel a provider opens on: its key form, or its sites. */
@@ -154,7 +155,9 @@ export function ProviderConnectPanel({ status, opened, asset, canConnect, blocke
       ) : undefined}
       // A connection of the whole installation (Discord, the calendar feeds,
       // bead ro-ujb9.96.7.14) ends on the provider's answer: no site list.
-      next={provider.connect?.sites === false ? undefined : (_answer, close) => siteTokens ? (
+      next={provider.id === 'cloudflare' ? answer => (
+        <CloudflareD1Panel inventory={answer?.facts.cloudflareD1} names={names} canSave={canConnect} onChanged={onChanged} />
+      ) : provider.connect?.sites === false ? undefined : (_answer, close) => siteTokens ? (
         <ProviderSiteTokens status={status} names={names} preselect={asset} canSave={canConnect} items={items} onSaved={onChanged} />
       ) : (
         <ProviderSites provider={provider} preselect={asset} onClose={close} onStarted={() => setStarted(true)} onCollected={onChanged} />

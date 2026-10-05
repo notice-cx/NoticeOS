@@ -26,6 +26,8 @@ import { MEMBERSHIP_PATH, ACCEPT_INVITATION_PATH } from '../../../scripts/identi
 import { demoViewer } from '../shared/demo-viewer';
 import { demoViewerReadResponse, demoViewerResponse } from './demo-viewer-route';
 import { requireStandaloneWorkspace, withWorkspaceEntry, workspaceEntryOrigin, workspaceProfile, type WorkspaceEntryBindings } from '../../../scripts/workspace-entry.mjs';
+import { isCloudflareD1Request, cloudflareD1Request } from '../../../scripts/workspace-operations.mjs';
+import { crossOrigin } from './http';
 import { GOOGLE_INTEGRATION_START, GOOGLE_INTEGRATION_CALLBACK, isHostedStoredRead, isHostedGoogleDiscovery, connectionReadinessRequest, credentialWriteRequest, providerCollectionRequest, liveProviderReadRequest, storedResearchReadRequest, watchQueryHistoryRequest } from '../../../scripts/workspace-operations.mjs';
 import { type AnnotationWriter, handleAnnotationRequest } from "./annotation-route";
 import { type AssetColumnWriter, handleAssetColumnRequest } from "./asset-column-route";
@@ -139,6 +141,7 @@ export interface TowerEnv extends WorkspaceEntryBindings, AuthEntryBindings, Dem
       /** The live-visitors read; its payload is passed straight through. */
       ga4Realtime(originalProof?: Request): Promise<unknown>;
       integrationHealth?(originalProof?: Request): Promise<unknown>;
+      cloudflareD1?(original: Request): Promise<Response>;
     };
 }
 
@@ -484,6 +487,15 @@ const towerHandler = {
     let profile: ReturnType<typeof workspaceProfile>;
     try { profile = workspaceProfile(env); }
     catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
+    if (isCloudflareD1Request(request)) {
+      try {
+        if (profile === 'standalone' && crossOrigin(request, new URL(request.url))) return Response.json({ error: 'forbidden' }, { status: 403 });
+        await cloudflareD1Request(request);
+        if (!env.INGEST.cloudflareD1) return Response.json({ error: 'unavailable' }, { status: 503 });
+        const call = () => env.INGEST.cloudflareD1!(request.clone());
+        return profile === 'standalone' ? await call() : await withWorkspaceEntry(env, request.clone(), call);
+      } catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
+    }
     if (profile !== 'standalone') {
       const pathname = new URL(request.url).pathname;
       if (profile === 'hosted' && pathname === GOOGLE_INTEGRATION_CALLBACK) {

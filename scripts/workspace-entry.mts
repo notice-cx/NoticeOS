@@ -13,6 +13,7 @@ import { towerOperation, isHostedStoredRead, isHostedGoogleDiscovery, liveProvid
   assetMutationRequest, assetMutationInput, type AssetMutationMethod,
   watchQueryHistoryRequest, watchQueryHistoryRange } from './workspace-operations.mjs';
 import { ingestOperation } from './workspace-operations.mjs';
+import { isCloudflareD1Request } from './workspace-operations.mjs';
 import { googleOAuthRequest, GOOGLE_INTEGRATION_START } from './workspace-operations.mjs';
 import type { RuleBacktestInput } from '../packages/contract/src/rule-backtest.js';
 import type { WatchQueryHistoryInput } from '../packages/contract/src/create-watch-window.js';
@@ -241,12 +242,13 @@ export async function withWorkspaceEntry<T>(env: object, request: Request,
   if ((!settings && !googleStart && !storedResearch && !isHostedStoredRead(proof) && !isHostedGoogleDiscovery(proof)
       && !connectionReadinessRequest(proof) && !credentialWriteRequest(proof)
       && !providerCollectionRequest(proof) && !liveProviderReadRequest(proof) && !assetMutationRequest(proof)
-      && !watchQueryHistoryRequest(proof))
+      && !watchQueryHistoryRequest(proof) && !isCloudflareD1Request(proof))
     || selected.kind !== 'workspace' || selected.action === null) refuse();
   const origin = binding(env, 'workspaceOrigin');
   const browser = createBrowserRequestPolicy(origin);
   if (new URL(proof.url).origin !== browser.origin) refuse();
-  if (proof.method === 'PUT' || googleStart || storedResearch || assetMutationRequest(proof)) browser.assertEffect(proof);
+  if (proof.method === 'PUT' || googleStart || storedResearch || assetMutationRequest(proof)
+    || (isCloudflareD1Request(proof) && proof.method === 'POST')) browser.assertEffect(proof);
   if (googleStart) await googleOAuthRequest(proof, origin, 'start');
   const requested = proof.headers.get(WORKSPACE_SELECTION_HEADER);
   const workspaceId = kind === 'demo' ? uuid(binding(env, 'demoWorkspace')) : uuid(requested);

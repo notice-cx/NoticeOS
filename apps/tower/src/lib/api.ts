@@ -1,4 +1,5 @@
 import { demoFetch } from './demo-visit';
+import { CLOUDFLARE_D1_PATH, D1_FAILURE_LABELS, type D1Selection, type D1Status, type D1Receipt } from '@noticeos/contract/cloudflare-d1';
 import { responseJson } from './response-value';
 import { decodeWallMoney, decodeAssetMoney, decodeFinancials } from './money-response';
 import { DEMO_PRESENTATION_PATH, decodeDemoPresentation, type DemoPresentation } from '@shared/demo-presentation';
@@ -1656,6 +1657,25 @@ export function createApi(fetch: ApiTransport, assertActive: () => void = () => 
       }
     };
   return Object.freeze({
+    fetchD1Status: bind(async (fetch: ApiTransport, inventory = true): Promise<D1Status> => {
+      const response = await fetch(`${CLOUDFLARE_D1_PATH}${inventory ? '?view=databases' : ''}`, { headers: { accept: 'application/json' } });
+      if (!response.ok) throw new ApiError('Cloudflare unavailable · try again', response.status);
+      return await response.json() as D1Status;
+    }),
+    saveD1Selection: bind(async (fetch: ApiTransport, selection: D1Selection): Promise<D1Status> => {
+      const response = await fetch(CLOUDFLARE_D1_PATH, { method: 'PUT', headers: JSON_WRITE_HEADERS, body: JSON.stringify(selection) });
+      if (!response.ok) throw new ApiError('Selection not saved · try again', response.status);
+      return await response.json() as D1Status;
+    }),
+    exportD1Database: bind(async (fetch: ApiTransport, accountId: string, databaseId: string): Promise<D1Receipt> => {
+      const response = await fetch(CLOUDFLARE_D1_PATH, { method: 'POST', headers: JSON_WRITE_HEADERS, body: JSON.stringify({ accountId, databaseId }) });
+      if (!response.ok) {
+        const failure = await response.json() as { error?: string };
+        const label = failure.error && Object.hasOwn(D1_FAILURE_LABELS, failure.error) ? D1_FAILURE_LABELS[failure.error as keyof typeof D1_FAILURE_LABELS] : 'Backup not started · try again';
+        throw new ApiError(label, response.status);
+      }
+      return await response.json() as D1Receipt;
+    }),
     fetchDemoPresentation: bind(fetchDemoPresentationRequest),
     fetchMembers: bind((fetch: ApiTransport, after?: string, signal?: AbortSignal) => fetchMembershipsRequest(fetch, 'members', after, signal)),
     fetchInvitations: bind((fetch: ApiTransport, after?: string, signal?: AbortSignal) => fetchMembershipsRequest(fetch, 'invitations', after, signal)),
@@ -1722,6 +1742,9 @@ export type TowerApi = ReturnType<typeof createApi>;
 
 // Compatibility only: hosted callers must use their owner's createApi instance.
 export const {
+  fetchD1Status,
+  saveD1Selection,
+  exportD1Database,
   fetchDemoPresentation,
   fetchMembers,
   fetchInvitations,

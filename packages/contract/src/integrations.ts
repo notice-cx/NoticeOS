@@ -242,6 +242,7 @@ export function acceptedAs(
  * `checkedAt` is when the answer arrived. No field ever carries a credential.
  */
 export interface ConnectFacts {
+  cloudflareD1?: { accountId: string; databases: { id: string; name: string }[] };
   /** Bing Webmaster Tools: verified sites the key can read. */
   sites?: number;
   /** Cloudflare: D1 databases the account token can list. */
@@ -679,6 +680,7 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
       { name: 'CLOUDFLARE_API_TOKEN', label: 'API token', kind: 'password', required: true, secret: true,
         link: { url: 'https://developers.cloudflare.com/fundamentals/api/get-started/account-owned-tokens/', label: 'Create token' },
         grants: ['Account: D1 Edit'] },
+      { name: 'CLOUDFLARE_D1_TARGETS', label: 'D1 databases', kind: 'json', required: false, secret: false, managed: true },
     ],
   },
   {

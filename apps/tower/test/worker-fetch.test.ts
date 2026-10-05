@@ -139,6 +139,7 @@ function refusingIngest(): TowerEnv["INGEST"] {
     deleteCredential: refuse("deleteCredential"),
     probeCredential: refuse("probeCredential"),
     connectCredential: refuse("connectCredential"),
+    cloudflareD1: refuse('cloudflareD1'),
     putSiteToken: refuse("putSiteToken"),
     beginGoogleOAuth: refuse("beginGoogleOAuth"),
     completeGoogleOAuth: refuse("completeGoogleOAuth"),
@@ -256,6 +257,13 @@ afterEach(() => {
 });
 
 describe("the Worker's fetch switch", () => {
+  it('refuses foreign-origin D1 selection and export before forwarding to ingest', async () => {
+    const path = '/api/integrations/cloudflare/d1', accountId = 'a'.repeat(32), databaseId = crypto.randomUUID();
+    for (const [method, body] of [['PUT', { version: 1, accountId, targets: [{ databaseId, asset: 'example.com' }] }], ['POST', { accountId, databaseId }]] as const) {
+      expect(await call(crossOrigin(path, method, JSON.stringify(body)))).toEqual({ status: 403, body: { error: 'forbidden' } });
+    }
+    expect(ingestCalls).toEqual([]);
+  });
   describe("/api/financials", () => {
     it("answers 200 with the payload for a month the ledger holds", async () => {
       const { status, body } = await call(get("/api/financials?period=2026-07"));

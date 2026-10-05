@@ -1,40 +1,56 @@
+import { cloudflareAccountId, d1DatabaseId, d1Record, type D1Database } from '@noticeos/contract/cloudflare-d1';
+export { cloudflareAccountId, d1DatabaseId, d1Record, type D1Database };
 /** Account-scoped D1 API calls. Only fixed provider origins receive the token. */
 export class CloudflareD1Error extends Error {
   constructor(readonly code: 'invalid_configuration' | 'access_denied' | 'rate_limited' | 'provider_unavailable' | 'invalid_response' | 'timeout' | 'too_large') {
     super(code);
   }
 }
-export interface D1Database { id: string; name: string }
-export const cloudflareAccountId = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{32}$/u.test(value);
-export const d1DatabaseId = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(value);
-export const d1Record = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+/** Bound the entire transport and body read, including a source that ignores abort. */
+export async function d1Bounded<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) {
+    // The operation may already have started before this bound was called.
+    // Consume a late rejection even when cancellation wins immediately.
+    void promise.catch(() => undefined);
+    throw new CloudflareD1Error('timeout');
+  }
+  let abort = () => {};
+  const deadline = new Promise<never>((_resolve, reject) => {
+    abort = () => reject(new CloudflareD1Error('timeout'));
+    signal.addEventListener('abort', abort, { once: true });
+  });
+  try { return await Promise.race([promise, deadline]); }
+  finally { signal.removeEventListener('abort', abort); }
+}
 
 export async function d1Api(account: string, token: string, suffix: string, options: {
   fetchImpl?: typeof fetch; signal?: AbortSignal; method?: 'GET' | 'POST'; body?: unknown;
 } = {}): Promise<Record<string, unknown>> {
   if (!cloudflareAccountId(account) || !token.trim() || /[\r\n]/u.test(token)) throw new CloudflareD1Error('invalid_configuration');
   const signal = options.signal ?? AbortSignal.timeout(10_000);
+  if (signal.aborted) throw new CloudflareD1Error('timeout');
   try {
-    const response = await (options.fetchImpl ?? fetch)(`https://api.cloudflare.com/client/v4/accounts/${account}/d1/database${suffix}`, {
+    const response = await d1Bounded((options.fetchImpl ?? fetch)(`https://api.cloudflare.com/client/v4/accounts/${account}/d1/database${suffix}`, {
       method: options.method ?? 'GET', redirect: 'error', signal,
       headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
       ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
-    });
+    }), signal);
     if (response.status === 401 || response.status === 403) throw new CloudflareD1Error('access_denied');
     if (response.status === 429) throw new CloudflareD1Error('rate_limited');
     if (!response.ok) throw new CloudflareD1Error('provider_unavailable');
     const reader = response.body?.getReader();
     if (!reader) throw new CloudflareD1Error('invalid_response');
-    let text = ''; let bytes = 0; const decoder = new TextDecoder();
+    let text = ''; let bytes = 0; let empty = 0; const decoder = new TextDecoder();
     try {
       while (true) {
-        const chunk = await reader.read();
+        const chunk = await d1Bounded(reader.read(), signal);
         if (chunk.done) break;
+        if (!chunk.value.byteLength && ++empty > 64) throw new CloudflareD1Error('invalid_response');
         bytes += chunk.value.byteLength;
         if (bytes > 1024 * 1024) throw new CloudflareD1Error('too_large');
         text += decoder.decode(chunk.value, { stream: true });
       }
-    } finally { await reader.cancel().catch(() => undefined); }
+    } finally { await d1Bounded(reader.cancel(), AbortSignal.timeout(2000)).catch(() => undefined); }
     const payload = d1Record(JSON.parse(text + decoder.decode()));
     if (!payload || payload.success !== true) throw new CloudflareD1Error('invalid_response');
     return payload;

@@ -13,6 +13,25 @@ const config = ops => request('/api/config', 'PUT', { ops });
 const mcp = (name, args = {}) => request('/api/mcp', 'POST', { jsonrpc: '2.0', id: 1,
   method: 'tools/call', params: { name, arguments: args } });
 
+test('D1 fixed Request edges reject caller-selected URLs, authority, duplicates and malformed selectors', async () => {
+  const path = '/api/integrations/cloudflare/d1', accountId = 'a'.repeat(32), databaseId = randomUUID(), runId = randomUUID();
+  for (const [original, action] of [
+    [request(path), 'integrations.summary.read'], [request(path + '?view=databases'), 'provider.read'],
+    [request(path, 'PUT', { version: 1, accountId, targets: [{ databaseId, asset: 'example.com' }] }), 'integrations.write'],
+    [request(path, 'POST', { accountId, databaseId }), 'workflows.run'],
+    [request(`${path}?view=artifact&accountId=${accountId}&databaseId=${databaseId}&runId=${runId}`), 'workflows.run'],
+  ]) {
+    assert.equal((await ingestOperation('cloudflareD1', original)).action, action);
+    await assert.rejects(ingestOperation('putCredential', original));
+  }
+  for (const original of [request(path + '?view=databases&view=databases'), request(path + '?url=https://other.example'),
+    request(path, 'POST', { accountId, databaseId, workspaceId: randomUUID() }), request(path, 'POST', { accountId: '../account', databaseId }),
+    request(path, 'PUT', { version: 1, accountId, targets: [{ databaseId, asset: 'example.com' }, { databaseId, asset: 'other.example' }] }),
+    request(`${path}?view=artifact&accountId=${accountId}&databaseId=${databaseId}&runId=../object`),
+    request(path, 'PUT', { version: 1, accountId, targets: [], profile: 'standalone' }),
+  ]) await assert.rejects(towerOperation(original));
+});
+
 test('stored GET and POST evidence keep semantic action across exact helper edges', async () => {
   assert.equal((await towerOperation(request('/api/wall'))).action, 'evidence.read');
   const original = request('/api/alerts/backtest', 'POST', { asset: 'example.test', ruleId: 'pulse_gap', config: { alpha: 0.05, minBaselinePerDay: 3, lowVolumeWindowHours: 72 } });
