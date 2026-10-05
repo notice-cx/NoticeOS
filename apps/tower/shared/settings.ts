@@ -203,6 +203,8 @@ export interface TaskHubConnection {
   dataDir: string;
   /** Host-only helper prefix; absent from deployed builds and legacy hubs. */
   initCommand?: string;
+  /** Offline repository preparation; no database or provider access. */
+  contextCommand?: string;
 }
 
 export interface TaskHubSettings {

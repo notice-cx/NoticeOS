@@ -1,5 +1,8 @@
 # Local task repository links
 
+The complete [project setup guide](../docs/project-setup.md) explains this
+host link alongside the saved asset/task mapping and agent CLI access.
+
 `installation/task-host.json` is the local host's explicit checkout inventory;
 `config/task-host.json` is the product's empty default, read only when the
 installation has none. It is read by Node services only, never seeded into

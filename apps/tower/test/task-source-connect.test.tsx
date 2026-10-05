@@ -64,7 +64,8 @@ describe("the remaining project setup steps", () => {
     expect(Array.from(document.querySelectorAll("[data-checklist-step]"), node => node.getAttribute("data-checklist-step")))
       .toEqual(["1", "2", "3"]);
     expect(screen.getByText(taskProjectInitCommand(spoke, hub)!)).toBeVisible();
-    expect(screen.getByText("Seed the freeze register")).toBeVisible();
+    expect(screen.getByText("Initialize a new task database")).toBeVisible();
+    expect(screen.getByText("Review measurement windows")).toBeVisible();
     expect(screen.getByText("Link the checkout here")).toBeVisible();
     expect(screen.queryByText("Keep it on the shared database")).toBeNull();
     expect(screen.queryByText(/\.beads\/config\.yaml/)).toBeNull();
@@ -80,7 +81,17 @@ describe("the remaining project setup steps", () => {
     expect(screen.getByText("File · /fixture/project/.beads/config.yaml")).toBeVisible();
     expect(screen.getByText("sync.remote: …")).toBeVisible();
     expect(screen.getByText(/no-git-ops: true/)).toHaveTextContent("import.auto: false");
-    expect(screen.getByText("Seed the freeze register")).toBeVisible();
+    expect(screen.getByText("Review measurement windows")).toBeVisible();
     expect(screen.getByText("Link the checkout here")).toBeVisible();
+  });
+
+  it("prepares instructions in the existing step without inventing reviewed measurement state", () => {
+    const hub = { ...HUB, initCommand: "'/fixture/node' '/fixture/scripts/dolt-project.mjs' --home '/fixture/home'",
+      contextCommand: "'/fixture/node' '/fixture/scripts/project-context.mjs' --repo . --write" };
+    render(<TaskProjectSteps spoke={spoke} hub={hub} />);
+    expect(screen.getByText("Prepare project instructions")).toBeVisible();
+    expect(screen.getByText(hub.contextCommand)).toBeVisible();
+    expect(document.querySelectorAll('[data-checklist-step]')).toHaveLength(3);
+    expect(screen.queryByText(/none registered/i)).toBeNull();
   });
 });

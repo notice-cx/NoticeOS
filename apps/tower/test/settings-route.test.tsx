@@ -1135,7 +1135,8 @@ describe("/settings — the task-hub project map", () => {
     expect(yaml.textContent).toContain("+ no-git-ops: true");
     expect(yaml.textContent).toContain("+ import.auto: false");
     // And the freeze register the project is not onboarded without.
-    expect(within(checklist).getByText("File · the project checkout/docs/freeze-register.md")).toBeTruthy();
+    expect(within(checklist).getByText("New file · the project checkout/docs/freeze-register.md")).toBeTruthy();
+    expect(checklist.textContent).toContain("Unknown — review");
     expect(within(checklist).getByText("File · installation/task-host.json · repositories")).toBeTruthy();
     expect(checklist.textContent).toContain("four steps left");
     // Titles and text to paste, no paragraph per step (bead ro-ujb9.96.6.3).

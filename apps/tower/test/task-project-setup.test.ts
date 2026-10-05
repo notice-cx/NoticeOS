@@ -18,6 +18,7 @@ describe("local task project setup", () => {
       const hub = taskProjectSetupHub("serve", legacy, { home, repoRoot: own, node: "/fixture/node" });
       expect(hub).toMatchObject({ host: "127.0.0.1", port: 5603, user: "noticeos", dataDir: path.join(home, "dolt") });
       expect(hub?.initCommand).toBe(`'/fixture/node' '${own.replaceAll("'", "'\\''")}/scripts/dolt-project.mjs' --home '${home.replaceAll("'", "'\\''")}'`);
+      expect(hub?.contextCommand).toBe(`'/fixture/node' '${own.replaceAll("'", "'\\''")}/scripts/project-context.mjs' --repo . --write`);
       // No credentials file exists: setup renders without reading a password.
       fs.writeFileSync(path.join(home, "dolt", "profile.json"), "invalid");
       expect(() => taskProjectSetupHub("serve", legacy, { home, repoRoot: own })).toThrow();
@@ -27,7 +28,8 @@ describe("local task project setup", () => {
   });
 
   it("keeps legacy setup when no explicit profile is declared", () => {
-    expect(taskProjectSetupHub("serve", legacy, { repoRoot: "/fixture/repo" })).toBe(legacy);
+    expect(taskProjectSetupHub("serve", legacy, { repoRoot: "/fixture/repo", node: "/fixture/node" }))
+      .toEqual({ ...legacy, contextCommand: "'/fixture/node' '/fixture/repo/scripts/project-context.mjs' --repo . --write" });
     expect(taskProjectSetupHub("build", legacy, { repoRoot: "/fixture/repo" })).toBeNull();
   });
 });

@@ -4,6 +4,7 @@ import { type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import type { TaskHubConnection, TaskHubSpoke } from "@shared/settings";
+import initialFreezeRegister from "../../../../docs/templates/project-freeze-register.md?raw";
 import {
   TASK_SOURCES_PATH,
   BEADS,
@@ -87,8 +88,8 @@ export function taskProjectInitCommand(spoke: Pick<TaskHubSpoke, "prefix" | "dat
  * TITLES AND THE TEXT TO PASTE, NOTHING ELSE (bead `ro-ujb9.96.6.3`). The text
  * to paste already does the right thing: the command carries `--external`, the
  * legacy config edit is drawn as a diff; the host helper performs that edit
- * itself. The register template already says
- * "none registered", and the host entry is filled in from the row.
+ * itself. Repository preparation preserves existing instructions and starts
+ * absent measurement state as unknown; the host entry comes from the row.
  */
 export function TaskProjectSteps({
   spoke,
@@ -118,7 +119,7 @@ export function TaskProjectSteps({
         ) : null}
       </div>
 
-      <ChecklistStep n={1} title="Point the repo at the task server">
+      <ChecklistStep n={1} title="Initialize a new task database">
         <CommandBlock command={taskProjectInitCommand(spoke, hub)} label={`Terminal · run in ${checkout}`} fallback={NO_HUB_CONNECTION} />
       </ChecklistStep>
       {!usesHostHelper ? <ChecklistStep n={2} title="Keep it on the shared database">
@@ -128,10 +129,10 @@ export function TaskProjectSteps({
           label={`File · ${checkout}/.beads/config.yaml`}
         />
       </ChecklistStep> : null}
-      <ChecklistStep n={usesHostHelper ? 2 : 3} title="Seed the freeze register">
+      <ChecklistStep n={usesHostHelper ? 2 : 3} title={hub?.contextCommand ? "Prepare project instructions" : "Review measurement windows"}>
         <CommandBlock
-          command={`# Freeze register — ${spoke.asset}\n\n## Active freezes\n\nnone registered\n\n## Closed windows\n\nnone registered`}
-          label={`File · ${checkout}/docs/freeze-register.md`}
+          command={hub?.contextCommand ?? initialFreezeRegister}
+          label={hub?.contextCommand ? `Terminal · run in ${checkout}` : `New file · ${checkout}/docs/freeze-register.md`}
         />
       </ChecklistStep>
       <ChecklistStep n={usesHostHelper ? 3 : 4} title="Link the checkout here">

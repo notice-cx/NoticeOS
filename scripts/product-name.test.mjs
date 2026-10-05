@@ -70,13 +70,6 @@ export const SHARED_BLOCKS = Object.freeze([
     bead: null,
     why: 'The list of legacy names says what the product was called, once, so a contributor can recognize every old name still in use.',
   }),
-  Object.freeze({
-    file: 'config/beads.README.md',
-    begin: '<!-- spoke-stanza:begin -->',
-    end: '<!-- spoke-stanza:end -->',
-    bead: 'ro-ujb9.77.7',
-    why: 'The spoke stanza is duplicated byte-identical in every project repository (scripts/spoke-stanza.test.mjs); it is renamed when all of them are re-stamped.',
-  }),
 ]);
 
 /** This installation's own folder, repo-relative with a trailing slash, or

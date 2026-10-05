@@ -11,13 +11,16 @@ export function taskProjectSetupHub(
   { home, repoRoot, node = process.execPath }: { home?: string; repoRoot: string; node?: string },
 ): TaskHubConnection | null {
   if (command !== "serve") return null;
-  if (!home) return legacy;
+  const contextCommand = `${quote(node)} ${quote(path.resolve(repoRoot, "scripts/project-context.mjs"))} --repo . --write`;
+  const existing = legacy ? { ...legacy, contextCommand } : null;
+  if (!home) return existing;
   const ownHome = path.resolve(home);
   const profile = readDoltProfile(ownHome);
-  if (!profile) return legacy;
+  if (!profile) return existing;
   return {
     host: "127.0.0.1", port: profile.port, user: "noticeos",
     dataDir: path.dirname(profile.credentialsFile),
     initCommand: `${quote(node)} ${quote(path.resolve(repoRoot, "scripts/dolt-project.mjs"))} --home ${quote(ownHome)}`,
+    contextCommand,
   };
 }

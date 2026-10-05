@@ -140,6 +140,25 @@ they leave with `installation/` at the public release (D33). There are none
 today: the by-hand pulse relay reads its sites from the saved pull roster, so
 it is the product's `pnpm pulse:relay` (bead `ro-ujb9.158`).
 
+# Prepare an asset repository's context
+
+Follow [the complete project setup guide](../docs/project-setup.md), then run
+from the NoticeOS source checkout:
+
+```sh
+pnpm project:prepare -- --repo /absolute/project-checkout --check
+pnpm project:prepare -- --repo /absolute/project-checkout --write
+```
+
+This command only prepares local repository files. It appends the canonical
+task instructions without replacing existing project rules, creates an
+unknown-state freeze register only when absent, excludes local task connections
+from Git, and creates a private shared lock for an existing `.beads/` folder.
+It never initializes a database, changes credentials, saves settings or calls
+an installed service. Review and commit the intended context files in the
+asset repository. Existing tracked task state or conflicting instruction blocks
+require explicit reconciliation; the command refuses them.
+
 # The local runner (`os-up`)
 
 This is the piece that makes *"the OS runs on the operator's Mac for a while"*

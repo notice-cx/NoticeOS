@@ -43,6 +43,7 @@ Start with [00](00-objective-and-roi.md) (what the product is for) and
 | `reports/` (excluded from public source) | Historical audits referenced by dated documents |
 | [`runbooks/`](runbooks/) | Step-by-step operations |
 | [`freeze-register.md`](freeze-register.md) | Surfaces inside a measurement window |
+| [`project-setup.md`](project-setup.md) | Connect an asset repository, task hub, agent context and data sources |
 
 ## The design, in eight principles
 

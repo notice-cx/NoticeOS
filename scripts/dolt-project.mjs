@@ -92,8 +92,8 @@ export async function initDoltProject({ home, repo, prefix, database }, { env = 
     const configFile = path.join(repo, '.beads', 'config.yaml');
     const stat = fs.lstatSync(configFile);
     if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('Invalid spoke config.');
-    const config = fs.readFileSync(configFile, 'utf8').split('\n').filter(line => !/^\s*(?:sync\.remote|no-git-ops|import\.auto)\s*:/u.test(line)).join('\n');
-    fs.writeFileSync(configFile, `${config.trimEnd()}\nno-git-ops: true\nimport.auto: false\n`, { mode: 0o600 });
+    const config = fs.readFileSync(configFile, 'utf8').split('\n').filter(line => !/^\s*(?:sync\.remote|no-git-ops|import\.auto|export\.auto)\s*:/u.test(line)).join('\n');
+    fs.writeFileSync(configFile, `${config.trimEnd()}\nno-git-ops: true\nimport.auto: false\nexport.auto: false\n`, { mode: 0o600 });
     return { ok: true };
   } catch { return refusal('Task initialization was refused or did not finish; any files were preserved for explicit recovery.'); }
   finally { if (lock) fs.rmSync(lock, { recursive: true, force: true }); }

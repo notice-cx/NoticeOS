@@ -26,7 +26,7 @@ function fixture(t) {
     calls.push({ bin, args, options });
     if (args[0] === 'init') {
       fs.mkdirSync(path.join(repo, '.beads'));
-      fs.writeFileSync(path.join(repo, '.beads', 'config.yaml'), 'sync.remote: bad\nno-git-ops: false\nimport.auto: true\n');
+      fs.writeFileSync(path.join(repo, '.beads', 'config.yaml'), 'sync.remote: bad\nno-git-ops: false\nimport.auto: true\nexport.auto: true\n');
     }
     return { code: 0, stdout: args[0] === 'version' ? 'bd version 1.3.1 (fixture)' : args.includes('rev-parse') ? fs.realpathSync(repo) : '', stderr: '' };
   };
@@ -50,6 +50,8 @@ test('operator and fresh setup share one fixed init with init-only own password,
   const yaml = fs.readFileSync(path.join(f.args.repo, '.beads', 'config.yaml'), 'utf8');
   assert.equal(yaml.includes('sync.remote:'), false);
   assert.match(yaml, /no-git-ops: true\nimport.auto: false/u);
+  assert.match(yaml, /export.auto: false/u);
+  assert.doesNotMatch(yaml, /export.auto: true/u);
   assert.equal(fs.existsSync(path.join(f.args.home, 'dolt', '.project-init-lock')), false);
 });
 

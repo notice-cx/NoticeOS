@@ -6,6 +6,9 @@ integrations map into this model. New installations provision their own hub
 and NoticeOS task project through `pnpm start`; additional projects join the
 same hub using the setup below.
 
+Start with [Connect a project](../docs/project-setup.md) for the complete path:
+asset, task database, repository access, agent context and data sources.
+
 Operators manage work on NoticeOS's Tasks page; a supported NoticeOS task API
 is planned (`ro-ujb9.260`). Beads and Dolt are internal infrastructure. The
 packaged application runtime must bundle `bd`, while Dolt keeps the durable task state.
@@ -103,6 +106,8 @@ mapping writes before the store call; other Settings remain editable. Host
 paths and connection details are omitted from hosted payloads, including
 compiled fallbacks. Adding a row does not provision a database or checkout:
 the local page supplies three setup steps for Compose, four for a legacy hub.
+The context step prepares repository instructions and an unknown-state freeze
+register; review measurement state before changing measured surfaces.
 Editing an export has no runtime
 effect until an explicit guarded configuration apply.
 
@@ -220,8 +225,8 @@ off-machine, a stanza plus this pointer degrades gracefully).
 - Beads close the session their work lands: no time-gated acceptance criteria — close on same-day proof, name the recurrence signal in the close reason, and let recurrence file a fresh bead. Too big for one session = a `-t epic` parent with session-sized children.
 - Structure: group 3+ related beads under a `-t epic` parent; `bd dep` only for REAL blocking edges (triage ranking trusts them); `bd update --defer` time-blocked work with a reason.
 - Needs the operator (a decision, credential, admin step)? Label it `human` — `bd human list` is the operator inbox. A step that must block until approval: `bd gate create --type human`; approval is a gate, never an assumption.
-- Work handed off from the ReindexOS Tower arrives as a ready-made `bd create` command carrying `reindex_*` metadata and labels — run it as given and keep the labels; they are join keys.
-- Full contract (quality bar, spoke config standard, conventions): `~/dev/reindex-os/config/beads.README.md` — read it before nontrivial filing or closing.
+- Work handed off from the NoticeOS Tower arrives as a ready-made `bd create` command carrying `noticeos_*` metadata and labels — run it as given and keep the labels; they are join keys. Older handoffs retain their original metadata.
+- Full contract (quality bar, spoke config standard, conventions): the NoticeOS task-hub contract linked in this repository's context pack — read it before nontrivial filing or closing.
 <!-- spoke-stanza:end -->
 
 ## Semantics worth knowing
