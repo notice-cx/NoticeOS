@@ -70,6 +70,7 @@ describe("the Wall's issue list", () => {
       expect.objectContaining({ key: "calendar-read", severity: "warn" }),
     ]);
     expect(wallIssues({ ...input, calendarState: "loading" })).toEqual([]);
+    expect(wallIssues({ ...input, calendarState: "retrying" })).toEqual([]);
     expect(wallIssues(input)).toEqual([]);
   });
   it("puts errors before warnings and the newest first within each", () => {

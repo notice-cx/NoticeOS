@@ -146,18 +146,25 @@ Binding; Google credentials never enter this Worker or the browser. An open
 Home/Wall polls every 30 seconds. Each configured asset returns either
 distinct active users for the overlapping trailing 30- and 5-minute windows or
 an explicit error with null values. The client retains last-good values while
-reconnecting, and failure cannot delay or blank `/api/wall`.
+reconnecting, including same-tab reloads through verified-owner session storage.
+Pending hourly reads keep valid same-day comparisons; refusals replace readings
+and previous-day hours never read as Today. Failure cannot delay or blank `/api/wall`.
 
 `GET /api/calendar/upcoming` is the same arrangement for the Wall strip's
 next meeting (bead `ro-c0d2`): the Tower Worker calls ingest's
 `calendarUpcoming()` over the private `INGEST` Service Binding, so the operator's
 ICS feed URLs never enter this Worker or the browser, and a thrown read becomes
-`503 calendar_upcoming_unavailable` carrying nothing from behind the boundary. An
-open Wall (or its editor) polls every 60 seconds and keeps the last good snapshot
-through failed reads. Loading and failed reads stay visible; failures also enter
-Needs you. Cached events show their reading age, partial reads show a warning,
-and recovery clears the failure. No configured feeds hides the widget. This
-browser cache lasts until reload; ingest caches feed rounds for five minutes.
+`503 calendar_upcoming_unavailable` with an allowlisted reason and `Retry-After`,
+never feed addresses or raw diagnostics. A structured `calendar_read_deferred`
+log records that reason and delay. An open Wall (or its editor) polls every
+60 seconds while healthy and retains events across failed reads and same-tab
+reloads in verified-owner session storage. Failed reads say Retrying automatically;
+the third consecutive failed attempt enters Needs you. Partial rounds retain
+failed feeds' events and warn after three attempts. Recovery resets the count.
+Retries back off from 30 seconds to five minutes and respect server retry hints;
+focus/reconnect cannot bypass them. No configured feeds hides the widget.
+Ingest caches feed rounds for five minutes; losing cache bytes during a held
+cooldown can defer a read without contacting the provider.
 See [the Wall calendar contract](../../docs/25-the-wall.md).
 
 The strip's clock is deliberately browser-local and ticks inside its own

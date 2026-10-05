@@ -81,14 +81,17 @@ export async function cachedProviderRead<T, Failure extends ProviderReadFailure>
     throw new ProviderReadCacheError('coordination_unavailable', at, new Date(nowMs + policy.failureRetryMs).toISOString());
   }
   if (!claim) {
-    const [held] = await context.store.read((tx) => tx.query<{ cooldown_until: string | null; last_error: string | null }>(
-      'SELECT cooldown_until, last_error FROM noticeos.integration_leases WHERE lease_key = $1', [lease]));
+    const [held] = await context.store.read((tx) => tx.query<{ cooldown_until: string | null; expires_at: string; last_error: string | null }>(
+      'SELECT cooldown_until, expires_at, last_error FROM noticeos.integration_leases WHERE lease_key = $1', [lease]));
     if (held && held.cooldown_until !== null && instantMs(held.cooldown_until) > nowMs && held.last_error) {
       const failure = JSON.parse(held.last_error) as Failure;
       return failure;
     }
     if (prior) return prior;
-    throw new ProviderReadCacheError('in_progress', at, new Date(nowMs + policy.leaseMs).toISOString());
+    const retryAt = Math.max(nowMs + 1_000,
+      held?.cooldown_until ? instantMs(held.cooldown_until) : 0,
+      held ? instantMs(held.expires_at) : 0);
+    throw new ProviderReadCacheError('in_progress', at, new Date(retryAt).toISOString());
   }
   // Inside the last success's cooldown: only a caller with nothing cached gets
   // here, and its release (below) holds the lease through its own cooldown.

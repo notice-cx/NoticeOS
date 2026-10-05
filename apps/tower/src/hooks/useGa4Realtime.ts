@@ -1,8 +1,11 @@
 import { useDemoReadonly } from '@/lib/browser-context';
-import { useTowerApi } from '@/lib/browser-context';
-import { keepPreviousData, replaceEqualDeep, useQuery } from "@tanstack/react-query";
+import { useBrowserRuntime } from '@/lib/browser-context';
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Ga4RealtimeAsset, Ga4RealtimePayload } from "@noticeos/contract";
 import { revenueCalendarDate } from "@shared/daily-revenue";
+import { useMemo } from "react";
+import { createDisplayCache } from "@/lib/display-cache";
+import { isGa4RealtimePayload } from "@/lib/api";
 
 
 /** Realtime is isolated from the Wall read model: a slow provider must never
@@ -10,11 +13,28 @@ import { revenueCalendarDate } from "@shared/daily-revenue";
  * and a read merely in progress keeps what the Wall drew (`keepReadingsInProgress`). */
 export function useGa4Realtime() {
   const demoReadonly = useDemoReadonly();
-  const { fetchGa4Realtime } = useTowerApi();
+  const runtime = useBrowserRuntime();
+  const client = useQueryClient();
+  const display = useMemo(() => {
+    let storage: Storage | undefined;
+    try { storage = window.sessionStorage; } catch { /* The in-memory cache still works. */ }
+    const active = () => { if (runtime.guard(() => true)() !== true) throw new Error("This browser context is no longer active."); };
+    const cache = createDisplayCache(runtime.owner, storage, active, runtime.assertReadable, "ga4-realtime",
+      (value): value is Ga4RealtimePayload => isGa4RealtimePayload(value) && value.assets.some(asset => asset.status === "success"));
+    const saved = demoReadonly ? undefined : cache.read();
+    return { cache, saved: saved ? currentDayReadings(saved, new Date(Date.now()).toISOString()) : undefined };
+  }, [runtime, demoReadonly]);
   return useQuery<Ga4RealtimePayload>({
     enabled: !demoReadonly,
     queryKey: ["ga4-realtime"],
-    queryFn: ({ signal }) => fetchGa4Realtime(signal),
+    initialData: display.saved,
+    initialDataUpdatedAt: display.saved ? Date.parse(display.saved.generatedAt) : undefined,
+    queryFn: async ({ signal }) => {
+      const next = await runtime.api.fetchGa4Realtime(signal);
+      const held = keepReadingsInProgress(client.getQueryData<Ga4RealtimePayload>(["ga4-realtime"]), next);
+      display.cache.write(held);
+      return held;
+    },
     refetchInterval: (query) => {
       const assets = query.state.data?.assets;
       if (!assets?.length || assets.some((asset) => asset.status === 'success')) return 30_000;
@@ -23,8 +43,6 @@ export function useGa4Realtime() {
     },
     refetchIntervalInBackground: false,
     placeholderData: keepPreviousData,
-    structuralSharing: (previous, next) =>
-      replaceEqualDeep(previous, keepReadingsInProgress(previous as Ga4RealtimePayload | undefined, next as Ga4RealtimePayload)),
     staleTime: 20_000,
     retry: 1,
   });
@@ -34,6 +52,14 @@ export function useGa4Realtime() {
 const READ_IN_PROGRESS = "ga4_read_in_progress";
 
 type Reading = Extract<Ga4RealtimeAsset, { status: "success" }>;
+
+/** A reload may restore live readings, but yesterday's hours cannot be Today. */
+export function currentDayReadings(saved: Ga4RealtimePayload, nowIso: string): Ga4RealtimePayload {
+  return { ...saved, assets: saved.assets.map(asset =>
+    asset.status === "success" && asset.hourlyActiveUsers !== null && !hoursStillToday(asset, asset.timeZone, nowIso)
+      ? { ...asset, hourlyActiveUsers: null, hourlyErrorCode: READ_IN_PROGRESS }
+      : asset) };
+}
 
 /**
  * A read that is merely in progress says nothing new about a site, so it never

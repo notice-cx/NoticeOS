@@ -84,13 +84,16 @@ row "body"   fill  [ column 3.1 ┌ row auto [ revenue 1.55 ][ needs 1 ] ┐ ][ 
   the clock; duration suffixes have their own smaller gap from the numerals.
   Up next or Now sits on the supporting row. A clear day reads
   "No meetings today" only follows a readable calendar. A pending first read
-  says Loading events; a failed read stays visible and adds a Calendar alert
-  to Needs you, with Integrations as the repair destination. Failed reads retain
-  the last readable events with their age; a partially readable calendar shows
-  a warning and never claims an unreadable calendar is clear. Recovery clears
-  the alert automatically. An unconfigured calendar leaves the group out.
-  Provider results are reused for five minutes; the browser polls each minute.
-  Its last-good snapshot is held in memory and does not survive a full reload.
+  says Loading events. Failed reads retain the last readable events with their
+  age and say Retrying automatically. The first two failed attempts stay neutral;
+  the third adds a Calendar alert to Needs you, with Integrations as the repair
+  destination. Partial reads retain failed feeds' events and become a warning
+  after three attempts; an unreadable calendar never reads as clear. Recovery
+  clears the failure count and alert. An unconfigured calendar leaves the group out.
+  Provider results are reused for five minutes; healthy browser reads poll each
+  minute. Failures back off from 30 seconds to five minutes and honor the server's
+  retry time. Focus/reconnect cannot bypass that time. The last readable snapshot
+  survives same-tab reloads in session storage scoped to the verified browser owner.
 - The countdown uses two aligned columns: emoji/event name above a plain
   large number and muted unit. The event name uses the intermediate type step;
   its emoji matches that size and appears only when set. Reaching the target has
@@ -175,7 +178,7 @@ row "body"   fill  [ column 3.1 ┌ row auto [ revenue 1.55 ][ needs 1 ] ┐ ][ 
 | Today vs last *weekday* | Today by hour, solid, in the pace's tone over a light wash of it, over the same weekday last week, dashed and neutral; the hour still filling is the now point — a dot with a halo that breathes while the day is counted (still under reduced motion). The arrow and pace % ("↓10%") overlay the chart’s upper-right corner in smaller type, with the completed-hours cutoff ("to 6 AM") small and muted in the cell's bottom-right corner or the one-site tile's heading. The cutoff takes no chart width (bead `ro-trai.51`): completed hours only (`intradayUsersPace`), and **no % until those hours can carry a verdict** (bead `ro-trai.43`, `PACE_VERDICT_MINIMUM` in `lib/intraday-pace.ts`: at least 4 completed hours with processed data and 100 of last week's users in them) — before that the window alone, muted ("to 2 AM"), and no tone. GA4 processes hours 2–6 h behind the clock, so the now point breathes **at the clock** on the operator's zone: on today's line while its newest hour is the clock's, otherwise on the floor with today's line ending in a still dot where the data ends — the gap is the provider's lag. **The pace’s color follows its direction** (operator, 2026-09-30): positive is **green, ahead**; exact equality is **neutral, on pace**; negative through −40% is **amber, behind**; below −40% is **red, behind** — for the line, its wash, the now point and the %, in the rows and the one-site tile alike, and always beside the arrow and percentage, never color alone; the accessible description spells out ahead, behind or on pace. One derivation, `paceTone` in `components/DeltaChip.tsx`, colours every pace the Tower draws; the tokens are `pace-on` / `pace-behind` / `pace-far-behind` (doc 14). While the hours are merely being read elsewhere, the chart and the pace stay as last drawn until a new day or clock (`keepReadingsInProgress` in `hooks/useGa4Realtime.ts`, bead `ro-trai.40`). |
 | 4 weeks | Daily active users over the last four finished weeks as one line in the `traffic` identity colour (doc 14; the daily bars move to the site page), over the four weeks before as the charts' comparison line — dashed, neutral, each day above the same weekday — with the first and last day at the chart's two ends, small and muted ("Aug 25 … Sep 21", a span, not a legend). The same two spans' change, "↑ 18% / vs prior 4 wk", sits immediately to the plot’s right in smaller type, aligned with its top edge and leaving recent days clear: the last 28 finished days' total against the 28 before (bead `ro-trai.26`, operator 2026-09-23). The dashed weeks and the % need all 56 days; with fewer, both are left out, never drawn as 0. Neutral when the 56 days span a reporting-timezone change. One derivation, `fourWeeks` in `lib/wall-sites.ts`. Today’s chart keeps no end ticks at row size. |
 
-When current-day hourly observations are unavailable, the traffic cell shows the newest actual finished GA4 daily observation as **Latest day**, with its stored date; collection age appears when stale or unknown. Missing days remain absent; measured zero remains zero. The Live cell retains its own unknown or stale state. A retained hourly snapshot from a previous calendar day never reads as Today. Site names wrap within their existing column, leaving favicon and health marks visible.
+When current-day hourly observations are unavailable, the traffic cell shows the newest actual finished GA4 daily observation as **Latest day**, with its stored date; collection age appears when stale or unknown. Missing days remain absent; measured zero remains zero. The Live cell retains its own unknown or stale state. Same-tab reloads restore verified-owner readings while an hourly read is in progress, retaining their original observation dates. Refusals replace readings; a previous calendar day's hours or hours on a changed clock never read as Today. Site names wrap within their existing column, leaving favicon and health marks visible.
 
 A second line shows selected asset-owned pulse totals, such as accounts and
 leads, with the configured heading. The Wall editor lists each asset’s

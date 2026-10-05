@@ -168,13 +168,13 @@ export function WallStrip({ countdown, meetings, calendarState, heldSince = null
   ) : null;
   const calendarCaption = calendarState ? (
     <span
-      className={cn("flex items-center gap-1.5 text-wall-strip-label tabular-nums", calendarState === "failed" ? "text-error" : calendarState === "partial" ? "text-warn" : "text-muted-foreground")}
+      className={cn("flex items-center gap-1.5 text-wall-strip-label tabular-nums", calendarState === "partial" ? "text-warn" : "text-muted-foreground")}
       data-strip-calendar-status={calendarState}
     >
-      {calendarState !== "loading" ? <ClockAlert className="size-4 shrink-0" aria-hidden /> : null}
+      {calendarState === "partial" ? <ClockAlert className="size-4 shrink-0" aria-hidden /> : null}
       {calendarState === "loading" ? "Loading events…"
         : calendarState === "partial" ? "Some calendars unavailable"
-        : meeting !== null && meetings ? `Cached · ${formatAge(ageMs(nowMs, meetings.fetchedAt))} old · retrying`
+        : meeting !== null && meetings ? `Retrying automatically · cached ${formatAge(ageMs(nowMs, meetings.fetchedAt))} old`
         : "Retrying automatically"}
     </span>
   ) : null;
@@ -230,7 +230,7 @@ export function WallStrip({ countdown, meetings, calendarState, heldSince = null
         <span className="wall-strip-divider border-border/60" aria-hidden data-strip-separator />
         {meeting !== null ? (
           meeting === "none-today" ? (
-            <span className="text-wall-strip-time font-medium text-muted-foreground" data-strip-meeting="none" data-strip-primary>{calendarState === "partial" ? "Calendar incomplete" : calendarState === "failed" ? "No cached meetings today" : "No meetings today"}</span>
+            <span className="text-wall-strip-time font-medium text-muted-foreground" data-strip-meeting="none" data-strip-primary>{calendarState === "partial" ? "Calendar incomplete" : calendarState === "failed" || calendarState === "retrying" ? "No cached meetings today" : "No meetings today"}</span>
           ) : (
             <div className="wall-strip-meeting" data-strip-meeting>
               <div className="wall-strip-meeting-primary min-w-0 text-wall-strip-time font-medium tracking-tight" data-strip-primary>
@@ -245,7 +245,7 @@ export function WallStrip({ countdown, meetings, calendarState, heldSince = null
               </div>
             </div>
           )
-        ) : <span className={cn("text-wall-strip-time font-medium", calendarState === "failed" ? "text-error" : "text-muted-foreground")} role={calendarState === "failed" ? "alert" : undefined} data-strip-primary>{calendarState === "failed" ? "Calendar unavailable" : calendarState === "loading" ? "Calendar" : "Reconnecting"}</span>}
+        ) : <span className="text-wall-strip-time font-medium text-muted-foreground" data-strip-primary>{calendarState ? "Calendar" : "Reconnecting"}</span>}
         {meeting === null || meeting === "none-today" ? <div className="flex min-w-0 flex-wrap gap-x-3" data-strip-meta>{calendarCaption}{heldCaption}</div> : null}
       </div> : null}
       {countdown && left !== null ? (

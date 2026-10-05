@@ -29,6 +29,7 @@ const snapshot: CalendarUpcoming = {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("GET /api/calendar/upcoming", () => {
@@ -47,6 +48,7 @@ describe("GET /api/calendar/upcoming", () => {
   });
 
   it("answers a failed read with a code and nothing from behind the binding", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const ingest = {
       calendarUpcoming: vi
         .fn()
@@ -60,10 +62,24 @@ describe("GET /api/calendar/upcoming", () => {
 
     expect(res.status).toBe(503);
     const body = await res.text();
-    expect(JSON.parse(body)).toEqual({ error: "calendar_upcoming_unavailable" });
+    expect(JSON.parse(body)).toEqual({ error: "calendar_upcoming_unavailable", reason: "calendar_read_unavailable" });
+    expect(res.headers.get("retry-after")).toBe("30");
     // The feed URL is the operator's secret; a leaked one is a leaked calendar.
     expect(body).not.toContain("cal.example");
     expect(body).not.toContain("private-abc123");
+    expect(JSON.stringify(warn.mock.calls)).not.toContain("private-abc123");
+  });
+
+  it("reports a cold cache cooldown safely and tells the browser when to retry", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const ingest = { calendarUpcoming: vi.fn().mockRejectedValue(Object.assign(new Error("private diagnostic"), {
+      code: "calendar_read_in_progress", nextAttemptAt: new Date(Date.now() + 120_000).toISOString(),
+    })) };
+    const response = await handleCalendarUpcomingRequest(new Request("http://tower.local/api/calendar/upcoming"), ingest);
+    expect(response.status).toBe(503);
+    expect(Number(response.headers.get("retry-after"))).toBeGreaterThanOrEqual(119);
+    expect(Number(response.headers.get("retry-after"))).toBeLessThanOrEqual(120);
+    await expect(response.json()).resolves.toEqual({ error: "calendar_upcoming_unavailable", reason: "calendar_read_in_progress" });
   });
 
   it("is a read: nothing else reaches the binding", async () => {
@@ -209,12 +225,11 @@ describe("useCalendarUpcoming", () => {
     document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
   }
 
-  function renderCalendar() {
+  function renderCalendar(client = new QueryClient({
+    defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
+  })) {
     // The desk's own defaults (src/main.tsx): no focus refetch unless a hook
     // asks for one, one retry.
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
-    });
     const hook = renderHook(() => useCalendarUpcoming(), {
       wrapper: ({ children }) => (
         <QueryClientProvider client={client}>{children}</QueryClientProvider>
@@ -225,6 +240,8 @@ describe("useCalendarUpcoming", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.setSystemTime(new Date(snapshot.fetchedAt));
+    window.sessionStorage.clear();
     visibility = "visible";
     Object.defineProperty(document, "visibilityState", { configurable: true, get: () => visibility });
     // The TV's browser window is never the focused one.
@@ -275,26 +292,60 @@ describe("useCalendarUpcoming", () => {
     fetchSpy.mockImplementation(async () =>
       Response.json({ error: "calendar_upcoming_unavailable" }, { status: 503 }),
     );
-    // The minute's poll, then its one retry. The panel reads this cache entry.
-    await vi.advanceTimersByTimeAsync(60_000 + 5_000);
+    // One scheduled attempt per read, with 30s then 60s backoff.
+    await vi.advanceTimersByTimeAsync(60_000 + 30_000);
     expect(fetchSpy).toHaveBeenCalledTimes(3);
     const state = client.getQueryState(["calendar-upcoming"]);
     expect(state?.status).toBe("error");
     expect(state?.data).toEqual(snapshot);
   });
 
-  it("exposes an initial failed read and clears it when the next poll recovers", async () => {
+  it("quietly retries twice, alerts on the third failure, and resets after recovery", async () => {
     fetchSpy.mockImplementation(async () => Response.json({ error: "calendar_upcoming_unavailable" }, { status: 503 }));
     const hook = renderCalendar();
     expect(calendarReadState(hook.result.current)).toBe("loading");
-    await vi.advanceTimersByTimeAsync(5_000);
-    expect(calendarReadState(hook.result.current)).toBe("failed");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calendarReadState(hook.result.current)).toBe("retrying");
     expect(hook.result.current.data).toBeUndefined();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(29_999);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(calendarReadState(hook.result.current)).toBe("retrying");
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    await vi.waitFor(() => expect(calendarReadState(hook.result.current)).toBe("failed"));
 
     fetchSpy.mockImplementation(async () => Response.json(snapshot));
-    await vi.advanceTimersByTimeAsync(60_000);
-    expect(calendarReadState(hook.result.current)).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(120_000);
+    await vi.waitFor(() => expect(calendarReadState(hook.result.current)).toBeUndefined());
     expect(hook.result.current.data).toEqual(snapshot);
+    fetchSpy.mockImplementation(async () => Response.json({}, { status: 503 }));
+    await vi.advanceTimersByTimeAsync(60_000);
+    await vi.waitFor(() => expect(hook.result.current.consecutiveFailures).toBe(1));
+    expect(calendarReadState(hook.result.current)).toBe("retrying");
+  });
+
+  it("restores event information after reload and honors Retry-After without a request burst", async () => {
+    const first = renderCalendar();
+    await vi.advanceTimersByTimeAsync(0);
+    first.unmount();
+    first.client.clear();
+    await vi.advanceTimersByTimeAsync(30_001);
+    fetchSpy.mockImplementation(async () => Response.json({}, { status: 503, headers: { "retry-after": "180" } }));
+    const reloaded = renderCalendar();
+    expect(reloaded.result.current.data).toEqual(snapshot);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(reloaded.result.current.data?.meetings[0]?.title).toBe("Standup");
+    expect(calendarReadState(reloaded.result.current)).toBe("retrying");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    setVisibility("hidden");
+    await vi.advanceTimersByTimeAsync(60_000);
+    setVisibility("visible");
+    await vi.advanceTimersByTimeAsync(119_999);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
   });
 
   it("holds readable events when all feeds fail, then accepts recovery and removal", async () => {
@@ -304,16 +355,32 @@ describe("useCalendarUpcoming", () => {
       ...snapshot, feedsOk: 0, meetings: [],
       calendars: snapshot.calendars.map(feed => ({ ...feed, status: "unreachable" })),
     }));
-    await vi.advanceTimersByTimeAsync(65_000);
-    expect(calendarReadState(hook.result.current)).toBe("failed");
+    await vi.advanceTimersByTimeAsync(60_000);
+    await vi.waitFor(() => expect(calendarReadState(hook.result.current)).toBe("retrying"));
     expect(hook.result.current.data).toEqual(snapshot);
 
     fetchSpy.mockImplementation(async () => Response.json(snapshot));
-    await vi.advanceTimersByTimeAsync(60_000);
-    expect(calendarReadState(hook.result.current)).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(240_000);
+    await vi.waitFor(() => expect(calendarReadState(hook.result.current)).toBeUndefined());
     fetchSpy.mockImplementation(async () => Response.json({ ...snapshot, feedsConfigured: 0, feedsOk: 0, calendars: [], meetings: [] }));
     await vi.advanceTimersByTimeAsync(60_000);
+    await vi.waitFor(() => expect(hook.result.current.data?.feedsConfigured).toBe(0));
     expect(calendarReadState(hook.result.current)).toBeUndefined();
     expect(hook.result.current.data?.feedsConfigured).toBe(0);
+  });
+
+  it("keeps the retry deadline when the calendar observer remounts without any cached events", async () => {
+    fetchSpy.mockImplementation(async () => Response.json({}, { status: 503, headers: { "retry-after": "180" } }));
+    const first = renderCalendar();
+    await vi.advanceTimersByTimeAsync(0);
+    first.unmount();
+    await vi.advanceTimersByTimeAsync(60_000);
+    const returned = renderCalendar(first.client);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(returned.result.current.consecutiveFailures).toBe(1);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => expect(returned.result.current.consecutiveFailures).toBe(2));
   });
 });

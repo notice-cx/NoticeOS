@@ -482,11 +482,15 @@ describe("the top strip", () => {
   });
 
   it("alerts an independent calendar failure, retains events, and clears on recovery", () => {
-    const view = render(<WallCanvas layout={DEFAULT_WALL_LAYOUT} data={PAYLOAD} nowMs={NOW} meetings={MEETINGS} calendarState="failed" />);
+    const view = render(<WallCanvas layout={DEFAULT_WALL_LAYOUT} data={PAYLOAD} nowMs={NOW} meetings={MEETINGS} calendarState="retrying" />);
     expect(view.container.querySelector("[data-strip-meeting-title]")).toHaveTextContent("Standup");
-    expect(view.container.querySelector("[data-strip-calendar-status]")).toHaveTextContent("Cached");
+    expect(view.container.querySelector("[data-strip-calendar-status]")).toHaveTextContent("Retrying automatically");
+    expect(view.container.querySelector("[data-wall-needs] [role='alert']")).toBeNull();
+    view.rerender(<WallCanvas layout={DEFAULT_WALL_LAYOUT} data={PAYLOAD} nowMs={NOW} meetings={MEETINGS} calendarState="failed" />);
+    expect(view.container.querySelector("[data-strip-meeting-title]")).toHaveTextContent("Standup");
+    expect(view.container.querySelector("[data-strip-calendar-status]")).toHaveTextContent("cached");
     expect(view.container.querySelector("[data-wall-needs] [role='alert']")).toHaveTextContent("Calendar");
-    expect(view.container.querySelector("[data-wall-needs] [role='alert']")).toHaveTextContent("Events unavailable");
+    expect(view.container.querySelector("[data-wall-needs] [role='alert']")).toHaveTextContent("Events not updating");
 
     view.rerender(<WallCanvas layout={DEFAULT_WALL_LAYOUT} data={PAYLOAD} nowMs={NOW} meetings={MEETINGS} />);
     expect(view.container.querySelector("[data-strip-calendar-status]")).toBeNull();

@@ -159,6 +159,10 @@ async function fetchGa4RealtimeRequest(fetch: ApiTransport,
 /** The Wall's next-meetings snapshot. Like the realtime read, the Tower Worker
  * proxies a private ingest Service Binding, so this browser call never sees a
  * calendar feed URL. */
+export class CalendarUpcomingReadError extends Error {
+  constructor(message: string, readonly retryAt?: number, readonly consecutiveFailures = 0) { super(message); }
+}
+
 async function fetchCalendarUpcomingRequest(fetch: ApiTransport,
   signal?: AbortSignal,
 ): Promise<CalendarUpcoming> {
@@ -167,7 +171,11 @@ async function fetchCalendarUpcomingRequest(fetch: ApiTransport,
     headers: { accept: "application/json" },
   });
   if (!res.ok) {
-    throw new Error(`GET /api/calendar/upcoming failed: ${res.status}`);
+    const hint = res.headers.get("retry-after");
+    const retryAt = hint === null ? undefined : /^\d+$/.test(hint)
+      ? Date.now() + Number(hint) * 1_000 : Date.parse(hint);
+    throw new CalendarUpcomingReadError(`GET /api/calendar/upcoming failed: ${res.status}`,
+      retryAt !== undefined && Number.isFinite(retryAt) ? retryAt : undefined);
   }
   const payload: unknown = await res.json();
   if (!isCalendarUpcoming(payload)) {
@@ -182,7 +190,7 @@ async function fetchCalendarUpcomingRequest(fetch: ApiTransport,
  * `feedsConfigured` must fail here instead of reaching a surface that would read
  * the absence as "set up and clear".
  */
-function isCalendarUpcoming(value: unknown): value is CalendarUpcoming {
+export function isCalendarUpcoming(value: unknown): value is CalendarUpcoming {
   if (
     !isRecord(value) ||
     !isIso(value.fetchedAt) ||
@@ -230,7 +238,7 @@ function nonNegativeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 0;
 }
 
-function isGa4RealtimePayload(value: unknown): value is Ga4RealtimePayload {
+export function isGa4RealtimePayload(value: unknown): value is Ga4RealtimePayload {
   if (!isRecord(value) || !isIso(value.generatedAt) || !Array.isArray(value.assets)) {
     return false;
   }

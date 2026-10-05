@@ -5,11 +5,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, renderHook, waitFor } from "./render";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Ga4RealtimeAsset, Ga4RealtimePayload } from "@noticeos/contract";
 import { NO_READS } from "@shared/connection-status";
 import { SiteRows } from "@/components/wall/SiteRows";
-import { keepReadingsInProgress, useGa4Realtime } from "@/hooks/useGa4Realtime";
+import { currentDayReadings, keepReadingsInProgress, useGa4Realtime } from "@/hooks/useGa4Realtime";
 import { wallIssues } from "@/lib/wall-issues";
 import { WALL_FIXTURE_NOW, wallFixturePayload, wallFixtureRealtime } from "../e2e/wall-fixture";
 
@@ -122,6 +122,15 @@ describe("a read in progress keeps what the Wall drew", () => {
     expect(keepReadingsInProgress(undefined, first)).toBe(first);
   });
 
+  it("discards saved hours before rendering a reload on the next local day", () => {
+    const before = drawn(Date.parse("2026-09-23T06:55:00.000Z"));
+    const restored = currentDayReadings(before, "2026-09-23T07:05:00.000Z");
+    expect(reading(restored).hourlyActiveUsers).toBeNull();
+    expect(reading(restored).activeUsers30m).toBe(reading(before).activeUsers30m);
+    expect(restored.generatedAt).toBe(before.generatedAt);
+    expect(reading(currentDayReadings(drawn(), iso(NOW))).hourlyActiveUsers).toEqual(reading(drawn()).hourlyActiveUsers);
+  });
+
   it("keeps current hours through a poll and dates unavailable-hour history", () => {
     const assets = structuredClone(wallFixturePayload().assets);
     assets.find(asset => asset.id === SITE)!.activeUsers = { series: [{ t: "2026-09-20", v: 17 }, { t: "2026-09-21", v: 0 }, { t: "2026-09-22", v: 50 }], provisionalFrom: "2026-09-22", collectedAt: "2026-09-22T19:24:00Z", timeZoneChanges: [] };
@@ -153,7 +162,12 @@ describe("a read in progress keeps what the Wall drew", () => {
 });
 
 describe("the realtime poll", () => {
-  beforeEach(() => fetchGa4Realtime.mockReset());
+  beforeEach(() => {
+    fetchGa4Realtime.mockReset();
+    window.sessionStorage.clear();
+    vi.spyOn(Date, "now").mockReturnValue(NOW);
+  });
+  afterEach(() => vi.restoreAllMocks());
 
   it("keeps the drawn hours through an in-progress answer", async () => {
     const before = drawn();
@@ -166,5 +180,34 @@ describe("the realtime poll", () => {
     expect(fetchGa4Realtime).toHaveBeenCalledTimes(2);
     await waitFor(() => expect(reading(result.current.data).activeUsers30m).toBe(reading(before).activeUsers30m + 4));
     expect(reading(result.current.data).hourlyActiveUsers).toEqual(reading(before).hourlyActiveUsers);
+  });
+
+  it("restores today's hours after a same-tab reload while the server's hourly read is in progress", async () => {
+    const before = drawn();
+    fetchGa4Realtime.mockResolvedValueOnce(before).mockResolvedValueOnce(nextPoll(before, hoursInProgress));
+    const mount = () => {
+      const client = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false } } });
+      const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+      return { client, hook: renderHook(() => useGa4Realtime(), { wrapper }) };
+    };
+    const first = mount();
+    await waitFor(() => expect(first.hook.result.current.data).toBeDefined());
+    first.hook.unmount();
+    first.client.clear();
+    vi.mocked(Date.now).mockReturnValue(NOW + 30_000);
+    const reloaded = mount();
+    expect(reading(reloaded.hook.result.current.data).hourlyActiveUsers).toEqual(reading(before).hourlyActiveUsers);
+    await waitFor(() => expect(reading(reloaded.hook.result.current.data).activeUsers30m).toBe(reading(before).activeUsers30m + 4));
+    expect(reading(reloaded.hook.result.current.data).hourlyObservedAt).toBe(reading(before).hourlyObservedAt);
+    expect(fetchGa4Realtime).toHaveBeenCalledTimes(2);
+    fetchGa4Realtime.mockResolvedValueOnce(nextPoll(before, failed("ga4_realtime_http_403")));
+    await act(() => reloaded.hook.result.current.refetch());
+    await waitFor(() => expect(reloaded.hook.result.current.data?.assets.find(asset => asset.asset === SITE)?.status).toBe("error"));
+    reloaded.hook.unmount();
+    reloaded.client.clear();
+    const refused = mount();
+    expect(refused.hook.result.current.data?.assets.find(asset => asset.asset === SITE)?.status).toBe("error");
+    refused.hook.unmount();
+    refused.client.clear();
   });
 });

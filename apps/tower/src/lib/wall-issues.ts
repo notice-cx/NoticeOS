@@ -180,8 +180,8 @@ export function wallIssues({ assets, attention, connections, calendarState, nowM
       key: "calendar-read",
       severity: calendarState === "failed" ? "error" : "warn",
       assets: [], site: "Calendar",
-      line: calendarState === "failed" ? "Events unavailable · check Integrations" : "Some feeds unavailable · check Integrations",
-      mark: "Calendar unavailable", since: null, conditions: ["signal-freshness"],
+      line: calendarState === "failed" ? "Events not updating · check Integrations" : "Some feeds unavailable · check Integrations",
+      mark: "Calendar not updating", since: null, conditions: ["signal-freshness"],
     });
   }
   // Sites an open alert already reports as late or silent: the alert is the row.

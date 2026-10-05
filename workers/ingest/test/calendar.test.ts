@@ -1728,6 +1728,19 @@ describe('round hygiene (ro-l2ji)', () => {
 
 
 describe('workspace-owned completed calendar rounds', () => {
+  it('a lost cache waits for the persisted cooldown without another provider fetch, then recovers', async () => {
+    const owned = feedEnv({ work: WORK_URL });
+    const fixture = feedFetch({ [WORK_URL]: ics(...laEvent('a', '20260810', '0900', 'Saved meeting')) });
+    await calendarUpcoming(owned, { nowMs: NOW, fetchImpl: fixture.fetchImpl });
+    const cold = await caches.open(crypto.randomUUID());
+    await expect(calendarUpcoming(owned, { nowMs: NOW + 60_000, fetchImpl: fixture.fetchImpl, cache: cold }))
+      .rejects.toMatchObject({ code: 'calendar_read_in_progress', nextAttemptAt: new Date(NOW + CALENDAR_CACHE_TTL_MS).toISOString() });
+    expect(fixture.calls).toHaveLength(1);
+    const recovered = await calendarUpcoming(owned, { nowMs: NOW + CALENDAR_CACHE_TTL_MS, fetchImpl: fixture.fetchImpl, cache: cold });
+    expect(recovered.meetings.map(meeting => meeting.title)).toEqual(['Saved meeting']);
+    expect(fixture.calls).toHaveLength(2);
+  });
+
   it('refuses provider work without a resolved workspace owner', async () => {
     const fetchImpl = vi.fn(async () => new Response('unused')) as typeof fetch;
     await expect(calendarUpcoming({ NOTICEOS_WORKSPACE_PROFILE: 'standalone', CALENDAR_FEEDS: JSON.stringify({ work: WORK_URL }) } as IngestEnv,

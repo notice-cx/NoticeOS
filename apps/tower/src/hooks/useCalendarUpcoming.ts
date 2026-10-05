@@ -1,8 +1,14 @@
 import { useDemoReadonly } from '@/lib/browser-context';
-import { useTowerApi } from '@/lib/browser-context';
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useBrowserRuntime } from '@/lib/browser-context';
+import { keepPreviousData, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { CalendarUpcoming } from "@noticeos/contract";
+import { useMemo } from "react";
+import { CalendarUpcomingReadError } from "@/lib/api";
+import { createCalendarCache, retainCalendarEvents } from "@/lib/calendar-cache";
 
+// Observers of the same owner-bound query share the attempt count and deadline.
+// Leaving and returning to the editor cannot bypass a held retry time.
+const attempts = new WeakMap<QueryClient, { failures: number; retryAt: number }>();
 
 /** Isolated from the Wall read model, like the realtime poll: a slow or broken
  * calendar feed must never delay the asset cards. The panel's own time math
@@ -13,28 +19,66 @@ import type { CalendarUpcoming } from "@noticeos/contract";
  * `ro-ujb9.63`. This hook polled "in the background" because the TV is never
  * focused, but TanStack's background is `visibilityState === "hidden"`, not a
  * missing focus: the TV is on screen and keeps its minute. A desk tab behind
- * another stops asking, and refetches at once on return once its snapshot is
- * older than `staleTime`. */
+ * another stops asking; return respects the current retry deadline. */
 export function useCalendarUpcoming() {
   const demoReadonly = useDemoReadonly();
-  const { fetchCalendarUpcoming } = useTowerApi();
-  return useQuery<CalendarUpcoming>({
+  const runtime = useBrowserRuntime();
+  const client = useQueryClient();
+  const read = useMemo(() => {
+    let storage: Storage | undefined;
+    try { storage = window.sessionStorage; } catch { /* The in-memory cache still works. */ }
+    const active = () => { if (runtime.guard(() => true)() !== true) throw new Error("This browser context is no longer active."); };
+    const cache = createCalendarCache(runtime.owner, storage, active, runtime.assertReadable);
+    let state = attempts.get(client);
+    if (!state) {
+      state = { failures: 0, retryAt: 0 };
+      attempts.set(client, state);
+    }
+    return { cache, saved: demoReadonly ? undefined : cache.read(), state };
+  }, [runtime, demoReadonly, client]);
+  const query = useQuery<CalendarUpcoming>({
     enabled: !demoReadonly,
     queryKey: ["calendar-upcoming"],
+    initialData: read.saved,
+    initialDataUpdatedAt: read.saved ? Date.parse(read.saved.fetchedAt) : undefined,
     queryFn: async ({ signal }) => {
-      const snapshot = await fetchCalendarUpcoming(signal);
-      // A configured calendar that answered with no readable feed is a failed
-      // read, not a successful empty day. Reject so Query retains its last data.
-      if (snapshot.feedsConfigured > 0 && snapshot.feedsOk === 0) {
-        throw new Error("Calendar feeds are unavailable");
+      try {
+        const snapshot = await runtime.api.fetchCalendarUpcoming(signal);
+        // An unreadable configured calendar cannot replace saved event information.
+        if (snapshot.feedsConfigured > 0 && snapshot.feedsOk === 0) {
+          throw new CalendarUpcomingReadError("Calendar feeds are unavailable", Date.parse(snapshot.fetchedAt) + 300_000);
+        }
+        const held = retainCalendarEvents(snapshot, client.getQueryData<CalendarUpcoming>(["calendar-upcoming"]));
+        read.cache.write(held);
+        if (snapshot.feedsOk < snapshot.feedsConfigured) {
+          read.state.failures += 1;
+          read.state.retryAt = Math.max(Date.now() + 30_000, Date.parse(snapshot.fetchedAt) + 300_000);
+        } else {
+          read.state.failures = 0;
+          read.state.retryAt = 0;
+        }
+        return held;
+      } catch (error) {
+        if (!signal.aborted && runtime.guard(() => true)() === true) {
+          read.state.failures += 1;
+          const delay = Math.min(30_000 * 2 ** Math.min(read.state.failures - 1, 4), 300_000);
+          read.state.retryAt = Math.max(Date.now() + delay, error instanceof CalendarUpcomingReadError ? error.retryAt ?? 0 : 0);
+          throw new CalendarUpcomingReadError("Calendar read failed", read.state.retryAt, read.state.failures);
+        }
+        throw error;
       }
-      return snapshot;
     },
-    refetchInterval: 60_000,
+    refetchInterval: () => read.state.failures > 0 ? Math.max(1_000, read.state.retryAt - Date.now()) : 60_000,
     refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
+    refetchOnMount: () => Date.now() >= read.state.retryAt,
+    retryOnMount: Date.now() >= read.state.retryAt,
+    refetchOnWindowFocus: () => Date.now() >= read.state.retryAt,
+    refetchOnReconnect: () => Date.now() >= read.state.retryAt,
     placeholderData: keepPreviousData,
     staleTime: 30_000,
-    retry: 1,
+    // Each scheduled read is one attempt. TanStack's immediate retries would
+    // inflate the failure count and ask again inside the server's cooldown.
+    retry: false,
   });
+  return { ...query, consecutiveFailures: query.error instanceof CalendarUpcomingReadError ? query.error.consecutiveFailures : read.state.failures };
 }

@@ -8,16 +8,17 @@
 
 import type { CalendarUpcoming, UpcomingMeeting } from "@noticeos/contract";
 
-export type CalendarReadState = "loading" | "failed" | "partial";
+export type CalendarReadState = "loading" | "retrying" | "failed" | "partial";
 
 export function calendarReadState(read: {
   data?: CalendarUpcoming;
   isError?: boolean;
   isPending?: boolean;
   fetchStatus?: string;
+  consecutiveFailures?: number;
 }): CalendarReadState | undefined {
-  if (read.isError) return "failed";
-  if (read.data && read.data.feedsOk < read.data.feedsConfigured) return "partial";
+  if (read.isError) return (read.consecutiveFailures ?? 3) >= 3 ? "failed" : "retrying";
+  if (read.data && read.data.feedsOk < read.data.feedsConfigured) return (read.consecutiveFailures ?? 3) >= 3 ? "partial" : "retrying";
   if (read.isPending && read.fetchStatus !== "idle") return "loading";
   return undefined;
 }

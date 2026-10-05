@@ -240,7 +240,8 @@ describe("the strip", () => {
     pending.unmount();
 
     const failed = strip({ meetings: null, calendarState: "failed" });
-    expect(failed.container.querySelector("[data-strip-agenda] [role='alert']")).toHaveTextContent("Calendar unavailable");
+    expect(failed.container.querySelector("[data-strip-agenda]")).not.toHaveTextContent("Calendar unavailable");
+    expect(failed.container.querySelector("[data-strip-agenda] [role='alert']")).toBeNull();
     expect(failed.container.querySelector("[data-strip-calendar-status]")).toHaveTextContent("Retrying automatically");
     expect(failed.container.textContent).not.toContain("No meetings today");
   });
@@ -248,7 +249,7 @@ describe("the strip", () => {
   it("keeps a cached meeting visible with the calendar read age", () => {
     const failed = strip({ calendarState: "failed" });
     expect(failed.container.querySelector("[data-strip-meeting-title]")).toHaveTextContent("Partner sync");
-    expect(failed.container.querySelector("[data-strip-calendar-status]")).toHaveTextContent("Cached · 1m old · retrying");
+    expect(failed.container.querySelector("[data-strip-calendar-status]")).toHaveTextContent("Retrying automatically · cached 1m old");
     expect(failed.container.querySelector("[data-strip-meeting-cue]")).toBeNull();
   });
 
