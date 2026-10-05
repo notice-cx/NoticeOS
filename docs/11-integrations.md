@@ -1427,7 +1427,18 @@ are not promoted. **Export stored** proves stored bytes, not a restore drill.
 Downloads accept only HTTPS Cloudflare R2 storage endpoints. Cloudflare's D1
 export reference does not guarantee a download hostname; the first approved
 account check must confirm that boundary. Other hosts are refused, not followed.
-Nightly complete-set inclusion remains tracked by `ro-vu8d.29.3`.
+On standalone installations and the protected Compose backup profile, the
+saved targets join the existing **04:00 UTC** backup operation. Its fixed
+machine route accepts the installation's bootstrap bearer before store access;
+hosted and demo profiles refuse that route. The host reads no provider token
+from the encrypted store and needs no asset checkout or Wrangler login.
+It verifies receipt identities, SQL bytes and hashes while streaming gzip into
+`cloudflare-d1/<account>/<database>/` in the dated set. Each directory carries
+`receipt.json` with compressed hashes and a REST import pointer; `backup.json`
+records the whole selected set. Changed selection, unknown inventory or any
+failed target prevents publication, offsite handoff and retention. The previous
+complete set stays intact. Native and legacy exporters covering the same asset
+are refused before either runs. Hosted exports remain manual.
 No provider is activated by committing this adapter. A real export needs the
 owner's approval for the exact account, database and verification scope:
 Cloudflare's running export temporarily blocks queries and must be polled

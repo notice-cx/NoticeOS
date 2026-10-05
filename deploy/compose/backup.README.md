@@ -48,6 +48,16 @@ the application UID with an isolated client home; implicit npm lifecycle hooks a
 suppressed. Its platform dependencies and credential adapter must be prepared for
 this Linux runtime.
 
+Native D1 targets saved in **Integrations → Cloudflare** need no exporter
+checkout. The protected worker reaches only `http://noticeos:5173` on its
+declared installation network, using the existing private bootstrap bearer.
+The app's standalone receiver authenticates before opening SQL and keeps the
+provider token private. Every selected database becomes verified gzip plus
+receipt/restore custody in the dated set; selection changes or any failed
+target refuse publication. A native target and legacy exporter cannot cover
+the same asset. Account activation and recurring export impact still require
+the owner's specific production approval.
+
 The worker runs with UID 0 to read existing private server metadata and credentials.
 Its capabilities are limited to `DAC_OVERRIDE`, `CHOWN`, `SETUID` and `SETGID`, with a
 read-only image and explicit mounts. Postgres capture uses the existing socket

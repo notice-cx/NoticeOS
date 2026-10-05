@@ -1074,6 +1074,14 @@ Each flag earns its place:
   empty or failed exports fail the run while independent stores are attempted.
   Setup, production impact and the task contract are in
   [`config/host-backup.README.md`](../config/host-backup.README.md#asset-production-exports).
+  Native Cloudflare D1 targets come from **Integrations**, through the fixed
+  standalone machine route authenticated before SQL access. The selected local
+  loopback door or protected Compose service supplies exports; the host never
+  decrypts provider credentials or follows download redirects. Verified SQL
+  streams into `<date>/cloudflare-d1/<account>/<database>/export.sql.gz` with
+  receipt and restore custody. All targets must finish and the selection must
+  stay the same. Overlap with a legacy asset declaration fails before execution.
+  Hosted and demo profiles do not expose this machine route.
 - **Same-day reruns:** only a complete required-store set replaces the dated
   set. A failed store publishes nothing, hands off nothing and prunes nothing;
   the previous complete backup remains. Each attempt uses fresh temporary

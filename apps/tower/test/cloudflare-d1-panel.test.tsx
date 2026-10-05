@@ -1,9 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render as renderOwned } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { render, fireEvent, screen, waitFor } from './render';
 import * as api from '@/lib/api';
 import { CloudflareD1Panel } from '@/routes/integrations/CloudflareD1Panel';
 import { ConnectPanel } from '@/components/ConnectPanel';
+import { BrowserRuntimeProvider } from '@/lib/browser-context';
+import { createBrowserRuntime } from '@/lib/browser-runtime';
 import { integrationProvider } from '@noticeos/contract';
 import type { D1Receipt, D1Status } from '@noticeos/contract/cloudflare-d1';
 
@@ -32,12 +35,31 @@ it('connects then explicitly selects an asset and starts backup with one action'
   fireEvent.click(database);
   expect(screen.getByRole('button', { name: 'Clear selection' })).toBeDisabled();
   fireEvent.change(screen.getByRole('combobox', { name: 'Asset for Example database' }), { target: { value: 'example.com' } });
+  expect(screen.getByText('Selected databases join nightly backups.')).toBeVisible();
   expect(screen.getByText('Export temporarily blocks database queries.')).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Back up selected' }));
   await screen.findByText('Export stored');
   expect(save).toHaveBeenCalledWith({ version: 1, accountId, targets: [{ databaseId, asset: 'example.com' }] });
   expect(run).toHaveBeenCalledWith(accountId, databaseId);
   expect(save.mock.invocationCallOrder[0]).toBeLessThan(run.mock.invocationCallOrder[0]!);
+});
+it('hosted selection offers manual export without promising nightly backups', async () => {
+  const runtime = createBrowserRuntime<never>({ mode: 'hosted', principalId: crypto.randomUUID(),
+    sessionId: crypto.randomUUID(), workspaceId: crypto.randomUUID(), clientGeneration: 1 }, {
+    origin: window.location.origin, fetch: async () => Response.json(initial), sendAnswer: async () => {},
+  });
+  const view = renderOwned(<BrowserRuntimeProvider value={{ runtime, workspaceLabel: 'Example' }}>
+    <QueryClientProvider client={runtime.queries}>
+      <CloudflareD1Panel inventory={inventory} names={new Map([['example.com', 'Example']])} canSave onChanged={async () => {}} />
+    </QueryClientProvider>
+  </BrowserRuntimeProvider>);
+  try {
+    await screen.findByRole('checkbox', { name: 'Example database' });
+    expect(screen.getByText('D1 databases')).toBeVisible();
+    expect(screen.queryByText('Nightly D1 backups')).toBeNull();
+    expect(screen.queryByText('Selected databases join nightly backups.')).toBeNull();
+    expect(screen.getByText('Export temporarily blocks database queries.')).toBeVisible();
+  } finally { view.unmount(); runtime.retire(); }
 });
 it('shows a stored export failure on its database and preserves the saved selection', async () => {
   vi.spyOn(api, 'fetchD1Status').mockResolvedValue({ ...initial, selection: { version: 1, accountId, targets: [{ databaseId, asset: 'example.com' }] } });

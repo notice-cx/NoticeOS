@@ -94,8 +94,23 @@ performs no operational or analytical source deletion.
 
 ## Asset production exports
 
+For native Cloudflare D1 backups, connect the account and choose databases and
+their assets in **Integrations → Cloudflare**. Standalone and protected Compose
+backups include those saved targets automatically; no checkout or Wrangler login
+is required. SQL is verified and streamed into gzip under
+`cloudflare-d1/<account>/<database>/`, with hashes and a REST import pointer in
+`receipt.json`. A missing bootstrap credential, unavailable Worker, unreadable
+connection, changed selection or failed target prevents complete-set publication.
+Only an explicitly disconnected account or empty selection skips native capture.
+Setup, query-blocking impact and production approval are in
+[doc 11](../docs/11-integrations.md#cloudflare-d1-backups).
+
+The `assetBackups` contract below remains for legacy exporters. An asset cannot
+be declared in both native D1 selections and this list; overlap fails before
+either exporter runs. Unrelated legacy sources keep their existing behavior.
+
 `assetBackups` is an explicit host inventory, independent of task-project
-membership. It defaults to none. Adding a repository to the task hub does not
+membership. This legacy list defaults to none. Adding a repository to the task hub does not
 authorize production database access. Each entry has:
 
 - `asset`: unique name used for `assets/<asset>/` inside the dated set.

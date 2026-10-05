@@ -23,6 +23,8 @@
 //   3. `__RUNNER_LANE__` is true, which only a dev build defines — the lane is
 //      not compiled into a deployed Tower at all.
 
+import { CLOUDFLARE_D1_BACKUP_PATH } from '@noticeos/contract/cloudflare-d1';
+
 /** Every runner path lives under here. Inside `/api/` on purpose: the Tower's
  * `run_worker_first` rule (`/api/*`) is what makes a path reach the Worker
  * rather than the SPA's static fallback. */
@@ -64,7 +66,10 @@ export const SCHEDULED_TRIGGER_PATHS = [
  * `workers/ingest/README.md`, and `/` answers with the ingest's own 404 rather
  * than the Tower's UI.
  *
- * The one exception is a path that is ALREADY a runner path. Prefixing it again
+ * The fixed D1 backup path reaches the Tower's authenticated machine receiver
+ * before SQL access. Other non-trigger paths still go to the ingest.
+ *
+ * A path that is ALREADY a runner path also stays unchanged. Prefixing it again
  * would ask the ingest for `/api/runner/scheduled` and get its 404 — which is a
  * true answer to a question nobody meant to ask. Whoever curls the canonical
  * path at the door means the lane itself, and should get the lane's own
@@ -75,6 +80,7 @@ export function runnerDoorTarget(rawUrl: string): string {
   const [rawPath = "/", search = ""] = splitQuery(rawUrl);
   const path = rawPath === "" ? "/" : rawPath;
   const query = search === "" ? "" : `?${search}`;
+  if (path === CLOUDFLARE_D1_BACKUP_PATH) return `${path}${query}`;
   if ((SCHEDULED_TRIGGER_PATHS as readonly string[]).includes(path)) {
     return `${RUNNER_SCHEDULED_PATH}${query}`;
   }

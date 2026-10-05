@@ -1,3 +1,5 @@
+import { CLOUDFLARE_D1_BACKUP_PATH, CLOUDFLARE_D1_PATH } from '@noticeos/contract/cloudflare-d1';
+import { authenticateOperator } from './auth.js';
 import { GOOGLE_OAUTH_MAINTENANCE_CRON, runOAuthMaintenance } from './oauth-maintenance.js';
 import { readIntegrationHealth } from './integration-health-read.js';
 import { readCredentialSummaries } from './credential-summaries-read.js';
@@ -699,6 +701,21 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
         store => handleD1Request({ ...this.env, STORE: store }, selected, original.signal)));
     }
     return withCallStore(this.env, this.ctx, env => handleD1Request(env, selected, original.signal));
+  }
+
+  /** Fixed standalone backup transport. The bootstrap bearer authorizes only
+   * these saved-target operations; it never selects a workspace or provider URL. */
+  async backupCloudflareD1(original: Request): Promise<Response> {
+    if (workspaceProfile(this.env) !== 'standalone' || original.headers.has('origin')) return Response.json({ error: 'forbidden' }, { status: 403 });
+    if (!this.env.OPERATOR_TOKEN || !await authenticateOperator(original, this.env.OPERATOR_TOKEN)) return Response.json({ error: 'forbidden' }, { status: 403 });
+    try {
+      const url = new URL(original.url);
+      if (url.pathname !== CLOUDFLARE_D1_BACKUP_PATH) throw new Error('Invalid backup route');
+      url.pathname = CLOUDFLARE_D1_PATH;
+      const selected = await cloudflareD1Request(new Request(url.href, original.clone()));
+      if (selected.kind === 'select' || selected.kind === 'databases') throw new Error('Invalid backup operation');
+      return withCallStore(this.env, this.ctx, env => handleD1Request(env, selected, original.signal));
+    } catch { return Response.json({ error: 'invalid_request' }, { status: 400 }); }
   }
 
   /**

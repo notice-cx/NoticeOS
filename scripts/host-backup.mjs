@@ -12,6 +12,7 @@ import { dumpPostgres, POSTGRES_DUMP_FILE } from './postgres-backup.mjs';
 import { readDoltProfile } from './dolt-host.mjs';
 import { backupDolt } from './dolt-backup.mjs';
 import { backupAsset, validateAssetBackups } from './asset-backup.mjs';
+import { createCloudflareD1BackupClient, cloudflareD1InventoryKey, copyCloudflareD1 } from './cloudflare-d1-backup.mjs';
 import { backupDate, backupReportComplete, retainedBackupDates, validateBackupRetention } from './backup-retention.mjs';
 import { BACKUP_PATHS, readBackupWorker, privateBackupFile } from './container-backup-profile.mjs';
 import { dumpContainerPostgres, backupContainerDolt, copyContainerRecovery, verifyContainerRecovery, ownContainerBackup } from './container-backup-transport.mjs';
@@ -153,6 +154,7 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
   let assetBackups = [];
   let historyDirectory = null;
   let historyCustody = null;
+  const cloudflareCustody = [];
   let retention = null;
   let preparationError;
   let worker;
@@ -496,9 +498,14 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
       });
 
       if (stages.assets.status !== 'failed') {
-        if (!assetBackups.length) stages.assets = stage('not_configured');
-        else await attempt('assets', async (result) => {
-          result.expected = assetBackups.length;
+        await attempt('assets', async (result) => {
+          const client = adapters.cloudflareD1 ?? createCloudflareD1BackupClient({ repoRoot, transport, env: adapters.env ?? process.env });
+          const selection = await client.inventory();
+          const inventoryKey = cloudflareD1InventoryKey(selection);
+          const targets = selection?.targets ?? [];
+          result.expected = assetBackups.length + targets.length;
+          const nativeAssets = new Set(targets.map(target => target.asset));
+          if (assetBackups.some(source => nativeAssets.has(source.asset))) throw new Error('An asset has both legacy and native D1 backup declarations; choose one before retrying.');
           for (const source of assetBackups) {
             const output = path.join(working, 'assets', source.asset);
             await copyItem(result, source.asset, output, async () => {
@@ -507,6 +514,16 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
               await backupAsset({ source, repoRoot, output, directory, io, command });
             });
           }
+          for (const target of targets) {
+            const relative = path.posix.join('cloudflare-d1', selection.accountId, target.databaseId);
+            const output = path.join(working, relative);
+            await copyItem(result, target.databaseId, output, async () => {
+              const custody = await copyCloudflareD1({ client, selection, target, output, io });
+              cloudflareCustody.push({ directory: relative, ...custody });
+            });
+          }
+          if (cloudflareD1InventoryKey(await client.inventory()) !== inventoryKey) throw new Error('Cloudflare D1 selection changed during backup; the previous complete set is preserved.');
+          if (!result.expected) stages.assets = stage('not_configured');
         });
       }
 
@@ -533,6 +550,7 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
         await io.writeFile(path.join(working, 'backup.json'), JSON.stringify({
           format: 'noticeos-backup-v1', startedAt, complete: storesComplete(),
           ...(historyCustody ? { analyticalHistory: historyCustody } : {}),
+          ...(cloudflareCustody.length ? { cloudflareD1: cloudflareCustody } : {}),
         }, null, 2) + '\n');
       });
       // A failed required store never reaches publication. Keep the existing
@@ -645,6 +663,9 @@ ${composeTaskHub
     ? '- `beads/`: online Dolt database snapshots, server metadata and a complete-backup manifest for the declared Compose task hub.'
     : '- `beads/<db>/`: consistent Dolt backups of the physical databases in the installation\'s `task-host.json`.'}
 - \`assets/<asset>/*.sql.gz\`: gzip-compressed exports from explicitly configured asset \`backup:prod\` tasks.
+- \`cloudflare-d1/<account>/<database>/\`, when selected in Integrations:
+  verified native \`export.sql.gz\` and \`receipt.json\` with asset mapping,
+  SQL/compressed byte counts and SHA-256 hashes, and the D1 REST import pointer.
 - \`history/\`, when configured: every generation published at snapshot start and
   all referenced Parquet files, including held table datasets. \`custody.json\`
   records their generation content fingerprints and file sizes/SHA-256 hashes.
@@ -674,6 +695,11 @@ replacing an existing installation requires an explicitly approved maintenance w
   authorize operational row deletion or establish analytical readback by itself.
 - Asset SQL: \`gzip -t <export>.sql.gz\` checks the archive; \`gzip -dc <export>.sql.gz > restore.sql\`
   decompresses it. Verify against an isolated database before any separately approved production restore.
+- Native D1: use the account/database and hashes in \`receipt.json\`, verify
+  both the gzip and decompressed SQL, and test the SQL in an isolated database.
+  The receipt links Cloudflare's REST import procedure. Import into a named
+  remote database is a separate, explicitly approved operation; this backup
+  performs no restore, database deletion or schema migration.
 ${composeTaskHub
     ? '- Task hub: follow `db/dolt/host/README.md` to restore `beads/` into a new, empty Compose project with the pinned Dolt image. Restore the database snapshots and server metadata together, then verify task records, history and access before accepting recovery. Database snapshots are taken sequentially while the source stays online; they are not one transaction across all projects.'
     : '- Task hub: from an empty scratch directory, run\n  `dolt backup restore file://<this-dir>/beads/<db> <db>`, then inspect with `dolt sql`.\n  Move it into the hub\'s data directory only with the hub service stopped.'}

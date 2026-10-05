@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Check, Loader2, TriangleAlert } from 'lucide-react';
 import { D1_FAILURE_LABELS, type D1Database, type D1Receipt } from '@noticeos/contract/cloudflare-d1';
-import { useTowerApi } from '@/lib/browser-context';
+import { useTowerApi, useBrowserRuntime } from '@/lib/browser-context';
 import { Button } from '@/components/ui/button';
 import { fieldClass } from '@/components/ui/field';
 import { StateChip } from '@/components/StateChip';
@@ -13,6 +13,7 @@ export function CloudflareD1Panel({ inventory, names, canSave, onChanged }: {
   canSave: boolean; onChanged: () => Promise<void>;
 }) {
   const api = useTowerApi();
+  const nightly = useBrowserRuntime().owner.mode === 'standalone';
   const [session] = useState(() => crypto.randomUUID());
   const status = useQuery({ queryKey: ['cloudflare-d1', session], queryFn: async () => {
     const saved = await api.fetchD1Status(!inventory);
@@ -56,7 +57,7 @@ export function CloudflareD1Panel({ inventory, names, canSave, onChanged }: {
   return <div className="flex flex-1 flex-col gap-4" data-d1-picker>
     {status.data.accountMismatch ? <span className="text-sm text-warn">Account changed · choose databases again</span> : null}
     {databases.length === 0 ? <span className="text-sm text-muted-foreground">No D1 databases</span> : <fieldset disabled={busy || !canSave} className="flex min-w-0 flex-col gap-3">
-      <legend className="mb-3 text-sm font-medium">D1 databases</legend>
+      <legend className="mb-3 text-sm font-medium">{nightly ? 'Nightly D1 backups' : 'D1 databases'}</legend>
       {databases.map(database => {
         const saved = receipts[database.id]; const active = running === database.id;
         return <div key={database.id} className="flex min-w-0 flex-col gap-2 rounded-md border p-3" data-subject={`database:${database.id}`}>
@@ -77,6 +78,7 @@ export function CloudflareD1Panel({ inventory, names, canSave, onChanged }: {
         </div>;
       })}
     </fieldset>}
+    {nightly ? <span className="text-sm text-muted-foreground">Selected databases join nightly backups.</span> : null}
     <span className="text-sm text-muted-foreground">Export temporarily blocks database queries.</span>
     {failure ? <span role="alert" className="text-sm text-error">{failure}</span> : null}
     <Button className="mt-auto w-full" onClick={() => void run()} disabled={busy || !canSave || draftAccount !== status.data.accountId || Object.values(picked).some(value => !value)}>

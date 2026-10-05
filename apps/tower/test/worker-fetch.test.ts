@@ -140,6 +140,7 @@ function refusingIngest(): TowerEnv["INGEST"] {
     probeCredential: refuse("probeCredential"),
     connectCredential: refuse("connectCredential"),
     cloudflareD1: refuse('cloudflareD1'),
+    backupCloudflareD1: refuse('backupCloudflareD1'),
     putSiteToken: refuse("putSiteToken"),
     beginGoogleOAuth: refuse("beginGoogleOAuth"),
     completeGoogleOAuth: refuse("completeGoogleOAuth"),
@@ -677,4 +678,25 @@ describe("the Worker's fetch switch", () => {
       expect(await readSites(ctx.call)).toHaveLength(1);
     });
   });
+});
+
+it('the fixed native backup path forwards only standalone machine requests before opening Tower SQL', async () => {
+  const saved = { ok: true };
+  const rpc = vi.fn(async (original: Request) => {
+    expect(original.url).toBe('https://tower.test/api/backup/cloudflare-d1');
+    expect(original.headers.get('authorization')).toBe('Bearer synthetic');
+    return Response.json(saved);
+  });
+  env.INGEST.backupCloudflareD1 = rpc;
+  const response = await call(new Request('https://tower.test/api/backup/cloudflare-d1', { headers: { authorization: 'Bearer synthetic' } }));
+  expect(response).toEqual({ status: 200, body: saved }); expect(rpc).toHaveBeenCalledTimes(1);
+});
+it('browser, hosted and demo requests never reach the machine backup receiver', async () => {
+  const rpc = vi.fn(async () => Response.json({})); env.INGEST.backupCloudflareD1 = rpc;
+  expect((await call(sameOrigin('/api/backup/cloudflare-d1', 'POST', '{}'))).status).toBe(403);
+  for (const profile of ['hosted', 'demo'] as const) {
+    env.NOTICEOS_WORKSPACE_PROFILE = profile;
+    expect((await call(new Request('https://tower.test/api/backup/cloudflare-d1'))).status).toBe(403);
+  }
+  expect(rpc).not.toHaveBeenCalled();
 });

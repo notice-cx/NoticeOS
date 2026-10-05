@@ -113,6 +113,7 @@ test('the dated PG/R2 backup independently restores counts, identities, schema, 
   const pgRestore = path.join(path.dirname(tools.psql), 'pg_restore');
   const calls = [];
   const adapters = {
+    cloudflareD1: { inventory: async () => null },
     claimNamespace: 'a'.repeat(64),
     env: { PATH: process.env.PATH, CREDENTIALS_KEY: key.toString('base64'), DATABASE_URL: 'SEKRIT-not-in-command-env' },
     spawn(binary, args, options) {

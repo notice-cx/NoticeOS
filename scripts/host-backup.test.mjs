@@ -8,7 +8,7 @@ import os from 'node:os';
 import { EventEmitter } from 'node:events';
 import { spawn } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { runBackup, backupRunOutcome, hostBackupFile, readOffsiteBackupDir } from './host-backup.mjs';
 import { runJobLane } from './os-up.mjs';
@@ -94,7 +94,7 @@ async function fixture(t, prefix = 'host-backup-') {
     return child;
   }
   const settings = { repoRoot, retentionDays: 30, offsiteBackupDir: offsite, bdBinary: '/controlled/bd' };
-  const adapters = { spawn: fakeSpawn, now: () => NOW, env: { PATH: '/controlled' }, claimNamespace: 'a'.repeat(64) };
+  const adapters = { cloudflareD1: { inventory: async () => null }, spawn: fakeSpawn, now: () => NOW, env: { PATH: '/controlled' }, claimNamespace: 'a'.repeat(64) };
   return {
     repoRoot, postgres, profileFile, profile, r2, backupRoot, destination, offsite, syncParent, hostFile,
     write, host, calls, control, settings, adapters, fakeSpawn,
@@ -105,6 +105,100 @@ async function fixture(t, prefix = 'host-backup-') {
 async function absent(file) {
   await assert.rejects(fs.lstat(file), { code: 'ENOENT' });
 }
+
+function nativeFixture(assets = ['first.example', 'second.example', 'third.example']) {
+  const accountId = 'a'.repeat(32);
+  const selection = { version: 1, accountId, targets: assets.map(asset => ({ asset, databaseId: randomUUID() })) };
+  const sql = 'CREATE TABLE native_fixture(id INTEGER); INSERT INTO native_fixture VALUES(17);';
+  const control = { failure: null, changed: false, inventoryCalls: 0, exports: [] };
+  const client = {
+    inventory: async () => { control.inventoryCalls++; return control.changed && control.inventoryCalls > 1 ? { ...selection, targets: [] } : selection; },
+    exportTarget: async (_, target) => {
+      control.exports.push(target.databaseId);
+      if (control.failure === target.databaseId) throw new Error('Synthetic native export failure');
+      return { version: 1, accountId, ...target, runId: randomUUID(), state: 'complete', startedAt: '2026-09-14T04:00:00Z', finishedAt: '2026-09-14T04:00:01Z',
+        bytes: Buffer.byteLength(sql), sha256: createHash('sha256').update(sql).digest('hex'), failure: null };
+    },
+    artifact: async () => new Response(sql),
+  };
+  return { client, selection, control, sql };
+}
+
+test('native D1 backups cover every selected target with gzip and restore custody in local and offsite sets', async t => {
+  const f = await fixture(t), native = nativeFixture();
+  const result = await f.run({ cloudflareD1: native.client });
+  assert.equal(result.ok, true, result.detail); assert.equal(result.stages.assets.expected, 3); assert.equal(result.stages.assets.copied, 3);
+  assert.deepEqual(native.control.exports, native.selection.targets.map(target => target.databaseId));
+  for (const base of [f.destination, path.join(f.offsite, DAY)]) {
+    const manifest = JSON.parse(await fs.readFile(path.join(base, 'backup.json'), 'utf8'));
+    assert.equal(manifest.complete, true); assert.equal(manifest.cloudflareD1.length, 3);
+    for (const item of manifest.cloudflareD1) {
+      const gzip = await fs.readFile(path.join(base, item.directory, 'export.sql.gz'));
+      assert.equal(gunzipSync(gzip).toString(), native.sql);
+      assert.equal(createHash('sha256').update(gzip).digest('hex'), item.gzip.sha256);
+      assert.equal(createHash('sha256').update(gunzipSync(gzip)).digest('hex'), item.receipt.sha256);
+      const { directory: _directory, ...custody } = item;
+      assert.deepEqual(JSON.parse(await fs.readFile(path.join(base, item.directory, 'receipt.json'), 'utf8')), custody);
+    }
+    assert.match(await fs.readFile(path.join(base, 'RESTORE.md'), 'utf8'), /Native D1:/);
+  }
+});
+test('a failed native target still attempts the rest and preserves both prior complete sets and retention', async t => {
+  const f = await fixture(t), native = nativeFixture();
+  assert.equal((await f.run({ cloudflareD1: native.client })).ok, true);
+  const before = await fs.readFile(path.join(f.destination, 'backup.json'));
+  await previousSets(f, ['2026-07-01']); native.control.exports = []; native.control.failure = native.selection.targets[1].databaseId;
+  const result = await f.run({ cloudflareD1: native.client });
+  assert.equal(result.ok, false); assert.equal(result.stages.assets.expected, 3); assert.equal(result.stages.assets.copied, 2);
+  assert.equal(result.stages.publication.status, 'blocked'); assert.equal(result.stages.retention.status, 'blocked');
+  assert.equal(native.control.exports.length, 3);
+  for (const base of [f.backupRoot, f.offsite]) {
+    assert.deepEqual(await fs.readFile(path.join(base, DAY, 'backup.json')), before);
+    assert.ok((await fs.readdir(base)).includes('2026-07-01'));
+  }
+});
+test('a changed native selection refuses complete-set publication and leaves the prior backup intact', async t => {
+  const f = await fixture(t), native = nativeFixture();
+  assert.equal((await f.run({ cloudflareD1: native.client })).ok, true);
+  const before = await fs.readFile(path.join(f.destination, 'backup.json')); native.control.changed = true; native.control.inventoryCalls = 0;
+  const result = await f.run({ cloudflareD1: native.client });
+  assert.equal(result.stages.assets.status, 'failed'); assert.equal(result.stages.assets.copied, 3);
+  assert.equal(result.stages.publication.status, 'blocked'); assert.deepEqual(await fs.readFile(path.join(f.destination, 'backup.json')), before);
+});
+test('native and legacy coverage of the same asset is refused before either exporter runs', async t => {
+  const f = await fixture(t), native = nativeFixture(['example.com']); await assetFixture(f);
+  let legacyCalls = 0;
+  const result = await f.run({ cloudflareD1: native.client, spawn: (binary, args, options) => {
+    if (binary === 'npm') { legacyCalls++; assert.fail('overlap must refuse before execution'); }
+    return f.fakeSpawn(binary, args, options);
+  } });
+  assert.equal(result.stages.assets.status, 'failed'); assert.match(result.stages.assets.errors[0].detail, /both legacy and native/);
+  assert.equal(legacyCalls, 0); assert.equal(native.control.exports.length, 0);
+});
+
+for (const initial of ['disconnected', 'empty']) test(`a native selection added during legacy capture from ${initial} refuses publication`, async t => {
+  const f = await fixture(t), native = nativeFixture(['native.example']);
+  assert.equal((await f.run()).ok, true);
+  const before = await fs.readFile(path.join(f.destination, 'backup.json'));
+  await previousSets(f, ['2026-07-01']); await assetFixture(f);
+  let selection = initial === 'disconnected' ? null : { ...native.selection, targets: [] };
+  const result = await f.run({ cloudflareD1: { ...native.client, inventory: async () => selection },
+    spawn: (binary, args, options) => {
+      if (binary !== 'npm') return f.fakeSpawn(binary, args, options);
+      selection = native.selection;
+      return spawn(binary, args, options);
+    } });
+  assert.equal(result.stages.assets.status, 'failed');
+  assert.equal(result.stages.assets.copied, 1);
+  assert.equal(result.stages.publication.status, 'blocked');
+  assert.equal(result.stages.offsite.status, 'blocked');
+  assert.equal(result.stages.retention.status, 'blocked');
+  assert.equal(native.control.exports.length, 0);
+  for (const base of [f.backupRoot, f.offsite]) {
+    assert.deepEqual(await fs.readFile(path.join(base, DAY, 'backup.json')), before);
+    await fs.access(path.join(base, '2026-07-01/backup.json'));
+  }
+});
 
 test('container job results give a bounded stage verdict without internal worker diagnostics', async t => {
   const f = await fixture(t);
@@ -1327,7 +1421,7 @@ test('a process killed between publication renames retains the good set and the 
       });
       return child;
     };
-    await runBackup(settings, { spawn, claimNamespace: 'a'.repeat(64), now: () => ${NOW}, fs: { ...fs, rename: async (source, target) => {
+    await runBackup(settings, { cloudflareD1: { inventory: async () => null }, spawn, claimNamespace: 'a'.repeat(64), now: () => ${NOW}, fs: { ...fs, rename: async (source, target) => {
       if (target === settings.repoRoot + '/.local/backups/${DAY}') {
         process.send('previous-retained'); await new Promise(() => {});
       }

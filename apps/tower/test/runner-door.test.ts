@@ -208,10 +208,17 @@ describe("the ingest door", () => {
     expect(r.url).toBe(`${RUNNER_SCHEDULED_PATH}?cron=%2A%2F15%20%2A%20%2A%20%2A%20%2A`);
   });
 
-  it("proxies every other path verbatim to the ingest", () => {
+  it("proxies ordinary ingest paths verbatim", () => {
     const r = req("/api/pulse");
     serveDoorRequest(r as unknown as IncomingMessage, res() as unknown as ServerResponse, () => {});
     expect(r.url).toBe(`${RUNNER_INGEST_PREFIX}/api/pulse`);
+  });
+
+  it("keeps native D1 backup requests on the authenticated Tower receiver", () => {
+    const url = "/api/backup/cloudflare-d1?view=artifact&runId=fixture";
+    const r = req(url);
+    serveDoorRequest(r as unknown as IncomingMessage, res() as unknown as ServerResponse, () => {});
+    expect(r.url).toBe(url);
   });
 });
 
@@ -228,6 +235,9 @@ describe("door path rewriting", () => {
     ["/__scheduled?cron=0+*+*+*+*", `${RUNNER_SCHEDULED_PATH}?cron=0+*+*+*+*`],
     ["/healthz", `${RUNNER_INGEST_PREFIX}/healthz`],
     ["/api/beads-snapshot", `${RUNNER_INGEST_PREFIX}/api/beads-snapshot`],
+    ["/api/backup/cloudflare-d1", "/api/backup/cloudflare-d1"],
+    ["/api/backup/cloudflare-d1?view=artifact", "/api/backup/cloudflare-d1?view=artifact"],
+    ["/api/backup/cloudflare-d1/other", `${RUNNER_INGEST_PREFIX}/api/backup/cloudflare-d1/other`],
     ["/api/serp-panel-landings?asset=nom", `${RUNNER_INGEST_PREFIX}/api/serp-panel-landings?asset=nom`],
     // The door is the ingest's address, not a second front door for the Tower:
     // `/` gets the ingest's own 404, never the SPA.
