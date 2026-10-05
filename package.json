@@ -61,7 +61,11 @@
     "postgres:secrets": "node scripts/postgres-secrets.mjs",
     "seed:local": "node scripts/db-seed.mjs",
     "config:generate": "node scripts/generate-config-contract.mjs",
-    "config:check": "node scripts/generate-config-contract.mjs --check"
+    "config:check": "node scripts/generate-config-contract.mjs --check",
+    "stack:status": "node scripts/stack-control.mjs status",
+    "stack:start": "node scripts/stack-control.mjs start",
+    "stack:stop": "node scripts/stack-control.mjs stop",
+    "stack:restart": "node scripts/stack-control.mjs restart"
   },
   "devDependencies": {
     "@duckdb/node-api": "1.5.5-r.5",

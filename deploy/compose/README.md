@@ -86,6 +86,50 @@ supervised runner, an armed scheduler, and both internal health endpoints.
 The [declared backup worker](backup.README.md) adds portable capture and recovery;
 health also reports its availability and fails when a configured worker is unavailable.
 
+
+## Control an existing Compose stack
+
+Use these commands from the source checkout, with pnpm or npm:
+
+```sh
+pnpm stack:status
+pnpm stack:start
+pnpm stack:stop
+pnpm stack:restart
+# npm equivalent:
+npm run stack:restart
+```
+
+Declare the existing installation in ignored `.local/stack.json`:
+
+```json
+{
+  "project": "your-project",
+  "files": ["/absolute/installation/compose.yaml"],
+  "envFile": "/absolute/installation/compose.env",
+  "dockerHost": "unix:///absolute/docker.sock"
+}
+```
+
+Include every Compose file used by the installation, in its original order.
+Use `pnpm stack:status --config /absolute/stack.json` or
+`npm run stack:status -- --config /absolute/stack.json` for another selector.
+The commands require existing `noticeos`, `postgres` and `dolt` containers;
+`backup` is supported when present. Unexpected services or replaced containers
+refuse further operations. These commands never create containers, build or pull
+images, apply migrations, remove volumes, or change a deployment.
+
+Start waits for databases, then backup, then the app. Stop reverses that order.
+Restart stops consumers before restarting databases and waits for health before
+continuing. A failed step stops the sequence; inspect status before retrying.
+`os:*` commands still address the legacy macOS launchd adapter, not this stack.
+
+For automatic startup, use `restart: unless-stopped` on each service and enable
+your Docker engine's startup setting. A manual stop remains stopped until an
+explicit start. On macOS, OrbStack's login startup starts the engine after the
+user signs in; it does not provide startup before login. Before-login hosting
+requires an engine managed as a system service, such as on a Linux host.
+
 ## Download and publish stored signal reports
 
 For this standalone container profile, run the existing scripts **inside the
