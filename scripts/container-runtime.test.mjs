@@ -24,6 +24,7 @@ test('container startup declares its mounts and internal services and strips amb
   assert.equal(env.OS_UP_HOST, '1');
   assert.equal(env.TOWER_ALLOWED_HOSTS, 'office.example');
   assert.equal(containerEnvironment({}, { fs: io(), readClient: () => profile }).TOWER_ALLOWED_HOSTS, undefined);
+  assert.equal(env.NOTICEOS_IMMUTABLE_APP, '1');
   assert.equal(env.NOTICEOS_VITE_CACHE_DIR, '/state/.local/vite-cache');
   assert.equal(env.CLOUDFLARE_CF_FETCH_ENABLED, 'false');
   assert.equal(env.NOTICEOS_BACKUP_CLIENT_PROFILE, '/state/backup-client.json');

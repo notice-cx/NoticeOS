@@ -1,5 +1,11 @@
 # Prepare public source
 
+Docker installation commands (`stack:status`, `stack:start`, `stack:stop`,
+`stack:restart`, `stack:deploy`) use the installation's explicit local selector.
+The [Docker guide](../deploy/compose/README.md#deploy-changes-from-main) describes
+how independently verified main becomes a running image, with app-only health
+checks and rollback. The `os:*` commands below address the macOS service adapter.
+
 ```sh
 node scripts/public-source.mjs --commit <full-commit-hash> --destination /absolute/new-public-source
 ```

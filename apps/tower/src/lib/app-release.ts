@@ -38,6 +38,15 @@ export function createAppRelease(fetch: ApiTransport, release = compiledAppRelea
       void response.body?.cancel().catch(() => {});
       if (!response.ok) throw new Error('App version could not be checked.');
     },
+    async displayReadyToReload(signal?: AbortSignal) {
+      if (release === null || state === 'current') return false;
+      // Recover a display stuck on a headerless outage response. API writes stay latched.
+      const response = await fetch(APP_RELEASE_PATH, { headers: { accept: 'application/json' }, cache: 'no-store', signal });
+      const server = response.headers.get(APP_RELEASE_HEADER);
+      const ready = response.ok && validAppRelease(server) && server !== release;
+      void response.body?.cancel().catch(() => {});
+      return ready;
+    },
     snapshot: () => state,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
   });

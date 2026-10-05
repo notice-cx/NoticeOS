@@ -259,6 +259,16 @@ of `.local/start/` on :4747 for a fresh clone (bead `ro-ujb9.126`,
 [scripts/README.md](scripts/README.md#a-new-installation-in-one-command-pnpm-start)).
 An agent runs it only with a throwaway `--dir` and its own `--port`.
 
+For an existing Docker installation, use the declared `.local/stack.json`
+selector and `pnpm stack:status`. `stack:restart` keeps the current image;
+`pnpm stack:deploy` prepares a pinned image and reviewable plan from clean,
+independently verified `main`. Apply that exact plan only within the owner's
+approved activation, readback and recovery scope. The command replaces only
+the app; schema/role changes require separate maintenance. Commits alone do not
+deploy. The [Docker guide](deploy/compose/README.md#deploy-changes-from-main)
+owns the preparation, approval, rollback and browser refresh procedure. Do not
+enable source mounts or automatic production deployment from a dirty checkout.
+
 For the supported macOS service adapter, do not inspect raw launchctl state,
 guess from a port, hunt process trees, or read `.local/` directly as the normal
 workflow; the repo owns the stable interface:

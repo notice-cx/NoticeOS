@@ -76,6 +76,57 @@ describe('server-owned app compatibility', () => {
 });
 
 describe('an old browser document', () => {
+  it.each(['/wall', '/wall/edit', '/integrations'])('reloads only the read-only display after an observed deployment: %s', async pathname => {
+    const prior = window.location.href;
+    window.history.replaceState(null, '', pathname);
+    try {
+      let server = A;
+      const release = createAppRelease(async () => response(server), A);
+      const reload = vi.fn();
+      const view = render(<AppUpdateNotice release={release} reload={reload} />);
+      expect(reload).not.toHaveBeenCalled();
+      server = B;
+      await act(async () => { await expect(release.check()).rejects.toBeInstanceOf(AppReleaseError); });
+      expect(reload).toHaveBeenCalledTimes(pathname === '/wall' ? 1 : 0);
+      view.rerender(<AppUpdateNotice release={release} reload={() => reload()} />);
+      expect(reload).toHaveBeenCalledTimes(pathname === '/wall' ? 1 : 0);
+    } finally { window.history.replaceState(null, '', prior); }
+  });
+  it('keeps the display open when release metadata is unavailable', async () => {
+    const prior = window.location.href;
+    window.history.replaceState(null, '', '/wall');
+    try {
+      const release = createAppRelease(async () => response(null), A);
+      const reload = vi.fn();
+      render(<AppUpdateNotice release={release} reload={reload} />);
+      await act(async () => { await expect(release.check()).rejects.toBeInstanceOf(AppReleaseError); });
+      expect(reload).not.toHaveBeenCalled();
+    } finally { window.history.replaceState(null, '', prior); }
+  });
+  it('recovers an unattended display after a headerless outage without reopening API writes', async () => {
+    const prior = window.location.href;
+    window.history.replaceState(null, '', '/wall');
+    vi.useFakeTimers();
+    try {
+      let server: string | null = null;
+      const release = createAppRelease(async () => response(server), A);
+      const reload = vi.fn();
+      const view = render(<AppUpdateNotice release={release} reload={reload} />);
+      await act(async () => { await expect(release.check()).rejects.toBeInstanceOf(AppReleaseError); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(reload).not.toHaveBeenCalled();
+      server = A;
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(reload).not.toHaveBeenCalled();
+      server = B;
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(reload).toHaveBeenCalledOnce();
+      await expect(release.fetch('/api/settings', { method: 'PUT' })).rejects.toBeInstanceOf(AppReleaseError);
+      view.unmount();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(reload).toHaveBeenCalledOnce();
+    } finally { vi.useRealTimers(); window.history.replaceState(null, '', prior); }
+  });
   it('completes a same-release metadata check even when body cleanup stalls', async () => {
     let finish!: () => void;
     const canceled = new Promise<void>(resolve => { finish = resolve; });

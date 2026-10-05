@@ -4,10 +4,16 @@ import { main, readSelector, validateSelector, parseServices, stackControl } fro
 
 const selector = { project: 'synthetic-stack', files: ['/fixture/compose.yaml'], envFile: '/fixture/compose.env', dockerHost: 'unix:///fixture/docker.sock' };
 const rows = (backup = true) => ['noticeos','postgres','dolt',...(backup ? ['backup'] : [])].map((Service, i) => ({ Project: selector.project, Service, ID: String(i + 1).repeat(64), State: 'running', Health: 'healthy' }));
-function fixture({ inventory = rows(), failure, changeAt, ndjson = false } = {}) {
+function fixture({ inventory = rows(), failure, changeAt, ndjson = false, revision = null, main = 'a'.repeat(40) } = {}) {
   const calls = []; let inspections = 0; let output = '';
   const run = async (command, args, options) => {
-    assert.equal(command, 'docker'); assert.ok(options.timeoutMs <= 130000);
+    assert.ok(options.timeoutMs <= 130000);
+    if (command === 'git') return { code:0, stdout:main };
+    assert.equal(command, 'docker');
+    if (args[2] === 'inspect') {
+      assert.deepEqual(args, ['--host',selector.dockerHost,'inspect','--format','{{json .Config.Labels}}',inventory[0].ID]);
+      return { code:0, stdout:JSON.stringify({ 'com.docker.compose.project':selector.project,'com.docker.compose.service':'noticeos','org.opencontainers.image.revision':revision }) };
+    }
     assert.deepEqual(args.slice(0, 9), ['--host',selector.dockerHost,'compose','--project-name',selector.project,'-f',selector.files[0],'--env-file',selector.envFile]);
     assert.equal(options.env.DO_NOT_FORWARD, undefined);
     const step = args.slice(9); calls.push(step);
@@ -36,6 +42,15 @@ test('status accepts NDJSON and prints only sanitized service state', async () =
   assert.equal(own.writes().length, 0); assert.match(own.output(), /noticeos: running, healthy/u);
   const unknown = parseServices(JSON.stringify(rows().map(row => ({ ...row, State: 'PRIVATE-SENTINEL', Health: 'PRIVATE-SENTINEL' }))), selector.project);
   assert.equal(unknown.get('noticeos').state, 'unknown'); assert.equal(unknown.get('noticeos').health, null);
+  assert.match(own.output(), /app source: unknown/u);
+});
+test('status distinguishes the deployed source from main without reporting an unknown image as current', async () => {
+  for (const [revision,expected] of [['a'.repeat(40),'current'],['b'.repeat(40),'main differs'],['PRIVATE-SENTINEL','unknown']]) {
+    const own=fixture({revision}); await stackControl('status',selector,own);
+    assert.ok(own.output().includes(`update: ${expected}`));
+    assert.ok(!own.output().includes('PRIVATE-SENTINEL'));
+    assert.equal(own.writes().length,0);
+  }
 });
 test('missing, extra, duplicate and foreign services refuse before any mutation', async () => {
   for (const inventory of [rows().slice(1), [...rows(), { ...rows()[0], Service: 'foreign' }], rows().map((row,i) => i === 0 ? { ...row, Project: 'foreign' } : row), rows().map((row,i) => i === 0 ? { ...row, Service: 'backup' } : row)]) {

@@ -230,7 +230,10 @@ export default defineConfig(({ command }) => {
     // Errors still reach the terminal and the os-up log, which is where this
     // deployment reads them; the app's own error handling (reconnect page for
     // document loads, keep-last-good pollers) already covers the surfaces.
-    hmr: { overlay: false },
+    // A prepared image has no editable source. Release detection owns display
+    // refreshes; Vite reconnect must not reload desk drafts after a deploy.
+    hmr: process.env.NOTICEOS_IMMUTABLE_APP === '1' ? false : { overlay: false },
+    ws: process.env.NOTICEOS_IMMUTABLE_APP === '1' ? false : undefined,
   },
   plugins: [
     // First, and `enforce: "pre"`: the runner guard has to strip the door mark

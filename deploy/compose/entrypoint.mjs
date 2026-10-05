@@ -33,6 +33,7 @@ export function containerEnvironment(env = process.env, { fs: io = fs, readClien
     NOTICEOS_HOME: home, NOTICEOS_INSTALLATION_DIR: '/state/installation', NOTICEOS_TASK_CLIENT_PROFILE: profileFile,
     NOTICEOS_BACKUP_CLIENT_PROFILE: '/state/backup-client.json',
     BEADS_BD_BIN: '/usr/local/bin/bd', NOTICEOS_VITE_CACHE_DIR: '/state/.local/vite-cache', WRANGLER_SEND_METRICS: 'false',
+    NOTICEOS_IMMUTABLE_APP: '1',
     CLOUDFLARE_CF_FETCH_ENABLED: 'false',
     WRANGLER_CACHE_DIR: '/state/.wrangler/cache',
     GIT_TERMINAL_PROMPT: '0' };

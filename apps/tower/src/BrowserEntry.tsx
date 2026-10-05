@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState, useSyncExternalStore } from 'react';
+import { Suspense, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -33,9 +33,37 @@ export function BrowserEntry({ createEntry }: { createEntry: () => Entry }) {
 function EntryContent({ entry }: { entry: Entry }) {
   return <><AppUpdateNotice release={entry.appRelease} /><EntryView entry={entry} /></>;
 }
+const reloadPage = () => window.location.reload();
 
-export function AppUpdateNotice({ release }: { release: Entry['appRelease'] }) {
+export function AppUpdateNotice({ release, reload = reloadPage }: {
+  release: Entry['appRelease']; reload?: () => void;
+}) {
   const state = useSyncExternalStore(release.subscribe, release.snapshot, release.snapshot);
+  const reloading = useRef(false);
+  useEffect(() => {
+    // Only the display route is disposable; /wall/edit and desk drafts stay open.
+    if (state === 'changed' && window.location.pathname === '/wall' && !reloading.current) {
+      reloading.current = true;
+      reload();
+    }
+  }, [state, reload]);
+  useEffect(() => {
+    if (state !== 'unavailable' || window.location.pathname !== '/wall') return;
+    let controller: AbortController | null = null;
+    let closed = false;
+    let checking = false;
+    const interval = window.setInterval(() => {
+      if (checking) return;
+      checking = true;
+      const attempt = new AbortController();
+      controller = attempt;
+      const timeout = window.setTimeout(() => attempt.abort(), 10_000);
+      void release.displayReadyToReload(attempt.signal).then(ready => {
+        if (ready && !closed && !attempt.signal.aborted && !reloading.current) { reloading.current = true; reload(); }
+      }).catch(() => {}).finally(() => { window.clearTimeout(timeout); checking = false; });
+    }, 30_000);
+    return () => { closed = true; window.clearInterval(interval); controller?.abort(); };
+  }, [state, release, reload]);
   if (state === 'current') return null;
   return <div className="fixed inset-x-3 bottom-3 z-50 mx-auto max-w-xl shadow-lg" data-app-update>
     <StatusBanner subject="app:release" lead={state === 'changed' ? 'NoticeOS updated' : 'App version unavailable'}>

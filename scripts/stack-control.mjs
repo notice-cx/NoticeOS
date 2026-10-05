@@ -52,7 +52,8 @@ export function parseServices(stdout, project) {
   for (const service of ['noticeos', 'postgres', 'dolt']) if (!seen.has(service)) refuse('Stack is missing a required existing service.');
   return seen;
 }
-export async function stackControl(action, input, { run = runCommand, out = process.stdout, env = process.env } = {}) {
+export async function stackControl(action, input, { run = runCommand, out = process.stdout, env = process.env,
+  root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..') } = {}) {
   if (!ACTIONS.includes(action)) refuse(HELP);
   const selector = validateSelector(input);
   const prefix = ['--host', selector.dockerHost, 'compose', '--project-name', selector.project,
@@ -71,6 +72,20 @@ export async function stackControl(action, input, { run = runCommand, out = proc
     for (const service of SERVICES.filter(name => original.has(name))) {
       const row = original.get(service); out.write(`${service}: ${row.state}${row.health ? ', ' + row.health : ''}\n`);
     }
+    let running = null; let main = null;
+    try {
+      const inspected = await run('docker', ['--host',selector.dockerHost,'inspect','--format','{{json .Config.Labels}}',original.get('noticeos').id], { env: ownEnv, timeoutMs: 20000 });
+      if (inspected.code !== 0) refuse('Application revision inspection failed.');
+      const labels = JSON.parse(inspected.stdout);
+      if (labels?.['com.docker.compose.project'] !== selector.project || labels?.['com.docker.compose.service'] !== 'noticeos') refuse('Application revision identity changed.');
+      const revision = labels['org.opencontainers.image.revision'];
+      if (/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(revision ?? '')) running = revision;
+      const source = await run('git', ['rev-parse','--verify','main^{commit}'], { cwd: root, env: ownEnv, timeoutMs: 20000 });
+      if (source.code === 0 && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(source.stdout.trim())) main = source.stdout.trim();
+    } catch { refuse('Application revision inspection failed; raw output is withheld.'); }
+    out.write(`app source: ${running ?? 'unknown (image predates revision labels)'}\n`);
+    out.write(`main: ${main ?? 'unavailable'}\n`);
+    out.write(`update: ${!running || !main ? 'unknown' : running === main ? 'current' : 'main differs; prepare stack:deploy'}\n`);
     return;
   }
   const backup = original.has('backup') ? ['backup'] : [];

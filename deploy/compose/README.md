@@ -124,6 +124,80 @@ Restart stops consumers before restarting databases and waits for health before
 continuing. A failed step stops the sequence; inspect status before retrying.
 `os:*` commands still address the legacy macOS launchd adapter, not this stack.
 
+## Deploy changes from main
+
+The running app uses a fixed image. Committing to `main` changes source;
+`stack:restart` restarts the existing image. Neither activates new UI code.
+Use `stack:deploy` after focused independent verification of a clean checkout
+at `main`. Full gates remain in CI; this command does not rerun them.
+
+```sh
+pnpm stack:status
+pnpm stack:deploy
+```
+
+Preparation reads the selected stack's container/image metadata and Compose
+declarations, then builds an allowlisted public source context. It leaves
+services running. The image records the exact main revision, source manifest
+and Postgres schema/role fingerprint. `stack:status` reports the running source,
+local main and whether they differ; an older image without revision labels
+reports unknown. A first update from such an image requires its recorded full
+source hash with `--baseline-commit COMMIT`. That argument is the operator's
+assertion of the old image's source; never infer it from a tag or date.
+
+Preparation prints a private, content-addressed plan and the command to apply it:
+
+```sh
+pnpm stack:deploy -- --apply /absolute/stack-deploy/PLAN_SHA256.json
+```
+
+Review the source, target image, previous image, mounts and stack before applying.
+For an existing installation, agents require the owner's explicit approval for
+the preparation reads and separately for this exact activation and verification.
+Apply refuses changed source, declarations, containers or image labels. It
+recreates only `noticeos`, with no dependency restart, image pull, build or
+migration, and waits up to 90 seconds for health. Postgres, Dolt, backups and
+their mounts must keep their identities. The app is briefly unavailable;
+startup resumes its existing scheduled lanes.
+
+The selected image is pinned through a private `stack-deploy/current.json`
+Compose override beside the selector. The command adds that override to the
+selector; it does not edit the installation's original Compose files or env
+file. Keep using this selector for later operations. Plans, journals and the
+previous image remain available for recovery. Failed health attempts restore
+the previous app image when identities and mounts still match. Unknown drift
+or interrupted recovery stops with an operator recovery journal and retains
+the stack lock. Establish that the recorded deploy and its Docker commands
+have stopped before removing that lock under an approved recovery plan.
+
+Prepare a reviewable rollback to the recorded previous image with:
+
+```sh
+pnpm stack:deploy -- --rollback
+```
+
+Apply its printed plan after approval. Schema or role changes require a separate
+operator maintenance plan; app deployment and rollback never apply migrations.
+
+To prepare the image before approving any installation inspection, build it
+without a selector or container access, then reuse its immutable image ID:
+
+```sh
+pnpm stack:deploy -- --build-only --docker-host unix:///absolute/docker.sock --platform linux/arm64
+pnpm stack:deploy -- --image sha256:IMAGE_ID
+```
+
+This artifact-only build reads committed public source and builds/inspects its
+new image on the named local engine. It does not inspect containers or contact
+application endpoints. Preparation budgets 4 GiB while retaining 8 GiB free;
+owned contexts are removed after completion, or retained if a build times out.
+
+After deployment, `/wall` reloads when its next request observes the new release
+(normally within its one-minute poll). `/wall/edit` and desk pages keep an update
+prompt so drafts stay open. Prepared images disable Vite's development reload
+channel so a server reconnect does not override that behavior. A browser
+running code from before this feature needs one manual refresh to install it.
+
 For automatic startup, use `restart: unless-stopped` on each service and enable
 your Docker engine's startup setting. A manual stop remains stopped until an
 explicit start. On macOS, OrbStack's login startup starts the engine after the
