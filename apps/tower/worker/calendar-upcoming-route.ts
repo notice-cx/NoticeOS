@@ -3,9 +3,9 @@
 // Same boundary as the GA4 realtime read: ingest holds the feed URLs (an
 // operator secret) and this route only forwards the plain-data snapshot its
 // WorkerEntrypoint returns. Nothing about a provider failure crosses the
-// service boundary, because the browser's only correct reaction to one is to
-// keep its last-good snapshot — and, having none, to render nothing rather than
-// tell the operator their calendar is empty.
+// service boundary. The browser retains its last-good snapshot and shows the
+// failed read; without a snapshot it shows an unavailable calendar rather than
+// telling the operator their calendar is empty.
 //
 // Extracted into its own module rather than inlined beside the GA4 route so it
 // can be unit-tested against a stubbed binding; index.ts cannot be imported by
@@ -43,7 +43,7 @@ export async function handleCalendarUpcomingRequest(
   } catch {
     // Keep provider/internal details behind the service boundary. A failed poll
     // is not an empty calendar, so the browser holds its last-good snapshot and
-    // a browser that never had one renders no panel at all.
+    // a browser that never had one shows an unavailable calendar.
     return jsonError("calendar_upcoming_unavailable", 503);
   }
 }

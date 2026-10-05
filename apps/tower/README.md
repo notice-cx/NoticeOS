@@ -153,10 +153,12 @@ next meeting (bead `ro-c0d2`): the Tower Worker calls ingest's
 `calendarUpcoming()` over the private `INGEST` Service Binding, so the operator's
 ICS feed URLs never enter this Worker or the browser, and a thrown read becomes
 `503 calendar_upcoming_unavailable` carrying nothing from behind the boundary. An
-open Wall (or its editor) polls every 60 seconds and keeps the last good snapshot. Two
-absences are answered with no panel at all rather than a claim: no feed
-configured (the operator has not set the secret up) and no feed answered (a
-calendar nobody could read is not an empty calendar).
+open Wall (or its editor) polls every 60 seconds and keeps the last good snapshot
+through failed reads. Loading and failed reads stay visible; failures also enter
+Needs you. Cached events show their reading age, partial reads show a warning,
+and recovery clears the failure. No configured feeds hides the widget. This
+browser cache lasts until reload; ingest caches feed rounds for five minutes.
+See [the Wall calendar contract](../../docs/25-the-wall.md).
 
 The strip's clock is deliberately browser-local and ticks inside its own
 component subtree. The countdown configuration rides the no-cache Wall payload.
