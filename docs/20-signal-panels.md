@@ -1,5 +1,10 @@
 # 20 — Signal panels: the read contract for property repos
 
+The [remote panel review build contract](briefs/2026-10-05-remote-panel-review.md)
+defines the target API/MCP path and publication guarantees. The file-oriented
+instructions below describe the existing path; they do not establish remote
+access or immutable panel versions.
+
 *The portfolio's standing answer to "what happened in search for this property
 this week." NoticeOS collects GA4, Google Search Console, Bing Webmaster,
 DataForSEO and PostHog centrally, flattens them into one directory per property, and keeps

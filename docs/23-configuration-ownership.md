@@ -344,6 +344,11 @@ never receive Dolt credentials, SQL access or arbitrary Beads execution. The
 server selects workspace credentials and checkout capabilities; command shapes
 exclude arbitrary flags, files, configuration and branch operations.
 
+The [remote panel review build contract](briefs/2026-10-05-remote-panel-review.md)
+extends these boundaries to versioned evidence, remote agent admission and
+retry-safe task operations. It is an implementation handoff, not evidence that
+those additional capabilities or a public service have been qualified.
+
 The [Dolt 2.4.0 / Beads 1.3.1 qualification](../scripts/dolt-tenant-permissions-compose.test.mjs)
 uses two generated databases with colliding task IDs. Restricted accounts
 support ordinary task changes and bounded history, while tested foreign

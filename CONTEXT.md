@@ -67,6 +67,18 @@ One attempt to collect a report or signal for a target, bound to the connection 
 **Monitoring availability**:
 Whether evidence about collection could be recorded. Collection can succeed while its monitoring is unavailable.
 
+**Report family**:
+A kind of provider evidence with a defined subject, reporting period and expected coverage. Two families from one provider can have different cadences and freshness.
+
+**Signal panel**:
+A site's assembled observations and analysis for a review. Its completeness depends on the evidence required for that review, not on every provider reporting the same date.
+
+**Panel version**:
+An immutable published edition of a signal panel, identifying the evidence and analysis that produced it. A review keeps its version even after a newer edition is published.
+
+**Evidence freshness**:
+How current an observation's reporting period is when it is read, under the applicable cadence. A recent download or publication does not make an old observation current.
+
 ### Work and task evidence
 
 **Task**:
@@ -91,7 +103,7 @@ A successful read directly from one project's task database, with every task in 
 A saved selection of task rows accompanied by counts over the full snapshot. The listed rows do not establish complete history or permission to act on a task.
 
 **Actionable task read**:
-A successful local read for the task's own project while the local action capability is available. Another project's successful read does not make a saved sample actionable.
+A successful current read for the task's own project under authority that permits the intended action. Another project's successful read does not make a saved sample actionable.
 
 ### Backup evidence
 

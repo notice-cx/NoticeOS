@@ -39,6 +39,7 @@ Start with [00](00-objective-and-roi.md) (what the product is for) and
 | `artifacts/` (excluded from public source) | Historical captures and verification evidence referenced by dated documents |
 | [`brand/`](brand/README.md) | The Notice identity: logo, palette, type |
 | [`briefs/`](briefs/) | The brief and prior art behind a redesign |
+| [`Remote panel reviews and task access`](briefs/2026-10-05-remote-panel-review.md) | Build contract for versioned evidence and workspace-scoped agent access |
 | [`playbooks/`](playbooks/README.md) | Repeatable methods |
 | `reports/` (excluded from public source) | Historical audits referenced by dated documents |
 | [`runbooks/`](runbooks/) | Step-by-step operations |
