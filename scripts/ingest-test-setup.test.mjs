@@ -22,6 +22,7 @@ function setup(overrides = {}) {
     createTestTimeoutSignals: (_timers, timeout) => ({ timeout, run: callback => callback() }),
     fenceStore: noop,
     settle: noop,
+    takeReached: () => new Set(),
     vi: { resetModules: noop, useRealTimers: noop, unstubAllGlobals: noop, unstubAllEnvs: noop },
     reset: noop,
     clearRawSignals: noop,
@@ -65,6 +66,17 @@ test('a refused Postgres reset names the copy operation and its response status'
     assert.equal(error.cause.message, 'the copy service answered 503');
     return true;
   });
+});
+
+test('the setup asks for the second Postgres copy again only after a file reached it (issue #23)', async () => {
+  for (const [reached, other] of [[[], false], [['env.POSTGRES'], false], [['env.POSTGRES', 'env.POSTGRES_OTHER'], true]]) {
+    const asked = [];
+    await setup({
+      takeReached: () => new Set(reached),
+      env: { TEST_POSTGRES: { fetch: async (url, init) => { asked.push([url, JSON.parse(init.body)]); return { ok: true }; } } },
+    });
+    assert.deepEqual(asked, [['http://test-postgres/reset', { other }]], reached.join(', '));
+  }
 });
 
 test('successful ingest file setup still registers its file and test hooks', async () => {

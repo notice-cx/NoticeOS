@@ -1,23 +1,16 @@
 // @vitest-environment node
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { installedLucideExports, lucideExportMap, lucideIcons, rewriteLucideImports } from "../vite/lucide-icons";
+import { typeScriptSources } from "./source-files";
 
 // The dev server serves each icon as its own module instead of the whole
 // 4 MB icon set (bead ro-ujb9.83). See vite/lucide-icons.ts for why.
 
 const towerRoot = path.resolve(import.meta.dirname, "..");
 const table = installedLucideExports(towerRoot);
-
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir).flatMap((name) => {
-    const full = path.join(dir, name);
-    if (statSync(full).isDirectory()) return sourceFiles(full);
-    return /\.(?:ts|tsx)$/.test(name) ? [full] : [];
-  });
-}
 
 describe("lucide icon imports on the dev server (bead ro-ujb9.83)", () => {
   it("reads the installed index into a table of every icon and helper", () => {
@@ -76,7 +69,7 @@ describe("lucide icon imports on the dev server (bead ro-ujb9.83)", () => {
 
   it("leaves no import in the Tower's browser code on the 4 MB index", () => {
     const offenders: string[] = [];
-    for (const file of [...sourceFiles(path.join(towerRoot, "src")), ...sourceFiles(path.join(towerRoot, "shared"))]) {
+    for (const file of [...typeScriptSources(path.join(towerRoot, "src")), ...typeScriptSources(path.join(towerRoot, "shared"))]) {
       const code = readFileSync(file, "utf8");
       if (!code.includes("lucide-react")) continue;
       const out = (rewriteLucideImports(code, table!) ?? code).replace(

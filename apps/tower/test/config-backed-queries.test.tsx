@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "./render";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ReactNode } from "react";
@@ -48,6 +48,7 @@ import {
 import type { ConfigWritability } from "@/lib/api";
 import { useCollectionSave } from "@/hooks/useCollectionSave";
 import { useConfigSave } from "@/hooks/useConfigSave";
+import { typeScriptSources, withoutComments } from "./source-files";
 
 let client: QueryClient;
 
@@ -244,22 +245,6 @@ describe("a save waits only for a restart that is actually going to happen", () 
 const SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src");
 const HOOKS = path.join(SRC, "hooks");
 
-/** Comments say the same words as code and are not the thing under guard. */
-function withoutComments(source: string): string {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^[ \t]*\/\/.*$/gm, "");
-}
-
-/** Every `.ts`/`.tsx` under a directory, absolute. */
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) return sourceFiles(full);
-    return /\.tsx?$/.test(entry.name) ? [full] : [];
-  });
-}
-
 describe("neither write path may keep a list of its own", () => {
   for (const hook of ["useConfigSave.ts", "useCollectionSave.ts"]) {
     it(`${hook} reads the shared declaration`, () => {
@@ -285,7 +270,7 @@ describe("neither write path may keep a list of its own", () => {
     // A THIRD copy under another file name is the same bug wearing a disguise,
     // so the guard is on the SHAPE — an array literal naming two or more of
     // these keys — rather than on the two hooks by name.
-    const offenders = sourceFiles(SRC).filter((file) => {
+    const offenders = typeScriptSources(SRC).filter((file) => {
       if (file.endsWith(`hooks${path.sep}config-backed-queries.ts`)) return false;
       let source = withoutComments(readFileSync(file, "utf8"));
       if (file.endsWith(`asset-detail${path.sep}AssetTabs.tsx`)) {
@@ -308,7 +293,7 @@ describe("neither write path may keep a list of its own", () => {
     // and it hides the one that IS missing. Matched against the hooks' own
     // sources rather than against the key expression, because one of them
     // (`INTEGRATION_PROVIDERS_KEY`) is a named constant its writers share.
-    const reads = sourceFiles(HOOKS)
+    const reads = typeScriptSources(HOOKS)
       .filter((file) => !file.endsWith("config-backed-queries.ts"))
       .map((file) => readFileSync(file, "utf8"))
       .join("\n");

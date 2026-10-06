@@ -12,6 +12,7 @@ import { RouteLoadFailure, RouteLoading } from "@/components/RouteLoading";
 import { lazyPart } from "@/lib/lazy-route";
 import { AssetDetailRoute } from "@/routes/AssetDetailRoute";
 import { everyTabPayload } from "./asset-detail-fixture";
+import { stubJsonFetch } from "./stub-fetch";
 
 // A task source connected, as this installation's is (D32, bead
 // ro-ujb9.143): the task screens here render exactly as before it existed.
@@ -318,19 +319,6 @@ describe("RouteLoading / RouteLoadFailure for a part of a page", () => {
 
 // ── the asset page's tabs ───────────────────────────────────────────────────
 
-function stubFetch(body: unknown) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(
-      async () =>
-        new Response(JSON.stringify(body), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        }),
-    ),
-  );
-}
-
 function PathProbe() {
   const { pathname, hash } = useLocation();
   return <span data-testid="path">{`${pathname}${hash}`}</span>;
@@ -366,7 +354,7 @@ describe("the asset page's tabs", () => {
         scrolled.push(this.id);
       },
     });
-    stubFetch(everyTabPayload());
+    stubJsonFetch(everyTabPayload());
     code.gone.add("alerts");
     code.hold("activity");
 

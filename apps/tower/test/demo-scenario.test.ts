@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { beforeEach, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it } from 'vitest';
 import { PulseEnvelope, evaluatePulse } from '@noticeos/contract';
 import { generateDemoScenario, demoScenarioHash, shiftDemoDay } from '../../../scripts/demo-scenario.mjs';
 import { fillDemo, demoPulseVerdicts } from '../../../scripts/demo-store.mjs';
@@ -19,10 +19,15 @@ const detail: AssetDetailDeps = {
   now: NOW, osTimeZone: 'UTC', flagDefaults: {}, monthlyCaps: { dataUsd: 25 }, operatorRateUsdPerMin: 2,
   integrations, counters: { assets: {} }, pullConfig: [], serpPanel: { assets: {} }, signalPanels: { assets: {} }, valueEvents: { assets: {} }, ga4EventParams: { assets: {} },
 };
+// One filled store for the tests that only read it (issue #24); the refused
+// second seed rolls back. A test that fills its own scenario gets its own.
 let fixture: TestStore;
-beforeEach(async () => {
-  fixture = await createTestStore();
+beforeAll(async () => {
+  fixture = await createTestStore({ scope: 'suite' });
   await fixture.call.write(tx => fillDemo(tx, scenario, { evaluatePulse, developmentProfile: { setting: 'noticeos.profile', value: 'development' } }));
+}, 30_000);
+afterAll(async () => {
+  await fixture?.close();
 });
 
 it('ordinary financials and Wall read the same integer-cents ledger without counting estimates twice', async () => {

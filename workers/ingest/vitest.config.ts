@@ -99,8 +99,10 @@ const wranglerConfig = JSON.parse(stripJsonc(readFileSync(WRANGLER_CONFIG, 'utf8
  * of the store as its `POSTGRES` Hyperdrive binding, the binding a deployed
  * Worker reads, a second copy as `POSTGRES_OTHER` (a second store, for the
  * config cache's ownership proof), and `TEST_POSTGRES`: POST /reset has the
- * both copies made again before every file (test/clean-start.ts), and POST
- * /owner runs a fixture statement as the owner in either copy (test/helpers.ts).
+ * first copy made again before every file (test/clean-start.ts), and the
+ * second only with `{ other: true }`, after a file that reached it (issue
+ * #23): a few files do. POST /owner runs a fixture statement as the owner in
+ * either copy (test/helpers.ts).
  *
  * REQUIRED. Since the config store moved (bead ro-ujb9.76.4.1) nearly every
  * file reads it, so a run where no Postgres can start fails, naming why,
@@ -135,8 +137,10 @@ async function postgresOptions(): Promise<{
       TEST_POSTGRES: async (request: Request) => {
         const { pathname } = new URL(request.url);
         if (pathname === '/reset') {
+          const body = await request.text();
+          const asked = (body === '' ? {} : JSON.parse(body)) as { other?: unknown };
           await cluster.resetDatabase(database);
-          await cluster.resetDatabase(other);
+          if (asked.other === true) await cluster.resetDatabase(other);
           return new Response(null, { status: 204 });
         }
         if (pathname === '/owner') {

@@ -70,7 +70,7 @@ export interface ModuleAlias {
  * `require('pg-cloudflare')` misses its workerd build. Pointing the two at the
  * builds `require` means fixes the pool; the Workers themselves are bundled by
  * the Cloudflare Vite plugin and wrangler, which resolve them correctly and
- * need nothing (apps/tower/test/postgres-runtime.test.ts proves it).
+ * need nothing (apps/tower/test/runner-door-e2e.test.ts proves it).
  */
 export declare function workersPoolDriverAliases(): ModuleAlias[];
 /** Whether this run must have Postgres. */

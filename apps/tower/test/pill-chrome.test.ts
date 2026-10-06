@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -10,6 +10,7 @@ import {
   pillControlClass,
   pillPickerStateClass,
 } from "../src/components/ui/pill";
+import { typeScriptSources, withoutComments } from "./source-files";
 
 /**
  * ONE TOGGLE PILL, NOT EIGHT (bead `ro-s4rg`).
@@ -33,18 +34,6 @@ const SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src")
 const OWNER = path.join("components", "ui", "pill.ts");
 
 /** Comments say the same words as code and are not the thing under guard. */
-function withoutComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
-}
-
-/** Every `.ts`/`.tsx` under a directory, absolute. */
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) return sourceFiles(full);
-    return /\.tsx?$/.test(entry.name) ? [full] : [];
-  });
-}
 
 /** Class literals in a file, as utility TOKENS. Tokens rather than substrings
  * because `hover:bg-muted/60` contains `hover:bg-muted` and means something
@@ -58,7 +47,7 @@ function classTokenSets(file: string): Set<string>[] {
 
 /** Files holding a class literal the predicate recognises. */
 function offenders(matches: (set: Set<string>) => boolean): string[] {
-  return sourceFiles(SRC)
+  return typeScriptSources(SRC)
     .filter((file) => !file.endsWith(OWNER))
     .filter((file) => classTokenSets(file).some(matches))
     .map((file) => path.relative(SRC, file));

@@ -2,7 +2,8 @@
 //
 // The whole chain, on a real server: door → guard → vite/Cloudflare-plugin
 // dispatch → workerd → Tower Worker → INGEST Service Binding → ingest Worker,
-// and back.
+// and back. And both Workers reading the config store from Postgres, on that
+// same server, booted once for all of it (issue #24).
 //
 // WHY THIS FILE EXISTS. Every unit test around the runner lane was green while
 // the shipped door answered 403 to every single request, because the seam that
@@ -88,6 +89,9 @@ let towerPort: number;
 let doorPort: number;
 let postgres: TestStore | undefined;
 
+/** A zone no product default and no fixture holds, so only the store can answer it. */
+const SAVED_ZONE = "Pacific/Kiritimati";
+
 const doorUrl = (p: string) => `http://127.0.0.1:${doorPort}${p}`;
 const towerUrl = (p: string) => `http://127.0.0.1:${towerPort}${p}`;
 
@@ -152,6 +156,80 @@ afterAll(async () => {
     if (stateDir) await fs.rm(stateDir, { recursive: true, force: true });
   } finally { vi.unstubAllEnvs(); }
 }, 60_000);
+
+interface SettingsRead {
+  clock: { timeZone: string; chosen: boolean };
+}
+
+/** `/api/settings` once it answers what `until` waits for; the ingest caches
+ * a read for a second, so poll, never sleep a fixed time. */
+async function settingsUntil(until: (read: SettingsRead) => boolean): Promise<SettingsRead> {
+  const deadline = Date.now() + 60_000;
+  let last: unknown = null;
+  for (;;) {
+    try {
+      const res = await fetch(towerUrl("/api/settings"));
+      last = { status: res.status, body: await res.json() };
+      if (res.status === 200 && until((last as { body: SettingsRead }).body)) return (last as { body: SettingsRead }).body;
+    } catch {
+      // not answering yet
+    }
+    if (Date.now() > deadline) throw new Error(`/api/settings never answered as expected: ${JSON.stringify(last)}`);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+}
+
+// BOTH WORKERS READ THE CONFIG STORE FROM POSTGRES THE WAY THE LOCAL OS RUNS
+// THEM (epic ro-ujb9.76; the pattern every port copies is
+// docs/briefs/2026-09-29-postgres-port-pattern.md).
+//
+// The local OS — the managed service and `pnpm start` alike — runs ONE Vite
+// dev server (apps/tower/vite.config.ts): the Cloudflare plugin runs the Tower
+// Worker and, as its auxiliary Worker, the ingest, each from its own
+// wrangler.jsonc, both in one workerd: the server this file boots. Both
+// declare the POSTGRES Hyperdrive binding; its local connection string reaches
+// the dev server the way wrangler documents for local development,
+// CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES in its environment,
+// and names this suite's copy of the run's throwaway store.
+//
+// One Settings read covers both Workers' halves of the config store: the saved
+// clock comes from the ingest's config store over the INGEST binding
+// (workers/ingest/src/config-store.ts, on the ingest's own POSTGRES binding),
+// and whether a clock was ever chosen from the Tower's own read of the change
+// history (worker/config-source.ts `timeZoneEverSaved`, on the Tower's).
+//
+// First in the file: it reads the store before any request here can write it.
+describe("the config store, from Postgres", () => {
+  it("the Tower and the ingest, in the local OS's one dev server, read the config store from Postgres on their own POSTGRES bindings", async ({ skip }) => {
+    if (!postgres) return skip(`no Postgres here: ${postgresUnavailable()}`);
+    const before = await settingsUntil(() => true);
+    expect(before.clock.timeZone).not.toBe(SAVED_ZONE);
+    expect(before.clock.chosen).toBe(false);
+
+    // A Save of the clock, as the ingest's writer records one: the document and
+    // its change, in the store's one workspace, as noticeos_app.
+    await postgres.store.inWorkspace(postgres.workspaceId, async (tx) => {
+      await tx.execute(
+        `INSERT INTO noticeos.config_documents (workspace_id, document_key, body, version, updated_at, updated_by)
+         VALUES ($1::uuid, 'constants', $2::json, 2, now(), 'settings')`,
+        [tx.workspaceId, JSON.stringify({
+          os_time_zone: SAVED_ZONE,
+          operator_rate_usd_per_min: 1,
+          monthly_caps: { data_usd: 25 },
+          flag_defaults: {},
+        })],
+      );
+      await tx.execute(
+        `INSERT INTO noticeos.config_changes (workspace_id, document_key, ops, reason, actor, version_before, version_after, changed_at)
+         VALUES ($1::uuid, 'constants', $2::jsonb, NULL, 'operator', 1, 2, now())`,
+        [tx.workspaceId, JSON.stringify([{ kind: "file-json-set", file: "config/constants.json", pointer: "/os_time_zone", expect: before.clock.timeZone, value: SAVED_ZONE }])],
+      );
+    });
+
+    const after = await settingsUntil((read) => read.clock.timeZone === SAVED_ZONE);
+    expect(after.clock).toMatchObject({ timeZone: SAVED_ZONE, chosen: true });
+  }, 90_000);
+});
 
 describe("the ingest door, end to end", () => {
   // THE REGRESSION. Before the rawHeaders fix this answered

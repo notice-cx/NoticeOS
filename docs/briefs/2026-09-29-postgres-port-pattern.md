@@ -65,7 +65,7 @@ is given, so:
   host's (`ro-ujb9.76.12`); locally any id works because the environment
   variable names the database.
 
-Proven by [`apps/tower/test/postgres-runtime.test.ts`](../../apps/tower/test/postgres-runtime.test.ts):
+Proven by [`apps/tower/test/runner-door-e2e.test.ts`](../../apps/tower/test/runner-door-e2e.test.ts):
 it boots the dev server the local OS runs (the Tower Worker, the ingest as its
 auxiliary Worker, one workerd, the checked-in configs written into a folder of
 their own as `pnpm start` writes them). On main, with the two additions above
@@ -142,8 +142,8 @@ starter.
   takes a copy of its own, gives it back on `/__journey/reset` and takes
   another (the reset never waits on the copy the last test used), and drops
   it at its stop; the flow gate and the harness test start one cluster in
-  their own process. The tests that boot the dev server (`postgres-runtime.test.ts`,
-  `runner-door-e2e.test.ts`) hand their Workers a copy through the
+  their own process. The test that boots the dev server
+  (`runner-door-e2e.test.ts`) hands its Workers a copy through the
   local-address variable; the real start (`scripts/start.test.mjs`) and the
   runner's rehearsal (`scripts/runner-database.test.mjs`) put a copy's address
   in the installation's secrets file as `DATABASE_URL`, as an operator does

@@ -5,6 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { AssetDetailRoute, ASSET_TABS, type AssetTab } from "@/routes/AssetDetailRoute";
 import { everyTabPayload as payload } from "./asset-detail-fixture";
 import { loadAssetTabs } from "./lazy-code";
+import { stubJsonFetch } from "./stub-fetch";
 
 // A task source connected, as this installation's is (D32, bead
 // ro-ujb9.143): the task screens here render exactly as before it existed.
@@ -50,19 +51,6 @@ function testClient() {
   });
 }
 
-function stubFetch(body: unknown) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(
-      async () =>
-        new Response(JSON.stringify(body), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        }),
-    ),
-  );
-}
-
 /**
  * React and Radix mint an id per mount, so two runs of the same tree differ in
  * `:r3:` and `radix-:r7:` alone. Those are identity, not content.
@@ -106,7 +94,7 @@ beforeAll(loadAssetTabs);
 
 beforeEach(() => {
   vi.spyOn(Date, "now").mockReturnValue(NOW);
-  stubFetch(payload());
+  stubJsonFetch(payload());
 });
 
 afterEach(() => {
