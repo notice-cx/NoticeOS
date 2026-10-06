@@ -113,4 +113,6 @@ test('Compose exposes only loopback HTTP and gives no bootstrap volume to the ap
   assert.match(image, /hosted-demo-build\.mjs --out/u); assert.doesNotMatch(image, /vite dev|COPY installation|os-supervisor/u);
   const ignore = fs.readFileSync(path.join(ROOT, 'deploy/demo/Dockerfile.dockerignore'), 'utf8');
   assert.equal(ignore.split('\n')[0], '**'); assert.match(ignore, /\*\*\/\.\*/u); assert.doesNotMatch(ignore, /!installation/u);
+  // The Tower client embeds docs/templates/*.md with ?raw; the build context must carry that folder.
+  assert.match(ignore, /^!docs\/templates\/\*\*$/mu); assert.doesNotMatch(ignore, /^!docs\/\*\*$/mu);
 });
