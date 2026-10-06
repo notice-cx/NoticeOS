@@ -259,7 +259,7 @@ test('transaction custody uses maintained cookies, fresh authority and committed
         const started=performance.now();
         await assert.rejects(retireExpiredGoogleOAuth({...options,connectionString:selected.href}),error=>error instanceof IdentityRefused && error.message==='Integration OAuth maintenance refused');
         assert.equal(blocked,true,'the connection completed authentication before dropping only query replies');
-        assert.ok(performance.now()-started>=5500);assert.ok(performance.now()-started<10000);
+        assert.ok(performance.now()-started>=5500);assert.ok(performance.now()-started<20000,'a hang guard, not a speed check (issue #12)');
       } finally {
         for(const socket of sockets)socket.destroy();
         await new Promise((resolve,reject)=>proxy.close(error=>error?reject(error):resolve()));

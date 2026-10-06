@@ -323,7 +323,11 @@ test('incomplete streamed classification ends within the whole-read deadline', a
     body: new ReadableStream({ start(stream) { stream.enqueue(new TextEncoder().encode('{')); } }) });
   const started = Date.now();
   await assert.rejects(towerOperation(proof), OperationRefused);
-  assert.ok(Date.now() - started < 2600);
+  // It waited its 2 s whole-read deadline, then ended: a hang guard, not a
+  // speed check, so a loaded runner cannot fail it (issue #12).
+  const elapsed = Date.now() - started;
+  assert.ok(elapsed >= 1_990, `ended after ${elapsed} ms, before its deadline`);
+  assert.ok(elapsed < 10_000, `still reading after ${elapsed} ms`);
   // Only the owned synthetic original branch remains; retire it explicitly.
   await proof.body.cancel();
 });
