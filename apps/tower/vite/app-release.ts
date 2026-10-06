@@ -12,7 +12,10 @@ const SOURCE = /\.(?:[cm]?[jt]sx?|jsonc?|ya?ml|css|html)$/u;
 /** Stable in a clone, source archive and container: no Git, settings/default
  * data, installation files, timestamps, dependency scan or random build ID.
  * Configuration values aren't a protocol version; their reader/types are. */
-export function sourceAppRelease(root: string): string {
+export function sourceAppRelease(root: string, { liveSource = false }: { liveSource?: boolean } = {}): string {
+  // HMR updates client and Worker modules at different moments. A mounted
+  // checkout is one development lifetime, not a sequence of deployed releases.
+  if (liveSource) return createHash('sha256').update('noticeos-live-source/1').digest('hex');
   const files = [...ROOT_FILES];
   function walk(relative: string) {
     for (const entry of readdirSync(path.join(root, relative), { withFileTypes: true })) {

@@ -34,6 +34,25 @@ function EntryContent({ entry }: { entry: Entry }) {
   return <><AppUpdateNotice release={entry.appRelease} /><EntryView entry={entry} /></>;
 }
 const reloadPage = () => window.location.reload();
+const DISPLAY_RELOAD_KEY = 'noticeos:display-reload';
+const DISPLAY_RELOAD_COOLDOWN = 60_000;
+
+function allowDisplayReload(): boolean {
+  try {
+    const now = Date.now();
+    const stored: unknown = JSON.parse(window.sessionStorage.getItem(DISPLAY_RELOAD_KEY) ?? 'null');
+    const previous = stored !== null && typeof stored === 'object' && 'at' in stored && 'attempts' in stored
+      && typeof stored.at === 'number' && Number.isFinite(stored.at)
+      && typeof stored.attempts === 'number' && Number.isSafeInteger(stored.attempts) && stored.attempts >= 0
+      ? { at: stored.at, attempts: stored.attempts } : { at: 0, attempts: 0 };
+    if (previous.attempts >= 3 || previous.at > 0 && now - previous.at < DISPLAY_RELOAD_COOLDOWN) return false;
+    window.sessionStorage.setItem(DISPLAY_RELOAD_KEY, JSON.stringify({ at: now, attempts: previous.attempts + 1 }));
+    return true;
+  } catch {
+    // Without persistent tab state, a document cannot bound repeated reloads.
+    return false;
+  }
+}
 
 export function AppUpdateNotice({ release, reload = reloadPage }: {
   release: Entry['appRelease']; reload?: () => void;
@@ -42,26 +61,22 @@ export function AppUpdateNotice({ release, reload = reloadPage }: {
   const reloading = useRef(false);
   useEffect(() => {
     // Only the display route is disposable; /wall/edit and desk drafts stay open.
-    if (state === 'changed' && window.location.pathname === '/wall' && !reloading.current) {
-      reloading.current = true;
-      reload();
-    }
-  }, [state, reload]);
-  useEffect(() => {
-    if (state !== 'unavailable' || window.location.pathname !== '/wall') return;
+    if (state === 'current' || window.location.pathname !== '/wall') return;
     let controller: AbortController | null = null;
     let closed = false;
     let checking = false;
-    const interval = window.setInterval(() => {
+    const check = () => {
       if (checking) return;
       checking = true;
       const attempt = new AbortController();
       controller = attempt;
       const timeout = window.setTimeout(() => attempt.abort(), 10_000);
       void release.displayReadyToReload(attempt.signal).then(ready => {
-        if (ready && !closed && !attempt.signal.aborted && !reloading.current) { reloading.current = true; reload(); }
+        if (ready && !closed && !attempt.signal.aborted && !reloading.current && allowDisplayReload()) { reloading.current = true; reload(); }
       }).catch(() => {}).finally(() => { window.clearTimeout(timeout); checking = false; });
-    }, 30_000);
+    };
+    if (state === 'changed') check();
+    const interval = window.setInterval(check, 30_000);
     return () => { closed = true; window.clearInterval(interval); controller?.abort(); };
   }, [state, release, reload]);
   if (state === 'current') return null;
@@ -75,14 +90,21 @@ export function AppUpdateNotice({ release, reload = reloadPage }: {
 
 function EntryView({ entry }: { entry: Entry }) {
   const state = useSyncExternalStore(entry.subscribe, entry.snapshot, entry.snapshot);
+  const release = useSyncExternalStore(entry.appRelease.subscribe, entry.appRelease.snapshot, entry.appRelease.snapshot);
+  useEffect(() => {
+    if (state.phase === 'ready' && release === 'current' && window.location.pathname === '/wall') {
+      try { window.sessionStorage.removeItem(DISPLAY_RELOAD_KEY); } catch { /* The display can work without storage. */ }
+    }
+  }, [state.phase, release]);
   if (state.phase === 'ready' && state.runtime) {
     return <OwnedDesk key={state.runtime.ownerKey} runtime={state.runtime} label={state.label} entry={entry}
       role={state.session?.mode === 'hosted' ? state.session.selectedWorkspace?.role : undefined} />;
   }
   return <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-6 p-6">
     <BrandLockup />
-    {state.phase === 'checking' ? <EmptyState title="Checking your session…" /> : null}
-    {state.phase === 'unavailable' ? <><EmptyState title="Workspace unavailable" /><Button onClick={() => void entry.refresh()}>Retry</Button></> : null}
+    {release !== 'current' ? <EmptyState title="Waiting for app update…" /> : null}
+    {state.phase === 'checking' && release === 'current' ? <EmptyState title="Checking your session…" /> : null}
+    {state.phase === 'unavailable' && release === 'current' ? <><EmptyState title="Workspace unavailable" /><Button onClick={() => void entry.refresh()}>Retry</Button></> : null}
     {state.phase === 'signed-out' ? <Suspense fallback={<RouteLoading />}><SignInRoute entry={entry} /></Suspense> : null}
     {state.phase === 'invitation' ? <>
       <h1 className="text-lg font-semibold">Join workspace</h1>

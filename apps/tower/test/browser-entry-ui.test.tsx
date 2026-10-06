@@ -6,6 +6,8 @@ import { BrowserEntry } from '@/BrowserEntry';
 import { captureBrowserLanding, createBrowserEntry } from '@/lib/browser-entry';
 import type { BrowserEntry as Entry } from '@/lib/browser-entry';
 import type { ApiTransport } from '@/lib/api';
+import { createAppRelease } from '@/lib/app-release';
+import { APP_RELEASE_HEADER } from '../shared/app-release';
 
 const records = vi.hoisted(() => ({ routers: [] as { router: ReturnType<typeof createBrowserRouter>; disposed: ReturnType<typeof vi.spyOn> }[] }));
 vi.mock('@/App', async () => {
@@ -57,4 +59,20 @@ it('StrictMode preserves captured enrollment after fragment removal and first ef
   expect(controllers).toHaveLength(2);
   expect(controllers[1]?.enrollment).toEqual({ kind: 'invitation', id });
   expect(window.location.hash).toBe(''); rendered.unmount();
+});
+it('identifies a session compatibility refusal as an app update rather than a missing workspace', async () => {
+  const release = 'a'.repeat(64), updated = 'b'.repeat(64);
+  const fetch: ApiTransport = async input => String(input) === '/api/app-release'
+    ? Response.json({ release }, { headers: { [APP_RELEASE_HEADER]: release } })
+    : Response.json({ error: 'app_release_changed' }, { status: 409, headers: { [APP_RELEASE_HEADER]: updated } });
+  let entry!: Entry;
+  const factory = () => entry = createBrowserEntry({ origin: window.location.origin, page: window, fetch,
+    landing: { kind: 'none' }, appRelease: createAppRelease(fetch, release) });
+  const view = render(<BrowserEntry createEntry={factory} />);
+  try {
+    await screen.findByText('Waiting for app update…');
+    expect(screen.queryByText('Workspace unavailable')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Open app in new tab' })).toBeVisible();
+    expect(entry.snapshot().runtime).toBeNull();
+  } finally { view.unmount(); }
 });

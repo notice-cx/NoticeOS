@@ -76,6 +76,80 @@ describe('server-owned app compatibility', () => {
 });
 
 describe('an old browser document', () => {
+  it('waits for agreeing server versions instead of reloading a split session and release lane', async () => {
+    const prior = window.location.href;
+    window.history.replaceState(null, '', '/wall');
+    vi.useFakeTimers();
+    try {
+      let metadata = A;
+      const release = createAppRelease(async (input, init) => String(input) === '/api/app-release'
+        ? response(metadata) : new Headers(init?.headers).get(APP_RELEASE_HEADER) === B
+          ? response(B, { mode: 'standalone' }) : Response.json({ error: 'app_release_changed' }, {
+            status: 409, headers: { [APP_RELEASE_HEADER]: B },
+          }), A);
+      const reload = vi.fn();
+      const view = render(<AppUpdateNotice release={release} reload={reload} />);
+      await act(async () => { await expect(release.fetch('/api/session')).rejects.toBeInstanceOf(AppReleaseError); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(90_000); });
+      expect(reload).not.toHaveBeenCalled();
+      metadata = B;
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(reload).toHaveBeenCalledOnce();
+      await expect(release.fetch('/api/settings', { method: 'PUT' })).rejects.toBeInstanceOf(AppReleaseError);
+      view.unmount();
+    } finally { vi.useRealTimers(); window.history.replaceState(null, '', prior); }
+  });
+  it('recovers when deployment advances beyond the first refused version and waits while current lanes disagree', async () => {
+    const C = 'c'.repeat(64);
+    let metadata = C, worker = B;
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
+      if (String(input) === '/api/app-release') return response(metadata);
+      const compatible = new Headers(init?.headers).get(APP_RELEASE_HEADER) === worker;
+      return Response.json(compatible ? { mode: 'standalone' } : { error: 'app_release_changed' }, {
+        status: compatible ? 200 : 409, headers: { [APP_RELEASE_HEADER]: worker },
+      });
+    });
+    const release = createAppRelease(fetch, A);
+    await expect(release.fetch('/api/session')).rejects.toBeInstanceOf(AppReleaseError);
+    expect(await release.displayReadyToReload()).toBe(false);
+    worker = C;
+    expect(await release.displayReadyToReload()).toBe(true);
+    await expect(release.fetch('/api/settings', { method: 'PUT' })).rejects.toBeInstanceOf(AppReleaseError);
+    expect(fetch.mock.calls.every(([, init]) => init?.method !== 'PUT')).toBe(true);
+  });
+  it('bounds automatic reloads across document lifetimes and stops after three failed updates', async () => {
+    const prior = window.location.href;
+    window.history.replaceState(null, '', '/wall');
+    vi.useFakeTimers();
+    try {
+      const reload = vi.fn();
+      const first = createAppRelease(async () => response(B), A);
+      const firstView = render(<AppUpdateNotice release={first} reload={reload} />);
+      await act(async () => { await expect(first.check()).rejects.toBeInstanceOf(AppReleaseError); });
+      expect(reload).toHaveBeenCalledOnce();
+      firstView.unmount();
+      const next = createAppRelease(async () => response(B), A);
+      const nextView = render(<AppUpdateNotice release={next} reload={reload} />);
+      await act(async () => { await expect(next.check()).rejects.toBeInstanceOf(AppReleaseError); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(reload).toHaveBeenCalledOnce();
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(reload).toHaveBeenCalledTimes(2);
+      nextView.unmount();
+      const third = createAppRelease(async () => response(B), A);
+      const thirdView = render(<AppUpdateNotice release={third} reload={reload} />);
+      await act(async () => { await expect(third.check()).rejects.toBeInstanceOf(AppReleaseError); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+      expect(reload).toHaveBeenCalledTimes(3);
+      thirdView.unmount();
+      const exhausted = createAppRelease(async () => response(B), A);
+      const exhaustedView = render(<AppUpdateNotice release={exhausted} reload={reload} />);
+      await act(async () => { await expect(exhausted.check()).rejects.toBeInstanceOf(AppReleaseError); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(300_000); });
+      expect(reload).toHaveBeenCalledTimes(3);
+      exhaustedView.unmount();
+    } finally { vi.useRealTimers(); window.history.replaceState(null, '', prior); }
+  });
   it.each(['/wall', '/wall/edit', '/integrations'])('reloads only the read-only display after an observed deployment: %s', async pathname => {
     const prior = window.location.href;
     window.history.replaceState(null, '', pathname);
@@ -117,7 +191,7 @@ describe('an old browser document', () => {
       expect(reload).not.toHaveBeenCalled();
       server = A;
       await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
-      expect(reload).not.toHaveBeenCalled();
+      expect(reload).toHaveBeenCalledOnce();
       server = B;
       await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
       expect(reload).toHaveBeenCalledOnce();

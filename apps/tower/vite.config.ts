@@ -206,7 +206,7 @@ const monthlyCaps = {
 const CONTRACT_SOURCE = /[\\/]packages[\\/]contract[\\/]src[\\/]/;
 
 export default defineConfig(({ command }) => {
-  const appRelease = sourceAppRelease(path.resolve(rootDir, '../..'));
+  const appRelease = sourceAppRelease(path.resolve(rootDir, '../..'), { liveSource: command === 'serve' && Boolean(liveSourceRoot) });
   const appSourceVersion = liveSourceRoot ? gitSourceVersion(liveSourceRoot,{declared:true}) : sourceVersion(path.resolve(rootDir,'../..'));
   // Check reserved local-variable collisions before any host adapter is
   // constructed or installation custody is read. The callback seals reloads.

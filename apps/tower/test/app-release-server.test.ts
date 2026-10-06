@@ -26,6 +26,18 @@ function fixture() {
 }
 
 describe('release identity from source', () => {
+  it('keeps mounted development modules compatible across independent hot updates', () => {
+    const { root, put } = fixture();
+    const deployed = sourceAppRelease(root);
+    const development = sourceAppRelease(root, { liveSource: true });
+    expect(development).toMatch(/^[a-f0-9]{64}$/u);
+    expect(development).not.toBe(deployed);
+    put('apps/tower/client.ts', 'export const version = 2;');
+    expect(sourceAppRelease(root, { liveSource: true })).toBe(development);
+    expect(sourceAppRelease(root)).not.toBe(deployed);
+    put('workers/ingest/worker.ts', 'export const version = 3;');
+    expect(sourceAppRelease(root, { liveSource: true })).toBe(development);
+  });
   it('is reproducible across locations/timestamps and ignores configuration, tests, dependencies and build output', () => {
     const a = fixture(), b = fixture();
     const release = sourceAppRelease(a.root);

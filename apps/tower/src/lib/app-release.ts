@@ -40,11 +40,20 @@ export function createAppRelease(fetch: ApiTransport, release = compiledAppRelea
     },
     async displayReadyToReload(signal?: AbortSignal) {
       if (release === null || state === 'current') return false;
-      // Recover a display stuck on a headerless outage response. API writes stay latched.
+      // Confirm the current release lane and session Worker agree. A deployment
+      // may have advanced again since this document first observed a mismatch.
       const response = await fetch(APP_RELEASE_PATH, { headers: { accept: 'application/json' }, cache: 'no-store', signal });
       const server = response.headers.get(APP_RELEASE_HEADER);
-      const ready = response.ok && validAppRelease(server) && server !== release;
+      const candidate = response.ok && validAppRelease(server)
+        && (state === 'unavailable' || server !== release);
       void response.body?.cancel().catch(() => {});
+      if (!candidate) return false;
+      const session = await fetch('/api/session', {
+        headers: { accept: 'application/json', [APP_RELEASE_HEADER]: server },
+        cache: 'no-store', credentials: 'same-origin', mode: 'same-origin', signal,
+      });
+      const ready = session.ok && session.headers.get(APP_RELEASE_HEADER) === server;
+      void session.body?.cancel().catch(() => {});
       return ready;
     },
     snapshot: () => state,
