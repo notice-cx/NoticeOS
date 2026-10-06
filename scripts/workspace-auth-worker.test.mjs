@@ -70,9 +70,11 @@ test('ordinary Tower email-code entry preserves invitation, delivery and session
           messages.push({ ...message, code }); return new Response(null, { status: 204 });
         } }, outboundService },
     ] });
+    // A hang guard for one call, not a speed check: a cold call on a loaded
+    // runner took over 10 s (as in workspace-oauth-worker.test.mjs).
     const http = (action, body = {}, headers = {}, pathname = EMAIL_CODE_PATHS[action]) => runtime.dispatchFetch(origin + pathname, {
       method: 'POST', headers: { origin, 'content-type': 'application/json', 'cf-connecting-ip': '192.0.2.24', ...headers },
-      body: JSON.stringify(body), signal: AbortSignal.timeout(10000),
+      body: JSON.stringify(body), signal: AbortSignal.timeout(30000),
     });
     const selector = id => ({ [EMAIL_ENROLLMENT_HEADERS.kind]: 'platform', [EMAIL_ENROLLMENT_HEADERS.id]: id });
     const enroll = async email => {
