@@ -2,6 +2,7 @@ import { WORKSPACE_SESSION_HEADER } from './browser-request-policy.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
+import { atDeadline, fakeClock } from './test-deadline.mjs';
 import { configReadFiles, assetMutationArguments, configWriteArguments, connectionReadinessArguments, credentialWriteArguments, providerCollectionArguments, requireStandaloneWorkspace, withWorkspaceEntry, withLiveProviderReadEntry, storedResearchArguments, watchQueryHistoryArguments, workspaceProfile } from './workspace-entry.mjs';
 import { TOWER_CONFIG_FILES } from '../packages/contract/src/configuration.mjs';
 
@@ -228,7 +229,8 @@ test('readiness binds duplicate provider arguments and refuses browser/role fail
   assert.deepEqual(f.calls.stores, [a, a]);
 });
 
-test('a stalled readiness body refuses before opening identity or store', { timeout: 5000 }, async () => {
+test('a stalled readiness body refuses before opening identity or store', { timeout: 5000 }, async (t) => {
+  fakeClock(t);
   const f = fixture();
   let controller;
   const body = new ReadableStream({ start(value) { controller = value; } });
@@ -238,7 +240,8 @@ test('a stalled readiness body refuses before opening identity or store', { time
       'x-noticeos-workspace-id': a, [WORKSPACE_SESSION_HEADER]: session },
   });
   try {
-    await assert.rejects(withWorkspaceEntry(env, original, use, f.adapters));
+    // Refused at the 2 s whole-read deadline, not before (scripts/test-deadline.mjs).
+    await assert.rejects(atDeadline(t, withWorkspaceEntry(env, original, use, f.adapters), 2_000));
     assert.equal(f.calls.opened, 0);
     assert.deepEqual(f.calls.stores, []);
   } finally {
@@ -286,14 +289,15 @@ test('credential writes bind exact original payloads and current owner without a
   assert.deepEqual(f.calls.stores, Array(10).fill(a));
 });
 
-test('stalled credential JSON and DELETE streams refuse before identity I/O', { timeout: 7000 }, async () => {
+test('stalled credential JSON and DELETE streams refuse before identity I/O', { timeout: 7000 }, async (t) => {
+  fakeClock(t);
   for (const method of ['PUT', 'DELETE']) {
     const f = fixture(); let controller;
     const body = new ReadableStream({ start(value) { controller = value; } });
     const proof = new Request(origin + '/api/integrations/google/credential', { method, duplex: 'half', body,
       headers: { origin, 'content-type': 'application/json', 'x-noticeos-workspace-id': a, [WORKSPACE_SESSION_HEADER]: session } });
     try {
-      await assert.rejects(withWorkspaceEntry(env, proof, use, f.adapters));
+      await assert.rejects(atDeadline(t, withWorkspaceEntry(env, proof, use, f.adapters), 2_000));
       assert.equal(f.calls.opened, 0); assert.deepEqual(f.calls.stores, []);
     } finally { controller.close(); await proof.body.cancel(); }
   }
@@ -410,16 +414,19 @@ test('credentialed stored POSTs validate original browser evidence before any id
     assert.equal((await withWorkspaceEntry(env, noOrigin, use, empty.adapters)).workspace, a);
   }
 });
-test('stalled and oversized stored POSTs refuse boundedly with no identity or store acquisition', async () => {
-  for (const body of [new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode('{')); } }),
-    new ReadableStream({ start(controller) { controller.enqueue(new Uint8Array(256 * 1024 + 1)); } })]) {
+test('stalled and oversized stored POSTs refuse boundedly with no identity or store acquisition', async (t) => {
+  fakeClock(t);
+  // A stalled body is refused at the 2 s whole-read deadline, not before; an
+  // oversized one at once, on its size.
+  for (const [stalled, body] of [[true, new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode('{')); } })],
+    [false, new ReadableStream({ start(controller) { controller.enqueue(new Uint8Array(256 * 1024 + 1)); } })]]) {
     const f = fixture();
     const proof = new Request(origin + '/api/mcp', { method: 'POST', headers: {
       origin, 'content-type': 'application/json', 'x-noticeos-workspace-id': a, [WORKSPACE_SESSION_HEADER]: session },
       body, duplex: 'half' });
-    const start = Date.now();
-    await assert.rejects(withWorkspaceEntry(env, proof, use, f.adapters));
-    assert.ok(Date.now() - start < 4000); assert.equal(f.calls.opened, 0); assert.equal(f.calls.stores.length, 0);
+    const entry = withWorkspaceEntry(env, proof, use, f.adapters);
+    await assert.rejects(stalled ? atDeadline(t, entry, 2_000) : entry);
+    assert.equal(f.calls.opened, 0); assert.equal(f.calls.stores.length, 0);
   }
 });
 

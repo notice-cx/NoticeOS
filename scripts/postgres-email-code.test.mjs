@@ -6,6 +6,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { atDeadline, fakeClock } from './test-deadline.mjs';
 import { createServer } from 'node:net';
 import { openEmailCodeLogin, EMAIL_CODE_PATHS } from '../packages/postgres/src/email-code.mjs';
 import { WORKSPACE_SESSION_HEADER } from './browser-request-policy.mjs';
@@ -41,7 +42,7 @@ test('email entry refuses unsafe requests before connection and exposes only fix
     trustedOrigin: origin, sessionSecret: randomBytes(48).toString('base64url'), peerAddress, deliver: async () => {} }), IdentityRefused);
 });
 
-test('whole-body deadline and oversized tee refuse without identity connection or hanging close', { timeout: 30_000 }, async () => {
+test('whole-body deadline and oversized tee refuse without identity connection or hanging close', { timeout: 30_000 }, async (t) => {
   let connections = 0;
   const server = createServer(socket => { connections++; socket.destroy(); });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -51,13 +52,12 @@ test('whole-body deadline and oversized tee refuse without identity connection o
   try {
     const stalled = new Request(`${origin}${EMAIL_CODE_PATHS.request}`, { method: 'POST', headers: { origin }, duplex: 'half', body: new ReadableStream({ pull() { return new Promise(() => {}); } }) });
     requests.push(stalled);
-    const started = performance.now();
-    await assert.rejects(login.requestCode(stalled), IdentityRefused);
-    // The 5 s whole-body deadline retires the action even when tee cancellation
-    // cannot settle; the upper bound is a hang guard, not a speed check (issue #12).
-    const elapsed = performance.now() - started;
-    assert.ok(elapsed >= 4_990, `refused after ${elapsed} ms, before its deadline`);
-    assert.ok(elapsed < 15_000, `whole-body deadline still waiting after ${elapsed} ms`);
+    // The 5 s whole-body deadline retires the action even when tee
+    // cancellation cannot settle: not before it, and at it, on a fake clock
+    // (scripts/test-deadline.mjs).
+    fakeClock(t);
+    await assert.rejects(atDeadline(t, login.requestCode(stalled), 5_000), IdentityRefused);
+    t.mock.timers.reset();
     const oversized = new Request(`${origin}${EMAIL_CODE_PATHS.request}`, { method: 'POST', headers: { origin }, duplex: 'half', body: new ReadableStream({ start(controller) { controller.enqueue(new Uint8Array(2049)); }, cancel() { return new Promise(() => {}); } }) });
     requests.push(oversized);
     await assert.rejects(login.requestCode(oversized), IdentityRefused);
