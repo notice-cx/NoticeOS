@@ -382,7 +382,7 @@ describe("the strip", () => {
     const view = strip();
     const tile = view.container.querySelector("[data-strip-countdown] [data-strip-countdown-emoji]")!;
     expect(tile.textContent).toBe("🌁");
-    expect(tile).toHaveClass("size-wall-strip-mark", "text-wall-strip-emoji");
+    expect(tile).toHaveClass("min-h-wall-strip-mark", "min-w-wall-strip-mark", "text-wall-strip-emoji");
     expect(tile.getAttribute("aria-hidden")).toBe("true");
     view.unmount();
     for (const emoji of ["", "  "]) {
