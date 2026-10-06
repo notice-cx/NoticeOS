@@ -218,8 +218,11 @@ function readTemplateContents(template) {
     };
 }
 /** One statement, run as the owner in a copy given back: every table the
- * template leaves empty and that now holds a row is emptied, and every
- * sequence is put back where the template leaves it. */
+ * template leaves empty and that now holds a row, or the pages of rows a test
+ * deleted, is emptied; the column statistics an ANALYZE left on those tables
+ * (a test's own, or autovacuum's while the test held the copy) are removed;
+ * and every sequence is put back where the template leaves it. A planner
+ * reads all three, so a copy handed out again plans as a new one does. */
 function emptyingStatement(contents) {
     const tables = contents.emptyTables.map((name) => `'${name}'`).join(', ');
     const sequences = contents.sequences.map((sequence) => `  PERFORM setval('${sequence.name}', ${sequence.value}, ${sequence.called});`).join('\n');
@@ -232,10 +235,13 @@ BEGIN
   -- A session that slipped in while the copy was being taken back.
   PERFORM pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid();
   FOREACH one IN ARRAY ARRAY[${tables}]::text[] LOOP
-    EXECUTE format('SELECT EXISTS (SELECT 1 FROM %s)', one) INTO held;
+    EXECUTE format('SELECT EXISTS (SELECT 1 FROM %s) OR pg_relation_size(%L::regclass) > 0', one, one) INTO held;
     IF held THEN occupied := occupied || one; END IF;
   END LOOP;
   IF cardinality(occupied) > 0 THEN EXECUTE 'TRUNCATE ' || array_to_string(occupied, ', ') || ' CASCADE'; END IF;
+  DELETE FROM pg_catalog.pg_statistic WHERE starelid IN (
+    SELECT relation FROM unnest(ARRAY[${tables}]::regclass[]) AS relation
+    UNION ALL SELECT indexrelid FROM pg_catalog.pg_index WHERE indrelid = ANY (ARRAY[${tables}]::regclass[]));
 ${sequences}
 END $empty$`;
 }
