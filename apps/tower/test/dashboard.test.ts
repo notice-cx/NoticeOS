@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { parseDashboardConfig, readDashboardConfig } from "@shared/dashboard";
 import { DEFAULT_WALL_LAYOUT } from "@shared/wall-layout";

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { readSite, readSites } from "../worker/asset-registry";
 import { type AssetDetailDeps, buildAssetDetailPayload } from "../worker/asset-detail-payload";

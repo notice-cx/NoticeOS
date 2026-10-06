@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { atDeadline, fakeClock } from './test-deadline.mjs';
 import { createHostedTaskHttp } from './hosted-task-http.mjs';
 import { WORKSPACE_SELECTION_HEADER, WORKSPACE_SESSION_HEADER } from './browser-request-policy.mjs';
 const A = '11111111-1111-4111-8111-111111111111';
@@ -100,14 +101,17 @@ test('oversized declared/streamed bodies, invalid UTF8 and content type refuse',
   const invalid = new Request(origin + '/api/tasks', { method: 'POST', headers: { ...proofHeaders, 'content-type': 'application/json' }, body: new Uint8Array([0xc0, 0x80]) });
   assert.equal((await f.handler(invalid)).status, 400); assert.equal(f.calls.length, 0);
 });
-test('stalled request stream is cancelled and refused before executor', async () => {
+test('stalled request stream is cancelled and refused before executor', async (t) => {
+  fakeClock(t);
   const f = fixture(); let cancelled = 0;
   const original = new Request(origin + '/api/tasks', { method: 'POST', headers: { ...proofHeaders, 'content-type': 'application/json' },
     body: new ReadableStream({ cancel() { cancelled++; } }), duplex: 'half' });
-  const before = Date.now(); assert.equal((await f.handler(original)).status, 400);
-  assert.equal(cancelled, 1); assert.ok(Date.now() - before < 4000); assert.equal(f.calls.length, 0);
+  // Refused at the 2 s body deadline, not before (scripts/test-deadline.mjs).
+  assert.equal((await atDeadline(t, f.handler(original), 2_000)).status, 400);
+  assert.equal(cancelled, 1); assert.equal(f.calls.length, 0);
 });
-test('the whole body deadline bounds a never-settling cancellation promise', async () => {
+test('the whole body deadline bounds a never-settling cancellation promise', async (t) => {
+  fakeClock(t);
   for (const oversized of [false, true]) {
     const f = fixture(); let cancelled = 0;
     const original = new Request(origin + '/api/tasks', { method: 'POST',
@@ -116,9 +120,8 @@ test('the whole body deadline bounds a never-settling cancellation promise', asy
         start(controller) { if (oversized) controller.enqueue(new Uint8Array(32769)); },
         cancel() { cancelled++; return new Promise(() => {}); },
       }), duplex: 'half' });
-    const before = Date.now();
-    assert.equal((await f.handler(original)).status, 400);
-    assert.ok(Date.now() - before < 4000);
+    // The cancellation never settles; the 2 s body deadline ends the wait.
+    assert.equal((await atDeadline(t, f.handler(original), 2_000)).status, 400);
     assert.equal(cancelled, 1); assert.equal(original.body.locked, false);
     assert.equal(f.calls.length, 0);
   }

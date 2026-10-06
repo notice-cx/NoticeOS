@@ -1,3 +1,4 @@
+// @vitest-environment node
 // The site region's read model (docs/25-the-wall.md § Density, bead
 // `ro-trai.13`): what one site shown in depth reads from the payload it
 // already has, and when a tile has nothing to show.

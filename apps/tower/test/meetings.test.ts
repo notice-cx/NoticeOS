@@ -1,3 +1,4 @@
+// @vitest-environment node
 // What today's meetings ARE (lib/meetings): the distance strings and the
 // hero/followers split the Wall's top strip reads. The panel that also drew
 // them, with its feed colours and failure lines, left with the pre-D28 Wall

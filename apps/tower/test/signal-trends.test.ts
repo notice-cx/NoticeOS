@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, describe, expect, it } from "vitest";
 import { SIGNAL_EVIDENCE_FLOOR_DAYS } from "../worker/integration-evidence";
 import { emptySignalTrendSet, loadSignalTrends, timeZoneChangesSql } from "../worker/signal-trends";

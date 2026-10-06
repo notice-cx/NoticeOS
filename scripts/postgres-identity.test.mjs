@@ -9,8 +9,9 @@ import test from 'node:test';
 import { openIdentity, IDENTITY_NAMES, IdentityRefused } from '../packages/postgres/src/identity.mjs';
 import { openEmailCodeLogin, EMAIL_CODE_PATHS } from '../packages/postgres/src/email-code.mjs';
 import { openStore } from '../packages/postgres/src/store.mjs';
-import { findPostgres, PostgresUnavailable, LOOPBACK_HBA } from './postgres-dev.mjs';
+import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
+import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { checkDatabase } from './database-address.mjs';
 import { applyMigrations, bootstrapWorkspace, readMigrations } from './postgres-migrate.mjs';
 import { stopLocalSecretReads } from './worker-config-folder.mjs';
@@ -35,16 +36,12 @@ test('identity requires explicit origin, secret and connection before any socket
 });
 
 test('owned identity migration, fresh session/membership and Worker lifecycle preserve standalone access', async (t) => {
-  let tools;
-  try { tools = findPostgres(); } catch (error) {
-    if (error instanceof PostgresUnavailable && process.env.NOTICEOS_REQUIRE_POSTGRES !== '1') return t.skip(error.message);
-    throw error;
-  }
+  const tools = findPostgres();
   const root = mkdtempSync(path.join(os.tmpdir(), 'noticeos-identity-'));
   const opened = [];
   let owner, admin, enginePool, mf, standalone;
   try {
-    owner = await openOnLoopbackPort(path.join(root, 'pg'), tools);
+    owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root, 'pg'), tools)); if (!owner) return;
     const port = owner.loopbackPort;
     admin = new Pool({ host: owner.socketDir, port, database: 'noticeos_dev', user: 'postgres', max: 1 });
     // Compile against the owned empty database, before the append-only migration.

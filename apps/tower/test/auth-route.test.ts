@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { handleAuthRequest, type AuthEntryBindings } from '../worker/auth-route';

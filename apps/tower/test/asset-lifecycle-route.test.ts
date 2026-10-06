@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { CreateAssetInput, CreateAssetResult } from "@noticeos/contract";
 import { handleCreateAssetRequest, type AssetLifecycleWriter } from "../worker/asset-lifecycle-route";

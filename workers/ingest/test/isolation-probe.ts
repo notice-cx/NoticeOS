@@ -3,9 +3,9 @@
 //
 // isolation-probe-a.test.ts and isolation-probe-b.test.ts are this one file
 // under two names. Each first checks that it starts from the migrated store,
-// an empty bucket and cache, and modules evaluated for it alone; then it leaves
-// all of those dirty behind it — a saved settings document, a stored object, a
-// cached response, warm module caches — and it leaves work running: writes to
+// an empty bucket and cache, and no module state held (src/isolate-state.ts);
+// then it leaves all of those dirty behind it — a saved settings document, a
+// stored object, a cached response, a warm read cache — and it leaves work running: writes to
 // the database, the bucket and the cache, waiting to be let go. Whichever of
 // the two runs second in a runtime checks what the first left and lets its
 // work go, which must be refused and land nowhere, so either order proves it.
@@ -20,28 +20,20 @@
 import { env } from 'cloudflare:test';
 import { expect, it, vi } from 'vitest';
 import { getConfigDocument, seedConfigDocuments } from '../src/config-store.js';
+import { heldIsolateState, registeredIsolateState } from '../src/isolate-state.js';
 import { storeSites } from './sites';
 import { TEST_SITES } from './invented-sites';
 import { takeStrays } from './store-fence';
 
 type Probe = 'a' | 'b';
-type Modules = Record<string, object>;
 
 const FILE = 'config/tower.json';
 const cached = (probe: Probe) => `https://isolation-probe.example/${probe}`;
 
-/** The modules whose module-level state once carried over from file to file. */
-const STATEFUL: Record<string, () => Promise<object>> = {
-  'config-store (read cache)': () => import('../src/config-store.js'),
-  'calendar (feed round)': () => import('../src/calendar.js'),
-  'dataforseo-dumps (collector lane)': () => import('../src/dataforseo-dumps.js'),
-  'ga4-realtime (token cache)': () => import('../src/ga4-realtime.js'),
-  'index (the Worker SELF runs)': () => import('../src/index.js'),
-};
-
-async function modules(): Promise<Modules> {
-  return Object.fromEntries(await Promise.all(Object.entries(STATEFUL).map(async ([name, load]) => [name, await load()] as const)));
-}
+/** The module state a runtime keeps between calls, each registered beside its
+ * declaration (src/isolate-state.ts); importing the Worker loads them all. */
+const STATEFUL = ['config-store read cache', 'DataForSEO collector lane', 'GA4 token cache'];
+const loadWorker = () => import('../src/index.js');
 
 /** Work a test starts and does not wait for: three writes, held until `letGo`. */
 interface LeftRunning {
@@ -100,7 +92,8 @@ async function expectRefused(work: LeftRunning, from: string): Promise<void> {
 // globalThis outlives a file in a reused runtime, and nothing under test keeps
 // anything there: the one place a probe can leave word for the next file.
 interface Left {
-  modules: Modules;
+  /** The module state it left held. */
+  held: string[];
   running: LeftRunning;
   test: string;
 }
@@ -117,6 +110,11 @@ export function isolationProbe(self: Probe): void {
   let inFile: LeftRunning | null = null;
 
   it(earlier ? `starts clean after probe ${other} ran in this runtime` : 'starts clean', async () => {
+    // Before anything reads: every module state is registered and holds nothing.
+    expect(heldIsolateState()).toEqual([]);
+    await loadWorker();
+    expect(registeredIsolateState()).toEqual(expect.arrayContaining(STATEFUL));
+    expect(heldIsolateState()).toEqual([]);
     expect((await getConfigDocument(env, FILE)).source).toBe('file');
     expect((await env.RAW_SIGNALS.list()).objects).toEqual([]);
     expect(await caches.default.match(cached(other))).toBeUndefined();
@@ -127,8 +125,8 @@ export function isolationProbe(self: Probe): void {
     // The runtime's own timers: a timer set now fires (bead ro-ujb9.76.64).
     expect(await zeroDelayTimerFires()).toBe(true);
     if (earlier) {
-      const now = await modules();
-      for (const name of Object.keys(STATEFUL)) expect(now[name], `${name} evaluated again`).not.toBe(earlier.modules[name]);
+      // What the other file left held is held no longer.
+      expect(earlier.held).toContain('config-store read cache');
       // The other file's work, still running into this one: refused, landed nowhere.
       delete left()[other];
       await expectRefused(earlier.running, earlier.test);
@@ -144,7 +142,7 @@ export function isolationProbe(self: Probe): void {
     await expectRefused(inFile!, `${file} > ends with its writes still waiting to run`);
   });
 
-  const leaving = 'leaves a saved document, a stored object, a cached response, a stored site, warm modules, a dead clock and running work behind';
+  const leaving = 'leaves a saved document, a stored object, a cached response, a stored site, a warm read cache, a dead clock and running work behind';
   it(leaving, async () => {
     const document = { countdown: { label: `Isolation probe ${self}`, target: '2026-10-01' } };
     expect((await seedConfigDocuments(env, { documents: { [FILE]: document }, actor: 'isolation-probe' })).ok).toBe(true);
@@ -154,7 +152,9 @@ export function isolationProbe(self: Probe): void {
     expect(await postgresSites()).toContain(`isolation-probe-${self}`);
     await caches.default.put(cached(self), new Response(self, { headers: { 'cache-control': 'max-age=3600' } }));
     expect(await caches.default.match(cached(self))).toBeDefined();
-    left()[self] = { modules: await modules(), running: leaveRunning(`${self}-across-files`), test: `${file} > ${leaving}` };
+    const held = heldIsolateState();
+    expect(held).toContain('config-store read cache');
+    left()[self] = { held, running: leaveRunning(`${self}-across-files`), test: `${file} > ${leaving}` };
     // Last: a spy on a faked setTimeout, restored after the clock. That order
     // leaves the dead clock's setTimeout on the global (bead ro-ujb9.76.64),
     // and a zero-delay timer set after it never fires.

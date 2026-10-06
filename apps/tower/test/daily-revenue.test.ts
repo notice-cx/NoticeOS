@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { MEDIAVINE_REPORTING_CLOCK, siteRevenueWindow, yesterdayRevenue } from '../shared/daily-revenue';
 

@@ -1,3 +1,4 @@
+// @vitest-environment node
 // The ledger's current-row guard, on Postgres (beads `ro-ujb9.101`,
 // ro-ujb9.76.6.1).
 //

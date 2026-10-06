@@ -69,6 +69,7 @@ import { collectorDefaultDocument } from '../../../scripts/config-defaults.mjs';
 export { CONFIG_DOCUMENT_FILES };
 
 import type { ConfigSource, ConfigDocumentRead, ApplyConfigOpsInput, ConfigWriteMismatch, ApplyConfigOpsResult } from '@noticeos/contract/configuration';
+import { isolateState } from './isolate-state.js';
 export type { ConfigSource, ConfigDocumentRead, ApplyConfigOpsInput, ConfigWriteMismatch, ApplyConfigOpsResult } from '@noticeos/contract/configuration';
 
 /** One stored document as this module hands it on: named by its file, its
@@ -138,6 +139,7 @@ export function forgetConfigCache(store?: WorkspaceStore): void {
   }
   for (const key of caches.keys()) if (key.startsWith(`${store.where}\n`)) caches.delete(key);
 }
+isolateState('config-store read cache', { forget: () => forgetConfigCache(), held: () => caches.size > 0 });
 
 async function readRows(store: WorkspaceStore, files: string[]): Promise<Map<string, StoredRow | null>> {
   const out = new Map<string, StoredRow | null>();

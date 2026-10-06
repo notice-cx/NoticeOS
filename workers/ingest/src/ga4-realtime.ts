@@ -58,6 +58,7 @@ import {
   normalizeSignalError,
   SignalError,
 } from './signal-store.js';
+import { isolateState } from './isolate-state.js';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const TOKEN_REUSE_MS = 50 * 60 * 1_000;
@@ -89,6 +90,7 @@ interface TokenEntry {
 }
 
 const sharedTokenCache = new Map<string, TokenEntry>();
+isolateState('GA4 token cache', { forget: () => sharedTokenCache.clear(), held: () => sharedTokenCache.size > 0 });
 
 export interface Ga4RealtimeOptions {
   nowMs?: number;

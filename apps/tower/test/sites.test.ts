@@ -1,3 +1,4 @@
+// @vitest-environment node
 // Direct site fixtures retain identity, metadata, insertion order and isolation.
 import { describe, expect, it } from "vitest";
 import { createTestStore, postgresUnavailable } from "./postgres-store";

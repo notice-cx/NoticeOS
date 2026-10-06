@@ -1,3 +1,4 @@
+// @vitest-environment node
 // The translation layer's contract: a stored alert (rule_id + rule_inputs + the
 // rule's own message) becomes a sentence an operator can act on. Every case here
 // is a real rule_inputs shape written by workers/ingest — the fixtures are

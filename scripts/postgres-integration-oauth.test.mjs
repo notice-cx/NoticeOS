@@ -12,8 +12,9 @@ import { openEmailCodeLogin, EMAIL_CODE_PATHS } from '../packages/postgres/src/e
 import { WORKSPACE_SESSION_HEADER } from './browser-request-policy.mjs';
 import { openIdentity, IdentityRefused } from '../packages/postgres/src/identity.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
-import { findPostgres, PostgresUnavailable, LOOPBACK_HBA } from './postgres-dev.mjs';
+import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
+import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 
@@ -50,15 +51,11 @@ test('custody has only fixed actions and rejects malformed original proof before
 });
 
 test('transaction custody uses maintained cookies, fresh authority and committed single use', { timeout: 60000 }, async t => {
-  let tools;
-  try { tools = findPostgres(); } catch (error) {
-    if (error instanceof PostgresUnavailable && process.env.NOTICEOS_REQUIRE_POSTGRES !== '1') return t.skip(error.message);
-    throw error;
-  }
+  const tools = findPostgres();
   const fixture = mkdtempSync(path.join(os.tmpdir(), 'noticeos-google-custody-'));
   const opened = new Set(); let owner, admin;
   try {
-    owner = await openOnLoopbackPort(path.join(fixture, 'pg'), tools);
+    owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(fixture, 'pg'), tools)); if (!owner) return;
     applyMigrations(owner);
     admin = new Pool({ host: owner.socketDir, port: owner.loopbackPort, database: 'noticeos_dev', user: 'postgres', max: 2 });
     const password = randomBytes(32).toString('base64url');
@@ -262,7 +259,7 @@ test('transaction custody uses maintained cookies, fresh authority and committed
         const started=performance.now();
         await assert.rejects(retireExpiredGoogleOAuth({...options,connectionString:selected.href}),error=>error instanceof IdentityRefused && error.message==='Integration OAuth maintenance refused');
         assert.equal(blocked,true,'the connection completed authentication before dropping only query replies');
-        assert.ok(performance.now()-started>=5500);assert.ok(performance.now()-started<10000);
+        assert.ok(performance.now()-started>=5500);assert.ok(performance.now()-started<20000,'a hang guard, not a speed check (issue #12)');
       } finally {
         for(const socket of sockets)socket.destroy();
         await new Promise((resolve,reject)=>proxy.close(error=>error?reject(error):resolve()));
@@ -276,7 +273,11 @@ test('transaction custody uses maintained cookies, fresh authority and committed
       const pending = claim(state); const closing = own.close(); await pending; await closing; await own.close();
       await assert.rejects(own.issueGoogle(start(a, cookie), a, () => {}), IdentityRefused);
       for (const value of opened) await value.close(); opened.clear();
-      assert.equal((await admin.query("SELECT count(*)::int n FROM pg_stat_activity WHERE usename='noticeos_identity'")).rows[0].n, 0);
+      // Closing a client and PostgreSQL removing its backend are distinct events
+      // (as in postgres-identity.test.mjs): wait for them to go, accepting no leak.
+      const identityBackends = async () => (await admin.query("SELECT count(*)::int n FROM pg_stat_activity WHERE usename='noticeos_identity'")).rows[0].n;
+      for (const deadline = performance.now() + 5000; performance.now() < deadline && await identityBackends() > 0;) await new Promise(resolve => setTimeout(resolve, 20));
+      assert.equal(await identityBackends(), 0);
     });
   } finally {
     const cleanup = await Promise.allSettled([...opened].map(value => value.close()));

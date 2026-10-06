@@ -117,7 +117,7 @@ test('JSON response limits and empty-stream limits terminate without forwarding 
   await assert.rejects(client(async () => new Response(new ReadableStream({ pull(controller) { chunks++; controller.enqueue(new Uint8Array()); } }))).inventory());
   assert.ok(chunks < 70);
 });
-test('a stalled SQL stream with stuck cancellation respects its deadline plus bounded cleanup', { timeout: 4000 }, async t => {
+test('a stalled SQL stream with stuck cancellation respects its deadline plus bounded cleanup', { timeout: 20_000 }, async t => {
   const root = await fixture(t), output = path.join(root, 'stalled');
   const saved = receipt(); let cancelled = false;
   const native = { exportTarget: async () => saved, artifact: async () => new Response(new ReadableStream({
@@ -127,7 +127,11 @@ test('a stalled SQL stream with stuck cancellation respects its deadline plus bo
   let opened; const io = { ...fs, open: async (...args) => { opened = await fs.open(...args); return opened; } };
   const started = performance.now();
   await assert.rejects(copyCloudflareD1({ client: native, selection, target, output, io, deadlineMs: 25 }));
-  assert.ok(performance.now() - started < 3500);
+  // The stuck cancel is given its 2 s bound and no more: a lower bound, and a
+  // hang guard a loaded runner cannot fail (issue #12).
+  const elapsed = performance.now() - started;
+  assert.ok(elapsed >= 1_990, `cleanup ended after ${elapsed} ms, before its bound`);
+  assert.ok(elapsed < 10_000, `cleanup still waiting after ${elapsed} ms`);
   assert.equal(cancelled, true); assert.equal(opened.fd, -1);
   await assert.rejects(fs.stat(path.join(output, 'receipt.json')), { code: 'ENOENT' });
 });

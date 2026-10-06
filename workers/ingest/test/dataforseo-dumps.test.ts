@@ -18,8 +18,10 @@ import {
   retryAfterWaitMs,
   runDataForSeoDumps,
   runDataForSeoRecovery,
+  trackedQueries,
   type SerpPanelQuery,
 } from '../src/dataforseo-dumps.js';
+import { SignalError } from '../src/signal-store.js';
 import { forgetConfigCache, seedConfigDocuments } from '../src/config-store.js';
 import { SIGNAL_DUMPS_CRON } from '../src/crons.js';
 import { runCron } from '../src/dispatch.js';
@@ -1804,8 +1806,22 @@ describe('tracked-query SERP panel', () => {
     expect(spend?.costUsd).toBeCloseTo(0.008 + newCalls * 0.004);
   });
 
-  /** The `config_invalid` code one panel earns, or null when the config is fine.
-   * Every rule here is a loud failure rather than a quiet repair. */
+  /** The refusal code one panel earns from the collector's own validation, or
+   * null when the panel is fine. Every rule here is a loud failure rather than
+   * a quiet repair. Checked directly: a sweep per case cost ~1 s each (issue #6),
+   * and `panelError` below proves a refusal reaches the sweep's outcome. */
+  function panelRefusal(queries: SerpPanelQuery[]): string | null {
+    try {
+      trackedQueries({ assets: { 'meals.example': { queries } } }, 'meals.example');
+      return null;
+    } catch (error) {
+      if (error instanceof SignalError) return error.code;
+      throw error;
+    }
+  }
+
+  /** The `config_invalid` code one panel earns from a whole sweep, or null when
+   * the config is fine. */
   async function panelError(
     queries: SerpPanelQuery[],
     fetchImpl: typeof fetch,
@@ -2005,43 +2021,24 @@ describe('tracked-query SERP panel', () => {
     }
   });
 
-  it('rejects a mis-spelled cluster rather than quietly grouping by it', async () => {
-    const { fetchImpl } = providerFetch();
-
+  it('rejects a mis-spelled cluster rather than quietly grouping by it', () => {
     // Labelling is optional per QUERY as well as per property: a panel may mix
     // the two shapes, and that must stay valid.
-    expect(
-      await panelError(
-        [{ query: 'my plate', label: 'Brand' }, 'meals calculator'],
-        fetchImpl,
-      ),
-    ).toBeNull();
+    expect(panelRefusal([{ query: 'my plate', label: 'Brand' }, 'meals calculator'])).toBeNull();
     // An entry that is neither shape names the file rather than collecting a
     // panel that means something else.
-    expect(await panelError([42 as unknown as SerpPanelQuery], fetchImpl)).toBe(
-      'config_invalid',
-    );
+    expect(panelRefusal([42 as unknown as SerpPanelQuery])).toBe('config_invalid');
     // A blank label is not "no label" — omitting the field is.
-    expect(
-      await panelError([{ query: 'my plate', label: '  ' }], fetchImpl),
-    ).toBe('config_invalid');
-    expect(
-      await panelError(
-        [{ query: 'my plate', label: 'x'.repeat(61) }],
-        fetchImpl,
-      ),
-    ).toBe('config_invalid');
+    expect(panelRefusal([{ query: 'my plate', label: '  ' }])).toBe('config_invalid');
+    expect(panelRefusal([{ query: 'my plate', label: 'x'.repeat(61) }])).toBe('config_invalid');
     // Grouping is an exact-string match on the archived label, so one cluster
     // spelled two ways is two bets in the readout and one in the operator's
     // head — the duplicate-query rule, applied to the group name.
     expect(
-      await panelError(
-        [
-          { query: 'my plate', label: 'Item head' },
-          { query: 'big mac calories', label: 'item head' },
-        ],
-        fetchImpl,
-      ),
+      panelRefusal([
+        { query: 'my plate', label: 'Item head' },
+        { query: 'big mac calories', label: 'item head' },
+      ]),
     ).toBe('config_invalid');
   });
 
@@ -2358,25 +2355,17 @@ describe('tracked-query SERP panel', () => {
   });
 
   it('rejects an empty or duplicated panel rather than quietly repairing it', async () => {
-    const { fetchImpl } = providerFetch();
-
-    expect(await panelError([], fetchImpl)).toBe('config_invalid');
-    expect(await panelError(['my plate', 'My Plate'], fetchImpl)).toBe(
-      'config_invalid',
-    );
-    expect(await panelError(['my plate', '  '], fetchImpl)).toBe(
-      'config_invalid',
-    );
+    expect(panelRefusal([])).toBe('config_invalid');
+    expect(panelRefusal(['my plate', 'My Plate'])).toBe('config_invalid');
+    expect(panelRefusal(['my plate', '  '])).toBe('config_invalid');
     // The object form is held to the same two rules as the shorthand.
-    expect(
-      await panelError(
-        [{ query: 'my plate' }, { query: 'My Plate', label: 'Brand' }],
-        fetchImpl,
-      ),
-    ).toBe('config_invalid');
-    expect(await panelError([{ query: '  ' }], fetchImpl)).toBe(
-      'config_invalid',
-    );
+    expect(panelRefusal([{ query: 'my plate' }, { query: 'My Plate', label: 'Brand' }])).toBe('config_invalid');
+    expect(panelRefusal([{ query: '  ' }])).toBe('config_invalid');
+    // And a refused panel is the sweep's own outcome for that property, not a
+    // repair it quietly made.
+    const { fetchImpl, calls } = providerFetch();
+    expect(await panelError(['my plate', 'My Plate'], fetchImpl)).toBe('config_invalid');
+    expect(calls.filter((call) => call.url.endsWith(SERP_PATH))).toEqual([]);
   });
 });
 

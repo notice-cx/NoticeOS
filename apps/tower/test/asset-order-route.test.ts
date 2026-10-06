@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import type { MoveAssetResult } from '@noticeos/contract';
 import { handleAssetOrderRequest } from '../worker/asset-order-route';

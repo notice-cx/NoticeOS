@@ -62,7 +62,8 @@ test('waiting for the runtime answers at once when it is up, and gives up when i
   assert.equal(await waitForRuntime({ running: true, ready: true }, 1_000), true);
   const started = Date.now();
   assert.equal(await waitForRuntime({ running: true, ready: false }, 150), false);
-  assert.ok(Date.now() - started < 1_000);
+  // Gave up rather than hung; generous for a loaded runner (issue #12).
+  assert.ok(Date.now() - started < 5_000);
 });
 
 test('a tracked interval never fires after the scheduler stops', async () => {

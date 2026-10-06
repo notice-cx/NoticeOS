@@ -1,3 +1,4 @@
+// @vitest-environment node
 // The class combiner keeps every type step index.css adds (bead ro-trai.23).
 // tailwind-merge took `text-wall-body` for a colour, so a call that also set a
 // text colour silently dropped the size: every Wall feed line drew at whatever

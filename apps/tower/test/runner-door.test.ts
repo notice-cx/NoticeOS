@@ -1,3 +1,4 @@
+// @vitest-environment node
 // The LAN boundary, at the unit level.
 //
 // One workerd runtime now serves both Workers (bead ro-mad), so the ingest has

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { expect, it } from 'vitest';
 import { decodeFinancials, decodeWallMoney, decodeAssetMoney } from '@/lib/money-response';
 import { buildFinancialsPayload } from '../worker/financials-payload';

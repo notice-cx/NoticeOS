@@ -26,6 +26,7 @@ function setup(overrides = {}) {
     reset: noop,
     clearRawSignals: noop,
     seedTestSites: noop,
+    forgetIsolateState: noop,
     aroundAll: noop,
     aroundEach: noop,
     beforeEach: noop,
@@ -40,11 +41,14 @@ test('an ingest file setup failure names the awaited operation and preserves its
     ['clearRawSignals', 'resetting R2 and the Cache API'],
     ['postgres', "resetting this runtime's Postgres test copy"],
     ['seedTestSites', 'seeding the Postgres test sites'],
+    ['forgetIsolateState', 'forgetting module state'],
   ];
   for (const [name, label] of steps) {
     let calls = 0;
     const cause = new Error('Network connection lost.');
-    const fail = async () => { calls += 1; throw cause; };
+    const fail = name === 'forgetIsolateState'
+      ? () => { calls += 1; throw cause; }
+      : async () => { calls += 1; throw cause; };
     const override = name === 'postgres' ? { env: { TEST_POSTGRES: { fetch: fail } } } : { [name]: fail };
     await assert.rejects(setup(override), (error) => {
       assert.equal(error.message, `ingest test file setup failed while ${label}`);

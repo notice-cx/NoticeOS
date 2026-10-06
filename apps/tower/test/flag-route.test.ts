@@ -1,3 +1,4 @@
+// @vitest-environment node
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { beforeEach, describe, expect, it } from "vitest";
 import { SNOOZE_MAX_DAYS } from "../shared/snooze";

@@ -71,6 +71,13 @@ past the TV, paints outside its own box, cuts text off or draws half a feed row
 (the measurement `pnpm wall:fit` runs, `scripts/wall-fit-measure.mts`), if a
 seventh site's row is not a full 70 px, or if the strip, Needs you and the site
 marks do not say what is on fire.
+The Wall journeys set this up through `wall-scene.ts`. `wallScene` pins the
+clock and answers the Wall's five reads once, with each load starting from an
+empty sessionStorage. A journey that walks screen sizes loads the Wall once
+(`wallAt`), then resizes the window and waits until the redrawn Wall stops
+moving. The TV-fit journey still loads every variant cold, at the TV, a laptop
+and a phone (`openWall`). The live-feed journey skips the browser's clock one
+30-second poll ahead (`page.clock.runFor`) instead of waiting for it.
 A Sources-tab journey opens every data-source row, disclosure and a new PostHog
 funnel one at a time, and fails naming the row if the page grows wider than the
 viewport or a doc reference is clipped; a synthetic Google property list with
@@ -104,7 +111,9 @@ The HTML report and selected screenshot attachments are written under
 ## The UX flow gate
 
 `pnpm test:journeys` ends with the UX flow gate (bead `ro-ujb9.95`,
-`flow-gate.mjs`): it walks every operator flow declared in `ux-flows.mjs` with
+`flow-gate.mjs`), which runs even when a journey has failed, so one red run
+reports both; the step fails if either does. CI runs the journeys and the
+gate as two parallel jobs. The gate walks every operator flow declared in `ux-flows.mjs` with
 the recorder in `ux-walk.mjs`, at 1440×900 and 390×844, on its own fixture
 servers (this directory's `server.mjs`, started by `fixture-server.mjs` on a
 free port, one per lane, each reset before every flow), and fails when a flow

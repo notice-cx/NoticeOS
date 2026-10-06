@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { atDeadline, fakeClock } from './test-deadline.mjs';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { appendFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
@@ -7,8 +8,9 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
 import net from 'node:net';
-import { findPostgres, PostgresUnavailable, LOOPBACK_HBA } from './postgres-dev.mjs';
+import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
+import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 import { bundleWorkerFixture, Miniflare } from './worker-entry-test-fixture.mjs';
@@ -37,7 +39,7 @@ test('fixed service construction is lazy, snapshots IDs, and retires without a c
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
 
-test('established socket stalls retain the fixed deadline and retire on refusal', { timeout: 10000 }, async () => {
+test('established socket stalls retain the fixed deadline and retire on refusal', { timeout: 10000 }, async (t) => {
   const sockets = new Set(); let queried = false;
   const server = net.createServer(socket => {
     sockets.add(socket); socket.on('close', () => sockets.delete(socket));
@@ -56,9 +58,12 @@ test('established socket stalls retain the fixed deadline and retire on refusal'
     principalId: randomUUID(), workspaceId: randomUUID(),
   });
   try {
-    const started = Date.now();
-    await assert.rejects(reader.facts(), { name: 'ServiceGrantRefused', message: 'Service grant connection refused' });
-    assert.ok(queried); assert.ok(Date.now() - started < 8000);
+    // The fixed 6 s query deadline, not before it and at it, on a fake clock
+    // (scripts/test-deadline.mjs).
+    fakeClock(t);
+    await assert.rejects(atDeadline(t, reader.facts(), 6_000), { name: 'ServiceGrantRefused', message: 'Service grant connection refused' });
+    t.mock.timers.reset();
+    assert.ok(queried);
   } finally {
     await reader.close();
     for (const socket of sockets) await new Promise(resolve => socket.once('close', resolve));
@@ -68,15 +73,11 @@ test('established socket stalls retain the fixed deadline and retire on refusal'
 });
 
 test('service grant joins current lifecycle and only named scoped facts in native and Worker', { timeout: 90000 }, async t => {
-  let tools;
-  try { tools = findPostgres(); } catch (error) {
-    if (error instanceof PostgresUnavailable && process.env.NOTICEOS_REQUIRE_POSTGRES !== '1') return t.skip(error.message);
-    throw error;
-  }
+  const tools = findPostgres();
   const root = mkdtempSync(path.join(os.tmpdir(), 'n-service-'));
   let owner, admin; const clients = [], readers = [], runtimes = [];
   try {
-    owner = await openOnLoopbackPort(path.join(root, 'pg'), tools);
+    owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root, 'pg'), tools)); if (!owner) return;
     admin = new Pool({ host: owner.socketDir, port: owner.loopbackPort, database: 'noticeos_dev', user: 'postgres', max: 2 });
     applyMigrations(owner);
     const baseConnection = owner.applicationLogin().url();

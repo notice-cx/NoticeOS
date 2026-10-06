@@ -1,3 +1,4 @@
+// @vitest-environment node
 // Which Wall a screen gets, by its shape (bead ro-trai.31, docs/25-the-wall.md
 // § Laptop, tablet and phone).
 import { describe, expect, it } from "vitest";

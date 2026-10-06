@@ -1,3 +1,4 @@
+// @vitest-environment node
 // Two asset-page reads bounded by what the page shows (bead `ro-ujb9.103`).
 //
 // Site-health history used to read every night the asset ever recorded to

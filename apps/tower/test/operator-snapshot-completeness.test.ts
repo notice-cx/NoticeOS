@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { loadLatestBeadsSnapshot } from "../worker/beads-snapshot";
 import { beadsNeedsYou } from "../worker/task-source";

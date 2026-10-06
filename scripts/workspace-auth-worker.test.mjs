@@ -6,8 +6,9 @@ import { execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { findPostgres, PostgresUnavailable, LOOPBACK_HBA } from './postgres-dev.mjs';
+import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
+import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
 import { EMAIL_CODE_PATHS, EMAIL_ENROLLMENT_HEADERS, MEMBERSHIP_PATH, ACCEPT_INVITATION_PATH,
   parseEmailEnrollmentLanding } from './identity-protocol.mjs';
@@ -19,16 +20,12 @@ import { bundleWorkerFixture, Miniflare } from './worker-entry-test-fixture.mjs'
 const { Pool } = createRequire(path.join(REPO_ROOT, 'packages/postgres/package.json'))('pg');
 
 test('ordinary Tower email-code entry preserves invitation, delivery and session boundaries', { timeout: 120000 }, async t => {
-  let tools;
-  try { tools = findPostgres(); } catch (error) {
-    if (error instanceof PostgresUnavailable && process.env.NOTICEOS_REQUIRE_POSTGRES !== '1') return t.skip(error.message);
-    throw error;
-  }
+  const tools = findPostgres();
   const root = mkdtempSync(path.join(os.tmpdir(), 'noticeos-auth-entry-'));
   let owner, admin, runtime, identity;
   try {
     const tower = await bundleWorkerFixture(root, 'tower', path.join(REPO_ROOT, 'apps/tower/worker/index.ts'));
-    owner = await openOnLoopbackPort(path.join(root, 'pg'), tools); applyMigrations(owner);
+    owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root, 'pg'), tools)); if (!owner) return; applyMigrations(owner);
     admin = new Pool({ host: owner.socketDir, port: owner.loopbackPort, database: 'noticeos_dev', user: 'postgres', max: 2 });
     const appUrl = owner.applicationLogin().url(), password = randomBytes(32).toString('base64url');
     await admin.query('ALTER ROLE noticeos_identity LOGIN');
@@ -73,9 +70,11 @@ test('ordinary Tower email-code entry preserves invitation, delivery and session
           messages.push({ ...message, code }); return new Response(null, { status: 204 });
         } }, outboundService },
     ] });
+    // A hang guard for one call, not a speed check: a cold call on a loaded
+    // runner took over 10 s (as in workspace-oauth-worker.test.mjs).
     const http = (action, body = {}, headers = {}, pathname = EMAIL_CODE_PATHS[action]) => runtime.dispatchFetch(origin + pathname, {
       method: 'POST', headers: { origin, 'content-type': 'application/json', 'cf-connecting-ip': '192.0.2.24', ...headers },
-      body: JSON.stringify(body), signal: AbortSignal.timeout(10000),
+      body: JSON.stringify(body), signal: AbortSignal.timeout(30000),
     });
     const selector = id => ({ [EMAIL_ENROLLMENT_HEADERS.kind]: 'platform', [EMAIL_ENROLLMENT_HEADERS.id]: id });
     const enroll = async email => {

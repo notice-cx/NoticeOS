@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { handleBrowserSessionRequest, type BrowserSessionReaders } from '../worker/browser-session-route';
 import { PRODUCT_ENV } from '../../../scripts/product-env.mjs';

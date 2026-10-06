@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { atDeadline, fakeClock } from './test-deadline.mjs';
 import {randomBytes,randomUUID} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {appendFileSync,existsSync,mkdtempSync,rmSync,mkdirSync,readFileSync,writeFileSync} from 'node:fs';
@@ -8,8 +9,9 @@ import path from 'node:path';
 import os from 'node:os';
 import net from 'node:net';
 import {stopLocalSecretReads} from './worker-config-folder.mjs';
-import {findPostgres,PostgresUnavailable,LOOPBACK_HBA} from './postgres-dev.mjs';
+import {findPostgres,LOOPBACK_HBA} from './postgres-dev.mjs';
 import {openOnLoopbackPort} from './postgres-test-cluster.mjs';
+import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import {applyMigrations} from './postgres-migrate.mjs';
 import {REPO_ROOT} from './test-config-isolation.mjs';
 import {openTaskDirectory} from '../packages/postgres/src/task-directory.mjs';
@@ -29,7 +31,7 @@ test('directory construction and malformed input open no socket',async()=>{
   }finally{await reader.close();await new Promise(resolve=>server.close(resolve));}
 });
 
-test('established PostgreSQL socket stalls are bounded and retired',{timeout:10000},async()=>{
+test('established PostgreSQL socket stalls are bounded and retired',{timeout:10000},async(t)=>{
   const sockets=new Set();let queried=false;
   const server=net.createServer(socket=>{
     sockets.add(socket);socket.on('close',()=>sockets.delete(socket));
@@ -46,9 +48,12 @@ test('established PostgreSQL socket stalls are bounded and retired',{timeout:100
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   const reader=openTaskDirectory({connectionString:`postgresql://noticeos_task_directory:generated@127.0.0.1:${server.address().port}/fixture?sslmode=disable&query_timeout=0&statement_timeout=0`});
   try{
-    const started=Date.now();
-    await assert.rejects(reader.project(randomUUID(),randomUUID()),{name:'TaskDirectoryRefused',message:'Task directory connection refused'});
-    assert.ok(queried);assert.ok(Date.now()-started<8000);
+    // The fixed 6 s query deadline, not before it and at it, on a fake clock
+    // (scripts/test-deadline.mjs).
+    fakeClock(t);
+    await assert.rejects(atDeadline(t,reader.project(randomUUID(),randomUUID()),6_000),{name:'TaskDirectoryRefused',message:'Task directory connection refused'});
+    t.mock.timers.reset();
+    assert.ok(queried);
     await reader.close();
   }finally{
     await reader.close();
@@ -97,15 +102,11 @@ async function workerProof(root,connectionString,facts,revoke){
 }
 
 test('platform task directory has immutable ownership and no customer grants',{timeout:60000},async t=>{
-  let tools;
-  try{tools=findPostgres();}catch(error){
-    if(error instanceof PostgresUnavailable&&process.env.NOTICEOS_REQUIRE_POSTGRES!=='1')return t.skip(error.message);
-    throw error;
-  }
+  const tools = findPostgres();
   const root=mkdtempSync(path.join(os.tmpdir(),'n-directory-'));
   let owner,admin,reader;const clients=[],readers=[];
   try{
-    owner=await openOnLoopbackPort(path.join(root,'pg'),tools);
+    owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root,'pg'), tools)); if (!owner) return;
     admin=new Pool({host:owner.socketDir,port:owner.loopbackPort,database:'noticeos_dev',user:'postgres',max:2});
     applyMigrations(owner);
     const baseConnection=owner.applicationLogin().url();

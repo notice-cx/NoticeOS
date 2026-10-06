@@ -7,8 +7,9 @@ import { execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { findPostgres, PostgresUnavailable, LOOPBACK_HBA } from './postgres-dev.mjs';
+import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
+import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
 import { openEmailCodeLogin, EMAIL_CODE_PATHS } from '../packages/postgres/src/email-code.mjs';
 import { GOOGLE_INTEGRATION_START, GOOGLE_INTEGRATION_CALLBACK } from './workspace-operations.mjs';
@@ -21,11 +22,7 @@ const fixtureDir = path.join(REPO_ROOT, 'workers/ingest/test/fixture-config');
 const fixture = name => JSON.parse(readFileSync(path.join(fixtureDir, `${name}.json`), 'utf8'));
 
 test('hosted OAuth original HTTP/RPC proof commits custody before scoped provider/store effects in workerd', { timeout: 120000 }, async t => {
-  let tools;
-  try { tools = findPostgres(); } catch (error) {
-    if (error instanceof PostgresUnavailable && process.env.NOTICEOS_REQUIRE_POSTGRES !== '1') return t.skip(error.message);
-    throw error;
-  }
+  const tools = findPostgres();
   const root = mkdtempSync(path.join(os.tmpdir(), 'noticeos-oauth-entry-'));
   let owner, admin, runtime;
   try {
@@ -48,7 +45,7 @@ test('hosted OAuth original HTTP/RPC proof commits custody before scoped provide
         } catch {return Response.json({ok:false},{status:403});}
       }};`);
     const driver = await bundle(root, 'driver', driverEntry);
-    owner = await openOnLoopbackPort(path.join(root, 'pg'), tools); applyMigrations(owner);
+    owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root, 'pg'), tools)); if (!owner) return; applyMigrations(owner);
     admin = new Pool({ host: owner.socketDir, port: owner.loopbackPort, database: 'noticeos_dev', user: 'postgres', max: 2 });
     const password = randomBytes(32).toString('base64url');
     await admin.query('ALTER ROLE noticeos_identity LOGIN');

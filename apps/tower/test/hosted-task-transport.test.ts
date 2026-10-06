@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { createBrowserRuntime } from '@/lib/browser-runtime';
 import { taskCatalogProjects, readTaskBoard } from '@/lib/task-board-read';

@@ -1,3 +1,4 @@
+// @vitest-environment node
 // The data-source evidence reads, bounded (bead `ro-ujb9.104`).
 //
 // Every asset tab and every Wall refresh reads the newest archive manifest per

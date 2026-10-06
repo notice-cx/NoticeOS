@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { readSite, readSites } from "../worker/asset-registry";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import worker, { type TowerEnv } from "../worker/index";

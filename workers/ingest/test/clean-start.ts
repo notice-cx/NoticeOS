@@ -3,10 +3,13 @@
 // The suite reuses one Workers runtime per Vitest worker from file to file
 // (vitest.config.ts, `isolate: false`): starting a runtime for every file took
 // longer than the tests. This is what still gives each file a start of its own:
-//  - every module is evaluated again, so no module-level state carries over —
-//    config-store's read cache, calendar's feed round, the DataForSEO lane,
-//    the GA4 token cache, and any cache added later. (`vi.mock` would carry
-//    over; this suite has none.)
+//  - no module-level state carries over: every module that keeps some
+//    registers how to forget it (src/isolate-state.ts) — config-store's read
+//    cache, the DataForSEO lane, the GA4 token cache — and all of it is
+//    forgotten once the file's sites are seeded. Modules are not evaluated
+//    again: that took most of the suite's time (issue #5), and
+//    scripts/ingest-isolate-state.test.mjs refuses unregistered state.
+//    (`vi.mock` would carry over; this suite has none.)
 //  - no global stub or fake clock left by the file before is still in place;
 //  - the raw-signal bucket and Cache API are emptied (`reset()`), and this
 //    runtime's Postgres copy is made again from the run's template. Complete
@@ -28,6 +31,7 @@ import { fenceStore, fenceWorkspaceStore, settle, takeStrays, within } from './s
 import { seedTestSites } from './invented-sites';
 import { createTestTimeoutSignals } from './timeout-signals';
 import { clearRawSignals } from './clear-raw-signals';
+import { forgetIsolateState } from '../src/isolate-state.js';
 
 fenceStore(env);
 let nativeTimeout = AbortSignal.timeout;
@@ -38,8 +42,7 @@ let starting = 'settling work left by the previous test file';
 try {
   // A call left on its way lands before the store is emptied, never after.
   await settle();
-  starting = 'restoring modules, timers and globals';
-  vi.resetModules();
+  starting = 'restoring timers and globals';
   vi.useRealTimers();
   const timers = restorePristineTimers();
   vi.unstubAllGlobals();
@@ -58,6 +61,8 @@ try {
   if (!copied.ok) throw new Error(`the copy service answered ${copied.status}`);
   starting = 'seeding the Postgres test sites';
   await seedTestSites();
+  starting = 'forgetting module state';
+  forgetIsolateState();
 } catch (error) {
   AbortSignal.timeout = nativeTimeout;
   throw new Error(`ingest test file setup failed while ${starting}`, { cause: error });

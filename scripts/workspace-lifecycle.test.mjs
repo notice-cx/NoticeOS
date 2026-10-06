@@ -3,19 +3,16 @@ import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { MODEL_DIR, findPostgres, PostgresUnavailable, withDisposablePostgres, inWorkspace } from './postgres-dev.mjs';
+import { MODEL_DIR, findPostgres, withDisposablePostgres, inWorkspace } from './postgres-dev.mjs';
+import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { applyMigrations, bootstrapWorkspace } from './postgres-migrate.mjs';
 
 test('canonical lifecycle backfills, defaults, narrow grants and standalone bootstrap preserve rollback', async t => {
-  let tools;
-  try { tools = findPostgres(); } catch (error) {
-    if (error instanceof PostgresUnavailable && process.env.NOTICEOS_REQUIRE_POSTGRES !== '1') return t.skip(error.message);
-    throw error;
-  }
+  const tools = findPostgres();
   const baseline = mkdtempSync(path.join(os.tmpdir(), 'noticeos-lifecycle-baseline-'));
   try {
     copyFileSync(path.join(MODEL_DIR, 'migrations/0001_baseline.sql'), path.join(baseline, '0001_baseline.sql'));
-    await withDisposablePostgres(async dev => {
+    const started = await skipWithoutPostgres(t, () => withDisposablePostgres(async dev => {
       applyMigrations(dev, { dir: baseline });
       const original = bootstrapWorkspace(dev, { slug: 'original', dir: baseline });
       assert.equal(original.created, true, 'current bootstrap works against an old baseline-only database');
@@ -43,7 +40,8 @@ test('canonical lifecycle backfills, defaults, narrow grants and standalone boot
         FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
         WHERE n.nspname='noticeos_identity' AND p.proname='workspace_summary'`)[0];
       assert.equal(fn.definer, 't'); assert.match(fn.config, /search_path=pg_catalog, pg_temp/u); assert.equal(fn.public_execute, 'f');
-    }, tools);
+    }, tools).then(() => true));
+    if (!started) return;
     await withDisposablePostgres(async dev => {
       applyMigrations(dev);
       const standalone = bootstrapWorkspace(dev, { slug: 'standalone' });

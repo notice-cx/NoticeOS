@@ -39,7 +39,11 @@ describe('the synthetic viewer screen state', () => {
   });
   it('two independent visitors never request providers or external favicons and start read-only', async () => {
     vi.stubGlobal('__DEMO_VIEWER__', descriptor());
+    // Besides the save check, a visitor reads only the Wall's realtime
+    // traffic, which the demo server answers from its synthetic scenario
+    // (scripts/demo-realtime.mts) without reaching a provider.
     const fetch = vi.fn(async (path: unknown) => {
+      if (path === '/api/ga4/realtime') return Response.json({ generatedAt: '2026-09-16T12:00:00.000Z', monitoringAvailable: true, assets: [] });
       expect(path).toBe('/api/config');
       return Response.json({ writable: true, reason: null, sources: { 'config/beads.json': 'store' } });
     });
@@ -49,10 +53,10 @@ describe('the synthetic viewer screen state', () => {
       const view = render(<QueryClientProvider client={client}><Reads /><PropertyFavicon domain="sentinel.example" displayName="Example" /></QueryClientProvider>);
       expect(screen.getByTestId('config-writable')).toHaveTextContent('false');
       expect(view.container.querySelector('img')).toBeNull();
-      await waitFor(() => expect(fetch).toHaveBeenCalledTimes(visitor + 1));
+      await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2 * (visitor + 1)));
       view.unmount(); client.clear();
     }
-    expect(fetch.mock.calls.every(([path]) => path === '/api/config')).toBe(true);
+    expect(fetch.mock.calls.map(([path]) => path).sort()).toEqual(['/api/config', '/api/config', '/api/ga4/realtime', '/api/ga4/realtime']);
   });
   it('ordinary installations show their existing favicon and no demo identity', () => {
     const view = render(<><DemoViewerStatus /><PropertyFavicon domain="example.com" displayName="Example" /></>);

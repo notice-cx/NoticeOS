@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
+import { atDeadline, fakeClock } from './test-deadline.mjs';
 import { GOOGLE_INTEGRATION_START, googleOAuthRequest, OperationRefused, ingestOperation, towerOperation, providerCollectionInput, liveProviderReadRequest, storedResearchReadRequest, watchQueryHistoryRequest } from './workspace-operations.mjs';
 
 const origin = 'https://fixture.example.test';
@@ -88,13 +89,14 @@ test('connection readiness accepts only canonical provider paths and the existin
   await assert.rejects(ingestOperation('probeCredential', request('/api/integrations/google/test', 'GET')), OperationRefused);
 });
 
-test('a stalled test-body clone refuses within the whole-read budget without waiting for its original branch', { timeout: 5000 }, async () => {
+test('a stalled test-body clone refuses within the whole-read budget without waiting for its original branch', { timeout: 5000 }, async (t) => {
+  fakeClock(t);
   let release;
   const body = new ReadableStream({ start(controller) { release = () => controller.close(); } });
   const original = new Request(origin + '/api/integrations/google/test', {
     method: 'POST', headers: { 'content-type': 'application/json' }, body, duplex: 'half',
   });
-  try { await assert.rejects(ingestOperation('probeCredential', original), OperationRefused); }
+  try { await assert.rejects(atDeadline(t, ingestOperation('probeCredential', original), 2_000), OperationRefused); }
   finally { release(); await original.body.cancel(); }
 });
 
@@ -316,14 +318,15 @@ test('MCP helper selection inspects the bounded actual tool request', async () =
   await assert.rejects(towerOperation(request('/api/mcp', 'POST', { jsonrpc: '2.0', method: 'future' })), OperationRefused);
 });
 
-test('incomplete streamed classification ends within the whole-read deadline', async () => {
+test('incomplete streamed classification ends at the whole-read deadline', { timeout: 5000 }, async (t) => {
+  fakeClock(t);
   const controller = new AbortController();
   const proof = new Request(origin + '/api/config', { method: 'PUT', duplex: 'half',
     signal: controller.signal, headers: { 'content-type': 'application/json' },
     body: new ReadableStream({ start(stream) { stream.enqueue(new TextEncoder().encode('{')); } }) });
-  const started = Date.now();
-  await assert.rejects(towerOperation(proof), OperationRefused);
-  assert.ok(Date.now() - started < 2600);
+  // Still reading a millisecond before its 2 s deadline, ended at it, on a
+  // fake clock (scripts/test-deadline.mjs).
+  await assert.rejects(atDeadline(t, towerOperation(proof), 2_000), OperationRefused);
   // Only the owned synthetic original branch remains; retire it explicitly.
   await proof.body.cancel();
 });
@@ -353,7 +356,8 @@ test('Google start accepts actual empty HTTP streams and preserves the handler b
   }
 });
 
-test('Google start refuses unfinished, excessive empty chunks, failed and aborted streams', async () => {
+test('Google start refuses unfinished, excessive empty chunks, failed and aborted streams', async (t) => {
+  fakeClock(t);
   const headers = { 'x-noticeos-workspace-id': '12345678-1234-1234-1234-123456789abc' };
   const make = (body, signal) => new Request(origin + GOOGLE_INTEGRATION_START, { method: 'POST', headers, body, signal, duplex: 'half' });
   const endless = make(new ReadableStream({ pull(controller) { controller.enqueue(new Uint8Array()); } }));
@@ -364,10 +368,10 @@ test('Google start refuses unfinished, excessive empty chunks, failed and aborte
   await assert.rejects(googleOAuthRequest(failed, origin, 'start'), OperationRefused);
   const aborted = new AbortController(); aborted.abort();
   await assert.rejects(googleOAuthRequest(make('', aborted.signal), origin, 'start'), OperationRefused);
+  // An unfinished body ends at the 2 s whole-read deadline, not before
+  // (scripts/test-deadline.mjs).
   const stalled = make(new ReadableStream({ start() {} }));
-  const started = Date.now();
-  await assert.rejects(googleOAuthRequest(stalled, origin, 'start'), OperationRefused);
-  assert.ok(Date.now() - started < 4000);
+  await assert.rejects(atDeadline(t, googleOAuthRequest(stalled, origin, 'start'), 2_000), OperationRefused);
   await stalled.body.cancel();
 });
 

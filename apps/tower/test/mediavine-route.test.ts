@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { handleMediavineRequest, type MediavineBinding } from '../worker/mediavine-route';
 

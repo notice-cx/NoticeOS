@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import worker, { type TowerEnv } from '../worker/index';
 import { demoViewerReadResponse, demoViewerResponse } from '../worker/demo-viewer-route';
@@ -24,7 +25,7 @@ describe('the actual demo Worker entry points', () => {
     vi.stubGlobal('__DEMO_VIEWER__', descriptor);
     const { env, get } = forbiddenEnvironment();
     const ctx = { waitUntil: vi.fn() };
-    for (const [method, path] of [['GET', '/api/site-name?domain=sentinel.example'], ['GET', '/api/ga4/realtime'],
+    for (const [method, path] of [['GET', '/api/site-name?domain=sentinel.example'],
       ['GET', '/api/calendar/upcoming'], ['GET', '/api/integrations/google/properties'],
       ['GET', '/api/integrations/clarity/sites'], ['PUT', '/api/config'], ['PATCH', '/api/flags/1'],
       ['POST', '/api/assets'], ['PATCH', '/api/assets/example.com'], ['POST', '/api/assets/example.com/annotations'],
@@ -54,8 +55,10 @@ describe('the actual demo Worker entry points', () => {
     expect(get).not.toHaveBeenCalled();
   });
   it('stored reads, semantic POSTs and ordinary dispatch continue to their existing handlers', () => {
+    // The demo server answers /api/ga4/realtime synthetically before any Worker
+    // (scripts/demo-realtime.mts); the viewer route lets the read through.
     for (const [method, path] of [['GET', '/api/wall'], ['GET', '/api/work'], ['GET', '/api/assets/example.com'],
-      ['POST', '/api/mcp'], ['POST', '/api/alerts/backtest']]) {
+      ['GET', '/api/ga4/realtime'], ['POST', '/api/mcp'], ['POST', '/api/alerts/backtest']]) {
       expect(demoViewerResponse(request(path!, method!), descriptor)).toBeNull();
     }
     expect(demoViewerResponse(request('/api/integrations/clarity/collect', 'POST'), null)).toBeNull();
