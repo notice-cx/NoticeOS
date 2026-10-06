@@ -1,16 +1,13 @@
 import { formatSeriesDate } from "../src/lib/format";
 import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./journey-test";
-import { DESKTOP_ONLY, JOURNEY_ASSET, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_SITE, JOURNEY_TIME_ZONE } from "./fixtures";
+import { DESKTOP_ONLY, JOURNEY_ASSET, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_SITE, JOURNEY_TIME_ZONE } from "./fixtures";
 import { measureWallFit, wallFitVerdict } from "../../../scripts/wall-fit-measure.mjs";
 import { wallLayoutWidgets, type WallConfig } from "../../../scripts/wall-layout.mjs";
-import { WALL_FEED_TV_ROWS, type WallFeedPayload } from "@shared/wall-feed";
-import {
-  WALL_FIXTURE_NOW, WALL_FIXTURE_TIME_ZONE, WALL_FIXTURE_VARIANTS, wallFixtureCalendar, wallFixtureHealth, wallFixturePayload,
-  wallFixtureProviders, wallFixtureRealtime,
-  type WallFixtureVariant,
-} from "./wall-fixture";
+import { WALL_FEED_POLL_MS, WALL_FEED_TV_ROWS, type WallFeedPayload } from "@shared/wall-feed";
+import { WALL_FIXTURE_NOW, WALL_FIXTURE_TIME_ZONE, WALL_FIXTURE_VARIANTS, wallFixturePayload, wallFixtureRealtime } from "./wall-fixture";
 import { WALL_FEED_OS } from "./wall-feed-fixture";
+import { openWall, wallAt, wallScene } from "./wall-scene";
 import { installGoogleConsent } from "./google-consent.mjs";
 import { buildWorkflowHistory } from "../vite/workflow-history";
 import { captureWorkflowOutput } from "../../../scripts/workflow-output.mjs";
@@ -516,8 +513,7 @@ function attentionTones() {
 // (bead ro-ujb9.132; D30; doc 14: warn and error mean something broke).
 test("an empty installation's Wall is calm: the clock, no alarms, and a quiet line where sites will be", desktopOnly("a Wall size check: the TV and a laptop"), async ({ page }, testInfo) => {
   for (const [width, height] of [[1920, 1080], [1440, 900]] as const) {
-    await page.setViewportSize({ width, height });
-    await page.goto("/wall");
+    await wallAt(page, [width, height]);
     await expect(page.locator("[data-wall-strip]")).toBeVisible();
     await expect(page.locator("[data-system-state]")).toHaveCount(0);
     await expect(page.locator('[data-wall-sites="none"]')).toHaveText("No sites yet");
@@ -529,8 +525,7 @@ test("an empty installation's Wall is calm: the clock, no alarms, and a quiet li
   // One site added, nothing connected yet: still nothing broke.
   await createAsset(page);
   for (const [width, height] of [[1920, 1080], [1440, 900]] as const) {
-    await page.setViewportSize({ width, height });
-    await page.goto("/wall");
+    await wallAt(page, [width, height]);
     await expect(page.locator(`[data-wall-sites] [data-site-row="${JOURNEY_ASSET}"]`)).toBeVisible();
     await expect(page.locator("[data-system-state]")).toHaveCount(0);
     expect(await page.evaluate(attentionTones), `the one-site Wall at ${width}×${height}`).toEqual([]);
@@ -693,13 +688,9 @@ test.describe(() => {
   // cards' totals, projection headings and chart keys left with them; what is
   // checked now is every region's text and the site rows' one-line headings.
   test("the Wall cuts off no text in any region, and marks only the first site's out-of-date live users", desktopOnly("a TV and a desk-width Wall; the phone Wall stacks one region per row"), async ({ page }, testInfo) => {
-    await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
-    await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload() }));
-    await page.route("**/api/ga4/realtime", (route) => route.fulfill({ json: wallFixtureRealtime(20) }));
-    await page.route("**/api/calendar/upcoming", (route) => route.fulfill({ json: wallFixtureCalendar() }));
+    await wallScene(page);
     for (const [width, height] of [[1920, 1080], [1440, 900]] as const) {
-      await page.setViewportSize({ width, height });
-      await page.goto("/wall");
+      await wallAt(page, [width, height]);
       // The Wall runs on the fixture's time, not the journey server's Sep 6: the
       // server's pinned Date used to win over page.clock (bead ro-r49j).
       const time = page.locator("[data-wall-strip] [data-strip-time]");
@@ -743,16 +734,10 @@ test.describe(() => {
   // twelve at most, newest first — and nothing scrolls sideways.
   test("the Wall reads on a phone and a tablet: the strip wraps, each site's charts span its card, the feed grows", desktopOnly("walks the phone and tablet widths itself"), async ({ page }, testInfo) => {
     test.setTimeout(90_000);
-    await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
     expect((await page.request.post("/__journey/wall-feed")).ok()).toBe(true);
-    await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload("fire") }));
-    await page.route("**/api/ga4/realtime", (route) => route.fulfill({ json: wallFixtureRealtime(20, "fire") }));
-    await page.route("**/api/calendar/upcoming", (route) => route.fulfill({ json: wallFixtureCalendar() }));
-    await page.route("**/api/integrations/health", (route) => route.fulfill({ json: wallFixtureHealth("fire") }));
-    await page.route("**/api/integrations/providers", (route) => route.fulfill({ json: wallFixtureProviders() }));
+    await wallScene(page, "fire");
     for (const [width, height] of [[390, 844], [430, 932], [768, 1024]] as const) {
-      await page.setViewportSize({ width, height });
-      await page.goto("/wall");
+      await wallAt(page, [width, height]);
       // A portrait screen keeps the one column (bead ro-trai.31).
       await expect(page.locator(".wall-root")).toHaveAttribute("data-wall-layout", "stack");
       await expect(page.locator('[data-site-row] [data-live]:not([data-live="none"])')).toHaveCount(wallFixtureRealtime(20, "fire").assets.length);
@@ -825,16 +810,10 @@ test.describe(() => {
   // own function.
   test("the Wall on a laptop is the TV's layout scaled to the screen: the feed a bounded column right of the site rows, the small type on its floors, nothing cut off", desktopOnly("walks the laptop widths itself"), async ({ page }, testInfo) => {
     test.setTimeout(90_000);
-    await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
     expect((await page.request.post("/__journey/wall-feed")).ok()).toBe(true);
-    await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload("fire") }));
-    await page.route("**/api/ga4/realtime", (route) => route.fulfill({ json: wallFixtureRealtime(20, "fire") }));
-    await page.route("**/api/calendar/upcoming", (route) => route.fulfill({ json: wallFixtureCalendar() }));
-    await page.route("**/api/integrations/health", (route) => route.fulfill({ json: wallFixtureHealth("fire") }));
-    await page.route("**/api/integrations/providers", (route) => route.fulfill({ json: wallFixtureProviders() }));
+    await wallScene(page, "fire");
     for (const [width, height] of [[1470, 830], [1024, 768]] as const) {
-      await page.setViewportSize({ width, height });
-      await page.goto("/wall");
+      await wallAt(page, [width, height]);
       await expect(page.locator('[data-site-row] [data-live]:not([data-live="none"])')).toHaveCount(wallFixtureRealtime(20, "fire").assets.length);
       await expect(page.locator("[data-wall-feed]")).toHaveAttribute("data-feed-state", "live");
       // The feed reads live before its first answer: its rows are measured
@@ -931,15 +910,9 @@ test.describe(() => {
   });
 
   test("the Wall's header groups stay readable without overlap or aggregate status", desktopOnly("walks the phone and tablet widths itself"), async ({ page }, testInfo) => {
-    await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
-    await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload("six") }));
-    await page.route("**/api/ga4/realtime", (route) => route.fulfill({ json: wallFixtureRealtime(20, "six") }));
-    await page.route("**/api/calendar/upcoming", (route) => route.fulfill({ json: wallFixtureCalendar() }));
-    await page.route("**/api/integrations/health", (route) => route.fulfill({ json: wallFixtureHealth("six") }));
-    await page.route("**/api/integrations/providers", (route) => route.fulfill({ json: wallFixtureProviders() }));
+    await wallScene(page);
     for (const [width, height] of [[1920, 1080], [1440, 900], [1024, 768], [768, 1024], [390, 844]] as const) {
-      await page.setViewportSize({ width, height });
-      await page.goto("/wall");
+      await wallAt(page, [width, height]);
       const strip = page.locator("[data-wall-strip]");
       await expect(strip.locator("[data-strip-countdown-emoji]")).toBeVisible();
       await expect(strip.locator("[data-strip-meeting]")).toBeVisible();
@@ -993,26 +966,18 @@ test.describe(() => {
   // while remaining readable at each supported density.
   test("the Wall fits the TV with one, two, three, six, seven or eight sites and on fire, cutting off no text", desktopOnly("the TV's budget; the phone Wall stacks one region per row"), async ({ page }, testInfo) => {
     test.setTimeout(120_000);
-    await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
-    let variant: WallFixtureVariant = "six";
-    await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload(variant) }));
-    await page.route("**/api/ga4/realtime", (route) => route.fulfill({ json: wallFixtureRealtime(20, variant) }));
-    await page.route("**/api/calendar/upcoming", (route) => route.fulfill({ json: wallFixtureCalendar() }));
-    // The source-health reads a failing source is read from (`fire`).
-    await page.route("**/api/integrations/health", (route) => route.fulfill({ json: wallFixtureHealth(variant) }));
-    await page.route("**/api/integrations/providers", (route) => route.fulfill({ json: wallFixtureProviders() }));
+    // The source-health reads included: a failing source is read from them (`fire`).
+    const scene = await wallScene(page);
     const tvCharts = new Map<string, { width: number; height: number; availableHeight: number }>();
     const tvType = new Map<string, { font: number; region: number }>();
     for (const [width, height] of [[1920, 1080], [1440, 900], [390, 844]] as const) {
-      await page.setViewportSize({ width, height });
       const variants = width === 1920 ? WALL_FIXTURE_VARIANTS : ["one", "three", "six", "seven"] as const;
-      for (const next of variants) {
-        variant = next;
+      for (const variant of variants) {
+        scene.variant = variant;
         const sites = wallFixturePayload(variant).assets;
-        // Each variant is another installation's Wall, so it opens as a new
-        // tab would: no reading the previous variant saved is restored.
-        if (page.url().startsWith("http")) await page.evaluate(() => sessionStorage.clear());
-        await page.goto("/wall");
+        // Each variant is another installation's Wall, so it loads cold, as a
+        // new tab would; this journey keeps the cold load at every size.
+        await openWall(page, [width, height]);
         // Every site's live users landed: the heights are the finished Wall's.
         const region = page.locator("[data-wall-sites]");
         if (sites.length === 1) await expect(region.locator('[data-focus-tile="today"]')).toBeVisible();
@@ -1396,13 +1361,8 @@ test("a setting the saved settings lack saves from the value shown, then saves o
 // Worker over the fixture store, and one new stored event arriving at the top
 // within one 30-second poll. The fixture's clock is the journey server's own.
 test("Wall feedback keeps the brand large, pace compact and each stored task named", desktopOnly("walks the commented screen, TV and phone in one fixture"), async ({ page, request }, testInfo) => {
-  await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
   expect((await request.post("/__journey/wall-feed")).ok()).toBe(true);
-  await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload("six") }));
-  await page.route("**/api/ga4/realtime", (route) => route.fulfill({ json: wallFixtureRealtime(20, "six") }));
-  await page.route("**/api/calendar/upcoming", (route) => route.fulfill({ json: wallFixtureCalendar() }));
-  await page.route("**/api/integrations/health", (route) => route.fulfill({ json: wallFixtureHealth("six") }));
-  await page.route("**/api/integrations/providers", (route) => route.fulfill({ json: wallFixtureProviders() }));
+  await wallScene(page);
   const stored = await (await request.get("/api/wall/feed")).json() as WallFeedPayload;
   const tasks = stored.items.filter((item) => item.kind === "task-done" || item.kind === "task-filed");
   expect(tasks.map((item) => item.text)).toEqual([
@@ -1411,8 +1371,7 @@ test("Wall feedback keeps the brand large, pace compact and each stored task nam
   ]);
   expect(tasks.every((item) => item.count === 1)).toBe(true);
   for (const [width, height] of [[1507, 1237], [1920, 1080], [390, 844]] as const) {
-    await page.setViewportSize({ width, height });
-    await page.goto("/wall");
+    await wallAt(page, [width, height]);
     await expect(page.locator('[data-site-row="menus.example"] [data-pace-window]')).toHaveText("to 12 PM");
     await expect(page.locator('[data-wall-feed] [data-feed-item]').first()).toContainText("Recipe cards load faster");
     await page.evaluate(() => document.fonts.ready);
@@ -1453,14 +1412,13 @@ test("Wall feedback keeps the brand large, pace compact and each stored task nam
 });
 
 test("the Wall's live feed shows the stored events newest first, and a new one arrives at the top within one poll", desktopOnly("the feed's arrival is a TV behaviour; the phone Wall stacks the same column"), async ({ page, request }, testInfo) => {
-  test.setTimeout(90_000);
   expect((await request.post("/__journey/wall-feed")).ok()).toBe(true);
+  // The journey server's own time, on a clock the journey can skip ahead:
+  // the poll is 30 s, and waiting it out was most of this journey (issue #14).
+  await page.clock.install({ time: new Date(JOURNEY_NOW) });
   // No saved layout: D28's default places the feed (bead ro-trai.11).
-  await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload() }));
-  await page.route("**/api/ga4/realtime", (route) => route.fulfill({ json: wallFixtureRealtime(20) }));
-  await page.route("**/api/calendar/upcoming", (route) => route.fulfill({ json: wallFixtureCalendar() }));
-  await page.setViewportSize({ width: 1920, height: 1080 });
-  await page.goto("/wall");
+  await wallScene(page, "six", { clock: false });
+  await openWall(page, [1920, 1080]);
   const feed = page.locator("[data-wall-feed]");
   const rows = feed.locator("li:not([data-feed-cut])");
   await expect(rows.first()).toContainText("Recipe cards load faster");
@@ -1500,7 +1458,10 @@ test("the Wall's live feed shows the stored events newest first, and a new one a
   const injected = await request.post("/__journey/wall-feed-event");
   expect(injected.ok()).toBe(true);
   const { text } = (await injected.json()) as { text: string };
-  await expect(rows.first()).toContainText(text, { timeout: 40_000 });
+  // Stored, not yet read: nothing draws it before the next poll.
+  await expect(rows.first()).toContainText("Recipe cards load faster");
+  await page.clock.runFor(WALL_FEED_POLL_MS);
+  await expect(rows.first()).toContainText(text);
   await expect(rows.first()).toHaveAttribute("data-feed-arrived", "");
   await expect(rows.first().locator("[data-feed-tint]")).toHaveCount(1);
   await expect(rows.nth(1)).toContainText("Recipe cards load faster");

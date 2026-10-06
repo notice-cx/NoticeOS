@@ -71,6 +71,13 @@ past the TV, paints outside its own box, cuts text off or draws half a feed row
 (the measurement `pnpm wall:fit` runs, `scripts/wall-fit-measure.mts`), if a
 seventh site's row is not a full 70 px, or if the strip, Needs you and the site
 marks do not say what is on fire.
+The Wall journeys set this up through `wall-scene.ts`. `wallScene` pins the
+clock and answers the Wall's five reads once, with each load starting from an
+empty sessionStorage. A journey that walks screen sizes loads the Wall once
+(`wallAt`), then resizes the window and waits until the redrawn Wall stops
+moving. The TV-fit journey still loads every variant cold, at the TV, a laptop
+and a phone (`openWall`). The live-feed journey skips the browser's clock one
+30-second poll ahead (`page.clock.runFor`) instead of waiting for it.
 A Sources-tab journey opens every data-source row, disclosure and a new PostHog
 funnel one at a time, and fails naming the row if the page grows wider than the
 viewport or a doc reference is clipped; a synthetic Google property list with
