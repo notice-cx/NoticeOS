@@ -9,7 +9,7 @@ import os from 'node:os';
 import net from 'node:net';
 import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
-import { skipWithoutPostgres } from './postgres-test-skip.mjs';
+import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 import { stopLocalSecretReads } from './worker-config-folder.mjs';

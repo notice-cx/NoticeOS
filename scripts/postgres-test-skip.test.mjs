@@ -5,7 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { PostgresUnavailable } from './postgres-dev.mjs';
 import { REQUIRE_POSTGRES, openOnLoopbackPort } from './postgres-test-cluster.mjs';
-import { skipWithoutPostgres } from './postgres-test-skip.mjs';
+import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 
 // Issue #11: the guard sat around `findPostgres()`, which answers null rather
 // than throwing, so a machine without Postgres failed these tests instead of

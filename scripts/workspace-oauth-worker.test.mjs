@@ -9,7 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
-import { skipWithoutPostgres } from './postgres-test-skip.mjs';
+import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
 import { openEmailCodeLogin, EMAIL_CODE_PATHS } from '../packages/postgres/src/email-code.mjs';
 import { GOOGLE_INTEGRATION_START, GOOGLE_INTEGRATION_CALLBACK } from './workspace-operations.mjs';

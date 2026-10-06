@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { MODEL_DIR, findPostgres, withDisposablePostgres, inWorkspace } from './postgres-dev.mjs';
-import { skipWithoutPostgres } from './postgres-test-skip.mjs';
+import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { applyMigrations, bootstrapWorkspace } from './postgres-migrate.mjs';
 
 test('canonical lifecycle backfills, defaults, narrow grants and standalone bootstrap preserve rollback', async t => {

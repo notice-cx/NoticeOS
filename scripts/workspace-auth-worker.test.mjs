@@ -8,7 +8,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
-import { skipWithoutPostgres } from './postgres-test-skip.mjs';
+import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
 import { EMAIL_CODE_PATHS, EMAIL_ENROLLMENT_HEADERS, MEMBERSHIP_PATH, ACCEPT_INVITATION_PATH,
   parseEmailEnrollmentLanding } from './identity-protocol.mjs';

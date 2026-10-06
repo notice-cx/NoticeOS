@@ -11,7 +11,7 @@ import { openEmailCodeLogin, EMAIL_CODE_PATHS } from '../packages/postgres/src/e
 import { openStore } from '../packages/postgres/src/store.mjs';
 import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
-import { skipWithoutPostgres } from './postgres-test-skip.mjs';
+import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { checkDatabase } from './database-address.mjs';
 import { applyMigrations, bootstrapWorkspace, readMigrations } from './postgres-migrate.mjs';
 import { stopLocalSecretReads } from './worker-config-folder.mjs';

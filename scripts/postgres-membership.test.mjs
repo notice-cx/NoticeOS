@@ -14,7 +14,7 @@ import { openIdentity } from '../packages/postgres/src/identity.mjs';
 import { openMembershipLifecycle, InvitationDeliveryFailed } from '../packages/postgres/src/membership.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
-import { skipWithoutPostgres } from './postgres-test-skip.mjs';
+import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';

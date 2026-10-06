@@ -11,7 +11,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
-import { skipWithoutPostgres } from './postgres-test-skip.mjs';
+import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
 import { IDENTITY_NAMES } from '../packages/postgres/src/identity.mjs';
 import { INTEGRATION_PROVIDER_IDS } from '../packages/contract/src/integrations.ts';

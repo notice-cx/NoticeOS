@@ -7,8 +7,8 @@
 // it hands this the call that starts Postgres. NOTICEOS_REQUIRE_POSTGRES=1,
 // which CI sets, turns the skip back into a failure.
 
-import { PostgresUnavailable } from './postgres-dev.mjs';
-import { postgresRequired } from './postgres-test-cluster.mjs';
+import { PostgresUnavailable } from '../postgres-dev.mjs';
+import { postgresRequired } from '../postgres-test-cluster.mjs';
 
 /**
  * What `open()` answers; or, where Postgres cannot start here, null after

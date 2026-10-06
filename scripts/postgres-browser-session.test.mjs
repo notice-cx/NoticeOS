@@ -14,7 +14,7 @@ import { PRODUCT_ENV } from './product-env.mjs';
 import { WORKSPACE_SELECTION_HEADER } from './workspace-entry.mjs';
 import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
-import { skipWithoutPostgres } from './postgres-test-skip.mjs';
+import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 import { bundleWorkerFixture as bundle, Miniflare } from './worker-entry-test-fixture.mjs';
