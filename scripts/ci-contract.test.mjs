@@ -148,10 +148,11 @@ test('the Tower typecheck gate also type-checks the browser-journey harness', ()
 test('the CI root-suite command still targets every operator-script test', () => {
   const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'));
   // The preload arms the config guard in each test file's process (bead
-  // ro-ujb9.97, scripts/test-config-isolation.mjs).
+  // ro-ujb9.97, scripts/test-config-isolation.mjs); the global setup gives the
+  // run one folder for its Worker bundles (issue #10).
   assert.equal(
     manifest.scripts?.['test:scripts'],
-    'node --import ./scripts/script-tests-setup.mjs --test scripts/*.test.mjs',
+    'node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/script-tests-global.mjs --test scripts/*.test.mjs',
     'test:scripts must remain the root Node suite over every scripts/*.test.mjs file, run on fixture configuration',
   );
 });

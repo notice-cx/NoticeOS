@@ -54,7 +54,7 @@
     "bing-ai:import": "node scripts/bing-ai-import.mjs",
     "reclamation:import": "node scripts/reclamation-import.mjs",
     "reclamation:open-targets": "node scripts/reclamation-open-targets.mjs",
-    "test:scripts": "node --import ./scripts/script-tests-setup.mjs --test scripts/*.test.mjs",
+    "test:scripts": "node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/script-tests-global.mjs --test scripts/*.test.mjs",
     "test:journeys": "pnpm --filter @noticeos/tower run typecheck:journeys && pnpm --filter @noticeos/tower run test:journey-harness && { pnpm --filter @noticeos/tower run test:journeys; journeys=$?; pnpm --filter @noticeos/tower run test:ux-flows && exit $journeys; }",
     "postgres:dev": "node scripts/postgres-migrate.mjs",
     "postgres:migrate": "node scripts/postgres-apply.mjs",

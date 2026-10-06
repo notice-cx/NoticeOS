@@ -1348,6 +1348,10 @@ health (vite needs a few seconds); `pnpm os:status` is the health check.
   saving a setting (which `pnpm config:export` writes into the installation folder)
   cannot change a result. Run one file on its own with the same preload:
   `node --import ./scripts/script-tests-setup.mjs --test scripts/<name>.test.mjs`.
+  The full run also loads `scripts/script-tests-global.mjs` once, which keeps
+  one folder of Worker bundles for the run, so files that bundle the same
+  Tower or ingest Worker build it once (issue #10). A file run on its own
+  bundles as before.
 - **No unit test runs a Worker on the checkout's `.dev.vars`** (bead
   `ro-ujb9.182`). Wrangler reads a Worker's local secrets from beside the
   config it is given, and no pool or wrangler option turns that off. So the
