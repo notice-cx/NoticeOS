@@ -1,0 +1,51 @@
+// Public source provenance travels with an image; it never reads installation state.
+// Authored TypeScript: pnpm config:generate emits the runtime and declarations.
+import { spawnSync } from 'node:child_process';
+import { lstatSync, readFileSync, realpathSync } from 'node:fs';
+import path from 'node:path';
+import type { SourceVersion } from '../apps/tower/shared/source-version.js';
+
+function version(value: unknown): SourceVersion | null {
+  if (!value || typeof value !== 'object'
+    || !('commit' in value) || typeof value.commit !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value.commit)
+    || !('committedAt' in value) || typeof value.committedAt !== 'string' || !Number.isFinite(Date.parse(value.committedAt))
+    || !('modified' in value) || typeof value.modified !== 'boolean') return null;
+  return { commit: value.commit, committedAt: new Date(value.committedAt).toISOString(), modified: value.modified };
+}
+
+/** Git is optional, bounded and local. A parent repository is never this source. */
+export function gitSourceVersion(root: string, { declared = false }: { declared?: boolean } = {}): SourceVersion | null {
+  if (declared) {
+    try {
+      const own = lstatSync(path.join(root, '.git'));
+      if (own.isSymbolicLink() || !(own.isDirectory() || own.isFile())) return null;
+    } catch { return null; }
+  }
+  const git = (args: string[]): string | null => {
+    const result = spawnSync('git', [...(declared ? ['-c', `safe.directory=${root}`, '-c', `core.worktree=${root}`] : []), '-C', root, ...args], { encoding: 'utf8', timeout: 2000, maxBuffer: 64 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
+    return result.status === 0 ? result.stdout.trim() : null;
+  };
+  try {
+    const top = git(['rev-parse', '--show-toplevel']);
+    if (!top || realpathSync(top) !== realpathSync(root)) return null;
+    const head = git(['log', '-1', '--format=%H%n%cI']);
+    const status = git(['status', '--porcelain', '--untracked-files=normal']);
+    if (head === null || status === null) return null;
+    const [commit, committedAt] = head.split('\n');
+    return version({ commit, committedAt, modified: status !== '' });
+  } catch { return null; }
+}
+
+/** An image's sealed manifest wins over any checkout beside it. */
+export function sourceVersion(root: string): SourceVersion | null {
+  const manifest = path.join(root, 'container-source.json');
+  let stat;
+  try { stat = lstatSync(manifest); }
+  catch (error) { return error instanceof Error && 'code' in error && error.code === 'ENOENT' ? gitSourceVersion(root) : null; }
+  try {
+    if (!stat.isFile() || stat.size > 10 * 1024 * 1024) return null;
+    const source: unknown = JSON.parse(readFileSync(manifest, 'utf8'));
+    return source && typeof source === 'object' && 'schema' in source && source.schema === 'noticeos-container-source/1' && 'version' in source
+      ? version(source.version) : null;
+  } catch { return null; }
+}

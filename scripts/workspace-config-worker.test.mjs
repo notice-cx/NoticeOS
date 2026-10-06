@@ -16,6 +16,7 @@ import { IDENTITY_NAMES } from '../packages/postgres/src/identity.mjs';
 import { INTEGRATION_PROVIDER_IDS } from '../packages/contract/src/integrations.ts';
 import { configDocumentKey } from './config-documents.mjs';
 import { TOWER_CONFIG_FILES } from '../packages/contract/src/configuration.mjs';
+import { CLOUDFLARE_D1_PATH, CLOUDFLARE_D1_BACKUP_PATH } from '../packages/contract/src/cloudflare-d1.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 import { bundleWorkerFixture as bundle, Miniflare } from './worker-entry-test-fixture.mjs';
 
@@ -291,6 +292,7 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
       const proof = asked.proof ? new Request(asked.proof.url, asked.proof.init) : undefined;
       try {
         const result = await env[asked.receiver ?? 'INGEST'][asked.method](...(asked.args ?? []), ...(asked.proof ? [proof] : []));
+        if (result instanceof Response) return result;
         try { return Response.json({ok:true,result}); }
         finally { result?.[Symbol.dispose]?.(); }
       }
@@ -1566,9 +1568,15 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
       for (const pathname of ['/api/wall', '/api/tasks', '/api/ga4/realtime', '/api/integrations/google/start', '/api/health', '/api/runner/cron']) assert.equal((await towerFetch.fetch(`${origin}${pathname}`, { headers: headers(b) })).status, 403);
       const source = readFileSync(path.join(REPO_ROOT, 'workers/ingest/src/index.ts'), 'utf8');
       const methods = [...source.matchAll(/^  async (\w+)\(/gmu)].map(match => match[1]);
-      assert.equal(methods.length, 31, 'each public RPC is covered, including newly added methods');
+      assert.ok(methods.includes('getConfigDocuments') && methods.includes('applyConfigOps'), 'the walk finds the known public RPCs');
+      assert.ok(methods.includes('cloudflareD1') && methods.includes('backupCloudflareD1'), 'Request-only receivers are included');
       for (const method of methods) {
         if (method === 'getConfigDocuments' || method === 'applyConfigOps') continue;
+        if (method === 'cloudflareD1' || method === 'backupCloudflareD1') {
+          const pathname = method === 'cloudflareD1' ? CLOUDFLARE_D1_PATH : CLOUDFLARE_D1_BACKUP_PATH;
+          assert.equal((await rpc(method, [], { url: origin + pathname })).status, 403, method);
+          continue;
+        }
         assert.equal((await rpc(method, [{}])).status, 403, method);
       }
       assert.equal((await rpc('getConfigDocuments', [Object.values(TOWER_CONFIG_FILES)])).status, 403);

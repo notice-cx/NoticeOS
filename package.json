@@ -58,6 +58,7 @@
     "test:journeys": "pnpm --filter @noticeos/tower run typecheck:journeys && pnpm --filter @noticeos/tower run test:journey-harness && pnpm --filter @noticeos/tower run test:journeys && pnpm --filter @noticeos/tower run test:ux-flows",
     "postgres:dev": "node scripts/postgres-migrate.mjs",
     "postgres:migrate": "node scripts/postgres-apply.mjs",
+    "postgres:consumers": "node scripts/postgres-docs.mjs --consumers",
     "postgres:secrets": "node scripts/postgres-secrets.mjs",
     "seed:local": "node scripts/db-seed.mjs",
     "config:generate": "node scripts/generate-config-contract.mjs",

@@ -67,9 +67,9 @@ export function CloudflareD1Panel({ inventory, names, canSave, onChanged }: {
             })} />
             <span className="truncate">{database.name}</span>
           </label>
-          {Object.hasOwn(picked, database.id) ? <select className={fieldClass} aria-label={`Asset for ${database.name}`} value={picked[database.id]}
+          {Object.hasOwn(picked, database.id) ? <select className={fieldClass} aria-label={`Site for ${database.name}`} value={picked[database.id]}
             onChange={event => setPicked(current => ({ ...current, [database.id]: event.target.value }))}>
-            <option value="">Choose asset</option>
+            <option value="">Choose site</option>
             {[...names].map(([id, label]) => <option key={id} value={id}>{label}</option>)}
           </select> : null}
           {active || saved ? <StateChip subject={`database:${database.id}`} tone={active || saved?.state === 'running' ? 'neutral' : saved?.state === 'complete' ? 'affirmative' : 'critical'}

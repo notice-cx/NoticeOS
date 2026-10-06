@@ -19,7 +19,7 @@ The approved exception for a provably new, empty installation is
 | [`REVIEW.md`](REVIEW.md) | The orchestrator's review of the draft (2026-09-24); its six changes are built into the baseline, and each of its recommendations is [done or declined](#the-reviews-recommendations) |
 | [`constraints.md`](constraints.md) | The constraint matrix: every table's types, required columns, checks, keys, links and triggers (generated from Postgres) |
 | [`tests/`](tests/) | A synthetic fixture for every table, the cross-workspace denial proof and the edge cases with their accepted outcomes |
-| [`consumers.md`](consumers.md) | Every file whose SQL names a schema-qualified Postgres table or view (generated) |
+| [`consumers.md`](consumers.md) | How to read current SQL consumers directly from source |
 
 The frozen baseline retains its original comments, including references to the
 retired D1 mapping. That historical source is preserved with the cutover release
@@ -842,8 +842,9 @@ is still there. The sweep above stays the second line.
   through each later `ALTER`, `RENAME` and `DROP`. Migrations are numbered
   without gaps, hold plain SQL and preserve every frozen hash. Retention and
   NULL identity rules name real columns, the capacity catalog covers every
-  operational table, and generated docs and qualified-SQL consumers match
-  their sources. No legacy schema or installation folder is required.
+  operational table, generated schema docs match their sources, and the SQL
+  consumer reader distinguishes qualified names. No legacy schema or
+  installation folder is required.
 - **On a throwaway cluster:** the runner applies the migrations and the
   roles; the tables and views Postgres built are exactly the static reading's
   (and again with a synthetic later migration that alters, renames and drops);
@@ -954,9 +955,10 @@ and [the container backup/restore proof](../../scripts/container-backup-compose.
 Read their explicit opt-ins and fixture requirements before running them;
 they create disposable resources and are not checks against an installation.
 
-Regenerate the matrix above, [`constraints.md`](constraints.md) and
-[`consumers.md`](consumers.md) with `node scripts/postgres-docs.mjs --write`;
-the model's test fails while any of them disagrees. The matrix and the
-consumers list need no Postgres (bead `ro-ujb9.76.23`); constraints.md does,
-so the command starts its own throwaway one, and where none can start it
-writes the other two and exits 3.
+Read the current [SQL consumers](consumers.md) with `pnpm postgres:consumers`;
+it scans source files and needs no database. There is no saved inventory to update.
+
+Regenerate the matrix above and [`constraints.md`](constraints.md) with
+`node scripts/postgres-docs.mjs --write`; the model's test fails while either
+disagrees. The matrix needs no Postgres; constraints.md does, so the command
+starts its own throwaway one. Where none can start, it writes the matrix and exits 3.

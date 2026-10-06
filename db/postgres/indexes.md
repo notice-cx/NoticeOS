@@ -3,8 +3,8 @@
 The committed migrations define the indexes; this document explains their
 read or integrity purpose. It does not change the frozen schema. Constraint
 indexes, including primary and unique keys, are listed in
-[constraints.md](constraints.md); the generated [consumer inventory](consumers.md)
-locates the current SQL for each table.
+[constraints.md](constraints.md); `pnpm postgres:consumers` reads the current
+[SQL consumers](consumers.md) for each table directly from source.
 
 Every primary key enforces row identity and supports incoming foreign-key
 checks. Composite tenant keys start with `workspace_id`, which also supports

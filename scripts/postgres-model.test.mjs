@@ -9,7 +9,6 @@ import {
   MATRIX_END,
   MATRIX_START,
   constraintsMarkdown,
-  consumersMarkdown,
   findConsumers,
   matrixMarkdown,
   nullableIdentityColumns,
@@ -153,15 +152,6 @@ test('the README matrix is the one model.json generates', () => {
   const readme = readFileSync(path.join(MODEL_DIR, 'README.md'), 'utf8');
   const block = readme.slice(readme.indexOf(MATRIX_START) + MATRIX_START.length, readme.indexOf(MATRIX_END)).trim();
   assert.equal(block, matrixMarkdown(definition), 'run: node scripts/postgres-docs.mjs --write');
-});
-
-test('consumers.md lists every file that names each Postgres table or view today (ro-ujb9.76.23)', () => {
-  // A stale inventory can hide a current reader or writer of a table.
-  assert.equal(
-    readFileSync(path.join(MODEL_DIR, 'consumers.md'), 'utf8'),
-    consumersMarkdown(findConsumers()),
-    'db/postgres/consumers.md is stale: run node scripts/postgres-docs.mjs --write',
-  );
 });
 
 test('the consumer inventory needs only the Postgres model and distinguishes exact qualified names', (t) => {

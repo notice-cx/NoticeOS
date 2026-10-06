@@ -53,13 +53,35 @@ test('Git-free archives preserve sealed provenance and never invent missing or i
   assert.equal(sourceVersion(f.root), null);
 });
 
-test('declared development source tolerates container UID ownership without changing Git configuration',t=>{
- const f=fixture(t);f.git('init');fs.writeFileSync(path.join(f.root,'source.ts'),'synthetic');f.git('add','.');
- f.git('-c','core.hooksPath=/dev/null','-c','user.name=Synthetic','-c','user.email=synthetic@example.com','commit','-m','synthetic');
- const config=fs.readFileSync(path.join(f.root,'.git/config'),'utf8');
- const previous=process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER;process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER='1';
- try {assert.equal(gitSourceVersion(f.root),null);assert.equal(gitSourceVersion(f.root,{declared:true})?.committedAt,DATE);}
- finally {if(previous===undefined) delete process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER;else process.env.GIT_TEST_ASSUME_DIFFERENT_OWNER=previous;}
- assert.equal(fs.readFileSync(path.join(f.root,'.git/config'),'utf8'),config);
- const nested=path.join(f.root,'nested');fs.mkdirSync(nested);assert.equal(gitSourceVersion(nested,{declared:true}),null);
+test('declared development source tolerates container UID ownership without changing Git configuration', t => {
+  const f = fixture(t);
+  f.git('init'); fs.writeFileSync(path.join(f.root, 'source.ts'), 'synthetic'); f.git('add', '.');
+  f.git('-c', 'core.hooksPath=/dev/null', '-c', 'user.name=Synthetic', '-c', 'user.email=synthetic@example.com', 'commit', '-m', 'synthetic');
+  const config = fs.readFileSync(path.join(f.root, '.git/config'), 'utf8');
+  const globalConfig = path.join(f.root, '.git/test-global.config');
+  fs.writeFileSync(globalConfig, '');
+  // CI or an operator may trust every checkout globally. This fixture owns its
+  // Git configuration so that setting cannot disable the ownership refusal.
+  const isolated = { GIT_TEST_ASSUME_DIFFERENT_OWNER: '1', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_GLOBAL: globalConfig, GIT_CONFIG_COUNT: '0', GIT_CONFIG_PARAMETERS: undefined };
+  const previous = Object.fromEntries(Object.keys(isolated).map(key => [key, process.env[key]]));
+  try {
+    for (const [key, value] of Object.entries(isolated)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+    assert.equal(gitSourceVersion(f.root), null);
+    assert.equal(gitSourceVersion(f.root, { declared: true })?.committedAt, DATE);
+    assert.equal(fs.readFileSync(globalConfig, 'utf8'), '');
+    fs.writeFileSync(globalConfig, '[safe]\n\tdirectory = *\n');
+    assert.equal(gitSourceVersion(f.root)?.committedAt, DATE, 'explicit global trust is respected');
+    assert.equal(gitSourceVersion(f.root, { declared: true })?.committedAt, DATE);
+    assert.equal(fs.readFileSync(globalConfig, 'utf8'), '[safe]\n\tdirectory = *\n');
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+  assert.equal(fs.readFileSync(path.join(f.root, '.git/config'), 'utf8'), config);
+  const nested = path.join(f.root, 'nested'); fs.mkdirSync(nested);
+  assert.equal(gitSourceVersion(nested, { declared: true }), null);
 });

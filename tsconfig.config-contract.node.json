@@ -37,6 +37,7 @@
     "scripts/dolt-profile.mts",
     "scripts/task-client.mts",
     "scripts/resource-names.mts",
+    "scripts/source-version.mts",
     "scripts/workflow-history.mts",
     "scripts/scheduled-job-runner.mts",
     "scripts/task-project-config.mts",
