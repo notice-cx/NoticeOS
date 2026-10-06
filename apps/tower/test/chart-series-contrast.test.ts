@@ -1,3 +1,4 @@
+// @vitest-environment node
 // A CHART'S LINES AND KEYS ARE READABLE IN BOTH THEMES (bead ro-ujb9.12).
 // Every colour a desk chart draws a series in must clear WCAG 2.2's 3:1 for
 // graphics against the card it sits on (1.4.11), and every word of its key

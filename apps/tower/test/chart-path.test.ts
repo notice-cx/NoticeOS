@@ -1,3 +1,4 @@
+// @vitest-environment node
 // The charts' one geometry (bead `ro-trai.19`): a monotone cubic through every
 // reading that never overshoots, the wash under it, and a point that stays
 // round in a stretched viewBox.

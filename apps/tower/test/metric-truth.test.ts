@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { FlagsSection, FlagRecord } from "@shared/asset-detail";
 import type { SignalTrend } from "@shared/wall";

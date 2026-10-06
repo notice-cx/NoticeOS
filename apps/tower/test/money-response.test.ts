@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { createApi } from '@/lib/api';
 import { dailyRevenueHistory, dailyRevenueSummary, portfolioDailyRevenue, revenueProjection, moneyFigureValue, moneyLine,

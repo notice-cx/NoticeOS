@@ -1,3 +1,4 @@
+// @vitest-environment node
 import type { Transaction, WorkspaceStore } from "@noticeos/postgres";
 import { afterEach, describe, expect, it } from "vitest";
 import { deriveAlertEvidence, type AlertEvidenceInput, type AlertPulseEvidence } from "../shared/alert-evidence";

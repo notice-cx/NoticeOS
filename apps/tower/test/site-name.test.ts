@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 import { isLookupHost, siteNameFromHtml } from "@shared/site-name";
 import { handleSiteNameRequest } from "../worker/site-name-route";

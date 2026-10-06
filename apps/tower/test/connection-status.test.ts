@@ -1,3 +1,4 @@
+// @vitest-environment node
 // The one status model for a connection (bead `ro-ujb9.96.7.3`).
 //
 // WHAT IS PROTECTED: a connection's status says whether it works NOW. Report

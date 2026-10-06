@@ -1,3 +1,4 @@
+// @vitest-environment node
 // The Wall's revenue widget read model (docs/25-the-wall.md § Revenue, bead
 // `ro-trai.4`): the figure is the ledger's, the pace is the sum of the sites'
 // ready projections plus revenue no projection covers, and the month chart and

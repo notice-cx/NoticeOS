@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { MEDIAVINE_REPORTING_CLOCK } from '../shared/daily-revenue';
 import { describe, expect, it } from 'vitest';
 import { projectRevenue, revenueExpectedThrough, shiftRevenueDate, type RevenueDay, type RevenueHoliday } from '../shared/revenue-projection';

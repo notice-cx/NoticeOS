@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, expect, it } from 'vitest';
 import { PulseEnvelope, evaluatePulse } from '@noticeos/contract';
 import { generateDemoScenario, demoScenarioHash, shiftDemoDay } from '../../../scripts/demo-scenario.mjs';

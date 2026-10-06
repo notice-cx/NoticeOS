@@ -1,3 +1,4 @@
+// @vitest-environment node
 // The trend read keeps each day's newest write (beads `ro-ujb9.110`,
 // ro-ujb9.76.5.3).
 //

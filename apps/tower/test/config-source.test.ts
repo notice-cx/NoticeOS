@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { logicalTaskProjects } from "../shared/settings";
 import { resolveTowerConfig, towerConfigResolver, type TowerConfigFallbacks, type ConfigDocumentReader } from "../worker/config-source";

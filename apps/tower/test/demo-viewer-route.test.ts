@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import worker, { type TowerEnv } from '../worker/index';
 import { demoViewerReadResponse, demoViewerResponse } from '../worker/demo-viewer-route';

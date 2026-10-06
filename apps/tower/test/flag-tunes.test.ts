@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import { beforeEach, describe, expect, it } from "vitest";
 import { findRuleStat } from "../shared/alert-rules";

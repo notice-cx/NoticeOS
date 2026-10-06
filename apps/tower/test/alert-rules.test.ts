@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   ALERT_RULE_WINDOW_DAYS,

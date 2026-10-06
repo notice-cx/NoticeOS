@@ -1,3 +1,4 @@
+// @vitest-environment node
 // The Worker half of the runner lane: what it does once a request is allowed,
 // and — the part that matters — that it still refuses one that is not.
 

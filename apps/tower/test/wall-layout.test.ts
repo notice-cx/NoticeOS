@@ -1,3 +1,4 @@
+// @vitest-environment node
 // The Wall layout contract (epic ro-lzmq): the one rule for "can the Wall draw
 // this", the default — D28's arrangement since bead ro-trai.11 — and the
 // version history a Save and a Revert produce.

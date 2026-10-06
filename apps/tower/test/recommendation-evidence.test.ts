@@ -1,3 +1,4 @@
+// @vitest-environment node
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createTestStore, type TestStore } from "./postgres-store";

@@ -1,3 +1,4 @@
+// @vitest-environment node
 // THE NOTICE IDENTITY (decision D35, bead ro-ujb9.77.3): the app wears the
 // Notice mark, a NoticeOS wordmark in Stack Sans Notch and the website's blue,
 // and the blue is a BRAND colour only — it may mark an action, a selection or

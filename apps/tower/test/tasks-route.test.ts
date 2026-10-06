@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { READ_ONLY_DEPLOYMENT, READ_ONLY_TASKS_HINT } from "../shared/tasks";
 import {

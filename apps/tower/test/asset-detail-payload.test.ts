@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { PulseEnvelope } from "@noticeos/contract";
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import { beforeEach, describe, expect, it } from "vitest";

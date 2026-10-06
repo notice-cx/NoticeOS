@@ -1,3 +1,4 @@
+// @vitest-environment node
 // The Wall reads revenue-projection traffic only for assets with daily revenue
 // (bead `ro-ujb9.102`).
 //

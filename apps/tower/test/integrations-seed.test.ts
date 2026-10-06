@@ -1,3 +1,4 @@
+// @vitest-environment node
 // Check the shipped empty catalog and an explicit synthetic register. The
 // matrix assertions run on every checkout and read no installation files.
 import { readFileSync } from "node:fs";

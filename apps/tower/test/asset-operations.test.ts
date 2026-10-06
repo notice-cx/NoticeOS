@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { emptyDraft, planWrites } from '@shared/asset-wizard';
 import { lifecycleMoveRef } from '@shared/asset-detail';

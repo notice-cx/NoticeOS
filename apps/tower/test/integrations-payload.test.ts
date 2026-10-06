@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { type HomeCheck, homeChecksSql, loadHomeChecks, loadIntegrationEvidence, uptimeState } from '../worker/integration-evidence';
 import { beforeEach, describe, expect, it } from "vitest";
 import {
