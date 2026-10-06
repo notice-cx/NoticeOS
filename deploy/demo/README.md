@@ -113,7 +113,21 @@ tool contracts are compatible with the existing store. This path performs **no
 existing-store migration**; schema changes require separate operator maintenance.
 Keep seed/cutoff/original release unchanged: they identify existing synthetic
 history, while the artifact manifest supplies the new application's release.
-Recreate the namespace owner and application together after stopping them:
+
+[update.sh](update.sh) performs exactly these steps in one command: it resolves
+`main` or an exact commit on the public repository, downloads that source
+archive, builds the exact-commit image, changes only the image tag in the env
+file, recreates the namespace owner and then the application, and checks health
+through the configured public Host. It never runs preparation or setup, never
+edits the demo configuration and takes no backup. Keep a copy outside the
+checkout and run it from the demo host:
+
+```sh
+/operator/update.sh --env /operator/demo.env --source /operator/src
+/operator/update.sh --env /operator/demo.env --source /operator/src --commit FULL_SOURCE_COMMIT
+```
+
+By hand, recreate the namespace owner and application together after stopping them:
 
 ```sh
 docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/compose.yaml up -d --wait --force-recreate dolt

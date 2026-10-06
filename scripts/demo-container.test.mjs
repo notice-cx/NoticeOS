@@ -116,3 +116,17 @@ test('Compose exposes only loopback HTTP and gives no bootstrap volume to the ap
   // The Tower client embeds docs/templates/*.md with ?raw; the build context must carry that folder.
   assert.match(ignore, /^!docs\/templates\/\*\*$/mu); assert.doesNotMatch(ignore, /^!docs\/\*\*$/mu);
 });
+
+test('the update script follows the README update path: exact commit, image tag only, dolt before app, no reseed', () => {
+  const file = path.join(ROOT, 'deploy/demo/update.sh');
+  assert.ok(fs.statSync(file).mode & 0o100, 'update.sh is executable');
+  const script = fs.readFileSync(file, 'utf8');
+  assert.match(script, /^#!\/bin\/sh\n/u); assert.match(script, /^set -eu$/mu);
+  assert.match(script, /\^\[0-9a-f\]\{40\}\$/u);
+  assert.match(script, /NOTICEOS_SOURCE_COMMIT=\$COMMIT/u);
+  assert.match(script, /^sed -i "s\|\^NOTICEOS_DEMO_IMAGE=\.\*\|NOTICEOS_DEMO_IMAGE=noticeos-demo:\$COMMIT\|" "\$ENV_FILE"$/mu);
+  const dolt = script.indexOf('--force-recreate dolt'), app = script.indexOf('--force-recreate app');
+  assert.ok(dolt > 0 && app > dolt, 'dolt is recreated before app');
+  assert.doesNotMatch(script, /compose (run|down)|\$DOCKER (run|compose run)|hosted-demo-setup|prepare\.mjs|demo\.json|--volumes/u);
+  assert.match(script, /--header "Host: \$HOST" "http:\/\/127\.0\.0\.1:\$PORT\/__noticeos_health"/u);
+});
