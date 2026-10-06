@@ -5,40 +5,101 @@ on:
     branches: [main]
   pull_request:
 
+# Four jobs side by side (issue #2): the Tower's unit suite, the other
+# workspaces' (ingest, contract, mediavine, postgres), the root script suite,
+# and the build with the browser journeys and the UX flow gate. Each gate runs
+# once, in one job; `build` is the verdict branch protection requires.
 jobs:
-  build:
+  # A pull request that changes only documentation no runtime suite reads
+  # skips the unit and browser jobs (issue #4, scripts/ci-scope.mjs). The root
+  # script suite reads every tracked Markdown file, so it always runs. A push
+  # to main runs everything.
+  scope:
+    runs-on: ubuntu-latest
+    outputs:
+      runtime: ${{ steps.scope.outputs.runtime }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - run: node scripts/ci-scope.mjs
+        id: scope
+
+  tower-unit:
+    needs: scope
+    if: needs.scope.outputs.runtime == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 24.21.0
           cache: pnpm
-
       - run: pnpm install --frozen-lockfile
-
-      - run: pnpm -r typecheck
-      # The Postgres proofs — the D27 workspace-isolation denial, the edge
-      # cases and the migration runner (bead ro-ujb9.76.15), and the Workers'
-      # suites on the store they are moving to (epic ro-ujb9.76,
-      # docs/briefs/2026-09-29-postgres-port-pattern.md) — run here and never
-      # skip: PostgreSQL 18's server binaries go on PATH before the first suite
-      # that starts a server (installed from PGDG if the runner lacks them), and
+      - run: pnpm --filter @noticeos/tower run typecheck
+      # The Postgres proofs (bead ro-ujb9.76.15, epic ro-ujb9.76) never skip:
+      # PostgreSQL 18's server binaries go on PATH before the first suite that
+      # starts a server (installed from PGDG if the runner lacks them), and
       # NOTICEOS_REQUIRE_POSTGRES turns a server that cannot start into a
-      # failure.
+      # failure. Every job that starts Postgres repeats this step.
       - run: (test -x /usr/lib/postgresql/18/bin/initdb && test -x /usr/lib/postgresql/17/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-17 postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
-      - run: pnpm -r test
+      - run: pnpm --filter @noticeos/tower run test
         env:
           NOTICEOS_REQUIRE_POSTGRES: '1'
+          # The suite has the runner to itself (scripts/unit-test-workers.mts).
+          UNIT_TEST_WORKERS: 100%
+
+  ingest-unit:
+    needs: scope
+    if: needs.scope.outputs.runtime == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r --filter '!@noticeos/tower' typecheck
+      - run: (test -x /usr/lib/postgresql/18/bin/initdb && test -x /usr/lib/postgresql/17/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-17 postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
+      - run: pnpm -r --filter '!@noticeos/tower' test
+        env:
+          NOTICEOS_REQUIRE_POSTGRES: '1'
+          UNIT_TEST_WORKERS: 100%
+
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: (test -x /usr/lib/postgresql/18/bin/initdb && test -x /usr/lib/postgresql/17/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-17 postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
       - run: pnpm test:scripts
         env:
           NOTICEOS_REQUIRE_POSTGRES: '1'
           NOTICEOS_TEST_POSTGRES17_BIN: /usr/lib/postgresql/17/bin
-      - run: pnpm -r build
 
+  browser:
+    needs: scope
+    if: needs.scope.outputs.runtime == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The journeys' run starts one throwaway Postgres for its fixture servers.
+      - run: (test -x /usr/lib/postgresql/18/bin/initdb && test -x /usr/lib/postgresql/17/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-17 postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
+      - run: pnpm -r build
       # The fifth gate: the isolated browser journeys, then the UX flow gate
       # (bead ro-ujb9.95), which walks every declared operator flow and fails
       # when one gains a step, an empty step, a repeated check, a duplicate
@@ -48,8 +109,7 @@ jobs:
         env:
           # Browser workers, each with its own fixture server, and flow-gate
           # lanes (bead ro-ujb9.167). Unset, a run takes half the machine's
-          # cores, which on a small runner is 1; the runner already carried
-          # the flow gate's 3 lanes, so the journeys share that count.
+          # cores, which on a small runner is 1.
           JOURNEY_WORKERS: 3
       - uses: actions/upload-artifact@v4
         if: always()
@@ -60,3 +120,15 @@ jobs:
             apps/tower/e2e/test-results/
             apps/tower/e2e/ux-flows-results/
           retention-days: 14
+
+  # The one check branch protection requires: every job passed, or the scope
+  # job skipped the runtime jobs for a documentation-only pull request.
+  build:
+    needs: [scope, tower-unit, ingest-unit, scripts, browser]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: jq -e --arg runtime "$RUNTIME" '.scope.result == "success" and .scripts.result == "success" and ([."tower-unit", ."ingest-unit", .browser] | map(.result) | all(. == "success" or (. == "skipped" and $runtime == "false")))' <<< "$NEEDS"
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          RUNTIME: ${{ needs.scope.outputs.runtime }}

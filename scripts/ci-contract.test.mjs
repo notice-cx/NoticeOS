@@ -15,14 +15,6 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 const WORKFLOW = path.join(REPO_ROOT, '.github', 'workflows', 'ci.yml');
 const MANIFEST = path.join(REPO_ROOT, 'package.json');
 
-const REQUIRED_RUNS = [
-  'pnpm install --frozen-lockfile',
-  'pnpm -r typecheck',
-  'pnpm -r test',
-  'pnpm test:scripts',
-  'pnpm -r build',
-];
-
 // The step that gives the suites a Postgres server (bead ro-ujb9.76.15).
 // Without one, scripts/postgres-model.test.mjs and postgres-migrate.test.mjs
 // would skip, and CI would pass without ever running the D27 workspace-
@@ -49,29 +41,67 @@ function jobBlock(workflow, name) {
   return rest.slice(0, nextBlock === -1 ? undefined : nextBlock).join('\n');
 }
 
-test('required CI runs the root operator-script suite in gate order', () => {
+// Each gate in one job, in order (issue #2): the Tower's unit suite, the other
+// workspaces' (the two filters split `pnpm -r` between them, so every
+// workspace is typechecked and tested once), the root script suite (the root
+// is not a workspace, so no `pnpm -r` reaches it, bead ro-osp), and the build
+// with the browser journeys. Every job that starts Postgres puts the server
+// binaries on PATH first.
+const INSTALL = 'pnpm install --frozen-lockfile';
+const JOBS = {
+  'tower-unit': [INSTALL, 'pnpm --filter @noticeos/tower run typecheck', POSTGRES_STEP, 'pnpm --filter @noticeos/tower run test'],
+  'ingest-unit': [INSTALL, "pnpm -r --filter '!@noticeos/tower' typecheck", POSTGRES_STEP, "pnpm -r --filter '!@noticeos/tower' test"],
+  scripts: [INSTALL, POSTGRES_STEP, 'pnpm test:scripts'],
+  browser: [INSTALL, POSTGRES_STEP, 'pnpm -r build', 'pnpm --filter @noticeos/tower run journey:install --with-deps', 'pnpm test:journeys'],
+};
+/** The suites that start a Postgres server, so must run after POSTGRES_STEP. */
+const POSTGRES_SUITES = ['pnpm --filter @noticeos/tower run test', "pnpm -r --filter '!@noticeos/tower' test", 'pnpm test:scripts', 'pnpm test:journeys'];
+
+test('required CI runs every gate exactly once, each in its job, in gate order', () => {
   const workflow = readFileSync(WORKFLOW, 'utf8');
-  const commands = runCommands(jobBlock(workflow, 'build'));
-  const positions = REQUIRED_RUNS.map((command) => commands.indexOf(command));
-
-  for (const [index, command] of REQUIRED_RUNS.entries()) {
-    assert.notEqual(
-      positions[index],
-      -1,
-      `${command} is absent from .github/workflows/ci.yml; recursive workspace tests do not cover the root script suite`,
-    );
-    assert.equal(
-      commands.lastIndexOf(command),
-      positions[index],
-      `${command} appears more than once in the required CI job`,
-    );
+  const gates = new Map();
+  for (const [name, expected] of Object.entries(JOBS)) {
+    const commands = runCommands(jobBlock(workflow, name));
+    assert.deepEqual(commands, expected, `the ${name} job's gates`);
+    for (const command of commands) gates.set(command, (gates.get(command) ?? 0) + 1);
   }
+  for (const [command, count] of gates) {
+    if (command === INSTALL || command === POSTGRES_STEP) continue;
+    assert.equal(count, 1, `${command} runs in more than one job`);
+  }
+});
 
-  assert.deepEqual(
-    [...positions].sort((a, b) => a - b),
-    positions,
-    `required CI gates are out of order: ${commands.join(' -> ')}`,
-  );
+test('a Postgres suite never runs before its job puts the server binaries on PATH', () => {
+  const workflow = readFileSync(WORKFLOW, 'utf8');
+  for (const name of Object.keys(JOBS)) {
+    const commands = runCommands(jobBlock(workflow, name));
+    for (const suite of POSTGRES_SUITES.filter((command) => commands.includes(command))) {
+      assert.ok(commands.indexOf(POSTGRES_STEP) !== -1 && commands.indexOf(POSTGRES_STEP) < commands.indexOf(suite),
+        `${name}: ${suite} runs before the Postgres step`);
+    }
+  }
+});
+
+test('documentation-only pull requests skip the unit and browser jobs; the script suite and every push run everything', () => {
+  const workflow = readFileSync(WORKFLOW, 'utf8');
+  assert.match(workflow, /^on:\n {2}push:\n {4}branches: \[main\]\n {2}pull_request:\n/mu);
+  const scope = jobBlock(workflow, 'scope');
+  assert.deepEqual(runCommands(scope), ['node scripts/ci-scope.mjs']);
+  assert.match(scope, /fetch-depth: 2\n/u, "the merge commit's base parent is fetched");
+  assert.match(scope, /runtime: \$\{\{ steps\.scope\.outputs\.runtime \}\}/u);
+  for (const name of ['tower-unit', 'ingest-unit', 'browser']) {
+    const job = jobBlock(workflow, name);
+    assert.match(job, /^ {4}needs: scope\n {4}if: needs\.scope\.outputs\.runtime == 'true'\n/mu, `${name} runs unless the change is documentation only`);
+  }
+  // The root suite reads every tracked Markdown file, so it always runs.
+  assert.doesNotMatch(jobBlock(workflow, 'scripts'), /^ {4}if:/mu);
+  const build = jobBlock(workflow, 'build');
+  assert.match(build, /^ {4}needs: \[scope, tower-unit, ingest-unit, scripts, browser\]\n {4}if: always\(\)\n/mu, 'the required check judges every job');
+  const [verdict] = runCommands(build);
+  assert.match(verdict, /^jq -e --arg runtime "\$RUNTIME" '/u);
+  assert.match(verdict, /\.scope\.result == "success" and \.scripts\.result == "success"/u, 'the scope job and the script suite always pass');
+  assert.match(verdict, /\(\. == "skipped" and \$runtime == "false"\)/u, 'a runtime job may skip only on a documentation-only change');
+  assert.match(build, /NEEDS: \$\{\{ toJSON\(needs\) \}\}\n\s+RUNTIME: \$\{\{ needs\.scope\.outputs\.runtime \}\}/u);
 });
 
 test('job extraction cannot borrow a missing gate from a sibling job', () => {
@@ -80,16 +110,8 @@ test('job extraction cannot borrow a missing gate from a sibling job', () => {
   assert.throws(() => jobBlock(workflow, 'missing'), /must declare the missing job/u);
 });
 
-test('CI runs the isolated user journeys inside the required build job', () => {
-  const workflow = readFileSync(WORKFLOW, 'utf8');
-  const job = jobBlock(workflow, 'build');
-  assert.deepEqual(runCommands(job), [
-    ...REQUIRED_RUNS.slice(0, 2),
-    POSTGRES_STEP,
-    ...REQUIRED_RUNS.slice(2),
-    'pnpm --filter @noticeos/tower run journey:install --with-deps',
-    'pnpm test:journeys',
-  ]);
+test('CI runs the isolated user journeys in the browser job and keeps their evidence', () => {
+  const job = jobBlock(readFileSync(WORKFLOW, 'utf8'), 'browser');
   assert.doesNotMatch(job, /continue-on-error:\s*true/u);
   assert.match(job, /uses: actions\/upload-artifact@/u);
   assert.match(job, /if: always\(\)/u);
@@ -114,22 +136,21 @@ test('CI runs the isolated user journeys inside the required build job', () => {
   assert.equal(manifest.scripts?.['ux:flows:baseline'], 'node apps/tower/e2e/flow-gate.mjs --write-baseline');
 });
 
-test('CI runs the Postgres proofs on a real server and never lets them skip', () => {
-  const job = jobBlock(readFileSync(WORKFLOW, 'utf8'), 'build');
-  const commands = runCommands(job);
-  assert.equal(
-    commands.indexOf(POSTGRES_STEP),
-    commands.indexOf('pnpm -r test') - 1,
-    'the Postgres server binaries go on PATH right before the first suite that starts a server',
-  );
+test('the Postgres suites run with NOTICEOS_REQUIRE_POSTGRES=1, the unit suites on the whole runner', () => {
+  const workflow = readFileSync(WORKFLOW, 'utf8');
   // Match the pinned host major, including its builtin C.UTF-8 locale.
   assert.equal(Number(/postgresql\/(\d+)\/bin/u.exec(POSTGRES_STEP)[1]), 18);
   // Ubuntu's runner removes PGDG after preparing its bundled PostgreSQL 16.
   assert.match(POSTGRES_STEP, /apt\.postgresql\.org\.sh -y/u);
-  assert.match(job, /NOTICEOS_TEST_POSTGRES17_BIN: \/usr\/lib\/postgresql\/17\/bin/u, 'the cross-major restore proof receives explicit old binaries');
-  for (const suite of ['pnpm -r test', 'pnpm test:scripts']) {
-    const step = new RegExp(`- run: ${suite}\\n\\s+env:\\n\\s+NOTICEOS_REQUIRE_POSTGRES: '1'\\n`, 'u');
-    assert.match(job, step, `${suite} must run with NOTICEOS_REQUIRE_POSTGRES=1, so a server that cannot start fails the build`);
+  const scripts = jobBlock(workflow, 'scripts');
+  assert.match(scripts, /NOTICEOS_TEST_POSTGRES17_BIN: \/usr\/lib\/postgresql\/17\/bin/u, 'the cross-major restore proof receives explicit old binaries');
+  for (const [name, suite] of [['tower-unit', 'pnpm --filter @noticeos/tower run test'], ['ingest-unit', "pnpm -r --filter '!@noticeos/tower' test"], ['scripts', 'pnpm test:scripts']]) {
+    const step = new RegExp(`- run: ${suite.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}\\n\\s+env:\\n\\s+NOTICEOS_REQUIRE_POSTGRES: '1'\\n`, 'u');
+    assert.match(jobBlock(workflow, name), step, `${suite} must run with NOTICEOS_REQUIRE_POSTGRES=1, so a server that cannot start fails the build`);
+  }
+  // Each unit suite has its runner to itself (scripts/unit-test-workers.mts).
+  for (const name of ['tower-unit', 'ingest-unit']) {
+    assert.match(jobBlock(workflow, name), /UNIT_TEST_WORKERS: 100%\n/u, `${name} uses every core`);
   }
 });
 

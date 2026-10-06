@@ -111,7 +111,9 @@ NOTICEOS_REQUIRE_POSTGRES=1 node --import ./scripts/script-tests-setup.mjs --tes
 Keep the root suite's `--import` preload when running one script test. A
 recursive workspace test does not run `scripts/*.test.mjs`.
 
-CI runs these five full gates; release acceptance still requires passing CI:
+CI runs these five full gates, split across four parallel jobs, and a pull
+request that changes only documentation skips all but the root script suite
+(`scripts/ci-scope.mjs`). Release acceptance still requires passing CI:
 
 ```sh
 pnpm -r typecheck

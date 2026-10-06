@@ -165,10 +165,15 @@ and its pause check unavailable (D43).
 
 ## The CI bar
 
-One job (`.github/workflows/ci.yml`) on push to `main` and every PR:
-`pnpm install --frozen-lockfile` → `pnpm -r typecheck` → `pnpm -r test` →
-`pnpm test:scripts` → `pnpm -r build` → `pnpm test:journeys` (the isolated
-browser journeys, then the UX flow gate, bead `ro-ujb9.95`). **The full gates run
+Four parallel jobs (`.github/workflows/ci.yml`) on push to `main` and every
+PR, each after `pnpm install --frozen-lockfile`: the Tower's typecheck and unit
+tests; the other workspaces' (`pnpm -r --filter '!@noticeos/tower'`);
+`pnpm test:scripts`; and `pnpm -r build` → `pnpm test:journeys` (the isolated
+browser journeys, then the UX flow gate, bead `ro-ujb9.95`). The `build` job is the required verdict over all four. A PR that
+changes only documentation no runtime suite reads (`scripts/ci-scope.mjs`:
+`docs/` outside `briefs/` and `templates/`, and root Markdown) skips the unit
+and browser jobs; the root suite always runs, and a push to `main` runs
+everything. **The full gates run
 in CI; they are not a mandatory local pre-merge run** (owner, 2026-10-05).
 Locally test directly changed logic and affected critical paths, with the
 smallest relevant typecheck, build or browser check. Do not run every workspace,
