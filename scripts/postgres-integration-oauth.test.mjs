@@ -12,8 +12,9 @@ import { openEmailCodeLogin, EMAIL_CODE_PATHS } from '../packages/postgres/src/e
 import { WORKSPACE_SESSION_HEADER } from './browser-request-policy.mjs';
 import { openIdentity, IdentityRefused } from '../packages/postgres/src/identity.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
-import { findPostgres, PostgresUnavailable, LOOPBACK_HBA } from './postgres-dev.mjs';
+import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
+import { skipWithoutPostgres } from './postgres-test-skip.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 
@@ -50,15 +51,11 @@ test('custody has only fixed actions and rejects malformed original proof before
 });
 
 test('transaction custody uses maintained cookies, fresh authority and committed single use', { timeout: 60000 }, async t => {
-  let tools;
-  try { tools = findPostgres(); } catch (error) {
-    if (error instanceof PostgresUnavailable && process.env.NOTICEOS_REQUIRE_POSTGRES !== '1') return t.skip(error.message);
-    throw error;
-  }
+  const tools = findPostgres();
   const fixture = mkdtempSync(path.join(os.tmpdir(), 'noticeos-google-custody-'));
   const opened = new Set(); let owner, admin;
   try {
-    owner = await openOnLoopbackPort(path.join(fixture, 'pg'), tools);
+    owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(fixture, 'pg'), tools)); if (!owner) return;
     applyMigrations(owner);
     admin = new Pool({ host: owner.socketDir, port: owner.loopbackPort, database: 'noticeos_dev', user: 'postgres', max: 2 });
     const password = randomBytes(32).toString('base64url');

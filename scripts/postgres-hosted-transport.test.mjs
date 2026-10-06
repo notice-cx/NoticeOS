@@ -6,8 +6,9 @@ import { appendFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
-import { findPostgres, PostgresUnavailable, LOOPBACK_HBA } from './postgres-dev.mjs';
+import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
+import { skipWithoutPostgres } from './postgres-test-skip.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 import { bundleWorkerFixture, Miniflare } from './worker-entry-test-fixture.mjs';
@@ -26,11 +27,7 @@ async function waitAcquired(acquired, completed) {
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 
 test('direct hosted PostgreSQL preserves actual transactions, fresh facts and locks in native and ordinary Worker', { timeout: 120000 }, async t => {
-  let tools;
-  try { tools = findPostgres(); } catch (error) {
-    if (error instanceof PostgresUnavailable && process.env.NOTICEOS_REQUIRE_POSTGRES !== '1') return t.skip(error.message);
-    throw error;
-  }
+  const tools = findPostgres();
   const root = mkdtempSync(path.join(os.tmpdir(), 'n-transport-'));
   let owner, admin, runtime, identity, login;
   const workspaces = [randomUUID(), randomUUID()], person = randomUUID();
@@ -38,7 +35,7 @@ test('direct hosted PostgreSQL preserves actual transactions, fresh facts and lo
   const key = (randomBytes(8).readBigUInt64BE() & ((1n << 63n) - 1n)).toString();
   let barrier;
   try {
-    owner = await openOnLoopbackPort(path.join(root, 'pg'), tools);
+    owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root, 'pg'), tools)); if (!owner) return;
     admin = new Pool({ host: owner.socketDir, port: owner.loopbackPort, database: 'noticeos_dev', user: 'postgres', max: 2 });
     applyMigrations(owner);
     const appConnection = owner.applicationLogin().url();

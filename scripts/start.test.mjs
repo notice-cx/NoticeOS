@@ -27,6 +27,7 @@ import { installationDir } from './installation.mjs';
 import { parseJobRuns } from './job-runs.mjs';
 import { LOCAL_CONNECTION_VARIABLE } from './database-address.mjs';
 import { ADDRESS_FILE, DEFAULT_PORT as POSTGRES_PORT, SECRETS_DIR_VARIABLE, composeSecretsDir } from './postgres-secrets.mjs';
+import { findPostgres } from './postgres-dev.mjs';
 import { postgresRequired, startTestCluster, unavailableReason } from './postgres-test-cluster.mjs';
 import { answersHolding, filesHolding, plantedDatabase, processTree, saveClockThroughTower, storedClock, storedJobs } from './test-planted-address.mjs';
 import { statePaths, stripJsonc, workerCrons } from './os-runtime.mjs';
@@ -964,6 +965,9 @@ test('development startup refuses an already held runtime port without writing i
 });
 
 test('two developer commands seed a real Tower on its own new database, then stop and restart without adopting Compose', { timeout: 240_000 }, async (t) => {
+  // The commands start Postgres in their own process, where its absence is
+  // only an exit code: decide here, as the in-process tests do (issue #11).
+  if (!findPostgres() && !postgresRequired()) return t.skip('no Postgres server binaries (initdb, pg_ctl, psql) on this machine');
   const base = tempDir(t, 'development-live-');
   const home = path.join(base, 'runtime');
   const compose = path.join(base, 'untouched-compose');

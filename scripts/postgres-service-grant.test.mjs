@@ -7,8 +7,9 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
 import net from 'node:net';
-import { findPostgres, PostgresUnavailable, LOOPBACK_HBA } from './postgres-dev.mjs';
+import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
+import { skipWithoutPostgres } from './postgres-test-skip.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 import { bundleWorkerFixture, Miniflare } from './worker-entry-test-fixture.mjs';
@@ -68,15 +69,11 @@ test('established socket stalls retain the fixed deadline and retire on refusal'
 });
 
 test('service grant joins current lifecycle and only named scoped facts in native and Worker', { timeout: 90000 }, async t => {
-  let tools;
-  try { tools = findPostgres(); } catch (error) {
-    if (error instanceof PostgresUnavailable && process.env.NOTICEOS_REQUIRE_POSTGRES !== '1') return t.skip(error.message);
-    throw error;
-  }
+  const tools = findPostgres();
   const root = mkdtempSync(path.join(os.tmpdir(), 'n-service-'));
   let owner, admin; const clients = [], readers = [], runtimes = [];
   try {
-    owner = await openOnLoopbackPort(path.join(root, 'pg'), tools);
+    owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root, 'pg'), tools)); if (!owner) return;
     admin = new Pool({ host: owner.socketDir, port: owner.loopbackPort, database: 'noticeos_dev', user: 'postgres', max: 2 });
     applyMigrations(owner);
     const baseConnection = owner.applicationLogin().url();

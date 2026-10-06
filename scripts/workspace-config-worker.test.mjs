@@ -9,8 +9,9 @@ import { gzipSync } from 'node:zlib';
 import { watchQueryHistoryRange } from '../packages/contract/src/watch-series.mjs';
 import path from 'node:path';
 import test from 'node:test';
-import { findPostgres, PostgresUnavailable, LOOPBACK_HBA } from './postgres-dev.mjs';
+import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
+import { skipWithoutPostgres } from './postgres-test-skip.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
 import { IDENTITY_NAMES } from '../packages/postgres/src/identity.mjs';
 import { INTEGRATION_PROVIDER_IDS } from '../packages/contract/src/integrations.ts';
@@ -30,17 +31,13 @@ const fixtureDir = path.join(REPO_ROOT, 'workers/ingest/test/fixture-config');
 const fixture = name => JSON.parse(readFileSync(path.join(fixtureDir, `${name}.json`), 'utf8'));
 
 test('original config HTTP and private RPC select fresh authorized workspaces in workerd', { timeout: 120000 }, async t => {
-  let tools;
-  try { tools = findPostgres(); } catch (error) {
-    if (error instanceof PostgresUnavailable && process.env.NOTICEOS_REQUIRE_POSTGRES !== '1') return t.skip(error.message);
-    throw error;
-  }
+  const tools = findPostgres();
   const root = mkdtempSync(path.join(os.tmpdir(), 'noticeos-config-entry-'));
   let owner, admin, enginePool, runtime;
   try {
     const ingest = await bundle(root, 'ingest', path.join(REPO_ROOT, 'workers/ingest/src/index.ts'));
     const tower = await bundle(root, 'tower', path.join(REPO_ROOT, 'apps/tower/worker/index.ts'));
-    owner = await openOnLoopbackPort(path.join(root, 'pg'), tools);
+    owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root, 'pg'), tools)); if (!owner) return;
     applyMigrations(owner);
     admin = new Pool({ host: owner.socketDir, port: owner.loopbackPort, database: 'noticeos_dev', user: 'postgres', max: 1 });
     const appUrl = owner.applicationLogin().url();

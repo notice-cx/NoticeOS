@@ -12,8 +12,9 @@ import { openEmailCodeLogin, EMAIL_CODE_PATHS } from '../packages/postgres/src/e
 import { IdentityRefused } from '../packages/postgres/src/identity.mjs';
 import { PRODUCT_ENV } from './product-env.mjs';
 import { WORKSPACE_SELECTION_HEADER } from './workspace-entry.mjs';
-import { findPostgres, PostgresUnavailable, LOOPBACK_HBA } from './postgres-dev.mjs';
+import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
+import { skipWithoutPostgres } from './postgres-test-skip.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 import { stopLocalSecretReads } from './worker-config-folder.mjs';
@@ -70,18 +71,14 @@ async function bundle(root, name, entry) {
 }
 
 test('browser bootstrap reads fresh choices through native identity and the ordinary Tower Worker', { timeout: 120000 }, async t => {
-  let tools;
-  try { tools = findPostgres(); } catch (error) {
-    if (error instanceof PostgresUnavailable && process.env.NOTICEOS_REQUIRE_POSTGRES !== '1') return t.skip(error.message);
-    throw error;
-  }
+  const tools = findPostgres();
   const root = mkdtempSync(path.join(os.tmpdir(), 'noticeos-session-'));
   const clients = [];
   let owner, admin, runtime, sentinel;
   let outside = 0, operational = 0, databaseContacts = 0;
   try {
     const tower = await bundle(root, 'session-tower', path.join(REPO_ROOT, 'apps/tower/worker/index.ts'));
-    owner = await openOnLoopbackPort(path.join(root, 'pg'), tools);
+    owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root, 'pg'), tools)); if (!owner) return;
     applyMigrations(owner);
     const postmaster = Number(readFileSync(path.join(owner.root, 'data/postmaster.pid'), 'utf8').split('\n')[0]);
     admin = new Pool({ host: owner.socketDir, port: owner.loopbackPort, database: 'noticeos_dev', user: 'postgres', max: 1 });

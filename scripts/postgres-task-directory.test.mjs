@@ -8,8 +8,9 @@ import path from 'node:path';
 import os from 'node:os';
 import net from 'node:net';
 import {stopLocalSecretReads} from './worker-config-folder.mjs';
-import {findPostgres,PostgresUnavailable,LOOPBACK_HBA} from './postgres-dev.mjs';
+import {findPostgres,LOOPBACK_HBA} from './postgres-dev.mjs';
 import {openOnLoopbackPort} from './postgres-test-cluster.mjs';
+import { skipWithoutPostgres } from './postgres-test-skip.mjs';
 import {applyMigrations} from './postgres-migrate.mjs';
 import {REPO_ROOT} from './test-config-isolation.mjs';
 import {openTaskDirectory} from '../packages/postgres/src/task-directory.mjs';
@@ -97,15 +98,11 @@ async function workerProof(root,connectionString,facts,revoke){
 }
 
 test('platform task directory has immutable ownership and no customer grants',{timeout:60000},async t=>{
-  let tools;
-  try{tools=findPostgres();}catch(error){
-    if(error instanceof PostgresUnavailable&&process.env.NOTICEOS_REQUIRE_POSTGRES!=='1')return t.skip(error.message);
-    throw error;
-  }
+  const tools = findPostgres();
   const root=mkdtempSync(path.join(os.tmpdir(),'n-directory-'));
   let owner,admin,reader;const clients=[],readers=[];
   try{
-    owner=await openOnLoopbackPort(path.join(root,'pg'),tools);
+    owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root,'pg'), tools)); if (!owner) return;
     admin=new Pool({host:owner.socketDir,port:owner.loopbackPort,database:'noticeos_dev',user:'postgres',max:2});
     applyMigrations(owner);
     const baseConnection=owner.applicationLogin().url();

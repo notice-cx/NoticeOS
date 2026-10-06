@@ -6,8 +6,9 @@ import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readd
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
-import { findPostgres, PostgresUnavailable, LOOPBACK_HBA } from './postgres-dev.mjs';
+import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
+import { skipWithoutPostgres } from './postgres-test-skip.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 import { bundleWorkerFixture, Miniflare } from './worker-entry-test-fixture.mjs';
@@ -25,17 +26,13 @@ const { kyselyAdapter } = await import(require.resolve('@better-auth/kysely-adap
 const { Kysely, PostgresDialect } = await import(require.resolve('kysely'));
 
 test('asset and finding audit is atomic, immutable and current-person scoped in native and ordinary Worker', { timeout: 90000 }, async t => {
-  let tools;
-  try { tools = findPostgres(); } catch (error) {
-    if (error instanceof PostgresUnavailable && process.env.NOTICEOS_REQUIRE_POSTGRES !== '1') return t.skip(error.message);
-    throw error;
-  }
+  const tools = findPostgres();
   const root = mkdtempSync(path.join(os.tmpdir(), 'n-mutation-'));
   let owner, admin, enginePool, runtime, reader, nativeStore, primaryError;
   const clients = [];
   try {
     const bundle = await bundleWorkerFixture(root, 'mutation-audit', path.join(REPO_ROOT, 'scripts/test-fixtures/mutation-audit-worker.mjs'));
-    owner = await openOnLoopbackPort(path.join(root, 'pg'), tools);
+    owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root, 'pg'), tools)); if (!owner) return;
     const oldDirectory = path.join(root, 'old-migrations'); mkdirSync(oldDirectory);
     for (const name of readdirSync(path.join(REPO_ROOT, 'db/postgres/migrations')).filter(name => /^000[1-9]_|^0010_/u.test(name))) {
       copyFileSync(path.join(REPO_ROOT, 'db/postgres/migrations', name), path.join(oldDirectory, name));
