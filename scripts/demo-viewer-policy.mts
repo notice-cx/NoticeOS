@@ -60,7 +60,8 @@ function boundedAsset(path: string): boolean {
   catch { return false; }
 }
 function taskRead(path: string): boolean {
-  if (path === '/api/tasks') return true;
+  // The project list is the board's first read; without it every Tasks view waits forever.
+  if (path === '/api/tasks' || path === '/api/tasks/projects') return true;
   const match = path.match(/^\/api\/tasks\/([^/]+)$/u);
   if (!match) return false;
   try { return /^[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*$/iu.test(decodeURIComponent(match[1]!)); }

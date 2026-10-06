@@ -59,7 +59,8 @@ function boundedAsset(path) {
     }
 }
 function taskRead(path) {
-    if (path === '/api/tasks')
+    // The project list is the board's first read; without it every Tasks view waits forever.
+    if (path === '/api/tasks' || path === '/api/tasks/projects')
         return true;
     const match = path.match(/^\/api\/tasks\/([^/]+)$/u);
     if (!match)
