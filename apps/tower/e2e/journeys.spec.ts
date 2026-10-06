@@ -1,7 +1,7 @@
 import { formatSeriesDate } from "../src/lib/format";
 import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./journey-test";
-import { JOURNEY_ASSET, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_SITE, JOURNEY_TIME_ZONE } from "./fixtures";
+import { DESKTOP_ONLY, JOURNEY_ASSET, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_SITE, JOURNEY_TIME_ZONE } from "./fixtures";
 import { measureWallFit, wallFitVerdict } from "../../../scripts/wall-fit-measure.mjs";
 import { wallLayoutWidgets, type WallConfig } from "../../../scripts/wall-layout.mjs";
 import { WALL_FEED_TV_ROWS, type WallFeedPayload } from "@shared/wall-feed";
@@ -17,6 +17,12 @@ import { captureWorkflowOutput } from "../../../scripts/workflow-output.mjs";
 import type { WorkflowRun, WorkflowsPayload } from "@shared/workflows";
 import { READ_ONLY_DEPLOYMENT } from "@shared/tasks";
 import { emptyWorkHistory } from "@shared/work";
+
+/** A journey the mobile project does not schedule (playwright.config.ts):
+ * it walks its own screen sizes, or what it pins does not depend on one. */
+function desktopOnly(reason: string) {
+  return { tag: DESKTOP_ONLY, annotation: { type: "desktop only", description: reason } };
+}
 
 test.beforeEach(async ({ request, baseURL }) => {
   // No real network, profile, credentials, task hub or pre-existing browser.
@@ -508,8 +514,7 @@ function attentionTones() {
 // A TV has no controls, so a stranger's first Wall must not be alarms for
 // things nobody set up: no OS report lane, no task source, no connected source
 // (bead ro-ujb9.132; D30; doc 14: warn and error mean something broke).
-test("an empty installation's Wall is calm: the clock, no alarms, and a quiet line where sites will be", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop", "a Wall size check: the TV and a laptop");
+test("an empty installation's Wall is calm: the clock, no alarms, and a quiet line where sites will be", desktopOnly("a Wall size check: the TV and a laptop"), async ({ page }, testInfo) => {
   for (const [width, height] of [[1920, 1080], [1440, 900]] as const) {
     await page.setViewportSize({ width, height });
     await page.goto("/wall");
@@ -687,8 +692,7 @@ test.describe(() => {
   // strip, revenue beside Needs you over the site rows, and the feed. The old
   // cards' totals, projection headings and chart keys left with them; what is
   // checked now is every region's text and the site rows' one-line headings.
-  test("the Wall cuts off no text in any region, and marks only the first site's out-of-date live users", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name === "mobile", "a TV and a desk-width Wall; the phone Wall stacks one region per row");
+  test("the Wall cuts off no text in any region, and marks only the first site's out-of-date live users", desktopOnly("a TV and a desk-width Wall; the phone Wall stacks one region per row"), async ({ page }, testInfo) => {
     await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
     await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload() }));
     await page.route("**/api/ga4/realtime", (route) => route.fulfill({ json: wallFixtureRealtime(20) }));
@@ -737,8 +741,7 @@ test.describe(() => {
   // of cutting anything off, each site is a card whose charts span it with the
   // live figure at its right edge, the feed is as tall as its rows — the TV's
   // twelve at most, newest first — and nothing scrolls sideways.
-  test("the Wall reads on a phone and a tablet: the strip wraps, each site's charts span its card, the feed grows", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name === "mobile", "walks the phone and tablet widths itself");
+  test("the Wall reads on a phone and a tablet: the strip wraps, each site's charts span its card, the feed grows", desktopOnly("walks the phone and tablet widths itself"), async ({ page }, testInfo) => {
     test.setTimeout(90_000);
     await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
     expect((await page.request.post("/__journey/wall-feed")).ok()).toBe(true);
@@ -820,8 +823,7 @@ test.describe(() => {
   // it once took, the small type stays on its floors, and the Wall fits the
   // screen exactly as the TV fits 1920 × 1080, measured by `pnpm wall:fit`'s
   // own function.
-  test("the Wall on a laptop is the TV's layout scaled to the screen: the feed a bounded column right of the site rows, the small type on its floors, nothing cut off", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name === "mobile", "walks the laptop widths itself");
+  test("the Wall on a laptop is the TV's layout scaled to the screen: the feed a bounded column right of the site rows, the small type on its floors, nothing cut off", desktopOnly("walks the laptop widths itself"), async ({ page }, testInfo) => {
     test.setTimeout(90_000);
     await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
     expect((await page.request.post("/__journey/wall-feed")).ok()).toBe(true);
@@ -928,8 +930,7 @@ test.describe(() => {
     }
   });
 
-  test("the Wall's header groups stay readable without overlap or aggregate status", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name === "mobile", "walks the phone and tablet widths itself");
+  test("the Wall's header groups stay readable without overlap or aggregate status", desktopOnly("walks the phone and tablet widths itself"), async ({ page }, testInfo) => {
     await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
     await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload("six") }));
     await page.route("**/api/ga4/realtime", (route) => route.fulfill({ json: wallFixtureRealtime(20, "six") }));
@@ -990,8 +991,7 @@ test.describe(() => {
   // reaches past the screen, nothing paints outside its own box, no text is cut
   // off, the feed draws only whole rows, and rows and plots use the region
   // while remaining readable at each supported density.
-  test("the Wall fits the TV with one, two, three, six, seven or eight sites and on fire, cutting off no text", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name === "mobile", "the TV's budget; the phone Wall stacks one region per row");
+  test("the Wall fits the TV with one, two, three, six, seven or eight sites and on fire, cutting off no text", desktopOnly("the TV's budget; the phone Wall stacks one region per row"), async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
     let variant: WallFixtureVariant = "six";
@@ -1137,8 +1137,7 @@ test.describe(() => {
 // refused with "Changed elsewhere — reload to see the current value". Now it
 // saves, and the next Save — straight after, before the payload catches up —
 // saves on top of it: created, then updated, both in the store.
-test("the TV layout saves on a fresh install, then saves again on top of it", async ({ page, request }, testInfo) => {
-  test.skip(testInfo.project.name === "mobile", "the layout's save is the same on a phone; the arrange-wall walk covers the phone");
+test("the TV layout saves on a fresh install, then saves again on top of it", desktopOnly("the layout's save is the same on a phone; the arrange-wall walk covers the phone"), async ({ page, request }, testInfo) => {
   await createAsset(page);
   await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
   let missingSelectedMetric = false;
@@ -1252,8 +1251,7 @@ test("the TV layout saves on a fresh install, then saves again on top of it", as
 // On a light desk the preview used to take some of the desk's light tokens —
 // the strip and the feed pale grey, the clock and the site's name dark ink on
 // black. Every token and ink the preview draws with must equal the TV's own.
-test("the TV layout's preview draws the TV dark on a light desk, exactly as the TV draws itself", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === "mobile", "the preview's tokens do not depend on the screen's width");
+test("the TV layout's preview draws the TV dark on a light desk, exactly as the TV draws itself", desktopOnly("the preview's tokens do not depend on the screen's width"), async ({ page }, testInfo) => {
   await page.addInitScript(() => window.localStorage.setItem("noticeos:theme", "light"));
   await createAsset(page);
 
@@ -1296,8 +1294,7 @@ test("the TV layout's preview draws the TV dark on a light desk, exactly as the 
 // default; the editor names the save as refused instead of calling the default
 // "On the TV", and a Save and a Revert from that state both land, guarded by
 // what the store really holds.
-test("a saved TV layout the Tower cannot read is named as refused, and a Save or a Revert replaces it", async ({ page, request }, testInfo) => {
-  test.skip(testInfo.project.name === "mobile", "the layout's save is the same on a phone");
+test("a saved TV layout the Tower cannot read is named as refused, and a Save or a Revert replaces it", desktopOnly("the layout's save is the same on a phone"), async ({ page, request }, testInfo) => {
   await createAsset(page);
   expect((await request.post("/__journey/refused-tower?part=wall")).ok()).toBe(true);
   const wall = async () => (await (await request.get("/__journey/status")).json()).documents["config/tower.json"].wall;
@@ -1335,8 +1332,7 @@ test("a saved TV layout the Tower cannot read is named as refused, and a Save or
 // A countdown the Tower cannot read beside a valid saved layout (bead
 // ro-trai.45): the layout stays standing, the countdown is named as refused,
 // and its form saves over the stored value.
-test("a saved countdown the Tower cannot read leaves the layout standing, and its form saves over it", async ({ page, request }, testInfo) => {
-  test.skip(testInfo.project.name === "mobile", "the countdown's form is the same on a phone");
+test("a saved countdown the Tower cannot read leaves the layout standing, and its form saves over it", desktopOnly("the countdown's form is the same on a phone"), async ({ page, request }, testInfo) => {
   await createAsset(page);
   expect((await request.post("/__journey/refused-tower?part=countdown")).ok()).toBe(true);
   const tower = async () => (await (await request.get("/__journey/status")).json()).documents["config/tower.json"];
@@ -1366,8 +1362,7 @@ test("a saved countdown the Tower cannot read leaves the layout standing, and it
 // settings lack the monthly cap, as a store seeded by older code does, so
 // Settings shows the compiled value — and its Save was refused as "Changed
 // elsewhere". Now the first Save creates the key, and the next is guarded by it.
-test("a setting the saved settings lack saves from the value shown, then saves on top of it", async ({ page, request }, testInfo) => {
-  test.skip(testInfo.project.name === "mobile", "the write lane's rule is the same on a phone; this pins the lane, not the layout");
+test("a setting the saved settings lack saves from the value shown, then saves on top of it", desktopOnly("the write lane's rule is the same on a phone; this pins the lane, not the layout"), async ({ page, request }, testInfo) => {
   expect((await request.post("/__journey/older-settings")).ok()).toBe(true);
   const constants = async () => (await (await request.get("/__journey/status")).json()).documents["config/constants.json"];
   expect((await constants()).monthly_caps).toBeUndefined();
@@ -1400,8 +1395,7 @@ test("a setting the saved settings lack saves from the value shown, then saves o
 // The live feed (beads ro-trai.6, ro-trai.9): stored events read by the real
 // Worker over the fixture store, and one new stored event arriving at the top
 // within one 30-second poll. The fixture's clock is the journey server's own.
-test("Wall feedback keeps the brand large, pace compact and each stored task named", async ({ page, request }, testInfo) => {
-  test.skip(testInfo.project.name === "mobile", "walks the commented screen, TV and phone in one fixture");
+test("Wall feedback keeps the brand large, pace compact and each stored task named", desktopOnly("walks the commented screen, TV and phone in one fixture"), async ({ page, request }, testInfo) => {
   await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
   expect((await request.post("/__journey/wall-feed")).ok()).toBe(true);
   await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload("six") }));
@@ -1458,8 +1452,7 @@ test("Wall feedback keeps the brand large, pace compact and each stored task nam
   }
 });
 
-test("the Wall's live feed shows the stored events newest first, and a new one arrives at the top within one poll", async ({ page, request }, testInfo) => {
-  test.skip(testInfo.project.name === "mobile", "the feed's arrival is a TV behaviour; the phone Wall stacks the same column");
+test("the Wall's live feed shows the stored events newest first, and a new one arrives at the top within one poll", desktopOnly("the feed's arrival is a TV behaviour; the phone Wall stacks the same column"), async ({ page, request }, testInfo) => {
   test.setTimeout(90_000);
   expect((await request.post("/__journey/wall-feed")).ok()).toBe(true);
   // No saved layout: D28's default places the feed (bead ro-trai.11).
@@ -2270,8 +2263,7 @@ test("a site whose nightly fetch fails lists each failed night on Data sources a
 // because its report's auth row printed the environment binding
 // (`ASSET_TOKENS['journey.example']`) as one unbreakable line. It is a state
 // now — "Site token", locked, "Never shown" — and the page fits at every width.
-test("a new site's Settings fits a tablet, a laptop and a phone, and names its token without the binding", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === "mobile", "walks the tablet, laptop and phone widths itself");
+test("a new site's Settings fits a tablet, a laptop and a phone, and names its token without the binding", desktopOnly("walks the tablet, laptop and phone widths itself"), async ({ page }) => {
   await createAsset(page);
   for (const [width, height] of [[768, 1024], [1440, 900], [390, 844]] as const) {
     await page.setViewportSize({ width, height });
@@ -2784,8 +2776,7 @@ test("a screen whose code cannot be fetched preserves its document and recovers 
   }
 });
 
-test("the nav fetches a screen's code when the pointer rests on its link", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === "mobile", "the phone's nav is a drawer opened by a tap, which is the click");
+test("the nav fetches a screen's code when the pointer rests on its link", desktopOnly("the phone's nav is a drawer opened by a tap, which is the click"), async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("[data-first-run]")).toBeVisible();
   const settings = page.waitForRequest((request) => new URL(request.url()).pathname.endsWith("/src/routes/SettingsRoute.tsx"));

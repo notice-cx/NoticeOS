@@ -7,7 +7,9 @@ unit/type/build gates. Install the pinned disposable Chromium once with
 checkout's `node_modules/.cache/journey-playwright`, which the install prints
 and the journeys and the flow gate read, from any checkout or worktree
 ([`journey-browsers.mjs`](journey-browsers.mjs), bead `ro-ujb9.181`). The
-suite runs desktop 1440×1000 and mobile 390×844. The
+suite runs desktop 1440×1000 and mobile 390×844. A journey that walks its own
+screen sizes, or pins what no screen changes, is tagged `desktopOnly(reason)`
+in `journeys.spec.ts`; the mobile project never schedules it. The
 journey TypeScript (harness, fixtures, specs) is also checked by the Tower's own
 `typecheck`, the first CI gate, so a contract change the harness stubs fails
 there first (bead `ro-ujb9.78`).

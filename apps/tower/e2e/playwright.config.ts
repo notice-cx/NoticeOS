@@ -1,6 +1,7 @@
 import { defineConfig } from "@playwright/test";
 import { parallelServers } from "./fixture-server.mjs";
 import { JOURNEY_BROWSERS } from "./journey-browsers.mjs";
+import { DESKTOP_ONLY } from "./fixtures";
 
 process.env.PLAYWRIGHT_BROWSERS_PATH = JOURNEY_BROWSERS;
 
@@ -22,6 +23,8 @@ export default defineConfig({
     screenshot: "only-on-failure", trace: "retain-on-failure" },
   projects: [
     { name: "desktop", testIgnore: "mobile-text-zoom.spec.ts", use: { viewport: { width: 1440, height: 1000 } } },
-    { name: "mobile", use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1 } },
+    // A journey tagged desktop-only walks its own screen sizes, or pins what
+    // no screen changes: the phone never schedules it, so it costs no setup.
+    { name: "mobile", grepInvert: new RegExp(DESKTOP_ONLY), use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1 } },
   ],
 });
