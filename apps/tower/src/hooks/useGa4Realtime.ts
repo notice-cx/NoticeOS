@@ -96,11 +96,13 @@ export function keepReadingsInProgress(
   return { ...next, assets };
 }
 
-/** The kept hours were read today on `timeZone`, the clock now in use. */
+/** The kept hours were read today on `timeZone`, the clock now in use. A
+ * reading without its own hourly time was read with its live count, as
+ * `currentHourlyReading` dates it. */
 function hoursStillToday(kept: Reading, timeZone: string, nowIso: string): boolean {
-  if (kept.hourlyActiveUsers === null || !kept.hourlyObservedAt || kept.timeZone !== timeZone) return false;
+  if (kept.hourlyActiveUsers === null || kept.timeZone !== timeZone) return false;
   try {
-    return revenueCalendarDate(new Date(kept.hourlyObservedAt), timeZone) === revenueCalendarDate(new Date(nowIso), timeZone);
+    return revenueCalendarDate(new Date(kept.hourlyObservedAt ?? kept.observedAt), timeZone) === revenueCalendarDate(new Date(nowIso), timeZone);
   } catch {
     return false;
   }
