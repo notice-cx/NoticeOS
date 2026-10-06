@@ -86,7 +86,7 @@ connection string; test fixtures use disposable copies. The explicit hosted help
 of impersonating a Hyperdrive binding. Node/container callers can use the same
 direct driver; Workers support direct PostgreSQL TCP with node-postgres too.
 [Cloudflare database connections](https://developers.cloudflare.com/workers/databases/connecting-to-databases/).
-[`apps/tower/test/postgres-runtime.test.ts`](../../apps/tower/test/postgres-runtime.test.ts)
+[`apps/tower/test/runner-door-e2e.test.ts`](../../apps/tower/test/runner-door-e2e.test.ts)
 proves the stanza below in the dev server the local OS runs. The stanza each
 Worker's `wrangler.jsonc` carries:
 
@@ -236,7 +236,7 @@ Inside the Workers themselves:
 runs in workerd on the ingest suite's `POSTGRES` binding,
 [`apps/tower/test/postgres-store.test.ts`](../../apps/tower/test/postgres-store.test.ts)
 in the Tower suite, and
-[`apps/tower/test/postgres-runtime.test.ts`](../../apps/tower/test/postgres-runtime.test.ts)
+[`apps/tower/test/runner-door-e2e.test.ts`](../../apps/tower/test/runner-door-e2e.test.ts)
 in both Workers inside the local OS's dev server. Each opens a transaction as
 `noticeos_app` in the one workspace and reads back what it wrote.
 

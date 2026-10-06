@@ -20,7 +20,7 @@ const MANIFEST = path.join(REPO_ROOT, 'package.json');
 // would skip, and CI would pass without ever running the D27 workspace-
 // isolation proof; so would the Workers' suites on the store they are moving
 // to (epic ro-ujb9.76: workers/ingest/test/postgres-store.test.ts,
-// apps/tower/test/postgres-store.test.ts and postgres-runtime.test.ts).
+// apps/tower/test/postgres-store.test.ts and runner-door-e2e.test.ts).
 const POSTGRES_STEP =
   '(test -x /usr/lib/postgresql/18/bin/initdb && test -x /usr/lib/postgresql/17/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-17 postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"';
 
