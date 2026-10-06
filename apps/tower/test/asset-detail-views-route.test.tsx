@@ -120,6 +120,9 @@ describe("the asset page reads one view per tab (ro-ujb9.64)", () => {
       const whole = renderAt(key);
       await waitFor(() => expect(screen.getByRole("tablist")).toBeInTheDocument());
       await waitFor(() => expect(loadingFrame()).toBeNull());
+      // Every read settled, not only the tab's own: a tab's other reads (the
+      // save check, the task snapshot) change controls when they answer.
+      await waitFor(() => expect(whole.client.isFetching()).toBe(0));
       const expected = normalise(whole.container.innerHTML);
       whole.unmount();
 
@@ -127,6 +130,7 @@ describe("the asset page reads one view per tab (ro-ujb9.64)", () => {
       const viewed = renderAt(key);
       await waitFor(() => expect(screen.getByRole("tablist")).toBeInTheDocument());
       await waitFor(() => expect(loadingFrame()).toBeNull());
+      await waitFor(() => expect(viewed.client.isFetching()).toBe(0));
       expect(stub.views()).toEqual([key]);
       expect(normalise(viewed.container.innerHTML)).toBe(expected);
     });
