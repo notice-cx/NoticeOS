@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { describe, test } from 'node:test';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -149,9 +149,17 @@ test('a refused group probe cannot authorize fixture deletion', () => {
   assert.equal(ownedGroupGone(123, () => { throw Object.assign(new Error('ESRCH'), { code: 'ESRCH' }); }), true);
   assert.throws(() => ownedGroupGone(123, () => { throw Object.assign(new Error('EACCES'), { code: 'EACCES' }); }), /EACCES/);
 });
+/** A port the kernel just had free: launches run side by side (issue #25). */
+function loopbackPort() {
+  return new Promise((resolve, reject) => {
+    const probe = http.createServer().once('error', reject);
+    probe.listen(0, '127.0.0.1', () => { const { port } = probe.address(); probe.close(() => resolve(port)); });
+  });
+}
+
 async function launchFixture(t, mode, { signal = 'SIGTERM', group = false, graceMs = 3000 } = {}) {
   const f = fixture(), trace = path.join(f.root, 'trace.jsonl');
-  f.options.listen.port = 6609;
+  f.options.listen.port = await loopbackPort();
   const runtimeFile = path.join(f.root, 'runtime.json'); writeFileSync(runtimeFile, JSON.stringify(f.options), { mode: 0o600 });
   const workerFile = path.join(f.root, 'runtime-child.mjs'), supervisorFile = path.join(f.root, 'supervisor.mjs');
   const url = name => pathToFileURL(path.resolve('scripts', name)).href;
@@ -300,21 +308,25 @@ async function launchFixture(t, mode, { signal = 'SIGTERM', group = false, grace
   }
 }
 
-test('real SIGTERM supervisor awaits task, activity and pinned Miniflare closure', {timeout:15000}, t=>launchFixture(t,'normal'));
-test('terminal-group SIGINT reaches supervisor while isolated runtime closes normally', {timeout:15000}, t=>launchFixture(t,'normal',{signal:'SIGINT',group:true}));
-test('stop during startup is latched and acquired capabilities close before exit', {timeout:15000}, t=>launchFixture(t,'startup-stop'));
-test('startup failure retires acquired pinned Worker and task capabilities', {timeout:15000}, t=>launchFixture(t,'startup-failure'));
-test('cleanup failure remains nonzero after all other capabilities close', {timeout:15000}, t=>launchFixture(t,'close-failure'));
-test('IPC disconnect initiates awaited runtime closure', {timeout:15000}, t=>launchFixture(t,'disconnect'));
-test('unexpected runtime exit retires its exact remaining descendant group', {timeout:15000}, t=>launchFixture(t,'unexpected-exit'));
-test('shutdown deadline retires only the exact runtime group and reports failure', {timeout:15000}, t=>launchFixture(t,'deadline',{graceMs:200}));
+// Each launch owns its fixture folder, port and process groups, so four run
+// at once (issue #25): in series they were 13 launches end to end.
+describe('supervised fixture launches', { concurrency: 4 }, () => {
+  test('real SIGTERM supervisor awaits task, activity and pinned Miniflare closure', {timeout:15000}, t=>launchFixture(t,'normal'));
+  test('terminal-group SIGINT reaches supervisor while isolated runtime closes normally', {timeout:15000}, t=>launchFixture(t,'normal',{signal:'SIGINT',group:true}));
+  test('stop during startup is latched and acquired capabilities close before exit', {timeout:15000}, t=>launchFixture(t,'startup-stop'));
+  test('startup failure retires acquired pinned Worker and task capabilities', {timeout:15000}, t=>launchFixture(t,'startup-failure'));
+  test('cleanup failure remains nonzero after all other capabilities close', {timeout:15000}, t=>launchFixture(t,'close-failure'));
+  test('IPC disconnect initiates awaited runtime closure', {timeout:15000}, t=>launchFixture(t,'disconnect'));
+  test('unexpected runtime exit retires its exact remaining descendant group', {timeout:15000}, t=>launchFixture(t,'unexpected-exit'));
+  test('shutdown deadline retires only the exact runtime group and reports failure', {timeout:15000}, t=>launchFixture(t,'deadline',{graceMs:200}));
 
-test('lost supervisor leaves bounded orphan cleanup in the exact runtime group', {timeout:15000}, t=>launchFixture(t,'orphan-deadline'));
+  test('lost supervisor leaves bounded orphan cleanup in the exact runtime group', {timeout:15000}, t=>launchFixture(t,'orphan-deadline'));
 
-test('TERM immediately after fork remains latched before runtime IPC listener exists', {timeout:15000}, t=>launchFixture(t,'immediate-stop'));
+  test('TERM immediately after fork remains latched before runtime IPC listener exists', {timeout:15000}, t=>launchFixture(t,'immediate-stop'));
 
-test('lost runtime IPC starts supervisor deadline even without an OS signal', {timeout:15000}, t=>launchFixture(t,'disconnect-deadline',{graceMs:200}));
+  test('lost runtime IPC starts supervisor deadline even without an OS signal', {timeout:15000}, t=>launchFixture(t,'disconnect-deadline',{graceMs:200}));
 
-test('assertion failure after acquisition awaits detached runtime and descendant retirement before fixture removal', {timeout:15000}, async t=>{await assert.rejects(launchFixture(t,'fixture-failure'),/Synthetic fixture assertion after acquisition/)});
+  test('assertion failure after acquisition awaits detached runtime and descendant retirement before fixture removal', {timeout:15000}, async t=>{await assert.rejects(launchFixture(t,'fixture-failure'),/Synthetic fixture assertion after acquisition/)});
 
-test('normal shutdown awaits detached executor-shaped command and revokes its custody without secret IPC', {timeout:15000}, t=>launchFixture(t,'detached-normal'));
+  test('normal shutdown awaits detached executor-shaped command and revokes its custody without secret IPC', {timeout:15000}, t=>launchFixture(t,'detached-normal'));
+});
