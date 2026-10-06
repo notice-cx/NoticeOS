@@ -1009,6 +1009,9 @@ test.describe(() => {
       for (const next of variants) {
         variant = next;
         const sites = wallFixturePayload(variant).assets;
+        // Each variant is another installation's Wall, so it opens as a new
+        // tab would: no reading the previous variant saved is restored.
+        if (page.url().startsWith("http")) await page.evaluate(() => sessionStorage.clear());
         await page.goto("/wall");
         // Every site's live users landed: the heights are the finished Wall's.
         const region = page.locator("[data-wall-sites]");
@@ -1084,7 +1087,8 @@ test.describe(() => {
           const style = getComputedStyle(parent);
           const zoom = (parent as HTMLElement & { currentCSSZoom?: number }).currentCSSZoom ?? 1;
           const px = (value: string) => (parseFloat(value) || 0) * zoom;
-          const siblings = [...parent.children].filter((child) => child !== el);
+          // Overlays (today's pace and its window) float over the plot and take none of its room.
+          const siblings = [...parent.children].filter((child) => child !== el && getComputedStyle(child).position !== "absolute");
           const beside = style.display === "flex" && (style.flexDirection === "row" || style.flexDirection === "row-reverse");
           return parent.getBoundingClientRect().height
             - px(style.paddingTop) - px(style.paddingBottom) - px(style.borderTopWidth) - px(style.borderBottomWidth)
@@ -1096,7 +1100,11 @@ test.describe(() => {
         if (width > height && (variant === "one" || variant === "three")) {
           expect(Math.abs(plotBox!.height - availableHeight), `${variant}: plot fills height after figures, labels and padding`).toBeLessThan(2);
         }
-        if (width === 1920) tvCharts.set(variant, { ...plotBox!, availableHeight });
+        // Heights in the Wall's own pixels: a laptop draws the TV's layout
+        // zoomed, so a taller box can draw a plot no taller on the screen.
+        const ownHeight = plotBox!.height / measured.scale;
+        const ownAvailable = availableHeight / measured.scale;
+        if (width === 1920) tvCharts.set(variant, { width: plotBox!.width, height: ownHeight, availableHeight: ownAvailable });
         if (variant === "six" || variant === "seven") {
           const font = await totals.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
           const regionHeight = measured.regions.sites!.height / measured.scale;
@@ -1114,8 +1122,8 @@ test.describe(() => {
           if (variant === "one" || variant === "three") {
             // Figure wrapping and padding also change; compare the room the
             // plot actually has, after those siblings, not viewport height.
-            expect(Math.abs(plotBox!.height - previous.height), `${variant}: charts respond to changed region height`).toBeGreaterThan(2);
-            expect((plotBox!.height - previous.height) * (availableHeight - previous.availableHeight), `${variant}: plot height follows its available room`).toBeGreaterThan(0);
+            expect(Math.abs(ownHeight - previous.height), `${variant}: charts respond to changed region height`).toBeGreaterThan(2);
+            expect((ownHeight - previous.height) * (ownAvailable - previous.availableHeight), `${variant}: plot height follows its available room`).toBeGreaterThan(0);
           }
         }
         await page.screenshot({ path: testInfo.outputPath(`wall-budget-${width}-${variant}.png`), fullPage: width === 390 });
