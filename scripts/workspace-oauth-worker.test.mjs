@@ -101,7 +101,8 @@ test('hosted OAuth original HTTP/RPC proof commits custody before scoped provide
         return new Response(null,{status:204});
       }}),
     ]});
-    const dispatch=asked=>runtime.dispatchFetch('https://fixture-driver/',{method:'POST',body:JSON.stringify(asked),signal:AbortSignal.timeout(10000)});
+    // A hang guard for one call, not a speed check: a cold call on a loaded CI runner took over 10 s.
+    const dispatch=asked=>runtime.dispatchFetch('https://fixture-driver/',{method:'POST',body:JSON.stringify(asked),signal:AbortSignal.timeout(30000)});
     const expectedSession=(await admin.query('SELECT id FROM noticeos_identity.auth_session WHERE user_id=$1 ORDER BY created_at DESC LIMIT 1',[person])).rows[0].id;
     const headers=id=>({origin,cookie,'x-noticeos-workspace-id':id,[WORKSPACE_SESSION_HEADER]:expectedSession});
     const http=async(pathname,init={},target='TOWER')=>{

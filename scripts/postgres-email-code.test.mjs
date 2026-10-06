@@ -390,7 +390,11 @@ test('owned email-code transactions preserve eligibility, attempts, cookies and 
     });
     await Promise.all(clients.map(login => login.close()));
     await runtime.end(); runtime = null;
-    assert.equal((await query("SELECT count(*)::int n FROM pg_stat_activity WHERE usename='noticeos_identity' AND pid<>pg_backend_pid()"))[0].n, 0);
+    // Closing a client and PostgreSQL removing its backend are distinct events
+    // (as in postgres-identity.test.mjs): wait for them to go, accepting no leak.
+    const identityBackends = async () => (await query("SELECT count(*)::int n FROM pg_stat_activity WHERE usename='noticeos_identity' AND pid<>pg_backend_pid()"))[0].n;
+    for (const deadline = performance.now() + 5000; performance.now() < deadline && await identityBackends() > 0;) await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal(await identityBackends(), 0);
   } finally {
     const closed = await Promise.allSettled([...clients.map(login => login.close()), runtime?.end(), admin?.end(), observer?.end()].filter(Boolean));
     owner?.close();

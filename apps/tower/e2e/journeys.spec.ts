@@ -1530,6 +1530,8 @@ test("the Wall's live feed shows the stored events newest first, and a new one a
 });
 
 test("empty install → saved asset → fake connection and mapping → real metric reads → exact task and approval", async ({ page }, testInfo) => {
+  // The longest journey (37–47 s on a free runner), so a loaded one needs room.
+  test.setTimeout(120_000);
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await createAsset(page);
