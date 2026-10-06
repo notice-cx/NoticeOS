@@ -35,8 +35,9 @@ interface FenceState {
   strays: Stray[];
 }
 
-// Modules are evaluated again for every file; the runtime, its bindings and
-// any stray work are not. So the fence's state lives on globalThis.
+// The setup file (clean-start.ts) is evaluated again for every file; the
+// runtime, its bindings and any stray work are not. So the fence's state lives
+// on globalThis.
 const STATE = Symbol.for('noticeos.ingest.store-fence');
 const FENCED = Symbol.for('noticeos.ingest.store-fence.fenced');
 

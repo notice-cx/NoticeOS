@@ -72,6 +72,7 @@ import type { WorkspaceStore } from '@noticeos/postgres';
 import { SITE_ORDER } from './asset-registry.js';
 import constants from '../../../config/constants.json';
 import serpPanelConfigJson from '../../../config/serp-panel.json';
+import { isolateState } from './isolate-state.js';
 
 const API_BASE = 'https://api.dataforseo.com/v3';
 const CREDENTIAL_REF = 'DATAFORSEO_LOGIN+DATAFORSEO_PASSWORD';
@@ -418,6 +419,9 @@ interface CollectorLane {
 
 let lane: CollectorLane | null = null;
 let laneTokens = 0;
+// Forgetting frees the lane but keeps the tokens rising, so a run still going
+// from before cannot free the lane of a run started after it.
+isolateState('DataForSEO collector lane', { forget: () => { lane = null; }, held: () => lane !== null });
 
 type LaneClaim =
   | { token: number; blockedBy: null }
