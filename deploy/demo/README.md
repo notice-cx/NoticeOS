@@ -92,6 +92,9 @@ curl --fail --header 'Host: demo.example.com' http://127.0.0.1:16448/__noticeos_
 A successful health response is `{ "ok": true }`. Connect through the HTTPS
 proxy to explore Sites, Financials, Tasks, Workflows and Settings. The demo banner
 identifies synthetic data and its latest successfully completed generation.
+The Wall's live pulse and today-by-hour chart read synthetic values the demo
+derives from each site's own synthetic daily users; no analytics provider is
+called.
 Visitor writes and provider actions are refused. Health does not establish that
 any remote domain has been deployed or that an expired grant can be renewed.
 

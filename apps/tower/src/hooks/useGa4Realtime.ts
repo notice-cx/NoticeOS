@@ -24,8 +24,10 @@ export function useGa4Realtime() {
     const saved = demoReadonly ? undefined : cache.read();
     return { cache, saved: saved ? currentDayReadings(saved, new Date(Date.now()).toISOString()) : undefined };
   }, [runtime, demoReadonly]);
+  // A demo visitor reads too: the demo answers with synthetic readings, so the
+  // Wall's live pulse and today chart show there as well. Only the session
+  // cache above stays off for a visitor.
   return useQuery<Ga4RealtimePayload>({
-    enabled: !demoReadonly,
     queryKey: ["ga4-realtime"],
     initialData: display.saved,
     initialDataUpdatedAt: display.saved ? Date.parse(display.saved.generatedAt) : undefined,

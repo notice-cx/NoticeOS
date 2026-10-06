@@ -49,6 +49,8 @@ const STORED_GETS = new Set([
   '/api/alerts/history', '/api/alerts/rules', '/api/task-source', '/api/work',
   '/api/integrations', '/api/integrations/health', '/api/integrations/providers',
   '/api/integrations/mediavine/status', '/api/scheduled-jobs', '/api/workflows',
+  // The demo server answers this one synthetically before any Worker; no provider is reached.
+  '/api/ga4/realtime',
   // Owned native readers still pass the existing door and operator guards.
   '/api/runner/ingest/api/config-documents', '/api/runner/ingest/api/job-runs',
 ]);

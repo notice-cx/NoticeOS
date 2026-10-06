@@ -22,12 +22,12 @@ test('stored reads and both semantic POST readers remain available', () => {
     '/api/integrations/providers', '/api/integrations/mediavine/status', '/api/scheduled-jobs', '/api/workflows',
     '/api/runner/ingest/api/config-documents', '/api/runner/ingest/api/job-runs',
     '/api/assets/example.com', '/api/assets/example%2Ecom', '/api/assets/os-a1b2', '/api/assets/example.com/decisions',
-    '/api/assets/example.com/watch-query-history', '/api/tasks', '/api/tasks/projects', '/api/tasks/ex-example.1'];
+    '/api/assets/example.com/watch-query-history', '/api/tasks', '/api/tasks/projects', '/api/tasks/ex-example.1', '/api/ga4/realtime'];
   for (const path of paths) assert.equal(demoRequestPolicy(viewer, 'GET', path), 'read', path);
   for (const path of ['/api/mcp', '/api/alerts/backtest']) assert.equal(demoRequestPolicy(viewer, 'POST', path), 'read');
 });
 test('safe-looking GETs, runner events, unknown APIs and malformed targets refuse', () => {
-  const paths = ['/api/ga4/realtime', '/api/calendar/upcoming', '/api/site-name', '/api/integrations/google/start',
+  const paths = ['/api/calendar/upcoming', '/api/site-name', '/api/integrations/google/start',
     '/api/integrations/google/callback', '/api/integrations/google/properties', '/api/integrations/clarity/sites',
     '/api/integrations/clarity/test', '/api/integrations/import-env', '/api/runner/ingest', '/api/new-reader',
     '/cdn-cgi/handler/scheduled', '/api/assets/example%2Fcom', '/api/assets/example%252Fcom', '/api/assets/%',

@@ -29,6 +29,7 @@
     "scripts/installation.mts",
     "scripts/demo-scenario.mts",
     "scripts/demo-activity.mts",
+    "scripts/demo-realtime.mts",
     "scripts/demo-display.mts",
     "scripts/demo-viewer-installation.mts",
     "scripts/demo-task-facts.mts",
