@@ -306,7 +306,7 @@ test('the contract suite is wired to both guards, with a copy of every config fi
 
 test('the root script suite preloads its guard into every test file', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8'));
-  assert.match(manifest.scripts['test:scripts'], /^node --import \.\/scripts\/script-tests-setup\.mjs --test scripts\/\*\.test\.mjs$/);
+  assert.match(manifest.scripts['test:scripts'], /^node --import \.\/scripts\/script-tests-setup\.mjs --test-global-setup=\.\/scripts\/script-tests-global\.mjs --test scripts\/\*\.test\.mjs$/);
   assert.match(fs.readFileSync(path.join(REPO_ROOT, 'scripts/script-tests-setup.mjs'), 'utf8'), /^installScriptTestConfigGuard\(\);$/m);
 });
 
