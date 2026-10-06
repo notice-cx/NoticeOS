@@ -256,7 +256,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
 
   const queryClient = useQueryClient();
   const {
-    data, isError, error, isFetching, refetch, live, spokes, projects, allTasks, shownAt,
+    data, scopeKey, isError, error, isFetching, refetch, live, spokes, projects, allTasks, shownAt,
     statusCounts, priorityCounts, assigneeCounts, projectCounts, rows, inbox: read,
     totals: readTotals, pendingProjects, counts: readCounts, countsComplete, missingProjects, closedSince, byId, broken,
     closedHistoryState,
@@ -439,7 +439,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
     <div className="flex w-full flex-col gap-3.5" data-tasks-board={scope ?? "all"}>
       {newTask ? (
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <NewTaskButton project={scope} />
+          <NewTaskButton project={scopeKey} />
         </div>
       ) : null}
 
@@ -461,7 +461,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
         <TaskComposer
           open
           onClose={closeComposer}
-          prefill={projectFilter === "all" ? null : { project: projectFilter }}
+          prefill={projectFilter === "all" ? null : { project: scopeKey ?? projectFilter }}
           projects={spokes}
         />
       ) : null}

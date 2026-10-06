@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { LiveTask, LiveTasksPayload } from "@shared/tasks";
 import { emptyWorkHistory, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
-import { askVerb, inboxAsk, readTaskBoard, type ProjectTaskRead, type TaskBoardFilters } from "@/lib/task-board-read";
+import type { TaskProject } from "@shared/tasks";
+import { askVerb, catalogScope, inboxAsk, readTaskBoard, taskCatalogProjects, type ProjectTaskRead, type TaskBoardFilters } from "@/lib/task-board-read";
 
 function item(overrides: Partial<WorkItem> = {}): WorkItem {
   return {
@@ -211,5 +212,40 @@ describe("what the inbox asks of a task", () => {
     // read from what it is.
     expect(askVerb(item({ issueType: "gate" }))).toBe("approve");
     expect(askVerb(item())).toBe("answer");
+  });
+});
+
+describe("a hosted catalog joined to the snapshot by prefix", () => {
+  // The catalog keys a project by logical key (`lb`); the snapshot keys the
+  // same project by site id. An asset's Tasks tab scopes by the site id.
+  const catalog: TaskProject[] = [
+    { projectId: "56c5558d-5eab-4817-8059-153c1774ca5b", logicalKey: "lb", displayName: "Light Brief", prefix: "lb" },
+  ];
+  const snapshot = payload({
+    projects: [project({ asset: "lightbrief.example", prefix: "lb", name: "Light Brief", counts: { ...project().counts, open: 3 } })],
+  });
+  const filters: TaskBoardFilters = { project: "all", status: "all", priority: "all", label: "", assignee: "all" };
+
+  it("keeps the logical key as the read address and takes the snapshot's counts", () => {
+    const roster = taskCatalogProjects(catalog, snapshot);
+    expect(roster).toHaveLength(1);
+    expect(roster[0]?.asset).toBe("lb");
+    expect(roster[0]?.ok).toBe(true);
+    expect(roster[0]?.counts.open).toBe(3);
+  });
+
+  it("resolves a site id to the catalog key and leaves other scopes alone", () => {
+    expect(catalogScope(catalog, snapshot, "lightbrief.example")).toBe("lb");
+    expect(catalogScope(catalog, snapshot, "lb")).toBe("lb");
+    expect(catalogScope(catalog, snapshot, null)).toBeNull();
+    expect(catalogScope(catalog, undefined, "lightbrief.example")).toBe("lightbrief.example");
+  });
+
+  it("a site-scoped board shows the project rather than an empty state", () => {
+    const roster = taskCatalogProjects(catalog, snapshot);
+    const scope = catalogScope(catalog, snapshot, "lightbrief.example");
+    const board = readTaskBoard({ capabilities: { live: true, reason: null }, snapshot, scope, reads: new Map(), roster, filters });
+    expect(board.spokes).toHaveLength(1);
+    expect(board.spokes[0]?.asset).toBe("lb");
   });
 });

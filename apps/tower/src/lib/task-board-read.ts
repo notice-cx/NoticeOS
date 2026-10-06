@@ -317,16 +317,30 @@ export function taskBoardProjects(snapshot: WorkPayload | null | undefined, scop
 }
 
 /** A configured catalog establishes the roster, not measured counts. Missing
- * snapshots stay unavailable until the actual live board answers. */
+ * snapshots stay unavailable until the actual live board answers. The catalog
+ * keys a project by its logical key and the snapshot by its asset id; the bead
+ * prefix is the identity both carry, so it joins them. A roster row keeps the
+ * logical key as `asset`, because that is what the hosted read is addressed by. */
 export function taskCatalogProjects(catalog: readonly TaskProject[], snapshot: WorkPayload | null | undefined): WorkProject[] {
   return catalog.map(project => {
-    const stored = snapshot?.projects.find(row => row.asset === project.logicalKey && row.prefix === project.prefix);
-    if (stored) return { ...stored, name: project.displayName };
+    const stored = snapshot?.projects.find(row => row.prefix === project.prefix);
+    if (stored) return { ...stored, asset: project.logicalKey, name: project.displayName };
     return { asset: project.logicalKey, prefix: project.prefix, name: project.displayName,
       ok: false, error: null, counts: { open: 0, highPriority: null, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0, deferred: null, waiting: null },
       history: { waiting: [], urgent: [], open: [], inProgress: [], blocked: [], closed: [] }, priorities: null, epics: null,
       ready: [], inProgress: [], recentlyClosed: [], deferred: [], waiting: [] };
   });
+}
+
+/** An asset's Tasks tab scopes the board by the site id the page is about,
+ * while a catalog board is addressed by logical key. Resolve the page's scope
+ * through the snapshot row that names the site; a scope the snapshot does not
+ * know stays as given, so an already-logical key passes through unchanged. */
+export function catalogScope(catalog: readonly TaskProject[], snapshot: WorkPayload | null | undefined, scope: string | null): string | null {
+  if (scope === null) return null;
+  const stored = snapshot?.projects.find(row => row.asset === scope);
+  const project = stored ? catalog.find(row => row.prefix === stored.prefix) : undefined;
+  return project?.logicalKey ?? scope;
 }
 
 /** One view of the existing hub reads. Only a successful local read for this
