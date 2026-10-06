@@ -5,15 +5,15 @@ on:
     branches: [main]
   pull_request:
 
-# Four jobs side by side (issue #2): the Tower's unit suite, the other
+# Five jobs side by side (issue #2): the Tower's unit suite, the other
 # workspaces' (ingest, contract, mediavine, postgres), the root script suite,
-# and the build with the browser journeys and the UX flow gate. Each gate runs
+# the build with the browser journeys, and the UX flow gate. Each gate runs
 # once, in one job; `build` is the verdict branch protection requires.
 jobs:
   # A pull request that changes only documentation no runtime suite reads
-  # skips the unit and browser jobs (issue #4, scripts/ci-scope.mjs). The root
-  # script suite reads every tracked Markdown file, so it always runs. A push
-  # to main runs everything.
+  # skips the unit, browser and flow-gate jobs (issue #4,
+  # scripts/ci-scope.mjs). The root script suite reads every tracked Markdown
+  # file, so it always runs. A push to main runs everything.
   scope:
     runs-on: ubuntu-latest
     outputs:
@@ -100,16 +100,16 @@ jobs:
       # The journeys' run starts one throwaway Postgres for its fixture servers.
       - run: (test -x /usr/lib/postgresql/18/bin/initdb && test -x /usr/lib/postgresql/17/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-17 postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
       - run: pnpm -r build
-      # The fifth gate: the isolated browser journeys, then the UX flow gate
-      # (bead ro-ujb9.95), which walks every declared operator flow and fails
-      # when one gains a step, an empty step, a repeated check, a duplicate
-      # status or an ungrouped list (apps/tower/ux-flows.json).
+      # The fifth gate is `pnpm test:journeys`, split across this job and the
+      # next so neither waits on the other: the isolated browser journeys
+      # here, the journey harness and the UX flow gate there. The journeys'
+      # types are checked in tower-unit.
       - run: pnpm --filter @noticeos/tower run journey:install --with-deps
-      - run: pnpm test:journeys
+      - run: pnpm --filter @noticeos/tower run test:journeys
         env:
-          # Browser workers, each with its own fixture server, and flow-gate
-          # lanes (bead ro-ujb9.167). Unset, a run takes half the machine's
-          # cores, which on a small runner is 1.
+          # Browser workers, each with its own fixture server (bead
+          # ro-ujb9.167). Unset, a run takes half the machine's cores, which
+          # on a small runner is 1.
           JOURNEY_WORKERS: 3
       - uses: actions/upload-artifact@v4
         if: always()
@@ -118,17 +118,47 @@ jobs:
           path: |
             apps/tower/e2e/playwright-report/
             apps/tower/e2e/test-results/
-            apps/tower/e2e/ux-flows-results/
+          retention-days: 14
+
+  flow-gate:
+    needs: scope
+    if: needs.scope.outputs.runtime == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The harness and each flow-gate lane start their own fixture server on
+      # a throwaway Postgres.
+      - run: (test -x /usr/lib/postgresql/18/bin/initdb && test -x /usr/lib/postgresql/17/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-17 postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
+      - run: pnpm --filter @noticeos/tower run journey:install --with-deps
+      - run: pnpm --filter @noticeos/tower run test:journey-harness
+      # The UX flow gate (bead ro-ujb9.95) walks every declared operator flow
+      # and fails when one gains a step, an empty step, a repeated check, a
+      # duplicate status or an ungrouped list (apps/tower/ux-flows.json).
+      - run: pnpm --filter @noticeos/tower run test:ux-flows
+        env:
+          # Flow-gate lanes, each with its own fixture server (bead ro-ujb9.167).
+          JOURNEY_WORKERS: 3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ux-flow-gate-evidence
+          path: apps/tower/e2e/ux-flows-results/
           retention-days: 14
 
   # The one check branch protection requires: every job passed, or the scope
   # job skipped the runtime jobs for a documentation-only pull request.
   build:
-    needs: [scope, tower-unit, ingest-unit, scripts, browser]
+    needs: [scope, tower-unit, ingest-unit, scripts, browser, flow-gate]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: jq -e --arg runtime "$RUNTIME" '.scope.result == "success" and .scripts.result == "success" and ([."tower-unit", ."ingest-unit", .browser] | map(.result) | all(. == "success" or (. == "skipped" and $runtime == "false")))' <<< "$NEEDS"
+      - run: jq -e --arg runtime "$RUNTIME" '.scope.result == "success" and .scripts.result == "success" and ([."tower-unit", ."ingest-unit", .browser, ."flow-gate"] | map(.result) | all(. == "success" or (. == "skipped" and $runtime == "false")))' <<< "$NEEDS"
         env:
           NEEDS: ${{ toJSON(needs) }}
           RUNTIME: ${{ needs.scope.outputs.runtime }}
