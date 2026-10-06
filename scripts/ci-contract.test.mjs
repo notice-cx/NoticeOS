@@ -103,9 +103,11 @@ test('CI runs the isolated user journeys inside the required build job', () => {
 
   // The journeys end with the UX flow gate, so every agent that touches the
   // Tower and runs the journeys meets it, and so does CI (bead ro-ujb9.95).
+  // The gate runs even when a journey fails, and the step fails if either
+  // does: a red journey once hid the gate's verdict for whole runs (issue #3).
   const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'));
   assert.equal(manifest.scripts?.['test:journeys'],
-    'pnpm --filter @noticeos/tower run typecheck:journeys && pnpm --filter @noticeos/tower run test:journey-harness && pnpm --filter @noticeos/tower run test:journeys && pnpm --filter @noticeos/tower run test:ux-flows');
+    'pnpm --filter @noticeos/tower run typecheck:journeys && pnpm --filter @noticeos/tower run test:journey-harness && { pnpm --filter @noticeos/tower run test:journeys; journeys=$?; pnpm --filter @noticeos/tower run test:ux-flows && exit $journeys; }');
   const tower = JSON.parse(readFileSync(path.join(REPO_ROOT, 'apps', 'tower', 'package.json'), 'utf8'));
   assert.equal(tower.scripts?.['test:ux-flows'], 'node e2e/flow-gate.mjs');
   assert.equal(manifest.scripts?.['ux:flows'], 'node apps/tower/e2e/flow-gate.mjs');

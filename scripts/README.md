@@ -3426,8 +3426,9 @@ subjects.
 The screen survey (the `survey` entry) opens every main screen by URL, so the
 last two rules cover every screen, not only the ones a flow passes through.
 
-**Where it stops you.** `pnpm test:journeys` ends with it (CI's fifth gate), so
-every agent that runs the journeys meets it. The pre-commit hook refuses an
+**Where it stops you.** `pnpm test:journeys` ends with it (CI's fifth gate),
+and runs it even when a journey has failed, so every agent that runs the
+journeys meets it. The pre-commit hook refuses an
 unapproved raise of the staged record (`node scripts/ux-flow-gate.mjs
 --staged`), and the Claude Code `pre` hook above refuses any edit to it.
 `pnpm test:scripts` proves the judge and audits the record's git history.

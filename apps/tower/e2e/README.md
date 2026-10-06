@@ -104,7 +104,8 @@ The HTML report and selected screenshot attachments are written under
 ## The UX flow gate
 
 `pnpm test:journeys` ends with the UX flow gate (bead `ro-ujb9.95`,
-`flow-gate.mjs`): it walks every operator flow declared in `ux-flows.mjs` with
+`flow-gate.mjs`), which runs even when a journey has failed, so one red run
+reports both; the step fails if either does. The gate walks every operator flow declared in `ux-flows.mjs` with
 the recorder in `ux-walk.mjs`, at 1440×900 and 390×844, on its own fixture
 servers (this directory's `server.mjs`, started by `fixture-server.mjs` on a
 free port, one per lane, each reset before every flow), and fails when a flow
