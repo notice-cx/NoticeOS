@@ -876,7 +876,7 @@ function panelWithinCostCeiling(
   return queries;
 }
 
-function trackedQueries(panel: SerpPanelConfig, asset: string): TrackedQuery[] {
+export function trackedQueries(panel: SerpPanelConfig, asset: string): TrackedQuery[] {
   const entry = serpPanelEntry(panel, asset);
   const queries = (entry as SerpPanelAssetConfig | undefined)?.queries;
   if (!Array.isArray(queries) || queries.length === 0) {
