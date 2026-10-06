@@ -131,6 +131,13 @@ describe("a read in progress keeps what the Wall drew", () => {
     expect(reading(currentDayReadings(drawn(), iso(NOW))).hourlyActiveUsers).toEqual(reading(drawn()).hourlyActiveUsers);
   });
 
+  it("dates saved hours without their own read time by the live read, as the chart does", () => {
+    const undated = wallFixtureRealtime();
+    expect(reading(undated).hourlyObservedAt).toBeUndefined();
+    expect(reading(currentDayReadings(undated, iso(NOW))).hourlyActiveUsers).toEqual(reading(undated).hourlyActiveUsers);
+    expect(reading(currentDayReadings(undated, "2026-09-23T07:05:00.000Z")).hourlyActiveUsers).toBeNull();
+  });
+
   it("keeps current hours through a poll and dates unavailable-hour history", () => {
     const assets = structuredClone(wallFixturePayload().assets);
     assets.find(asset => asset.id === SITE)!.activeUsers = { series: [{ t: "2026-09-20", v: 17 }, { t: "2026-09-21", v: 0 }, { t: "2026-09-22", v: 50 }], provisionalFrom: "2026-09-22", collectedAt: "2026-09-22T19:24:00Z", timeZoneChanges: [] };

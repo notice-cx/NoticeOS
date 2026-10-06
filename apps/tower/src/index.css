@@ -587,9 +587,11 @@
   --text-wall-strip-brand--line-height: var(--wall-strip-time-line);
   /* The countdown's emoji (bead `ro-trai.3`): the old countdown panel's
      picture, kept as a picture on its tile — sized from the strip's words, so
-     it grows with them. */
+     it grows with them. The tile is at least one em and grows to the glyph:
+     a platform's emoji face can be wider and taller than its em (Linux's is
+     about 1.25 em), and a fixed tile let that glyph paint outside it. */
   --text-wall-strip-emoji: 1em;
-  --text-wall-strip-emoji--line-height: 1;
+  --text-wall-strip-emoji--line-height: normal;
   /* The strip's marks — the brand's icon and the countdown's tile, two
      capitals tall; the system state's glyph, whose drawn stroke is about one
      capital tall in its box — each centred on the capitals of the strip's one
@@ -719,7 +721,10 @@
   min-width: 0;
   grid-template-rows: var(--wall-strip-time-line) minmax(var(--wall-strip-label-line), auto);
 }
-.wall-strip-brand-primary { display: flex; align-items: center; }
+/* The wordmark's face sets its glyphs in a box about 1.27 em tall, taller than
+   the strip's first row at the brand's size. "NoticeOS" has no descenders, so
+   the row clips only that empty box instead of growing past the other widgets. */
+.wall-strip-brand-primary { display: flex; align-items: center; overflow-y: clip; }
 .wall-strip-version {
   display: flex;
   align-items: baseline;

@@ -260,5 +260,9 @@ export default defineConfig({
     // hangs; it is not a speed check.
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    // The collectors log every sweep as JSON: a passing run printed hundreds
+    // of those blocks, pushing the failures CI must show out of its log. A
+    // failing test still prints its own output.
+    silent: 'passed-only',
   },
 });

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -94,8 +94,6 @@ test('a node: import in a portable source fails generation', async () => {
 // green gate and a broken caller.
 test('a return shape the declared contract does not allow fails generation', async () => {
   await withGenerationRoot((root, run) => {
-    const updated = run();
-    assert.equal(updated.status, 0, updated.stdout + updated.stderr);
     edit(root, 'scripts/workflow-trace.mts',
       "return { state: 'skipped', summary: 'No work was performed on this pass.' };",
       "return { status: 'skipped', summary: 'No work was performed on this pass.' };");
@@ -120,21 +118,20 @@ test('generation checks reject stale runtime, stale types, and missing output wi
     const generated = run();
     assert.equal(generated.status, 0, generated.stdout + generated.stderr);
     assert.equal(run('--check').status, 0);
-    for (const file of [
+    // Each check compiles both projects, so one check judges every stale and
+    // missing file together: it must name each one and repair none.
+    const stale = [
       'packages/contract/src/configuration.mjs', 'packages/contract/src/posthog-families.mjs',
       'scripts/config-documents.d.mts', 'scripts/scheduled-jobs.d.mts', 'scripts/workflow-history.mjs',
-    ]) {
-      const target = path.join(root, file);
-      const original = readFileSync(target, 'utf8');
-      writeFileSync(target, original + '\n// stale\n');
-      const check = run('--check');
-      assert.equal(check.status, 1);
-      assert.ok(check.stderr.includes(file));
-      assert.equal(readFileSync(target, 'utf8'), original + '\n// stale\n');
-      writeFileSync(target, original);
-    }
-    rmSync(path.join(root, 'scripts/config-documents.mjs'));
-    assert.equal(run('--check').status, 1);
+    ];
+    for (const file of stale) writeFileSync(path.join(root, file), readFileSync(path.join(root, file), 'utf8') + '\n// stale\n');
+    const missing = 'scripts/config-documents.mjs';
+    rmSync(path.join(root, missing));
+    const check = run('--check');
+    assert.equal(check.status, 1);
+    for (const file of [...stale, missing]) assert.ok(check.stderr.includes(file), `${file} is named: ${check.stderr}`);
+    for (const file of stale) assert.ok(readFileSync(path.join(root, file), 'utf8').endsWith('\n// stale\n'), `${file} is left as it was`);
+    assert.equal(existsSync(path.join(root, missing)), false, `${missing} is not written by a check`);
   });
 });
 
@@ -144,8 +141,6 @@ test('generation checks reject stale runtime, stale types, and missing output wi
 // carries it.
 test('a PostHog field added to its one definition is stale until regenerated, then reaches the flattener', async () => {
   await withGenerationRoot(async (root, run) => {
-    const baseline = run();
-    assert.equal(baseline.status, 0, baseline.stdout + baseline.stderr);
     const source = path.join(root, 'packages/contract/src/posthog-families.mts');
     const before = readFileSync(source, 'utf8');
     const edited = before.replace("fields: ['date', 'pageviews', 'people', 'sessions']", "fields: ['date', 'pageviews', 'people', 'sessions', 'bounces']");

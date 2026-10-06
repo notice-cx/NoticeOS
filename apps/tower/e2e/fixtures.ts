@@ -1,4 +1,6 @@
 // Synthetic, public test data. Never import the owner's config into this harness.
+/** The tag of a journey only the desktop project runs (playwright.config.ts). */
+export const DESKTOP_ONLY = "@desktop-only";
 export const JOURNEY_NOW = "2026-09-06T12:00:00.000Z";
 export const JOURNEY_ASSET = "journey.example";
 export const JOURNEY_KEY = "journey-only-not-a-real-key";
