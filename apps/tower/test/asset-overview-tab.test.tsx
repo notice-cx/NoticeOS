@@ -10,6 +10,7 @@ import { leadMetric } from "@/routes/asset-detail/overview-metrics";
 import { everyTabPayload } from "./asset-detail-fixture";
 import { loadAssetTabs } from "./lazy-code";
 import { resetTaskSourceMock, taskSourceMock } from "./task-source-mock";
+import { stubJsonFetch } from "./stub-fetch";
 
 // A task source connected, as this installation's is (D32, bead
 // ro-ujb9.143): the task screens here render exactly as before it existed.
@@ -290,19 +291,6 @@ function onboarding(): AssetDetailPayload {
   };
 }
 
-function stubFetch(body: unknown) {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(
-      async () =>
-        new Response(JSON.stringify(body), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        }),
-    ),
-  );
-}
-
 function LocationProbe() {
   const location = useLocation();
   return <span data-testid="url" data-return-to={location.state?.returnTo}>{`${location.pathname}${location.search}`}</span>;
@@ -346,7 +334,7 @@ beforeAll(loadAssetTabs);
 
 beforeEach(() => {
   vi.spyOn(Date, "now").mockReturnValue(NOW);
-  stubFetch(payload());
+  stubJsonFetch(payload());
 });
 
 afterEach(() => {
@@ -363,7 +351,7 @@ describe("Asset Overview — the strip drives the chart", () => {
     body.performance.webSearchImpressions.google = trend(days(3, (i) => [1, 1000, 1][i]!), null);
     body.performance.searchCtr = trend(days(3, () => .99), null);
     body.performance.searchPosition = trend(days(3, (i) => [1, 10, 1][i]!), null);
-    stubFetch(body);
+    stubJsonFetch(body);
     const { container } = renderOverview();
     await screen.findByRole("tablist");
     fireEvent.click(screen.getByRole("tab", { name: "Growth" }));
@@ -395,7 +383,7 @@ describe("Asset Overview — the strip drives the chart", () => {
       openError: 1,
       openWarn: 2,
     };
-    stubFetch(body);
+    stubJsonFetch(body);
     const { container } = renderOverview();
     await screen.findByRole("tablist");
     const alerts = container.querySelector<HTMLElement>("[data-alert-current]")!;
@@ -434,7 +422,7 @@ describe("Asset Overview — the strip drives the chart", () => {
       ...body.performance.activeUsers,
       timeZoneChanges: [{ effectiveOn: "2026-06-30", from: "America/Los_Angeles", to: "America/New_York" }],
     };
-    stubFetch(body);
+    stubJsonFetch(body);
     const { container } = renderOverview();
     await screen.findByRole("tablist");
     const weekly = container.querySelector<HTMLElement>("[data-weekly-change]")!;
@@ -495,7 +483,7 @@ describe("Asset Overview — the strip drives the chart", () => {
   }
 
   it("opens a users-only site on its daily users", async () => {
-    stubFetch(onlyTraffic("users"));
+    stubJsonFetch(onlyTraffic("users"));
     const { container } = renderOverview();
     await screen.findByRole("tablist");
     expect(kpi(container, "Avg. daily users").querySelector("button[aria-pressed]")).toHaveAttribute("aria-pressed", "true");
@@ -504,7 +492,7 @@ describe("Asset Overview — the strip drives the chart", () => {
   });
 
   it("opens a search-only site on its clicks, not on an empty users chart", async () => {
-    stubFetch(onlyTraffic("search"));
+    stubJsonFetch(onlyTraffic("search"));
     const { container } = renderOverview();
     await screen.findByRole("tablist");
     expect(kpi(container, "Search clicks").textContent).toContain("588");
@@ -518,7 +506,7 @@ describe("Asset Overview — the strip drives the chart", () => {
   });
 
   it("draws no empty chart for a site with no traffic series at all", async () => {
-    stubFetch(onlyTraffic("none"));
+    stubJsonFetch(onlyTraffic("none"));
     renderOverview();
     await screen.findByRole("tablist");
     const traffic = screen.getByRole("region", { name: "Traffic · last 28 days" });
@@ -534,7 +522,7 @@ describe("Asset Overview — the strip drives the chart", () => {
   });
 
   it("keeps the operator's own pick over the default once made", async () => {
-    stubFetch(onlyTraffic("search"));
+    stubJsonFetch(onlyTraffic("search"));
     const { container } = renderOverview();
     await screen.findByRole("tablist");
     fireEvent.click(kpi(container, "Impressions").querySelector("button[aria-pressed]")!);
@@ -570,7 +558,7 @@ describe("Asset Overview — the site's all-time totals", () => {
   const minutesAgo = (minutes: number) => new Date(NOW - minutes * 60_000).toISOString();
 
   it("shows each total with its value and read age, amber past twice the counters cadence", async () => {
-    stubFetch({
+    stubJsonFetch({
       ...payload(),
       counters: {
         heading: "All-time totals",
@@ -604,13 +592,13 @@ describe("Asset Overview — the site's all-time totals", () => {
   });
 
   it("draws nothing for a site with no totals configured, or none with a number yet", async () => {
-    stubFetch({ ...payload(), counters: null });
+    stubJsonFetch({ ...payload(), counters: null });
     const first = renderOverview();
     await screen.findByRole("tablist");
     expect(first.container.querySelector("[data-site-totals]")).toBeNull();
     first.unmount();
 
-    stubFetch({ ...payload(), counters: { heading: "All-time totals", cadenceHours: 0.25,
+    stubJsonFetch({ ...payload(), counters: { heading: "All-time totals", cadenceHours: 0.25,
       cards: [{ metric: "plans", label: "Plans saved", value: null, observedAt: null, source: null }] } });
     const second = renderOverview();
     await screen.findByRole("tablist");
@@ -635,7 +623,7 @@ describe("Asset Overview — leads with the number the site has (ro-ujb9.146)", 
   it("opens Clarity on its named reported page and fixed72-hour facts, without a daily chart", async () => {
     const body = noTraffic();
     body.executive = { ...body.executive!, clarity: { ...clarity, truncated: true } };
-    stubFetch(body);
+    stubJsonFetch(body);
     const { container } = renderOverview();
     const lead = await screen.findByRole("region", { name: "Clarity · 72-hour report" });
     expect(kpiLabels(container).slice(0, 2)).toEqual(["Page sessions", "Script errors"]);
@@ -655,13 +643,13 @@ describe("Asset Overview — leads with the number the site has (ro-ujb9.146)", 
   it("names an unattributed bucket honestly and keeps an explicit zero distinct from Unknown", async () => {
     const body = noTraffic();
     body.executive = { ...body.executive!, clarity: { ...clarity, page: null, unattributedSessions: 0 } };
-    stubFetch(body);
+    stubJsonFetch(body);
     const first = renderOverview();
     const lead = await screen.findByRole("region", { name: "Clarity · 72-hour report" });
     expect(kpi(lead, "Unattributed sessions")).toHaveTextContent("0");
     expect(lead).not.toHaveTextContent("Page sessions");
     first.unmount();
-    stubFetch({ ...body, executive: { ...body.executive!, clarity: { ...clarity, page: null, collectedAt: null } } });
+    stubJsonFetch({ ...body, executive: { ...body.executive!, clarity: { ...clarity, page: null, collectedAt: null } } });
     renderOverview();
     const unknown = await screen.findByRole("region", { name: "Clarity · 72-hour report" });
     expect(kpi(unknown, "Unattributed sessions")).toHaveTextContent("Unknown");
@@ -672,14 +660,14 @@ describe("Asset Overview — leads with the number the site has (ro-ujb9.146)", 
   it("preserves traffic, revenue and PostHog priority ahead of Clarity", async () => {
     const traffic = payload();
     traffic.executive = { ...traffic.executive!, clarity };
-    stubFetch(traffic);
+    stubJsonFetch(traffic);
     const first = renderOverview();
     await screen.findByRole("region", { name: "Traffic · last 28 days" });
     expect(screen.queryByRole("region", { name: "Clarity · 72-hour report" })).toBeNull();
     first.unmount();
     const body = noTraffic();
     body.executive = { ...body.executive!, clarity };
-    stubFetch({ ...body, dailyRevenue: revenue() });
+    stubJsonFetch({ ...body, dailyRevenue: revenue() });
     const second = renderOverview();
     await screen.findByRole("region", { name: "Daily revenue" });
     expect(screen.queryByRole("region", { name: "Clarity · 72-hour report" })).toBeNull();
@@ -688,7 +676,7 @@ describe("Asset Overview — leads with the number the site has (ro-ujb9.146)", 
       webDaily: { windowStart: LAST_DAY, windowEnd: LAST_DAY, reportDate: LAST_DAY,
         days: [{ date: LAST_DAY, people: 10, pageviews: 20, sessions: 12 }] },
       funnels: [], vitals: null, exceptions: null, rageClicks: null, onceEvents: [], checks: [], caveat: "" };
-    stubFetch(body); renderOverview();
+    stubJsonFetch(body); renderOverview();
     await screen.findByRole("region", { name: "Traffic · last 28 days" });
     expect(screen.queryByRole("region", { name: "Clarity · 72-hour report" })).toBeNull();
   });
@@ -706,7 +694,7 @@ describe("Asset Overview — leads with the number the site has (ro-ujb9.146)", 
   }
 
   it("opens a revenue-only site on its daily revenue, not on four dashes", async () => {
-    stubFetch({ ...noTraffic(), dailyRevenue: revenue() });
+    stubJsonFetch({ ...noTraffic(), dailyRevenue: revenue() });
     const { container } = renderOverview();
     await screen.findByRole("tablist");
     expect(screen.queryByRole("region", { name: "Traffic · last 28 days" })).toBeNull();
@@ -729,7 +717,7 @@ describe("Asset Overview — leads with the number the site has (ro-ujb9.146)", 
       webDaily: { windowStart: days[0]!.date, windowEnd: LAST_DAY, reportDate: LAST_DAY, days },
       funnels: [], vitals: null, exceptions: null, rageClicks: null, onceEvents: [], checks: [], caveat: "",
     } };
-    stubFetch(body);
+    stubJsonFetch(body);
     const { container } = renderOverview();
     await screen.findByRole("tablist");
     const traffic = screen.getByRole("region", { name: "Traffic · last 28 days" });
@@ -753,7 +741,7 @@ describe("Asset Overview — leads with the number the site has (ro-ujb9.146)", 
       backlinks: null, ai: { googleMentions: null, googleSearchVolume: null, chatgptMentions: null, chatgptSearchVolume: null },
       referringDomains: [], anchors: null, keywordIdeas: [], competitors: [],
     } };
-    stubFetch(body);
+    stubJsonFetch(body);
     const { container } = renderOverview();
     await screen.findByRole("tablist");
     const lead = screen.getByRole("region", { name: "Search position" });
@@ -765,7 +753,7 @@ describe("Asset Overview — leads with the number the site has (ro-ujb9.146)", 
 
   it("keeps a site with Bing or Analytics data on its traffic chart, whatever else it has", async () => {
     const body = payload();
-    stubFetch({ ...body, dailyRevenue: revenue() });
+    stubJsonFetch({ ...body, dailyRevenue: revenue() });
     const { container } = renderOverview();
     await screen.findByRole("tablist");
     const traffic = screen.getByRole("region", { name: "Traffic · last 28 days" });
@@ -851,7 +839,7 @@ describe("Asset Overview — the range controls traffic, not independent snapsho
   it("shows the monthly net trend before its disclosure and keeps traffic dates separate", async () => {
     const body = payload();
     body.ledger.periods.push({ ...structuredClone(body.ledger.periods[1]!), period: "2026-05" });
-    stubFetch(body);
+    stubJsonFetch(body);
     const { container } = renderOverview();
     await screen.findByRole("tablist");
     const net = kpi(container, "Net");
@@ -867,7 +855,7 @@ describe("Asset Overview — the range controls traffic, not independent snapsho
   it.each([0, 2])("explains the missing net trend with %i accounting months", async (count) => {
     const body = payload();
     body.ledger.periods = body.ledger.periods.slice(0, count);
-    stubFetch(body);
+    stubJsonFetch(body);
     const { container } = renderOverview();
     await screen.findByRole("tablist");
     const net = kpi(container, "Net");
@@ -885,7 +873,7 @@ describe("Asset Overview — the range controls traffic, not independent snapsho
       revenueByFamily: [{ currency: 'USD', family: "ads", amount: 441.37 }],
       costByFamily: [{ currency: 'USD', family: "inference", amount: 5.18 }],
     };
-    stubFetch(body);
+    stubJsonFetch(body);
     renderOverview();
     await screen.findByRole("tablist");
     const financials = screen.getByRole("region", { name: "Financials · July 2026" });
@@ -936,7 +924,7 @@ describe("Asset Overview — explanations are disclosed, essential context stays
 
 describe("Asset Overview — the setup banner", () => {
   it("says how far the setup has got and where to finish it", async () => {
-    stubFetch(onboarding());
+    stubJsonFetch(onboarding());
     const { container } = renderOverview();
     await screen.findByRole("tablist");
 
@@ -1002,7 +990,7 @@ describe("Asset Overview — the two lists", () => {
 
   it("gives every ask the Tasks board's face — warn at every priority, a gate's △ (ro-ujb9.240)", async () => {
     const base = payload();
-    stubFetch(payload({
+    stubJsonFetch(payload({
       operator: {
         ...base.operator,
         items: [
@@ -1030,7 +1018,7 @@ describe("Asset Overview — the two lists", () => {
 
   it("keeps core task surfaces visible with an honestly unread inbox", async () => {
     taskSourceMock.connected = null;
-    stubFetch(payload({ operator: { capturedAt: null, waiting: null, urgent: null, items: [] } }));
+    stubJsonFetch(payload({ operator: { capturedAt: null, waiting: null, urgent: null, items: [] } }));
     const { container } = renderOverview();
     await screen.findByRole("tablist");
 
@@ -1050,7 +1038,7 @@ describe("Asset Overview — the two lists", () => {
     snapshot.items = (["insight", "discovery"] as const).map((kind) => ({
       ...snapshot.items[0]!, key: kind, kind, title: `${kind} from the saved report`,
     }));
-    stubFetch(body);
+    stubJsonFetch(body);
     const { container } = renderOverview();
     await screen.findByRole("tablist");
     const marks = [
@@ -1114,7 +1102,7 @@ describe("Asset Overview — the two lists", () => {
         decidedAt: "2026-07-05T00:00:00.000Z", updatedAt: "2026-07-05T00:00:00.000Z",
       }));
     }
-    stubFetch(body);
+    stubJsonFetch(body);
     const { container } = renderOverview();
     await screen.findByRole("tablist");
     const matters = container.querySelector<HTMLElement>('section[aria-label="What matters"]')!;

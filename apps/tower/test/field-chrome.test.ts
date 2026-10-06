@@ -1,9 +1,10 @@
 // @vitest-environment node
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { fieldClass } from "../src/components/ui/field";
+import { typeScriptSources, withoutComments } from "./source-files";
 
 /**
  * ONE FIELD BOX, NOT TWENTY-EIGHT (bead `ro-2qc6`).
@@ -25,18 +26,6 @@ const SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src")
 const OWNER = path.join("components", "ui", "field.ts");
 
 /** Comments say the same words as code and are not the thing under guard. */
-function withoutComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
-}
-
-/** Every `.ts`/`.tsx` under a directory, absolute. */
-function sourceFiles(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) return sourceFiles(full);
-    return /\.tsx?$/.test(entry.name) ? [full] : [];
-  });
-}
 
 describe("the desk's field chrome has one owner", () => {
   it("declares the box the phone floor and the disabled dim ride on", () => {
@@ -60,7 +49,7 @@ describe("the desk's field chrome has one owner", () => {
     // app that is a rounded, bordered, `bg-background` box with a focus ring —
     // the read-only `<code>` boxes beside it have no ring, and the containers
     // that share the surface have no ring either.
-    const offenders = sourceFiles(SRC).filter((file) => {
+    const offenders = typeScriptSources(SRC).filter((file) => {
       if (file.endsWith(OWNER)) return false;
       const source = withoutComments(readFileSync(file, "utf8"));
       return [...source.matchAll(/"[^"\n]*"/g)].some((literal) => {
