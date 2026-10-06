@@ -157,7 +157,13 @@ function loopbackPort() {
   });
 }
 
-async function launchFixture(t, mode, { signal = 'SIGTERM', group = false, graceMs = 3000 } = {}) {
+/** How long a launch that should close normally gets to do so, from its stop
+ * to its exit, in the supervisor and the runtime alike. A stop that arrives at
+ * once also waits out the runtime's start, which on a busy runner took over
+ * 3 s (issue #25); the deadline modes pass their own. */
+const CLOSE_GRACE_MS = 6000;
+
+async function launchFixture(t, mode, { signal = 'SIGTERM', group = false, graceMs = CLOSE_GRACE_MS } = {}) {
   const f = fixture(), trace = path.join(f.root, 'trace.jsonl');
   f.options.listen.port = await loopbackPort();
   const runtimeFile = path.join(f.root, 'runtime.json'); writeFileSync(runtimeFile, JSON.stringify(f.options), { mode: 0o600 });
@@ -207,7 +213,7 @@ async function launchFixture(t, mode, { signal = 'SIGTERM', group = false, grace
           if(mode==='unexpected-exit')setImmediate(()=>process.exit(7));
         }
         return {close:async()=>{note('close-start');if(mode==='deadline'||mode==='orphan-deadline'||mode==='disconnect-deadline')await new Promise(()=>{});await server.close();note('close-complete')}};
-      },{graceMs:mode==='orphan-deadline'?300:3000});
+      },{graceMs:mode==='orphan-deadline'?300:${CLOSE_GRACE_MS}});
     }catch{note('failed');process.exitCode=1}
   `);
   writeFileSync(supervisorFile, `
@@ -260,7 +266,7 @@ async function launchFixture(t, mode, { signal = 'SIGTERM', group = false, grace
       if(mode==='fixture-failure')assert.fail('Synthetic fixture assertion after acquisition');
       if(mode==='orphan-deadline')child.kill('SIGKILL');else if(group)process.kill(-child.pid,signal);else child.kill(signal);
     }
-    const result=await Promise.race([closed,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Supervisor failed to close')),8000)})]);clearTimeout(timer);
+    const result=await Promise.race([closed,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Supervisor failed to close')),CLOSE_GRACE_MS+4000)})]);clearTimeout(timer);
     const saved=events();
     for(const record of saved.filter(x=>x.event.startsWith('noticeos-demo-group-')))
       assert.deepEqual(record.keys,['lease','pid','type']);
@@ -308,9 +314,9 @@ async function launchFixture(t, mode, { signal = 'SIGTERM', group = false, grace
   }
 }
 
-// Each launch owns its fixture folder, port and process groups, so four run
+// Each launch owns its fixture folder, port and process groups, so three run
 // at once (issue #25): in series they were 13 launches end to end.
-describe('supervised fixture launches', { concurrency: 4 }, () => {
+describe('supervised fixture launches', { concurrency: 3 }, () => {
   test('real SIGTERM supervisor awaits task, activity and pinned Miniflare closure', {timeout:15000}, t=>launchFixture(t,'normal'));
   test('terminal-group SIGINT reaches supervisor while isolated runtime closes normally', {timeout:15000}, t=>launchFixture(t,'normal',{signal:'SIGINT',group:true}));
   test('stop during startup is latched and acquired capabilities close before exit', {timeout:15000}, t=>launchFixture(t,'startup-stop'));
