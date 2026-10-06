@@ -273,7 +273,11 @@ test('transaction custody uses maintained cookies, fresh authority and committed
       const pending = claim(state); const closing = own.close(); await pending; await closing; await own.close();
       await assert.rejects(own.issueGoogle(start(a, cookie), a, () => {}), IdentityRefused);
       for (const value of opened) await value.close(); opened.clear();
-      assert.equal((await admin.query("SELECT count(*)::int n FROM pg_stat_activity WHERE usename='noticeos_identity'")).rows[0].n, 0);
+      // Closing a client and PostgreSQL removing its backend are distinct events
+      // (as in postgres-identity.test.mjs): wait for them to go, accepting no leak.
+      const identityBackends = async () => (await admin.query("SELECT count(*)::int n FROM pg_stat_activity WHERE usename='noticeos_identity'")).rows[0].n;
+      for (const deadline = performance.now() + 5000; performance.now() < deadline && await identityBackends() > 0;) await new Promise(resolve => setTimeout(resolve, 20));
+      assert.equal(await identityBackends(), 0);
     });
   } finally {
     const cleanup = await Promise.allSettled([...opened].map(value => value.close()));
