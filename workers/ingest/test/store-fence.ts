@@ -14,6 +14,10 @@
 // that left it running. A call already on its way when its test ends is waited
 // for (`settle`) before the next test starts and before a file empties the
 // store. test/isolation-probe.ts proves it.
+//
+// The fence also records which Postgres bindings a file reached, so the next
+// file's clean start makes again only the copies that can have changed
+// (issue #23): every file reaches `POSTGRES`, and only a few the second copy.
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { WorkspaceStore } from '@noticeos/postgres';
 
@@ -33,6 +37,8 @@ interface FenceState {
   readonly context: AsyncLocalStorage<Holder>;
   readonly inFlight: Set<PromiseLike<unknown>>;
   strays: Stray[];
+  /** The Postgres bindings reached since `takeReached` was last called. */
+  reached: Set<string>;
 }
 
 // The setup file (clean-start.ts) is evaluated again for every file; the
@@ -43,7 +49,7 @@ const FENCED = Symbol.for('noticeos.ingest.store-fence.fenced');
 
 function state(): FenceState {
   const global = globalThis as unknown as { [STATE]?: FenceState };
-  return (global[STATE] ??= { context: new AsyncLocalStorage<Holder>(), inFlight: new Set(), strays: [] });
+  return (global[STATE] ??= { context: new AsyncLocalStorage<Holder>(), inFlight: new Set(), strays: [], reached: new Set() });
 }
 
 function guard(call: string): void {
@@ -99,14 +105,34 @@ function fence(target: object, label: string, methods: Record<string, After>): o
 function fenceHyperdrive(binding: Record<string | symbol, unknown>, label: string): void {
   if (binding[FENCED]) return;
   const connectionString = binding.connectionString;
-  fence(binding, label, { connect: (socket) => socket });
+  fence(binding, label, {
+    connect: (socket) => {
+      noteReached(label);
+      return socket;
+    },
+  });
   Object.defineProperty(binding, 'connectionString', {
     configurable: true,
     get: () => {
       guard(`${label}.connectionString`);
+      noteReached(label);
       return connectionString;
     },
   });
+}
+
+/** Record that this file reached a Postgres binding, by its `env.` name.
+ * test/helpers.ts records an owner statement run in a copy, which the fence
+ * does not see. */
+export function noteReached(label: string): void {
+  state().reached.add(label);
+}
+
+/** The Postgres bindings reached since the last call, and forget them. */
+export function takeReached(): Set<string> {
+  const { reached } = state();
+  state().reached = new Set();
+  return reached;
 }
 
 /**
@@ -141,7 +167,9 @@ const isHyperdrive = (value: Record<string, unknown>) => typeof value.connect ==
 export function fenceStore(env: object): void {
   for (const [name, value] of Object.entries(env)) {
     if (value === null || typeof value !== 'object') continue;
-    const binding = value as Record<string, unknown>;
+    const binding = value as Record<string | symbol, unknown>;
+    // Fenced by an earlier file: reading it again would count as reaching it.
+    if (binding[FENCED]) continue;
     if (isHyperdrive(binding)) fenceHyperdrive(binding, `env.${name}`);
     else if (isBucket(binding)) {
       fence(binding, `env.${name}`, { head: track, get: track, put: track, list: track, delete: track, createMultipartUpload: track });

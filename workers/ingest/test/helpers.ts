@@ -6,6 +6,7 @@ import { configDocumentKey } from '../../../scripts/config-documents.mjs';
 import { EGRESS_BEACONS, EGRESS_DOWN_RULE_ID } from '../src/egress.js';
 import { HEALTH_STATE_SELECT, storedHealthRow, type StoredHealthRow } from '../src/integration-health-store.js';
 import { clearRawSignals } from './clear-raw-signals';
+import { noteReached } from './store-fence';
 
 /** Drive the Worker end-to-end (through its router) against the test Postgres store. */
 export async function call(request: Request): Promise<Response> {
@@ -324,6 +325,7 @@ export async function setConnection(
  * product.
  */
 export async function asOwner(sql: string, { other = false }: { other?: boolean } = {}): Promise<void> {
+  noteReached(other ? 'env.POSTGRES_OTHER' : 'env.POSTGRES');
   const ran = await env.TEST_POSTGRES.fetch('http://test-postgres/owner', { method: 'POST', body: JSON.stringify({ sql, other }) });
   if (!ran.ok) throw new Error(`the owner could not run ${sql}: ${ran.status} ${await ran.text()}`);
 }

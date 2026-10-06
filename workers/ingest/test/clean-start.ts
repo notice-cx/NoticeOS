@@ -12,7 +12,8 @@
 //    (`vi.mock` would carry over; this suite has none.)
 //  - no global stub or fake clock left by the file before is still in place;
 //  - the raw-signal bucket and Cache API are emptied (`reset()`), and this
-//    runtime's Postgres copy is made again from the run's template. Complete
+//    runtime's Postgres copy is made again from the run's template — its
+//    second copy too, when the file before reached it (issue #23). Complete
 //    synthetic sites are inserted directly in fixture order. Nothing rolls
 //    back between tests inside a file.
 //  - every test, and the file's own hooks, get a store of their own on that
@@ -27,7 +28,7 @@
 import { env, reset } from 'cloudflare:test';
 import { openWorkspaceStore } from '@noticeos/postgres';
 import { aroundAll, aroundEach, beforeEach, vi } from 'vitest';
-import { fenceStore, fenceWorkspaceStore, settle, takeStrays, within } from './store-fence';
+import { fenceStore, fenceWorkspaceStore, settle, takeReached, takeStrays, within } from './store-fence';
 import { seedTestSites } from './invented-sites';
 import { createTestTimeoutSignals } from './timeout-signals';
 import { clearRawSignals } from './clear-raw-signals';
@@ -57,7 +58,8 @@ try {
   // Explicit supported R2 operations also clear those rows, or fail setup.
   await clearRawSignals(env.RAW_SIGNALS);
   starting = 'resetting this runtime\'s Postgres test copy';
-  const copied = await env.TEST_POSTGRES.fetch('http://test-postgres/reset', { method: 'POST' });
+  const other = takeReached().has('env.POSTGRES_OTHER');
+  const copied = await env.TEST_POSTGRES.fetch('http://test-postgres/reset', { method: 'POST', body: JSON.stringify({ other }) });
   if (!copied.ok) throw new Error(`the copy service answered ${copied.status}`);
   starting = 'seeding the Postgres test sites';
   await seedTestSites();
