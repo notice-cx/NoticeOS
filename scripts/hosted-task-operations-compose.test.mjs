@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync } from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 import { withOwnedTaskProjects } from './test-fixtures/hosted-task-projects.mjs';
 import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
@@ -21,6 +23,11 @@ const first = value => Array.isArray(value) ? value[0] : value;
 test('two servers racing one claim have one winner; a lost reply after a real create or comment is not repeated', {
   skip: process.env.NOTICEOS_TEST_HOSTED_TASK_EXECUTOR !== '1', timeout: 240_000,
 }, async () => {
+  // The fixture keeps one receipt per evidence folder, and pnpm test:task-store
+  // runs another suite over the same folder first: this file keeps its own
+  // inside it (each test file is its own process).
+  process.env.NOTICEOS_TEST_HOSTED_TASK_EVIDENCE = mkdtempSync(
+    path.join(process.env.NOTICEOS_TEST_HOSTED_TASK_EVIDENCE, 'task-operations-'));
   await withOwnedTaskProjects(async facts => {
     const [{ workspaceId, projectId }] = facts.mappings;
     // No shared lease between these two "servers": only the task store can
