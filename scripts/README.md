@@ -739,6 +739,12 @@ repeat without a second effect (the pinned task client's behavior, proved by
 `pnpm test:task-store`). MCP results use the Tower's task and comment shapes,
 never the task store's own field names, and no human decision is a tool. MCP
 admission is the browser session's for now; agent sign-in is separate work.
+Both MCP endpoints, this one and the Tower's `/api/mcp`, share one transport
+([`mcp-protocol.mts`](mcp-protocol.mts)) that answers 2026-07-28 clients
+(version and capabilities in each request's `_meta`, routing headers that must
+match the body, `server/discover`) and `initialize`-based clients of 2025-11-25,
+2025-06-18 and 2025-03-26 on the same route, with no session state; its
+[suite](mcp-protocol.test.mjs) pins both eras.
 
 ### Hosted runtime composition and recovery
 

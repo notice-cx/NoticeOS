@@ -29,6 +29,8 @@
     "scripts/hosted-task-command.mts",
     "scripts/workspace-admission.mts",
     "scripts/browser-request-policy.mts",
+    "scripts/bounded-json-body.mts",
+    "scripts/mcp-protocol.mts",
     "scripts/identity-protocol.mts",
     "scripts/workspace-operations.mts",
     "scripts/demo-viewer-policy.mts",

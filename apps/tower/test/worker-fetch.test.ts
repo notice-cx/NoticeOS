@@ -439,11 +439,11 @@ describe("the Worker's fetch switch", () => {
       // pinned by test/mcp-route.test.ts, and getting there means a JSON-RPC
       // handshake — `initialize`, then `notifications/initialized`, then a
       // call — which is a transport conversation, not a routing fact. A GET
-      // proves the routing: the MCP route answers it in JSON-RPC, where an
-      // unrouted path would come back `{ error: "not_found" }` with a 404.
+      // proves the routing: the MCP route refuses it with a 405 in JSON-RPC,
+      // where an unrouted path would come back `{ error: "not_found" }` with a 404.
       const { status, body } = await call(get("/api/mcp"));
 
-      expect(status).toBe(200);
+      expect(status).toBe(405);
       expect(body.jsonrpc).toBe("2.0");
       expect((body.error as { code: number }).code).toBe(-32600);
     });

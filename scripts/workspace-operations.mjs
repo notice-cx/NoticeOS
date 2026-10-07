@@ -7,6 +7,7 @@
 import { WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { parsePointer, validateSchemaAndSafety } from './config-documents.mjs';
 import { fieldOf, isRowToken, matchKnob, matchRegister } from './config-registers.mjs';
+import { MCP_METHODS, parseMcpMessage } from './mcp-protocol.mjs';
 import { WATCH_QUERY_MAX_CHARS, WATCH_SERIES } from '../packages/contract/src/watch-series.mjs';
 import { CLOUDFLARE_D1_PATH, cloudflareAccountId, d1DatabaseId, d1Selection } from '../packages/contract/src/cloudflare-d1.mjs';
 export { watchQueryHistoryRange } from '../packages/contract/src/watch-series.mjs';
@@ -572,24 +573,20 @@ export async function storedResearchReadRequest(request) {
                 ...(typeof body.through === 'string' ? { through: body.through } : {}),
             } });
     }
-    onlyKeys(body, ['jsonrpc', 'id', 'method', 'params']);
-    if (body.jsonrpc !== '2.0' || typeof body.method !== 'string')
-        refuse();
-    if (body.id !== undefined && body.id !== null
-        && !(typeof body.id === 'string' && body.id.length <= 512)
-        && !(typeof body.id === 'number' && Number.isFinite(body.id)))
-        refuse();
-    if (['initialize', 'notifications/initialized', 'ping', 'tools/list'].includes(body.method)) {
-        if (body.params !== undefined) {
-            const params = record(body.params);
-            onlyKeys(params, body.method === 'initialize' ? ['protocolVersion', 'capabilities', 'clientInfo'] : []);
-        }
-        return Object.freeze({ method: 'mcp', body, tool: null });
+    // The one MCP message shape both protocol eras share (mcp-protocol): only
+    // its own methods, each with only its own params.
+    let message;
+    try {
+        message = parseMcpMessage(body);
     }
-    if (body.method !== 'tools/call')
+    catch {
         refuse();
-    const params = record(body.params);
-    onlyKeys(params, ['name', 'arguments']);
+    }
+    if (!MCP_METHODS.includes(message.method))
+        refuse();
+    if (message.method !== 'tools/call')
+        return Object.freeze({ method: 'mcp', body, tool: null });
+    const params = message.params;
     if (!['list_properties', 'property_report', 'research_lookup'].includes(params.name))
         refuse();
     const args = params.arguments === undefined ? {} : record(params.arguments);

@@ -440,8 +440,16 @@ test('stored research grammar binds only named tools and exact candidate replay 
     await assert.rejects(towerOperation(request('/api/alerts/backtest' + suffix, 'POST', replay)), OperationRefused);
   for (const method of ['initialize', 'notifications/initialized', 'ping', 'tools/list'])
     assert.equal((await towerOperation(request('/api/mcp', 'POST', { jsonrpc: '2.0', method }))).action, 'evidence.read');
+  // A 2026-07-28 request names its version in _meta and may discover first.
+  const meta = { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} };
+  for (const body of [{ jsonrpc: '2.0', id: 1, method: 'server/discover', params: { _meta: meta } },
+    { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'property_report', arguments: { asset: 'example.test' }, _meta: meta } }])
+    assert.equal((await towerOperation(request('/api/mcp', 'POST', body))).action, 'evidence.read');
   for (const body of [{ jsonrpc: '2.0', method: 'ping', actor: 'claimed' },
     { jsonrpc: '2.0', method: 'ping', params: { action: 'provider.read' } },
+    { jsonrpc: '2.0', id: null, method: 'ping' }, [{ jsonrpc: '2.0', id: 1, method: 'ping' }],
+    { jsonrpc: '2.0', id: 1, method: 'resources/list' },
+    { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'property_report', arguments: { asset: 'example.test' }, _meta: [] } },
     { jsonrpc: '2.0', method: 'tools/call', params: { name: 'research_lookup', arguments: { endpoint: 'report', params: {}, provider: 'other' } } }])
     await assert.rejects(towerOperation(request('/api/mcp', 'POST', body)), OperationRefused);
 });

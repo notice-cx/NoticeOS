@@ -17,9 +17,6 @@ export interface HostedTaskHttpOptions {
     readonly executor?: Pick<HostedTaskExecutor, 'execute'>;
 }
 export type HostedTaskHttp = (original: Request) => Promise<Response>;
-/** A JSON request's text, bounded in bytes and in time. Shared with the MCP
- * endpoint (hosted-task-mcp), which parses its own JSON-RPC shape. */
-export declare function readBoundedJsonText(request: Request, maxBytes?: number): Promise<string>;
 /** Request parsing only. Callers still establish current admission separately. */
 export declare function readHostedTaskCommand(request: Request, url: URL, workspaceId: string): Promise<HostedTaskRequest>;
 export declare function createHostedTaskHttp(options: HostedTaskHttpOptions): HostedTaskHttp;

@@ -1,5 +1,5 @@
-/** The hosted task MCP endpoint (epic ro-cvl9): JSON-RPC 2.0 over one POST
- * route, the streamable-HTTP subset MCP clients need. Every tool is a shared
+/** The hosted task MCP endpoint (epic ro-cvl9): the shared MCP transport
+ * (mcp-protocol, both protocol eras) over one POST route. Every tool is a shared
  * hosted task operation (hosted-task-operations), the same ones the Tasks HTTP
  * API calls, under the same current admission. Results speak in tasks and
  * comments; storage names and command output never reach a client.
@@ -11,19 +11,18 @@
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { HostedTaskReceiptsUnavailable, type HostedTaskOperations, type HostedTaskWriteOutcome } from './hosted-task-operations.mjs';
 import { HOSTED_TASK_LIMITS, type HostedTaskOperation, type HostedTaskStatus, type HostedTaskType } from './hosted-task-command.mjs';
-import { readBoundedJsonText } from './hosted-task-http.mjs';
+import { McpToolError, serveMcp, type McpServer } from './mcp-protocol.mjs';
 import { toComment, toLiveTask } from './task-row.mjs';
 import { IDEMPOTENCY_KEY } from '../packages/postgres/src/task-receipts.mjs';
 
 export const TASK_MCP_PATH = '/api/tasks/mcp';
-export const TASK_MCP_PROTOCOL_VERSION = '2025-06-18';
 const SERVER_INFO = Object.freeze({ name: 'noticeos-tasks', version: '1.0.0' });
 const BODY_BYTES = 64 * 1024;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const TASK_ID = /^[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*$/iu;
 const STATUSES: readonly HostedTaskStatus[] = ['open', 'in_progress', 'blocked', 'deferred', 'closed'];
 const TYPES: readonly HostedTaskType[] = ['task', 'bug', 'feature', 'epic', 'chore'];
-const PARSE_ERROR = -32700, INVALID_REQUEST = -32600, METHOD_NOT_FOUND = -32601, INVALID_PARAMS = -32602;
+const INSTRUCTIONS = 'Tasks in this workspace\'s projects. Start with list_projects. Every change takes an idempotency_key: reuse it when retrying.';
 
 export interface HostedTaskMcpOptions {
   readonly profile: 'hosted' | 'demo';
@@ -32,59 +31,7 @@ export interface HostedTaskMcpOptions {
   readonly operations: HostedTaskOperations;
 }
 
-/** A tool's own refusal, returned to the model as an error result it can read. */
-class ToolRefusal extends Error {
-  override name = 'ToolRefusal';
-}
-function refuse(message: string): never { throw new ToolRefusal(message); }
-function malformed(): never { throw new SyntaxError('malformed'); }
-
-/** JSON with no duplicate keys, bounded depth and size: a hidden duplicate
- * cannot make two readers of one request disagree. */
-function strictJson(text: string): unknown {
-  let at = 0, nodes = 0;
-  const space = () => { while (at < text.length && ' \t\r\n'.includes(text[at]!)) at++; };
-  const token = (pattern: RegExp): string => {
-    pattern.lastIndex = at; const found = pattern.exec(text); if (!found) malformed();
-    at = pattern.lastIndex; return found[0];
-  };
-  const STRING = /"(?:[^"\\\u0000-\u001f]|\\(?:["\\/bfnrt]|u[0-9a-fA-F]{4}))*"/uy;
-  const NUMBER = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/uy;
-  const value = (depth: number): unknown => {
-    if (depth > 8 || ++nodes > 2048) malformed();
-    space();
-    const next = text[at];
-    if (next === '{') {
-      at++; const result: Record<string, unknown> = Object.create(null) as Record<string, unknown>; space();
-      if (text[at] === '}') { at++; return result; }
-      for (;;) {
-        space(); const key = JSON.parse(token(STRING)) as string;
-        if (Object.hasOwn(result, key)) malformed();
-        space(); if (text[at++] !== ':') malformed();
-        result[key] = value(depth + 1); space();
-        if (text[at] === ',') { at++; continue; }
-        if (text[at++] !== '}') malformed(); return result;
-      }
-    }
-    if (next === '[') {
-      at++; const result: unknown[] = []; space();
-      if (text[at] === ']') { at++; return result; }
-      for (;;) {
-        result.push(value(depth + 1)); space();
-        if (text[at] === ',') { at++; continue; }
-        if (text[at++] !== ']') malformed(); return result;
-      }
-    }
-    if (next === '"') return JSON.parse(token(STRING)) as string;
-    for (const [word, literal] of [['true', true], ['false', false], ['null', null]] as const) {
-      if (text.startsWith(word, at)) { at += word.length; return literal; }
-    }
-    return Number(token(NUMBER));
-  };
-  const result = value(0); space();
-  if (at !== text.length) malformed();
-  return result;
-}
+function refuse(message: string): never { throw new McpToolError(message); }
 
 // ─── Arguments ────────────────────────────────────────────────────────────────
 type Args = Record<string, unknown>;
@@ -308,21 +255,6 @@ export const TASK_MCP_TOOLS: readonly Tool[] = Object.freeze([
     } },
 ]);
 
-// ─── JSON-RPC ─────────────────────────────────────────────────────────────────
-function reply(value: unknown, status = 200): Response {
-  return Response.json(value, { status, headers: { 'cache-control': 'no-store' } });
-}
-function rpcResult(id: unknown, result: unknown): Response { return reply({ jsonrpc: '2.0', id, result }); }
-function rpcError(id: unknown, code: number, message: string, status = 200): Response {
-  return reply({ jsonrpc: '2.0', id, error: { code, message } }, status);
-}
-function toolResult(id: unknown, value: unknown): Response {
-  return rpcResult(id, { content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: value });
-}
-function toolError(id: unknown, message: string): Response {
-  return rpcResult(id, { content: [{ type: 'text', text: message }], isError: true });
-}
-
 export function createHostedTaskMcp(options: HostedTaskMcpOptions): (original: Request) => Promise<Response> {
   const origin = createBrowserRequestPolicy(options.trustedOrigin).origin;
   const { profile, operations } = options;
@@ -330,64 +262,31 @@ export function createHostedTaskMcp(options: HostedTaskMcpOptions): (original: R
   const demo = profile === 'demo' && typeof options.demoWorkspaceId === 'string' && UUID.test(options.demoWorkspaceId)
     ? options.demoWorkspaceId : undefined;
   if (profile === 'demo' && !demo || profile === 'hosted' && options.demoWorkspaceId !== undefined) throw new Error('Task MCP configuration refused');
+  const invalid = (message: string) => Response.json({ jsonrpc: '2.0', id: null, error: { code: -32600, message } },
+    { status: 400, headers: { 'cache-control': 'no-store' } });
   return async original => {
     let url: URL;
-    try { url = new URL(original.url); } catch { return rpcError(null, INVALID_REQUEST, 'invalid request', 400); }
+    try { url = new URL(original.url); } catch { return invalid('invalid request'); }
     if (url.origin !== origin || url.pathname !== TASK_MCP_PATH || url.search || url.hash || url.username || url.password) {
-      return rpcError(null, INVALID_REQUEST, 'invalid request', 400);
-    }
-    if (original.method !== 'POST') return rpcError(null, INVALID_REQUEST, 'MCP requests must be POST', 405);
-    const version = original.headers.get('mcp-protocol-version');
-    if (version !== null && version !== TASK_MCP_PROTOCOL_VERSION) {
-      return rpcError(null, INVALID_REQUEST, `unsupported MCP protocol version; this server speaks ${TASK_MCP_PROTOCOL_VERSION}`, 400);
+      return invalid('invalid request');
     }
     const header = original.headers.get(WORKSPACE_SELECTION_HEADER);
     const workspaceId = profile === 'demo' ? demo! : header ?? '';
     if (!UUID.test(workspaceId) || profile === 'demo' && header !== null && header !== demo) {
-      return rpcError(null, INVALID_REQUEST, `select a workspace with the ${WORKSPACE_SELECTION_HEADER} header`, 400);
+      return invalid(`select a workspace with the ${WORKSPACE_SELECTION_HEADER} header`);
     }
-    let body: unknown;
-    try { body = strictJson(await readBoundedJsonText(original, BODY_BYTES)); } catch { return rpcError(null, PARSE_ERROR, 'request body is not a bounded JSON-RPC message', 400); }
-    if (!body || typeof body !== 'object' || Array.isArray(body)) return rpcError(null, INVALID_REQUEST, 'expected one JSON-RPC 2.0 message');
-    const message = body as Record<string, unknown>;
-    const id = message.id;
-    if (message.jsonrpc !== '2.0' || typeof message.method !== 'string'
-      || id !== undefined && id !== null && typeof id !== 'string' && !(typeof id === 'number' && Number.isInteger(id))) {
-      return rpcError(null, INVALID_REQUEST, 'expected a JSON-RPC 2.0 message');
-    }
-    // A notification carries no id and receives no response body.
-    if (id === undefined) return new Response(null, { status: 202 });
     // The parsed body is not forwarded: admission reads only request metadata.
     const proof = new Request(original.url, { method: original.method, headers: new Headers(original.headers), signal: original.signal });
-    switch (message.method) {
-      case 'initialize':
-        return rpcResult(id, { protocolVersion: TASK_MCP_PROTOCOL_VERSION, capabilities: { tools: {} }, serverInfo: SERVER_INFO });
-      case 'ping':
-        return rpcResult(id, {});
-      case 'tools/list':
-        return rpcResult(id, { tools: TASK_MCP_TOOLS.map(({ name, description, inputSchema, annotations }) =>
-          ({ name, description, inputSchema, annotations })) });
-      case 'tools/call': {
-        const params = message.params;
-        if (!params || typeof params !== 'object' || Array.isArray(params)) return rpcError(id, INVALID_PARAMS, 'tools/call needs a name and arguments');
-        const { name, arguments: input, ...rest } = params as Record<string, unknown>;
-        if (Object.keys(rest).some(field => field !== '_meta')) return rpcError(id, INVALID_PARAMS, 'tools/call takes only name and arguments');
-        const tool = TASK_MCP_TOOLS.find(candidate => candidate.name === name);
-        if (!tool) return rpcError(id, INVALID_PARAMS, `no tool named ${typeof name === 'string' ? name : '(none)'}`);
-        if (input !== undefined && (!input || typeof input !== 'object' || Array.isArray(input))) {
-          return rpcError(id, INVALID_PARAMS, 'tool arguments must be an object');
-        }
-        try {
-          return toolResult(id, await tool.run({ proof, workspaceId, operations }, (input ?? {}) as Args));
-        } catch (error) {
-          if (error instanceof ToolRefusal) return toolError(id, error.message);
-          // Admission, project selection and command refusals share one answer:
-          // which of them refused is not the caller's to learn.
-          return toolError(id, 'refused: this workspace, project or task is not available to you, or the change was not accepted');
-        }
+    const server: McpServer = { info: SERVER_INFO, instructions: INSTRUCTIONS, tools: TASK_MCP_TOOLS, async call(name, args) {
+      try {
+        return await TASK_MCP_TOOLS.find(tool => tool.name === name)!.run({ proof, workspaceId, operations }, args);
+      } catch (error) {
+        if (error instanceof McpToolError) throw error;
+        // Admission, project selection and command refusals share one answer:
+        // which of them refused is not the caller's to learn.
+        throw new McpToolError('refused: this workspace, project or task is not available to you, or the change was not accepted');
       }
-      default:
-        return rpcError(id, METHOD_NOT_FOUND, `no method ${message.method}`);
-    }
+    } };
+    return serveMcp(original, server, { origin, maxBytes: BODY_BYTES });
   };
 }

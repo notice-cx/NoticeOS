@@ -2,13 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { createHostedTaskOperations } from './hosted-task-operations.mjs';
-import { createHostedTaskMcp, TASK_MCP_PATH, TASK_MCP_PROTOCOL_VERSION } from './hosted-task-mcp.mjs';
+import { createHostedTaskMcp, TASK_MCP_PATH } from './hosted-task-mcp.mjs';
+import { MCP_MODERN_VERSIONS } from './mcp-protocol.mjs';
 import { createHostedTasksApi, IDEMPOTENCY_HEADER } from './hosted-tasks-api.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { fakeTaskExecutor, memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 
-// scripts/hosted-task-mcp.mts (epic ro-cvl9): JSON-RPC over the shared hosted
-// task operations. Tools speak in tasks; storage names never reach a client.
+// scripts/hosted-task-mcp.mts (epic ro-cvl9): the shared MCP transport, both
+// protocol eras (scripts/mcp-protocol.test.mjs), over the shared hosted task
+// operations. Tools speak in tasks; storage names never reach a client.
 
 const [A, P, S, PERSON] = ['11111111', '33333333', '44444444', '55555555'].map(prefix => `${prefix}-1111-4111-8111-111111111111`);
 const DEMO = '99999999-1111-4111-8111-111111111111';
@@ -36,6 +38,13 @@ function post(body, { headers = {}, path = TASK_MCP_PATH, method = 'POST' } = {}
     [WORKSPACE_SELECTION_HEADER]: A, [WORKSPACE_SESSION_HEADER]: S, ...headers },
     ...(method === 'GET' ? {} : { body: typeof body === 'string' ? body : JSON.stringify(body) }) });
 }
+const MODERN = MCP_MODERN_VERSIONS[0];
+/** A 2026-07-28 request: no handshake, the version in _meta and the headers. */
+function modern(method, params = {}, id = 1) {
+  return post({ jsonrpc: '2.0', id, method, params: { ...params, _meta: { 'io.modelcontextprotocol/protocolVersion': MODERN,
+    'io.modelcontextprotocol/clientCapabilities': {} } } }, { headers: { 'mcp-protocol-version': MODERN, 'mcp-method': method,
+    ...(method === 'tools/call' ? { 'mcp-name': params.name } : {}) } });
+}
 let next = 1;
 async function call(f, name, args) {
   const reply = await f.mcp(post({ jsonrpc: '2.0', id: next++, method: 'tools/call', params: { name, arguments: args } }));
@@ -43,15 +52,20 @@ async function call(f, name, args) {
   return (await reply.json()).result;
 }
 
-test('the handshake, tool list and transport rules', async () => {
+test('both protocol eras: the handshake or discovery, the tool list and transport rules', async () => {
   const f = fixture();
   const init = await (await f.mcp(post({ jsonrpc: '2.0', id: 1, method: 'initialize',
-    params: { protocolVersion: TASK_MCP_PROTOCOL_VERSION, capabilities: {}, clientInfo: { name: 'test', version: '1' } } }))).json();
+    params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } } }))).json();
   assert.deepEqual(init.result.capabilities, { tools: {} });
-  assert.equal(init.result.protocolVersion, TASK_MCP_PROTOCOL_VERSION);
+  assert.deepEqual([init.result.protocolVersion, init.result.serverInfo.name], ['2025-06-18', 'noticeos-tasks']);
   const notified = await f.mcp(post({ jsonrpc: '2.0', method: 'notifications/initialized' }));
   assert.equal(notified.status, 202); assert.equal(await notified.text(), '');
+  const discovered = (await (await f.mcp(modern('server/discover'))).json()).result;
+  assert.deepEqual([discovered.resultType, discovered.supportedVersions, discovered.capabilities],
+    ['complete', [MODERN], { tools: {} }]);
+  assert.match(discovered.instructions, /list_projects/u);
   const { tools } = (await (await f.mcp(post({ jsonrpc: '2.0', id: 2, method: 'tools/list' }))).json()).result;
+  assert.deepEqual((await (await f.mcp(modern('tools/list'))).json()).result.tools, tools, 'one tool list in both eras');
   assert.deepEqual(tools.map(tool => tool.name), ['list_projects', 'list_tasks', 'get_task', 'get_task_history',
     'create_task', 'claim_task', 'update_task', 'comment_on_task', 'close_task']);
   for (const tool of tools) {
@@ -67,10 +81,15 @@ test('the handshake, tool list and transport rules', async () => {
     [post({ jsonrpc: '2.0', id: 3, method: 'ping' }, { path: '/api/tasks/mcp?x=1' }), 400],
     [post({ jsonrpc: '2.0', id: 3, method: 'ping' }, { headers: { [WORKSPACE_SELECTION_HEADER]: 'not-a-workspace' } }), 400],
     [post({ jsonrpc: '2.0', id: 3, method: 'ping' }, { headers: { 'mcp-protocol-version': '2024-01-01' } }), 400],
+    [post({ jsonrpc: '2.0', id: 3, method: 'ping' }, { headers: { origin: 'https://elsewhere.example' } }), 403],
+    [post({ jsonrpc: '2.0', id: 3, method: 'ping' }, { headers: { 'content-type': 'text/plain' } }), 415],
+    [modern('tools/call', { name: 'list_projects', arguments: {} }), 200],
     [post('{"jsonrpc":"2.0","id":3,"method":"ping","method":"tools/list"}'), 400],
     [post('{"jsonrpc":"2.0","id":3,"method":"ping"} trailing'), 400],
     [post({ jsonrpc: '2.0', id: 3, method: 'ping', params: { pad: 'x'.repeat(70 * 1024) } }), 400],
   ]) assert.equal((await f.mcp(request)).status, status);
+  const mismatched = modern('tools/call', { name: 'list_projects', arguments: {} }); mismatched.headers.set('mcp-name', 'create_task');
+  assert.equal((await (await f.mcp(mismatched)).json()).error.code, -32020);
   const batch = await (await f.mcp(post([{ jsonrpc: '2.0', id: 4, method: 'ping' }]))).json();
   assert.equal(batch.error.code, -32600);
   assert.equal((await (await f.mcp(post({ jsonrpc: '2.0', id: 5, method: 'resources/list' }))).json()).error.code, -32601);
@@ -85,6 +104,9 @@ test('task tools answer in task language, and a retried change is replayed, not 
   const created = await call(f, 'create_task', args);
   assert.deepEqual(created.structuredContent, { id: 'tt-1', project: 'example', replayed: false });
   assert.deepEqual((await call(f, 'create_task', args)).structuredContent, { id: 'tt-1', project: 'example', replayed: true });
+  // The same retry from a 2026-07-28 client replays the same receipt.
+  const modernRetry = (await (await f.mcp(modern('tools/call', { name: 'create_task', arguments: args }))).json()).result;
+  assert.deepEqual([modernRetry.resultType, modernRetry.structuredContent], ['complete', { id: 'tt-1', project: 'example', replayed: true }]);
   const claimed = (await call(f, 'claim_task', { project: P, task: 'tt-1', idempotency_key: 'agent-claim-0001' })).structuredContent;
   assert.deepEqual([claimed.task.status, claimed.task.assignee, claimed.task.type], ['in_progress', PERSON, 'task']);
   const said = (await call(f, 'comment_on_task', { project: P, task: 'tt-1', text: 'Found it', idempotency_key: 'agent-note-0001' })).structuredContent;

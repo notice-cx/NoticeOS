@@ -39,7 +39,9 @@ export function demoMcpRequestAllowed(viewer: DemoViewerDescriptor | null, body:
   if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
   const row = body as Record<string, unknown>;
   if (row.jsonrpc !== '2.0') return false;
-  if (['initialize', 'notifications/initialized', 'ping', 'tools/list'].includes(String(row.method))) return true;
+  // Both MCP eras' transport methods: the 2026-07-28 discovery and the
+  // initialize handshake before it.
+  if (['initialize', 'server/discover', 'notifications/initialized', 'ping', 'tools/list'].includes(String(row.method))) return true;
   if (row.method !== 'tools/call' || !row.params || typeof row.params !== 'object' || Array.isArray(row.params)) return false;
   const name = (row.params as Record<string, unknown>).name;
   return typeof name === 'string' && DEMO_MCP_READ_TOOLS.includes(name);
