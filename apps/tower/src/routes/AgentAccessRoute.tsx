@@ -8,7 +8,7 @@ import type { BrowserEntry, BrowserEntryState } from '@/lib/browser-entry';
 const ACCESS: Readonly<Record<string, string>> = {
   'tasks:read': 'Read tasks and their history',
   'tasks:write': 'Create, claim, update, comment on and close tasks',
-  'evidence:read': 'Read property reports and research',
+  'evidence:read': 'Read site reports and research',
 };
 
 /** Agent sign-in (epic ro-cvl9): the one decision a person makes for an
