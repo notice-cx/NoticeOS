@@ -5,6 +5,8 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 export const PANEL_REPORTS_DIRECTORY = '.local/signal-dumps/reports';
 export const PANEL_REPORTS_ROOT = path.join(REPO_ROOT, PANEL_REPORTS_DIRECTORY);
 export const PANEL_HISTORY_ROOT = path.join(REPO_ROOT, '.local/signal-dumps/history');
+/** The panel's claim about its own inputs, published with its reports. */
+export const PANEL_FRESHNESS_FILE = 'freshness.json';
 
 /** Completed DuckDB reports. Legacy plain analysis folders stay untouched. */
 export function panelReportPath(asset, root = PANEL_REPORTS_ROOT) {

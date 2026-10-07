@@ -60,6 +60,7 @@ interface LandingsBody {
     panel: boolean;
     queries: number | null;
     families: number;
+    reports: string[];
   }[];
 }
 
@@ -164,6 +165,9 @@ describe('GET /api/serp-panel-landings — what landed', () => {
         panel: true,
         queries: 6,
         families: 6,
+        // The families due that day, by name: what the filer checks the
+        // published panel for (epic ro-cvl9).
+        reports: dataForSeoReportsFor('nosh.example', PANEL_ASSETS, THIS_WEEK),
       },
     ]);
   });
@@ -254,6 +258,7 @@ describe('GET /api/serp-panel-landings — the collection, panel or no panel', (
         panel: false,
         queries: null,
         families: 5,
+        reports: dataForSeoReportsFor('pacer.example', PANEL_ASSETS, THIS_WEEK),
       },
     ]);
   });

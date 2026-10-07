@@ -90,6 +90,9 @@ export interface SerpPanelLanding {
   /** How many report families landed that day. The evidence that something was
    * bought at all, and what the review is being asked to cover. */
   families: number;
+  /** Those families by name: what a published panel must hold before the
+   * filer asks anybody to read it (epic ro-cvl9). */
+  reports: string[];
 }
 
 /**
@@ -199,6 +202,7 @@ export async function readSerpPanelLandings(
       panel,
       queries: panel ? row.queries : null,
       families: expected.length,
+      reports: [...expected],
     });
   }
 

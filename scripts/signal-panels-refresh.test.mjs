@@ -166,6 +166,7 @@ test('freshnessReport: per-integration, newest report date wins', () => {
       newestReportDate: '2026-08-02',
       ageDays: 1,
       fresh: true,
+      reports: [{ report: 'queries', newestReportDate: '2026-08-02' }],
     },
     {
       key: 'gsc',
@@ -174,6 +175,12 @@ test('freshnessReport: per-integration, newest report date wins', () => {
       newestReportDate: '2026-08-01',
       ageDays: 2,
       fresh: true,
+      // Each family's own newest day, so a reader can tell a whole collection
+      // from part of one (epic ro-cvl9).
+      reports: [
+        { report: 'page', newestReportDate: '2026-07-28' },
+        { report: 'query', newestReportDate: '2026-08-01' },
+      ],
     },
   ]);
   assert.deepEqual(report.stale, []);

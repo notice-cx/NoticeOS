@@ -3034,7 +3034,7 @@ test('a landing is a property and a collection day, and nothing less', () => {
     ],
   });
   assert.deepEqual(landings, [
-    { asset: 'nosh.example', panelDate: '2026-08-02', landedAt: '2026-08-02T12:47:31.000Z', panel: true, queries: 6, families: 6 },
+    { asset: 'nosh.example', panelDate: '2026-08-02', landedAt: '2026-08-02T12:47:31.000Z', panel: true, queries: 6, families: 6, reports: null },
   ]);
 });
 
@@ -3050,7 +3050,7 @@ test('a collection with no panel is a landing, sized by families rather than que
     ],
   });
   assert.deepEqual(landings, [
-    { asset: 'areas.example', panelDate: '2026-08-03', landedAt: '2026-08-03T12:45:00.000Z', panel: false, queries: null, families: 5 },
+    { asset: 'areas.example', panelDate: '2026-08-03', landedAt: '2026-08-03T12:45:00.000Z', panel: false, queries: null, families: 5, reports: null },
   ]);
 });
 
@@ -3348,6 +3348,10 @@ function filerDeps(overrides = {}) {
         ran.push(argv);
         return Promise.resolve(ok(argv.includes('create') ? '{"id":"nom-4q2"}' : '[]'));
       },
+      // Every collection here is already in its property's published panel;
+      // runner-panel-review.test.mjs covers the wait (epic ro-cvl9).
+      readPublished: (asset) =>
+        Promise.resolve({ asset, sources: [{ key: 'dataforseo', collected: true, newestReportDate: '2026-08-03' }] }),
       state: { skipping: null, unmapped: new Set() },
       emit: (level, text) => lines.push(`${level} ${text}`),
       stopped: () => false,
