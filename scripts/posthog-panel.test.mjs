@@ -649,6 +649,11 @@ test('freshness.json lists PostHog as a collected source with its newest report 
     newestReportDate: '2026-09-22',
     ageDays: 1,
     fresh: true,
+    reports: [
+      { report: 'funnels', newestReportDate: '2026-09-22' },
+      { report: 'web-daily', newestReportDate: '2026-09-21' },
+      { report: 'web-vitals', newestReportDate: '2026-09-15' },
+    ],
   });
   assert.equal(freshness.fresh, true);
   assert.deepEqual(freshness.uncollected, [], 'PostHog is collected by a cron, not dropped by hand');
