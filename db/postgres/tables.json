@@ -46,6 +46,7 @@
     },
     "signal_runs": { "shape": "history", "arrival": "finished_at" },
     "task_daily_counts": { "shape": "cache", "arrival": "day" },
+    "task_operation_receipts": { "shape": "state", "arrival": "created_at" },
     "task_snapshots": { "shape": "cache", "arrival": "captured_at" },
     "watch_window_readings": { "shape": "history", "arrival": "checked_at" },
     "watch_windows": { "shape": "history", "arrival": "created_at" },

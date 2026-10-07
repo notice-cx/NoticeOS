@@ -176,6 +176,11 @@ SELECT workspace_id,lane,occurrence,attempt,lease_id,'succeeded','2026-09-05T04:
 INSERT INTO noticeos.hosted_scheduler_status(workspace_id,service_id,session_id,observed_at,running,payload)
 VALUES(:'ws',:'ws',gen_random_uuid(),'2026-09-05T04:00:00Z',false,'{"jobs":[]}');
 
+INSERT INTO noticeos.task_operation_receipts (workspace_id,principal_id,operation,idempotency_key,project_id,
+  request_hash,operation_id,state,attempt,result,created_at,started_at,finished_at)
+VALUES (:'ws',:'ws','create','same-key-0001',:'ws',repeat('c',64),gen_random_uuid(),
+  'succeeded',1,'{"id":"task-1"}','2026-09-05T04:00:00Z','2026-09-05T04:00:00Z','2026-09-05T04:00:01Z');
+
 -- The analytical store holds this workspace's observations through mid-2024.
 INSERT INTO noticeos.analytical_exports (workspace_id, table_name, exported_through, dataset_key, exported_at)
 VALUES (:'ws', 'signal_observations', '2024-06-30', 'analytics/signal_observations/2024-h1.parquet', '2026-09-06T00:00:00Z');

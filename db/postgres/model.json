@@ -478,6 +478,20 @@
         "delete": false
       },
       "rule": "Append-only actor evidence recorded in the same transaction as an asset or finding effect. Historical and standalone authors stay explicitly unknown; no free-form values or notes are copied."
+    },
+    "task_operation_receipts": {
+      "revision": {
+        "insert": true,
+        "update": [
+          "state",
+          "attempt",
+          "result",
+          "started_at",
+          "finished_at"
+        ],
+        "delete": false
+      },
+      "rule": "A task write's idempotency key, bound request and operation identity are fixed; its attempt state and recorded outcome evolve."
     }
   },
   "retention": {

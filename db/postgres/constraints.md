@@ -809,6 +809,28 @@ which rows leave for the analytical store, and when, is its `retention`.
 - **Keys:** primary (workspace_id, project, day)
 - **Links:** (workspace_id) → `workspaces`
 
+## `task_operation_receipts`
+
+| Column | Type | Required | Checks |
+|---|---|---|---|
+| `workspace_id` | uuid | yes |  |
+| `principal_id` | text | yes | `(principal_id ~ '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$')` |
+| `operation` | text | yes | `(operation IN ('create', 'update', 'comment', 'close'))` |
+| `idempotency_key` | text | yes | `(idempotency_key ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$')` |
+| `project_id` | uuid | yes |  |
+| `request_hash` | text | yes | `(request_hash ~ '^[0-9a-f]{64}$')` |
+| `operation_id` | uuid | yes |  |
+| `state` | text | yes | `(state IN ('pending', 'interrupted', 'succeeded'))` |
+| `attempt` | integer | yes | `((attempt >= 1) AND (attempt <= 5))` |
+| `result` | jsonb | no | `((result IS NULL) OR (octet_length((result)) <= 65536))` |
+| `created_at` | timestamp with time zone | yes |  |
+| `started_at` | timestamp with time zone | yes |  |
+| `finished_at` | timestamp with time zone | no |  |
+
+- **Keys:** primary (workspace_id, principal_id, operation, idempotency_key); unique (workspace_id, operation_id)
+- **Links:** (workspace_id) → `workspaces`
+- **Row checks:** `((state = 'succeeded') = (result IS NOT NULL))`; `((state = 'pending') = (finished_at IS NULL))`; `((finished_at IS NULL) OR (finished_at >= started_at))`
+
 ## `task_snapshots`
 
 | Column | Type | Required | Checks |

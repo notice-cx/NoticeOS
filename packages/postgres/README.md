@@ -286,3 +286,13 @@ after that additive migration. Production receiver enablement is separate
 (`ro-ujb9.289.8.3.3.13`), and no live migration or activation is implied.
 Native and ordinary Worker fixtures are in
 [`postgres-mutation-audit.test.mjs`](../../scripts/postgres-mutation-audit.test.mjs).
+
+The `./task-receipts` module records retry-safe hosted task writes (epic
+`ro-cvl9`) in `noticeos.task_operation_receipts`. One receipt binds an
+idempotency key, scoped to the workspace, the admitted principal and the
+operation, to its request's hash and a server operation identity; every state
+change is a compare-and-set on the attempt number, so two callers cannot both
+start one change. The caller authorizes first; the module grants nothing and
+runs no task command. Writers require `0012_task_operation_receipts.sql`, an
+additive migration; no live migration or activation is implied. Proofs are in
+[`postgres-task-receipts.test.mjs`](../../scripts/postgres-task-receipts.test.mjs).
