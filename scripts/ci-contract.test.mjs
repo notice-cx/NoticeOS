@@ -56,9 +56,11 @@ const JOBS = {
   browser: [INSTALL, POSTGRES_STEP, 'pnpm -r build', BROWSER_INSTALL, 'pnpm --filter @noticeos/tower run test:journeys'],
   'flow-gate': [INSTALL, POSTGRES_STEP, BROWSER_INSTALL, 'pnpm --filter @noticeos/tower run test:journey-harness',
     'pnpm --filter @noticeos/tower run test:ux-flows'],
+  // The opt-in real task store suites get their pinned inputs first (epic ro-cvl9).
+  'task-store': [INSTALL, 'node scripts/task-store-test-tools.mjs --out "$RUNNER_TEMP/task-store" >> "$GITHUB_ENV"', 'pnpm test:task-store'],
 };
 /** The jobs a documentation-only pull request skips (scripts/ci-scope.mjs). */
-const RUNTIME_JOBS = ['tower-unit', 'ingest-unit', 'browser', 'flow-gate'];
+const RUNTIME_JOBS = ['tower-unit', 'ingest-unit', 'browser', 'flow-gate', 'task-store'];
 /** The suites that start a Postgres server, so must run after POSTGRES_STEP. */
 const POSTGRES_SUITES = ['pnpm --filter @noticeos/tower run test', "pnpm -r --filter '!@noticeos/tower' test", 'pnpm test:scripts',
   'pnpm --filter @noticeos/tower run test:journeys', 'pnpm --filter @noticeos/tower run test:journey-harness',
@@ -119,7 +121,7 @@ test('documentation-only pull requests skip the unit, browser and flow-gate jobs
   // The root suite reads every tracked Markdown file, so it always runs.
   assert.doesNotMatch(jobBlock(workflow, 'scripts'), /^ {4}if:/mu);
   const build = jobBlock(workflow, 'build');
-  assert.match(build, /^ {4}needs: \[scope, tower-unit, ingest-unit, scripts, browser, flow-gate\]\n {4}if: always\(\)\n/mu, 'the required check judges every job');
+  assert.match(build, /^ {4}needs: \[scope, tower-unit, ingest-unit, scripts, browser, flow-gate, task-store\]\n {4}if: always\(\)\n/mu, 'the required check judges every job');
   const [verdict] = runCommands(build);
   assert.ok(verdict.includes(`[${RUNTIME_JOBS.map((name) => (name.includes('-') ? `."${name}"` : `.${name}`)).join(', ')}] | map(.result)`),
     'the verdict judges every job a documentation-only change may skip');

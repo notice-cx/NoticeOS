@@ -5,10 +5,11 @@ on:
     branches: [main]
   pull_request:
 
-# Five jobs side by side (issue #2): the Tower's unit suite, the other
+# Six jobs side by side (issue #2): the Tower's unit suite, the other
 # workspaces' (ingest, contract, mediavine, postgres), the root script suite,
-# the build with the browser journeys, and the UX flow gate. Each gate runs
-# once, in one job; `build` is the verdict branch protection requires.
+# the build with the browser journeys, the UX flow gate, and the task store
+# suites against a real Dolt server. Each gate runs once, in one job; `build`
+# is the verdict branch protection requires.
 jobs:
   # A pull request that changes only documentation no runtime suite reads
   # skips the unit, browser and flow-gate jobs (issue #4,
@@ -151,14 +152,33 @@ jobs:
           path: apps/tower/e2e/ux-flows-results/
           retention-days: 14
 
+  # The real task store (epic ro-cvl9): the task client and Dolt server the
+  # application pins, in Docker. Two servers racing one claim have one winner;
+  # a change retried after a lost reply is not repeated. The root suite skips
+  # these tests; this job supplies their opt-in inputs (db/dolt/host/README.md).
+  task-store:
+    needs: scope
+    if: needs.scope.outputs.runtime == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/task-store-test-tools.mjs --out "$RUNNER_TEMP/task-store" >> "$GITHUB_ENV"
+      - run: pnpm test:task-store
+
   # The one check branch protection requires: every job passed, or the scope
   # job skipped the runtime jobs for a documentation-only pull request.
   build:
-    needs: [scope, tower-unit, ingest-unit, scripts, browser, flow-gate]
+    needs: [scope, tower-unit, ingest-unit, scripts, browser, flow-gate, task-store]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: jq -e --arg runtime "$RUNTIME" '.scope.result == "success" and .scripts.result == "success" and ([."tower-unit", ."ingest-unit", .browser, ."flow-gate"] | map(.result) | all(. == "success" or (. == "skipped" and $runtime == "false")))' <<< "$NEEDS"
+      - run: jq -e --arg runtime "$RUNTIME" '.scope.result == "success" and .scripts.result == "success" and ([."tower-unit", ."ingest-unit", .browser, ."flow-gate", ."task-store"] | map(.result) | all(. == "success" or (. == "skipped" and $runtime == "false")))' <<< "$NEEDS"
         env:
           NEEDS: ${{ toJSON(needs) }}
           RUNTIME: ${{ needs.scope.outputs.runtime }}

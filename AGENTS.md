@@ -165,13 +165,14 @@ and its pause check unavailable (D43).
 
 ## The CI bar
 
-Five parallel jobs (`.github/workflows/ci.yml`) on push to `main` and every
+Six parallel jobs (`.github/workflows/ci.yml`) on push to `main` and every
 PR, each after `pnpm install --frozen-lockfile`: the Tower's typecheck and unit
 tests; the other workspaces' (`pnpm -r --filter '!@noticeos/tower'`);
-`pnpm test:scripts`; `pnpm -r build` → the isolated browser journeys; and the
-journey harness → the UX flow gate (bead `ro-ujb9.95`). The last two are
+`pnpm test:scripts`; `pnpm -r build` → the isolated browser journeys; the
+journey harness → the UX flow gate (bead `ro-ujb9.95`); and
+`pnpm test:task-store`, the task client against a real Dolt server in Docker. The last two are
 `pnpm test:journeys`, split so they run side by side. The `build` job is the
-required verdict over all five. A PR that changes only documentation no
+required verdict over all six. A PR that changes only documentation no
 runtime suite reads (`scripts/ci-scope.mjs`: `docs/` outside `briefs/` and
 `templates/`, and root Markdown) skips all but the root suite, which always
 runs; a push to `main` runs everything. **The full gates run
@@ -419,7 +420,7 @@ to the installation's private records.
 
 - **Toolchain** (source checked 2026-10-01): Node v24.21.0 LTS and pnpm 12.8.1,
   declared in `package.json` and CI.
-- **CI** (source checked 2026-10-01): the five gates above; PostgreSQL 18 server
+- **CI** (source checked 2026-10-07): the six gates above; PostgreSQL 18 server
   binaries and `NOTICEOS_REQUIRE_POSTGRES=1` make database proofs mandatory.
   PostgreSQL 17 binaries support the isolated cross-major restore fixture.
 - **Installation paths** (source checked 2026-10-04): standalone source setup

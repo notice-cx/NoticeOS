@@ -670,7 +670,7 @@ sites.
 `tsconfig.worker.json` for the Worker under workers-types, `e2e/tsconfig.json`
 for the journeys), `test` (Vitest), `build` (`vite build`), and the browser
 journeys plus the UX flow gate behind the root `pnpm test:journeys`
-([`e2e/README.md`](e2e/README.md)). CI runs the five gates in
+([`e2e/README.md`](e2e/README.md)). CI runs the gates in
 [`AGENTS.md` § The CI bar](../../AGENTS.md#the-ci-bar); all must be green.
 
 Tests run reader SQL against **real Postgres**. `test/postgres-store.ts`
