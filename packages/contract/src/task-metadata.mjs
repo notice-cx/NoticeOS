@@ -33,6 +33,10 @@ export const TASK_METADATA = Object.freeze({
     pushAsset: Object.freeze({ name: "noticeos_push_asset", legacy: "reindex_push_asset" }),
     /** A task-map drift report's project. */
     taskMapAsset: Object.freeze({ name: "noticeos_task_map_asset", legacy: "reindex_task_map_asset" }),
+    /** The server's identity for the hosted write that created this task, so a
+     * retried request can find it (epic ro-cvl9). Server-set only; it was named
+     * after the rename, so its legacy key is the same. */
+    operation: Object.freeze({ name: "noticeos_operation_id", legacy: "noticeos_operation_id" }),
 });
 /** The label every Tower handoff bead carries from now on. */
 export const HANDOFF_LABEL = "noticeos-handoff";

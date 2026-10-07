@@ -30,7 +30,9 @@ export type HostedTaskOperation =
   | { readonly kind: 'closed-board'; readonly since: string; readonly until: string }
   | { readonly kind: 'create'; readonly title: string; readonly description?: string;
       readonly type?: HostedTaskType; readonly priority?: number; readonly labels?: readonly string[];
-      readonly parent?: string; readonly acceptance?: string; readonly metadata?: Readonly<Record<string, string>> }
+      readonly parent?: string; readonly acceptance?: string; readonly metadata?: Readonly<Record<string, string>>;
+      /** Server-only receipt identity (hosted-task-operations); request parsers never set it. */
+      readonly operationId?: string }
   | { readonly kind: 'update'; readonly taskId: string; readonly status?: HostedTaskStatus;
       readonly priority?: number; readonly title?: string; readonly description?: string; readonly claim?: true;
       readonly assignee?: string; readonly parent?: string; readonly defer?: string; readonly acceptance?: string;
@@ -79,6 +81,10 @@ function record(input: unknown): Record<string, unknown> {
 function keys(value: Record<string, unknown>, required: string[], optional: string[] = []): void {
   if (required.some(key => !Object.hasOwn(value, key))
       || Object.keys(value).some(key => !required.includes(key) && !optional.includes(key))) invalid();
+}
+function uuid(value: unknown): string {
+  if (typeof value !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u.test(value)) invalid();
+  return value;
 }
 function workspace(value: unknown): string {
   if (typeof value !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u.test(value)) invalid();
@@ -130,7 +136,9 @@ function deferDate(value: unknown): string {
   return value;
 }
 function handoffMetadata(value: unknown): Readonly<Record<string, string>> {
-  const row = record(value); keys(row, [], Object.values(TASK_METADATA).map(field => field.name));
+  // The operation identity is the server's, never a caller's metadata.
+  const row = record(value); keys(row, [], Object.values(TASK_METADATA).map(field => field.name)
+    .filter(name => name !== TASK_METADATA.operation.name));
   const result: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const [key, entry] of Object.entries(row)) result[key] = text(entry, HOSTED_TASK_LIMITS.metadataValue);
   return Object.freeze(result);
@@ -197,7 +205,7 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       break;
     }
     case 'create':
-      keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata']);
+      keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'operationId']);
       argv.push('create');
       if (Object.hasOwn(op, 'description')) argv.push(`--description=${text(op.description, HOSTED_TASK_LIMITS.body, true)}`);
       if (Object.hasOwn(op, 'type')) argv.push(`--type=${choice(op.type, TYPES)}`);
@@ -207,7 +215,11 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       }
       if (Object.hasOwn(op, 'parent')) argv.push(`--parent=${task(op.parent)}`);
       if (Object.hasOwn(op, 'acceptance')) argv.push(`--acceptance=${text(op.acceptance, HOSTED_TASK_LIMITS.body, true)}`);
-      if (Object.hasOwn(op, 'metadata')) argv.push(`--metadata=${JSON.stringify(handoffMetadata(op.metadata))}`);
+      if (Object.hasOwn(op, 'metadata') || Object.hasOwn(op, 'operationId')) {
+        const metadata = { ...(Object.hasOwn(op, 'metadata') ? handoffMetadata(op.metadata) : {}),
+          ...(Object.hasOwn(op, 'operationId') ? { [TASK_METADATA.operation.name]: uuid(op.operationId) } : {}) };
+        argv.push(`--metadata=${JSON.stringify(metadata)}`);
+      }
       argv.push(`--title=${text(op.title, HOSTED_TASK_LIMITS.title)}`, '--');
       break;
     case 'update': {

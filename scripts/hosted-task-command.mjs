@@ -37,6 +37,11 @@ function keys(value, required, optional = []) {
         || Object.keys(value).some(key => !required.includes(key) && !optional.includes(key)))
         invalid();
 }
+function uuid(value) {
+    if (typeof value !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u.test(value))
+        invalid();
+    return value;
+}
 function workspace(value) {
     if (typeof value !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u.test(value))
         invalid();
@@ -98,8 +103,10 @@ function deferDate(value) {
     return value;
 }
 function handoffMetadata(value) {
+    // The operation identity is the server's, never a caller's metadata.
     const row = record(value);
-    keys(row, [], Object.values(TASK_METADATA).map(field => field.name));
+    keys(row, [], Object.values(TASK_METADATA).map(field => field.name)
+        .filter(name => name !== TASK_METADATA.operation.name));
     const result = Object.create(null);
     for (const [key, entry] of Object.entries(row))
         result[key] = text(entry, HOSTED_TASK_LIMITS.metadataValue);
@@ -177,7 +184,7 @@ function command(input) {
             break;
         }
         case 'create':
-            keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata']);
+            keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'operationId']);
             argv.push('create');
             if (Object.hasOwn(op, 'description'))
                 argv.push(`--description=${text(op.description, HOSTED_TASK_LIMITS.body, true)}`);
@@ -194,8 +201,11 @@ function command(input) {
                 argv.push(`--parent=${task(op.parent)}`);
             if (Object.hasOwn(op, 'acceptance'))
                 argv.push(`--acceptance=${text(op.acceptance, HOSTED_TASK_LIMITS.body, true)}`);
-            if (Object.hasOwn(op, 'metadata'))
-                argv.push(`--metadata=${JSON.stringify(handoffMetadata(op.metadata))}`);
+            if (Object.hasOwn(op, 'metadata') || Object.hasOwn(op, 'operationId')) {
+                const metadata = { ...(Object.hasOwn(op, 'metadata') ? handoffMetadata(op.metadata) : {}),
+                    ...(Object.hasOwn(op, 'operationId') ? { [TASK_METADATA.operation.name]: uuid(op.operationId) } : {}) };
+                argv.push(`--metadata=${JSON.stringify(metadata)}`);
+            }
             argv.push(`--title=${text(op.title, HOSTED_TASK_LIMITS.title)}`, '--');
             break;
         case 'update': {

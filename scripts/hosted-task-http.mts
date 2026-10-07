@@ -74,10 +74,13 @@ function commandObject(text: string): Record<string, unknown> {
   space(); const result = object(false); space(); if (offset !== text.length) invalid();
   return result;
 }
-async function body(request: Request): Promise<Record<string, unknown>> {
+/** A JSON request's text, bounded in bytes and in time. Shared with the MCP
+ * endpoint (hosted-task-mcp), which parses its own JSON-RPC shape. */
+export async function readBoundedJsonText(request: Request, maxBytes: number = BODY_BYTES): Promise<string> {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 1024 * 1024) invalid();
   if (request.signal.aborted || request.bodyUsed || !request.body || request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() !== 'application/json') invalid();
   const declared = request.headers.get('content-length');
-  if (declared !== null && (!/^\d+$/u.test(declared) || Number(declared) > BODY_BYTES)) invalid();
+  if (declared !== null && (!/^\d+$/u.test(declared) || Number(declared) > maxBytes)) invalid();
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = []; let bytes = 0, emptyChunks = 0, timedOut = false;
   const expiresAt = Date.now() + BODY_MS;
@@ -97,17 +100,20 @@ async function body(request: Request): Promise<Record<string, unknown>> {
       if (timedOut || Date.now() >= expiresAt || request.signal.aborted) invalid();
       if (next.done) break;
       if (next.value.byteLength === 0) { if (++emptyChunks > 1024) invalid(); continue; }
-      bytes += next.value.byteLength; if (bytes > BODY_BYTES) invalid();
+      bytes += next.value.byteLength; if (bytes > maxBytes) invalid();
       chunks.push(next.value);
     }
     const joined = new Uint8Array(bytes); let at = 0;
     for (const chunk of chunks) { joined.set(chunk, at); at += chunk.byteLength; }
-    return commandObject(new TextDecoder('utf-8', { fatal: true }).decode(joined));
+    return new TextDecoder('utf-8', { fatal: true }).decode(joined);
   } finally {
     cancel();
     try { await Promise.race([cancellation, deadline]); }
     finally { clearTimeout(timer); request.signal.removeEventListener('abort', cancel); reader.releaseLock(); }
   }
+}
+async function body(request: Request): Promise<Record<string, unknown>> {
+  return commandObject(await readBoundedJsonText(request, BODY_BYTES));
 }
 function query(url: URL, required: readonly string[], optional: readonly string[] = []): Record<string, unknown> {
   const row: Record<string, unknown> = Object.create(null) as Record<string, unknown>;

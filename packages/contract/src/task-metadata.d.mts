@@ -51,6 +51,13 @@ export declare const TASK_METADATA: Readonly<{
         name: "noticeos_task_map_asset";
         legacy: "reindex_task_map_asset";
     }>;
+    /** The server's identity for the hosted write that created this task, so a
+     * retried request can find it (epic ro-cvl9). Server-set only; it was named
+     * after the rename, so its legacy key is the same. */
+    operation: Readonly<{
+        name: "noticeos_operation_id";
+        legacy: "noticeos_operation_id";
+    }>;
 }>;
 export type TaskMetadataName = keyof typeof TASK_METADATA;
 /** The label every Tower handoff bead carries from now on. */

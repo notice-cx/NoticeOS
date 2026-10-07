@@ -8,6 +8,10 @@ import { openTaskDirectory } from '../packages/postgres/src/task-directory.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { createHostedTaskExecutor } from './hosted-task-executor.mjs';
 import { createHostedTasksApi } from './hosted-tasks-api.mjs';
+import { createHostedTaskOperations } from './hosted-task-operations.mjs';
+import { createHostedTaskMcp, TASK_MCP_PATH } from './hosted-task-mcp.mjs';
+import { openStore } from '../packages/postgres/src/store.mjs';
+import { taskReceipts } from '../packages/postgres/src/task-receipts.mjs';
 import { createBrowserRequestPolicy } from './browser-request-policy.mjs';
 function invalid() { throw new Error('Hosted Tasks server configuration refused'); }
 function data(input) {
@@ -63,7 +67,7 @@ function tool(input) {
  * This is not authentication; HTTP callers never supply this configuration. */
 export function captureHostedTaskRuntimeOptions(input) {
     const row = data(input);
-    exact(row, ['profile', 'trustedOrigin', 'identity', 'directoryConnectionString', 'targets', 'binary', 'doltBinary', 'scratchRoot'], ['demoWorkspaceId']);
+    exact(row, ['profile', 'trustedOrigin', 'identity', 'directoryConnectionString', 'targets', 'binary', 'doltBinary', 'scratchRoot'], ['demoWorkspaceId', 'receiptsConnectionString']);
     if (!['hosted', 'demo'].includes(row.profile) || typeof row.trustedOrigin !== 'string')
         invalid();
     const origin = createBrowserRequestPolicy(row.trustedOrigin).origin;
@@ -100,11 +104,15 @@ export function captureHostedTaskRuntimeOptions(input) {
     const scratchRoot = row.scratchRoot;
     if (typeof row.directoryConnectionString !== 'string')
         invalid();
+    if (row.receiptsConnectionString !== undefined && (typeof row.receiptsConnectionString !== 'string'
+        || !/^postgres(?:ql)?:\/\//u.test(row.receiptsConnectionString)))
+        invalid();
     return Object.freeze({ profile, trustedOrigin: origin,
         ...(profile === 'demo' ? { demoWorkspaceId: demo } : {}),
         identity: Object.freeze({ connectionString: identityOptions.connectionString, trustedOrigin: origin, sessionSecret: identityOptions.sessionSecret }),
         directoryConnectionString: row.directoryConnectionString,
-        targets: Object.freeze([...targets.values()]), binary, doltBinary, scratchRoot });
+        targets: Object.freeze([...targets.values()]), binary, doltBinary, scratchRoot,
+        ...(row.receiptsConnectionString === undefined ? {} : { receiptsConnectionString: row.receiptsConnectionString }) });
 }
 export async function openHostedTaskRuntime(input) {
     const configuration = captureHostedTaskRuntimeOptions(input);
@@ -113,6 +121,9 @@ export async function openHostedTaskRuntime(input) {
     // No pool opens for malformed composition above. Directory construction is
     // lazy; the supported identity factory validates its separate role/schema.
     const directory = openTaskDirectory({ connectionString: configuration.directoryConnectionString });
+    // Lazy like the directory: the pool connects on the first keyed write.
+    const store = configuration.receiptsConnectionString === undefined
+        ? undefined : openStore(configuration.receiptsConnectionString, { maxConnections: 2 });
     let identity;
     try {
         identity = await openIdentity(Object.freeze({ connectionString: identityOptions.connectionString,
@@ -130,15 +141,26 @@ export async function openHostedTaskRuntime(input) {
                     return null;
                 return found.target;
             } });
-        const api = createHostedTasksApi({ profile, trustedOrigin: origin, ...(profile === 'demo' ? { demoWorkspaceId: demo } : {}), admission, directory, executor,
-            workspaceActors: workspaceId => facts.workspaceActors(workspaceId) });
+        const workspaceActors = (workspaceId) => facts.workspaceActors(workspaceId);
+        const receipts = store ? taskReceipts(store) : undefined;
+        const selection = profile === 'demo' ? { demoWorkspaceId: demo } : {};
+        const api = createHostedTasksApi({ profile, trustedOrigin: origin, ...selection, admission, directory, executor,
+            workspaceActors, ...(receipts ? { receipts } : {}) });
+        // The MCP endpoint and the HTTP API call the same operations under the same admission.
+        const mcp = createHostedTaskMcp({ profile, trustedOrigin: origin, ...selection,
+            operations: createHostedTaskOperations({ admission, directory, executor, workspaceActors, ...(receipts ? { receipts } : {}) }) });
         let closed = false, closing;
         const pending = new Set();
         return Object.freeze({ profile, origin,
             handle(original) {
                 if (closed)
                     return Promise.resolve(Response.json({ error: 'hosted_task_unavailable' }, { status: 503 }));
-                const work = api(original);
+                let mcpRoute = false;
+                try {
+                    mcpRoute = new URL(original.url).pathname === TASK_MCP_PATH;
+                }
+                catch { /* The API refuses a malformed URL. */ }
+                const work = mcpRoute ? mcp(original) : api(original);
                 pending.add(work);
                 void work.then(() => pending.delete(work), () => pending.delete(work));
                 return work;
@@ -149,7 +171,7 @@ export async function openHostedTaskRuntime(input) {
                 closed = true;
                 closing = (async () => {
                     await Promise.allSettled([...pending]);
-                    const results = await Promise.allSettled([directory.close(), facts.close()]);
+                    const results = await Promise.allSettled([directory.close(), facts.close(), Promise.resolve(store?.close())]);
                     for (const result of results)
                         if (result.status === 'rejected')
                             throw result.reason;
@@ -158,7 +180,7 @@ export async function openHostedTaskRuntime(input) {
             }, });
     }
     catch {
-        await Promise.allSettled([directory.close(), identity?.close()]);
+        await Promise.allSettled([directory.close(), identity?.close(), Promise.resolve(store?.close())]);
         invalid();
     }
 }

@@ -19,6 +19,9 @@ export interface HostedTaskRuntimeOptions {
     readonly binary: HostedTaskExecutorOptions['binary'];
     readonly doltBinary: HostedTaskExecutorOptions['doltBinary'];
     readonly scratchRoot: string;
+    /** The application store (noticeos_app) holding task write receipts. Absent,
+     * writes still work but a request carrying an idempotency key is refused. */
+    readonly receiptsConnectionString?: string;
 }
 export interface HostedTaskRuntime {
     readonly profile: 'hosted' | 'demo';

@@ -208,3 +208,14 @@ test('server snapshot batch is a read-only fixed shape without physical or CLI s
     denied(() => createHostedTaskPlanner(entries)(A, request({ ...operation, ...patch })));
   }
 });
+
+test('a create carries the server operation identity as metadata; a caller cannot name it', () => {
+  const plan = createHostedTaskPlanner(entries);
+  const operationId = '77777777-1111-4111-8111-111111111111';
+  const created = plan(A, { projectId: 'shared', operation: { kind: 'create', title: 'Task', operationId,
+    metadata: { noticeos_source: 'noticeos-handoff' } } });
+  assert.ok(created.argv.includes(`--metadata=${JSON.stringify({ noticeos_source: 'noticeos-handoff', noticeos_operation_id: operationId })}`));
+  assert.throws(() => plan(A, { projectId: 'shared', operation: { kind: 'create', title: 'Task', metadata: { noticeos_operation_id: operationId } } }));
+  assert.throws(() => plan(A, { projectId: 'shared', operation: { kind: 'create', title: 'Task', operationId: 'not-a-uuid' } }));
+  assert.throws(() => plan(A, { projectId: 'shared', operation: { kind: 'update', taskId: 'tt-a', title: 'x', operationId } }));
+});

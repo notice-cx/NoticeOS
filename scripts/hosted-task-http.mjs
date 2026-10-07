@@ -93,11 +93,15 @@ function commandObject(text) {
         invalid();
     return result;
 }
-async function body(request) {
+/** A JSON request's text, bounded in bytes and in time. Shared with the MCP
+ * endpoint (hosted-task-mcp), which parses its own JSON-RPC shape. */
+export async function readBoundedJsonText(request, maxBytes = BODY_BYTES) {
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 1024 * 1024)
+        invalid();
     if (request.signal.aborted || request.bodyUsed || !request.body || request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() !== 'application/json')
         invalid();
     const declared = request.headers.get('content-length');
-    if (declared !== null && (!/^\d+$/u.test(declared) || Number(declared) > BODY_BYTES))
+    if (declared !== null && (!/^\d+$/u.test(declared) || Number(declared) > maxBytes))
         invalid();
     const reader = request.body.getReader();
     const chunks = [];
@@ -127,7 +131,7 @@ async function body(request) {
                 continue;
             }
             bytes += next.value.byteLength;
-            if (bytes > BODY_BYTES)
+            if (bytes > maxBytes)
                 invalid();
             chunks.push(next.value);
         }
@@ -137,7 +141,7 @@ async function body(request) {
             joined.set(chunk, at);
             at += chunk.byteLength;
         }
-        return commandObject(new TextDecoder('utf-8', { fatal: true }).decode(joined));
+        return new TextDecoder('utf-8', { fatal: true }).decode(joined);
     }
     finally {
         cancel();
@@ -150,6 +154,9 @@ async function body(request) {
             reader.releaseLock();
         }
     }
+}
+async function body(request) {
+    return commandObject(await readBoundedJsonText(request, BODY_BYTES));
 }
 function query(url, required, optional = []) {
     const row = Object.create(null);

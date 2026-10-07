@@ -2,10 +2,14 @@
 /** Tower-compatible Tasks API in the trusted Node server. The private directory
  * supplies selectors, not authorization; every child command independently
  * reloads current session, workspace and physical mapping before dispatch.
+ * Reads and writes are the shared hosted task operations the MCP endpoint
+ * also uses (hosted-task-operations); this file is the HTTP wire format.
  */
 import type { TaskDirectory } from '../packages/postgres/src/task-directory.mjs';
+import type { TaskReceipts } from '../packages/postgres/src/task-receipts.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
 import type { HostedTaskExecutor } from './hosted-task-executor.mjs';
+import { type HostedTaskWriteOutcome } from './hosted-task-operations.mjs';
 import type { WorkspaceActor } from '../packages/postgres/src/identity.mjs';
 export interface HostedTasksApiOptions {
     readonly profile: 'hosted' | 'demo';
@@ -15,5 +19,11 @@ export interface HostedTasksApiOptions {
     readonly directory: Pick<TaskDirectory, 'catalog'>;
     readonly executor: Pick<HostedTaskExecutor, 'execute'>;
     readonly workspaceActors?: (workspaceId: string) => Promise<readonly WorkspaceActor[]>;
+    /** Retry-safe writes; absent, a request carrying Idempotency-Key answers 503. */
+    readonly receipts?: TaskReceipts;
 }
+/** A write's optional retry key (epic ro-cvl9); see docs/23 for its semantics. */
+export declare const IDEMPOTENCY_HEADER = "idempotency-key";
+/** The HTTP answer to a write outcome; the MCP adapter answers the same three. */
+export declare function writeResponse(outcome: HostedTaskWriteOutcome): Response;
 export declare function createHostedTasksApi(options: HostedTasksApiOptions): (original: Request) => Promise<Response>;
