@@ -18,6 +18,10 @@
       "types": "./src/email-code.d.mts",
       "default": "./src/email-code.mjs"
     },
+    "./agent-sign-in": {
+      "types": "./src/agent-sign-in.d.mts",
+      "default": "./src/agent-sign-in.mjs"
+    },
     "./membership": {
       "types": "./src/membership.d.mts",
       "default": "./src/membership.mjs"
@@ -64,9 +68,11 @@
   },
   "dependencies": {
     "@better-auth/core": "1.7.7",
-    "pg": "8.23.0",
-    "better-auth": "1.7.7",
     "@better-auth/kysely-adapter": "1.7.7",
-    "kysely": "0.29.6"
+    "@better-auth/oauth-provider": "1.7.7",
+    "better-auth": "1.7.7",
+    "jose": "6.2.12",
+    "kysely": "0.29.6",
+    "pg": "8.23.0"
   }
 }

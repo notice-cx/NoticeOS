@@ -12,6 +12,7 @@ import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from './browse
 import { HostedTaskReceiptsUnavailable, type HostedTaskOperations, type HostedTaskWriteOutcome } from './hosted-task-operations.mjs';
 import { HOSTED_TASK_LIMITS, type HostedTaskOperation, type HostedTaskStatus, type HostedTaskType } from './hosted-task-command.mjs';
 import { McpToolError, serveMcp, type McpServer } from './mcp-protocol.mjs';
+import { bearerChallenge, bearerToken, requiredScopes, scopesSatisfy } from './agent-access.mjs';
 import { toComment, toLiveTask } from './task-row.mjs';
 import { IDEMPOTENCY_KEY } from '../packages/postgres/src/task-receipts.mjs';
 
@@ -29,6 +30,10 @@ export interface HostedTaskMcpOptions {
   readonly trustedOrigin: string;
   readonly demoWorkspaceId?: string;
   readonly operations: HostedTaskOperations;
+  /** Agent sign-in (agent-access.mts), hosted only: verifies a bearer
+   * request's token for this endpoint. Without it, a bearer request is
+   * refused. Admission verifies it again, with fresh membership, per call. */
+  readonly agents?: { verify(request: Request): Promise<{ readonly workspaceId: string; readonly scopes: readonly string[] } | null> };
 }
 
 function refuse(message: string): never { throw new McpToolError(message); }
@@ -261,7 +266,9 @@ export function createHostedTaskMcp(options: HostedTaskMcpOptions): (original: R
   if (!['hosted', 'demo'].includes(profile) || !operations || typeof operations.write !== 'function') throw new Error('Task MCP configuration refused');
   const demo = profile === 'demo' && typeof options.demoWorkspaceId === 'string' && UUID.test(options.demoWorkspaceId)
     ? options.demoWorkspaceId : undefined;
-  if (profile === 'demo' && !demo || profile === 'hosted' && options.demoWorkspaceId !== undefined) throw new Error('Task MCP configuration refused');
+  if (profile === 'demo' && !demo || profile === 'hosted' && options.demoWorkspaceId !== undefined
+    || options.agents !== undefined && (profile !== 'hosted' || typeof options.agents.verify !== 'function')) throw new Error('Task MCP configuration refused');
+  const agents = options.agents;
   const invalid = (message: string) => Response.json({ jsonrpc: '2.0', id: null, error: { code: -32600, message } },
     { status: 400, headers: { 'cache-control': 'no-store' } });
   return async original => {
@@ -271,9 +278,25 @@ export function createHostedTaskMcp(options: HostedTaskMcpOptions): (original: R
       return invalid('invalid request');
     }
     const header = original.headers.get(WORKSPACE_SELECTION_HEADER);
-    const workspaceId = profile === 'demo' ? demo! : header ?? '';
-    if (!UUID.test(workspaceId) || profile === 'demo' && header !== null && header !== demo) {
-      return invalid(`select a workspace with the ${WORKSPACE_SELECTION_HEADER} header`);
+    // An agent signs in (agent-access.mts): no credential at all is a 401
+    // naming where to; its token names the workspace and the scopes it holds.
+    const bearer = bearerToken(original.headers);
+    let workspaceId: string, scopes: readonly string[] | null = null;
+    if (agents && (bearer === false || bearer === null && !original.headers.has('cookie'))) {
+      return bearerChallenge(origin, 'tasks', bearer === false ? { error: 'invalid_token' } : undefined);
+    }
+    if (bearer !== null) {
+      if (!agents || bearer === false) return invalid('this endpoint does not accept bearer tokens');
+      let agent: Awaited<ReturnType<typeof agents.verify>>;
+      try { agent = await agents.verify(original); } catch { agent = null; }
+      if (!agent) return bearerChallenge(origin, 'tasks', { error: 'invalid_token' });
+      if (header !== null && header !== agent.workspaceId) return invalid('this token is for another workspace');
+      ({ workspaceId, scopes } = agent);
+    } else {
+      workspaceId = profile === 'demo' ? demo! : header ?? '';
+      if (!UUID.test(workspaceId) || profile === 'demo' && header !== null && header !== demo) {
+        return invalid(`select a workspace with the ${WORKSPACE_SELECTION_HEADER} header`);
+      }
     }
     // The parsed body is not forwarded: admission reads only request metadata.
     const proof = new Request(original.url, { method: original.method, headers: new Headers(original.headers), signal: original.signal });
@@ -287,6 +310,13 @@ export function createHostedTaskMcp(options: HostedTaskMcpOptions): (original: R
         throw new McpToolError('refused: this workspace, project or task is not available to you, or the change was not accepted');
       }
     } };
-    return serveMcp(original, server, { origin, maxBytes: BODY_BYTES });
+    // A tool that changes tasks needs tasks:write; any other needs tasks:read.
+    const authorize = scopes === null ? undefined : (message: { method: string; params: Readonly<Record<string, unknown>> }) => {
+      if (message.method !== 'tools/call') return null;
+      const tool = TASK_MCP_TOOLS.find(candidate => candidate.name === message.params.name);
+      const needed = requiredScopes('tasks', tool?.annotations.readOnlyHint === false);
+      return scopesSatisfy(scopes!, needed) ? null : bearerChallenge(origin, 'tasks', { error: 'insufficient_scope', scopes: needed });
+    };
+    return serveMcp(original, server, { origin, maxBytes: BODY_BYTES, ...(authorize ? { authorize } : {}) });
   };
 }

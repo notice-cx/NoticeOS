@@ -4,6 +4,7 @@ import { createBrowserRuntime } from './browser-runtime';
 import { fetchBrowserSession, tabSelectionKey, type BrowserSession, type WorkspaceChoice } from './browser-session';
 import { createBrowserAuth } from './browser-auth';
 import { parseEmailEnrollmentLanding, type EmailEnrollmentLanding } from '../../../../scripts/identity-protocol.mjs';
+import type { AgentAccessLanding } from '../../../../scripts/agent-access.mjs';
 
 /** Capture at document entry, outside React's repeated effect setup. */
 export function captureBrowserLanding(page: Window): EmailEnrollmentLanding {
@@ -15,7 +16,7 @@ export function captureBrowserLanding(page: Window): EmailEnrollmentLanding {
 
 export type BrowserUiRuntime = ReturnType<typeof createBrowserRuntime<(keepalive: boolean) => Promise<void>>>;
 export type BrowserEntryState = Readonly<{
-  phase: 'checking' | 'ready' | 'choose' | 'signed-out' | 'invitation' | 'unavailable' | 'invalid-link';
+  phase: 'checking' | 'ready' | 'choose' | 'agent' | 'signed-out' | 'invitation' | 'unavailable' | 'invalid-link';
   session: BrowserSession | null;
   choices: readonly WorkspaceChoice[];
   runtime: BrowserUiRuntime | null;
@@ -30,6 +31,9 @@ export function createBrowserEntry(options: {
   fetch: ApiTransport;
   page: Window;
   landing: EmailEnrollmentLanding;
+  /** An agent asking to connect (agent-access.mts): the person signs in if
+   * needed, then decides on the agent page instead of opening a workspace. */
+  agent?: AgentAccessLanding;
   base?: string;
   compiledDemoWorkspace?: string;
   appRelease?: ReturnType<typeof createAppRelease>;
@@ -105,6 +109,10 @@ export function createBrowserEntry(options: {
       }
       if (Date.parse(session.session.expiresAt) <= Date.now()) {
         set({ phase: 'signed-out', session: null, choices: [], runtime: null, label: null, loadingMore: false });
+        return;
+      }
+      if (options.agent?.kind === 'agent') {
+        set({ phase: 'agent', session, choices: session.workspaces, runtime: null, label: null, loadingMore: false });
         return;
       }
       if (session.selectedWorkspace === null) {
@@ -262,7 +270,8 @@ export function createBrowserEntry(options: {
       if (fresh.mode === 'hosted' && fresh.session) storage?.removeItem(tabSelectionKey(fresh.session));
     } catch { if (current(ticket)) await refresh(); return; }
     enrollmentCompleted = true;
-    options.page.history.replaceState(null, '', '/');
+    // The agent page keeps its signed query; it leaves for the agent anyway.
+    if (options.agent?.kind !== 'agent') options.page.history.replaceState(null, '', '/');
     await refresh();
   }
   async function signedIn() { await completeSignIn(); }
@@ -285,6 +294,9 @@ export function createBrowserEntry(options: {
     refresh, choose, loadMore, switchWorkspace, logout, signedIn, joinInvitation,
     auth: createBrowserAuth(fetch),
     get enrollment() { return landing.kind === 'enrollment' && !enrollmentCompleted ? landing.enrollment : undefined; },
+    /** The agent's signed query, while this tab is an agent page. */
+    get agentQuery() { return options.agent?.kind === 'agent' ? options.agent.query : undefined; },
+    fetch,
     dispose() {
       if (disposed) return;
       relinquish(); disposed = true; releaseProbe?.abort(); request?.abort(); ++revision; listeners.clear();

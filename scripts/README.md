@@ -739,13 +739,44 @@ metadata, a comment by its author, text and time. Update, claim and close
 repeat without a second effect (the pinned task client's behavior, proved by
 `pnpm test:task-store`). MCP results use the Tower's task and comment shapes,
 never the task store's own field names, and no human decision is a tool. MCP
-admission is the browser session's for now; agent sign-in is separate work.
+admission is the browser session's or, for agents, an OAuth token (below).
 Both MCP endpoints, this one and the Tower's `/api/mcp`, share one transport
 ([`mcp-protocol.mts`](mcp-protocol.mts)) that answers 2026-07-28 clients
 (version and capabilities in each request's `_meta`, routing headers that must
 match the body, `server/discover`) and `initialize`-based clients of 2025-11-25,
 2025-06-18 and 2025-03-26 on the same route, with no session state; its
 [suite](mcp-protocol.test.mjs) pins both eras.
+
+**Agent sign-in** (epic `ro-cvl9`; [`agent-access.mts`](agent-access.mts),
+[`agent-sign-in.mts`](../packages/postgres/src/agent-sign-in.mts)). Both MCP
+endpoints are OAuth 2.1 protected resources as MCP's authorization
+specification defines them. An agent with no credential gets a 401 whose
+`WWW-Authenticate` names the endpoint's protected-resource metadata; that
+names the authorization server at `<origin>/api/auth`, the identity engine's
+maintained OAuth provider. The agent registers itself (dynamic registration; a
+registration that redirects only to loopback is a native app), opens the
+person's browser on the Tower's `/agent-access` page, and exchanges the code,
+with PKCE and the endpoint as its resource, for a one-hour JWT access token and
+a 30-day refresh token. On the page the person signs in with the ordinary email
+code if needed and chooses the workspace the agent may use, or denies it.
+
+| Scope | Grants |
+|---|---|
+| `tasks:read` | `tasks.read` at `/api/tasks/mcp` |
+| `tasks:write` | `tasks.read` and `tasks.write` there |
+| `evidence:read` | `evidence.read` at `/api/mcp` |
+
+No scope reaches `tasks.decide`, membership or a protected operation. A token
+works only at the endpoint it was issued for and only in the workspace its
+person chose; it acts as that person, with that person's current role bounding
+its scopes (a viewer's agent only reads). Every request rechecks the token's
+signature and the person's membership, the workspace's lifecycle, the consent
+and the client, so removing any one cuts the agent off at once. A missing scope
+is a 403 with `insufficient_scope`. Client ID Metadata Documents are not yet
+accepted: the library's plugin needs an SSRF-safe fetch transport for the
+Worker runtime. Applying `0014_agent_sign_in.sql` and serving agent sign-in on a
+public origin are operator steps; with both, an agent connects with, for
+example, `claude mcp add --transport http noticeos-tasks <origin>/api/tasks/mcp`.
 
 ### Hosted runtime composition and recovery
 

@@ -57,6 +57,7 @@
     "packages/postgres/src/identity.mts",
     "packages/postgres/src/identity-engine.mts",
     "packages/postgres/src/email-code.mts",
+    "packages/postgres/src/agent-sign-in.mts",
     "packages/postgres/src/membership.mts",
     "packages/postgres/src/browser-session.mts",
     "packages/postgres/src/task-directory.mts",

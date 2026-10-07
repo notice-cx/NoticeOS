@@ -12,6 +12,7 @@ import { createHostedTaskMcp, TASK_MCP_PATH } from './hosted-task-mcp.mjs';
 import { openStore, type PostgresStore } from '../packages/postgres/src/store.mjs';
 import { taskReceipts } from '../packages/postgres/src/task-receipts.mjs';
 import { createBrowserRequestPolicy } from './browser-request-policy.mjs';
+import { resourceForPath } from './agent-access.mjs';
 
 export interface HostedTaskRuntimeOptions {
   readonly profile: 'hosted' | 'demo';
@@ -126,7 +127,10 @@ export async function openHostedTaskRuntime(input: HostedTaskRuntimeOptions): Pr
     const facts = identity;
     const admission: WorkspaceAdmission = profile === 'hosted'
       ? createWorkspaceAdmission({ kind: 'hosted', profile: Symbol(), trustedOrigin: origin,
-        membership: (headers, workspaceId) => facts.admissionMembership(headers, workspaceId) })
+        membership: (headers, workspaceId) => facts.admissionMembership(headers, workspaceId),
+        // Agent sign-in (agent-access.mts): only the MCP endpoint is a resource.
+        agent: async request => resourceForPath(new URL(request.url).pathname) === 'tasks'
+          ? facts.agentAuthority(request, 'tasks') : null })
       : createWorkspaceAdmission({ kind: 'demo', profile: Symbol(), workspaceId: demo as string,
         workspaceStatus: async () => (await facts.workspaceSummary(demo as string))?.status ?? null });
     const executor = createHostedTaskExecutor({ admission, directory, binary, doltBinary, scratchRoot,
@@ -142,6 +146,7 @@ export async function openHostedTaskRuntime(input: HostedTaskRuntimeOptions): Pr
       workspaceActors, ...(receipts ? { receipts } : {}) });
     // The MCP endpoint and the HTTP API call the same operations under the same admission.
     const mcp = createHostedTaskMcp({ profile, trustedOrigin: origin, ...selection,
+      ...(profile === 'hosted' ? { agents: { verify: (request: Request) => facts.agentAuthority(request, 'tasks') } } : {}),
       operations: createHostedTaskOperations({ admission, directory, executor, workspaceActors, ...(receipts ? { receipts } : {}) }) });
     let closed = false, closing: Promise<void> | undefined;
     const pending = new Set<Promise<Response>>();

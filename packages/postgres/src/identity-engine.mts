@@ -2,12 +2,15 @@
 // actions; the raw library handler and organization administration stay private.
 import { Pool } from 'pg';
 import { betterAuth } from 'better-auth/minimal';
-import { organization, emailOTP } from 'better-auth/plugins';
+import { organization, emailOTP, jwt } from 'better-auth/plugins';
+import { oauthProvider } from '@better-auth/oauth-provider';
 import { defaultAc, ownerAc } from 'better-auth/plugins/organization/access';
 import { createAuthMiddleware, formCsrfMiddleware } from 'better-auth/api';
 import { kyselyAdapter } from '@better-auth/kysely-adapter';
 import { Kysely, PostgresDialect, sql, type Transaction } from 'kysely';
-import type { AuthContext } from '@better-auth/core';
+import type { AuthContext, BetterAuthPlugin } from '@better-auth/core';
+import { AGENT_ACCESS_PAGE, AGENT_ACCESS_SECONDS, AGENT_REFRESH_SECONDS, AGENT_RESOURCES, AGENT_SCOPES, OFFLINE_ACCESS,
+  WORKSPACE_CLAIM, agentResourceUri, type AgentResource } from '../../../scripts/agent-access.mjs';
 export const IDENTITY_ROLE = 'noticeos_identity';
 export const IDENTITY_SCHEMA = 'noticeos_identity';
 export interface IdentityOptions {
@@ -37,6 +40,40 @@ export const IDENTITY_NAMES = {
     member: { modelName: 'auth_member', fields: { organizationId: 'organization_id', userId: 'user_id', createdAt: 'created_at' } },
     invitation: { modelName: 'auth_invitation', fields: { organizationId: 'organization_id', expiresAt: 'expires_at', createdAt: 'created_at', inviterId: 'inviter_id' } },
     session: { fields: { activeOrganizationId: 'active_organization_id' } },
+  },
+} as const;
+
+/** The library's camelCase field, as the store's snake_case column. */
+function snake(name: string): string {
+  return name.replace(/([a-z0-9])([A-Z])/gu, '$1_$2').replace(/([A-Z])([A-Z][a-z])/gu, '$1_$2').toLowerCase();
+}
+function model<const F extends readonly string[]>(modelName: string, fields: F) {
+  return { modelName, fields: Object.fromEntries(fields.map(field => [field, snake(field)])) as Record<F[number], string> };
+}
+/** Agent sign-in's maintained tables (epic ro-cvl9; migration 0014): signing
+ * keys, OAuth clients, the protected resources, tokens and consents. */
+export const AGENT_NAMES = {
+  jwks: model('auth_jwks', ['publicKey', 'privateKey', 'createdAt', 'expiresAt', 'alg', 'crv']),
+  oauth: {
+    oauthClient: model('auth_oauth_client', ['clientId', 'clientSecret', 'clientDiscoveryId', 'disabled', 'skipConsent',
+      'enableEndSession', 'subjectType', 'scopes', 'clientCredentialsScopes', 'userId', 'createdAt', 'updatedAt', 'name',
+      'uri', 'icon', 'contacts', 'tos', 'policy', 'softwareId', 'softwareVersion', 'softwareStatement', 'redirectUris',
+      'postLogoutRedirectUris', 'backchannelLogoutUri', 'backchannelLogoutSessionRequired', 'tokenEndpointAuthMethod',
+      'applicationType', 'jwks', 'jwksUri', 'grantTypes', 'responseTypes', 'requirePKCE', 'dpopBoundAccessTokens',
+      'referenceId', 'metadata']),
+    oauthResource: model('auth_oauth_resource', ['identifier', 'name', 'accessTokenTtl', 'refreshTokenTtl',
+      'signingAlgorithm', 'signingKeyId', 'allowedScopes', 'customClaims', 'dpopBoundAccessTokensRequired', 'disabled',
+      'createdAt', 'updatedAt', 'policyVersion', 'metadata']),
+    oauthClientResource: model('auth_oauth_client_resource', ['clientId', 'resourceId', 'metadata', 'createdAt']),
+    oauthRefreshToken: model('auth_oauth_refresh_token', ['token', 'clientId', 'sessionId', 'userId', 'referenceId',
+      'authorizationCodeId', 'resources', 'requestedUserInfoClaims', 'expiresAt', 'createdAt', 'revoked', 'rotatedAt',
+      'rotationReplayResponse', 'rotationReplayExpiresAt', 'authTime', 'confirmation', 'scopes']),
+    oauthAccessToken: model('auth_oauth_access_token', ['token', 'clientId', 'sessionId', 'userId', 'referenceId',
+      'authorizationCodeId', 'resources', 'requestedUserInfoClaims', 'refreshId', 'expiresAt', 'createdAt', 'revoked',
+      'confirmation', 'scopes']),
+    oauthConsent: model('auth_oauth_consent', ['clientId', 'userId', 'referenceId', 'resources', 'requestedUserInfoClaims',
+      'scopes', 'createdAt', 'updatedAt']),
+    oauthClientAssertion: model('auth_oauth_client_assertion', ['expiresAt']),
   },
 } as const;
 
@@ -103,6 +140,45 @@ interface EngineOptions {
   readonly deliver?: (message: EmailCodeMessage) => void;
   /** Capture only. The membership module delivers after its outer commit. */
   readonly invitation?: (message: InvitationMessage) => void;
+  /** The OAuth authorization server for agents (agent-sign-in.mts). */
+  readonly agents?: true;
+}
+/** The workspace a session chose for the agent it is approving, set only
+ * for the length of one approval (agent-sign-in.mts). */
+function chosenWorkspace(session: Record<string, unknown>): string | undefined {
+  const value = session.activeOrganizationId;
+  return typeof value === 'string' && UUID.test(value) ? value : undefined;
+}
+/** Exported for schema qualification (the 0014 parity proof). */
+export function agentPlugins(baseURL: string): BetterAuthPlugin[] {
+  const scopes = [...Object.keys(AGENT_SCOPES), OFFLINE_ACCESS];
+  const resources = (Object.keys(AGENT_RESOURCES) as AgentResource[]).map(key => agentResourceUri(baseURL, key));
+  return [jwt({ schema: { jwks: AGENT_NAMES.jwks } }), oauthProvider({
+    schema: AGENT_NAMES.oauth,
+    // One page signs the person in, takes the workspace and records the
+    // decision; the library redirects there for each of those steps.
+    loginPage: AGENT_ACCESS_PAGE, consentPage: AGENT_ACCESS_PAGE,
+    postLogin: {
+      page: AGENT_ACCESS_PAGE,
+      shouldRedirect: ({ session }) => chosenWorkspace(session) === undefined,
+      consentReferenceId: ({ session }) => {
+        const workspace = chosenWorkspace(session);
+        if (!workspace) throw new IdentityRefused('Agent workspace unavailable');
+        return workspace;
+      },
+    },
+    scopes,
+    resources: (Object.keys(AGENT_RESOURCES) as AgentResource[]).map(key => ({ identifier: agentResourceUri(baseURL, key),
+      name: AGENT_RESOURCES[key].name, allowedScopes: [...AGENT_RESOURCES[key].scopes, OFFLINE_ACCESS] })),
+    grantTypes: ['authorization_code', 'refresh_token'],
+    allowDynamicClientRegistration: true, allowUnauthenticatedClientRegistration: true,
+    clientRegistrationDefaultScopes: scopes, clientRegistrationAllowedScopes: scopes,
+    clientRegistrationDefaultResources: resources, clientRegistrationAllowedResources: resources,
+    clientRegistrationRequirePKCE: true,
+    accessTokenExpiresIn: AGENT_ACCESS_SECONDS, refreshTokenExpiresIn: AGENT_REFRESH_SECONDS,
+    storeTokens: 'hashed', storeClientSecret: 'hashed',
+    customAccessTokenClaims: ({ referenceId }) => (referenceId && UUID.test(referenceId) ? { [WORKSPACE_CLAIM]: referenceId } : {}),
+  })];
 }
 interface IdentityEngine {
   readonly $context: Promise<Pick<AuthContext, 'internalAdapter' | 'options' | 'checkSchema'>>;
@@ -167,7 +243,7 @@ export function identityEngine(database: Kysely<IdentityDatabase> | Transaction<
       database: { generateId: 'uuid', validateSchema: options.validateSchema },
       ...(options.peer ? { ipAddress: { ipAddressHeaders: ['x-noticeos-trusted-peer'] } } : {}),
     },
-    ...(options.emailCode ? { rateLimit: { enabled: Boolean(options.peer) && !options.validateSchema, storage: 'database' as const, modelName: 'auth_rate_limit', fields: { key: 'key', count: 'count', lastRequest: 'last_request' } } } : {}),
+    ...(options.emailCode || options.agents ? { rateLimit: { enabled: Boolean(options.peer) && !options.validateSchema, storage: 'database' as const, modelName: 'auth_rate_limit', fields: { key: 'key', count: 'count', lastRequest: 'last_request' } } } : {}),
     user: IDENTITY_NAMES.user, account: IDENTITY_NAMES.account, verification: IDENTITY_NAMES.verification,
     session: { ...IDENTITY_NAMES.session, cookieCache: { enabled: false },
       ...(options.readOnlySession ? { deferSessionRefresh: true } : {}) },
@@ -186,6 +262,7 @@ export function identityEngine(database: Kysely<IdentityDatabase> | Transaction<
           role: message.role, expiresAt: message.invitation.expiresAt.toISOString() }));
       } } : {}),
     }),
+      ...(options.agents ? agentPlugins(baseURL) : []),
       ...(options.emailCode ? [emailOTP({ storeOTP: 'hashed', allowedAttempts: 3, expiresIn: 300,
         sendVerificationOTP: async (message) => {
           if (message.type !== 'sign-in' || !options.deliver) throw new IdentityRefused('Identity action unavailable');

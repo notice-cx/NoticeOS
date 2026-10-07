@@ -6,6 +6,15 @@ export interface HostedTaskMcpOptions {
     readonly trustedOrigin: string;
     readonly demoWorkspaceId?: string;
     readonly operations: HostedTaskOperations;
+    /** Agent sign-in (agent-access.mts), hosted only: verifies a bearer
+     * request's token for this endpoint. Without it, a bearer request is
+     * refused. Admission verifies it again, with fresh membership, per call. */
+    readonly agents?: {
+        verify(request: Request): Promise<{
+            readonly workspaceId: string;
+            readonly scopes: readonly string[];
+        } | null>;
+    };
 }
 type Args = Record<string, unknown>;
 interface ToolContext {

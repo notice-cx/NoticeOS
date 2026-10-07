@@ -287,6 +287,22 @@ after that additive migration. Production receiver enablement is separate
 Native and ordinary Worker fixtures are in
 [`postgres-mutation-audit.test.mjs`](../../scripts/postgres-mutation-audit.test.mjs).
 
+The `./agent-sign-in` module is agent sign-in's authorization server (epic
+`ro-cvl9`): the identity engine's maintained OAuth 2.1 provider
+(`@better-auth/oauth-provider` 1.7.7 with Better Auth's JWT plugin) behind fixed
+routes only. It serves the two MCP resources' protected-resource metadata, the
+authorization-server metadata, authorize, token, dynamic registration, revoke
+and the signing keys, plus the agent page's two calls. Approval is one
+transaction that locks the person's session, checks membership and role, sets
+the chosen workspace on the session for the library's consent step to record
+as its reference, and clears it again before commit. A viewer's agent never
+receives a write scope. The identity facts gain `agentAuthority`, which verifies
+an access token against this deployment's key, issuer and the one MCP resource
+it was issued for, then requires the person's membership in an active
+workspace, a live consent naming that workspace, and an enabled client in one
+observation. Both require `0014_agent_sign_in.sql`. Proofs are in
+[`postgres-agent-sign-in.test.mjs`](../../scripts/postgres-agent-sign-in.test.mjs).
+
 The `./task-receipts` module records retry-safe hosted task writes (epic
 `ro-cvl9`) in `noticeos.task_operation_receipts`. One receipt binds an
 idempotency key, scoped to the workspace, the admitted principal and the

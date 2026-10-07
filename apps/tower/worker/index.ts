@@ -22,6 +22,8 @@ import { snapshotRpcData } from "./rpc-data";
 
 import { BROWSER_SESSION_PATH, handleBrowserSessionRequest } from './browser-session-route';
 import { handleAuthRequest, type AuthEntryBindings } from './auth-route';
+import { handleAgentSignInRequest, isAgentSignInPath } from './agent-sign-in-route';
+import { bearerChallenge, bearerToken } from '../../../scripts/agent-access.mjs';
 import { handleMembershipRequest } from './membership-route';
 import { MEMBERSHIP_PATH, ACCEPT_INVITATION_PATH } from '../../../scripts/identity-protocol.mjs';
 import { demoViewer } from '../shared/demo-viewer';
@@ -475,6 +477,11 @@ const towerHandler = {
     if ([MEMBERSHIP_PATH, ACCEPT_INVITATION_PATH].includes(new URL(request.url).pathname)) {
       return handleMembershipRequest(request, env);
     }
+    // Agent sign-in's discovery documents and OAuth routes come before the
+    // email-code entry, which answers only its own three paths.
+    if (isAgentSignInPath(new URL(request.url).pathname)) {
+      return handleAgentSignInRequest(request, env);
+    }
     if (new URL(request.url).pathname.startsWith('/api/auth/')) {
       return handleAuthRequest(request, env);
     }
@@ -662,6 +669,11 @@ const towerHandler = {
           });
         } catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
       }
+      // An agent with no credential is told where to sign in (agent-access.mts).
+      const agentBearer = pathname === '/api/mcp' && profile === 'hosted' ? bearerToken(request.headers) : null;
+      if (pathname === '/api/mcp' && profile === 'hosted' && (agentBearer === false || agentBearer === null && !request.headers.has('cookie'))) {
+        return bearerChallenge(workspaceEntryOrigin(env), 'evidence', agentBearer === false ? { error: 'invalid_token' } : undefined);
+      }
       if (['/api/mcp', '/api/alerts/backtest'].includes(pathname)) {
         try {
           const proof = request.clone();
@@ -693,7 +705,11 @@ const towerHandler = {
             if (receiverFailed) throw new Error('Workspace receiver refused.');
             return response;
           });
-        } catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
+        } catch {
+          // A refused agent token is a 401, so its client signs in again.
+          if (typeof agentBearer === 'string') return bearerChallenge(workspaceEntryOrigin(env), 'evidence', { error: 'invalid_token' });
+          return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 });
+        }
       }
       const watchHistory = watchQueryHistoryRequest(request);
       if (watchHistory) {

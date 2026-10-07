@@ -483,7 +483,11 @@ carries its version and client capabilities in `_meta` with matching
 call `server/discover` instead of a handshake; and the `initialize` handshake of
 2025-11-25, 2025-06-18 and 2025-03-26. Bodies are `application/json`, at most
 256 KiB, without duplicate keys or batches; a browser `Origin` other than the
-Tower's own is refused.
+Tower's own is refused. In a hosted deployment an agent signs in with OAuth
+(agent sign-in, [scripts/README.md](../../scripts/README.md#explicit-local-hosted-tasks-entry)):
+a request with no credential gets a 401 naming where, and the person approves
+the agent for one workspace on the `/agent-access` page; its token carries
+`evidence:read` for this endpoint only.
 
 | Tool | Answers |
 | --- | --- |
