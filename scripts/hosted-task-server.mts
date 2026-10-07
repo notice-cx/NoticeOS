@@ -10,6 +10,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { stripJsonc } from './jsonc.mjs';
 import { PRODUCT_ENV } from './product-env.mjs';
 import { openHostedTaskRuntime, captureHostedTaskRuntimeOptions, type HostedTaskRuntimeOptions, type HostedTaskRuntime } from './hosted-task-runtime.mjs';
+import { MCP_PATH, READ_MODELS_HEADER } from './hosted-mcp.mjs';
 
 interface ViteServer {
   listen(): Promise<unknown>;
@@ -60,7 +61,10 @@ export function hostedTasksPlugin(runtime: HostedTaskRuntime) {
     configureServer(server: MiddlewareServer) {
       server.middlewares.use((incoming, outgoing, next) => {
         const route = incoming.url?.split('?')[0] ?? '';
-        if (route !== '/api/tasks' && !route.startsWith('/api/tasks/') && !route.startsWith('/api/gates/')) { next(); return; }
+        // The one MCP endpoint is answered here; its own forwarded read-model
+        // call goes on to the Worker.
+        const mcp = route === MCP_PATH && incoming.headers[READ_MODELS_HEADER] === undefined;
+        if (!mcp && route !== '/api/tasks' && !route.startsWith('/api/tasks/') && !route.startsWith('/api/gates/')) { next(); return; }
         const abort = new AbortController();
         const stop = () => abort.abort();
         const disconnected = () => { if (!outgoing.writableEnded) stop(); };
@@ -163,7 +167,8 @@ export async function startHostedTaskServer(options: {
   };
   let runtime: HostedTaskRuntime | undefined, server: ViteServer | undefined;
   try {
-    runtime = await openHostedTaskRuntime(configuration);
+    // Read-model MCP calls reach the Worker through this same server.
+    runtime = await openHostedTaskRuntime(configuration, { readModels: request => fetch(request) });
     const createViteServer = options.createViteServer ?? (async (inline: HostedTaskViteOptions) => {
       const require = createRequire(path.join(root, 'apps/tower/package.json'));
       const vite = await import(require.resolve('vite')) as { createServer(options: object): Promise<ViteServer> };

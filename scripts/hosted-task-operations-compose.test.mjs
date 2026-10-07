@@ -7,7 +7,7 @@ import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { createHostedTaskExecutor } from './hosted-task-executor.mjs';
 import { createHostedTaskOperations } from './hosted-task-operations.mjs';
-import { createHostedTaskMcp, TASK_MCP_PATH } from './hosted-task-mcp.mjs';
+import { createHostedMcp, MCP_PATH } from './hosted-mcp.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 
 // Epic ro-cvl9 against the real task store: the pinned task client on a
@@ -38,14 +38,17 @@ test('two servers racing one claim have one winner; a lost reply after a real cr
         project: () => directory.project(workspace, project), signal: controls.signal ?? new AbortController().signal })),
       catalog: async () => Object.freeze([{ projectId, logicalKey: 'example', displayName: 'Example', prefix: 'tt' }]),
     };
+    const expiresAt = () => new Date(Date.now() + 60_000).toISOString();
     const server = principalId => {
       const admission = createWorkspaceAdmission({ kind: 'hosted', profile: Symbol(), trustedOrigin: origin,
         membership: async (_headers, workspace) => ({ principalId, sessionId: SESSION,
-          expiresAt: new Date(Date.now() + 60_000).toISOString(), workspaceId: workspace, role: 'operator', workspaceStatus: 'active' }) });
+          expiresAt: expiresAt(), workspaceId: workspace, role: 'operator', workspaceStatus: 'active' }),
+        agent: async (_request, workspace) => ({ principalId, clientId: 'example-agent', expiresAt: expiresAt(),
+          scopes: ['tasks:read', 'tasks:write'], workspaceId: workspace, role: 'operator', workspaceStatus: 'active' }) });
       return { admission, executor: createHostedTaskExecutor({ admission, directory, resolveTarget: facts.resolveTarget,
         binary: facts.pinnedBinary, doltBinary: facts.pinnedDoltBinary, scratchRoot: facts.scratchRoot }) };
     };
-    const proof = () => new Request(origin + TASK_MCP_PATH, { method: 'POST', headers: { origin, 'sec-fetch-site': 'same-origin',
+    const proof = () => new Request(origin + '/api/tasks', { method: 'POST', headers: { origin, 'sec-fetch-site': 'same-origin',
       'content-type': 'application/json', [WORKSPACE_SESSION_HEADER]: SESSION, [WORKSPACE_SELECTION_HEADER]: workspaceId } });
     const alice = server(ALICE), bob = server(BOB);
     const run = (side, operation) => side.executor.execute(proof(), workspaceId, { projectId, operation });
@@ -83,11 +86,14 @@ test('two servers racing one claim have one winner; a lost reply after a real cr
     const comments = await run(alice, { kind: 'comments', taskId: replay.value.id });
     assert.equal(comments.filter(row => row.text === 'Exactly once' && row.author === ALICE).length, 1);
 
-    // The MCP endpoint over the real store answers in task language.
-    const mcp = createHostedTaskMcp({ profile: 'hosted', trustedOrigin: origin, operations });
-    const reply = await mcp(new Request(origin + TASK_MCP_PATH, { method: 'POST', headers: proof().headers,
+    // The MCP endpoint over the real store answers an agent in task language.
+    const mcp = createHostedMcp({ profile: 'hosted', trustedOrigin: origin, operations, agents: {
+      verify: async () => ({ scopes: ['tasks:read', 'tasks:write'] }),
+      workspaces: async () => [{ workspaceId, displayName: 'Example', role: 'operator', status: 'active' }] } });
+    const reply = await mcp(new Request(origin + MCP_PATH, { method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer compose-agent-token-0001' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call',
-        params: { name: 'get_task', arguments: { project: projectId, task: replay.value.id } } }) }));
+        params: { name: 'get_task', arguments: { workspace: workspaceId, project: projectId, task: replay.value.id } } }) }));
     const result = (await reply.json()).result;
     assert.equal(result.isError, undefined, JSON.stringify(result));
     assert.equal(result.structuredContent.task.id, replay.value.id);

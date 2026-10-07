@@ -8,11 +8,10 @@ import { createWorkspaceAdmission, type WorkspaceAdmission } from './workspace-a
 import { createHostedTaskExecutor, type HostedTaskTarget, type HostedTaskExecutorOptions } from './hosted-task-executor.mjs';
 import { createHostedTasksApi } from './hosted-tasks-api.mjs';
 import { createHostedTaskOperations } from './hosted-task-operations.mjs';
-import { createHostedTaskMcp, TASK_MCP_PATH } from './hosted-task-mcp.mjs';
+import { createHostedMcp, MCP_PATH } from './hosted-mcp.mjs';
 import { openStore, type PostgresStore } from '../packages/postgres/src/store.mjs';
 import { taskReceipts } from '../packages/postgres/src/task-receipts.mjs';
 import { createBrowserRequestPolicy } from './browser-request-policy.mjs';
-import { resourceForPath } from './agent-access.mjs';
 
 export interface HostedTaskRuntimeOptions {
   readonly profile: 'hosted' | 'demo';
@@ -110,7 +109,13 @@ export function captureHostedTaskRuntimeOptions(input: HostedTaskRuntimeOptions)
     targets: Object.freeze([...targets.values()]), binary, doltBinary, scratchRoot,
     ...(row.receiptsConnectionString === undefined ? {} : { receiptsConnectionString: row.receiptsConnectionString as string }) });
 }
-export async function openHostedTaskRuntime(input: HostedTaskRuntimeOptions): Promise<HostedTaskRuntime> {
+/** Server composition, never request input: how this front door reaches the
+ * Tower Worker's read-model MCP tools. Without it, MCP offers only tasks. */
+export interface HostedTaskRuntimeAdapters {
+  readonly readModels?: (request: Request) => Promise<Response>;
+}
+export async function openHostedTaskRuntime(input: HostedTaskRuntimeOptions, adapters: HostedTaskRuntimeAdapters = {}): Promise<HostedTaskRuntime> {
+  if (adapters.readModels !== undefined && typeof adapters.readModels !== 'function') invalid();
   const configuration = captureHostedTaskRuntimeOptions(input);
   const { profile, trustedOrigin: origin, demoWorkspaceId: demo, identity: identityOptions, binary, doltBinary, scratchRoot } = configuration;
   const targets = new Map(configuration.targets.map(allocation => [`${allocation.mapping.workspaceId}/${allocation.mapping.projectId}`, allocation]));
@@ -128,9 +133,9 @@ export async function openHostedTaskRuntime(input: HostedTaskRuntimeOptions): Pr
     const admission: WorkspaceAdmission = profile === 'hosted'
       ? createWorkspaceAdmission({ kind: 'hosted', profile: Symbol(), trustedOrigin: origin,
         membership: (headers, workspaceId) => facts.admissionMembership(headers, workspaceId),
-        // Agent sign-in (agent-access.mts): only the MCP endpoint is a resource.
-        agent: async request => resourceForPath(new URL(request.url).pathname) === 'tasks'
-          ? facts.agentAuthority(request, 'tasks') : null })
+        // Agent sign-in (agent-access.mts): only the MCP endpoint takes a token.
+        agent: async (request, workspaceId) => new URL(request.url).pathname === MCP_PATH
+          ? facts.agentAuthority(request, workspaceId) : null })
       : createWorkspaceAdmission({ kind: 'demo', profile: Symbol(), workspaceId: demo as string,
         workspaceStatus: async () => (await facts.workspaceSummary(demo as string))?.status ?? null });
     const executor = createHostedTaskExecutor({ admission, directory, binary, doltBinary, scratchRoot,
@@ -144,9 +149,12 @@ export async function openHostedTaskRuntime(input: HostedTaskRuntimeOptions): Pr
     const selection = profile === 'demo' ? { demoWorkspaceId: demo as string } : {};
     const api = createHostedTasksApi({ profile, trustedOrigin: origin, ...selection, admission, directory, executor,
       workspaceActors, ...(receipts ? { receipts } : {}) });
-    // The MCP endpoint and the HTTP API call the same operations under the same admission.
-    const mcp = createHostedTaskMcp({ profile, trustedOrigin: origin, ...selection,
-      ...(profile === 'hosted' ? { agents: { verify: (request: Request) => facts.agentAuthority(request, 'tasks') } } : {}),
+    // One MCP endpoint: the task tools over the same operations and admission
+    // as the HTTP API, the read-model tools forwarded to the Worker.
+    const mcp = createHostedMcp({ profile, trustedOrigin: origin, ...selection,
+      ...(profile === 'hosted' ? { agents: { verify: (request: Request) => facts.agentToken(request),
+        workspaces: (request: Request) => facts.agentWorkspaces(request) } } : {}),
+      ...(adapters.readModels ? { readModels: adapters.readModels } : {}),
       operations: createHostedTaskOperations({ admission, directory, executor, workspaceActors, ...(receipts ? { receipts } : {}) }) });
     let closed = false, closing: Promise<void> | undefined;
     const pending = new Set<Promise<Response>>();
@@ -154,7 +162,7 @@ export async function openHostedTaskRuntime(input: HostedTaskRuntimeOptions): Pr
       handle(original: Request) {
         if (closed) return Promise.resolve(Response.json({ error: 'hosted_task_unavailable' }, { status: 503 }));
         let mcpRoute = false;
-        try { mcpRoute = new URL(original.url).pathname === TASK_MCP_PATH; } catch { /* The API refuses a malformed URL. */ }
+        try { mcpRoute = new URL(original.url).pathname === MCP_PATH; } catch { /* The API refuses a malformed URL. */ }
         const work = mcpRoute ? mcp(original) : api(original); pending.add(work); void work.then(() => pending.delete(work), () => pending.delete(work)); return work;
       },
       close() {

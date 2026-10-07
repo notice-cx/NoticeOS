@@ -49,9 +49,9 @@ export interface GoogleOAuthAdmissionAdapter {
   issue(request: Request, workspaceId: string, authorize: (facts: WorkspaceMembership) => void): Promise<string>;
   claim(request: Request, authorize: (facts: WorkspaceMembership) => void): Promise<void>;
 }
-/** A verified agent token's fresh facts (identity agentAuthority, epic
- * ro-cvl9): the person it acts for, the client, the one workspace it names,
- * the person's current role there and the scopes still consented. */
+/** A verified agent token's fresh facts in the workspace a call names
+ * (identity agentAuthority, epic ro-cvl9): the person it acts for, the
+ * client, the person's current role there and the scopes still consented. */
 export interface AgentAuthority {
   readonly principalId: string;
   readonly clientId: string;
@@ -80,9 +80,10 @@ export type WorkspaceEntry = EntryBase & (
   | { readonly kind: 'hosted'; readonly trustedOrigin: string;
       readonly membership: (headers: Headers, workspaceId: string) => Promise<WorkspaceMembership | null>;
       readonly googleOAuth?: GoogleOAuthAdmissionAdapter;
-      /** Verifies a bearer request's agent token for the resource its path
-       * names. Without it, a bearer request is refused. */
-      readonly agent?: (request: Request) => Promise<AgentAuthority | null> }
+      /** Verifies a bearer request's agent token and reads its person's
+       * membership in the requested workspace. Without it, a bearer request
+       * is refused. */
+      readonly agent?: (request: Request, workspaceId: string) => Promise<AgentAuthority | null> }
   | { readonly kind: 'standalone';
       /** Authenticate the existing door and resolve the sole workspace; ambiguity denies. */
       readonly authority: (request: Request) => Promise<StandaloneAuthority | null> }
@@ -292,10 +293,10 @@ export function createWorkspaceAdmission(input: WorkspaceEntry): WorkspaceAdmiss
       if (bearer === false || (bearer !== null && (kind !== 'hosted' || !agentReader))) refuse();
       if (bearer !== null) {
         // An agent's token carries no ambient browser credential, so the
-        // browser effect and tab-session checks do not apply; the token names
-        // its own workspace, and a selection header may only agree with it.
-        if (new URL(proof.url).origin !== trustedOrigin) refuse();
-        const facts = await fresh(() => agentReader!(proof));
+        // browser effect and tab-session checks do not apply. It covers its
+        // person's workspaces; each call names one, read fresh here.
+        if (!requested || new URL(proof.url).origin !== trustedOrigin) refuse();
+        const facts = await fresh(() => agentReader!(proof, requested));
         if (!facts) refuse();
         const agent = agentFacts(facts, requested);
         ({ workspaceId, principalId, allowedActions } = agent);

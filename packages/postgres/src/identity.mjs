@@ -4,7 +4,7 @@
 import { identityEngine, identityMembership, openIdentityDatabase, UUID, validateIdentityOptions } from './identity-engine.mjs';
 import { IdentityRefused } from './identity-engine.mjs';
 import { decodeProtectedHeader, importJWK, jwtVerify } from 'jose';
-import { AGENT_SCOPES, WORKSPACE_CLAIM, agentIssuer, agentResourceUri, bearerToken } from '../../../scripts/agent-access.mjs';
+import { AGENT_SCOPES, agentIssuer, agentResourceUri, bearerToken } from '../../../scripts/agent-access.mjs';
 export { AGENT_NAMES, IDENTITY_NAMES, IDENTITY_ROLE, IDENTITY_SCHEMA, IdentityRefused, agentPlugins } from './identity-engine.mjs';
 /** Open per request; close in finally (or an awaited Worker waitUntil).
  * No fallback URL, active-organization selection or automatic migration. */
@@ -35,6 +35,46 @@ export async function openIdentity(input) {
             const { workspaceStatus: _status, ...member } = facts;
             return member;
         }
+        /** Signature, issuer, this deployment's MCP endpoint as audience and
+         * expiry, then a live consent and an enabled client in one observation:
+         * revoking either cuts the agent off at once. */
+        async function agentToken(request) {
+            const token = request instanceof Request ? bearerToken(request.headers) : null;
+            if (typeof token !== 'string')
+                return null;
+            let payload;
+            try {
+                const header = decodeProtectedHeader(token);
+                if (typeof header.kid !== 'string' || !UUID.test(header.kid))
+                    return null;
+                const { rows: [key] } = await pool.query(`
+          SELECT public_key, alg FROM noticeos_identity.auth_jwks
+          WHERE id=$1::uuid AND (expires_at IS NULL OR expires_at>clock_timestamp())`, [header.kid]);
+                if (!key)
+                    return null;
+                const algorithm = key.alg ?? 'EdDSA';
+                ({ payload } = await jwtVerify(token, await importJWK(JSON.parse(key.public_key), algorithm), {
+                    issuer: agentIssuer(input.trustedOrigin), audience: agentResourceUri(input.trustedOrigin),
+                    algorithms: [algorithm], requiredClaims: ['exp', 'iat', 'sub']
+                }));
+            }
+            catch {
+                return null;
+            }
+            const clientId = payload.azp ?? payload.client_id, scope = payload.scope;
+            if (typeof payload.sub !== 'string' || !UUID.test(payload.sub) || typeof clientId !== 'string' || clientId.length === 0
+                || clientId.length > 512 || typeof scope !== 'string' || typeof payload.exp !== 'number')
+                return null;
+            const { rows: [row] } = await pool.query(`
+        SELECT c.scopes FROM noticeos_identity.auth_oauth_consent c
+        JOIN noticeos_identity.auth_oauth_client o ON o.client_id=c.client_id AND o.disabled IS NOT TRUE
+        WHERE c.user_id=$1::uuid AND c.client_id=$2 ORDER BY c.updated_at DESC LIMIT 1`, [payload.sub, clientId]);
+            if (!row || !Array.isArray(row.scopes))
+                return null;
+            const consented = row.scopes;
+            return Object.freeze({ principalId: payload.sub, clientId, expiresAt: new Date(payload.exp * 1000).toISOString(),
+                scopes: Object.freeze(scope.split(' ').filter(value => Object.hasOwn(AGENT_SCOPES, value) && consented.includes(value))) });
+        }
         return {
             session: (headers) => run(async () => {
                 const result = await fresh(headers);
@@ -57,53 +97,33 @@ export async function openIdentity(input) {
                     throw new IdentityRefused('Workspace actors unavailable');
                 return Object.freeze(rows.map(row => Object.freeze({ principalId: row.principal_id, displayName: row.display_name })));
             }),
-            agentAuthority: (request, resource) => run(async () => {
-                const token = request instanceof Request ? bearerToken(request.headers) : null;
-                if (typeof token !== 'string')
+            agentToken: (request) => run(() => agentToken(request)),
+            agentAuthority: (request, workspaceId) => run(async () => {
+                if (!UUID.test(workspaceId))
                     return null;
-                let payload;
-                try {
-                    const header = decodeProtectedHeader(token);
-                    if (typeof header.kid !== 'string' || !UUID.test(header.kid))
-                        return null;
-                    const { rows: [key] } = await pool.query(`
-            SELECT public_key, alg FROM noticeos_identity.auth_jwks
-            WHERE id=$1::uuid AND (expires_at IS NULL OR expires_at>clock_timestamp())`, [header.kid]);
-                    if (!key)
-                        return null;
-                    const algorithm = key.alg ?? 'EdDSA';
-                    ({ payload } = await jwtVerify(token, await importJWK(JSON.parse(key.public_key), algorithm), {
-                        issuer: agentIssuer(input.trustedOrigin), audience: agentResourceUri(input.trustedOrigin, resource),
-                        algorithms: [algorithm], requiredClaims: ['exp', 'iat', 'sub']
-                    }));
-                }
-                catch {
+                const token = await agentToken(request);
+                if (!token)
                     return null;
-                }
-                const workspaceId = payload[WORKSPACE_CLAIM], clientId = payload.azp ?? payload.client_id, scope = payload.scope;
-                if (typeof payload.sub !== 'string' || !UUID.test(payload.sub) || typeof workspaceId !== 'string' || !UUID.test(workspaceId)
-                    || typeof clientId !== 'string' || clientId.length === 0 || clientId.length > 512 || typeof scope !== 'string'
-                    || typeof payload.exp !== 'number')
-                    return null;
-                // One observation: the person is still a member of an active
-                // workspace, the consent naming that workspace is still there, and
-                // the client is still enabled. Removing any one cuts the agent off.
                 const { rows: [row] } = await pool.query(`
-          SELECT m.role, w.status, c.scopes
-          FROM noticeos_identity.auth_member m
+          SELECT m.role, w.status FROM noticeos_identity.auth_member m
           JOIN LATERAL noticeos_identity.workspace_summary(m.organization_id) w ON w.workspace_id=m.organization_id
-          JOIN noticeos_identity.auth_oauth_consent c ON c.user_id=m.user_id AND c.reference_id=m.organization_id::text
-            AND c.client_id=$3
-          JOIN noticeos_identity.auth_oauth_client o ON o.client_id=c.client_id AND o.disabled IS NOT TRUE
-          WHERE m.user_id=$1::uuid AND m.organization_id=$2::uuid
-          ORDER BY c.updated_at DESC LIMIT 1`, [payload.sub, workspaceId, clientId]);
+          WHERE m.user_id=$1::uuid AND m.organization_id=$2::uuid`, [token.principalId, workspaceId]);
                 if (!row || !['owner', 'operator', 'viewer'].includes(row.role)
-                    || !['active', 'provisioning', 'suspended'].includes(row.status) || !Array.isArray(row.scopes))
+                    || !['active', 'provisioning', 'suspended'].includes(row.status))
                     return null;
-                const consented = row.scopes;
-                const scopes = scope.split(' ').filter(value => Object.hasOwn(AGENT_SCOPES, value) && consented.includes(value));
-                return Object.freeze({ principalId: payload.sub, clientId, workspaceId, role: row.role, workspaceStatus: row.status,
-                    expiresAt: new Date(payload.exp * 1000).toISOString(), scopes: Object.freeze(scopes) });
+                return Object.freeze({ ...token, workspaceId, role: row.role, workspaceStatus: row.status });
+            }),
+            agentWorkspaces: (request) => run(async () => {
+                const token = await agentToken(request);
+                if (!token)
+                    return null;
+                const { rows } = await pool.query(`
+          SELECT w.workspace_id, w.display_name, m.role, w.status FROM noticeos_identity.auth_member m
+          JOIN LATERAL noticeos_identity.workspace_summary(m.organization_id) w ON w.workspace_id=m.organization_id
+          WHERE m.user_id=$1::uuid AND m.role IN ('owner','operator','viewer')
+          ORDER BY w.display_name, w.workspace_id LIMIT 100`, [token.principalId]);
+                return Object.freeze(rows.map(row => Object.freeze({ workspaceId: row.workspace_id, displayName: row.display_name,
+                    role: row.role, status: row.status })));
             }),
             workspaceSummary: (workspaceId) => run(async () => {
                 if (!UUID.test(workspaceId))

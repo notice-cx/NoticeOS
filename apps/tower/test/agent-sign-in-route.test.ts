@@ -26,12 +26,13 @@ function edge(request: Request): Request {
 
 describe('agent sign-in at the Tower', () => {
   it('sends discovery, the OAuth routes and the page calls to the authorization server, with the edge peer', async () => {
-    for (const path of ['/.well-known/oauth-protected-resource/api/tasks/mcp', '/.well-known/oauth-protected-resource/api/mcp',
+    for (const path of ['/.well-known/oauth-protected-resource/api/mcp',
       '/.well-known/oauth-authorization-server/api/auth', '/api/auth/oauth2/authorize', '/api/auth/oauth2/token',
       '/api/auth/oauth2/register', '/api/auth/oauth2/revoke', '/api/auth/jwks', '/api/agent-access/request', '/api/agent-access/approve']) {
       expect(isAgentSignInPath(path), path).toBe(true);
     }
-    for (const path of ['/api/auth/oauth2/consent', '/api/auth/sign-in/email-otp', '/.well-known/openid-configuration', '/api/mcp']) {
+    for (const path of ['/api/auth/oauth2/consent', '/api/auth/sign-in/email-otp', '/.well-known/openid-configuration', '/api/mcp',
+      '/.well-known/oauth-protected-resource/api/tasks/mcp']) {
       expect(isAgentSignInPath(path), path).toBe(false);
     }
     const opened: AgentSignInOptions[] = []; let closed = 0;
@@ -53,7 +54,7 @@ describe('agent sign-in at the Tower', () => {
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) }), env as unknown as TowerEnv, {} as CallContext);
     expect(response.status).toBe(401);
     expect(response.headers.get('www-authenticate')).toBe(
-      `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource/api/mcp", scope="evidence:read"`);
+      `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource/api/mcp", scope="tasks:read tasks:write evidence:read"`);
     const malformed = await worker.fetch(new Request(`${origin}/api/mcp`, { method: 'POST', headers: { authorization: 'Basic abc' } }),
       env as unknown as TowerEnv, {} as CallContext);
     expect(malformed.status).toBe(401);

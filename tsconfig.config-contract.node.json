@@ -23,6 +23,7 @@
     "scripts/hosted-tasks-api.mts",
     "scripts/hosted-task-operations.mts",
     "scripts/hosted-task-mcp.mts",
+    "scripts/hosted-mcp.mts",
     "scripts/task-row.mts",
     "scripts/hosted-task-http.mts",
     "scripts/hosted-task-executor.mts",

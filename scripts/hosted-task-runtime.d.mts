@@ -32,4 +32,9 @@ export interface HostedTaskRuntime {
 /** Capture structural server configuration before an asynchronous preflight.
  * This is not authentication; HTTP callers never supply this configuration. */
 export declare function captureHostedTaskRuntimeOptions(input: HostedTaskRuntimeOptions): HostedTaskRuntimeOptions;
-export declare function openHostedTaskRuntime(input: HostedTaskRuntimeOptions): Promise<HostedTaskRuntime>;
+/** Server composition, never request input: how this front door reaches the
+ * Tower Worker's read-model MCP tools. Without it, MCP offers only tasks. */
+export interface HostedTaskRuntimeAdapters {
+    readonly readModels?: (request: Request) => Promise<Response>;
+}
+export declare function openHostedTaskRuntime(input: HostedTaskRuntimeOptions, adapters?: HostedTaskRuntimeAdapters): Promise<HostedTaskRuntime>;

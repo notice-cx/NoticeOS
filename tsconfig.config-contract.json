@@ -32,6 +32,7 @@
     "scripts/bounded-json-body.mts",
     "scripts/mcp-protocol.mts",
     "scripts/agent-access.mts",
+    "scripts/read-model-tools.mts",
     "scripts/identity-protocol.mts",
     "scripts/workspace-operations.mts",
     "scripts/demo-viewer-policy.mts",

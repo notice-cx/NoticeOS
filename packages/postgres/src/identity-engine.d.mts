@@ -109,7 +109,7 @@ export declare const AGENT_NAMES: {
     readonly oauth: {
         readonly oauthClient: {
             modelName: string;
-            fields: Record<"name" | "createdAt" | "metadata" | "scopes" | "clientId" | "clientSecret" | "clientDiscoveryId" | "disabled" | "skipConsent" | "enableEndSession" | "subjectType" | "clientCredentialsScopes" | "userId" | "updatedAt" | "uri" | "icon" | "contacts" | "tos" | "policy" | "softwareId" | "softwareVersion" | "softwareStatement" | "redirectUris" | "postLogoutRedirectUris" | "backchannelLogoutUri" | "backchannelLogoutSessionRequired" | "tokenEndpointAuthMethod" | "applicationType" | "jwks" | "jwksUri" | "grantTypes" | "responseTypes" | "requirePKCE" | "dpopBoundAccessTokens" | "referenceId", string>;
+            fields: Record<"name" | "createdAt" | "metadata" | "clientId" | "scopes" | "clientSecret" | "clientDiscoveryId" | "disabled" | "skipConsent" | "enableEndSession" | "subjectType" | "clientCredentialsScopes" | "userId" | "updatedAt" | "uri" | "icon" | "contacts" | "tos" | "policy" | "softwareId" | "softwareVersion" | "softwareStatement" | "redirectUris" | "postLogoutRedirectUris" | "backchannelLogoutUri" | "backchannelLogoutSessionRequired" | "tokenEndpointAuthMethod" | "applicationType" | "jwks" | "jwksUri" | "grantTypes" | "responseTypes" | "requirePKCE" | "dpopBoundAccessTokens" | "referenceId", string>;
         };
         readonly oauthResource: {
             modelName: string;
@@ -121,15 +121,15 @@ export declare const AGENT_NAMES: {
         };
         readonly oauthRefreshToken: {
             modelName: string;
-            fields: Record<"expiresAt" | "createdAt" | "token" | "scopes" | "sessionId" | "clientId" | "userId" | "referenceId" | "authorizationCodeId" | "resources" | "requestedUserInfoClaims" | "revoked" | "rotatedAt" | "rotationReplayResponse" | "rotationReplayExpiresAt" | "authTime" | "confirmation", string>;
+            fields: Record<"expiresAt" | "createdAt" | "token" | "sessionId" | "clientId" | "scopes" | "userId" | "referenceId" | "authorizationCodeId" | "resources" | "requestedUserInfoClaims" | "revoked" | "rotatedAt" | "rotationReplayResponse" | "rotationReplayExpiresAt" | "authTime" | "confirmation", string>;
         };
         readonly oauthAccessToken: {
             modelName: string;
-            fields: Record<"expiresAt" | "createdAt" | "token" | "scopes" | "sessionId" | "clientId" | "userId" | "referenceId" | "authorizationCodeId" | "resources" | "requestedUserInfoClaims" | "revoked" | "confirmation" | "refreshId", string>;
+            fields: Record<"expiresAt" | "createdAt" | "token" | "sessionId" | "clientId" | "scopes" | "userId" | "referenceId" | "authorizationCodeId" | "resources" | "requestedUserInfoClaims" | "revoked" | "confirmation" | "refreshId", string>;
         };
         readonly oauthConsent: {
             modelName: string;
-            fields: Record<"createdAt" | "scopes" | "clientId" | "userId" | "updatedAt" | "referenceId" | "resources" | "requestedUserInfoClaims", string>;
+            fields: Record<"createdAt" | "clientId" | "scopes" | "userId" | "updatedAt" | "referenceId" | "resources" | "requestedUserInfoClaims", string>;
         };
         readonly oauthClientAssertion: {
             modelName: string;

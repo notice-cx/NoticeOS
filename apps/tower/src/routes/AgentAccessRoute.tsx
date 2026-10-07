@@ -12,8 +12,8 @@ const ACCESS: Readonly<Record<string, string>> = {
 };
 
 /** Agent sign-in (epic ro-cvl9): the one decision a person makes for an
- * agent. Choosing a workspace allows the agent there; nothing else is asked.
- * A viewer's agent only reads, whatever it requested. */
+ * agent. Allowing it covers every workspace the person belongs to; in each,
+ * the person's own role still bounds what the agent may do. */
 export function AgentAccessRoute({ entry, state }: { entry: BrowserEntry; state: BrowserEntryState }) {
   const query = entry.agentQuery;
   const sessionId = state.session?.mode === 'hosted' ? state.session.session?.sessionId : undefined;
@@ -28,13 +28,13 @@ export function AgentAccessRoute({ entry, state }: { entry: BrowserEntry; state:
     describeAgent(entry.fetch, query, abort.signal).then(setRequest, () => { if (!abort.signal.aborted) setInvalid(true); });
     return () => { abort.abort(); pending.current?.abort(); };
   }, [entry, query]);
-  async function decide(workspaceId?: string) {
+  async function decide(accept: boolean) {
     if (busy || !query || !sessionId) return;
     const abort = new AbortController();
     pending.current = abort;
     setBusy(true); setFailed(false);
     try {
-      window.location.assign(await decideAgent(entry.fetch, { query, sessionId, ...(workspaceId ? { workspaceId } : {}) }, abort.signal));
+      window.location.assign(await decideAgent(entry.fetch, { query, sessionId, accept }, abort.signal));
     } catch {
       if (!abort.signal.aborted) { setFailed(true); setBusy(false); }
     }
@@ -46,23 +46,15 @@ export function AgentAccessRoute({ entry, state }: { entry: BrowserEntry; state:
       <h1 id="agent-access-title" className="text-lg font-semibold">Connect {request.client.name}</h1>
       <p className="text-sm text-muted-foreground">Name given by the agent; not verified</p>
     </div>
-    <ul className="list-disc space-y-1 pl-5 text-sm">
-      {request.scopes.filter(scope => ACCESS[scope]).map(scope => <li key={scope}>{ACCESS[scope]}</li>)}
-    </ul>
-    <h2 className="text-sm font-medium">Allow it in</h2>
-    {state.choices.length === 0 ? <EmptyState title="No workspaces yet" /> : <ul className="space-y-2">
-      {state.choices.map(workspace => <li key={workspace.workspaceId}>
-        <Button className="h-auto min-h-11 w-full justify-between whitespace-normal text-left" variant="outline"
-          disabled={busy || workspace.status !== 'active'} onClick={() => void decide(workspace.workspaceId)}>
-          <span>{workspace.displayName}</span>
-          <span className="ml-3 text-xs text-muted-foreground">{workspace.status !== 'active' ? workspace.status
-            : workspace.role === 'viewer' ? 'read only' : workspace.role}</span>
-        </Button>
-      </li>)}
-    </ul>}
-    {state.session?.mode === 'hosted' && state.session.nextCursor ? <Button variant="outline" disabled={state.loadingMore || busy}
-      onClick={() => void entry.loadMore()}>{state.loadingMore ? 'Loading…' : 'More workspaces'}</Button> : null}
+    <div className="space-y-1">
+      <h2 className="text-sm font-medium">In each of your workspaces, it may</h2>
+      <ul className="list-disc space-y-1 pl-5 text-sm">
+        {request.scopes.filter(scope => ACCESS[scope]).map(scope => <li key={scope}>{ACCESS[scope]}</li>)}
+      </ul>
+      <p className="text-sm text-muted-foreground">Your role in a workspace still limits it.</p>
+    </div>
     {failed ? <span role="status" data-status-for="agent-access" className="text-sm text-error">Could not connect the agent. Try again.</span> : null}
-    <Button variant="ghost" disabled={busy} onClick={() => void decide()}>Don't allow</Button>
+    <Button disabled={busy} onClick={() => void decide(true)}>{busy ? 'Working…' : 'Allow'}</Button>
+    <Button variant="ghost" disabled={busy} onClick={() => void decide(false)}>Don't allow</Button>
   </section>;
 }

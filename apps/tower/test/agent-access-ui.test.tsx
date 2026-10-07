@@ -7,7 +7,8 @@ import { AGENT_ACCESS_PATHS, parseAgentAccessLanding } from '../../../scripts/ag
 import { WORKSPACE_SESSION_HEADER } from '../../../scripts/browser-request-policy.mjs';
 
 // Agent sign-in's page (epic ro-cvl9): an agent landing becomes the agent
-// phase instead of a workspace, and choosing a workspace is the whole decision.
+// phase instead of a workspace, and allowing it is the whole decision: it
+// covers every workspace the person belongs to.
 
 const [PERSON, SESSION, WA, WB] = ['11111111', '33333333', '55555555', '66666666'].map(prefix => `${prefix}-1111-4111-8111-111111111111`);
 const query = 'response_type=code&client_id=agent-1&scope=tasks%3Aread+tasks%3Awrite&exp=1&sig=abc';
@@ -23,7 +24,7 @@ it('parses only the agent page with a signed query', () => {
     `https://tower.example.test/agent-access?a=${'x'.repeat(9000)}`]) expect(parseAgentAccessLanding(href)).toEqual({ kind: 'none' });
 });
 
-it('asks a signed-in person which workspace the agent may use, and sends the browser on', async () => {
+it('asks a signed-in person to allow the agent once, and sends the browser on', async () => {
   window.history.replaceState(null, '', `/agent-access?${query}`);
   const calls: { url: string; headers: Headers; body: unknown }[] = [];
   const fetch: ApiTransport = async (input, init) => {
@@ -39,11 +40,12 @@ it('asks a signed-in person which workspace the agent may use, and sends the bro
   render(<BrowserEntry createEntry={() => createBrowserEntry({ origin: window.location.origin, page: window, fetch, landing, agent })} />);
   expect(await screen.findByText('Connect Example agent')).toBeTruthy();
   expect(screen.getByText('Create, claim, update, comment on and close tasks')).toBeTruthy();
-  expect(screen.getByText('read only')).toBeTruthy();
-  fireEvent.click(screen.getByText('Operated'));
+  expect(screen.getByText('Your role in a workspace still limits it.')).toBeTruthy();
+  expect(screen.queryByText('Operated')).toBeNull();
+  fireEvent.click(screen.getByText('Allow'));
   await waitFor(() => expect(assign).toHaveBeenCalledWith('http://127.0.0.1:33418/callback?code=c&state=s'));
   const approve = calls.find(call => call.url.endsWith(AGENT_ACCESS_PATHS.approve))!;
-  expect(approve.body).toEqual({ oauth_query: query, accept: true, workspaceId: WA });
+  expect(approve.body).toEqual({ oauth_query: query, accept: true });
   expect(approve.headers.get(WORKSPACE_SESSION_HEADER)).toBe(SESSION);
 });
 

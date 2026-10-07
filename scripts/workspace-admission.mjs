@@ -263,11 +263,11 @@ export function createWorkspaceAdmission(input) {
                 refuse();
             if (bearer !== null) {
                 // An agent's token carries no ambient browser credential, so the
-                // browser effect and tab-session checks do not apply; the token names
-                // its own workspace, and a selection header may only agree with it.
-                if (new URL(proof.url).origin !== trustedOrigin)
+                // browser effect and tab-session checks do not apply. It covers its
+                // person's workspaces; each call names one, read fresh here.
+                if (!requested || new URL(proof.url).origin !== trustedOrigin)
                     refuse();
-                const facts = await fresh(() => agentReader(proof));
+                const facts = await fresh(() => agentReader(proof, requested));
                 if (!facts)
                     refuse();
                 const agent = agentFacts(facts, requested);

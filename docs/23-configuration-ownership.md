@@ -348,9 +348,9 @@ The [remote panel review build contract](briefs/2026-10-05-remote-panel-review.m
 extends these boundaries to versioned evidence, remote agent admission and
 retry-safe task operations. It is an implementation handoff, not evidence that
 those additional capabilities or a public service have been qualified.
-Retry-safe task writes, the task MCP endpoint and agent sign-in (OAuth 2.1 for
-both MCP endpoints through the identity engine's maintained provider) now exist
-locally ([scripts/README.md](../scripts/README.md#explicit-local-hosted-tasks-entry));
+Retry-safe task writes, one MCP endpoint for every tool in every workspace a
+person belongs to, and agent sign-in (OAuth 2.1 through the identity engine's
+maintained provider) now exist locally ([scripts/README.md](../scripts/README.md#explicit-local-hosted-tasks-entry));
 their activation and any public service remain unqualified.
 
 The [Dolt 2.4.0 / Beads 1.3.1 qualification](../scripts/dolt-tenant-permissions-compose.test.mjs)

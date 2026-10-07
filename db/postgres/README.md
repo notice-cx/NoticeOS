@@ -81,12 +81,13 @@ and captured mail; it does not validate live delivery or proxy peer extraction.
 
 [`0014_agent_sign_in.sql`](migrations/0014_agent_sign_in.sql) adds the
 maintained tables of Better Auth's JWT plugin and `@better-auth/oauth-provider`
-for agent sign-in (epic `ro-cvl9`): signing keys, OAuth clients, the two MCP
+for agent sign-in (epic `ro-cvl9`): signing keys, OAuth clients, MCP
 resources and their client links, refresh and access tokens, consents and
 client assertions, all in `noticeos_identity` under `auth_` snake_case names.
 Refresh tokens and codes are stored hashed and signing keys encrypted with the
-session secret. A consent's `reference_id` is the workspace its person chose for
-the agent. `scripts/postgres-agent-sign-in.test.mjs` checks the generated-DDL
+session secret. A consent names no workspace (`reference_id` stays null): it
+covers every workspace its person belongs to, and each call is admitted by the
+person's role there. `scripts/postgres-agent-sign-in.test.mjs` checks the generated-DDL
 parity and the whole protocol against it. Applying 0014 to an existing store and
 activating agent sign-in remain operator steps.
 

@@ -22,10 +22,9 @@ export async function describeAgent(fetch: ApiTransport, query: string, signal: 
   return Object.freeze({ client: Object.freeze({ name: client.name, uri: client.uri as string | null }), scopes: Object.freeze(scopes as string[]) });
 }
 /** The person's decision; resolves to where the browser goes next. */
-export async function decideAgent(fetch: ApiTransport, input: { query: string; sessionId: string; workspaceId?: string },
+export async function decideAgent(fetch: ApiTransport, input: { query: string; sessionId: string; accept: boolean },
   signal: AbortSignal): Promise<string> {
-  const value = await post(fetch, AGENT_ACCESS_PATHS.approve, { oauth_query: input.query, accept: input.workspaceId !== undefined,
-    ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}) }, signal, input.sessionId);
+  const value = await post(fetch, AGENT_ACCESS_PATHS.approve, { oauth_query: input.query, accept: input.accept }, signal, input.sessionId);
   const url = value && typeof value === 'object' && 'url' in value ? value.url : undefined;
   if (typeof url !== 'string' || !/^https?:\/\//u.test(url)) throw new Error('Agent redirect is invalid.');
   return url;

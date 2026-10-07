@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { readFileSync, realpathSync, lstatSync, openSync, closeSync, fstatSync, constants } from 'node:fs';
 import { openHostedTaskRuntime, captureHostedTaskRuntimeOptions } from './hosted-task-runtime.mjs';
+import { MCP_PATH, READ_MODELS_HEADER } from './hosted-mcp.mjs';
 import { startHostedDemo } from './hosted-demo-runtime.mjs';
 import { demoScenarioHash, generateDemoScenario } from './demo-scenario.mjs';
 import { createDemoRealtime } from './demo-realtime.mjs';
@@ -346,7 +347,8 @@ export async function startHostedDemoServer(input, adapters) {
                         response = method === 'GET' && !target.search ? json(200, { release: artifact.release }) : json(405, { error: 'method_not_allowed' });
                     else if (target.pathname === '/api/ga4/realtime')
                         response = method === 'GET' && !target.search ? json(200, realtime.read(Date.now())) : json(405, { error: 'method_not_allowed' });
-                    else if (target.pathname === '/api/tasks' || target.pathname.startsWith('/api/tasks/') || target.pathname.startsWith('/api/gates/'))
+                    else if (target.pathname === '/api/tasks' || target.pathname.startsWith('/api/tasks/') || target.pathname.startsWith('/api/gates/')
+                        || target.pathname === MCP_PATH && !headers.has(READ_MODELS_HEADER))
                         response = await tasks.handle(proof);
                     else
                         response = await dispatch(proof);
@@ -409,7 +411,8 @@ export async function startHostedDemoServer(input, adapters) {
                 throw result.reason;
     })();
     try {
-        tasks = await open.openTasks(configuration.tasks);
+        // The one MCP endpoint forwards read-model calls straight to the Workers.
+        tasks = await open.openTasks(configuration.tasks, { readModels: dispatch });
         workers = open.openWorkers({ host: '127.0.0.1', port: 0, cf: false, inspectorPort: undefined,
             defaultPersistRoot: configuration.workerStateRoot, logRequests: false, telemetry: { enabled: false }, workers: [
                 { ...worker('tower', artifact.tower), serviceBindings: { INGEST: 'ingest' } }, worker('ingest', artifact.ingest),

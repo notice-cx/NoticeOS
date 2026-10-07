@@ -9,8 +9,8 @@ import { createAuthMiddleware, formCsrfMiddleware } from 'better-auth/api';
 import { kyselyAdapter } from '@better-auth/kysely-adapter';
 import { Kysely, PostgresDialect, sql, type Transaction } from 'kysely';
 import type { AuthContext, BetterAuthPlugin } from '@better-auth/core';
-import { AGENT_ACCESS_PAGE, AGENT_ACCESS_SECONDS, AGENT_REFRESH_SECONDS, AGENT_RESOURCES, AGENT_SCOPES, OFFLINE_ACCESS,
-  WORKSPACE_CLAIM, agentResourceUri, type AgentResource } from '../../../scripts/agent-access.mjs';
+import { AGENT_ACCESS_PAGE, AGENT_ACCESS_SECONDS, AGENT_REFRESH_SECONDS, AGENT_RESOURCE_NAME, AGENT_SCOPES, OFFLINE_ACCESS,
+  agentResourceUri } from '../../../scripts/agent-access.mjs';
 export const IDENTITY_ROLE = 'noticeos_identity';
 export const IDENTITY_SCHEMA = 'noticeos_identity';
 export interface IdentityOptions {
@@ -143,41 +143,25 @@ interface EngineOptions {
   /** The OAuth authorization server for agents (agent-sign-in.mts). */
   readonly agents?: true;
 }
-/** The workspace a session chose for the agent it is approving, set only
- * for the length of one approval (agent-sign-in.mts). */
-function chosenWorkspace(session: Record<string, unknown>): string | undefined {
-  const value = session.activeOrganizationId;
-  return typeof value === 'string' && UUID.test(value) ? value : undefined;
-}
 /** Exported for schema qualification (the 0014 parity proof). */
 export function agentPlugins(baseURL: string): BetterAuthPlugin[] {
   const scopes = [...Object.keys(AGENT_SCOPES), OFFLINE_ACCESS];
-  const resources = (Object.keys(AGENT_RESOURCES) as AgentResource[]).map(key => agentResourceUri(baseURL, key));
+  const resource = agentResourceUri(baseURL);
   return [jwt({ schema: { jwks: AGENT_NAMES.jwks } }), oauthProvider({
     schema: AGENT_NAMES.oauth,
-    // One page signs the person in, takes the workspace and records the
-    // decision; the library redirects there for each of those steps.
+    // One page signs the person in and records the decision; the library
+    // redirects there for each. A consent covers the person's workspaces;
+    // every call names one, and admission checks membership and role there.
     loginPage: AGENT_ACCESS_PAGE, consentPage: AGENT_ACCESS_PAGE,
-    postLogin: {
-      page: AGENT_ACCESS_PAGE,
-      shouldRedirect: ({ session }) => chosenWorkspace(session) === undefined,
-      consentReferenceId: ({ session }) => {
-        const workspace = chosenWorkspace(session);
-        if (!workspace) throw new IdentityRefused('Agent workspace unavailable');
-        return workspace;
-      },
-    },
     scopes,
-    resources: (Object.keys(AGENT_RESOURCES) as AgentResource[]).map(key => ({ identifier: agentResourceUri(baseURL, key),
-      name: AGENT_RESOURCES[key].name, allowedScopes: [...AGENT_RESOURCES[key].scopes, OFFLINE_ACCESS] })),
+    resources: [{ identifier: resource, name: AGENT_RESOURCE_NAME, allowedScopes: scopes }],
     grantTypes: ['authorization_code', 'refresh_token'],
     allowDynamicClientRegistration: true, allowUnauthenticatedClientRegistration: true,
     clientRegistrationDefaultScopes: scopes, clientRegistrationAllowedScopes: scopes,
-    clientRegistrationDefaultResources: resources, clientRegistrationAllowedResources: resources,
+    clientRegistrationDefaultResources: [resource], clientRegistrationAllowedResources: [resource],
     clientRegistrationRequirePKCE: true,
     accessTokenExpiresIn: AGENT_ACCESS_SECONDS, refreshTokenExpiresIn: AGENT_REFRESH_SECONDS,
     storeTokens: 'hashed', storeClientSecret: 'hashed',
-    customAccessTokenClaims: ({ referenceId }) => (referenceId && UUID.test(referenceId) ? { [WORKSPACE_CLAIM]: referenceId } : {}),
   })];
 }
 interface IdentityEngine {

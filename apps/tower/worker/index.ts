@@ -672,7 +672,7 @@ const towerHandler = {
       // An agent with no credential is told where to sign in (agent-access.mts).
       const agentBearer = pathname === '/api/mcp' && profile === 'hosted' ? bearerToken(request.headers) : null;
       if (pathname === '/api/mcp' && profile === 'hosted' && (agentBearer === false || agentBearer === null && !request.headers.has('cookie'))) {
-        return bearerChallenge(workspaceEntryOrigin(env), 'evidence', agentBearer === false ? { error: 'invalid_token' } : undefined);
+        return bearerChallenge(workspaceEntryOrigin(env), agentBearer === false ? { error: 'invalid_token' } : undefined);
       }
       if (['/api/mcp', '/api/alerts/backtest'].includes(pathname)) {
         try {
@@ -707,7 +707,7 @@ const towerHandler = {
           });
         } catch {
           // A refused agent token is a 401, so its client signs in again.
-          if (typeof agentBearer === 'string') return bearerChallenge(workspaceEntryOrigin(env), 'evidence', { error: 'invalid_token' });
+          if (typeof agentBearer === 'string') return bearerChallenge(workspaceEntryOrigin(env), { error: 'invalid_token' });
           return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 });
         }
       }
