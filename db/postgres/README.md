@@ -539,7 +539,7 @@ by column; retention and maintenance privileges are checked separately.
 | `signal_observations` | append-only | Append-only; a revised value is a new row under a later run. |
 | `signal_runs` | append-only | Append-only. |
 | `task_daily_counts` | insert, update, delete | One row per project per day, upserted; swept after 400 days. |
-| `task_operation_receipts` | insert; update only state, attempt, result, started_at, finished_at | A task write's idempotency key, bound request and operation identity are fixed; its attempt state and recorded outcome evolve. |
+| `task_operation_receipts` | insert; update only state, attempt, result, started_at, finished_at; delete | A task write's idempotency key, bound request and operation identity are fixed; its attempt state and recorded outcome evolve; swept seven days after its last attempt (retention). |
 | `task_snapshots` | insert; update only captured_at, payload; delete | An unchanged board re-stamps its photograph; a replaced one keeps only what the Wall feed reads; swept after 2 days. |
 | `watch_window_readings` | append-only | Append-only, one per offset. |
 | `watch_windows` | insert; update only status, outcome, closed_at, outcome_note, last_checked_at, readback_bead, readback_posted_at | The registration is fixed; the close is one-way. |

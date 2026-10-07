@@ -830,6 +830,7 @@ which rows leave for the analytical store, and when, is its `retention`.
 - **Keys:** primary (workspace_id, principal_id, operation, idempotency_key); unique (workspace_id, operation_id)
 - **Links:** (workspace_id) → `workspaces`
 - **Row checks:** `((state = 'succeeded') = (result IS NOT NULL))`; `((state = 'pending') = (finished_at IS NULL))`; `((finished_at IS NULL) OR (finished_at >= started_at))`
+- **Triggers:** `task_receipt_leaves_only_when_expired` (before delete)
 
 ## `task_snapshots`
 

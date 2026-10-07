@@ -293,6 +293,10 @@ idempotency key, scoped to the workspace, the admitted principal and the
 operation, to its request's hash and a server operation identity; every state
 change is a compare-and-set on the attempt number, so two callers cannot both
 start one change. The caller authorizes first; the module grants nothing and
-runs no task command. Writers require `0012_task_operation_receipts.sql`, an
-additive migration; no live migration or activation is implied. Proofs are in
+runs no task command. A receipt is kept seven days after its last attempt:
+recording a change first removes the workspace's expired receipts, so a retry
+that late runs as a new change, and a trigger refuses any earlier removal.
+Writers require `0012_task_operation_receipts.sql` and
+`0013_task_receipt_retention.sql`, both additive; no live migration or
+activation is implied. Proofs are in
 [`postgres-task-receipts.test.mjs`](../../scripts/postgres-task-receipts.test.mjs).

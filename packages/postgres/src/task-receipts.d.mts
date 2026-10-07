@@ -41,6 +41,9 @@ export interface TaskReceiptAttempt {
     readonly attempt: number;
 }
 export declare const TASK_RECEIPT_ATTEMPTS = 5;
+/** Days a receipt is kept after its last attempt. Migration 0013's trigger
+ * refuses removing one sooner; a retry after that runs as a new change. */
+export declare const TASK_RECEIPT_KEEP_DAYS = 7;
 export declare const TASK_RECEIPT_RESULT_BYTES = 65536;
 export declare const IDEMPOTENCY_KEY: RegExp;
 export declare class TaskReceiptRefused extends Error {
@@ -48,7 +51,8 @@ export declare class TaskReceiptRefused extends Error {
     constructor();
 }
 /** Insert a new pending receipt, or return the existing one when the same key
- * already carries the same project and request. */
+ * already carries the same project and request. The workspace's expired
+ * receipts go first, so an expired key starts afresh. */
 export declare function startTaskReceipt(tx: Transaction, request: TaskReceiptRequest, operationId: string): Promise<TaskReceiptStart>;
 /** Record the outcome of the named attempt. False when another caller moved
  * the receipt on first. */
