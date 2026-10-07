@@ -12,6 +12,7 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DOLT_IMAGE } from './dolt-host.mjs';
@@ -65,7 +66,12 @@ async function main(argv) {
   execFileSync('docker', ['pull', '--quiet', DOLT_IMAGE], { stdio: ['ignore', 'ignore', 'inherit'] });
   const imageId = execFileSync('docker', ['image', 'inspect', '--format', '{{.Id}}', DOLT_IMAGE], { encoding: 'utf8' }).trim();
   const bd = path.join(out, 'bin', 'bd'), dolt = path.join(out, 'bin', 'dolt');
+  // The fixture gives each command its own HOME, so the Docker client's own
+  // configuration is named explicitly: this host's, never a new one.
+  const dockerConfig = process.env.DOCKER_CONFIG ?? path.join(os.homedir(), '.docker');
+  fs.mkdirSync(dockerConfig, { recursive: true, mode: 0o700 });
   const lines = {
+    DOCKER_CONFIG: dockerConfig,
     NOTICEOS_TEST_HOSTED_TASK_EXECUTOR: '1',
     NOTICEOS_TEST_HOSTED_TASK_EVIDENCE: path.join(out, 'evidence'),
     NOTICEOS_TEST_BEADS_NEW_BIN: bd, NOTICEOS_TEST_BEADS_SHA256: sha256(bd),
