@@ -47,7 +47,8 @@ pass and it is the panel's own claim about itself:
   "sources": [
     { "key": "bing-webmaster", "integration": "bing-webmaster", "collected": true, "newestReportDate": "2026-08-01", "ageDays": 2, "fresh": true },
     { "key": "ga4",            "integration": "ga4",            "collected": true, "newestReportDate": "2026-08-02", "ageDays": 1, "fresh": true },
-    { "key": "gsc",            "integration": "gsc",            "collected": true, "newestReportDate": "2026-08-01", "ageDays": 2, "fresh": true }
+    { "key": "gsc",            "integration": "gsc",            "collected": true, "newestReportDate": "2026-08-01", "ageDays": 2, "fresh": true,
+      "reports": [{ "report": "page", "newestReportDate": "2026-07-29" }, { "report": "query", "newestReportDate": "2026-08-01" }] }
   ],
   "stale": [],
   "uncollected": [
@@ -61,6 +62,11 @@ pass and it is the panel's own claim about itself:
   integration has on disk — not when the file was written. Providers lag: GSC is
   typically 1–3 days behind, Bing's top-query and top-page snapshots update
   weekly.
+- `sources[].reports[]` is each family's own newest report day under that
+  integration (the example abbreviates it to one source). A collection is in the
+  panel only when every one of its families reaches its day; the weekly review
+  is filed only then
+  ([the panel-review filer](../scripts/README.md#the-panel-review-filer-the-first-bead-writing-lane)).
 - `fresh` is per integration against `maxAgeDays`, and the top-level `fresh` is
   true only when every source is. A property whose GSC is current and whose Bing
   stalled is a **partial** answer, and `stale` names which half.
@@ -231,8 +237,9 @@ produces confident wrong answers.
   *the provider did not report it*, which includes "we could not ask". Only
   `signal-trend-daily.csv` carries values you may treat as counts.
 - **Provisional days are marked, not hidden.** `provisional=1` means the provider
-  was still filling that day in at collection time. It is a real observation that
-  will be revised upward.
+  was still filling that day in when it was last collected. It is a real
+  observation that will be revised upward. A later collection that reports the
+  same number still settles the day (epic `ro-cvl9`).
 - **A GA4 day is provisional until it has had two days** (bead `ro-wo0j`). GA4
   keeps attributing a day after it ends, and its API says nothing about when it
   has finished, so a GA4 day stays `provisional=1` until it has been collected on

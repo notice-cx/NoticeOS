@@ -890,9 +890,19 @@ anybody to read it is a collection read never. This lane files the review.
   coherent review identity. The runner uses the ingest door and the Worker cannot
   reach the hub; that route is the seam.
 - **Then, per property with a landing:** one `bd list -l panel-review` against
-  that property's repo, and — only if no review carries that collection day —
-  one `bd create` in the same repo: label `panel-review`, due seven days after
-  the collection day, metadata `noticeos_panel_asset` / `noticeos_panel_date`.
+  that property's repo, and — only if no review carries that collection day
+  and the published panel holds it (next point) — one `bd create` in the same
+  repo: label `panel-review`, due seven days after the collection day, metadata
+  `noticeos_panel_asset` / `noticeos_panel_date`.
+- **Published before reviewed** (epic `ro-cvl9`). The review points at the
+  property's panel dir, which the daily refresh fills on its own schedule, so
+  a landing waits until that dir's published `freshness.json` holds it: the
+  `dataforseo` source reaches the collection day, and every family the landing
+  names (`reports`) reaches it in that source's `reports[]`. A refresh that ran
+  while the collection was still landing published only part of it. A waiting
+  collection is one WARN line, once; the first pass after the refresh publishes
+  it files the review. A property off the refresh roster publishes nothing, so
+  its reviews wait and its log line says so.
 - **Idempotence comes from the data, not from a cursor.** The identity of a
   review is (property, collection day), and both halves are re-derived every
   pass — the day from the collection manifest, the "already filed?" answer from
@@ -901,7 +911,8 @@ anybody to read it is a collection read never. This lane files the review.
   There is no state file to lose or corrupt.
 - **Every failure path writes nothing.** A partial provider collection never
   reaches the runner. A `bd list` that failed, exited
-  non-zero, or returned unparseable JSON is an ERROR line and no `create` — a
+  non-zero, or returned unparseable JSON, or a published `freshness.json` that
+  cannot be read, is an ERROR line and no `create` — a
   duplicate review is worse than a late one, and the next pass is an hour away.
   A property with a collection and no saved task project is named once,
   not hourly.

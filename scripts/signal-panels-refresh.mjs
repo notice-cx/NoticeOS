@@ -20,7 +20,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { holdLock, publishSignalHistory } from './signal-history.mjs';
 import { DEFAULT_LIMITS, analyzeSignalHistory, storedSearchMarket } from './signal-history-analyze.mjs';
-import { PANEL_HISTORY_ROOT, PANEL_REPORTS_DIRECTORY, PANEL_REPORTS_ROOT, panelReportPath } from './signal-panel-paths.mjs';
+import { PANEL_FRESHNESS_FILE, PANEL_HISTORY_ROOT, PANEL_REPORTS_DIRECTORY, PANEL_REPORTS_ROOT, panelReportPath } from './signal-panel-paths.mjs';
 import { publishExecutiveSnapshot } from './signal-insights-publish.mjs';
 import { DEFAULT_DOOR, doorUrl, operatorToken } from './ingest-door.mjs';
 import { readConfigSnapshot } from './config-store-client.mjs';
@@ -43,7 +43,7 @@ export const REFRESH_DEFAULTS = {
 /** The trend CSV's header — the one file in the panel dir that can be summed. */
 export const TREND_COLUMNS = ['date', 'integration', 'metric', 'value', 'provisional'];
 export const TREND_FILE = 'signal-trend-daily.csv';
-export const FRESHNESS_FILE = 'freshness.json';
+export const FRESHNESS_FILE = PANEL_FRESHNESS_FILE;
 
 /**
  * The report families NO cron produces: the Bing AI Performance exports, which
@@ -311,17 +311,30 @@ export function dayAge(reportDate, nowIso) {
  * them in would leave every panel permanently red — the standing-noise failure
  * that gets a signal ignored. The honest split is "the collected families are
  * current" plus a row that states, out loud, how old the hand-dropped one is.
+ *
+ * Each collected source also lists its families' own newest report days
+ * (`reports[]`, additive, epic ro-cvl9): the panel-review filer
+ * (runner/panel-review.mjs) files a collection's review only once every family
+ * of that collection is in a published panel, and the integration's single
+ * newest date cannot say that.
  */
 export function freshnessReport(input) {
   const { asset, manifest, maxAgeDays, refreshedAt } = input;
   const newest = new Map();
   const newestUncollected = new Map();
-  for (const row of manifest) {
-    const uncollected = isUncollected(row.integration, row.report);
-    const bucket = uncollected ? newestUncollected : newest;
-    const key = uncollected ? `${row.integration}/${row.report}` : row.integration;
+  const newestReports = new Map();
+  const keepNewer = (bucket, key, reportDate) => {
     const current = bucket.get(key);
-    if (current === undefined || row.reportDate > current) bucket.set(key, row.reportDate);
+    if (current === undefined || reportDate > current) bucket.set(key, reportDate);
+  };
+  for (const row of manifest) {
+    if (isUncollected(row.integration, row.report)) {
+      keepNewer(newestUncollected, `${row.integration}/${row.report}`, row.reportDate);
+      continue;
+    }
+    keepNewer(newest, row.integration, row.reportDate);
+    if (!newestReports.has(row.integration)) newestReports.set(row.integration, new Map());
+    keepNewer(newestReports.get(row.integration), row.report, row.reportDate);
   }
 
   const measure = (key, newestReportDate, extra) => {
@@ -336,7 +349,12 @@ export function freshnessReport(input) {
   };
 
   const sources = [...newest.entries()]
-    .map(([integration, date]) => measure(integration, date, { integration, collected: true }))
+    .map(([integration, date]) => ({
+      ...measure(integration, date, { integration, collected: true }),
+      reports: [...newestReports.get(integration).entries()]
+        .map(([report, newestReportDate]) => ({ report, newestReportDate }))
+        .sort((a, b) => a.report.localeCompare(b.report)),
+    }))
     .sort((a, b) => a.key.localeCompare(b.key));
   const uncollected = [...newestUncollected.entries()]
     .map(([key, date]) => {

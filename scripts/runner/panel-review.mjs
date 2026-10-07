@@ -5,9 +5,10 @@ export { PANEL_REVIEW_LABEL, INVALID_PANEL_REVIEW_LABEL, PANEL_REVIEW_ASSET_KEY,
 // into each property's own tracker. The snapshot poller
 // (runner/task-snapshot.mjs) reads them with the same query.
 
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { checkoutRelative, installationPath } from '../installation.mjs';
-import { panelReportRelativePath } from '../signal-panel-paths.mjs';
+import { PANEL_FRESHNESS_FILE, panelReportPath, panelReportRelativePath } from '../signal-panel-paths.mjs';
 import { readTaskProjectConfig } from '../task-project-config.mjs';
 import { CONFIG, HOME_ROOT, OS_CHECKOUT } from './config.mjs';
 import { isShuttingDown } from './lifecycle.mjs';
@@ -46,6 +47,12 @@ import {
 // `bd list` in that same repo came back clean. Every failure path below
 // continues WITHOUT creating — a duplicate review is worse than a late one, and
 // the next pass is an hour away.
+//
+// PUBLISHED BEFORE REVIEWED (epic ro-cvl9). A landing is evidence in the
+// archive, not in the panel dir the review points at; the daily refresh puts
+// it there on its own schedule. So a review is filed only once the published
+// panel's freshness.json holds every family of that collection day. Until then
+// the landing waits, said once per collection in the runner's log.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Where the runner asks what landed. A read; the Worker owns the store, this
@@ -82,6 +89,10 @@ export function parsePanelLandings(body) {
     if (seen.has(asset)) continue;
     seen.add(asset);
     const queries = Number.isInteger(row?.queries) && row.queries >= 0 ? row.queries : null;
+    const reports = Array.isArray(row?.reports) && row.reports.length > 0
+      && row.reports.every((report) => typeof report === 'string' && report !== '')
+      ? [...row.reports]
+      : null;
     landings.push({
       asset,
       panelDate,
@@ -89,9 +100,50 @@ export function parsePanelLandings(body) {
       panel: typeof row?.panel === 'boolean' ? row.panel : queries !== null,
       queries,
       families: Number.isInteger(row?.families) && row.families > 0 ? row.families : null,
+      reports,
     });
   }
   return landings;
+}
+
+/** The published panel's freshness.json for a property, or null when no
+ * refresh has published one. */
+export async function readPublishedFreshness(asset) {
+  try {
+    return JSON.parse(await fs.readFile(path.join(panelReportPath(asset), PANEL_FRESHNESS_FILE), 'utf8'));
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+/**
+ * Why the published panel does not yet hold this landing, or null when it does.
+ *
+ * The DataForSEO source must reach the collection day, and when both sides name
+ * their families (a landing's `reports`, the source's `reports[]`), each family
+ * of that day must too: a refresh that ran while the collection was still
+ * landing published part of it. Either side written before the names existed
+ * falls back to the source's newest day.
+ */
+export function panelPublicationGap(freshness, landing) {
+  if (freshness === null || freshness === undefined) return 'no panel has been published';
+  if (freshness.asset !== landing.asset || !Array.isArray(freshness.sources)) {
+    return `the published ${PANEL_FRESHNESS_FILE} is not this property's`;
+  }
+  const source = freshness.sources.find((row) => row?.key === 'dataforseo' && row.collected !== false);
+  const newest = typeof source?.newestReportDate === 'string' ? source.newestReportDate : null;
+  if (newest === null || newest < landing.panelDate) {
+    return `the published panel's DataForSEO reaches ${newest ?? 'no day'}`;
+  }
+  if (landing.reports === null || !Array.isArray(source.reports)) return null;
+  const published = new Map(
+    source.reports
+      .filter((row) => typeof row?.report === 'string' && typeof row.newestReportDate === 'string')
+      .map((row) => [row.report, row.newestReportDate]),
+  );
+  const missing = landing.reports.filter((report) => !(published.get(report) >= landing.panelDate));
+  return missing.length === 0 ? null : `the published panel lacks ${missing.join(', ')}`;
 }
 
 /** What the reviewer is being asked to do, written for somebody standing in the
@@ -295,8 +347,8 @@ export const panelReviewCreatedId = beadsCreatedId;
 
 // One WARN per outage, like the poller's. `unmapped` is separate and per-asset:
 // a property with a panel and no spoke is a config gap somebody has to close
-// once, not an hourly event.
-const panelFilerState = { skipping: null, unmapped: new Set() };
+// once, not an hourly event. `waiting` is per collection, for the same reason.
+const panelFilerState = { skipping: null, unmapped: new Set(), waiting: new Set() };
 
 /**
  * One pass: ask what landed, file what is missing.
@@ -316,6 +368,7 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     readToken = operatorToken,
     run = runBd,
     get = fetch,
+    readPublished = readPublishedFreshness,
     state = panelFilerState,
     emit = log,
     stopped = () => isShuttingDown(),
@@ -427,6 +480,28 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     }
     checked += 1;
     if (panelReviewAlreadyFiled(rows, landing.panelDate)) continue;
+
+    let gap;
+    try {
+      gap = panelPublicationGap(await readPublished(landing.asset), landing);
+    } catch (err) {
+      emit('ERROR', `panel review: ${landing.asset} — the published panel is unreadable: ${err.message}`);
+      continue;
+    }
+    const waiting = (state.waiting ??= new Set());
+    const collection = `${landing.asset}\0${landing.panelDate}`;
+    if (gap !== null) {
+      if (!waiting.has(collection)) {
+        waiting.add(collection);
+        emit(
+          'WARN',
+          `panel review: ${landing.asset}'s ${landing.panelDate} collection waits for the ` +
+            `panel refresh — ${gap} (silent until it is published)`,
+        );
+      }
+      continue;
+    }
+    waiting.delete(collection);
 
     let created;
     try {

@@ -198,6 +198,16 @@ export async function readPanelManifest(
  * is the one whose run finished last, and between two runs that finished in
  * the same instant the one whose id sorts last, as on D1.
  *
+ * A day's provisional flag comes from its newest CONFIRMATION, not from the
+ * run that wrote its value (epic ro-cvl9). The store keeps a change log: a run
+ * that re-reports a day with the same number writes nothing for it
+ * (`recordSignalSuccess`), so the writer of a day first reported while still
+ * filling in stays provisional forever. The confirmation is the newest
+ * successful run of the same resource and time zone whose window covers the
+ * day — the collectors report every day of their window, zeroes included — or
+ * the writer itself. A failed run or another resource confirms nothing, and
+ * age alone never finalizes a day.
+ *
  * Read on Postgres (bead ro-ujb9.76.5.3); text is ordered byte by byte, as D1
  * ordered it.
  */
@@ -218,25 +228,52 @@ export async function readPanelTrend(
                   ORDER BY latest.finished_at DESC, latest.run_seq DESC
                   LIMIT 1) AS property_ref
            FROM (VALUES ('ga4'), ('gsc'), ('bing-webmaster')) AS lanes(integration)
+       ),
+       newest AS (
+         SELECT DISTINCT ON (o.observed_date, r.integration COLLATE "C", s.metric COLLATE "C")
+                o.observed_date,
+                r.integration,
+                s.metric,
+                o.value,
+                r.run_seq,
+                s.workspace_id,
+                s.property_ref,
+                s.time_zone
+           FROM current_property AS current
+           JOIN noticeos.measurement_series AS s
+             ON s.asset_id = $1 AND s.integration = current.integration AND s.property_ref = current.property_ref
+           JOIN noticeos.signal_observations AS o
+             ON o.workspace_id = s.workspace_id AND o.series_id = s.series_id AND o.observed_date >= $2::date
+           JOIN noticeos.signal_runs AS r
+             ON r.workspace_id = o.workspace_id AND r.run_seq = o.run_seq AND r.status = 'success'
+          ORDER BY o.observed_date, r.integration COLLATE "C", s.metric COLLATE "C",
+                   r.finished_at DESC, r.run_id COLLATE "C" DESC
        )
-       SELECT DISTINCT ON (o.observed_date, r.integration COLLATE "C", s.metric COLLATE "C")
-              o.observed_date AS date,
-              r.integration,
-              s.metric,
-              o.value,
+       SELECT newest.observed_date AS date,
+              newest.integration,
+              newest.metric,
+              newest.value,
               CASE
-                WHEN r.provisional_from IS NOT NULL AND o.observed_date >= r.provisional_from
+                WHEN confirmation.provisional_from IS NOT NULL
+                 AND newest.observed_date >= confirmation.provisional_from
                 THEN 1 ELSE 0
               END AS provisional
-         FROM current_property AS current
-         JOIN noticeos.measurement_series AS s
-           ON s.asset_id = $1 AND s.integration = current.integration AND s.property_ref = current.property_ref
-         JOIN noticeos.signal_observations AS o
-           ON o.workspace_id = s.workspace_id AND o.series_id = s.series_id AND o.observed_date >= $2::date
-         JOIN noticeos.signal_runs AS r
-           ON r.workspace_id = o.workspace_id AND r.run_seq = o.run_seq AND r.status = 'success'
-        ORDER BY o.observed_date, r.integration COLLATE "C", s.metric COLLATE "C",
-                 r.finished_at DESC, r.run_id COLLATE "C" DESC`,
+         FROM newest
+        CROSS JOIN LATERAL (
+              SELECT c.provisional_from
+                FROM noticeos.signal_runs AS c
+               WHERE c.workspace_id = newest.workspace_id
+                 AND c.asset_id = $1
+                 AND c.integration = newest.integration
+                 AND c.property_ref = newest.property_ref
+                 AND c.time_zone IS NOT DISTINCT FROM newest.time_zone
+                 AND c.status = 'success'
+                 AND (c.run_seq = newest.run_seq
+                      OR newest.observed_date BETWEEN c.window_start AND c.window_end)
+               ORDER BY c.finished_at DESC, c.run_id COLLATE "C" DESC
+               LIMIT 1
+              ) AS confirmation
+        ORDER BY newest.observed_date, newest.integration COLLATE "C", newest.metric COLLATE "C"`,
       [asset, from],
     ),
   );
