@@ -88,6 +88,9 @@ async function seedObservations(input: {
   /** The provider resource measured (a GSC site, a GA4 property). */
   propertyRef?: string;
   credentialRef?: string;
+  /** The days the run asked the provider for, and so the days it confirms. */
+  windowStart?: string;
+  windowEnd?: string;
   rows: { date: string; metric: string; value: number }[];
 }): Promise<void> {
   const asset = input.asset ?? 'nosh.example';
@@ -107,8 +110,8 @@ async function seedObservations(input: {
       property_ref: input.propertyRef ?? 'example.test',
       finished_at: finishedAt,
       status: failed ? 'error' : 'success',
-      window_start: '2026-05-01',
-      window_end: today(0),
+      window_start: input.windowStart ?? '2026-05-01',
+      window_end: input.windowEnd ?? today(0),
       data_state: provisionalFrom === null ? 'final' : 'includes-provisional',
       provisional_from: provisionalFrom,
       provider_rows: input.rows.length,
@@ -270,6 +273,83 @@ describe('GET /api/panel-source — the daily trend', () => {
     expect(body.trend.map((row) => [row.date, row.provisional])).toEqual([
       [today(1), 0],
       [today(0), 1],
+    ]);
+  });
+
+  // A run that re-reports a day with the same number writes nothing for it, so
+  // the day's value keeps the run that first wrote it. Its provisional flag must
+  // follow the newest run that confirmed the day instead (epic ro-cvl9).
+  it('finalizes an unchanged day once a later run confirms it', async () => {
+    await seedObservations({
+      finishedAt: `${today(1)}T00:15:00.000Z`,
+      provisionalFrom: today(1),
+      rows: [
+        { date: today(1), metric: 'clicks', value: 20 },
+        { date: today(1), metric: 'impressions', value: 0 },
+      ],
+    });
+    await seedObservations({
+      finishedAt: `${today(0)}T00:15:00.000Z`,
+      provisionalFrom: today(0),
+      rows: [{ date: today(0), metric: 'clicks', value: 3 }],
+    });
+    expect((await source()).trend.map((row) => [row.date, row.metric, row.value, row.provisional])).toEqual([
+      [today(1), 'clicks', 20, 0],
+      [today(1), 'impressions', 0, 0],
+      [today(0), 'clicks', 3, 1],
+    ]);
+  });
+
+  it('keeps a day provisional when its later confirmation failed', async () => {
+    await seedObservations({
+      finishedAt: `${today(1)}T00:15:00.000Z`,
+      provisionalFrom: today(1),
+      rows: [{ date: today(1), metric: 'clicks', value: 20 }],
+    });
+    await seedObservations({ finishedAt: `${today(0)}T00:15:00.000Z`, status: 'error', rows: [] });
+    expect((await source()).trend.map((row) => [row.date, row.provisional])).toEqual([[today(1), 1]]);
+  });
+
+  it('keeps a day provisional when no later run covered it', async () => {
+    await seedObservations({
+      finishedAt: `${today(1)}T00:15:00.000Z`,
+      provisionalFrom: today(1),
+      rows: [{ date: today(1), metric: 'clicks', value: 20 }],
+    });
+    await seedObservations({
+      finishedAt: `${today(0)}T00:15:00.000Z`,
+      windowStart: today(0),
+      windowEnd: today(0),
+      rows: [{ date: today(0), metric: 'clicks', value: 3 }],
+    });
+    expect((await source()).trend.map((row) => [row.date, row.provisional])).toEqual([
+      [today(1), 1],
+      [today(0), 0],
+    ]);
+  });
+
+  it('does not let another provider resource confirm a day', async () => {
+    await seedObservations({
+      propertyRef: 'sc-domain:nosh.example',
+      finishedAt: `${today(2)}T00:15:00.000Z`,
+      provisionalFrom: today(1),
+      rows: [{ date: today(1), metric: 'clicks', value: 20 }],
+    });
+    await seedObservations({
+      propertyRef: 'https://nosh.example/',
+      finishedAt: `${today(1)}T00:15:00.000Z`,
+      rows: [{ date: today(1), metric: 'clicks', value: 21 }],
+    });
+    await seedObservations({
+      propertyRef: 'sc-domain:nosh.example',
+      finishedAt: `${today(0)}T00:15:00.000Z`,
+      windowStart: today(0),
+      windowEnd: today(0),
+      rows: [{ date: today(0), metric: 'clicks', value: 3 }],
+    });
+    expect((await source()).trend.map((row) => [row.date, row.value, row.provisional])).toEqual([
+      [today(1), 20, 1],
+      [today(0), 3, 0],
     ]);
   });
 

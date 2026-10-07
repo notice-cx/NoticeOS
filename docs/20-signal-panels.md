@@ -231,8 +231,9 @@ produces confident wrong answers.
   *the provider did not report it*, which includes "we could not ask". Only
   `signal-trend-daily.csv` carries values you may treat as counts.
 - **Provisional days are marked, not hidden.** `provisional=1` means the provider
-  was still filling that day in at collection time. It is a real observation that
-  will be revised upward.
+  was still filling that day in when it was last collected. It is a real
+  observation that will be revised upward. A later collection that reports the
+  same number still settles the day (epic `ro-cvl9`).
 - **A GA4 day is provisional until it has had two days** (bead `ro-wo0j`). GA4
   keeps attributing a day after it ends, and its API says nothing about when it
   has finished, so a GA4 day stays `provisional=1` until it has been collected on
