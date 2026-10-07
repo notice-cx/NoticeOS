@@ -9,9 +9,9 @@
  */
 import { createHostedTaskPlanner, HOSTED_TASK_LIMITS } from './hosted-task-command.mjs';
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
+import { readBoundedJsonText } from './bounded-json-body.mjs';
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const BODY_BYTES = 32 * 1024;
-const BODY_MS = 2_000;
 function invalid() { throw new Error('Invalid hosted task request.'); }
 function uuid(value) {
     if (typeof value !== 'string' || !UUID.test(value))
@@ -94,62 +94,7 @@ function commandObject(text) {
     return result;
 }
 async function body(request) {
-    if (request.signal.aborted || request.bodyUsed || !request.body || request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() !== 'application/json')
-        invalid();
-    const declared = request.headers.get('content-length');
-    if (declared !== null && (!/^\d+$/u.test(declared) || Number(declared) > BODY_BYTES))
-        invalid();
-    const reader = request.body.getReader();
-    const chunks = [];
-    let bytes = 0, emptyChunks = 0, timedOut = false;
-    const expiresAt = Date.now() + BODY_MS;
-    // cancel() closes pending reads immediately, but an underlying source's
-    // cleanup promise can be hostile or broken. Wait only within the same whole
-    // body deadline; the native entry separately owns connection retirement.
-    let cancellation;
-    const cancel = () => { cancellation ??= reader.cancel().catch(() => { }); };
-    let finishDeadline;
-    const deadline = new Promise(resolve => { finishDeadline = resolve; });
-    const timer = setTimeout(() => { timedOut = true; cancel(); finishDeadline(); }, BODY_MS);
-    request.signal.addEventListener('abort', cancel, { once: true });
-    if (request.signal.aborted)
-        cancel();
-    try {
-        for (;;) {
-            const next = await reader.read();
-            if (timedOut || Date.now() >= expiresAt || request.signal.aborted)
-                invalid();
-            if (next.done)
-                break;
-            if (next.value.byteLength === 0) {
-                if (++emptyChunks > 1024)
-                    invalid();
-                continue;
-            }
-            bytes += next.value.byteLength;
-            if (bytes > BODY_BYTES)
-                invalid();
-            chunks.push(next.value);
-        }
-        const joined = new Uint8Array(bytes);
-        let at = 0;
-        for (const chunk of chunks) {
-            joined.set(chunk, at);
-            at += chunk.byteLength;
-        }
-        return commandObject(new TextDecoder('utf-8', { fatal: true }).decode(joined));
-    }
-    finally {
-        cancel();
-        try {
-            await Promise.race([cancellation, deadline]);
-        }
-        finally {
-            clearTimeout(timer);
-            request.signal.removeEventListener('abort', cancel);
-            reader.releaseLock();
-        }
-    }
+    return commandObject(await readBoundedJsonText(request, BODY_BYTES));
 }
 function query(url, required, optional = []) {
     const row = Object.create(null);

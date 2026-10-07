@@ -54,20 +54,17 @@ import type { CountersConfig } from "./counters";
 import type { DashboardConfig } from "../shared/dashboard";
 import type { IntegrationsConfig } from "../shared/integrations";
 import { DEMO_READ_ONLY, demoMcpRequestAllowed, type DemoViewerDescriptor } from '../shared/demo-viewer';
+import { McpToolError, serveMcp } from "../../../scripts/mcp-protocol.mjs";
 
-/** JSON-RPC 2.0, the subset MCP's streamable-HTTP transport actually needs. */
-const JSONRPC_VERSION = "2.0";
-const PROTOCOL_VERSION = "2025-06-18";
-/** The server is the Tower, so it answers with the Tower Worker's own name
- * (`apps/tower/wrangler.jsonc`) — the product's name, never an asset's id. */
+/** The transport, both MCP protocol eras, is shared with the hosted task
+ * endpoint (scripts/mcp-protocol.mts). The server is the Tower, so it answers
+ * with the Tower Worker's own name (`apps/tower/wrangler.jsonc`) — the
+ * product's name, never an asset's id. */
 const SERVER_INFO = { name: "noticeos-tower", version: "1.0.0" };
-
-/** Standard JSON-RPC error codes, plus MCP's use of -32602 for a bad tool arg. */
-const PARSE_ERROR = -32700;
-const INVALID_REQUEST = -32600;
-const METHOD_NOT_FOUND = -32601;
-const INVALID_PARAMS = -32602;
-const INTERNAL_ERROR = -32603;
+const INSTRUCTIONS =
+  "Read models for the properties under management. Start with list_properties.";
+/** The stored-read classifier's own bound (scripts/workspace-operations.mts). */
+const BODY_BYTES = 256 * 1024;
 
 /**
  * The ingest RPC this surface borrows, declared structurally rather than by
@@ -158,9 +155,6 @@ function requireAsset(args: Record<string, unknown>): string {
   }
   return asset;
 }
-
-/** A tool-level failure the caller can act on, as opposed to a server fault. */
-class McpToolError extends Error {}
 
 const TOOLS: ToolDefinition[] = [
   {
@@ -311,126 +305,28 @@ function wallOptions(deps: McpDeps) {
   };
 }
 
-function rpcResult(id: unknown, result: unknown): Response {
-  return new Response(
-    JSON.stringify({ jsonrpc: JSONRPC_VERSION, id, result }),
-    { headers: JSON_HEADERS },
-  );
-}
-
-function rpcError(id: unknown, code: number, message: string): Response {
-  return new Response(
-    JSON.stringify({ jsonrpc: JSONRPC_VERSION, id, error: { code, message } }),
-    { headers: JSON_HEADERS },
-  );
-}
-
-/**
- * A tool failure is a RESULT with `isError`, not a JSON-RPC error — MCP draws
- * that line so a model can read the failure and correct itself, where a
- * transport error would just abort the call.
- */
-function toolFailure(id: unknown, message: string): Response {
-  return rpcResult(id, {
-    content: [{ type: "text", text: message }],
-    isError: true,
-  });
-}
-
 export async function handleMcpRequest(
   request: Request,
   store: WorkspaceStore,
   deps: McpDeps,
   viewer: DemoViewerDescriptor | null = null,
 ): Promise<Response> {
-  if (request.method !== "POST") {
-    return rpcError(null, INVALID_REQUEST, "MCP requests must be POST");
-  }
-  let body: { jsonrpc?: unknown; id?: unknown; method?: unknown; params?: unknown };
-  try {
-    body = (await request.json()) as typeof body;
-  } catch {
-    return rpcError(null, PARSE_ERROR, "request body was not valid JSON");
-  }
-  if (!demoMcpRequestAllowed(viewer, body)) {
-    return Response.json({ error: 'demo_read_only', detail: DEMO_READ_ONLY }, { status: 403, headers: JSON_HEADERS });
-  }
-  const id = body.id ?? null;
-  if (body.jsonrpc !== JSONRPC_VERSION || typeof body.method !== "string") {
-    return rpcError(id, INVALID_REQUEST, "expected a JSON-RPC 2.0 request");
-  }
-
-  switch (body.method) {
-    case "initialize":
-      return rpcResult(id, {
-        protocolVersion: PROTOCOL_VERSION,
-        // Only `tools`. Declaring resources or prompts we do not serve would
-        // make a client probe for capabilities that answer nothing.
-        capabilities: { tools: {} },
-        serverInfo: SERVER_INFO,
-      });
-
-    // Notifications carry no id and expect no response body; `initialized` is
-    // the one every client sends after a successful handshake.
-    case "notifications/initialized":
-      return new Response(null, { status: 202 });
-
-    case "ping":
-      return rpcResult(id, {});
-
-    case "tools/list":
-      return rpcResult(id, {
-        tools: TOOLS.map(({ name, description, inputSchema }) => ({
-          name,
-          description,
-          inputSchema,
-        })),
-      });
-
-    case "tools/call": {
-      const params = (body.params ?? {}) as {
-        name?: unknown;
-        arguments?: unknown;
-      };
-      if (typeof params.name !== "string") {
-        return rpcError(id, INVALID_PARAMS, "tools/call needs a tool name");
-      }
-      const tool = TOOLS.find((candidate) => candidate.name === params.name);
-      if (!tool) {
-        return rpcError(id, METHOD_NOT_FOUND, `no tool named ${params.name}`);
-      }
-      const args =
-        params.arguments && typeof params.arguments === "object"
-          ? (params.arguments as Record<string, unknown>)
-          : {};
-      try {
-        const result = await tool.run(store, deps, args);
-        return rpcResult(id, {
-          // `structuredContent` is what a model should read; the text block is
-          // the same JSON, because clients that predate structured output would
-          // otherwise see an empty result rather than a degraded one.
-          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-          structuredContent: result,
-        });
-      } catch (error) {
-        if (error instanceof McpToolError) {
-          return toolFailure(id, error.message);
-        }
-        // A genuine fault. The message is not echoed: it can carry SQL and
-        // binding internals, and this surface is read by a model that would
-        // repeat them.
-        console.error("mcp tool failed", params.name);
-        return rpcError(
-          id,
-          INTERNAL_ERROR,
-          `tool ${params.name} failed — see the Tower worker log`,
-        );
-      }
-    }
-
-    default:
-      return rpcError(id, METHOD_NOT_FOUND, `unsupported method ${body.method}`);
-  }
+  return serveMcp(request, {
+    info: SERVER_INFO,
+    instructions: INSTRUCTIONS,
+    // Only tools. Declaring resources or prompts we do not serve would make a
+    // client probe for capabilities that answer nothing.
+    tools: TOOLS,
+    // A failure the caller can act on is an McpToolError, returned as a
+    // result with `isError` so a model can read it and correct itself; any
+    // other fault is logged by name and never echoed, because its message can
+    // carry SQL and binding internals that a model would repeat.
+    call: (name, args) => TOOLS.find((tool) => tool.name === name)!.run(store, deps, args),
+  }, {
+    maxBytes: BODY_BYTES,
+    screen: (body) => demoMcpRequestAllowed(viewer, body) ? null
+      : Response.json({ error: 'demo_read_only', detail: DEMO_READ_ONLY }, { status: 403, headers: JSON_HEADERS }),
+  });
 }
 
 /** Exported for the suite: the tool surface, so a test can assert it is whole. */

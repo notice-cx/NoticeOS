@@ -54,11 +54,12 @@ function deps(overrides: Partial<McpDeps> = {}): McpDeps {
 let ctx: TestStore;
 let ingest: McpIngest & { researchLookup: ReturnType<typeof vi.fn> };
 
+/** `id: null` sends a notification, which carries no id at all. */
 function rpc(method: string, params?: unknown, id: unknown = 1): Request {
   return new Request("https://tower.local/api/mcp", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
+    body: JSON.stringify({ jsonrpc: "2.0", ...(id === null ? {} : { id }), method, params }),
   });
 }
 
@@ -80,9 +81,11 @@ beforeEach(async () => {
 
 describe("the MCP surface — handshake", () => {
   it("declares only the capability it serves", async () => {
-    const { body } = await call("initialize");
+    const { body } = await call("initialize", {
+      protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" },
+    });
     expect(body.result).toMatchObject({
-      protocolVersion: expect.any(String),
+      protocolVersion: "2025-06-18",
       serverInfo: { name: "noticeos-tower" },
     });
     // Advertising resources or prompts we do not serve would make a client
@@ -94,7 +97,7 @@ describe("the MCP surface — handshake", () => {
 
   it("acknowledges the initialized notification without a body", async () => {
     const res = await handleMcpRequest(
-      rpc("notifications/initialized", undefined, undefined),
+      rpc("notifications/initialized", undefined, null),
 
       ctx.call,
       deps(),
@@ -104,17 +107,46 @@ describe("the MCP surface — handshake", () => {
   });
 
   it("refuses anything that is not JSON-RPC 2.0", async () => {
-    const res = await handleMcpRequest(
-      new Request("https://tower.local/api/mcp", {
-        method: "POST",
-        body: JSON.stringify({ method: "tools/list" }) }),
+    for (const contentType of ["application/json", "text/plain"]) {
+      const res = await handleMcpRequest(
+        new Request("https://tower.local/api/mcp", {
+          method: "POST",
+          headers: { "content-type": contentType },
+          body: JSON.stringify(contentType === "text/plain"
+            ? { jsonrpc: "2.0", id: 1, method: "tools/list" } : { method: "tools/list" }) }),
 
-      ctx.call,
-      deps(),
-    );
-    expect(((await res.json()) as { error: { code: number } }).error.code).toBe(
-      -32600,
-    );
+        ctx.call,
+        deps(),
+      );
+      // A text/plain POST is the one a page elsewhere can send without asking.
+      expect(res.status).toBe(contentType === "text/plain" ? 415 : 400);
+      expect(((await res.json()) as { error: { code: number } }).error.code).toBe(
+        -32600,
+      );
+    }
+  });
+
+  it("answers a 2026-07-28 client with no handshake", async () => {
+    const meta = {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientCapabilities": {},
+    };
+    const modern = (method: string, params: Record<string, unknown> = {}) =>
+      handleMcpRequest(new Request("https://tower.local/api/mcp", {
+        method: "POST",
+        headers: { "content-type": "application/json", "mcp-protocol-version": "2026-07-28",
+          "mcp-method": method, ...(typeof params.name === "string" ? { "mcp-name": params.name } : {}) },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params: { ...params, _meta: meta } }),
+      }), ctx.call, deps());
+    const discovered = (await (await modern("server/discover")).json()) as { result: Record<string, unknown> };
+    expect(discovered.result).toMatchObject({ resultType: "complete", supportedVersions: ["2026-07-28"],
+      capabilities: { tools: {} }, _meta: { "io.modelcontextprotocol/serverInfo": { name: "noticeos-tower" } } });
+    const listed = (await (await modern("tools/list")).json()) as { result: { tools: { name: string }[] } };
+    expect(listed.result.tools.map((tool) => tool.name)).toEqual(MCP_TOOL_NAMES);
+    const called = (await (await modern("tools/call", { name: "list_properties", arguments: {} })).json()) as {
+      result: { resultType: string; structuredContent: { properties: unknown[] } } };
+    expect(called.result.resultType).toBe("complete");
+    expect(called.result.structuredContent.properties.length).toBeGreaterThan(0);
   });
 
   it("refuses a GET — this transport is POST-only", async () => {
@@ -124,6 +156,8 @@ describe("the MCP surface — handshake", () => {
       ctx.call,
       deps(),
     );
+    expect(res.status).toBe(405);
+    expect(res.headers.get("allow")).toBe("POST");
     expect(((await res.json()) as { error: { code: number } }).error.code).toBe(
       -32600,
     );
@@ -217,8 +251,9 @@ describe("the MCP surface — tools", () => {
   });
 
   it("rejects a call to a tool that does not exist", async () => {
+    // An unknown tool is an invalid parameter of tools/call, not an unknown method.
     const { body } = await call("tools/call", { name: "delete_everything" });
-    expect(body.error).toMatchObject({ code: -32601 });
+    expect(body.error).toMatchObject({ code: -32602 });
   });
 });
 

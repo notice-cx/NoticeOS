@@ -78,16 +78,25 @@ describe('the actual demo Worker entry points', () => {
     expect(MCP_TOOL_NAMES).toEqual(DEMO_MCP_READ_TOOLS);
     const get = vi.fn(() => { throw new Error('Unreviewed MCP reached a store or binding'); });
     const store = new Proxy({} as WorkspaceStore, { get }); const deps = new Proxy({} as McpDeps, { get });
+    const json = { 'content-type': 'application/json' };
     for (const body of [{ jsonrpc: '2.0', id: 1, method: 'new/mutation' },
       { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'future_write_tool' } },
       { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'run_collector' } }]) {
-      const req = new Request('https://demo.example/api/mcp', { method: 'POST', body: JSON.stringify(body) });
+      const req = new Request('https://demo.example/api/mcp', { method: 'POST', headers: json, body: JSON.stringify(body) });
       expect((await handleMcpRequest(req, store, deps, descriptor)).status).toBe(403);
     }
     for (const method of ['initialize', 'notifications/initialized', 'ping', 'tools/list']) {
-      const req = new Request('https://demo.example/api/mcp', { method: 'POST', body: JSON.stringify({ jsonrpc: '2.0', id: 1, method }) });
+      const req = new Request('https://demo.example/api/mcp', { method: 'POST', headers: json,
+        body: JSON.stringify({ jsonrpc: '2.0', ...(method.startsWith('notifications/') ? {} : { id: 1 }), method,
+          ...(method === 'initialize' ? { params: { protocolVersion: '2025-06-18', capabilities: {} } } : {}) }) });
       expect((await handleMcpRequest(req, store, deps, descriptor)).status).toBe(method === 'notifications/initialized' ? 202 : 200);
     }
+    // A 2026-07-28 client discovers instead of initializing.
+    const discover = new Request('https://demo.example/api/mcp', { method: 'POST',
+      headers: { ...json, 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'server/discover' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'server/discover', params: { _meta: {
+        'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) });
+    expect((await handleMcpRequest(discover, store, deps, descriptor)).status).toBe(200);
     expect(get).not.toHaveBeenCalled();
   });
   it('the two private reads keep the existing Worker door guard and forward the operator bearer unchanged', async () => {

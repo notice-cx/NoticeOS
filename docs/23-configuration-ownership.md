@@ -348,6 +348,9 @@ The [remote panel review build contract](briefs/2026-10-05-remote-panel-review.m
 extends these boundaries to versioned evidence, remote agent admission and
 retry-safe task operations. It is an implementation handoff, not evidence that
 those additional capabilities or a public service have been qualified.
+Retry-safe task writes and the task MCP endpoint now exist locally
+([scripts/README.md](../scripts/README.md#explicit-local-hosted-tasks-entry)); remote agent
+admission and any public service remain unqualified.
 
 The [Dolt 2.4.0 / Beads 1.3.1 qualification](../scripts/dolt-tenant-permissions-compose.test.mjs)
 uses two generated databases with colliding task IDs. Restricted accounts

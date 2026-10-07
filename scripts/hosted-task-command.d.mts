@@ -55,6 +55,8 @@ export type HostedTaskOperation = {
     readonly parent?: string;
     readonly acceptance?: string;
     readonly metadata?: Readonly<Record<string, string>>;
+    /** Server-only receipt identity (hosted-task-operations); request parsers never set it. */
+    readonly operationId?: string;
 } | {
     readonly kind: 'update';
     readonly taskId: string;

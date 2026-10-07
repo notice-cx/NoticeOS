@@ -7,6 +7,10 @@ import { openTaskDirectory, type TaskProjectMapping } from '../packages/postgres
 import { createWorkspaceAdmission, type WorkspaceAdmission } from './workspace-admission.mjs';
 import { createHostedTaskExecutor, type HostedTaskTarget, type HostedTaskExecutorOptions } from './hosted-task-executor.mjs';
 import { createHostedTasksApi } from './hosted-tasks-api.mjs';
+import { createHostedTaskOperations } from './hosted-task-operations.mjs';
+import { createHostedTaskMcp, TASK_MCP_PATH } from './hosted-task-mcp.mjs';
+import { openStore, type PostgresStore } from '../packages/postgres/src/store.mjs';
+import { taskReceipts } from '../packages/postgres/src/task-receipts.mjs';
 import { createBrowserRequestPolicy } from './browser-request-policy.mjs';
 
 export interface HostedTaskRuntimeOptions {
@@ -19,6 +23,9 @@ export interface HostedTaskRuntimeOptions {
   readonly binary: HostedTaskExecutorOptions['binary'];
   readonly doltBinary: HostedTaskExecutorOptions['doltBinary'];
   readonly scratchRoot: string;
+  /** The application store (noticeos_app) holding task write receipts. Absent,
+   * writes still work but a request carrying an idempotency key is refused. */
+  readonly receiptsConnectionString?: string;
 }
 export interface HostedTaskRuntime {
   readonly profile: 'hosted' | 'demo';
@@ -68,7 +75,7 @@ function tool(input: unknown): HostedTaskExecutorOptions['binary'] {
 /** Capture structural server configuration before an asynchronous preflight.
  * This is not authentication; HTTP callers never supply this configuration. */
 export function captureHostedTaskRuntimeOptions(input: HostedTaskRuntimeOptions): HostedTaskRuntimeOptions {
-  const row = data(input); exact(row, ['profile', 'trustedOrigin', 'identity', 'directoryConnectionString', 'targets', 'binary', 'doltBinary', 'scratchRoot'], ['demoWorkspaceId']);
+  const row = data(input); exact(row, ['profile', 'trustedOrigin', 'identity', 'directoryConnectionString', 'targets', 'binary', 'doltBinary', 'scratchRoot'], ['demoWorkspaceId', 'receiptsConnectionString']);
   if (!['hosted', 'demo'].includes(row.profile as string) || typeof row.trustedOrigin !== 'string') invalid();
   const origin = createBrowserRequestPolicy(row.trustedOrigin).origin;
   const profile = row.profile as 'hosted' | 'demo';
@@ -93,11 +100,14 @@ export function captureHostedTaskRuntimeOptions(input: HostedTaskRuntimeOptions)
   if (typeof row.scratchRoot !== 'string' || !row.scratchRoot.startsWith('/') || /[\r\n\0]/u.test(row.scratchRoot)) invalid();
   const scratchRoot = row.scratchRoot;
   if (typeof row.directoryConnectionString !== 'string') invalid();
+  if (row.receiptsConnectionString !== undefined && (typeof row.receiptsConnectionString !== 'string'
+    || !/^postgres(?:ql)?:\/\//u.test(row.receiptsConnectionString))) invalid();
   return Object.freeze({ profile, trustedOrigin: origin,
     ...(profile === 'demo' ? { demoWorkspaceId: demo as string } : {}),
     identity: Object.freeze({ connectionString: identityOptions.connectionString, trustedOrigin: origin, sessionSecret: identityOptions.sessionSecret }),
     directoryConnectionString: row.directoryConnectionString,
-    targets: Object.freeze([...targets.values()]), binary, doltBinary, scratchRoot });
+    targets: Object.freeze([...targets.values()]), binary, doltBinary, scratchRoot,
+    ...(row.receiptsConnectionString === undefined ? {} : { receiptsConnectionString: row.receiptsConnectionString as string }) });
 }
 export async function openHostedTaskRuntime(input: HostedTaskRuntimeOptions): Promise<HostedTaskRuntime> {
   const configuration = captureHostedTaskRuntimeOptions(input);
@@ -106,6 +116,9 @@ export async function openHostedTaskRuntime(input: HostedTaskRuntimeOptions): Pr
   // No pool opens for malformed composition above. Directory construction is
   // lazy; the supported identity factory validates its separate role/schema.
   const directory = openTaskDirectory({ connectionString: configuration.directoryConnectionString });
+  // Lazy like the directory: the pool connects on the first keyed write.
+  const store: PostgresStore | undefined = configuration.receiptsConnectionString === undefined
+    ? undefined : openStore(configuration.receiptsConnectionString, { maxConnections: 2 });
   let identity: Awaited<ReturnType<typeof openIdentity>> | undefined;
   try {
     identity = await openIdentity(Object.freeze({ connectionString: identityOptions.connectionString,
@@ -122,26 +135,34 @@ export async function openHostedTaskRuntime(input: HostedTaskRuntimeOptions): Pr
         if (!found || Object.keys(found.mapping).some(key => found.mapping[key as keyof TaskProjectMapping] !== selected[key as keyof TaskProjectMapping])) return null;
         return found.target;
       } });
-    const api = createHostedTasksApi({ profile, trustedOrigin: origin, ...(profile === 'demo' ? { demoWorkspaceId: demo as string } : {}), admission, directory, executor,
-      workspaceActors: workspaceId => facts.workspaceActors(workspaceId) });
+    const workspaceActors = (workspaceId: string) => facts.workspaceActors(workspaceId);
+    const receipts = store ? taskReceipts(store) : undefined;
+    const selection = profile === 'demo' ? { demoWorkspaceId: demo as string } : {};
+    const api = createHostedTasksApi({ profile, trustedOrigin: origin, ...selection, admission, directory, executor,
+      workspaceActors, ...(receipts ? { receipts } : {}) });
+    // The MCP endpoint and the HTTP API call the same operations under the same admission.
+    const mcp = createHostedTaskMcp({ profile, trustedOrigin: origin, ...selection,
+      operations: createHostedTaskOperations({ admission, directory, executor, workspaceActors, ...(receipts ? { receipts } : {}) }) });
     let closed = false, closing: Promise<void> | undefined;
     const pending = new Set<Promise<Response>>();
     return Object.freeze({ profile, origin,
       handle(original: Request) {
         if (closed) return Promise.resolve(Response.json({ error: 'hosted_task_unavailable' }, { status: 503 }));
-        const work = api(original); pending.add(work); void work.then(() => pending.delete(work), () => pending.delete(work)); return work;
+        let mcpRoute = false;
+        try { mcpRoute = new URL(original.url).pathname === TASK_MCP_PATH; } catch { /* The API refuses a malformed URL. */ }
+        const work = mcpRoute ? mcp(original) : api(original); pending.add(work); void work.then(() => pending.delete(work), () => pending.delete(work)); return work;
       },
       close() {
         if (closing) return closing; closed = true;
         closing = (async () => {
           await Promise.allSettled([...pending]);
-          const results = await Promise.allSettled([directory.close(), facts.close()]);
+          const results = await Promise.allSettled([directory.close(), facts.close(), Promise.resolve(store?.close())]);
           for (const result of results) if (result.status === 'rejected') throw result.reason;
         })();
         return closing;
       },
     });
   } catch {
-    await Promise.allSettled([directory.close(), identity?.close()]); invalid();
+    await Promise.allSettled([directory.close(), identity?.close(), Promise.resolve(store?.close())]); invalid();
   }
 }

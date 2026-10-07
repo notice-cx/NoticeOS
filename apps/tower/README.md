@@ -475,6 +475,16 @@ from a paste.
                                 "url": "http://127.0.0.1:5173/api/mcp" } } }
 ```
 
+The transport is shared with the task endpoint
+([`scripts/mcp-protocol.mts`](../../scripts/mcp-protocol.mts)) and speaks both
+protocol eras on one stateless POST route: 2026-07-28, where each request
+carries its version and client capabilities in `_meta` with matching
+`MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers and a client may
+call `server/discover` instead of a handshake; and the `initialize` handshake of
+2025-11-25, 2025-06-18 and 2025-03-26. Bodies are `application/json`, at most
+256 KiB, without duplicate keys or batches; a browser `Origin` other than the
+Tower's own is refused.
+
 | Tool | Answers |
 | --- | --- |
 | `list_properties` | the portfolio, each asset's status, open-flag severity, and the period's booked vs forecast |
@@ -670,7 +680,7 @@ sites.
 `tsconfig.worker.json` for the Worker under workers-types, `e2e/tsconfig.json`
 for the journeys), `test` (Vitest), `build` (`vite build`), and the browser
 journeys plus the UX flow gate behind the root `pnpm test:journeys`
-([`e2e/README.md`](e2e/README.md)). CI runs the five gates in
+([`e2e/README.md`](e2e/README.md)). CI runs the gates in
 [`AGENTS.md` § The CI bar](../../AGENTS.md#the-ci-bar); all must be green.
 
 Tests run reader SQL against **real Postgres**. `test/postgres-store.ts`

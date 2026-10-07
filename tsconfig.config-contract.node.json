@@ -21,6 +21,8 @@
     "scripts/hosted-task-runtime.mts",
     "scripts/hosted-task-server.mts",
     "scripts/hosted-tasks-api.mts",
+    "scripts/hosted-task-operations.mts",
+    "scripts/hosted-task-mcp.mts",
     "scripts/task-row.mts",
     "scripts/hosted-task-http.mts",
     "scripts/hosted-task-executor.mts",
@@ -62,6 +64,7 @@
     "packages/postgres/src/service-grant.mts",
     "packages/postgres/src/platform-provisioning.mts",
     "packages/postgres/src/integration-oauth-custody.mts",
-    "packages/postgres/src/mutation-audit.mts"
+    "packages/postgres/src/mutation-audit.mts",
+    "packages/postgres/src/task-receipts.mts"
   ]
 }

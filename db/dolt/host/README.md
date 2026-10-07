@@ -375,6 +375,14 @@ One designated `--sandbox migrate schema --force --json --actor <actor>` then
 migrates the copied target; a reachable mock listener observes no migration or
 push contacts, even with auto-push enabled. Source data remains unchanged.
 
+`pnpm test:task-store` runs the hosted task store proofs (epic `ro-cvl9`): the
+fixed executor's qualification, two executors racing one claim, and a create
+and comment retried after a lost reply. On a Linux host with Docker,
+`node scripts/task-store-test-tools.mjs --out <new folder>` prepares their
+inputs: the task and Dolt clients `deploy/compose/Dockerfile` pins, verified
+against its digests, the pinned server image and a new evidence folder. It
+prints the variables to export. CI's `task-store` job runs both.
+
 `NOTICEOS_TEST_KEEP_BEADS_EVIDENCE=1` retains complete redacted command results,
 qualification and cleanup receipts in the reported private fixture directories.
 Failed qualification retains its evidence; uncertain process or cleanup state

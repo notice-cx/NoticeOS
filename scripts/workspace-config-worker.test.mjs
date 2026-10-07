@@ -1147,9 +1147,17 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
           for (const foreign of ['tenant-a', 'tenant-b', 'demo'].filter(value => value !== marker))
             assert.equal(text.includes(foreign + ' private asset') || text.includes(foreign + ' stored question'), false);
         }
-        for (const method of ['initialize', 'notifications/initialized', 'ping', 'tools/list']) {
-          const response = await stored(workspace, '/api/mcp', { jsonrpc: '2.0', id: 2, method }, evidence, client);
-          assert.ok([200, 202].includes(response.status), await response.text());
+        // Both MCP eras' transport methods: the handshake before 2026-07-28 and its discovery.
+        const meta = { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} };
+        for (const [body, extra] of [
+          [{ jsonrpc: '2.0', id: 2, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {} } }],
+          [{ jsonrpc: '2.0', method: 'notifications/initialized' }],
+          [{ jsonrpc: '2.0', id: 2, method: 'ping' }], [{ jsonrpc: '2.0', id: 2, method: 'tools/list' }],
+          [{ jsonrpc: '2.0', id: 2, method: 'server/discover', params: { _meta: meta } },
+            { 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'server/discover' }]]) {
+          const response = await stored(workspace, '/api/mcp', body, { ...evidence, ...extra }, client);
+          const text = await response.text();
+          assert.ok(body.id === undefined ? response.status === 202 : response.status === 200 && !JSON.parse(text).error, text);
         }
         const response = await stored(workspace, '/api/alerts/backtest', replay, evidence, client);
         assert.equal(response.status, 200, await response.clone().text());

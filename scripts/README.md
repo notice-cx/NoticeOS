@@ -719,6 +719,33 @@ work; a dispatched effect can already have committed. Standalone controls
 retain their existing behavior. Local qualification does not activate a public
 hosted service.
 
+**Retry-safe writes and the task MCP endpoint** (epic `ro-cvl9`). The Tasks API
+and the MCP endpoint at `POST /api/tasks/mcp`
+([`hosted-task-mcp.mts`](hosted-task-mcp.mts)) call the same operations
+([`hosted-task-operations.mts`](hosted-task-operations.mts)) under the same
+admission. A create, update, comment or close may carry an idempotency key:
+the `Idempotency-Key` header on HTTP, the required `idempotency_key` argument on
+MCP. The key is scoped to the workspace, the admitted principal and the
+operation, and bound to the request. A retry returns the recorded outcome;
+other content under the same key answers 409 `idempotency_conflict`; an attempt
+that may still be running answers 409 `operation_pending`. Receipts are kept in
+`noticeos.task_operation_receipts` (migration 0012) through the runtime file's
+optional `receiptsConnectionString`, an application-role connection; without
+it, a keyed write answers 503 `idempotency_unavailable` and an unkeyed one runs
+as before. An attempt that ended without a recorded outcome is checked against
+the task store before it runs again: a create by its `noticeos_operation_id`
+metadata, a comment by its author, text and time. Update, claim and close
+repeat without a second effect (the pinned task client's behavior, proved by
+`pnpm test:task-store`). MCP results use the Tower's task and comment shapes,
+never the task store's own field names, and no human decision is a tool. MCP
+admission is the browser session's for now; agent sign-in is separate work.
+Both MCP endpoints, this one and the Tower's `/api/mcp`, share one transport
+([`mcp-protocol.mts`](mcp-protocol.mts)) that answers 2026-07-28 clients
+(version and capabilities in each request's `_meta`, routing headers that must
+match the body, `server/discover`) and `initialize`-based clients of 2025-11-25,
+2025-06-18 and 2025-03-26 on the same route, with no session state; its
+[suite](mcp-protocol.test.mjs) pins both eras.
+
 ### Hosted runtime composition and recovery
 
 Hosted operation uses explicit server composition; `pnpm start` and the office

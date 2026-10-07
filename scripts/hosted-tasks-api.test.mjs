@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
-import { createHostedTasksApi } from './hosted-tasks-api.mjs';
+import { createHostedTasksApi, writeResponse, IDEMPOTENCY_HEADER } from './hosted-tasks-api.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 const [A,B,P,S,PERSON] = ['11111111','22222222','33333333','44444444','55555555'].map(prefix=>`${prefix}-1111-4111-8111-111111111111`);
 const origin='https://tower.example.test';
@@ -102,4 +102,19 @@ test('unsupported project is never inferred from a task prefix; optional epic fa
   assert.equal((await f.handler(request(`/api/tasks/tt-a?project=${B}`))).status,403);assert.equal(f.calls.length,0);
   f.epicsFail();const data=await(await f.handler(request(`/api/tasks?project=${P}&status=open`))).json();
   assert.equal(data.epics,null);assert.equal(data.tasks.length,1);
+});
+test('an Idempotency-Key is checked before admission and needs a receipt store',async()=>{
+  const f=fixture();
+  const keyed=(path,method,body,key)=>{const r=request(path,method,body);r.headers.set(IDEMPOTENCY_HEADER,key);return r;};
+  for(const[path,method,body,key]of[[`/api/tasks?project=${P}`,'GET',undefined,'agent-retry-0001'],
+    ['/api/tasks','POST',{projectId:P,title:'Task'},'short'],['/api/tasks','POST',{projectId:P,title:'Task'},'bad key with spaces'],
+    ['/api/tasks/tt-a/respond','POST',{projectId:P,response:'Answer'},'agent-retry-0001']]){
+    assert.equal((await f.handler(keyed(path,method,body,key))).status,400,`${method} ${path} ${key}`);
+  }
+  assert.deepEqual(f.catalogReads,[]);assert.deepEqual(f.calls,[]);
+  // This fixture configures no receipt store: a key it cannot honor is refused, not ignored.
+  const reply=await f.handler(keyed('/api/tasks','POST',{projectId:P,title:'Task'},'agent-retry-0001'));
+  assert.equal(reply.status,503);assert.deepEqual(await reply.json(),{error:'idempotency_unavailable'});assert.deepEqual(f.calls,[]);
+  assert.equal(writeResponse({status:'pending'}).status,409);assert.equal(writeResponse({status:'conflict'}).status,409);
+  assert.deepEqual(await writeResponse({status:'done',value:{id:'tt-a'},replayed:true}).json(),{id:'tt-a'});
 });

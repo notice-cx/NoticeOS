@@ -85,5 +85,8 @@ test('MCP only accepts reviewed tool reads and transport methods in a demo', () 
     { jsonrpc: '2.0', method: 'notifications/new-operation' }, { jsonrpc: '2.0', method: 'tools/call', params: null }]) {
     assert.equal(demoMcpRequestAllowed(viewer, value), false);
   }
+  for (const method of ['initialize', 'server/discover', 'notifications/initialized', 'ping', 'tools/list']) {
+    assert.equal(demoMcpRequestAllowed(viewer, { jsonrpc: '2.0', method }), true, method);
+  }
   assert.equal(demoMcpRequestAllowed(null, { method: 'ordinary' }), true);
 });

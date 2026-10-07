@@ -34,6 +34,10 @@
       "types": "./src/task-catalog.d.mts",
       "default": "./src/task-catalog.mjs"
     },
+    "./task-receipts": {
+      "types": "./src/task-receipts.d.mts",
+      "default": "./src/task-receipts.mjs"
+    },
     "./platform-provisioning": {
       "types": "./src/platform-provisioning.d.mts",
       "default": "./src/platform-provisioning.mjs"
