@@ -12,6 +12,9 @@
 // callers holding the same receipt cannot both start an effect.
 import { javascriptInstant } from './store.mjs';
 export const TASK_RECEIPT_ATTEMPTS = 5;
+/** Days a receipt is kept after its last attempt. Migration 0013's trigger
+ * refuses removing one sooner; a retry after that runs as a new change. */
+export const TASK_RECEIPT_KEEP_DAYS = 7;
 export const TASK_RECEIPT_RESULT_BYTES = 65536;
 export const IDEMPOTENCY_KEY = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/u;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
@@ -59,11 +62,14 @@ function receipt(row) {
     });
 }
 /** Insert a new pending receipt, or return the existing one when the same key
- * already carries the same project and request. */
+ * already carries the same project and request. The workspace's expired
+ * receipts go first, so an expired key starts afresh. */
 export async function startTaskReceipt(tx, request, operationId) {
     const key = identity(tx, request);
     const project = matches(request.projectId, UUID), hash = matches(request.requestHash, /^[0-9a-f]{64}$/u);
     const id = matches(operationId, UUID);
+    await tx.execute(`DELETE FROM noticeos.task_operation_receipts WHERE workspace_id=$1::uuid
+        AND COALESCE(finished_at, started_at) < pg_catalog.now() - interval '${TASK_RECEIPT_KEEP_DAYS} days'`, [key[0]]);
     const [inserted] = await tx.query(`INSERT INTO noticeos.task_operation_receipts (workspace_id,principal_id,operation,idempotency_key,
        project_id,request_hash,operation_id,state,attempt)
      VALUES ($1::uuid,$2,$3,$4,$5::uuid,$6,$7::uuid,'pending',1)

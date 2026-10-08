@@ -13,7 +13,10 @@ export function memoryReceipts(clock) {
     const row = rows.get(id(workspace, identity));
     return row && row.operationId === attempt.operationId && row.attempt === attempt.attempt && states.includes(row.state) ? row : null;
   };
+  // Seven days after its last attempt a receipt is swept (migration 0013).
+  const expired = row => Date.parse(row.finishedAt ?? row.startedAt) < clock() - 7 * 86_400_000;
   return { rows, async start(workspace, request, operationId) {
+    for (const [key, row] of rows) if (key.startsWith(`${workspace}|`) && expired(row)) rows.delete(key);
     const found = rows.get(id(workspace, request));
     if (found) return found.projectId === request.projectId && found.requestHash === request.requestHash
       ? { kind: 'existing', receipt: view(found) } : { kind: 'conflict' };

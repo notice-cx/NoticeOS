@@ -489,9 +489,9 @@
           "started_at",
           "finished_at"
         ],
-        "delete": false
+        "delete": true
       },
-      "rule": "A task write's idempotency key, bound request and operation identity are fixed; its attempt state and recorded outcome evolve."
+      "rule": "A task write's idempotency key, bound request and operation identity are fixed; its attempt state and recorded outcome evolve; swept seven days after its last attempt (retention)."
     }
   },
   "retention": {
@@ -534,6 +534,10 @@
       "keep": "90 days",
       "by": "started_at",
       "beyond": "dropped: the runner's own log is the record"
+    },
+    "task_operation_receipts": {
+      "keep": "7 days after its last attempt",
+      "beyond": "dropped: a retry that late runs as a new change; the trigger task_receipt_leaves_only_when_expired refuses an earlier removal"
     },
     "task_snapshots": {
       "keep": "2 days",

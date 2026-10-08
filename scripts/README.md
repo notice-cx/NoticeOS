@@ -729,10 +729,11 @@ MCP. The key is scoped to the workspace, the admitted principal and the
 operation, and bound to the request. A retry returns the recorded outcome;
 other content under the same key answers 409 `idempotency_conflict`; an attempt
 that may still be running answers 409 `operation_pending`. Receipts are kept in
-`noticeos.task_operation_receipts` (migration 0012) through the runtime file's
+`noticeos.task_operation_receipts` (migrations 0012 and 0013) through the runtime file's
 optional `receiptsConnectionString`, an application-role connection; without
 it, a keyed write answers 503 `idempotency_unavailable` and an unkeyed one runs
-as before. An attempt that ended without a recorded outcome is checked against
+as before. A receipt is kept seven days after its last attempt; a retry after
+that runs as a new change. An attempt that ended without a recorded outcome is checked against
 the task store before it runs again: a create by its `noticeos_operation_id`
 metadata, a comment by its author, text and time. Update, claim and close
 repeat without a second effect (the pinned task client's behavior, proved by

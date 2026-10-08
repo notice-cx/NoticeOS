@@ -14,9 +14,10 @@ import {
   finishTaskReceipt, interruptTaskReceipt, retryTaskReceipt, startTaskReceipt, TaskReceiptRefused,
 } from '../packages/postgres/src/task-receipts.mjs';
 
-// Migration 0012 and packages/postgres/src/task-receipts.mts (epic ro-cvl9):
-// one receipt per (workspace, principal, operation, key), bound to its request;
-// every transition a compare-and-set on the attempt; workspaces isolated.
+// Migrations 0012-0013 and packages/postgres/src/task-receipts.mts (epic
+// ro-cvl9): one receipt per (workspace, principal, operation, key), bound to
+// its request; every transition a compare-and-set on the attempt; workspaces
+// isolated; kept seven days after its last attempt and never removed sooner.
 
 const hash = letter => letter.repeat(64);
 
@@ -26,9 +27,9 @@ test('task operation receipts bind a key to one request and move by compare-and-
   let owner, store, primaryError;
   try {
     owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root, 'pg'), tools)); if (!owner) return;
-    // An existing store from before 0012 keeps its rows; 0012 only adds.
+    // An existing store from before 0012 keeps its rows; 0012 and 0013 only add.
     const older = path.join(root, 'older'); mkdirSync(older);
-    for (const name of readdirSync(path.join(REPO_ROOT, 'db/postgres/migrations')).filter(name => !name.startsWith('0012_'))) {
+    for (const name of readdirSync(path.join(REPO_ROOT, 'db/postgres/migrations')).filter(name => !/^001[23]_/u.test(name))) {
       copyFileSync(path.join(REPO_ROOT, 'db/postgres/migrations', name), path.join(older, name));
     }
     applyMigrations(owner, { dir: older });
@@ -36,7 +37,7 @@ test('task operation receipts bind a key to one request and move by compare-and-
     for (const [id, slug] of [[a, 'first'], [b, 'second']]) {
       owner.sql(`INSERT INTO noticeos.workspaces(workspace_id,slug,display_name,status) VALUES('${id}','${slug}','${slug}','active')`);
     }
-    assert.deepEqual(applyMigrations(owner).applied, ['0012_task_operation_receipts']);
+    assert.deepEqual(applyMigrations(owner).applied, ['0012_task_operation_receipts', '0013_task_receipt_retention']);
     store = openStore(owner.applicationLogin().url());
 
     const project = randomUUID(), principal = randomUUID();
@@ -96,12 +97,25 @@ test('task operation receipts bind a key to one request and move by compare-and-
       { text: 'x'.repeat(70000) })), TaskReceiptRefused);
 
     // The application role sees and changes only its own workspace's receipts,
-    // and never deletes one or edits a bound column.
-    const counts = await Promise.all([a, b].map(id => store.inWorkspace(id, tx =>
-      tx.query('SELECT count(*)::int AS n FROM noticeos.task_operation_receipts'))));
-    assert.deepEqual(counts.map(([row]) => row.n), [4, 1]);
-    await assert.rejects(store.inWorkspace(a, tx => tx.execute('DELETE FROM noticeos.task_operation_receipts')), /permission denied/u);
+    // never edits a bound column, and removes none inside its seven days.
+    const count = async id => (await store.inWorkspace(id, tx =>
+      tx.query('SELECT count(*)::int AS n FROM noticeos.task_operation_receipts')))[0].n;
+    assert.deepEqual([await count(a), await count(b)], [4, 1]);
+    await assert.rejects(store.inWorkspace(a, tx => tx.execute('DELETE FROM noticeos.task_operation_receipts')),
+      /a receipt stays seven days after its last attempt/u);
     await assert.rejects(store.inWorkspace(a, tx => tx.execute("UPDATE noticeos.task_operation_receipts SET request_hash=repeat('d',64)")), /permission denied/u);
+
+    // Seven days after its last attempt a receipt is swept when its workspace
+    // next records a change: that key starts afresh, and other workspaces keep theirs.
+    const age = (workspace, key, days) => owner.sql(`UPDATE noticeos.task_operation_receipts
+      SET started_at=now()-interval '${days} days', finished_at=CASE WHEN state='pending' THEN NULL ELSE now()-interval '${days} days' END
+      WHERE workspace_id='${workspace}' AND principal_id='${principal}' AND operation='comment' AND idempotency_key='${key}'`);
+    age(a, 'agent-retry-0001', 8); age(a, 'agent-retry-0002', 6); age(b, 'agent-retry-0001', 8);
+    const fresh = await store.inWorkspace(a, tx => startTaskReceipt(tx, { ...request, requestHash: hash('e') }, randomUUID()));
+    assert.equal(fresh.kind, 'started', 'an expired key no longer conflicts');
+    assert.deepEqual([await count(a), await count(b)], [4, 1], 'one expired receipt went and one new one came; the other workspace kept its own');
+    assert.equal((await store.inWorkspace(a, tx => startTaskReceipt(tx, bounded, randomUUID()))).kind, 'existing',
+      'six days after its last attempt a receipt still answers its key');
   } catch (error) { primaryError = error; throw error; } finally {
     const failures = [];
     for (const cleanup of [() => store?.close(), () => owner?.close()]) {

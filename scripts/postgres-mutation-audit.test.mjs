@@ -45,7 +45,8 @@ test('asset and finding audit is atomic, immutable and current-person scoped in 
       await admin.query("INSERT INTO noticeos.assets(workspace_id,asset_id,display_name,status) VALUES($1,'example.test',$2,'live'),($1,'target.test','Target','live')", [id, label]);
       await admin.query("INSERT INTO noticeos.annotations(workspace_id,asset_id,at,kind,note) VALUES($1,'example.test',now(),'deploy','historical unknown')", [id]);
     }
-    assert.deepEqual(applyMigrations(owner).applied, ['0011_workspace_mutation_audit', '0012_task_operation_receipts']);
+    assert.deepEqual(applyMigrations(owner).applied, ['0011_workspace_mutation_audit', '0012_task_operation_receipts',
+      '0013_task_receipt_retention']);
     assert.equal((await admin.query('SELECT count(*)::int AS n FROM noticeos.workspace_mutation_audit')).rows[0].n, 0);
     const appUrl = owner.applicationLogin().url();
     const runtimeRole = async role => {
