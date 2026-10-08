@@ -16,6 +16,13 @@ interface DisplayHelpers {
         skipped?: unknown[];
     }>;
 }
+/** Far enough ahead to count down for most of a demo's life; the synthetic
+ * calendar holds the same review on that day. */
+export declare function demoCountdown(scenario: DemoScenario): {
+    emoji: string;
+    label: string;
+    targetAt: string;
+};
 /** Only observed nightly totals are selected; no counter fetch source exists. */
 export declare function generateDemoDisplay(scenario: DemoScenario): {
     'config/tower.json': {

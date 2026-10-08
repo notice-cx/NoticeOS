@@ -5,6 +5,7 @@ import type { CalendarUpcoming } from "@noticeos/contract";
 import { useMemo } from "react";
 import { CalendarUpcomingReadError } from "@/lib/api";
 import { createCalendarCache, retainCalendarEvents } from "@/lib/calendar-cache";
+import { demoViewer } from "@shared/demo-viewer";
 
 // Observers of the same owner-bound query share the attempt count and deadline.
 // Leaving and returning to the editor cannot bypass a held retry time.
@@ -36,8 +37,11 @@ export function useCalendarUpcoming() {
     }
     return { cache, saved: demoReadonly ? undefined : cache.read(), state };
   }, [runtime, demoReadonly, client]);
+  // A hosted demo visitor reads too, as for realtime: that demo answers with a
+  // synthetic schedule. The local demo viewer refuses this provider read, so
+  // it asks nothing there. The saved snapshot above stays off for any visitor.
   const query = useQuery<CalendarUpcoming>({
-    enabled: !demoReadonly,
+    enabled: demoViewer() === null,
     queryKey: ["calendar-upcoming"],
     initialData: read.saved,
     initialDataUpdatedAt: read.saved ? Date.parse(read.saved.fetchedAt) : undefined,

@@ -5,6 +5,11 @@ import { generateDemoScenario, demoScenarioHash, shiftDemoDay } from './demo-sce
 import { deepEqual } from './config-documents.mjs';
 import { lstatSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+/** Far enough ahead to count down for most of a demo's life; the synthetic
+ * calendar holds the same review on that day. */
+export function demoCountdown(scenario) {
+    return { emoji: '📅', label: 'Quarterly portfolio review', targetAt: `${shiftDemoDay(scenario.manifest.referenceDate, 75)}T17:00:00.000Z` };
+}
 /** Only observed nightly totals are selected; no counter fetch source exists. */
 export function generateDemoDisplay(scenario) {
     if (demoScenarioHash(generateDemoScenario(scenario.manifest)) !== demoScenarioHash(scenario)) {
@@ -23,11 +28,7 @@ export function generateDemoDisplay(scenario) {
         'config/tower.json': {
             readme: 'config/tower.README.md',
             wall: { layout, history: [] },
-            // Far enough ahead to count down for most of a demo's life.
-            countdown: {
-                emoji: '📅', label: 'Quarterly portfolio review',
-                targetAt: `${shiftDemoDay(scenario.manifest.referenceDate, 75)}T17:00:00.000Z`,
-            },
+            countdown: demoCountdown(scenario),
         },
         'config/counters.json': {
             assets: Object.fromEntries(sites.map(asset => [asset.id, {

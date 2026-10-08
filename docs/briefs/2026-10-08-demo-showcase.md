@@ -66,11 +66,21 @@ young site still has none.
 **Countdown.** It now targets a review 75 days after the cutoff, so it counts
 down for most of a demo's life.
 
+**Meetings.** The hosted demo server answers the Wall's meetings read, as it
+answers the live traffic read, from `scripts/demo-calendar.mts`. That is one
+"Work" feed with Mara's fixed weekly schedule in UTC. It runs from a European
+morning to an American afternoon, so a visitor in either sees what is next. It
+includes a Monday portfolio review, a weekday check-in, meetings about each
+site, and one meeting on each weekend day. The
+countdown's review appears on its day. It uses the ordinary read's 48-hour
+window and cap, and is display data only: nothing is fetched or written. A
+hosted demo visitor's browser now asks for it. The local demo viewer still
+refuses this provider read, so its browser does not ask.
+
 ## Not changed
 
 The software sites' anchors, both stories, the missing report, the young site,
-the read-only boundary and the synthetic labels are unchanged. Meetings stay off
-the demo Wall: the calendar read remains disabled for demo visitors.
+the read-only boundary and the synthetic labels are unchanged.
 
 ## Deployment
 

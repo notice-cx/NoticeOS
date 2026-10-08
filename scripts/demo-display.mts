@@ -11,6 +11,12 @@ interface DisplayHelpers {
   seedConfigDocuments(capability: unknown, input: { actor: string; documents: ReturnType<typeof generateDemoDisplay> }, now: number): Promise<{ ok: boolean; skipped?: unknown[] }>;
 }
 
+/** Far enough ahead to count down for most of a demo's life; the synthetic
+ * calendar holds the same review on that day. */
+export function demoCountdown(scenario: DemoScenario) {
+  return { emoji: '📅', label: 'Quarterly portfolio review', targetAt: `${shiftDemoDay(scenario.manifest.referenceDate, 75)}T17:00:00.000Z` };
+}
+
 /** Only observed nightly totals are selected; no counter fetch source exists. */
 export function generateDemoDisplay(scenario: DemoScenario) {
   if (demoScenarioHash(generateDemoScenario(scenario.manifest)) !== demoScenarioHash(scenario)) {
@@ -28,11 +34,7 @@ export function generateDemoDisplay(scenario: DemoScenario) {
     'config/tower.json': {
       readme: 'config/tower.README.md',
       wall: { layout, history: [] },
-      // Far enough ahead to count down for most of a demo's life.
-      countdown: {
-        emoji: '📅', label: 'Quarterly portfolio review',
-        targetAt: `${shiftDemoDay(scenario.manifest.referenceDate, 75)}T17:00:00.000Z`,
-      },
+      countdown: demoCountdown(scenario),
     },
     'config/counters.json': {
       assets: Object.fromEntries(sites.map(asset => [asset.id, {

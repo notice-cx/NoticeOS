@@ -94,7 +94,8 @@ proxy to explore Sites, Financials, Tasks, Workflows and Settings. The demo bann
 identifies synthetic data and its latest successfully completed generation.
 The Wall's live pulse and today-by-hour chart read synthetic values the demo
 derives from each site's own synthetic daily users; no analytics provider is
-called. The ordinary hosted scheduler runs the demo's lanes under the
+called. Its meetings come from a fixed synthetic weekly schedule; no calendar
+feed is fetched. The ordinary hosted scheduler runs the demo's lanes under the
 release's job identities: a quarter-hour refresh writes today's provisional
 synthetic traffic and search counts, the ad-supported site's daily estimate
 arrives each morning, and the task board refreshes every five minutes. Their
