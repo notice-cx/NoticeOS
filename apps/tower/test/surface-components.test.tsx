@@ -633,6 +633,34 @@ describe("HeroChart", () => {
     });
   });
 
+  /** Similar values far from zero: from zero they would be a flat band. */
+  describe("a line that never comes near zero", () => {
+    const steady = days(28, (index) => 1_900 + (index % 7) * 30);
+
+    it("fits a labelled floor just below the data instead of starting at zero", () => {
+      const { container } = render(<HeroChart series={[{ name: "Users", points: steady }]} range={28} />);
+      expect(yLabels(container)).toEqual(["1,900", "1,950", "2,000", "2,050", "2,100"]);
+    });
+
+    it("spreads the readings over most of the plot height", () => {
+      const { container } = render(
+        <HeroChart series={[{ name: "Users", points: steady }]} range={28} average={false} />,
+      );
+      const path = container.querySelector("[data-hero-line]")!.getAttribute("d")!;
+      const ys = [...path.matchAll(/[ML]\s*[\d.]+\s+([\d.]+)/g)].map((one) => Number(one[1]));
+      // 224px of plot between PAD_TOP and the floor; the week's swing uses half.
+      expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(100);
+    });
+
+    it("keeps bars, and lines that reach toward zero, zero-based", () => {
+      const bars = render(<HeroChart series={[{ name: "Users", points: steady }]} range={28} variant="bars" />);
+      expect(yLabels(bars.container)[0]).toBe("0");
+      bars.unmount();
+      const wide = render(<HeroChart series={[{ name: "Users", points: days(28, (index) => 800 + index * 50) }]} range={28} />);
+      expect(yLabels(wide.container)[0]).toBe("0");
+    });
+  });
+
   it("answers a hover with the day and every visible series", () => {
     const { container } = render(<HeroChart series={twoProviders} range={28} />);
     const plot = container.querySelector('svg[role="img"]')!.parentElement!;

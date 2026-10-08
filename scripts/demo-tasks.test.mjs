@@ -7,6 +7,7 @@ import { configureDemoTasks, createDemoTasks, demoHandoffIssues, demoHistoricalP
 import { demoStoreCapability } from './demo-evaluator.mjs';
 import { generateDemoScenario } from './demo-scenario.mjs';
 import { demoTaskIssuesAt } from './demo-task-facts.mjs';
+import { demoIntegrationAssets, demoSchedules } from './demo-display.mjs';
 import { validateSchemaAndSafety } from './config-documents.mjs';
 import { readStoredSchedules } from './scheduled-job-runner.mjs';
 
@@ -24,29 +25,35 @@ test('the own project map uses the ordinary register apply and version guard; fa
     if (defect !== 'missing-constants') writeFileSync(path.join(root, 'config/constants.json'), JSON.stringify(constants));
     const installation = path.join(home, 'installation');
     if (defect === 'existing-export') { mkdirSync(installation); writeFileSync(path.join(installation, 'beads.json'), 'unchanged'); }
-    let seeded = false; const calls = [];
+    let seeded = null; const calls = [];
     const helpers = {
       getConfigDocuments: async () => {
         calls.push('read');
         return ['config/beads.json', 'config/integrations.json', 'config/constants.json'].map(file => {
           const held = seeded || defect === 'held-config' || (defect === 'held-constants' && file.endsWith('constants.json'));
-          return { file, version: held ? 1 : null, source: held ? 'store' : 'file', body: file.endsWith('beads.json') ? { spokes: [] } : file.endsWith('constants.json') ? constants : { assets: {} } };
+          return { file, version: held ? 1 : null, source: held ? 'store' : 'file', body: seeded?.[file] ?? (file.endsWith('beads.json') ? { spokes: [] } : file.endsWith('constants.json') ? constants : { assets: {} }) };
         });
       },
       seedConfigDocuments: async (_capability, input) => {
         calls.push('seed'); assert.equal(input.actor, 'synthetic-demo-seeder');
-        assert.deepEqual(Object.keys(input.documents['config/integrations.json'].assets), scenario.assets.map(asset => asset.id));
+        // Only the sources the scenario collects are declared, from each site's first day.
+        assert.deepEqual(input.documents['config/integrations.json'].assets, demoIntegrationAssets(scenario));
+        for (const asset of scenario.assets) {
+          assert.deepEqual(Object.keys(input.documents['config/integrations.json'].assets[asset.id]), asset.isOs ? [] : asset.adRpm ? ['ga4', 'gsc', 'ad-network'] : ['ga4', 'gsc']);
+        }
         assert.deepEqual(input.documents['config/beads.json'].spokes, []);
         // The schedule reader needs this physical generic document. Copying it
-        // into the store must not rewrite schedules or measurement thresholds.
-        assert.deepEqual(input.documents['config/constants.json'], constants);
-        seeded = true; return { ok: true, skipped: [], seeded: Object.keys(input.documents).map(file => ({ file, version: 1 })) };
+        // into the store adds only the demo's saved run times; measurement
+        // thresholds are unchanged.
+        assert.deepEqual(input.documents['config/constants.json'], { ...constants, schedules: demoSchedules() });
+        assert.deepEqual(input.documents['config/constants.json'].flag_defaults, constants.flag_defaults);
+        seeded = input.documents; return { ok: true, skipped: [], seeded: Object.keys(input.documents).map(file => ({ file, version: 1 })) };
       },
       applyConfigOps: async (_capability, input) => {
         calls.push('apply'); assert.deepEqual(input.expectVersions, { 'config/beads.json': 1 });
         validateSchemaAndSafety({ version: 1, slug: input.slug, createdAt: scenario.manifest.cutoff, ops: input.ops });
         assert.deepEqual(input.ops.map(op => op.value), scenario.manifest.taskProjects);
-        return defect === 'stale' ? { ok: false, error: 'version_mismatch' } : { ok: true, applied: 4, documents: [{ file: 'config/beads.json', version: 2, body: { spokes: scenario.manifest.taskProjects } }] };
+        return defect === 'stale' ? { ok: false, error: 'version_mismatch' } : { ok: true, applied: scenario.manifest.taskProjects.length, documents: [{ file: 'config/beads.json', version: 2, body: { spokes: scenario.manifest.taskProjects } }] };
       },
     };
     const receipt = { projects: scenario.manifest.taskProjects.map(project => ({ ...project, repo: path.join(home, 'tasks', project.prefix) })) };
@@ -59,7 +66,7 @@ test('the own project map uses the ordinary register apply and version guard; fa
     } else {
       await assert.rejects(readStoredSchedules(async () => ({ status: 200, body: { ready: true, documents: [] } })), /Saved schedules could not be read/);
       await execute(); assert.deepEqual(calls, ['read', 'seed', 'read', 'apply']);
-      assert.deepEqual(await readStoredSchedules(async () => ({ status: 200, body: { ready: true, documents: await helpers.getConfigDocuments() } })), constants.schedules ?? null);
+      assert.deepEqual(await readStoredSchedules(async () => ({ status: 200, body: { ready: true, documents: await helpers.getConfigDocuments() } })), demoSchedules());
       assert.deepEqual(JSON.parse(readFileSync(path.join(installation, 'task-host.json'), 'utf8')).repositories, receipt.projects);
       assert.deepEqual(JSON.parse(readFileSync(path.join(installation, 'beads.json'), 'utf8')).spokes, scenario.manifest.taskProjects);
     }

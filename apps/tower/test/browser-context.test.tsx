@@ -86,7 +86,7 @@ it('a retired owner cannot publish a late successful mutation', async () => {
   a.retire(); await act(async () => { resolve('late success'); });
   expect(success).not.toHaveBeenCalled(); expect(perCall).not.toHaveBeenCalled();
 });
-it('verified hosted demo is read-only before capability arrives and invents no generation age', () => {
+it('verified hosted demo is read-only before capability arrives and invents no generation age', async () => {
   const fetch = vi.fn<typeof globalThis.fetch>(() => new Promise(() => {}));
   const runtime = createBrowserRuntime<(keepalive: boolean) => Promise<void>>({ mode: 'demo', workspaceId: id, clientGeneration: 1 }, {
     origin: window.location.origin, fetch, sendAnswer: async () => {},
@@ -100,7 +100,12 @@ it('verified hosted demo is read-only before capability arrives and invents no g
   expect(capability.result.current.writable).toBe(false);
   renderHook(useCalendarUpcoming, { wrapper: Owner }); renderHook(useGa4Realtime, { wrapper: Owner });
   expect(document.querySelector('[data-property-favicon] img')).toBeNull();
-  expect(fetch.mock.calls.some(([input]) => /ga4-realtime|calendar-upcoming/u.test(String(input)))).toBe(false);
+  // Both Wall reads are asked for: the hosted demo answers them synthetically.
+  await vi.waitFor(() => {
+    for (const path of ['/api/ga4/realtime', '/api/calendar/upcoming']) {
+      expect(fetch.mock.calls.some(([input]) => String(input instanceof Request ? input.url : input).includes(path))).toBe(true);
+    }
+  });
 });
 it('a demo generation poll retains the owner desk and last successful evidence after a failed read', async () => {
   let available = true;

@@ -1,5 +1,9 @@
 # A believable NoticeOS demo portfolio
 
+*Scenario version 4 (2026-10-08) amends this brief: a fourth, ad-supported site,
+live sources and the hosted scheduler's lanes. See
+[`2026-10-08-demo-showcase.md`](2026-10-08-demo-showcase.md).*
+
 Research and design for `ro-ujb9.256.1`, revised by `ro-ujb9.256.21` under
 `ro-ujb9.256` on 2026-10-01. Scenario version 3 replaces the original publisher
 portfolio with three fictional software businesses. This brief specifies the

@@ -16,6 +16,13 @@ interface DisplayHelpers {
         skipped?: unknown[];
     }>;
 }
+/** Far enough ahead to count down for most of a demo's life; the synthetic
+ * calendar holds the same review on that day. */
+export declare function demoCountdown(scenario: DemoScenario): {
+    emoji: string;
+    label: string;
+    targetAt: string;
+};
 /** Only observed nightly totals are selected; no counter fetch source exists. */
 export declare function generateDemoDisplay(scenario: DemoScenario): {
     'config/tower.json': {
@@ -40,6 +47,21 @@ export declare function generateDemoDisplay(scenario: DemoScenario): {
                 }[];
             };
         };
+    };
+};
+/** The sources the scenario actually collects, declared live from each site's
+ * first day: GA4 and Search Console, and the ad network for the ad-supported
+ * site. No other source is claimed, and the OS collects none. The hosted
+ * scheduler's lanes keep their evidence fresh. */
+export declare function demoIntegrationAssets(scenario: DemoScenario): {
+    [k: string]: {};
+};
+/** Saved run times for the demo's scheduled lanes: the task board refreshes
+ * every five minutes rather than every minute, a smaller always-on load. */
+export declare function demoSchedules(): {
+    'beads-snapshot': {
+        enabled: boolean;
+        cron: string;
     };
 };
 /** The normal versioned writer; existing documents or exports are never adopted. */

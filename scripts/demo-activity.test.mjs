@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createDemoActivity, DEMO_ACTIVITY_LIMITS } from './demo-activity.mjs';
+import { createDemoActivity, DEMO_ACTIVITY_LIMITS, DEMO_HOUR_SHARE, demoDayShare } from './demo-activity.mjs';
 import { generateDemoScenario, demoScenarioHash, shiftDemoDay } from './demo-scenario.mjs';
 
 const input = { seed: 'continuing-portfolio', cutoff: '2026-10-16T12:00:00.000Z', release: '1'.repeat(40) };
@@ -73,6 +73,43 @@ test('missing reports do not become zero and a recovery remains an ordinary obse
   assert.ok(!('flags' in recovered) && !('outcome' in recovered));
 });
 
+test('quarter-hour refreshes rise toward the finished day and keep a missing report missing', () => {
+  const date = shiftDemoDay(scenario.manifest.referenceDate, 3);
+  const final = activity.day(date);
+  assert.ok(Math.abs(DEMO_HOUR_SHARE.reduce((a, b) => a + b, 0) - 1) < 1e-12);
+  assert.ok(Math.abs(demoDayShare(1439) - 1) < 1e-12);
+  let previous = null;
+  for (const time of ['00:00', '06:15', '12:30', '18:45', '23:45']) {
+    const refresh = activity.collection(`${date}T${time}:00.000Z`);
+    assert.equal(refresh.date, date); assert.equal(refresh.synthetic, true); assert.equal(refresh.scenarioHash, final.scenarioHash);
+    assert.deepEqual(refresh, activity.collection(`${date}T${time}:00.000Z`));
+    for (const [index, asset] of refresh.assets.entries()) {
+      for (const signal of asset.signals) {
+        const day = final.assets[index].signals.find(row => row.integration === signal.integration);
+        assert.deepEqual({ ...signal, observations: null }, { ...day, observations: null });
+        const now = values(signal), whole = values(day);
+        assert.ok(signal.observations.every(row => row.date === date));
+        for (const metric of ['sessions', 'active_users', 'page_views', 'event_count', 'clicks', 'impressions']) {
+          if (!(metric in now)) continue;
+          assert.ok(now[metric] <= whole[metric]);
+          if (previous) assert.ok(now[metric] >= values(previous.assets[index].signals.find(row => row.integration === signal.integration))[metric]);
+        }
+        if (signal.integration === 'gsc') assert.equal(now.position, whole.position);
+      }
+    }
+    previous = refresh;
+  }
+  const late = values(previous.assets[0].signals[0]), whole = values(final.assets[0].signals[0]);
+  assert.ok(late.active_users > whole.active_users * 0.97);
+  // The scenario's missing report is not refreshed into a partial value.
+  const missingDay = shiftDemoDay(scenario.manifest.referenceDate, 10);
+  const missing = activity.collection(`${missingDay}T15:00:00.000Z`).assets.find(asset => asset.asset === 'pinwell.example');
+  assert.equal(missing.signals.find(signal => signal.integration === 'ga4').observations, null);
+  for (const at of [`${date}T12:30:00Z`, `${date}T12:30:00.000+00:00`, 'today', `${shiftDemoDay(scenario.manifest.referenceDate, -1)}T12:30:00.000Z`]) {
+    assert.throws(() => activity.collection(at));
+  }
+});
+
 test('seven-day pulse averages cross the original seed boundary without resetting', () => {
   const first = activity.day(scenario.manifest.referenceDate);
   for (const asset of first.assets) {
@@ -88,7 +125,7 @@ test('new receipts and operating bills never duplicate the seeded cutoff or inve
   assert.equal(next.length, 2);
   assert.ok(next.every(row => row.kind === 'revenue' && row.coverageStart === '2026-10-17' && row.coverageEnd === '2026-10-17' && !row.coverageComplete));
   const month = activity.day('2026-11-01').money;
-  assert.equal(month.filter(row => row.kind === 'cost').length, 4);
+  assert.equal(month.filter(row => row.kind === 'cost').length, 5);
   assert.ok(month.filter(row => row.kind === 'cost').every(row => row.coverageEnd === '2026-11-30' && row.coverageComplete));
   assert.ok(month.filter(row => row.asset === 'freshrows.example').every(row => row.kind === 'cost'));
   for (const row of [...next, ...month]) {
@@ -117,6 +154,52 @@ test('one weekly task progresses through a stable key without claiming real exec
   assert.match(week[2].closeReason, /No live deployment or measured business improvement/u);
   assert.notEqual(activity.day('2026-10-26').task.key, week[0].key);
   assert.notEqual(activity.day('2026-10-26').task.asset, week[0].asset);
+  // Each week's review is about its own site.
+  const titles = { 'lightbrief.example': /brief/u, 'pinwell.example': /source/u, 'weeknightpantry.example': /recipe/u, 'freshrows.example': /row/u };
+  for (let w = 0; w < 8; w++) {
+    const task = activity.day(shiftDemoDay('2026-10-19', w * 7)).task;
+    assert.match(task.title, titles[task.asset]);
+  }
+});
+
+test('the ad-supported site continues its seeded estimates and is paid two months later', () => {
+  const site = scenario.manifest.adSites[0].asset;
+  for (const estimate of scenario.adRevenue.slice(-20)) assert.equal(activity.adRevenue(site, estimate.date), estimate.minor);
+  assert.throws(() => activity.adRevenue('lightbrief.example', '2026-10-20'));
+  assert.throws(() => activity.adRevenue(site, '2020-01-01'));
+  const later = Array.from({ length: 10 }, (_, i) => activity.adRevenue(site, shiftDemoDay(scenario.manifest.referenceDate, i)));
+  assert.ok(later.every(minor => Number.isSafeInteger(minor) && minor > 0));
+  const paid = activity.day('2026-12-06').money.filter(row => row.family === 'ads');
+  assert.equal(paid.length, 1);
+  const days = Array.from({ length: 31 }, (_, i) => `2026-10-${String(i + 1).padStart(2, '0')}`);
+  const estimates = days.reduce((sum, date) => sum + activity.adRevenue(site, date), 0);
+  assert.deepEqual({ ...paid[0], amountMinor: 0 }, { asset: site, kind: 'revenue', family: 'ads', period: '2026-10', amountMinor: 0, currency: 'USD',
+    bookingState: 'reconciled', source: 'mediavine', externalId: `${activity.day('2026-12-06').key}/wp/payment`,
+    note: 'Synthetic ad network payment; no real payout.', coverageStart: '2026-10-01', coverageEnd: '2026-10-31', coverageComplete: true });
+  assert.ok(Math.abs(paid[0].amountMinor / estimates - 1) <= 0.016);
+  assert.equal(activity.day('2026-12-07').money.filter(row => row.family === 'ads').length, 0);
+  // The seed booked every payment before its reference day; none repeats.
+  const seeded = new Set(scenario.ledger.filter(row => row.family === 'ads').map(row => row.period));
+  const continued = activity.batch('2026-10-16', '2026-10-22').flatMap(day => day.money.filter(row => row.family === 'ads').map(row => row.period));
+  assert.ok(continued.every(period => !seeded.has(period)));
+});
+
+test('recurring incidents dip each mature site\'s tracked action and recover; the young site has none', () => {
+  const days = activity.batch('2026-10-16', '2026-10-22').concat(...Array.from({ length: 8 }, (_, w) =>
+    activity.batch(shiftDemoDay('2026-10-23', w * 7), shiftDemoDay('2026-10-29', w * 7))));
+  const dips = new Map();
+  for (const day of days) for (const asset of day.assets) {
+    if (!asset.pulse) continue;
+    const [reading] = Object.values(asset.pulse.metrics);
+    // Only a baseline of three a day or more can carry a volume-aware alert.
+    if (reading.avg7d >= 3 && reading.last24h < reading.avg7d * 0.65) dips.set(asset.asset, (dips.get(asset.asset) ?? 0) + 1);
+  }
+  for (const site of ['lightbrief.example', 'pinwell.example', 'weeknightpantry.example']) assert.ok(dips.get(site) >= 2, site);
+  assert.equal(dips.get('freshrows.example'), undefined);
+  assert.ok(days.every(day => day.assets.find(asset => asset.asset === 'freshrows.example').pulse.metrics.completed_checks.avg7d < 3));
+  // Most incident days are followed, within a week, by an ordinary day.
+  const recipes = days.map(day => day.assets.find(asset => asset.asset === 'weeknightpantry.example').pulse.metrics.recipe_saves);
+  assert.ok(recipes.slice(-14).some(reading => reading.last24h >= reading.avg7d));
 });
 
 test('dated generation has finite work/output and rejects malformed or historical intervals', () => {

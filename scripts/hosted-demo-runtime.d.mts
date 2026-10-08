@@ -24,7 +24,7 @@ export interface HostedDemoRuntimeOptions {
     /** Trusted server clock; disposable qualification can hold a reporting day. */
     readonly now?: HostedDemoOptions['now'];
 }
-export declare function openHostedDemo(options: HostedDemoRuntimeOptions): Promise<ReturnType<typeof createHostedDemo>>;
+export declare function openHostedDemo(options: HostedDemoRuntimeOptions): Promise<Pick<ReturnType<typeof createHostedDemo>, 'tick' | 'close'>>;
 /** One minute timer, one in-flight tick, no backlog of timers. Each tick's
  * database journal arbitrates concurrent hosts and limits catch-up to seven
  * days. No swallowed failure is reported as a healthy running simulator. */

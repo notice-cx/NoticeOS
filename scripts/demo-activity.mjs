@@ -3,11 +3,17 @@
 // ordinary writers, never precomputed alerts, deliveries or business outcomes.
 import { createHash } from 'node:crypto';
 import { demoActivityPrefix } from './demo-activity-definition.mjs';
-import { demoScenarioHash, generateDemoScenario, shiftDemoDay } from './demo-scenario.mjs';
+import { demoAdPayment, demoAdRevenueMinor, demoRecipeSeasonAngle, demoScenarioHash, demoTrafficShape, demoWeekShape, generateDemoScenario, shiftDemoDay, shiftDemoMonth, DEMO_RECIPE_SEASON } from './demo-scenario.mjs';
 export const DEMO_ACTIVITY_VERSION = 1;
 export const DEMO_ACTIVITY_LIMITS = Object.freeze({ daysPerBatch: 7, daysFromAnchor: 36_525 });
 const DAY = 86_400_000;
-const weekWeights = [0.82, 1.08, 1.08, 1.08, 1.08, 1.08, 0.82];
+/** Recurring synthetic incidents in a site's tracked action, as [period,
+ * first day, length, depth]: the ordinary alert rules find them, and each
+ * recovers on its own. Pinwell's matches its seeded story; the young site has
+ * none, so no fake low-volume alarm. */
+const INCIDENTS = {
+    pw: [42, 12, 2, 0.6], lb: [19, 7, 4, 0.55], wp: [13, 2, 4, 0.6],
+};
 function refuse() { throw new Error('Demo activity requires its fixed scenario and a bounded dated interval.'); }
 function dateNumber(value) {
     if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(value))
@@ -19,11 +25,29 @@ function dateNumber(value) {
 }
 const draw = (seed, key) => createHash('sha256').update(`${seed}\0activity-v${DEMO_ACTIVITY_VERSION}\0${key}`).digest().readUInt32BE(0) / 2 ** 32;
 const mean = (values) => values.reduce((a, b) => a + b, 0) / values.length;
-const tasks = [
-    ['Check exported brief headings', 'Compare the synthetic brief preview with its exported headings.'],
-    ['Review saved-source labels', 'Check that saved sources keep their titles and source links.'],
-    ['Verify repeated-row warnings', 'Review the fictional repeated-row examples and their warnings.'],
-];
+/** Share of a day's activity in each UTC hour: quiet overnight, busiest early
+ * afternoon, an evening bump. The live minute pulse and the quarter-hour
+ * refresh read the same day shape. */
+export const DEMO_HOUR_SHARE = (() => {
+    const weights = [1.2, 0.9, 0.7, 0.6, 0.6, 0.8, 1.3, 2.2, 3.4, 4.6, 5.4, 5.8,
+        5.9, 6.0, 6.1, 6.0, 5.6, 5.0, 4.4, 4.2, 4.5, 4.2, 3.2, 2.0];
+    const total = weights.reduce((a, b) => a + b, 0);
+    return Object.freeze(weights.map(weight => weight / total));
+})();
+/** The share of a UTC day's activity counted by the end of `minuteOfDay`. */
+export function demoDayShare(minuteOfDay) {
+    if (!Number.isInteger(minuteOfDay) || minuteOfDay < 0 || minuteOfDay >= 1440)
+        refuse();
+    const hour = Math.floor(minuteOfDay / 60);
+    return DEMO_HOUR_SHARE.slice(0, hour).reduce((a, b) => a + b, 0)
+        + DEMO_HOUR_SHARE[hour] * ((minuteOfDay % 60) + 1) / 60;
+}
+const tasks = {
+    lb: ['Check exported brief headings', 'Compare the synthetic brief preview with its exported headings.'],
+    pw: ['Review saved-source labels', 'Check that saved sources keep their titles and source links.'],
+    wp: ['Check printed recipe card margins', 'Print the synthetic recipe cards and check their margins.'],
+    fr: ['Verify repeated-row warnings', 'Review the fictional repeated-row examples and their warnings.'],
+};
 /** Capture one original scenario. Advancing time never regenerates its seed,
  * asset identities, historical incidents, task history or accounting anchor.
  * Cumulative counters use bounded closed-form sums, not a scan of elapsed days.
@@ -46,28 +70,51 @@ export function createDemoActivity(input) {
         const initialTotal = last.metrics[asset.event].total;
         const baseEvents = mean(stable.map(row => row.events));
         const baseSessions = mean(stable.map(row => row.sessions));
-        const growth = asset.prefix === 'fr' ? 0.45 : 0.06;
+        const recipes = asset.prefix === 'wp';
+        const growth = asset.prefix === 'fr' ? 0.45 : recipes ? 0.15 : 0.06;
         const phase = draw(seed, `${asset.id}/season`) * 2 * Math.PI;
+        const week = demoWeekShape(asset.prefix), weekTotal = week.reduce((a, b) => a + b, 0);
         const weekly = (n) => {
-            let sum = Math.floor(n / 7) * 7.04;
+            let sum = Math.floor(n / 7) * weekTotal;
             for (let i = 0; i < n % 7; i++)
-                sum += weekWeights[(anchorWeekday + i) % 7];
+                sum += week[(anchorWeekday + i) % 7];
             return sum;
         };
-        const incidentDays = (n) => asset.prefix === 'pw'
-            ? Math.floor(n / 42) * 2 + Math.min(2, Math.max(0, n % 42 - 12)) : 0;
+        const [period, first, length, depth] = INCIDENTS[asset.prefix] ?? [1, 0, 0, 0];
+        const incidentDays = (n) => Math.floor(n / period) * length + Math.min(length, Math.max(0, n % period - first));
+        // A recipe site continues the seeded year (`demoRecipeSeasonAngle`), relative
+        // to its level at the anchor; the others keep a gentle wave of their own.
+        const omega = 2 * Math.PI / 365.25, angle = demoRecipeSeasonAngle(referenceDate);
+        const season = (n) => recipes
+            ? DEMO_RECIPE_SEASON / (1 + DEMO_RECIPE_SEASON * Math.cos(angle)) * ((Math.sin(angle + n * omega) - Math.sin(angle)) / omega - n * Math.cos(angle))
+            : 0.07 / omega * (Math.cos(phase) - Math.cos(phase + n * omega));
         const area = (n, metric) => {
             if (n === 0)
                 return 0;
             const trend = growth * (n <= 365 ? n * n / 730 : n - 182.5);
-            const season = 0.07 * 365.25 / (2 * Math.PI) * (Math.cos(phase) - Math.cos(phase + n * 2 * Math.PI / 365.25));
             const noise = (draw(seed, `${asset.id}/${metric}/${n}`) - draw(seed, `${asset.id}/${metric}/0`)) * 0.08;
-            return weekly(n) + trend + season + noise - (metric === 'events' ? incidentDays(n) * 0.6 : 0);
+            return weekly(n) + trend + season(n) + noise - (metric === 'events' ? incidentDays(n) * depth : 0);
         };
         const cumulative = (n, metric) => Math.floor((metric === 'events' ? baseEvents : baseSessions) * area(n, metric));
         const count = (n, metric) => cumulative(n + 1, metric) - cumulative(n, metric);
         return { asset, rows, initialTotal, cumulative, count };
     });
+    /** One day's synthetic ad estimate: seeded sessions before the anchor, the
+     * continuation's after it. */
+    const adRevenue = (assetId, date) => {
+        const input = assetInputs.find(entry => entry.asset.id === assetId && entry.asset.adRpm);
+        const ordinal = dateNumber(date) - anchor;
+        if (!input || date < input.asset.createdAt.slice(0, 10) || ordinal > DEMO_ACTIVITY_LIMITS.daysFromAnchor)
+            refuse();
+        const sessions = ordinal < 0 ? input.rows.find(row => row.date === date).sessions : input.count(ordinal, 'sessions');
+        return demoAdRevenueMinor(seed, input.asset, date, sessions);
+    };
+    const monthDates = (month) => {
+        const days = [];
+        for (let date = `${month}-01`; date.startsWith(month); date = shiftDemoDay(date, 1))
+            days.push(date);
+        return days;
+    };
     const firstMonday = anchor + (8 - anchorWeekday) % 7;
     const day = (date) => {
         const ordinal = dateNumber(date) - anchor;
@@ -75,10 +122,10 @@ export function createDemoActivity(input) {
             refuse();
         const key = `${demoActivityPrefix(hash)}${date}`;
         const assets = assetInputs.map(({ asset, rows, initialTotal, cumulative, count }) => {
-            const sessions = count(ordinal, 'sessions'), events = count(ordinal, 'events');
-            const pageViews = Math.round(sessions * (1.6 + draw(seed, `${asset.id}/${date}/pages`) * 0.25));
-            const activeUsers = Math.round(sessions * 0.79);
-            const clicks = Math.round(sessions * 0.57), impressions = clicks * 18 + Math.round(draw(seed, `${asset.id}/${date}/search`) * 100);
+            const sessions = count(ordinal, 'sessions'), events = count(ordinal, 'events'), shape = demoTrafficShape(asset.prefix);
+            const pageViews = Math.round(sessions * (shape.pages + draw(seed, `${asset.id}/${date}/pages`) * shape.pagesSpread));
+            const activeUsers = Math.round(sessions * shape.activeUsers);
+            const clicks = Math.round(sessions * shape.clicks), impressions = clicks * shape.impressionsPerClick + Math.round(draw(seed, `${asset.id}/${date}/search`) * 100);
             const reportMissing = asset.prefix === 'pw' && ordinal % 29 === 10;
             const observations = (values) => Object.entries(values).map(([metric, value]) => ({ date, metric, value }));
             const signals = [
@@ -86,7 +133,7 @@ export function createDemoActivity(input) {
                     observations: reportMissing ? null : observations({ sessions, active_users: activeUsers, page_views: pageViews, event_count: sessions + pageViews + events }) },
                 { integration: 'gsc', propertyRef: `demo-${asset.prefix}-gsc`, credentialRef: 'synthetic-demo', timeZone: 'UTC',
                     observations: observations({ clicks, impressions, ctr: impressions === 0 ? 0 : clicks / impressions,
-                        position: Math.round((6 + draw(seed, `${asset.id}/${date}/position`) * 2) * 100) / 100 }) },
+                        position: Math.round((shape.position + draw(seed, `${asset.id}/${date}/position`) * shape.positionSpread) * 100) / 100 }) },
             ];
             const recent = Array.from({ length: 7 }, (_, i) => ordinal - 6 + i).map(n => n < 0 ? rows.at(n).events : count(n, 'events'));
             const pulse = reportMissing ? null : {
@@ -102,6 +149,18 @@ export function createDemoActivity(input) {
         // The seed already includes the cutoff day's partial receipts and prepaid
         // monthly costs. Continue receipts on the NEXT day; never book them twice.
         for (const asset of scenario.assets) {
+            // An ad network pays each month on the sixth of the second month after
+            // it; the seed booked every payment made before the anchor day.
+            if (asset.adRpm && date.endsWith('-06')) {
+                const month = shiftDemoMonth(date.slice(0, 7), -2);
+                const dates = monthDates(month).filter(day => day >= asset.createdAt.slice(0, 10));
+                const payment = demoAdPayment(seed, asset, month, dates.map(day => adRevenue(asset.id, day)));
+                if (dates.length && payment.paidOn === date) {
+                    money.push({ asset: asset.id, kind: 'revenue', family: 'ads', period: month, amountMinor: payment.minor,
+                        currency: 'USD', bookingState: 'reconciled', source: 'mediavine', externalId: `${key}/${asset.prefix}/payment`,
+                        note: 'Synthetic ad network payment; no real payout.', coverageStart: dates[0], coverageEnd: dates.at(-1), coverageComplete: true });
+                }
+            }
             if (ordinal > 0 && asset.revenue !== null && asset.revenueFamily !== null) {
                 money.push({ asset: asset.id, kind: 'revenue', family: asset.revenueFamily, period: month,
                     amountMinor: Math.round(asset.revenue / monthDays * (0.9 + draw(seed, `${asset.id}/${date}/income`) * 0.2)),
@@ -120,7 +179,7 @@ export function createDemoActivity(input) {
         const weekday = (anchor + ordinal - firstMonday) % 7;
         let task = null;
         if (week >= 0 && [0, 2, 4].includes(weekday)) {
-            const entry = assetInputs[week % assetInputs.length], copy = tasks[week % tasks.length];
+            const entry = assetInputs[week % assetInputs.length], copy = tasks[entry.asset.prefix];
             const weekStart = shiftDemoDay(referenceDate, firstMonday - anchor + week * 7);
             task = { asset: entry.asset.id, key: `demo-v1-${hash.slice(0, 12)}-${weekStart}`, phase: weekday === 0 ? 'create' : weekday === 2 ? 'start' : 'complete',
                 title: copy[0], description: `${copy[1]} This is a simulated review of fictional data.`,
@@ -129,7 +188,33 @@ export function createDemoActivity(input) {
         }
         return { synthetic: true, version: DEMO_ACTIVITY_VERSION, scenarioHash: hash, date, key, assets, money, task };
     };
-    return Object.freeze({ day, batch(first, last) {
+    /** Today so far: each provisional count is the finished day's count scaled
+     * by the share of the day already counted, so the quarter-hour refreshes
+     * rise toward the value the next day's report finalises. Rates and averages
+     * (CTR, position) are the day's own. */
+    const collection = (at) => {
+        const instant = typeof at === 'string' ? Date.parse(at) : NaN;
+        if (!Number.isFinite(instant) || new Date(instant).toISOString() !== at)
+            refuse();
+        const date = at.slice(0, 10), facts = day(date);
+        const minute = new Date(instant).getUTCHours() * 60 + new Date(instant).getUTCMinutes();
+        const share = demoDayShare(minute);
+        const partial = (value) => Math.round(value * share);
+        const assets = facts.assets.map(({ asset, signals }) => ({ asset, signals: signals.map((signal) => {
+                if (signal.observations === null)
+                    return signal;
+                const final = Object.fromEntries(signal.observations.map(row => [row.metric, row.value]));
+                const values = signal.integration === 'ga4'
+                    ? { sessions: partial(final.sessions), active_users: partial(final.active_users), page_views: partial(final.page_views), event_count: partial(final.event_count) }
+                    : (() => {
+                        const clicks = partial(final.clicks), impressions = partial(final.impressions);
+                        return { clicks, impressions, ctr: impressions === 0 ? 0 : clicks / impressions, position: final.position };
+                    })();
+                return { ...signal, observations: Object.entries(values).map(([metric, value]) => ({ date, metric, value })) };
+            }) }));
+        return { synthetic: true, version: DEMO_ACTIVITY_VERSION, scenarioHash: hash, at, date, assets };
+    };
+    return Object.freeze({ day, collection, adRevenue, batch(first, last) {
             const days = dateNumber(last) - dateNumber(first) + 1;
             if (days < 1 || days > DEMO_ACTIVITY_LIMITS.daysPerBatch)
                 refuse();

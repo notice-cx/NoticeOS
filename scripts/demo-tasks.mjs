@@ -9,6 +9,7 @@ import { BEADS_VERSION, checkBeadsCli, initDoltProject } from './dolt-project.mj
 import { runCommand } from './run-command.mjs';
 import { generateDemoScenario, demoScenarioHash, shiftDemoDay } from './demo-scenario.mjs';
 import { demoTaskIssuesAt } from './demo-task-facts.mjs';
+import { demoIntegrationAssets, demoSchedules } from './demo-display.mjs';
 import { beadsClosedSince, beadsPollArgs, summarizeBeadsProject } from './runner/task-snapshot.mjs';
 import { HANDOFF_LABEL, TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
 
@@ -36,8 +37,8 @@ export async function configureDemoTasks({ plan, scenario, receipt, capability, 
   const integrations = JSON.parse(fs.readFileSync(path.join(plan.root, files[1]), 'utf8'));
   const constants = JSON.parse(fs.readFileSync(path.join(plan.root, files[2]), 'utf8'));
   if (!Array.isArray(beads.spokes) || beads.spokes.length || !integrations.assets || Object.keys(integrations.assets).length) throw new Error('The demo needs the generic empty task and asset rosters.');
-  const roster = { ...integrations, assets: Object.fromEntries(scenario.assets.map(asset => [asset.id, {}])) };
-  const seeded = await helpers.seedConfigDocuments(capability, { actor: 'synthetic-demo-seeder', documents: { [files[0]]: beads, [files[1]]: roster, [files[2]]: constants } }, Date.parse(scenario.manifest.cutoff));
+  const roster = { ...integrations, assets: demoIntegrationAssets(scenario) };
+  const seeded = await helpers.seedConfigDocuments(capability, { actor: 'synthetic-demo-seeder', documents: { [files[0]]: beads, [files[1]]: roster, [files[2]]: { ...constants, schedules: demoSchedules() } } }, Date.parse(scenario.manifest.cutoff));
   if (!seeded.ok || seeded.skipped.length || seeded.seeded.length !== files.length || seeded.seeded.some(row => row.version !== 1)) throw new Error('The new demo configuration was not exclusively seeded.');
   const before = await helpers.getConfigDocuments(capability, files);
   if (before.find(row => row.file === files[0])?.version !== 1 || JSON.stringify(before.find(row => row.file === files[0])?.body.spokes) !== '[]') throw new Error('The new task map differs from its empty version-one expectation.');
@@ -46,7 +47,7 @@ export async function configureDemoTasks({ plan, scenario, receipt, capability, 
   const applied = await helpers.applyConfigOps(capability, { actor: 'synthetic-demo-seeder', slug: 'demo-task-projects',
     expectVersions: { [files[0]]: 1 }, ops: scenario.manifest.taskProjects.map(project => ({ kind: 'file-json-insert', file: files[0], pointer: '/spokes/-', value: project })) }, Date.parse(scenario.manifest.cutoff));
   const document = applied.documents?.find(row => row.file === files[0]);
-  if (!applied.ok || applied.applied !== 4 || document?.version !== 2 || JSON.stringify(document.body.spokes) !== JSON.stringify(scenario.manifest.taskProjects)) throw new Error('The ordinary config apply did not acknowledge the exact demo projects.');
+  if (!applied.ok || applied.applied !== scenario.manifest.taskProjects.length || document?.version !== 2 || JSON.stringify(document.body.spokes) !== JSON.stringify(scenario.manifest.taskProjects)) throw new Error('The ordinary config apply did not acknowledge the exact demo projects.');
   fs.mkdirSync(plan.installation, { recursive: true, mode: 0o700 });
   write(path.join(plan.installation, 'task-host.json'), { version: 1, repositories: receipt.projects });
   write(path.join(plan.installation, 'beads.json'), document.body);

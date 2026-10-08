@@ -5,6 +5,11 @@ import { generateDemoScenario, demoScenarioHash, shiftDemoDay } from './demo-sce
 import { deepEqual } from './config-documents.mjs';
 import { lstatSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+/** Far enough ahead to count down for most of a demo's life; the synthetic
+ * calendar holds the same review on that day. */
+export function demoCountdown(scenario) {
+    return { emoji: '📅', label: 'Quarterly portfolio review', targetAt: `${shiftDemoDay(scenario.manifest.referenceDate, 75)}T17:00:00.000Z` };
+}
 /** Only observed nightly totals are selected; no counter fetch source exists. */
 export function generateDemoDisplay(scenario) {
     if (demoScenarioHash(generateDemoScenario(scenario.manifest)) !== demoScenarioHash(scenario)) {
@@ -17,16 +22,13 @@ export function generateDemoDisplay(scenario) {
         throw new Error('The released Wall has no site region.');
     siteWidget.settings = { pulseMetrics: Object.fromEntries(sites.map(asset => [asset.id, [asset.event]])) };
     const labels = {
-        brief_exports: 'Brief exports', source_saves: 'Source saves', completed_checks: 'Completed checks',
+        brief_exports: 'Brief exports', source_saves: 'Source saves', completed_checks: 'Completed checks', recipe_saves: 'Recipe saves',
     };
     return {
         'config/tower.json': {
             readme: 'config/tower.README.md',
             wall: { layout, history: [] },
-            countdown: {
-                emoji: '📅', label: 'Portfolio review',
-                targetAt: `${shiftDemoDay(scenario.manifest.referenceDate, 14)}T17:00:00.000Z`,
-            },
+            countdown: demoCountdown(scenario),
         },
         'config/counters.json': {
             assets: Object.fromEntries(sites.map(asset => [asset.id, {
@@ -35,6 +37,28 @@ export function generateDemoDisplay(scenario) {
                 }])),
         },
     };
+}
+/** The sources the scenario actually collects, declared live from each site's
+ * first day: GA4 and Search Console, and the ad network for the ad-supported
+ * site. No other source is claimed, and the OS collects none. The hosted
+ * scheduler's lanes keep their evidence fresh. */
+export function demoIntegrationAssets(scenario) {
+    return Object.fromEntries(scenario.assets.map(asset => {
+        if (asset.isOs)
+            return [asset.id, {}];
+        const since = asset.createdAt.slice(0, 10);
+        const ads = scenario.manifest.adSites.find(site => site.asset === asset.id);
+        return [asset.id, {
+                ga4: { status: 'live', since },
+                gsc: { status: 'live', siteUrl: `sc-domain:${asset.domain}`, since },
+                ...(ads ? { 'ad-network': { status: 'live', mediavineSiteId: ads.siteId, mediavineEnabled: true, since } } : {}),
+            }];
+    }));
+}
+/** Saved run times for the demo's scheduled lanes: the task board refreshes
+ * every five minutes rather than every minute, a smaller always-on load. */
+export function demoSchedules() {
+    return { 'beads-snapshot': { enabled: true, cron: '*/5 * * * *' } };
 }
 /** The normal versioned writer; existing documents or exports are never adopted. */
 export async function seedDemoDisplay({ home, installation, scenario, capability, helpers }) {

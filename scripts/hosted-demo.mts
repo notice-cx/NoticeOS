@@ -5,21 +5,26 @@
 import { randomUUID } from 'node:crypto';
 import type { WorkspaceStore, Transaction } from '../packages/postgres/src/store.mjs';
 import type { WorkspaceServiceGrant } from '../packages/postgres/src/service-grant.mjs';
-import { createHostedJobRunner, type HostedJobReceipt, type JobInput } from './hosted-job-runner.mjs';
+import { createHostedJobRunner, type HostedJobDefinition, type HostedJobReceipt, type JobInput } from './hosted-job-runner.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import type { HostedTaskExecutor } from './hosted-task-executor.mjs';
 import type { HostedTaskOperation } from './hosted-task-command.mjs';
 import { createHostedTaskSnapshot } from './hosted-task-snapshot.mjs';
 import type { BeadsSnapshotInput } from '../packages/contract/src/task-snapshot.mjs';
-import { createDemoActivity, DEMO_ACTIVITY_LIMITS, type DemoActivityDay } from './demo-activity.mjs';
+import { createDemoActivity, DEMO_ACTIVITY_LIMITS, type DemoActivityCollection, type DemoActivityDay } from './demo-activity.mjs';
 import { generateDemoScenario, demoScenarioHash, shiftDemoDay, type DemoScenario } from './demo-scenario.mjs';
 import { DEMO_ACTIVITY_DEFINITION, demoActivityPrefix } from './demo-activity-definition.mjs';
 
 const LANE = DEMO_ACTIVITY_DEFINITION.key;
+/** Version of the demo's implementations of the release's scheduled jobs. */
+const SCHEDULE_VERSION = 'demo-v1';
 const DAY = 86400000;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 export interface DemoActivityWriter {
   write(store: WorkspaceStore, day: DemoActivityDay): Promise<{ written: number; assets: number; date: string }>;
+  collect(store: WorkspaceStore, collection: DemoActivityCollection): Promise<{ succeeded: number; written: number; outcomes: unknown[] }>;
+  revenue(store: WorkspaceStore, input: { at: string; sites: readonly { asset: string; siteId: string; since: string }[];
+    amount(asset: string, date: string): number }): Promise<unknown>;
   snapshot(store: WorkspaceStore, snapshot: BeadsSnapshotInput): Promise<{ written: number }>;
 }
 export interface HostedDemoOptions {
@@ -72,11 +77,14 @@ async function inTransaction<T>(tx: Transaction, signal: AbortSignal, work: (sto
  */
 export function createHostedDemo(options: HostedDemoOptions): {
   tick(): Promise<HostedDemoTick>;
+  /** The demo's lanes for the ordinary hosted scheduler, which owns their timers. */
+  readonly schedule: readonly HostedJobDefinition[];
   close(): Promise<void>;
 } {
   const { workspaceId, serviceId, store, grant, tasks, writer } = options;
   if (!UUID.test(workspaceId) || !UUID.test(serviceId) || !store || !grant
     || typeof tasks?.execute !== 'function' || typeof writer?.write !== 'function'
+    || typeof writer?.collect !== 'function' || typeof writer?.revenue !== 'function'
     || typeof writer?.snapshot !== 'function') refuse();
   const scenario = generateDemoScenario(options.scenario.manifest);
   const hash = demoScenarioHash(scenario);
@@ -154,6 +162,33 @@ export function createHostedDemo(options: HostedDemoOptions): {
       return inTransaction(tx, signal, scoped => writer.snapshot(scoped, snapshot));
     } }],
   }] });
+  // The release's own job identities, so the hosted scheduler records each
+  // execution in the journal the Workflows page reads: the quarter-hour Google
+  // refresh writes today's provisional counts, the board refresh reads the
+  // real task service. Input is the scheduler's minute, never a payload.
+  const minuteOf = (input: unknown): string => {
+    const at = input && typeof input === 'object' && !Array.isArray(input) && Object.keys(input).length === 1
+      ? (input as { scheduledAt?: unknown }).scheduledAt : input;
+    if (typeof at !== 'string' || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:00\.000Z$/u.test(at)) refuse();
+    activity.collection(at); return at;
+  };
+  const refreshBoard = async (signal: AbortSignal, tx: Transaction) => {
+    const snapshot = await snapshots.snapshot(new Request('https://noticeos.internal/demo-snapshot', { method: 'POST', signal }),
+      { signal, deadline: Date.now() + 29000 });
+    const written = await inTransaction(tx, signal, scoped => writer.snapshot(scoped, snapshot));
+    return { ...written, projects: snapshot.projects.map(({ asset, ok, counts }) => ({ asset, ok, counts })) };
+  };
+  const adSites = Object.freeze(scenario.manifest.adSites.map(site => Object.freeze({ ...site,
+    since: scenario.assets.find(asset => asset.id === site.asset)!.createdAt.slice(0, 10) })));
+  const schedule: readonly HostedJobDefinition[] = Object.freeze([
+    ...(adSites.length ? [{ key: 'mediavine', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'revenue', kind: 'database' as const, action: 'workflows.run' as const,
+      run: async ({ input, signal }: { input: JobInput; signal: AbortSignal }, tx: Transaction) => inTransaction(tx, signal, scoped =>
+        writer.revenue(scoped, { at: minuteOf(input), sites: adSites, amount: activity.adRevenue })) }] }] : []),
+    { key: 'counters', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'google', kind: 'database', action: 'workflows.run',
+      run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => writer.collect(scoped, activity.collection(minuteOf(input)))) }] },
+    { key: 'beads-snapshot', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'execute', kind: 'database', action: 'workflows.run',
+      run: async ({ signal }, tx) => refreshBoard(signal, tx) }] },
+  ]);
   async function tick(): Promise<HostedDemoTick> {
     if (stopped) refuse();
     const instant = now();
@@ -188,6 +223,7 @@ export function createHostedDemo(options: HostedDemoOptions): {
     return Object.freeze({ synthetic: true, through, days: Object.freeze(days) });
   }
   return Object.freeze({
+    schedule,
     tick() {
       const work = tick(); pending.add(work);
       void work.then(() => pending.delete(work), () => pending.delete(work)); return work;

@@ -109,7 +109,7 @@ export async function verifyDemoStore(installation, { open = openStore } = {}) {
       const integrations = JSON.parse(documents.find(row => row.document_key === integrationsKey)?.body ?? 'null');
       if (!isDeepStrictEqual(beads?.spokes, installation.projects.map(({ repo, ...project }) => project))
         || JSON.stringify(Object.keys(integrations?.assets ?? {}).sort()) !== JSON.stringify([...installation.assetIds].sort())
-        || Object.values(integrations?.assets ?? {}).some(value => !value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length)) {
+        || !isDeepStrictEqual(integrations?.assets, installation.integrations)) {
         throw new Error('The demo stored task or provider roster changed.');
       }
       for (const [file, body] of Object.entries(installation.display)) {

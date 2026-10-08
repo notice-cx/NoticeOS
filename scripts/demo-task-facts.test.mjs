@@ -4,14 +4,14 @@ import { generateDemoScenario, shiftDemoDay } from './demo-scenario.mjs';
 import { demoTaskIssuesAt } from './demo-task-facts.mjs';
 
 const input = { seed: 'synthetic-work-v2', cutoff: '2026-10-16T12:00:00.000Z', release: '1'.repeat(40) };
-test('one scenario names four real task projects and all cross-store story identities', () => {
+test('one scenario names five real task projects and all cross-store story identities', () => {
   const scenario = generateDemoScenario(input);
-  assert.equal(scenario.manifest.scenarioVersion, 3);
-  assert.equal(scenario.manifest.taskProjects.length, 4);
-  assert.equal(scenario.tasks.filter(task => task.issueType === 'task').length, 32);
-  assert.equal(scenario.tasks.filter(task => task.issueType === 'epic').length, 4);
+  assert.equal(scenario.manifest.scenarioVersion, 4);
+  assert.equal(scenario.manifest.taskProjects.length, 5);
+  assert.equal(scenario.tasks.filter(task => task.issueType === 'task').length, 40);
+  assert.equal(scenario.tasks.filter(task => task.issueType === 'epic').length, 5);
   assert.equal(scenario.tasks.filter(task => task.issueType === 'gate').length, 2);
-  assert.equal(new Set(scenario.tasks.map(task => task.id)).size, 38);
+  assert.equal(new Set(scenario.tasks.map(task => task.id)).size, 47);
   for (const project of scenario.manifest.taskProjects) {
     assert.ok(scenario.assets.some(asset => asset.id === project.asset && asset.prefix === project.prefix));
     assert.equal(project.database, `demo_${project.prefix}`);
@@ -33,7 +33,7 @@ test('one scenario names four real task projects and all cross-store story ident
 test('bd import rows retain dated comments, owners, acceptance, closure and only true dependency edges', () => {
   const scenario = generateDemoScenario(input);
   const issues = demoTaskIssuesAt(scenario.tasks, input.cutoff);
-  assert.equal(issues.length, 38);
+  assert.equal(issues.length, 47);
   const gates = issues.filter(row => row.issue_type === 'gate');
   for (const gate of gates) {
     assert.equal(gate.await_type, 'human');
@@ -62,8 +62,8 @@ test('bd import rows retain dated comments, owners, acceptance, closure and only
 test('ordinary task briefs and closure evidence are specific, with only resolvable demo links', () => {
   const scenario = generateDemoScenario(input);
   const ordinary = scenario.tasks.filter(task => task.issueType === 'task');
-  for (const field of ['description', 'acceptance']) assert.equal(new Set(ordinary.map(task => task[field])).size, 32);
-  assert.equal(new Set(ordinary.map(task => task.comments[0].text)).size, 32);
+  for (const field of ['description', 'acceptance']) assert.equal(new Set(ordinary.map(task => task[field])).size, 40);
+  assert.equal(new Set(ordinary.map(task => task.comments[0].text)).size, 40);
   const closed = ordinary.filter(task => task.events.at(-1).status === 'closed');
   assert.equal(new Set(closed.map(task => task.closeEvidence)).size, closed.length);
   for (const task of ordinary) {
@@ -96,7 +96,7 @@ test('dated projections never backfill future tasks or comments into an earlier 
   const scenario = generateDemoScenario(input);
   const at = '2026-08-01T23:59:59.000Z';
   const issues = demoTaskIssuesAt(scenario.tasks, at);
-  assert.ok(issues.length < 38);
+  assert.ok(issues.length < 47);
   assert.ok(issues.every(issue => issue.created_at <= at && issue.updated_at <= at && issue.comments.every(comment => comment.created_at <= at)));
   assert.ok(!issues.some(issue => issue.id === scenario.manifest.stories.problem.ref));
   assert.ok(!issues.some(issue => issue.id === scenario.manifest.stories.repair.readbackTaskId && issue.status === 'closed'));

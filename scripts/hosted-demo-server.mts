@@ -10,6 +10,7 @@ import { MCP_PATH, READ_MODELS_HEADER } from './hosted-mcp.mjs';
 import { startHostedDemo, type HostedDemoRuntimeOptions } from './hosted-demo-runtime.mjs';
 import { demoScenarioHash, generateDemoScenario } from './demo-scenario.mjs';
 import { createDemoRealtime } from './demo-realtime.mjs';
+import { createDemoCalendar } from './demo-calendar.mjs';
 import { createBrowserRequestPolicy } from './browser-request-policy.mjs';
 import { PRODUCT_ENV } from './product-env.mjs';
 import type { Readable } from 'node:stream';
@@ -267,9 +268,10 @@ export async function startHostedDemoServer(input: HostedDemoServerOptions, adap
     compatibilityDate: entry.compatibilityDate, compatibilityFlags: [...entry.compatibilityFlags], bindings: binding,
     outboundService: async () => new Response('Demo external fetch refused.', { status: 403 }) });
   let tasks: Runtime | undefined, activity: Activity | undefined, workers: Workers | undefined;
-  // The Wall's live and hourly traffic read is answered here from the synthetic
-  // scenario; the Workers never reach a provider in the demo.
+  // The Wall's live and hourly traffic read and its meetings read are answered
+  // here from the synthetic scenario; the Workers never reach a provider in the demo.
   const realtime = createDemoRealtime(configuration.activity.scenario);
+  const calendar = createDemoCalendar(configuration.activity.scenario);
   const dispatch = async (proof: Request): Promise<Response> => workers!.dispatchFetch(proof.url, { method: proof.method,
     headers: Object.fromEntries(proof.headers), signal: proof.signal,
     ...(['GET', 'HEAD'].includes(proof.method) ? {} : { body: await proof.arrayBuffer() }) });
@@ -310,6 +312,7 @@ export async function startHostedDemoServer(input: HostedDemoServerOptions, adap
           if (clientRelease !== null && clientRelease !== artifact.release) response = json(409, { error: 'app_release_changed' });
           else if (target.pathname === '/api/app-release') response = method === 'GET' && !target.search ? json(200, { release: artifact.release }) : json(405, { error: 'method_not_allowed' });
           else if (target.pathname === '/api/ga4/realtime') response = method === 'GET' && !target.search ? json(200, realtime.read(Date.now())) : json(405, { error: 'method_not_allowed' });
+          else if (target.pathname === '/api/calendar/upcoming') response = method === 'GET' && !target.search ? json(200, calendar.read(Date.now())) : json(405, { error: 'method_not_allowed' });
           else if (target.pathname === '/api/tasks' || target.pathname.startsWith('/api/tasks/') || target.pathname.startsWith('/api/gates/')
             || target.pathname === MCP_PATH && !headers.has(READ_MODELS_HEADER)) response = await tasks!.handle(proof);
           else response = await dispatch(proof);

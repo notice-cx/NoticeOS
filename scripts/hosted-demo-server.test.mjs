@@ -89,6 +89,15 @@ test('actual HTTP gateway preserves original proof, refuses hostile Host/release
     }
     for (const address of ['/@vite/client', '/@fs/etc/passwd', '/src/main.tsx', '/manifest.json', '/client/.env', '/assets/missing.js.map']) assert.equal((await request(address)).status, 404);
     assert.equal((await request('/brand.zip')).status, 200);
+    // The Wall's live traffic and meetings are answered here, synthetically, before any Worker or task service.
+    const before = a.calls.length;
+    const meetings = JSON.parse((await request('/api/calendar/upcoming')).text);
+    assert.deepEqual([meetings.feedsConfigured, meetings.feedsOk, meetings.calendars.map(feed => feed.status)], [1, 1, ['ok']]);
+    assert.ok(Array.isArray(meetings.meetings) && meetings.meetings.length > 0);
+    assert.ok(Array.isArray(JSON.parse((await request('/api/ga4/realtime')).text).assets));
+    for (const address of ['/api/calendar/upcoming?feed=work', '/api/ga4/realtime?asset=x']) assert.equal((await request(address)).status, 405);
+    assert.equal((await request('/api/calendar/upcoming', { method: 'POST', body: '{}' })).status, 405);
+    assert.equal(a.calls.length, before);
     assert.equal((await request('/__noticeos_health')).status, 200);
     const config = a.calls.find(call => call.lane === 'configuration').options;
     assert.equal(config.host, '127.0.0.1'); assert.equal(config.cf, false); assert.equal(config.logRequests, false);
