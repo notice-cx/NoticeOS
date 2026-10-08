@@ -17,6 +17,7 @@ import { openTaskDirectory } from '../packages/postgres/src/task-directory.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { createHostedTaskExecutor } from './hosted-task-executor.mjs';
 import { createHostedDemo } from './hosted-demo.mjs';
+import { WORKFLOW_DEFINITIONS } from './workflow-definitions.mjs';
 import { openHostedDemo, startHostedDemo } from './hosted-demo-runtime.mjs';
 import { buildDemoWorkerHelpers } from './demo-evaluator.mjs';
 import { generateDemoScenario, shiftDemoDay } from './demo-scenario.mjs';
@@ -38,11 +39,27 @@ const projects = assets.map((asset, i) => ({ asset: asset.id, projectId: allocat
 test('demo composition refuses a foreign workspace, changed seed and ambiguous task ownership before I/O', () => {
   const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
   const options = { workspaceId: workspace, serviceId: randomUUID(), scenario, projects,
-    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { write() {}, collect() {}, snapshot() {} } };
+    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {} } };
   assert.throws(() => createHostedDemo({ ...options, workspaceId: customers[0] }), /demo activity refused/);
   const changed = structuredClone(scenario); changed.daily[0].sessions++;
   assert.throws(() => createHostedDemo({ ...options, scenario: changed }), /demo activity refused/);
   assert.throws(() => createHostedDemo({ ...options, projects: projects.map(row => ({ ...row, projectId: projects[0].projectId })) }), /demo activity refused/);
+});
+
+test("the demo's scheduled lanes are the release's own workflows and accept only the scheduler's minute", () => {
+  const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
+  const demo = createHostedDemo({ workspaceId: workspace, serviceId: randomUUID(), scenario, projects,
+    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {} } });
+  assert.deepEqual(demo.schedule.map(lane => lane.key), ['mediavine', 'counters', 'beads-snapshot']);
+  for (const lane of demo.schedule) {
+    const stages = WORKFLOW_DEFINITIONS.find(definition => definition.id === lane.key)?.stages.map(stage => stage.id);
+    assert.ok(lane.steps.every(step => stages?.includes(step.key)), lane.key);
+    const minute = `${shiftDemoDay(scenario.manifest.referenceDate, 1)}T08:15:00.000Z`;
+    assert.equal(lane.parseInput({ scheduledAt: minute }), minute);
+    for (const input of [{ scheduledAt: minute.replace(':00.000Z', ':30.000Z') }, { scheduledAt: minute, extra: 1 }, { scheduledAt: '2000-01-01T00:00:00.000Z' }, 'today', null]) {
+      assert.throws(() => lane.parseInput(input));
+    }
+  }
 });
 
 test('persistent demo uses ordinary Postgres writers and actual scoped Beads without changing either customer', {
@@ -108,7 +125,7 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
     const make = (over = {}) => {
       const demo = createHostedDemo({ workspaceId: workspace, serviceId, scenario, projects,
         store: openStore(), grant: openGrant(), now: () => clock,
-        writer: { collect: helpers.writeDemoCollection, async snapshot(store, snapshot) {
+        writer: { collect: helpers.writeDemoCollection, revenue: helpers.writeDemoAdRevenue, async snapshot(store, snapshot) {
           const result = await helpers.writeDemoTaskSnapshot(store, snapshot);
           if (failSnapshot) { failSnapshot = false; throw new Error('Controlled rollback after task summary write'); }
           return result;
@@ -150,7 +167,7 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
       assert.equal(created.length, 1); assert.equal(created[0].created_by, serviceId); assert.equal(created[0].status, 'open');
       createdTaskId = created[0].id;
       const snapshot = await latestSnapshot();
-      assert.equal(snapshot.projects.length, 3); assert.ok(snapshot.projects.every(project => project.ok));
+      assert.equal(snapshot.projects.length, assets.length); assert.ok(snapshot.projects.every(project => project.ok));
       assert.equal(snapshot.projects.find(project => project.asset === projects[0].asset).counts.open, 2);
       const held = await counts(workspace); assert.deepEqual((await demo.tick()).days, []); assert.deepEqual(await counts(workspace), held);
     });
@@ -177,8 +194,8 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
         assert.deepEqual(result.days.map(day => day.date), ['2026-09-22', '2026-09-23']);
         assert.ok(result.days.every(day => day.receipt.state === 'succeeded'));
         const current = await counts(workspace);
-        // Each day records three asset reports and one actual OS observation.
-        assert.equal(current.pulses, retained.pulses + 8);
+        // Each day records one report per site and one actual OS observation.
+        assert.equal(current.pulses, retained.pulses + 2 * (assets.length + 1));
         // The unchanged first board is touched; only the claimed board inserts.
         assert.equal(current.snapshots, retained.snapshots + 1);
         assert.ok(result.days.every(day => day.receipt.steps['task-summary'].state === 'succeeded'));

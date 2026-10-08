@@ -43,23 +43,11 @@ export declare function generateDemoDisplay(scenario: DemoScenario): {
     };
 };
 /** The sources the scenario actually collects, declared live from each site's
- * first day: GA4 and Search Console. No other source is claimed, and the OS
- * collects none. The quarter-hour refresh keeps their evidence fresh. */
+ * first day: GA4 and Search Console, and the ad network for the ad-supported
+ * site. No other source is claimed, and the OS collects none. The hosted
+ * scheduler's lanes keep their evidence fresh. */
 export declare function demoIntegrationAssets(scenario: DemoScenario): {
-    [k: string]: {
-        ga4?: undefined;
-        gsc?: undefined;
-    } | {
-        ga4: {
-            status: string;
-            since: string;
-        };
-        gsc: {
-            status: string;
-            siteUrl: string;
-            since: string;
-        };
-    };
+    [k: string]: {};
 };
 /** Saved run times for the demo's scheduled lanes: the task board refreshes
  * every five minutes rather than every minute, a smaller always-on load. */

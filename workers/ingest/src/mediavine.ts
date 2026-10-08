@@ -218,7 +218,8 @@ export async function mediavineStatus(env: IngestEnv, asset: string): Promise<Me
     daily: daily.map((day) => ({ date: day.date, amountMinor: cents(day.amount_minor) })).reverse() };
 }
 
-async function persistReport(env: IngestEnv, asset: string, report: Report): Promise<string> {
+/** One collected report: its run and every changed daily figure, together. */
+export async function persistReport(env: Pick<IngestEnv, 'STORE'>, asset: string, report: Report): Promise<string> {
   const runId = crypto.randomUUID();
   const days = report.daily.map((day) => {
     if (day.revenueMinor === null) throw new MediavineError('incomplete', 'Mediavine has not reported every requested day yet.');

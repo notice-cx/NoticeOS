@@ -24,6 +24,16 @@ const BRIEFS = {
         ["One recent daily report is missing.", "Identify the missing day; never substitute a zero observation.", "Collection resumed. The earlier missing day still needs explicit treatment.", "Recovered report checked; the earlier daily gap remains."],
         ["Shared research folders remain a discovery proposal.", "At the wake-up date, decide a bounded discovery scope.", "Park shared-folder exploration while existing source saving is repaired.", "Shared research folders have a scheduled discovery decision."],
     ],
+    wp: [
+        ["Slow recipe pages lose visits before readers reach a recipe.", "Link page timings before and after; keep ad income claims separate.", "Start with the ten most visited recipe pages.", "Measured recipe pages now beat their recorded baseline."],
+        ["Recipe page timings need a measured baseline first.", "Record load timings for the most visited recipe pages.", "Measure before changing images or ad placement.", "Baseline timings recorded for the most visited pages."],
+        ["The holiday recipe collection needs Mara’s selection.", "After her choice, record the recipes and their publishing dates.", "Waiting for Mara’s selection; page speed work continues.", "The holiday collection matches Mara’s recorded choice."],
+        ["Faster recipe pages need verification after the speed work.", "Re-measure the baseline pages; record any page that regressed.", "Use the same pages once the speed task closes.", "The baseline pages pass the recorded timing check."],
+        ["Printable recipe cards can be checked independently.", "Print each card layout; file problems against named recipes.", "This check needs neither speed work nor the holiday selection.", "Printable cards render on every checked recipe."],
+        ["The completed month’s ad payment needs its own check.", "Compare the payment with the month’s daily estimates; keep both labelled.", "Use the stored daily estimates, never traffic, for the comparison.", "Payment and daily estimates are both recorded."],
+        ["Seasonal recipe pages need review before the holidays.", "List seasonal pages with falling search clicks; propose updates.", "Use the last four weeks of search clicks.", "Seasonal pages with falling clicks are listed."],
+        ["A weekly meal plan remains a discovery proposal.", "At the wake-up date, scope a bounded meal-plan discovery.", "Park this until the faster pages are verified.", "The meal-plan proposal has a scheduled discovery decision."],
+    ],
     fr: [
         ["CSV input handling needs verification before more examples.", "Check empty, zero, and numeric inputs; record concrete failures.", "Start with inputs; more examples cannot repair rejected values.", "The CSV input checklist is recorded."],
         ["First usage reports cover only the short post-launch period.", "Verify launch bounds and identify provisional recent days.", "Check available days before interpreting a change.", "Usage begins at launch; recent days remain provisional."],
@@ -38,10 +48,10 @@ const BRIEFS = {
         ["Portfolio recovery must preserve operational records and task history.", "Verify restored databases, task history, and configuration on isolated resources.", "Server startup alone is insufficient; inspect restored task history.", "Recovery checks include task history and configuration readbacks."],
         ["Task-board refresh must retain identity, empty queues, and failures.", "Compare snapshot identities and counts; distinguish unavailable from empty.", "An unavailable project must never appear as an empty queue.", "Board refresh preserves identities and distinguishes unavailable counts."],
         ["The next operating-cost budget needs Mara’s decision.", "Record approved scope after the gate; preserve existing cost history.", "Next budget approval does not authorize rewriting previous costs.", "Mara’s next budget scope preserves previous cost history."],
-        ["Project-map verification awaits the shared budget decision.", "After approval, verify all four project identities and snapshot reads.", "These projects already exist; this review never reinitializes them.", "All four projects match their current snapshot identities."],
+        ["Project-map verification awaits the shared budget decision.", "After approval, verify all five project identities and snapshot reads.", "These projects already exist; this review never reinitializes them.", "All five projects match their current snapshot identities."],
         ["Collection history includes a failed attempt and later recovery.", "Inspect both recorded attempts; never recollect to rewrite history.", "Read the recorded attempts, rather than starting another collection.", "The failed attempt and later recovery remain inspectable."],
         ["Shared costs belong to the OS, separate from property revenue.", "Check OS cost entries, booking states, and recorded periods.", "Keep portfolio overhead separate; use the ledger’s recorded amounts.", "Shared costs retain OS ownership, periods, booking states."],
-        ["Portfolio report links must preserve task-board asset identities.", "Open three property links and the OS; check target identities.", "Compare with the four-project map, not display names.", "All four portfolio links open their declared identities."],
+        ["Portfolio report links must preserve task-board asset identities.", "Open four property links and the OS; check target identities.", "Compare with the five-project map, not display names.", "All five portfolio links open their declared identities."],
         ["A further portfolio import needs bounded discovery first.", "At the wake-up date, choose scope without copying an installation.", "Park this until task, recovery, and report checks finish.", "The next import has a scheduled bounded discovery decision."],
     ],
 };
@@ -51,6 +61,7 @@ export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }) {
     const tasks = [];
     const projectTitles = {
         lb: ['Restore brief navigation', 'Reproduce the navigation failure', 'Verify the navigation repair', 'Read the repair follow-up', 'Group the brief library', 'Check the completed subscription report', 'Verify the refreshed brief library', 'Explore a template filter'],
+        wp: ['Speed up the recipe pages', 'Measure the slow recipe pages', 'Choose the holiday recipe collection', 'Verify the faster recipe pages', 'Check the printable recipe cards', 'Check the completed ad payment', 'Review the seasonal recipe pages', 'Explore a weekly meal plan'],
         pw: ['Restore source saving', 'Reproduce the source-save failure', 'Revise the collection labels', 'Verify restored source saving', 'Check the saved-source links', 'Reconcile the completed licensing report', 'Verify the recovered daily report', 'Explore shared research folders'],
         fr: ['Check CSV input handling', 'Verify the first usage reports', 'Review sample CSV files', 'Verify keyboard CSV use', 'Check the published help links', 'Record the initial operating costs', 'Review the next coverage comparison', 'Explore saved validation rules'],
         no: ['Verify the portfolio backup restore', 'Check the task-board refresh', 'Review the next operating-cost budget', 'Verify the refreshed task projects', 'Inspect the recorded collection recovery', 'Reconcile the shared operating costs', 'Check the portfolio report links', 'Explore the next portfolio import'],
@@ -59,7 +70,7 @@ export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }) {
     for (const asset of assets) {
         const titles = projectTitles[asset.prefix];
         if (!titles || titles.length !== 8)
-            throw new Error('The task scenario needs its four declared projects.');
+            throw new Error('The task scenario needs its five declared projects.');
         const epic = id(asset, 'epic');
         const older = asset.prefix === 'fr' ? -23 : -390;
         const events = (start, status, finish, owner) => {

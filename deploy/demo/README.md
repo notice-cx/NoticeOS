@@ -94,12 +94,16 @@ proxy to explore Sites, Financials, Tasks, Workflows and Settings. The demo bann
 identifies synthetic data and its latest successfully completed generation.
 The Wall's live pulse and today-by-hour chart read synthetic values the demo
 derives from each site's own synthetic daily users; no analytics provider is
-called. The ordinary hosted scheduler runs two demo lanes under the release's
-job identities: a quarter-hour refresh writes today's provisional synthetic
-traffic and search counts, and the task board refreshes every five minutes.
-Their executions are the Workflows page's history. Setup declares GA4 and
-Search Console for each fictional site, so a demo seeded before that
-declaration needs a fresh setup to show live sources.
+called. The ordinary hosted scheduler runs the demo's lanes under the
+release's job identities: a quarter-hour refresh writes today's provisional
+synthetic traffic and search counts, the ad-supported site's daily estimate
+arrives each morning, and the task board refreshes every five minutes. Their
+executions are the Workflows page's history.
+
+The scenario is versioned. A release whose scenario version differs from a
+running demo's refuses that demo's stored scenario at startup. Scenario version
+4 needs a fresh setup with a new project name and volumes; see
+[the showcase brief](../../docs/briefs/2026-10-08-demo-showcase.md).
 Visitor writes and provider actions are refused. Health does not establish that
 any remote domain has been deployed or that an expired grant can be renewed.
 

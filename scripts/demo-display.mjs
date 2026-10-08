@@ -17,15 +17,16 @@ export function generateDemoDisplay(scenario) {
         throw new Error('The released Wall has no site region.');
     siteWidget.settings = { pulseMetrics: Object.fromEntries(sites.map(asset => [asset.id, [asset.event]])) };
     const labels = {
-        brief_exports: 'Brief exports', source_saves: 'Source saves', completed_checks: 'Completed checks',
+        brief_exports: 'Brief exports', source_saves: 'Source saves', completed_checks: 'Completed checks', recipe_saves: 'Recipe saves',
     };
     return {
         'config/tower.json': {
             readme: 'config/tower.README.md',
             wall: { layout, history: [] },
+            // Far enough ahead to count down for most of a demo's life.
             countdown: {
-                emoji: '📅', label: 'Portfolio review',
-                targetAt: `${shiftDemoDay(scenario.manifest.referenceDate, 14)}T17:00:00.000Z`,
+                emoji: '📅', label: 'Quarterly portfolio review',
+                targetAt: `${shiftDemoDay(scenario.manifest.referenceDate, 75)}T17:00:00.000Z`,
             },
         },
         'config/counters.json': {
@@ -37,13 +38,21 @@ export function generateDemoDisplay(scenario) {
     };
 }
 /** The sources the scenario actually collects, declared live from each site's
- * first day: GA4 and Search Console. No other source is claimed, and the OS
- * collects none. The quarter-hour refresh keeps their evidence fresh. */
+ * first day: GA4 and Search Console, and the ad network for the ad-supported
+ * site. No other source is claimed, and the OS collects none. The hosted
+ * scheduler's lanes keep their evidence fresh. */
 export function demoIntegrationAssets(scenario) {
-    return Object.fromEntries(scenario.assets.map(asset => [asset.id, asset.isOs ? {} : {
-            ga4: { status: 'live', since: asset.createdAt.slice(0, 10) },
-            gsc: { status: 'live', siteUrl: `sc-domain:${asset.domain}`, since: asset.createdAt.slice(0, 10) },
-        }]));
+    return Object.fromEntries(scenario.assets.map(asset => {
+        if (asset.isOs)
+            return [asset.id, {}];
+        const since = asset.createdAt.slice(0, 10);
+        const ads = scenario.manifest.adSites.find(site => site.asset === asset.id);
+        return [asset.id, {
+                ga4: { status: 'live', since },
+                gsc: { status: 'live', siteUrl: `sc-domain:${asset.domain}`, since },
+                ...(ads ? { 'ad-network': { status: 'live', mediavineSiteId: ads.siteId, mediavineEnabled: true, since } } : {}),
+            }];
+    }));
 }
 /** Saved run times for the demo's scheduled lanes: the task board refreshes
  * every five minutes rather than every minute, a smaller always-on load. */

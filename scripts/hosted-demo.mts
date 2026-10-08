@@ -23,6 +23,8 @@ const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 export interface DemoActivityWriter {
   write(store: WorkspaceStore, day: DemoActivityDay): Promise<{ written: number; assets: number; date: string }>;
   collect(store: WorkspaceStore, collection: DemoActivityCollection): Promise<{ succeeded: number; written: number; outcomes: unknown[] }>;
+  revenue(store: WorkspaceStore, input: { at: string; sites: readonly { asset: string; siteId: string; since: string }[];
+    amount(asset: string, date: string): number }): Promise<unknown>;
   snapshot(store: WorkspaceStore, snapshot: BeadsSnapshotInput): Promise<{ written: number }>;
 }
 export interface HostedDemoOptions {
@@ -82,7 +84,8 @@ export function createHostedDemo(options: HostedDemoOptions): {
   const { workspaceId, serviceId, store, grant, tasks, writer } = options;
   if (!UUID.test(workspaceId) || !UUID.test(serviceId) || !store || !grant
     || typeof tasks?.execute !== 'function' || typeof writer?.write !== 'function'
-    || typeof writer?.collect !== 'function' || typeof writer?.snapshot !== 'function') refuse();
+    || typeof writer?.collect !== 'function' || typeof writer?.revenue !== 'function'
+    || typeof writer?.snapshot !== 'function') refuse();
   const scenario = generateDemoScenario(options.scenario.manifest);
   const hash = demoScenarioHash(scenario);
   if (workspaceId !== scenario.manifest.workspaceId || hash !== demoScenarioHash(options.scenario)) refuse();
@@ -175,7 +178,12 @@ export function createHostedDemo(options: HostedDemoOptions): {
     const written = await inTransaction(tx, signal, scoped => writer.snapshot(scoped, snapshot));
     return { ...written, projects: snapshot.projects.map(({ asset, ok, counts }) => ({ asset, ok, counts })) };
   };
+  const adSites = Object.freeze(scenario.manifest.adSites.map(site => Object.freeze({ ...site,
+    since: scenario.assets.find(asset => asset.id === site.asset)!.createdAt.slice(0, 10) })));
   const schedule: readonly HostedJobDefinition[] = Object.freeze([
+    ...(adSites.length ? [{ key: 'mediavine', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'revenue', kind: 'database' as const, action: 'workflows.run' as const,
+      run: async ({ input, signal }: { input: JobInput; signal: AbortSignal }, tx: Transaction) => inTransaction(tx, signal, scoped =>
+        writer.revenue(scoped, { at: minuteOf(input), sites: adSites, amount: activity.adRevenue })) }] }] : []),
     { key: 'counters', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'google', kind: 'database', action: 'workflows.run',
       run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => writer.collect(scoped, activity.collection(minuteOf(input)))) }] },
     { key: 'beads-snapshot', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'execute', kind: 'database', action: 'workflows.run',

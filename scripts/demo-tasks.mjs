@@ -47,7 +47,7 @@ export async function configureDemoTasks({ plan, scenario, receipt, capability, 
   const applied = await helpers.applyConfigOps(capability, { actor: 'synthetic-demo-seeder', slug: 'demo-task-projects',
     expectVersions: { [files[0]]: 1 }, ops: scenario.manifest.taskProjects.map(project => ({ kind: 'file-json-insert', file: files[0], pointer: '/spokes/-', value: project })) }, Date.parse(scenario.manifest.cutoff));
   const document = applied.documents?.find(row => row.file === files[0]);
-  if (!applied.ok || applied.applied !== 4 || document?.version !== 2 || JSON.stringify(document.body.spokes) !== JSON.stringify(scenario.manifest.taskProjects)) throw new Error('The ordinary config apply did not acknowledge the exact demo projects.');
+  if (!applied.ok || applied.applied !== scenario.manifest.taskProjects.length || document?.version !== 2 || JSON.stringify(document.body.spokes) !== JSON.stringify(scenario.manifest.taskProjects)) throw new Error('The ordinary config apply did not acknowledge the exact demo projects.');
   fs.mkdirSync(plan.installation, { recursive: true, mode: 0o700 });
   write(path.join(plan.installation, 'task-host.json'), { version: 1, repositories: receipt.projects });
   write(path.join(plan.installation, 'beads.json'), document.body);

@@ -19,7 +19,8 @@ test('saved demo settings select actual nightly totals and a future fictional re
     for (const [file, body] of Object.entries(documents)) assert.equal(documentRefusal(file, body), null);
     validateWallLayout(tower.wall.layout);
     assert.equal(tower.countdown.emoji, '📅');
-    assert.equal(tower.countdown.label, 'Portfolio review');
+    assert.equal(tower.countdown.label, 'Quarterly portfolio review');
+    assert.ok(Date.parse(tower.countdown.targetAt) > Date.parse(cutoff) + 60 * 86_400_000);
     assert.ok(Date.parse(tower.countdown.targetAt) > Date.parse(cutoff));
     const selection = wallLayoutWidgets(tower.wall.layout).find(widget => widget.type === 'sites').settings.pulseMetrics;
     assert.deepEqual(Object.keys(selection), scenario.assets.filter(asset => !asset.isOs).map(asset => asset.id));

@@ -35,7 +35,7 @@ export interface DemoActivityMoney {
     amountMinor: number;
     currency: 'USD';
     bookingState: 'reconciled';
-    source: 'demo-simulator';
+    source: 'demo-simulator' | 'mediavine';
     externalId: string;
     note: string;
     coverageStart: string;
@@ -92,4 +92,5 @@ export declare function createDemoActivity(input: DemoScenario): {
     day(date: string): DemoActivityDay;
     batch(first: string, last: string): DemoActivityDay[];
     collection(at: string): DemoActivityCollection;
+    adRevenue(asset: string, date: string): number;
 };

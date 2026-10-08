@@ -28,9 +28,9 @@ test('every site with traffic gets one reading shaped like the GA4 realtime cont
 test('readings are deterministic, follow each site\'s daily users and grow within the filling hour', () => {
   const at = Date.parse('2026-10-06T14:23:00.000Z');
   assert.deepEqual(realtime.read(at), createDemoRealtime(scenario).read(at));
-  const [light, pin, fresh] = realtime.read(at).assets;
+  const [light, pin, recipes, fresh] = realtime.read(at).assets;
   const dayTotal = reading => reading.hourlyActiveUsers.reduce((total, row) => total + row.sameDayLastWeek, 0);
-  assert.ok(dayTotal(light) > dayTotal(pin) && dayTotal(pin) > dayTotal(fresh), 'busier sites read busier');
+  assert.ok(dayTotal(recipes) > dayTotal(light) && dayTotal(light) > dayTotal(pin) && dayTotal(pin) > dayTotal(fresh), 'busier sites read busier');
   const seeded = scenario.daily.find(row => row.asset === light.asset && row.date === '2026-09-29');
   assert.ok(dayTotal(light) > seeded.activeUsers * 1.0 && dayTotal(light) < seeded.activeUsers * 1.35, 'hourly sums sit a little above distinct users');
   assert.ok(light.activeUsers30m > 0 && light.activeUsers30m < seeded.activeUsers / 8, 'a live window is a small slice of the day');

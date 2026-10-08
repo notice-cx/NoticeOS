@@ -57,6 +57,19 @@ export async function fillDemo(tx, scenario, { evaluatePulse, developmentProfile
       VALUES ($1::uuid, $2, $3, $4::date, $5, $6::bigint, $7, $8, $9, $10::bigint, $11, $12::timestamptz, $13, $14::date, $15::date, $16) RETURNING entry_id`, [ws, row.kind, row.asset, `${row.period}-01`, row.family, row.minor, row.currency, row.source, row.state, row.supersedes ? entries.get(row.supersedes) : null, row.note, row.recordedAt, `demo:${row.key}`, row.coverageStart ?? null, row.coverageEnd ?? null, row.coverageComplete ?? null]);
         entries.set(row.key, written.entry_id);
     }
+    // The ad network's daily estimates reported by the cutoff, as one synthetic
+    // history run per site; the hosted scheduler's ad revenue lane continues it.
+    for (const site of scenario.manifest.adSites) {
+        const days = scenario.adRevenue.filter(day => day.asset === site.asset);
+        if (days.length === 0)
+            continue;
+        await tx.execute('INSERT INTO noticeos.mediavine_sites (workspace_id, site_id, asset_id) VALUES ($1::uuid, $2, $3)', [ws, site.siteId, site.asset]);
+        const total = days.reduce((sum, day) => sum + day.minor, 0);
+        const [run] = await tx.query(`INSERT INTO noticeos.mediavine_runs (workspace_id, run_id, asset_id, site_id, start_date, end_date, attempted_at, outcome, summary_minor, daily_minor, difference_minor)
+      VALUES ($1::uuid, $2, $3, $4, $5::date, $6::date, $7::timestamptz, 'success', $8::bigint, $8::bigint, 0) RETURNING run_seq`, [ws, `${site.siteId}-history`, site.asset, site.siteId, days[0].date, days.at(-1).date, days.at(-1).recordedAt, total]);
+        await tx.execute(`INSERT INTO noticeos.mediavine_daily (workspace_id, run_seq, asset_id, site_id, report_date, amount_minor, recorded_at)
+      SELECT $1::uuid, $2::bigint, $3, $4, v.date, v.minor, v.recorded FROM unnest($5::date[], $6::bigint[], $7::timestamptz[]) AS v(date, minor, recorded)`, [ws, run.run_seq, site.asset, site.siteId, days.map(day => day.date), days.map(day => day.minor), days.map(day => day.recordedAt)]);
+    }
     const reports = new Map();
     for (const pulse of scenario.pulses) {
         const envelope = { asset: pulse.asset, generatedAt: pulse.generatedAt, capabilities: pulse.capabilities, metrics: pulse.metrics };
@@ -78,5 +91,5 @@ export async function fillDemo(tx, scenario, { evaluatePulse, developmentProfile
     VALUES ($1::uuid, $2, $3::timestamptz, 'deploy', $4, 'Synthetic navigation repair.', $3::timestamptz)`, [ws, repair.asset, repair.annotationAt, repair.ref]);
     await tx.execute(`INSERT INTO noticeos.watch_windows (workspace_id, window_id, asset_id, ref_kind, ref, metric_integration, metric, registered_at, baseline_start, baseline_end, check_offsets, thresholds, note, created_at, readback_bead)
     VALUES ($1::uuid, $2, $3, 'annotation', $4, 'ga4', 'sessions', $5::timestamptz, $6::date, $7::date, ARRAY[28], $8::jsonb, 'Synthetic comparison; no causal revenue claim.', $5::timestamptz, $9)`, [ws, repair.watchId, repair.asset, repair.ref, repair.registeredAt, repair.baselineStart, repair.baselineEnd, JSON.stringify({ ship: { direction: 'up', min_delta_pct: 10 }, kill: { direction: 'down', min_delta_pct: 10 } }), repair.readbackTaskId]);
-    return { assets: scenario.assets.length, daily: scenario.daily.length, pulses: scenario.pulses.length, ledger: scenario.ledger.length, watchStatus: 'registered' };
+    return { assets: scenario.assets.length, daily: scenario.daily.length, pulses: scenario.pulses.length, ledger: scenario.ledger.length, adDays: scenario.adRevenue.length, watchStatus: 'registered' };
 }

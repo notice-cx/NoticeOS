@@ -39,7 +39,7 @@ test('the own project map uses the ordinary register apply and version guard; fa
         // Only the sources the scenario collects are declared, from each site's first day.
         assert.deepEqual(input.documents['config/integrations.json'].assets, demoIntegrationAssets(scenario));
         for (const asset of scenario.assets) {
-          assert.deepEqual(Object.keys(input.documents['config/integrations.json'].assets[asset.id]), asset.isOs ? [] : ['ga4', 'gsc']);
+          assert.deepEqual(Object.keys(input.documents['config/integrations.json'].assets[asset.id]), asset.isOs ? [] : asset.adRpm ? ['ga4', 'gsc', 'ad-network'] : ['ga4', 'gsc']);
         }
         assert.deepEqual(input.documents['config/beads.json'].spokes, []);
         // The schedule reader needs this physical generic document. Copying it
@@ -53,7 +53,7 @@ test('the own project map uses the ordinary register apply and version guard; fa
         calls.push('apply'); assert.deepEqual(input.expectVersions, { 'config/beads.json': 1 });
         validateSchemaAndSafety({ version: 1, slug: input.slug, createdAt: scenario.manifest.cutoff, ops: input.ops });
         assert.deepEqual(input.ops.map(op => op.value), scenario.manifest.taskProjects);
-        return defect === 'stale' ? { ok: false, error: 'version_mismatch' } : { ok: true, applied: 4, documents: [{ file: 'config/beads.json', version: 2, body: { spokes: scenario.manifest.taskProjects } }] };
+        return defect === 'stale' ? { ok: false, error: 'version_mismatch' } : { ok: true, applied: scenario.manifest.taskProjects.length, documents: [{ file: 'config/beads.json', version: 2, body: { spokes: scenario.manifest.taskProjects } }] };
       },
     };
     const receipt = { projects: scenario.manifest.taskProjects.map(project => ({ ...project, repo: path.join(home, 'tasks', project.prefix) })) };

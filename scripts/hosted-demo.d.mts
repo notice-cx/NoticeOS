@@ -17,6 +17,15 @@ export interface DemoActivityWriter {
         written: number;
         outcomes: unknown[];
     }>;
+    revenue(store: WorkspaceStore, input: {
+        at: string;
+        sites: readonly {
+            asset: string;
+            siteId: string;
+            since: string;
+        }[];
+        amount(asset: string, date: string): number;
+    }): Promise<unknown>;
     snapshot(store: WorkspaceStore, snapshot: BeadsSnapshotInput): Promise<{
         written: number;
     }>;

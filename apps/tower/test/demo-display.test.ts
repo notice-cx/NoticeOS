@@ -88,7 +88,7 @@ it('saved demo display and the released OS observer reach ordinary Wall readers 
     expect(site.counters?.cards[0]?.value).toBe(latest.metrics[configured.cards[0]!.metric]!.total);
     expect(site.counters?.cards[0]?.source).toBe('nightly');
   }
-  expect(configuredSites).toBe(3);
+  expect(configuredSites).toBe(4);
   expect(await fixture.call.read(tx => tx.query('SELECT count(*)::int AS jobs FROM noticeos.job_runs'))).toEqual([{ jobs: 0 }]);
   await expect(seedDemoDisplay({ home, installation, scenario, capability, helpers })).rejects.toThrow('existing exports');
   expect((await helpers.getConfigDocuments(capability, display.files)).every(document => document.version === 1)).toBe(true);

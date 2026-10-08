@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { generateDemoScenario, demoScenarioHash, shiftDemoDay } from './demo-scenario.mjs';
+import { generateDemoScenario, demoScenarioHash, demoAdRevenueMinor, shiftDemoDay } from './demo-scenario.mjs';
 
 const options = { seed: 'portfolio-v1', cutoff: '2026-10-16T12:00:00.000Z', release: '1'.repeat(40) };
 
@@ -11,7 +11,7 @@ test('the same declared seed, cutoff and release reproduce all facts and identit
   assert.equal(demoScenarioHash(first), demoScenarioHash(second));
   assert.notEqual(demoScenarioHash(generateDemoScenario({ ...options, seed: 'portfolio-v2' })), demoScenarioHash(first));
   assert.equal(first.manifest.synthetic, true);
-  assert.equal(first.manifest.identities.length, 4);
+  assert.equal(first.manifest.identities.length, 5);
 });
 
 test('mature sites have 400 days and the young site has no pre-launch history', () => {
@@ -65,11 +65,16 @@ test('reference-month traffic and independently recorded income reconcile to exa
 test('missing traffic, provisional signals and absent recorded income remain distinct', () => {
   const scenario = generateDemoScenario(options);
   assert.equal(scenario.daily.filter(d => d.reportMissing).length, 1);
-  assert.equal(scenario.daily.filter(d => d.provisional).length, 9);
-  assert.ok(scenario.assets.filter(a => !a.isOs).every(a => !('ads' in a) && !('affiliate' in a)));
+  assert.equal(scenario.daily.filter(d => d.provisional).length, 12);
   assert.ok(scenario.daily.every(day => !('adMinor' in day) && !('adMissing' in day)));
-  assert.ok(scenario.ledger.filter(row => row.kind === 'revenue').every(row => ['subs', 'licensing'].includes(row.family) && row.source === 'demo-recorded-income'));
-  assert.doesNotMatch(JSON.stringify(scenario), /mediavine|MRR|Stripe|churn/iu);
+  // Subscription and licensing income is recorded monthly; only the
+  // ad-supported site has ad income, as the network's payments.
+  const ads = scenario.assets.filter(a => a.adRpm).map(a => a.id);
+  assert.deepEqual(ads, ['weeknightpantry.example']);
+  assert.ok(scenario.ledger.filter(row => row.kind === 'revenue').every(row => ads.includes(row.asset)
+    ? row.family === 'ads' && row.source === 'mediavine' && row.state === 'reconciled'
+    : ['subs', 'licensing'].includes(row.family) && row.source === 'demo-recorded-income'));
+  assert.doesNotMatch(JSON.stringify(scenario), /MRR|Stripe|churn/iu);
   assert.ok(scenario.ledger.filter(l => l.asset === 'freshrows.example').every(l => l.kind === 'cost'));
   assert.equal(scenario.ledger.filter(l => l.period === '2026-10' && l.kind === 'revenue').length, 2);
 });
@@ -125,10 +130,11 @@ test('accounting anchors precede the unchanged repair windows across calendar bo
 // Income describes recorded monthly amounts, never a payment-provider model.
 test('the software portfolio retains meaningful metrics and honest monthly correction evidence', () => {
   const scenario = generateDemoScenario(options);
-  assert.equal(scenario.manifest.scenarioVersion, 3);
+  assert.equal(scenario.manifest.scenarioVersion, 4);
   assert.deepEqual(scenario.assets.filter(asset => !asset.isOs).map(asset => [asset.name, asset.id, asset.prefix, asset.event, asset.revenueFamily]), [
     ['Light Brief', 'lightbrief.example', 'lb', 'brief_exports', 'subs'],
     ['Pinwell', 'pinwell.example', 'pw', 'source_saves', 'licensing'],
+    ['Weeknight Pantry', 'weeknightpantry.example', 'wp', 'recipe_saves', null],
     ['Fresh Rows', 'freshrows.example', 'fr', 'completed_checks', null],
   ]);
   const correction = scenario.ledger.find(row => row.supersedes && row.minor !== scenario.ledger.find(old => old.key === row.supersedes).minor);
@@ -155,4 +161,30 @@ test('partial income has bounded explicit coverage even on the first posting day
     }
     assert.ok(scenario.ledger.filter(row => row.kind === 'cost').every(row => row.coverageStart === undefined && row.coverageEnd === undefined && row.coverageComplete === undefined));
   }
+});
+
+test('the ad-supported site has daily estimates through its reported day and paid months reconciled', () => {
+  for (const [cutoff, through] of [['2026-10-16T12:00:00.000Z', '2026-10-14'], ['2026-10-16T14:10:00.000Z', '2026-10-15'], ['2026-10-01T00:01:00.000Z', '2026-09-29']]) {
+    const scenario = generateDemoScenario({ ...options, cutoff });
+    const asset = scenario.assets.find(a => a.adRpm);
+    const days = scenario.daily.filter(d => d.asset === asset.id);
+    assert.deepEqual(scenario.manifest.adSites, [{ asset: asset.id, siteId: 'demo-wp' }]);
+    assert.equal(scenario.adRevenue.at(-1).date, through, cutoff);
+    assert.equal(scenario.adRevenue[0].date, asset.createdAt.slice(0, 10));
+    for (const estimate of scenario.adRevenue) {
+      const day = days.find(d => d.date === estimate.date);
+      assert.equal(estimate.minor, demoAdRevenueMinor(options.seed, asset, estimate.date, day.sessions));
+      assert.ok(estimate.minor > 0 && estimate.recordedAt <= cutoff && estimate.recordedAt.slice(0, 10) > estimate.date);
+    }
+    for (const payment of scenario.ledger.filter(row => row.asset === asset.id && row.kind === 'revenue')) {
+      const month = scenario.adRevenue.filter(day => day.date.startsWith(payment.period)).reduce((n, day) => n + day.minor, 0);
+      assert.ok(Math.abs(payment.minor / month - 1) <= 0.016, payment.period);
+      assert.ok(payment.recordedAt <= cutoff && payment.coverageComplete === true);
+      assert.equal(payment.recordedAt.slice(0, 10), `${new Date(Date.UTC(Number(payment.period.slice(0, 4)), Number(payment.period.slice(5, 7)) + 1, 6)).toISOString().slice(0, 7)}-06`);
+    }
+  }
+  // Recipe demand peaks before the holidays and ad income follows it.
+  const scenario = generateDemoScenario(options);
+  const month = prefix => scenario.adRevenue.filter(day => day.date.startsWith(prefix)).reduce((n, day) => n + day.minor, 0);
+  assert.ok(month('2025-12') > month('2026-06') * 1.5);
 });

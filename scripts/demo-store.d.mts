@@ -17,6 +17,7 @@ export declare function fillDemo(tx: Transaction, scenario: DemoScenario, { eval
     daily: number;
     pulses: number;
     ledger: number;
+    adDays: number;
     watchStatus: string;
 }>;
 export {};

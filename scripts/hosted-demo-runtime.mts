@@ -59,11 +59,12 @@ export async function openHostedDemo(options: HostedDemoRuntimeOptions): Promise
       } });
     const helpers = await buildDemoWorkerHelpers(sourceRoot, { activity: true, configurationRoot });
     if (typeof helpers.writeDemoActivity !== 'function' || typeof helpers.writeDemoCollection !== 'function'
-      || typeof helpers.writeDemoTaskSnapshot !== 'function') throw new Error('Released demo input writer absent.');
+      || typeof helpers.writeDemoAdRevenue !== 'function' || typeof helpers.writeDemoTaskSnapshot !== 'function') throw new Error('Released demo input writer absent.');
     const write: DemoActivityWriter['write'] = helpers.writeDemoActivity;
     const collect: DemoActivityWriter['collect'] = helpers.writeDemoCollection;
+    const revenue: DemoActivityWriter['revenue'] = helpers.writeDemoAdRevenue;
     const snapshot: DemoActivityWriter['snapshot'] = helpers.writeDemoTaskSnapshot;
-    demo = createHostedDemo({ workspaceId, serviceId, scenario, store, grant, writer: { write, collect, snapshot }, tasks, now,
+    demo = createHostedDemo({ workspaceId, serviceId, scenario, store, grant, writer: { write, collect, revenue, snapshot }, tasks, now,
       projects: projects.map(row => ({ asset: row.asset, prefix: row.prefix, projectId: row.mapping.projectId })) });
     const opened = demo;
     // The ordinary hosted scheduler owns its own connections and timers; a

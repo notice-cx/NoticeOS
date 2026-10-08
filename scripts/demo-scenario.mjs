@@ -3,20 +3,69 @@
 // Scenario choices, not estimates of real businesses; see the dated brief.
 import { createHash } from 'node:crypto';
 import { generateDemoTaskFacts } from './demo-task-facts.mjs';
-export const SCENARIO_VERSION = 3;
+export const SCENARIO_VERSION = 4;
 const DAY_MS = 86_400_000;
 export const DEMO_ASSETS = Object.freeze([
     { id: 'lightbrief.example', name: 'Light Brief', prefix: 'lb', days: 400, sessions: 66000, revenue: 180000, revenueFamily: 'subs', cost: 26000, event: 'brief_exports' },
     { id: 'pinwell.example', name: 'Pinwell', prefix: 'pw', days: 400, sessions: 28000, revenue: 52000, revenueFamily: 'licensing', cost: 13000, event: 'source_saves' },
+    { id: 'weeknightpantry.example', name: 'Weeknight Pantry', prefix: 'wp', days: 400, sessions: 150000, revenue: null, revenueFamily: null, cost: 9000, event: 'recipe_saves', adRpm: 2400 },
     { id: 'freshrows.example', name: 'Fresh Rows', prefix: 'fr', days: 24, sessions: null, revenue: null, revenueFamily: null, cost: 6000, event: 'completed_checks' },
     { id: 'noticeos', name: 'NoticeOS', prefix: 'no', days: 400, sessions: null, revenue: null, revenueFamily: null, cost: 21000, event: null, isOs: true },
 ]);
 export function shiftDemoDay(day, offset) {
     return new Date(Date.parse(`${day}T00:00:00Z`) + offset * DAY_MS).toISOString().slice(0, 10);
 }
-function monthOffset(period, offset) {
+export function shiftDemoMonth(period, offset) {
     const [year, month] = period.split('-').map(Number);
     return new Date(Date.UTC(year, month - 1 + offset, 1)).toISOString().slice(0, 7);
+}
+/** Each site's demand by weekday, Sunday first: software is used on workdays,
+ * recipes are cooked at weekends. The simulator continues the same shape. */
+export function demoWeekShape(prefix) {
+    return prefix === 'wp' ? [1.24, 0.98, 0.95, 0.96, 0.98, 0.9, 1.06] : [0.82, 1.08, 1.08, 1.08, 1.08, 1.08, 0.82];
+}
+/** How a visit turns into pages, users, tracked actions and search results.
+ * A recipe site: more pages a visit, more of it from search, higher in results. */
+export function demoTrafficShape(prefix) {
+    return prefix === 'wp'
+        ? { pages: 2.2, pagesSpread: 0.4, activeUsers: 0.84, events: 0.035, clicks: 0.66, impressionsPerClick: 21, position: 4, positionSpread: 1.5 }
+        : { pages: 1.55, pagesSpread: 0.3, activeUsers: 0.79, events: 0.065, clicks: 0.57, impressionsPerClick: 18, position: 6, positionSpread: 2 };
+}
+/** A recipe site's year peaks in late November (day 328) and is quietest in
+ * early summer: demand is `1 + DEMO_RECIPE_SEASON × cos(angle)`. */
+export const DEMO_RECIPE_SEASON = 0.22;
+export function demoRecipeSeasonAngle(date) {
+    const dayOfYear = (Date.parse(`${date}T00:00:00Z`) - Date.UTC(Number(date.slice(0, 4)), 0, 1)) / DAY_MS;
+    return 2 * Math.PI * (dayOfYear - 328) / 365.25;
+}
+/** The ad network's site identity for a fictional ad-supported site. */
+export function demoAdSiteId(asset) {
+    return `demo-${asset.prefix}`;
+}
+/** Ad income per 1,000 sessions by month: an autumn ramp to a December peak and
+ * a January trough, as ad markets move. Invented scenario values. */
+const AD_SEASON = [0.78, 0.84, 0.9, 0.94, 0.97, 0.98, 0.95, 0.97, 1.02, 1.12, 1.3, 1.45];
+/** One day's synthetic ad estimate in cents. Ad income follows visits; the
+ * subscription and licensing income above never does. */
+export function demoAdRevenueMinor(seed, asset, date, sessions) {
+    if (!asset.adRpm || !Number.isSafeInteger(sessions) || sessions < 0)
+        throw new Error('Ad revenue needs an ad-supported site and its sessions.');
+    const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+    const noise = 0.94 + draw(seed, `${asset.id}/${date}/rpm`) * 0.12;
+    return Math.round(sessions * asset.adRpm * AD_SEASON[Number(date.slice(5, 7)) - 1] * (weekday === 0 || weekday === 6 ? 0.93 : 1.02) * noise / 1000);
+}
+/** A month of ad estimates is paid on the sixth of the second month after it,
+ * close to but rarely exactly the estimates' sum. */
+export function demoAdPayment(seed, asset, month, dailyMinor) {
+    const sum = dailyMinor.reduce((a, b) => a + b, 0);
+    return { minor: Math.round(sum * (0.985 + draw(seed, `${asset.id}/${month}/payment`) * 0.03)), paidOn: `${shiftDemoMonth(month, 2)}-06` };
+}
+/** The last day an ad network has reported by `instant`: yesterday once the
+ * morning report is in (14:10 UTC is after it in every season), otherwise the
+ * day before. */
+export function demoAdReportedThrough(instant) {
+    const day = instant.slice(0, 10);
+    return shiftDemoDay(day, instant >= `${day}T14:10:00.000Z` ? -1 : -2);
 }
 function clockDay(cutoff, timeZone) {
     const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(cutoff));
@@ -51,7 +100,7 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
     const period = referenceDate.slice(0, 7);
     // The readable accounting anchor predates the repair baseline and launch. Its
     // genuine costs remain in every month in which it actually existed.
-    const referencePeriod = monthOffset(shiftDemoDay(referenceDate, -70).slice(0, 7), -1);
+    const referencePeriod = shiftDemoMonth(shiftDemoDay(referenceDate, -70).slice(0, 7), -1);
     const identity = createHash('sha256').update(JSON.stringify({ seed, cutoff, release, timeZone, version: SCENARIO_VERSION })).digest('hex');
     const workspaceId = `${identity.slice(0, 8)}-${identity.slice(8, 12)}-4${identity.slice(13, 16)}-8${identity.slice(17, 20)}-${identity.slice(20, 32)}`;
     const assets = DEMO_ASSETS.map(a => ({ ...a, id: a.isOs ? `os-${identity.slice(32, 48)}` : a.id, createdAt: `${shiftDemoDay(referenceDate, -a.days)}T00:00:00.000Z`, domain: a.isOs ? null : a.id, status: a.days === 24 ? 'baselining' : 'live' }));
@@ -61,15 +110,17 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
         for (let age = -asset.days; age < 0; age++) {
             const date = shiftDemoDay(referenceDate, age);
             const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
-            const annual = Math.sin(2 * Math.PI * (Date.parse(`${date}T00:00:00Z`) / DAY_MS % 365.25) / 365.25);
-            const weekend = weekday === 0 || weekday === 6;
-            const ownWeek = weekend ? 0.82 : 1.08;
+            const recipes = asset.prefix === 'wp';
+            const annual = recipes ? Math.cos(demoRecipeSeasonAngle(date)) : Math.sin(2 * Math.PI * (Date.parse(`${date}T00:00:00Z`) / DAY_MS % 365.25) / 365.25);
+            const ownWeek = demoWeekShape(asset.prefix)[weekday];
             const noise = 0.92 + draw(seed, `${asset.id}/${date}/demand`) * 0.16;
             const shared = 0.96 + draw(seed, `${date}/shared-demand`) * 0.08;
-            const trend = asset.days === 24 ? (1 + (24 + age) * 0.027) : (1 + (400 + age) * 0.00015);
-            const referralSpike = age >= -95 && age <= -93;
+            const trend = asset.days === 24 ? (1 + (24 + age) * 0.027) : (1 + (400 + age) * (recipes ? 0.0006 : 0.00015));
+            const referralSpike = !recipes && age >= -95 && age <= -93;
             const repair = asset.prefix === 'lb' && age >= -60 && age <= -43;
-            const traffic = Math.max(1, Math.round((asset.days === 24 ? 18 : asset.prefix === 'lb' ? 2000 : 820) * ownWeek * (1 + annual * (asset.prefix === 'pw' ? 0.2 : 0.09)) * noise * shared * trend * (referralSpike ? 1.7 : 1) * (repair ? 0.68 : 1)));
+            const base = asset.days === 24 ? 18 : asset.prefix === 'lb' ? 2000 : recipes ? 5000 : 820;
+            const amplitude = asset.prefix === 'pw' ? 0.2 : recipes ? DEMO_RECIPE_SEASON : 0.09;
+            const traffic = Math.max(1, Math.round(base * ownWeek * (1 + annual * amplitude) * noise * shared * trend * (referralSpike ? 1.7 : 1) * (repair ? 0.68 : 1)));
             rows.push({ pageViews: 0, activeUsers: 0, events: 0, eventCount: 0, clicks: 0, impressions: 0, ctr: 0, position: 0, reportMissing: false, provisional: false, asset: asset.id, date, sessions: traffic, age });
         }
         // This completed month is the brief's exact readable accounting anchor.
@@ -78,32 +129,54 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
             const counts = allocate(asset.sessions, anchor.map(r => r.sessions));
             anchor.forEach((r, i) => { r.sessions = counts[i]; });
         }
+        const shape = demoTrafficShape(asset.prefix);
         for (const row of rows) {
-            row.pageViews = Math.round(row.sessions * (1.55 + draw(seed, `${asset.id}/${row.date}/pages`) * 0.3));
-            row.activeUsers = Math.max(1, Math.round(row.sessions * 0.79));
-            row.events = Math.round(row.sessions * (asset.prefix === 'pw' && row.age >= -2 ? 0.001 : 0.065));
+            row.pageViews = Math.round(row.sessions * (shape.pages + draw(seed, `${asset.id}/${row.date}/pages`) * shape.pagesSpread));
+            row.activeUsers = Math.max(1, Math.round(row.sessions * shape.activeUsers));
+            row.events = Math.round(row.sessions * (asset.prefix === 'pw' && row.age >= -2 ? 0.001 : shape.events));
             row.eventCount = row.pageViews + row.sessions + row.events;
-            row.clicks = Math.round(row.sessions * 0.57);
-            row.impressions = row.clicks * 18 + Math.round(draw(seed, `${asset.id}/${row.date}/search`) * 100);
+            row.clicks = Math.round(row.sessions * shape.clicks);
+            row.impressions = row.clicks * shape.impressionsPerClick + Math.round(draw(seed, `${asset.id}/${row.date}/search`) * 100);
             row.ctr = row.clicks / row.impressions;
-            row.position = Math.round((6 + draw(seed, `${asset.id}/${row.date}/position`) * 2) * 100) / 100;
+            row.position = Math.round((shape.position + draw(seed, `${asset.id}/${row.date}/position`) * shape.positionSpread) * 100) / 100;
             row.reportMissing = asset.prefix === 'pw' && row.age === -5;
             row.provisional = row.age >= -3;
             daily.push(row);
         }
     }
+    // Ad estimates for every recorded day; the store holds those reported by the cutoff.
+    const adDays = new Map();
+    for (const asset of assets.filter(a => a.adRpm)) {
+        for (const row of daily.filter(d => d.asset === asset.id))
+            adDays.set(`${asset.id}/${row.date}`, demoAdRevenueMinor(seed, asset, row.date, row.sessions));
+    }
+    const reportedThrough = demoAdReportedThrough(cutoff);
+    const adRevenue = assets.filter(a => a.adRpm).flatMap(asset => daily
+        .filter(d => d.asset === asset.id && d.date <= reportedThrough)
+        .map(d => ({ asset: asset.id, siteId: demoAdSiteId(asset), date: d.date, minor: adDays.get(`${asset.id}/${d.date}`),
+        recordedAt: `${shiftDemoDay(d.date, 1)}T14:10:00.000Z` })));
     const ledger = [];
     const add = (row, note = 'Synthetic demo accounting.') => { const value = { key: `ledger-${ledger.length + 1}`, currency: 'USD', note, ...row }; ledger.push(value); return value.key; };
     for (let offset = -12; offset <= 0; offset++) {
-        const month = monthOffset(period, offset);
+        const month = shiftDemoMonth(period, offset);
         const anchorMonth = month === referencePeriod;
-        const monthEnd = shiftDemoDay(`${monthOffset(month, 1)}-01`, -1);
+        const monthEnd = shiftDemoDay(`${shiftDemoMonth(month, 1)}-01`, -1);
         const recordedAt = offset === 0 ? cutoff : `${monthEnd}T23:00:00.000Z`;
         for (const asset of assets) {
             if (asset.createdAt.slice(0, 10) > monthEnd)
                 continue;
             const cost = asset.prefix === 'fr' ? asset.cost : Math.round(asset.cost * (anchorMonth ? 1 : 0.94 + draw(seed, `${asset.id}/${month}/cost`) * 0.12));
             add({ asset: asset.id, period: month, kind: 'cost', family: asset.isOs ? 'os-overhead' : 'infra', minor: cost, state: 'reconciled', source: 'demo', recordedAt }, offset === 0 ? 'Synthetic prepaid operating bill recorded this month.' : 'Synthetic demo accounting.');
+            if (asset.adRpm) {
+                // Months paid before the reference day are reconciled; later months
+                // stay the network's daily estimates until their payment arrives.
+                const dates = daily.filter(d => d.asset === asset.id && d.date.startsWith(month)).map(d => d.date);
+                const payment = demoAdPayment(seed, asset, month, dates.map(date => adDays.get(`${asset.id}/${date}`)));
+                if (dates.length && monthEnd < referenceDate && payment.paidOn < referenceDate) {
+                    add({ asset: asset.id, period: month, kind: 'revenue', family: 'ads', minor: payment.minor, state: 'reconciled', source: 'mediavine',
+                        coverageStart: `${month}-01`, coverageEnd: monthEnd, coverageComplete: true, recordedAt: `${payment.paidOn}T15:00:00.000Z` }, 'Synthetic ad network payment; no real payout.');
+                }
+            }
             if (asset.revenue === null || asset.revenueFamily === null)
                 continue;
             const coverageStart = `${month}-01`;
@@ -141,7 +214,8 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
         repair: { asset: assets[0].id, findingDate: shiftDemoDay(referenceDate, -60), ref: taskFacts.storyIds.repair, readbackTaskId: taskFacts.storyIds.readback, annotationAt: `${shiftDemoDay(referenceDate, -42)}T12:00:00.000Z`, registeredAt: `${shiftDemoDay(referenceDate, -42)}T00:00:00.000Z`, baselineStart: shiftDemoDay(referenceDate, -70), baselineEnd: shiftDemoDay(referenceDate, -43), checkAt: `${shiftDemoDay(referenceDate, -14)}T23:59:00.000Z`, watchId: 'demo-navigation-repair' },
         problem: { asset: assets[1].id, ref: taskFacts.storyIds.problem, date: shiftDemoDay(referenceDate, -2), metric: assets[1].event },
     };
-    return { manifest: { synthetic: true, scenarioVersion: SCENARIO_VERSION, seed, cutoff, release, timeZone, providerTimeZone: timeZone, referenceDate, referencePeriod, workspaceId, identities: assets.map(({ id, prefix, name, createdAt }) => ({ id, prefix, name, createdAt })), taskProjects: taskFacts.projects, stories }, assets, daily, ledger, pulses, tasks: taskFacts.tasks };
+    const adSites = assets.filter(a => a.adRpm).map(asset => ({ asset: asset.id, siteId: demoAdSiteId(asset) }));
+    return { manifest: { synthetic: true, scenarioVersion: SCENARIO_VERSION, seed, cutoff, release, timeZone, providerTimeZone: timeZone, referenceDate, referencePeriod, workspaceId, identities: assets.map(({ id, prefix, name, createdAt }) => ({ id, prefix, name, createdAt })), taskProjects: taskFacts.projects, adSites, stories }, assets, daily, ledger, adRevenue, pulses, tasks: taskFacts.tasks };
 }
 export function demoScenarioHash(scenario) {
     return createHash('sha256').update(JSON.stringify(scenario)).digest('hex');
