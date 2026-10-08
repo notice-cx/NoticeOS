@@ -117,16 +117,20 @@ test('Compose exposes only loopback HTTP and gives no bootstrap volume to the ap
   assert.match(ignore, /^!docs\/templates\/\*\*$/mu); assert.doesNotMatch(ignore, /^!docs\/\*\*$/mu);
 });
 
-test('the update script follows the README update path: exact commit, image tag only, dolt before app, no reseed', () => {
+test('the update script keeps the README invariants: exact commit, dolt before app, fresh generations never purge, no raw store writes', () => {
   const file = path.join(ROOT, 'deploy/demo/update.sh');
   assert.ok(fs.statSync(file).mode & 0o100, 'update.sh is executable');
   const script = fs.readFileSync(file, 'utf8');
   assert.match(script, /^#!\/bin\/sh\n/u); assert.match(script, /^set -eu$/mu);
   assert.match(script, /\^\[0-9a-f\]\{40\}\$/u);
   assert.match(script, /NOTICEOS_SOURCE_COMMIT=\$COMMIT/u);
-  assert.match(script, /^sed -i "s\|\^NOTICEOS_DEMO_IMAGE=\.\*\|NOTICEOS_DEMO_IMAGE=noticeos-demo:\$COMMIT\|" "\$ENV_FILE"$/mu);
   const dolt = script.indexOf('--force-recreate dolt'), app = script.indexOf('--force-recreate app');
-  assert.ok(dolt > 0 && app > dolt, 'dolt is recreated before app');
-  assert.doesNotMatch(script, /compose (run|down)|\$DOCKER (run|compose run)|hosted-demo-setup|prepare\.mjs|demo\.json|--volumes/u);
-  assert.match(script, /--header "Host: \$HOST" "http:\/\/127\.0\.0\.1:\$PORT\/__noticeos_health"/u);
+  assert.ok(dolt > 0 && app > dolt, 'dolt is recreated before app on a compatible swap');
+  // A fresh generation follows the README's fresh-setup order on a NEW project; the old one is only stopped.
+  assert.match(script, /run --rm --no-deps prepare[\s\S]*stop app dolt postgres[\s\S]*up -d --wait postgres dolt[\s\S]*run --rm setup[\s\S]*up -d --wait app/u);
+  // `compose <env> <project> <file> <subcommand> …`: the subcommand is never down or rm.
+  assert.ok(!script.split('\n').some(line => /^\s*compose\s+(?:"[^"]*"\s+){3}(?:down|rm)\b/u.test(line)), 'no generation is ever removed by the script');
+  assert.doesNotMatch(script, /hosted-demo-setup|prepare\.mjs|psql|dolt sql/u);
+  assert.match(script, /__noticeos_health/u);
+  // Deploy semantics live in scripts/demo-update.test.mjs against stubbed docker and curl.
 });

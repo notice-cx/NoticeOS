@@ -102,9 +102,12 @@ arrives each morning, and the task board refreshes every five minutes. Their
 executions are the Workflows page's history.
 
 The scenario is versioned. A release whose scenario version differs from a
-running demo's refuses that demo's stored scenario at startup. Scenario version
-4 needs a fresh setup with a new project name and volumes; see
-[the showcase brief](../../docs/briefs/2026-10-08-demo-showcase.md).
+running demo's refuses that demo's stored scenario at startup. Such a release
+needs a fresh setup with a new project name and volumes, which
+[update.sh](update.sh) performs by itself as a fresh generation (see
+[Stop, restart and update](#stop-restart-and-update)); the
+[showcase brief](../../docs/briefs/2026-10-08-demo-showcase.md) explains the
+version-4 change.
 Visitor writes and provider actions are refused. Health does not establish that
 any remote domain has been deployed or that an expired grant can be renewed.
 
@@ -127,13 +130,23 @@ existing-store migration**; schema changes require separate operator maintenance
 Keep seed/cutoff/original release unchanged: they identify existing synthetic
 history, while the artifact manifest supplies the new application's release.
 
-[update.sh](update.sh) performs exactly these steps in one command: it resolves
+[update.sh](update.sh) deploys any target commit in one command. It resolves
 `main` or an exact commit on the public repository, downloads that source
-archive, builds the exact-commit image, changes only the image tag in the env
-file, recreates the namespace owner and then the application, and checks health
-through the configured public Host. It never runs preparation or setup, never
-edits the demo configuration and takes no backup. Keep a copy outside the
-checkout and run it from the demo host:
+archive and builds the exact-commit image, then compares the running release's
+scenario version and frozen migrations with the target's. A compatible release
+takes exactly the steps above: only the image tag changes in the env file, the
+namespace owner and then the application are recreated, and health is checked
+through the configured public Host. An incompatible release gets a **fresh
+generation**: a new Compose project (`demo-g2`, `demo-g3`, …) with new volumes
+and its own configuration under `generations/` beside the env file (release =
+target, cutoff = now, the rest copied), prepared and seeded by the fresh-setup
+steps above and switched in on the same loopback port; the env file then names
+the new generation. If the new generation fails health, the previous one is
+brought back and the command fails naming both commits. Previous generations
+stay stopped with their volumes; the purge command is printed, never run. The
+script takes no backup, and after fetching the target source it continues with
+that commit's own copy of itself and installs it over the copy it was started
+from. Keep a copy outside the checkout and run it from the demo host:
 
 ```sh
 /operator/update.sh --env /operator/demo.env --source /operator/src
