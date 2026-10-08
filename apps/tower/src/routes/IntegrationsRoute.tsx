@@ -228,6 +228,7 @@ export function IntegrationsRoute() {
           ) : "Integrations"
         }
         breadcrumb={selected ? [{ label: "Integrations", to: catalogHref }] : undefined}
+        documentTitle={selected ? providerName(selected.provider) : "Integrations"}
       />
       {isError ? (
         <ReadFailed title="Couldn't load integrations" subject="read:integrations" error={error} retrying={isFetching} onRetry={() => void refetch()} />

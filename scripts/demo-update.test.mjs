@@ -169,3 +169,15 @@ test('a missing env file, a relative source dir and an expired grant stop before
   assert.equal(result.status, 1); assert.match(result.stderr, /serviceExpiresAt .* is not in the future/u);
   assert.ok(!result.log.some(line => line.startsWith('compose')), 'no container was touched');
 });
+
+test("the operator's Statcounter line survives an in-place swap and a fresh generation", t => {
+  const line = 'NOTICEOS_DEMO_STATCOUNTER=12345678:0123abcd';
+  for (const options of [{}, { scenarioVersion: 5 }]) {
+    const f = fixture(t, options);
+    f.setEnv(f.env() + line + '\n');
+    const result = f.run(['--commit', NEW]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(f.env(), new RegExp(`^${line}$`, 'mu'));
+    assert.match(f.env(), new RegExp(`^NOTICEOS_DEMO_IMAGE=noticeos-demo:${NEW}$`, 'mu'));
+  }
+});

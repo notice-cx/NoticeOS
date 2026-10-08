@@ -35,10 +35,20 @@ export async function handleDemoPresentationRead(request: Request, store: Worksp
         AND j.state='succeeded' AND a.state='succeeded' AND a.finished_at IS NOT NULL
       ORDER BY a.finished_at DESC,j.occurrence DESC LIMIT 1`,
     [tx.workspaceId, serviceId, DEMO_ACTIVITY_DEFINITION.key, definitionHash, prefix]);
-    if (!rows[0]) return { generatedAt: null, through: null };
-    const row = rows[0];
-    return decodeDemoPresentation({ generatedAt: new Date(String(row.finished_at)).toISOString(),
-      through: String(row.occurrence).slice(prefix.length) });
+    // Between simulated days the same service's scheduled lanes write today's
+    // synthetic data; a pass whose every step skipped wrote nothing.
+    const scheduled = await tx.query(`SELECT a.finished_at
+      FROM noticeos.hosted_job_attempts a JOIN noticeos.hosted_job_occurrences j
+        USING(workspace_id,lane,occurrence,attempt)
+      WHERE a.workspace_id=$1::uuid AND j.service_id=$2::uuid AND a.lane<>$3
+        AND j.state='succeeded' AND a.state='succeeded' AND a.finished_at IS NOT NULL
+        AND EXISTS(SELECT 1 FROM jsonb_each(j.steps) s WHERE s.value->>'state'<>'skipped')
+      ORDER BY a.started_at DESC,a.finished_at DESC LIMIT 1`, [tx.workspaceId, serviceId, DEMO_ACTIVITY_DEFINITION.key]);
+    const daily = rows[0], latest = [daily?.finished_at, scheduled[0]?.finished_at]
+      .filter(value => value !== undefined && value !== null).map(value => new Date(String(value)).toISOString()).sort().at(-1);
+    if (latest === undefined) return { generatedAt: null, through: null };
+    return decodeDemoPresentation({ generatedAt: latest,
+      through: daily ? String(daily.occurrence).slice(prefix.length) : null });
   });
   return Response.json(facts, { headers: JSON_HEADERS });
 }

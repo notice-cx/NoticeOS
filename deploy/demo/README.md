@@ -99,7 +99,20 @@ feed is fetched. The ordinary hosted scheduler runs the demo's lanes under the
 release's job identities: a quarter-hour refresh writes today's provisional
 synthetic traffic and search counts, the ad-supported site's daily estimate
 arrives each morning, and the task board refreshes every five minutes. Their
-executions are the Workflows page's history.
+executions are System health's background operations. A daily outcome check
+over the demo's own watch windows is the Workflows page's history. The banner's
+generation time is the demo service's latest write.
+
+The demo's pages ask search engines to index them. Their links preview with
+the TV dashboard, at absolute URLs the server fills from the configured public
+origin. An installation's own pages ask not to be indexed.
+
+Counting the demo's visitors is optional and the operator's choice. To use
+Statcounter, set `NOTICEOS_DEMO_STATCOUNTER=project:security` in the private
+env file. Both values come from the project's tracking code: `sc_project` and
+`sc_security`. Then recreate the app, or run `update.sh`, which keeps the line.
+The server adds Statcounter's tag to each page and counts every in-app view.
+Unset, the pages carry no analytics. No account is named in the source.
 
 The scenario is versioned. A release whose scenario version differs from a
 running demo's refuses that demo's stored scenario at startup. Such a release

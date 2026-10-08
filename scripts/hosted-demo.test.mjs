@@ -24,6 +24,8 @@ import { generateDemoScenario, shiftDemoDay } from './demo-scenario.mjs';
 import { fillDemo } from './demo-store.mjs';
 import { trackFixturePool } from './test-fixtures/postgres-pool.mjs';
 import { proveHostedDemoBrowser } from './test-fixtures/hosted-demo-browser.mjs';
+import { skipWithoutPostgres } from './test/postgres-skip.mjs';
+import { stepResult } from './workflow-trace.mjs';
 
 const require = createRequire(path.join(REPO_ROOT, 'packages/postgres/package.json'));
 const { Pool } = require('pg');
@@ -39,7 +41,7 @@ const projects = assets.map((asset, i) => ({ asset: asset.id, projectId: allocat
 test('demo composition refuses a foreign workspace, changed seed and ambiguous task ownership before I/O', () => {
   const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
   const options = { workspaceId: workspace, serviceId: randomUUID(), scenario, projects,
-    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {} } };
+    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {} } };
   assert.throws(() => createHostedDemo({ ...options, workspaceId: customers[0] }), /demo activity refused/);
   const changed = structuredClone(scenario); changed.daily[0].sessions++;
   assert.throws(() => createHostedDemo({ ...options, scenario: changed }), /demo activity refused/);
@@ -49,8 +51,8 @@ test('demo composition refuses a foreign workspace, changed seed and ambiguous t
 test("the demo's scheduled lanes are the release's own workflows and accept only the scheduler's minute", () => {
   const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
   const demo = createHostedDemo({ workspaceId: workspace, serviceId: randomUUID(), scenario, projects,
-    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {} } });
-  assert.deepEqual(demo.schedule.map(lane => lane.key), ['mediavine', 'counters', 'beads-snapshot']);
+    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {} } });
+  assert.deepEqual(demo.schedule.map(lane => lane.key), ['mediavine', 'counters', 'watch-windows', 'beads-snapshot']);
   for (const lane of demo.schedule) {
     const stages = WORKFLOW_DEFINITIONS.find(definition => definition.id === lane.key)?.stages.map(stage => stage.id);
     assert.ok(lane.steps.every(step => stages?.includes(step.key)), lane.key);
@@ -59,6 +61,43 @@ test("the demo's scheduled lanes are the release's own workflows and accept only
     for (const input of [{ scheduledAt: minute.replace(':00.000Z', ':30.000Z') }, { scheduledAt: minute, extra: 1 }, { scheduledAt: '2000-01-01T00:00:00.000Z' }, 'today', null]) {
       assert.throws(() => lane.parseInput(input));
     }
+  }
+});
+
+test("the demo's outcome check runs the release's evaluator over the demo's own windows", { timeout: 180000 }, async t => {
+  const tools = findPostgres();
+  const root = mkdtempSync(path.join(os.tmpdir(), 'n-demo-outcomes-'));
+  let owner, closeAdmin, store;
+  try {
+    owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root, 'pg'), tools)); if (!owner) return;
+    applyMigrations(owner);
+    const admin = new Pool({ host: owner.socketDir, port: owner.loopbackPort, database: 'noticeos_dev', user: 'postgres', max: 1 });
+    closeAdmin = trackFixturePool(admin);
+    await admin.query("INSERT INTO noticeos.workspaces(workspace_id,slug,display_name,status) VALUES($1,'demo-outcomes','Demo outcomes','active')", [workspace]);
+    const helpers = await buildDemoWorkerHelpers(REPO_ROOT, { activity: true, configurationRoot: path.join(REPO_ROOT, 'workers/ingest/test/fixture-config') });
+    store = openWorkspaceStore(owner.applicationLogin().url(), { workspaceId: workspace });
+    await store.write(async tx => {
+      await tx.query("SELECT set_config('noticeos.test_demo','synthetic',true)");
+      await fillDemo(tx, scenario, { evaluatePulse: helpers.evaluatePulse, developmentProfile: { setting: 'noticeos.test_demo', value: 'synthetic' } });
+    });
+    const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
+    const demo = createHostedDemo({ workspaceId: workspace, serviceId: randomUUID(), scenario, projects, store: untouched, grant: untouched,
+      tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes: helpers.writeDemoOutcomeChecks } });
+    const lane = demo.schedule.find(entry => entry.key === 'watch-windows');
+    const minute = `${shiftDemoDay(scenario.manifest.referenceDate, 1)}T03:30:00.000Z`;
+    const run = () => store.write(tx => lane.steps[0].run({ input: minute, signal: new AbortController().signal }, tx));
+    // The seeded repair window is due; the ordinary sweep closes it with the
+    // scenario's declared outcome, then finds nothing open.
+    const first = await run();
+    assert.deepEqual({ scanned: first.scanned, failed: first.failed, overdue: first.overdue, closed: first.closed.map(({ id, outcome }) => ({ id, outcome })) },
+      { scanned: 1, failed: [], overdue: [], closed: [{ id: scenario.manifest.stories.repair.watchId, outcome: 'ship_confirmed' }] });
+    const again = await run();
+    assert.equal(again.scanned, 0);
+    assert.equal(stepResult(again).state, 'succeeded');
+  } finally {
+    await store?.close(); await closeAdmin?.(); owner?.close();
+    assert.equal(existsSync(path.join(root, 'pg/data/postmaster.pid')), false);
+    rmSync(root, { recursive: true, force: true });
   }
 });
 
@@ -125,7 +164,7 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
     const make = (over = {}) => {
       const demo = createHostedDemo({ workspaceId: workspace, serviceId, scenario, projects,
         store: openStore(), grant: openGrant(), now: () => clock,
-        writer: { collect: helpers.writeDemoCollection, revenue: helpers.writeDemoAdRevenue, async snapshot(store, snapshot) {
+        writer: { collect: helpers.writeDemoCollection, revenue: helpers.writeDemoAdRevenue, outcomes: helpers.writeDemoOutcomeChecks, async snapshot(store, snapshot) {
           const result = await helpers.writeDemoTaskSnapshot(store, snapshot);
           if (failSnapshot) { failSnapshot = false; throw new Error('Controlled rollback after task summary write'); }
           return result;

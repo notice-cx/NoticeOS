@@ -29,6 +29,7 @@ export interface DemoActivityWriter {
     snapshot(store: WorkspaceStore, snapshot: BeadsSnapshotInput): Promise<{
         written: number;
     }>;
+    outcomes(store: WorkspaceStore, at: string): Promise<unknown>;
 }
 export interface HostedDemoOptions {
     readonly workspaceId: string;

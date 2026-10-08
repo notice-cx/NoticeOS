@@ -15,7 +15,7 @@ export interface HostedScheduleBinding {
   readonly grant: WorkspaceServiceGrant;
   readonly definitions: readonly HostedJobDefinition[];
 }
-const TENANT_JOBS = new Set(['mediavine', 'freshness', 'notifications', 'pull', 'hygiene',
+const TENANT_JOBS = new Set(['mediavine', 'freshness', 'notifications', 'pull', 'hygiene', 'watch-windows',
   'clarity', 'signal-dumps', 'posthog', 'dataforseo', 'counters', 'beads-snapshot', 'panel-review']);
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 export class HostedScheduleRefused extends Error {

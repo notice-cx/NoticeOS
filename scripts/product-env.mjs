@@ -38,6 +38,8 @@ export const PRODUCT_ENV = Object.freeze({
     demoWorkspace: Object.freeze({ name: "NOTICEOS_DEMO_WORKSPACE_ID" }),
     demoActivityService: Object.freeze({ name: "NOTICEOS_DEMO_ACTIVITY_SERVICE_ID" }),
     demoScenarioHash: Object.freeze({ name: "NOTICEOS_DEMO_SCENARIO_HASH" }),
+    /** The public demo operator's optional Statcounter project, `project:security`. */
+    demoStatcounter: Object.freeze({ name: "NOTICEOS_DEMO_STATCOUNTER" }),
 });
 /** Authority is selected by server composition, never by a client or fallback.
  * Unlike ordinary optional settings, whitespace and absence are refused. */

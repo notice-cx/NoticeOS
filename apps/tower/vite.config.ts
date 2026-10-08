@@ -44,6 +44,7 @@ import { readDemoViewerLaunch } from "../../scripts/demo-viewer-installation.mjs
 import { demoViewerLane } from "./vite/demo-viewer-lane";
 import { stripJsonc } from "../../scripts/jsonc.mjs";
 import { serverWorkspaceProfile, workspaceDevSecretKeys, workspaceWorkerConfig } from "./vite/workspace-profile";
+import { documentHeadPlugin } from "./vite/document-head";
 import { appReleaseLane, sourceAppRelease } from './vite/app-release';
 import { gitSourceVersion, sourceVersion } from '../../scripts/source-version.mjs';
 import { developmentDependencies, prepareDevelopmentWorkerConfigs } from '../../deploy/compose/development.mjs';
@@ -249,6 +250,9 @@ export default defineConfig(({ command }) => {
     // Worker. See vite/runner-door.ts.
     ...(serverProfile === "standalone" ? [ingestDoor()] : []),
     appReleaseLane(appRelease),
+    // The head a profile ships: a private desk stays out of search, the
+    // public demo asks to be indexed. See vite/document-head.ts.
+    documentHeadPlugin(serverProfile, path.join(rootDir, "vite/demo-head.html")),
     ...(demoLaunch === null ? [] : [demoViewerLane(demoLaunch.installation.viewer)]),
     // The Tower's one direct write to the repo (D18, bead ro-pbzu.5): a Save in
     // a settings field applies the same validated changeset `pnpm config:apply`

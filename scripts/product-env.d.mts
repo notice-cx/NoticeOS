@@ -62,6 +62,10 @@ export declare const PRODUCT_ENV: Readonly<{
     demoScenarioHash: Readonly<{
         name: "NOTICEOS_DEMO_SCENARIO_HASH";
     }>;
+    /** The public demo operator's optional Statcounter project, `project:security`. */
+    demoStatcounter: Readonly<{
+        name: "NOTICEOS_DEMO_STATCOUNTER";
+    }>;
 }>;
 export type ProductEnvName = keyof typeof PRODUCT_ENV;
 export type WorkspaceProfile = 'standalone' | 'hosted' | 'demo';

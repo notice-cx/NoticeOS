@@ -262,7 +262,7 @@ test('every shared block still needs its exception, and names the bead that remo
 
 test('the browser tab and the lockup say NoticeOS', () => {
   const html = readFileSync(path.join(REPO_ROOT, 'apps/tower/index.html'), 'utf8');
-  assert.match(html, /<title>NoticeOS<\/title>/);
+  assert.match(html, /<title>NoticeOS · [^<]+<\/title>/);
   const lockup = readFileSync(path.join(REPO_ROOT, 'apps/tower/src/components/BrandLockup.tsx'), 'utf8');
   assert.match(lockup, /Notice<span className="brand-os">OS<\/span>/);
 });

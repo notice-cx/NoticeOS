@@ -66,7 +66,7 @@ export async function buildDemoWorkerHelpers(root, { activity = false, configura
     return { runWatchWindows: watch.runWatchWindows, writeBeadsSnapshot: snapshots.writeBeadsSnapshot,
       seedConfigDocuments: configuration.seedConfigDocuments, applyConfigOps: configuration.applyConfigOps, getConfigDocuments: configuration.getConfigDocuments,
       writeJobRuns: jobs.writeJobRuns, runAssetZeroPulse: reports.runAssetZeroPulse,
-      ...(live ? { writeDemoActivity: live.writeDemoActivity, writeDemoCollection: live.writeDemoCollection, writeDemoAdRevenue: live.writeDemoAdRevenue, writeDemoTaskSnapshot: live.writeDemoTaskSnapshot, evaluatePulse: evaluation.evaluatePulse } : {}),
+      ...(live ? { writeDemoActivity: live.writeDemoActivity, writeDemoCollection: live.writeDemoCollection, writeDemoAdRevenue: live.writeDemoAdRevenue, writeDemoTaskSnapshot: live.writeDemoTaskSnapshot, writeDemoOutcomeChecks: live.writeDemoOutcomeChecks, evaluatePulse: evaluation.evaluatePulse } : {}),
       provenance: { compiler: require('esbuild/package.json').version, inputs, artifacts } };
   } finally { rmSync(output, { recursive: true, force: true }); }
 }

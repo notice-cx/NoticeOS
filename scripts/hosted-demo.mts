@@ -26,6 +26,7 @@ export interface DemoActivityWriter {
   revenue(store: WorkspaceStore, input: { at: string; sites: readonly { asset: string; siteId: string; since: string }[];
     amount(asset: string, date: string): number }): Promise<unknown>;
   snapshot(store: WorkspaceStore, snapshot: BeadsSnapshotInput): Promise<{ written: number }>;
+  outcomes(store: WorkspaceStore, at: string): Promise<unknown>;
 }
 export interface HostedDemoOptions {
   readonly workspaceId: string;
@@ -85,7 +86,7 @@ export function createHostedDemo(options: HostedDemoOptions): {
   if (!UUID.test(workspaceId) || !UUID.test(serviceId) || !store || !grant
     || typeof tasks?.execute !== 'function' || typeof writer?.write !== 'function'
     || typeof writer?.collect !== 'function' || typeof writer?.revenue !== 'function'
-    || typeof writer?.snapshot !== 'function') refuse();
+    || typeof writer?.snapshot !== 'function' || typeof writer?.outcomes !== 'function') refuse();
   const scenario = generateDemoScenario(options.scenario.manifest);
   const hash = demoScenarioHash(scenario);
   if (workspaceId !== scenario.manifest.workspaceId || hash !== demoScenarioHash(options.scenario)) refuse();
@@ -163,9 +164,10 @@ export function createHostedDemo(options: HostedDemoOptions): {
     } }],
   }] });
   // The release's own job identities, so the hosted scheduler records each
-  // execution in the journal the Workflows page reads: the quarter-hour Google
-  // refresh writes today's provisional counts, the board refresh reads the
-  // real task service. Input is the scheduler's minute, never a payload.
+  // execution in the journal Workflows and System health read: the
+  // quarter-hour Google refresh writes today's provisional counts, the outcome
+  // check reads the demo's windows, the board refresh reads the real task
+  // service. Input is the scheduler's minute, never a payload.
   const minuteOf = (input: unknown): string => {
     const at = input && typeof input === 'object' && !Array.isArray(input) && Object.keys(input).length === 1
       ? (input as { scheduledAt?: unknown }).scheduledAt : input;
@@ -186,6 +188,8 @@ export function createHostedDemo(options: HostedDemoOptions): {
         writer.revenue(scoped, { at: minuteOf(input), sites: adSites, amount: activity.adRevenue })) }] }] : []),
     { key: 'counters', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'google', kind: 'database', action: 'workflows.run',
       run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => writer.collect(scoped, activity.collection(minuteOf(input)))) }] },
+    { key: 'watch-windows', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'outcomes', kind: 'database', action: 'workflows.run',
+      run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => writer.outcomes(scoped, minuteOf(input))) }] },
     { key: 'beads-snapshot', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'execute', kind: 'database', action: 'workflows.run',
       run: async ({ signal }, tx) => refreshBoard(signal, tx) }] },
   ]);

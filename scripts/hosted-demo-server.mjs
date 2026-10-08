@@ -175,6 +175,42 @@ const PAGE = /^\/(?:|wall(?:\/edit)?|financials|settings|integrations|workflows(
 function page(pathname) {
     return !/\.(?:m?[jt]sx?|map|json|env|css|html)$/iu.test(pathname) && !pathname.includes('%') && PAGE.test(pathname);
 }
+/** The demo page's head names absolute URLs (canonical, social preview) by
+ * this placeholder (apps/tower/vite/demo-head.html). It is filled from the
+ * configured public origin after the artifact's hash is verified. */
+export const PUBLIC_ORIGIN_PLACEHOLDER = '__NOTICEOS_PUBLIC_ORIGIN__';
+export function publicPage(bytes, origin, tail = '') {
+    const escaped = origin.replace(/[&<>"']/gu, character => `&#${character.charCodeAt(0)};`);
+    const page = new TextDecoder('utf-8', { fatal: true }).decode(bytes).replaceAll(PUBLIC_ORIGIN_PLACEHOLDER, escaped);
+    if (!tail)
+        return page;
+    const end = page.lastIndexOf('</body>');
+    if (end === -1)
+        refused();
+    return page.slice(0, end) + tail + page.slice(end);
+}
+/** The operator's Statcounter project for the demo's pages, from their
+ * private env file as `project:security` (deploy/demo/README.md). Product
+ * code names no account, so another operator's demo counts nothing until
+ * they set their own. The app changes views without loading a page, so
+ * each path change also records a page view. */
+export function statcounterTag(value) {
+    if (value === undefined || value === '')
+        return '';
+    const match = /^(\d{1,12}):([0-9a-f]{8})$/u.exec(value);
+    if (!match)
+        refused();
+    const [, project, security] = match;
+    return `<script>var sc_project=${project};var sc_invisible=1;var sc_security="${security}";`
+        + '(function(){var path=location.pathname,push=history.pushState;'
+        + 'function view(){if(location.pathname===path)return;path=location.pathname;'
+        + 'var counter=window._statcounter;if(counter&&counter.record_pageview)counter.record_pageview();}'
+        + 'history.pushState=function(){var result=push.apply(this,arguments);view();return result;};'
+        + 'addEventListener("popstate",view);})();</script>'
+        + '<script src="https://www.statcounter.com/counter/counter.js" async></script>'
+        + '<noscript><div class="statcounter"><a title="Web Analytics Made Easy - Statcounter" href="https://statcounter.com/" target="_blank">'
+        + `<img class="statcounter" src="https://c.statcounter.com/${project}/0/${security}/1/" alt="Web Analytics Made Easy - Statcounter" referrerPolicy="no-referrer-when-downgrade"></a></div></noscript>`;
+}
 function json(status, value) {
     return Response.json(value, { status, headers: { 'cache-control': 'no-store' } });
 }
@@ -267,8 +303,9 @@ async function responseBytes(response, signal) {
         reader.releaseLock();
     }
 }
-export async function startHostedDemoServer(input, adapters) {
+export async function startHostedDemoServer(input, adapters, presentation = {}) {
     const configuration = captureHostedDemoServerOptions(input), artifact = readDemoArtifact(configuration.artifactRoot);
+    const tail = statcounterTag(presentation.statcounter);
     const open = adapters ?? (() => {
         const require = createRequire(new URL('../workers/ingest/package.json', import.meta.url));
         const wrangler = createRequire(require.resolve('wrangler/package.json'));
@@ -372,7 +409,8 @@ export async function startHostedDemoServer(input, adapters) {
                         const bytes = readFileSync(plainFile(configuration.artifactRoot, selected));
                         if (digest(bytes) !== artifact.files[selected])
                             refused();
-                        response = new Response(bytes, { headers: { 'content-type': TYPES[path.extname(selected)] ?? 'application/octet-stream',
+                        const served = selected === 'client/index.html' ? publicPage(bytes, configuration.publicOrigin, tail) : bytes;
+                        response = new Response(served, { headers: { 'content-type': TYPES[path.extname(selected)] ?? 'application/octet-stream',
                                 'cache-control': selected.endsWith('.html') ? 'no-cache' : 'public, max-age=3600' } });
                     }
                 }
