@@ -1,5 +1,6 @@
 import { createBrowserRequestPolicy, WORKSPACE_SESSION_HEADER } from './browser-request-policy.mjs';
 import { googleOAuthRequest } from './workspace-operations.mjs';
+import { agentActions, bearerToken } from './agent-access.mjs';
 
 /** Shared workspace admission (ro-ujb9.289.8.3.2).
  * Server composition selects this entry and its fresh authority readers.
@@ -48,6 +49,18 @@ export interface GoogleOAuthAdmissionAdapter {
   issue(request: Request, workspaceId: string, authorize: (facts: WorkspaceMembership) => void): Promise<string>;
   claim(request: Request, authorize: (facts: WorkspaceMembership) => void): Promise<void>;
 }
+/** A verified agent token's fresh facts in the workspace a call names
+ * (identity agentAuthority, epic ro-cvl9): the person it acts for, the
+ * client, the person's current role there and the scopes still consented. */
+export interface AgentAuthority {
+  readonly principalId: string;
+  readonly clientId: string;
+  readonly workspaceId: string;
+  readonly role: WorkspaceRole;
+  readonly workspaceStatus: WorkspaceStatus;
+  readonly expiresAt: string;
+  readonly scopes: readonly string[];
+}
 export interface StandaloneAuthority {
   readonly principalId: string;
   readonly workspaceId: string;
@@ -66,7 +79,11 @@ interface EntryBase {
 export type WorkspaceEntry = EntryBase & (
   | { readonly kind: 'hosted'; readonly trustedOrigin: string;
       readonly membership: (headers: Headers, workspaceId: string) => Promise<WorkspaceMembership | null>;
-      readonly googleOAuth?: GoogleOAuthAdmissionAdapter }
+      readonly googleOAuth?: GoogleOAuthAdmissionAdapter;
+      /** Verifies a bearer request's agent token and reads its person's
+       * membership in the requested workspace. Without it, a bearer request
+       * is refused. */
+      readonly agent?: (request: Request, workspaceId: string) => Promise<AgentAuthority | null> }
   | { readonly kind: 'standalone';
       /** Authenticate the existing door and resolve the sole workspace; ambiguity denies. */
       readonly authority: (request: Request) => Promise<StandaloneAuthority | null> }
@@ -83,9 +100,11 @@ export interface WorkspaceSelection {
 export interface WorkspaceContext {
   readonly workspaceId: string;
   readonly principalId: string;
-  readonly principalKind: 'person' | 'standalone-operator' | 'demo-reader' | 'workspace-service';
+  readonly principalKind: 'person' | 'agent' | 'standalone-operator' | 'demo-reader' | 'workspace-service';
   /** Only person contexts carry this from the same fresh membership facts. */
   readonly sessionId?: string;
+  /** Only agent contexts carry this: the OAuth client acting for the person. */
+  readonly agentClientId?: string;
   readonly entryProfile: WorkspaceEntry['kind'];
   readonly profile: symbol;
   readonly action: WorkspaceAction;
@@ -164,7 +183,7 @@ export function createWorkspaceAdmission(input: WorkspaceEntry): WorkspaceAdmiss
   const kind = entry.kind;
   if (typeof kind !== 'string' || !['hosted', 'standalone', 'demo', 'service'].includes(kind) || typeof entry.profile !== 'symbol') refuse();
   const specific = kind === 'hosted' ? ['trustedOrigin', 'membership'] : kind === 'demo' ? ['workspaceId', 'workspaceStatus'] : ['authority'];
-  keys(entry, ['kind', 'profile', ...specific], ['now', ...(kind === 'hosted' ? ['googleOAuth'] : [])]);
+  keys(entry, ['kind', 'profile', ...specific], ['now', ...(kind === 'hosted' ? ['googleOAuth', 'agent'] : [])]);
   if (entry.now !== undefined && typeof entry.now !== 'function') refuse();
   const clock = (entry.now ?? Date.now) as () => number;
   function checkedClock(): number {
@@ -182,6 +201,8 @@ export function createWorkspaceAdmission(input: WorkspaceEntry): WorkspaceAdmiss
   const demoWorkspace = kind === 'demo' ? uuid(entry.workspaceId) : null;
   const reader = kind === 'hosted' ? entry.membership : kind === 'demo' ? entry.workspaceStatus : entry.authority;
   if (typeof reader !== 'function') refuse();
+  if (entry.agent !== undefined && typeof entry.agent !== 'function') refuse();
+  const agentReader = entry.agent as Extract<WorkspaceEntry, { kind: 'hosted' }>['agent'];
   let google: GoogleOAuthAdmissionAdapter | undefined;
   if (entry.googleOAuth !== undefined) {
     const adapter = record(entry.googleOAuth); keys(adapter, ['issue', 'claim']);
@@ -198,6 +219,20 @@ export function createWorkspaceAdmission(input: WorkspaceEntry): WorkspaceAdmiss
     if (typeof row.role !== 'string' || !['owner', 'operator', 'viewer'].includes(row.role)) refuse();
     return Object.freeze({ workspaceId, principalId, sessionId, expiresAt: row.expiresAt as string,
       allowedActions: permissionActions('hosted', row.role as WorkspaceRole) });
+  }
+  function agentFacts(input: unknown, requested: string | null) {
+    const row = record(input);
+    keys(row, ['principalId', 'clientId', 'workspaceId', 'role', 'workspaceStatus', 'expiresAt', 'scopes']);
+    const workspaceId = uuid(row.workspaceId), principalId = uuid(row.principalId);
+    if (typeof row.clientId !== 'string' || !/^[A-Za-z0-9._~:-]{1,512}$/u.test(row.clientId)) refuse();
+    if (requested !== null && workspaceId !== requested) refuse();
+    expiry(row.expiresAt, checkedClock()); active(row.workspaceStatus);
+    if (typeof row.role !== 'string' || !['owner', 'operator', 'viewer'].includes(row.role)) refuse();
+    if (!Array.isArray(row.scopes) || row.scopes.length > 16 || row.scopes.some(scope => typeof scope !== 'string')) refuse();
+    // The person's current role bounds what any scope can grant.
+    const granted = agentActions(row.scopes as string[]);
+    const allowedActions = Object.freeze(permissionActions('hosted', row.role as WorkspaceRole).filter(action => granted.includes(action)));
+    return Object.freeze({ workspaceId, principalId, clientId: row.clientId, allowedActions });
   }
   // Capture the tab's expected session before asynchronous identity reads.
   // This is a binding constraint, never client-supplied permission.
@@ -252,8 +287,22 @@ export function createWorkspaceAdmission(input: WorkspaceEntry): WorkspaceAdmiss
       try { proof = request.clone(); } catch { refuse(); }
       checkedClock();
       let workspaceId: string, principalId: string, principalKind: WorkspaceContext['principalKind'], sessionId: string | undefined;
+      let agentClientId: string | undefined;
       let allowedActions: readonly WorkspaceAction[];
-      if (kind === 'hosted') {
+      const bearer = bearerToken(proof.headers);
+      if (bearer === false || (bearer !== null && (kind !== 'hosted' || !agentReader))) refuse();
+      if (bearer !== null) {
+        // An agent's token carries no ambient browser credential, so the
+        // browser effect and tab-session checks do not apply. It covers its
+        // person's workspaces; each call names one, read fresh here.
+        if (!requested || new URL(proof.url).origin !== trustedOrigin) refuse();
+        const facts = await fresh(() => agentReader!(proof, requested));
+        if (!facts) refuse();
+        const agent = agentFacts(facts, requested);
+        ({ workspaceId, principalId, allowedActions } = agent);
+        agentClientId = agent.clientId;
+        principalKind = 'agent';
+      } else if (kind === 'hosted') {
         if (!requested || new URL(proof.url).origin !== trustedOrigin) refuse();
         if (category !== 'stored-read') {
           try { browserPolicy!.assertEffect(proof); } catch { refuse(); }
@@ -292,6 +341,7 @@ export function createWorkspaceAdmission(input: WorkspaceEntry): WorkspaceAdmiss
       checkedClock();
       if (!allowedActions.includes(action)) refuse();
       const context = Object.freeze({ workspaceId, principalId, principalKind, ...(sessionId ? { sessionId } : {}),
+        ...(agentClientId ? { agentClientId } : {}),
         entryProfile: kind as WorkspaceEntry['kind'], profile, action, correlationId, allowedActions });
       live.add(context);
       try { return await work(context); } finally { live.delete(context); }

@@ -7,6 +7,7 @@ import { withHostedWorkspaceStore, type CallContext, type WorkspaceStore } from 
 import { PRODUCT_ENV, workspaceProfile, type WorkspaceProfile } from './product-env.mjs';
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { createWorkspaceAdmission, type WorkspaceAdmission, type WorkspaceContext } from './workspace-admission.mjs';
+import { AGENT_RESOURCE_PATH, bearerToken } from './agent-access.mjs';
 import { towerOperation, isHostedStoredRead, isHostedGoogleDiscovery, liveProviderReadRequest, connectionReadinessRequest,
   credentialWriteRequest, credentialWriteInput, type CredentialWriteMethod,
   providerCollectionRequest, providerCollectionInput, type ProviderCollectionMethod, storedResearchReadRequest,
@@ -247,8 +248,13 @@ export async function withWorkspaceEntry<T>(env: object, request: Request,
   const origin = binding(env, 'workspaceOrigin');
   const browser = createBrowserRequestPolicy(origin);
   if (new URL(proof.url).origin !== browser.origin) refuse();
-  if (proof.method === 'PUT' || googleStart || storedResearch || assetMutationRequest(proof)
-    || (isCloudflareD1Request(proof) && proof.method === 'POST')) browser.assertEffect(proof);
+  // An agent's bearer token (agent-access.mts) reaches only the MCP endpoint
+  // and carries no ambient browser credential; the call still names its workspace.
+  const bearer = bearerToken(proof.headers);
+  const agent = bearer !== null;
+  if (agent && (bearer === false || kind !== 'hosted' || pathname !== AGENT_RESOURCE_PATH)) refuse();
+  if (!agent && (proof.method === 'PUT' || googleStart || storedResearch || assetMutationRequest(proof)
+    || (isCloudflareD1Request(proof) && proof.method === 'POST'))) browser.assertEffect(proof);
   if (googleStart) await googleOAuthRequest(proof, origin, 'start');
   const requested = proof.headers.get(WORKSPACE_SELECTION_HEADER);
   const workspaceId = kind === 'demo' ? uuid(binding(env, 'demoWorkspace')) : uuid(requested);
@@ -267,6 +273,8 @@ export async function withWorkspaceEntry<T>(env: object, request: Request,
   const admission: WorkspaceAdmission = createWorkspaceAdmission(kind === 'hosted' ? {
     kind, profile: Symbol('hosted-workspace'), trustedOrigin: origin,
     membership: async (headers, workspace) => (await reader()).admissionMembership(headers, workspace),
+    agent: async (request, workspace) => new URL(request.url).pathname === AGENT_RESOURCE_PATH
+      ? (await reader()).agentAuthority(request, workspace) : null,
   } : {
     kind, profile: Symbol('demo-workspace'), workspaceId,
     workspaceStatus: async (workspace) => (await (await reader()).workspaceSummary(workspace))?.status ?? null,

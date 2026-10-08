@@ -55,6 +55,7 @@ import type { DashboardConfig } from "../shared/dashboard";
 import type { IntegrationsConfig } from "../shared/integrations";
 import { DEMO_READ_ONLY, demoMcpRequestAllowed, type DemoViewerDescriptor } from '../shared/demo-viewer';
 import { McpToolError, serveMcp } from "../../../scripts/mcp-protocol.mjs";
+import { READ_MODEL_TOOLS } from "../../../scripts/read-model-tools.mjs";
 
 /** The transport, both MCP protocol eras, is shared with the hosted task
  * endpoint (scripts/mcp-protocol.mts). The server is the Tower, so it answers
@@ -139,7 +140,7 @@ export function mcpDependencies(cfg: TowerConfig, ingest: McpIngest | null, now 
 interface ToolDefinition {
   name: string;
   description: string;
-  inputSchema: Record<string, unknown>;
+  inputSchema: Readonly<Record<string, unknown>>;
   run(
     /** The call's store: the site list is read on Postgres (bead ro-ujb9.76.4.2). */
     store: WorkspaceStore,
@@ -156,139 +157,95 @@ function requireAsset(args: Record<string, unknown>): string {
   return asset;
 }
 
-const TOOLS: ToolDefinition[] = [
-  {
-    name: "list_properties",
-    description:
-      "Every property under management with its lifecycle status, open-flag severity, and the period's revenue, cost and margin. Start here when you do not know a property's id.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    async run(store, deps) {
-      const wall = await buildWallPayload(store, wallOptions(deps));
-      return {
-        generatedAt: wall.generatedAt,
-        portfolio: wall.portfolio,
-        ledgerRecordedAt: wall.ledgerRecordedAt,
-        properties: wall.assets.map((card) => ({
-          asset: card.id,
-          displayName: card.displayName,
-          status: card.status,
-          senseOnly: card.senseOnly,
-          worstSeverity: card.worstSeverity,
-          openError: card.openError,
-          openWarn: card.openWarn,
-          // Reconciled and reported are kept APART, exactly as the card shows
-          // them. Summing them here would hand an agent one number the ledger
-          // never booked — the whole point of the split (ro-uwo.2).
-          netPeriod: card.netPeriod,
-          booked: card.booked,
-          forecast: card.forecast,
-        })),
-        attention: wall.attention,
-      };
-    },
+const RUNS: Record<string, ToolDefinition["run"]> = {
+  async list_properties(store, deps) {
+    const wall = await buildWallPayload(store, wallOptions(deps));
+    return {
+      generatedAt: wall.generatedAt,
+      portfolio: wall.portfolio,
+      ledgerRecordedAt: wall.ledgerRecordedAt,
+      properties: wall.assets.map((card) => ({
+        asset: card.id,
+        displayName: card.displayName,
+        status: card.status,
+        senseOnly: card.senseOnly,
+        worstSeverity: card.worstSeverity,
+        openError: card.openError,
+        openWarn: card.openWarn,
+        // Reconciled and reported are kept APART, exactly as the card shows
+        // them. Summing them here would hand an agent one number the ledger
+        // never booked — the whole point of the split (ro-uwo.2).
+        netPeriod: card.netPeriod,
+        booked: card.booked,
+        forecast: card.forecast,
+      })),
+      attention: wall.attention,
+    };
   },
-  {
-    name: "property_report",
-    description:
-      "The full read model behind one property's Tower page: P&L for the period, open flags, signal freshness, the tracked SERP panel with its AI-Overview readings, and the query and page decision lanes (act / investigate / protect / wait). This is the single richest call — prefer it over several narrow ones.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        asset: { type: "string", description: "Property id, e.g. example.com" },
-      },
-      required: ["asset"],
-      additionalProperties: false,
-    },
-    async run(store, deps, args) {
-      const asset = requireAsset(args);
-      const payload = await buildAssetDetailPayload(store, asset, {
-        now: deps.now,
-        flagDefaults: deps.flagDefaults,
-        pullConfig: deps.pullConfig,
-        monthlyCaps: deps.monthlyCaps,
-        operatorRateUsdPerMin: deps.operatorRateUsdPerMin,
-        integrations: deps.integrations,
-        counters: deps.counters,
-        serpPanel: deps.serpPanel,
-        signalPanels: deps.signalPanels,
-        valueEvents: deps.valueEvents,
-        ga4EventParams: deps.ga4EventParams,
-        osTimeZone: deps.osTimeZone,
-        noNightlyReport: deps.noNightlyReport,
-        schedules: deps.schedules,
-      });
-      if (payload === null) {
-        throw new McpToolError(
-          `no property with id ${asset} — call list_properties for the ids in use`,
-        );
-      }
-      return payload;
-    },
+  async property_report(store, deps, args) {
+    const asset = requireAsset(args);
+    const payload = await buildAssetDetailPayload(store, asset, {
+      now: deps.now,
+      flagDefaults: deps.flagDefaults,
+      pullConfig: deps.pullConfig,
+      monthlyCaps: deps.monthlyCaps,
+      operatorRateUsdPerMin: deps.operatorRateUsdPerMin,
+      integrations: deps.integrations,
+      counters: deps.counters,
+      serpPanel: deps.serpPanel,
+      signalPanels: deps.signalPanels,
+      valueEvents: deps.valueEvents,
+      ga4EventParams: deps.ga4EventParams,
+      osTimeZone: deps.osTimeZone,
+      noNightlyReport: deps.noNightlyReport,
+      schedules: deps.schedules,
+    });
+    if (payload === null) {
+      throw new McpToolError(
+        `no property with id ${asset} — call list_properties for the ids in use`,
+      );
+    }
+    return payload;
   },
-  {
-    name: "research_lookup",
-    description:
-      "Has this exact provider question already been paid for, and where is the archived answer? Ask BEFORE buying search data. A hit returns the R2 object key and how many days ago it was bought; reuse it and say so rather than re-buying.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        endpoint: {
-          type: "string",
-          description:
-            "Provider path without the API base, e.g. dataforseo_labs/google/keyword_overview/live",
-        },
-        params: {
-          type: "object",
-          description:
-            "The request body exactly as it would be sent. Hashed to identify the question; key order does not matter, array order does.",
-        },
-        windowDays: {
-          type: "number",
-          description: "Reuse window; defaults to 30. Use less for volatile reads like a live SERP.",
-        },
-      },
-      required: ["endpoint", "params"],
-      additionalProperties: false,
-    },
-    async run(_store, deps, args) {
-      if (deps.ingest === null) {
-        throw new McpToolError(
-          "the research log is not reachable from this deployment",
-        );
-      }
-      if (typeof args.endpoint !== "string" || args.endpoint.length === 0) {
-        throw new McpToolError("`endpoint` is required");
-      }
-      if (args.params === undefined) {
-        // Never defaulted to {}: every caller who omitted it would collide on
-        // one hash, and the second would "reuse" an answer to a question it
-        // never asked.
-        throw new McpToolError(
-          "`params` is required — it is what makes this question distinct",
-        );
-      }
-      const prior = await deps.ingest.researchLookup({
-        provider: "dataforseo",
-        endpoint: args.endpoint,
-        params: args.params,
-        windowDays:
-          typeof args.windowDays === "number" && args.windowDays > 0
-            ? args.windowDays
-            : undefined,
-      });
-      return {
-        found: prior !== null,
-        prior,
-        // Said explicitly rather than implied by `found`, because the whole
-        // point is that the agent states its choice out loud.
-        guidance:
-          prior === null
-            ? "Not bought recently. Buy it, then record the purchase via POST /api/research-log on the ingest worker."
-            : `Bought ${prior.ageDays} day(s) ago by ${prior.actor} for $${prior.costUsd}. Read the archived answer at ${prior.objectKey ?? "(not archived)"} and say you are reusing it.`,
-      };
-    },
+  async research_lookup(_store, deps, args) {
+    if (deps.ingest === null) {
+      throw new McpToolError(
+        "the research log is not reachable from this deployment",
+      );
+    }
+    if (typeof args.endpoint !== "string" || args.endpoint.length === 0) {
+      throw new McpToolError("`endpoint` is required");
+    }
+    if (args.params === undefined) {
+      // Never defaulted to {}: every caller who omitted it would collide on
+      // one hash, and the second would "reuse" an answer to a question it
+      // never asked.
+      throw new McpToolError(
+        "`params` is required — it is what makes this question distinct",
+      );
+    }
+    const prior = await deps.ingest.researchLookup({
+      provider: "dataforseo",
+      endpoint: args.endpoint,
+      params: args.params,
+      windowDays:
+        typeof args.windowDays === "number" && args.windowDays > 0
+          ? args.windowDays
+          : undefined,
+    });
+    return {
+      found: prior !== null,
+      prior,
+      // Said explicitly rather than implied by `found`, because the whole
+      // point is that the agent states its choice out loud.
+      guidance:
+        prior === null
+          ? "Not bought recently. Buy it, then record the purchase via POST /api/research-log on the ingest worker."
+          : `Bought ${prior.ageDays} day(s) ago by ${prior.actor} for $${prior.costUsd}. Read the archived answer at ${prior.objectKey ?? "(not archived)"} and say you are reusing it.`,
+    };
   },
-];
+};
+const TOOLS: ToolDefinition[] = READ_MODEL_TOOLS.map((tool) => ({ ...tool, run: RUNS[tool.name]! }));
 
 function wallOptions(deps: McpDeps) {
   return {

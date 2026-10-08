@@ -14,9 +14,14 @@ import { createTowerRouter } from '@/App';
 import { StatusBanner } from '@/components/surface/StatusBanner';
 import { lazyPart } from '@/lib/lazy-route';
 import { RouteLoadFailure, RouteLoading } from '@/components/RouteLoading';
+import { parseAgentAccessLanding } from '../../../scripts/agent-access.mjs';
 
 const SignInRoute = lazyPart(
   () => import('@/routes/SignInRoute').then(module => module.SignInRoute),
+  { failure: () => <RouteLoadFailure /> },
+).Component;
+const AgentAccessRoute = lazyPart(
+  () => import('@/routes/AgentAccessRoute').then(module => module.AgentAccessRoute),
   { failure: () => <RouteLoadFailure /> },
 ).Component;
 
@@ -106,6 +111,7 @@ function EntryView({ entry }: { entry: Entry }) {
     {state.phase === 'checking' && release === 'current' ? <EmptyState title="Checking your session…" /> : null}
     {state.phase === 'unavailable' && release === 'current' ? <><EmptyState title="Workspace unavailable" /><Button onClick={() => void entry.refresh()}>Retry</Button></> : null}
     {state.phase === 'signed-out' ? <Suspense fallback={<RouteLoading />}><SignInRoute entry={entry} /></Suspense> : null}
+    {state.phase === 'agent' && release === 'current' ? <Suspense fallback={<RouteLoading />}><AgentAccessRoute entry={entry} state={state} /></Suspense> : null}
     {state.phase === 'invitation' ? <>
       <h1 className="text-lg font-semibold">Join workspace</h1>
       {state.label ? <span role="status" data-status-for="invitation" className="text-sm text-error">{state.label}</span> : null}
@@ -154,7 +160,8 @@ function OwnedDesk({ runtime, label, entry, role }: {
 export function createPageEntryFactory() {
   const landing = captureBrowserLanding(window);
   const base = demoVisitBase();
-  return () => createBrowserEntry({ origin: window.location.origin, fetch: window.fetch.bind(window), page: window, landing,
+  const agent = parseAgentAccessLanding(window.location.href);
+  return () => createBrowserEntry({ origin: window.location.origin, fetch: window.fetch.bind(window), page: window, landing, agent,
     base: base === '/' ? undefined : base,
     compiledDemoWorkspace: demoViewer()?.workspaceId,
     onRetire: () => toast.dismiss(),

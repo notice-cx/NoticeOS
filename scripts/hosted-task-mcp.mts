@@ -1,35 +1,24 @@
-/** The hosted task MCP endpoint (epic ro-cvl9): the shared MCP transport
- * (mcp-protocol, both protocol eras) over one POST route. Every tool is a shared
- * hosted task operation (hosted-task-operations), the same ones the Tasks HTTP
- * API calls, under the same current admission. Results speak in tasks and
- * comments; storage names and command output never reach a client.
+/** The task tools of NoticeOS's MCP endpoint (epic ro-cvl9; served by
+ * hosted-mcp.mts). Every tool is a shared hosted task operation
+ * (hosted-task-operations), the same ones the Tasks HTTP API calls, under the
+ * same current admission. Results speak in tasks and comments; storage names
+ * and command output never reach a client.
  *
  * Human decisions (respond, dismiss, resolve) are not tools: write access
  * must not give an agent a route to answer its own question. Writes require
  * an idempotency key so an agent can retry an interrupted call safely.
  */
-import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { HostedTaskReceiptsUnavailable, type HostedTaskOperations, type HostedTaskWriteOutcome } from './hosted-task-operations.mjs';
 import { HOSTED_TASK_LIMITS, type HostedTaskOperation, type HostedTaskStatus, type HostedTaskType } from './hosted-task-command.mjs';
-import { McpToolError, serveMcp, type McpServer } from './mcp-protocol.mjs';
+import { McpToolError } from './mcp-protocol.mjs';
 import { toComment, toLiveTask } from './task-row.mjs';
 import { IDEMPOTENCY_KEY } from '../packages/postgres/src/task-receipts.mjs';
 
-export const TASK_MCP_PATH = '/api/tasks/mcp';
-const SERVER_INFO = Object.freeze({ name: 'noticeos-tasks', version: '1.0.0' });
-const BODY_BYTES = 64 * 1024;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const TASK_ID = /^[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*$/iu;
 const STATUSES: readonly HostedTaskStatus[] = ['open', 'in_progress', 'blocked', 'deferred', 'closed'];
 const TYPES: readonly HostedTaskType[] = ['task', 'bug', 'feature', 'epic', 'chore'];
-const INSTRUCTIONS = 'Tasks in this workspace\'s projects. Start with list_projects. Every change takes an idempotency_key: reuse it when retrying.';
 
-export interface HostedTaskMcpOptions {
-  readonly profile: 'hosted' | 'demo';
-  readonly trustedOrigin: string;
-  readonly demoWorkspaceId?: string;
-  readonly operations: HostedTaskOperations;
-}
 
 function refuse(message: string): never { throw new McpToolError(message); }
 
@@ -103,8 +92,8 @@ function taskOf(value: unknown): Record<string, unknown> {
 }
 
 // ─── Tools ────────────────────────────────────────────────────────────────────
-interface ToolContext { readonly proof: Request; readonly workspaceId: string; readonly operations: HostedTaskOperations }
-interface Tool {
+export interface ToolContext { readonly proof: Request; readonly workspaceId: string; readonly operations: HostedTaskOperations }
+export interface TaskTool {
   readonly name: string;
   readonly description: string;
   readonly inputSchema: Record<string, unknown>;
@@ -137,7 +126,7 @@ async function write(context: ToolContext, projectId: string, operation: HostedT
   return { ...(present(outcome.value) as object), replayed: outcome.replayed };
 }
 
-export const TASK_MCP_TOOLS: readonly Tool[] = Object.freeze([
+export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
   { name: 'list_projects', description: 'List the task projects in this workspace.',
     inputSchema: schema({}), annotations: READ,
     async run({ proof, workspaceId, operations }, args) {
@@ -254,39 +243,3 @@ export const TASK_MCP_TOOLS: readonly Tool[] = Object.freeze([
         key(args), value => ({ task: taskOf(value) }));
     } },
 ]);
-
-export function createHostedTaskMcp(options: HostedTaskMcpOptions): (original: Request) => Promise<Response> {
-  const origin = createBrowserRequestPolicy(options.trustedOrigin).origin;
-  const { profile, operations } = options;
-  if (!['hosted', 'demo'].includes(profile) || !operations || typeof operations.write !== 'function') throw new Error('Task MCP configuration refused');
-  const demo = profile === 'demo' && typeof options.demoWorkspaceId === 'string' && UUID.test(options.demoWorkspaceId)
-    ? options.demoWorkspaceId : undefined;
-  if (profile === 'demo' && !demo || profile === 'hosted' && options.demoWorkspaceId !== undefined) throw new Error('Task MCP configuration refused');
-  const invalid = (message: string) => Response.json({ jsonrpc: '2.0', id: null, error: { code: -32600, message } },
-    { status: 400, headers: { 'cache-control': 'no-store' } });
-  return async original => {
-    let url: URL;
-    try { url = new URL(original.url); } catch { return invalid('invalid request'); }
-    if (url.origin !== origin || url.pathname !== TASK_MCP_PATH || url.search || url.hash || url.username || url.password) {
-      return invalid('invalid request');
-    }
-    const header = original.headers.get(WORKSPACE_SELECTION_HEADER);
-    const workspaceId = profile === 'demo' ? demo! : header ?? '';
-    if (!UUID.test(workspaceId) || profile === 'demo' && header !== null && header !== demo) {
-      return invalid(`select a workspace with the ${WORKSPACE_SELECTION_HEADER} header`);
-    }
-    // The parsed body is not forwarded: admission reads only request metadata.
-    const proof = new Request(original.url, { method: original.method, headers: new Headers(original.headers), signal: original.signal });
-    const server: McpServer = { info: SERVER_INFO, instructions: INSTRUCTIONS, tools: TASK_MCP_TOOLS, async call(name, args) {
-      try {
-        return await TASK_MCP_TOOLS.find(tool => tool.name === name)!.run({ proof, workspaceId, operations }, args);
-      } catch (error) {
-        if (error instanceof McpToolError) throw error;
-        // Admission, project selection and command refusals share one answer:
-        // which of them refused is not the caller's to learn.
-        throw new McpToolError('refused: this workspace, project or task is not available to you, or the change was not accepted');
-      }
-    } };
-    return serveMcp(original, server, { origin, maxBytes: BODY_BYTES });
-  };
-}

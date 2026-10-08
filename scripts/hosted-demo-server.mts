@@ -5,7 +5,8 @@ import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFileSync, realpathSync, lstatSync, openSync, closeSync, fstatSync, constants } from 'node:fs';
-import { openHostedTaskRuntime, captureHostedTaskRuntimeOptions, type HostedTaskRuntimeOptions } from './hosted-task-runtime.mjs';
+import { openHostedTaskRuntime, captureHostedTaskRuntimeOptions, type HostedTaskRuntimeAdapters, type HostedTaskRuntimeOptions } from './hosted-task-runtime.mjs';
+import { MCP_PATH, READ_MODELS_HEADER } from './hosted-mcp.mjs';
 import { startHostedDemo, type HostedDemoRuntimeOptions } from './hosted-demo-runtime.mjs';
 import { demoScenarioHash, generateDemoScenario } from './demo-scenario.mjs';
 import { createDemoRealtime } from './demo-realtime.mjs';
@@ -54,7 +55,7 @@ interface Workers {
 }
 /** Trusted in-process test composition only. Never read from JSON or env. */
 export interface HostedDemoServerAdapters {
-  openTasks(options: HostedTaskRuntimeOptions): Promise<Runtime>;
+  openTasks(options: HostedTaskRuntimeOptions, adapters?: HostedTaskRuntimeAdapters): Promise<Runtime>;
   startActivity(options: HostedDemoRuntimeOptions): Promise<Activity>;
   openWorkers(options: Record<string, unknown>): Workers;
 }
@@ -309,7 +310,8 @@ export async function startHostedDemoServer(input: HostedDemoServerOptions, adap
           if (clientRelease !== null && clientRelease !== artifact.release) response = json(409, { error: 'app_release_changed' });
           else if (target.pathname === '/api/app-release') response = method === 'GET' && !target.search ? json(200, { release: artifact.release }) : json(405, { error: 'method_not_allowed' });
           else if (target.pathname === '/api/ga4/realtime') response = method === 'GET' && !target.search ? json(200, realtime.read(Date.now())) : json(405, { error: 'method_not_allowed' });
-          else if (target.pathname === '/api/tasks' || target.pathname.startsWith('/api/tasks/') || target.pathname.startsWith('/api/gates/')) response = await tasks!.handle(proof);
+          else if (target.pathname === '/api/tasks' || target.pathname.startsWith('/api/tasks/') || target.pathname.startsWith('/api/gates/')
+            || target.pathname === MCP_PATH && !headers.has(READ_MODELS_HEADER)) response = await tasks!.handle(proof);
           else response = await dispatch(proof);
           const amended = new Headers(response.headers); amended.set(RELEASE_HEADER, artifact.release); amended.set('cache-control', 'no-store');
           response = new Response(response.body, { status: response.status, statusText: response.statusText, headers: amended });
@@ -348,7 +350,8 @@ export async function startHostedDemoServer(input: HostedDemoServerOptions, adap
     for (const result of results) if (result.status === 'rejected') throw result.reason;
   })();
   try {
-    tasks = await open.openTasks(configuration.tasks);
+    // The one MCP endpoint forwards read-model calls straight to the Workers.
+    tasks = await open.openTasks(configuration.tasks, { readModels: dispatch });
     workers = open.openWorkers({ host: '127.0.0.1', port: 0, cf: false, inspectorPort: undefined,
       defaultPersistRoot: configuration.workerStateRoot, logRequests: false, telemetry: { enabled: false }, workers: [
         { ...worker('tower', artifact.tower), serviceBindings: { INGEST: 'ingest' } }, worker('ingest', artifact.ingest),
