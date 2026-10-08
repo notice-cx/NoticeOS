@@ -187,6 +187,14 @@ const PAGE = /^\/(?:|wall(?:\/edit)?|financials|settings|integrations|workflows(
 function page(pathname: string): boolean {
   return !/\.(?:m?[jt]sx?|map|json|env|css|html)$/iu.test(pathname) && !pathname.includes('%') && PAGE.test(pathname);
 }
+/** The demo page's head names absolute URLs (canonical, social preview) by
+ * this placeholder (apps/tower/vite/demo-head.html). It is filled from the
+ * configured public origin after the artifact's hash is verified. */
+export const PUBLIC_ORIGIN_PLACEHOLDER = '__NOTICEOS_PUBLIC_ORIGIN__';
+export function publicPage(bytes: Uint8Array, origin: string): string {
+  const escaped = origin.replace(/[&<>"']/gu, character => `&#${character.charCodeAt(0)};`);
+  return new TextDecoder('utf-8', { fatal: true }).decode(bytes).replaceAll(PUBLIC_ORIGIN_PLACEHOLDER, escaped);
+}
 function json(status: number, value: unknown): Response {
   return Response.json(value, { status, headers: { 'cache-control': 'no-store' } });
 }
@@ -326,7 +334,8 @@ export async function startHostedDemoServer(input: HostedDemoServerOptions, adap
           else {
             const bytes = readFileSync(plainFile(configuration.artifactRoot, selected));
             if (digest(bytes) !== artifact.files[selected]) refused();
-            response = new Response(bytes, { headers: { 'content-type': TYPES[path.extname(selected)] ?? 'application/octet-stream',
+            const served = selected === 'client/index.html' ? publicPage(bytes, configuration.publicOrigin) : bytes;
+            response = new Response(served, { headers: { 'content-type': TYPES[path.extname(selected)] ?? 'application/octet-stream',
               'cache-control': selected.endsWith('.html') ? 'no-cache' : 'public, max-age=3600' } });
           }
         }

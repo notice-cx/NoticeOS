@@ -10,6 +10,8 @@ import { useConnections } from "@/hooks/useConnections";
 import { useGa4Realtime } from "@/hooks/useGa4Realtime";
 import { useWall } from "@/hooks/useWall";
 import { useWallScreen } from "@/hooks/useWallScreen";
+import { useDocumentTitle } from "@/lib/document-title";
+import { TV_ITEM } from "@/components/nav-items";
 import { calendarReadState } from "@/lib/meetings";
 
 /**
@@ -61,6 +63,8 @@ export function WallRoute() {
   const { credentials, items } = useConnections();
   const now = useNow();
   const screen = useWallScreen();
+  // The shell's name for this view, on the tab a TV shows.
+  useDocumentTitle(TV_ITEM.label);
 
   if (!data) {
     if (isError) {

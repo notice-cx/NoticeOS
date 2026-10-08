@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useDocumentTitle } from "@/lib/document-title";
 
 export interface PageHeaderCrumb {
   label: string;
@@ -22,6 +23,9 @@ export interface PageHeaderProps {
   meta?: ReactNode;
   /** Full-width slot under the header, for tabs and section navigators. */
   children?: ReactNode;
+  /** What the browser tab names this page, when `title` is not plain text.
+   * `null` keeps the title the app shipped with (Home). */
+  documentTitle?: string | null;
   className?: string;
 }
 
@@ -48,8 +52,10 @@ export function PageHeader({
   actions,
   meta,
   children,
+  documentTitle,
   className,
 }: PageHeaderProps) {
+  useDocumentTitle(documentTitle !== undefined ? documentTitle : typeof title === "string" ? title : null);
   return (
     <header className={cn("flex flex-col gap-2", className)} data-page-header>
       {breadcrumb && breadcrumb.length > 0 ? (

@@ -279,6 +279,7 @@ function TaskHeader({
   return (
     <PageHeader
       breadcrumb={[{ label: "Tasks", to: "/tasks" }]}
+      documentTitle={head?.title ?? "Task"}
       title={
         <>
           <span className="min-w-0">{head?.title ?? "Task"}</span>

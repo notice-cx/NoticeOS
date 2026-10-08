@@ -9,14 +9,15 @@ import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { generateDemoScenario } from './demo-scenario.mjs';
-import { captureHostedDemoServerOptions, readDemoArtifact, readHostedDemoRuntimeFile, startHostedDemoServer } from './hosted-demo-server.mjs';
+import { captureHostedDemoServerOptions, PUBLIC_ORIGIN_PLACEHOLDER, publicPage, readDemoArtifact, readHostedDemoRuntimeFile, startHostedDemoServer } from './hosted-demo-server.mjs';
+import { REPO_ROOT } from './test-config-isolation.mjs';
 
 const sha = value => createHash('sha256').update(value).digest('hex');
 const origin = 'https://demo.example.com', release = 'a'.repeat(64);
 function fixture() {
   const root = mkdtempSync(path.join(tmpdir(), 'demo-gateway-'));
   for (const folder of ['client', 'tower', 'ingest', 'worker']) mkdirSync(path.join(root, folder));
-  const bodies = { 'client/index.html': '<main>Compiled preview</main>', 'client/brand.zip': 'synthetic-design-system',
+  const bodies = { 'client/index.html': '<link rel="canonical" href="__NOTICEOS_PUBLIC_ORIGIN__/"><main>Compiled preview</main>', 'client/brand.zip': 'synthetic-design-system',
     'tower/main.js': `export default {async fetch(request,env){if(new URL(request.url).pathname==='/api/outside'){const refused=await fetch('https://example.invalid/');return new Response('denied:'+refused.status)}return new Response(await env.INGEST.echo(request.url))}}`,
     'ingest/main.js': `import {WorkerEntrypoint} from 'cloudflare:workers';export default class extends WorkerEntrypoint {echo(value){return 'private:'+value}}` };
   for (const [name, value] of Object.entries(bodies)) writeFileSync(path.join(root, name), value);
@@ -85,7 +86,8 @@ test('actual HTTP gateway preserves original proof, refuses hostile Host/release
     assert.equal(proof.headers.get('sec-fetch-site'), 'cross-site'); assert.equal(proof.headers.get('forwarded'), null);
     assert.equal(proof.headers.get('x-forwarded-proto'), null); assert.equal(await proof.text(), '{"exact":true}');
     for (const address of ['/health', '/health/operations/job', '/workflows/job', '/assets/example.com/search', '/alerts/history', '/wall']) {
-      assert.equal((await request(address)).text, '<main>Compiled preview</main>');
+      // The page's absolute URLs name the configured origin, never a request header's.
+      assert.equal((await request(address)).text, `<link rel="canonical" href="${origin}/"><main>Compiled preview</main>`);
     }
     for (const address of ['/@vite/client', '/@fs/etc/passwd', '/src/main.tsx', '/manifest.json', '/client/.env', '/assets/missing.js.map']) assert.equal((await request(address)).status, 404);
     assert.equal((await request('/brand.zip')).status, 200);
@@ -344,4 +346,13 @@ describe('supervised fixture launches', { concurrency: 3 }, () => {
   test('assertion failure after acquisition awaits detached runtime and descendant retirement before fixture removal', {timeout:15000}, async t=>{await assert.rejects(launchFixture(t,'fixture-failure'),/Synthetic fixture assertion after acquisition/)});
 
   test('normal shutdown awaits detached executor-shaped command and revokes its custody without secret IPC', {timeout:15000}, t=>launchFixture(t,'detached-normal'));
+});
+
+test("the demo head's absolute URLs are the placeholder the server fills from its configured origin", () => {
+  const head = readFileSync(path.join(REPO_ROOT, 'apps/tower/vite/demo-head.html'), 'utf8');
+  for (const name of ['canonical', 'og:url', 'og:image', 'twitter:image']) {
+    assert.match(head, new RegExp(`(?:rel|property|name)="${name}"[^>]*"${PUBLIC_ORIGIN_PLACEHOLDER}/`, 'u'), name);
+  }
+  assert.equal(publicPage(Buffer.from(`<a href="${PUBLIC_ORIGIN_PLACEHOLDER}/">`), 'https://demo.example.com'), '<a href="https://demo.example.com/">');
+  assert.equal(publicPage(Buffer.from(PUBLIC_ORIGIN_PLACEHOLDER), 'https://a.example"<'), 'https://a.example&#34;&#60;');
 });

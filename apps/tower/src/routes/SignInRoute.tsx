@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { fieldClass } from '@/components/ui/field';
 import type { BrowserEntry } from '@/lib/browser-entry';
+import { useDocumentTitle } from '@/lib/document-title';
 
 /** The public identity protocol precedes a workspace; no bound product API,
  * remembered email/code or browser-selected permission enters this form. */
@@ -13,6 +14,7 @@ export function SignInRoute({ entry }: { entry: BrowserEntry }) {
   const [failed, setFailed] = useState(false);
   const request = useRef<AbortController | null>(null);
   const mounted = useRef(true);
+  useDocumentTitle('Sign in');
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; request.current?.abort(); }; }, []);
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

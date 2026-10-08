@@ -51,6 +51,7 @@ export function Header({
   return (
     <PageHeader
       breadcrumb={[{ label: "Sites", to: "/assets" }]}
+      documentTitle={asset.displayName}
       title={
         <>
           <PropertyFavicon

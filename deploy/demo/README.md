@@ -103,6 +103,10 @@ executions are System health's background operations. A daily outcome check
 over the demo's own watch windows is the Workflows page's history. The banner's
 generation time is the demo service's latest write.
 
+The demo's pages ask search engines to index them. Their links preview with
+the TV dashboard, at absolute URLs the server fills from the configured public
+origin. An installation's own pages ask not to be indexed.
+
 The scenario is versioned. A release whose scenario version differs from a
 running demo's refuses that demo's stored scenario at startup. Such a release
 needs a fresh setup with a new project name and volumes, which

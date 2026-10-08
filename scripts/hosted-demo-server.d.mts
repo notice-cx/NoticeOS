@@ -65,6 +65,11 @@ export declare function readHostedDemoRuntimeFile(filename: string): HostedDemoS
 export declare function captureHostedDemoServerOptions(input: HostedDemoServerOptions): HostedDemoServerOptions;
 /** The same file inventory is checked before any pool, timer or listener. */
 export declare function readDemoArtifact(rootInput: string): DemoArtifactManifest;
+/** The demo page's head names absolute URLs (canonical, social preview) by
+ * this placeholder (apps/tower/vite/demo-head.html). It is filled from the
+ * configured public origin after the artifact's hash is verified. */
+export declare const PUBLIC_ORIGIN_PLACEHOLDER = "__NOTICEOS_PUBLIC_ORIGIN__";
+export declare function publicPage(bytes: Uint8Array, origin: string): string;
 /** Request URL is reconstructed from configured public authority, never a
  * forwarded header. The listener must remain behind the declared TLS edge. */
 export declare function demoRequestTarget(origin: string, incoming: IncomingMessage): URL;

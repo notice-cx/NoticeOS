@@ -69,6 +69,7 @@ export function HomeRoute() {
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3.5 p-4 md:p-6">
       <PageHeader
         title="Home"
+        documentTitle={null}
         // The census is a FACT about the page, not a control, and doc 21 seats
         // it at the end of the header row: how many assets this covers and how
         // old the reading is, in one quiet line. `actions` is the only slot on
