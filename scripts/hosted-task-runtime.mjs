@@ -9,7 +9,7 @@ import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { createHostedTaskExecutor } from './hosted-task-executor.mjs';
 import { createHostedTasksApi } from './hosted-tasks-api.mjs';
 import { createHostedTaskOperations } from './hosted-task-operations.mjs';
-import { createHostedTaskMcp, TASK_MCP_PATH } from './hosted-task-mcp.mjs';
+import { createHostedMcp, MCP_PATH } from './hosted-mcp.mjs';
 import { openStore } from '../packages/postgres/src/store.mjs';
 import { taskReceipts } from '../packages/postgres/src/task-receipts.mjs';
 import { createBrowserRequestPolicy } from './browser-request-policy.mjs';
@@ -114,7 +114,9 @@ export function captureHostedTaskRuntimeOptions(input) {
         targets: Object.freeze([...targets.values()]), binary, doltBinary, scratchRoot,
         ...(row.receiptsConnectionString === undefined ? {} : { receiptsConnectionString: row.receiptsConnectionString }) });
 }
-export async function openHostedTaskRuntime(input) {
+export async function openHostedTaskRuntime(input, adapters = {}) {
+    if (adapters.readModels !== undefined && typeof adapters.readModels !== 'function')
+        invalid();
     const configuration = captureHostedTaskRuntimeOptions(input);
     const { profile, trustedOrigin: origin, demoWorkspaceId: demo, identity: identityOptions, binary, doltBinary, scratchRoot } = configuration;
     const targets = new Map(configuration.targets.map(allocation => [`${allocation.mapping.workspaceId}/${allocation.mapping.projectId}`, allocation]));
@@ -131,7 +133,10 @@ export async function openHostedTaskRuntime(input) {
         const facts = identity;
         const admission = profile === 'hosted'
             ? createWorkspaceAdmission({ kind: 'hosted', profile: Symbol(), trustedOrigin: origin,
-                membership: (headers, workspaceId) => facts.admissionMembership(headers, workspaceId) })
+                membership: (headers, workspaceId) => facts.admissionMembership(headers, workspaceId),
+                // Agent sign-in (agent-access.mts): only the MCP endpoint takes a token.
+                agent: async (request, workspaceId) => new URL(request.url).pathname === MCP_PATH
+                    ? facts.agentAuthority(request, workspaceId) : null })
             : createWorkspaceAdmission({ kind: 'demo', profile: Symbol(), workspaceId: demo,
                 workspaceStatus: async () => (await facts.workspaceSummary(demo))?.status ?? null });
         const executor = createHostedTaskExecutor({ admission, directory, binary, doltBinary, scratchRoot,
@@ -146,8 +151,12 @@ export async function openHostedTaskRuntime(input) {
         const selection = profile === 'demo' ? { demoWorkspaceId: demo } : {};
         const api = createHostedTasksApi({ profile, trustedOrigin: origin, ...selection, admission, directory, executor,
             workspaceActors, ...(receipts ? { receipts } : {}) });
-        // The MCP endpoint and the HTTP API call the same operations under the same admission.
-        const mcp = createHostedTaskMcp({ profile, trustedOrigin: origin, ...selection,
+        // One MCP endpoint: the task tools over the same operations and admission
+        // as the HTTP API, the read-model tools forwarded to the Worker.
+        const mcp = createHostedMcp({ profile, trustedOrigin: origin, ...selection,
+            ...(profile === 'hosted' ? { agents: { verify: (request) => facts.agentToken(request),
+                    workspaces: (request) => facts.agentWorkspaces(request) } } : {}),
+            ...(adapters.readModels ? { readModels: adapters.readModels } : {}),
             operations: createHostedTaskOperations({ admission, directory, executor, workspaceActors, ...(receipts ? { receipts } : {}) }) });
         let closed = false, closing;
         const pending = new Set();
@@ -157,7 +166,7 @@ export async function openHostedTaskRuntime(input) {
                     return Promise.resolve(Response.json({ error: 'hosted_task_unavailable' }, { status: 503 }));
                 let mcpRoute = false;
                 try {
-                    mcpRoute = new URL(original.url).pathname === TASK_MCP_PATH;
+                    mcpRoute = new URL(original.url).pathname === MCP_PATH;
                 }
                 catch { /* The API refuses a malformed URL. */ }
                 const work = mcpRoute ? mcp(original) : api(original);

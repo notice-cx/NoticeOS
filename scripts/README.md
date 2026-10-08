@@ -719,8 +719,8 @@ work; a dispatched effect can already have committed. Standalone controls
 retain their existing behavior. Local qualification does not activate a public
 hosted service.
 
-**Retry-safe writes and the task MCP endpoint** (epic `ro-cvl9`). The Tasks API
-and the MCP endpoint at `POST /api/tasks/mcp`
+**Retry-safe writes and the MCP endpoint** (epic `ro-cvl9`). The Tasks API
+and the task tools of the MCP endpoint
 ([`hosted-task-mcp.mts`](hosted-task-mcp.mts)) call the same operations
 ([`hosted-task-operations.mts`](hosted-task-operations.mts)) under the same
 admission. A create, update, comment or close may carry an idempotency key:
@@ -738,14 +738,56 @@ the task store before it runs again: a create by its `noticeos_operation_id`
 metadata, a comment by its author, text and time. Update, claim and close
 repeat without a second effect (the pinned task client's behavior, proved by
 `pnpm test:task-store`). MCP results use the Tower's task and comment shapes,
-never the task store's own field names, and no human decision is a tool. MCP
-admission is the browser session's for now; agent sign-in is separate work.
-Both MCP endpoints, this one and the Tower's `/api/mcp`, share one transport
+never the task store's own field names, and no human decision is a tool.
+
+**One MCP connection** (epic `ro-cvl9`). A hosted or demo deployment answers
+`POST /api/mcp` in its Node server ([`hosted-mcp.mts`](hosted-mcp.mts)) with
+every NoticeOS tool: `list_workspaces`, the task tools, and the Tower's
+read-model tools ([`read-model-tools.mts`](read-model-tools.mts)), which it
+forwards to the Tower Worker's own `/api/mcp` under the same credential,
+marked with the routing-only `x-noticeos-mcp-part` header. Every tool but
+`list_workspaces` takes a `workspace` argument, and admission checks the
+person's membership and role in that workspace on each call. Hosted, the
+endpoint admits only an agent's OAuth token (below); the demo's reads take no
+credential. Both endpoints share one transport
 ([`mcp-protocol.mts`](mcp-protocol.mts)) that answers 2026-07-28 clients
 (version and capabilities in each request's `_meta`, routing headers that must
 match the body, `server/discover`) and `initialize`-based clients of 2025-11-25,
 2025-06-18 and 2025-03-26 on the same route, with no session state; its
 [suite](mcp-protocol.test.mjs) pins both eras.
+
+**Agent sign-in** (epic `ro-cvl9`; [`agent-access.mts`](agent-access.mts),
+[`agent-sign-in.mts`](../packages/postgres/src/agent-sign-in.mts)). The MCP
+endpoint is an OAuth 2.1 protected resource as MCP's authorization
+specification defines one. An agent with no credential gets a 401 whose
+`WWW-Authenticate` names the endpoint's protected-resource metadata; that
+names the authorization server at `<origin>/api/auth`, the identity engine's
+maintained OAuth provider. The agent registers itself (dynamic registration; a
+registration that redirects only to loopback is a native app), opens the
+person's browser on the Tower's `/agent-access` page, and exchanges the code,
+with PKCE and `<origin>/api/mcp` as its resource, for a one-hour JWT access
+token and a 30-day refresh token. On the page the person signs in with the
+ordinary email code if needed, then allows the agent or denies it. One approval
+covers every workspace the person belongs to, including ones they join later.
+
+| Scope | Grants, in each workspace |
+|---|---|
+| `tasks:read` | `tasks.read` |
+| `tasks:write` | `tasks.read` and `tasks.write` |
+| `evidence:read` | `evidence.read`: the read-model tools |
+
+No scope reaches `tasks.decide`, membership or a protected operation. A token
+works only at `/api/mcp`. It acts as its person, and in each workspace that
+person's current role bounds its scopes (a viewer's agent only reads there);
+`list_workspaces` shows the role and what the connection may do in each. Every
+call rechecks the token's signature, the consent and the client, and, in the
+workspace it names, the person's membership and the workspace's lifecycle, so
+removing any one cuts the agent off at once. A missing scope is a 403 with
+`insufficient_scope`. Client ID Metadata Documents are not yet accepted: the
+library's plugin needs an SSRF-safe fetch transport for the Worker runtime.
+Applying `0014_agent_sign_in.sql` and serving agent sign-in on a public origin
+are operator steps; with both, an agent connects once with, for example,
+`claude mcp add --transport http noticeos <origin>/api/mcp`.
 
 ### Hosted runtime composition and recovery
 

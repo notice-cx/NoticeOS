@@ -10,6 +10,7 @@ import { Readable } from 'node:stream';
 import { stripJsonc } from './jsonc.mjs';
 import { PRODUCT_ENV } from './product-env.mjs';
 import { openHostedTaskRuntime, captureHostedTaskRuntimeOptions } from './hosted-task-runtime.mjs';
+import { MCP_PATH, READ_MODELS_HEADER } from './hosted-mcp.mjs';
 function refused() { throw new Error('Hosted Tasks server configuration refused'); }
 /** Resolve the same public Wrangler variables as the final Vite binding. The
  * native executor and Worker bootstrap must never authenticate different
@@ -47,7 +48,10 @@ export function hostedTasksPlugin(runtime) {
         configureServer(server) {
             server.middlewares.use((incoming, outgoing, next) => {
                 const route = incoming.url?.split('?')[0] ?? '';
-                if (route !== '/api/tasks' && !route.startsWith('/api/tasks/') && !route.startsWith('/api/gates/')) {
+                // The one MCP endpoint is answered here; its own forwarded read-model
+                // call goes on to the Worker.
+                const mcp = route === MCP_PATH && incoming.headers[READ_MODELS_HEADER] === undefined;
+                if (!mcp && route !== '/api/tasks' && !route.startsWith('/api/tasks/') && !route.startsWith('/api/gates/')) {
                     next();
                     return;
                 }
@@ -180,7 +184,8 @@ export async function startHostedTaskServer(options) {
     };
     let runtime, server;
     try {
-        runtime = await openHostedTaskRuntime(configuration);
+        // Read-model MCP calls reach the Worker through this same server.
+        runtime = await openHostedTaskRuntime(configuration, { readModels: request => fetch(request) });
         const createViteServer = options.createViteServer ?? (async (inline) => {
             const require = createRequire(path.join(root, 'apps/tower/package.json'));
             const vite = await import(require.resolve('vite'));

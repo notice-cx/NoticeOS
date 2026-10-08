@@ -46,6 +46,9 @@ export interface McpServeOptions {
   readonly maxBytes?: number;
   /** Sees the parsed body before any method runs and may answer instead. */
   readonly screen?: (body: unknown) => Response | null;
+  /** Sees each request's message before its method runs and may answer
+   * instead: the place an endpoint asks for a scope the call needs. */
+  readonly authorize?: (message: McpMessage) => Response | null;
 }
 /** A tool's own refusal, returned to the model as an error result it can read. */
 export class McpToolError extends Error {
@@ -301,5 +304,7 @@ export async function serveMcp(request: Request, server: McpServer, options: Mcp
   }
   // A notification carries no id and receives no response body.
   if (message.id === undefined) return new Response(null, { status: 202 });
+  const refused = options.authorize?.(message);
+  if (refused) return refused;
   return message.version !== null ? modern(request, server, message) : legacy(request, server, message);
 }

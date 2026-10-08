@@ -33,6 +33,9 @@ export interface McpServeOptions {
     readonly maxBytes?: number;
     /** Sees the parsed body before any method runs and may answer instead. */
     readonly screen?: (body: unknown) => Response | null;
+    /** Sees each request's message before its method runs and may answer
+     * instead: the place an endpoint asks for a scope the call needs. */
+    readonly authorize?: (message: McpMessage) => Response | null;
 }
 /** A tool's own refusal, returned to the model as an error result it can read. */
 export declare class McpToolError extends Error {

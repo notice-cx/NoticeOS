@@ -101,6 +101,18 @@ export interface GoogleOAuthAdmissionAdapter {
     issue(request: Request, workspaceId: string, authorize: (facts: WorkspaceMembership) => void): Promise<string>;
     claim(request: Request, authorize: (facts: WorkspaceMembership) => void): Promise<void>;
 }
+/** A verified agent token's fresh facts in the workspace a call names
+ * (identity agentAuthority, epic ro-cvl9): the person it acts for, the
+ * client, the person's current role there and the scopes still consented. */
+export interface AgentAuthority {
+    readonly principalId: string;
+    readonly clientId: string;
+    readonly workspaceId: string;
+    readonly role: WorkspaceRole;
+    readonly workspaceStatus: WorkspaceStatus;
+    readonly expiresAt: string;
+    readonly scopes: readonly string[];
+}
 export interface StandaloneAuthority {
     readonly principalId: string;
     readonly workspaceId: string;
@@ -121,6 +133,10 @@ export type WorkspaceEntry = EntryBase & ({
     readonly trustedOrigin: string;
     readonly membership: (headers: Headers, workspaceId: string) => Promise<WorkspaceMembership | null>;
     readonly googleOAuth?: GoogleOAuthAdmissionAdapter;
+    /** Verifies a bearer request's agent token and reads its person's
+     * membership in the requested workspace. Without it, a bearer request
+     * is refused. */
+    readonly agent?: (request: Request, workspaceId: string) => Promise<AgentAuthority | null>;
 } | {
     readonly kind: 'standalone';
     /** Authenticate the existing door and resolve the sole workspace; ambiguity denies. */
@@ -141,9 +157,11 @@ export interface WorkspaceSelection {
 export interface WorkspaceContext {
     readonly workspaceId: string;
     readonly principalId: string;
-    readonly principalKind: 'person' | 'standalone-operator' | 'demo-reader' | 'workspace-service';
+    readonly principalKind: 'person' | 'agent' | 'standalone-operator' | 'demo-reader' | 'workspace-service';
     /** Only person contexts carry this from the same fresh membership facts. */
     readonly sessionId?: string;
+    /** Only agent contexts carry this: the OAuth client acting for the person. */
+    readonly agentClientId?: string;
     readonly entryProfile: WorkspaceEntry['kind'];
     readonly profile: symbol;
     readonly action: WorkspaceAction;

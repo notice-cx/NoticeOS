@@ -329,5 +329,8 @@ export async function serveMcp(request, server, options = {}) {
     // A notification carries no id and receives no response body.
     if (message.id === undefined)
         return new Response(null, { status: 202 });
+    const refused = options.authorize?.(message);
+    if (refused)
+        return refused;
     return message.version !== null ? modern(request, server, message) : legacy(request, server, message);
 }

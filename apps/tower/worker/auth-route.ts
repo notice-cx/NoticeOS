@@ -18,7 +18,7 @@ function refuse(): never { throw new Error('Identity entry unavailable'); }
  * This adapter is only for a server-declared Cloudflare deployment, never a
  * native proxy trusting similarly named browser headers.
  * https://developers.cloudflare.com/fundamentals/reference/http-headers/ */
-function edgePeer(request: Request, env: AuthEntryBindings): string {
+export function edgePeer(request: Request, env: AuthEntryBindings): string {
   if (env[PRODUCT_ENV.identityEdge.name] !== 'cloudflare') refuse();
   const metadata = (request as Request & { readonly cf?: unknown }).cf;
   if (!metadata || typeof metadata !== 'object' || request.headers.has('cf-worker')) refuse();

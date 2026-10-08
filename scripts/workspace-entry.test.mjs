@@ -25,6 +25,7 @@ function request({ workspace = a, method = 'GET', headers = {}, body = { ops }, 
 }
 function fixture() {
   const memberships = new Map([[a, 'owner'], [b, 'viewer']]);
+  const agents = new Map([['agent-token-evidence-0001', ['evidence:read']], ['agent-token-tasks-only-0002', ['tasks:read', 'tasks:write']]]);
   const states = new Map([[a, 'active'], [b, 'active'], [demo, 'active']]);
   const calls = { opened: 0, closed: 0, memberships: 0, summaries: 0, stores: [] };
   let expiry = new Date(Date.now() + 60_000).toISOString();
@@ -39,6 +40,13 @@ function fixture() {
             workspaceId, role, workspaceStatus: states.get(workspaceId) } : null;
         },
         async workspaceSummary(workspaceId) { calls.summaries++; return { workspaceId, displayName: 'Fixture', status: states.get(workspaceId) }; },
+        async agentAuthority(request, workspaceId) {
+          calls.agents = (calls.agents ?? 0) + 1;
+          const scopes = agents.get(request.headers.get('authorization')?.slice('Bearer '.length));
+          const role = memberships.get(workspaceId);
+          return scopes && role ? { principalId: principal, clientId: 'example-agent', workspaceId,
+            role, workspaceStatus: states.get(workspaceId), expiresAt: expiry, scopes } : null;
+        },
         async close() { calls.closed++; },
       };
     },
@@ -511,4 +519,38 @@ test('watch history duplicate arguments bind exactly to original query and fixed
   f.states.set(demo, 'suspended');
   await assert.rejects(withWorkspaceEntry({ ...env, NOTICEOS_WORKSPACE_PROFILE: 'demo' }, request({ path }), use, f.adapters));
   assert.deepEqual(f.calls.stores, [b, demo]);
+});
+
+test('an agent token reaches the MCP read models in each of its person\'s workspaces, as that person (agent sign-in, epic ro-cvl9)', async () => {
+  const question = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_properties', arguments: {} } };
+  const agentRequest = (token, { path = '/api/mcp', workspace = a, headers = {}, body = question } = {}) => new Request(origin + path, { method: 'POST',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json',
+      ...(workspace === null ? {} : { 'x-noticeos-workspace-id': workspace }), ...headers }, body: JSON.stringify(body) });
+  const f = fixture();
+  // No browser evidence: the token names the person, the call names the workspace.
+  assert.deepEqual(await withWorkspaceEntry(env, agentRequest('agent-token-evidence-0001'), async call => ({
+    workspace: call.context.workspaceId, actor: call.context.principalId, kind: call.context.principalKind, client: call.context.agentClientId,
+  }), f.adapters), { workspace: a, actor: principal, kind: 'agent', client: 'example-agent' });
+  assert.equal(f.calls.memberships, 0, 'an agent request never reads a browser session');
+  // The same token reads in the person's other workspace, where they are a viewer.
+  assert.deepEqual(await withWorkspaceEntry(env, agentRequest('agent-token-evidence-0001', { workspace: b }), use, f.adapters), { workspace: b, actor: principal });
+  // No workspace named, one the person is not in, a token without the
+  // read-model scope, an unknown token, and a lapsed workspace all refuse.
+  for (const original of [agentRequest('agent-token-evidence-0001', { workspace: null }),
+    agentRequest('agent-token-evidence-0001', { workspace: demo }),
+    agentRequest('agent-token-tasks-only-0002'), agentRequest('agent-token-unknown-000000000')]) {
+    await assert.rejects(withWorkspaceEntry(env, original, use, f.adapters));
+  }
+  f.states.set(a, 'suspended');
+  await assert.rejects(withWorkspaceEntry(env, agentRequest('agent-token-evidence-0001'), use, f.adapters));
+  f.states.set(a, 'active');
+  // Anywhere but the MCP endpoint, in the demo, or malformed: refused before identity I/O.
+  const opened = f.calls.opened;
+  for (const [original, profile] of [
+    [new Request(origin + '/api/config', { headers: { authorization: 'Bearer agent-token-evidence-0001', 'x-noticeos-workspace-id': a } }), 'hosted'],
+    [agentRequest('agent-token-evidence-0001', { path: '/api/alerts/backtest', body: { asset: 'example.com', ruleId: 'r', config: { alpha: 0.01, minBaselinePerDay: 3, lowVolumeWindowHours: 72 } } }), 'hosted'],
+    [agentRequest('agent-token-evidence-0001', { workspace: null }), 'demo'],
+    [new Request(agentRequest('x'), { headers: { authorization: 'Basic abc', 'content-type': 'application/json', 'x-noticeos-workspace-id': a } }), 'hosted'],
+  ]) await assert.rejects(withWorkspaceEntry({ ...env, NOTICEOS_WORKSPACE_PROFILE: profile }, original, use, f.adapters));
+  assert.equal(f.calls.opened, opened);
 });

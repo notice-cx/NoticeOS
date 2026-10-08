@@ -483,7 +483,13 @@ carries its version and client capabilities in `_meta` with matching
 call `server/discover` instead of a handshake; and the `initialize` handshake of
 2025-11-25, 2025-06-18 and 2025-03-26. Bodies are `application/json`, at most
 256 KiB, without duplicate keys or batches; a browser `Origin` other than the
-Tower's own is refused.
+Tower's own is refused. In a hosted or demo deployment the Node server answers
+`/api/mcp` with every NoticeOS tool, tasks included, and forwards these three
+to this Worker under the same credential
+([scripts/README.md](../../scripts/README.md#explicit-local-hosted-tasks-entry)).
+Hosted, an agent signs in with OAuth: a request with no credential gets a 401
+naming where, the person allows the agent once on the `/agent-access` page,
+and each call names its workspace; these tools need `evidence:read`.
 
 | Tool | Answers |
 | --- | --- |
