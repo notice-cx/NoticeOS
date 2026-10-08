@@ -132,6 +132,13 @@ one page header.
 
 ## Home: the operator's overview (2026-09-04, bead `ro-pbzu.3`)
 
+**Superseded on 2026-10-08 by D44**: `/` is the Morning Brief — a greeting
+line with three small figures, at most five highlight cards since the operator
+last looked, Decide at three rows, the sites in seed order and a finish line.
+The composition is [doc 21 § Home](21-surface-design.md#home--the-morning-brief-2026-10-08-d44);
+the words are [doc 17 § Altitude](17-ui-lexicon.md#altitude-2026-10-08-d44).
+The 2026-09-04 design below is kept as the record of what the strip was.
+
 `/` answers four questions, in the order an operator arrives with them, and
 links to the page that owns each.
 
