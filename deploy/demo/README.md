@@ -132,8 +132,10 @@ history, while the artifact manifest supplies the new application's release.
 
 [update.sh](update.sh) deploys any target commit in one command. It resolves
 `main` or an exact commit on the public repository, downloads that source
-archive and builds the exact-commit image, then compares the running release's
-scenario version and frozen migrations with the target's. A compatible release
+archive and builds the exact-commit image, then compares the scenario version
+and frozen migrations of the release this generation was seeded from (its
+configuration's `release`) with the target's. A demo that is already on the
+target and healthy needs nothing; one that is unhealthy is deployed again. A compatible release
 takes exactly the steps above: only the image tag changes in the env file, the
 namespace owner and then the application are recreated, and health is checked
 through the configured public Host. An incompatible release gets a **fresh

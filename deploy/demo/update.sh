@@ -3,7 +3,9 @@
 #
 # One command brings up the target release whatever moved on main:
 #
-#   compatible release  (same scenario version, same frozen migrations)
+#   compatible release  (same scenario version and frozen migrations as the
+#                        release this generation was SEEDED from, the
+#                        configuration's `release`)
 #     the README's update path: build the exact-commit image, change only
 #     the image tag in the env file, recreate dolt then app, check health.
 #     Seeded history is kept.
@@ -77,7 +79,7 @@ compose() { # env project compose-file args...
 health() { # config port
   h=$(json_value "$1" publicOrigin | sed 's|^https://||; s|/.*||')
   [ -n "$h" ] || { echo 'could not read the public Host from the configuration' >&2; return 1; }
-  curl -fsS --header "Host: $h" "http://127.0.0.1:$2/__noticeos_health"; echo
+  curl -fsS --header "Host: $h" "http://127.0.0.1:$2/__noticeos_health" && echo
 }
 
 CURRENT=$(env_value "$ENV_FILE" NOTICEOS_DEMO_IMAGE | sed 's/^noticeos-demo://')
@@ -88,9 +90,13 @@ PORT=$(env_value "$ENV_FILE" NOTICEOS_DEMO_HTTP_PORT)
 [ -n "$CONFIG" ] && [ -n "$PORT" ] || { echo "env file lacks NOTICEOS_DEMO_CONFIG or NOTICEOS_DEMO_HTTP_PORT: $ENV_FILE" >&2; exit 1; }
 GENERATIONS=$(dirname "$ENV_FILE")/generations
 COMPOSE_FILE=$SOURCE_DIR/deploy/demo/compose.yaml
+# The generation's scenario and schema were fixed when it was seeded: its
+# configuration's release, not the image last swapped in, decides compatibility.
+SEEDED=$(json_value "$CONFIG" release)
 
-if [ "$CURRENT" = "$COMMIT" ]; then
-  echo "already on $COMMIT"
+# A healthy demo on the target commit needs nothing; an unhealthy one is deployed again.
+if [ "$CURRENT" = "$COMMIT" ] && health "$CONFIG" "$PORT" >/dev/null 2>&1; then
+  echo "already on $COMMIT and healthy"
   exit 0
 fi
 
@@ -113,14 +119,14 @@ if [ "$FETCHED" != 1 ] && [ -f "$THEIRS" ] && ! cmp -s "$SELF" "$THEIRS"; then
   exec sh "$THEIRS" --env "$ENV_FILE" --source "$SOURCE_DIR" --commit "$COMMIT" --repo "$REPO" --project "$PROJECT" --fetched --self "$SELF"
 fi
 
-# Compatibility: the running release's scenario version and frozen migrations against the target's.
+# Compatibility: the seeded release's scenario version and frozen migrations against the target's.
 FRESH=0
-if [ -z "$CURRENT" ]; then
+if [ -z "$CURRENT" ] || ! is_sha "$SEEDED"; then
   FRESH=1
 else
   theirs_version=$(grep -oE 'SCENARIO_VERSION = [0-9]+' "$SOURCE_DIR/scripts/demo-scenario.mts" | head -n 1)
-  ours_version=$(curl -fsSL "$RAW/$REPO/$CURRENT/scripts/demo-scenario.mts" 2>/dev/null | grep -oE 'SCENARIO_VERSION = [0-9]+' | head -n 1 || true)
-  ours_migrations=$(curl -fsSL "$RAW/$REPO/$CURRENT/db/postgres/frozen-migrations.sha256" 2>/dev/null || true)
+  ours_version=$(curl -fsSL "$RAW/$REPO/$SEEDED/scripts/demo-scenario.mts" 2>/dev/null | grep -oE 'SCENARIO_VERSION = [0-9]+' | head -n 1 || true)
+  ours_migrations=$(curl -fsSL "$RAW/$REPO/$SEEDED/db/postgres/frozen-migrations.sha256" 2>/dev/null || true)
   if [ -z "$ours_version" ] || [ "$ours_version" != "$theirs_version" ]; then FRESH=1; fi
   if [ -z "$ours_migrations" ] || [ "$ours_migrations" != "$(cat "$SOURCE_DIR/db/postgres/frozen-migrations.sha256")" ]; then FRESH=1; fi
 fi
@@ -175,15 +181,21 @@ OLD_ENV=$GENERATIONS/$PROJECT/demo.env
 OLD_COMPOSE=$GENERATIONS/$PROJECT/compose.yaml
 [ -f "$OLD_COMPOSE" ] || OLD_COMPOSE=$COMPOSE_FILE
 [ -f "$OLD_ENV" ] || OLD_ENV=$ENV_FILE
+# Only a generation that was healthy is worth bringing back.
+OLD_HEALTHY=0
+if [ -n "$CURRENT" ] && health "$CONFIG" "$PORT" >/dev/null 2>&1; then OLD_HEALTHY=1; fi
 rollback() {
-  echo "fresh generation $NEW failed; bringing $PROJECT back" >&2
+  echo "fresh generation $NEW failed" >&2
   compose "$NEW_ENV" "$NEW" "$COMPOSE_FILE" stop app dolt postgres || true
-  if [ -n "$CURRENT" ]; then
+  if [ "$OLD_HEALTHY" = 1 ]; then
+    echo "bringing $PROJECT back" >&2
     compose "$OLD_ENV" "$PROJECT" "$OLD_COMPOSE" up -d --wait postgres dolt || true
     compose "$OLD_ENV" "$PROJECT" "$OLD_COMPOSE" up -d --wait app || true
     health "$CONFIG" "$PORT" || true
+    echo "deploy of $COMMIT failed; $PROJECT at ${CURRENT:-nothing} is back; the new volumes of $NEW are kept for diagnosis" >&2
+  else
+    echo "deploy of $COMMIT failed; $PROJECT was not healthy before and stays stopped; the volumes of $NEW are kept for diagnosis" >&2
   fi
-  echo "deploy of $COMMIT failed; $PROJECT at ${CURRENT:-nothing} is back; the new volumes of $NEW are kept for diagnosis" >&2
   exit 1
 }
 if [ -n "$CURRENT" ]; then
