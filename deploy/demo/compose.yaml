@@ -96,6 +96,7 @@ services:
     stop_grace_period: 90s
     environment:
       HOME: /tmp/home
+      NOTICEOS_DEMO_STATCOUNTER: ${NOTICEOS_DEMO_STATCOUNTER:-}
     tmpfs: [/tmp:mode=1777]
     volumes:
       - state:/state

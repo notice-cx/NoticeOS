@@ -5,7 +5,9 @@ import path from 'node:path';
 
 const defaultStart = async file => {
   const { readHostedDemoRuntimeFile, startHostedDemoServer } = await import('./hosted-demo-server.mjs');
-  return startHostedDemoServer(readHostedDemoRuntimeFile(file));
+  const { PRODUCT_ENV } = await import('./product-env.mjs');
+  // The page's analytics tag is the operator's (deploy/demo/example.env), never the private runtime's.
+  return startHostedDemoServer(readHostedDemoRuntimeFile(file), undefined, { statcounter: process.env[PRODUCT_ENV.demoStatcounter.name] });
 };
 export async function runHostedDemoWorker(runtimeFile, start = defaultStart, { graceMs = 80000 } = {}) {
   if (!process.connected) throw new Error('Owned supervisor required.');

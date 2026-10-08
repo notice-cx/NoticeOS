@@ -9,7 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { generateDemoScenario } from './demo-scenario.mjs';
-import { captureHostedDemoServerOptions, PUBLIC_ORIGIN_PLACEHOLDER, publicPage, readDemoArtifact, readHostedDemoRuntimeFile, startHostedDemoServer } from './hosted-demo-server.mjs';
+import { captureHostedDemoServerOptions, PUBLIC_ORIGIN_PLACEHOLDER, publicPage, statcounterTag, readDemoArtifact, readHostedDemoRuntimeFile, startHostedDemoServer } from './hosted-demo-server.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 
 const sha = value => createHash('sha256').update(value).digest('hex');
@@ -355,4 +355,18 @@ test("the demo head's absolute URLs are the placeholder the server fills from it
   }
   assert.equal(publicPage(Buffer.from(`<a href="${PUBLIC_ORIGIN_PLACEHOLDER}/">`), 'https://demo.example.com'), '<a href="https://demo.example.com/">');
   assert.equal(publicPage(Buffer.from(PUBLIC_ORIGIN_PLACEHOLDER), 'https://a.example"<'), 'https://a.example&#34;&#60;');
+});
+
+test("the demo's pages carry the operator's Statcounter project, and only a well-formed one", () => {
+  assert.equal(statcounterTag(undefined), ''); assert.equal(statcounterTag(''), '');
+  const tag = statcounterTag('12345678:0123abcd');
+  assert.match(tag, /var sc_project=12345678;var sc_invisible=1;var sc_security="0123abcd";/u);
+  assert.match(tag, /<script src="https:\/\/www\.statcounter\.com\/counter\/counter\.js" async><\/script>/u);
+  assert.match(tag, /src="https:\/\/c\.statcounter\.com\/12345678\/0\/0123abcd\/1\/"/u);
+  assert.match(tag, /record_pageview/u, 'an app view change counts as a page view');
+  for (const value of ['12345678', '12345678:0123ABCD', 'x:0123abcd', '1";alert(1);//:0123abcd', '12345678:0123abcd\n']) {
+    assert.throws(() => statcounterTag(value), value);
+  }
+  assert.equal(publicPage(Buffer.from('<body><main></main></body>'), 'https://demo.example.com', '<i></i>'), '<body><main></main><i></i></body>');
+  assert.throws(() => publicPage(Buffer.from('<main></main>'), 'https://demo.example.com', '<i></i>'));
 });

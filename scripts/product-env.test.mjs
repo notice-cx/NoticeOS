@@ -36,6 +36,7 @@ test('product variables preserve their legacy aliases; new server inputs have no
       demoWorkspace: ['NOTICEOS_DEMO_WORKSPACE_ID', undefined],
       demoActivityService: ['NOTICEOS_DEMO_ACTIVITY_SERVICE_ID', undefined],
       demoScenarioHash: ['NOTICEOS_DEMO_SCENARIO_HASH', undefined],
+      demoStatcounter: ['NOTICEOS_DEMO_STATCOUNTER', undefined],
     },
   );
   assert.equal(HOME_ENV, 'NOTICEOS_HOME');

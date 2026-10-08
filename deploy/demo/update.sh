@@ -28,7 +28,8 @@
 #             [--repo owner/name] [--project name]
 #
 # The env file carries NOTICEOS_DEMO_IMAGE, NOTICEOS_DEMO_CONFIG,
-# NOTICEOS_DEMO_HTTP_PORT and, once this script has run, NOTICEOS_DEMO_PROJECT.
+# NOTICEOS_DEMO_HTTP_PORT, the optional NOTICEOS_DEMO_STATCOUNTER (kept as
+# set) and, once this script has run, NOTICEOS_DEMO_PROJECT.
 # Needs curl, tar and Docker with Compose on the demo host; runs docker through
 # sudo when the invoking user cannot reach the daemon. Takes no backup.
 set -eu
@@ -60,9 +61,10 @@ is_sha() { echo "$1" | grep -Eq '^[0-9a-f]{40}$'; }
 env_value() { sed -n "s/^$2=//p" "$1" | head -n 1; }
 json_value() { sed -n "s|.*\"$2\" *: *\"\([^\"]*\)\".*|\1|p" "$1" | head -n 1; }
 now_iso() { date -u +%Y-%m-%dT%H:%M:%S.000Z; }
-write_env() { # file image config port project
+write_env() { # file image config port project [statcounter]
   printf 'NOTICEOS_DEMO_IMAGE=noticeos-demo:%s\nNOTICEOS_DEMO_CONFIG=%s\nNOTICEOS_DEMO_HTTP_PORT=%s\nNOTICEOS_DEMO_PROJECT=%s\n' \
     "$2" "$3" "$4" "$5" > "$1"
+  [ -z "${6:-}" ] || printf 'NOTICEOS_DEMO_STATCOUNTER=%s\n' "$6" >> "$1"
 }
 
 if ! is_sha "$COMMIT"; then
@@ -85,6 +87,7 @@ health() { # config port
 CURRENT=$(env_value "$ENV_FILE" NOTICEOS_DEMO_IMAGE | sed 's/^noticeos-demo://')
 CONFIG=$(env_value "$ENV_FILE" NOTICEOS_DEMO_CONFIG)
 PORT=$(env_value "$ENV_FILE" NOTICEOS_DEMO_HTTP_PORT)
+STATCOUNTER=$(env_value "$ENV_FILE" NOTICEOS_DEMO_STATCOUNTER)
 [ -n "$PROJECT" ] || PROJECT=$(env_value "$ENV_FILE" NOTICEOS_DEMO_PROJECT)
 [ -n "$PROJECT" ] || PROJECT=demo-preview
 [ -n "$CONFIG" ] && [ -n "$PORT" ] || { echo "env file lacks NOTICEOS_DEMO_CONFIG or NOTICEOS_DEMO_HTTP_PORT: $ENV_FILE" >&2; exit 1; }
@@ -143,7 +146,7 @@ install_self() {
 
 if [ "$FRESH" = 0 ]; then
   echo "compatible release: swapping the app in place, data kept"
-  write_env "$ENV_FILE" "$COMMIT" "$CONFIG" "$PORT" "$PROJECT"
+  write_env "$ENV_FILE" "$COMMIT" "$CONFIG" "$PORT" "$PROJECT" "$STATCOUNTER"
   # The app shares dolt's network namespace, so dolt is recreated first.
   compose "$ENV_FILE" "$PROJECT" "$COMPOSE_FILE" up -d --wait --force-recreate dolt
   compose "$ENV_FILE" "$PROJECT" "$COMPOSE_FILE" up -d --wait --force-recreate app
@@ -171,7 +174,7 @@ mkdir -p "$NEW_DIR"; chmod 700 "$NEW_DIR"
 printf '{\n  "version": 1,\n  "publicOrigin": "%s",\n  "seed": "%s",\n  "cutoff": "%s",\n  "release": "%s",\n  "serviceExpiresAt": "%s"\n}\n' \
   "$origin" "$seed" "$now" "$COMMIT" "$expires" > "$NEW_CONFIG"
 chmod 600 "$NEW_CONFIG"
-write_env "$NEW_ENV" "$COMMIT" "$NEW_CONFIG" "$PORT" "$NEW"
+write_env "$NEW_ENV" "$COMMIT" "$NEW_CONFIG" "$PORT" "$NEW" "$STATCOUNTER"
 chmod 600 "$NEW_ENV"
 cp "$COMPOSE_FILE" "$NEW_DIR/compose.yaml"
 compose "$NEW_ENV" "$NEW" "$COMPOSE_FILE" config --quiet

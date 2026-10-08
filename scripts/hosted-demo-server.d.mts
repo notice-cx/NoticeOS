@@ -69,11 +69,19 @@ export declare function readDemoArtifact(rootInput: string): DemoArtifactManifes
  * this placeholder (apps/tower/vite/demo-head.html). It is filled from the
  * configured public origin after the artifact's hash is verified. */
 export declare const PUBLIC_ORIGIN_PLACEHOLDER = "__NOTICEOS_PUBLIC_ORIGIN__";
-export declare function publicPage(bytes: Uint8Array, origin: string): string;
+export declare function publicPage(bytes: Uint8Array, origin: string, tail?: string): string;
+/** The operator's Statcounter project for the demo's pages, from their
+ * private env file as `project:security` (deploy/demo/README.md). Product
+ * code names no account, so another operator's demo counts nothing until
+ * they set their own. The app changes views without loading a page, so
+ * each path change also records a page view. */
+export declare function statcounterTag(value: string | undefined): string;
 /** Request URL is reconstructed from configured public authority, never a
  * forwarded header. The listener must remain behind the declared TLS edge. */
 export declare function demoRequestTarget(origin: string, incoming: IncomingMessage): URL;
-export declare function startHostedDemoServer(input: HostedDemoServerOptions, adapters?: HostedDemoServerAdapters): Promise<{
+export declare function startHostedDemoServer(input: HostedDemoServerOptions, adapters?: HostedDemoServerAdapters, presentation?: {
+    readonly statcounter?: string;
+}): Promise<{
     readonly publicOrigin: string;
     close(): Promise<void>;
 }>;
