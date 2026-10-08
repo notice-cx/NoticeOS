@@ -1811,10 +1811,11 @@ test("a new site raises no nightly-report warning anywhere, and the System fract
   await expect(panel.locator('[data-site-row] [data-connection="working"]').first()).toBeVisible({ timeout: 60_000 });
   await page.goto("/");
   await expect(page.locator("[data-first-run]")).toHaveCount(0);
-  const system = page.locator('[data-kpi="System"]');
-  await expect(system).toContainText("nothing expected to report");
-  await expect(system).not.toContainText("fresh");
-  await expect(system.locator("[data-coverage-split]")).toHaveCount(0);
+  // Home is the brief (D44): the OS never describes itself here, so no
+  // System cell, no freshness fraction, nothing about a report it is not owed.
+  await expect(page.locator("[data-home-brief]")).toBeVisible();
+  await expect(page.locator('[data-kpi="System"]')).toHaveCount(0);
+  await expect(page.getByRole("main")).not.toContainText(/expected to report|fresh\b/);
   expect(pageErrors).toEqual([]);
 });
 
@@ -2360,7 +2361,7 @@ test("Home guides a new site to its first number, then becomes the dashboard", a
   // opens on the chart of what was collected.
   await page.goto("/");
   await expect(page.locator("[data-first-run]")).toHaveCount(0);
-  await expect(page.locator("[data-kpi-strip]").first()).toBeVisible();
+  await expect(page.locator("[data-home-brief]")).toBeVisible();
   await page.goto(`/assets/${JOURNEY_ASSET}`);
   await expect(page.locator("[data-hero-chart]").filter({ hasText: "Search clicks · daily" })).toBeVisible();
   await assertNoPageOverflow(page);

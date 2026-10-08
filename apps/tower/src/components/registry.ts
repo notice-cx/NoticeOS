@@ -21,6 +21,12 @@ export interface RegistryEntry {
 
 export const COMPONENT_REGISTRY: RegistryEntry[] = [
   {
+    name: "HighlightCard",
+    file: "components/HighlightCard.tsx",
+    purpose: "One thing that changed since you last looked (D44, doc 21 § Home — the Morning Brief): one kind, one sentence under twelve words, one shape (a line, a line over its normal band, or a display figure) and at most one action; the first card of a brief is the big thing. The card's tint is its kind's subject; the severity rides the dot and the word. Registry justification: Kpi is a number fused to a chart, ListRow a mark and a value in a list, SmallMultiple a figure with its history — none is a sentence with a shape and a verb.",
+    variants: ["alert (big)", "money", "people", "shipped", "win", "milestone (figure)", "bet"],
+  },
+  {
     name: "DemoViewerStatus",
     file: "components/DemoViewerStatus.tsx",
     purpose: "One synthetic/read-only identity on the desk and Wall, with scenario cutoff separate from real completed generation age (ro-ujb9.256.4). Unknown stays unknown and page polling never refreshes it. Presentation-only gallery inputs do not change viewer policy. Registry justification: operational status and source freshness badges do not identify the whole installation as synthetic.",
@@ -935,7 +941,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "Card",
     file: "components/ui/card.tsx",
     purpose: "shadcn card + header/title/content/footer parts.",
-    variants: ["Card", "CardHeader", "CardTitle", "CardContent", "CardFooter"],
+    variants: ["Card", "CardHeader", "CardTitle", "CardContent", "CardFooter", "kind: money · alert · win · neutral (D44)"],
   },
   {
     name: "Sheet",

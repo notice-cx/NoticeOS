@@ -101,6 +101,11 @@ export interface SparklineProps {
    * chart. Hide this redundant visualization, but retain its visual readout. */
   ariaHidden?: boolean;
   format?: (value: number) => string;
+  /** THE SITE'S NORMAL, drawn behind the line (D44, the Brief's alert card):
+   * a quiet band from `low` to `high` in the series' own units, so "22 a day,
+   * usually 33–45" is a shape before it is a sentence. The band widens the
+   * plotted range; it never colours the line. */
+  band?: { low: number; high: number };
   /** Why there is no line, for the hover on the empty state's dash. Doc 21:
    * "a missing figure is a dash with a reason on hover". */
   emptyReason?: string;
@@ -134,6 +139,7 @@ export function Sparkline({
   ariaHidden = false,
   format = formatInt,
   emptyReason = "No series yet",
+  band,
   ariaLabel,
   className,
   "data-spark": dataSpark,
@@ -193,8 +199,8 @@ export function Sparkline({
     );
   }
 
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const min = Math.min(...values, ...(band ? [band.low] : []));
+  const max = Math.max(...values, ...(band ? [band.high] : []));
   const span = max - min || 1;
   const plotHeight = height - PAD * 2;
   const xOf = (index: number) =>
@@ -290,6 +296,16 @@ export function Sparkline({
         <title>{description}</title>
         {/* The wash fades to nothing at the box's floor instead of a flat
             block with a hard right edge (bead `ro-trai.19`). */}
+        {band ? (
+          <rect
+            x={0}
+            width={width}
+            y={yOf(band.high)}
+            height={Math.max(1, yOf(band.low) - yOf(band.high))}
+            className="fill-muted-foreground opacity-20"
+            data-spark-band
+          />
+        ) : null}
         {area ? <ChartArea runs={lineRuns} baseline={height} strength={0.34} /> : null}
         <ChartLine runs={lineRuns} width={2} surface="stroke-card" />
         {active >= 0 ? (

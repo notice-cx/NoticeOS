@@ -40,7 +40,7 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
             : state === 'error' ? main.locator('[data-read-failed]')
             : state === 'empty' ? main.locator({ home: '[data-first-run]', sites: '[data-assets-empty]',
               alerts: '[data-surface-hero]', tasks: '[data-task-hub-unavailable]' }[name])
-            : main.locator({ home: '[aria-labelledby="home-status-scope"]', sites: '[data-asset-row]',
+            : main.locator({ home: '[data-home-brief]', sites: '[data-asset-row]',
               alerts: '[data-surface-hero]', tasks: '[data-inbox-row], [data-task-row]' }[name]).first();
           await expect(answer).toBeVisible();
           const baselineFont = await heading.evaluate(el => parseFloat(getComputedStyle(el).fontSize));
