@@ -290,6 +290,40 @@ function signedScale(min: number, max: number, format: (value: number) => string
   return { top: reach, bottom: -reach, steps: 2 };
 }
 
+/** A line whose lowest reading is at least this share of its highest is drawn
+ * on a fitted scale (`fittedScale`): from zero it would be a flat band across
+ * the top of the plot, its shape squeezed out of sight. */
+const FIT_FLOOR_SHARE = 0.5;
+
+/**
+ * A FITTED domain for a positive line that never comes near zero — traffic
+ * between 1,900 and 2,100 a day, a month's net between $1,500 and $1,800.
+ * Zero-based, such a line spends three quarters of the plot on nothing and its
+ * movement is a few pixels; fitted, it fills the plot and the movement is the
+ * shape the reader came for. The labelled gutter carries the floor, so the
+ * axis still states exactly where it starts. Like `signedScale`, the step is
+ * chosen first from the observed span and both ends are rounded outward to
+ * whole steps, so every tick is a number the format prints exactly.
+ *
+ * Bars and steps never take it: a bar's length is its value, and a bar cut off
+ * at a floor above zero says something false about the ratio between two days.
+ */
+function fittedScale(min: number, max: number, format: (value: number) => string) {
+  const span = max - min;
+  if (!(min > 0) || min < max * FIT_FLOOR_SHARE || span < SMALL_DOMAIN) return null;
+  for (const target of [GRID_LINES, 5, 3, 2]) {
+    const step = niceStep(span / target);
+    if (!isExactStep(step)) continue;
+    const bottom = Math.floor(min / step) * step;
+    const top = Math.ceil(max / step) * step;
+    const steps = Math.round((top - bottom) / step);
+    if (steps < 2 || steps > 6 || bottom <= 0) continue;
+    const labels = scaleTicks(bottom, top, steps).map(format);
+    if (new Set(labels).size === labels.length) return { top, bottom, steps };
+  }
+  return null;
+}
+
 /**
  * The scale, as a top and the number of gaps beneath it.
  *
@@ -342,7 +376,10 @@ function heroScale(min: number, max: number, format: (value: number) => string) 
  * below zero (bead `ro-78qo.28`) — /financials' net by month is the standing
  * case. That is a property of the data and not a prop: a chart cannot be asked
  * to draw a negative month above the floor, so there is nothing for a caller to
- * opt into. A positive-only series draws exactly as it always did.
+ * opt into. A line whose lowest reading is at least half its highest is
+ * FITTED (`fittedScale`): its labelled floor sits just below the data, so
+ * similar values draw as a shape rather than a flat band. Bars and steps stay
+ * zero-based.
  */
 export function HeroChart({
   title,
@@ -455,7 +492,11 @@ export function HeroChart({
   const observed = shown
     .flatMap((lane) => [...lane.raw, ...lane.average])
     .filter((value): value is number => value !== null);
-  const { top, bottom, steps } = heroScale(
+  // Lines and monthly lines fit a range far from zero; bars and steps cannot.
+  const fitted = variant === "line" || variant === "monthly"
+    ? fittedScale(Math.min(...observed), Math.max(...observed), format)
+    : null;
+  const { top, bottom, steps } = fitted ?? heroScale(
     Math.min(0, ...observed),
     Math.max(0, ...observed),
     format,
@@ -531,8 +572,9 @@ export function HeroChart({
           .join(" ");
         // Toward ZERO, not toward the floor: on a signed scale a negative month
         // fills downward from the zero line, which is the only fill that says
-        // what the period was.
-        const base = yOf(0);
+        // what the period was. A fitted scale has no zero inside the plot; its
+        // wash stops at the labelled floor.
+        const base = yOf(Math.max(0, bottom));
         return `${body} L${xOf(run.at(-1)!.index)} ${base} L${xOf(run[0]!.index)} ${base} Z`;
       })
       .join(" ");

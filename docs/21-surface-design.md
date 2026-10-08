@@ -170,6 +170,12 @@ against this table:
   It is behaviour rather than a prop, so no caller opts in — which means
   /financials' hero can be **net by month** itself, with revenue and cost as its
   toggles, rather than the two lines whose gap the net is.
+- `HeroChart`'s y domain is **fitted when a line never nears zero**
+  (2026-10-08): a line or monthly line whose lowest drawn value is at least
+  half its highest gets a labelled floor just below the data
+  (`fittedScale`), so traffic between 1,900 and 2,100 draws as a shape rather
+  than a flat band at the top of the plot. Its wash stops at that floor. Bars
+  and steps stay zero-based: a bar's length is its value.
 
 The rules "Details the mockup settles" states are held by the components rather
 than by each page: `Kpi` takes `improvement` (`"up"` / `"down"` / `"none"`) and
