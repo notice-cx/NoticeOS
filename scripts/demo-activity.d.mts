@@ -51,6 +51,19 @@ export interface DemoTaskIntention {
     acceptance: string;
     closeReason: string;
 }
+/** One quarter-hour refresh of today's provisional traffic and search
+ * (the `counters` lane's Google step). A missing day stays missing. */
+export interface DemoActivityCollection {
+    synthetic: true;
+    version: 1;
+    scenarioHash: string;
+    at: string;
+    date: string;
+    assets: {
+        asset: string;
+        signals: DemoActivitySignal[];
+    }[];
+}
 export interface DemoActivityDay {
     synthetic: true;
     version: 1;
@@ -65,6 +78,12 @@ export interface DemoActivityDay {
     money: DemoActivityMoney[];
     task: DemoTaskIntention | null;
 }
+/** Share of a day's activity in each UTC hour: quiet overnight, busiest early
+ * afternoon, an evening bump. The live minute pulse and the quarter-hour
+ * refresh read the same day shape. */
+export declare const DEMO_HOUR_SHARE: readonly number[];
+/** The share of a UTC day's activity counted by the end of `minuteOfDay`. */
+export declare function demoDayShare(minuteOfDay: number): number;
 /** Capture one original scenario. Advancing time never regenerates its seed,
  * asset identities, historical incidents, task history or accounting anchor.
  * Cumulative counters use bounded closed-form sums, not a scan of elapsed days.
@@ -72,4 +91,5 @@ export interface DemoActivityDay {
 export declare function createDemoActivity(input: DemoScenario): {
     day(date: string): DemoActivityDay;
     batch(first: string, last: string): DemoActivityDay[];
+    collection(at: string): DemoActivityCollection;
 };

@@ -145,7 +145,8 @@ test('store identity checks are read-only and close their pool on every refusal'
   const f = resources(t), databaseFile = path.join(f.installation.home, 'database.url'); fs.writeFileSync(databaseFile, 'synthetic-own-address');
   const installation = { ...f.installation, databaseFile, viewer: { workspaceId: 'own-workspace' }, assetIds: ['example.com'],
     projects: [{ asset: 'example.com', prefix: 'ex', database: 'demo_ex', repo: path.join(f.installation.home, 'tasks/ex') }],
-    display: { 'config/tower.json': { countdown: { label: 'Portfolio review' } }, 'config/counters.json': { assets: {} } } };
+    display: { 'config/tower.json': { countdown: { label: 'Portfolio review' } }, 'config/counters.json': { assets: {} } },
+    integrations: { 'example.com': { ga4: { status: 'live', since: '2026-01-01' } } } };
   for (const defect of [null, 'workspace', 'profile', 'credentials', 'assets', 'documents', 'taskRoster', 'providerRoster', 'display']) {
     let closed = 0, transactions = 0;
     const store = { onlyWorkspace: async () => defect === 'workspace' ? 'another' : 'own-workspace', close: async () => { closed++; },
@@ -159,7 +160,7 @@ test('store identity checks are read-only and close their pool on every refusal'
           if (defect === 'documents') return [];
           // SQL stores slug keys and JSON text; object key order is not identity.
           return [{ document_key: 'beads', body: JSON.stringify({ spokes: [{ database: 'demo_ex', prefix: defect === 'taskRoster' ? 'foreign' : 'ex', asset: 'example.com' }] }) },
-            { document_key: 'integrations', body: JSON.stringify({ assets: { 'example.com': defect === 'providerRoster' ? { ga4: {} } : {} } }) },
+            { document_key: 'integrations', body: JSON.stringify({ assets: { 'example.com': defect === 'providerRoster' ? { ga4: { status: 'live', since: '2026-01-01', propertyId: '1' } } : installation.integrations['example.com'] } }) },
             { document_key: 'tower', body: JSON.stringify(defect === 'display' ? {} : installation.display['config/tower.json']) },
             { document_key: 'counters', body: JSON.stringify(installation.display['config/counters.json']) }];
         } });

@@ -47,6 +47,16 @@ export interface DemoTaskIntention {
   acceptance: string;
   closeReason: string;
 }
+/** One quarter-hour refresh of today's provisional traffic and search
+ * (the `counters` lane's Google step). A missing day stays missing. */
+export interface DemoActivityCollection {
+  synthetic: true;
+  version: 1;
+  scenarioHash: string;
+  at: string;
+  date: string;
+  assets: { asset: string; signals: DemoActivitySignal[] }[];
+}
 export interface DemoActivityDay {
   synthetic: true;
   version: 1;
@@ -67,6 +77,22 @@ function dateNumber(value: unknown): number {
 const draw = (seed: string, key: string): number =>
   createHash('sha256').update(`${seed}\0activity-v${DEMO_ACTIVITY_VERSION}\0${key}`).digest().readUInt32BE(0) / 2 ** 32;
 const mean = (values: readonly number[]): number => values.reduce((a, b) => a + b, 0) / values.length;
+/** Share of a day's activity in each UTC hour: quiet overnight, busiest early
+ * afternoon, an evening bump. The live minute pulse and the quarter-hour
+ * refresh read the same day shape. */
+export const DEMO_HOUR_SHARE: readonly number[] = (() => {
+  const weights = [1.2, 0.9, 0.7, 0.6, 0.6, 0.8, 1.3, 2.2, 3.4, 4.6, 5.4, 5.8,
+    5.9, 6.0, 6.1, 6.0, 5.6, 5.0, 4.4, 4.2, 4.5, 4.2, 3.2, 2.0];
+  const total = weights.reduce((a, b) => a + b, 0);
+  return Object.freeze(weights.map(weight => weight / total));
+})();
+/** The share of a UTC day's activity counted by the end of `minuteOfDay`. */
+export function demoDayShare(minuteOfDay: number): number {
+  if (!Number.isInteger(minuteOfDay) || minuteOfDay < 0 || minuteOfDay >= 1440) refuse();
+  const hour = Math.floor(minuteOfDay / 60);
+  return DEMO_HOUR_SHARE.slice(0, hour).reduce((a, b) => a + b, 0)
+    + DEMO_HOUR_SHARE[hour]! * ((minuteOfDay % 60) + 1) / 60;
+}
 const tasks = [
   ['Check exported brief headings', 'Compare the synthetic brief preview with its exported headings.'],
   ['Review saved-source labels', 'Check that saved sources keep their titles and source links.'],
@@ -80,6 +106,7 @@ const tasks = [
 export function createDemoActivity(input: DemoScenario): {
   day(date: string): DemoActivityDay;
   batch(first: string, last: string): DemoActivityDay[];
+  collection(at: string): DemoActivityCollection;
 } {
   const scenario = generateDemoScenario(input.manifest);
   const hash = demoScenarioHash(scenario);
@@ -180,7 +207,31 @@ export function createDemoActivity(input: DemoScenario): {
     }
     return { synthetic: true, version: DEMO_ACTIVITY_VERSION, scenarioHash: hash, date, key, assets, money, task };
   };
-  return Object.freeze({ day, batch(first: string, last: string): DemoActivityDay[] {
+  /** Today so far: each provisional count is the finished day's count scaled
+   * by the share of the day already counted, so the quarter-hour refreshes
+   * rise toward the value the next day's report finalises. Rates and averages
+   * (CTR, position) are the day's own. */
+  const collection = (at: string): DemoActivityCollection => {
+    const instant = typeof at === 'string' ? Date.parse(at) : NaN;
+    if (!Number.isFinite(instant) || new Date(instant).toISOString() !== at) refuse();
+    const date = at.slice(0, 10), facts = day(date);
+    const minute = new Date(instant).getUTCHours() * 60 + new Date(instant).getUTCMinutes();
+    const share = demoDayShare(minute);
+    const partial = (value: number) => Math.round(value * share);
+    const assets = facts.assets.map(({ asset, signals }) => ({ asset, signals: signals.map((signal): DemoActivitySignal => {
+      if (signal.observations === null) return signal;
+      const final = Object.fromEntries(signal.observations.map(row => [row.metric, row.value]));
+      const values: Record<string, number> = signal.integration === 'ga4'
+        ? { sessions: partial(final.sessions!), active_users: partial(final.active_users!), page_views: partial(final.page_views!), event_count: partial(final.event_count!) }
+        : (() => {
+          const clicks = partial(final.clicks!), impressions = partial(final.impressions!);
+          return { clicks, impressions, ctr: impressions === 0 ? 0 : clicks / impressions, position: final.position! };
+        })();
+      return { ...signal, observations: Object.entries(values).map(([metric, value]) => ({ date, metric, value })) };
+    }) }));
+    return { synthetic: true, version: DEMO_ACTIVITY_VERSION, scenarioHash: hash, at, date, assets };
+  };
+  return Object.freeze({ day, collection, batch(first: string, last: string): DemoActivityDay[] {
     const days = dateNumber(last) - dateNumber(first) + 1;
     if (days < 1 || days > DEMO_ACTIVITY_LIMITS.daysPerBatch) refuse();
     return Array.from({ length: days }, (_, i) => day(shiftDemoDay(first, i)));

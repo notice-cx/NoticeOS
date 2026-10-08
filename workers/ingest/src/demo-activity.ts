@@ -2,10 +2,10 @@
  * demo workspace and owns its transaction/checkpoint. No HTTP entry, provider,
  * credential, operator token or custom rule is accepted here. */
 import type { WorkspaceStore } from '@noticeos/postgres';
-import type { DemoActivityDay } from '../../../scripts/demo-activity.mjs';
+import type { DemoActivityCollection, DemoActivityDay } from '../../../scripts/demo-activity.mjs';
 import type { BeadsSnapshotInput } from '@noticeos/contract/task-snapshot';
 import { ingestPulseEnvelope, runAssetZeroPulse } from './db.js';
-import { recordSignalSuccess } from './signal-store.js';
+import { recordSignalFailure, recordSignalSuccess, SignalError } from './signal-store.js';
 import { importLedgerRows } from './routes/revenue.js';
 import { writeBeadsSnapshot } from './beads-snapshots.js';
 
@@ -47,6 +47,36 @@ export async function writeDemoActivity(store: WorkspaceStore, day: DemoActivity
   // an earlier OS report or successful provider/scheduler activity.
   if (await runAssetZeroPulse(env) === null) throw new Error('Demo OS observation has no asset.');
   return { written: written + 1, assets: day.assets.length, date: day.date };
+}
+
+/** One quarter-hour refresh through the ordinary signal writer: today's
+ * provisional counts, or a recorded failure for a report the scenario keeps
+ * missing — never a zero standing in for it. Outcomes follow the Google
+ * collector's per-property shape, so the run names what it could not read. */
+export async function writeDemoCollection(store: WorkspaceStore, collection: DemoActivityCollection): Promise<{
+  succeeded: number; written: number; outcomes: { asset: string; integration: string; status: 'success' | 'error'; observationCount: number }[];
+}> {
+  const env = Object.freeze({ STORE: store });
+  const window = { start: collection.date, end: collection.date };
+  const outcomes: { asset: string; integration: string; status: 'success' | 'error'; observationCount: number }[] = [];
+  for (const asset of collection.assets) {
+    for (const signal of asset.signals) {
+      const target = { asset: asset.asset, integration: signal.integration, propertyRef: signal.propertyRef, credentialRef: signal.credentialRef };
+      if (signal.observations === null) {
+        await recordSignalFailure(env, target, window, Date.parse(collection.at),
+          new SignalError('report_unavailable', 'Synthetic report unavailable for this day.'));
+        outcomes.push({ asset: asset.asset, integration: signal.integration, status: 'error', observationCount: 0 });
+        continue;
+      }
+      await recordSignalSuccess(env, target, window, collection.at, {
+        observations: signal.observations, providerRows: 1, dataState: 'includes-provisional',
+        provisionalFrom: collection.date, timeZone: signal.timeZone,
+      });
+      outcomes.push({ asset: asset.asset, integration: signal.integration, status: 'success', observationCount: signal.observations.length });
+    }
+  }
+  const succeeded = outcomes.filter(outcome => outcome.status === 'success');
+  return { succeeded: succeeded.length, written: succeeded.reduce((sum, outcome) => sum + outcome.observationCount, 0), outcomes };
 }
 
 export async function writeDemoTaskSnapshot(store: WorkspaceStore, snapshot: BeadsSnapshotInput): Promise<{ written: number }> {

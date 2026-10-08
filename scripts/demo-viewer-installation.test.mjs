@@ -5,7 +5,7 @@ import os from 'node:os';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
 import { generateDemoScenario, demoScenarioHash } from './demo-scenario.mjs';
-import { generateDemoDisplay } from './demo-display.mjs';
+import { demoIntegrationAssets, generateDemoDisplay } from './demo-display.mjs';
 import { startDoltPlan } from './dolt-profile.mjs';
 import { readDemoViewerInstallation, readDemoViewerLaunch } from './demo-viewer-installation.mjs';
 
@@ -34,7 +34,7 @@ function fixture(t) {
   write('postgres/secrets/database.url', `postgresql://noticeos_app:own-synthetic-value@127.0.0.1:6202/noticeos?sslmode=disable\n`);
   write('installation/task-host.json', { version: 1, repositories: projects });
   write('installation/beads.json', { spokes: scenario.manifest.taskProjects });
-  write('installation/integrations.json', { assets: Object.fromEntries(scenario.assets.map(asset => [asset.id, {}])) });
+  write('installation/integrations.json', { assets: demoIntegrationAssets(scenario) });
   const evaluator = { release, tree, artifacts: { 'rules.js': artifact, 'poisson.js': artifact }, workers: {
     compiler: 'synthetic-proof', inputs: { 'workers/ingest/src/watch-windows.ts': sha('export {};\n') }, artifacts: { watch: artifact, snapshots: artifact, configuration: artifact, jobs: artifact, reports: artifact } } };
   const tasks = { version: 1, synthetic: true, release, scenarioHash: demoScenarioHash(scenario), workspaceId: scenario.manifest.workspaceId,
@@ -68,7 +68,8 @@ test('a completed generation gives one immutable descriptor and exact owned read
   assert.deepEqual(result.projects, f.tasks.projects);
   for (const value of [result, result.viewer, result.dolt, result.projects, ...result.projects, result.assetIds,
     result.display, ...Object.values(result.display), result.display['config/tower.json'].wall.layout,
-    result.display['config/counters.json'].assets]) assert.equal(Object.isFrozen(value), true);
+    result.display['config/counters.json'].assets, result.integrations]) assert.equal(Object.isFrozen(value), true);
+  assert.deepEqual(result.integrations, demoIntegrationAssets(f.scenario));
   assert.doesNotMatch(JSON.stringify(result), /own-synthetic-value|password=/u);
 });
 test('partial, altered, future or cross-release completion refuses without inventing a generation age', t => {

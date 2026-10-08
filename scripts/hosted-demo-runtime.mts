@@ -8,6 +8,7 @@ import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { createHostedTaskExecutor, type HostedTaskTarget, type HostedTaskExecutorOptions } from './hosted-task-executor.mjs';
 import { createHostedDemo, type HostedDemoOptions, type HostedDemoTick, type DemoActivityWriter } from './hosted-demo.mjs';
 import { buildDemoWorkerHelpers } from './demo-evaluator.mjs';
+import { startHostedScheduler } from './hosted-scheduler.mjs';
 
 export interface HostedDemoRuntimeOptions {
   readonly sourceRoot: string;
@@ -27,7 +28,7 @@ export interface HostedDemoRuntimeOptions {
   readonly now?: HostedDemoOptions['now'];
 }
 
-export async function openHostedDemo(options: HostedDemoRuntimeOptions): Promise<ReturnType<typeof createHostedDemo>> {
+export async function openHostedDemo(options: HostedDemoRuntimeOptions): Promise<Pick<ReturnType<typeof createHostedDemo>, 'tick' | 'close'>> {
   const { workspaceId, serviceId, sourceRoot, configurationRoot, connectionString, grantConnectionString, directoryConnectionString, scratchRoot, now } = options;
   const scenario = structuredClone(options.scenario), binary = Object.freeze({ ...options.binary }), doltBinary = Object.freeze({ ...options.doltBinary });
   const projects = options.projects.map(row => Object.freeze({ asset: row.asset, prefix: row.prefix,
@@ -37,6 +38,7 @@ export async function openHostedDemo(options: HostedDemoRuntimeOptions): Promise
   const allocations = new Map(projects.map(row => [row.mapping.projectId, row]));
   const resources: { close(): Promise<void> }[] = [];
   let demo: ReturnType<typeof createHostedDemo> | undefined;
+  let schedule: Awaited<ReturnType<typeof startHostedScheduler>> | undefined;
   try {
     const store = openWorkspaceStore(connectionString, { workspaceId });
     resources.push(store);
@@ -56,21 +58,33 @@ export async function openHostedDemo(options: HostedDemoRuntimeOptions): Promise
         return held.target;
       } });
     const helpers = await buildDemoWorkerHelpers(sourceRoot, { activity: true, configurationRoot });
-    if (typeof helpers.writeDemoActivity !== 'function' || typeof helpers.writeDemoTaskSnapshot !== 'function') throw new Error('Released demo input writer absent.');
+    if (typeof helpers.writeDemoActivity !== 'function' || typeof helpers.writeDemoCollection !== 'function'
+      || typeof helpers.writeDemoTaskSnapshot !== 'function') throw new Error('Released demo input writer absent.');
     const write: DemoActivityWriter['write'] = helpers.writeDemoActivity;
+    const collect: DemoActivityWriter['collect'] = helpers.writeDemoCollection;
     const snapshot: DemoActivityWriter['snapshot'] = helpers.writeDemoTaskSnapshot;
-    demo = createHostedDemo({ workspaceId, serviceId, scenario, store, grant, writer: { write, snapshot }, tasks, now,
+    demo = createHostedDemo({ workspaceId, serviceId, scenario, store, grant, writer: { write, collect, snapshot }, tasks, now,
       projects: projects.map(row => ({ asset: row.asset, prefix: row.prefix, projectId: row.mapping.projectId })) });
     const opened = demo;
+    // The ordinary hosted scheduler owns its own connections and timers; a
+    // controlled clock (disposable qualification) runs no live schedule.
+    if (!now) {
+      const scheduleStore = openWorkspaceStore(connectionString, { workspaceId });
+      const scheduleGrant = openWorkspaceServiceGrant({ connectionString: grantConnectionString, principalId: serviceId, workspaceId });
+      schedule = await startHostedScheduler([{ workspaceId, serviceId, store: scheduleStore, grant: scheduleGrant, definitions: opened.schedule }]);
+    }
+    const scheduled = schedule;
     let closing: Promise<void> | undefined;
     return Object.freeze({ tick: () => opened.tick(), close() {
       if (closing) return closing;
       closing = (async () => {
-        try { await opened.close(); } finally { await directory.close(); }
+        try { await scheduled?.close(); } finally {
+          try { await opened.close(); } finally { await directory.close(); }
+        }
       })(); return closing;
     } });
   } catch (error) {
-    await Promise.allSettled([demo?.close(), ...resources.map(resource => resource.close())]); throw error;
+    await Promise.allSettled([schedule?.close(), demo?.close(), ...resources.map(resource => resource.close())]); throw error;
   }
 }
 

@@ -38,7 +38,7 @@ const projects = assets.map((asset, i) => ({ asset: asset.id, projectId: allocat
 test('demo composition refuses a foreign workspace, changed seed and ambiguous task ownership before I/O', () => {
   const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
   const options = { workspaceId: workspace, serviceId: randomUUID(), scenario, projects,
-    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { write() {}, snapshot() {} } };
+    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { write() {}, collect() {}, snapshot() {} } };
   assert.throws(() => createHostedDemo({ ...options, workspaceId: customers[0] }), /demo activity refused/);
   const changed = structuredClone(scenario); changed.daily[0].sessions++;
   assert.throws(() => createHostedDemo({ ...options, scenario: changed }), /demo activity refused/);
@@ -108,7 +108,7 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
     const make = (over = {}) => {
       const demo = createHostedDemo({ workspaceId: workspace, serviceId, scenario, projects,
         store: openStore(), grant: openGrant(), now: () => clock,
-        writer: { async snapshot(store, snapshot) {
+        writer: { collect: helpers.writeDemoCollection, async snapshot(store, snapshot) {
           const result = await helpers.writeDemoTaskSnapshot(store, snapshot);
           if (failSnapshot) { failSnapshot = false; throw new Error('Controlled rollback after task summary write'); }
           return result;

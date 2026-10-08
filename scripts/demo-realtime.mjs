@@ -5,7 +5,7 @@
 // within a minute agree and the hour still filling grows monotonically. No
 // provider is called and nothing is written; this is display data only.
 import { createHash } from 'node:crypto';
-import { createDemoActivity } from './demo-activity.mjs';
+import { createDemoActivity, DEMO_HOUR_SHARE as HOUR_SHARE } from './demo-activity.mjs';
 import { shiftDemoDay } from './demo-scenario.mjs';
 export const DEMO_REALTIME_VERSION = 1;
 /** GA4's standard realtime window and the bright tail the Wall draws
@@ -18,15 +18,7 @@ const HOURLY_OVERLAP = 1.15;
 /** Distinct users active in one minute ≈ arrivals that minute × the minutes
  * each stays active. */
 const MINUTE_DWELL = 1.6;
-/** Share of a day's active users whose activity falls in each UTC hour: a
- * content site's day, quiet overnight, busiest early afternoon, an evening bump. */
-const HOUR_SHARE = normalize([1.2, 0.9, 0.7, 0.6, 0.6, 0.8, 1.3, 2.2, 3.4, 4.6, 5.4, 5.8,
-    5.9, 6.0, 6.1, 6.0, 5.6, 5.0, 4.4, 4.2, 4.5, 4.2, 3.2, 2.0]);
 function refuse() { throw new Error('Demo realtime reading refused.'); }
-function normalize(weights) {
-    const sum = weights.reduce((a, b) => a + b, 0);
-    return Object.freeze(weights.map(weight => weight / sum));
-}
 const sum = (values) => values.reduce((a, b) => a + b, 0);
 const dayNumber = (date) => {
     const ms = Date.parse(`${date}T00:00:00.000Z`);

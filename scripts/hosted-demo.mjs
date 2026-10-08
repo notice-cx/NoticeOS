@@ -11,6 +11,8 @@ import { createDemoActivity, DEMO_ACTIVITY_LIMITS } from './demo-activity.mjs';
 import { generateDemoScenario, demoScenarioHash, shiftDemoDay } from './demo-scenario.mjs';
 import { DEMO_ACTIVITY_DEFINITION, demoActivityPrefix } from './demo-activity-definition.mjs';
 const LANE = DEMO_ACTIVITY_DEFINITION.key;
+/** Version of the demo's implementations of the release's scheduled jobs. */
+const SCHEDULE_VERSION = 'demo-v1';
 const DAY = 86400000;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 export class HostedDemoRefused extends Error {
@@ -56,7 +58,7 @@ export function createHostedDemo(options) {
     const { workspaceId, serviceId, store, grant, tasks, writer } = options;
     if (!UUID.test(workspaceId) || !UUID.test(serviceId) || !store || !grant
         || typeof tasks?.execute !== 'function' || typeof writer?.write !== 'function'
-        || typeof writer?.snapshot !== 'function')
+        || typeof writer?.collect !== 'function' || typeof writer?.snapshot !== 'function')
         refuse();
     const scenario = generateDemoScenario(options.scenario.manifest);
     const hash = demoScenarioHash(scenario);
@@ -149,6 +151,29 @@ export function createHostedDemo(options) {
                             return inTransaction(tx, signal, scoped => writer.snapshot(scoped, snapshot));
                         } }],
             }] });
+    // The release's own job identities, so the hosted scheduler records each
+    // execution in the journal the Workflows page reads: the quarter-hour Google
+    // refresh writes today's provisional counts, the board refresh reads the
+    // real task service. Input is the scheduler's minute, never a payload.
+    const minuteOf = (input) => {
+        const at = input && typeof input === 'object' && !Array.isArray(input) && Object.keys(input).length === 1
+            ? input.scheduledAt : input;
+        if (typeof at !== 'string' || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:00\.000Z$/u.test(at))
+            refuse();
+        activity.collection(at);
+        return at;
+    };
+    const refreshBoard = async (signal, tx) => {
+        const snapshot = await snapshots.snapshot(new Request('https://noticeos.internal/demo-snapshot', { method: 'POST', signal }), { signal, deadline: Date.now() + 29000 });
+        const written = await inTransaction(tx, signal, scoped => writer.snapshot(scoped, snapshot));
+        return { ...written, projects: snapshot.projects.map(({ asset, ok, counts }) => ({ asset, ok, counts })) };
+    };
+    const schedule = Object.freeze([
+        { key: 'counters', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'google', kind: 'database', action: 'workflows.run',
+                    run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => writer.collect(scoped, activity.collection(minuteOf(input)))) }] },
+        { key: 'beads-snapshot', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'execute', kind: 'database', action: 'workflows.run',
+                    run: async ({ signal }, tx) => refreshBoard(signal, tx) }] },
+    ]);
     async function tick() {
         if (stopped)
             refuse();
@@ -188,6 +213,7 @@ export function createHostedDemo(options) {
         return Object.freeze({ synthetic: true, through, days: Object.freeze(days) });
     }
     return Object.freeze({
+        schedule,
         tick() {
             const work = tick();
             pending.add(work);

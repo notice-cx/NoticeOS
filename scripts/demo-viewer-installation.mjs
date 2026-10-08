@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { generateDemoScenario, demoScenarioHash } from './demo-scenario.mjs';
-import { generateDemoDisplay } from './demo-display.mjs';
+import { demoIntegrationAssets, generateDemoDisplay } from './demo-display.mjs';
 import { readDoltProfile, readDoltCredentials, startDoltPlan } from './dolt-profile.mjs';
 import { validateDemoViewer } from './demo-viewer-policy.mjs';
 import { PRODUCT_ENV } from './product-env.mjs';
@@ -159,7 +159,7 @@ export function readDemoViewerInstallation({ root, home, release, tree, now = Da
         || tasks.tasks !== scenario.tasks.length || tasks.snapshots !== counts.taskSnapshots || !same(tasks.projects, projects)
         || !same(manifest.taskGeneration, tasks) || host.version !== 1 || !same(host.repositories, projects)
         || !same(beads.spokes, scenario.manifest.taskProjects)
-        || !same(integrations.assets, Object.fromEntries(scenario.assets.map(asset => [asset.id, {}])))) {
+        || !same(integrations.assets, demoIntegrationAssets(scenario))) {
         throw new Error('The demo task or provider roster differs from its scenario.');
     }
     for (const project of projects) {
@@ -178,7 +178,8 @@ export function readDemoViewerInstallation({ root, home, release, tree, now = Da
     }
     return Object.freeze({ home, viewer, tree, postgresProject: dolt.project, postgresPort, databaseFile,
         dolt: Object.freeze(dolt), projects: Object.freeze(projects), assetIds: Object.freeze(scenario.assets.map(asset => asset.id)),
-        client: Object.freeze({ version: client.version, sha256: client.sha256 }), display: freezeDocument(display) });
+        client: Object.freeze({ version: client.version, sha256: client.sha256 }), display: freezeDocument(display),
+        integrations: freezeDocument(demoIntegrationAssets(scenario)) });
 }
 /** The Vite configuration accepts only a launch declaration that still matches
  * completed custody and every local runtime binding. Ordinary installs do no IO. */
