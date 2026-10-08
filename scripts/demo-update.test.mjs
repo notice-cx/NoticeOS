@@ -52,19 +52,26 @@ case "$last" in
   *archive/*.tar.gz) cat "$STUB_ARCHIVE" ;;
   */scripts/demo-scenario.mts) printf 'export const SCENARIO_VERSION = %s;\\n' "$STUB_OURS_VERSION" ;;
   */frozen-migrations.sha256) printf '%s  migrations/0001_baseline.sql\\n' "$STUB_OURS_MIGRATIONS" ;;
-  *__noticeos_health) printf '{ "ok": true }' ;;
+  *__noticeos_health)
+    n=0; [ -f "$STUB_HEALTH_COUNT" ] && n=$(cat "$STUB_HEALTH_COUNT"); n=$((n + 1)); echo "$n" > "$STUB_HEALTH_COUNT"
+    if [ "$n" -le "$STUB_HEALTH_FAIL_FIRST" ]; then exit 22; fi
+    printf '{ "ok": true }' ;;
   *) echo "unexpected curl: $*" >&2; exit 22 ;;
 esac
 `, { mode: 0o755 });
   const run = (args, env = {}) => {
     const result = spawnSync('sh', [installed, '--env', path.join(operator, 'demo.env'), '--source', source, ...args], {
       encoding: 'utf8', env: { PATH: `${stubs}:${process.env.PATH}`, HOME: dir, STUB_DOCKER_LOG: log, STUB_MAIN_SHA: NEW,
-        STUB_ARCHIVE: path.join(dir, 'source.tar.gz'), STUB_OURS_VERSION: '4', STUB_OURS_MIGRATIONS: 'digest-one', STUB_FAIL_PROJECT: 'none', ...env },
+        STUB_ARCHIVE: path.join(dir, 'source.tar.gz'), STUB_OURS_VERSION: '4', STUB_OURS_MIGRATIONS: 'digest-one', STUB_FAIL_PROJECT: 'none',
+        STUB_HEALTH_COUNT: path.join(dir, 'health.count'), STUB_HEALTH_FAIL_FIRST: '0', ...env },
     });
     return { ...result, log: fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n') : [] };
   };
-  return { dir, operator, source, installed, run, env: () => fs.readFileSync(path.join(operator, 'demo.env'), 'utf8') };
+  const envFile = path.join(operator, 'demo.env');
+  return { dir, operator, source, installed, run, env: () => fs.readFileSync(envFile, 'utf8'),
+    setEnv: text => fs.writeFileSync(envFile, text) };
 }
+const compose = result => result.log.filter(line => line !== 'info' && !line.startsWith('build ')).map(line => line.replace(/--env-file \S+ /u, '').replace(/-f \S+ /u, ''));
 
 test('a compatible release swaps the app in place: build, image tag only, dolt before app, data kept', t => {
   const f = fixture(t);
@@ -110,7 +117,7 @@ test('a fresh generation that fails health is stopped and the previous generatio
   const f = fixture(t, { migrations: 'digest-two' });
   const result = f.run(['--commit', NEW], { STUB_FAIL_PROJECT: 'demo-g2' });
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /fresh generation demo-g2 failed; bringing demo-preview back/u);
+  assert.match(result.stderr, /fresh generation demo-g2 failed[\s\S]*bringing demo-preview back/u);
   assert.match(result.stderr, new RegExp(`deploy of ${NEW} failed; demo-preview at ${OLD} is back`, 'u'));
   const steps = result.log.filter(line => line !== 'info' && !line.startsWith('build ')).map(line => line.replace(/--env-file \S+ /u, '').replace(/-f \S+ /u, ''));
   assert.deepEqual(steps.slice(-4), [
@@ -130,7 +137,26 @@ test('an installed copy that fell behind hands over to the target commit\'s scri
   assert.match(result.stdout, /continuing with the target commit's own update script/u);
   assert.match(result.stdout, /installed this release's update script/u);
   assert.equal(fs.readFileSync(f.installed, 'utf8'), fs.readFileSync(SCRIPT, 'utf8'));
-  assert.equal(f.run(['--commit', NEW]).stdout.trim(), `already on ${NEW}`);
+  assert.equal(f.run(['--commit', NEW]).stdout.trim(), `already on ${NEW} and healthy`);
+});
+
+test('a demo left unhealthy by an older script on the target commit is deployed again: the seeded release decides, a fresh generation repairs it', t => {
+  const f = fixture(t, { scenarioVersion: 5 });
+  // An older update.sh swapped the image tag to the target; the generation is still the one seeded from OLD, and it is down.
+  f.setEnv(`NOTICEOS_DEMO_IMAGE=noticeos-demo:${NEW}\nNOTICEOS_DEMO_CONFIG=${f.operator}/demo.json\nNOTICEOS_DEMO_HTTP_PORT=16448\n`);
+  const result = f.run(['--commit', NEW], { STUB_HEALTH_FAIL_FIRST: '2' });
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /already on/u);
+  assert.match(result.stdout, /incompatible release: preparing fresh generation demo-g2/u);
+  assert.match(f.env(), /^NOTICEOS_DEMO_PROJECT=demo-g2$/mu);
+  // The same situation with a failing new generation: nothing unhealthy is brought back.
+  const g = fixture(t, { scenarioVersion: 5 });
+  g.setEnv(`NOTICEOS_DEMO_IMAGE=noticeos-demo:${NEW}\nNOTICEOS_DEMO_CONFIG=${g.operator}/demo.json\nNOTICEOS_DEMO_HTTP_PORT=16448\n`);
+  const failed = g.run(['--commit', NEW], { STUB_HEALTH_FAIL_FIRST: '2', STUB_FAIL_PROJECT: 'demo-g2' });
+  assert.equal(failed.status, 1);
+  assert.match(failed.stderr, /demo-preview was not healthy before and stays stopped/u);
+  assert.ok(!compose(failed).some(line => line.startsWith('compose -p demo-preview up')), 'no attempt to revive the broken generation');
+  assert.ok(g.env().includes(`noticeos-demo:${NEW}`) && !g.env().includes('demo-g2'), 'env file untouched');
 });
 
 test('a missing env file, a relative source dir and an expired grant stop before anything runs', t => {
