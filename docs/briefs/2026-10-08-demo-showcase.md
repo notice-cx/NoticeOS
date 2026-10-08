@@ -63,6 +63,12 @@ ran only the first three, so Workflows had no rows. A hosted workspace whose
 deployment registers no workflow now says so, rather than that filters hide
 them. If the simulator stops, the ordinary freshness rules show it.
 
+**Banner.** It reports the demo service's latest write: the last completed
+simulated day, or a scheduled lane's later pass that wrote data. A freshly set
+up demo therefore shows a time within 15 minutes, not "Generation time
+unknown" until its first simulated day completes. "Scenario through" appears
+once one has.
+
 **Incidents.** Light Brief's exports and Weeknight Pantry's recipe saves dip on
 recurring cycles (4 days every 19, and 4 every 13). Pinwell keeps its original
 cycle. The ordinary alert rules find each dip and close it on recovery. The

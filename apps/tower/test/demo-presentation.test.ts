@@ -28,21 +28,25 @@ describe('completed demo generation evidence', () => {
     const fixture = await createTestStore();
     const hash = hostedJobDefinitionHash(DEMO_ACTIVITY_DEFINITION.version, DEMO_ACTIVITY_DEFINITION.steps);
     const prefix = demoActivityPrefix(scenarioHash);
-    const put = async (day: string, options: { service?: string; hash?: string; prefix?: string; lane?: string; state?: string; attemptState?: string; attempt?: number; finished?: string } = {}) => {
+    const put = async (day: string, options: { service?: string; hash?: string; prefix?: string; lane?: string; state?: string; attemptState?: string; attempt?: number; finished?: string; started?: string; steps?: Record<string, { state: string }> } = {}) => {
       const occurrence = (options.prefix ?? prefix) + day, lane = options.lane ?? DEMO_ACTIVITY_DEFINITION.key;
       await fixture.call.write(async tx => {
         await tx.query(`INSERT INTO noticeos.hosted_job_occurrences
-          (workspace_id,lane,occurrence,service_id,definition_hash,input_hash,state,attempt,lease_id,lease_expires_at)
-          VALUES($1,$2,$3,$4,$5,$5,$6,$7,$8,now())`, [tx.workspaceId, lane, occurrence, options.service ?? serviceId,
-          options.hash ?? hash, options.state ?? 'succeeded', options.attempt ?? 1, randomUUID()]);
+          (workspace_id,lane,occurrence,service_id,definition_hash,input_hash,state,attempt,lease_id,lease_expires_at,steps)
+          VALUES($1,$2,$3,$4,$5,$5,$6,$7,$8,now(),$9::jsonb)`, [tx.workspaceId, lane, occurrence, options.service ?? serviceId,
+          options.hash ?? hash, options.state ?? 'succeeded', options.attempt ?? 1, randomUUID(), JSON.stringify(options.steps ?? {})]);
         await tx.query(`INSERT INTO noticeos.hosted_job_attempts
           (workspace_id,lane,occurrence,attempt,lease_id,state,started_at,finished_at)
-          VALUES($1,$2,$3,1,$4,$5,'2026-09-01T00:00:00Z',$6)`,
-        [tx.workspaceId, lane, occurrence, randomUUID(), options.attemptState ?? 'succeeded', options.finished ?? '2026-09-02T00:00:00.000Z']);
+          VALUES($1,$2,$3,1,$4,$5,$6,$7)`,
+        [tx.workspaceId, lane, occurrence, randomUUID(), options.attemptState ?? 'succeeded', options.started ?? '2026-09-01T00:00:00Z', options.finished ?? '2026-09-02T00:00:00.000Z']);
       });
     };
     const read = async () => (await handleDemoPresentationRead(request(), fixture.call, env))!.json();
     expect(await read()).toEqual({ generatedAt: null, through: null });
+    // A scheduled lane's write counts before the first simulated day completes.
+    const wrote = { google: { state: 'succeeded' } };
+    await put('2026-08-31T23:45:00.000Z', { started: '2026-08-31T23:45:00.000Z', lane: 'counters', prefix: '', steps: wrote, finished: '2026-08-31T23:45:02.000Z' });
+    expect(await read()).toEqual({ generatedAt: '2026-08-31T23:45:02.000Z', through: null });
     await put('2026-09-01');
     const previous = { generatedAt: '2026-09-02T00:00:00.000Z', through: '2026-09-01' };
     expect(await read()).toEqual(previous);
@@ -53,6 +57,12 @@ describe('completed demo generation evidence', () => {
       ['2026-09-07', { attempt: 2 }], ['2026-09-08', { attemptState: 'retryable' }],
     ] as const) await put(day, options);
     expect(await read()).toEqual(previous);
+    // A pass that skipped every step, or another service's, wrote no demo data.
+    await put('2026-09-03T08:10:00.000Z', { started: '2026-09-03T08:10:00.000Z', lane: 'mediavine', prefix: '', steps: { revenue: { state: 'skipped' } }, finished: '2026-09-03T08:10:01.000Z' });
+    await put('2026-09-03T08:15:00.000Z', { started: '2026-09-03T08:15:00.000Z', lane: 'counters', prefix: '', service: randomUUID(), steps: wrote, finished: '2026-09-03T08:15:01.000Z' });
+    expect(await read()).toEqual(previous);
+    await put('2026-09-03T08:30:00.000Z', { started: '2026-09-03T08:30:00.000Z', lane: 'counters', prefix: '', steps: wrote, finished: '2026-09-03T08:30:01.000Z' });
+    expect(await read()).toEqual({ generatedAt: '2026-09-03T08:30:01.000Z', through: '2026-09-01' });
     await put('2026-09-09', { finished: '2026-09-10T12:00:00.000Z' });
     const response = (await handleDemoPresentationRead(request(), fixture.call, env))!;
     expect(response.headers.get('cache-control')).toBe('no-store');
@@ -63,6 +73,7 @@ describe('completed demo generation evidence', () => {
       { generatedAt: '2026-09-02T00:00:00.000Z', through: '2026-02-30' }, { generatedAt: null, through: null, serviceId }]) {
       expect(() => decodeDemoPresentation(value)).toThrow('Demo generation unavailable');
     }
+    expect(decodeDemoPresentation({ generatedAt: '2026-09-02T00:00:00.000Z', through: null })).toEqual({ generatedAt: '2026-09-02T00:00:00.000Z', through: null });
     let active = true;
     const fetch = vi.fn(async () => { active = false; return Response.json({ generatedAt: null, through: null }); });
     const api = createApi(fetch, () => { if (!active) throw new Error('retired'); });

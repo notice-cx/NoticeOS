@@ -100,7 +100,8 @@ release's job identities: a quarter-hour refresh writes today's provisional
 synthetic traffic and search counts, the ad-supported site's daily estimate
 arrives each morning, and the task board refreshes every five minutes. Their
 executions are System health's background operations. A daily outcome check
-over the demo's own watch windows is the Workflows page's history.
+over the demo's own watch windows is the Workflows page's history. The banner's
+generation time is the demo service's latest write.
 
 The scenario is versioned. A release whose scenario version differs from a
 running demo's refuses that demo's stored scenario at startup. Such a release
