@@ -132,6 +132,16 @@ reviewed at TV dimensions (`docs/artifacts/rename-2026-09-23/`).
   are in the brief).
   These are desk-chart conventions; the TV Wall retains its specialized,
   distance-readable widgets and true-black canvas.
+  **Surface kinds are tints, never verdicts** *(added 2026-10-08, D44,
+  [doc 21 § Surface kinds](21-surface-design.md#details-the-mockup-settles))*:
+  `--surface-money`, `--surface-alert`, `--surface-win` and
+  `--surface-neutral` tint a card's top edge toward its subject — money's
+  cyan family, the danger family, the success family, the raised surface —
+  at low chroma, with `--surface-highlight` as the one-pixel inner line and
+  `--glass` as the translucent chrome surface. They are consumed through
+  `Card kind=…` only; a kind is the card's SUBJECT (an alert card is tinted
+  alert whether its alert is warn or error), and severity still rides the ring,
+  the glyph and the word. No tint points at the brand accent.
   **`traffic` azure is the Wall's audience series identity** *(added
   2026-09-23, bead `ro-trai.19`)*: daily visitors, a site's 30-day trend and
   search clicks wear it beside money's `financial-revenue` cyan, so on the TV

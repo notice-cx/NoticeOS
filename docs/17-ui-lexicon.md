@@ -28,6 +28,46 @@ forms; form labels and save confirmations use the plain-language name.
 The Wall keeps its TV-specific presentation; its separate visual evolution is
 tracked by `ro-ujb9.26`.
 
+## Altitude (2026-10-08, D44)
+
+A founder reviewer called the product "technical". The lexicon above maps
+coinages to plain words, but plain words at the wrong altitude still read as
+machinery: "4 / 6 fresh · 12 jobs" is English, and it is the OS talking about
+itself on the first screen. So every word has an altitude, and a surface shows
+its own altitude or lower, never higher
+([brief](briefs/2026-10-08-home-overview-redesign.md#language)).
+
+| Altitude | Surfaces | Nouns | Verbs and verdicts |
+|---|---|---|---|
+| **Business** — what a founder steers by | Home · a site's Overview · TV mode | money, revenue, costs, people, visitors, search, bets, decisions, wins, sites | on track, at risk, off track, ahead, usually N, verdict in N days, measured, unmeasured, still counting, approve, keep, revert, snooze, seen |
+| **Operational** — how the work is run | Alerts · Tasks · Workflows · a site's Activity, Bets, Alerts and Tasks tabs | alert, watch window, holdout, change, verifier, run, schedule, snapshot, gate (as "needs your approval") | fired, resolved, win, revert, not yet significant, building, verifying, shipped, reverted |
+| **Technical** — where the numbers come from | Data sources · System health · Integrations · Settings · a site's Sources and Settings tabs | GA4, Search Console, Bing, Mediavine, PostHog, DataForSEO, Clarity, job, nightly report, freshness, credential, property id, lane (never on screen) | collecting, working, overdue, failing, provisional, reconciled, estimated, stale, fresh |
+
+The rule, mechanically: a word in a lower band may not appear on a surface in
+a higher band. A business surface says "being watched · verdict in 3 days",
+never "watch window"; "still counting", never "provisional"; "people a day",
+never "GA4 users". A technical fact a business surface must carry is said in
+business words. A provider's name may appear on a business surface only as a
+chart key beside its own line (doc 14: Bing's blue is always beside the word
+"Bing"); never as a label, an eyebrow or a caption.
+
+**Enforced** by `scripts/ui-lexicon.test.mjs` (rule 9 below): the business
+surfaces' files carry the lower bands' words as banned, with the chart-key
+exemption as exact phrases. A word moves up a band only by a decision
+recorded here.
+
+Rows this adds to the map:
+
+| System term | UI renders | Why |
+|---|---|---|
+| `/financials` in the navigation | **Money** | the founder's word; the route, the payload and the asset tab's id keep `financials` |
+| `watch window` (business surfaces) | **being watched · verdict in N days** | the window is machinery; the verdict date is the fact |
+| `ship_confirmed` / `kill_confirmed` / `inconclusive` / `unmeasurable` | **win** / **revert** / **not yet significant** / **unmeasured** | GrowthBook's and Eppo's words; never a number for unmeasured |
+| `provisional` (business surfaces) | **still counting** | the same honesty, in the reader's word; the hollow point is unchanged |
+| the Poisson baseline (`avg7d 39.3`) | **usually 39** | one baseline word everywhere, the alert headline included |
+| `gate` (business surfaces) | the sentence of the ask, with **Approve** as its verb | the id and the mechanism never reach a view row |
+| ingest freshness on Home | nothing, unless broken: **"One site stopped reporting"** as a highlight card | the fraction keeps its one phrasing on System health |
+
 ## The map (system term → UI term)
 
 | System term (docs/schema — unchanged) | UI renders | Precedent / rationale |

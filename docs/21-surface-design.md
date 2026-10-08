@@ -84,13 +84,15 @@ visual language, graphical components, interactivity.
    `apps/tower/ux-flows.json`. The rule counts recorded there are legacy debt
    epic `ro-ujb9.96.7` removes to zero, not an allowance; a new flow enters
    with none. Exceptions follow 3a's terms.
-4. **Hierarchy from scale, not boxes.** One card style. A card groups related
+4. **Hierarchy from scale, not boxes.** One card shape — and since D44 four tints, see *Surface kinds* below. A card groups related
    things; it never holds one fact. Section titles are eyebrows (11px, tracked,
    uppercase, muted); the numbers are the large type. Owner chips, config-file
    paths and register names belong on Settings and Sources — never on a view
    surface.
-5. **Colour is meaning.** Severity (error/warn/ok) and provider (Google/Bing)
-   only. Everything else is neutral ink so red means red. No decorative accent.
+5. **Colour is meaning.** Severity (error/warn/ok), provider (Google/Bing)
+   and — since D44 — the two business identities, money (`financial-revenue`)
+   and people (`traffic`). Everything else is neutral ink so red means red. No
+   decorative accent.
 6. **Rhythm.** 8px grid. One type scale: KPI 28/1.1, small-multiple value 20,
    heading eyebrow 11 tracked 0.08em, body 13, caption 12, micro 11. Tabular
    digits wherever numbers align. Card padding 16, gaps 14.
@@ -224,6 +226,21 @@ Budget: at 1440×900 the first screen shows the header, the strip and the whole
 hero chart. The Overview is one tab of one question; nothing else is on it.
 Height ≤ 1,600px at 1440 with every list at its default three rows.
 
+**The verdict and the story** *(2026-10-08, D44,
+[brief](briefs/2026-10-08-home-overview-redesign.md#overview))*. The header
+gains a verdict pill (`On track` / `At risk` / `Off track` / `Setting up`,
+one derivation shared with Home's sites strip) and one line of three facts
+joined by dots ("Money on track · signups low since Monday · verdict in 3
+days"). The hero row is money, people, search clicks and the site's one
+product figure, each with its own period and a colour only when it earns one;
+its chart carries every shipped change as a labelled ▲ on the plot and every
+open watch window as a shaded span, so cause and effect sit on one axis. Below
+it: bets ranked by dollars as lift rows (interval centred on zero, grey while
+not significant, hatched and empty when unmeasured), Needs you, the search
+movers, and product cells that say "normal" out loud. Provider names appear
+only in a chart's own key.
+
+
 ### Asset · Growth
 
 Audience (Active users | Sessions) and Search (Clicks | Impressions) as
@@ -250,32 +267,49 @@ first search source.
 Roles unchanged; restyled to the vocabulary: eyebrow headings, one card style,
 prose behind `About`, owner chips only on Sources and Settings.
 
-### Home
+### Home — the Morning Brief *(2026-10-08, D44)*
 
 ```
-Home                                                             6 sites · updated 25m ago
-┌ KpiStrip (not selectable): Net this month +spark · Needs you +bar · Open alerts +bar · System ┐
-┌ ListPanel  Waiting on you (5) ┐ ┌ ListPanel  Alerts (5) ┐
-┌ Table  Sites: name · state · users today +delta · 28-day sparkline · 7-day · net · tasks · reported ┐
+Good morning                             yesterday $55.25 est. · October on pace $1,310 ↑16% · 2,497 visitors
+Wednesday 8 Oct · since yesterday 06:00 · 5 things changed
+┌ HighlightCard  big thing ┐ ┌ HighlightCard ┐ ┌ HighlightCard ┐
+┌ HighlightCard            ┐ ┌ HighlightCard ┐ ┌ finish line: that's everything · next sweep 02:00 ┐
+┌ ListPanel  Decide · 3 (verbs on the row) ┐ ┌ Sites strip · seed order · health word ┐
 ```
 
-The four separate tiles become one strip so the eye reads left to right once.
+Home answers *what changed since I last looked, and what needs me*. The
+operator chose this over a money hero on 2026-10-08
+([brief](briefs/2026-10-08-home-overview-redesign.md#home)).
 
-**One site** *(2026-09-23, bead `ro-ujb9.127`)*. With exactly one site the
-portfolio is that site, so a comparison table of one row answers nothing. Home
-leads with the site's own lead — the Overview's KPI strip fused to its hero
-chart, from the Overview's own read, over 28 days — with the site's state marks
-and its name as the way to its page at the end of the lead's header row. The
-strip above and Waiting on you and Alerts follow; the census says only how old
-the reading is. The Sites table returns from two sites.
+- **The greeting line** carries three small figures and nothing else:
+  yesterday's revenue (the providers' estimate, "est."), the month's pace from
+  the same derivation the Wall uses (`lib/wall-revenue`, neutral ink on the
+  projection), and yesterday's visitors. "Since yesterday 06:00 · N things
+  changed" is the time-blindness aid: relative, exact on hover.
+- **The Brief** is at most five `HighlightCard`s. Each is one kind
+  (alert · money · search · bet · milestone · win), one sentence under twelve
+  words, one shape (a normal-band line, a cumulative line, a slope, an
+  interval bar, a display figure) and at most one action. The first card is
+  the big thing and is drawn larger. Ranking: severity, then dollars at stake,
+  then kind. The sixth card is the finish line: "That's everything since
+  yesterday" and the next sweep. A quiet day shows the finish line alone,
+  never an empty grid.
+- **Decide** is a `ListPanel` at three rows with the verb on the row: Approve
+  for a gate, Answer / Dismiss for an ask (the Tasks board's own
+  `useAskActions`), Look / Snooze for an error alert. "N more, not urgent →"
+  is the link out. Undo, never confirm.
+- **Sites** is one strip in seed order: name, a health word (`On track` /
+  `At risk` / `Off track` / `Setting up` / `Monitor only`, one derivation),
+  yesterday's money or visitors. The comparison table lives on Sites.
+- **The OS does not describe itself here.** Freshness, jobs, snapshots and
+  reads belong to System health; a broken thing arrives as a highlight card.
 
-```
-Home                                                              updated 25m ago
-┌ Traffic · last 28 days                         ● ⊕⊕⊕  Journey Example → ┐
-│ KpiStrip (selectable) · HeroChart                                       │
-┌ Net ┐ ┌ Needs you · Open alerts · System ┐
-┌ ListPanel  Waiting on you ┐ ┌ ListPanel  Alerts ┐
-```
+Budget: at 1440×900 the greeting line and the whole Brief are on the first
+screen and Decide starts in view. Height ≤ 1,400px at 1440 with Decide at
+three rows.
+
+**One site** keeps its own lead (bead `ro-ujb9.127`): with one site, the Brief
+is that site's, and the sites strip is not drawn.
 
 ### Index pages (Assets, Alerts, Tasks, Financials, Health, Integrations)
 
@@ -440,6 +474,29 @@ periods and compact evidence states stay visible; exact dates and supporting
 coverage/method explanations can use the section's `InfoTooltip`. A concise chart key identifies
 event marks; event-specific detail belongs to the actual marker's hover,
 keyboard-focus and tap disclosure, not a detached list below the chart.
+
+**Surface kinds** *(2026-10-08, D44, accent system 3,
+[brief](briefs/2026-10-08-home-overview-redesign.md#surface-kinds))*. A card
+may declare a kind — `money`, `alert`, `win` or `neutral` — and wears that
+kind's tint: a gradient from the kind's `--surface-<kind>` token at the top
+edge to the ordinary card surface, a one-pixel inner highlight, and the
+kind's border token. The tint is the card's subject, never its verdict: an
+alert card is tinted whether its alert is warn or error, and the severity
+still rides the ring and the glyph. Only `HighlightCard` and the Overview's
+hero use kinds; a `ListPanel`, a table and a strip stay `neutral`. The live
+point (the minute pulse, today's revenue dot) keeps the Wall's halo. Glass —
+a translucent `--glass` surface over blurred content — is for chrome only:
+the Decide row's verbs, a toast, a sheet's header, never a surface that
+carries numbers. Shadows stay off every card; depth comes from tint and the
+highlight line.
+
+**Display scale** *(2026-10-08, D44)*. Above the KPI step there is a display
+step for the one figure a screen leads with, `text-[44px]` on a desk and
+`text-[32px]` on a phone, `font-bold tracking-[-0.045em] leading-none
+tabular-nums`; a verdict word is `text-[22px] font-bold tracking-[-0.02em]`.
+Body text on the redesigned surfaces is 14px (ADHD readers were fastest at
+14–16 in the 2026 pupillometry study the brief cites); three weights per
+screen at most.
 
 **Empty states.** A ListPanel with nothing to show renders one calm line in the
 row area ("Nothing needs you on this asset") and keeps its header. A strip with
