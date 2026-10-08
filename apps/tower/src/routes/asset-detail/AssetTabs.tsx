@@ -40,7 +40,7 @@ export type AssetTab = (typeof ASSET_TABS)[number];
 const TAB_LABEL: Record<AssetTab, string> = {
   overview: "Overview",
   growth: "Growth",
-  financials: "Financials",
+  financials: "Money",
   search: "Search",
   alerts: "Alerts",
   tasks: "Tasks",

@@ -61,11 +61,13 @@ Rows this adds to the map:
 | System term | UI renders | Why |
 |---|---|---|
 | `/financials` in the navigation | **Money** | the founder's word; the route, the payload and the asset tab's id keep `financials` |
-| `watch window` (business surfaces) | **being watched · verdict in N days** | the window is machinery; the verdict date is the fact |
-| `ship_confirmed` / `kill_confirmed` / `inconclusive` / `unmeasurable` | **win** / **revert** / **not yet significant** / **unmeasured** | GrowthBook's and Eppo's words; never a number for unmeasured |
+| `watch window` (business surfaces) | **Bets** (the panel), **being watched · verdict in N days** (the state), **Watching <series> · verdict <date>** (the chart's span label) | the window is machinery; the verdict date is the fact |
+| `ship_confirmed` / `kill_confirmed` / `inconclusive` / `unmeasurable` | **Improvement confirmed** / **Decline confirmed** / **No clear change** / **Could not be measured** (`WATCH_OUTCOME`, `components/watch-outcome.ts`), and while open **verdict in N days** | one vocabulary for the Bets panel, the Activity tab and an alert that owes a decision; never a number for an unmeasured window |
 | `provisional` (business surfaces) | **still counting** | the same honesty, in the reader's word; the hollow point is unchanged |
 | the Poisson baseline (`avg7d 39.3`) | **usually 39** | one baseline word everywhere, the alert headline included |
-| `gate` (business surfaces) | the sentence of the ask, with **Approve** as its verb | the id and the mechanism never reach a view row |
+| `gate` (business surfaces) | the sentence of the ask, with **Approve** as its verb, under **Decide** | the id and the mechanism never reach a view row |
+| `captured in preview` / `snapshot` (the task read's mechanics) | **N shown**, **Read N ago**, **Outdated** | the fact is how many and how old, never how it was read |
+| `Clarity · 72-hour report` / `DataForSEO · <date>` (a provider as a caption) | **Session report · 72 hours** / **Weekly report · <date>** | the provider stays on Data sources and in a chart key |
 | ingest freshness on Home | nothing, unless broken: **"One site stopped reporting"** as a highlight card | the fraction keeps its one phrasing on System health |
 
 ## The map (system term → UI term)

@@ -148,7 +148,7 @@ export function OverviewTab({
         <section aria-labelledby="overview-financials" data-financial-snapshot className="overflow-hidden rounded-[10px] border border-border bg-card">
           <SectionLabel
             id="overview-financials"
-            title={moneyPeriod ? `Financials · ${formatPeriodMonthYear(moneyPeriod)}` : "Financials · no accounting month"}
+            title={moneyPeriod ? `Money · ${formatPeriodMonthYear(moneyPeriod)}` : "Money · no accounting month"}
             action={{ label: "View financials", to: `/assets/${encodeURIComponent(data.asset.id)}/financials` }}
             className="px-4 pt-3"
           />
@@ -458,17 +458,17 @@ export function NeedsYou({
     : stale
       ? "Task status outdated"
       : operator.waiting! > 0
-        ? "Task details not captured"
+        ? "Task details not read"
         : "Nothing waiting";
   return (
     <ListPanel
       title="Needs you"
       count={<span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
         <span>{count}
-          {measured && rows.length < operator.waiting! ? ` · ${rows.length} captured in preview` : ""}
+          {measured && rows.length < operator.waiting! ? ` · ${rows.length} shown` : ""}
         </span>
-        <InfoTooltip label="About this task preview" trigger={age === null ? "Time unknown" : stale ? "Outdated snapshot" : `Read ${formatAge(age)} ago`}>
-          <span className="block">{age === null ? "Task status time unknown" : `Task status read ${formatAge(age)} ago${stale ? " · outdated snapshot" : ""}`}</span>
+        <InfoTooltip label="About this task preview" trigger={age === null ? "Time unknown" : stale ? "Outdated" : `Read ${formatAge(age)} ago`}>
+          <span className="block">{age === null ? "Task status time unknown" : `Task status read ${formatAge(age)} ago${stale ? " · outdated" : ""}`}</span>
           <span className="block">Task status does not verify that each request is still needed.</span>
           <span className="block">This is a preview. Open All tasks for the complete recorded queue.</span>
         </InfoTooltip>

@@ -1183,7 +1183,7 @@ describe("Home — Decide (D44)", () => {
     renderHome();
     const panel = panelFor("Decide");
     expect(panel).toHaveTextContent("12 waiting");
-    expect(panel).toHaveTextContent("No request details captured.");
+    expect(panel).toHaveTextContent("No request details read.");
     expect(panel).not.toHaveTextContent("Nothing to decide.");
   });
 

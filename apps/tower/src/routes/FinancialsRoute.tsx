@@ -153,7 +153,7 @@ export default function FinancialsRoute() {
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3.5 p-4 md:p-6">
       <PageHeader
-        title="Financials"
+        title="Money"
         /* THE PAGE'S ONE QUESTION, not a fact about the query behind it (doc
            21). This slot used to read "latest month with rows" whenever the
            ledger's newest month was not the calendar one — a sentence about how

@@ -132,7 +132,7 @@ describe("the sidebar is the desk's only navigation", () => {
       ["Sites", "/assets"],
       ["Alerts", "/alerts"],
       ["Tasks", "/tasks"],
-      ["Financials", "/financials"],
+      ["Money", "/financials"],
       ["System health", "/health"],
       // Integrations is its own noun since bead `ro-vu8d.2` — it used to be an
       // alias for Health, which put the page you go to in order to MAKE a
@@ -486,7 +486,7 @@ describe("the small-screen drawer", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
     const drawer = screen.getByRole("dialog", { name: "Navigation" });
-    expect(within(drawer).getByRole("link", { name: "Financials" })).toHaveAttribute(
+    expect(within(drawer).getByRole("link", { name: "Money" })).toHaveAttribute(
       "href",
       "/financials",
     );

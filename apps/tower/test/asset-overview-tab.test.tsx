@@ -625,7 +625,7 @@ describe("Asset Overview — leads with the number the site has (ro-ujb9.146)", 
     body.executive = { ...body.executive!, clarity: { ...clarity, truncated: true } };
     stubJsonFetch(body);
     const { container } = renderOverview();
-    const lead = await screen.findByRole("region", { name: "Clarity · 72-hour report" });
+    const lead = await screen.findByRole("region", { name: "Session report · 72 hours" });
     expect(kpiLabels(container).slice(0, 2)).toEqual(["Page sessions", "Script errors"]);
     expect(kpi(lead, "Page sessions")).toHaveTextContent("114");
     expect(kpi(lead, "Script errors")).toHaveTextContent("19");
@@ -637,7 +637,7 @@ describe("Asset Overview — leads with the number the site has (ro-ujb9.146)", 
     expect(screen.queryByRole("region", { name: "Traffic · last 28 days" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "7d" }));
     await waitFor(() => expect(kpi(lead, "Script errors")).toHaveTextContent("19"));
-    expect(lead).toHaveTextContent("72-hour report");
+    expect(lead).toHaveTextContent("72 hours");
   });
 
   it("names an unattributed bucket honestly and keeps an explicit zero distinct from Unknown", async () => {
@@ -645,13 +645,13 @@ describe("Asset Overview — leads with the number the site has (ro-ujb9.146)", 
     body.executive = { ...body.executive!, clarity: { ...clarity, page: null, unattributedSessions: 0 } };
     stubJsonFetch(body);
     const first = renderOverview();
-    const lead = await screen.findByRole("region", { name: "Clarity · 72-hour report" });
+    const lead = await screen.findByRole("region", { name: "Session report · 72 hours" });
     expect(kpi(lead, "Unattributed sessions")).toHaveTextContent("0");
     expect(lead).not.toHaveTextContent("Page sessions");
     first.unmount();
     stubJsonFetch({ ...body, executive: { ...body.executive!, clarity: { ...clarity, page: null, collectedAt: null } } });
     renderOverview();
-    const unknown = await screen.findByRole("region", { name: "Clarity · 72-hour report" });
+    const unknown = await screen.findByRole("region", { name: "Session report · 72 hours" });
     expect(kpi(unknown, "Unattributed sessions")).toHaveTextContent("Unknown");
     expect(unknown).toHaveTextContent("Reported Jul 5, 2026");
     expect(unknown).not.toHaveTextContent("Collected");
@@ -663,14 +663,14 @@ describe("Asset Overview — leads with the number the site has (ro-ujb9.146)", 
     stubJsonFetch(traffic);
     const first = renderOverview();
     await screen.findByRole("region", { name: "Traffic · last 28 days" });
-    expect(screen.queryByRole("region", { name: "Clarity · 72-hour report" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Session report · 72 hours" })).toBeNull();
     first.unmount();
     const body = noTraffic();
     body.executive = { ...body.executive!, clarity };
     stubJsonFetch({ ...body, dailyRevenue: revenue() });
     const second = renderOverview();
     await screen.findByRole("region", { name: "Daily revenue" });
-    expect(screen.queryByRole("region", { name: "Clarity · 72-hour report" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Session report · 72 hours" })).toBeNull();
     second.unmount();
     body.executive.product = { source: "posthog", observedAt: LAST_DAY, collectedAt: null, families: [],
       webDaily: { windowStart: LAST_DAY, windowEnd: LAST_DAY, reportDate: LAST_DAY,
@@ -678,7 +678,7 @@ describe("Asset Overview — leads with the number the site has (ro-ujb9.146)", 
       funnels: [], vitals: null, exceptions: null, rageClicks: null, onceEvents: [], checks: [], caveat: "" };
     stubJsonFetch(body); renderOverview();
     await screen.findByRole("region", { name: "Traffic · last 28 days" });
-    expect(screen.queryByRole("region", { name: "Clarity · 72-hour report" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Session report · 72 hours" })).toBeNull();
   });
 
   /** Every [data-kpi] on the tab, in document order: what is drawn first. */
@@ -795,7 +795,7 @@ describe("Asset Overview — the range controls traffic, not independent snapsho
     const { container } = renderOverview();
     await screen.findByRole("tablist");
     const traffic = screen.getByRole("region", { name: "Traffic · last 28 days" });
-    const financials = screen.getByRole("region", { name: "Financials · July 2026" });
+    const financials = screen.getByRole("region", { name: "Money · July 2026" });
     const alerts = screen.getByRole("region", { name: "Open alerts" });
     expect(alerts).toHaveTextContent("last fired");
     expect(traffic.querySelectorAll("[data-kpi]")).toHaveLength(4);
@@ -815,7 +815,7 @@ describe("Asset Overview — the range controls traffic, not independent snapsho
     await screen.findByRole("region", { name: "Traffic · last 7 days" });
     expect(kpi(container, "Sessions")).toHaveTextContent("1,400");
     expect(kpi(financials, "Net").textContent).toBe(net);
-    expect(screen.getByRole("region", { name: "Financials · July 2026" })).toBe(financials);
+    expect(screen.getByRole("region", { name: "Money · July 2026" })).toBe(financials);
     expect(within(alerts).getByRole("link", { name: /None open/ })).toHaveAttribute("href", "/assets/meals.example/alerts?range=7");
     expect(within(financials).getByRole("link", { name: "View financials" })).toHaveAttribute("href", "/assets/meals.example/financials");
   });
@@ -823,7 +823,7 @@ describe("Asset Overview — the range controls traffic, not independent snapsho
   it("keeps net history available as accounting months outside the traffic selector", async () => {
     renderOverview();
     await screen.findByRole("tablist");
-    const financials = screen.getByRole("region", { name: "Financials · July 2026" });
+    const financials = screen.getByRole("region", { name: "Money · July 2026" });
     expect(financials.querySelector("[data-hero-chart]")).toBeNull();
     fireEvent.click(within(financials).getByText("Monthly net history"));
     await within(financials).findByText("Net · by accounting month, Estimated");
@@ -876,7 +876,7 @@ describe("Asset Overview — the range controls traffic, not independent snapsho
     stubJsonFetch(body);
     renderOverview();
     await screen.findByRole("tablist");
-    const financials = screen.getByRole("region", { name: "Financials · July 2026" });
+    const financials = screen.getByRole("region", { name: "Money · July 2026" });
     const net = kpi(financials, "Net");
     expect(net).toHaveTextContent("$436.19 Estimated");
     expect(within(net).getByText("Estimated")).toBeVisible();
@@ -917,7 +917,7 @@ describe("Asset Overview — explanations are disclosed, essential context stays
     // booking state on the figure.
     expect(kpi(container, "Avg. daily users")).toHaveTextContent("7-day average");
     expect(container.querySelector("[data-hero-chart]")).toHaveTextContent("GA4");
-    const financials = screen.getByRole("region", { name: "Financials · July 2026" });
+    const financials = screen.getByRole("region", { name: "Money · July 2026" });
     expect(within(financials).getByText("Estimated")).toBeVisible();
   });
 });

@@ -180,7 +180,7 @@ describe("what the page and the shell import", () => {
     // The reading works: the tab BAR, which every tab shares, is imported.
     expect(imports).toContain("@/routes/asset-detail/AssetTabs");
     expect(imports).toContain("@/routes/asset-detail/lazy-tabs");
-    const TAB_MODULES = ["Overview", "Growth", "Financials", "Search", "Alerts", "Tasks", "Activity", "Sources", "Settings"];
+    const TAB_MODULES = ["Overview", "Growth", "Money", "Search", "Alerts", "Tasks", "Activity", "Sources", "Settings"];
     expect(imports.filter((specifier) => TAB_MODULES.some((name) => specifier.endsWith(`/${name}Tab`)))).toEqual([]);
   });
 
@@ -408,7 +408,7 @@ describe("the asset page's tabs", () => {
     // 3 · EVERY OTHER TAB: not asked for until it is opened.
     for (const [key, label] of [
       ["growth", "Growth"],
-      ["financials", "Financials"],
+      ["financials", "Money"],
       ["search", "Search"],
       ["sources", "Data sources"],
     ] as const) {

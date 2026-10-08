@@ -159,7 +159,7 @@ function ClarityLead({ snapshot, aside }: { snapshot: ClaritySnapshot; aside?: R
   const observed = snapshot.collectedAt?.slice(0, 10) ?? snapshot.reportDate;
   return (
     <section aria-labelledby={id} data-site-lead="clarity" className="overflow-hidden rounded-[10px] border border-border bg-card">
-      <SectionLabel id={id} title="Clarity · 72-hour report"
+      <SectionLabel id={id} title="Session report · 72 hours"
         caption={`${snapshot.collectedAt ? "Collected" : "Reported"} ${formatCalendarDate(observed)}${snapshot.truncated ? " · Limited export" : ""}`}
         className="border-b border-border/60 px-4 py-3">{aside}</SectionLabel>
       {snapshot.page ? (
@@ -277,7 +277,7 @@ function RankingsLead({ snapshot, aside }: { snapshot: SearchIntelligenceSnapsho
       <SectionLabel
         id={id}
         title="Search position"
-        caption={snapshot.observedAt ? `DataForSEO · ${formatCalendarDate(snapshot.observedAt)}` : "DataForSEO"}
+        caption={snapshot.observedAt ? `Weekly report · ${formatCalendarDate(snapshot.observedAt)}` : "Weekly report"}
         className="border-b border-border/60 px-4 py-3"
       >
         {aside}

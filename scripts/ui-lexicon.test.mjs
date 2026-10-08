@@ -167,6 +167,64 @@ const ALLOWED_PHRASES = [
   'bd init --server',
 ];
 
+/**
+ * THE ALTITUDE RULE (doc 17 § Altitude, D44). A founder reviewer called the
+ * product "technical", and the words were English: "4 / 6 fresh · 12 jobs" on
+ * the first screen is the OS talking about itself. So every word has an
+ * altitude — business, operational, technical — and a surface shows its own
+ * altitude or lower, never higher. These are the BUSINESS surfaces, and the
+ * lower altitudes' words that may not reach them.
+ *
+ * A provider's name may appear on a business surface only as a chart key
+ * beside its own line (doc 14: Bing's blue is always beside the word "Bing"),
+ * which the exact phrases below cover; never as a label, an eyebrow or a
+ * caption. Widening this list is a doc 17 row, never a quick fix.
+ */
+const BUSINESS_SURFACES = [
+  'apps/tower/src/routes/HomeRoute.tsx',
+  'apps/tower/src/routes/home/ClockProposal.tsx',
+  'apps/tower/src/routes/asset-detail/OverviewTab.tsx',
+  'apps/tower/src/routes/asset-detail/SiteLead.tsx',
+  'apps/tower/src/routes/asset-detail/AssetHeader.tsx',
+  'apps/tower/src/lib/home-brief.ts',
+  'apps/tower/src/lib/site-health.ts',
+  'apps/tower/src/components/HighlightCard.tsx',
+];
+
+const BANNED_ON_BUSINESS = [
+  { pattern: /\bprovisional\b/gi, word: 'still counting' },
+  { pattern: /\bsnapshots?\b/gi, word: 'the reading, or nothing at all' },
+  { pattern: /\bfreshness\b/gi, word: 'data as of …' },
+  { pattern: /\bstale\b/gi, word: 'outdated' },
+  { pattern: /\bjobs?\b/gi, word: 'nothing — jobs belong to Workflows and System health' },
+  { pattern: /\bwatch windows?\b/gi, word: 'being watched · verdict in N days' },
+  { pattern: /\bcaptured\b/gi, word: 'nothing — the read\'s mechanics are not the fact' },
+  { pattern: /\bGA4\b/g, word: 'people (GA4 only as a chart key)' },
+  { pattern: /\bSearch Console\b/g, word: 'search (Search Console only as a chart key)' },
+  { pattern: /\bWebmaster\b/g, word: 'search (Bing only as a chart key)' },
+  { pattern: /\bMediavine\b/g, word: 'ad revenue' },
+  { pattern: /\bPostHog\b/g, word: 'product (PostHog only as a chart key)' },
+  { pattern: /\bDataForSEO\b/g, word: 'search position' },
+  { pattern: /\bClarity\b/g, word: 'session report' },
+];
+
+/** Chart keys and wire values: a provider's name beside its own line, or a
+ * `data-*` value the audit reads. Exact phrases, each one a key. */
+const ALLOWED_ON_BUSINESS = [
+  'name: "GA4"',
+  'name: "Google"',
+  'name: "Bing"',
+  'name: "PostHog"',
+  'data-site-lead="posthog"',
+  'data-site-lead="clarity"',
+  'data-site-lead="rankings"',
+  '"posthog"',
+  '"clarity"',
+  '"rankings"',
+  // Material-condition wire values the materiality suite reads (shared/materiality.ts).
+  '"signal-freshness"',
+];
+
 /** Comments are not labels, and neither is a module path. Block comments (JSX
  * `{/* … *\/}` included) go whole; line comments only when the `//` opens the
  * line, so a `https://…` inside a string survives. `${…}` is an EXPRESSION.
@@ -282,6 +340,42 @@ test('every excluded file still exists', () => {
       `${name} is excluded from the lexicon sweep but no longer exists — prune NOT_DESK_COPY`,
     );
   }
+});
+
+test('every business surface is in the scan, and exists', () => {
+  for (const name of BUSINESS_SURFACES) {
+    assert.ok(FILES.includes(name), `${name} is a business surface but not in the lexicon scan`);
+  }
+});
+
+test('no business surface says a lower altitude\'s word (doc 17 § Altitude, D44)', () => {
+  const offenders = [];
+  for (const name of BUSINESS_SURFACES) {
+    const text = withoutComments(readFileSync(path.join(REPO_ROOT, name), 'utf8'));
+    const spans = shippedSpans(text);
+    for (const { pattern, word } of BANNED_ON_BUSINESS) {
+      for (const hit of text.matchAll(pattern)) {
+        const at = hit.index;
+        if (!spans.some(([start, end]) => at >= start && at < end)) continue;
+        const before = at > 0 ? text[at - 1] : '';
+        const after = text[at + hit[0].length] ?? '';
+        if (/[A-Za-z0-9_$]/.test(before) || /[A-Za-z0-9_$]/.test(after)) continue;
+        const from = Math.max(0, at - 70);
+        const window = text.slice(from, at + 70);
+        if (coveredByPhrase(window, from, at, ALLOWED_ON_BUSINESS)) continue;
+        const line = text.slice(0, at).split('\n').length;
+        offenders.push(`${name}:${line}  "${hit[0]}" → ${word}\n      …${window.replace(/\s+/g, ' ').trim()}…`);
+      }
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    'these business surfaces say a word from a lower altitude (doc 17 § Altitude):\n  ' +
+      `${offenders.join('\n  ')}\n` +
+      'Say it in business words, move the fact to the surface that owns it, or ' +
+      'record the exception as a doc 17 row and an exact phrase in ALLOWED_ON_BUSINESS.',
+  );
 });
 
 test('no shipped desk string uses an internal coinage (doc 17)', () => {

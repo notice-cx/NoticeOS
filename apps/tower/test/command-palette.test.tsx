@@ -181,7 +181,7 @@ describe("what it lists", () => {
       "Sites",
       "Alerts",
       "Tasks",
-      "Financials",
+      "Money",
       "System health",
       "Settings",
       "TV dashboard",
@@ -246,7 +246,7 @@ describe("what it lists", () => {
 
     fireEvent.change(paletteInput(), { target: { value: "revenue" } });
 
-    expect(rows().some((row) => row.includes("Financials"))).toBe(true);
+    expect(rows().some((row) => row.includes("Money"))).toBe(true);
   });
 
   it("says so when nothing matches", () => {
@@ -275,7 +275,7 @@ describe("navigating", () => {
     renderShell();
     const dialog = openWithShortcut();
 
-    fireEvent.click(within(dialog).getByText("Financials"));
+    fireEvent.click(within(dialog).getByText("Money"));
 
     expect(screen.getByTestId("path")).toHaveTextContent("/financials");
   });

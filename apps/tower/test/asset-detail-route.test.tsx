@@ -964,7 +964,7 @@ describe("AssetDetailRoute — material state on the current screens", () => {
     const { container, findByText } = renderRoute("meals.example");
     await findByText("Needs you");
     const preview = materialAsset(container, "human-gates");
-    expect(preview).toHaveTextContent("2 urgent · 6 waiting · 1 captured in preview");
+    expect(preview).toHaveTextContent("2 urgent · 6 waiting · 1 shown");
     expect(preview).toHaveTextContent("Approve the nutrition-source change");
     expect(preview).toHaveTextContent("△");
     expect(within(preview).getByRole("link", { name: /Approve the nutrition-source change/ })).toHaveAttribute("href", "/tasks/mp-gate");
@@ -1322,7 +1322,7 @@ describe("AssetDetailRoute — executive page identity", () => {
     expect(tabs.map((t) => t.textContent?.replace(/\d+$/, ""))).toEqual([
       "Overview",
       "Growth",
-      "Financials",
+      "Money",
       "Search",
       "Alerts",
       "Tasks",
@@ -1505,7 +1505,7 @@ describe("AssetDetailRoute — executive page identity", () => {
     // count rather than a zero one.
     expect(tabs[0]!.textContent).toBe("Overview");
     expect(tabs[1]!.textContent).toBe("Growth");
-    expect(tabs[2]!.textContent).toBe("Financials");
+    expect(tabs[2]!.textContent).toBe("Money");
     expect(tabs[3]!.textContent).toBe("Search");
     expect(tabs[5]!.textContent).toBe("Tasks");
     expect(tabs[6]!.textContent).toBe("Activity");
@@ -2123,13 +2123,13 @@ describe("AssetDetailRoute — inbound deep links", () => {
     expect(selectedTab(container)).toBe("Activity");
   });
 
-  it.each(["#pnl", "#ledger"])("opens asset Financials for %s", async (hash) => {
+  it.each(["#pnl", "#ledger"])("opens asset Money for %s", async (hash) => {
     const scrolled = captureScrollTargets();
     stubFetch(200, payload());
     const { container, findByText } = renderRoute("meals.example", hash);
     await findByText("Monthly accounting");
     await waitFor(() => expect(scrolled).toEqual([hash.slice(1)]));
-    expect(selectedTab(container)).toBe("Financials");
+    expect(selectedTab(container)).toBe("Money");
   });
 
   it("selects Settings for the configuration anchor", async () => {

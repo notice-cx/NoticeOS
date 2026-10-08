@@ -340,7 +340,7 @@ export function DecidePanel({ work, failed, nowMs }: { work: WorkPayload | undef
           : !complete || stale || failed
             ? "Queue not fully read."
             : total > 0
-              ? "No request details captured."
+              ? "No request details read."
               : "Nothing to decide.";
 
   return (

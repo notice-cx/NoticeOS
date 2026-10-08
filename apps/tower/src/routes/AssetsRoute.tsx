@@ -481,7 +481,7 @@ export function AssetsRoute() {
               </KpiStrip>
             </section>
             <section aria-labelledby="assets-financials-scope" className="hidden overflow-hidden rounded-[10px] border border-border bg-card sm:block">
-              <SectionLabel id="assets-financials-scope" title={`Financials · ${formatPeriodMonthYear(data.portfolio.period)}`} className="min-h-10 border-b border-border/60 px-4 py-2" />
+              <SectionLabel id="assets-financials-scope" title={`Money · ${formatPeriodMonthYear(data.portfolio.period)}`} className="min-h-10 border-b border-border/60 px-4 py-2" />
               <KpiStrip columns={1}>
                 <NetKpi portfolio={data.portfolio} />
               </KpiStrip>

@@ -609,7 +609,7 @@ describe("/assets — composed to doc 21", () => {
     expect(status).toContainElement(kpi(container, "Sites"));
     expect(status).not.toContainElement(kpi(container, "Net · Aug"));
     expect(screen.getByRole("region", { name: "Traffic · 28 days" })).toContainElement(kpi(container, "Latest daily users"));
-    expect(screen.getByRole("region", { name: "Financials · August 2026" })).toContainElement(kpi(container, "Net · Aug"));
+    expect(screen.getByRole("region", { name: "Money · August 2026" })).toContainElement(kpi(container, "Net · Aug"));
     expect(screen.getByRole("button", { name: "Filters & sort" })).toHaveAttribute("aria-expanded", "false");
   });
 
@@ -810,7 +810,7 @@ describe("/assets — composed to doc 21", () => {
       expect(within(latest).getByRole("status")).toHaveTextContent("Jul 26");
       fireEvent.keyDown(latestTrend, { key: "Escape" });
       const status = screen.getByRole("region", { name: "Latest status" }).textContent;
-      const financials = screen.getByRole("region", { name: "Financials · August 2026" }).textContent;
+      const financials = screen.getByRole("region", { name: "Money · August 2026" }).textContent;
       expect(financials).toContain("$240");
 
       const range = screen.getByRole("group", { name: "Traffic period" });
@@ -819,7 +819,7 @@ describe("/assets — composed to doc 21", () => {
       fireEvent.click(within(range).getByRole("button", { name: "90d" }));
 
       expect(screen.getByRole("region", { name: "Latest status" }).textContent).toBe(status);
-      expect(screen.getByRole("region", { name: "Financials · August 2026" }).textContent).toBe(financials);
+      expect(screen.getByRole("region", { name: "Money · August 2026" }).textContent).toBe(financials);
       expect(screen.getByRole("region", { name: "Traffic · 90 days" })).toBeInTheDocument();
       expect(within(kpi(container, "Latest daily users")).getByText("189")).toBeInTheDocument();
       fireEvent.focus(latestTrend);
