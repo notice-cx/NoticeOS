@@ -281,9 +281,47 @@ export function createBrowserEntry(options: {
     if (!expected || expected.mode !== 'hosted' || !expected.session) { await refresh(); return; }
     await completeSignIn(expected);
   }
+  /** A returning tab keeps its runtime and cache while the server still names
+   * the same lifetime; any difference or failure is an ordinary refresh. */
+  async function revalidate() {
+    if (disposed || appRelease.snapshot() !== 'current') return;
+    const kept = state;
+    if (kept.phase !== 'ready' || kept.runtime === null || kept.session === null) { void refresh(); return; }
+    const probe = new AbortController();
+    releaseProbe?.abort(); releaseProbe = probe;
+    const ticket = revision;
+    const live = () => current(ticket) && releaseProbe === probe && !probe.signal.aborted && state === kept;
+    try {
+      if (appRelease.enabled) await appRelease.check(AbortSignal.any([probe.signal, AbortSignal.timeout(10_000)]));
+    } catch { return; }
+    if (!live()) return;
+    let session: BrowserSession;
+    try {
+      session = await readSession({ base: options.base, signal: probe.signal });
+      if (!live()) return;
+      const selected = session.mode === 'hosted' && session.session ? remembered(session.session) : undefined;
+      if (selected !== undefined) {
+        const selectedSession = await readSession({ base: options.base, selected, signal: probe.signal });
+        if (!live()) return;
+        if (!samePerson(session, selectedSession)) { void refresh(); return; }
+        session = selectedSession;
+      }
+    } catch {
+      if (live()) void refresh();
+      return;
+    }
+    if (!sameLifetime(kept.session, session)) { void refresh(); return; }
+    releaseProbe = null;
+    set({ ...kept, session, choices: session.mode === 'hosted' ? session.workspaces : [] });
+    if (session.mode === 'hosted' && session.session) {
+      clearTimeout(expiry);
+      const remaining = Date.parse(session.session.expiresAt) - Date.now();
+      expiry = setTimeout(() => void refresh(), Math.min(remaining, 2_147_483_647));
+    }
+  }
   function hidden() { releaseProbe?.abort(); request?.abort(); ++revision; relinquish(); set({ phase: 'checking', session: null, choices: [], runtime: null, label: null, loadingMore: false }); }
   const shown = () => void refresh();
-  const visible = () => { if (options.page.document.visibilityState === 'visible') void refresh(); };
+  const visible = () => { if (options.page.document.visibilityState === 'visible') void revalidate(); };
   options.page.addEventListener('pagehide', hidden);
   options.page.addEventListener('pageshow', shown);
   options.page.document.addEventListener('visibilitychange', visible);
@@ -310,5 +348,17 @@ export function createBrowserEntry(options: {
 function samePerson(a: BrowserSession, b: BrowserSession) {
   return a.mode === 'hosted' && b.mode === 'hosted' && a.session !== null && b.session !== null
     && a.session.principalId === b.session.principalId && a.session.sessionId === b.session.sessionId;
+}
+/** The same person, session and workspace, with the same role and status. */
+function sameLifetime(a: BrowserSession, b: BrowserSession) {
+  if (a.mode === 'hosted' || b.mode === 'hosted') {
+    return samePerson(a, b) && a.mode === 'hosted' && b.mode === 'hosted' && b.session !== null
+      && Date.parse(b.session.expiresAt) > Date.now() && b.selectedWorkspace !== null
+      && JSON.stringify(a.selectedWorkspace) === JSON.stringify(b.selectedWorkspace);
+  }
+  if (a.mode === 'demo' || b.mode === 'demo') {
+    return a.mode === 'demo' && b.mode === 'demo' && JSON.stringify(a.workspace) === JSON.stringify(b.workspace);
+  }
+  return true;
 }
 export type BrowserEntry = ReturnType<typeof createBrowserEntry>;

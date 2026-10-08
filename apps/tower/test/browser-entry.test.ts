@@ -148,6 +148,48 @@ describe('verified tab entry', () => {
     await vi.waitFor(() => expect(value.snapshot().phase).toBe('ready'));
     expect(value.snapshot().runtime?.ownerKey).not.toBe(old.ownerKey);
   });
+  describe('a tab that becomes visible again', () => {
+    let role = 'owner';
+    let person = A;
+    let sessionId = SA;
+    let reads = 0;
+    async function returningTab(change = () => {}) {
+      role = 'owner'; person = A; sessionId = SA; reads = 0;
+      const value = entry(async (_input, init) => {
+        reads++;
+        return Response.json(snapshot(new Headers(init?.headers).get(WORKSPACE_SELECTION_HEADER), person, sessionId, role));
+      });
+      await value.refresh(); await value.choose(WA);
+      const old = value.snapshot().runtime!;
+      old.queries.setQueryData(['tasks'], 'cached');
+      reads = 0;
+      change();
+      vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+      document.dispatchEvent(new Event('visibilitychange'));
+      return { value, old };
+    }
+    it('keeps its runtime and cache when the server names the same lifetime', async () => {
+      const { value, old } = await returningTab();
+      await vi.waitFor(() => expect(reads).toBe(2));
+      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(value.snapshot().phase).toBe('ready');
+      expect(value.snapshot().runtime).toBe(old);
+      expect(old.guard(() => true)()).toBe(true);
+      expect(old.queries.getQueryData(['tasks'])).toBe('cached');
+    });
+    it('replaces its runtime when the role changed', async () => {
+      const { value, old } = await returningTab(() => { role = 'viewer'; });
+      await vi.waitFor(() => expect(value.snapshot().runtime?.ownerKey).not.toBe(old.ownerKey));
+      expect(value.snapshot().runtime?.queries.getQueryData(['tasks'])).toBeUndefined();
+      expect(old.guard(() => true)()).toBeUndefined();
+    });
+    it('retires its runtime when another person now holds the browser session', async () => {
+      const { value, old } = await returningTab(() => { person = B; sessionId = SB; });
+      await vi.waitFor(() => expect(value.snapshot().phase).toBe('choose'));
+      expect(value.snapshot().runtime).toBeNull();
+      expect(old.guard(() => true)()).toBeUndefined();
+    });
+  });
 });
 
 describe('identity protocol entry', () => {
