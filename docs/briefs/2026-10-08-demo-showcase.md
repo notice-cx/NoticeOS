@@ -43,7 +43,7 @@ yesterday need one. It has its own task project, so the hub has five.
 the ad network for Weeknight Pantry. Nothing else is claimed.
 
 **The hosted scheduler runs the demo's lanes.** The demo composes the ordinary
-hosted scheduler with three lanes under the release's job identities:
+hosted scheduler with four lanes under the release's job identities:
 
 - `counters` (every 15 minutes) writes today's provisional counts through the
   ordinary signal writer. Each count is the finished day's count × the share of
@@ -54,9 +54,14 @@ hosted scheduler with three lanes under the release's job identities:
   does. Earlier passes are skipped.
 - `beads-snapshot` refreshes the task board from the real task service every
   five minutes.
+- `watch-windows` (daily at 03:30) runs the release's outcome check over the
+  demo's own watch windows.
 
-Their executions are the Workflows page's history. If the simulator stops, the
-ordinary freshness rules show it.
+The first three are background operations, so their history is on System
+health. The outcome check is the Workflows page's. As first deployed, the demo
+ran only the first three, so Workflows had no rows. A hosted workspace whose
+deployment registers no workflow now says so, rather than that filters hide
+them. If the simulator stops, the ordinary freshness rules show it.
 
 **Incidents.** Light Brief's exports and Weeknight Pantry's recipe saves dip on
 recurring cycles (4 days every 19, and 4 every 13). Pinwell keeps its original

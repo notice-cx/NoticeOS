@@ -99,7 +99,8 @@ feed is fetched. The ordinary hosted scheduler runs the demo's lanes under the
 release's job identities: a quarter-hour refresh writes today's provisional
 synthetic traffic and search counts, the ad-supported site's daily estimate
 arrives each morning, and the task board refreshes every five minutes. Their
-executions are the Workflows page's history.
+executions are System health's background operations. A daily outcome check
+over the demo's own watch windows is the Workflows page's history.
 
 The scenario is versioned. A release whose scenario version differs from a
 running demo's refuses that demo's stored scenario at startup. Such a release

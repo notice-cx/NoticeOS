@@ -136,7 +136,11 @@ function WorkflowIndex({ schedule, surface }: { schedule: boolean; surface: Work
                 {schedule ? <WorkflowScheduleTimeline timezone={data.runtime?.jobs.find((j) => j.id === workflow.id)?.timezone} cron={data.runtime?.jobs.find((j) => j.id === workflow.id)?.cron ?? workflow.cron} enabled={Boolean(data.runtimeFresh && data.runtime?.jobs.find((j) => j.id === workflow.id)?.enabled)} now={now} name={workflow.label} /> : <div className="min-w-0"><WorkflowActivity history={summary.history} name={workflow.label} /><p className="text-xs text-muted-foreground tabular-nums">{summary.latest ? <Link to={`${base}/${workflow.id}?run=${encodeURIComponent(summary.latest.id)}`} title={utcRunReference(summary.latest.startedAt)} className="underline-offset-4 hover:underline"><time dateTime={summary.latest.startedAt}>{workflowRunAge(summary.latest.startedAt, now)}</time></Link> : 'No recorded runs'}</p></div>}
                 <NextRun workflow={workflow} data={data} />
               </div>)}</div></section>)}
-              {!rows.length && <p className="p-8 text-center text-sm text-muted-foreground">No {noun} match these filters.</p>}
+              {/* Nothing installed here is not a filter result: say so, and
+                  lead to the operations that do run. */}
+              {!rows.length && (definitions.length ? <p className="p-8 text-center text-sm text-muted-foreground">No {noun} match these filters.</p>
+                : <div className="flex flex-col items-center gap-2 p-8 text-sm"><p className="text-muted-foreground">No {noun} run here yet.</p>
+                  {!system && installedWorkflows(data).some((workflow) => workflow.surface === 'system') && <Link className="inline-flex min-h-8 items-center gap-1 font-medium underline underline-offset-4" to={workflowBasePath('system')}>Background operations <ArrowUpRight className="size-3.5" aria-hidden /></Link>}</div>)}
             </div>
           </div>
           <p className="text-xs text-muted-foreground tabular-nums">{rows.length} of {definitions.length} {noun}</p>

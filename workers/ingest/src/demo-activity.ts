@@ -10,6 +10,7 @@ import { importLedgerRows } from './routes/revenue.js';
 import { persistReport } from './mediavine.js';
 import { dates, pacificDay, shiftDate } from '@noticeos/mediavine';
 import { writeBeadsSnapshot } from './beads-snapshots.js';
+import { runWatchWindows, type WatchWindowEvaluation } from './watch-windows.js';
 
 export async function writeDemoActivity(store: WorkspaceStore, day: DemoActivityDay): Promise<{
   written: number; assets: number; date: string;
@@ -109,6 +110,14 @@ export async function writeDemoAdRevenue(store: WorkspaceStore, input: {
   }
   if (outcomes.length === 0) return skipped;
   return { succeeded: outcomes.length, written: outcomes.reduce((sum, outcome) => sum + outcome.observationCount, 0), outcomes };
+}
+
+/** The release's outcome check, over the demo's own windows at the
+ * scheduler's minute. Its windows read only the store. */
+export async function writeDemoOutcomeChecks(store: WorkspaceStore, at: string): Promise<WatchWindowEvaluation> {
+  const nowMs = Date.parse(at);
+  if (!Number.isFinite(nowMs)) throw new Error('Synthetic outcome check needs its scheduled minute.');
+  return runWatchWindows(Object.freeze({ STORE: store }) as unknown as IngestEnv, nowMs);
 }
 
 export async function writeDemoTaskSnapshot(store: WorkspaceStore, snapshot: BeadsSnapshotInput): Promise<{ written: number }> {

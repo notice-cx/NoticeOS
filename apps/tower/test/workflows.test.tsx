@@ -139,6 +139,26 @@ describe('workflow operating surface', () => {
     const system = ingest.filter((w) => w.surface === 'system').length;
     expect(screen.getByText(new RegExp(`${system} of ${system} operations`))).toBeInTheDocument();
   });
+  it('says no workflows run here, not that filters hide them, and leads to the operations that do', async () => {
+    // A hosted reader returns history only for the jobs its deployment registered.
+    const all = data.workflows;
+    const register = (ids: string[]) => {
+      data.runtime = { ...data.runtime!, hostLanes: false, onlyListedJobs: true, registeredJobs: ids,
+        jobs: WORKFLOW_DEFINITIONS.filter((w) => ids.includes(w.id)).map((w) => ({ id: w.id, enabled: true, cron: w.cron, nextRun: '2026-09-10T03:30:00Z' })) };
+      data.workflows = all.filter((w) => ids.includes(w.id));
+    };
+    register(['counters', 'beads-snapshot']);
+    mount('/workflows');
+    expect(await screen.findByText('No workflows run here yet.')).toBeInTheDocument();
+    expect(screen.queryByText(/match these filters/)).toBeNull();
+    expect(screen.getByRole('link', { name: 'Background operations' })).toHaveAttribute('href', '/health/operations');
+    cleanup();
+    client.clear();
+    register(['counters', 'watch-windows']);
+    mount('/workflows?q=nothing-matches');
+    expect(await screen.findByText('No workflows match these filters.')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Background operations' })).toBeNull();
+  });
   it('lists a host lane such an installation has set up, and no other', async () => {
     // A started installation with a task project saved runs its task board
     // refresh (bead ro-ujb9.174); with no offsite folder named it runs no backup.
