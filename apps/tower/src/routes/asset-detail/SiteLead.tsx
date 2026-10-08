@@ -2,7 +2,7 @@ import { useId, useState, type ReactNode } from "react";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import type { ClaritySnapshot, ProductDay, SearchIntelligenceSnapshot } from "@shared/asset-detail";
 import { MEDIAVINE_REPORTING_CLOCK, siteRevenueWindow, type DailyRevenueHistory } from "@shared/daily-revenue";
-import { shiftLabel, windowSeries, type RangeDays } from "@shared/surface";
+import { shiftLabel, windowSeries, type RangeDays, type SurfaceSpan } from "@shared/surface";
 import type { SeriesPoint, SignalTrend } from "@shared/wall";
 import { DailyRevenuePanel } from "@/components/DailyRevenuePanel";
 import { DeltaChip, performanceTone } from "@/components/DeltaChip";
@@ -14,7 +14,7 @@ import type { SeriesTone } from "@/components/surface/Sparkline";
 import { formatCalendarDate, formatCompact, formatInt, formatPercent, formatUsd } from "@/lib/format";
 import { rollingDailyAverage, rollingWeeklyChange, spannedTimeZoneChange } from "@/lib/series";
 import { leadMetric, metricWindow, type Aggregate, type MergedTrend } from "@/routes/asset-detail/overview-metrics";
-import { timelineAnnotations } from "@/routes/asset-detail/shared";
+import { timelineAnnotations, watchSpans } from "@/routes/asset-detail/shared";
 
 /**
  * THE FIRST THING A SITE'S PAGE DRAWS: its own numbers, fused to their chart
@@ -143,6 +143,7 @@ export function SiteLead({
       metrics={lead.metrics}
       days={days}
       annotations={timelineAnnotations(data.annotations.items)}
+      spans={watchSpans(data.watches.open, nowMs)}
       aside={aside}
       picked={picked}
       onPick={setPicked}
@@ -184,6 +185,7 @@ function TrafficLead({
   metrics,
   days,
   annotations,
+  spans,
   aside,
   picked,
   onPick,
@@ -192,6 +194,8 @@ function TrafficLead({
   metrics: SignalKpi[];
   days: RangeDays;
   annotations: ReturnType<typeof timelineAnnotations>;
+  /** The windows being watched, shaded on the chart (D44). */
+  spans: SurfaceSpan[];
   aside?: ReactNode;
   picked: MetricKey | null;
   onPick: (key: MetricKey) => void;
@@ -249,6 +253,7 @@ function TrafficLead({
             series={selected.chart}
             range={days}
             annotations={annotations}
+            spans={spans}
             provisionalFrom={selected.trend.provisionalFrom}
             format={selected.format}
           />

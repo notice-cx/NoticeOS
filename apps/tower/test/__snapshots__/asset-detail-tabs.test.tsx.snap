@@ -11,16 +11,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <h1 class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
 <span class="grid shrink-0 place-items-center overflow-hidden text-[10px] font-semibold text-muted-foreground size-7" aria-hidden="true" data-property-favicon="meals.example">
 <img alt="" aria-hidden="true" class="size-full object-contain" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meals.example/favicon.ico">
-</span>Meal Planner<span role="img" aria-label="1 open error alert" title="1 open error alert" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3.5" aria-hidden="true">
-<circle cx="12" cy="12" r="10">
-</circle>
-<line x1="12" x2="12" y1="8" y2="12">
-</line>
-<line x1="12" x2="12.01" y1="16" y2="16">
-</line>
-</svg>
-</span>
+</span>Meal Planner<span title="1 open error alert" data-status-for="asset:meals.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 border-error/30 bg-error-soft text-error ms-1 align-middle text-xs font-medium normal-case tracking-normal">
+<span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-error">
+</span>Off track</span>
 <a href="https://meals.example" target="_blank" rel="noreferrer" class="font-mono text-sm font-normal text-muted-foreground underline-offset-4 hover:underline max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">meals.example</a>
 </h1>
 </div>
@@ -120,16 +113,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <h1 class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
 <span class="grid shrink-0 place-items-center overflow-hidden text-[10px] font-semibold text-muted-foreground size-7" aria-hidden="true" data-property-favicon="meals.example">
 <img alt="" aria-hidden="true" class="size-full object-contain" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meals.example/favicon.ico">
-</span>Meal Planner<span role="img" aria-label="1 open error alert" title="1 open error alert" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3.5" aria-hidden="true">
-<circle cx="12" cy="12" r="10">
-</circle>
-<line x1="12" x2="12" y1="8" y2="12">
-</line>
-<line x1="12" x2="12.01" y1="16" y2="16">
-</line>
-</svg>
-</span>
+</span>Meal Planner<span title="1 open error alert" data-status-for="asset:meals.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 border-error/30 bg-error-soft text-error ms-1 align-middle text-xs font-medium normal-case tracking-normal">
+<span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-error">
+</span>Off track</span>
 <a href="https://meals.example" target="_blank" rel="noreferrer" class="font-mono text-sm font-normal text-muted-foreground underline-offset-4 hover:underline max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">meals.example</a>
 </h1>
 </div>
@@ -249,16 +235,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <h1 class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
 <span class="grid shrink-0 place-items-center overflow-hidden text-[10px] font-semibold text-muted-foreground size-7" aria-hidden="true" data-property-favicon="meals.example">
 <img alt="" aria-hidden="true" class="size-full object-contain" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meals.example/favicon.ico">
-</span>Meal Planner<span role="img" aria-label="1 open error alert" title="1 open error alert" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3.5" aria-hidden="true">
-<circle cx="12" cy="12" r="10">
-</circle>
-<line x1="12" x2="12" y1="8" y2="12">
-</line>
-<line x1="12" x2="12.01" y1="16" y2="16">
-</line>
-</svg>
-</span>
+</span>Meal Planner<span title="1 open error alert" data-status-for="asset:meals.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 border-error/30 bg-error-soft text-error ms-1 align-middle text-xs font-medium normal-case tracking-normal">
+<span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-error">
+</span>Off track</span>
 <a href="https://meals.example" target="_blank" rel="noreferrer" class="font-mono text-sm font-normal text-muted-foreground underline-offset-4 hover:underline max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">meals.example</a>
 </h1>
 </div>
@@ -411,16 +390,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <h1 class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
 <span class="grid shrink-0 place-items-center overflow-hidden text-[10px] font-semibold text-muted-foreground size-7" aria-hidden="true" data-property-favicon="meals.example">
 <img alt="" aria-hidden="true" class="size-full object-contain" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meals.example/favicon.ico">
-</span>Meal Planner<span role="img" aria-label="1 open error alert" title="1 open error alert" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3.5" aria-hidden="true">
-<circle cx="12" cy="12" r="10">
-</circle>
-<line x1="12" x2="12" y1="8" y2="12">
-</line>
-<line x1="12" x2="12.01" y1="16" y2="16">
-</line>
-</svg>
-</span>
+</span>Meal Planner<span title="1 open error alert" data-status-for="asset:meals.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 border-error/30 bg-error-soft text-error ms-1 align-middle text-xs font-medium normal-case tracking-normal">
+<span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-error">
+</span>Off track</span>
 <a href="https://meals.example" target="_blank" rel="noreferrer" class="font-mono text-sm font-normal text-muted-foreground underline-offset-4 hover:underline max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">meals.example</a>
 </h1>
 </div>
@@ -948,16 +920,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <h1 class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
 <span class="grid shrink-0 place-items-center overflow-hidden text-[10px] font-semibold text-muted-foreground size-7" aria-hidden="true" data-property-favicon="meals.example">
 <img alt="" aria-hidden="true" class="size-full object-contain" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meals.example/favicon.ico">
-</span>Meal Planner<span role="img" aria-label="1 open error alert" title="1 open error alert" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3.5" aria-hidden="true">
-<circle cx="12" cy="12" r="10">
-</circle>
-<line x1="12" x2="12" y1="8" y2="12">
-</line>
-<line x1="12" x2="12.01" y1="16" y2="16">
-</line>
-</svg>
-</span>
+</span>Meal Planner<span title="1 open error alert" data-status-for="asset:meals.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 border-error/30 bg-error-soft text-error ms-1 align-middle text-xs font-medium normal-case tracking-normal">
+<span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-error">
+</span>Off track</span>
 <a href="https://meals.example" target="_blank" rel="noreferrer" class="font-mono text-sm font-normal text-muted-foreground underline-offset-4 hover:underline max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">meals.example</a>
 </h1>
 </div>
@@ -1009,6 +974,13 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 <div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-overview" class="flex flex-col gap-4">
 <div class="flex flex-col gap-3.5">
+<div class="flex flex-wrap items-center gap-x-2 text-[14px] text-foreground" data-verdict-line="true">
+<span class="tabular-nums">Jun net +$498</span>
+<span aria-hidden="true" class="text-muted-foreground">·</span>
+<span class="text-error">1 error open</span>
+<span aria-hidden="true" class="text-muted-foreground">·</span>
+<span class="tabular-nums">nothing being watched</span>
+</div>
 <section aria-labelledby="overview-traffic" data-traffic-window="true" class="overflow-hidden rounded-[10px] border border-border bg-card">
 <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-b border-border/60 px-4 py-3">
 <h2 id="overview-traffic" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Traffic · last 28 days</h2>
@@ -1395,6 +1367,35 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </section>
 </div>
 </div>
+<div class="grid gap-3.5 lg:grid-cols-2">
+<section class="flex flex-col rounded-[10px] border border-border bg-card" aria-label="Bets">
+<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
+<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Bets</h2>
+<a class="ms-auto text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring max-sm:-my-2.5 max-sm:inline-flex max-sm:items-center motion-safe:transition-colors" href="/assets/meals.example/activity" data-discover="true">Activity →</a>
+</div>
+<div class="px-4 pb-4 text-xs text-muted-foreground">Nothing being watched yet</div>
+</section>
+<section aria-label="Search movers" class="flex flex-col rounded-[10px] border border-border bg-card" data-search-movers="true">
+<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
+<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Search movers</h2>
+<span class="min-w-0 text-xs tabular-nums text-muted-foreground">Jul 3, 2026 – Jul 4, 2026</span>
+<a class="ms-auto text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring max-sm:-my-2.5 max-sm:inline-flex max-sm:items-center motion-safe:transition-colors" href="/assets/meals.example/search" data-discover="true">Search →</a>
+</div>
+<div class="grid gap-x-6 gap-y-1 px-4 pb-3 sm:grid-cols-2">
+<ul class="m-0 list-none p-0" data-movers="rising">
+<li class="m-0 py-1 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Rising</li>
+<li class="m-0 flex items-baseline justify-between gap-3 border-t border-border/60 py-1.5 text-[13px]" data-subject="query:weekly meal plan">
+<span class="min-w-0 truncate">weekly meal plan</span>
+<span class="shrink-0 tabular-nums text-trend-positive">▲ 7.4→6.1</span>
+</li>
+</ul>
+<ul class="m-0 list-none p-0" data-movers="falling">
+<li class="m-0 py-1 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Falling</li>
+<li class="m-0 py-1 text-xs text-muted-foreground">none</li>
+</ul>
+</div>
+</section>
+</div>
 <section aria-labelledby="product-report">
 <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 mb-2">
 <h2 id="product-report" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Product use</h2>
@@ -1451,16 +1452,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <h1 class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
 <span class="grid shrink-0 place-items-center overflow-hidden text-[10px] font-semibold text-muted-foreground size-7" aria-hidden="true" data-property-favicon="meals.example">
 <img alt="" aria-hidden="true" class="size-full object-contain" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meals.example/favicon.ico">
-</span>Meal Planner<span role="img" aria-label="1 open error alert" title="1 open error alert" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3.5" aria-hidden="true">
-<circle cx="12" cy="12" r="10">
-</circle>
-<line x1="12" x2="12" y1="8" y2="12">
-</line>
-<line x1="12" x2="12.01" y1="16" y2="16">
-</line>
-</svg>
-</span>
+</span>Meal Planner<span title="1 open error alert" data-status-for="asset:meals.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 border-error/30 bg-error-soft text-error ms-1 align-middle text-xs font-medium normal-case tracking-normal">
+<span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-error">
+</span>Off track</span>
 <a href="https://meals.example" target="_blank" rel="noreferrer" class="font-mono text-sm font-normal text-muted-foreground underline-offset-4 hover:underline max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">meals.example</a>
 </h1>
 </div>
@@ -2148,16 +2142,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <h1 class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
 <span class="grid shrink-0 place-items-center overflow-hidden text-[10px] font-semibold text-muted-foreground size-7" aria-hidden="true" data-property-favicon="meals.example">
 <img alt="" aria-hidden="true" class="size-full object-contain" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meals.example/favicon.ico">
-</span>Meal Planner<span role="img" aria-label="1 open error alert" title="1 open error alert" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3.5" aria-hidden="true">
-<circle cx="12" cy="12" r="10">
-</circle>
-<line x1="12" x2="12" y1="8" y2="12">
-</line>
-<line x1="12" x2="12.01" y1="16" y2="16">
-</line>
-</svg>
-</span>
+</span>Meal Planner<span title="1 open error alert" data-status-for="asset:meals.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 border-error/30 bg-error-soft text-error ms-1 align-middle text-xs font-medium normal-case tracking-normal">
+<span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-error">
+</span>Off track</span>
 <a href="https://meals.example" target="_blank" rel="noreferrer" class="font-mono text-sm font-normal text-muted-foreground underline-offset-4 hover:underline max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">meals.example</a>
 </h1>
 </div>
@@ -2688,16 +2675,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <h1 class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
 <span class="grid shrink-0 place-items-center overflow-hidden text-[10px] font-semibold text-muted-foreground size-7" aria-hidden="true" data-property-favicon="meals.example">
 <img alt="" aria-hidden="true" class="size-full object-contain" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meals.example/favicon.ico">
-</span>Meal Planner<span role="img" aria-label="1 open error alert" title="1 open error alert" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3.5" aria-hidden="true">
-<circle cx="12" cy="12" r="10">
-</circle>
-<line x1="12" x2="12" y1="8" y2="12">
-</line>
-<line x1="12" x2="12.01" y1="16" y2="16">
-</line>
-</svg>
-</span>
+</span>Meal Planner<span title="1 open error alert" data-status-for="asset:meals.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 border-error/30 bg-error-soft text-error ms-1 align-middle text-xs font-medium normal-case tracking-normal">
+<span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-error">
+</span>Off track</span>
 <a href="https://meals.example" target="_blank" rel="noreferrer" class="font-mono text-sm font-normal text-muted-foreground underline-offset-4 hover:underline max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">meals.example</a>
 </h1>
 </div>
@@ -2865,16 +2845,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <h1 class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
 <span class="grid shrink-0 place-items-center overflow-hidden text-[10px] font-semibold text-muted-foreground size-7" aria-hidden="true" data-property-favicon="meals.example">
 <img alt="" aria-hidden="true" class="size-full object-contain" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meals.example/favicon.ico">
-</span>Meal Planner<span role="img" aria-label="1 open error alert" title="1 open error alert" data-severity-mark="error" class="inline-flex shrink-0 text-error">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-3.5" aria-hidden="true">
-<circle cx="12" cy="12" r="10">
-</circle>
-<line x1="12" x2="12" y1="8" y2="12">
-</line>
-<line x1="12" x2="12.01" y1="16" y2="16">
-</line>
-</svg>
-</span>
+</span>Meal Planner<span title="1 open error alert" data-status-for="asset:meals.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 border-error/30 bg-error-soft text-error ms-1 align-middle text-xs font-medium normal-case tracking-normal">
+<span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-error">
+</span>Off track</span>
 <a href="https://meals.example" target="_blank" rel="noreferrer" class="font-mono text-sm font-normal text-muted-foreground underline-offset-4 hover:underline max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center">meals.example</a>
 </h1>
 </div>

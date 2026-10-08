@@ -9,7 +9,8 @@ import { DataSourceIcons } from "@/components/DataSourceIcons";
 import { PageHeader } from "@/components/PageHeader";
 import { useConnections } from "@/hooks/useConnections";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
-import { SeverityDot } from "@/components/SeverityDot";
+import { StateChip } from "@/components/StateChip";
+import { siteHealth } from "@/lib/site-health";
 import { Badge } from "@/components/ui/badge";
 import { openAlertsLabel } from "@/lib/severity";
 import { RangeSelector } from "@/components/surface/RangeSelector";
@@ -45,6 +46,7 @@ export function Header({
   const { days, setDays } = useRange();
   const { credentials, items } = useConnections();
   const sources = sourceReadings(asset.id, integrations.sources, { credentials, items }, nowMs);
+  const verdict = siteHealth(asset);
   // The identity row IS the heading (doc 14: one representation per fact) —
   // the page header renders it inside its `h1` rather than repeating the name
   // above a separate identity strip.
@@ -60,13 +62,17 @@ export function Header({
             className="size-7"
           />
           {asset.displayName}
-          {asset.worstOpenSeverity === "warn" ||
-          asset.worstOpenSeverity === "error" ? (
-            <SeverityDot
-              severity={asset.worstOpenSeverity}
-              title={openAlertsLabel(asset.openError, asset.openWarn)}
-            />
-          ) : null}
+          {/* THE VERDICT (D44, doc 21 § Asset · Overview): one word from the
+              one derivation Home's sites strip reads (`siteHealth`), in place
+              of the bare severity dot — the word says what the dot meant and
+              more (Setting up, Monitor only), and its hover keeps the count. */}
+          <StateChip
+            label={verdict.word}
+            tone={verdict.tone}
+            subject={`asset:${asset.id}`}
+            title={asset.openError + asset.openWarn > 0 ? openAlertsLabel(asset.openError, asset.openWarn) : undefined}
+            className="ms-1 align-middle text-xs font-medium normal-case tracking-normal"
+          />
           {asset.domain && demoReadonly ? <span className="font-mono text-sm font-normal text-muted-foreground">{asset.domain}</span> : asset.domain ? (
             <a
               href={`https://${asset.domain}`}

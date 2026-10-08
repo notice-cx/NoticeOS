@@ -1912,7 +1912,9 @@ describe("AssetDetailRoute — the setup checklist (bead ro-28ma)", () => {
     // ONE NAME AND ONE COUNT (bead `ro-ujb9.164`): the disclosure is the panel,
     // named as the Overview's banner names it, never "checks complete".
     expect(container.querySelector("[data-setup] summary")!.textContent).toBe("Data setup · 2 of 4 done");
-    expect(container.textContent).not.toMatch(/checks complete|Setting up/u);
+    // The header's verdict word may say "Setting up" (D44); the tab itself
+    // never repeats the checklist's state in those words.
+    expect(container.querySelector('[role="tabpanel"]')!.textContent).not.toMatch(/checks complete|Setting up/u);
     const pause = container.querySelector('[data-setup-item="pause-check"]')!;
     expect(pause).toHaveTextContent("Pause check");
     expect(pause).toHaveTextContent("Unavailable · Agent execution is manual.");
