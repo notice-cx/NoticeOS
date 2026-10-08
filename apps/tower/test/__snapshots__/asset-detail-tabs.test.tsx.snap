@@ -529,11 +529,11 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 <div class="grid gap-x-2" style="grid-template-columns: 22px minmax(0,1fr); padding-inline-end: 7px;">
 <div data-hero-gutter="22" class="relative h-(--hero-height) max-sm:h-[180px]" style="--hero-height: 180px;" aria-hidden="true">
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 96.66666666666667%;">0</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 73.88888888888889%;">50</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 51.11111111111111%;">100</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 28.333333333333332%;">150</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 5.555555555555555%;">200</span>
+<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 96.66666666666667%;">70</span>
+<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 73.88888888888889%;">80</span>
+<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 51.11111111111111%;">90</span>
+<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 28.333333333333332%;">100</span>
+<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 5.555555555555555%;">110</span>
 </div>
 <div class="relative h-(--hero-height) rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:h-[180px]" style="--hero-height: 180px;" tabindex="0" role="group" aria-label="Explore GA4 values" aria-describedby="_rID_">
 <svg class="block h-full w-full overflow-visible" viewBox="0 0 1000 180" preserveAspectRatio="none" role="img" aria-label="Meal Planner active users over the last 28 days">
@@ -558,18 +558,18 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <line x1="962.9629629629629" x2="962.9629629629629" y1="10" y2="174" class="stroke-chart-distorted" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke">
 </line>
 <g class="text-foreground">
-<path d="M740.7407407407406 100.2 L777.7777777777778 96.10000000000001 L814.8148148148148 93.64 L851.8518518518518 91.17999999999999 L888.8888888888888 90.36 L925.925925925926 91.45333333333332 L962.9629629629629 95.04571428571427 L962.9629629629629 174 L740.7407407407406 174 Z" class="fill-current opacity-10">
+<path d="M740.7407407407406 92 L777.7777777777778 71.5 L814.8148148148148 59.20000000000001 L851.8518518518518 46.9 L888.8888888888888 42.79999999999999 L925.925925925926 48.26666666666664 L962.9629629629629 66.22857142857141 L962.9629629629629 174 L740.7407407407406 174 Z" class="fill-current opacity-10">
 </path>
-<path data-hero-raw="GA4" d="M740.7407407407406 100.2 L777.7777777777778 92 L814.8148148148148 88.72 L851.8518518518518 83.8 L888.8888888888888 87.08 L925.925925925926 96.92 L962.9629629629629 116.60000000000001 L1000 92.82000000000001" class="fill-none stroke-current" stroke-width="1" stroke-opacity="0.5" vector-effect="non-scaling-stroke">
+<path data-hero-raw="GA4" d="M740.7407407407406 92 L777.7777777777778 51 L814.8148148148148 34.60000000000001 L851.8518518518518 10 L888.8888888888888 26.399999999999995 L925.925925925926 75.60000000000001 L962.9629629629629 174 L1000 55.1" class="fill-none stroke-current" stroke-width="1" stroke-opacity="0.5" vector-effect="non-scaling-stroke">
 </path>
-<path data-hero-line="GA4" data-hero-weight="lead" d="M740.7407407407406 100.2 L777.7777777777778 96.10000000000001 L814.8148148148148 93.64 L851.8518518518518 91.17999999999999 L888.8888888888888 90.36 L925.925925925926 91.45333333333332 L962.9629629629629 95.04571428571427" class="fill-none stroke-current" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
+<path data-hero-line="GA4" data-hero-weight="lead" d="M740.7407407407406 92 L777.7777777777778 71.5 L814.8148148148148 59.20000000000001 L851.8518518518518 46.9 L888.8888888888888 42.79999999999999 L925.925925925926 48.26666666666664 L962.9629629629629 66.22857142857141" class="fill-none stroke-current" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
 </path>
-<g data-chart-dot="hollow" data-x="1000" data-y="92.82000000000001" data-hero-provisional="GA4">
-<path d="M1000 92.82h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="8.2">
+<g data-chart-dot="hollow" data-x="1000" data-y="55.1" data-hero-provisional="GA4">
+<path d="M1000 55.1h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="8.2">
 </path>
-<path d="M1000 92.82h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="5.2">
+<path d="M1000 55.1h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="5.2">
 </path>
-<path d="M1000 92.82h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="2.2">
+<path d="M1000 55.1h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="2.2">
 </path>
 </g>
 </g>
@@ -668,11 +668,10 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 <div class="grid gap-x-2" style="grid-template-columns: 15px minmax(0,1fr); padding-inline-end: 7px;">
 <div data-hero-gutter="15" class="relative h-(--hero-height) max-sm:h-[180px]" style="--hero-height: 180px;" aria-hidden="true">
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 96.66666666666667%;">0</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 73.88888888888889%;">20</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 51.11111111111111%;">40</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 28.333333333333332%;">60</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 5.555555555555555%;">80</span>
+<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 96.66666666666667%;">30</span>
+<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 66.2962962962963%;">40</span>
+<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 35.92592592592593%;">50</span>
+<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 5.555555555555555%;">60</span>
 </div>
 <div class="relative h-(--hero-height) rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:h-[180px]" style="--hero-height: 180px;" tabindex="0" role="group" aria-label="Explore Google values" aria-describedby="_rID_">
 <svg class="block h-full w-full overflow-visible" viewBox="0 0 1000 180" preserveAspectRatio="none" role="img" aria-label="Meal Planner clicks over the last 28 days">
@@ -686,29 +685,27 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </rect>
 <line x1="0" x2="1000" y1="174" y2="174" class="stroke-border opacity-60" stroke-width="1" vector-effect="non-scaling-stroke">
 </line>
-<line x1="0" x2="1000" y1="133" y2="133" class="stroke-border opacity-60" stroke-width="1" vector-effect="non-scaling-stroke">
+<line x1="0" x2="1000" y1="119.33333333333334" y2="119.33333333333334" class="stroke-border opacity-60" stroke-width="1" vector-effect="non-scaling-stroke">
 </line>
-<line x1="0" x2="1000" y1="92" y2="92" class="stroke-border opacity-60" stroke-width="1" vector-effect="non-scaling-stroke">
-</line>
-<line x1="0" x2="1000" y1="51" y2="51" class="stroke-border opacity-60" stroke-width="1" vector-effect="non-scaling-stroke">
+<line x1="0" x2="1000" y1="64.66666666666667" y2="64.66666666666667" class="stroke-border opacity-60" stroke-width="1" vector-effect="non-scaling-stroke">
 </line>
 <line x1="0" x2="1000" y1="10" y2="10" class="stroke-border opacity-60" stroke-width="1" vector-effect="non-scaling-stroke">
 </line>
 <line x1="962.9629629629629" x2="962.9629629629629" y1="10" y2="174" class="stroke-chart-distorted" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke">
 </line>
 <g class="text-foreground">
-<path d="M740.7407407407406 81.75 L777.7777777777778 74.575 L814.8148148148148 70.13333333333334 L851.8518518518518 66.88750000000002 L888.8888888888888 67.81 L925.925925925926 70.81666666666666 L962.9629629629629 76.47857142857143 L962.9629629629629 174 L740.7407407407406 174 Z" class="fill-current opacity-10">
+<path d="M740.7407407407406 92 L777.7777777777778 72.86666666666666 L814.8148148148148 61.02222222222224 L851.8518518518518 52.36666666666666 L888.8888888888888 54.82666666666668 L925.925925925926 62.84444444444444 L962.9629629629629 77.94285714285715 L962.9629629629629 174 L740.7407407407406 174 Z" class="fill-current opacity-10">
 </path>
-<path data-hero-raw="Google" d="M740.7407407407406 81.75 L777.7777777777778 67.4 L814.8148148148148 61.25 L851.8518518518518 57.15 L888.8888888888888 71.5 L925.925925925926 85.85000000000001 L962.9629629629629 110.45 L1000 51" class="fill-none stroke-current" stroke-width="1" stroke-opacity="0.5" vector-effect="non-scaling-stroke">
+<path data-hero-raw="Google" d="M740.7407407407406 92 L777.7777777777778 53.73333333333334 L814.8148148148148 37.33333333333333 L851.8518518518518 26.399999999999995 L888.8888888888888 64.66666666666667 L925.925925925926 102.93333333333334 L962.9629629629629 168.53333333333333 L1000 10" class="fill-none stroke-current" stroke-width="1" stroke-opacity="0.5" vector-effect="non-scaling-stroke">
 </path>
-<path data-hero-line="Google" data-hero-weight="lead" d="M740.7407407407406 81.75 L777.7777777777778 74.575 L814.8148148148148 70.13333333333334 L851.8518518518518 66.88750000000002 L888.8888888888888 67.81 L925.925925925926 70.81666666666666 L962.9629629629629 76.47857142857143" class="fill-none stroke-current" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
+<path data-hero-line="Google" data-hero-weight="lead" d="M740.7407407407406 92 L777.7777777777778 72.86666666666666 L814.8148148148148 61.02222222222224 L851.8518518518518 52.36666666666666 L888.8888888888888 54.82666666666668 L925.925925925926 62.84444444444444 L962.9629629629629 77.94285714285715" class="fill-none stroke-current" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
 </path>
-<g data-chart-dot="hollow" data-x="1000" data-y="51" data-hero-provisional="Google">
-<path d="M1000 51h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="8.2">
+<g data-chart-dot="hollow" data-x="1000" data-y="10" data-hero-provisional="Google">
+<path d="M1000 10h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="8.2">
 </path>
-<path d="M1000 51h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="5.2">
+<path d="M1000 10h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="5.2">
 </path>
-<path d="M1000 51h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="2.2">
+<path d="M1000 10h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="2.2">
 </path>
 </g>
 </g>
@@ -773,11 +770,11 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 <div class="grid gap-x-2" style="grid-template-columns: 25px minmax(0,1fr); padding-inline-end: 7px;">
 <div data-hero-gutter="25" class="relative h-(--hero-height) max-sm:h-[180px]" style="--hero-height: 180px;" aria-hidden="true">
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 96.66666666666667%;">0</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 73.88888888888889%;">500</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 51.11111111111111%;">1K</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 28.333333333333332%;">1.5K</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 5.555555555555555%;">2K</span>
+<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 96.66666666666667%;">700</span>
+<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 73.88888888888889%;">800</span>
+<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 51.11111111111111%;">900</span>
+<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 28.333333333333332%;">1K</span>
+<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 5.555555555555555%;">1.1K</span>
 </div>
 <div class="relative h-(--hero-height) rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:h-[180px]" style="--hero-height: 180px;" tabindex="0" role="group" aria-label="Explore Google values" aria-describedby="_rID_">
 <svg class="block h-full w-full overflow-visible" viewBox="0 0 1000 180" preserveAspectRatio="none" role="img" aria-label="Meal Planner impressions over the last 28 days">
@@ -802,18 +799,18 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <line x1="962.9629629629629" x2="962.9629629629629" y1="10" y2="174" class="stroke-chart-distorted" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke">
 </line>
 <g class="text-foreground">
-<path d="M740.7407407407406 100.2 L777.7777777777778 96.10000000000001 L814.8148148148148 93.64 L851.8518518518518 91.17999999999999 L888.8888888888888 90.36 L925.925925925926 91.45333333333333 L962.9629629629629 95.04571428571428 L962.9629629629629 174 L740.7407407407406 174 Z" class="fill-current opacity-10">
+<path d="M740.7407407407406 92 L777.7777777777778 71.5 L814.8148148148148 59.20000000000001 L851.8518518518518 46.9 L888.8888888888888 42.79999999999999 L925.925925925926 48.26666666666668 L962.9629629629629 66.22857142857141 L962.9629629629629 174 L740.7407407407406 174 Z" class="fill-current opacity-10">
 </path>
-<path data-hero-raw="Google" d="M740.7407407407406 100.2 L777.7777777777778 92 L814.8148148148148 88.72 L851.8518518518518 83.8 L888.8888888888888 87.08 L925.925925925926 96.92 L962.9629629629629 116.60000000000001 L1000 92.82000000000001" class="fill-none stroke-current" stroke-width="1" stroke-opacity="0.5" vector-effect="non-scaling-stroke">
+<path data-hero-raw="Google" d="M740.7407407407406 92 L777.7777777777778 51 L814.8148148148148 34.60000000000001 L851.8518518518518 10 L888.8888888888888 26.399999999999995 L925.925925925926 75.60000000000001 L962.9629629629629 174 L1000 55.1" class="fill-none stroke-current" stroke-width="1" stroke-opacity="0.5" vector-effect="non-scaling-stroke">
 </path>
-<path data-hero-line="Google" data-hero-weight="lead" d="M740.7407407407406 100.2 L777.7777777777778 96.10000000000001 L814.8148148148148 93.64 L851.8518518518518 91.17999999999999 L888.8888888888888 90.36 L925.925925925926 91.45333333333333 L962.9629629629629 95.04571428571428" class="fill-none stroke-current" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
+<path data-hero-line="Google" data-hero-weight="lead" d="M740.7407407407406 92 L777.7777777777778 71.5 L814.8148148148148 59.20000000000001 L851.8518518518518 46.9 L888.8888888888888 42.79999999999999 L925.925925925926 48.26666666666668 L962.9629629629629 66.22857142857141" class="fill-none stroke-current" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
 </path>
-<g data-chart-dot="hollow" data-x="1000" data-y="92.82000000000001" data-hero-provisional="Google">
-<path d="M1000 92.82h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="8.2">
+<g data-chart-dot="hollow" data-x="1000" data-y="55.1" data-hero-provisional="Google">
+<path d="M1000 55.1h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="8.2">
 </path>
-<path d="M1000 92.82h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="5.2">
+<path d="M1000 55.1h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="5.2">
 </path>
-<path d="M1000 92.82h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="2.2">
+<path d="M1000 55.1h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="2.2">
 </path>
 </g>
 </g>
@@ -1175,11 +1172,11 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 <div class="grid gap-x-2" style="grid-template-columns: 22px minmax(0,1fr); padding-inline-end: 7px;">
 <div data-hero-gutter="22" class="relative h-(--hero-height) max-sm:h-[180px]" style="--hero-height: 240px;" aria-hidden="true">
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 97.5%;">0</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 74.16666666666667%;">50</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 50.83333333333333%;">100</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 27.500000000000004%;">150</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 4.166666666666666%;">200</span>
+<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 97.5%;">70</span>
+<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 74.16666666666667%;">80</span>
+<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 50.83333333333333%;">90</span>
+<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 27.500000000000004%;">100</span>
+<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 4.166666666666666%;">110</span>
 </div>
 <div class="relative h-(--hero-height) rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:h-[180px]" style="--hero-height: 240px;" tabindex="0" role="group" aria-label="Explore GA4 and Same day last week values" aria-describedby="_rID_">
 <svg class="block h-full w-full overflow-visible" viewBox="0 0 1000 240" preserveAspectRatio="none" role="img" aria-label="GA4 and Same day last week over 28 days">
@@ -1204,26 +1201,26 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <line x1="962.9629629629629" x2="962.9629629629629" y1="10" y2="234" class="stroke-chart-distorted" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke">
 </line>
 <g class="text-foreground">
-<path data-hero-raw="GA4" d="M740.7407407407406 133.20000000000002 L777.7777777777778 122 L814.8148148148148 117.52 L851.8518518518518 110.79999999999998 L888.8888888888888 115.28 L925.925925925926 128.72 L962.9629629629629 155.6 L1000 123.12" class="fill-none stroke-current" stroke-width="1" stroke-opacity="0.5" vector-effect="non-scaling-stroke">
+<path data-hero-raw="GA4" d="M740.7407407407406 122 L777.7777777777778 66 L814.8148148148148 43.60000000000001 L851.8518518518518 10 L888.8888888888888 32.39999999999999 L925.925925925926 99.60000000000001 L962.9629629629629 234 L1000 71.60000000000001" class="fill-none stroke-current" stroke-width="1" stroke-opacity="0.5" vector-effect="non-scaling-stroke">
 </path>
-<path data-hero-line="GA4" data-hero-weight="lead" d="M740.7407407407406 133.20000000000002 L777.7777777777778 127.60000000000001 L814.8148148148148 124.24000000000001 L851.8518518518518 120.88 L888.8888888888888 119.75999999999999 L925.925925925926 121.25333333333332 L962.9629629629629 126.15999999999997" class="fill-none stroke-current" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
+<path data-hero-line="GA4" data-hero-weight="lead" d="M740.7407407407406 122 L777.7777777777778 94 L814.8148148148148 77.20000000000002 L851.8518518518518 60.39999999999999 L888.8888888888888 54.79999999999999 L925.925925925926 62.26666666666663 L962.9629629629629 86.79999999999998" class="fill-none stroke-current" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
 </path>
-<g data-chart-dot="hollow" data-x="1000" data-y="123.12" data-hero-provisional="GA4">
-<path d="M1000 123.12h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="8.2">
+<g data-chart-dot="hollow" data-x="1000" data-y="71.60000000000001" data-hero-provisional="GA4">
+<path d="M1000 71.6h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="8.2">
 </path>
-<path d="M1000 123.12h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="5.2">
+<path d="M1000 71.6h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="5.2">
 </path>
-<path d="M1000 123.12h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="2.2">
+<path d="M1000 71.6h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="2.2">
 </path>
 </g>
 </g>
 <g class="text-spark">
-<path data-hero-line="Same day last week" data-hero-weight="reference" d="M1000 133.20000000000002" class="fill-none stroke-current" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
+<path data-hero-line="Same day last week" data-hero-weight="reference" d="M1000 122" class="fill-none stroke-current" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
 </path>
-<g data-chart-dot="solid" data-x="1000" data-y="133.20000000000002" data-hero-point="Same day last week">
-<path d="M1000 133.2h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="8.2">
+<g data-chart-dot="solid" data-x="1000" data-y="122" data-hero-point="Same day last week">
+<path d="M1000 122h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="8.2">
 </path>
-<path d="M1000 133.2h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="5.2">
+<path d="M1000 122h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="5.2">
 </path>
 </g>
 </g>
