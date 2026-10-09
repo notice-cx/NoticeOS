@@ -251,7 +251,9 @@ test("KPI trends remain inside their cells on desk, tablet and phone", async ({ 
     : [{ width: 1440, height: 900 }, { width: 768, height: 1024 }, { width: 1024, height: 768 }];
   for (const viewport of viewports) {
     await page.setViewportSize(viewport);
-    for (const route of ["/", `/assets/${JOURNEY_ASSET}`, "/financials?period=2026-09"]) {
+    // Home and Money open with an answer sentence, not a KPI strip (D44,
+    // D45); the site Overview's hero cells are the KPIs left with trends.
+    for (const route of [`/assets/${JOURNEY_ASSET}`]) {
       await page.goto(route);
       const sparks = page.locator("[data-kpi] [data-spark]");
       await expect(sparks.first()).toBeVisible();
@@ -401,7 +403,9 @@ test('Mediavine signs in in the panel, its site is matched by domain and synced 
   await assertNoPageOverflow(page);
   await page.screenshot({ path: testInfo.outputPath('mediavine-sources-after.png'), fullPage: true });
   await page.goto('/financials?period=2026-09');
-  await expect(page.getByRole('main')).toContainText('$5.00');
+  // Money's answer states the month in whole dollars (D45); the cents are the
+  // site Overview's, checked below.
+  await expect(page.locator('[data-money-revenue]')).toContainText('$5');
   await expect(page.getByRole('main')).not.toContainText('$5.02');
   await assertNoPageOverflow(page);
   await page.screenshot({ path: testInfo.outputPath('mediavine-financials-after.png'), fullPage: true });
@@ -1789,7 +1793,8 @@ test("a new site raises no nightly-report warning anywhere, and the System fract
   await expect(page.getByText("Waiting for first report")).toHaveCount(0);
 
   await page.goto("/health");
-  await expect(page.getByText("Source history").first()).toBeVisible();
+  // Source history waits for three points (D45); the status card is drawn.
+  await expect(page.getByRole("region", { name: "System status" })).toBeVisible();
   await expect(page.getByText("Finish setup on Journey Example")).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Other sources", exact: true })).not.toContainText(/nightly report/i);
 
@@ -2233,18 +2238,13 @@ test("a new site's Settings fits a tablet, a laptop and a phone, and names its t
     await expect(page.locator("main")).not.toContainText("ASSET_TOKENS");
     const size = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
     expect(size.scroll, `Settings wider than a ${width}px screen`).toBe(size.width);
-    // Bead ro-ujb9.169: the Panel refresh table fits its own box too. At 768
-    // its card is ~450px wide, so its rows reflow into labelled cards rather
-    // than hiding Since and the row's actions behind a sideways scroll.
-    const panel = page.locator("table[data-stacked]").filter({ has: page.locator('td[data-label="Since"]') });
-    const fit = await panel.evaluate((table) => ({
-      table: [table.scrollWidth, table.clientWidth],
-      box: [table.parentElement!.scrollWidth, table.parentElement!.clientWidth],
-    }));
-    expect(fit.table[0], `the Panel refresh table scrolls sideways at ${width}px`).toBe(fit.table[1]);
-    expect(fit.box[0], `the Panel refresh box scrolls sideways at ${width}px`).toBe(fit.box[1]);
-    const since = await panel.locator('td[data-label="Since"]').boundingBox();
-    expect(since && since.x + since.width, `Since is off the right edge at ${width}px`).toBeLessThanOrEqual(width);
+    // A new site has no search source, so Tracked search terms is one link
+    // to its Data sources rather than the Panel refresh table (D45).
+    const needsSearch = page.locator("[data-tracked-terms-needs-search]");
+    await expect(needsSearch).toBeVisible();
+    await expect(page.locator("table[data-stacked]").filter({ has: page.locator('td[data-label="Since"]') })).toHaveCount(0);
+    const link = await needsSearch.boundingBox();
+    expect(link && link.x + link.width, `the search link is off the right edge at ${width}px`).toBeLessThanOrEqual(width);
   }
 });
 
@@ -2388,7 +2388,7 @@ test("a one-site install reads as one site: no portfolio words, and no filter wi
   const screens: [string, Locator][] = [
     ["/", page.locator("[data-portfolio-census]")],
     ["/assets", main.locator('[data-asset-row="journey.example"]').first()],
-    ["/health", main.getByText("Source history").first()],
+    ["/health", main.getByRole("region", { name: "System status" })],
     ["/financials", main.getByRole("region", { name: "Daily revenue" })],
     ["/alerts", main.locator("[data-alert-filters]")],
     ["/tasks", main.locator("[data-tasks-filters]")],
