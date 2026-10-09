@@ -61,10 +61,9 @@ function FreshnessChart({
     .map(([t, v]) => ({ t, v }));
   // No history, or not enough of it for a line: the section says which, in
   // a state and a count, and draws nothing it cannot draw honestly.
-  if (points.length < MIN_HISTORY_POINTS) return <section className="flex flex-wrap items-center gap-2 rounded-lg border border-border px-4 py-3" aria-label="Source history" data-source-history="building">
-    <h3 className="text-sm font-medium">Source history</h3>
-    <span className="text-xs tabular-nums text-muted-foreground">{points.length} of {MIN_HISTORY_POINTS} days recorded</span>
-  </section>;
+  // A chart with too few days to be a line is not a card of its own (D45): it
+  // arrives when it has three days, and says nothing until then.
+  if (points.length < MIN_HISTORY_POINTS) return null;
   const range = Math.min(28, Math.max(1, Math.round((Date.parse(points.at(-1)!.t) - Date.parse(points[0]!.t)) / 86_400_000) + 1));
   const shown = points.filter((point) => Date.parse(point.t) >= Date.parse(points.at(-1)!.t) - (range - 1) * 86_400_000).length;
   const missing = range - shown;
@@ -116,7 +115,6 @@ export function HealthRoute() {
     <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 p-4 md:p-6">
       <PageHeader
         title="System health"
-        description="Integration reliability, service activity and data coverage."
         actions={<Link className="inline-flex min-h-9 items-center rounded-md border border-border px-3 text-sm font-medium hover:bg-muted/40" to="/integrations">Manage integrations</Link>}
       />
 

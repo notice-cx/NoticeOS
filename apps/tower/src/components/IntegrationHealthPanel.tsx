@@ -148,7 +148,10 @@ export function IntegrationHealthPanel({ data, isError = false, nowMs, provider,
 
   const statuses = providerStatuses(providers ?? [], health.items);
   const pressing = statuses.filter(({ status }) => needsYou(status));
-  const filter = chosen ?? (pressing.length > 0 ? 'needs' : 'all');
+  // Needs you first, always (D45): with nothing pressing it says "Nothing
+  // needs you" rather than opening on every provider again — the whole list
+  // is Integrations', one press away under All.
+  const filter = chosen ?? 'needs';
   const shown = filter === 'needs' ? pressing : statuses;
   // The connection model's four counts, from its one derivation (bead
   // ro-ujb9.96.7.15) — the same one the daily record of them uses
