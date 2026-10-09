@@ -302,6 +302,9 @@ export function AlertRow({
         )
       }
       valueLabel={history ? (openMs !== null ? "open for" : "first seen") : "first seen"}
+      // VERBS IN THE ROW (D45): an open alert's Snooze and Resolve are on the
+      // row; Mark read and Tune wait in the opened row, after the evidence.
+      rowActions={history || snoozed ? undefined : <FlagActions flagId={flag.id} assetId={assetId} only={["snooze", "resolve"]} />}
       actions={
         history ? undefined : snoozed ? (
           <FlagActions flagId={flag.id} assetId={assetId} snoozed />
@@ -312,6 +315,7 @@ export function AlertRow({
               assetId={assetId}
               ruleId={flag.ruleId}
               metric={flag.metric}
+              only={["acknowledge", "tune"]}
             />
             <TunedChip flag={flag} />
           </>

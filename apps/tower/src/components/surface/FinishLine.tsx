@@ -1,3 +1,4 @@
+import { ageMs, formatAge } from "@shared/freshness";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -36,4 +37,10 @@ export function FinishLine({ line, age, quiet = false, className, marks }: Finis
       {age ? <span className="text-xs tabular-nums text-muted-foreground">{age}</span> : null}
     </Card>
   );
+}
+
+/** "data as of 4m ago": how old the reading behind a finished list is. */
+export function readingAge(generatedAt: string | null, nowMs: number): string {
+  const age = generatedAt ? ageMs(nowMs, generatedAt) : null;
+  return `data as of ${age === null ? "unknown" : `${formatAge(age)} ago`}`;
 }

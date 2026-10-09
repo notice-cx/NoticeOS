@@ -12,7 +12,7 @@ import { WORK_POLL_CADENCE_HOURS, type WorkItem, type WorkPayload } from "@share
 import { AddSiteButton } from "@/components/AddSite";
 import { DataSourceIcons } from "@/components/DataSourceIcons";
 import { HighlightCard } from "@/components/HighlightCard";
-import { FinishLine } from "@/components/surface/FinishLine";
+import { FinishLine, readingAge } from "@/components/surface/FinishLine";
 import { PageAnswer, type AnswerFigure } from "@/components/surface/PageAnswer";
 import { PageHeader } from "@/components/PageHeader";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
@@ -207,7 +207,7 @@ function Brief({
         <FinishLine
           quiet={brief.cards.length === 0}
           line={brief.cards.length === 0 ? `Nothing changed ${sinceWords(brief.since, nowMs)}.` : `That's everything ${sinceWords(brief.since, nowMs)}.`}
-          age={dataAge(generatedAt, nowMs)}
+          age={readingAge(generatedAt, nowMs)}
           className={brief.cards.length === 0 ? "min-h-24 lg:col-span-3" : "min-h-24"}
         />
       </div>
@@ -232,12 +232,6 @@ function sinceClock(since: string, nowMs: number): string {
 /** "since 6 PM yesterday", the brief's window in words. */
 function sinceWords(since: string | null, nowMs: number): string {
   return since ? `since ${sinceClock(since, nowMs)}` : "since yesterday";
-}
-
-/** "data as of 4m ago": how old the reading behind a finished list is. */
-export function dataAge(generatedAt: string, nowMs: number): string {
-  const age = ageMs(nowMs, generatedAt);
-  return `data as of ${age === null ? "unknown" : `${formatAge(age)} ago`}`;
 }
 
 // ─── decide ──────────────────────────────────────────────────────────────────

@@ -35,7 +35,15 @@ export interface FlagActionsProps {
   ruleId?: string;
   /** `flags.metric`, so the preview follows the alert being looked at. */
   metric?: string | null;
+  /**
+   * Which verbs this placement draws (D45, the D44 bar's "verbs in the row").
+   * A closed alert row carries Snooze and Resolve, the two that take it out of
+   * the queue; the opened row carries Mark read and Tune. Absent, all four.
+   */
+  only?: readonly FlagVerb[];
 }
+
+export type FlagVerb = "acknowledge" | "snooze" | "resolve" | "tune";
 
 /** What a completed action says, in the operator's words. */
 function toastFor(action: FlagAction, until: string | null): string {
@@ -87,7 +95,9 @@ export function FlagActions({
   snoozed = false,
   ruleId,
   metric,
+  only,
 }: FlagActionsProps) {
+  const shows = (verb: FlagVerb) => !only || only.includes(verb);
   const demoReadonly = useDemoReadonly();
   const toast = useOwnerToast();
   const { updateFlag } = useTowerApi();
@@ -219,7 +229,7 @@ export function FlagActions({
 
   return (
     <div className="flex flex-wrap items-center gap-1 sm:flex-nowrap sm:shrink-0">
-      <Button
+      {shows("acknowledge") ? <Button
         type="button"
         variant="ghost"
         size="sm"
@@ -231,8 +241,8 @@ export function FlagActions({
         aria-label="Mark alert read"
       >
         Mark read
-      </Button>
-      <Button
+      </Button> : null}
+      {shows("snooze") ? <Button
         type="button"
         variant="ghost"
         size="sm"
@@ -241,8 +251,8 @@ export function FlagActions({
         aria-label="Snooze alert"
       >
         Snooze
-      </Button>
-      <Button
+      </Button> : null}
+      {shows("resolve") ? <Button
         type="button"
         variant="outline"
         size="sm"
@@ -252,10 +262,10 @@ export function FlagActions({
         aria-label="Resolve alert"
       >
         Resolve
-      </Button>
+      </Button> : null}
       {/* The fourth verb — see the note above. It decides for itself whether
           this rule has an honest replay, so the row stays one line. */}
-      {ruleId ? (
+      {ruleId && shows("tune") ? (
         <TuneRuleAction
           asset={assetId}
           ruleId={ruleId}
