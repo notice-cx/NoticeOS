@@ -11,7 +11,7 @@ import type { HostedTaskExecutor } from './hosted-task-executor.mjs';
 import type { HostedTaskOperation } from './hosted-task-command.mjs';
 import { createHostedTaskSnapshot } from './hosted-task-snapshot.mjs';
 import type { BeadsSnapshotInput } from '../packages/contract/src/task-snapshot.mjs';
-import { createDemoActivity, DEMO_ACTIVITY_LIMITS, type DemoActivityCollection, type DemoActivityDay } from './demo-activity.mjs';
+import { createDemoActivity, DEMO_ACTIVITY_LIMITS, type DemoActivityCollection, type DemoActivityDay, type DemoTaskIntention } from './demo-activity.mjs';
 import { generateDemoScenario, demoScenarioHash, shiftDemoDay, type DemoScenario } from './demo-scenario.mjs';
 import { DEMO_ACTIVITY_DEFINITION, demoActivityPrefix } from './demo-activity-definition.mjs';
 
@@ -124,8 +124,25 @@ export function createHostedDemo(options: HostedDemoOptions): {
       }
       return inTransaction(tx, signal, scoped => writer.write(scoped, facts));
     } }, { ...DEMO_ACTIVITY_DEFINITION.steps[1], run: async ({ input, signal }: { input: JobInput; signal: AbortSignal }) => {
-      const task = activity.day(dateOf(input)).task;
-      if (!task) return { skipped: 1 };
+      const intentions = activity.day(dateOf(input)).tasks;
+      if (intentions.length === 0) return { skipped: 1 };
+      const tally = { filed: 0, written: 0, closed: 0 };
+      for (const task of intentions) tally[await applyTask(task, signal)] += 1;
+      return tally;
+    } }, { ...DEMO_ACTIVITY_DEFINITION.steps[2], run: async ({ signal }, tx) => {
+      // This is a bounded read of the actual task service, followed by the
+      // ordinary cache writer. A failed read can retry without repeating a
+      // completed task mutation; later dates wait for this checkpoint too.
+      const snapshot = await snapshots.snapshot(new Request('https://noticeos.internal/demo-snapshot', { method: 'POST', signal }),
+        { signal, deadline: Date.now() + 29000 });
+      return inTransaction(tx, signal, scoped => writer.snapshot(scoped, snapshot));
+    } }],
+  }] });
+  /** One site's task intention against the real task service: a repeated
+   * date finds its earlier write (a created task, a claim, a close) and
+   * refuses to repeat it. */
+  async function applyTask(task: DemoTaskIntention, signal: AbortSignal): Promise<'filed' | 'written' | 'closed'> {
+    {
       const projectId = projects.get(task.asset)!;
       const proof = new Request('https://noticeos.internal/demo-task', { method: 'POST', signal });
       const deadline = Date.now() + 29000;
@@ -139,7 +156,7 @@ export function createHostedDemo(options: HostedDemoOptions): {
           acceptance: task.acceptance, type: 'task', priority: 2, labels: ['synthetic-demo', label] });
         const row = Array.isArray(created) ? created[0] : created;
         if (!row || typeof row !== 'object' || !('id' in row) || typeof row.id !== 'string') refuse();
-        return { filed: 1 };
+        return 'filed';
       }
       if (matching.length !== 1) refuse();
       const found = matching[0]!;
@@ -149,20 +166,13 @@ export function createHostedDemo(options: HostedDemoOptions): {
       if (task.phase === 'start') {
         if (found.status !== 'open') refuse();
         await execute({ kind: 'update', taskId: found.id, claim: true });
-        return { written: 1 };
+        return 'written';
       }
       if (found.status !== 'in_progress' || found.assignee !== serviceId) refuse();
       await execute({ kind: 'close', taskId: found.id, reason: task.closeReason });
-      return { closed: 1 };
-    } }, { ...DEMO_ACTIVITY_DEFINITION.steps[2], run: async ({ signal }, tx) => {
-      // This is a bounded read of the actual task service, followed by the
-      // ordinary cache writer. A failed read can retry without repeating a
-      // completed task mutation; later dates wait for this checkpoint too.
-      const snapshot = await snapshots.snapshot(new Request('https://noticeos.internal/demo-snapshot', { method: 'POST', signal }),
-        { signal, deadline: Date.now() + 29000 });
-      return inTransaction(tx, signal, scoped => writer.snapshot(scoped, snapshot));
-    } }],
-  }] });
+      return 'closed';
+    }
+  }
   // The release's own job identities, so the hosted scheduler records each
   // execution in the journal Workflows and System health read: the
   // quarter-hour Google refresh writes today's provisional counts, the outcome

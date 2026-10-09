@@ -144,21 +144,108 @@ test('leap days and month/year transitions retain exact calendar coverage', () =
   assert.ok(activity.day('2027-01-01').money.every(row => row.period === '2027-01'));
 });
 
-test('one weekly task progresses through a stable key without claiming real execution or lift', () => {
-  assert.equal(activity.day('2026-10-16').task, null);
-  const week = activity.batch('2026-10-19', '2026-10-25').flatMap(day => day.task ? [day.task] : []);
-  assert.deepEqual(week.map(task => task.phase), ['create', 'start', 'complete']);
-  assert.equal(new Set(week.map(task => task.key)).size, 1);
-  assert.equal(new Set(week.map(task => task.asset)).size, 1);
-  assert.match(week[0].description, /simulated review of fictional data/u);
-  assert.match(week[2].closeReason, /No live deployment or measured business improvement/u);
-  assert.notEqual(activity.day('2026-10-26').task.key, week[0].key);
-  assert.notEqual(activity.day('2026-10-26').task.asset, week[0].asset);
-  // Each week's review is about its own site.
-  const titles = { 'lightbrief.example': /brief/u, 'pinwell.example': /source/u, 'weeknightpantry.example': /recipe/u, 'freshrows.example': /row/u };
+test('each site runs its own weekly cycle, reviews and ships alternating, without claiming real execution or lift', () => {
+  assert.deepEqual(activity.day('2026-10-16').tasks, []);
+  const sites = scenario.assets.filter(asset => !asset.isOs).map(asset => asset.id);
+  const first = activity.batch('2026-10-19', '2026-10-25').flatMap(day => day.tasks);
+  // The first Monday files the first site's review; the others follow a day apart.
+  assert.deepEqual(activity.day('2026-10-19').tasks.map(task => [task.asset, task.phase]), [[sites[0], 'create']]);
+  assert.deepEqual(activity.day('2026-10-20').tasks.map(task => [task.asset, task.phase]), [[sites[1], 'create']]);
+  for (const site of sites) {
+    const own = first.filter(task => task.asset === site);
+    assert.deepEqual(own.map(task => task.phase), site === sites[3] ? ['create', 'start'] : ['create', 'start', 'complete']);
+    assert.equal(new Set(own.map(task => task.key)).size, 1);
+    assert.match(own[0].description, /simulated review of fictional data/u);
+  }
+  assert.match(first.find(task => task.phase === 'complete').closeReason, /No live deployment or measured business improvement/u);
+  // Review weeks register nothing; the following week every site ships and its close records one change with its comparison.
+  assert.ok(activity.batch('2026-10-19', '2026-10-25').every(day => day.changes.length === 0));
+  const shipWeek = activity.batch('2026-10-26', '2026-11-01').concat(activity.day('2026-11-02'));
+  const shipped = shipWeek.flatMap(day => day.changes);
+  assert.deepEqual(shipped.map(change => change.asset), sites);
+  for (const change of shipped) {
+    const day = shipWeek.find(entry => entry.changes.includes(change));
+    const close = day.tasks.find(task => task.asset === change.asset && task.phase === 'complete');
+    assert.equal(change.ref, close.key);
+    assert.match(close.title, /^Ship /u);
+    assert.match(close.closeReason, /28-day comparison.*No live deployment/u);
+    assert.equal(change.kind, 'deploy');
+    assert.equal(change.at, `${day.date}T15:00:00.000Z`);
+    assert.match(change.note, /^Synthetic change: .*No live deployment\.$/u);
+    assert.equal(change.watch.baselineStart, shiftDemoDay(day.date, -28));
+    assert.equal(change.watch.baselineEnd, shiftDemoDay(day.date, -1));
+    assert.deepEqual(change.watch.checkOffsets, [28]);
+    assert.match(change.watch.note, /no causal revenue claim/u);
+  }
+  // Each site's work is about its own site, and keys never repeat across cycles.
+  const titles = { 'lightbrief.example': /brief/u, 'pinwell.example': /source|collection/u, 'weeknightpantry.example': /recipe/u, 'freshrows.example': /row|CSV/u };
+  const keys = new Set();
   for (let w = 0; w < 8; w++) {
-    const task = activity.day(shiftDemoDay('2026-10-19', w * 7)).task;
-    assert.match(task.title, titles[task.asset]);
+    for (const task of activity.day(shiftDemoDay('2026-10-19', w * 7)).tasks) {
+      assert.match(task.title, titles[task.asset]);
+      assert.ok(!keys.has(task.key)); keys.add(task.key);
+    }
+  }
+});
+
+test('every Monday each site reports its search queries against the week before, in the executive snapshot shape', () => {
+  assert.deepEqual(activity.day('2026-10-18').reports, []);
+  const monday = activity.day('2026-10-19');
+  assert.equal(monday.reports.length, 4);
+  for (const report of monday.reports) {
+    const asset = monday.assets.find(entry => entry.asset === report.asset);
+    assert.ok(asset);
+    assert.equal(report.schemaVersion, 1);
+    assert.ok(report.generatedAt.startsWith('2026-10-19T') && report.generatedAt < `2026-10-19T23:30:00.000Z`);
+    const google = report.searchQueries.google;
+    assert.deepEqual([google.previousStart, google.previousEnd, google.currentStart, google.currentEnd], ['2026-10-05', '2026-10-11', '2026-10-12', '2026-10-18']);
+    assert.equal(google.movers.length, 8);
+    assert.equal(new Set(google.movers.map(mover => mover.query)).size, 8);
+    // The queries share the week's impressions the signals carry, no more.
+    const week = Array.from({ length: 7 }, (_, i) => shiftDemoDay('2026-10-12', i)).map(date => {
+      const facts = date < scenario.manifest.referenceDate ? scenario.daily.find(row => row.asset === report.asset && row.date === date).impressions
+        : values(activity.day(date).assets.find(entry => entry.asset === report.asset).signals.find(signal => signal.integration === 'gsc')).impressions;
+      return facts;
+    }).reduce((a, b) => a + b, 0);
+    const claimed = google.movers.reduce((sum, mover) => sum + mover.currentImpressions, 0);
+    assert.ok(claimed <= week * 1.16 && claimed >= week * 0.84);
+    for (const mover of google.movers) {
+      assert.equal(mover.impressionDelta, mover.currentImpressions - mover.previousImpressions);
+      assert.ok(mover.currentPosition >= 1 && mover.previousPosition >= 1);
+      assert.equal(mover.positionImprovement, Math.round((mover.previousPosition - mover.currentPosition) * 10) / 10);
+    }
+    assert.ok(google.movers.some(mover => mover.positionImprovement !== 0));
+    assert.equal(report.items.length, 1);
+    const [finding] = report.items;
+    assert.ok(['insight', 'warning'].includes(finding.kind));
+    assert.match(finding.title, /^“.+” (climbed|slipped) \d+\.\d places to #\d+(\.\d)?$/u);
+    assert.match(finding.caveat, /Synthetic/u);
+    assert.match(google.caveat, /Synthetic/u);
+    assert.ok(finding.evidence.every(row => typeof row.label === 'string' && typeof row.value === 'string'));
+  }
+  // The next week's finding has a new key, so the feed can tell it from the week before's.
+  const next = activity.day('2026-10-26').reports[0];
+  assert.notEqual(next.items[0].key, monday.reports[0].items[0].key);
+  assert.deepEqual(activity.day('2026-10-26').reports.map(report => report.asset), monday.reports.map(report => report.asset));
+});
+
+test('visits surge and settle on their own, so a day can read well above or below the same weekday a week before', () => {
+  const site = 'weeknightpantry.example';
+  const users = date => values(activity.day(date).assets.find(entry => entry.asset === site).signals.find(signal => signal.integration === 'ga4')).active_users;
+  const ratios = [];
+  for (let i = 7; i < 120; i++) {
+    const date = shiftDemoDay(scenario.manifest.referenceDate, i);
+    ratios.push(users(date) / users(shiftDemoDay(date, -7)));
+  }
+  assert.ok(ratios.some(ratio => ratio >= 1.25), 'a surge week');
+  assert.ok(ratios.some(ratio => ratio <= 0.8), 'the week after a surge');
+  assert.ok(ratios.filter(ratio => ratio > 0.9 && ratio < 1.1).length > ratios.length / 3, 'most weeks are ordinary');
+  // The young site has no surges: its weeks stay within its own growth.
+  const young = 'freshrows.example';
+  const youngUsers = date => values(activity.day(date).assets.find(entry => entry.asset === young).signals.find(signal => signal.integration === 'ga4')).active_users;
+  for (let i = 7; i < 60; i++) {
+    const date = shiftDemoDay(scenario.manifest.referenceDate, i);
+    assert.ok(youngUsers(date) / youngUsers(shiftDemoDay(date, -7)) < 1.25);
   }
 });
 
@@ -209,6 +296,7 @@ test('dated generation has finite work/output and rejects malformed or historica
   const last = shiftDemoDay(scenario.manifest.referenceDate, DEMO_ACTIVITY_LIMITS.daysFromAnchor);
   const lastDay = activity.day(last);
   assert.ok(lastDay.assets.every(asset => !asset.pulse || Object.values(asset.pulse.metrics).every(metric => Number.isSafeInteger(metric.total) && metric.total >= 0)));
-  assert.ok(Buffer.byteLength(JSON.stringify(lastDay)) < 16384);
+  assert.ok(Buffer.byteLength(JSON.stringify(lastDay)) < 32768);
+  assert.ok(Buffer.byteLength(JSON.stringify(activity.day('2026-10-26'))) < 32768);
   assert.throws(() => activity.day(shiftDemoDay(last, 1)));
 });

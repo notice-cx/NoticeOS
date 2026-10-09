@@ -91,5 +91,11 @@ export async function fillDemo(tx, scenario, { evaluatePulse, developmentProfile
     VALUES ($1::uuid, $2, $3::timestamptz, 'deploy', $4, 'Synthetic navigation repair.', $3::timestamptz)`, [ws, repair.asset, repair.annotationAt, repair.ref]);
     await tx.execute(`INSERT INTO noticeos.watch_windows (workspace_id, window_id, asset_id, ref_kind, ref, metric_integration, metric, registered_at, baseline_start, baseline_end, check_offsets, thresholds, note, created_at, readback_bead)
     VALUES ($1::uuid, $2, $3, 'annotation', $4, 'ga4', 'sessions', $5::timestamptz, $6::date, $7::date, ARRAY[28], $8::jsonb, 'Synthetic comparison; no causal revenue claim.', $5::timestamptz, $9)`, [ws, repair.watchId, repair.asset, repair.ref, repair.registeredAt, repair.baselineStart, repair.baselineEnd, JSON.stringify({ ship: { direction: 'up', min_delta_pct: 10 }, kill: { direction: 'down', min_delta_pct: 10 } }), repair.readbackTaskId]);
+    // The recipe site's shipped change and its still-counting comparison.
+    const { ship } = scenario.manifest;
+    await tx.execute(`INSERT INTO noticeos.annotations (workspace_id, asset_id, at, kind, ref, note, created_at)
+    VALUES ($1::uuid, $2, $3::timestamptz, 'deploy', $4, 'Synthetic faster recipe pages; no live deployment.', $3::timestamptz)`, [ws, ship.asset, ship.annotationAt, ship.ref]);
+    await tx.execute(`INSERT INTO noticeos.watch_windows (workspace_id, window_id, asset_id, ref_kind, ref, metric_integration, metric, registered_at, baseline_start, baseline_end, check_offsets, thresholds, note, created_at, readback_bead)
+    VALUES ($1::uuid, $2, $3, 'annotation', $4, 'ga4', 'sessions', $5::timestamptz, $6::date, $7::date, $8::int[], $9::jsonb, 'Synthetic comparison; no causal revenue claim.', $5::timestamptz, $10)`, [ws, ship.watchId, ship.asset, ship.ref, ship.registeredAt, ship.baselineStart, ship.baselineEnd, ship.checkOffsets, JSON.stringify({ ship: { direction: 'up', min_delta_pct: 10 }, kill: { direction: 'down', min_delta_pct: 10 } }), ship.readbackTaskId]);
     return { assets: scenario.assets.length, daily: scenario.daily.length, pulses: scenario.pulses.length, ledger: scenario.ledger.length, adDays: scenario.adRevenue.length, watchStatus: 'registered' };
 }

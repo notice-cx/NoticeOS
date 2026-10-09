@@ -3,7 +3,7 @@
 // Scenario choices, not estimates of real businesses; see the dated brief.
 import { createHash } from 'node:crypto';
 import { generateDemoTaskFacts } from './demo-task-facts.mjs';
-export const SCENARIO_VERSION = 4;
+export const SCENARIO_VERSION = 5;
 const DAY_MS = 86_400_000;
 export const DEMO_ASSETS = Object.freeze([
     { id: 'lightbrief.example', name: 'Light Brief', prefix: 'lb', days: 400, sessions: 66000, revenue: 180000, revenueFamily: 'subs', cost: 26000, event: 'brief_exports' },
@@ -118,9 +118,12 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
             const trend = asset.days === 24 ? (1 + (24 + age) * 0.027) : (1 + (400 + age) * (recipes ? 0.0006 : 0.00015));
             const referralSpike = !recipes && age >= -95 && age <= -93;
             const repair = asset.prefix === 'lb' && age >= -60 && age <= -43;
+            // The recipe site's faster pages shipped a week before the reference day
+            // (`manifest.ship`): a modest lift, still inside its 28-day comparison.
+            const faster = recipes && age >= -7;
             const base = asset.days === 24 ? 18 : asset.prefix === 'lb' ? 2000 : recipes ? 5000 : 820;
             const amplitude = asset.prefix === 'pw' ? 0.2 : recipes ? DEMO_RECIPE_SEASON : 0.09;
-            const traffic = Math.max(1, Math.round(base * ownWeek * (1 + annual * amplitude) * noise * shared * trend * (referralSpike ? 1.7 : 1) * (repair ? 0.68 : 1)));
+            const traffic = Math.max(1, Math.round(base * ownWeek * (1 + annual * amplitude) * noise * shared * trend * (referralSpike ? 1.7 : 1) * (repair ? 0.68 : 1) * (faster ? 1.09 : 1)));
             rows.push({ pageViews: 0, activeUsers: 0, events: 0, eventCount: 0, clicks: 0, impressions: 0, ctr: 0, position: 0, reportMissing: false, provisional: false, asset: asset.id, date, sessions: traffic, age });
         }
         // This completed month is the brief's exact readable accounting anchor.
@@ -214,8 +217,12 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
         repair: { asset: assets[0].id, findingDate: shiftDemoDay(referenceDate, -60), ref: taskFacts.storyIds.repair, readbackTaskId: taskFacts.storyIds.readback, annotationAt: `${shiftDemoDay(referenceDate, -42)}T12:00:00.000Z`, registeredAt: `${shiftDemoDay(referenceDate, -42)}T00:00:00.000Z`, baselineStart: shiftDemoDay(referenceDate, -70), baselineEnd: shiftDemoDay(referenceDate, -43), checkAt: `${shiftDemoDay(referenceDate, -14)}T23:59:00.000Z`, watchId: 'demo-navigation-repair' },
         problem: { asset: assets[1].id, ref: taskFacts.storyIds.problem, date: shiftDemoDay(referenceDate, -2), metric: assets[1].event },
     };
+    // A change shipped a week ago with its comparison still counting: the
+    // recipe site's faster pages, annotated when its task closed and watched on
+    // sessions for 28 days against the 28 days before it. No outcome is claimed.
+    const ship = { asset: assets[2].id, ref: taskFacts.storyIds.ship, readbackTaskId: taskFacts.storyIds.shipReadback, annotationAt: `${shiftDemoDay(referenceDate, -7)}T15:00:00.000Z`, registeredAt: `${shiftDemoDay(referenceDate, -7)}T00:00:00.000Z`, baselineStart: shiftDemoDay(referenceDate, -35), baselineEnd: shiftDemoDay(referenceDate, -8), checkOffsets: [28], watchId: 'demo-faster-recipe-pages' };
     const adSites = assets.filter(a => a.adRpm).map(asset => ({ asset: asset.id, siteId: demoAdSiteId(asset) }));
-    return { manifest: { synthetic: true, scenarioVersion: SCENARIO_VERSION, seed, cutoff, release, timeZone, providerTimeZone: timeZone, referenceDate, referencePeriod, workspaceId, identities: assets.map(({ id, prefix, name, createdAt }) => ({ id, prefix, name, createdAt })), taskProjects: taskFacts.projects, adSites, stories }, assets, daily, ledger, adRevenue, pulses, tasks: taskFacts.tasks };
+    return { manifest: { synthetic: true, scenarioVersion: SCENARIO_VERSION, seed, cutoff, release, timeZone, providerTimeZone: timeZone, referenceDate, referencePeriod, workspaceId, identities: assets.map(({ id, prefix, name, createdAt }) => ({ id, prefix, name, createdAt })), taskProjects: taskFacts.projects, adSites, stories, ship }, assets, daily, ledger, adRevenue, pulses, tasks: taskFacts.tasks };
 }
 export function demoScenarioHash(scenario) {
     return createHash('sha256').update(JSON.stringify(scenario)).digest('hex');

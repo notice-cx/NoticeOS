@@ -11,9 +11,14 @@ import { persistReport } from './mediavine.js';
 import { dates, pacificDay, shiftDate } from '@noticeos/mediavine';
 import { writeBeadsSnapshot } from './beads-snapshots.js';
 import { runWatchWindows, type WatchWindowEvaluation } from './watch-windows.js';
+import { writeAnnotation } from './annotations.js';
+import { writeWatchWindow } from './routes/watch-windows.js';
+import { writeInsightSnapshot } from './insight-snapshots.js';
+
+const DAY_MS = 86_400_000;
 
 export async function writeDemoActivity(store: WorkspaceStore, day: DemoActivityDay): Promise<{
-  written: number; assets: number; date: string;
+  written: number; assets: number; date: string; changes: number; reports: number;
 }> {
   const env = Object.freeze({ STORE: store });
   let written = 0;
@@ -46,10 +51,32 @@ export async function writeDemoActivity(store: WorkspaceStore, day: DemoActivity
     if (result.failed || result.reviewRequired) throw new Error('Synthetic ledger input refused by the ordinary writer.');
     written += result.inserted;
   }
+  // A ship's change and its comparison, and a Monday's search reports, go
+  // through the same writers an operator's annotation, bet and published
+  // analysis do. Their instants sit inside the day being written, which a
+  // catch-up may write after it ended: the writers' clock is that day's end
+  // at the earliest, never a backdated "now".
+  const ingest = env as unknown as IngestEnv;
+  const clockMs = Math.max(Date.now(), Date.parse(`${day.date}T00:00:00.000Z`) + DAY_MS);
+  for (const change of day.changes) {
+    const annotation = await writeAnnotation(ingest, { asset: change.asset, kind: change.kind, at: change.at, ref: change.ref, note: change.note }, clockMs);
+    if (!annotation.ok) throw new Error('Synthetic change refused by the ordinary writer.');
+    const watch = await writeWatchWindow(ingest, { asset: change.asset, ref_kind: 'annotation', ref: change.ref,
+      metric_integration: change.watch.metricIntegration, metric: change.watch.metric, registered_at: change.at,
+      baseline_start: change.watch.baselineStart, baseline_end: change.watch.baselineEnd, check_offsets: change.watch.checkOffsets,
+      thresholds: change.watch.thresholds, note: change.watch.note }, clockMs);
+    if (!watch.ok) throw new Error('Synthetic comparison refused by the ordinary writer.');
+    written += 2;
+  }
+  for (const report of day.reports) {
+    const result = await writeInsightSnapshot(ingest, JSON.stringify(report), clockMs);
+    if (!result.ok) throw new Error('Synthetic search report refused by the ordinary writer.');
+    written++;
+  }
   // Observe the actual stored inputs at execution time. Catch-up never forges
   // an earlier OS report or successful provider/scheduler activity.
   if (await runAssetZeroPulse(env) === null) throw new Error('Demo OS observation has no asset.');
-  return { written: written + 1, assets: day.assets.length, date: day.date };
+  return { written: written + 1, assets: day.assets.length, date: day.date, changes: day.changes.length, reports: day.reports.length };
 }
 
 /** One quarter-hour refresh through the ordinary signal writer: today's

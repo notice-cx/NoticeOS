@@ -136,7 +136,8 @@ export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }) {
         throw new Error('Task history falls outside its declared asset lifetime or cutoff.');
     const first = assets.find(asset => asset.prefix === 'lb');
     const second = assets.find(asset => asset.prefix === 'pw');
-    return { projects, tasks, storyIds: { repair: id(first, 'task-0'), readback: id(first, 'task-3'), problem: id(second, 'task-0') } };
+    const third = assets.find(asset => asset.prefix === 'wp');
+    return { projects, tasks, storyIds: { repair: id(first, 'task-0'), readback: id(first, 'task-3'), problem: id(second, 'task-0'), ship: id(third, 'task-0'), shipReadback: id(third, 'task-3') } };
 }
 /** Import the dated facts through bd; no task-table SQL writer exists here. */
 export function demoTaskIssuesAt(tasks, instant) {

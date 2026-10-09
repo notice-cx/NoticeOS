@@ -2,7 +2,7 @@
 /** Shared server registry identity. This exports no executable capability. */
 export declare const DEMO_ACTIVITY_DEFINITION: Readonly<{
     key: "demo-activity";
-    version: "v1";
+    version: "v2";
     steps: readonly [Readonly<{
         key: "observations";
         kind: "database";
