@@ -1,23 +1,23 @@
 import { ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { LedgerPeriod, LedgerSlice } from "@shared/asset-detail";
-import { CADENCE_HOURS, figureHasMoney } from "@shared/wall";
+import { figureHasMoney } from "@shared/wall";
 import { BookingChip, bookingChipState } from "@/components/BookingChip";
 import { SectionLabel } from "@/components/surface/SectionLabel";
 import { SmallMultiple, SmallMultipleStrip } from "@/components/surface/SmallMultiple";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatMoney } from "@/lib/format";
-import { Panel, LaneAge } from "./shared";
+import { formatMoney, formatPeriodMonthYear } from "@/lib/format";
+import { Panel } from "./shared";
 
 // --- P&L (booked revenue and cost) -----------------------------------------
 export function AssetLedger({
   ledger,
-  ledgerRecordedAt,
-  nowMs,
 }: {
   ledger: LedgerSlice;
-  ledgerRecordedAt: string | null;
-  nowMs: number;
+  /** Kept on the props for callers; the ledger's age is System health's to
+   * say (doc 17 altitude), not this panel's. */
+  ledgerRecordedAt?: string | null;
+  nowMs?: number;
 }) {
   return (
     <Panel
@@ -30,7 +30,7 @@ export function AssetLedger({
           to="/financials"
           className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline max-sm:-my-2.5 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
         >
-          Money →
+          All sites →
         </Link>
       }
       count={
@@ -43,14 +43,12 @@ export function AssetLedger({
           {/* One word for the strip (bead `ro-ujb9.135`): the figures are
               booked, and a month's estimate is named on its own line. */}
           booked
-          {" · "}
-          <LaneAge iso={ledgerRecordedAt} nowMs={nowMs} cadenceHours={CADENCE_HOURS.ledger} />
         </>
       }
     >
       {ledger.empty ? (
         <span className="text-xs text-muted-foreground">
-          Nothing has reconciled yet — estimates do not book.
+          No booked months yet
         </span>
       ) : (
         <div className="flex flex-col gap-4">
@@ -144,7 +142,7 @@ function PeriodCell({ period }: { period: LedgerPeriod }) {
   const hasForecast = figureHasMoney(period.forecast.figure);
   return (
     <SmallMultiple
-      label={period.period}
+      label={formatPeriodMonthYear(period.period)}
       value={
         hasBooked ? (
           formatMoney(period.booked.figure.net, period.booked.figure.currency, { cents: true })

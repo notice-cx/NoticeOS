@@ -4645,7 +4645,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     // attribute — and the label is what the operator reads.
     // The month names the strip's cell AND a row in the entries table below it,
     // so this takes the strip's — the label is a span, the table cell a <td>.
-    const tile = (await findAllByText("2026-06"))
+    const tile = (await findAllByText("June 2026"))
       .find((node) => node.tagName === "SPAN")!.parentElement!;
     expect(tile.textContent).toContain("$498.10");
     expect(tile.textContent).toContain("$146.10");
@@ -4692,7 +4692,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     const { findAllByText, findByText } = renderRoute("meals.example", "", "financials");
 
     await findByText("Monthly accounting");
-    const tile = (await findAllByText("2026-06"))
+    const tile = (await findAllByText("June 2026"))
       .find((node) => node.tagName === "SPAN")!.parentElement!;
     // An em dash where the booked net goes, and the forecast still named beside
     // it — never promoted into the figure.

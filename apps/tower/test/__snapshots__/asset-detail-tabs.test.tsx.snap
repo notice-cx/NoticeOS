@@ -299,6 +299,14 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 <div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-financials" class="flex flex-col gap-4">
 <div class="flex min-w-0 flex-col gap-3.5">
+<div class="flex flex-wrap items-end justify-between gap-x-6 gap-y-3" data-page-answer="" data-surface-hero="" data-site-money-answer="booked">
+<div class="flex min-w-0 flex-col gap-1">
+<h2 class="m-0 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[26px] font-bold leading-[1.1] tracking-[-0.03em] text-foreground max-sm:text-[22px]">
+<span class="min-w-0 [overflow-wrap:anywhere]">June net +$498</span>
+</h2>
+<span class="text-[13px] tabular-nums text-muted-foreground" data-page-answer-detail="">ads $498.10</span>
+</div>
+</div>
 <section aria-labelledby="_rID_" data-daily-revenue="true" class="min-w-0 overflow-hidden rounded-[10px] border border-border bg-card">
 <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pt-3">
 <h2 id="_rID_" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Daily revenue</h2>
@@ -325,23 +333,16 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <section class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card" aria-label="Monthly accounting">
 <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
 <h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Monthly accounting</h2>
-<span class="min-w-0 text-xs tabular-nums text-muted-foreground">booked · <span data-age-state="aged" class="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums bg-muted text-muted-foreground" title="Data age">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clock size-3" aria-hidden="true" data-age-glyph="aged">
-<circle cx="12" cy="12" r="10">
-</circle>
-<path d="M12 6v6l4 2">
-</path>
-</svg>2d</span>
-</span>
+<span class="min-w-0 text-xs tabular-nums text-muted-foreground">booked</span>
 <span class="flex items-center gap-2 ms-auto">
-<a class="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline max-sm:-my-2.5 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center" href="/financials" data-discover="true">Money →</a>
+<a class="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline max-sm:-my-2.5 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center" href="/financials" data-discover="true">All sites →</a>
 </span>
 </div>
 <div class="px-4 pb-4">
 <div class="flex flex-col gap-4">
 <div class="grid gap-px overflow-hidden rounded-[10px] border border-border bg-border/60 grid-cols-2 sm:grid-cols-3">
 <div class="grid content-start gap-1 bg-card p-4 [&amp;]:p-3">
-<span class="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">2026-06</span>
+<span class="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">June 2026</span>
 <span class="text-xl font-semibold tabular-nums text-foreground">$498.10<span class="ms-1.5 text-xs font-medium tracking-normal text-muted-foreground">ads $498.10<span title="Estimated for this month. Not booked, and not in the net above."> · forecast $146.10</span>
 </span>
 </span>
