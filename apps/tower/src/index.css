@@ -236,7 +236,7 @@
   --wall-axis-line: 0.875rem;
   --wall-stat-size: 2rem;
   --wall-stat-line: 2.5rem;
-  /* D28's revenue figure (docs/25-the-wall.md): the largest type on the
+  /* D28's revenue figure (docs/14-design.md): the largest type on the
      screen, one step above the hero, 7.5rem on the TV. Its line is 1.2× the
      size — the font's own ascent and descent — so the glyphs never paint
      outside their box (`pnpm wall:fit --strict`). */
@@ -260,8 +260,7 @@
   --wall-region-gap-x: --theme(--spacing-wall-region-x);
 }
 
-/* THE TV LAYOUT, SCALED (bead ro-trai.31, operator 2026-09-23, docs/25-the-
-   wall.md § Laptop, tablet and phone). A landscape screen at least 1024 px
+/* THE TV LAYOUT, SCALED (docs/14-design.md § The Wall). A landscape screen at least 1024 px
    wide — a laptop, a landscape tablet, a desk monitor — draws the TV's layout,
    the whole Wall zoomed by ONE number, `--wall-scale`: min(width ÷ 1920,
    height ÷ 1080), set by the route from `wallScreen` (lib/wall-screen.ts).
@@ -291,8 +290,7 @@
   min-height: calc(100vh / var(--wall-scale));
 }
 
-/* THE TV'S LAYOUT (beads ro-trai.24, ro-trai.29, ro-trai.31, docs/25-the-
-   wall.md § Laptop, tablet and phone). Saved rows describe the TV's
+/* THE TV'S LAYOUT (docs/14-design.md § The Wall). Saved rows describe the TV's
    composition, and `tv:` is where it is drawn: the Wall 1,776 px wide and up
    in its own pixels (the 1800 px kiosk less its 0.75rem padding each side) —
    the TV itself, the editor's 1920 preview box, and every landscape screen at
@@ -638,7 +636,7 @@
      baseline (bead `ro-trai.24`). In `cap`, so they follow the words' size. */
   --spacing-wall-strip-mark: 1em;
   --spacing-wall-strip-glyph: 1.5cap;
-  /* THE WALL'S LIST RAMP (bead `ro-trai.23`, docs/25-the-wall.md § Type): a
+  /* THE WALL'S LIST RAMP (bead `ro-trai.23`, docs/14-design.md § Type): a
      row of a Wall list — Needs you and the Live feed alike — is a label, a
      main line and a meta, and the two lists draw them at the same three steps,
      so neither reads louder than the other. Urgency is weight and colour,
@@ -654,7 +652,7 @@
   --spacing-wall-band: 21rem;
   --spacing-wall-site-row-min: 3.5rem;
 
-  /* D28'S FRAME (docs/25-the-wall.md § Budget, bead `ro-trai.11`): the page
+  /* D28'S FRAME (docs/14-design.md § Budget, bead `ro-trai.11`): the page
      inset (24px top and bottom, 32px sides), 20px between stacked regions —
      the strip and the body, the revenue band and the site rows — and 28px
      between regions side by side: revenue and Needs you, the column and the
@@ -875,7 +873,7 @@
   height: 55%;
 }
 
-/* The Wall feed's arrival (bead ro-trai.9, docs/25 § Feed): a new row opens its
+/* The Wall feed's arrival (docs/14-design.md § The Wall): a new row opens its
    own height at the top, so the rows below slide down rather than jump, and
    keeps a tint of its tone that fades over two minutes. */
 @keyframes wall-feed-arrive {

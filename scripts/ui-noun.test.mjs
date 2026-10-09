@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 // A SITE IS NEVER A *PROPERTY*, AND ONE WORD MEANS ONE THING (D20, 2026-09-04,
 // bead ro-pbzu.6). Since D31 (2026-09-23) the word a person reads is *site*;
 // this file holds D20's other half, which D31 kept: never *property*.
-// Between 2026-07-06 and D20 doc 17 mapped the
+// Between 2026-07-06 and D20 doc 14 mapped the
 // system's `asset` to the UI word *property*, so the Tower rendered "property"
 // in ~44 files while every id, URL, API path and task label said asset. D20
 // reversed the mapping: NoticeOS is a portfolio-ROI tool rather than an
@@ -64,7 +64,7 @@ const NOT_OPERATOR_FACING = new Set(['apps/tower/worker/mcp-route.ts']);
  *     history wrong.
  */
 const ALLOWED_PHRASES = [
-  // 1. the provider's own object — doc 17's D20 row keeps Google's word where
+  // 1. the provider's own object — doc 14's D20 row keeps Google's word where
   //    Google's object is what is being named. The plurals earn their place on
   //    the Integrations page, where a sign-in lists everything one account can
   //    see (bead `ro-vu8d.3`).

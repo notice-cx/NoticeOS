@@ -95,7 +95,7 @@ test('sentenceCount: a stop followed by lowercase is punctuation inside one line
 });
 
 // ---------------------------------------------------------------------------
-// The paragraph rule — doc 21: no paragraph past one sentence outside About
+// The paragraph rule — doc 14: no paragraph past one sentence outside About
 // ---------------------------------------------------------------------------
 
 test('paragraphOffenders: a two-sentence paragraph on the page is an offender, with its first 60 characters', () => {
@@ -120,7 +120,7 @@ test('paragraphOffenders: a two-sentence paragraph on the page is an offender, w
   );
 });
 
-test('paragraphOffenders: the same prose inside [data-about] is where doc 21 puts it', () => {
+test('paragraphOffenders: the same prose inside [data-about] is where doc 14 puts it', () => {
   const nodes = dom({
     tag: 'div',
     attrs: { 'data-about': '' },
@@ -177,7 +177,7 @@ test('paragraphOffenders: prose that is not visible by default is not on the pag
 });
 
 // ---------------------------------------------------------------------------
-// isInsideClosedDisclosure — doc 21's disclosure principle, measured (ro-78qo.20)
+// isInsideClosedDisclosure — doc 14's disclosure principle, measured (ro-78qo.20)
 //
 // The descriptor says `visible: true` for all of these on purpose: that is what
 // Chrome reports for a closed `<details>` now, which is the bug. The rule reads
@@ -278,7 +278,7 @@ test('paragraphOffenders: --strict also flags a one-sentence subtitle that is re
 });
 
 // ---------------------------------------------------------------------------
-// The owner-chip rule — doc 21: never on a view surface
+// The owner-chip rule — doc 14: never on a view surface
 // ---------------------------------------------------------------------------
 
 test('ownerChipOffenders: the declared chip, today s OwnerChip title, and a bare config path all count', () => {
@@ -321,7 +321,7 @@ test('ownerChipOffenders: a chip and the path it draws inside itself are one off
   assert.equal(offenders[0].rule, 'owner-chip');
 });
 
-test('ownerChipOffenders: Settings and an asset Sources tab are the two surfaces doc 21 exempts', () => {
+test('ownerChipOffenders: Settings and an asset Sources tab are the two surfaces doc 14 exempts', () => {
   assert.equal(isConfigSurfaceRoute('/settings'), true);
   assert.equal(isConfigSurfaceRoute('/assets/meals.example/sources'), true);
   assert.equal(isConfigSurfaceRoute('/assets/meals.example/settings'), true);
@@ -362,7 +362,7 @@ test('CONFIG_PATH_RE: a config file in copy, not every slash and dot', () => {
 });
 
 // ---------------------------------------------------------------------------
-// The KPI rule — doc 21: every number that can have a series shows one
+// The KPI rule — doc 14: every number that can have a series shows one
 // ---------------------------------------------------------------------------
 
 test('kpiOffenders: a KPI with no series inside it is the offender', () => {
@@ -414,7 +414,7 @@ test('kpiOffenders: an explicitly related visible chart supports its summary fig
 
 // THE "CAN" IN "every number that CAN have a series" (bead `ro-78qo.6`).
 // Home's strip carries two numbers the store keeps no history of — the
-// operator's inbox posture and tonight's open-alert count — and doc 21's own
+// operator's inbox posture and tonight's open-alert count — and doc 14's own
 // Home template draws each of them as a bar: how the total DIVIDES, since there
 // is no way it moved. `[data-composition]` is that declaration, and `SegmentBar`
 // (and `PriorityBar` through it) is what carries the mark.
@@ -476,7 +476,7 @@ test('kpiOffenders: a declared "not yet" is not an offender, and is listed inste
   ]);
 });
 
-test('routeVerdict: a route full of declared gaps still meets doc 21', () => {
+test('routeVerdict: a route full of declared gaps still meets doc 14', () => {
   const kpis = withAttribute(
     dom({
       tag: 'div',
@@ -666,7 +666,7 @@ test('routeVerdict: each rule reads the viewport it is written against', () => {
   assert.equal(verdict.counts.total, 3);
 });
 
-test('routeVerdict: a surface that meets doc 21 has no offenders at all', () => {
+test('routeVerdict: a surface that meets doc 14 has no offenders at all', () => {
   const verdict = routeVerdict({
     route: '/',
     desk: {

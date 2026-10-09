@@ -6,9 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { extractVisibleStrings, loadTypeScript } from './ux-gate.mjs';
 
 // THE DESK SPEAKS PLAIN ENGLISH, AND A SWEEP IS ONLY TRUE ON THE DAY IT RUNS
-// (doc 17, the demo test; bead `ro-ui73`).
+// (doc 14, the demo test; bead `ro-ui73`).
 //
-// `docs/17-ui-lexicon.md` maps every internal coinage to the word the UI
+// `docs/14-design.md` maps every internal coinage to the word the UI
 // renders, and rule 8 is mechanical: read a screen aloud to somebody who has
 // never seen this repo, and any term you would have to stop and define fails
 // review. On 2026-09-04 the desk still said *bead*, *spoke*, *lane*, *pulse*,
@@ -57,7 +57,7 @@ const SCAN_DIRS = ['apps/tower/src', 'apps/tower/shared', 'apps/tower/worker'];
  *  - `shared/materiality.ts` is the material-state contract — a record read by
  *    `test/materiality.test.tsx`, rendered nowhere.
  *  - `lib/task-handoff.ts` writes the `bd create` command an agent runs, and
- *    that command IS its payload (doc 15 principle 10, the same reason owner
+ *    that command IS its payload (doc 14 principle 10, the same reason owner
  *    chips keep their file paths). Bead `ro-ui73` scoped out all THREE Markdown
  *    builders on that reasoning; `ro-gj7s` pruned it back to the one it is
  *    actually true of. The other two build the evidence brief around the
@@ -74,14 +74,14 @@ const NOT_DESK_COPY = new Set([
 ]);
 
 /**
- * The banned coinages, each with the word doc 17 renders instead. The `word`
+ * The banned coinages, each with the word doc 14 renders instead. The `word`
  * is quoted back in the failure so a reader never has to open the doc to know
  * what to write.
  *
- * `changeset` is deliberately ABSENT: doc 17 keeps it as a justified exception
+ * `changeset` is deliberately ABSENT: doc 14 keeps it as a justified exception
  * (git's own vocabulary for a preview-then-apply document), and it now renders
  * only beside `pnpm config:apply --stdin`, the command that consumes it.
- * `sense_only` is absent for the same kind of reason — doc 17 rule 3 sanctions
+ * `sense_only` is absent for the same kind of reason — doc 14 rule 3 sanctions
  * it as the jargon suffix on "Automation", and it has no prose use to guard.
  */
 const BANNED = [
@@ -103,10 +103,10 @@ const BANNED = [
   // names a shape rather than a thing, appears nowhere else in the product, and
   // a library listing "tiles" would have to teach the word before it could be
   // used. Every dashboard the operator has ever used calls that box a WIDGET
-  // (doc 17's 2026-09-05 row, bead `ro-lzmq.4`). Flow D keeps the old word
+  // (doc 14's 2026-09-05 row, bead `ro-lzmq.4`). Flow D keeps the old word
   // where it describes the 2026-07 design; nothing rendered says it.
   { pattern: /\btiles?\b/gi, word: 'widget' },
-  // The other half of rule 1: a SYNONYM for a word doc 17 has already mapped is
+  // The other half of rule 1: a SYNONYM for a word doc 14 has already mapped is
   // the same failure as a coinage. `sense_only` renders as exactly one pair —
   // "Monitor only" and "Automation enabled" — and the assets index said
   // "Observe only" / "Automation on" for the same two states (bead `ro-06ww`).
@@ -122,7 +122,7 @@ const BANNED = [
  */
 const ALLOWED_PHRASES = [
   // 1. FILE PATHS THE OPERATOR EXECUTES AGAINST — owner chips and command
-  //    labels, kept verbatim by doc 17's owner-chip row (doc 15 principle 10).
+  //    labels, kept verbatim by doc 14's owner-chip row (doc 14 principle 10).
   'config/beads.json',
   'config/beads.README.md',
   '/.beads/config.yaml',
@@ -141,7 +141,7 @@ const ALLOWED_PHRASES = [
   'lanes(integration)',
   'lanes.integration',
   'JOIN lanes',
-  // Hosted job SQL keeps its stored lane column (doc 17); no UI label does.
+  // Hosted job SQL keeps its stored lane column (doc 14); no UI label does.
   'a.lane',
   'j.lane',
   'PARTITION BY lane ORDER BY',
@@ -157,18 +157,18 @@ const ALLOWED_PHRASES = [
   // a key and a wire value, never a label (D32, bead ro-ujb9.143).
   'BEADS = "beads"',
   // …and its NAME on the Integrations row: the product a stranger installs,
-  // as a provider row names Bing (doc 17, "Beads (a task source)").
+  // as a provider row names Bing (doc 14, "Beads (a task source)").
   'name: "Beads"',
   '"knobs", "preferences"',
   // 5. A COMMAND PASSED TO A LABELLED BLOCK rather than written inline. The
   //    Settings checklist renders it under "Terminal · run in <repo>" with a
-  //    Copy button, which is the labelling doc 17 asks for; it is not inline
+  //    Copy button, which is the labelling doc 14 asks for; it is not inline
   //    prose, so the inline-markup rule below cannot see it.
   'bd init --server',
 ];
 
 /**
- * THE ALTITUDE RULE (doc 17 § Altitude, D44). A founder reviewer called the
+ * THE ALTITUDE RULE (doc 14 § Altitude, D44). A founder reviewer called the
  * product "technical", and the words were English: "4 / 6 fresh · 12 jobs" on
  * the first screen is the OS talking about itself. So every word has an
  * altitude — business, operational, technical — and a surface shows its own
@@ -178,7 +178,7 @@ const ALLOWED_PHRASES = [
  * A provider's name may appear on a business surface only as a chart key
  * beside its own line (doc 14: Bing's blue is always beside the word "Bing"),
  * which the exact phrases below cover; never as a label, an eyebrow or a
- * caption. Widening this list is a doc 17 row, never a quick fix.
+ * caption. Widening this list is a doc 14 row, never a quick fix.
  */
 const BUSINESS_SURFACES = [
   'apps/tower/src/routes/HomeRoute.tsx',
@@ -278,7 +278,7 @@ function shippedSpans(text) {
 }
 
 /**
- * Is the hit at `at` inside a LABELLED COMMAND — the one context doc 17 keeps
+ * Is the hit at `at` inside a LABELLED COMMAND — the one context doc 14 keeps
  * `bd` for? Two markings, and only two, because a command an operator pastes
  * has to be exact and has to be visibly a command:
  *
@@ -358,7 +358,7 @@ test('every business surface is in the scan, and exists', () => {
   }
 });
 
-test('no business surface says a lower altitude\'s word (doc 17 § Altitude, D44)', () => {
+test('no business surface says a lower altitude\'s word (doc 14 § Altitude, D44)', () => {
   const offenders = [];
   for (const name of BUSINESS_SURFACES) {
     const text = withoutComments(readFileSync(path.join(REPO_ROOT, name), 'utf8'));
@@ -381,14 +381,14 @@ test('no business surface says a lower altitude\'s word (doc 17 § Altitude, D44
   assert.deepEqual(
     offenders,
     [],
-    'these business surfaces say a word from a lower altitude (doc 17 § Altitude):\n  ' +
+    'these business surfaces say a word from a lower altitude (doc 14 § Altitude):\n  ' +
       `${offenders.join('\n  ')}\n` +
       'Say it in business words, move the fact to the surface that owns it, or ' +
-      'record the exception as a doc 17 row and an exact phrase in ALLOWED_ON_BUSINESS.',
+      'record the exception as a doc 14 row and an exact phrase in ALLOWED_ON_BUSINESS.',
   );
 });
 
-test('no shipped desk string uses an internal coinage (doc 17)', () => {
+test('no shipped desk string uses an internal coinage (doc 14)', () => {
   const offenders = [];
 
   for (const name of FILES) {
@@ -426,10 +426,10 @@ test('no shipped desk string uses an internal coinage (doc 17)', () => {
     offenders,
     [],
     'these shipped desk strings still use internal vocabulary ' +
-      `(doc 17, bead ro-ui73):\n  ${offenders.join('\n  ')}\n` +
+      `(doc 14, bead ro-ui73):\n  ${offenders.join('\n  ')}\n` +
       'Every one of these words is precise for the operator and private for the ' +
-      'stranger doc 17 rule 8 asks you to read the screen to. Replace it with the ' +
-      'mapped word, or add the row to docs/17-ui-lexicon.md and the exact phrase to ' +
+      'stranger doc 14 rule 8 asks you to read the screen to. Replace it with the ' +
+      'mapped word, or add the row to docs/14-design.md and the exact phrase to ' +
       'ALLOWED_PHRASES in this file with its reason — never widen a pattern. A `bd` ' +
       'command stays verbatim when it is visibly a command: inside a ' +
       '<code className="font-mono"> element, or in backticks inside a sentence.',
@@ -549,7 +549,7 @@ const SITE_NOUN_FILES = [
  * can see them. Exact phrases; each is code a person does not read as the noun.
  */
 const SITE_NOUN_IDENTIFIERS = [
-  'db · assets row', // an owner chip naming the `assets` table it writes (doc 17 owner-chip row)
+  'db · assets row', // an owner chip naming the `assets` table it writes (doc 14 owner-chip row)
 ];
 
 let ts;
@@ -719,7 +719,7 @@ test('the config corpus has prose to scan', () => {
   }
 });
 
-test('no operator-visible config string uses an internal coinage (doc 17)', () => {
+test('no operator-visible config string uses an internal coinage (doc 14)', () => {
   const offenders = [];
   const phrases = [...ALLOWED_PHRASES, ...CONFIG_ALLOWED_PHRASES];
 
@@ -764,7 +764,7 @@ test('no operator-visible config string uses an internal coinage (doc 17)', () =
     offenders,
     [],
     'these config strings reach the operator and still use internal vocabulary ' +
-      `(doc 17, bead ro-ui73):\n  ${offenders.join('\n  ')}\n` +
+      `(doc 14, bead ro-ui73):\n  ${offenders.join('\n  ')}\n` +
       'The Tower renders these verbatim — the register labels and describe lines on ' +
       '/settings, the lane labels and per-site notes on a Sources tab ' +
       'and /health. A stored value or a register id belongs in CONFIG_ALLOWED_PHRASES ' +

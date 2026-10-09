@@ -4,24 +4,20 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-// THE COMPONENT REGISTRY IS LAW, AND A LAW NOTHING READS IS A SUGGESTION
-// (doc 14 anti-duplication mechanic #1; bead `ro-6bhm`).
+// THE COMPONENT REGISTRY IS ONLY AN INDEX IF SOMETHING READS IT
+// (doc 14 anti-duplication mechanic #1).
 //
-// `apps/tower/src/components/registry.ts` is the machine-readable component
-// index doc 14 leans on: "check this registry before creating any component; a
-// near-duplicate is a rejected completion, not a style note." Its own header
-// says to keep it in sync with `REGISTRY.md` and the `/dev/kitchen-sink` route.
-// Until this file existed, nothing checked either half of that sentence, and
-// nothing imported the registry at all — it worked only as long as every agent
-// read a file voluntarily and updated it honestly.
+// `apps/tower/src/components/registry.ts` is the Tower's component index, and
+// the `/dev/kitchen-sink` route renders it. Nothing else describes the
+// component set: there is no prose mirror to keep in step.
 //
 // Three things could drift silently, and this is what fails on each:
 //   1. a component in `components/` with no registry entry — the near-duplicate
 //      the registry exists to prevent gets built because nobody saw the row;
 //   2. an entry naming a file or an export that is gone — the index points at
 //      something that no longer answers;
-//   3. an entry with no row in `REGISTRY.md`, or no demo on the kitchen-sink
-//      page — the two places a person actually looks fall behind the data.
+//   3. an entry with no demo on the kitchen-sink page — the one place a person
+//      looks falls behind the data.
 //
 // It is the sister of `ui-noun.test.mjs` and `ui-lexicon.test.mjs`: the same
 // shape, the same exact-match exemptions with a reason each, and the same rule
@@ -36,7 +32,6 @@ const REPO_ROOT = path.resolve(SCRIPTS_DIR, '..');
 
 const COMPONENTS_DIR = 'apps/tower/src/components';
 const REGISTRY_TS = `${COMPONENTS_DIR}/registry.ts`;
-const REGISTRY_MD = `${COMPONENTS_DIR}/REGISTRY.md`;
 const KITCHEN_SINK = 'apps/tower/src/routes/KitchenSinkRoute.tsx';
 
 /**
@@ -45,19 +40,18 @@ const KITCHEN_SINK = 'apps/tower/src/routes/KitchenSinkRoute.tsx';
  * stopped being true — an allowlist nobody prunes is a habit, not a decision.
  *
  * The bar for landing here is high: `components/ui/` is NOT exempt. Those
- * primitives are vendored rather than written, but REGISTRY.md carries a row
- * for every one of them and doc 14's stack table names them, so the machine
- * mirror carries them too — that is the registry's own rule for that folder.
+ * primitives are vendored rather than written, but doc 14's stack table names
+ * them and a second copy of one is as much a duplicate as any other.
  */
 const NOT_A_REGISTRY_COMPONENT = {
   // (empty — every component file currently carries an entry)
 };
 
 /**
- * Registry entries the kitchen sink does not render UNDER THEIR OWN NAME, with
- * the reason REGISTRY.md's "Kitchen-sink coverage" table records. A demo that
- * would be a second copy of an existing one is worse than an exception stated
- * out loud.
+ * Registry entries the kitchen sink does not render UNDER THEIR OWN NAME, each
+ * with its reason. A demo that would be a second copy of an existing one is
+ * worse than an exception stated out loud. (An entry that renders but cannot
+ * stage every variant says so in its own `demo` field in registry.ts.)
  */
 const NO_STANDALONE_DEMO = {
   Command:
@@ -141,9 +135,8 @@ test('every component file has a registry entry (doc 14 mechanic #1)', () => {
     [],
     `these components exist but the registry does not know them:\n  ${missing.join('\n  ')}\n` +
       'The registry is what stops the Tower growing four button styles, and it only works if ' +
-      'every component is in it. Add an entry to apps/tower/src/components/registry.ts and a ' +
-      'row to REGISTRY.md — with the one-line "the registry has nothing that…" justification ' +
-      'doc 14 asks for. A file that genuinely is not a component belongs in ' +
+      'every component is in it. Add an entry to apps/tower/src/components/registry.ts — ' +
+      'or extend the entry it duplicates. A file that genuinely is not a component belongs in ' +
       'NOT_A_REGISTRY_COMPONENT in this file, with its reason.',
   );
 });
@@ -179,26 +172,6 @@ test('every registry entry names a component that exists', () => {
   );
 });
 
-test('every registry entry has a row in REGISTRY.md', () => {
-  const firstCells = read(REGISTRY_MD)
-    .split('\n')
-    .filter((line) => line.startsWith('| ') && !/^\|\s*-+/.test(line))
-    .map((line) => line.split('|')[1]);
-
-  const missing = ENTRIES.filter(
-    (entry) => !firstCells.some((cell) => entry.parts.every((part) => cell.includes(`\`${part}\``))),
-  ).map((entry) => `${entry.name}  (${entry.file})`);
-
-  assert.deepEqual(
-    missing,
-    [],
-    `these registry entries have no row in REGISTRY.md:\n  ${missing.join('\n  ')}\n` +
-      'REGISTRY.md is the half a person reads and registry.ts is the half a machine reads; ' +
-      'one without the other is how the two drift. The row names every part of the entry in ' +
-      'backticks in its first cell, states the purpose, and lists the states the gallery shows.',
-  );
-});
-
 test('the kitchen sink renders every registry entry', () => {
   const sink = read(KITCHEN_SINK);
   const missing = ENTRIES.filter(
@@ -214,8 +187,8 @@ test('the kitchen sink renders every registry entry', () => {
       'registry.ts\'s own header says every entry must render there — it is the visual ' +
       'reference a reviewer opens and the only place a component can be compared with its ' +
       'neighbours before a fifth one is written. Add a Section to ' +
-      `${KITCHEN_SINK}. A demo that cannot honestly be staged is an exception: record it in ` +
-      "REGISTRY.md's Kitchen-sink coverage table AND in NO_STANDALONE_DEMO in this file.",
+      `${KITCHEN_SINK}. A component with no face of its own is an exception: record it in ` +
+      'NO_STANDALONE_DEMO in this file with its reason.',
   );
 });
 
@@ -229,7 +202,7 @@ test('the kitchen sink actually imports the registry', () => {
     /import \{ COMPONENT_REGISTRY \} from "@\/components\/registry";/,
     `${KITCHEN_SINK} must import COMPONENT_REGISTRY — the gallery's contents are the registry's ` +
       'own inventory, so an entry added to registry.ts appears there without anyone editing the ' +
-      'route. A registry with no importer is a file, not a mechanism (bead ro-6bhm).',
+      'route. A registry with no importer is a file, not a mechanism.',
   );
   assert.match(
     sink,

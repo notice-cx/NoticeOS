@@ -200,11 +200,10 @@ import {
 } from "@/components/ScheduledLanes";
 import { WorkflowStateLabel, WorkflowActivity, WorkflowStages, WorkflowScheduleTimeline, WorkflowStepOutputView } from '@/components/WorkflowVisuals';
 import { WORKFLOW_DEFINITIONS, type WorkflowState } from '@shared/workflows';
-// The registry is LAW (doc 14), and a law nothing reads is a suggestion. This
-// page is its one importer: the contents below are the registry's own
-// inventory, so an entry added there appears here without anybody editing this
-// file, and `scripts/component-registry.test.mjs` fails the build when a
-// component, an entry, a REGISTRY.md row or a demo on this page goes missing.
+// This page is the registry's one importer (doc 14): the contents below are
+// the registry's own inventory, so an entry added there appears here without
+// anybody editing this file, and `scripts/component-registry.test.mjs` fails
+// the build when a component, an entry or a demo on this page goes missing.
 import { COMPONENT_REGISTRY } from "@/components/registry";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -939,7 +938,7 @@ const PROVIDER_CARD_DEMOS: ProviderCardDemo[] = [
         { id: "finance.example.org", lanes: ["clarity"] },
       ],
       // WHAT IS LEFT OF TODAY (bead `ro-vu8d.25`), on the one provider that
-      // declares a meter. It is here because doc 15 flow C step 3 asked for this
+      // declares a meter. It is here because doc 14 flow C step 3 asked for this
       // number in prose for months, and what a reviewer is judging is whether a
       // partly-spent day and an untouched one read differently at a glance.
       meter: {
@@ -2000,18 +1999,18 @@ const REST_OF_DAY: UpcomingMeeting[] = [
 const REGISTRY_GROUPS: Record<string, string> = {
   "components/": "Composite",
   "components/ui/": "Primitives (vendored)",
-  "components/surface/": "Surface (doc 21)",
+  "components/surface/": "Surface (doc 14)",
   "components/bands/": "Bands",
   "components/wall/": "Wall",
 };
 
 /**
  * The registry's inventory, read straight out of `components/registry.ts` —
- * this page is that file's one importer (doc 14, bead `ro-6bhm`). Nothing below
- * is typed by hand: a component that enters the registry appears here, and
+ * this page is that file's one importer (doc 14). Nothing below is typed by
+ * hand: a component that enters the registry appears here, and
  * `scripts/component-registry.test.mjs` fails the build for a component that
- * never entered it, an entry naming a file that is gone, an entry with no row
- * in REGISTRY.md, or an entry with no demo further down this page.
+ * never entered it, an entry naming a file that is gone, or an entry with no
+ * demo further down this page.
  */
 function RegistryContents() {
   const groups = new Map<string, string[]>();
@@ -2043,12 +2042,12 @@ function RegistryContents() {
         ))}
       </div>
       <p className="mt-4 max-w-prose text-xs text-muted-foreground">
-        Check this before building anything — a near-duplicate is a rejected
-        completion, not a style note. Every entry renders somewhere below except
-        the few whose exception{" "}
-        <code className="font-mono">REGISTRY.md</code> records, and the same list
-        is what <code className="font-mono">pnpm test:scripts</code> holds the
-        catalog, its written mirror and this page to.
+        Check this before building anything; prefer an entry over a new one.
+        Every entry renders somewhere below except the few{" "}
+        <code className="font-mono">scripts/component-registry.test.mjs</code>{" "}
+        lists with a reason, and{" "}
+        <code className="font-mono">pnpm test:scripts</code> holds the catalog
+        and this page to each other.
       </p>
     </details>
   );
@@ -2893,7 +2892,7 @@ const DEMO_CONNECTIONS = demoConnections(
   NOW,
 );
 
-/** The layout a Wall nobody has rearranged draws — D28 (docs/25-the-wall.md):
+/** The layout a Wall nobody has rearranged draws — D28 (docs/14-design.md):
  * the strip, revenue beside Needs you over the site rows, the feed beside. */
 const wallDefaultLayout = DEFAULT_WALL_LAYOUT;
 
@@ -3895,7 +3894,7 @@ export function KitchenSinkRoute() {
               here rather than hunted for. */}
           <Section title="Card (+ Header / Title / Content / Footer)">
             {/* D44's four tints on the one shape: the card's SUBJECT, never its
-                verdict (doc 21 § Surface kinds). */}
+                verdict (doc 14 § Surface kinds). */}
             <Card kind="money" className="w-72">
               <CardHeader>
                 <CardTitle>Money</CardTitle>
@@ -4585,9 +4584,9 @@ export function KitchenSinkRoute() {
               </div>
             ))}
             <p className="w-full text-xs text-muted-foreground">
-              And the countdown (bead <code>ro-vu8d.8</code>, doc 15 flow C
+              And the countdown (bead <code>ro-vu8d.8</code>, doc 14 flow C
               step 4). Three steps and no fourth severity: quiet while the date
-              is far off, warn-toned inside the fourteen days doc 15 named, red
+              is far off, warn-toned inside the fourteen days doc 14 named, red
               once it has passed — and a card whose provider states no lifetime
               says so in the provider's own sentence rather than showing an
               invented date. The chip sits BESIDE the state chip because they
@@ -6151,8 +6150,7 @@ const TUNE_RATE_PAYLOAD: AlertRuleStatsPayload = {
    DOC 21'S SURFACE VOCABULARY
 
    The fixture is plate.example.com's REAL 90-day series, 2026-06-08 → 2026-09-05,
-   copied from the reference mockup beside doc 21
-   (docs/briefs/2026-09-05-surface-redesign-mockup.html). Real data because the
+   copied from the 2026-09-05 reference mockup beside doc 14. Real data because the
    thing being reviewed here is whether a shape reads: a synthetic sine wave
    makes every chart look competent, and this series has the two facts that
    actually test the vocabulary — a reporting-timezone change on Sep 1 and a
@@ -6352,7 +6350,7 @@ function windowTotal(metric: SurfaceMetric, range: number): number {
 }
 
 /**
- * The fused hero exactly as doc 21's Overview composes it: one `Card`, the
+ * The fused hero exactly as doc 14's Overview composes it: one `Card`, the
  * strip across the top, the chart the selected KPI chooses underneath, and one
  * range driving every figure on both.
  */
@@ -6377,7 +6375,7 @@ function SurfaceHero({ range }: { range: number }) {
                 isMonthly ? one.series[0]!.points.at(-1)!.v : windowTotal(key, range),
               )}
               valueTone={key === "alerts" ? "healthy" : "default"}
-              // Doc 21: down is good for open alerts and errors; Net's movement
+              // doc 14: down is good for open alerts and errors; Net's movement
               // carries no verdict at all and shows its composition instead.
               improvement={key === "alerts" ? "down" : key === "net" ? "none" : "up"}
               delta={key === "alerts" ? null : delta}
@@ -6405,7 +6403,7 @@ function SurfaceHero({ range }: { range: number }) {
   );
 }
 
-/** Doc 21's vocabulary, every state it names, over one real asset's series. */
+/** doc 14's vocabulary, every state it names, over one real asset's series. */
 function SurfaceSections() {
   const [range, setRange] = useState<number>(DEFAULT_RANGE_DAYS);
   const usersDelta = periodDelta(USERS, range);
@@ -6417,7 +6415,7 @@ function SurfaceSections() {
 
   return (
     <>
-      <Section title="Doc 21 · the page's range drives everything under it (RangeSelector)">
+      <Section title="doc 14 · the page's range drives everything under it (RangeSelector)">
         <div className="flex w-full flex-col gap-4">
           <div className="flex flex-wrap items-center gap-4">
             <RangeSelector value={range} onChange={setRange} />
@@ -6515,7 +6513,7 @@ function SurfaceSections() {
         </div>
       </Section>
 
-      <Section title="Doc 21 · KpiStrip fused to HeroChart (the asset Overview's first screen)">
+      <Section title="doc 14 · KpiStrip fused to HeroChart (the asset Overview's first screen)">
         <SurfaceHero range={range} />
       </Section>
 
