@@ -106,7 +106,7 @@ function ProductEmpty({ connection }: { connection: ProductConnection }) {
       ? "Connected · the first product read has not been collected yet."
       : connection === "off"
         ? "Product data is not collected for this site."
-        : "PostHog is not connected for this site.";
+        : "Product data is not connected for this site.";
   return (
     <p className="m-0 flex items-center gap-2 rounded-[10px] border border-border bg-card px-4 py-3 text-xs text-muted-foreground" data-product-empty={connection}>
       <span aria-hidden className="font-semibold">—</span>
@@ -147,9 +147,9 @@ function ProductBody({ product }: { product: ProductSnapshot }) {
           count={[found === 0 ? null : `${formatInt(found)} found`, window].filter(Boolean).join(" · ") || undefined}
           empty={
             quietChecks.every((check) => check.state === "clear")
-              ? "Nothing crossed a line in these reads."
+              ? "Nothing broke in these days."
               : quietChecks.some((check) => check.state === "clear")
-                ? "Nothing crossed a line in what could be checked — see below."
+                ? "Nothing broke in what could be checked — see below."
                 : "Nothing to judge yet — see the checks below."
           }
           groups={groups.map((group) => ({

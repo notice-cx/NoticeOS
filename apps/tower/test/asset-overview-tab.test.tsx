@@ -356,7 +356,7 @@ describe("Asset Overview — the strip drives the chart", () => {
     await screen.findByRole("tablist");
     fireEvent.click(screen.getByRole("tab", { name: "Growth" }));
     const strip = container.querySelector("#also-collected")!;
-    expect(strip.textContent).toContain("Google click rate1.2%");
+    expect(strip.textContent).toContain("Click rate1.2%");
     expect(strip.textContent).toContain("Average position10.0");
     expect(strip.textContent).not.toContain("99.0%");
   });

@@ -241,7 +241,7 @@ describe("ProductJourney", () => {
     expect(checks.textContent).toContain("Real-visitor speed: not enough data");
     expect(checks.textContent).toContain("Rage clicks: clear");
     expect(checks.textContent).toContain("Errors: not collected");
-    expect(screen.getByRole("region", { name: "Where it breaks" }).textContent).toContain("Nothing crossed a line in what could be checked — see below.");
+    expect(screen.getByRole("region", { name: "Where it breaks" }).textContent).toContain("Nothing broke in what could be checked — see below.");
   });
 
   it("draws a dash, never a zero, for a part PostHog did not send", () => {
@@ -261,7 +261,7 @@ describe("ProductJourney", () => {
       return text;
     };
     expect(say("connected")).toContain("Connected · the first product read has not been collected yet.");
-    expect(say("not-connected")).toContain("PostHog is not connected for this site.");
+    expect(say("not-connected")).toContain("Product data is not connected for this site.");
     expect(say("off")).toContain("Product data is not collected for this site.");
   });
 

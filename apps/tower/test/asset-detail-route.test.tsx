@@ -1246,7 +1246,7 @@ describe("AssetDetailRoute — executive page identity", () => {
     // ONE strip, not three labelled groups of bordered cards.
     const strip = container.querySelector("#product-use")!;
     expect(container.querySelectorAll("#product-use")).toHaveLength(1);
-    expect(strip.textContent).toContain("fixed 28-day snapshot");
+    expect(strip.textContent).toContain("last 28 days");
     // The title and its dates are the whole description: no explainer.
     expect(strip.querySelector("[data-info-tooltip-trigger]")).toBeNull();
     expect(strip.textContent).toContain("233");
@@ -1270,7 +1270,7 @@ describe("AssetDetailRoute — executive page identity", () => {
     const view = renderRoute("nosh.example", "", "growth");
     await view.findByText("Audience");
     const productUse = view.container.querySelector<HTMLElement>("#product-use")!;
-    expect(within(productUse).getByRole("heading", { name: "Product use · fixed 28-day snapshot" })).toBeInTheDocument();
+    expect(within(productUse).getByRole("heading", { name: "Product use · last 28 days" })).toBeInTheDocument();
     // "Fixed" and its own dates are what say the range selector does not move it.
     expect(productUse).toHaveTextContent("Jul 2–29, 2026");
     const snapshot = productUse.textContent;
@@ -7114,7 +7114,7 @@ describe("Growth headline and chart date scopes", () => {
     const scope = chart.querySelector<HTMLElement>("[data-growth-headline-period]")!;
     const total = (12 * range - 14).toLocaleString("en-US");
     expect(chart).toHaveTextContent(`${total} from search`);
-    expect(scope).toHaveTextContent(`Completed reports · ${dates(range)[0]}`);
+    expect(scope).toHaveTextContent(`${dates(range)[0]}`);
     expect(scope).toHaveTextContent(`${range - 1} of ${range} days reported`);
     expect(scope).toHaveAttribute("data-window-start", day(-range));
     expect(scope).toHaveAttribute("data-window-end", day(-1));
@@ -7171,7 +7171,7 @@ describe("Growth headline and chart date scopes", () => {
     const view = renderPath("/assets/meals.example/growth?range=7");
     await view.findByText("Audience");
     const chart = view.container.querySelector<HTMLElement>('[data-growth-chart="Clicks"]')!;
-    expect(chart.querySelector("[data-growth-headline-period]")).toHaveTextContent("Completed reports · Aug 30–Sep 5, 2026");
+    expect(chart.querySelector("[data-growth-headline-period]")).toHaveTextContent("Aug 30–Sep 5, 2026");
     expect(within(chart).queryByText(/^Chart ·/)).toBeNull();
   });
 
@@ -7202,7 +7202,7 @@ describe("Growth headline and chart date scopes", () => {
     await view.findByText("Audience");
     const chart = view.container.querySelector<HTMLElement>('[data-growth-chart="Clicks"]')!;
     expect(within(chart).getByLabelText("Not enough completed reports")).toHaveTextContent("—");
-    expect(chart.querySelector("[data-growth-headline-period]")).toHaveTextContent("Completed reports · Aug 29–Sep 4, 2026");
+    expect(chart.querySelector("[data-growth-headline-period]")).toHaveTextContent("Aug 29–Sep 4, 2026");
     expect(chart.querySelector("[data-growth-headline-period]")).toHaveTextContent("2 of 7 days reported");
     expect(within(chart).queryByText("20 from search")).toBeNull();
   });

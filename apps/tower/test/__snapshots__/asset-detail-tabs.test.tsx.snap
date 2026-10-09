@@ -506,7 +506,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 </div>
 <div class="mt-1 flex flex-wrap gap-x-1 text-xs tabular-nums text-muted-foreground" data-growth-headline-period="true" data-window-start="2026-06-07" data-window-end="2026-07-04">
-<span>Completed reports · Jun 7–Jul 4, 2026</span>
+<span>Jun 7–Jul 4, 2026</span>
 <span>· 7 of 28 days reported</span>
 </div>
 <figure data-hero-chart="" class="m-0 flex flex-col gap-2 mt-2.5">
@@ -634,7 +634,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </button>
 </span>
 </span>
-<a class="ms-auto text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring max-sm:-my-2.5 max-sm:inline-flex max-sm:items-center motion-safe:transition-colors" href="/assets/meals.example/search" data-discover="true">Queries, pages and the tracked panel →</a>
+<a class="ms-auto text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring max-sm:-my-2.5 max-sm:inline-flex max-sm:items-center motion-safe:transition-colors" href="/assets/meals.example/search" data-discover="true">Search →</a>
 </div>
 <div class="grid min-w-0 gap-3.5 lg:grid-cols-2">
 <article class="min-w-0 rounded-[10px] border border-border bg-card p-4" data-growth-chart="Clicks">
@@ -645,7 +645,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 </div>
 <div class="mt-1 flex flex-wrap gap-x-1 text-xs tabular-nums text-muted-foreground" data-growth-headline-period="true" data-window-start="2026-06-07" data-window-end="2026-07-04">
-<span>Completed reports · Jun 7–Jul 4, 2026</span>
+<span>Jun 7–Jul 4, 2026</span>
 <span>· 7 of 28 days reported</span>
 </div>
 <figure data-hero-chart="" class="m-0 flex flex-col gap-2 mt-2.5">
@@ -747,7 +747,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 </div>
 <div class="mt-1 flex flex-wrap gap-x-1 text-xs tabular-nums text-muted-foreground" data-growth-headline-period="true" data-window-start="2026-06-07" data-window-end="2026-07-04">
-<span>Completed reports · Jun 7–Jul 4, 2026</span>
+<span>Jun 7–Jul 4, 2026</span>
 <span>· 7 of 28 days reported</span>
 </div>
 <figure data-hero-chart="" class="m-0 flex flex-col gap-2 mt-2.5">
@@ -846,14 +846,11 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </article>
 </div>
 </section>
-<span class="text-xs tabular-nums text-muted-foreground" data-analysis-evidence="true">
-<button type="button" aria-label="About this saved analysis" aria-expanded="false" data-info-tooltip-trigger="true" class="relative inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center gap-1 rounded-sm text-xs font-normal normal-case tracking-normal text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring max-sm:min-h-11 max-sm:min-w-11 cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-4">Analysis 2h ago</button>
-</span>
 <section id="panel-scoreboard" class="scroll-mt-4 flex flex-col gap-2">
 <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Tracked panel · 2 terms</h2>
-<span class="min-w-0 text-xs tabular-nums text-muted-foreground">Jul 1, 2026 · phone &amp; desktop · depth 20</span>
-<a class="ms-auto text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring max-sm:-my-2.5 max-sm:inline-flex max-sm:items-center motion-safe:transition-colors" href="/assets/meals.example/search" data-discover="true">Open the panel →</a>
+<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Search terms · 2 tracked</h2>
+<span class="min-w-0 text-xs tabular-nums text-muted-foreground">Jul 1, 2026 · phone &amp; desktop · top 20 read</span>
+<a class="ms-auto text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring max-sm:-my-2.5 max-sm:inline-flex max-sm:items-center motion-safe:transition-colors" href="/assets/meals.example/search" data-discover="true">Search terms →</a>
 </div>
 <div class="grid gap-px overflow-hidden rounded-[10px] border border-border bg-border/60 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
 <div class="grid content-start gap-1 bg-card p-4">
@@ -882,7 +879,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="grid content-start gap-1 bg-card p-4">
 <span class="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Best move</span>
 <span class="text-xl font-semibold tabular-nums text-foreground">
-<span class="block truncate text-sm">weekly meal plan</span>
+<span class="block text-sm [overflow-wrap:anywhere]">weekly meal plan</span>
 <span class="ms-1.5 text-xs font-medium tracking-normal text-muted-foreground">#12 → top 10</span>
 </span>
 </div>
@@ -890,7 +887,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </section>
 <section id="product-use" class="scroll-mt-4 flex flex-col gap-2">
 <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Product use · fixed 28-day snapshot</h2>
+<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Product use · last 28 days</h2>
 <span class="min-w-0 text-xs tabular-nums text-muted-foreground">Jul 2–29, 2026</span>
 </div>
 <div class="grid gap-px overflow-hidden rounded-[10px] border border-border bg-border/60 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -937,7 +934,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <span class="min-w-0 text-xs tabular-nums text-muted-foreground">PostHog</span>
 </div>
 <p class="m-0 flex items-center gap-2 rounded-[10px] border border-border bg-card px-4 py-3 text-xs text-muted-foreground" data-product-empty="not-connected">
-<span aria-hidden="true" class="font-semibold">—</span>PostHog is not connected for this site.</p>
+<span aria-hidden="true" class="font-semibold">—</span>Product data is not connected for this site.</p>
 </section>
 </div>
 </div>
@@ -1539,9 +1536,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <section id="serp-panel" data-surface-hero="true" class="scroll-mt-4 min-w-0">
 <section data-serp-panel="true" class="min-w-0 rounded-lg border border-border bg-background/40 p-4">
 <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
-<h3 class="text-wall-label font-semibold uppercase tracking-widest text-muted-foreground">Tracked SERP panel</h3>
+<h3 class="text-wall-label font-semibold uppercase tracking-widest text-muted-foreground">Search terms</h3>
 <div class="flex items-center gap-2">
-<p class="text-xs tabular-nums text-muted-foreground">Jul 1, 2026 · phone &amp; desktop · depth 20</p>
+<p class="text-xs tabular-nums text-muted-foreground">Jul 1, 2026 · phone &amp; desktop · top 20 read</p>
 </div>
 </div>
 <div class="mt-3 grid gap-x-6 gap-y-4 sm:grid-cols-[minmax(0,3fr)_auto_minmax(0,2fr)]">
@@ -1633,7 +1630,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </ul>
 </div>
 </section>
-<a class="mt-1 inline-flex min-h-11 items-center text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" href="/assets/meals.example/growth#panel-scoreboard" data-discover="true">How the panel is moving →</a>
+<a class="mt-1 inline-flex min-h-11 items-center text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" href="/assets/meals.example/growth#panel-scoreboard" data-discover="true">How search terms move →</a>
 </section>
 <div class="grid min-w-0 gap-3.5">
 <section id="query-visibility" aria-labelledby="query-visibility-title" class="min-w-0 scroll-mt-16 flex flex-col gap-2">
