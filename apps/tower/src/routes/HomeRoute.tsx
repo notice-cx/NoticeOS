@@ -402,7 +402,7 @@ function SitesStrip({ assets, brief, nowMs }: { assets: AssetCard[]; brief: Home
   return (
     <section aria-label="Sites" className="flex flex-col rounded-[10px] border border-border bg-card" data-sites-strip>
       <SectionLabel title="Sites" caption={siteCount(assets.length)} action={{ to: "/assets", label: "All sites →" }} className="px-4 pb-2 pt-3" />
-      <ul className="m-0 grid list-none gap-px bg-border/60 p-0 sm:grid-cols-2 xl:grid-cols-3">
+      <ul className="m-0 grid list-none gap-px bg-border/60 p-0 sm:grid-cols-2">
         {assets.map((asset) => {
           const health = siteHealth(asset, brief.issues);
           const yesterday = hasRevenueSource(asset) ? yesterdayTotal([asset], nowMs) : null;
