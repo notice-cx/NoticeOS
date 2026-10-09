@@ -341,7 +341,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     const wall = renderWall();
     expect(statusOn(wall.container, "Nightly report")).toBeUndefined();
     expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "healthy");
-    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: No open issues");
+    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: On track");
     expect(needsOn(wall.container)).toHaveAttribute("data-wall-needs", "calm");
   });
 
@@ -353,7 +353,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     const wall = renderWall();
     expect(statusOn(wall.container, "Google Analytics")).toBeUndefined();
     expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "healthy");
-    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: No open issues");
+    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: On track");
     expect(needsOn(wall.container)).toHaveAttribute("data-wall-needs", "calm");
     expect(wall.container.querySelector("[data-system-state]")).toBeNull();
   });
@@ -382,7 +382,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     const wall = renderWall();
     expect(wall.container.querySelector("[data-source]")).toBeNull();
     expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "healthy");
-    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: No open issues");
+    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: On track");
     expect(needsOn(wall.container)).toHaveAttribute("data-wall-needs", "calm");
   });
 });

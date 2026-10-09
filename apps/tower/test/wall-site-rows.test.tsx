@@ -128,7 +128,10 @@ describe("the site rows", () => {
     site.dataSources = [];
     const container = draw(assets, { realtime: { ...wallFixtureRealtime(), assets: [] }, pulseMetrics: { [site.id]: [] } });
     const siteRow = row(container, site.id);
-    expect(siteRow.querySelector('[data-site-health="healthy"]')).not.toBeNull();
+    // The bars say the site's one health word (D44): this site has an open
+    // warning, so it is At risk here exactly as it is on Home and its page.
+    expect(siteRow.querySelector("[data-site-health]")).toHaveAttribute("data-site-health", "warn");
+    expect(siteRow.querySelector("[data-site-health]")).toHaveAccessibleName("Site health: At risk");
     expect(siteRow.querySelector('[data-site-totals]')).toBeNull();
     expect(siteRow.querySelector('[data-site-waiting]')).toBeNull();
   });
@@ -642,8 +645,8 @@ describe("saved site traffic without a current-day reading", () => {
     expect(history.getAttribute("data-history-source")).toBe("ga4");
     expect(history.querySelector('time')?.getAttribute("dateTime")).toBe("2026-09-20");
     expect(history.textContent).toContain("Latest day · Sep 20");
-    expect(history.textContent).toContain("0GA4 users");
-    expect(history.querySelector('[aria-label="GA4 active users on 2026-09-20: 0"]')).not.toBeNull();
+    expect(history.textContent).toContain("0people");
+    expect(history.querySelector('[aria-label="People on 2026-09-20: 0"]')).not.toBeNull();
     expect(site.querySelector('[data-today]')).toBeNull();
     expect([...container.querySelectorAll('[role="columnheader"]')].map(cell => cell.textContent)).toContain("Today / latest day");
     if (mode !== "previous-day") expect(site.querySelector('[data-live]')?.textContent).toBe("—");

@@ -36,7 +36,7 @@ export const SITE_HEALTH: Readonly<Record<SiteHealthKey, { word: string; tone: S
 
 export function siteHealth(
   card: Pick<AssetCard, "id" | "status" | "senseOnly" | "openError" | "openWarn">,
-  issues: readonly WallIssue[] = [],
+  issues: readonly Pick<WallIssue, "assets" | "severity">[] = [],
 ): SiteHealth {
   const mine = issues.filter((issue) => issue.assets.includes(card.id));
   const key: SiteHealthKey = isSettingUp(card.status)
