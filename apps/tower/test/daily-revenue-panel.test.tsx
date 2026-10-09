@@ -10,7 +10,13 @@ describe('daily revenue bars', () => {
     ] }} partialDates={['2026-09-09']} notesByDate={{ '2026-09-09': '1 of 2 daily sources reported · Missing: Nosh' }} />);
     expect(container.querySelectorAll('[data-hero-bar][data-partial]')).toHaveLength(1);
     expect(screen.getByText('Reported subtotal')).toBeInTheDocument();
-    expect(screen.getByText('Mediavine · Pacific · estimates')).toBeInTheDocument();
+    // Business altitude (D45): ad revenue, not the network; the reporting
+    // clock is one press away rather than in the caption.
+    expect(screen.getByText(/^Ad revenue · estimates/)).toBeInTheDocument();
+    expect(screen.queryByText(/Mediavine/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'About the reporting day' }));
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Days end at midnight Pacific time');
+    fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.getByText('Incomplete site coverage')).toBeInTheDocument();
     fireEvent.keyDown(screen.getByRole('group', { name: 'Explore Estimated ad revenue values' }), { key: 'End' });
     expect(screen.getByRole('status')).toHaveTextContent('Missing: Nosh');

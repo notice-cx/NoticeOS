@@ -195,6 +195,10 @@ const BUSINESS_SURFACES = [
   'apps/tower/src/hooks/useSiteIssues.ts',
   'apps/tower/src/components/surface/PageAnswer.tsx',
   'apps/tower/src/components/surface/FinishLine.tsx',
+  // D45: Money (the portfolio page and its daily revenue panel, which is also
+  // a revenue-only site's Overview lead) is a business surface.
+  'apps/tower/src/routes/FinancialsRoute.tsx',
+  'apps/tower/src/components/DailyRevenuePanel.tsx',
 ];
 
 const BANNED_ON_BUSINESS = [

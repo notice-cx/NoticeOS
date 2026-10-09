@@ -5,6 +5,7 @@ import { MEDIAVINE_REPORTING_CLOCK } from '@shared/daily-revenue';
 import { HeroChart } from '@/components/surface/HeroChart';
 import { Kpi, KpiStrip } from '@/components/surface/KpiStrip';
 import { SectionLabel } from '@/components/surface/SectionLabel';
+import { InfoTooltip } from '@/components/InfoTooltip';
 import { formatCalendarDate, formatUsd } from '@/lib/format';
 
 /**
@@ -15,7 +16,7 @@ import { formatCalendarDate, formatUsd } from '@/lib/format';
  * day's own readout, and an empty window says what is missing and links to
  * where it is set up — the panel used to carry a paragraph for each.
  */
-export function DailyRevenuePanel({ history, range, title = 'Daily revenue', context, notesByDate, partialDates = [], setupHref, aside }: {
+export function DailyRevenuePanel({ history, range, title = 'Daily revenue', context, notesByDate, partialDates = [], setupHref, aside, totals = true }: {
   history: DailyRevenueHistory;
   range: number;
   title?: string;
@@ -27,6 +28,9 @@ export function DailyRevenuePanel({ history, range, title = 'Daily revenue', con
   partialDates?: readonly string[];
   /** Where ad revenue is connected, offered when nothing has ever reported. */
   setupHref?: string;
+  /** The panel's own three figures. Money's portfolio page states the month
+   * in its answer and passes false, so no total appears twice (D45). */
+  totals?: boolean;
 }) {
   const id = useId();
   const chartId = `${id}-chart`;
@@ -35,15 +39,17 @@ export function DailyRevenuePanel({ history, range, title = 'Daily revenue', con
   const latest = history.days.at(-1);
   const currency = (value: number) => formatUsd(value, { cents: true });
   return <section aria-labelledby={id} data-daily-revenue className="min-w-0 overflow-hidden rounded-[10px] border border-border bg-card">
-    <SectionLabel id={id} title={title} caption={`Mediavine · ${MEDIAVINE_REPORTING_CLOCK.label} · estimates`} className="px-4 pt-3">{aside}</SectionLabel>
+    {/* Business altitude (doc 17, D45): ad revenue, not the network's name;
+        the reporting day's clock (D42's dated basis) is one press away. */}
+    <SectionLabel id={id} title={title} caption={<>Ad revenue · estimates <InfoTooltip label="About the reporting day">{`Days end at midnight ${MEDIAVINE_REPORTING_CLOCK.label} time`}</InfoTooltip></>} className="px-4 pt-3">{aside}</SectionLabel>
     <p className="px-4 pt-1 text-xs text-muted-foreground">{range === 0 ? 'Reporting has not started for this period.' : <>{formatCalendarDate(history.from)} – {formatCalendarDate(history.to)}</>}</p>
     {context ? <div className="px-4 pt-2 text-xs text-muted-foreground">{context}</div> : null}
     {count > 0 ? <>
-      <KpiStrip columns={3} className="border-0 bg-transparent">
+      {totals ? <KpiStrip columns={3} className="border-0 bg-transparent">
         <Kpi label={partialDates.length ? 'Reported subtotal' : 'Reported earnings'} value={currency(total / 100)} caption={`${count} of ${range} days reported`} improvement="none" seriesChartId={chartId} />
         <Kpi label="Average / reported day" value={partialDates.length ? '—' : currency(total / count / 100)} caption={partialDates.length ? 'Incomplete site coverage' : 'Excludes missing days'} improvement="none" seriesChartId={chartId} />
         <Kpi label={partialDates.includes(latest!.date) ? 'Latest day · partial' : 'Latest reported day'} value={currency(latest!.amountMinor / 100)} caption={formatCalendarDate(latest!.date)} improvement="none" seriesChartId={chartId} />
-      </KpiStrip>
+      </KpiStrip> : null}
       <div id={chartId} className="px-4 pb-4">
         <HeroChart variant="bars" range={range} end={history.to} height={240}
           series={[{ name: 'Estimated ad revenue', tone: 'revenue', points: history.days.map(day => ({ t: day.date, v: day.amountMinor / 100 })) }]}

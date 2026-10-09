@@ -302,7 +302,17 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <section aria-labelledby="_rID_" data-daily-revenue="true" class="min-w-0 overflow-hidden rounded-[10px] border border-border bg-card">
 <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pt-3">
 <h2 id="_rID_" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Daily revenue</h2>
-<span class="min-w-0 text-xs tabular-nums text-muted-foreground">Mediavine · Pacific · estimates</span>
+<span class="min-w-0 text-xs tabular-nums text-muted-foreground">Ad revenue · estimates <button type="button" aria-label="About the reporting day" aria-expanded="false" data-info-tooltip-trigger="true" class="relative inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center gap-1 rounded-sm text-xs font-normal normal-case tracking-normal text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring max-sm:min-h-11 max-sm:min-w-11">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info size-3.5" aria-hidden="true">
+<circle cx="12" cy="12" r="10">
+</circle>
+<path d="M12 16v-4">
+</path>
+<path d="M12 8h.01">
+</path>
+</svg>
+</button>
+</span>
 </div>
 <p class="px-4 pt-1 text-xs text-muted-foreground">Jun 7, 2026 – Jul 4, 2026</p>
 <div class="px-4 py-8" data-daily-revenue-empty="">

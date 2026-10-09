@@ -142,17 +142,16 @@ const picker = () => screen.getByRole("combobox", { name: "Accounting period" })
    be flagged by an "includes estimates" suffix on Net — the same fact in two
    KPIs. A signed sum would have hidden it: 100 booked + (−10) estimated reads
    as a fully reconciled 90. */
-it('counts signed estimated adjustments as estimated money, once, on Reconciled', () => {
+it('counts signed estimated adjustments as unconfirmed money, never on the net', () => {
   const { container } = renderPage(payload({ months: [{ period: '2026-08',
     booked: { currency: 'USD', revenue: 100, cost: 0, net: 100 },
     estimated: { currency: 'USD', revenue: -10, cost: 0, net: -10 },
     total: { currency: 'USD', revenue: 90, cost: 0, net: 90 },
   }] }));
-  const reconciled = container.querySelector('[data-kpi="Reconciled"]')!;
-  expect(reconciled).toHaveTextContent('$100.00');
-  expect(reconciled).toHaveTextContent('$10.00 estimated');
-  expect(reconciled.querySelector('[data-segment="estimated"]')).not.toBeNull();
-  expect(container.querySelector('[data-kpi="Net"]')).not.toHaveTextContent('estimate');
+  // Confirmed is what has been checked against a statement: the booked side,
+  // by its size. The answer's net never says "estimate".
+  expect(container.querySelector('[data-money-confirmed] dd')).toHaveTextContent('$100');
+  expect(container.querySelector('[data-money-answer] h2')).not.toHaveTextContent('estimate');
 });
 
 it('shows daily portfolio coverage before asset contributions and keeps monthly costs outside its bars', () => {
@@ -340,19 +339,11 @@ describe("/financials — saying which month it is showing", () => {
    * selector opposite names the month in full and a reader standing in September
    * can see it; what nothing on the page said was what the page is FOR.
    */
-  it("puts the page\'s one question in the header, on every month", () => {
+  it("answers the page's question instead of asking it, on every month (D45)", () => {
     const { container } = renderPage(payload());
-    expect(container.querySelector("[data-page-header]")?.textContent).toContain(
-      "Am I making money, and where?",
-    );
+    expect(container.querySelector("[data-page-header]")?.textContent).not.toContain("Am I making money");
+    expect(container.querySelector("[data-money-answer] h2")?.textContent).toMatch(/^August net [+−-]?\$/u);
     expect(container.querySelector("[data-period-fallback]")).toBeNull();
-
-    // Including the month being lived in, and a mid-history month chosen by
-    // hand: the question does not depend on which period is shown.
-    renderPage(
-      payload({ period: "2026-09", periods: ["2026-08", "2026-09"], periodIsCurrent: true }),
-    );
-    expect(document.body.textContent).toContain("Am I making money, and where?");
   });
 
   it("still lets a mid-history month be chosen, and shows it in the selector", () => {
@@ -455,7 +446,7 @@ describe("/financials — a month the ledger cannot answer", () => {
     state.error = new Error("GET /api/financials failed: 500");
     const { container } = renderPage(payload());
 
-    expect(container.querySelector("[data-kpi-strip]")).not.toBeNull();
+    expect(container.querySelector("[data-money-answer]")).not.toBeNull();
     expect(screen.queryByText("The ledger did not answer")).toBeNull();
   });
 });
@@ -548,7 +539,7 @@ describe("/financials — what the selector does not touch", () => {
     const costs = container.querySelector('[data-panel="costs"]')!;
     expect(costs).toHaveAttribute("data-panel-open");
     expect(costs.querySelector('[data-collection-editor="recurring-costs"]')).not.toBeNull();
-    expect(container.querySelector("[data-kpi-strip]")).toBeNull();
+    expect(container.querySelector("[data-money-answer]")).toBeNull();
     expect(container).not.toHaveTextContent("configure operating costs");
   });
 });
@@ -593,61 +584,35 @@ describe("/financials — the first screen answers the whole question (doc 21)",
 
     const hero = container.querySelector("[data-surface-hero]")!;
     expect(hero).not.toBeNull();
-    expect(hero.querySelector("[data-kpi-strip]")).not.toBeNull();
+    expect(hero).toHaveAttribute("data-money-answer");
     expect(hero.querySelector("[data-hero-chart]")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Month by month/ }));
     expect(container.querySelector('[data-panel="months"] [data-hero-chart]')).not.toBeNull();
   });
 
-  /**
-   * FOUR FIGURES, NOT FIVE. "Forecast" was the unreconciled half of the same
-   * gross that "Reconciled" states — $681.63 unsettled is not a forecast of
-   * anything, it is the grey half of Reconciled's own bar — so one KPI carried
-   * the fact twice. What is left is the money, and the share as a shape.
-   */
-  it("states the selected month as four figures, net first with its composition", () => {
+  /** ONE ANSWER FIRST (D45): the month's net in a sentence, then revenue,
+   * cost and what is confirmed beside it — no strip of four equal boxes. */
+  it("states the selected month as its net in a sentence, with revenue, cost and what is confirmed", () => {
     const { container } = renderPage(threeMonths());
 
-    const kpis = [...container.querySelectorAll("[data-kpi]")].map((kpi) =>
-      kpi.getAttribute("data-kpi"),
-    );
-    expect(kpis).toEqual(["Net", "Revenue", "Cost", "Reconciled"]);
-
-    // Doc 21: Net's movement carries no verdict, so it shows what it is MADE OF
-    // instead of a percentage.
-    const net = container.querySelector('[data-kpi="Net"]')!;
-    expect(net.textContent).toContain("$240.94");
-    expect(net.textContent).toContain("revenue $440.94 · cost $200.00");
-
-    // Reconciled says how much of the month has been checked, names the other
-    // half beside it — the way a bank shows available beside pending — and
-    // draws the split, with no explanation tooltip behind it.
-    const settled = container.querySelector('[data-kpi="Reconciled"]')!;
-    expect(settled.textContent).toContain("$300.00");
-    expect(settled.textContent).toContain("$340.94 estimated");
-    expect(settled.querySelector("[data-composition]")).toHaveAttribute(
-      "aria-label",
-      "$300.00 reconciled, $340.94 estimated",
-    );
-    expect(settled.querySelector("[data-composition]")).not.toHaveAttribute("title");
-    expect(within(settled as HTMLElement).queryByRole("button", { name: "About Reconciled" })).toBeNull();
+    expect(container.querySelector("[data-kpi]")).toBeNull();
+    expect(container.querySelector("[data-money-answer] h2")).toHaveTextContent("August net +$241");
+    const labels = [...container.querySelectorAll("[data-money-answer] dt")].map((node) => node.textContent);
+    expect(labels).toEqual(["Revenue", "Cost", "Confirmed"]);
+    expect(container.querySelector("[data-money-revenue] dd")).toHaveTextContent("$441");
+    expect(container.querySelector("[data-money-cost] dd")).toHaveTextContent("$200");
+    expect(container.querySelector("[data-money-confirmed] dd")).toHaveTextContent("$300");
   });
 
-  /**
-   * Doc 21 principle 2: a number without its shape is noise. Three of the four
-   * have the ledger's own monthly series; Reconciled has the composition, which
-   * is what its reader actually wants — how much of the month is checked.
-   */
-  it("gives every figure in the strip its own shape", () => {
-    const { container } = renderPage(threeMonths());
-
-    for (const kpi of container.querySelectorAll("[data-kpi]")) {
-      const shape =
-        kpi.querySelector("[data-spark]") ?? kpi.querySelector("[data-composition]");
-      expect(shape, `${kpi.getAttribute("data-kpi")} draws nothing`).not.toBeNull();
-    }
-    // The three money trends are the ledger's own months, not a smoothed line.
-    expect(container.querySelectorAll("[data-spark]")).toHaveLength(3);
+  it("says a cost nobody recorded is none recorded, never $0, and the net is revenue only", () => {
+    const { container } = renderPage(payload({ costLines: [], months: [{ period: '2026-08',
+      booked: { currency: 'USD', revenue: 90, cost: 0, net: 90 },
+      estimated: { currency: 'USD', revenue: 0, cost: 0, net: 0 },
+      total: { currency: 'USD', revenue: 90, cost: 0, net: 90 },
+    }] }));
+    expect(container.querySelector("[data-money-cost] dd")).toHaveTextContent("—none recorded");
+    expect(container.querySelector("[data-money-answer]")).toHaveTextContent("revenue only");
+    expect(container.querySelector('[data-panel="cost-breakdown"]')).toBeNull();
   });
 
   /**
@@ -690,17 +655,6 @@ describe("/financials — the first screen answers the whole question (doc 21)",
       expect(line.getAttribute("stroke-dasharray")).toBe(pattern);
       const key = within(chart).getByRole("button", { name }).querySelector("line")!;
       expect(key.getAttribute("stroke-dasharray")).toBe(pattern);
-    }
-  });
-
-  it("draws the strip's three money lines in the chart's own series ink (ro-ujb9.12)", () => {
-    const { container } = renderPage(threeMonths());
-    for (const [kpi, tone] of [
-      ["Net", "text-foreground"],
-      ["Revenue", "text-financial-revenue"],
-      ["Cost", "text-financial-cost"],
-    ] as const) {
-      expect(container.querySelector(`[data-kpi="${kpi}"] [data-spark]`), kpi).toHaveClass(tone);
     }
   });
 
@@ -764,10 +718,9 @@ describe("/financials — the first screen answers the whole question (doc 21)",
     fireEvent.click(screen.getByRole("button", { name: "About Monthly performance" }));
     expect(screen.getByRole("tooltip")).toHaveTextContent("Marked periods are provisional");
     expect(container.querySelector("[data-month-to-date]")).toHaveTextContent("Month to date");
-    const revenue = container.querySelector('[data-kpi="Revenue"]')!;
-    expect(revenue.textContent).toContain("Aug total $440.94");
-    expect(revenue.textContent).not.toMatch(/%/);
-    expect(container.querySelector('[data-kpi="Cost"]')!.textContent).toContain("Aug total $200.00");
+    // An open month is "so far", and never compared with a finished one.
+    expect(container.querySelector("[data-money-answer] h2")).toHaveTextContent(/so far$/u);
+    expect(container.querySelector("[data-money-answer]")!.textContent).not.toMatch(/%/);
     expect(container).not.toHaveTextContent("still open");
     // The month table marks the row, with the chart's hollow mark.
     expect(container.querySelector('[data-panel="months"] [data-month-open]')).toHaveTextContent("to date");
@@ -1707,8 +1660,8 @@ describe("/financials — one site states its money once (ro-ujb9.129)", () => {
     const revenue = screen.getByRole("region", { name: "Daily revenue" });
     expect(revenue.querySelector("[data-source-coverage]")).toBeNull();
     expect(container.textContent).not.toMatch(/portfolio/i);
-    // The month's money is the strip's, stated there.
-    expect(container.querySelector('[data-kpi="Revenue"]')).toHaveTextContent("$82.00");
+    // The month's money is the answer's, stated there.
+    expect(container.querySelector("[data-money-revenue] dd")).toHaveTextContent("$82");
   });
 
   it("keeps the site's row, the overhead and the total when a cost is shared, with no subtotal repeating the row", () => {
@@ -1731,7 +1684,8 @@ describe("/financials — one site states its money once (ro-ujb9.129)", () => {
       overhead: none, costLines: [], dailyRevenue: daily,
     }));
     expect(screen.getByRole("heading", { name: "By site" })).toBeInTheDocument();
-    expect(rowNames(container).slice(1)).toEqual(["Sites, direct", "Overhead", "Total net"]);
+    // No overhead: "Sites, direct" would be the total again (D45).
+    expect(rowNames(container).slice(1)).toEqual(["Total net"]);
     expect(container.querySelector("[data-source-coverage]")).not.toBeNull();
   });
 
@@ -1745,7 +1699,7 @@ describe("/financials — one site states its money once (ro-ujb9.129)", () => {
     const names = rowNames(container);
     expect(names[0]).toContain("Journey Example");
     expect(names[1]).toContain("Second Example");
-    expect(names.slice(2)).toEqual(["Sites, direct", "Overhead", "Total net"]);
+    expect(names.slice(2)).toEqual(["Total net"]);
   });
 });
 
@@ -1761,10 +1715,10 @@ describe('/financials — stated currency and unavailable mixed totals', () => {
       overhead: figure(0, 200), costLines: base.costLines.map(line => ({ ...line, currency: 'EUR' })),
     });
     const { container } = renderPage(data);
-    expect(container.querySelector('[data-kpi="Net"]')).toHaveTextContent('+€240.94');
-    expect(container.querySelector('[data-kpi="Revenue"]')).toHaveTextContent('€440.94');
-    expect(container.querySelector('[data-kpi="Cost"]')).toHaveTextContent('€200.00');
-    expect(container.querySelector('[data-kpi="Net"]')).not.toHaveTextContent('$');
+    expect(container.querySelector('[data-money-answer] h2')).toHaveTextContent('+€241');
+    expect(container.querySelector('[data-money-revenue] dd')).toHaveTextContent('€441');
+    expect(container.querySelector('[data-money-cost] dd')).toHaveTextContent('€200');
+    expect(container.querySelector('[data-money-answer]')).not.toHaveTextContent('$');
     fireEvent.click(screen.getByRole('button', { name: /Where the cost comes from/ }));
     expect(screen.getAllByText('€200.00').length).toBeGreaterThan(0);
   });
@@ -1778,8 +1732,8 @@ describe('/financials — stated currency and unavailable mixed totals', () => {
       ], overhead: figure(0, 0, 'USD'), costLines: [],
     });
     const { container } = renderPage(data);
-    expect(container.querySelector('[data-kpi="Net"]')).toHaveTextContent('Unavailable');
-    expect(container.querySelector('[data-kpi="Net"]')).not.toHaveTextContent('$0');
+    expect(container.querySelector('[data-money-answer] h2')).toHaveTextContent('Unavailable');
+    expect(container.querySelector('[data-money-answer] h2')).not.toHaveTextContent('$0');
     expect(screen.getAllByText('€100.00').length).toBeGreaterThan(0);
     expect(screen.getAllByText('$200.00').length).toBeGreaterThan(0);
     expect(container.querySelector('[data-segment="reconciled"]')).toBeNull();
