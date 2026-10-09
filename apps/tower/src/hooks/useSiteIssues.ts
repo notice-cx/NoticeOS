@@ -15,6 +15,8 @@ export function useSiteIssues(): readonly WallIssue[] {
   const { data } = useWall();
   const connections = useConnections();
   const nowMs = useNow();
-  if (!data) return [];
+  // A payload without its site or alert lists (an older cached shape, a read
+  // still arriving) has no problems to report rather than a crash to throw.
+  if (!data || !Array.isArray(data.assets) || !Array.isArray(data.attention)) return [];
   return wallIssues({ assets: data.assets, attention: data.attention, connections, nowMs });
 }
