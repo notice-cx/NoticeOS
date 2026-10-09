@@ -122,6 +122,8 @@ import { FunnelListEditor } from "@/components/FunnelListEditor";
 import { ConnectBlockers } from "@/components/ConnectBlockers";
 import { GoogleSignInSetup } from "@/components/GoogleSignInSetup";
 import { HighlightCard } from "@/components/HighlightCard";
+import { PageAnswer } from "@/components/surface/PageAnswer";
+import { FinishLine } from "@/components/surface/FinishLine";
 import {
   ProviderCard,
   type ProviderCardAsset,
@@ -2992,6 +2994,16 @@ export function KitchenSinkRoute() {
               <HighlightCard kind="win" site="Example" title="Recipe schema: +$9 a month, measured" detail="1d ago" />
               <HighlightCard kind="milestone" site="Example" title="Passed 6,000 accounts" figure="6,267" detail="reached Tuesday" />
               <HighlightCard kind="bet" site="Example" title="Navigation change: verdict in 3 days" detail="predicted +$40 a month · not yet significant" />
+            </div>
+          </Section>
+          <Section title="PageAnswer and FinishLine (a screen's answer and a list's end, D45)">
+            <div className="flex w-full flex-col gap-4">
+              <PageAnswer answer="1 of 7 sites at risk" detail="Plate Planner · since 2h ago" figures={[{ label: "Visitors yesterday", value: "2,497" }, { label: "October pace", value: "$1,310", note: "↑ 16%" }]} />
+              <PageAnswer answer="All 7 sites on track" mark={<StateChip label="On track" tone="affirmative" />} />
+              <PageAnswer answer="Nothing waits on you" detail="read 1m ago" />
+              <FinishLine line="That's every open alert." age="data as of 4m ago" />
+              <FinishLine quiet line="Nothing waits on you." age="read 1m ago" />
+              <FinishLine line="That's everything." />
             </div>
           </Section>
           <Section title="BrandLockup">

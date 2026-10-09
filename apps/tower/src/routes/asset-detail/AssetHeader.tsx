@@ -11,6 +11,7 @@ import { useConnections } from "@/hooks/useConnections";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { StateChip } from "@/components/StateChip";
 import { siteHealth } from "@/lib/site-health";
+import { useSiteIssues } from "@/hooks/useSiteIssues";
 import { Badge } from "@/components/ui/badge";
 import { openAlertsLabel } from "@/lib/severity";
 import { RangeSelector } from "@/components/surface/RangeSelector";
@@ -46,7 +47,7 @@ export function Header({
   const { days, setDays } = useRange();
   const { credentials, items } = useConnections();
   const sources = sourceReadings(asset.id, integrations.sources, { credentials, items }, nowMs);
-  const verdict = siteHealth(asset);
+  const verdict = siteHealth(asset, useSiteIssues());
   // The identity row IS the heading (doc 14: one representation per fact) —
   // the page header renders it inside its `h1` rather than repeating the name
   // above a separate identity strip.

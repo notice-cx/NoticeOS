@@ -1042,7 +1042,7 @@ describe("Home — the Morning Brief (D44)", () => {
 
     const moved = renderHome();
     const hero = moved.container.querySelector<HTMLElement>("[data-surface-hero]")!;
-    expect(hero.querySelector("[data-brief-figures]")).toHaveTextContent("Visitors yesterday130");
+    expect(hero.querySelector("[data-page-answer-figures]")).toHaveTextContent("Visitors yesterday130");
     const card = hero.querySelector<HTMLElement>('[data-highlight="people"]')!;
     expect(card).toHaveTextContent("Visitors up 30% on the same day last week");
     expect(card).toHaveTextContent("130 yesterday · 100 a week before");
@@ -1052,7 +1052,7 @@ describe("Home — the Morning Brief (D44)", () => {
     // Two percent is weather: the figure stays, the card does not.
     payload.assets = [{ ...SEEDED_ASSETS[0]!, activeUsers: { series: days.map((day, index) => ({ ...day, v: index === 13 ? 102 : 100 })), provisionalFrom: "2026-07-29", collectedAt: null, timeZoneChanges: [] } }];
     const quiet = renderHome();
-    expect(quiet.container.querySelector("[data-brief-figures]")).toHaveTextContent("Visitors yesterday102");
+    expect(quiet.container.querySelector("[data-page-answer-figures]")).toHaveTextContent("Visitors yesterday102");
     expect(quiet.container.querySelector('[data-highlight="people"]')).toBeNull();
   });
 
@@ -1445,7 +1445,7 @@ describe("Portfolio card with no ledger row at all", () => {
     // Absence is the honest render (bead ro-yf3): no money card, no $0, and
     // no estimate word over nothing. The brief still ends.
     expect(container.querySelector('[data-highlight="money"]')).toBeNull();
-    expect(container.querySelector("[data-brief-figures]")!.textContent).not.toContain("$");
+    expect(container.querySelector("[data-page-answer]")!.textContent).not.toContain("$");
     expect(screen.queryByText(/· estimated/)).toBeNull();
     expect(container.querySelector("[data-finish-line]")).not.toBeNull();
   });

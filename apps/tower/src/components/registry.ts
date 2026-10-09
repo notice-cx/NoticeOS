@@ -21,6 +21,18 @@ export interface RegistryEntry {
 
 export const COMPONENT_REGISTRY: RegistryEntry[] = [
   {
+    name: "PageAnswer",
+    file: "components/surface/PageAnswer.tsx",
+    purpose: "A screen's one answer, first (D44 bar): one sentence at the display scale, a muted line under it and at most three figures (an eyebrow over a number) beside it, replacing a strip of equal boxes. Home's greeting line is the first caller; every index page opens with one. Registry justification: KpiStrip is a row of equal cells fused to series, StatusBanner a setup ring with one action, SectionLabel names a section; none is a screen's opening sentence over its key figures.",
+    variants: ["sentence only", "with detail", "with figures", "with a verdict mark"],
+  },
+  {
+    name: "FinishLine",
+    file: "components/surface/FinishLine.tsx",
+    purpose: "The end of a list the eye can finish (D44): one line that says the list is done, then how old the reading is; on an empty queue it is the whole list, so empty and finished read the same. Home's brief, the Alerts list and the Tasks inbox end with one. Registry justification: StatusBanner asks for an action and a ListPanel's empty line is a muted sentence inside a panel; neither marks the end of a queue a person has just worked through.",
+    variants: ["finished", "quiet (empty from the start)", "without an age"],
+  },
+  {
     name: "HighlightCard",
     file: "components/HighlightCard.tsx",
     purpose: "One thing that changed since you last looked (D44, doc 21 § Home — the Morning Brief): one kind, one sentence under twelve words, one shape (a line, a line over its normal band, or a display figure) and at most one action; the first card of a brief is the big thing. The card's tint is its kind's subject; the severity rides the dot and the word. Registry justification: Kpi is a number fused to a chart, ListRow a mark and a value in a list, SmallMultiple a figure with its history — none is a sentence with a shape and a verb.",

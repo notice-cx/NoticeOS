@@ -12,6 +12,8 @@ import { WORK_POLL_CADENCE_HOURS, type WorkItem, type WorkPayload } from "@share
 import { AddSiteButton } from "@/components/AddSite";
 import { DataSourceIcons } from "@/components/DataSourceIcons";
 import { HighlightCard } from "@/components/HighlightCard";
+import { FinishLine } from "@/components/surface/FinishLine";
+import { PageAnswer, type AnswerFigure } from "@/components/surface/PageAnswer";
 import { PageHeader } from "@/components/PageHeader";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { ReadFailed } from "@/components/ReadFailed";
@@ -153,6 +155,22 @@ function Brief({
   if (system) for (const condition of ["os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail"]) conditions.add(condition);
   for (const card of brief.cards) for (const condition of card.conditions) conditions.add(condition);
 
+  const monthWord = money ? formatSeriesDate(`${money.period}-01`).replace(/\s\d+$/, "") : "";
+  const figures: AnswerFigure[] = [];
+  if (yesterday && !yesterday.mixedBasis && yesterday.amount !== null) {
+    figures.push({ label: "Yesterday", value: formatUsd(yesterday.amount, { cents: true }), note: "est.", tone: "text-financial-revenue" });
+  }
+  if (money?.pace) {
+    figures.push({
+      label: `${monthWord} pace`,
+      value: formatUsd(money.pace.projected),
+      note: money.pace.changePercent === null ? undefined : `${money.pace.changePercent >= 0 ? "↑" : "↓"} ${formatPercent(Math.abs(money.pace.changePercent))}%`,
+    });
+  } else if (money && money.revenue !== null) {
+    figures.push({ label: `${monthWord} so far`, value: formatUsd(money.revenue) });
+  }
+  if (brief.people) figures.push({ label: "Visitors yesterday", value: formatInt(brief.people.total) });
+
   return (
     <section
       aria-labelledby="home-brief"
@@ -161,12 +179,11 @@ function Brief({
       data-material-condition={[...conditions].join(" ")}
       className="flex flex-col gap-3.5"
     >
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <h2 id="home-brief" className="m-0 text-[26px] font-bold leading-[1.1] tracking-[-0.03em] text-foreground max-sm:text-[22px]">
-            {greeting(nowMs)}
-          </h2>
-          <span className="text-[13px] tabular-nums text-muted-foreground" data-brief-since>
+      <PageAnswer
+        id="home-brief"
+        answer={greeting(nowMs)}
+        detail={
+          <span data-brief-since>
             {brief.since ? (
               <>
                 since <time dateTime={brief.since} title={formatTimestamp(brief.since)}>{sinceAge === null ? "yesterday" : `${formatAge(sinceAge)} ago`}</time>
@@ -175,25 +192,9 @@ function Brief({
             ) : null}
             {brief.changed === 0 ? "nothing changed" : `${formatInt(brief.changed)} ${brief.changed === 1 ? "thing" : "things"} changed`}
           </span>
-        </div>
-        <dl className="m-0 flex flex-wrap gap-x-6 gap-y-2 tabular-nums" data-brief-figures>
-          {yesterday && !yesterday.mixedBasis && yesterday.amount !== null ? (
-            <Figure label="Yesterday" value={formatUsd(yesterday.amount, { cents: true })} note="est." tone="text-financial-revenue" />
-          ) : null}
-          {money?.pace ? (
-            <Figure
-              label={`${formatSeriesDate(`${money.period}-01`).replace(/\s\d+$/, "")} pace`}
-              value={formatUsd(money.pace.projected)}
-              note={money.pace.changePercent === null ? undefined : `${money.pace.changePercent >= 0 ? "↑" : "↓"} ${formatPercent(Math.abs(money.pace.changePercent))}%`}
-            />
-          ) : money && money.revenue !== null ? (
-            <Figure label={`${formatSeriesDate(`${money.period}-01`).replace(/\s\d+$/, "")} so far`} value={formatUsd(money.revenue)} />
-          ) : null}
-          {brief.people ? (
-            <Figure label="Visitors yesterday" value={formatInt(brief.people.total)} />
-          ) : null}
-        </dl>
-      </div>
+        }
+        figures={figures}
+      />
 
       <div className="grid gap-3.5 lg:grid-cols-3" data-brief-cards>
         {brief.cards.map((card, index) => (
@@ -211,7 +212,12 @@ function Brief({
             marks={{ "data-brief-card": card.key, ...(card.assetId ? { "data-subject": `asset:${card.assetId}` } : {}) }}
           />
         ))}
-        <FinishLine quiet={brief.cards.length === 0} since={brief.since} generatedAt={generatedAt} nowMs={nowMs} />
+        <FinishLine
+          quiet={brief.cards.length === 0}
+          line={brief.cards.length === 0 ? `Nothing changed ${sinceWords(brief.since, nowMs)}.` : `That's everything ${sinceWords(brief.since, nowMs)}.`}
+          age={dataAge(generatedAt, nowMs)}
+          className={brief.cards.length === 0 ? "min-h-24 lg:col-span-3" : "min-h-24"}
+        />
       </div>
     </section>
   );
@@ -231,36 +237,15 @@ function sinceClock(since: string, nowMs: number): string {
   return wasYesterday ? `${clock} yesterday` : `${clock} ${new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(at)}`;
 }
 
-function Figure({ label, value, note, tone }: { label: string; value: string; note?: string; tone?: string }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{label}</dt>
-      <dd className={cn("m-0 text-[22px] font-semibold leading-none tracking-[-0.02em]", tone ?? "text-foreground")}>
-        {value}
-        {note ? <span className="ms-1.5 text-xs font-medium text-muted-foreground">{note}</span> : null}
-      </dd>
-    </div>
-  );
+/** "since 6 PM yesterday", the brief's window in words. */
+function sinceWords(since: string | null, nowMs: number): string {
+  return since ? `since ${sinceClock(since, nowMs)}` : "since yesterday";
 }
 
-/**
- * THE END OF THE BRIEF (doc 21 § Home; Intuit's and Pivotlog's empty-state
- * guidance in the brief): a list the eye can finish. One line, then how old
- * the reading is. On a quiet day it is the whole brief.
- */
-function FinishLine({ quiet, since, generatedAt, nowMs }: { quiet: boolean; since: string | null; generatedAt: string; nowMs: number }) {
+/** "data as of 4m ago": how old the reading behind a finished list is. */
+export function dataAge(generatedAt: string, nowMs: number): string {
   const age = ageMs(nowMs, generatedAt);
-  const sinceWords = since ? `since ${sinceClock(since, nowMs)}` : "since yesterday";
-  return (
-    <Card
-      kind="neutral"
-      data-finish-line={quiet ? "quiet" : ""}
-      className={cn("flex min-h-24 flex-col items-center justify-center gap-1 border-dashed p-4 text-center", quiet && "lg:col-span-3")}
-    >
-      <span className="text-sm font-medium text-foreground">{quiet ? `Nothing changed ${sinceWords}.` : `That's everything ${sinceWords}.`}</span>
-      <span className="text-xs tabular-nums text-muted-foreground">data as of {age === null ? "unknown" : `${formatAge(age)} ago`}</span>
-    </Card>
-  );
+  return `data as of ${age === null ? "unknown" : `${formatAge(age)} ago`}`;
 }
 
 // ─── decide ──────────────────────────────────────────────────────────────────
