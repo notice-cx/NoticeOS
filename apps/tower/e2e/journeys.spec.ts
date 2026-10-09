@@ -1665,7 +1665,7 @@ test("empty install → saved asset → fake connection and mapping → real met
   await keyboardActivate(page, page.getByRole("link", { name: /Review the synthetic launch copy/ }));
   await expect(page).toHaveURL(/\/tasks\/jt-review$/);
   await expect(page.getByRole("heading", { name: /Review the synthetic launch copy/ })).toBeVisible();
-  await keyboardActivate(page, page.getByRole("link", { name: "Back to overview", exact: true }));
+  await keyboardActivate(page, page.getByRole("link", { name: "Back to Home", exact: true }));
   await expect(page).toHaveURL(/\/\?range=7$/);
   await keyboardActivate(page, page.getByRole("link", { name: /Approve the synthetic launch/ }));
   await expect(page).toHaveURL(/\/tasks\/jt-approve$/);

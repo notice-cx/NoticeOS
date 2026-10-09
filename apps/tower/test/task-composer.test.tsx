@@ -373,7 +373,7 @@ describe("TaskComposer", () => {
     fireEvent.change(field("Type"), { target: { value: "chore" } });
     fireEvent.change(field("Priority"), { target: { value: "0" } });
     fireEvent.change(field("Parent epic"), { target: { value: "mp-1w2" } });
-    fireEvent.change(screen.getByLabelText("Acceptance criteria"), {
+    fireEvent.change(screen.getByLabelText("Done when"), {
       target: { value: "The hub ranks for its own name." },
     });
     fireEvent.change(field("Labels"), { target: { value: "content" } });
@@ -423,7 +423,7 @@ describe("TaskComposer", () => {
     expect(screen.queryByLabelText("Description")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(field("Type").value).toBe("task");
-    expect(screen.getByLabelText("Acceptance criteria")).toBeInTheDocument();
+    expect(screen.getByLabelText("Done when")).toBeInTheDocument();
   });
 
   it("files with Enter from the title", async () => {

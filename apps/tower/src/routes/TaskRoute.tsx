@@ -37,7 +37,7 @@ import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { StateChip, type StateTone, type StatusSubject } from "@/components/StateChip";
 import { StatusBanner } from "@/components/surface/StatusBanner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { fieldClass } from "@/components/ui/field";
 import { refusalMessage } from "@/hooks/useConfigSave";
 import { useNow } from "@/hooks/useNow";
@@ -165,7 +165,7 @@ export function TaskRoute() {
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4 md:p-6">
       <Link to={returnTo} className="inline-flex min-h-11 w-fit items-center gap-2 rounded-md text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <ArrowLeft className="size-4" aria-hidden />
-        {returnTo.startsWith("/assets/") ? "Back to site" : returnTo === "/" || returnTo.startsWith("/?") ? "Back to overview" : "Back to tasks"}
+        {returnTo.startsWith("/assets/") ? "Back to site" : returnTo === "/" || returnTo.startsWith("/?") ? "Back to Home" : "Back to tasks"}
       </Link>
       <TaskHeader id={id} head={head} writable={writable} readAt={detail.data?.readAt ?? null} />
       {capability.projectSelection ? <select aria-label="Task project" value={selectedProject ?? ''}
@@ -277,8 +277,9 @@ function TaskHeader({
   const waitsOnOperator = (head?.ask ?? null) !== null;
 
   return (
+    // No breadcrumb: the back link above it already names the way back, and
+    // knows whether that is the site, Home or Tasks (D44: not a repeat).
     <PageHeader
-      breadcrumb={[{ label: "Tasks", to: "/tasks" }]}
       documentTitle={head?.title ?? "Task"}
       title={
         <>
@@ -463,8 +464,9 @@ function Body({ task }: { task: LiveTask }) {
           }
         />
         <LongTextField
-          label="Acceptance criteria"
-          addLabel="Add acceptance criteria"
+          // The board's word for the same field (TasksBoard's "Done when").
+          label="Done when"
+          addLabel="Add when it is done"
           value={task.acceptance}
           onCommit={(next) =>
             save({ label: "the acceptance criteria", edit: { acceptance: next }, undo: { acceptance: task.acceptance } })
@@ -599,15 +601,16 @@ function Comments({
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <MessageSquare className="size-4 text-muted-foreground" aria-hidden />
-          Comments
+        {/* One heading style on the page (D44): the eyebrow Description and
+            Done when wear. */}
+        <h2 className="m-0 flex items-center gap-2">
+          <SectionLabel>Comments</SectionLabel>
           {comments.length > 0 ? (
-            <span className="text-sm font-normal tabular-nums text-muted-foreground">
+            <span className="text-xs tabular-nums text-muted-foreground">
               {comments.length}
             </span>
           ) : null}
-        </CardTitle>
+        </h2>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {/* No comments is no list — the box below is where the first one goes,
@@ -1347,7 +1350,7 @@ function Activity({
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Activity</CardTitle>
+        <h2 className="m-0"><SectionLabel>Activity</SectionLabel></h2>
       </CardHeader>
       <CardContent>
         {events.length === 0 ? (
