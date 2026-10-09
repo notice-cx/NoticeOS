@@ -2,7 +2,6 @@ import type { Ga4RealtimeAsset, Ga4RealtimePayload } from "@noticeos/contract";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { sourceReadings, type ConnectionReads } from "@shared/connection-status";
 import { tabPath } from "@/routes/asset-detail/AssetTabs";
 import { UrgentCount } from "@/routes/tasks/task-face";
 import { siteOpensOn } from "@shared/first-run";
@@ -16,15 +15,10 @@ import {
 import { figureHasMoney, type AssetCard, type SignalTrend, type WorkSummary } from "@shared/wall";
 import { NoSitesYet } from "@/components/AddSite";
 import { BookingChip } from "@/components/BookingChip";
-import { DataSourceIcons } from "@/components/DataSourceIcons";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { DeltaChip, paceTone, performanceTone } from "@/components/DeltaChip";
-import { PanelReviewBadge } from "@/components/PanelReviewBadge";
 import { PriorityBar } from "@/components/PriorityBar";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
-import { ReportFreshness } from "@/components/ReportFreshness";
-import { SeverityDot } from "@/components/SeverityDot";
-import { openAlertsLabel } from "@/lib/severity";
 import { Sparkline, type SeriesTone } from "@/components/surface/Sparkline";
 import { pillControlClass } from "@/components/ui/pill";
 import {
@@ -39,7 +33,9 @@ import { formatInt, formatPercent, formatPeriodMonth, formatPeriodMonthYear, for
 import { intradayUsersPace, paceWindowLabel } from "@/lib/intraday-pace";
 import { MIN_TREND_POINTS } from "@/lib/series";
 import { cn } from "@/lib/utils";
-import { useConnections } from "@/hooks/useConnections";
+import { StateChip } from "@/components/StateChip";
+import { useSiteIssues } from "@/hooks/useSiteIssues";
+import { siteHealth, type SiteHealth } from "@/lib/site-health";
 
 /**
  * THE PORTFOLIO'S ONE COMPARISON TABLE — one row per asset (bead `ro-78qo.7`).
@@ -74,24 +70,22 @@ import { useConnections } from "@/hooks/useConnections";
 export type AssetSortKey =
   | "seed"
   | "name"
-  | "alerts"
+  | "health"
   | "work"
   | "users"
   | "net"
-  | "trend"
-  | "report";
+  | "trend";
 
 /** Which way the comparator behind each key runs, as a glyph on the active
- * header. Every one of them is WORST FIRST except the two whose order is a
- * reading order rather than a ranking (name, and time since a report). */
+ * header. Every one of them is WORST FIRST except name, whose order is a
+ * reading order rather than a ranking. */
 const SORT_DIRECTION: Record<Exclude<AssetSortKey, "seed">, "asc" | "desc"> = {
   name: "asc",
-  alerts: "desc",
+  health: "desc",
   work: "desc",
   users: "desc",
   net: "desc",
   trend: "desc",
-  report: "asc",
 };
 
 export interface AssetsTableProps {
@@ -130,7 +124,6 @@ const DENSE_BELOW_64REM =
 
 export function AssetsTable({
   assets,
-  nowMs,
   ga4Realtime,
   rangeDays = TABLE_SPARK_DAYS,
   sort,
@@ -138,7 +131,9 @@ export function AssetsTable({
   empty,
 }: AssetsTableProps) {
   const navigate = useNavigate();
-  const { credentials, items } = useConnections();
+  // The one health word per site (D44): the same derivation as Home's strip
+  // and the site's own header.
+  const issues = useSiteIssues();
   // Core work stays visible; an unread project keeps its unknown state.
   const period = assets[0]?.netPeriod ?? null;
   // The one booking state the whole column shares, or null when the column
@@ -169,9 +164,9 @@ export function AssetsTable({
       <TableHeader className="[&_th]:whitespace-nowrap">
         <TableRow>
           <SortableHead label="Site" sortKey="name" sort={sort} onSort={onSort} />
-          <SortableHead label="State" sortKey="alerts" sort={sort} onSort={onSort} />
+          <SortableHead label="Health" sortKey="health" sort={sort} onSort={onSort} />
           <SortableHead
-            label="Daily users"
+            label="Visitors"
             sortKey="users"
             sort={sort}
             onSort={onSort}
@@ -190,7 +185,7 @@ export function AssetsTable({
               and this header, which names the users and the window, is the one
               that orders by it. */}
           <SortableHead
-            label={`Users · ${rangeDays}d`}
+            label={`Visitors · ${rangeDays}d`}
             sortKey="trend"
             sort={sort}
             onSort={onSort}
@@ -223,13 +218,6 @@ export function AssetsTable({
             }
           />
           <SortableHead label="Tasks" sortKey="work" sort={sort} onSort={onSort} />
-          <SortableHead
-            label="Reported"
-            sortKey="report"
-            sort={sort}
-            onSort={onSort}
-            align="end"
-          />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -237,14 +225,13 @@ export function AssetsTable({
           <AssetRow
             key={asset.id}
             asset={asset}
-            nowMs={nowMs}
             rangeDays={rangeDays}
             ga4Realtime={ga4Realtime?.assets.find(
               (snapshot) => snapshot.asset === asset.id,
             )}
             columnBooking={booking}
             tasks
-            connections={{ credentials, items }}
+            health={siteHealth(asset, issues)}
             onOpen={() => navigate(tabPath(asset.id, siteOpensOn(asset), `?range=${rangeDays}`))}
           />
         ))}
@@ -427,16 +414,14 @@ export function usersDelta(asset: AssetCard, rangeDays: number): PeriodDelta | n
 
 function AssetRow({
   asset,
-  nowMs,
   rangeDays,
   ga4Realtime,
   columnBooking,
   tasks,
-  connections,
+  health,
   onOpen,
 }: {
   asset: AssetCard;
-  nowMs: number;
   rangeDays: number;
   ga4Realtime: Ga4RealtimeAsset | undefined;
   /** What the Net column's header already says, or null when the rows differ
@@ -444,8 +429,8 @@ function AssetRow({
   columnBooking: "booked" | "forecast" | null;
   /** Include the core Tasks cell. */
   tasks: boolean;
-  /** Where each source's status comes from (`sourceReadings`). */
-  connections: ConnectionReads;
+  /** The site's one health word (`siteHealth`), the column's verdict. */
+  health: SiteHealth;
   onOpen: () => void;
 }) {
   const pace = intradayUsersPace(asset, ga4Realtime);
@@ -470,7 +455,6 @@ function AssetRow({
   const drawn = windowSeries(wholeSeries(trend), rangeDays);
   const clicks = windowSeries(wholeSeries(asset.searchClicks), rangeDays);
   const booking = bookingState(asset);
-  const sources = sourceReadings(asset.id, asset.dataSources, connections, nowMs);
 
   // ON A PHONE A SITE IS ITS KEY STATUS AND A › (bead `ro-ujb9.13`). The
   // stacked card drew all eight columns, 330px a site, so three sites needed
@@ -512,49 +496,16 @@ function AssetRow({
           >
             {asset.displayName}
           </Link>
-          <PanelReviewBadge
-            review={asset.panelReview}
-            latestPanelDate={asset.latestPanelDate}
-            nowMs={nowMs}
-          />
         </div>
       </TableCell>
 
-      {/* ONE LINE: A DOT, A STAGE WORD, AND TWO GLYPHS.
-          The dot is the asset's worst open severity — the one thing on this row
-          allowed to be red — and it leads the cell rather than trailing the
-          name, so the column reads as a column of states instead of a column of
-          names with something occasionally stuck to them.
-
-          THE MODE IS A GLYPH, not "· Automation enabled". Whether the OS may
-          act on an asset is a standing permission that changes about once in its
-          life, and spelling it on all six rows wrapped every one of them onto a
-          second line — 238px of a 1142px table spent saying the same thing six
-          times (bead `ro-pbzu.10` fixed the width, `ro-78qo.6` the line). Two
-          shapes, never colour alone, each with the sentence on hover and the
-          word in the accessible name.
-
-          AND THE SETUP RING IS GONE FROM THIS ROW (2026-09-05, design review on
-          `ro-78qo.6`). `ro-28ma` put it here as a third fact — the stage word
-          says WHICH stage, the ring how far through its checklist — and the
-          argument still holds where it has room. It does not have room here: at
-          16px, beside the mode glyph, a part-filled segmented ring reads as a
-          spinner, and it drew on five of six rows, so the column's loudest shape
-          was the one nobody could decode. The fraction is not lost — the asset's
-          Overview banner states it ("2 of 4 done"), which is the page an
-          operator opens when the stage word is the thing they doubted.
-
-          SOURCE MARKS share the connection status used across the desk: each is its
-          source's status as the asset's Data sources row and Integrations give
-          it, so Home cannot call an asset fine while one of its sources fails. */}
-      <TableCell label="State" className="text-xs text-muted-foreground">
-        <span className="flex items-center gap-x-1.5">
-          <SeverityDot
-            severity={asset.worstSeverity}
-            title={openAlertsLabel(asset.openError, asset.openWarn)}
-          />
-          <DataSourceIcons sources={sources} />
-        </span>
+      {/* THE SITE'S ONE HEALTH WORD (D44): the same word Home's strip and
+          the site's own header say, from the same open problems — an open
+          alert, a failing source, a late report, a panel due for review. The
+          sources themselves are on the site's Data sources tab; a column of
+          provider glyphs was a technical status on a business list. */}
+      <TableCell label="Health" className="text-xs">
+        <StateChip label={health.word} tone={health.tone} subject={`asset:${asset.id}`} />
       </TableCell>
 
       {/* DAILY USERS COME FROM THE ASSET'S OWN DAILY SERIES; only the PACE
@@ -567,7 +518,7 @@ function AssetRow({
           printed beside it, so the daily figure names the day it represents
           — and a day that only a hover names
           is one a glance never sees (bead `ro-ujb9.96.6.10`). */}
-      <TableCell label="Daily users" className="text-right">
+      <TableCell label="Visitors" className="text-right">
         {today === null ? (
           <Dash />
         ) : (
@@ -619,7 +570,7 @@ function AssetRow({
           mornings under one identical "+4%". Doc 21's `cell` size, so the same
           line is drawn here and in the strip at the two widths the vocabulary
           allows, and its tone is the verdict beside it. */}
-      <TableCell label={`Users · ${rangeDays}d`}>
+      <TableCell label={`Visitors · ${rangeDays}d`} foldWhenStacked>
         {drawn.length >= MIN_TREND_POINTS ? (
           // Wraps rather than holding the column open: when the table is
           // tight the move drops under its line instead of widening the row.
@@ -717,7 +668,7 @@ function AssetRow({
         ) : null}
       </TableCell>
 
-      {tasks ? <TableCell label="Tasks" className="text-xs tabular-nums">
+      {tasks ? <TableCell label="Tasks" className="text-xs tabular-nums" foldWhenStacked>
         {asset.work === null ? (
           // No task project for this site, or one the last read could not
           // open: either way nothing was counted, so no count is drawn. Which
@@ -739,19 +690,6 @@ function AssetRow({
           </span>
         )}
       </TableCell> : null}
-
-      {/* The column is headed "Reported", so the cell is "16h ago" — the
-          component's own "Updated " prefix is what pushed this onto two lines
-          in a 100px column, and it was saying the header's word again. */}
-      <TableCell label="Reported" className="whitespace-nowrap text-right" foldWhenStacked>
-        <ReportFreshness
-          iso={asset.pulseReceivedAt}
-          nowMs={nowMs}
-          label={false}
-          declared={asset.noNightlyReport}
-        />
-      </TableCell>
-
 
     </TableRow>
   );

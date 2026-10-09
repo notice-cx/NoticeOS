@@ -2999,7 +2999,7 @@ export function KitchenSinkRoute() {
           <Section title="PageAnswer and FinishLine (a screen's answer and a list's end, D45)">
             <div className="flex w-full flex-col gap-4">
               <PageAnswer answer="1 of 7 sites at risk" detail="Plate Planner · since 2h ago" figures={[{ label: "Visitors yesterday", value: "2,497" }, { label: "October pace", value: "$1,310", note: "↑ 16%" }]} />
-              <PageAnswer answer="All 7 sites on track" mark={<StateChip label="On track" tone="affirmative" />} />
+              <PageAnswer answer="All 7 sites on track" mark={<StateChip label="On track" tone="affirmative" subject="asset:example.com" />} />
               <PageAnswer answer="Nothing waits on you" detail="read 1m ago" />
               <FinishLine line="That's every open alert." age="data as of 4m ago" />
               <FinishLine quiet line="Nothing waits on you." age="read 1m ago" />

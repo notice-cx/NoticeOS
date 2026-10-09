@@ -31,8 +31,8 @@ import { useWall } from "@/hooks/useWall";
 import { useWallFeed } from "@/hooks/useWallFeed";
 import { useWork } from "@/hooks/useWork";
 import { useDemoReadonly } from "@/lib/browser-context";
-import { formatInt, formatPercent, formatSeriesDate, formatTimestamp, formatUsd } from "@/lib/format";
-import { greeting, homeBrief, type HomeBrief } from "@/lib/home-brief";
+import { formatInt, formatTimestamp, formatUsd } from "@/lib/format";
+import { greeting, homeBrief, monthFigure, visitorsFigure, type HomeBrief } from "@/lib/home-brief";
 import { openAlertsLabel } from "@/lib/severity";
 import { siteHealth } from "@/lib/site-health";
 import { askVerb } from "@/lib/task-board-read";
@@ -146,7 +146,6 @@ function Brief({
   nowMs: number;
   generatedAt: string;
 }) {
-  const money = monthRevenue(portfolio, assets);
   const yesterday = yesterdayTotal(assets, nowMs);
   const sinceAge = brief.since ? ageMs(nowMs, brief.since) : null;
   // What the materiality suite reads: every open condition the brief stands
@@ -155,21 +154,14 @@ function Brief({
   if (system) for (const condition of ["os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail"]) conditions.add(condition);
   for (const card of brief.cards) for (const condition of card.conditions) conditions.add(condition);
 
-  const monthWord = money ? formatSeriesDate(`${money.period}-01`).replace(/\s\d+$/, "") : "";
   const figures: AnswerFigure[] = [];
   if (yesterday && !yesterday.mixedBasis && yesterday.amount !== null) {
     figures.push({ label: "Yesterday", value: formatUsd(yesterday.amount, { cents: true }), note: "est.", tone: "text-financial-revenue" });
   }
-  if (money?.pace) {
-    figures.push({
-      label: `${monthWord} pace`,
-      value: formatUsd(money.pace.projected),
-      note: money.pace.changePercent === null ? undefined : `${money.pace.changePercent >= 0 ? "↑" : "↓"} ${formatPercent(Math.abs(money.pace.changePercent))}%`,
-    });
-  } else if (money && money.revenue !== null) {
-    figures.push({ label: `${monthWord} so far`, value: formatUsd(money.revenue) });
-  }
-  if (brief.people) figures.push({ label: "Visitors yesterday", value: formatInt(brief.people.total) });
+  const month = monthFigure(portfolio, assets);
+  if (month) figures.push(month);
+  const visitors = visitorsFigure(assets);
+  if (visitors) figures.push(visitors);
 
   return (
     <section

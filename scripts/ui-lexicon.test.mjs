@@ -189,6 +189,12 @@ const BUSINESS_SURFACES = [
   'apps/tower/src/lib/home-brief.ts',
   'apps/tower/src/lib/site-health.ts',
   'apps/tower/src/components/HighlightCard.tsx',
+  // D45 (2026-10-09): the Sites list is the portfolio's business index.
+  'apps/tower/src/routes/AssetsRoute.tsx',
+  'apps/tower/src/routes/assets/AssetsTable.tsx',
+  'apps/tower/src/hooks/useSiteIssues.ts',
+  'apps/tower/src/components/surface/PageAnswer.tsx',
+  'apps/tower/src/components/surface/FinishLine.tsx',
 ];
 
 const BANNED_ON_BUSINESS = [

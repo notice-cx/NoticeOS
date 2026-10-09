@@ -2,79 +2,51 @@ import { Plus } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ASSET_STATUS_LABEL, assetStatusLabel } from "@shared/asset-detail";
-import { sourceReadings, sourcesSummary } from "@shared/connection-status";
 import { ageMs, formatAge } from "@shared/freshness";
-import { siteCount, siteNoun } from "@shared/site-noun";
+import { siteNoun } from "@shared/site-noun";
+import { sitePath } from "@shared/first-run";
 import {
   DEFAULT_RANGE_DAYS,
   SURFACE_RANGES,
-  windowSeries,
 } from "@shared/surface";
-import type {
-  AssetCard as AssetData,
-  SeriesPoint,
-  Severity,
-  WallPayload,
-} from "@shared/wall";
+import type { AssetCard as AssetData } from "@shared/wall";
 import { AddSiteButton } from "@/components/AddSite";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/PageHeader";
-import { priorityFill } from "@/components/PriorityBar";
 import { ReadFailed } from "@/components/ReadFailed";
-import { SegmentBar } from "@/components/SegmentBar";
-import { portfolioHeadline, portfolioHeadlineWord } from "@/lib/portfolio-headline";
-import { SeverityDot } from "@/components/SeverityDot";
 import { STATE_TONE, type StateTone } from "@/components/StateChip";
 import { FilterControls, FilterFold, FilterToggle } from "@/components/surface/FilterBar";
-import { Kpi, KpiStrip } from "@/components/surface/KpiStrip";
 import { RangeSelector } from "@/components/surface/RangeSelector";
-import { SectionLabel } from "@/components/surface/SectionLabel";
 import { fieldClass } from "@/components/ui/field";
 import { pillChoiceClass, pillChoiceStateClass } from "@/components/ui/pill";
-import { useConnections } from "@/hooks/useConnections";
 import { useGa4Realtime } from "@/hooks/useGa4Realtime";
 import { useNow } from "@/hooks/useNow";
 import { useWall } from "@/hooks/useWall";
-import {
-  formatInt,
-  formatCalendarDate,
-  formatPeriodMonth,
-  formatPeriodMonthYear,
-  formatMoney,
-} from "@/lib/format";
+import { useSiteIssues } from "@/hooks/useSiteIssues";
+import { PageAnswer } from "@/components/surface/PageAnswer";
+import { monthFigure, visitorsFigure } from "@/lib/home-brief";
+import { SITE_HEALTH, siteHealth, type SiteHealthKey } from "@/lib/site-health";
+import { formatInt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   AssetsTable,
   bookingState,
-  seriesGapReason,
   usersDelta,
   type AssetSortKey,
 } from "@/routes/assets/AssetsTable";
-import { metricWindow } from "@/routes/asset-detail/overview-metrics";
 
-type AutomationKey = "all" | "on" | "observe";
-type AttentionKey = "all" | "open" | "clear";
+type HealthFilter = "all" | SiteHealthKey;
 
-/** doc 17 maps `sense_only` to ONE pair of words — "Monitor only" and
- * "Automation enabled" — and the asset page has always used them. This index
- * said "Observe only" and "Automation on" for the same two states, so the chip
- * an operator clicks here named the fact differently from the page it opens
- * (bead `ro-06ww`). */
-const AUTOMATION_LABEL: Record<Exclude<AutomationKey, "all">, string> = {
-  on: "Automation enabled",
-  observe: "Monitor only",
+/** Worst first: what "Needs you first" orders by, and the order the health
+ * chips are offered in. */
+const HEALTH_RANK: Record<SiteHealthKey, number> = {
+  "off-track": 4,
+  "at-risk": 3,
+  "setting-up": 2,
+  "monitor-only": 1,
+  "on-track": 0,
 };
-
-/** Automation filters use StateChip's affirmative / declined tones. */
-const AUTOMATION_TONE: Record<Exclude<AutomationKey, "all">, StateTone> = {
-  on: "affirmative",
-  observe: "declined",
-};
-
-const ATTENTION_LABEL: Record<Exclude<AttentionKey, "all">, string> = {
-  open: "Has open alerts",
-  clear: "All clear",
-};
+const HEALTH_KEYS = (Object.keys(HEALTH_RANK) as SiteHealthKey[]).sort((a, b) => HEALTH_RANK[b] - HEALTH_RANK[a]);
 
 /**
  * `summary` is how the line above the table names the ordering; `null` on the
@@ -89,23 +61,14 @@ const ATTENTION_LABEL: Record<Exclude<AttentionKey, "all">, string> = {
 const SORTS: { value: AssetSortKey; label: string; summary: string | null }[] = [
   { value: "seed", label: "Default order", summary: null },
   { value: "name", label: "Name (A–Z)", summary: "name" },
-  { value: "alerts", label: "Most open alerts", summary: "open alerts" },
+  { value: "health", label: "Needs you first", summary: "health" },
   { value: "work", label: "Most urgent work", summary: "urgent work" },
-  { value: "users", label: "Latest daily users", summary: "latest daily users" },
+  { value: "users", label: "Most visitors", summary: "visitors" },
   // The move column follows the range, so the words that name it cannot be
   // fixed at seven days any more (bead `ro-78qo.35`).
   { value: "trend", label: "Best move over the range", summary: "the move over the range" },
   { value: "net", label: "Most net", summary: "net" },
-  {
-    value: "report",
-    label: "Longest since a report",
-    summary: "time since the last report",
-  },
 ];
-
-function openAlerts(card: AssetData): number {
-  return card.openError + card.openWarn;
-}
 
 /**
  * A fact the payload does not carry, sunk to the bottom of a descending sort.
@@ -154,15 +117,6 @@ function unknownLast(a: number | null, b: number | null): number {
   return b - a;
 }
 
-/** Epoch ms of the latest report; 0 for an asset that has never sent one, which
- * is the oldest possible answer and therefore leads the "longest since"
- * ascending sort — a silent asset is exactly what that ordering is for. */
-function reportedAt(card: AssetData): number {
-  if (card.pulseReceivedAt === null) return 0;
-  const parsed = Date.parse(card.pulseReceivedAt);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
 /**
  * Every non-default ordering, each worst-first so the top of the table is the
  * asset the operator most likely came for. `Array.prototype.sort` is stable, so
@@ -179,12 +133,13 @@ function reportedAt(card: AssetData): number {
 function comparatorFor(
   sort: Exclude<AssetSortKey, "seed">,
   rangeDays: number,
+  healthOf: (card: AssetData) => SiteHealthKey,
 ): (a: AssetData, b: AssetData) => number {
   switch (sort) {
     case "name":
       return (a, b) => a.displayName.localeCompare(b.displayName);
-    case "alerts":
-      return (a, b) => openAlerts(b) - openAlerts(a) || b.openError - a.openError;
+    case "health":
+      return (a, b) => HEALTH_RANK[healthOf(b)] - HEALTH_RANK[healthOf(a)] || b.openError - a.openError || b.openWarn - a.openWarn;
     case "work":
       return (a, b) => urgentWork(b) - urgentWork(a) || openWork(b) - openWork(a);
     case "users":
@@ -202,8 +157,6 @@ function comparatorFor(
         return left === right ? unknownLast(netOf(a), netOf(b))
           : (left ?? '~').localeCompare(right ?? '~');
       };
-    case "report":
-      return (a, b) => reportedAt(a) - reportedAt(b);
   }
 }
 
@@ -218,16 +171,7 @@ export function AssetsRoute() {
   const [params, setParams] = useSearchParams();
 
   const status = params.get("status") ?? "all";
-  const automation = readKey<AutomationKey>(params.get("automation"), [
-    "all",
-    "on",
-    "observe",
-  ]);
-  const attention = readKey<AttentionKey>(params.get("attention"), [
-    "all",
-    "open",
-    "clear",
-  ]);
+  const health = readKey<HealthFilter>(params.get("health"), ["all", ...HEALTH_KEYS]);
   const sort = readKey<AssetSortKey>(
     params.get("sort"),
     SORTS.map((option) => option.value),
@@ -252,18 +196,20 @@ export function AssetsRoute() {
   }
 
   const assets = data?.assets ?? [];
+  // Each site's one health word (D44), from the same open problems Home and
+  // the site's own header read.
+  const issues = useSiteIssues();
+  const healthById = new Map(assets.map((card) => [card.id, siteHealth(card, issues)]));
+  const healthOf = (card: AssetData): SiteHealthKey => healthById.get(card.id)?.key ?? "on-track";
   const matches = assets.filter(
     (card) =>
       (status === "all" || card.status === status) &&
-      (automation === "all" ||
-        card.senseOnly === (automation === "observe")) &&
-      (attention === "all" ||
-        (attention === "open" ? openAlerts(card) > 0 : openAlerts(card) === 0)),
+      (health === "all" || healthOf(card) === health),
   );
   const visible =
-    sort === "seed" ? matches : [...matches].sort(comparatorFor(sort, range));
+    sort === "seed" ? matches : [...matches].sort(comparatorFor(sort, range, healthOf));
 
-  const activeFilterCount = [status, automation, attention].filter((value) => value !== "all").length;
+  const activeFilterCount = [status, health].filter((value) => value !== "all").length;
   const narrowed = activeFilterCount > 0;
   const ordered = sort !== "seed";
 
@@ -296,28 +242,17 @@ export function AssetsRoute() {
       .sort(),
   ];
 
-  const observeOnly = assets.filter((card) => card.senseOnly).length;
-  const withOpen = assets.filter((card) => openAlerts(card) > 0);
-  // The bucket's dot shows the WORST thing inside it, so a portfolio with one
-  // error does not advertise itself in warning amber.
-  const worstOpen: Severity | null =
-    withOpen.length === 0
-      ? null
-      : withOpen.some((card) => card.openError > 0)
-        ? "error"
-        : "warn";
+  const healthCounts = new Map<SiteHealthKey, number>();
+  for (const card of assets) healthCounts.set(healthOf(card), (healthCounts.get(healthOf(card)) ?? 0) + 1);
+  const answer = sitesAnswer(assets, healthOf);
+  const figures = data ? [monthFigure(data.portfolio, assets), visitorsFigure(assets)].filter((figure) => figure !== null) : [];
 
   const filterSummary: string[] = [];
   if (status !== "all") {
     filterSummary.push(`status: ${assetStatusLabel(status).toLowerCase()}`);
   }
-  if (automation !== "all") {
-    filterSummary.push(
-      `automation: ${AUTOMATION_LABEL[automation].toLowerCase()}`,
-    );
-  }
-  if (attention !== "all") {
-    filterSummary.push(`attention: ${ATTENTION_LABEL[attention].toLowerCase()}`);
+  if (health !== "all") {
+    filterSummary.push(`health: ${healthWord(health).toLowerCase()}`);
   }
   const noun = siteNoun(assets.length);
   const sortSummary = SORTS.find((option) => option.value === sort)?.summary;
@@ -370,6 +305,17 @@ export function AssetsRoute() {
           <AssetsTable assets={assets} nowMs={now} ga4Realtime={realtime.data} />
         </section>
       ) : (
+        <>
+        {/* ONE ANSWER FIRST (D44 bar, D45): which sites need you, by the
+            same health word Home and each site's page say, with the month's
+            pace and yesterday's visitors beside it — the same derivations as
+            Home, so September is one number everywhere. */}
+        <PageAnswer
+          answer={answer.line}
+          detail={answer.detail}
+          figures={figures}
+          marks={{ "data-surface-hero": "", "data-sites-answer": answer.key }}
+        />
         <FilterFold active={activeFilterCount} label="Filters & sort">
           {/* The fold's one press shares the range's row on a phone: the
               period stays in view (it changes what every number means), the
@@ -404,46 +350,18 @@ export function AssetsRoute() {
             </select>
 
             <FilterChips
-              legend="Automation"
-              name="automation"
-              value={automation}
+              legend="Health"
+              name="health"
+              value={health}
               onPick={setFilter}
               options={[
                 { value: "all", label: "All", count: assets.length },
-                {
-                  value: "on",
-                  label: AUTOMATION_LABEL.on,
-                  count: assets.length - observeOnly,
-                  glyph: <ToneDot tone={AUTOMATION_TONE.on} />,
-                },
-                {
-                  value: "observe",
-                  label: AUTOMATION_LABEL.observe,
-                  count: observeOnly,
-                  glyph: <ToneDot tone={AUTOMATION_TONE.observe} />,
-                },
-              ]}
-            />
-
-            <FilterChips
-              legend="Attention"
-              name="attention"
-              value={attention}
-              onPick={setFilter}
-              options={[
-                { value: "all", label: "All", count: assets.length },
-                {
-                  value: "open",
-                  label: ATTENTION_LABEL.open,
-                  count: withOpen.length,
-                  glyph: <SeverityDot severity={worstOpen} size="sm" />,
-                },
-                {
-                  value: "clear",
-                  label: ATTENTION_LABEL.clear,
-                  count: assets.length - withOpen.length,
-                  glyph: <SeverityDot severity={null} healthy size="sm" />,
-                },
+                ...HEALTH_KEYS.filter((key) => (healthCounts.get(key) ?? 0) > 0 || key === health).map((key) => ({
+                  value: key,
+                  label: healthWord(key),
+                  count: healthCounts.get(key) ?? 0,
+                  glyph: <ToneDot tone={healthTone(key)} />,
+                })),
               ]}
             />
 
@@ -463,30 +381,6 @@ export function AssetsRoute() {
               ))}
             </select>
           </FilterControls>
-
-          <div data-surface-hero className="grid gap-3.5 max-sm:order-last lg:grid-cols-6">
-            <section aria-labelledby="assets-status-scope" className="hidden overflow-hidden rounded-[10px] border border-border bg-card sm:block lg:col-span-3">
-              <SectionLabel id="assets-status-scope" title="Latest status" className="min-h-10 border-b border-border/60 px-4 py-2" />
-              <KpiStrip columns={3}>
-                <PortfolioAssetsKpi assets={assets} nowMs={now} />
-                <OpenAlertsKpi payload={data} />
-                <OpenTasksKpi assets={assets} />
-              </KpiStrip>
-            </section>
-            <section aria-labelledby="assets-traffic-scope" className="overflow-hidden rounded-[10px] border border-border bg-card lg:col-span-2">
-              <SectionLabel id="assets-traffic-scope" title={`Traffic · ${range} days`} className="sr-only sm:not-sr-only sm:min-h-10 sm:border-b sm:border-border/60 sm:px-4 sm:py-2" />
-              <KpiStrip columns={2}>
-                <LatestDailyUsersKpi assets={assets} rangeDays={range} />
-                <UsersRangeKpi assets={assets} rangeDays={range} />
-              </KpiStrip>
-            </section>
-            <section aria-labelledby="assets-financials-scope" className="hidden overflow-hidden rounded-[10px] border border-border bg-card sm:block">
-              <SectionLabel id="assets-financials-scope" title={`Money · ${formatPeriodMonthYear(data.portfolio.period)}`} className="min-h-10 border-b border-border/60 px-4 py-2" />
-              <KpiStrip columns={1}>
-                <NetKpi portfolio={data.portfolio} />
-              </KpiStrip>
-            </section>
-          </div>
 
           <p
             className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground"
@@ -522,6 +416,7 @@ export function AssetsRoute() {
             />
           </section>
         </FilterFold>
+        </>
       )}
     </div>
   );
@@ -552,364 +447,53 @@ function readRange(value: string | null): number {
  * entirely rather than zero, which is the same rule every series on this desk
  * keeps.
  */
-function portfolioUsersSeries(assets: AssetData[]): SeriesPoint[] {
-  const byDay = new Map<string, number>();
-  for (const asset of assets) {
-    // The context holds the earlier dates required by the 90-day control.
-    // One asset/date contributes once even if a payload overlaps both arrays.
-    const perAsset = new Map([
-      ...(asset.activeUsers.contextSeries ?? []),
-      ...asset.activeUsers.series,
-    ].map((point) => [point.t, point.v]));
-    for (const [date, value] of perAsset) {
-      byDay.set(date, (byDay.get(date) ?? 0) + value);
-    }
-  }
-  return [...byDay.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([t, v]) => ({ t, v }));
-}
-
-/** The earliest day any asset is still counting, which is the first day the
- * portfolio's own total is incomplete. Null when every provider has closed its
- * books. */
-function portfolioProvisionalFrom(assets: AssetData[]): string | null {
-  const days = assets
-    .map((asset) => asset.activeUsers.provisionalFrom)
-    .filter((day): day is string => day !== null);
-  return days.length === 0 ? null : days.reduce((a, b) => (a < b ? a : b));
-}
-
-/** How much of the portfolio is actually receiving data, as a count and a
- * shape. The strip is drawn from two sites, so there is always a count.
- *
- * The bar is TWO segments and not five: doc 21 spends colour on severity and
- * provider only, so a five-colour lifecycle ramp would be the decorative palette
- * the whole rethink exists to remove. Receiving is foreground ink, the rest is
- * the muted track, and the caption says which is which — in the words each
- * source's own mark uses, so it needs no note on how it was derived. */
-function PortfolioAssetsKpi({ assets, nowMs }: { assets: AssetData[]; nowMs: number }) {
-  // An asset receives data when one of its sources is Working — the status its
-  // own marks and Data sources rows show (bead `ro-ujb9.96.7.16`).
-  const { credentials, items } = useConnections();
-  const live = assets.filter((card) =>
-    sourcesSummary(sourceReadings(card.id, card.dataSources, { credentials, items }, nowMs)).counts.working > 0).length;
-  const rest = assets.length - live;
-
-  return (
-    <Kpi
-      label="Sites"
-      value={formatInt(assets.length)}
-      improvement="none"
-      caption={`${live} receiving data${rest ? ` · ${rest} unconfirmed` : ""}`}
-      footer={
-        <SegmentBar
-          className="mt-2"
-          ariaLabel={`${live} of ${siteCount(assets.length)} receiving data`}
-          data-assets-lifecycle=""
-          segments={[
-            { name: "live", value: live, fill: "bg-foreground" },
-            { name: "rest", value: rest, fill: "bg-muted-foreground/30" },
-          ]}
-        />
-      }
-    />
-  );
-}
-
-/**
- * Below this a line is two dots joined by a segment, which the eye reads as a
- * trend the data cannot support — `Kpi`'s own floor, restated here because this
- * page has to decide between drawing the line and DECLARING that it cannot
- * (doc 21's third answer) before it hands the series over. The declared reason
- * is the table's own (`seriesGapReason`), so a row and the strip above it say
- * a missing line the same way.
- */
-const MIN_SPARK_POINTS = 3;
-
-/** A point-in-time count the store keeps no by-day record of: its KPI shows
- * its composition when there is one, and this reason when there is not. */
-const NO_DAILY_HISTORY = "No daily history kept";
-
-/** The newest reported day is not necessarily today. Its raw daily trend uses
- * the selected traffic range; the point remains provisional while counting. */
-function LatestDailyUsersKpi({ assets, rangeDays }: { assets: AssetData[]; rangeDays: number }) {
-  const series = windowSeries(portfolioUsersSeries(assets), rangeDays);
-  const provisionalFrom = portfolioProvisionalFrom(assets);
-  const latest = series.at(-1) ?? null;
-  const reporting = assets.filter(
-    (card) => card.activeUsers.series.at(-1)?.t === latest?.t,
-  ).length;
-
-  if (latest === null) {
-    return (
-      <Kpi
-        label="Latest daily users"
-        value="—"
-        improvement="up"
-        seriesUnavailable={seriesGapReason(0)}
-      />
-    );
-  }
-
-  const drawable = series.length >= MIN_SPARK_POINTS;
-  return (
-    <Kpi
-      label="Latest daily users"
-      value={formatInt(latest.v)}
-      improvement="up"
-      caption={<><time dateTime={latest.t}>{formatCalendarDate(latest.t)}</time> · {reporting} of {siteCount(assets.length)}</>}
-      spark={drawable ? series : undefined}
-      seriesUnavailable={drawable ? undefined : seriesGapReason(series.length)}
-      sparkAverage={false}
-      sparkProvisionalFrom={provisionalFrom}
-    />
-  );
-}
-
-/**
- * AVERAGE DAILY USERS, against the average over the previous window.
- *
- * This is the one figure on the page the range selector exists for: the average,
- * the comparison and the line all move together when it changes (doc 21's
- * "range changes re-derive every delta, sparkline and chart"). The comparison is
- * `periodDelta`, so it excludes the day the providers are still counting and
- * withdraws its colour when the two sides do not cover the same number of
- * reported days — and it draws a dash with the reason when the payload does not
- * reach back a whole range before this one, which 28 days of history cannot.
- */
-function UsersRangeKpi({
-  assets,
-  rangeDays,
-}: {
-  assets: AssetData[];
-  rangeDays: number;
-}) {
-  const series = portfolioUsersSeries(assets);
-  const provisionalFrom = portfolioProvisionalFrom(assets);
-  const window = metricWindow([{
-    series,
-    contextSeries: [],
-    collectedAt: null,
-    provisionalFrom,
-    timeZoneChanges: assets.flatMap((asset) => asset.activeUsers.timeZoneChanges),
-  }], rangeDays, "mean");
-  const drawn = window.settled;
-  const delta = window.delta;
-
-  if (drawn.length === 0) {
-    return (
-      <Kpi
-        label={`Avg. daily users · ${rangeDays}d`}
-        value="—"
-        improvement="up"
-        seriesUnavailable={seriesGapReason(0)}
-      />
-    );
-  }
-
-  const drawable = drawn.length >= MIN_SPARK_POINTS;
-  return (
-    <Kpi
-      label={`Avg. daily users · ${rangeDays}d`}
-      value={window.value === null ? "—" : formatInt(window.value)}
-      improvement="up"
-      delta={delta}
-      caption={`${drawn.length} reported days`}
-      // The one fact the label cannot carry: this is the SUM of the sites,
-      // not an average of them. The days it averages over are the caption.
-      explanation="Every site's users added together"
-      spark={drawable ? drawn : undefined}
-      seriesUnavailable={drawable ? undefined : seriesGapReason(drawn.length)}
-      // Seven days of a seven-day window is one flat point per day: the average
-      // is drawn only where there is enough series behind it to smooth.
-      sparkAverage={rangeDays >= 14}
-      sparkProvisionalFrom={provisionalFrom}
-    />
-  );
-}
-
-/**
- * MONEY LEADS (D13). The same figure `/financials` and Home state, chosen by the
- * same rule (`portfolioHeadline`) rather than re-derived — three surfaces
- * quoting three nets would be worse than one surface quoting none.
- *
- * Its movement carries NO VERDICT (doc 21): a month whose net fell because an
- * annual invoice landed is not a worse month, so the KPI shows its COMPOSITION
- * instead and spends no colour on a direction it cannot judge.
- */
-function NetKpi({ portfolio }: { portfolio: WallPayload["portfolio"] }) {
-  const lead = portfolioHeadline(portfolio);
-  const openPeriod = portfolio.periodIsCurrent ? portfolio.period : null;
-  const monthLabel = `Net · ${formatPeriodMonth(portfolio.period)}`;
-
-  if (lead === null) {
-    return (
-      <Kpi
-        label={monthLabel}
-        value="—"
-        improvement="none"
-        caption={`no revenue or costs for ${formatPeriodMonth(portfolio.period)} yet`}
-        seriesUnavailable={seriesGapReason(portfolio.netTrendAll.length, "month")}
-      />
-    );
-  }
-
-  // THE SERIES IS THE RAW MONTHLY NET, not a trailing average (bead
-  // `ro-78qo.18`): seven periods of a monthly series is seven months, and on a
-  // portfolio with six months of history that mean is almost a straight line
-  // with the one dip worth seeing smoothed out of it.
-  const months = portfolio.netTrendAll;
-  const drawable = months.length >= MIN_SPARK_POINTS;
-  return (
-    <Kpi
-      label={monthLabel}
-      value={formatMoney(lead.figure.net, lead.figure.currency)}
-      improvement="none"
-      caption={
-        <>
-          revenue {formatMoney(lead.figure.revenue, lead.figure.currency)} · cost{" "}
-          {formatMoney(lead.figure.cost, lead.figure.currency)} · {portfolioHeadlineWord(lead.state)}
-        </>
-      }
-      spark={drawable ? months : undefined}
-      seriesUnavailable={drawable ? undefined : seriesGapReason(months.length, "month")}
-      sparkAverage={false}
-      sparkProvisionalFrom={openPeriod}
-      format={(value) => formatMoney(value, portfolio.netTrendCurrency)}
-    />
-  );
-}
-
-/** The portfolio's open exceptions as ONE number, split by severity beneath it.
- * Falling is GOOD here, which is what `improvement="down"` tells the strip. The
- * count is the wall payload's own attention list, so this KPI and `/alerts`
- * cannot disagree about how many conditions are open tonight. */
-function OpenAlertsKpi({ payload }: { payload: WallPayload }) {
-  const items = payload.attention;
-  const errors = items.filter((item) => item.severity === "error").length;
-  const warnings = items.filter((item) => item.severity === "warn").length;
-
-  if (items.length === 0) {
-    return (
-      <Kpi
-        label="Open alerts"
-        value="0"
-        valueTone="healthy"
-        improvement="down"
-        caption="all clear"
-        // The count is point-in-time and the store keeps no by-day record of
-        // it, so what this number normally shows is its COMPOSITION — and a
-        // zero has none. `/alerts` names the bead that would give it a line.
-        seriesUnavailable={NO_DAILY_HISTORY}
-      />
-    );
-  }
-
-  return (
-    <Kpi
-      label="Open alerts"
-      value={formatInt(items.length)}
-      improvement="down"
-      caption={
-        <span className="inline-flex flex-wrap items-baseline gap-x-1.5 tabular-nums">
-          {errors > 0 ? (
-            <span className="font-medium text-error">
-              {errors} {errors === 1 ? "error" : "errors"}
+/** The page's answer: how many sites need the operator, by the one health
+ * word, and which ones. */
+function sitesAnswer(assets: AssetData[], healthOf: (card: AssetData) => SiteHealthKey): { key: string; line: string; detail: ReactNode } {
+  const noun = siteNoun(assets.length);
+  const worst = [...assets].sort((a, b) => HEALTH_RANK[healthOf(b)] - HEALTH_RANK[healthOf(a)]);
+  const offTrack = worst.filter((card) => healthOf(card) === "off-track");
+  const atRisk = worst.filter((card) => healthOf(card) === "at-risk");
+  const settingUp = worst.filter((card) => healthOf(card) === "setting-up");
+  const needs = [...offTrack, ...atRisk];
+  if (needs.length > 0) {
+    const word = atRisk.length === 0 ? "off track" : offTrack.length === 0 ? "at risk" : "need you";
+    // Each named site is its own way in: the answer's one action.
+    return {
+      key: "needs-you",
+      line: `${formatInt(needs.length)} of ${formatInt(assets.length)} ${noun} ${word}`,
+      detail: (
+        <span className="inline-flex flex-wrap gap-x-1">
+          {needs.slice(0, 3).map((card, index) => (
+            <span key={card.id}>
+              {index > 0 ? "· " : null}
+              <Link to={sitePath(card)} className="font-medium text-foreground underline-offset-4 hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center" data-sites-answer-site={card.id}>
+                {card.displayName}
+              </Link>
             </span>
-          ) : null}
-          {errors > 0 && warnings > 0 ? <span aria-hidden>·</span> : null}
-          {warnings > 0 ? (
-            <span className="font-medium text-warn">
-              {warnings} {warnings === 1 ? "warning" : "warnings"}
-            </span>
-          ) : null}
+          ))}
+          {needs.length > 3 ? <span>· {formatInt(needs.length - 3)} more</span> : null}
         </span>
-      }
-      footer={
-        <SegmentBar
-          className="mt-2"
-          ariaLabel={`${errors} of ${items.length} open alerts are errors, ${warnings} are warnings`}
-          title={`${errors} error and ${warnings} warning flags are open.`}
-          data-alert-split=""
-          segments={[
-            { name: "error", value: errors, fill: "bg-error" },
-            { name: "warn", value: warnings, fill: "bg-warn" },
-          ]}
-        />
-      }
-    />
-  );
-}
-
-/**
- * THE PORTFOLIO'S QUEUE, and how much of it is urgent.
- *
- * An asset whose beads snapshot could not be read contributes NOTHING and is
- * counted as unmeasured, so the figure wears a `+` and the caption says how many
- * assets are behind it — the same lower-bound honesty Home's inbox tile keeps. A
- * total that silently treated an unread repo as zero would be the calmest
- * possible reading of the least information.
- */
-function OpenTasksKpi({ assets }: { assets: AssetData[] }) {
-  const measured = assets.filter((card) => card.work !== null);
-  const open = measured.reduce((sum, card) => sum + (card.work?.open ?? 0), 0);
-  const urgent = measured.reduce(
-    (sum, card) => sum + (card.work?.highPriority ?? 0),
-    0,
-  );
-  const complete = measured.length === assets.length && assets.length > 0;
-
-  if (measured.length === 0) {
-    return (
-      <Kpi
-        label="Open tasks"
-        value="—"
-        improvement="down"
-        seriesUnavailable="No task data yet"
-      />
-    );
+      ),
+    };
   }
-
-  return (
-    <Kpi
-      label="Open tasks"
-      value={`${formatInt(open)}${complete ? "" : "+"}`}
-      improvement="down"
-      caption={
-        complete
-          ? urgent > 0
-            ? `${urgent} urgent`
-            : "none urgent"
-          : `${measured.length} of ${siteCount(assets.length)} measured`
-      }
-      // An open queue shows how it divides; an empty one has no shape, and
-      // the task hub is read as it stands, not kept by day.
-      seriesUnavailable={open > 0 ? undefined : NO_DAILY_HISTORY}
-      footer={
-        open > 0 ? (
-          <SegmentBar
-            className="mt-2"
-            ariaLabel={`${urgent} of ${open} open tasks are urgent`}
-            title={`${urgent} of the ${open} open tasks are P0 or P1.`}
-            data-task-urgency=""
-            // A rank, not a severity (doc 14, bead ro-ujb9.240): the urgent
-            // share wears the top of `PriorityBar`'s ink ramp, the rest its
-            // default band — the table's bars below, never amber.
-            segments={[
-              { name: "urgent", value: urgent, fill: priorityFill(0) },
-              { name: "rest", value: open - urgent, fill: priorityFill(2) },
-            ]}
-          />
-        ) : null
-      }
-    />
-  );
+  const fine = assets.length - settingUp.length;
+  if (settingUp.length === 0) return { key: "on-track", line: `All ${formatInt(assets.length)} ${noun} on track`, detail: undefined };
+  return {
+    key: "setting-up",
+    line: fine === 0 ? `${formatInt(assets.length)} ${noun} setting up` : `${formatInt(fine)} of ${formatInt(assets.length)} ${noun} on track`,
+    detail: fine === 0 ? undefined : `${formatInt(settingUp.length)} setting up`,
+  };
 }
 
-/** A query value the page still understands, or the default. An `?sort=` a
- * bookmark carried from an older build must not silently order the table by
- * something this page cannot name in its summary line. */
+function healthWord(key: SiteHealthKey): string {
+  return SITE_HEALTH[key].word;
+}
+
+function healthTone(key: SiteHealthKey): StateTone {
+  return SITE_HEALTH[key].tone;
+}
+
 function readKey<K extends string>(
   value: string | null,
   allowed: readonly K[],

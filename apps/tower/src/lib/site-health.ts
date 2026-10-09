@@ -25,7 +25,8 @@ export interface SiteHealth {
   tone: StateTone;
 }
 
-const WORDS: Record<SiteHealthKey, { word: string; tone: StateTone }> = {
+/** Each health key's word and tone, for a filter chip or a legend. */
+export const SITE_HEALTH: Readonly<Record<SiteHealthKey, { word: string; tone: StateTone }>> = {
   "setting-up": { word: "Setting up", tone: "na" },
   "off-track": { word: "Off track", tone: "critical" },
   "at-risk": { word: "At risk", tone: "caution" },
@@ -47,5 +48,5 @@ export function siteHealth(
         : card.senseOnly
           ? "monitor-only"
           : "on-track";
-  return { key, ...WORDS[key] };
+  return { key, ...SITE_HEALTH[key] };
 }

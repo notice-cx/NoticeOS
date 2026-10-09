@@ -4,7 +4,8 @@ import { shiftLabel } from "@shared/surface";
 import type { AssetCard, AttentionItem, PortfolioBand, SeriesPoint, SystemBand } from "@shared/wall";
 import type { WallFeedItem, WallFeedPayload } from "@shared/wall-feed";
 import type { HighlightKind, HighlightSpark } from "@/components/HighlightCard";
-import { formatInt, formatPercent, formatPeriodMonthLong, formatUsd } from "@/lib/format";
+import type { AnswerFigure } from "@/components/surface/PageAnswer";
+import { formatInt, formatPercent, formatPeriodMonthLong, formatSeriesDate, formatUsd } from "@/lib/format";
 import { wallIssues, type WallIssue, type WallIssueCondition, type WallIssueInputs } from "@/lib/wall-issues";
 import { monthRevenue, yesterdayTotal } from "@/lib/wall-revenue";
 import { withSystemIssues } from "@/lib/wall-system-state";
@@ -275,4 +276,29 @@ export function peopleYesterday(assets: readonly AssetCard[]): PeopleYesterday |
 export function greeting(nowMs: number): string {
   const hour = new Date(nowMs).getHours();
   return hour < 5 ? "Good evening" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+}
+
+/** The month's money as one figure, the same derivation Home's brief and the
+ * Wall use: the pace while there is one, else the month so far, else nothing.
+ * "October pace $1,310 ↑ 16%". */
+export function monthFigure(portfolio: PortfolioBand, assets: readonly AssetCard[]): AnswerFigure | null {
+  const money = monthRevenue(portfolio, assets);
+  if (!money) return null;
+  const month = formatSeriesDate(`${money.period}-01`).replace(/\s\d+$/, "");
+  if (money.pace) {
+    const change = money.pace.changePercent;
+    return {
+      label: `${month} pace`,
+      value: formatUsd(money.pace.projected),
+      note: change === null ? undefined : `${change >= 0 ? "↑" : "↓"} ${formatPercent(Math.abs(change))}%`,
+      mark: "month-figure",
+    };
+  }
+  return money.revenue === null ? null : { label: `${month} so far`, value: formatUsd(money.revenue), mark: "month-figure" };
+}
+
+/** Yesterday's visitors across the sites as one figure, or nothing. */
+export function visitorsFigure(assets: readonly AssetCard[]): AnswerFigure | null {
+  const people = peopleYesterday(assets);
+  return people ? { label: "Visitors yesterday", value: formatInt(people.total), mark: "visitors-figure" } : null;
 }

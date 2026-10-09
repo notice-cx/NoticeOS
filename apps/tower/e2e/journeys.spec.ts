@@ -128,8 +128,10 @@ test("state reasons open from keyboard and tap", async ({ page }, testInfo) => {
   } }));
   // Home names no OS state since D44 (the Morning Brief never describes the
   // OS), so its System reason is gone; the Sites list and Tasks keep theirs.
+  // A phone folds a site's task count behind its row's › (D45: name, health
+  // word and one figure), so the Sites reason is a desk check.
   for (const [route, name, evidence] of [
-    ["/assets", "No task data", "No task data"],
+    ...(testInfo.project.name === "mobile" ? [] : [["/assets", "No task data", "No task data"]]),
     ["/tasks", "Why New task is unavailable", "Make changes from the local NoticeOS."],
   ]) {
     await page.goto(route!);
@@ -152,17 +154,8 @@ test("state reasons open from keyboard and tap", async ({ page }, testInfo) => {
     await page.screenshot({ path: testInfo.outputPath(`state-reason-${route!.slice(1) || "home"}.png`) });
     await expect(page).toHaveURL(new RegExp(`${route === "/" ? "/" : route}$`));
   }
-  await page.goto("/assets");
-  const sources = page.getByRole("button", { name: "About data source states", exact: true });
-  await keyboardFocus(page, sources);
-  await expect(page.getByRole("tooltip")).toContainText("Nightly report");
-  await page.keyboard.press("Escape");
-  if (testInfo.project.name === "mobile") await sources.tap();
-  else await sources.click();
-  await expect(page.getByRole("tooltip")).toContainText("Nightly report");
-  await assertNoPageOverflow(page);
-  await page.screenshot({ path: testInfo.outputPath("state-reason-sources.png") });
-  await expect(page).toHaveURL(/\/assets$/);
+  // The Sites list states each site's one health word since D45; the source
+  // states and their legend are on a site's Data sources tab.
 });
 
 test("desk pages share the same content edges", async ({ page }, testInfo) => {
