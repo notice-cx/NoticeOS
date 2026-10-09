@@ -29,15 +29,19 @@ export function connectable(reading: { kind: string; provider: string | null }):
 }
 
 /**
- * THE SOURCE A SITE CONNECTS FIRST: the first connectable one by name. It is
- * the row a site's Data sources give the page's one primary Connect, and the
- * step Home's first-run guide opens (bead `ro-ujb9.123`) — one rule, so the two
- * never point a stranger at different sources.
+ * THE SOURCE A SITE CONNECTS FIRST: the first connectable one, free before
+ * paid, then by name. It is the row a site's Data sources give the page's one
+ * primary Connect, and the step Home's first-run guide opens (bead
+ * `ro-ujb9.123`) — one rule, so the two never point a stranger at different
+ * sources. A source that spends money on every collection (a portfolio-month
+ * meter, DataForSEO's) is never the page's first, filled Connect (D45): the
+ * alphabet made it so on a site with every source open.
  */
 export function firstToConnect<T extends { kind: string; provider: string | null; label: string }>(
   readings: readonly T[],
 ): T | null {
-  return [...readings].filter(connectable).sort((a, b) => a.label.localeCompare(b.label))[0] ?? null;
+  const paid = (reading: T) => Number(reading.provider !== null && integrationProvider(reading.provider)?.meter?.window === "portfolio-month");
+  return [...readings].filter(connectable).sort((a, b) => paid(a) - paid(b) || a.label.localeCompare(b.label))[0] ?? null;
 }
 
 /** A provider's short name: "Google Analytics (GA4)" → "Google Analytics". */

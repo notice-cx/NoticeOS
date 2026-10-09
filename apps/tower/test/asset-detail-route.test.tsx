@@ -2461,7 +2461,8 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     const row = view.container.querySelector("#integrations li")!;
     expect(row.querySelector("[data-connection]")).toHaveAttribute("data-connection", "working");
     expect(row).toHaveTextContent("1 report missing");
-    expect(view.container.querySelector("#integrations")).toHaveTextContent("1 working");
+    // The tab opens with the sentence, not a tally (D44).
+    expect(view.container.querySelector("[data-sources-answer]")).toHaveTextContent("Google Search Console working");
   });
 
   it("reads the source Failing, with why, when its latest pull fails", async () => {
@@ -2475,7 +2476,8 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     const row = view.container.querySelector("#integrations li")!;
     expect(row.querySelector("[data-connection]")).toHaveAttribute("data-connection", "failing");
     expect(row).toHaveTextContent("Access was refused.");
-    expect(view.container.querySelector("#integrations")).toHaveTextContent("1 failing");
+    expect(view.container.querySelector("[data-sources-answer]")).toHaveTextContent("Google Search Console needs you");
+    expect(view.container.querySelector("[data-page-answer-detail]")).toHaveTextContent("Google Search Console failing");
     // Bead ro-ujb9.96.7.4: its one action is Fix — Google's own page, since
     // Google does not connect in the panel — not a sentence saying what to review.
     expect(within(row as HTMLElement).getByRole("link", { name: "Fix Google" })).toHaveAttribute("href", "/integrations?provider=google");
@@ -2507,7 +2509,7 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     // `ListPanel` draws its own arrow after the label (doc 21's "All →"), so
     // the accessible name carries it too.
     expect(
-      await findByRole("link", { name: /^Connect account/u }),
+      await findByRole("link", { name: /^All integrations/u }),
     ).toHaveAttribute("href", "/integrations");
   });
 });
