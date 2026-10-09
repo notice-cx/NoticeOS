@@ -322,12 +322,23 @@ Settled per page on 2026-09-05 (design review of the live pages; baselines on
 
 | Page | The question | First screen |
 |---|---|---|
-| Assets (Sites; from two sites — with none it is the header's Add a site and one empty state, with one it is that site's row, bead `ro-ujb9.128`) | How is each asset doing, and which one needs me? | A six-across `KpiStrip` (assets by state, users today, 28-day users, portfolio net, open alerts, open tasks) over **one comparison `Table`** — Home's assets table widened with `Sparkline` columns for Users (28d), Search clicks (28d) and Net (by month); header sorts; a row opens the asset. The per-asset cards (active bet, live counters, product totals) leave this page — the asset Overview holds them. |
-| Alerts | What is firing, and how bad? | A `KpiStrip` (open, errors, warnings, fired this week, median age, resolved this week) over the Open/History tabs and filter row; one line per alert; the four actions live in the row's expansion, never printed under every row. |
-| Tasks | What needs me, and what is the queue doing? | A `KpiStrip` (waiting on you, urgent, open, in progress, blocked, closed this week), a Waiting-on-you `ListPanel` at five rows with Respond/Dismiss as row actions, then the board as one `Table` paged 25 rows at a time, rows expanding in place. |
-| Financials | Am I making money, and where? | A `KpiStrip` (net with its revenue · cost composition, revenue, cost, reconciled fraction, forecast) **fused to a monthly `HeroChart`** with revenue/cost toggles; the month picker is the header's range; the by-asset `Table` carries a net `Sparkline` per asset (from two sites, or with one site only while an overhead cost exists — then without the direct subtotal that would repeat its row, bead `ro-ujb9.129`); the month table sits behind a collapsed panel. Not-reconciled is the provisional treatment, not a hatch. |
-| Health | What is broken or not set up? | A `KpiStrip` (sources working / degraded / not set up, credentials expiring, freshness) with the step-variant freshness `HeroChart`; "Unblock next" as a `ListPanel` at five rows (glyph by kind, affected assets as caption, the hint in the expanded row); the layered audit behind collapsed panels; no owner chips. |
-| Integrations | Which providers are connected, and which need me? | A `StatusBanner` per thing needing the operator; providers as `ListRow`s (state dot, credential age, expiry, used-by count, last used) expanding to the card's fields; the OAuth setup steps appear only inside an expanded, unconnected provider; owner chips stay (a setup surface). |
+| Assets (Sites; from two sites — with none it is the header's Add a site and one empty state, with one it is that site's row, bead `ro-ujb9.128`) | How is each asset doing, and which one needs me? | A `PageAnswer` — "1 of 7 sites at risk" naming the sites, "All 7 sites on track" — with the month's money and yesterday's visitors as its figures (Home's own derivations), over **one comparison `Table`** whose Health column is `siteHealth`'s one word; health filter chips; sorted Needs you first. |
+| Alerts | What is firing, and how bad? | A `PageAnswer` — "2 open alerts, both warnings" — with Oldest and Settled this week as figures, over the Open/History tabs; Snooze and Resolve on the row, Acknowledge and Tune in its expansion; a `FinishLine` under the last row. |
+| Tasks | What needs me, and what is the queue doing? | A `PageAnswer` — "3 decisions wait on you" — with Urgent, Blocked and Closed this week as figures, then the Waiting-on-you panel (hidden when empty) before the filters, then the board; a `FinishLine` under the waiting rows. |
+| Money (`/financials`) | Am I making money, and where? | A `PageAnswer` — "September net +$135 so far" with the pace line, Revenue, Cost ("— none recorded" when none is) and Confirmed as figures — over the monthly `HeroChart`; the cost breakdown only when a cost line exists. |
+| Health | What is broken or not set up? | The service overview leads with the system issue Home links to, and shows only the services that are not OK; the connections list opens on Needs you; source history only from three points. |
+| Integrations | Which providers are connected, and which need me? | A `PageAnswer` — "Google needs you", "2 of 7 integrations need you", "All 5 integrations connected" — over the grouped provider rows, each group listing what needs you first. |
+| Workflows (and Health's Background operations) | Is anything failing that I should know about? | A `PageAnswer` — "2 of 9 workflows need you", "No workflows need you" — with every state counted once in its label, over the Activity/Schedule tabs and the grouped list. |
+
+**The D44 bar on every screen** *(2026-10-09, D45)*. Each index page and each
+site tab opens with one `PageAnswer` — one sentence under twelve words, a
+muted detail line, at most three figures — in place of a strip of equal
+tiles; a list that can be finished ends on a `FinishLine`; a site's health is
+`siteHealth`'s one word everywhere it is drawn (Home, Sites, the site header,
+the TV's site bars); a fact appears once per screen (a navigator's selected
+item is not repeated as the card's title; a back link is not repeated as a
+breadcrumb); and a site's first filled Connect is a free source before a
+metered one.
 
 ## Acceptance for any surface built to this doc
 
@@ -354,8 +365,9 @@ Settled per page on 2026-09-05 (design review of the live pages; baselines on
   report, status and accounting periods stay unchanged and visibly labeled.
 - **The phone's first screen is the page's answer** *(2026-09-24, bead
   `ro-ujb9.13`, [brief](briefs/2026-09-24-mobile-first-screen.md) with its
-  prior art)*. At 390×844: the first answer row — a site, an alert, a task; on
-  Home what needs you — starts in the top half of the screen, with nothing
+  prior art)*. At 390×844: the page's `PageAnswer` sentence (D45) and then
+  the first answer row — a site, an alert, a task; on Home what needs you —
+  start in the top half of the screen, with nothing
   above it but the header's one primary action, one Filters press
   (`FilterBar`, carrying how many filters are on), a period and a tab bar. The
   strip is one row (`KpiStrip`: three share the width while their words fit;
