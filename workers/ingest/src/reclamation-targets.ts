@@ -1,5 +1,6 @@
-// A link-outreach campaign's targets (docs/playbooks/reclamation-pipeline.md,
-// step 7), written from the operator's target list by `pnpm reclamation:import`
+// A link-outreach campaign's targets — the touch log of a dead resource's
+// inbound links being reclaimed — written from the operator's target list by
+// `pnpm reclamation:import`
 // through POST /api/reclamation-targets (bead ro-ujb9.76.5.8), and the open
 // ones read back by `pnpm reclamation:open-targets` through GET on the same
 // route (bead ro-ujb9.76.5.9). On Postgres, `noticeos.reclamation_targets`,

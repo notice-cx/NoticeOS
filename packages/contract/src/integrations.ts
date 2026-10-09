@@ -79,7 +79,7 @@ export type CredentialExpirySource = 'flow' | 'operator';
  * Whether an expiry date can ever be known for this provider, and the sentence
  * the card shows where there is no date (bead `ro-vu8d.8`).
  *
- * IT IS A PER-PROVIDER FACT AND IT IS DECLARED, not inferred. Doc 15 flow C
+ * IT IS A PER-PROVIDER FACT AND IT IS DECLARED, not inferred. doc 14 flow C
  * step 4 has asked for a T-14d warning since the doc was written, and the one
  * way to build it dishonestly is to invent a date for a key that has none. A
  * Bing Webmaster key does not expire; a Google sign-in made against a consent
@@ -301,9 +301,9 @@ export interface IntegrationTest {
 
 /**
  * WHAT A METERED PROVIDER SPENDS, AND WHAT THE OS CAN COUNT OF IT
- * (beads `ro-vu8d.25`, `ro-qpas`; doc 15 flow C step 3).
+ * (beads `ro-vu8d.25`, `ro-qpas`; doc 14 flow C step 3).
  *
- * Doc 15 has asked since it was written for a live widget to show QUOTA REALITY —
+ * doc 14 has asked since it was written for a live widget to show QUOTA REALITY —
  * its own example is "Clarity: 7/10 calls left today" — "so the operator never
  * wonders why a data source paused". Nothing rendered it, and the cards
  * explained their caps in PROSE instead, which is what the OS says when it
@@ -395,7 +395,7 @@ export function meterRemaining(cap: number, spent: number): number {
   return Math.max(0, cap - spent);
 }
 
-/** How long before an expiry the OS starts warning — doc 15 flow C step 4's
+/** How long before an expiry the OS starts warning — doc 14 flow C step 4's
  * "expiring creds flag at T-14d", stated once so the chip, the nav dot and
  * every test read the same horizon. */
 export const CREDENTIAL_EXPIRY_WARN_DAYS = 14;
@@ -574,7 +574,7 @@ export interface IntegrationField {
   placeholder?: string;
   /** The access the value must carry, one short label each ("Query: read"),
    * drawn as chips beside the field — PostHog's own pattern for a restricted
-   * key (docs/briefs/2026-09-23-integration-setup-copy.md#prior-art). */
+   * key. */
   grants?: readonly string[];
   /**
    * True when a FLOW writes this value and an operator never types it — the
@@ -973,7 +973,7 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
     test: { cost: 'none' },
     // THE ONE METER THE OS CAN READ WITHOUT SPENDING FROM IT (bead
     // `ro-vu8d.25`). The cap that made this card's Test button call nobody is
-    // the same cap doc 15 flow C step 3 asked to SHOW, and the number is
+    // the same cap doc 14 flow C step 3 asked to SHOW, and the number is
     // knowable: the export writes one manifest row per call, so what is left
     // today is arithmetic over rows this OS wrote (UTC day; Clarity resets on
     // its own clock, and a call made elsewhere is invisible here).

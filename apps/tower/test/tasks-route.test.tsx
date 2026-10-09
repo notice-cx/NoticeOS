@@ -6,7 +6,7 @@ import type { LiveTask, LiveTasksPayload, TasksCapabilities } from "@shared/task
 import { READ_ONLY_DEPLOYMENT, READ_ONLY_TASKS_HINT } from "@shared/tasks";
 import { emptyWorkHistory, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
 
-// `/tasks` — doc 21's index template over the task database (bead `ro-78qo.12`).
+// `/tasks` — doc 14's index template over the task database (bead `ro-78qo.12`).
 //
 // WHAT THE REBUILD KEPT, and therefore what this file is mostly about: the five
 // filters are still the URL, claim / close / defer / respond / dismiss / resolve
@@ -272,7 +272,7 @@ function row(container: HTMLElement, id: string): HTMLElement {
 }
 
 /** Open a row in place and hand back what it revealed — the claim/close/defer
- * verbs live behind the same press that shows the evidence (doc 21). */
+ * verbs live behind the same press that shows the evidence (doc 14). */
 function open(container: HTMLElement, id: string): HTMLElement {
   fireEvent.click(within(row(container, id)).getByRole("button", { expanded: false }));
   const detail = container.querySelector<HTMLElement>(`[data-task-detail="${id}"]`);
@@ -628,7 +628,7 @@ describe("/tasks — the filters are the URL", () => {
     const { container } = renderBoard({ data: twoProjects, live: true,
     });
     const filters = container.querySelector("[data-tasks-filters]")!;
-    // Doc 21's "avoid overwhelming": twelve status/priority chips became two
+    // doc 14's "avoid overwhelming": twelve status/priority chips became two
     // selects, because the strip two lines above already answers "how much".
     expect(filters.querySelectorAll("select")).toHaveLength(4);
     expect(filters.querySelectorAll("input")).toHaveLength(1);
@@ -799,7 +799,7 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
     expect(titles[0]).toContain("approve the spend");
     expect(titles[1]).toContain("Decide the Korea trip");
     // The project is the row's caption; the id is on the task's own page
-    // (doc 17 altitude, as Home's Decide row says it).
+    // (doc 14 altitude, as Home's Decide row says it).
     expect(titles[1]).toContain("Meal Planner");
     expect(titles[1]).not.toContain("mp-9k1");
     expect(titles[0]).toContain("needs your approval");
@@ -964,7 +964,7 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
     const inbox = container.querySelector("[data-waiting-list]")!;
     expect(inbox.querySelectorAll("li")).toHaveLength(5);
     // The panel says how many it is keeping back rather than silently keeping
-    // five of nine (doc 21's "As built").
+    // five of nine (doc 14's "As built").
     fireEvent.click(within(inbox as HTMLElement).getByRole("button", { name: "Show 4 more" }));
     expect(inbox.querySelectorAll("li")).toHaveLength(9);
   });

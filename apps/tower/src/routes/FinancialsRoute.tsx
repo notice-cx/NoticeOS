@@ -83,7 +83,7 @@ const SERIES = {
 } as const satisfies Record<string, Omit<HeroSeries, "points">>;
 
 /**
- * /financials — **am I making money, and where?** (doc 21, bead `ro-78qo.16`).
+ * /financials — **am I making money, and where?** (doc 14, bead `ro-78qo.16`).
  *
  * ONE QUESTION, AND THE FIRST SCREEN IS THE WHOLE ANSWER. Until this rebuild
  * the page opened on five stacked cards of the same weight — a hatched bar
@@ -95,10 +95,9 @@ const SERIES = {
  * READ ONE CELL AT A TIME — the month table, the cost breakdown, the two
  * registers — is a collapsed panel underneath.
  *
- * AND NOTHING ON IT IS A PARAGRAPH (bead `ro-ujb9.96.6.9`, doc 21 principle
+ * AND NOTHING ON IT IS A PARAGRAPH (bead `ro-ujb9.96.6.9`, doc 14 principle
  * 3a). The About, the known-gaps panel and five tooltips carried seven
- * paragraphs; each fact is now a shape on the figure it qualifies, and the
- * prior art for each pattern is docs/briefs/financials.md.
+ * paragraphs; each fact is now a shape on the figure it qualifies.
  *
  * TWO-TIER BY CONSTRUCTION, and it is the reason this page exists rather than a
  * per-asset margin column on the Wall. Most of the portfolio's cost pays for
@@ -108,7 +107,7 @@ const SERIES = {
  * subtracts once, visibly. A single blended margin per asset would look more
  * finished and be less true.
  *
- * THE MONTH IS THE PAGE'S RANGE (doc 21 gives every surface one range control;
+ * THE MONTH IS THE PAGE'S RANGE (doc 14 gives every surface one range control;
  * on an accounting page that control is the month, not `7d · 28d · 90d`). It
  * lives in the URL, never in component state: a month is then a LINK the
  * operator can send, a bookmark that survives a reload, and a back button that
@@ -328,7 +327,7 @@ function FirstRun({ data }: { data: FinancialsPayload }) {
 }
 
 /**
- * Which month the page describes — doc 21's page-wide range, in the grain an
+ * Which month the page describes — doc 14's page-wide range, in the grain an
  * accounting page has (bead `ro-69vb`).
  *
  * A NATIVE `<select>`, not a `RangeSelector`. The options are a plain list of
@@ -372,7 +371,7 @@ function PeriodPicker({
 }
 
 /**
- * A collapsed card (doc 21 principle 3: everything read one cell at a time
+ * A collapsed card (doc 14 principle 3: everything read one cell at a time
  * lives behind a disclosure).
  *
  * IT MOUNTS ITS BODY ONLY WHEN OPEN, which is the difference between a page
@@ -402,7 +401,7 @@ function Panel({
   className?: string;
   /** A register deliberately shown on a view route — the audit's own opt-out
    * (`scripts/README.md`), so the owner chips inside it are not counted as the
-   * chips doc 21 keeps off a view surface. */
+   * chips doc 14 keeps off a view surface. */
   configSurface?: boolean;
   /** A `data-panel` handle, so a test addresses a panel by what it is rather
    * than by the words in its header. */
@@ -445,7 +444,7 @@ function Panel({
   );
 }
 
-/** A net is a level, not a trend (doc 21 principle 5; D45): ink for any
+/** A net is a level, not a trend (doc 14 principle 5; D45): ink for any
  * amount, muted for a loss or nothing — never green for being positive and
  * never red: an asset that has not been given a revenue source has not failed
  * at anything. */
@@ -574,7 +573,7 @@ function Ledger({ data }: { data: FinancialsPayload }) {
       {/* ONE ANSWER FIRST (D45): the month's net in a sentence, the pace
           Home and the TV say under it while the month is open, and revenue,
           cost and what is confirmed beside it. A cost nobody recorded is a
-          dash, never $0 (doc 21 principle 8). */}
+          dash, never $0 (doc 14 principle 8). */}
       <MoneyAnswer shown={shown} shownIsOpen={shownIsOpen} costRecorded={costRecorded} settled={settled} wall={wall} />
 
       {data.dailyRevenue ? <PortfolioRevenue history={data.dailyRevenue} sites={sites} /> : null}
@@ -636,7 +635,7 @@ function Ledger({ data }: { data: FinancialsPayload }) {
       ) : null}
 
       {/* THE TWO REGISTERS ARE DELIBERATELY ON A VIEW PAGE (bead `ro-x5gu.2`),
-          which is what `data-config-surface` declares: doc 21 keeps owner chips
+          which is what `data-config-surface` declares: doc 14 keeps owner chips
           and config paths off view surfaces, and these two tables ARE the files
           — correcting a price here is the whole reason they were brought onto
           the page that spends them. */}
@@ -662,7 +661,7 @@ function Ledger({ data }: { data: FinancialsPayload }) {
           is Reconciled's second number and bar; the two-tier read is the
           by-asset table's own direct / overhead / net rows; an asset nothing
           reported revenue for is a dash; a domain about to renew wears a
-          chip. Prior art: docs/briefs/financials.md. */}
+          chip. */}
     </>
   );
 }
@@ -705,14 +704,14 @@ function MoneyAnswer({ shown, shownIsOpen, costRecorded, settled, wall }: {
 }
 
 /**
- * WHERE THE MONEY IS, asset by asset — the page's one visible table (doc 21's
+ * WHERE THE MONEY IS, asset by asset — the page's one visible table (doc 14's
  * index template: one `Table` or one `ListPanel`).
  *
  * TWO SHAPES, TWO QUESTIONS (bead `ro-78qo.29`). The share bar answers which
  * asset is carrying THIS month; on a portfolio where one asset is essentially
  * all the revenue that answer is known before the page loads, and the second
  * question — which one is getting BETTER — is the interesting one. Only a
- * series can answer it, so doc 21 puts a net-by-month `Sparkline` in every row.
+ * series can answer it, so doc 14 puts a net-by-month `Sparkline` in every row.
  */
 function PropertySplit({
   properties,
@@ -809,7 +808,7 @@ function PropertySplit({
                     columns beside it cannot answer, however carefully they are
                     read. The line is MUTED: net's movement is not a verdict,
                     and an asset with no revenue source wired has not failed at
-                    anything (doc 21). `average={false}` because these are
+                    anything (doc 14). `average={false}` because these are
                     monthly points, and there is no noise in six of them to
                     smooth away. */}
                 <TableCell label="Net · by month" dropWhenStacked>
@@ -1090,7 +1089,7 @@ function MonthlyTable({
               </TableCell>
               {/* The row's own shape: net up to and including this month, so a
                   reader scanning down sees the trajectory the chart draws
-                  without leaving the table (doc 21's `Sparkline` cell). */}
+                  without leaving the table (doc 14's `Sparkline` cell). */}
               <TableCell label="Net to date" className="text-right" dropWhenStacked>
                 {index >= 2 ? (
                   <Sparkline

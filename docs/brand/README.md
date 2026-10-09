@@ -28,7 +28,7 @@ Its palette and fonts come from
 [brand/notice.css](../../apps/tower/public/brand/notice.css), the shared
 identity source. Product-specific state scales and application aliases live
 in [index.css](../../apps/tower/src/index.css). Do not copy color values into
-components. The [UI standards](../14-ui-standards.md#the-notice-identity-d35)
+components. The [UI standards](../14-design.md#the-notice-identity-d35)
 define component reuse, operational meaning and the measured distances
 between the brand blue and every meaning-bearing colour.
 

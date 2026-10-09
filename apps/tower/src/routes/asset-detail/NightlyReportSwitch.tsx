@@ -21,7 +21,7 @@ export function declaresNoReport(asset: Pick<AssetInfo, "id">, wiring: Pick<Wiri
  * state: the rows under it — how the report arrives, its endpoint, auth,
  * schedule, last report and freshness — describe an obligation the operator
  * declared away, and a card that said "No report" above "The asset sends it"
- * would be two statuses for one subject (doc 21). Switching back to Expected
+ * would be two statuses for one subject (doc 14). Switching back to Expected
  * brings them back unchanged.
  */
 export function NightlyReportScope({

@@ -57,8 +57,8 @@ export function SegmentBar({
         className,
       )}
       data-segment-bar
-      // A NUMBER'S SHAPE, DECLARED (doc 21, bead `ro-78qo.6`). The surface
-      // audit asks every `[data-kpi]` for a series, because doc 21 says a
+      // A NUMBER'S SHAPE, DECLARED (doc 14, bead `ro-78qo.6`). The surface
+      // audit asks every `[data-kpi]` for a series, because doc 14 says a
       // number that CAN have one must show it. Some cannot: an inbox posture
       // and an open-alert count are point-in-time totals with no history to
       // draw, and what they have instead is a composition — how the total

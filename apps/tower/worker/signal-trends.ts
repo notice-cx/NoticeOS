@@ -24,7 +24,7 @@ export const WALL_SIGNAL_CHART_DAYS = 28;
  * SEVEN UNTIL `ro-78qo.35`, WHEN IT BECAME SIXTY-TWO. Seven was enough for the
  * one job context had: a rolling seven-day average whose first visible point is
  * already an average rather than a stub. But /assets reads this same payload
- * and doc 21 gives every surface a 7 · 28 · 90 range, and there was no third
+ * and doc 14 gives every surface a 7 · 28 · 90 range, and there was no third
  * range to offer — a 90d button drawing 28 days of line would be the page lying
  * about its own window.
  *

@@ -156,7 +156,7 @@ const SCOPE_NOTE: Record<string, string> = {
 /**
  * One provider: what state its credential is in, which assets it serves, and
  * the three things an operator can do to it — connect, test, disconnect (bead
- * `ro-vu8d.2`, doc 15 flow C).
+ * `ro-vu8d.2`, doc 14 flow C).
  *
  * NOTHING IS EVER ECHOED BACK. The API returns field names and timestamps only,
  * so after a save the card shows *set*, never the value — and Reconnect opens
@@ -166,7 +166,7 @@ const SCOPE_NOTE: Record<string, string> = {
  * DISCONNECT IS THE ONE CONFIRM HERE. D18's rule is undo over confirm, and
  * Connect follows it. Disconnect cannot: there is nothing to undo back TO — the
  * plaintext is gone the moment the row is deleted — and it silently stops every
- * lane the credential powers, which is the case doc 15 principle 5 sends to
+ * lane the credential powers, which is the case doc 14 principle 5 sends to
  * principle 1 instead. So it names the sites that stop and asks once
  * (`ConnectionActions`, bead `ro-ujb9.96.7.10`) — beside Replace, at the top of
  * the card, on every step: the connection's actions live on the connection.
@@ -627,7 +627,7 @@ function Verdict({
     // A credential that is stored and has never been used. This is the state a
     // card is in the SECOND after Save, because a PUT resets the outcome
     // columns — what an old key proved says nothing about the new one — and it
-    // is a designed answer rather than a blank slot (doc 15 principle 2): the
+    // is a designed answer rather than a blank slot (doc 14 principle 2): the
     // hollow ring says *no reading yet*, and Test connection is right there.
     return (
       <VerdictLine tone="unknown" at={null} nowMs={nowMs} testId="stored-verdict">
@@ -755,9 +755,9 @@ function ProbeFixPress({
 }
 
 /** Glyph, sentence, time — in that order, so the verdict is read before it is
- * parsed. The time is relative with the exact stamp on hover (doc 15
+ * parsed. The time is relative with the exact stamp on hover (doc 14
  * principle 7); an absent time simply is not drawn, rather than becoming a
- * dash (doc 17 rule 6). `unknown` is muted and takes no color from the
+ * dash (doc 14 rule 6). `unknown` is muted and takes no color from the
  * connectivity scale: *nobody has checked* is not a health reading. */
 const VERDICT_TONE = {
   ok: { icon: Check, ink: "text-connected" },
@@ -830,7 +830,7 @@ function Provenance({
 }
 
 /**
- * The countdown (bead `ro-vu8d.8`, doc 15 flow C step 4).
+ * The countdown (bead `ro-vu8d.8`, doc 14 flow C step 4).
  *
  * WARN-TONED ONLY INSIDE THE WINDOW. A date fourteen months out is provenance,
  * not attention, and an amber chip on it would send the operator to fix
@@ -840,7 +840,7 @@ function Provenance({
  * the date has passed. No new token, no fourth severity.
  *
  * IT COUNTS, IT DOES NOT DATE. "in 6 days" is the fact an operator acts on;
- * the exact instant is on hover, which is doc 15 principle 7's own rule for
+ * the exact instant is on hover, which is doc 14 principle 7's own rule for
  * every other time on this desk. Days are FLOORED, so the chip reads 0 days
  * only on the final day rather than rounding up to 1 and going quiet a day
  * early. Composes `StateChip` — the registry has the chip, this is the
@@ -888,7 +888,7 @@ function ExpiryChip({ expiry, subject }: { expiry: CredentialExpiryReading; subj
  * NEVER INVENT A DATE, in three shapes:
  *
  *  - `never` — the provider states no lifetime, so the value is "No expiry
- *    date" and there is nothing to edit. Doc 15 flow C step 4 asks for a
+ *    date" and there is nothing to edit. doc 14 flow C step 4 asks for a
  *    warning at T-14d; a form that only ever collected a guess would be a
  *    warning built on one.
  *  - `operator` — nobody but the operator knows, so the value is their date,
@@ -1161,7 +1161,7 @@ interface BudgetLine {
 /**
  * HOW MUCH OF THE BUDGET IS LEFT (beads `ro-vu8d.25`, `ro-qpas`).
  *
- * Doc 15 flow C step 3 asked for this the day it was written — "Clarity: 7/10
+ * doc 14 flow C step 3 asked for this the day it was written — "Clarity: 7/10
  * calls left today", so the operator never wonders why a data source paused —
  * and until now the cards explained their caps in PROSE instead, which is what
  * the OS says when it cannot show a number.

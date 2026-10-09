@@ -12,7 +12,7 @@ applies and what setup/proof is known.** Current health for automated lanes is
 observed from collector runs; it is not a switch in this file. This register is
 the living form of the "inventory pending"
 that [decisions.md](decisions.md) D5 (revenue plumbing) and D8 (analytics
-inventory) point at, and the substrate [doc 15](../docs/15-operator-flows.md)
+inventory) point at, and the substrate [doc 14](../docs/14-design.md)
 flow C (guided integration setup + validation probes) reads.
 
 This register is config, not data. It changes in the store (D22), from a
@@ -53,7 +53,7 @@ success gray or keep an errored collector green.
 - **`needs-setup`** — relevant to this asset but not yet consumable by the OS
   (creds/cron/wiring missing, or blocked upstream on a provider approval).
 - **`skipped`** — relevant but **operator-declined for now. REASON REQUIRED**
-  in the `note` ([doc 11](../docs/11-integrations.md); [doc 15](../docs/15-operator-flows.md)
+  in the `note` ([doc 11](../docs/11-integrations.md); [doc 14](../docs/14-design.md)
   flow A). Renders as a hollow notch. Distinct from `not-applicable`: you can
   only decline something that was on the table.
 - **`not-applicable`** — the catalog says this lane never applies to this asset
@@ -144,7 +144,7 @@ success gray or keep an errored collector green.
 
 ## Scope — the register stores obligations, not the whole grid
 
-*(added 2026-08-04, bead `ro-9mx`; doc 19 finding 12.)*
+*(added 2026-08-04, bead `ro-9mx`.)*
 
 Each catalog row declares **`scope`**, which side of the portfolio the lane can
 attach to at all:

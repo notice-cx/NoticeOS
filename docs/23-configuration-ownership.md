@@ -10,8 +10,8 @@ may belong to several workspaces. Assets, evidence, integration connections,
 tasks and workflow activity stay with their owning workspace in every request,
 background job and export. A deployment can serve one workspace or many.
 
-The owner approved this direction on 2026-10-01 after the
-[comparative research](briefs/2026-10-01-hosted-tenancy-research.md), including
+The owner approved this direction on 2026-10-01 after comparative research
+of hosted tenancy models, including
 invitation-only customer onboarding and an open, read-only public demo. D39 in
 the [decision register](../config/decisions.md) supersedes the old prohibition
 on hosted accounts. D27's shared Postgres schema and D32's Beads/Dolt authority
@@ -24,8 +24,8 @@ current access boundary until an explicitly approved activation.
 
 ## Research baseline and current source
 
-The 2026-10-01 [source audit](briefs/2026-10-01-hosted-tenancy-research.md#noticeos-source-audit-at-the-research-baseline)
-at `e2393a239024ac305385da6358b29c9e6bc54535` establishes the starting point:
+The 2026-10-01 source audit at `e2393a239024ac305385da6358b29c9e6bc54535`
+establishes the starting point:
 
 - The [Postgres schema](../db/postgres/migrations/0001_baseline.sql) already has
   workspace-leading keys and relationships, forced row security, and a

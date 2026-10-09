@@ -50,7 +50,7 @@ export function firstClause(text: string, max = MARK_LABEL_MAX): string {
  * row's type rather than what happened, which is the one thing a mark is for.
  *
  * A lifecycle move carries no note at all: it is a `config` row whose ref
- * encodes the move, and doc 17 says the sentence renders and the ref never does.
+ * encodes the move, and doc 14 says the sentence renders and the ref never does.
  */
 export function timelineAnnotations(
   items: readonly AnnotationItem[],
@@ -139,7 +139,7 @@ export interface PanelProps {
 }
 
 /**
- * THE BLOCK THAT IS THIS SURFACE'S ANSWER (doc 21; `scripts/README.md`'s table
+ * THE BLOCK THAT IS THIS SURFACE'S ANSWER (doc 14; `scripts/README.md`'s table
  * of the marks the audit reads).
  *
  * `surface:audit` measures this element's bottom edge against 900px, and a
@@ -171,13 +171,13 @@ export function Hero({ children, id }: { children: ReactNode; id?: string }) {
  * five of these tabs also hold sections that are a form, a table or a strip.
  * Drawn with `SectionCard` those sat beside a `ListPanel` in a different radius,
  * a different heading weight and a drop shadow — the "one card style" rule
- * broken on the very screens doc 21 was written for. So this is deliberately
+ * broken on the very screens doc 14 was written for. So this is deliberately
  * `ListPanel`'s own header, spacing and shell with the row list swapped for
  * whatever the section holds: put the two side by side and the only difference
  * is the content.
  *
  * It is not a second `SectionCard`. `SectionCard` keeps its `subtitle` — a
- * paragraph under every heading — which is the exact thing doc 21 moves behind
+ * paragraph under every heading — which is the exact thing doc 14 moves behind
  * `About`, and it stays only until the Overview and Growth rebuilds retire their
  * last callers.
  */
@@ -225,7 +225,7 @@ export function SubHeading({ children }: { children: ReactNode }) {
  * A section header's age. With a cadence to be stale against it IS `AgeBadge`;
  * without one there is nothing to turn amber, so it renders the plain age.
  *
- * ABSENCE IS A WORD, NOT A DASH (bead `ro-kukv.12`, doc 17 rule 6). This slot
+ * ABSENCE IS A WORD, NOT A DASH (bead `ro-kukv.12`, doc 14 rule 6). This slot
  * sits in a section header beside its own title — a labelled value slot, not a
  * dense table cell — so the em-dash it used to print read as a rendering
  * failure rather than as "nothing has been recorded here". `formatAge` keeps

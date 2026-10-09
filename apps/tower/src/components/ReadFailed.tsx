@@ -31,7 +31,7 @@ export interface ReadFailedProps {
  * bead `ro-78qo.2`).
  *
  * Home, Sites, Alerts, Tasks and the Wall said "Waiting for the store…" when
- * their read failed — a patient wait over a problem (docs/19 finding 15: a failed read
+ * their read failed — a patient wait over a problem (the 2026-07 audit's finding 15: a failed read
  * never looks like loading or empty). This is the one state every page draws
  * instead: the error dot, what could not be loaded, why as a fact (the HTTP
  * status, or no answer), and Try again. No sentence. The asset page drew the

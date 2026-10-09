@@ -496,7 +496,7 @@ describe("the task page", () => {
     expect(within(activity).getByText("Comment from Example Operator")).toBeInTheDocument();
   });
 
-  // `ro-kukv.12`, doc 17 rule 6. Every place `Age` renders pairs it with a word
+  // `ro-kukv.12`, doc 14 rule 6. Every place `Age` renders pairs it with a word
   // that needs it — created, updated, an author, an event label — so all four
   // are labelled value slots rather than the dense table cells rule 6 exempts.
   // A bare em-dash after "created" reads as a rendering failure; the phrase

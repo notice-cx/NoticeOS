@@ -176,7 +176,7 @@ could be replaced and never removed and the asset could not go back to reading
 its fallback source. It is also what makes a **first save undoable at all** —
 the way back from writing a key is taking it away, and until this op there was
 none, so the Sources tab was the one Save surface in the Tower with no Undo
-(against [doc 15](../../docs/15-operator-flows.md) principle 5).
+(against [doc 14](../../docs/14-design.md) principle 5).
 
 An **insert** is deliberately not legal there. A field's first value is a set
 that says `expectAbsent`, so an insert has nothing to do at a field, and
@@ -491,7 +491,7 @@ CHANGESET
 
 Pipeline, in order: **parse → schema-validate → safety allowlist → resolve +
 `expect` check → human diff → y/N → apply → archive → commit hint**. Nothing is
-written until the prompt is answered `y` (doc 15 principle 1: show, then ask).
+written until the prompt is answered `y` (doc 14 principle 1: show, then ask).
 The lane runs the identical steps minus the diff and the prompt, and makes the
 commit itself instead of printing the command — a Save in a browser has already
 been chosen, and the way back is the Undo in its toast (principle 5).

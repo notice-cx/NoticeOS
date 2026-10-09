@@ -2166,8 +2166,7 @@ test('caps the page at eight cards and keeps the most severe ones', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Fixes from the 2026-07-31 meals.example signal audit
-// (docs/briefs/2026-07-31-meals-signal-audit-fixes.md). Every guard below was
+// Fixes from the 2026-07-31 signal audit. Every guard below was
 // wrong in production on real archive rows, so each one is pinned firing, silent
 // on the artifact it now recognizes, and silent when its family is absent.
 // ---------------------------------------------------------------------------
@@ -3196,7 +3195,7 @@ test('keeps a blank LLM-mention platform row unknown instead of reporting zero (
   assert.equal(evidenceValue('ChatGPT mentions'), '5');
 });
 
-// --- reclamation match (docs/playbooks/reclamation-pipeline.md) -------------
+// --- reclamation match ------------------------------------------------------
 /** GA4 reports a referral as `host / referral` in the same source/medium string
  * it uses for `google / organic`. */
 function trafficSourceRows(bySourceMedium, date = '2026-07-28') {

@@ -12,8 +12,7 @@ import { TEMPLATE_DATABASE, parsePortRange, postgresRequired, startTestCluster, 
 import { attachTestCluster } from './postgres-test-copies.mjs';
 
 // THE WAY A WORKER REACHES A THROWAWAY POSTGRES, AND A TEST RUN'S STORES
-// (the Postgres port pattern, docs/briefs/2026-09-29-postgres-port-pattern.md;
-// epic ro-ujb9.76).
+// (epic ro-ujb9.76).
 //
 //   - STATIC, always: the loopback mode lets in over TCP only noticeos_app,
 //     only from 127.0.0.1, only by password, and refuses a port it may not

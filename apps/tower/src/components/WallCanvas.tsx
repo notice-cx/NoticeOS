@@ -25,7 +25,7 @@
 // charts are not redrawn sixty times a minute: everything else ages off the
 // Wall's slow clock.
 //
-// D28 (bead `ro-trai.11`, docs/25-the-wall.md): the five widgets below are the
+// D28 (bead `ro-trai.11`, docs/14-design.md): the five widgets below are the
 // whole library. The old Wall's alert rail, portfolio and System cards, time
 // panels and asset cards are retired types a saved layout may still name;
 // `parseWallConfig` draws the default in their place, so none reaches here.
@@ -301,7 +301,7 @@ export function WallCanvas({
 
   // A PORTRAIT SCREEN IS ONE COLUMN IN THE ORDER A PERSON READS THE BUSINESS
   // (operator 2026-09-23, beads ro-trai.24, ro-trai.29 and ro-trai.31,
-  // docs/25-the-wall.md § Laptop, tablet and phone). On a portrait tablet or a
+  // docs/14-design.md § Laptop, tablet and phone). On a portrait tablet or a
   // phone the rows and columns above dissolve and every widget is one region
   // of the canvas's column, full width, placed by its type's `stackOrder`: the
   // strip, revenue, the site rows, Needs you, the feed — whatever arrangement

@@ -265,8 +265,8 @@ instructions. Reuse [project setup](../project-setup.md), separating local runti
 installation from connecting a repository or a remote reviewer.
 
 A search-facing recommendation still needs the site's context pack, current
-source and [freeze register](../freeze-register.md) or an authoritative versioned
-representation of them. Panel access alone is not permission to change a site
+source and any open measurement window recorded in its task hub, or an
+authoritative versioned representation of them. Panel access alone is not permission to change a site
 inside a measurement window. Do not recreate repository policy as stale MCP
 instructions.
 
@@ -310,6 +310,5 @@ adds no production access, migrations, deployment, credential changes, paid
 collection, budget or push authorization.
 
 Update durable API/panel/setup documentation when each behavior becomes real.
-When this project's contract has been accounted for, follow the
-[audit-then-delete rule](../../config/beads.README.md#docs-are-not-registers--every-project-doc-has-a-lifecycle-ending-in-deletion)
+When this project's contract has been accounted for, delete this brief
 instead of leaving a stale implementation plan behind.

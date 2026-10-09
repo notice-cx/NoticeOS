@@ -40,7 +40,7 @@ function agentBlock(repo, sourceRoot) {
   const link = path.relative(repo, path.join(sourceRoot, 'config/beads.README.md')).split(path.sep).map(encodeURIComponent).join('/');
   return `${BEGIN}\n## NoticeOS project context\n\n` +
     `Read the [NoticeOS task-hub contract](${link}) before task work.\n` +
-    'Read `docs/freeze-register.md` before changing any measured surface. Unknown measurement state blocks a verdict.\n' +
+    'Before changing a measured surface, check the project\'s open readback beads for an active measurement window.\n' +
     'Keep this project\'s goals, verification commands, protected operations and dated STATE in its own context pack.\n' +
     'Production reads and writes require the owner\'s explicit approval for the exact target, action and verification.\n' +
     'Provider credentials are connected in NoticeOS. This repository never pulls external analytics about itself.\n\n' +
@@ -68,9 +68,6 @@ export async function projectContextPlan(repo, { run = runCommand, env = process
   if (root.code !== 0 || root.stdout.trim() !== repo) refuse();
   const tracked = await run('git', ['-C', repo, 'ls-files', '-z', '--', '.beads', '.beads.gate.lock'], { cwd: repo, env: ownEnv });
   if (tracked.code !== 0 || tracked.stdout !== '') refuse();
-  const docs = path.join(repo, 'docs');
-  const docsStat = fs.lstatSync(docs, { throwIfNoEntry: false });
-  if (docsStat) regularDirectory(docs);
   const changes = [];
   const add = (relative, before, text) => {
     if (before?.text !== text) changes.push({ relative, before, text });
@@ -86,9 +83,6 @@ export async function projectContextPlan(repo, { run = runCommand, env = process
   const suffix = `# Local NoticeOS task connection\n${IGNORE.join('\n')}\n`;
   const oldIgnore = ignore?.text ?? '';
   if (!oldIgnore.endsWith(suffix)) add('.gitignore', ignore, `${oldIgnore}${oldIgnore && !oldIgnore.endsWith('\n') ? '\n' : ''}${suffix}`);
-  const freeze = contents(path.join(docs, 'freeze-register.md'));
-  if (freeze === null) add('docs/freeze-register.md', null, fs.readFileSync(path.join(sourceRoot, 'docs/templates/project-freeze-register.md'), 'utf8'));
-  // Existing measurement state is never replaced or interpreted here.
   const gate = path.join(repo, '.beads.gate.lock');
   const gateStat = fs.lstatSync(gate, { throwIfNoEntry: false });
   if (gateStat && (!gateStat.isFile() || gateStat.isSymbolicLink() || gateStat.nlink !== 1 || gateStat.uid !== process.getuid() || (gateStat.mode & 0o077))) refuse();
@@ -97,7 +91,7 @@ export async function projectContextPlan(repo, { run = runCommand, env = process
     regularDirectory(path.join(repo, '.beads'));
     if (!gateStat) changes.push({ relative: '.beads.gate.lock', before: null, text: '', mode: 0o600 });
   }
-  return { repo, changes, createDocs: !docsStat && changes.some(change => change.relative.startsWith('docs/')) };
+  return { repo, changes };
 }
 
 export async function prepareProjectContext(repo, { write = false, ...options } = {}) {
@@ -108,7 +102,6 @@ export async function prepareProjectContext(repo, { write = false, ...options } 
       const current = contents(path.join(repo, change.relative));
       if ((current?.text ?? null) !== (change.before?.text ?? null)) refuse();
     }
-    if (plan.createDocs) fs.mkdirSync(path.join(repo, 'docs'));
     for (const change of plan.changes) {
       const file = path.join(repo, change.relative);
       regularDirectory(path.dirname(file));
@@ -131,8 +124,7 @@ export async function prepareProjectContext(repo, { write = false, ...options } 
       }
     }
   }
-  return { mode: write ? 'prepared' : 'check', files: plan.changes.map(change => change.relative),
-    tasks: 'not_checked', measurementState: 'owner_review_required' };
+  return { mode: write ? 'prepared' : 'check', files: plan.changes.map(change => change.relative), tasks: 'not_checked' };
 }
 
 export async function main(argv = process.argv.slice(2), { out = process.stdout, err = process.stderr, ...options } = {}) {

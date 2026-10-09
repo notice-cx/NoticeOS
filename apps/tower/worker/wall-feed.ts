@@ -1,7 +1,6 @@
 import { minorToMajorUnits } from '@noticeos/contract/money';
 // GET /api/wall/feed — what just happened, across the store (bead `ro-trai.6`,
-// docs/25-the-wall.md § Feed; sources are the brief's feed data inventory,
-// docs/briefs/2026-09-23-wall-rethink.md).
+// docs/14-design.md § Feed).
 //
 // A READ-ONLY UNION OF STORED EVENTS. Every line below comes from a row with a
 // timestamp: an alert that fired, a run that finished, a report that landed, a

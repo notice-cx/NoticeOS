@@ -315,7 +315,7 @@ function googleAnswers(items: { capability: string; state: "healthy" | "failing"
   };
 }
 
-// D28 (bead ro-trai.11, docs/25-the-wall.md § What leaves the Wall): the eight
+// D28 (bead ro-trai.11, docs/14-design.md § What leaves the Wall): the eight
 // source icons per site leave the Wall for the desk. Home keeps each source's
 // one status; the Wall draws no icon row, and a FAILING source becomes the
 // site's health bar and a specific Needs you concern — never an unproven one.
@@ -388,12 +388,12 @@ describe("Home shows each source's one status, and the Wall marks only a failing
 });
 
 /**
- * Home is a doc 21 surface since bead `ro-78qo.6`, so the assertions reach for
+ * Home is a doc 14 surface since bead `ro-78qo.6`, so the assertions reach for
  * the vocabulary's own marks rather than for a route's private class names: the
  * strip by `[data-kpi-strip]`, one KPI by its eyebrow, a panel by the accessible
  * name `ListPanel` puts on its section. A test written against the markup would
  * have to be rewritten the next time a component's box changes; these break only
- * when the COMPOSITION does, which is what doc 21 is about.
+ * when the COMPOSITION does, which is what doc 14 is about.
  */
 /** A `ListPanel` by its title — the accessible name it gives its own section. */
 function panelFor(name: string): HTMLElement {
@@ -402,7 +402,7 @@ function panelFor(name: string): HTMLElement {
 
 /** A `ListRow`'s tone, read off the ring that carries it. The glyph is
  * `aria-hidden`, so this is deliberately the one thing here read from a class:
- * doc 21 assigns the row's four tones and nothing else states which one a row
+ * doc 14 assigns the row's four tones and nothing else states which one a row
  * got. */
 const ROW_TONES = ["text-error", "text-warn", "text-healthy", "text-muted-foreground"];
 
@@ -774,11 +774,11 @@ describe("Home — a site still being set up", () => {
   });
 });
 
-/** Bead ro-78qo.6: `/` is doc 21's Home template — one strip, two `ListPanel`s,
+/** Bead ro-78qo.6: `/` is doc 14's Home template — one strip, two `ListPanel`s,
  * one assets table, prose behind one `About`. The four separate tiles it used to
  * open with (bead ro-pbzu.3) are the four cells of that strip now. */
 // Missing core hub readings are unknown, never an absent capability or all-clear.
-// D44 (doc 21 § Home — the Morning Brief): `/` opens with what changed since
+// D44 (doc 14 § Home — the Morning Brief): `/` opens with what changed since
 // the operator last looked — the greeting line, at most five highlight cards
 // with the first the big thing, Decide at three rows, the sites in seed order
 // and a finish line. The OS never describes itself here.
@@ -913,7 +913,7 @@ describe("Home — the Morning Brief (D44)", () => {
     expect(money.querySelector("[data-highlight-action]")).toHaveAttribute("href", "/financials");
 
     // No strip, and no OS self-talk: freshness, jobs and snapshots belong to
-    // System health (doc 17 altitude).
+    // System health (doc 14 altitude).
     expect(container.querySelector("[data-kpi-strip]")).toBeNull();
     expect(container.textContent).not.toMatch(/\bfresh\b|\bjobs?\b|snapshot|captured in preview/i);
 
@@ -927,7 +927,7 @@ describe("Home — the Morning Brief (D44)", () => {
     expect(screen.getByRole("link", { name: "All sites →" })).toHaveAttribute("href", "/assets");
   });
 
-  /** Doc 21 principle 3a: nothing on Home needs a paragraph, so there is no
+  /** doc 14 principle 3a: nothing on Home needs a paragraph, so there is no
    * About to hide one in. */
   it("needs no About: its facts are on the cards they qualify", () => {
     const { container } = renderHome();
@@ -1088,7 +1088,7 @@ describe("Home — Decide (D44)", () => {
     const rows = within(panelFor("Decide")).getAllByRole("listitem");
     expect(rows).toHaveLength(2);
     // A gate holds work out of the ready queue, so it leads regardless of its
-    // own priority band — and reaches the operator as what it DOES (doc 17),
+    // own priority band — and reaches the operator as what it DOES (doc 14),
     // with Approve on the row (Linear Triage, in the brief's prior art).
     expect(rows[0]).toHaveTextContent("Approve the spend cap");
     expect(rows[0]).toHaveTextContent("needs your approval");
@@ -1276,7 +1276,7 @@ describe("Home and Wall phase scoping", () => {
     expect(screen.queryByRole("link", { name: "TV dashboard" })).toBeNull();
   });
 
-  // D28 (bead ro-trai.11, docs/25-the-wall.md § Regions): with nothing saved,
+  // D28 (bead ro-trai.11, docs/14-design.md § Regions): with nothing saved,
   // the route draws the strip, then a column of revenue beside Needs you over
   // the site rows, beside the full-height feed — and no header row above it.
   it("draws D28 when nothing is saved: the strip, revenue beside Needs you over the sites, the feed beside", () => {

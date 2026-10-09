@@ -54,13 +54,13 @@ const ROW =
 
 /**
  * How the site region is drawn, by the number of sites alone
- * (docs/25-the-wall.md § Density): one site in depth (`focus`), two or three
+ * (docs/14-design.md § Density): one site in depth (`focus`), two or three
  * in taller rows with larger charts (`comfortable`), four and more in
  * compact rows. Both row tiers fill the region.
  */
 export type SiteRowDensity = "focus" | "comfortable" | "compact";
 
-/** The site counts the tiers stop at — doc 25's Density table, in code. */
+/** The site counts the tiers stop at — doc 14's Density table, in code. */
 export const FOCUS_SITES = 1;
 export const COMFORTABLE_MAX_SITES = 3;
 

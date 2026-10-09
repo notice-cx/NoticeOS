@@ -51,7 +51,7 @@ describe('createAsset — what a wizard may bring into being', () => {
         id: NEW_ID,
         domain: 'brandnew.test',
         displayName: 'Brand New',
-        // docs/15-A: a new asset starts onboarding, observing only.
+        // docs/14-design.md § Operator flows: a new asset starts onboarding, observing only.
         status: 'onboarding',
         senseOnly: 1,
         isOs: 0,

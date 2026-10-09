@@ -6,7 +6,7 @@
 // may vanish (`hidesWhenEmpty` in `shared/wall-layout`); this answers WHETHER
 // one of them has anything today.
 //
-// D28's five widgets all draw their own empty state (docs/25-the-wall.md §
+// D28's five widgets all draw their own empty state (docs/14-design.md §
 // Regions, "Hides when empty"), so none may vanish today (bead `ro-trai.11`).
 // The rule stays because the renderer's hiding does: a widget added with
 // `hidesWhenEmpty` must answer here, or the build's first render says so.

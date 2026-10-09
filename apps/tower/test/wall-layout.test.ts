@@ -87,7 +87,7 @@ const PRE_D28 = {
   ],
 };
 
-describe("the default layout is D28 (docs/25-the-wall.md § Regions)", () => {
+describe("the default layout is D28 (docs/14-design.md § Regions)", () => {
   it("is the strip, then a column of revenue beside Needs you over the sites, beside the feed", () => {
     expect(DEFAULT_WALL_LAYOUT.rows.map((r) => [r.id, r.height])).toEqual([
       ["strip", "auto"],
@@ -383,7 +383,7 @@ describe("versions", () => {
   });
 });
 
-// Bead ro-trai.2 (docs/25-the-wall.md § Regions): a column stacks rows inside a
+// Bead ro-trai.2 (docs/14-design.md § Regions): a column stacks rows inside a
 // row, one level deep, so one widget can run the full height beside several —
 // the default's own body.
 describe("a column slot", () => {

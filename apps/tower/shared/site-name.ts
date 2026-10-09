@@ -4,7 +4,7 @@
 // saved under has to come from somewhere the operator did not type. The domain
 // gives a starting name at once (`siteNameFromDomain`), and the site itself
 // gives a better one when it answers: Ahrefs fills a new project's name from
-// the page's title the same way (docs/briefs/2026-09-23-add-site.md#prior-art).
+// the page's title the same way.
 //
 // PURE, so the rules are pinned without a network: the Worker route
 // (`worker/site-name-route.ts`) fetches the page and hands the HTML here.

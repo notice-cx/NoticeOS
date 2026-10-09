@@ -13,13 +13,13 @@ export interface RangeSelectorProps {
 }
 
 /**
- * THE PAGE'S ONE RANGE (doc 21).
+ * THE PAGE'S ONE RANGE (doc 14).
  *
  * *Registry justification:* the desk had no page-wide range at all — every
  * chart carried its own "last 90 days" subtitle, so a surface answered its one
  * question over three different spans at once and nothing an operator changed
  * moved more than one card. This is the control that ends that: it sits in the
- * page header, and doc 21's acceptance is that changing it re-derives every
+ * page header, and doc 14's acceptance is that changing it re-derives every
  * delta, sparkline and chart below.
  *
  * It is a row of `pillChoice` toggles rather than a `<select>`: three options
@@ -58,7 +58,7 @@ export function RangeSelector({
               // in the shared chrome because a minimum width on every pill in
               // the product would pad out the ones that are already wider.
               "max-sm:min-w-11 max-sm:justify-center",
-              // The shared choice chrome animates its own colour; doc 21 asks
+              // The shared choice chrome animates its own colour; doc 14 asks
               // that nothing move for a reader who asked for less.
               "motion-reduce:transition-none",
             )}

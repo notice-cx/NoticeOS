@@ -7,9 +7,9 @@ import { beadsText, beadsInstant } from "./task-snapshot-values.mjs";
 // Doc 08 §S1b buys a live result page for a hand-picked set of head terms once
 // a week. Reading it is the whole point, and until now nothing made anybody:
 // nom's panel went three weeks unread. So a landing now files a bead in that
-// property's OWN tracker, due a week later, and
-// docs/playbooks/serp-opportunity-execution.md §"Panel review" says what
-// closing it requires.
+// property's OWN tracker, due a week later; closing it means every row went
+// through the decision rules and every gap was routed to a bead or a named
+// no-action rule (config/serp-panel.README.md).
 //
 // The panel is the ANCHOR, not the whole scope (ro-540.2). Everything else the
 // property collected that week — the 200-row ranked-keywords inventory, the

@@ -77,7 +77,7 @@ const VALIDITY_GLYPH: Record<RecommendationValidity["state"], typeof RefreshCw> 
 };
 
 /** The state as a neutral chip with its own glyph. Neutral on purpose: colour
- * is severity (doc 21), and a stale recommendation is not an alert. */
+ * is severity (doc 14), and a stale recommendation is not an alert. */
 export function ValidityChip({ validity, subject }: { validity: RecommendationValidity; subject: StatusSubject }) {
   const Glyph = VALIDITY_GLYPH[validity.state];
   return <StateChip tone="neutral" label={validity.label} glyph={<Glyph className="size-3" />} subject={subject}

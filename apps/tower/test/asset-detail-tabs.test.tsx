@@ -34,7 +34,7 @@ const NOW = Date.parse("2026-07-05T14:00:00.000Z");
  * on all of them, and the snapshot taken before the move is the snapshot after
  * it.
  *
- * It keeps earning its place afterwards: doc 21 rebuilds these tabs one at a
+ * It keeps earning its place afterwards: doc 14 rebuilds these tabs one at a
  * time, and a diff here says exactly which tab a change reached — a redesign
  * updates the recorded DOM deliberately (`vitest -u`), an accident does not.
  *

@@ -1,6 +1,5 @@
 // "IS THIS ONE OF THE INSTALLATION'S SITES?" — asked of the site list on
-// Postgres, `noticeos.assets`, through the call's store (bead ro-ujb9.76.4.2;
-// the port pattern, docs/briefs/2026-09-29-postgres-port-pattern.md).
+// Postgres, `noticeos.assets`, through the call's store (bead ro-ujb9.76.4.2).
 //
 // Every lane that takes a site id from a request checks it here first, so an
 // unknown id is a clean refusal naming it rather than a foreign-key failure

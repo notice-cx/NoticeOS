@@ -60,7 +60,7 @@ import { cn } from "@/lib/utils";
 
 const DEFAULT_VISIBLE_PAGES = 8;
 
-/** Doc 21's default for any list on a desk surface: three rows, then "All →". */
+/** doc 14's default for any list on a desk surface: three rows, then "All →". */
 const COLLAPSED_VISIBLE_PAGES = 3;
 
 /** The page-grain decision vocabulary (`ro-427`). Deliberately its own list
@@ -141,7 +141,7 @@ export function PageDecisions({
   /** The asset's change timeline: a release inside the comparison window is
    * the first likely cause of a click move. `null` names no release. */
   annotations?: AnnotationTimeline | null;
-  /** Doc 21's shape: the three biggest movers, each closed on its own evidence,
+  /** doc 14's shape: the three biggest movers, each closed on its own evidence,
    * with the rest one click away in place (bead `ro-78qo.4`). Same rows, same
    * actions, same order — only the default openness changes. */
   collapsed?: boolean;
@@ -284,7 +284,7 @@ export function PageDecisions({
             </details>
           ) : null}
           {/* Provenance BELONGS TO THE LIST, and says so with a rule rather than
-              a gap (doc 21, bead `ro-78qo.4`): collapsed, this drawer sat in the
+              a gap (doc 14, bead `ro-78qo.4`): collapsed, this drawer sat in the
               section gap with nothing tying it to anything. */}
           {collapsed ? (
             <div className="border-t border-border/60 pt-1">
@@ -466,7 +466,7 @@ function PageDecisionRow({
   if (collapsed) {
     return (
       <details
-        // NO TONE STRIPE (doc 21: one row style). The glyph and the decision
+        // NO TONE STRIPE (doc 14: one row style). The glyph and the decision
         // label carry the tone; a coloured left edge as well is the same fact in
         // a third encoding.
         className="group"
@@ -708,7 +708,7 @@ function PageEvidence({
  * limits of the grain. Both render, because a source that quietly drops either
  * is a source nobody can audit.
  *
- * A DRAWER, not a paragraph (doc 21, bead `ro-78qo.4`). Provenance is
+ * A DRAWER, not a paragraph (doc 14, bead `ro-78qo.4`). Provenance is
  * disclosure rather than headline — doc 14's "lead with the decision, disclose
  * implementation detail" — and these two caveats are four sentences of it
  * sitting under three rows the operator came here to read. The query list beside

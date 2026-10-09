@@ -1,5 +1,4 @@
-// ONE THROWAWAY POSTGRES FOR THE TOWER SUITE'S RUN (epic ro-ujb9.76; the
-// pattern is docs/briefs/2026-09-29-postgres-port-pattern.md).
+// ONE THROWAWAY POSTGRES FOR THE TOWER SUITE'S RUN (epic ro-ujb9.76).
 //
 // Started once, before any test file, in Vitest's own process, with the
 // template every test's store is copied from (scripts/postgres-test-cluster.mts).

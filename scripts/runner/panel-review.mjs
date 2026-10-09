@@ -183,11 +183,11 @@ export function panelReviewDescription(landing, { osCheckout = OS_CHECKOUT, inst
       : `all ${landing.queries} collected result pages`;
   return [
     `WHAT: The ${landing.panelDate} tracked-query SERP panel for ${landing.asset} has ` +
-      `landed, and the rest of that week's collection landed with it. Triage BOTH, ` +
-      `through the ${osCheckout} playbook docs/playbooks/serp-opportunity-execution.md: ` +
+      `landed, and the rest of that week's collection landed with it. Triage BOTH on ` +
+      `the panel's own evidence (docs/20-signal-panels.md in ${osCheckout} is the read contract): ` +
       `(1) the panel — walk ${size} (one per tracked term per device; the terms ` +
       `themselves are saved under ${settings}) through the ` +
-      `decision rules ("Panel review"); ` +
+      `decision rules (demand vs position, AI Overview citing us or not, decay); ` +
       `(2) the week's other fresh collections in the same panel dir — the ranked-keywords ` +
       `inventory, backlinks new/lost, the two LLM-mention families, and this property's ` +
       `own GSC / GA4 / Bing exports ("Inventory pass"). Every demand-vs-position gap, ` +
@@ -195,11 +195,11 @@ export function panelReviewDescription(landing, { osCheckout = OS_CHECKOUT, inst
       `that produces no bead gets the rule that closed it, named (institution-locked, ` +
       `AIO-cites-us-protect, too-young-to-read). A finding that maps to work already open ` +
       `is annotated on that bead, not filed again. Before any surface gets a verdict, ` +
-      `read THIS property's docs/freeze-register.md and run git log over the content ` +
-      `sources that produce that surface. A new bead must state the freeze state and ` +
-      `last ship date/commit; a target changed inside its measurement window is ` +
-      `too-recently-changed-to-verdict, so annotate the evidence on the freeze entry's ` +
-      `readback bead instead of filing new copy work.`,
+      `check THIS property's open readback beads for an active measurement window and ` +
+      `run git log over the content sources that produce that surface. A new bead must ` +
+      `state the measurement state and last ship date/commit; a target changed inside ` +
+      `its measurement window is too-recently-changed-to-verdict, so annotate the ` +
+      `evidence on that window's readback bead instead of filing new copy work.`,
     `WHY: The panel is bought every week to surface demand worth building against. A ` +
       `collection nobody triages is money spent on a report nobody reads — and the gap it ` +
       `would have named goes on costing traffic for every week it stays unread. The panel ` +
@@ -214,7 +214,7 @@ export function panelReviewDescription(landing, { osCheckout = OS_CHECKOUT, inst
       `bing-webmaster-* exports. The dir is kept current by the daily panel refresh, so ` +
       `nothing needs pulling. Read the saved terms at ${settings}. For a current local ` +
       `export, run pnpm config:export in ${osCheckout}; the terms are exported to ${exports.terms}. ` +
-      `Measurement state is in THIS property's docs/freeze-register.md; surface recency ` +
+      `Measurement state is THIS property's open readback beads; surface recency ` +
       `comes from git log in this repo, scoped to the content source paths rather than ` +
       `the repository as a whole.`,
     `Filed automatically by the OS runner (scripts/os-up.mjs) when the collection ` +
@@ -232,8 +232,9 @@ function collectionReviewDescription(landing, osCheckout, settings, exports) {
       : `${landing.families} DataForSEO report families`;
   return [
     `WHAT: The ${landing.panelDate} signal collection for ${landing.asset} has landed — ` +
-      `${bought} plus this property's own GSC / GA4 / Bing exports. Triage it through the ` +
-      `${osCheckout} playbook docs/playbooks/serp-opportunity-execution.md §"Inventory pass": ` +
+      `${bought} plus this property's own GSC / GA4 / Bing exports. Triage it on the ` +
+      `collection's own evidence (docs/20-signal-panels.md in ${osCheckout} is the read ` +
+      `contract) as one Inventory pass: ` +
       `the ranked-keywords inventory (what do we rank for AT ALL — cluster by URL, look at ` +
       `pages ranking 11-60 with real demand), backlinks summary and new/lost (is authority ` +
       `moving?), the two LLM-mention families (do the models mention us?), and the ` +
@@ -242,11 +243,11 @@ function collectionReviewDescription(landing, osCheckout, settings, exports) {
       `THIS tracker; every finding that produces no bead gets the rule that closed it, ` +
       `named (institution-locked, AIO-cites-us-protect, too-young-to-read). A finding that ` +
       `maps to work already open is annotated on that bead, not filed again. Before any ` +
-      `surface gets a verdict, read THIS property's docs/freeze-register.md and run git ` +
-      `log over the content sources that produce that surface. A new bead must state the ` +
-      `freeze state and last ship date/commit; a target changed inside its measurement ` +
-      `window is too-recently-changed-to-verdict, so annotate the evidence on the freeze ` +
-      `entry's readback bead instead of filing new copy work.`,
+      `surface gets a verdict, check THIS property's open readback beads for an active ` +
+      `measurement window and run git log over the content sources that produce that ` +
+      `surface. A new bead must state the measurement state and last ship date/commit; a ` +
+      `target changed inside its measurement window is too-recently-changed-to-verdict, so ` +
+      `annotate the evidence on that window's readback bead instead of filing new copy work.`,
     `WHY: This collection has no tracked-query SERP panel, and the property buys the ` +
       `rest of the collection every week anyway. Check its current saved terms at ${settings}. ` +
       `A collection nobody triages is money spent on a report nobody reads, and the gap it ` +
@@ -264,20 +265,20 @@ function collectionReviewDescription(landing, osCheckout, settings, exports) {
       `Run pnpm config:export in ${osCheckout} for current local exports: tracked terms ` +
       `in ${exports.terms}, refresh roster in ${exports.roster}. A missing or failed ` +
       `refresh needs investigation; that is a bead in the OS's own tracker, not a ` +
-      `reason to close this one. Measurement state is in THIS property's ` +
-      `docs/freeze-register.md; surface recency comes from git log in this repo, scoped ` +
+      `reason to close this one. Measurement state is THIS property's open readback ` +
+      `beads; surface recency comes from git log in this repo, scoped ` +
       `to the content source paths rather than the repository as a whole.`,
     `Filed automatically by the OS runner (scripts/os-up.mjs) when the collection ` +
       `landed.`,
   ].join('\n\n');
 }
 
-/** What "done" means — the same bar the playbook's reference close met. */
+/** What "done" means. */
 export const PANEL_REVIEW_ACCEPTANCE =
   'Every panel row, and every finding in the week\'s other collections, ends in either a ' +
   'bead in this tracker, an annotation on existing work, an evidence-to-readback ' +
-  'annotation for an active freeze, or a no-action note naming the rule that closed it. ' +
-  'Every filed bead names the target surface\'s freeze state and last content ship ' +
+  'annotation for an active measurement window, or a no-action note naming the rule that closed it. ' +
+  'Every filed bead names the target surface\'s measurement state and last content ship ' +
   'date/commit; this bead closes with a reason listing the beads filed, beads annotated, ' +
   'readback beads updated, and rows deliberately left alone.';
 
@@ -288,8 +289,8 @@ export const COLLECTION_REVIEW_ACCEPTANCE =
   'Every finding in the week\'s collection — ranked keywords, backlinks, LLM mentions, ' +
   'and the property\'s own GSC / GA4 / Bing exports — ends in either a bead in this ' +
   'tracker, an annotation on existing work, an evidence-to-readback annotation for an ' +
-  'active freeze, or a no-action note naming the rule that closed it. Every filed bead ' +
-  'names the target surface\'s freeze state and last content ship date/commit; this bead ' +
+  'active measurement window, or a no-action note naming the rule that closed it. Every filed bead ' +
+  'names the target surface\'s measurement state and last content ship date/commit; this bead ' +
   'closes with a reason listing the beads filed, beads annotated, readback beads updated, ' +
   'and findings deliberately left alone.';
 

@@ -63,7 +63,7 @@ export function Header({
             className="size-7"
           />
           {asset.displayName}
-          {/* THE VERDICT (D44, doc 21 § Asset · Overview): one word from the
+          {/* THE VERDICT (D44, doc 14 § Asset · Overview): one word from the
               one derivation Home's sites strip reads (`siteHealth`), in place
               of the bare severity dot — the word says what the dot meant and
               more (Setting up, Monitor only), and its hover keeps the count. */}

@@ -5,7 +5,8 @@
 // reader takes (`ctx.call`, test/sites.ts): its sites must be there
 // first, since every row names one. A test that writes gets that copy to
 // itself, so write in the tests that read money, never in a seed every test in
-// a file runs (docs/briefs/2026-09-29-postgres-port-pattern.md, section 7).
+// a file runs: a shared seed that writes Postgres gives every test its own
+// copy, and the suite queues on them.
 //
 // A fixture names its entries by D1-style ids (`id: 1`, `supersedes_id: 1`).
 // Those are the fixture's own names: the store hands out each entry's identity

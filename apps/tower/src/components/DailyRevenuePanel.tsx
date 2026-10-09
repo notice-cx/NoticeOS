@@ -39,7 +39,7 @@ export function DailyRevenuePanel({ history, range, title = 'Daily revenue', con
   const latest = history.days.at(-1);
   const currency = (value: number) => formatUsd(value, { cents: true });
   return <section aria-labelledby={id} data-daily-revenue className="min-w-0 overflow-hidden rounded-[10px] border border-border bg-card">
-    {/* Business altitude (doc 17, D45): ad revenue, not the network's name;
+    {/* Business altitude (doc 14, D45): ad revenue, not the network's name;
         the reporting day's clock (D42's dated basis) is one press away. */}
     <SectionLabel id={id} title={title} caption={<>Ad revenue · estimates <InfoTooltip label="About the reporting day">{`Days end at midnight ${MEDIAVINE_REPORTING_CLOCK.label} time`}</InfoTooltip></>} className="px-4 pt-3">{aside}</SectionLabel>
     <p className="px-4 pt-1 text-xs text-muted-foreground">{range === 0 ? 'Reporting has not started for this period.' : <>{formatCalendarDate(history.from)} – {formatCalendarDate(history.to)}</>}</p>

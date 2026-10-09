@@ -53,7 +53,7 @@ import { useAskActions } from "./ask-actions";
 import { PriorityMark, RestingMark, TaskStatusMark, askFace } from "./task-face";
 
 /**
- * THE TASK BOARD — doc 21's index template, on two surfaces.
+ * THE TASK BOARD — doc 14's index template, on two surfaces.
  *
  * `/tasks` renders it across every project (`TasksRoute`); an asset page's
  * **Tasks** tab renders the same component with `project` fixed to that asset.
@@ -65,7 +65,7 @@ import { PriorityMark, RestingMark, TaskStatusMark, askFace } from "./task-face"
  * section was individually reasonable and the page was **32,495px tall at 1440
  * and 132,918px on a phone, with 430 controls under the 44px thumb floor** —
  * the single worst surface in `surface:audit`'s baseline, on the page an
- * operator opens to decide what to do next. Doc 21's diagnosis applies exactly:
+ * operator opens to decide what to do next. doc 14's diagnosis applies exactly:
  * everything, all at once, in the same size.
  *
  * WHAT IT IS NOW, top to bottom:
@@ -79,7 +79,7 @@ import { PriorityMark, RestingMark, TaskStatusMark, askFace } from "./task-face"
  *   · every OTHER task as ONE `Table`, 25 rows at a time, each row one line
  *     that expands in place for its claim / close / defer.
  *
- * NO PARAGRAPHS (bead `ro-ujb9.96.6.11`, doc 21 principle 3a). The board used
+ * NO PARAGRAPHS (bead `ro-ujb9.96.6.11`, doc 14 principle 3a). The board used
  * to end in an About of six paragraphs and carry three banners that could be
  * open at once. Each fact is now shown by the state that owns it, once: a
  * read-only build is one `Read-only snapshot` banner; projects that could not
@@ -87,13 +87,13 @@ import { PriorityMark, RestingMark, TaskStatusMark, askFace } from "./task-face"
  * loading is a spinner beside the age badge; a count that is missing a project
  * is a lower bound (`12+`) rather than a caption repeated on six tiles.
  *
- * PAGED, NOT VIRTUALISED. Doc 21's acceptance asks for one or the other and for
+ * PAGED, NOT VIRTUALISED. doc 14's acceptance asks for one or the other and for
  * the reason to be written down. Paging keeps three things honest that a
  * windowed list does not: the browser's own find-in-page still reaches every
  * rendered row, a deep link to `/tasks/:id` never depends on a scroll offset
  * being restored first, and the row count under the filters is a fact about the
  * DOM rather than about a virtualiser's estimate. 25 rows is ~1,050px — the
- * whole page fits doc 21's 2,400px budget — and `Load more` costs one press
+ * whole page fits doc 14's 2,400px budget — and `Load more` costs one press
  * where virtualisation would have cost a scroll container that has to be told
  * how tall its own rows are.
  *
@@ -107,11 +107,11 @@ import { PriorityMark, RestingMark, TaskStatusMark, askFace } from "./task-face"
  * happens; this board is the operator's door onto the same command.
  */
 
-/** Rows per press. Doc 21's index template: "one Table paged 25 rows at a
+/** Rows per press. doc 14's index template: "one Table paged 25 rows at a
  * time". 25 rows is about 1,050px, which is what leaves the page inside its
  * budget with the strip and the inbox above it. */
 const PAGE_ROWS = 25;
-/** The inbox opens at five rows (doc 21's Home template) and discloses the rest
+/** The inbox opens at five rows (doc 14's Home template) and discloses the rest
  * through `ListPanel`'s own expander. The page does not slice first: a panel
  * that silently keeps five of nine is lying about the size of the queue. */
 const INBOX_ROWS = 5;
@@ -307,12 +307,12 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
       }
       limit={INBOX_ROWS}
       empty={countsComplete ? "Nothing is waiting on you." : "Waiting work is unknown for unread projects."}
-      // NO RING. Doc 21 is one card style, and every row in here already leads
+      // NO RING. doc 14 is one card style, and every row in here already leads
       // with a toned glyph: a warn-coloured border around them adds a second
       // encoding of urgency the panel does not own — the panel is a place, and
       // the rows are what is urgent.
     >
-      {/* No row opens on arrival, deliberately. Doc 21's Overview template
+      {/* No row opens on arrival, deliberately. doc 14's Overview template
           opens the first "What matters" row, and the same trick here is a lie
           waiting to happen: `ListRow` reads `defaultExpanded` once, at mount,
           and this panel mounts on the photograph and is then reordered by the
@@ -504,7 +504,7 @@ interface FilterValue {
  *
  * WHY THEY ARE ALL SELECTS NOW. Status and priority were twelve chips carrying
  * a glyph and a count, and doc 14's rule at the time was right: a chip row
- * answers "how much is blocked?" without a click. Doc 21 gives that answer to
+ * answers "how much is blocked?" without a click. doc 14 gives that answer to
  * the `KpiStrip` two lines above, in 28px type, and a fact stated twice on one
  * screen is the duplicate doc 14 forbids — so the counts stay (each option
  * carries its own) and the twelve controls become two. That is 12 fewer boxes
@@ -724,7 +724,7 @@ function InboxRow({
       title={task.title}
       caption={
         <>
-          {/* Business altitude (doc 17), as Home's Decide row says it: the
+          {/* Business altitude (doc 14), as Home's Decide row says it: the
               project and what the row asks, never the task's id — that is on
               the task's own page. */}
           {[showProject ? project.name : null, isGate(task) ? "needs your approval" : null].filter(Boolean).join(" · ") || null}
@@ -871,7 +871,7 @@ function Board({
   );
 }
 
-/** Doc 21's mark set, chosen by what the row IS before what it is worth: a
+/** doc 14's mark set, chosen by what the row IS before what it is worth: a
  * finished or parked task wears its status glyph — the one its State cell and
  * its page wear (bead `ro-ujb9.202`) — and everything live carries its
  * priority mark, ink weight and never a severity hue (doc 14, bead

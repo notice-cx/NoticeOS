@@ -17,7 +17,7 @@ export interface SerpPanelBoardProps {
   panel: SerpPanelSnapshot | null;
   /**
    * Open on the scoreboard and the first few terms, with the rest one click
-   * away (doc 21, bead `ro-78qo.4`).
+   * away (doc 14, bead `ro-78qo.4`).
    *
    * Twenty-eight terms, each carrying two device lanes of organic neighborhood,
    * is thousands of pixels on a page that also has to hold the query and page
@@ -424,7 +424,7 @@ function Tile({
 }
 
 /** The surfaces the panel actually read, named the way the operator names them
- * (doc 17: the collection mechanism is never the asset page's vocabulary,
+ * (doc 14: the collection mechanism is never the asset page's vocabulary,
  * and neither is `mobile`).
  *
  * Read off the rows rather than stated as a constant, because "desktop" was a

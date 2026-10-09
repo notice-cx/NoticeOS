@@ -4,7 +4,7 @@
 // safe in workerd and imported by the client. This is the contract behind the
 // one page an operator (or a stranger) opens when the question is "where do I
 // configure this" — until bead `ro-pbzu.2` the answer was six different files
-// and two other pages (doc 19 finding 18).
+// and two other pages (the 2026-07 audit's finding 18).
 //
 // It DEFINES almost nothing of its own. The portfolio knobs and the anomaly
 // rules are the exact shapes the asset page already renders (`PortfolioKnob`,
@@ -13,7 +13,7 @@
 // config nothing rendered anywhere: the counters cadence, the pull registry, the
 // source catalog and the task-hub spoke map.
 //
-// EVERY SECTION NAMES ITS OWNER FILE (doc 15 principle 10). The editable ones
+// EVERY SECTION NAMES ITS OWNER FILE (doc 14 principle 10). The editable ones
 // save through the guarded configuration store (D22); read-only sections name
 // their owning document and say so.
 //

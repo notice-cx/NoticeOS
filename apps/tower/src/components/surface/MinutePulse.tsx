@@ -1,7 +1,7 @@
 import { GA4_PULSE_RECENT_MINUTES } from "@noticeos/contract/ga4-realtime";
 import { cn } from "@/lib/utils";
 
-// THE MINUTE PULSE (bead `ro-trai.27`, docs/25-the-wall.md § Site rows): a
+// THE MINUTE PULSE (bead `ro-trai.27`, docs/14-design.md § Site rows): a
 // site's live users minute by minute over the last 30 minutes, one bar a
 // minute, oldest on the left — the pattern of Google Analytics' realtime card
 // ("users per minute" under "users in the last 30 minutes"). The newest five

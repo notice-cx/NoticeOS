@@ -57,41 +57,38 @@ describe("the additional project init command", () => {
 describe("the remaining project setup steps", () => {
   const spoke = { asset: "example", prefix: "ex", database: "example_tasks", repo: "/fixture/project" };
 
-  it("shows three steps when the host helper already standardizes the spoke config", () => {
+  it("shows two steps when the host helper already standardizes the spoke config", () => {
     const hub = { ...HUB, initCommand: "'/fixture/node' '/fixture/scripts/dolt-project.mjs' --home '/fixture/home'" };
     render(<TaskProjectSteps spoke={spoke} hub={hub} />);
-    expect(screen.getByText("example is mapped — three steps left")).toBeVisible();
+    expect(screen.getByText("example is mapped — two steps left")).toBeVisible();
     expect(Array.from(document.querySelectorAll("[data-checklist-step]"), node => node.getAttribute("data-checklist-step")))
-      .toEqual(["1", "2", "3"]);
+      .toEqual(["1", "2"]);
     expect(screen.getByText(taskProjectInitCommand(spoke, hub)!)).toBeVisible();
     expect(screen.getByText("Initialize a new task database")).toBeVisible();
-    expect(screen.getByText("Review measurement windows")).toBeVisible();
     expect(screen.getByText("Link the checkout here")).toBeVisible();
     expect(screen.queryByText("Keep it on the shared database")).toBeNull();
     expect(screen.queryByText(/\.beads\/config\.yaml/)).toBeNull();
     expect(screen.queryByText(/no-git-ops: true/)).toBeNull();
   });
 
-  it.each([HUB, null])("retains the four-step manual config path without a host helper: %j", hub => {
+  it.each([HUB, null])("retains the three-step manual config path without a host helper: %j", hub => {
     render(<TaskProjectSteps spoke={spoke} hub={hub} />);
-    expect(screen.getByText("example is mapped — four steps left")).toBeVisible();
+    expect(screen.getByText("example is mapped — three steps left")).toBeVisible();
     expect(Array.from(document.querySelectorAll("[data-checklist-step]"), node => node.getAttribute("data-checklist-step")))
-      .toEqual(["1", "2", "3", "4"]);
+      .toEqual(["1", "2", "3"]);
     expect(screen.getByText("Keep it on the shared database")).toBeVisible();
     expect(screen.getByText("File · /fixture/project/.beads/config.yaml")).toBeVisible();
     expect(screen.getByText("sync.remote: …")).toBeVisible();
     expect(screen.getByText(/no-git-ops: true/)).toHaveTextContent("import.auto: false");
-    expect(screen.getByText("Review measurement windows")).toBeVisible();
     expect(screen.getByText("Link the checkout here")).toBeVisible();
   });
 
-  it("prepares instructions in the existing step without inventing reviewed measurement state", () => {
+  it("adds the instruction step only when the host carries the context command", () => {
     const hub = { ...HUB, initCommand: "'/fixture/node' '/fixture/scripts/dolt-project.mjs' --home '/fixture/home'",
       contextCommand: "'/fixture/node' '/fixture/scripts/project-context.mjs' --repo . --write" };
     render(<TaskProjectSteps spoke={spoke} hub={hub} />);
     expect(screen.getByText("Prepare project instructions")).toBeVisible();
     expect(screen.getByText(hub.contextCommand)).toBeVisible();
     expect(document.querySelectorAll('[data-checklist-step]')).toHaveLength(3);
-    expect(screen.queryByText(/none registered/i)).toBeNull();
   });
 });

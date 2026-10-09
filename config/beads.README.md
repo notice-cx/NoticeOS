@@ -105,9 +105,9 @@ project changes. Hosted builds show the project map read-only and reject task
 mapping writes before the store call; other Settings remain editable. Host
 paths and connection details are omitted from hosted payloads, including
 compiled fallbacks. Adding a row does not provision a database or checkout:
-the local page supplies three setup steps for Compose, four for a legacy hub.
-The context step prepares repository instructions and an unknown-state freeze
-register; review measurement state before changing measured surfaces.
+the local page supplies the setup steps left for the host: two for Compose,
+three for a legacy hub, plus one more where the host carries the context
+command, which prepares repository instructions.
 Editing an export has no runtime
 effect until an explicit guarded configuration apply.
 
@@ -158,16 +158,6 @@ since 2026-08-02:
 The three land **together**: removing `sync.remote` without the key pair
 silently arms the reimport hazard. Copy the rationale comments from any
 existing spoke's `config.yaml`.
-
-**A spoke is not onboarded until it has `docs/freeze-register.md`.** The file
-is property-local because a brief must be able to resolve measurement state
-without guessing across repositories. Seed it with explicit Active freezes and
-Closed windows sections; "none registered" is valid, omission is unknown. Every
-ship that opens a measurement window creates its readback bead first and adds
-the exact surfaces, measured change, calendar start/end, and bead id in the same
-change. The canonical method is
-[`docs/playbooks/freeze-register.md`](../docs/playbooks/freeze-register.md), and
-the script suite audits every checked-out entry in `spokes[]`.
 
 **Link the checkout on this host.** Add a matching asset, prefix, database and
 repository path to `installation/task-host.json` as described in its
@@ -293,7 +283,7 @@ inside the spoke this file names for the project. It is deliberately narrow:
 - **`--actor` is the operator** on every write: the checkout's own
   `git user.name`. So the hub's interaction log and each bead's audit trail keep
   telling the truth about who touched what, which is the entire reason
-  [§Claim before you build](#claim-before-you-build) asks an agent to claim as
+  [AGENTS.md](../AGENTS.md#open-work-lives-in-beads) asks an agent to claim as
   itself.
 - **Same origin, local only.** `apply: "serve"` means the lane exists only while
   `os:up` is serving; a deployed Tower answers `{live: false}` and `501` and
@@ -301,7 +291,7 @@ inside the spoke this file names for the project. It is deliberately narrow:
 
 **Observations are still not commitments.** The lane gives the operator a File
 button where there used to be a copied `bd create` command — it replaces the
-paste, not the judgment ([§Observations are not commitments](#observations-are-not-commitments)).
+paste, not the judgment ([§Conventions](#conventions)).
 That button shipped 2026-09-04 (bead `ro-l1ed.4`) on the findings, query
 decisions, page decisions and alert rows, and as **New task** on `/tasks` for
 work no finding raised; what it files is spelled out under
@@ -309,229 +299,43 @@ work no finding raised; what it files is spelled out under
 
 ## Conventions
 
-The hub is the portfolio's **only** register of open work
-([AGENTS.md](../AGENTS.md#open-work-lives-in-beads)), so what goes into it has to
-survive the session that filed it.
+The hub is the portfolio's **only** register of open work, and the process
+rules — file a bead, claim before building, verify, close with evidence, the
+quality bar, the `human` label and gates — are written once, in
+[AGENTS.md](../AGENTS.md#open-work-lives-in-beads). What belongs here is the
+filing grammar `bd` needs.
 
-### Claim before you build
-
-Work being actively executed is claimed the moment execution starts:
-`bd update <id> --claim` (atomic — sets assignee and `in_progress`,
-idempotent), with `--actor` naming who is actually doing it (an agent claims
-as itself, e.g. `claude/<agent-name>`, so the audit trail and the board tell
-the truth about who holds what). An open bead someone is silently building is
-invisible work — the board says "available" while two agents collide on it.
-Closing follows completion-is-evidence: the closer cites the commit hash in
-the close reason.
-
-### Observations are not commitments
-
-**The analyzer never writes to the register** (decided 2026-08-01). Insight
-cards and query decisions are *observations* — regenerated from archives on
-every run, appearing and retiring as data shifts and rules retune. A bead is a
-*commitment* — someone read the evidence and decided work should happen. The
-judgment step between them (running the handoff's ready-made `bd create`) is
-the filter that keeps `bd ready` meaning "work somebody chose", not a mirror of
-the rule engine; auto-beading every finding would rebuild the stale-backlog
-defect inside the hub at analyzer scale, with false-positive cards becoming
-false open work. The two sanctioned bridges: findings render their bead once
-one exists (`ro-248`, joined by `noticeos_key`), and a warning persisting
-across N runs may auto-file one hard-deduped bead (`ro-0fz`, deferred — the
-narrow exception, warnings only, never auto-closed).
-
-### Debt findings are a filing duty, not a judgment call
-
-Owner ruling 2026-08-09: when work reveals engineering debt, filing the bead
-is a **duty** — the discovering agent does not get to weigh whether it is
-"worth" a bead. The classes that trigger it:
-
-- **overengineering that creates double work** — two registries for one
-  concept, parallel implementations that must be edited in lockstep, an
-  abstraction whose ceremony costs more than the duplication it replaced;
-- **logic drift** — copies of one rule that have already diverged, or will
-  (a helper and its "build-time mirror", a comment contradicting behavior);
-- **hardcoded values that have a canonical source** — a literal where a
-  helper/registry exists, a locale/URL/constant baked where a map should be;
-- **half-done work** — a helper covering 3 of 5 locales, a feature wired on
-  some surfaces and not others, stale "X doesn't exist yet" comments after
-  X shipped;
-- **clearly missing pieces** a design implies but nobody built.
-
-Filing quality (owner ruling 2026-08-10): every bead must read COLD.
-Title = a plain-language claim a stranger could evaluate; description =
-what / where / why it matters / what to do in a few self-contained
-sentences. Cross-references to other beads are pointers, never
-load-bearing — inline the one sentence of context instead. The owner
-triages in short bursts; a bead that needs session context to parse
-("mp-X's twin in the nav renderer") defeats the register.
-
-This does not conflict with "Observations are not commitments": that rule
-keeps the *analyzer* from auto-writing; here a person or agent has already
-read the code and recognized debt — the judgment step happened at the moment
-of noticing. Low priority is fine (P3/P4); silent non-filing is not. The
-anti-patterns remain the usual ones: fixing it silently with no trail,
-mentioning it only in a report, or leaving a TODO comment — a noticed defect
-that isn't a bead is invisible work waiting to be re-discovered at full cost.
-
-### Docs are not registers — every project doc has a lifecycle ending in deletion
-
-**A repo doc may carry analysis, method, or reference material; it may never carry open-work state** (operator rule, 2026-08-03). And no project doc lives forever: every doc is born with a named reader, a named write trigger, and a named end condition — and its terminal phase is deletion, with git history as the archive. "Useful around the implementation" includes a cleanup phase: when the implementation lands, the doc's scope is audited and the doc is deleted. Status markers inside docs ("awaiting go", tier rankings, sequencing checklists, done/not-done ticks) rot the moment work moves; every future reader either wastes effort keeping them fresh or inherits the drift.
-
-- **File from reality, never from doc markers.** Converting a doc to beads means verifying each candidate against the repo and production (git log, live behavior) before filing; a doc's claim of open work is a lead, not evidence. Skipping it once filed five beads as open work for things already live in production.
-- **The terminal phase is audit-then-delete, not tombstone-forever.** A tombstone header ("task state migrated to beads") is an interim marker at filing time, not an end state — tombstoned docs keep getting read and even edited (two agent mistakes on 2026-08-03 alone). The end state: audit every scope item in the doc as shipped (git/prod evidence), captured (bead id), or killed (rule named); parked items become deferred beads; kill decisions move to a durable register (dead-ends pattern); open-bead pointers into the doc get a resolution note (`git show <sha>:<path>`, cheapest as one comment on the epic); then delete the doc in a commit whose message carries the accounting.
-- **A doc that stays maintained must name its reader, its write trigger, and its retirement condition.** Registers, buildspecs, and ops logs for live external relationships earn upkeep because a defined consumer reads them at a defined moment and a defined event writes them (freeze-register: "every window-starting ship adds its entry in the same commit") — and even these carry an end condition (the relationship closes, the windows all read out, the pipeline is decommissioned) at which they too are audited and deleted. If you cannot name all three, the doc is a snapshot: put the durable WHY in the epic description and skip the file, or write it knowing it dies at filing time.
-
-### The quality bar
-
-**Title:** outcome-stated, plain language, legible to an operator who never saw
-the work. **Description:** self-contained — WHAT, WHY with the numbers, WHERE as
-pointers that resolve in a repo (file paths, commit hashes, doc sections, table
-and rule names), and **acceptance criteria** naming the proof a completing agent
-produces (`--acceptance` is a first-class field: `bd show` renders it and
-`bd lint` checks for it). **Never cite a session, a transcript, or an agent's
-report** — a future agent cannot open it, so the pointer is dead on arrival;
-cite the repo evidence underneath it instead. `bd lint` checks the shape; this
-bar is the content. Use `bd lint <id>` without `--json` for a checked count.
-Pinned Beads 1.3.1 supports server-mode lint, but its JSON `total` counts
-warnings and `issues` counts tasks with warnings, not tasks checked. The
-[bundled host adapter](../scripts/host-beads.mjs) refuses JSON lint and treats
-failed task lookups as failures, retaining the native diagnostics. A zero
-warning count alone does not prove that every requested task was checked.
-
-**Sized to close in one working session** (operator rule, 2026-08-03): a bead's
-acceptance criteria must be provable the day the work lands — never "watch for N
-days" or any other time-gated verification. If a claim needs absence-over-time
-as evidence, close on what was proven today and name the recurrence signal in
-the close reason (where to look, what a new occurrence looks like); recurrence
-gets a fresh bead. Work too large for a session becomes an epic with
-session-sized children, not one long-running bead.
-
-Sections are plain labelled lines — `WHAT:` / `WHY:` / `WHERE:`, plus `ORDER:`
-or `CONSTRAINT:` where one applies — not markdown headings, because `bd show`
-re-wraps the description and headings read as literal `##`. **One exception:**
-`bd lint`'s *bug* template requires a literal `## Steps to Reproduce`, so bug
-beads spell that one section its way and keep the rest as labelled lines. Cheaper
-than carrying a permanent warning that trains everyone to ignore the linter.
-Write paragraphs **unwrapped** — `bd show` wraps to its own width, so hard-wrapped
-source double-wraps into ragged output.
-
-### Epics
-
-Related work groups under a `-t epic` bead carrying an operator-readable theme
-title and a paragraph on why those members belong together. **Create one when
-three or more beads share a theme**, or when the goal is milestone-shaped.
-Membership is the hierarchical parent link — `bd create --parent <epic>`, or
-`bd update <id> --parent <epic>` for beads that already exist — which is what
-`bd epic status` and `bd epic close-eligible` read. An epic is a container; it
-holds no work of its own.
-
-### Dependencies
-
-Mark **real** blocking edges when you file: `bd dep <blocker> --blocks <blocked>`,
-or equivalently `bd dep add <blocked> <blocker>`. Direction matters and the two
-forms take their arguments in opposite orders — read them once before wiring.
-**Never invent an edge for tidiness.** The Tower and agents treat dependencies
-as load-bearing triage signal, so a decorative edge silently corrupts
-prioritization for everyone downstream.
-Absence of edges should be deliberate: a leaf is a leaf someone checked, not one
-nobody considered. For "these are related, but neither blocks", use
-`bd dep relate`.
-
-### Defer
-
-Work blocked on **time** rather than on effort — data accumulating, an external
-date, someone else's release — is deferred with a reason, not left cluttering
-`bd ready`: `bd update <id> --defer <+4w | YYYY-MM-DD>` (also accepts `+6h`,
-`tomorrow`, `next monday`; an empty string clears it). A deferred bead is hidden
-from `bd ready` until its date and stays visible in `bd list`. Say *why* in the
-description — "deferred" without a trigger is just hiding.
-
-### Human-needed work and gates
-
-Work only the operator can do — a decision, a credential, an admin-console
-step, a push — carries the **`human` label** (added 2026-08-01; six chores
-labeled that day). `bd human list` is the operator's inbox, priority-ordered;
-`bd human respond <id>` answers-and-closes; `bd human dismiss <id>` declines
-permanently; `bd human stats` summarizes the queue. An agent that hits an
-operator-only step labels the bead instead of burying the ask in a report,
-where it dies with the transcript.
-
-Beads 1.1.2 can refuse `human respond` in server mode with
-`cannot resolve issue ID: storage is nil` before writing the answer
-([pinned command source](https://github.com/gastownhall/beads/blob/v1.1.2/cmd/bd/human.go)).
-For that exact failure naming the requested task, the Tower checks that the
-task remains active and carries the `human` label, then uses
-`bd comments add <id> "Response: <answer>" --actor <operator>` followed by
-`bd close <id> --reason Responded --actor <operator>`. These same commands
-are the terminal workaround after confirming the task remains active and
-human-labelled. Other errors are returned without replaying a write; if closing fails after the
-comment is saved, close the task separately instead of resubmitting its answer.
-
-A `human` bead is **written for the operator, not for agents**: plain language
-over system vocabulary, no file:line thickets, and wherever possible a
-ready-to-paste action (the exact text to apply, the exact command to run) so
-acting on it takes a minute, not an investigation. The general quality bar
-still applies — but its audience changes, and jargon that would be a pointer
-for an agent is noise for the person the bead is asking.
-
-The operator has ADHD; a wall of context loses the reader before the ask
-arrives. So a `human` bead follows the **ask-first template** (adopted
-2026-08-04, when the whole inbox was rewritten to it):
-
-- **Line 1 is the ASK** — the decision or action, one sentence. The title
-  carries it too ("Decide A/B/C: …", "Say 'prep it': …", "2-min edit: …"),
-  because `bd human list` shows only titles.
-- **TIME / WHEN next** — honest minutes (also `-e <minutes>`), and whether it
-  can happen any time or needs a window (a restart, a deadline).
-- **A decision is a menu**: lettered options, one marked RECOMMENDED, each with
-  its consequence on the same line. Never an essay that ends in "so what do
-  you think?".
-- **An action is numbered steps** with exact paste-ready text — commands,
-  config lines, click paths ("GA4 → Admin → Custom definitions").
-- **WHY is one or two sentences of stakes** in plain words. Deep background is
-  a single pointer line, never inlined.
-- **NEXT: what happens after they answer**, one line — who picks it up and
-  what it unblocks.
-- **Technical pointers live in a final "(Agent notes: …)" block** — file
-  paths, bead cross-references, recipe details. The operator never needs to
-  read past its opening parenthesis; the implementing agent starts there.
-
-The test before filing: could the operator act on this from the phone, in one
-read, without opening a file? If not, it is not ready for the inbox.
-
-That test failed in practice on 2026-08-19: two decision beads written to this
-template still lost the operator, because their WHY and their option menus were
-phrased in implementation vocabulary — "saved_calculator_results structurally
-cannot hold simple-calc results (calorie_level NOT NULL CHECK 1000-3200)" is a
-pointer for the agent who wrote it and a head-scratcher for the person it asks,
-who has never reviewed the implementation and will not decode mental shortcuts
-taken straight from it. The sharper rule: **describe the situation as the
-product thing a user experiences, never as the internals.** "The save system
-only knows how to store a full meal plan, so a waist-to-height result has
-nowhere to go" — tables, types, constraints, codenames, and internal feature
-names stay inside the closing "(Agent notes: …)" block. If a menu option
-cannot be stated without naming a table or a type, it is not stated yet.
-Alternatives the agent already rejected get one plain line each with their
-tradeoff, so the menu shows the real decision space, not just the preferred
-door.
-
-**The operator's answer arrives as a comment on the bead** (`bd comments <id>`),
-not as a message to whoever filed it. Sweep for unlocks: `bd list --json`
-carries `comment_count` (`bd human list` does not), so a `human` bead whose
-count moved is likely an answered decision waiting for hands. Reading an answer
-obliges acting on it — the session that finds an operator comment executes the
-unlocked work (or hands it to an agent) and closes the bead. An answered bead
-left open is worse than an unanswered one: the operator reasonably believes it
-is moving.
-
-When a step must **block** until approval rather than merely wait its turn,
-`bd gate create --type human` mints a gate issue that holds the blocked bead
-out of `bd ready` until `bd gate resolve` — approval is a gate, never an
-assumption. Other gate types exist (`timer` auto-resolves after `--timeout`;
-`gh:run` / `gh:pr` wait on GitHub; `bead` awaits a cross-project bead as
-`<project>:<id>`) — the last one is how an `ro-` task honestly waits on an
-`mp-` ship. Verify the type against `bd gate --help` before relying on it;
-timer/GitHub/bead types were unexercised here as of 2026-08-01.
+- **Epics.** Related work groups under a `-t epic` bead carrying an
+  operator-readable theme title and a paragraph on why the members belong
+  together; create one when three or more beads share a theme. Membership is
+  the parent link — `bd create --parent <epic>`, or `bd update <id> --parent
+  <epic>` — which `bd epic status` and `bd epic close-eligible` read. An epic
+  is a container; it holds no work of its own.
+- **Dependencies.** `bd dep <blocker> --blocks <blocked>`, or equivalently
+  `bd dep add <blocked> <blocker>` — the two forms take their arguments in
+  opposite orders. Only real blocking edges; for "related, neither blocks",
+  `bd dep relate`.
+- **Defer.** Work blocked on time rather than effort: `bd update <id> --defer
+  <+4w | YYYY-MM-DD>` (also `+6h`, `tomorrow`, `next monday`; an empty string
+  clears it). A deferred bead leaves `bd ready` until its date and stays in
+  `bd list`; the description says why.
+- **Description shape.** Plain labelled lines — `WHAT:` / `WHY:` / `WHERE:`,
+  plus `ORDER:` or `CONSTRAINT:` where one applies — in unwrapped paragraphs,
+  because `bd show` re-wraps and renders headings as literal `##`. One
+  exception: `bd lint`'s bug template requires a literal
+  `## Steps to Reproduce`. `--acceptance` is a first-class field; `bd lint <id>`
+  without `--json` gives a checked count.
+- **Gates.** `bd gate create --type human` holds a bead out of `bd ready` until
+  `bd gate resolve`. Other types: `timer` (auto-resolves after `--timeout`),
+  `gh:run` / `gh:pr` (wait on GitHub) and `bead` (a cross-project bead as
+  `<project>:<id>`); verify a type against `bd gate --help` before relying on it.
+- **Observations are not commitments** (2026-08-01). The analyzer never writes
+  to the register: insight cards and query decisions are regenerated from
+  archives on every run; a bead exists only when a person files one (the Tower's
+  File button, [§Handoff metadata](#handoff-metadata)). The two sanctioned
+  bridges: a finding renders its bead once one exists (joined by
+  `noticeos_key`), and a warning persisting across N runs may auto-file one
+  hard-deduped bead (`ro-0fz`, deferred).
 
 ### Handoff metadata
 
@@ -576,7 +380,7 @@ its Copy Markdown: it opens a composer on exactly the bead the copied `bd create
 describes — same title, same labels, same metadata, computed once in
 `taskHandoffPrefill` — and files it through the task lane in the asset's own
 spoke. It replaces the paste, not the judgment
-([§Observations are not commitments](#observations-are-not-commitments)): a
+([§Conventions](#conventions)): a
 person still reads the evidence and decides. Copy Markdown stays for **agents**,
 which is who it was always for, and is the only path in a deployed build.
 

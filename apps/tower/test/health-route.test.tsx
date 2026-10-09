@@ -172,7 +172,7 @@ function renderRoute(
 }
 
 /**
- * Open one of the page's collapsed panels (doc 21, bead `ro-78qo.16`).
+ * Open one of the page's collapsed panels (doc 14, bead `ro-78qo.16`).
  *
  * A panel MOUNTS ITS BODY ONLY WHEN OPEN. A closed `<details>` still lays its
  * contents out, so the 98-cell audit matrix inside one was still on the page's
@@ -257,7 +257,7 @@ describe("the Health page is layered (bead ro-034)", () => {
       ),
     );
 
-    // The audit view is the page's secondary read since doc 21 — opened here
+    // The audit view is the page's secondary read since doc 14 — opened here
     // the way an operator opens it.
     const audit = openPanel("audit");
     const headings = [...audit.querySelectorAll('table th[scope="rowgroup"]')].map(
@@ -450,7 +450,7 @@ describe("/health — the page leads with what to unblock next (bead ro-9mx)", (
    * sources' own freshness and the queue — not a chart.
    */
   /**
-   * EVERY FIGURE SHOWS ITS COMPOSITION, NOT A SERIES (doc 21's "every number
+   * EVERY FIGURE SHOWS ITS COMPOSITION, NOT A SERIES (doc 14's "every number
    * that CAN have a series", bead `ro-78qo.6`). Not one of these five has a
    * series: the store keeps the CURRENT state of every connection and no
    * by-day record of any of it. What each has instead is how its total divides,
@@ -474,7 +474,7 @@ describe("/health — the page leads with what to unblock next (bead ro-9mx)", (
   });
 
   /**
-   * A LABEL THAT FITS IS A LABEL A READER CAN COMPARE (doc 17).
+   * A LABEL THAT FITS IS A LABEL A READER CAN COMPARE (doc 14).
    *
    * The catalog's name is the source's full one and earns every word in the
    * audit matrix, where a row is named once. In a five-across strip it does
@@ -523,7 +523,7 @@ describe("/health — the page leads with what to unblock next (bead ro-9mx)", (
   });
 
   /**
-   * NO OWNER CHIP (doc 21 principle 4). This is a view surface: the register
+   * NO OWNER CHIP (doc 14 principle 4). This is a view surface: the register
    * that declares the lanes is named in `About`, in words, rather than printed
    * as a path the reader cannot act on from here.
    */
@@ -583,7 +583,7 @@ describe("which credentials are still on the environment file (bead ro-vu8d.5)",
       "nosh.example": [cell("nosh.example", "gsc", "live")],
     });
 
-  /** A `StatusBanner` since doc 21 — one line, above the hero, and it renders
+  /** A `StatusBanner` since doc 14 — one line, above the hero, and it renders
    * nothing at all when the state it reports is closed. */
   const banner = (container: HTMLElement) => [...container.querySelectorAll('[role="status"]')].find(node => node.textContent?.includes('legacy credential')) ?? null;
 

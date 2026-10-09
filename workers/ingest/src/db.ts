@@ -650,7 +650,7 @@ function darkOverlapMs(spans: DarkSpan[], windowStartMs: number, windowEndMs: nu
 }
 
 /**
- * Hourly ingest-freshness check (docs/06, docs/19 finding 5): start from the
+ * Hourly ingest-freshness check (docs/06, the 2026-07 audit's finding 5): start from the
  * ASSETS and LEFT JOIN their latest pulse, so every asset is a row in the
  * result and the contract's `reportingState` decides which of them owe a
  * report.
@@ -904,7 +904,7 @@ export async function runAssetZeroPulse(env: Pick<IngestEnv, 'STORE'>, nowMs: nu
 
   // Cron success is now OBSERVED, from the runner's job-run record (db/0022,
   // ro-uwo.4) — it was a hard-coded 1 until 2026-08-04, which meant a lane that
-  // never fired still scored full marks (docs/19 finding 6). `null` is the third
+  // never fired still scored full marks (the 2026-07 audit's finding 6). `null` is the third
   // state and the honest one: an empty record is not evidence of success and not
   // evidence of failure, so the metric and its capability are BOTH omitted
   // rather than filled in. docs/02 defines `capabilities` as what the asset can

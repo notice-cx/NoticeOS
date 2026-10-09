@@ -105,7 +105,7 @@ describe("the synthetic integrations register", () => {
   });
 
   it("stores obligations and exceptions, and DERIVES the obvious not-applicable cells", async () => {
-    // doc 19 finding 12 / bead `ro-9mx`: the register was a full matrix, and 27
+    // the 2026-07 audit's finding 12 / bead `ro-9mx`: the register was a full matrix, and 27
     // of its 84 cells said "not applicable" in prose — fifteen of them two rules
     // written out fifteen times. The rule is now `scope` on the catalog row, so
     // a new asset arrives owing decisions rather than paragraphs.

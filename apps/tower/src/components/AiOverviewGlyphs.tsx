@@ -43,12 +43,12 @@ export interface AiOverviewGlyphsProps {
  * That was fair when it was two lines off two booleans; `ro-e46.2` grew it into
  * a per-device pair with surface prefixes, a shared state map and a blank-slot
  * case, and twenty duplicated lines synchronised by prose is the near-duplicate
- * REGISTRY.md's first rule rejects. The failure mode is specific: the next
+ * the component registry (registry.ts) exists to prevent. The failure mode is specific: the next
  * state, device, or tooltip lands in one file, and one page then shows the same
  * fact two ways — which is exactly what doc 14 forbids and what both doc
  * comments claimed was prevented.
  *
- * THREE WEIGHTS, NO COLOR (doc 17). Severity color belongs to the attention
+ * THREE WEIGHTS, NO COLOR (doc 14). Severity color belongs to the attention
  * system, and an AI Overview is a fact about the result page rather than an
  * alert:
  *

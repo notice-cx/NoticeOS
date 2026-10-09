@@ -17,7 +17,7 @@ export interface HandoffBeadBadgeProps {
  * handoff and an agent ran the `bd create`, the card still presented the finding
  * as untouched open work, so the only way to answer "did I already file this?"
  * was to go and read the hub. This badge is that answer, joined by the
- * handoff's own `noticeos_key` (docs/playbooks/task-key-chain.md).
+ * handoff's own `noticeos_key`.
  *
  * TWO encodings and never a status word (doc 14): the GLYPH carries the state —
  * filled dot open, circle-check recorded closed. The visible text is the BEAD ID, because that is the one

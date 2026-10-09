@@ -140,7 +140,7 @@ function carriedFilters(params: URLSearchParams, to: AlertTab): string {
 }
 
 /**
- * `/alerts` — the portfolio's alerts, open and settled, composed to doc 21
+ * `/alerts` — the portfolio's alerts, open and settled, composed to doc 14
  * (beads `ro-ju7f`, `ro-78qo.7`).
  *
  * ONE QUESTION: *what is firing, and how bad.* The strip is the whole answer and
@@ -167,7 +167,7 @@ function carriedFilters(params: URLSearchParams, to: AlertTab): string {
  * FILTERS LIVE IN THE URL. `useSearchParams`, so a filtered view is a LINK — the
  * state can be bookmarked, pasted into a bead, and reached from an asset page.
  * Native `<select>`s in the desk's existing input chrome, because enum pickers
- * do not justify a new component (doc 14, the registry is law).
+ * do not justify a new component (doc 14, components/registry.ts).
  */
 export function AlertsRoute() {
   const { tab: tabParam } = useParams();
@@ -211,7 +211,7 @@ export function AlertsRoute() {
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3.5 p-4 md:p-6">
       {/* No description. What this page is, is the word Alerts over a strip
-          saying how bad tonight is (doc 21 principles 3 and 3a). */}
+          saying how bad tonight is (doc 14 principles 3 and 3a). */}
       <PageHeader title="Alerts" />
 
       {!data ? (
@@ -499,7 +499,7 @@ function AssetTag({ id, displayName }: { id: string; displayName: string }) {
 }
 
 /**
- * ONE OPEN ALERT, one line (doc 21, bead `ro-78qo.7`).
+ * ONE OPEN ALERT, one line (doc 14, bead `ro-78qo.7`).
  *
  * Closed: the severity ring and its mark, which asset, what the rule says in the
  * operator's words, how often it has re-fired, and when it was first seen.
@@ -521,7 +521,7 @@ function OpenAlertRow({ item, nowMs }: { item: AttentionItem; nowMs: number }) {
   return (
     <ListRow
       tone={item.severity}
-      // Doc 21's mark for a finding: the ring says how bad, the triangle says
+      // doc 14's mark for a finding: the ring says how bad, the triangle says
       // what kind, so an alert never reads as an unfinished task.
       glyph="△"
       // NOT a flex row. `ListRow` truncates a closed row's title, which sets
@@ -753,7 +753,7 @@ function SnoozedAlerts({ items, nowMs }: { items: SnoozedItem[]; nowMs: number }
  * favicon and a link into that asset's Alerts tab.
  *
  * IT IS `AlertRow`, AND `AlertRow` IS NOW A `ListRow` TOO (bead `ro-78qo.17`).
- * Doc 21 wants the settled row in the same shape as the open one; the fold
+ * doc 14 wants the settled row in the same shape as the open one; the fold
  * happened in the component rather than here, so this surface, the asset page's
  * Current signals and its Alert history all draw one alert one way. Rewriting
  * the row HERE would have left two settled-alert renderings, which is the very

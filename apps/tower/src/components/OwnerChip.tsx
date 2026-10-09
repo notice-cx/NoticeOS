@@ -66,7 +66,7 @@ export function OwnerChip({ path, hint, className }: OwnerChipProps) {
        * `h`, so a chip that wraps in a narrow column grows instead of clipping.
        * `max-sm:` only: a pointer hits 23px exactly, and the desk owes nothing.
        */
-      // Doc 21 bans an owner chip from a view surface — it belongs on Settings
+      // doc 14 bans an owner chip from a view surface — it belongs on Settings
       // and Sources — so the audit measuring that acceptance line has to be able
       // to FIND one. The mark is here rather than at each call site because a
       // chip somebody adds tomorrow is exactly the one an audit must catch, and

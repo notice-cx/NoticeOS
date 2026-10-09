@@ -1,5 +1,4 @@
-// WHERE A READBACK WINDOW LIVES (bead ro-ujb9.76.5.7; the port pattern,
-// docs/briefs/2026-09-29-postgres-port-pattern.md).
+// WHERE A READBACK WINDOW LIVES (bead ro-ujb9.76.5.7), on this call's store.
 //
 // A window is one `noticeos.watch_windows` row: its registration, fixed, and
 // its close, one-way. Each offset the sweep has read is one

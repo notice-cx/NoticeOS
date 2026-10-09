@@ -25,8 +25,8 @@ export function isCollectionJob(job: { group: string }): boolean {
 /**
  * WHERE A COLLECTION'S SCHEDULE IS CHANGED (bead `ro-ujb9.96.7.28`, operator
  * decision 2026-09-24): on the Manage panel of each connection that feeds it —
- * the sync frequency on the connection, as Fivetran and Airbyte place it
- * (docs/briefs/2026-09-24-schedule-on-connection.md#prior-art) — and, for a
+ * the sync frequency on the connection, as Fivetran and Airbyte place it —
+ * and, for a
  * collection no connection feeds, in Settings → Data collection. The job's
  * declared `connections` decides it; nothing else does.
  */

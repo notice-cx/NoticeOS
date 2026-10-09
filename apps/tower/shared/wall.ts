@@ -107,7 +107,7 @@ export interface LedgerResidue {
  * reconciled row to exist and then sum every current row, so a single
  * reconciliation could unlock a "portfolio total" mostly composed of estimates
  * while the empty-state copy on the same surface said estimates do not count
- * (doc 19 finding 4). `forecast` now carries those estimates in their own field,
+ * (the 2026-07 audit's finding 4). `forecast` now carries those estimates in their own field,
  * under their own label, and nothing sums the two. */
 export interface PortfolioBand {
   /** Accounting period shown, 'YYYY-MM'.
@@ -245,7 +245,7 @@ export interface SystemBand {
    * the meter permanently over a ceiling that never covered it.
    *
    * NEVER null (bead `ro-sq42`). It used to come from asset #0's report, which
-   * nothing wrote, so the honest rendering was an absent row (doc 17 rule 6).
+   * nothing wrote, so the honest rendering was an absent row (doc 14 rule 6).
    * It is now counted from the OS's own record of the calls it made, and a day
    * with no metered call is a MEASURED zero rather than a hole — rule 6 forbids
    * a meter drawn at a zero *nobody reported*, and this zero is reported by the
@@ -347,7 +347,7 @@ export interface SignalTrend {
    * carries.
    *
    * SINCE `ro-78qo.35` THEY ARE ALSO THE DESK'S HISTORY. The wall payload
-   * carries ninety days per asset because doc 21 gives every surface a
+   * carries ninety days per asset because doc 14 gives every surface a
    * 7 · 28 · 90 range and /assets reads this same payload; a 90d button drawing
    * 28 days of line would be the page lying about its own window. Twenty-eight
    * of those days are `series` and the rest are here, so a surface asking for a
@@ -512,7 +512,7 @@ export interface WebSearchTrends {
  * Add two providers' daily series date by date.
  *
  * A date only ONE of them has reported carries only that one: a provider's
- * latency is never a zero (doc 21), and the surface reading the number says so
+ * latency is never a zero (doc 14), and the surface reading the number says so
  * where it is read.
  */
 export function combineSeriesByDate(

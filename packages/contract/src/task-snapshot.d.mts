@@ -142,7 +142,7 @@ export interface BeadsPanelReviewInput {
 }
 /**
  * One bead filed from a Tower handoff, joined to the finding that raised it
- * (bead `ro-248`, docs/playbooks/task-key-chain.md).
+ * (bead `ro-248`): the task-key chain's second link, read back.
  *
  * The poller reads these off each spoke's `noticeos-handoff` label and keeps the
  * `noticeos_*` metadata that names the origin. `key` is `noticeos_key` byte for

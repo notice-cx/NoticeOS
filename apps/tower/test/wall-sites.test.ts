@@ -1,5 +1,5 @@
 // @vitest-environment node
-// The site region's read model (docs/25-the-wall.md § Density, bead
+// The site region's read model (docs/14-design.md § Density, bead
 // `ro-trai.13`): what one site shown in depth reads from the payload it
 // already has, and when a tile has nothing to show.
 
@@ -126,7 +126,7 @@ describe("the search tile", () => {
   });
 });
 
-// Bead ro-trai.26 (docs/25-the-wall.md § Site rows): a site's line is the last
+// Bead ro-trai.26 (docs/14-design.md § Site rows): a site's line is the last
 // four finished weeks over the four before, weekday under weekday, and its %
 // compares the same two spans.
 describe("four weeks against the four before", () => {

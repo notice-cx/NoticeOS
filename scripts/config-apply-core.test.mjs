@@ -2015,7 +2015,7 @@ test('an undrawable /wall is refused here, in the words the editor prints', () =
 });
 
 test('a column is judged at this door too: one level deep, never empty (ro-trai.2)', () => {
-  // The column slot (docs/25-the-wall.md § Regions) is part of the one rule,
+  // The column slot (docs/14-design.md § Regions) is part of the one rule,
   // so config:apply and the ingest's applyConfigOps — both through
   // validateSchemaAndSafety — refuse a layout the Wall cannot draw in the
   // same words the editor prints.

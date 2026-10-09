@@ -125,7 +125,7 @@ export interface WorkCounts {
  *
  * A DAY THE ROLLUP DOES NOT HOLD IS SIMPLY NOT IN THE ARRAY. There is no
  * placeholder and never a zero: an OS that was switched off on Tuesday did not
- * measure "no open work on Tuesday" (doc 21 principle 8). Points are ascending
+ * measure "no open work on Tuesday" (doc 14 principle 8). Points are ascending
  * by day, and the last one is TODAY — still being lived in, which is why the
  * strip draws its endpoint hollow.
  */
@@ -242,7 +242,7 @@ export interface WorkPayload {
 export const PRIORITY_BANDS = ["top", "high", "normal", "low", "lowest"] as const;
 
 /** Priority as a word, because "P3" is a system token an operator would have to
- * be taught (doc 17's demo test). The default band returns null: a board where
+ * be taught (doc 14's demo test). The default band returns null: a board where
  * every row says "normal" is a board where nothing stands out, so only beads
  * that are deliberately above or below the default say anything at all. */
 export function priorityLabel(priority: number): string | null {
@@ -263,7 +263,7 @@ export function priorityLabel(priority: number): string | null {
  * a repository the poller could not open all day, a count an older poller never
  * sent — summing what happens to be there would draw a portfolio that shrank on
  * the day a project went quiet. That is a fabricated shape, and a missing point
- * is the honest alternative (doc 21 principle 8).
+ * is the honest alternative (doc 14 principle 8).
  */
 export function sumWorkHistory(projects: readonly WorkProject[]): WorkCountsHistory {
   const out = emptyWorkHistory();

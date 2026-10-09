@@ -12,7 +12,7 @@
 // answered by scrolling a file for an ABSENCE, and absence is the one thing a
 // log cannot prove. That is the same defect as asset #0's `cronRunSuccess = 1`,
 // a constant with no run ledger behind it: a cron that never fired still
-// reports success, so the metric cannot fail (docs/19 finding 6, ro-ic5).
+// reports success, so the metric cannot fail (the 2026-07 audit's finding 6, ro-ic5).
 //
 // So each firing appends one line to `.local/logs/job-runs.jsonl`: WHICH lane,
 // WHEN it started, how long it took, and what it amounted to — ran / skipped /

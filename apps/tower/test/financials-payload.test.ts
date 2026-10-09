@@ -443,7 +443,7 @@ describe("buildFinancialsPayload — the period it describes", () => {
  * THE SHAPE BEHIND EACH ROW (bead `ro-78qo.29`).
  *
  * The by-asset table's share bar answers which asset is carrying THIS month.
- * Only a series answers which one is getting better, which is what doc 21 asks
+ * Only a series answers which one is getting better, which is what doc 14 asks
  * a per-row sparkline for. These assert the two properties that make the line
  * trustworthy: it is the SAME arithmetic as the figure beside it, and it never
  * invents a month the ledger has no row for.

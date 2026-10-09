@@ -72,7 +72,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
  * A series label — a day (`YYYY-MM-DD`) or an accounting month (`YYYY-MM`) — as
  * the compact axis label a chart prints beside it: "Sep 5", "Sep '26".
  *
- * It lived in `Spark.tsx` until doc 21 split that component in two, which put a
+ * It lived in `Spark.tsx` until doc 14 split that component in two, which put a
  * second copy of the MONTHS table above it in a file that draws lines. Series
  * labels are calendar FACTS rather than instants, so it parses by hand: routing
  * one through `Date` would let the viewer's timezone move a provider's day.

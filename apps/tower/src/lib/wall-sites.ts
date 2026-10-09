@@ -1,4 +1,4 @@
-// The Wall's site region as numbers (docs/25-the-wall.md § Site rows and
+// The Wall's site region as numbers (docs/14-design.md § Site rows and
 // § Density, beads `ro-trai.5`, `ro-trai.13`). `SiteRows` draws; this file only
 // reads the payload the Worker already built — nothing here is a new source.
 //
@@ -61,7 +61,7 @@ export interface FourWeekDay {
 
 /**
  * The last four complete weeks against the four before (bead `ro-trai.26`,
- * docs/25-the-wall.md § Site rows): the one derivation a site row's line and
+ * docs/14-design.md § Site rows): the one derivation a site row's line and
  * the one-site search tile both draw.
  *
  * - `days` are the 28 days ending on the newest day the provider has finished

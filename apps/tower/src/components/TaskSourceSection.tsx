@@ -4,7 +4,6 @@ import { type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import type { TaskHubConnection, TaskHubSpoke } from "@shared/settings";
-import initialFreezeRegister from "../../../../docs/templates/project-freeze-register.md?raw";
 import {
   TASK_SOURCES_PATH,
   BEADS,
@@ -82,14 +81,14 @@ export function taskProjectInitCommand(spoke: Pick<TaskHubSpoke, "prefix" | "dat
  * Drawn after an Add on Settings → Task projects.
  *
  * It is the one place a project's setup uses the machinery's own words (doc
- * 17): a command has to be copied verbatim into a terminal, so its flags are
+ * 14): a command has to be copied verbatim into a terminal, so its flags are
  * quoted exactly and every block says what it is and where it runs.
  *
  * TITLES AND THE TEXT TO PASTE, NOTHING ELSE (bead `ro-ujb9.96.6.3`). The text
  * to paste already does the right thing: the command carries `--external`, the
  * legacy config edit is drawn as a diff; the host helper performs that edit
- * itself. Repository preparation preserves existing instructions and starts
- * absent measurement state as unknown; the host entry comes from the row.
+ * itself. Repository preparation preserves existing instructions; the host
+ * entry comes from the row.
  */
 export function TaskProjectSteps({
   spoke,
@@ -103,6 +102,20 @@ export function TaskProjectSteps({
 }) {
   const checkout = spoke.repo || "the project checkout";
   const usesHostHelper = Boolean(hub?.initCommand);
+  const steps: { title: string; block: ReactNode }[] = [
+    { title: "Initialize a new task database",
+      block: <CommandBlock command={taskProjectInitCommand(spoke, hub)} label={`Terminal · run in ${checkout}`} fallback={NO_HUB_CONNECTION} /> },
+  ];
+  if (!usesHostHelper) steps.push({ title: "Keep it on the shared database",
+    block: <CommandBlock removed="sync.remote: …" command={"no-git-ops: true\nimport.auto: false"} label={`File · ${checkout}/.beads/config.yaml`} /> });
+  if (hub?.contextCommand) steps.push({ title: "Prepare project instructions",
+    block: <CommandBlock command={hub.contextCommand} label={`Terminal · run in ${checkout}`} /> });
+  steps.push({ title: "Link the checkout here",
+    block: <CommandBlock
+      command={JSON.stringify({ asset: spoke.asset, prefix: spoke.prefix, database: spoke.database, repo: "/path/to/checkout" }, null, 2)}
+      label="File · installation/task-host.json · repositories"
+    /> });
+  const count = ["one", "two", "three", "four"][steps.length - 1] ?? String(steps.length);
   return (
     <div
       className="flex flex-col gap-3 rounded-md border border-border bg-muted/30 p-3"
@@ -110,7 +123,7 @@ export function TaskProjectSteps({
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h4 className="text-sm font-medium text-foreground">
-          {spoke.asset} is mapped — {usesHostHelper ? "three" : "four"} steps left
+          {spoke.asset} is mapped — {count} steps left
         </h4>
         {onDismiss ? (
           <Button type="button" variant="ghost" size="sm" onClick={onDismiss}>
@@ -119,28 +132,11 @@ export function TaskProjectSteps({
         ) : null}
       </div>
 
-      <ChecklistStep n={1} title="Initialize a new task database">
-        <CommandBlock command={taskProjectInitCommand(spoke, hub)} label={`Terminal · run in ${checkout}`} fallback={NO_HUB_CONNECTION} />
-      </ChecklistStep>
-      {!usesHostHelper ? <ChecklistStep n={2} title="Keep it on the shared database">
-        <CommandBlock
-          removed="sync.remote: …"
-          command={"no-git-ops: true\nimport.auto: false"}
-          label={`File · ${checkout}/.beads/config.yaml`}
-        />
-      </ChecklistStep> : null}
-      <ChecklistStep n={usesHostHelper ? 2 : 3} title={hub?.contextCommand ? "Prepare project instructions" : "Review measurement windows"}>
-        <CommandBlock
-          command={hub?.contextCommand ?? initialFreezeRegister}
-          label={hub?.contextCommand ? `Terminal · run in ${checkout}` : `New file · ${checkout}/docs/freeze-register.md`}
-        />
-      </ChecklistStep>
-      <ChecklistStep n={usesHostHelper ? 3 : 4} title="Link the checkout here">
-        <CommandBlock
-          command={JSON.stringify({ asset: spoke.asset, prefix: spoke.prefix, database: spoke.database, repo: "/path/to/checkout" }, null, 2)}
-          label="File · installation/task-host.json · repositories"
-        />
-      </ChecklistStep>
+      {steps.map((step, index) => (
+        <ChecklistStep key={step.title} n={index + 1} title={step.title}>
+          {step.block}
+        </ChecklistStep>
+      ))}
     </div>
   );
 }

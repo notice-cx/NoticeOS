@@ -21,8 +21,8 @@ is needed.
 | `db/postgres/` | Operational schema, permissions and model proofs |
 | `config/` | Generic defaults for a new installation |
 
-Check the [component registry](apps/tower/src/components/REGISTRY.md) before
-adding UI. Use the existing store and request boundaries; browser UI does not
+Check the [component registry](apps/tower/src/components/registry.ts) and the
+`/dev/kitchen-sink` gallery before adding UI; prefer reusing an entry. Use the existing store and request boundaries; browser UI does not
 receive provider credentials or select host paths. The
 [configuration ownership contract](docs/23-configuration-ownership.md) defines
 workspace and deployment ownership.
@@ -111,9 +111,13 @@ NOTICEOS_REQUIRE_POSTGRES=1 node --import ./scripts/script-tests-setup.mjs --tes
 Keep the root suite's `--import` preload when running one script test. A
 recursive workspace test does not run `scripts/*.test.mjs`.
 
-CI runs these five full gates, split across five parallel jobs, and a pull
-request that changes only documentation skips all but the root script suite
-(`scripts/ci-scope.mjs`). Release acceptance still requires passing CI:
+CI runs these gates across six parallel jobs (`.github/workflows/ci.yml`: the
+Tower's typecheck and unit tests; the other workspaces'; the root script
+suite; the build and browser journeys; the journey harness and UX flow report;
+and the task store against a real Dolt server), with `build` as the verdict
+over all six. A pull request that changes only documentation skips all but the
+root script suite (`scripts/ci-scope.mjs`). Release acceptance still requires
+passing CI:
 
 ```sh
 pnpm -r typecheck

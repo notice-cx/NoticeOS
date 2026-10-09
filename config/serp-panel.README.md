@@ -32,10 +32,8 @@ that already filed creates nothing.
 What closing that bead requires — every row through the decision rules, every
 surface checked against the asset's freeze register and surface-scoped ship
 recency before a verdict, and every gap routed to a bead, existing work, its
-active window's readback bead, or a named no-action rule — is
-[serp-opportunity-execution §Panel review](../docs/playbooks/serp-opportunity-execution.md#panel-review),
-followed by
-[§Inventory pass](../docs/playbooks/serp-opportunity-execution.md#inventory-pass)
+active window's readback bead, or a named no-action rule — is the panel
+review, followed by an inventory pass
 over the rest of that week's collection: the collection day is the anchor for the
 review, not the whole of it. Adding an asset here therefore adds a weekly
 obligation, not just a weekly cost.
@@ -59,8 +57,8 @@ The hourly filer lives in `scripts/runner/panel-review.mjs`, reading
   task), all with the collector's fixed dimensions: United States
   (`location_code: 2840`), English, **phone and desktop**, with the asynchronous
   AI Overview requested so its presence and citations are readable.
-- **An entry is a string, or an object carrying its cluster.** `"big mac
-  calories"` and `{ "query": "big mac calories", "label": "Item head" }` are both
+- **An entry is a string, or an object carrying its cluster.** `"best running
+  shoes"` and `{ "query": "best running shoes", "label": "Category head" }` are both
   valid, in any mix. `label` is the **bet the query measures** — the grouping a
   readout needs to answer "which bet is working" instead of showing twenty
   unrelated strings. It is optional per asset and per query, and a panel that
@@ -81,8 +79,7 @@ Each rule below fails that **one asset's** panel for the run with a
   reserves $0.25 for one report family before it calls, so the biggest legal
   panel is whatever $0.25 buys: 31 terms × 2 devices × ~$0.004 = $0.248. It was
   10–25 in doc 08, then a hand-set 40 on 2026-08-01 when the cluster-discovery
-  rules earned tracked terms of their own (water intake, weight-loss percentage,
-  ffmi); adding the phone on 2026-08-04 (`ro-o1n`) doubled what a term costs and
+  rules earned tracked terms of their own; adding the phone on 2026-08-04 (`ro-o1n`) doubled what a term costs and
   therefore halved it. **Adding a device halves the ceiling; raising the ceiling
   means raising the reserve**, which is a decision about money and belongs in
   `workers/ingest/src/dataforseo-dumps.ts` next to the cap, not here. A panel
@@ -196,8 +193,8 @@ Each rule below fails that **one asset's** panel for the run with a
   delimiter out of operator-written prose to send our internal taxonomy to a
   third party that has no use for it.
 - Editing the panel changes what the asset is *measured on*. Terms come and
-  go for real reasons (a bet was placed, a market was ruled out by
-  [serp-authority-gate](../docs/playbooks/serp-authority-gate.md)); record the
+  go for real reasons (a bet was placed, a market was ruled out because its
+  result page is held by institutions no new site outranks); record the
   reason where the decision lives, not here.
 - **The Tower edits this panel, on the asset's Growth tab** *(2026-09-05, bead
   `ro-x5gu.4`; it could only remove one with its asset before, `ro-sk7q`)*. The

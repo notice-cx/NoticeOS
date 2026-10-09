@@ -46,7 +46,7 @@ function assetCard(overrides: Partial<AssetCard> & { id: string }): AssetCard {
     pulseReceivedAt: "2026-08-01T11:00:00.000Z",
     firstReportAt: null,
     dataSources: [],
-    // The two comparison columns doc 21 asks this table for (bead
+    // The two comparison columns doc 14 asks this table for (bead
     // `ro-78qo.35`). Empty by default, so a case that wants one says so.
     searchClicks: { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] },
     netByMonth: [],
@@ -557,11 +557,11 @@ describe("/assets — the comparison arrives with a second site (ro-ujb9.128)", 
 });
 
 /**
- * Doc 21, bead `ro-78qo.7`. The page is a COMPARISON: the strip is the portfolio
+ * doc 14, bead `ro-78qo.7`. The page is a COMPARISON: the strip is the portfolio
  * added up and the table is the same assets one per row. Nothing on it duplicates
  * an asset's own page.
  */
-describe("/assets — composed to doc 21", () => {
+describe("/assets — composed to doc 14", () => {
   it("opens with one answer: which sites need you, by the one health word (D44)", () => {
     const { container } = renderAssets();
 
@@ -693,7 +693,7 @@ describe("/assets — composed to doc 21", () => {
   });
 
   /**
-   * Bead `ro-78qo.35`. Doc 21's Assets row names three sparkline columns and the
+   * Bead `ro-78qo.35`. doc 14's Assets row names three sparkline columns and the
    * page shipped with one, because the payload carried one. These are the other
    * two, and the comparison column that finally follows the range.
    */
@@ -806,7 +806,7 @@ describe("/assets — composed to doc 21", () => {
     /**
      * The move was a column of its own headed "7-day", which took a paragraph
      * to explain. It now rides the users line it describes, under the header
-     * that names the users and the window — doc 21's KPI unit at row height —
+     * that names the users and the window — doc 14's KPI unit at row height —
      * and that header is the one that orders by it (bead ro-ujb9.96.6.10).
      * At ninety days there is nothing to compare against, so nothing is drawn.
      */
@@ -908,7 +908,7 @@ describe("/assets — composed to doc 21", () => {
     ).toContain("2026-07-26 to 2026-08-01");
   });
 
-  it("offers all three of doc 21's windows", () => {
+  it("offers all three of doc 14's windows", () => {
     renderAssets();
 
     const range = screen.getByRole("group", { name: "Traffic period" });

@@ -524,7 +524,7 @@ export interface GrantedScope {
 }
 
 /**
- * The scope URLs in plain English (doc 17 rule 8: a string an operator would
+ * The scope URLs in plain English (doc 14 rule 8: a string an operator would
  * have to be told is a string that fails).
  *
  * An unrecognized scope keeps its URL rather than being dropped: a grant

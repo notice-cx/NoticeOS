@@ -42,6 +42,10 @@ foods pages, calculator constellation, programmatic locale sets).
   rules honored (302s not 301s, rel=canonical on variants, tests bounded in
   time). A core update mid-window → extend and rely only on control-relative
   divergence.
+- **A surface inside a measurement window is frozen:** the ship that opens the
+  window files its readback bead first, naming the surfaces, the change and
+  the dates, and that bead is where a later change reads measurement state —
+  there is no separate register file.
 - Books: realized Δ with credible interval, shrunk (below).
 
 ### Tier B — holdout-able (site-wide changes with a control somewhere)

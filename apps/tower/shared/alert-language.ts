@@ -7,7 +7,7 @@
 // — it is never rewritten, and this module never asks it to be. Translation is a
 // READ-side concern, so it happens here, over facts the flag row already carries.
 //
-// The anatomy of an operator-facing alert (doc 15 principle 9):
+// The anatomy of an operator-facing alert (doc 14 principle 9):
 //
 //   1. WHAT HAPPENED — `headline`. Plain language, magnitude included:
 //      "Signups well below normal — 22 vs ~39/day". Never the raw statistics.

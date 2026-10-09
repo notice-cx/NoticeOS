@@ -7,7 +7,7 @@ import {
 } from "@shared/surface";
 
 /**
- * THE PAGE-WIDE RANGE (doc 21, bead `ro-78qo.3`).
+ * THE PAGE-WIDE RANGE (doc 14, bead `ro-78qo.3`).
  *
  * One selector in the asset header drives every delta, sparkline and chart on
  * whichever tab is open, so the range has to be one value that outlives a tab
@@ -16,7 +16,7 @@ import {
  * should open at the range they were looking at, and the browser's Back button
  * then has an opinion about it that we do not have to implement.
  *
- * 28 days is the operator's default (doc 21) and is written as an ABSENT
+ * 28 days is the operator's default (doc 14) and is written as an ABSENT
  * parameter rather than `?range=28`, so the ordinary URL stays clean and there
  * is only one URL for the page's default state. Every reader must come through
  * this hook: a component reading `searchParams` itself would render `?range=28`

@@ -181,7 +181,7 @@ synced folder this host names (`config/host-backup.README.md`).
 `os-up.mjs` is the coordinator: it starts and supervises the Tower child,
 hands the scheduler its lanes and shuts down. Each responsibility it wires is a
 module under `scripts/runner/` with its own `scripts/runner-<module>.test.mjs`;
-the map is [`docs/briefs/2026-09-24-runner-modules.md`](../docs/briefs/2026-09-24-runner-modules.md).
+the map is the modules under `scripts/runner/`, each with its own test file.
 `os-up.mjs` still exports every name it did, so its importers are unchanged.
 
 ```
@@ -1002,9 +1002,8 @@ anybody to read it is a collection read never. This lane files the review.
   same two metadata keys, and the dedupe read recognizes both wordings so no
   review filed before this goes unseen. A property that buys nothing still owes
   nothing.
-- What closing one of those beads requires is
-  [serp-opportunity-execution §Panel review](../docs/playbooks/serp-opportunity-execution.md#panel-review)
-  and [§Inventory pass](../docs/playbooks/serp-opportunity-execution.md#inventory-pass).
+- Closing one of those beads means the panel review, then an inventory pass
+  over the rest of that week's collection (`config/serp-panel.README.md`).
 
 ### The push-state filer (the second bead-writing lane, plus `bd gate check`)
 
@@ -1607,7 +1606,7 @@ secrets are unchanged.
 The accounts-pass verification rails. The operator connects a provider on the
 Tower's `/integrations` page, or leaves it in the legacy
 `workers/ingest/.dev.secrets.json`; this script makes every credential
-**provable the moment it lands** — [doc 15](../docs/15-operator-flows.md) flow C:
+**provable the moment it lands** — [doc 14](../docs/14-design.md) flow C:
 *"validation probe on save — one cheap real call; success shows a live data
 sample — proof, not a checkmark; failure shows the provider's actual error + the
 likely fix."*
@@ -1668,7 +1667,7 @@ Grouped by lane:
 | `CREDENTIALS_KEY` | **All provider credentials** | `openssl rand -base64 32`. One of the four bootstrap secrets that stay in the environment forever ([doc 06](../docs/06-operations.md#bootstrap-secrets-vs-integration-credentials); D21, epic `ro-vu8d`): every provider row below is instead entered on the Tower's `/integrations` page, where it lives AES-GCM-encrypted in the store under this key. Store first, env fallback — the rows below keep working, and **Import from this machine** (or `pnpm dev:secrets:import`) moves them across once without retyping. Deployed: `wrangler secret put CREDENTIALS_KEY`. |
 | `ASSET_TOKENS` | Self-report (pull) **and** pulse push | JSON map property → that property's single `ASSET_TOKEN` wrangler secret. One entry per property serves both directions: the ingest Worker checks it on an inbound `POST /api/pulse` and presents it on the outbound nightly pull and 15-minute counters scrape. Onboarding and rotation: [doc 11 §Credential naming](../docs/11-integrations.md#credential-naming--the-asset_token-convention). Already present. |
 | `BING_WEBMASTER_API_KEY` | Bing Webmaster | Bing Webmaster Tools → Settings → API access → generate key. One central BWT account. |
-| `DATAFORSEO_LOGIN` / `DATAFORSEO_PASSWORD` | DataForSEO | `app.dataforseo.com` → API Access — the API login/password, **not** your account email. One metered key (doc 12). |
+| `DATAFORSEO_LOGIN` / `DATAFORSEO_PASSWORD` | DataForSEO | `app.dataforseo.com` → API Access — the API login/password, **not** your account email. One metered key. |
 | `GOOGLE_SIGNAL_ACCOUNTS` | GA4 + Search Console | Nested object **service-account label → one encoded key + its supported properties** in `.dev.secrets.json`. Store each key once. Local sync extracts every encoded key to a bounded `GOOGLE_SERVICE_ACCOUNT_*` Worker binding and leaves only routing in `GOOGLE_SIGNAL_ACCOUNTS`. Per property, set `ga4_property_id`, `gsc_site_url`, or both; grant that service-account email GA4 Viewer and GSC Full-user access. The probes mint only read-only scopes. Full shape below. |
 | `CLARITY_TOKENS` | Microsoft Clarity | JSON map asset → that project's data-export token (`clarity.microsoft.com` → project → Settings → Data export). **Per asset — no portfolio credential**, which is why it is the one `per-asset` card on `/integrations` (bead `ro-vu8d.9`): one input per asset, one encrypted row. This binding is the legacy fallback like every other row here. |
 | `DISCORD_WEBHOOK_URL` | Discord | Discord → Server Settings → Integrations → Webhooks → New Webhook → Copy Webhook URL. The System's operator-notification channel. Connected on `/integrations` since bead `ro-vu8d.18`; this binding is the legacy fallback like every other row here. **The URL is the credential** — anyone holding it can post to that channel. |
@@ -1792,7 +1791,7 @@ cannot read a partial rotation as a finished one.
 After probing, `creds:check` reads `config/integrations.json` and may print an
 exact `pnpm config:apply --stdin` heredoc that records enrollment proof. It
 **never applies** anything: the operator reviews the diff and answers y/N in
-`config:apply` (doc 15 principle 1). This is setup documentation, not runtime
+`config:apply` (doc 14 principle 1). This is setup documentation, not runtime
 health. GA4, GSC, and Bing health is derived from the latest stored collector
 attempt (fresh success/error/staleness/no-run), so the Tower never needs a
 manual status change to turn an icon green or red. Only proved properties
@@ -2141,8 +2140,7 @@ columns carefully:
 - **`second_rank` / `second_url` are the property's SECOND slot** on the same
   result page, bounded exactly like the first: empty means no second result of
   ours inside `tracked_depth`. Two of a property's URLs sharing one result page
-  is either a double listing worth defending or the cannibalization
-  [impression-harvest](../docs/playbooks/impression-harvest.md) consolidates —
+  is either a double listing worth defending or cannibalization to consolidate —
   and the GSC families can only show impressions split across pages, never which
   page Google placed where.
 - **`sitelinks_us` is three-state for a reason of its own.** `true`/`false` are
@@ -2648,10 +2646,9 @@ emitting at most one card — except `distant-demand-cluster`, which emits one p
 URL cluster. The page sorts `warning → recommendation → discovery
 → insight` and keeps the first **eight**, so the list order below *is* the
 tie-break the cap uses — it is a priority list, not a call order. Every card
-names its rule in an evidence row (`rule: <id>`), and that id is the join to the
-method library at [`docs/playbooks/`](../docs/playbooks/README.md)
-([doc 13](../docs/13-opportunity-scouting.md)): the rule detects the condition,
-the playbook says what to do about it. A rule whose family is absent emits
+names its rule in an evidence row (`rule: <id>`); the rule detects the
+condition, and what to do about it is stated beside each rule's definition in
+`scripts/signal-insights.mjs` ([doc 13](../docs/13-opportunity-scouting.md)). A rule whose family is absent emits
 nothing: a missing CSV is never a finding.
 
 **The cut is not silent.** Cards past the eighth are listed in
@@ -2676,11 +2673,11 @@ set aside` evidence row; a family holding only unsettled days raises no card
 until they settle. An empty `provisional` cell (collection date unreadable) is
 read as before.
 
-| Rule id | Kind | Reads | Fires when | Playbook |
+| Rule id | Kind | Reads | Fires when | What to do |
 |---|---|---|---|---|
-| `measurement-integrity` † | warning | `ga4-traffic-acquisition`, `ga4-traffic-sources`, `ga4-events` | ≥10% of settled-day sessions are Unassigned/`(not set)`/`(data not available)` (`ro-5e8.11`), **or** an event that ran ≥100/day drops ≥90% week over week | [triangulate-before-acting](../docs/playbooks/triangulate-before-acting.md) · [utm-taxonomy](../docs/playbooks/utm-taxonomy.md) |
+| `measurement-integrity` † | warning | `ga4-traffic-acquisition`, `ga4-traffic-sources`, `ga4-events` | ≥10% of settled-day sessions are Unassigned/`(not set)`/`(data not available)` (`ro-5e8.11`), **or** an event that ran ≥100/day drops ≥90% week over week | confirm in a second independent source first · fix the campaign-link grammar |
 | `value-event-not-key-event` ◊ | warning | `ga4-events` (+ [`config/value-events.json`](../config/value-events.json)) | a declared value event carrying ≥10 events/day is counted as **0** GA4 key events across the window | — |
-| `concentration-risk` † | warning | `ga4-traffic-acquisition` | organic search ≥85% of sessions (≥100 sessions) | [kill-thresholds](../docs/playbooks/kill-thresholds.md) |
+| `concentration-risk` † | warning | `ga4-traffic-acquisition` | organic search ≥85% of sessions (≥100 sessions) | a stop rule stated before spending, so retiring is arithmetic |
 | `error-observer-disagreement` | warning | `clarity-url-3d` + `ga4-page-events` | Clarity's `ScriptErrorCount` leader and GA4's `js_error` leader are different pages, Clarity's leader clears 5 script errors on ≥10 sampled sessions, and it carries **≥2×** Clarity's own count for GA4's page | — |
 | `javascript-errors` | warning | `ga4-page-events` (+`ga4-js-errors`, `clarity-url-3d`) | `js_error` volume clears a per-day floor; carries a `Clarity cross-check` row naming whether the second observer picked the same page, omitted entirely where Clarity never read the property, and — where the triage family exists — the leading masked message bucket, its bundle position, the property's busiest position, and the events GA4 can never attribute a message to | — |
 | `bing-crawl-issues` | warning | `bing-webmaster-crawl-issues` (+`crawl-stats`) | the latest snapshot reports affected URLs | — |
@@ -2689,20 +2686,20 @@ read as before.
 | `dataforseo-backlink-growth` / `-loss` | discovery / warning | `dataforseo-backlinks-new-lost` (+`-summary`) | net referring-domain direction over the stored series | — |
 | `dataforseo-ranking-opportunity` | recommendation | `dataforseo-ranked-keywords` | non-navigational inner page ranked 4–20 with modelled demand | — |
 | `search-striking-distance` ◊ | recommendation | `gsc-page-query` (+`dataforseo-serp-panel`) | page/query at position 4–12 above the impression floor, on the grounding-decontaminated series, **excluding** terms whose tracked panel row reports an AI Overview that does not cite this property | — |
-| `query-cannibalization` †◊ | recommendation | `gsc-page-query` | ≥2 of the property's pages each hold ≥20% of one query's impressions **and** they do not look like one SERP block (near-identical counts at near-identical positions, or no clicks anywhere) | [impression-harvest](../docs/playbooks/impression-harvest.md) |
+| `query-cannibalization` †◊ | recommendation | `gsc-page-query` | ≥2 of the property's pages each hold ≥20% of one query's impressions **and** they do not look like one SERP block (near-identical counts at near-identical positions, or no clicks anywhere) | convert earned impressions into clicks before building new inventory |
 | `bing-search-opportunity` ◊ | recommendation | `bing-webmaster-queries` (+`gsc-page-query`) | Bing position 4–20, CTR <15%, ≥50 impressions; a declining series or a long zero-click window caps confidence at medium, and the GSC join never crosses a locale subtree nor names a page carrying <10 captured impressions for the query | — |
-| `query-language-drift` † | recommendation | `gsc-country` (+`gsc-page-country`) | a country holding ≥5% of impressions (≥1,000) clicks at ≤half the CTR the property earns *excluding that country* | [impression-harvest](../docs/playbooks/impression-harvest.md) |
-| `device-ctr-gap` †◊ | recommendation | `gsc-device` (+`gsc-page-query`) | **either** device's CTR ≤ half the other's, both ≥1,000 impressions, and the gap survives charging the whole grounding exclusion to the weaker surface | [impression-harvest](../docs/playbooks/impression-harvest.md) |
+| `query-language-drift` † | recommendation | `gsc-country` (+`gsc-page-country`) | a country holding ≥5% of impressions (≥1,000) clicks at ≤half the CTR the property earns *excluding that country* | convert earned impressions into clicks before building new inventory |
+| `device-ctr-gap` †◊ | recommendation | `gsc-device` (+`gsc-page-query`) | **either** device's CTR ≤ half the other's, both ≥1,000 impressions, and the gap survives charging the whole grounding exclusion to the weaker surface | convert earned impressions into clicks before building new inventory |
 | `image-search-demand` | recommendation / discovery | `gsc-image-page-query` | captured image rows exist (recommendation when they produced no clicks) | — |
 | `llm-grounding-traffic` ◊ | discovery | `gsc-page-query` (+`dataforseo-llm-mentions-google`) | quoted-literal grounding queries hold ≥5% of captured impressions (≥500) | — |
 | `dataforseo-llm-visibility` ◊ | discovery | `dataforseo-llm-mentions-*` | reported AI mentions > 0; names the property's rank among the cited domains the snapshot returned | — |
 | `distant-demand-cluster` ◊ | discovery | `dataforseo-ranked-keywords` | ≥10k/mo at KD ≤25, position 21–100, on an existing non-home page — **one card per URL cluster**, capped at 3 | — |
 | `ai-referral-floor` | discovery | `ga4-landing-page-acquisition` | GA4 AI Assistant sessions > 0 | — |
 | `search-appearance-leader` | discovery | `gsc-search-appearance-pages` | an appearance treatment carries impressions | — |
-| `prune-candidates` † | discovery | `gsc-page` | ≥100 reported pages over ≥14 reported dates, some under 5 impressions | [impression-harvest](../docs/playbooks/impression-harvest.md) |
+| `prune-candidates` † | discovery | `gsc-page` | ≥100 reported pages over ≥14 reported dates, some under 5 impressions | convert earned impressions into clicks before building new inventory |
 | `feature-usage-<event>` | insight | `ga4-page-events` | a non-generic custom event fired | — |
-| `page-movers` † | insight | `gsc-page` | a page's clicks moved ≥10 across two complete seven-date windows | [release-cohort-attribution](../docs/playbooks/release-cohort-attribution.md) |
-| `reclamation-match` ‡ | discovery | `ga4-traffic-sources` (+`dataforseo-backlinks-new-lost`) | an **open** reclamation target's domain appears as a GA4 referral host — only when `--reclamation-targets` is supplied | [reclamation-pipeline](../docs/playbooks/reclamation-pipeline.md) |
+| `page-movers` † | insight | `gsc-page` | a page's clicks moved ≥10 across two complete seven-date windows | read the change against its registered cohort |
+| `reclamation-match` ‡ | discovery | `ga4-traffic-sources` (+`dataforseo-backlinks-new-lost`) | an **open** reclamation target's domain appears as a GA4 referral host — only when `--reclamation-targets` is supplied | score, verify, pitch and log the reclamation target |
 
 **Two observers, one question** (`ro-d5c`). Clarity and GA4 both
 rank error-y pages and do not always agree — a
@@ -2873,7 +2870,7 @@ pnpm signals:event-params -- --asset example.com --days 7 --page  # add the page
 pnpm signals:event-params -- --asset example.org --event cta_click --dims label,location
 ```
 
-Each requested param must be registered as an **event-scoped custom dimension** in that property's GA4 admin first; values are `(not set)` for events collected before registration (forward-only), and a fresh dimension can take up to 48h to start populating. The script prints the provider's real error plus the fix when a dimension isn't registered (doc 15 flow C).
+Each requested param must be registered as an **event-scoped custom dimension** in that property's GA4 admin first; values are `(not set)` for events collected before registration (forward-only), and a fresh dimension can take up to 48h to start populating. The script prints the provider's real error plus the fix when a dimension isn't registered (doc 14 flow C).
 
 ---
 
@@ -2930,7 +2927,7 @@ property's panel dir, which is where a property agent actually reads
 # `reclamation-import.mjs` — load an outreach campaign into the store
 
 Loads a campaign's static target CSV into the store's link-outreach targets,
-which is step 7 of the [reclamation playbook](../docs/playbooks/reclamation-pipeline.md)
+the campaign's touch log, one row per target page
 ("log every touch — contact, page, date, status — and reconcile before the next
 wave"). Without that log the playbook's no-double-pitch rule, its 10–20%
 conversion band, and the abandonment rule that band feeds are all unenforceable.
@@ -3047,7 +3044,7 @@ applied: making it unnecessary is the point.
 **Read the spread and the site rows, not just the verdict.** The first sample is
 routinely shorter than the rest — GA4 realtime and the feed land after first
 paint — so one frame is not the wall, and `--samples` takes the worst. The
-footer reports the current geometry (`docs/25-the-wall.md` § Budget): each
+footer reports the current geometry (`docs/14-design.md` § Budget): each
 region’s box, actual row heights, spare height under the last row, and whether
 the feed’s lowest row is whole. Since 2026-09-30 rows grow their type and charts
 to use the available space, with selected pulse totals adding real content.
@@ -3080,9 +3077,9 @@ sandbox disabled.
 
 ---
 
-# `surface:audit` — does a desk surface still meet doc 21?
+# `surface:audit` — does a desk surface still meet doc 14?
 
-[Doc 21](../docs/21-surface-design.md)'s
+[doc 14](../docs/14-design.md)'s
 acceptance list is a list of **measurements** — the first screen answers the
 surface's one question without scrolling, no paragraph past one sentence outside
 `About`, no owner chip or config path on a view surface, every number that can
@@ -3099,13 +3096,13 @@ pnpm surface:audit -- --json > /private/tmp/surface.json
 pnpm surface:audit -- --help
 ```
 
-Exit `0` every route meets doc 21, `1` offenders (named per route), `2` it could
+Exit `0` every route meets doc 14, `1` offenders (named per route), `2` it could
 not be measured (no Chrome, no Tower, a route that never rendered). Like
 `wall:fit` it is an **operator/agent tool, not part of `pnpm test`**: it needs a
 live Tower on 5173 and a local Chrome. It is **read-only** — it navigates and
 measures, and writes nothing to the operator's store.
 
-Each route is measured twice, at doc 21's own two viewports: **1440×900** (the
+Each route is measured twice, at doc 14's own two viewports: **1440×900** (the
 desk, where the first-screen, prose, chip and series rules are written) and
 **390×844** (the phone, where the 44px floor is). The table reports the page
 height at both.
@@ -3113,7 +3110,7 @@ height at both.
 ## The attributes a surface must carry to be measurable
 
 The audit reads the page, so a rule it cannot see is a rule that passes by
-accident. These are the contract — the vocabulary components of doc 21 carry
+accident. These are the contract — the vocabulary components of doc 14 carry
 them, and any surface hand-built outside that vocabulary must carry them too:
 
 | Attribute | On | What the audit does with it |
@@ -3125,7 +3122,7 @@ them, and any surface hand-built outside that vocabulary must carry them too:
 | `data-spark` / `data-sparkline` | the `Sparkline` inside a `Kpi` | the series that satisfies it |
 | `data-composition` | a number whose shape is how a total DIVIDES, not how it moves — `SegmentBar` carries it, and `PriorityBar` through it | also satisfies the series rule, for a KPI the store keeps no history of |
 | `data-series="unavailable"` + `data-series-reason` | a `Kpi` whose series does not exist YET, with the reason in words (`Kpi`'s `seriesUnavailable`) | not an offender; listed under the route as "N number(s) declare no series yet" so the gap stays visible on a green run |
-| `data-about` | the one `About` disclosure per screen | prose inside it is where doc 21 puts prose, and is never an offender |
+| `data-about` | the one `About` disclosure per screen | prose inside it is where doc 14 puts prose, and is never an offender |
 | `data-owner-chip` | `OwnerChip` (value = the path) | an offence on any route that is not Settings or Sources |
 | `data-config-surface` | a register deliberately shown on a view route | exempts that subtree from the chip rule |
 | `data-audit-ignore` | a subtree the audit must not judge | exempts it from every rule |
@@ -3154,11 +3151,11 @@ single sentence past 120 characters is prose wearing a subtitle's punctuation.
 the operator has one chip to remove, so the chip is counted and its contents are
 not.
 
-**The series rule reads the "can" in doc 21's sentence** — "every number that
+**The series rule reads the "can" in doc 14's sentence** — "every number that
 *can* have a series shows one" (bead `ro-78qo.6`, which is where Home first ran
 into it). Some numbers cannot. The operator's inbox posture and the count of
 conditions open tonight are point-in-time totals the store keeps no by-day record
-of, and what doc 21's Home template draws for each of them is a bar: how the
+of, and what doc 14's Home template draws for each of them is a bar: how the
 total DIVIDES, since there is no way it moved. `[data-composition]` inside a
 `[data-kpi]` is that answer, and it is a declaration rather than an amnesty — a
 number with a real series that draws a bar instead is still an offender, because
@@ -3230,7 +3227,7 @@ Chrome no longer hides a closed disclosure's content with `display: none`; it
 uses `content-visibility` on the implicit slot, so the subtree keeps a layout box
 and `getBoundingClientRect()` returns a real rect for text nobody can see. The
 descriptor's `visible` therefore says yes, and every rule that trusted it counted
-prose, controls and pixels that are folded away — which is most of what doc 21
+prose, controls and pixels that are folded away — which is most of what doc 14
 asks a surface to fold away. `isInsideClosedDisclosure` is the rule, in node with
 the others; the SUMMARY is exempt, because it is the visible line and a control
 whose own 44px floor still has to hold. The page keeps one copy of the same walk
@@ -3284,283 +3281,63 @@ its place:
   page of `EPERM` about its log file on every start, in the middle of the output
   you are trying to read.
 
-# UX gate — no paragraph of explanation in the Tower
+# UX text report — how much reading each screen asks for
 
-Bead `ro-ujb9.94`. The operator's rule: "If interactions need
-footnotes or a 'paragraph' of explanation, that's a huge UX red flag … rethink a
-simple, intuitive flow instead of piling on instructions." And: "codify/gatify
-this so any agent who does work on UX in the future encounters a hard stop …
-instead of counting on agents to read docs." `scripts/ux-gate.mjs` is that stop.
-
-**What fails.** Any single visible string the Tower renders over its word
-budget: labels **12**, failure messages **18** (what happened + what to do),
-accessible names (`aria-label`, `alt`, `sr-only`, an `InfoTooltip` label)
-**24**. Text is read with the TypeScript compiler: JSX paragraphs are measured
-whole (inline `<strong>`/`<code>`/`<a>` included), and so is a sentence joined
-with `+` (`ro-ujb9.96.11`: two 10-word pieces are one 20-word string, a
-non-string piece counts as one word). Every string and template
-literal is presumed visible unless its position provably is not (class lists,
-`data-*`/`id`/`href`-style attributes, types, property names, comparisons,
-terminal output — `console.*`, `process.stdout/stderr.write`, a dev server's
-`logger.*` — SQL, SVG geometry). A message thrown while a component or hook
-renders reaches only the console while no error boundary in the Tower shows a
-caught error's message, so it is developer text and not counted
-(`ro-ujb9.96.4`); once such a boundary exists it counts, and a throw anywhere
-else (a handler, a query function) always counts, because the screen that
-catches it may show it. Content inside `About` and `InfoTooltip` counts:
-hiding a paragraph still ships it. The excluded files are `notDeskCopy` in
-`scripts/ux-gate.settings.json`, each with its reason.
-
-**A retired internal term fails too** (`ro-ujb9.135`). A short label can pass
-the budget and still name the system's own nouns ("no ledger rows", "On the
-roster"). `RETIRED_TERMS` in `scripts/ux-gate.mjs` lists the ones
-[docs/17](../docs/17-ui-lexicon.md#retired-on-screen-terms) replaced; any
-visible string that says one fails with the word to say instead. It has no
-baseline: a retired term stays at zero.
-
-**What it reads** (`ro-ujb9.96.6.13`). `apps/tower/{src,shared,worker}`, plus
-every file those reach by a value import, and everything
-`apps/tower/vite.config.ts` compiles in: the config registers
-(`scripts/config-registers.mts`), the job and workflow descriptions
-(`scripts/scheduled-jobs.mts`, `scripts/workflow-definitions.mts`), the
-contract's provider catalog (`packages/contract/src`), the dev lanes
-(`apps/tower/vite/`) and every config document (`config/*.json`, a string value
-judged by its key). Relative imports and `@noticeos/*` packages (through
-their `exports`) are followed; `import type` is not; a generated `.mjs` is
-measured as its authored `.mts`. Nothing is listed by hand, so moving a
-paragraph one import away from `apps/tower` fails exactly as it did there, and
-`pnpm ux:gate -- --list` shows these files beside the Tower's own.
-
-**The ingest the Tower calls** (`ro-ujb9.96.6.24`). The Tower reaches the
-ingest Worker through the `INGEST` service binding, not an import, and draws
-its probe verdicts, refusals, stored `last_error`s and flag messages word for
-word. So the gate follows the binding too: from the `services` in the Tower's
-`wrangler.jsonc` to the bound Worker's `main` (measured), and from each method
-of its default-export entrypoint class — the RPCs, `runScheduled` included,
-since it writes what the Tower reads — into the modules that method calls,
-followed like any import. The Workers handlers (`fetch`, `scheduled`, `queue`…)
-are not followed: sites and crons call those. The ingest text the Tower
-already rendered entered the record once, under the widening for
-`ro-ujb9.96.6.24`; each screen's redesign is its own bead under `ro-ujb9.96.6`.
-GraphQL documents and SQL column-list lines are code, not text.
-
-**Where it stops you.**
-
-| When | How | Scope |
-|---|---|---|
-| Agent edit | Claude Code hook `scripts/ux-gate-hook.mjs` (exit 2, reason fed to the agent) | the edited file, when the Tower renders it; also blocks edits to the baseline |
-| Commit | `.githooks/pre-commit` → `node scripts/ux-gate.mjs --staged` | staged files the Tower renders, plus every file it imports from outside `apps/tower` (no source file staged: one `git diff`, done) |
-| CI | `scripts/ux-gate.test.mjs` in `pnpm test:scripts` | everything the Tower renders, the baseline's schema and its git history |
-
-Every failure names the violation (file:line, word count, the text) and ends
-with the same fixed instructions: do not shorten or hide the text; redesign
-the interaction; if unsure how, research how best-in-class modern products
-handle the same interaction until you find the best current comparable, record
-it in `docs/briefs/<flow>.md#prior-art`, and build that pattern.
-
-The strings the change added come first, marked `← this change`, and the
-file's older offenders follow under "already in <file> before this change"
-(`ro-ujb9.96.5`), so the redesign starts with the new sentence, not the legacy
-debt. "Added" means absent from the base version of the file: what the edit
-wrote (edit hook), the committed `HEAD` (pre-commit, and `pnpm ux:gate` for an
-uncommitted file), or where the branch left `main` (CI; the parent commit on
-`main` itself or in a merge checkout). A checkout with no history to compare
-lists every offender unmarked.
-
-**The ratchet.** `apps/tower/ux-budget.json` holds the legacy offenders per file
-(count and words) measured when the gate landed. A file may not gain either.
+`pnpm ux:gate` (`scripts/ux-gate.mjs`) extracts every string the Tower can
+show a person — `apps/tower/{src,shared,worker}` plus every module and config
+document those import, and the ingest Worker behind the service binding — counts
+the words in each, and lists the long ones, longest first. "Long" is above the
+thresholds in `scripts/ux-gate.settings.json` (labels 12 words, failures 18,
+accessible names 24); the same file names the directories read, the files
+followed for imports and the few files that are not desk copy. The thresholds
+are a reading aid for design review, not a rule: the report always exits 0,
+and whether a sentence on a screen is the right design is the call of whoever
+builds the screen, with this list in hand. The reader (`extractVisibleStrings`)
+is shared with `scripts/ui-lexicon.test.mjs`, which does fail on system jargon.
 
 ```sh
-pnpm ux:gate                 # the whole Tower (what CI runs)
-pnpm ux:gate -- --list       # every offender, longest first
+pnpm ux:gate                 # every long string the Tower renders
+pnpm ux:gate -- --summary    # per-file counts only
 pnpm ux:gate -- --files apps/tower/src/routes/HealthRoute.tsx
-pnpm ux:baseline             # after removing prose: lower the record (never raises)
+pnpm ux:gate -- --json       # machine-readable
 ```
 
-Removing prose makes the record stale, and a stale record fails CI and the
-commit (a looser record is room to add prose back): run `pnpm ux:baseline` and
-commit `apps/tower/ux-budget.json` with the change. `ux:baseline` never adds a
-file or raises a number, and refuses to recreate a missing record.
+`scripts/ux-gate.test.mjs` proves the reading (what counts as visible, how
+words are counted, how far imports are followed); it asserts nothing about
+the Tower's own copy.
 
-**Widening the gate.** When the gate itself learns to read files it never read
-(as `ro-ujb9.96.6.13` did), the text the desk was already rendering from them
-is legacy debt, recorded once:
+# UX flow walker — what each operator flow costs
 
-```sh
-pnpm ux:gate -- --widen <bead> --reason "<what the gate now reads>"
-```
-
-It adds those files' offenders to the record under one `widenings` entry in the
-file's header naming the bead, never as per-file exceptions. It refuses any
-file whose text is new or changed since `HEAD`, or that the Tower did not
-import at `HEAD`: that is added prose, and it is redesigned. The commit, CI and
-the history audit hold every widening to the same rules, plus: the same change
-edits `scripts/ux-gate.mjs`, records are append-only, and a file and a bead
-widen once. The widened files' offenders are assigned to the screen beads under
-`ro-ujb9.96.6` and removed like the rest.
-
-**Exceptions** are an operator decision and exist only for three kinds of fact:
-`trust-safety` (a secret shown once), `legal` (a required disclosure) and
-`destructive-confirmation` (what an irreversible action destroys). Everything
-else is redesigned. The operator raises an entry by hand with all four keys:
-
-```json
-"apps/tower/src/routes/IntegrationsRoute.tsx": {
-  "count": 5, "words": 110,
-  "kind": "trust-safety",
-  "approvedBy": "ro-abcd.1",
-  "reason": "The key is shown once and cannot be recovered",
-  "priorArt": "docs/briefs/credential-reveal.md#prior-art"
-}
-```
-
-`priorArt` must resolve to a heading in a `docs/briefs/` file whose section
-cites at least three source URLs. The check runs on the working tree, on the
-staged index in the pre-commit hook, and on every historical commit that
-touched the record, so a raise committed with `--no-verify` is still found.
-
-**The gate's own rules** (`ro-ujb9.96.3`) live in
-`scripts/ux-gate.settings.json`, not in the script: the three budgets, the
-directories always read (`scanDirs`), the files imports are followed from
-(`traceRoots`) and the files never read (`notDeskCopy`, each with its reason).
-The edit hook protects the file like the record. Tightening is free (lower a
-budget, add a directory, drop a skipped file). Loosening is the same operator
-exception as a raise: a raised budget or a new `notDeskCopy` entry carries
-`kind`, `approvedBy`, `reason` and `priorArt`, fresh for each change. A scan
-directory or trace root leaves only once it no longer exists; stopping to read
-a file that still renders is an approved `notDeskCopy` entry. The file is
-never deleted, and every commit that touched it is audited, the first against
-the constants it replaced (`LEGACY_SETTINGS` in the script).
-
-**The pre-commit hook installs itself.** The root `prepare` script
-(`scripts/install-git-hooks.mjs`) runs on every `pnpm install` and sets
-`git config core.hooksPath .githooks` — repository config, so the main checkout
-and every `.claude/worktrees/*` worktree get it. It does nothing in CI, outside
-a git work tree, or when `core.hooksPath` already points elsewhere (it says so).
-A pre-existing `.git/hooks/pre-commit` is chained, not lost. **Bypassing it with
-`git commit --no-verify` is not allowed** (AGENTS.md).
-
-**The Claude Code hook** is wired by adding this to the project's `.claude/settings.json`
-(merge into an existing `hooks` object if there is one):
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
-        "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR\"/scripts/ux-gate-hook.mjs pre" }]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR\"/scripts/ux-gate-hook.mjs post" }]
-      }
-    ]
-  }
-}
-```
-
-`post` measures the edited file if the Tower renders it and exits 2 when it holds
-more prose than the record allows, marking the strings the edit wrote
-(`← this change`). When an edit removes prose it exits 0 and tells the agent to
-run `pnpm ux:baseline`. `pre` exits 2 on any Edit/Write to the record or to
-`scripts/ux-gate.settings.json`, and on shell commands that would write either
-(redirects, `tee`, `sed -i`, `cp`/`mv`, interpreters); reading them and
-`pnpm ux:baseline` stay allowed. The hook finds
-the checkout from the edited file, so one registration covers every worktree,
-and it fails open (exit 1, a visible warning) if it cannot run, because the
-commit hook and CI still hold the line.
-
-# UX flow gate — a flow only gets shorter
-
-Bead `ro-ujb9.95`. The operator's rule: "way too many steps
-where it's more natural just to add one more button or component to the
-current step than blowing the entire flow up with extra steps, duplicated
-checks"; "No duplicate statuses on the same screen"; a list repeating one
-subject is grouped under it. The text gate above reads source files and cannot
-see a flow that takes nine clicks across two pages. The flow gate walks them,
-in a browser.
-
-**What fails.** Every flow declared in `apps/tower/e2e/ux-flows.mjs` is walked
-at desktop (1440×900) and phone (390×844) by clicking only the controls the
-product offers, and held per viewport to `apps/tower/ux-flows.json`:
-
-| Rule | Counted as |
-|---|---|
-| Steps only go down | actions (clicks, fields, selects), screens (a URL or a guided step; a panel opened over the page is not a screen, its presses are actions), page changes, words of explanation on screen |
-| No empty step | a screen left having entered or decided nothing |
-| Check once | the same verify step, check request (`…/test`, `…/sites`, Google properties) or dialog twice in a flow |
-| One status per subject per screen | the same status for the same subject shown twice on one screen |
-| Group lists by subject | a list whose items repeat one subject (`data-order="chronological"` exempts a timeline or log) |
-
-**Subjects come from the markup, never a guess** (bead `ro-ujb9.96.10`). Every
-status renderer — `StateChip`, `IntegrationStateChip`, `ConnectionFacts`,
-`StatusBanner`, `InlineSaveState` — takes a required `subject`, a
-`StatusSubject` (`kind:id`: `integration:bing-webmaster`, `asset:example.com`,
-`source:example.com:uptime`, `task:ro-1`), and draws it as `data-status-for`;
-a hand-drawn `role="status"` carries `data-status-for` itself; a row in a list
-of subjects carries `data-subject`. `scripts/status-subject.test.mjs` fails a
-call site that names none. The walker reads only those: a status that declares
-nothing is the screen's and counts as the same fact as any status with its
-words there, and a row that declares nothing is read by the line it leads
-with — so an undeclared repeat fails the gate instead of passing as two
-subjects.
-
-The screen survey (the `survey` entry) opens every main screen by URL, so the
-last two rules cover every screen, not only the ones a flow passes through.
-
-**Where it stops you.** `pnpm test:journeys` ends with it (CI's fifth gate),
-and runs it even when a journey has failed, so every agent that runs the
-journeys meets it. The pre-commit hook refuses an
-unapproved raise of the staged record (`node scripts/ux-flow-gate.mjs
---staged`), and the Claude Code `pre` hook above refuses any edit to it.
-`pnpm test:scripts` proves the judge and audits the record's git history.
-
-**Every failure** names the flow, viewport, rule, the step and screen, the
-measured and budgeted numbers and the screenshot
-(`apps/tower/e2e/ux-flows-results/shots/…`, uploaded by CI), then ends with the
-same fixed instructions as the text gate: do not add a step, screen, check or
-status; add the control to the current step; check once; show one status where
-the operator acts; group by subject; if unsure, research the best modern
-comparable and record it in `docs/briefs/<flow>.md#prior-art`.
+`pnpm ux:flows` (`apps/tower/e2e/flow-gate.mjs`, the end of
+`pnpm test:journeys` and CI's `flow-gate` job) drives every operator flow
+declared in `apps/tower/e2e/ux-flows.mjs` in a real browser, at desktop and
+phone, on isolated fixture servers, and reports what each flow costs: actions,
+screens, page changes, explanatory words, empty steps, repeated checks,
+duplicate statuses and ungrouped lists. The measurements go to
+`apps/tower/e2e/ux-flows-results/results.json` (ignored; CI uploads it) and a
+one-line summary. The counts are a design-review input, not a budget: the run
+fails only when a flow cannot be walked to its end, when a page leaves the
+isolated fixture, or when the probes in `ux-walk.mjs` stop seeing what they
+are built to see. A changed flow changes its script in the same commit; a new
+flow is designed by whoever builds it and declared there. The patterns the
+current flows adopted from comparable products are listed at the top of
+`ux-flows.mjs` so that research is not redone.
 
 ```sh
 pnpm ux:flows                                  # walk every flow (what the journeys run)
 pnpm ux:flows -- --flows connect-bing,inbox    # just these
-node scripts/ux-flow-gate.mjs                  # the record, its history and prior art, no browser
-pnpm ux:flows:baseline                         # after a flow got cheaper: lower the record (never raises)
+pnpm ux:flows -- --viewports phone             # one viewport
+pnpm ux:flows -- --json                        # machine-readable
 ```
 
-**The ratchet** is the text gate's. The record holds each flow's actions,
-screens, page changes and words plus its four rule counts. **The rule counts
-are legacy debt** that epic `ro-ujb9.96.7` removes to zero, never an allowance.
-A cheaper flow makes the record stale, and a stale record fails: run
-`pnpm ux:flows:baseline` and commit `apps/tower/ux-flows.json` with the change.
-A walk that cannot finish fails too: a changed flow changes its walk in the
-same commit, and a flow is never deleted to get past the gate (only the
-operator retires one, under `"retired"` with `"approvedBy"` and `"reason"`).
+# The pre-commit hook
 
-**A new flow** must cite its research (`priorArt`: a `docs/briefs/` section
-with at least three source URLs) and walk with zero empty steps, duplicated
-checks, duplicate statuses and ungrouped lists. Its first measured step counts
-then become its budget (`pnpm ux:flows:baseline` records it).
-
-**Exceptions** have the text gate's terms: the operator raises one viewport's
-entry by hand with `"kind"` (`trust-safety`, `legal`,
-`destructive-confirmation`), `"approvedBy"`, `"reason"` and `"priorArt"`; the
-record's git history is audited so a raise committed past the hook is found.
-
-**Isolation** is the journey suite's: one fixture server per lane (as many
-lanes as the journeys have workers by default — `JOURNEY_WORKERS`, or half the
-machine's cores up to 4 — or `--parallel`), each started by
-`apps/tower/e2e/fixture-server.mjs` on a free loopback port (so two runs on one
-machine never collide, beads `ro-ujb9.107`, `ro-ujb9.167`), started once per
-run, reset before every flow, the isolation guard armed, every request to
-another origin aborted. Before any
-flow, the runner checks its own probes against a page holding one of each
-violation, so a probe that went blind fails instead of reading as progress.
+The root `prepare` script (`scripts/install-git-hooks.mjs`) runs on every
+`pnpm install` and points `core.hooksPath` at `.githooks/`, whose `pre-commit`
+runs the neutral-code gate below on staged files. It does nothing in CI, in a
+checkout that is not a git work tree, or when `core.hooksPath` already points
+somewhere else (it says so and leaves that alone). A pre-existing
+`.git/hooks/pre-commit` is chained, not lost.
 
 # Neutral-code gate — product code names no installation's own sites
 

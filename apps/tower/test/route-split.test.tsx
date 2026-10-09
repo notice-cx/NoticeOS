@@ -251,7 +251,7 @@ describe("isChunkLoadError", () => {
 /**
  * The classes that carry a STATE: severity, health, trend, live movement,
  * provider and series identity. A loading frame wearing any of them would be
- * claiming something about the portfolio it has not read (doc 14, doc 21).
+ * claiming something about the portfolio it has not read (doc 14, doc 14).
  */
 const STATE_CLASS =
   /(?:^|[\s:-])(?:text|bg|border|fill|stroke|ring)-(?:error|warn|urgent|info|healthy|connected|milestone|trend-positive|trend-negative|live-up|live-down|search-bing|financial-revenue|financial-cost|chart-[a-z-]+|primary)\b/;

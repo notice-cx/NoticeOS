@@ -1,4 +1,4 @@
-// The Wall's live feed column (bead ro-trai.9, docs/25-the-wall.md § Feed).
+// The Wall's live feed column (bead ro-trai.9, docs/14-design.md § Feed).
 import { act, render, screen, within } from "./render";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WallFeed, feedClock } from "@/components/wall/WallFeed";

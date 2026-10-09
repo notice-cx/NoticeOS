@@ -1,4 +1,4 @@
-// The Wall's one top strip (bead ro-trai.3, docs/25-the-wall.md § Strip): the
+// The Wall's one top strip (bead ro-trai.3, docs/14-design.md § Strip): the
 // local time/date, the next meeting and a recognizable countdown. System
 // problems live in Needs you rather than as an aggregate header badge.
 

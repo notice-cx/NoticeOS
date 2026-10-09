@@ -5,7 +5,7 @@ import { Navigate, useLocation, useParams } from "react-router-dom";
  * `/assets`, is a plain `AliasRedirect`.
  *
  * `/assets` is the canonical address and the UI now says Assets too (D20, bead
- * `ro-pbzu.6`). `/properties` is the spelling doc 17 asked for between
+ * `ro-pbzu.6`). `/properties` is the spelling doc 14 asked for between
  * 2026-07-06 and the decision, and it stays an alias forever: the Tower has
  * emitted `/properties` links into notes, bookmarks and commit messages, and a
  * 404 on a path that used to answer is worse than two paths for one page.

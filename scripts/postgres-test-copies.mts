@@ -1,5 +1,4 @@
-// A TEST PROCESS'S WAY TO ITS OWN COPY OF THE STORE (the Postgres port
-// pattern, docs/briefs/2026-09-29-postgres-port-pattern.md; epic ro-ujb9.76).
+// A TEST PROCESS'S WAY TO ITS OWN COPY OF THE STORE (epic ro-ujb9.76).
 //
 // One process of a test run starts the run's throwaway cluster
 // (scripts/postgres-test-cluster.mts): Vitest's own process, in a Workers

@@ -12,14 +12,13 @@ export them and run `bd`). Dark-first and TV-legible; severity owns
 attention color, with the narrow working/error/unconfigured integration-source
 palette defined in doc 14.
 
-Current limitations and audited corrections are tracked in
-[docs/19](../../docs/19-architecture-implementation-ux-audit.md).
+Known limitations are filed as beads in the task hub, never kept in a doc.
 
 ## Routes
 
 | Route | What | Chrome |
 |---|---|---|
-| `/wall` | **The TV.** Full-screen, dark, auto-refresh 60s, read-only: `WallCanvas` draws the layout saved at `config/tower.json` `/wall`, or D28's default ([doc 25](../../docs/25-the-wall.md)) — the strip, revenue beside Needs you, one row per asset, the live feed (its own 30s poll). Arranged at `/wall/edit`, never on the TV. | none — deliberately outside the shell |
+| `/wall` | **The TV.** Full-screen, dark, auto-refresh 60s, read-only: `WallCanvas` draws the layout saved at `config/tower.json` `/wall`, or D28's default ([doc 14](../../docs/14-design.md)) — the strip, revenue beside Needs you, one row per asset, the live feed (its own 30s poll). Arranged at `/wall/edit`, never on the TV. | none — deliberately outside the shell |
 | `/` | **The operator's overview.** The month's net, a status strip (needs you — once a task source is connected, D32 — open alerts, System posture), a Waiting-on-you inbox (same condition) beside the newest alerts, and a compact assets table; until the first collected number Home is the first-run guide, and with one asset that asset's own lead replaces the table (bead `ro-ujb9.127`). No clock, countdown, meetings, asset cards, or attention table — each lives on the page that owns it. | shell |
 | `/assets` | The portfolio index: the interactive asset grid, narrowed by lifecycle status, automation and attention and ordered worst-first — the filter and sort state lives in the URL. `/properties` is an alias and redirects here. | shell |
 | `/assets/new` | **Add a site** (bead `ro-qsoo`; one screen since `ro-ujb9.96.7.5`): the Assets page with the Add a site card open over it — the address the sidebar entry and old links use; Home's first run and the Assets header open the same card in place (`components/AddSite.tsx`). The domain is the only field; the name is read off it or from the site's own page (`GET /api/site-name`), and Add writes the store row and then commits the config entries as ONE changeset, landing on the asset's Data sources. Registered before `/assets/:id/:tab?` and static, so it is never read as an asset called *new*. | shell |
@@ -73,7 +72,7 @@ off the remembered state.
 
 **On the asset URL:** `/assets` is canonical and `/properties` is an alias
 that redirects to it (D20). On screen the noun is **Sites** (D31,
-[doc 17](../../docs/17-ui-lexicon.md)); the URL, the asset ids, `/api/assets`
+[doc 14](../../docs/14-design.md)); the URL, the asset ids, `/api/assets`
 and the `asset:` task labels keep `asset`. `/properties` stays an alias forever,
 so no link the Tower ever emitted can 404.
 
@@ -165,7 +164,7 @@ Retries back off from 30 seconds to five minutes and respect server retry hints;
 focus/reconnect cannot bypass them. No configured feeds hides the widget.
 Ingest caches feed rounds for five minutes; losing cache bytes during a held
 cooldown can defer a read without contacting the provider.
-See [the Wall calendar contract](../../docs/25-the-wall.md).
+See [the Wall calendar contract](../../docs/14-design.md).
 
 The strip's clock is deliberately browser-local and ticks inside its own
 component subtree. The countdown configuration rides the no-cache Wall payload.
@@ -249,7 +248,7 @@ operator can see on `/assets` and archive. Where settings cannot be saved, Add i
 disabled with that deployment's reason rather than creating half an asset;
 the composition lives in `shared/asset-wizard.ts` so what Add will write is a
 value a test can assert. Flow, refusals and failure states:
-[doc 15 flow A](../../docs/15-operator-flows.md#one-screen-as-built-2026-09-23-bead-ro-ujb99675).
+[doc 14 flow A](../../docs/14-design.md).
 
 ### Tasks are managed here (D19, bead `ro-l1ed.1`)
 
@@ -547,7 +546,7 @@ a claim about spending.
 `22 in last24h (avg7d 39.3, P(<=22)~=0.0020)` and `rule_inputs` is the exact
 numbers the rule tested. That pair is the **audit trail**, and this app never
 rewrites it; translation is read-side only. (The ingest lane's current
-pull-failure-summary mutation is a separate known append-only gap in doc 19.)
+pull-failure-summary mutation is a separate known append-only gap.)
 It is also, as a
 headline, useless: it states evidence and leaves the operator to do the
 inference. So translation is a **read-side** concern, and it lives in one pure
@@ -676,7 +675,7 @@ API fixtures on those same routes; the kitchen sink remains the component galler
 
 **With the canonical fixture, what you should see:** the desk at `/` and the
 Wall at `/wall` — D28's strip, the month's revenue beside Needs you, one row per
-site and the live feed ([doc 25](../../docs/25-the-wall.md)). The synthetic Wall
+site and the live feed ([doc 14](../../docs/14-design.md)). The synthetic Wall
 the journeys and captures draw is `e2e/wall-fixture.ts`, on invented `.example`
 sites.
 
@@ -747,7 +746,7 @@ src/components/    wall/* (the D28 Wall's widgets), surface/* (the desk's charts
                    IntegrationMatrix, ProviderCard, AlertRow, DashboardWidgets, Drill,
                    AppShell (+ Sidebar), PageHeader, CommandPalette (⌘K),
                    ui/* (shadcn, incl. Command/cmdk) ;
-                   REGISTRY.md + registry.ts (the index)
+                   registry.ts (the index; /dev/kitchen-sink renders it)
 src/routes/        WallRoute · WallEditRoute · HomeRoute · AssetsRoute · AssetNewRoute ·
                    AssetDetailRoute (+ asset-detail/*) · TasksRoute · TaskRoute ·
                    FinancialsRoute · HealthRoute · WorkflowsRoute · IntegrationsRoute ·

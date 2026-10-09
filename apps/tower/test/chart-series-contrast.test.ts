@@ -6,7 +6,7 @@
 // apart from one another to the eye and under colour-blind simulation, with
 // their line patterns as the second, colourless cue. Measured from the two
 // stylesheets, so a token change that breaks a chart fails here first; the
-// numbers are recorded in docs/14-ui-standards.md § Tokens.
+// numbers are recorded in docs/14-design.md § Tokens.
 import { describe, expect, it } from "vitest";
 import { SERIES_TONE_CLASS } from "@/components/surface/Sparkline";
 import { contrastRatio, distance, over, simulate, themeColours, type Theme } from "./palette";

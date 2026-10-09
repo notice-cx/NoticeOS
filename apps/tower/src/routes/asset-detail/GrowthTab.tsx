@@ -40,7 +40,7 @@ import { useRange } from "@/routes/asset-detail/useRange";
 
 /**
  * THE GROWTH TAB — how is this asset doing, in four charts and three strips
- * (doc 21, bead `ro-78qo.4`).
+ * (doc 14, bead `ro-78qo.4`).
  *
  * WHAT CHANGED AND WHY. On 2026-09-05 this tab measured **10,139px** at 1440
  * wide. Every table it could draw was open at once: three headline charts, five
@@ -49,7 +49,7 @@ import { useRange } from "@/routes/asset-detail/useRange";
  * individually honest, and together a page nobody could read. The operator's
  * word for it was "everything, all at once, in the same size".
  *
- * Doc 21's answer is a split rather than a squeeze. This tab now answers ONE
+ * doc 14's answer is a split rather than a squeeze. This tab now answers ONE
  * question — which way did the numbers go — as two pairs of charts following the
  * page's range, then the three strips that say whether the tracked panel, the
  * other collected series and the product are moving. Everything that answers
@@ -90,7 +90,7 @@ export function GrowthTab({
 
   return (
     <div id="growth-evidence" className="flex scroll-mt-4 flex-col gap-5">
-      {/* THE BLOCK THAT IS THIS TAB'S ANSWER (`surface:audit`, doc 21). Growth
+      {/* THE BLOCK THAT IS THIS TAB'S ANSWER (`surface:audit`, doc 14). Growth
           asks which way the numbers went, and the audience pair is where the
           eye has to land: the first screen at 1440×900 is this section, and the
           check measures its bottom edge rather than trusting a screenshot. */}
@@ -165,7 +165,7 @@ export function GrowthTab({
 // --- the tracked panel's scoreboard ----------------------------------------
 
 /**
- * THE PANEL AS SIX NUMBERS (doc 21).
+ * THE PANEL AS SIX NUMBERS (doc 14).
  *
  * `SerpPanelBoard` on the Search tab answers *what is each term doing*; this
  * answers *how is the panel doing* and nothing else, which is the only half of
@@ -292,7 +292,7 @@ interface CollectedSpec {
  * These were five bordered cards with a heading, a caption and an explanatory
  * sentence each — a fourth thing competing to be read first on a tab whose
  * question is direction. They are context for the charts above rather than
- * headlines of their own, so they get the shape doc 21 gives context: a label, a
+ * headlines of their own, so they get the shape doc 14 gives context: a label, a
  * figure, a movement and a line, four across in one strip.
  *
  * SESSIONS IS NOT HERE, because it is a chart above. One fact, one rendering.
@@ -346,7 +346,7 @@ function AlsoCollected({
       lowerIsBetter: true,
     },
   ];
-  // Fewer than three reported days is no trend, and doc 21's rule for that is a
+  // Fewer than three reported days is no trend, and doc 14's rule for that is a
   // cell that is not there rather than a dash pretending to a series.
   const specs = all.filter((spec) => spec.trend.series.length >= 3);
   if (specs.length === 0) return null;

@@ -1,5 +1,5 @@
-// THE ALERT STATEMENTS THE LANES SHARE (bead ro-ujb9.76.5.2; the port pattern,
-// docs/briefs/2026-09-29-postgres-port-pattern.md).
+// THE ALERT STATEMENTS THE LANES SHARE (bead ro-ujb9.76.5.2), on this call's
+// store.
 //
 // Alerts live on Postgres: `noticeos.flags` holds each firing as it was first
 // raised, `noticeos.flag_evidence` each later reading of a condition that is

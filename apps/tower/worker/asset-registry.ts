@@ -1,5 +1,4 @@
-// THE TOWER'S READS OF THE SITE LIST, on Postgres (bead ro-ujb9.76.4.2; the
-// port pattern, docs/briefs/2026-09-29-postgres-port-pattern.md).
+// THE TOWER'S READS OF THE SITE LIST, on Postgres (bead ro-ujb9.76.4.2).
 //
 // `noticeos.assets` through the call's store (`env.STORE`, index.ts). Every
 // Tower reader that needs the sites alone asks here, so the row reaches each

@@ -1,4 +1,4 @@
-// The month's revenue as the Wall's revenue widget states it (docs/25-the-wall.md
+// The month's revenue as the Wall's revenue widget states it (docs/14-design.md
 // § Revenue, bead `ro-trai.4`).
 //
 // THE FIGURE IS THE LEDGER'S, THE PACE IS THE PROJECTIONS'. The large number is

@@ -1,16 +1,17 @@
 ---
-reviewed: 2026-10-01
+reviewed: 2026-10-09
 staleness_policy: warn at 14 days, block the builder at 30 (doc 04)
 ---
 
 # AGENTS.md — NoticeOS repo context pack
 
-This repo's own context pack. Per the **bootstrap rule**
-([doc 12](docs/12-implementation-readiness.md)) the accountability system is
-built accountably from commit #1: the same `reviewed:`-dated, STATE-separated
-pack NoticeOS demands of every asset governs NoticeOS itself. If this pack and
-living memory disagree, **the pack wins until amended**
-([doc 04](docs/04-decision-policy.md)).
+This repo's own context pack: the facts, conventions and standing invariants
+an agent needs before touching the code, kept `reviewed:`-dated and
+STATE-separated like the pack NoticeOS asks of every asset. It records what is
+true and what is decided; it does not decide design for the person building
+the next screen. Where this pack and the code disagree, the code is the fact
+and the pack is amended; where it and living memory disagree, the pack wins
+until amended ([doc 04](docs/04-decision-policy.md)).
 
 ## What this repo is
 
@@ -65,44 +66,36 @@ present** — never wire them so an empty set fails.
 - **SQL is snake_case.** Table and column names snake_case; migrations are
   numbered and **append-only** ([doc 02](docs/02-signal-contract.md)) — the store
   is history, never truncated.
-- **UI tokens, never literals** ([doc 14](docs/14-ui-standards.md)): severity is
-  the attention color system — `error` / `warn` / `info`, plus the reserved
-  emerald accent for milestone-**kind** items. Scoped non-attention systems
-  are defined in doc 14, including integration connectivity, like-for-like
-  performance comparisons and observed workflow execution. Workflows use
-  `healthy` green for recorded success, `error` red for failure and neutral
-  gray for inactive or unknown states, always with text and glyphs; execution
-  success does not imply a successful business outcome. **A hex literal in a component is a
-  review-blocking smell.** `tabular-nums` is baked into the stat components —
-  every metric, no exceptions. Check the component registry before creating
-  anything; a near-duplicate is a rejected completion, not a style note.
-- **No explanatory prose in the Tower — the UX gate stops it** (bead
-  `ro-ujb9.94`, [scripts/README.md](scripts/README.md#ux-gate--no-paragraph-of-explanation-in-the-tower)):
-  a visible string over 12 words (18 for a failure) fails at edit time, at
-  commit (`.githooks/pre-commit`, installed by `pnpm install`) and in CI.
-  Redesign the flow; never bypass it with `git commit --no-verify` and never
-  edit `apps/tower/ux-budget.json` or the gate's rules in
-  `scripts/ux-gate.settings.json`.
-- **A flow only gets shorter — the UX flow gate stops it** (bead
-  `ro-ujb9.95`, [scripts/README.md](scripts/README.md#ux-flow-gate--a-flow-only-gets-shorter),
-  doc 21 principle 3b): `pnpm test:journeys` walks every flow in
-  `apps/tower/e2e/ux-flows.mjs` and fails on an added step, screen or page
-  change, an empty step, a repeated check, a duplicate status or an ungrouped
-  list. Add the control to the current step instead; a changed flow changes
-  its walk in the same commit; never edit `apps/tower/ux-flows.json`.
+- **Design is one doc, written as taste** ([doc 14](docs/14-design.md)): the
+  stack as it is in the repo, the token families and what each colour means
+  (severity `error` / `warn` / `info`, the emerald milestone accent, the money
+  and people identities, recorded workflow execution), the principles, the
+  surfaces as built, the Wall, the operator flows and the lexicon. Colour and
+  size literals live in the CSS and components use tokens, because one fact
+  has one derivation; `tabular-nums` is baked into the stat components. Check
+  `apps/tower/src/components/registry.ts` and the `/dev/kitchen-sink` gallery
+  before adding a component, prefer reuse, and replace a component when a
+  better one earns it. Short copy and short flows are the goal because the
+  operator reads at a glance; whether a sentence or a step earns its place is
+  the judgement of whoever builds the screen. Two reports inform that
+  judgement and fail nothing: `pnpm ux:gate` lists the Tower's long visible
+  strings, and `pnpm ux:flows` (the end of `pnpm test:journeys`) walks every
+  declared flow in a browser and reports what it costs
+  ([scripts/README.md](scripts/README.md#ux-text-report--how-much-reading-each-screen-asks-for)).
+  The jargon ban is enforced: `scripts/ui-lexicon.test.mjs` and
+  `scripts/ui-noun.test.mjs` fail on a system word on a screen.
 - **Every change leaves NoticeOS readier for a stranger's installation**
-  (operator, 2026-09-23; D30). Product code names no installation's own
-  sites, accounts, paths or time zone — those come from the store, with
-  generic defaults (fixtures use `example.com`). The neutral-code gate
-  (`pnpm neutral:gate`, bead `ro-ujb9.118`,
+  (D30). Product code names no installation's own sites, accounts, paths or
+  time zone — those come from the store, with generic defaults (fixtures use
+  `example.com`). The neutral-code gate (`pnpm neutral:gate`,
   [scripts/README.md](scripts/README.md#neutral-code-gate--product-code-names-no-installations-own-sites))
-  stops a site id, domain or time zone in product code at commit and in CI. Anything an operator sets is
-  set in the Tower, not in a file. A new concept is found on the screen that
-  needs it — an empty state leads to the next action — never in a paragraph.
-  Host-only mechanisms (launchd, files on the office Mac) sit behind an
-  adapter a cloud installation can replace. Maintainability counts as much as
-  the feature: one derivation per fact, names a newcomer understands, and the
-  smallest change that leaves the design clearer.
+  stops a site id, domain or time zone in product code at commit
+  (`.githooks/pre-commit`, installed by `pnpm install`) and in CI. Anything an
+  operator sets is set in the Tower, not in a file. Host-only mechanisms
+  (launchd, files on an office machine) sit behind an adapter a cloud
+  installation can replace. Maintainability counts as much as the feature:
+  one derivation per fact, names a newcomer understands, and the change that
+  leaves the design clearer.
 - **Flags carry severity AND kind as separate fields**
   ([doc 02](docs/02-signal-contract.md)): `info|warn|error` × `anomaly|
   opportunity|milestone`; milestone-kind is always info-severity. Volume-aware
@@ -114,12 +107,11 @@ present** — never wire them so an empty set fails.
   + trigger — **the WIP registry is the beads hub since 2026-08-01**, see
   [Open work lives in beads](#open-work-lives-in-beads) — the system may decide
   not to do something; it may not decide not to *mention* it.
-- **Every configured spoke carries `docs/freeze-register.md`.** Missing is
-  unknown, never "clear": no search-facing or measured surface gets a verdict
-  until its property-local register is read. A ship that opens a measurement
-  window creates the readback bead first and adds the exact surfaces, change,
-  dates, and bead id to the register in the same change. A spoke with no active
-  windows says so explicitly; it does not omit the register.
+- **A measurement window freezes the surfaces it measures.** A ship that opens
+  one records the surfaces, the change, the dates and the readback task in the
+  task hub, and nobody refactors those surfaces until the reading is in
+  ([doc 03](docs/03-attribution.md)). There is no register file to carry; the
+  hub is the register.
 
 ## HARD INVARIANTS (non-negotiable — from [doc 01](docs/01-architecture.md))
 
@@ -169,13 +161,13 @@ Six parallel jobs (`.github/workflows/ci.yml`) on push to `main` and every
 PR, each after `pnpm install --frozen-lockfile`: the Tower's typecheck and unit
 tests; the other workspaces' (`pnpm -r --filter '!@noticeos/tower'`);
 `pnpm test:scripts`; `pnpm -r build` → the isolated browser journeys; the
-journey harness → the UX flow gate (bead `ro-ujb9.95`); and
-`pnpm test:task-store`, the task client against a real Dolt server in Docker. The last two are
-`pnpm test:journeys`, split so they run side by side. The `build` job is the
-required verdict over all six. A PR that changes only documentation no
-runtime suite reads (`scripts/ci-scope.mjs`: `docs/` outside `briefs/` and
-`templates/`, and root Markdown) skips all but the root suite, which always
-runs; a push to `main` runs everything. **The full gates run
+journey harness → the UX flow walker (a report; it fails only when a flow
+cannot be walked); and `pnpm test:task-store`, the task client against a real
+Dolt server in Docker. The last two are `pnpm test:journeys`, split so they
+run side by side. The `build` job is the required verdict over all six. A PR
+that changes only documentation no runtime suite reads (`scripts/ci-scope.mjs`:
+`docs/` and root Markdown) skips all but the root suite, which always runs; a
+push to `main` runs everything. **The full gates run
 in CI; they are not a mandatory local pre-merge run** (owner, 2026-10-05).
 Locally test directly changed logic and affected critical paths, with the
 smallest relevant typecheck, build or browser check. Do not run every workspace,
@@ -431,8 +423,8 @@ to the installation's private records.
   preview; local code or tests do not establish an activated public service.
   See the [release policy](docs/release-policy.md).
 - **Outcome evidence**: test and build success do not establish the phase-exit
-  business outcomes. Use the [architecture audit](docs/19-architecture-implementation-ux-audit.md)
-  and the relevant installation's observations for those verdicts.
+  business outcomes ([doc 07](docs/07-roadmap.md)). Those verdicts come from
+  the relevant installation's own observations, never from a doc.
 
 ---
 

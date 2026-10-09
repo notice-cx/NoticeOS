@@ -195,8 +195,7 @@ export function WallEditRoute() {
 
   async function submit() {
     if (!(dirty || replacing) || refusal) return;
-    // THE NOTE IS OPTIONAL (Grafana's save; docs/briefs/2026-09-23-ux-prior-art.md
-    // #arrange-wall). With none, the version is described by what changed, so
+    // THE NOTE IS OPTIONAL (Grafana's save). With none, the version is described by what changed, so
     // the history still reads six weeks later without a question in the way.
     const words = note.trim() || wallChangeSummary(state.saved, state.layout);
     setSaving(true);
@@ -351,8 +350,7 @@ export function WallEditRoute() {
 /**
  * Save, and everything the operator should read before pressing it.
  *
- * ONE PRESS (bead `ro-ujb9.96.6.12`; docs/briefs/2026-09-23-ux-prior-art.md
- * #arrange-wall). Save used to open a second step — a "Why this layout" field
+ * ONE PRESS (bead `ro-ujb9.96.6.12`). Save used to open a second step — a "Why this layout" field
  * with a paragraph under it and a second "Save the layout" button. Grafana's
  * save takes an optional description and keeps versions as the safety net, and
  * so does this: the note field sits beside Save while there is something to

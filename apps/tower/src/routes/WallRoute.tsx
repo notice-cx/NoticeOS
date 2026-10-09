@@ -37,7 +37,7 @@ function drawnLayout(wall: unknown): WallLayout {
  * THE COMPOSITION IS A DOCUMENT, NOT THIS FILE (epic `ro-lzmq`). Everything on
  * the TV is `WallCanvas` drawing the layout saved at `config/tower.json`
  * `/wall`; with none saved that is `DEFAULT_WALL_LAYOUT`, D28's arrangement
- * (docs/25-the-wall.md, bead `ro-trai.11`).
+ * (docs/14-design.md, bead `ro-trai.11`).
  *
  * NO HEADER ROW SINCE D28. The route's old header carried identity, a Home
  * link, the Tasks legend, an Integrations link and the payload's age. Each has

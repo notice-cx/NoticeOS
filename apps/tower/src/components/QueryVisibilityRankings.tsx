@@ -79,7 +79,7 @@ import type { WatchSeed } from "@shared/watch-windows";
 
 const DEFAULT_VISIBLE_QUERIES = 8;
 
-/** Doc 21's default for any list on a desk surface: three rows, then "All →". */
+/** doc 14's default for any list on a desk surface: three rows, then "All →". */
 const COLLAPSED_VISIBLE_QUERIES = 3;
 
 type DecisionKind =
@@ -155,7 +155,7 @@ export function QueryVisibilityRankings({
    * renders no action at all, rather than a button that would do nothing. */
   onWatch?: (seed: WatchSeed) => void;
   /**
-   * Doc 21's shape: three rows, each closed on its own evidence (bead
+   * doc 14's shape: three rows, each closed on its own evidence (bead
    * `ro-78qo.4`).
    *
    * The full table is four columns wide and every row carries its provider
@@ -291,7 +291,7 @@ export function QueryVisibilityRankings({
             </details>
           ) : null}
           {/* Provenance BELONGS TO THE LIST, and says so with a rule rather
-              than a gap (doc 21, bead `ro-78qo.4`). Collapsed, this drawer used
+              than a gap (doc 14, bead `ro-78qo.4`). Collapsed, this drawer used
               to sit in the section gap with nothing above or below tying it to
               anything — a control floating between two sections. It renders
               whether or not there is a "Show all", because a short list is still
@@ -305,7 +305,7 @@ export function QueryVisibilityRankings({
       )}
 
       {/* Provenance rides WITH the full list rather than beside the three rows
-          (doc 21, bead `ro-78qo.4`). Collapsed, its own summary was a control
+          (doc 14, bead `ro-78qo.4`). Collapsed, its own summary was a control
           floating between two sections answering nothing about either; it is
           the same content, inside the disclosure whose rows it qualifies. */}
       {trends && !collapsed ? <SourceNotes trends={trends} /> : null}
@@ -498,7 +498,7 @@ function DecisionRow({
   onWatch?: (seed: WatchSeed) => void;
   /** The row's applicability differs from its list's, so it wears its own chip. */
   ownState: boolean;
-  /** Doc 21's row: a decision, a term and a number, closed over the same
+  /** doc 14's row: a decision, a term and a number, closed over the same
    * evidence and the same actions. */
   collapsed?: boolean;
 }) {
@@ -610,7 +610,7 @@ function DecisionRow({
   if (collapsed) {
     return (
       <details
-        // NO TONE STRIPE (doc 21: one row style). The glyph and the decision
+        // NO TONE STRIPE (doc 14: one row style). The glyph and the decision
         // label already carry the tone, and a coloured left edge on top of them
         // is the same fact in a third encoding — three renderings of "recover"
         // on a row whose job is to say one thing.
@@ -756,7 +756,7 @@ function DecisionRow({
 
 /**
  * The number a collapsed row is about, right-aligned with its micro label
- * (doc 21's `ListPanel` row).
+ * (doc 14's `ListPanel` row).
  *
  * Google's observed impressions where there is a like-for-like pair, because
  * that is exposure this asset actually measured; otherwise the modelled organic
@@ -993,7 +993,7 @@ function decisionTone(kind: DecisionKind): DecisionTone {
 
 /** The act-lane decisions that ask for copy work on the result page — a sharper
  * title, a more direct opening answer. These are the ones an AI Overview turns
- * into churn without reach (docs/playbooks/impression-harvest.md). `recover` is
+ * into churn without reach. `recover` is
  * deliberately absent: it asks the operator to find out what changed *before*
  * editing, and a real visibility loss must not be quieted because an overview
  * happens to sit on the query. */
@@ -1052,7 +1052,7 @@ function aioChampion(row: UnifiedQueryRow): QueryAssessment {
 /** The impression-harvest gate, applied automatically: an overview consumes the
  * click, so a sharper title buys churn and no reach. The query keeps its
  * evidence and moves to investigate, where the honest next move is a citation
- * play (docs/playbooks/serp-authority-gate.md), not more copy. */
+ * play, not more copy. */
 function aioWalled(): QueryAssessment {
   return {
     lane: "investigate",

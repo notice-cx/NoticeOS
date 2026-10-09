@@ -335,7 +335,7 @@ describe("HealthRoute — month-to-date data spend", () => {
   });
 
   /**
-   * Open the split, the way an operator does (doc 21, bead `ro-78qo.16`).
+   * Open the split, the way an operator does (doc 14, bead `ro-78qo.16`).
    *
    * The portfolio figure is in the strip on the first screen; the per-asset
    * split and its meter are a collapsed panel, because they are read one row at

@@ -160,7 +160,7 @@ export function ConnectPanel({
   const needed = fields.some((field) => field.required) ? fields.filter((field) => field.required) : fields;
   const complete = needed.every((field) => filled(field, values[field.name] ?? ""));
   // A replaced key changes no site: once accepted the panel is done, rather
-  // than reading the account's sites a second time (doc 21 principle 3b).
+  // than reading the account's sites a second time (doc 14 principle 3b).
   const rotated = opened !== "form";
 
   // Replace pressed: the form has just appeared, so its key field takes focus.

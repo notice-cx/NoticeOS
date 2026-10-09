@@ -54,8 +54,8 @@ know — but the store copy loses the key only on a forced re-seed
 An **IANA zone name** (an `Area/City` name from the tz database, or `UTC`), not an
 abbreviation and not an offset. The product default is `UTC`; each installation
 sets its own on `/settings` → **Time & timezone**, and until one is chosen Home's
-first-run card offers the browser's zone with one press (bead `ro-ujb9.134`,
-[the brief](../docs/briefs/2026-09-23-first-run.md#the-clock)). Every asset's provider reports in its *own*
+first-run card offers the browser's zone with one press (bead `ro-ujb9.134`;
+the press is the save, with Undo beside it). Every asset's provider reports in its *own*
 reporting timezone — GA4 hands back `metadata.timeZone` on every run, and that
 decides only how GA4 buckets its own days. The ingest re-buckets those intraday
 hours into this zone, which is what lets two assets in two zones share one

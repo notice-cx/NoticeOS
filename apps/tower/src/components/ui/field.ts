@@ -36,7 +36,6 @@
  * A `.ts` and not a `.tsx`, which is also what keeps it out of the component
  * registry honestly: `scripts/component-registry.test.mjs` walks `.tsx` files
  * because those are the ones that render something, and this renders nothing.
- * REGISTRY.md carries its row anyway, beside the primitives it dresses.
  *
  * `test/field-chrome.test.ts` fails if the literal reappears anywhere in src/.
  */

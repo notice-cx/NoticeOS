@@ -305,8 +305,7 @@ export interface CollectionEditorProps {
    * WHEN a cell edit is committed (bead `ro-ujb9.96.7.12`). Where its outcome is
    * said is not a choice: every cell says "Saved · Undo" — or "Not saved" and
    * why — under its own control (`InlineSaveState`), the one inline pattern
-   * every setting uses (D30), after GitLab Pajamas
-   * (docs/briefs/2026-09-23-inline-save.md#prior-art).
+   * every setting uses (D30), after GitLab Pajamas' saving pattern.
    *
    * `save` (the default) keeps a Save beside each cell, Enter included —
    * Pajamas' manual save, and what money registers keep (never autosave
@@ -1494,7 +1493,7 @@ function AddRow({
 
 // --- the loading state -----------------------------------------------------
 
-/** The table's own shape, greyed — never a spinner (doc 15 principle 2): the
+/** The table's own shape, greyed — never a spinner (doc 14 principle 2): the
  * columns are already known, so the wait shows what is arriving. */
 function SkeletonTable({ fields }: { fields: RegisterField[] }) {
   return (

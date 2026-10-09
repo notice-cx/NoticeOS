@@ -18,32 +18,23 @@ Start with [00](00-objective-and-roi.md) (what the product is for) and
 | [09 — Onboarding a site](09-onboarding-a-site.md) | What a new site's report counts, what its panel watches, what a deploy could break |
 | [10 — Control Tower UX](10-control-tower.md) | The Wall, the review queue, undo, phone mode |
 | [11 — Integrations & economics](11-integrations.md) | Every data source: what it costs, its quotas, how it fails |
-| [12 — Implementation readiness](12-implementation-readiness.md) | The first sites scouted, build blocks, the first decision list |
 | [13 — Opportunity scouting](13-opportunity-scouting.md) | The outer loop: scout lanes, the news radar, the playbook |
-| [14 — UI implementation standards](14-ui-standards.md) | The Tower's stack, tokens, component discipline, charts |
-| [15 — Operator flows](15-operator-flows.md) | Every journey end to end, and the polish principles |
+| [14 — Design](14-design.md) | The Tower's stack, tokens, principles, surfaces, the Wall, operator flows, lexicon and components |
 | [16 — Replacing the chat workflow](16-replacing-the-chat-workflow.md) | Ask, investigations, commissions, idea capture |
-| [17 — UI lexicon](17-ui-lexicon.md) | System term → the word a person reads |
-| [18 — Agent orchestration playbook](18-agent-orchestration-playbook.md) | Bounded, evidence-bearing agent work (later phase) |
-| [19 — Architecture, implementation & UX audit](19-architecture-implementation-ux-audit.md) | Verified current state, integrity risks, replacements |
 | [20 — Signal panels](20-signal-panels.md) | The read contract a site's own repository uses |
-| [21 — Surface design](21-surface-design.md) | How a desk page is composed, and its acceptance list |
 | [22 — Workflows](22-workflows-research-and-design.md) | Workflow operations, execution visibility, later LLM steps |
 | [23 — Configuration ownership](23-configuration-ownership.md) | Where each setting lives, and what accounts would need |
 | [24 — Integration monitoring](24-integration-monitoring.md) | How each data source's health is observed |
-| [25 — The Wall](25-the-wall.md) | The TV view: business first, with a live feed |
 | [26 — Storage capacity](26-storage-capacity.md) | How big the store is, how fast it grows, and how that sizes the move to Postgres |
+
+Numbers are stable, so a retired doc leaves a gap rather than renumbering the
+rest; git history holds what a gap used to say.
 
 | Folder or file | What it holds |
 |---|---|
-| `artifacts/` (excluded from public source) | Historical captures and verification evidence referenced by dated documents |
 | [`brand/`](brand/README.md) | The Notice identity: logo, palette, type |
-| [`briefs/`](briefs/) | The brief and prior art behind a redesign |
-| [`Remote panel reviews and task access`](briefs/2026-10-05-remote-panel-review.md) | Build contract for versioned evidence and workspace-scoped agent access |
-| [`playbooks/`](playbooks/README.md) | Repeatable methods |
-| `reports/` (excluded from public source) | Historical audits referenced by dated documents |
+| [`briefs/`](briefs/) | The two live build contracts: [remote panel reviews and task access](briefs/2026-10-05-remote-panel-review.md) and the [Home and Overview redesign](briefs/2026-10-08-home-overview-redesign.md) |
 | [`runbooks/`](runbooks/) | Step-by-step operations |
-| [`freeze-register.md`](freeze-register.md) | Surfaces inside a measurement window |
 | [`project-setup.md`](project-setup.md) | Connect an asset repository, task hub, agent context and data sources |
 
 ## The design, in eight principles
@@ -69,5 +60,5 @@ Start with [00](00-objective-and-roi.md) (what the product is for) and
    deterministic tool that cheaper models operate
    ([05](05-execution-and-accountability.md)).
 
-Current scope is a single-operator local pilot; the dated state is in
-[`AGENTS.md`](../AGENTS.md) and [19](19-architecture-implementation-ux-audit.md).
+The dated repository state is in [`AGENTS.md`](../AGENTS.md) § STATE; what
+is hosted, demoed or standalone is in the [release policy](release-policy.md).

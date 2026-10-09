@@ -42,7 +42,7 @@ import { siteHealth, type SiteHealth } from "@/lib/site-health";
  *
  * Home built this for its own bottom half (`ro-78qo.6`) and `/assets` is its
  * second surface, so it moved out of `HomeRoute.tsx` rather than being copied:
- * doc 21's whole argument is that two components drawing one shape is how a desk
+ * doc 14's whole argument is that two components drawing one shape is how a desk
  * grows two vocabularies for one fact, and "how is each asset doing" is asked on
  * both screens with the same columns.
  *
@@ -97,7 +97,7 @@ export interface AssetsTableProps {
    * How many days of each asset's daily series the sparkline column draws.
    *
    * Home has no range selector and passes nothing; `/assets` has one and passes
-   * the range, which is doc 21's "range changes re-derive every sparkline on the
+   * the range, which is doc 14's "range changes re-derive every sparkline on the
    * page" for this column. The payload holds 28 days, so a wider window draws
    * what exists rather than inventing days nobody reported.
    */
@@ -181,7 +181,7 @@ export function AssetsTable({
               THE MOVE RIDES ITS LINE (bead `ro-ujb9.96.6.10`). The range's
               change against the range before it was a column of its own headed
               "28-day", which needed a paragraph to say what it compared; beside
-              the users line it is doc 21's KPI unit — the shape and its delta —
+              the users line it is doc 14's KPI unit — the shape and its delta —
               and this header, which names the users and the window, is the one
               that orders by it. */}
           <SortableHead
@@ -252,7 +252,7 @@ export function AssetsTable({
  * way back, which is the same gesture without the second state.
  *
  * The button fills the cell rather than sitting inside it, so the thumb target
- * is the header a thumb aims at (doc 21's 44px floor); below `sm` the whole
+ * is the header a thumb aims at (doc 14's 44px floor); below `sm` the whole
  * header row is hidden by `Table stacked`, which is why `/assets` keeps its
  * `<select>` as well — that one is the phone's only way to sort.
  */
@@ -361,7 +361,7 @@ function sharedBookingState(assets: AssetCard[]): "booked" | "forecast" | null {
 /**
  * The trend cell's tone, by the same rule the strip colours a delta with.
  *
- * Under ±2% a movement is weather, not a verdict (doc 21), and a table where
+ * Under ±2% a movement is weather, not a verdict (doc 14), and a table where
  * every row is faintly green or faintly red says nothing louder than one that is
  * honestly grey. Up is good for active users, so the mapping needs no argument.
  */
@@ -478,7 +478,7 @@ function AssetRow({
           {/* The row navigates on click, which a keyboard cannot do — so the
               name stays a real link and is what Tab reaches.
 
-              AND ON A PHONE IT IS A THUMB TARGET (`ro-md80`, doc 21). It is a
+              AND ON A PHONE IT IS A THUMB TARGET (`ro-md80`, doc 14). It is a
               flex item, so its computed display is `block` rather than `inline`
               — it is a control, not a word inside a sentence, and the audit
               measured it at 31×20px for a three-letter name. The 44px floor is claimed on
@@ -567,7 +567,7 @@ function AssetRow({
       {/* THE SHAPE BEHIND THE PERCENTAGE. A delta says which way and how far; it
           cannot say whether the asset has been climbing all range or fell off a
           cliff on Tuesday and has been flat since — and those two are different
-          mornings under one identical "+4%". Doc 21's `cell` size, so the same
+          mornings under one identical "+4%". doc 14's `cell` size, so the same
           line is drawn here and in the strip at the two widths the vocabulary
           allows, and its tone is the verdict beside it. */}
       <TableCell label={`Visitors · ${rangeDays}d`} foldWhenStacked>
@@ -629,7 +629,7 @@ function AssetRow({
           booking state differs from the one its header states, which is the row
           a reader actually has to notice. */}
       {/* THE MONTH'S FIGURE AND THE MONTHS BEHIND IT, in one cell (bead
-          `ro-78qo.35`). Doc 21 principle 2: a number without its series is
+          `ro-78qo.35`). doc 14 principle 2: a number without its series is
           noise. A column of its own would have made a second Net header for one
           fact — the number and its shape are the same fact — so the line sits
           under the figure the way a `Kpi`'s does.
@@ -743,7 +743,7 @@ function UsersMove({ delta }: { delta: PeriodDelta | null }) {
 }
 
 /** Nothing measured. An em dash rather than a zero, which would claim it was —
- * and, wherever the cell knows one, an accessible reason (doc 21 principle 8). */
+ * and, wherever the cell knows one, an accessible reason (doc 14 principle 8). */
 function Dash({ title = "Nothing measured yet" }: { title?: string }) {
   return <InfoTooltip label={title} trigger="—">{title}</InfoTooltip>;
 }

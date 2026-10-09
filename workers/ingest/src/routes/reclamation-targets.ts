@@ -1,8 +1,7 @@
 // POST /api/reclamation-targets — a campaign's target list, from
 // `pnpm reclamation:import` (bead ro-ujb9.76.5.8). Operator-authed, the same
 // shape as /api/annotations: a script on this machine writes the store through
-// the ingest's door, never with a database credential of its own (the port
-// pattern, docs/briefs/2026-09-29-postgres-port-pattern.md, section 4).
+// the ingest's door, never with a database credential of its own.
 //
 // Body: { asset, targets: [{ tier, segment, domain, referringPage,
 // linksToDead, replaceWith, contact, notes, status, statusAt, lastVerifiedAt,

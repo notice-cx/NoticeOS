@@ -15,7 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { monthRevenue, yesterdayTotal, type MonthPace, type YesterdayTotal } from "@/lib/wall-revenue";
 
-// THE WALL'S REVENUE WIDGET (docs/25-the-wall.md § Revenue, D28, bead
+// THE WALL'S REVENUE WIDGET (docs/14-design.md § Revenue, D28, bead
 // `ro-trai.4`): the month's revenue so far as the largest type on the screen
 // (D13), where the month lands, yesterday's money (bead `ro-trai.32`), and the
 // month as a line against last month's total — "are we on track this month?"
@@ -127,7 +127,7 @@ function PaceLine({ pace, yesterday }: { pace: MonthPace; yesterday: YesterdayTo
       </span>
       <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-wall-body tabular-nums">
         {pace.changePercent !== null ? (
-          // NEUTRAL INK (doc 25, doc 14): a projection against a finished month
+          // NEUTRAL INK (doc 14, doc 14): a projection against a finished month
           // is not a completed like-for-like comparison, so the arrow carries
           // the direction and no colour judges it.
           <span

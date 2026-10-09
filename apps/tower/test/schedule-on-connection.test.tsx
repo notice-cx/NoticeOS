@@ -11,8 +11,7 @@ import type { SettingsPayload } from "@shared/settings";
 import { configSaveReply } from "./config-save-reply";
 
 // A COLLECTION'S SCHEDULE IS CHANGED ON ITS SOURCE'S MANAGE PANEL (bead
-// ro-ujb9.96.7.28, operator decision 2026-09-24; prior art in
-// docs/briefs/2026-09-24-schedule-on-connection.md#prior-art). Settings keeps
+// ro-ujb9.96.7.28, operator decision 2026-09-24). Settings keeps
 // only the collections no connection feeds; the traffic and search archives,
 // fed by Google and Bing, show the job's one schedule on both panels.
 

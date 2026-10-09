@@ -168,8 +168,8 @@ export function ProviderConnectPanel({ status, opened, asset, canConnect, blocke
 
 /**
  * WHEN THIS CONNECTION'S COLLECTIONS RUN (bead `ro-ujb9.96.7.28`; operator
- * decision 2026-09-24, prior art in
- * docs/briefs/2026-09-24-schedule-on-connection.md#prior-art): the same rows
+ * decision 2026-09-24; Fivetran and Airbyte place the sync frequency on the
+ * connection): the same rows
  * Settings → Data collection draws for the collections no connection feeds —
  * one pick saves the job's schedule, "Saved · Undo" beside it — for the
  * collections this one feeds (`connectionCollections`). A job two connections
@@ -213,7 +213,7 @@ function ProviderSites({
   const save = useInlineConfigSave();
   const saveDelayMs = useConfigSaveDelay();
   // Read ONCE for the panel: a second read of the same list is a second check
-  // of the same fact (doc 21 principle 3b), so nothing refetches it behind the
+  // of the same fact (doc 14 principle 3b), so nothing refetches it behind the
   // operator's back.
   // One key per panel session: a panel opened again reads the account again,
   // and nothing within one session reads it twice (StrictMode's second mount

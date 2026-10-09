@@ -20,7 +20,7 @@ export interface StepperProps {
 }
 
 /**
- * A horizontal lifecycle stepper (doc 15 principle 10: an asset's lifecycle
+ * A horizontal lifecycle stepper (doc 14 principle 10: an asset's lifecycle
  * stage, made visible). Deliberately MONOCHROME — severity color is reserved for
  * needs-attention (doc 10 principle 3); progress is neutral. Done steps fill,
  * the current step gets a ring + bold label, upcoming steps stay muted. A

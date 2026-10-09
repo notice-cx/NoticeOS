@@ -1,8 +1,7 @@
 // @vitest-environment node
 //
 // THE TOWER SUITE REACHES POSTGRES THE WAY THE TOWER WORKER WILL (epic
-// ro-ujb9.76; the pattern every port copies is
-// docs/briefs/2026-09-29-postgres-port-pattern.md): through the one helper
+// ro-ujb9.76): through the one helper
 // (@noticeos/postgres), as noticeos_app over loopback TCP, in the store's one
 // workspace — each test on its own copy of a new installation's store
 // (test/postgres-store.ts). Skipped, naming why, where no Postgres can start

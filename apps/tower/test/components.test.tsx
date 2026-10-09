@@ -1234,7 +1234,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
 
     it("draws no mark for a surface the panel could not answer for", () => {
       // The phone was pulled and its overview never loaded. Unknown draws
-      // nothing (doc 17), so the desktop's mark is the only one — but it is
+      // nothing (doc 14), so the desktop's mark is the only one — but it is
       // still labelled by surface, because the row was read on two.
       const { container } = render(
         <QueryVisibilityRankings
@@ -2618,7 +2618,7 @@ describe("AgeBadge amber threshold", () => {
     expect(container.textContent).toContain("last-good");
   });
 
-  // bead ro-kukv.10 / doc 17 rule 6 — a dash in a value's slot reads as a
+  // bead ro-kukv.10 / doc 14 rule 6 — a dash in a value's slot reads as a
   // rendering failure, not as an absence.
   it("says a lane that never reported never reported", () => {
     const { container } = render(
@@ -3646,7 +3646,7 @@ describe("kitchen sink covers the registry", () => {
         ),
       ).toBe(true);
     }
-    // REGISTRY.md claims the populated fixture reaches every decision lane.
+    // The gallery demo claims the populated fixture reaches every decision lane.
     // That claim is only worth writing down if something checks it.
     for (const kind of [
       "recover",
@@ -3665,7 +3665,7 @@ describe("kitchen sink covers the registry", () => {
         container.querySelector(`[data-decision-kind="${kind}"]`),
       ).not.toBeNull();
     }
-    // And the query row's filed states, which REGISTRY.md now also claims
+    // And the query row's filed states, which the registry entry also claims
     // (bead ro-5e8.3) — a filing marker nobody can review is a marker whose
     // weight and tone drift with the next token change.
     expect(

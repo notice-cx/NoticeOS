@@ -1,5 +1,5 @@
 // The Wall draws a layout document (bead `ro-lzmq.1`), and the Wall nobody
-// rearranged is D28's (bead `ro-trai.11`, docs/25-the-wall.md § Regions): the
+// rearranged is D28's (bead `ro-trai.11`, docs/14-design.md § Regions): the
 // strip on top; below it a column — revenue beside Needs you, then the site
 // rows — beside the full-height live feed.
 //

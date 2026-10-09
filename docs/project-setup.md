@@ -159,8 +159,6 @@ hub, a provider or NoticeOS. Explicit preparation:
 - Copies the [canonical task rules](../config/beads.README.md#the-spoke-stanza)
   and links to this NoticeOS checkout's contract. Conflicting existing task
   instructions require manual review and are never replaced automatically.
-- Creates `docs/freeze-register.md` only when absent. Its initial state is
-  **unknown**, so onboarding never invents that a project has no active tests.
 - Excludes `.beads/` and `.beads.gate.lock` from Git. Already tracked task
   connection files cause a refusal; resolve that explicitly before preparing.
 - Creates the private shared lock for an existing `.beads/` connection.
@@ -169,11 +167,9 @@ hub, a provider or NoticeOS. Explicit preparation:
 Review the resulting Git diff. Add the project's business goal, architecture,
 verification commands, protected operations and dated `STATE` to its context
 pack, following [the site context mapping](09-onboarding-a-site.md#agentsmd-mapping-before-a-builder-touches-the-site).
-Review current measurement windows: enumerate them with surfaces, change,
-dates and readback task, or explicitly record that none are active. Preserve
-existing freeze entries and results. The
-[freeze method](playbooks/freeze-register.md) defines what each entry needs.
-Commit the intended repository instructions and register under that project's
+Review current measurement windows: each active one is an open readback bead
+naming its surfaces, change and dates ([doc 03](03-attribution.md)).
+Commit the intended repository instructions under that project's
 own Git policy; do not commit local connections or credentials.
 
 When the NoticeOS source checkout moves, review the relative contract link in
@@ -214,7 +210,7 @@ exact reads and any task writes. Automated tests use disposable fixtures.
    synthetic test tasks in a live hub to prove setup.
 4. The asset's **Overview** or **Data sources** shows the first real reading
    for its matched source. An absent reading stays pending or unknown, never zero.
-5. The repository's instructions and freeze register are committed; task
+5. The repository's instructions are committed; task
    connections and credentials are untracked. An existing project retains
    its previous task history, project identity and measurement windows.
 

@@ -34,9 +34,9 @@ export interface ListPanelProps {
   title: string;
   /** The quiet count beside it — "10 urgent · 67 open". Never a sentence. */
   count?: ReactNode;
-  /** The header's one link out, doc 21's "All →". */
+  /** The header's one link out, doc 14's "All →". */
   action?: ListPanelAction;
-  /** Rows shown before the expander. Doc 21's default is three: a panel is an
+  /** Rows shown before the expander. doc 14's default is three: a panel is an
    * answer to "what needs me", and the fourth row is already the long tail. */
   limit?: number;
   /** What the panel says when it has nothing — a glyph and a short line, never
@@ -52,7 +52,7 @@ export interface ListPanelProps {
 }
 
 /**
- * THE DESK'S ONE LIST OF THINGS THAT NEED SOMETHING (doc 21).
+ * THE DESK'S ONE LIST OF THINGS THAT NEED SOMETHING (doc 14).
  *
  * *Registry justification:* the same list existed three times — the asset
  * page's `AttentionBand`, `ExecutiveFindingsList`'s default rendering, and
@@ -160,7 +160,7 @@ export type ListRowTone = Severity | "ok";
 
 const TONE_CLASS: Record<ListRowTone, string> = {
   ...severityTextClass,
-  // Doc 21 settles the row's four tones as error, warn, ok and MUTED. `info`
+  // doc 14 settles the row's four tones as error, warn, ok and MUTED. `info`
   // keeps doc 02's name in the type — it is a severity — and wears the muted
   // ink, because a discovery in a list of things that need doing is the one
   // row that is not asking for anything.
@@ -168,7 +168,7 @@ const TONE_CLASS: Record<ListRowTone, string> = {
   ok: "text-healthy",
 };
 
-/** Doc 21's mark set. The glyph carries the meaning and the ring carries the
+/** doc 14's mark set. The glyph carries the meaning and the ring carries the
  * tone, so neither is colour-only (doc 14). A caller overrides the glyph where
  * the row is a finding (`△`) or a recommendation (`↗`) rather than a task. */
 const TONE_GLYPH: Record<ListRowTone, string> = {
@@ -194,7 +194,7 @@ export interface ListRowProps {
   valueLabel?: ReactNode;
   /** The evidence, revealed in place. A row with none does not expand. */
   children?: ReactNode;
-  /** Buttons for the expanded row — where doc 21 moves the per-card actions. */
+  /** Buttons for the expanded row — where doc 14 moves the per-card actions. */
   actions?: ReactNode;
   /**
    * The row's ONE decision, on the row itself: visible without expanding it,

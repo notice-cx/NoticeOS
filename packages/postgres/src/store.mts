@@ -11,8 +11,8 @@
 //     uses unchanged.
 //   - Result parsing is replaceable per query (`types`), so every exactness rule
 //     below lives in one function here and no process-wide setting changes.
-//   Postgres.js was the alternative. The comparison and the prior art are in
-//   docs/briefs/2026-09-24-postgres-driver.md.
+//   Postgres.js was the alternative; its parsing is configured process-wide,
+//   so the exactness rules below could not live in one place.
 //
 // EVERY TRANSACTION NAMES ONE WORKSPACE. `inWorkspace(workspaceId, work)` sends
 // BEGIN and, in the same round trip, sets the workspace with
@@ -527,8 +527,7 @@ export function openStore(connectionString: string, options: StoreOptions = {}):
 
 // ─── The store one call works in ────────────────────────────────────────────
 //
-// WHAT A PORTED MODULE TAKES (the port pattern,
-// docs/briefs/2026-09-29-postgres-port-pattern.md). A Worker opens one per
+// WHAT A PORTED MODULE TAKES. A Worker opens one per
 // call — a request, a scheduled run, an RPC call — and closes it when the call
 // ends; a script opens one per run. It finds the workspace once (the store's
 // only one, unless the caller names another) and runs each unit of work in a

@@ -15,9 +15,8 @@ For the first release, the operator implements the pulse endpoint and writes
 the asset's `AGENTS.md` (D40). NoticeOS shows observed report coverage; asset
 agent execution stays manual, and its pause check is unavailable (D43).
 Completing data setup does not grant agent execution authority. See
-[Flow A](15-operator-flows.md#a-onboard-an-asset-repo--living-asset-card) for the
-current product scope and [Flow H](15-operator-flows.md#h-kill-switch--resume)
-for the future execution contract.
+[doc 14](14-design.md) for the onboarding screen as built and the kill-switch
+and resume contract.
 
 ---
 

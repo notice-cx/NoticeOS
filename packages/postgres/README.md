@@ -4,13 +4,13 @@ The one way the Workers and the scripts reach the Postgres operational store
 (bead `ro-ujb9.76.18`; the store is [`db/postgres/`](../../db/postgres/README.md)).
 It opens every transaction as the application role, `noticeos_app`, with one
 workspace named by `SET LOCAL`, and reads and writes every value exactly. The
-rules, and why the driver is node-postgres, are in the header of
-[`src/store.mts`](src/store.mts); the comparison with Postgres.js and the prior
-art are in [the driver brief](../../docs/briefs/2026-09-24-postgres-driver.md).
+rules, and why the driver is node-postgres rather than Postgres.js, are in the
+header of [`src/store.mts`](src/store.mts).
 
-Operational settings, evidence and readers use this helper, following
-[the port pattern](../../docs/briefs/2026-09-29-postgres-port-pattern.md).
-The migration runner (`pnpm postgres:dev`) keeps its own
+Operational settings, evidence and readers use this helper: a Worker reaches
+Postgres only through its `POSTGRES` Hyperdrive binding, one store per call;
+a script writes the store through the ingest's operator-authed door and never
+holds a database credential. The migration runner (`pnpm postgres:dev`) keeps its own
 administrative connection and never uses it.
 
 ## Using it
@@ -51,8 +51,9 @@ try {
   without the credential. A Worker's entry opens it with
   `withWorkspaceStore(env.POSTGRES, ctx, work)`, which closes it through
   `ctx.waitUntil` even when the work throws; with no binding, each unit of
-  work refuses, naming why. How each Worker opens it per call is
-  [the port pattern](../../docs/briefs/2026-09-29-postgres-port-pattern.md).
+  work refuses, naming why. The ingest wraps `fetch`, `scheduled` and each RPC
+  method in `withCallStore` (`workers/ingest/src/call-store.ts`); the Tower
+  runs its router inside `withWorkspaceStore` (`apps/tower/worker/index.ts`).
 - **Hosted calls require prior authorization.** The server authenticates the
   principal and authorizes the operation before calling
   `withHostedWorkspaceStore({ transport, workspace }, ctx, work)`. `transport`
@@ -108,8 +109,8 @@ hosted Hyperdrive configuration must have SQL-result caching disabled on the
 actual remote resource; the binding comment does not enforce that setting.
 Cached reads can outlive writes, so they cannot establish current authorization
 or read-after-write consistency. A cached read also does not include the
-transaction's workspace setting in its query text
-([brief](../../docs/briefs/2026-09-24-postgres-driver.md#hyperdrive-query-caching-must-be-off-for-this-store)).
+transaction's workspace setting in its query text, so the Hyperdrive
+configuration for this store is created with `--caching-disabled`.
 
 Direct PostgreSQL is the baseline hosted transport candidate because the
 application uses advisory transaction locks. Cloudflare currently lists

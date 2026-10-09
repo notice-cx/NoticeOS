@@ -39,7 +39,7 @@ export interface ProviderOAuthPanel {
 
 /**
  * The Google card's second half: sign in instead of pasting a robot's key
- * (bead `ro-vu8d.3`, doc 15 flow C).
+ * (bead `ro-vu8d.3`, doc 14 flow C).
  *
  * FOUR STATES, AND THE ORDER IS THE ARGUMENT. Before anything can be signed
  * into, Google has to know this OS exists — so a card with no client id shows
@@ -171,7 +171,7 @@ export function GoogleSignIn({
  * The scopes are listed because they are the answer to "what did I just give
  * this thing" — the question a careful operator asks after every consent
  * screen, and one Google's own account page answers three clicks away. They are
- * rendered in words rather than as scope URLs (doc 17 rule 8).
+ * rendered in words rather than as scope URLs (doc 14 rule 8).
  */
 function ConnectedGrant({
   panel,
@@ -410,7 +410,7 @@ function RedirectUri({ value }: { value: string }) {
 }
 
 /**
- * The Google Cloud console steps, in place (doc 15 principle 9: a field says
+ * The Google Cloud console steps, in place (doc 14 principle 9: a field says
  * where its value comes from, where it is being asked for).
  *
  * They are numbered because they are a sequence in somebody else's UI that has

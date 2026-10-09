@@ -89,8 +89,7 @@ pass and it is the panel's own claim about itself:
   a signal ignored. The refresh cadence these families DO have is owned by the
   property's weekly panel-review bead: when a review finds them >~2 weeks old,
   the operator export is one of that review's asks (owner ruling 2026-08-20;
-  the mechanics live in
-  [serp-opportunity-execution — Inventory pass](playbooks/serp-opportunity-execution.md#inventory-pass)).
+  the review bead names it).
   `fresh` answers "are the collectors current?"; `uncollected[]`
   answers "how old is the hand-dropped file?", out loud, in the file you already
   opened.
@@ -359,13 +358,13 @@ Missing a family you need? File it in the OS's own task project — do not add a
 ## How the lane runs (for the curious, and for whoever debugs it)
 
 - **Collection** is already on the OS's crons: `15 12 * * *` archives GA4, GSC
-  and Bing Webmaster to private R2 with a D1 manifest; `45 12 * * 1` archives the
+  and Bing Webmaster to private R2 with a manifest row in the store; `45 12 * * 1` archives the
   weekly DataForSEO families behind a fail-closed spend gate; `30 4 * * *`
   archives Clarity.
 - **Somebody is asked to read it.** Every property whose weekly DataForSEO
   collection lands gets one `panel-review` bead in its **own** tracker, filed by
   the runner within the hour and due seven days after the collection day
-  ([serp-opportunity-execution](playbooks/serp-opportunity-execution.md)). A
+  (`scripts/runner/panel-review.mjs` writes its asks). A
   property with a tracked-query panel is asked for the panel walk *and* the
   inventory pass; one without is asked for the inventory pass, which is the whole
   of what it bought (`ro-478`). Only a property that collects nothing owes

@@ -77,7 +77,7 @@ export function AttentionAllClear({ className }: { className?: string }) {
 }
 
 /**
- * ONE ALERT, as doc 21's row — the asset page's Current signals and Alert
+ * ONE ALERT, as doc 14's row — the asset page's Current signals and Alert
  * history, and `/alerts/history` across the portfolio (beads `ro-ju7f`,
  * `ro-78qo.17`).
  *
@@ -93,9 +93,9 @@ export function AttentionAllClear({ className }: { className?: string }) {
  * IT IS A `ListRow` NOW (2026-09-05, bead `ro-78qo.17`). It used to draw a
  * bordered card with everything on it at once: headline, kind, age, notified
  * mark, three action buttons and a settled footer, all visible on every row of
- * every list. `/alerts` was rebuilt to doc 21's one-line row (`ro-78qo.7`) and
+ * every list. `/alerts` was rebuilt to doc 14's one-line row (`ro-78qo.7`) and
  * this was the other half of the same fact wearing the other shape — two
- * layouts for one alert, which is the doc 14 failure doc 21 exists to end.
+ * layouts for one alert, which is the doc 14 failure doc 14 exists to end.
  *
  * So the row is now: a severity ring and a mark, the headline (with the asset
  * on a portfolio surface), one caption line, and the age or the open span at
@@ -113,7 +113,7 @@ export function AttentionAllClear({ className }: { className?: string }) {
  * THREE MODES, one difference each:
  *
  * - `history` — the alert is SETTLED. It loses the Mark read / Resolve pair,
- *   because there is nothing left to act on; its mark becomes the `✓` doc 21
+ *   because there is nothing left to act on; its mark becomes the `✓` doc 14
  *   gives a finished thing; its caption states the disposition; and its value
  *   becomes the open-span glyph below.
  * - `snoozed` — the alert is PARKED (bead `ro-ujb9.194`): not settled, and back
@@ -156,7 +156,7 @@ const DISPOSITION_LABEL: Record<string, string> = {
  * deliberately NOT `ListPanel`: these lists already sit under a heading their
  * own surface owns (the asset page's section card, `/alerts/history`'s tabs), so
  * a second eyebrow and a second count would be doc 14's duplication rather than
- * doc 21's panel.
+ * doc 14's panel.
  */
 export function AlertList({
   children,
@@ -190,8 +190,8 @@ export function AlertList({
  * The ring carries HOW BAD and the mark carries WHAT KIND, so neither is colour
  * alone (doc 14). A settled row keeps the severity it had — "how bad was it" is
  * the axis History is filtered on, and painting every closed row green would
- * throw that away — and takes doc 21's `✓` to say it is finished. A milestone is
- * an event rather than a condition: info severity, and the quiet `◦` doc 21
+ * throw that away — and takes doc 14's `✓` to say it is finished. A milestone is
+ * an event rather than a condition: info severity, and the quiet `◦` doc 14
  * gives a discovery.
  */
 function rowTone(flag: FlagRecord, snoozed: boolean): ListRowTone {

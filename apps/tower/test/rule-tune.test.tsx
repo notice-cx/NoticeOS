@@ -579,7 +579,7 @@ describe("a tuned alert stays open and says it was tuned", () => {
   /**
    * Open the row, the way an operator does.
    *
-   * `AlertRow` is doc 21's `ListRow` since bead `ro-78qo.17`: closed, it is a
+   * `AlertRow` is doc 14's `ListRow` since bead `ro-78qo.17`: closed, it is a
    * mark, a headline, one caption and an age; the evidence, the dated facts and
    * the verbs are revealed IN PLACE. So a test that wants any of those presses
    * the row first — which is the assertion, not a workaround for one.

@@ -111,7 +111,7 @@ export const CONNECTION_LABELS: Record<ConnectionKind | "checking", string> = {
 
 /**
  * The uptime source's two observed states, in the words every monitor uses
- * (bead `ro-ujb9.165`; Better Stack, UptimeRobot — docs/briefs/2026-09-23-uptime.md).
+ * (bead `ro-ujb9.165`; Better Stack, UptimeRobot).
  * What its check observes IS the site, so "Failing" would read as the monitor
  * being broken; Down says the site is. Its other states keep their words.
  */

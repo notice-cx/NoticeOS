@@ -27,7 +27,7 @@ export interface EvidencePopoverProps {
 /**
  * The evidence affordance on a lane with store health data (doc 11 "observed
  * evidence"): a small glyph that opens a plain-language
- * panel (doc 15 principle 9). Portalled to the body so it is never clipped by the
+ * panel (doc 14 principle 9). Portalled to the body so it is never clipped by the
  * matrix's horizontal scroll. The glyph's color follows the dominant polarity —
  * amber when evidence reports failure/staleness, slate when it shows success or
  * a needs-setup lane already delivering through a manual path.

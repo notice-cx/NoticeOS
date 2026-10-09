@@ -48,7 +48,7 @@ export interface HeroSeries {
    * (bead `ro-trai.10`) — rather than a second trend. It is drawn as observed
    * (never averaged), thinner, dotted and in quiet ink unless the caller names
    * a tone or pattern, so the lead line leads (Plausible draws its comparison
-   * period the same way; docs/briefs/2026-09-24-chart-clarity.md).
+   * period the same way).
    */
   reference?: boolean;
 }
@@ -135,7 +135,7 @@ export interface HeroChartProps {
   notesByDate?: Readonly<Record<string, string>>;
   /** Incomplete observed bars use an outline as well as a text explanation. */
   partialDates?: readonly string[];
-  /** 240 on an Overview, 180 in a pair (doc 21). */
+  /** 240 on an Overview, 180 in a pair (doc 14). */
   height?: number;
   variant?: HeroVariant;
   /** Bold trailing average over the faint raw line. `line` only — a monthly
@@ -169,7 +169,7 @@ export interface HeroChartProps {
  * is HTML, so `preserveAspectRatio="none"` can stretch x to any width without
  * squeezing a single letter. That is the whole reason the axis labels are not
  * `<text>`: at 390px a viewBox drawn for a desk squashes them to a third of
- * their width, and a phone is where doc 21 says the chart stays full width. */
+ * their width, and a phone is where doc 14 says the chart stays full width. */
 const VIEW_WIDTH = 1000;
 const PAD_TOP = 10;
 const PAD_BOTTOM = 6;
@@ -366,7 +366,7 @@ function heroScale(min: number, max: number, format: (value: number) => string) 
 }
 
 /**
- * THE ONE TIME-SERIES SURFACE ON THE DESK (doc 21).
+ * THE ONE TIME-SERIES SURFACE ON THE DESK (doc 14).
  *
  * Shared desk geometry and interactions: named series, date exploration,
  * comparisons and a data table. The Wall has a separate read-only TV contract
@@ -731,7 +731,7 @@ export function HeroChart({
           ))}
         </div>
 
-        {/* Doc 21's phone rule: the hero chart stays FULL WIDTH and drops to
+        {/* doc 14's phone rule: the hero chart stays FULL WIDTH and drops to
             180px below `sm`. The height is a custom property rather than an
             inline `height`, so a media query can still win — an inline style
             beats every breakpoint there is. */}

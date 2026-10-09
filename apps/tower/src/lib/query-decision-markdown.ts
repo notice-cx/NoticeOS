@@ -223,7 +223,7 @@ function trackedPanelLabel(row: DataForSeoQueryVisibilityRow): string {
     .join("; ");
 }
 
-/** The surface as the operator names it (doc 17): never the lane's `mobile`. */
+/** The surface as the operator names it (doc 14): never the lane's `mobile`. */
 function deviceNoun(device: string): string {
   if (device === "mobile") return "Phone";
   if (device === "desktop") return "Desktop";

@@ -3,7 +3,7 @@
 // Notice mark, a NoticeOS wordmark in Stack Sans Notch and the website's blue,
 // and the blue is a BRAND colour only — it may mark an action, a selection or
 // focus, never a severity, a state or a data series (AGENTS.md UI tokens rule,
-// docs/14-ui-standards.md § The Notice identity).
+// docs/14-design.md § The Notice identity).
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -99,7 +99,7 @@ describe("the Notice blue is a brand colour, never a state", () => {
 
 describe("the Notice blue stays apart from every colour that carries meaning (D35)", () => {
   const resolve = themeColours();
-  // Recorded in docs/14-ui-standards.md § The Notice identity. The floors are
+  // Recorded in docs/14-design.md § The Notice identity. The floors are
   // the validator's: 8 normal-vision, and the colour-blind floor of 6 that is
   // legal only because every one of these states and series carries its word
   // or glyph beside the colour — no pair may slip under it.

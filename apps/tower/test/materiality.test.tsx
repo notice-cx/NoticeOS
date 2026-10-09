@@ -140,7 +140,7 @@ const rollbackAttention: AttentionItem = {
   firstFiredAt: RECENT,
 };
 
-/** The Wall's widgets since D28 (docs/25-the-wall.md § Regions, bead
+/** The Wall's widgets since D28 (docs/14-design.md § Regions, bead
  * `ro-trai.11`): every Wall destination is one of them or not-applicable. */
 const D28_WIDGETS = ["WallStrip", "RevenueHero", "NeedsYou", "SiteRows", "WallFeed"];
 

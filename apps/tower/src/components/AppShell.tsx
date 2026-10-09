@@ -359,7 +359,7 @@ interface AssetNavProps {
  */
 /**
  * Integrations, wearing the dot for a credential about to stop working (bead
- * `ro-vu8d.8`, doc 15 flow C step 4).
+ * `ro-vu8d.8`, doc 14 flow C step 4).
  *
  * WHY THE DOT IS HERE AND NOT IN THE ALERTS BAND. The flag lane cannot carry
  * this honestly — `flags.asset` is `NOT NULL REFERENCES assets(id)`, and a

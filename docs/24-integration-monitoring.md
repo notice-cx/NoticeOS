@@ -34,8 +34,8 @@ Connection tests and site discovery are separate capabilities. They cannot
 clear failed production reads. A credential replacement starts a new revision;
 old evidence remains in history and cannot confirm the replacement's access.
 
-The workspace comes from the trusted server context. The current local pilot
-has one workspace; a column in this design does not implement tenant access
+The workspace comes from the trusted server context. A standalone
+installation has one workspace; a column in this design does not implement tenant access
 control. Connection revisions and target identifiers are opaque IDs. Tokens,
 private calendar URLs, webhook addresses, account emails, raw error messages,
 and report payloads never enter health rows or grouping keys.

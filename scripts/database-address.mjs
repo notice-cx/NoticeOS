@@ -5,7 +5,7 @@
 // Both Workers reach Postgres through their POSTGRES Hyperdrive binding, and on
 // this machine that binding connects to the address wrangler reads from the
 // dev server's environment, CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES
-// (docs/briefs/2026-09-29-postgres-port-pattern.md, section 1). The address is
+// (the variable wrangler reads for a binding named POSTGRES). The address is
 // the application login's connection string, and so carries a password: the
 // installation keeps it as its fourth bootstrap secret, DATABASE_URL, in the
 // secrets file beside CREDENTIALS_KEY, OPERATOR_TOKEN and ASSET_TOKENS.

@@ -1535,7 +1535,7 @@ describe("buildAssetDetailPayload", () => {
       v: 68,
     });
     // WHAT GREW IS THE HISTORY BEHIND IT (bead `ro-78qo.35`): sixty-two context
-    // days, so context plus chart is the ninety doc 21's range selector needs
+    // days, so context plus chart is the ninety doc 14's range selector needs
     // on /assets, which reads this same payload. Nothing draws these as chart
     // days, which is why the line above could stay exactly as it was.
     expect(compact.activeUsers.contextSeries).toHaveLength(62);

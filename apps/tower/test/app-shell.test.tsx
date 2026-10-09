@@ -558,7 +558,7 @@ function CurrentPath() {
 
 describe("/properties is the older spelling of /assets", () => {
   // `/assets` is canonical and the UI says Assets too (D20, bead `ro-pbzu.6`).
-  // `/properties` is the spelling doc 17 asked for until that decision, and it
+  // `/properties` is the spelling doc 14 asked for until that decision, and it
   // stays an alias so no link written either way can ever 404.
   it("redirects an asset page and keeps the deep link's hash", () => {
     render(

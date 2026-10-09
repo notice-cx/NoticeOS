@@ -1345,7 +1345,7 @@ describe("what to unblock next (bead ro-9mx)", () => {
   // The matrix answers "what state is everything in". This answers the question
   // the operator actually has — "what should I fix first" — in ACTIONS, because
   // a grid makes dozens of cells look independently actionable when one
-  // credential unlocks nine of them (doc 19 finding 12).
+  // credential unlocks nine of them (the 2026-07 audit's finding 12).
   const catalog = [
     { id: "gsc", label: "Google Search Console", docRef: "docs/11", scope: "property" as const, layer: "provider" as const, usage: { cost: "free" as const }, onFailure: "keeps-last-data" as const, credential: "shared" as const, derived: false },
     { id: "clarity", label: "Microsoft Clarity", docRef: "docs/11", scope: "property" as const, layer: "provider" as const, usage: { cost: "free" as const }, onFailure: "keeps-last-data" as const, credential: "per-property" as const, derived: false },

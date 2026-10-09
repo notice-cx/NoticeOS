@@ -18,7 +18,7 @@ export interface AgeBadgeProps {
  * its lane cadence — a stale tile that looks current is how silent failures
  * survive (doc 10 principle 2).
  *
- * THE BADGE OWNS THE ABSENT CASE (bead `ro-kukv.10`, doc 17 rule 6). A lane
+ * THE BADGE OWNS THE ABSENT CASE (bead `ro-kukv.10`, doc 14 rule 6). A lane
  * that has never received anything has no age, and the badge used to print the
  * `formatAge` em-dash for it beside a clock titled "Data age" — a dash in a
  * value's slot reads as a rendering failure rather than as an absence, and the

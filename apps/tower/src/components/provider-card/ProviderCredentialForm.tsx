@@ -134,7 +134,7 @@ export function ProviderCredentialForm({
 }
 
 /** One field, drawn by its kind. Four kinds, four controls, and each says where
- * its value comes from in place (doc 15 principle 9). */
+ * its value comes from in place (doc 14 principle 9). */
 function FieldInput({
   field,
   assetRows = [],

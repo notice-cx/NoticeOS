@@ -53,7 +53,7 @@ function percent(value: number, digits = 1): string {
 
 /**
  * THE PRODUCT SECTION — what people do once they arrive, and where it breaks
- * (beads `ro-ghis.2`, `ro-ghis.3`; doc 21).
+ * (beads `ro-ghis.2`, `ro-ghis.3`; doc 14).
  *
  * *Registry justification:* nothing drew PostHog's product families. The
  * Growth tab's `ProductUse` strip is GA4 event totals with no series, no funnel

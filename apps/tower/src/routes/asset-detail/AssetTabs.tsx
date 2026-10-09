@@ -17,10 +17,10 @@ import { DEFAULT_RANGE, rangeFromParam } from "./useRange";
  * wrong with it, what is being DONE about it, what has already happened, where
  * the numbers come from, and how it is set up.
  *
- * **Search** joined after Growth on 2026-09-05 (doc 21, `ro-78qo.4`). Growth
+ * **Search** joined after Growth on 2026-09-05 (doc 14, `ro-78qo.4`). Growth
  * asks *which way did the numbers go*; the tracked panel, the query decisions,
  * the page decisions, the competitors and the linking domains all answer *which
- * term, which page, which domain* — a different question, and doc 21's first
+ * term, which page, which domain* — a different question, and doc 14's first
  * principle says a different question is a tab rather than a section further
  * down. It was ten thousand pixels of the same page until this split. */
 export const ASSET_TABS = [

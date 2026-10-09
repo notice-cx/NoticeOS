@@ -15,14 +15,14 @@ export function AssetLedger({
 }: {
   ledger: LedgerSlice;
   /** Kept on the props for callers; the ledger's age is System health's to
-   * say (doc 17 altitude), not this panel's. */
+   * say (doc 14 altitude), not this panel's. */
   ledgerRecordedAt?: string | null;
   nowMs?: number;
 }) {
   return (
     <Panel
       title="Monthly accounting"
-      /* THE WAY TO THE PORTFOLIO VIEW, in the header's "All →" slot (doc 21):
+      /* THE WAY TO THE PORTFOLIO VIEW, in the header's "All →" slot (doc 14):
          the comparison across assets and the shared costs live on /financials,
          which the tab's About used to describe in a paragraph. */
       action={
@@ -59,7 +59,7 @@ export function AssetLedger({
           </SmallMultipleStrip>
 
           {/* The months are the answer; the rows behind them are the audit
-              trail, and doc 21 opens a table collapsed. Nine ledger lines shown
+              trail, and doc 14 opens a table collapsed. Nine ledger lines shown
               on every visit is 350px of evidence nobody asked for — the operator
               who wants to check a figure presses once. */}
           <details className="group flex flex-col gap-2">
@@ -125,14 +125,14 @@ export function AssetLedger({
  * Six months were six bordered cards, each with a chip, a "net" row, two family
  * lines and a rule with a forecast block under it — and on one site every one of
  * their headline values is a DASH, because nothing has reconciled. Six boxes
- * shouting a dash is the shape doc 21 exists to end. They are one strip now: the
+ * shouting a dash is the shape doc 14 exists to end. They are one strip now: the
  * month is the eyebrow, the booked net is the figure, and what it is made of is
  * the line under it.
  *
  * THE STATED NET IS STILL RECONCILED ROWS ONLY. The tile used to lead with a
  * single net summed over every current row — a booked-P&L figure containing
  * money nobody had confirmed, on the one surface an operator opens to check
- * exactly that (doc 19 finding 4). The figure is booked money and the dash is an
+ * exactly that (the 2026-07 audit's finding 4). The figure is booked money and the dash is an
  * honest dash; the forecast rides in the secondary line, prefixed with the word,
  * where it cannot be read as part of the number above it. `figureHasMoney` is
  * the same rule the Wall uses, because three zeroes are not a figure.
@@ -162,7 +162,7 @@ function PeriodCell({ period }: { period: LedgerPeriod }) {
           ) : null}
           {/* The forecast keeps its own figure and its own WORD, on the same
               line but never inside the number above: a month can be part
-              booked and part estimated, and doc 19 finding 4 is that the two
+              booked and part estimated, and the 2026-07 audit's finding 4 is that the two
               must never be summed into one net. */}
           {hasForecast ? (
             <span title="Estimated for this month. Not booked, and not in the net above.">

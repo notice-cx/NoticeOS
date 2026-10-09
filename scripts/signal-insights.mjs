@@ -970,10 +970,8 @@ function evidence(label, value, detail) {
   return detail ? { label, value, detail } : { label, value };
 }
 
-/** Names the deterministic rule that produced a card so a playbook entry
- * (`docs/playbooks/`, [doc 13](../docs/13-opportunity-scouting.md)) can attach
- * to it by id. The seven transferred rules carry that mapping in the provenance
- * block below; the rest are unmapped until a method is captured for them. */
+/** Names the deterministic rule that produced a card so a method
+ * ([doc 13](../docs/13-opportunity-scouting.md)) can attach to it by id. */
 function ruleTag(id) {
   return evidence('Rule', id, `rule: ${id}`);
 }
@@ -1086,7 +1084,7 @@ function provisionalDaysEvidence(provisionalDates) {
 
 // ---------------------------------------------------------------------------
 // LLM-grounding / quoted-literal query classification
-// ([the 2026-07-31 signal audit](../docs/briefs/2026-07-31-signal-audit-fixes.md), F2)
+// (the 2026-07-31 signal audit, F2)
 // ---------------------------------------------------------------------------
 // 4,217 impressions — 9.0% of every captured page/query impression in the
 // largest site's archive — came from queries carrying quoted phrases, and they
@@ -1240,7 +1238,7 @@ function withholdsForAiOverview(states) {
   return states.some(({ state }) => state === 'uncited');
 }
 
-/** The device as the operator names it, never as the data lane does (doc 17:
+/** The device as the operator names it, never as the data lane does (doc 14:
  * the collection mechanism is not vocabulary for a property page). */
 function deviceNoun(device) {
   if (device === 'mobile') return 'Phone';
@@ -1654,7 +1652,7 @@ function bingFeedIssueInsight(families) {
 }
 
 // Three corrections to this rule from
-// [the 2026-07-31 signal audit](../docs/briefs/2026-07-31-signal-audit-fixes.md) (F3),
+// the 2026-07-31 signal audit (F3),
 // which caught it calling a four-month decline an opportunity at high
 // confidence and pointing the operator at the wrong page to fix it.
 //
@@ -2561,37 +2559,29 @@ function featureUsageInsight(families) {
 // Each one consumes an already-archived report family and each threshold cites
 // the finding it was derived from.
 //
-// Playbook provenance (docs/playbooks/, added 2026-07-31). Each rule below is a
-// partial crystallization of a method captured from the same archaeology — the
-// rule detects the condition, the playbook says what to do about it. A card's
-// `rule: <id>` evidence row is the join. Mapped only where the descent is real:
+// What acting on each rule means (added 2026-07-31). The rule detects the
+// condition; a card's `rule: <id>` evidence row is the join to the work it
+// raises:
 //
-//   concentration-risk      -> kill-thresholds.md  (the dependency/scale rules;
-//                              the finding itself came out of a third-source
-//                              cross-reference, so triangulate-before-acting.md
-//                              is the secondary)
-//   measurement-integrity   -> triangulate-before-acting.md  (a broken
-//                              collection is an unknown, not a small error)
-//                              + utm-taxonomy.md  (the Unassigned half's cause
-//                              and its fix)
-//   query-cannibalization   -> impression-harvest.md  (diagnose which page owns
-//                              which intent before touching copy)
-//   query-language-drift    -> impression-harvest.md  (per-locale surgery is its
-//                              own surgery, never a translated echo)
-//   device-ctr-gap          -> impression-harvest.md  (same diagnosis discipline,
-//                              split by device instead of by query)
-//   prune-candidates        -> impression-harvest.md  (the no-new-inventory gate)
-//   page-movers             -> release-cohort-attribution.md  (a week-over-week
-//                              move is only readable against a release register)
-//   reclamation-match       -> reclamation-pipeline.md  (step 7's touch log, and
-//                              the "proof is live link updates, tracked per wave
-//                              with a conversion rate" line under Proof and
-//                              abandonment; the card is the noticing half, the
-//                              human confirmation is the other)
-//
-// The remaining thirteen rules (the provider-visibility, Bing, striking-distance,
-// image, appearance and instrumentation families) have no playbook yet. Leaving
-// them unmapped is the honest state, not an omission.
+//   concentration-risk      -> a dependency/scale stop rule stated before
+//                              spending; the finding itself came out of a
+//                              third-source cross-reference
+//   measurement-integrity   -> a broken collection is an unknown, not a small
+//                              error; the Unassigned half has a cause and a
+//                              fix in the campaign-link grammar
+//   query-cannibalization   -> diagnose which page owns which intent before
+//                              touching copy
+//   query-language-drift    -> per-locale surgery is its own surgery, never a
+//                              translated echo
+//   device-ctr-gap          -> the same diagnosis discipline, split by device
+//                              instead of by query
+//   prune-candidates        -> the no-new-inventory gate
+//   page-movers             -> a week-over-week move is only readable against
+//                              a release register
+//   reclamation-match       -> the campaign's touch log; the proof is live
+//                              link updates, tracked per wave with a
+//                              conversion rate; the card is the noticing half,
+//                              the human confirmation is the other
 // ---------------------------------------------------------------------------
 
 // [doc 00](../docs/00-objective-and-roi.md): 85%+ dependence on a single traffic
@@ -2674,7 +2664,7 @@ const CANNIBALIZATION_MIN_PAGE_SHARE = 0.2;
 // enough volume to be worth a canonical or internal-link decision.
 const CANNIBALIZATION_MIN_IMPRESSIONS = 100;
 // One SERP block is not three competing pages
-// ([the 2026-07-31 signal audit](../docs/briefs/2026-07-31-signal-audit-fixes.md), F1).
+// (the 2026-07-31 signal audit, F1).
 // The rule told the operator to consolidate `/`, `/calculator` and `/recipes`
 // for "where to find free diet plans" on 1,283 split impressions. The source
 // rows: byte-identical impression counts on every single date (94/94, 93/93,
@@ -3262,7 +3252,7 @@ function queryLanguageDriftInsight(families) {
 const DEVICE_CTR_RATIO = 0.5;
 const DEVICE_MIN_IMPRESSIONS = 1000;
 // The rule was mobile-only and missed a real gap
-// ([the 2026-07-31 signal audit](../docs/briefs/2026-07-31-signal-audit-fixes.md), F8):
+// (the 2026-07-31 signal audit, F8):
 // one site ran desktop at roughly a quarter of mobile's CTR on double the
 // impressions for three straight days and the rule stayed silent, because it
 // only ever tested mobile against desktop. Whichever side is worse is the
@@ -3651,7 +3641,7 @@ function backlinkMomentumInsight(families) {
     // The inventory size is stated because the audit found it implausible and
     // the card had no way to show that: 11 referring domains / 404 backlinks for
     // a domain an independent index rates DR 32
-    // ([the 2026-07-31 signal audit](../docs/briefs/2026-07-31-signal-audit-fixes.md), F7).
+    // (the 2026-07-31 signal audit, F7).
     // The direction may well be right; the absolute basis is not decision-grade,
     // and only the operator can see that if the card says how small it is. A
     // second observer (Ahrefs API v3, or GSC links) is NOT wired — the honest
@@ -3667,15 +3657,15 @@ function backlinkMomentumInsight(families) {
 }
 
 // ---------------------------------------------------------------------------
-// Reclamation match (docs/playbooks/reclamation-pipeline.md)
+// Reclamation match
 // ---------------------------------------------------------------------------
-// The playbook's proof step is "live link updates, tracked per wave with a
+// A reclamation campaign's proof is "live link updates, tracked per wave with a
 // conversion rate", and its pipeline table (db/0015 `reclamation_targets`) has
 // nowhere for a win to come from unless someone notices one. This rule notices.
 //
 // WHAT IT DOES NOT DO: mark the win. `reclamation_targets.status = 'won'` is
 // human-only and terminal, because a campaign that scores itself cannot be
-// graded against the playbook's own 10-20% conversion band, and the abandonment
+// graded against the campaign's own 10-20% conversion band, and the abandonment
 // rule that band feeds would then be reading its own optimism.
 //
 // EVIDENCE HONESTY. The obvious source — DataForSEO's new/lost referring-domain
@@ -3856,8 +3846,7 @@ function reclamationWonInsight(families, reclamationTargets) {
  * the card was not showing: the audited site is the #1 cited domain on Google AI
  * surfaces for its query set, and #3 on ChatGPT behind healthline and
  * diabetes.org — a competitive position, not a volume count
- * ([the 2026-07-31 signal audit](../docs/briefs/2026-07-31-signal-audit-fixes.md),
- * "verified correct" section).
+ * (the 2026-07-31 signal audit, "verified correct" section).
  *
  * The rank is among the domains this snapshot returned, which is a provider
  * top-N and not a census; a domain the provider did not return is unranked
@@ -3987,7 +3976,7 @@ function llmVisibilityInsight(families, asset, market) {
 }
 
 // ---------------------------------------------------------------------------
-// Rules added from [the 2026-07-31 signal audit](../docs/briefs/2026-07-31-signal-audit-fixes.md).
+// Rules added from the 2026-07-31 signal audit.
 // The audit cross-checked every card against the raw archive CSVs; these three
 // cover conditions that were true in the data and produced no card at all.
 // ---------------------------------------------------------------------------

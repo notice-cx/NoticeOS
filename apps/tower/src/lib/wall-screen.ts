@@ -1,5 +1,5 @@
 // Which Wall a screen gets, by its SHAPE (bead ro-trai.31, operator
-// 2026-09-23, docs/25-the-wall.md § Laptop, tablet and phone).
+// 2026-09-23, docs/14-design.md § Laptop, tablet and phone).
 //
 // A 13-inch MacBook Air in Chrome is about 1470×830 CSS px — the TV's 16:9 at
 // 77 % of its size — so it gets the TV's layout, drawn smaller, not a phone's.

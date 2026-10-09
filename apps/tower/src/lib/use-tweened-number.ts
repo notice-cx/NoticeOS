@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-// A LIVE NUMBER THAT COUNTS TO ITS NEW READING (bead `ro-trai.19`, doc 25 §
+// A LIVE NUMBER THAT COUNTS TO ITS NEW READING (bead `ro-trai.19`, doc 14 §
 // Site rows): the Wall's live users are one plain figure, and when a poll
 // brings a new reading the figure counts from the old one to it in a moment
 // rather than jumping — the change is seen without a split-flap's tiles. Under

@@ -28,7 +28,7 @@ function daily(end: string, count: number, value: (i: number) => number): Series
 }
 
 describe("the range vocabulary", () => {
-  it("offers the three ranges doc 21 names and defaults to 28 days", () => {
+  it("offers the three ranges doc 14 names and defaults to 28 days", () => {
     expect([...SURFACE_RANGES]).toEqual([7, 28, 90]);
     expect(DEFAULT_RANGE_DAYS).toBe(28);
   });

@@ -1,6 +1,6 @@
-// The arithmetic behind a doc 21 desk surface, with no DOM in it.
+// The arithmetic behind a doc 14 desk surface, with no DOM in it.
 //
-// Doc 21's second principle is that a KPI is one unit — value, delta against
+// doc 14's second principle is that a KPI is one unit — value, delta against
 // the prior period, sparkline — fused to the chart it selects, and its fifth
 // acceptance line is that "range changes re-derive every delta, sparkline and
 // chart on the page". That makes the range the page's one input and these five
@@ -11,7 +11,7 @@
 // They live here rather than inside `HeroChart` because two surfaces derive
 // them for the same asset — the Overview's strip and the Growth tab's chart
 // pairs — and a KPI whose delta disagrees with the chart under it is the defect
-// doc 21 exists to end. Pure functions, so `test/surface.test.ts` can hold every
+// doc 14 exists to end. Pure functions, so `test/surface.test.ts` can hold every
 // edge (a gap, a short prior period, a timezone change inside the window)
 // without rendering anything.
 
@@ -20,7 +20,7 @@ import { type SeriesPoint, type TimeZoneChangePoint } from "./wall";
 const DAY_MS = 86_400_000;
 
 /**
- * The ranges the operator can pick (doc 21). `28` is the default and that is
+ * The ranges the operator can pick (doc 14). `28` is the default and that is
  * an operator decision (D24, 2026-09-05) rather than a midpoint: a week is too
  * short to see a trend through weekly seasonality, and ninety days puts the
  * last fortnight — the part anybody acts on — into a few dozen pixels.
@@ -155,7 +155,7 @@ export function fillSeriesGaps(series: readonly SeriesPointOrGap[]): SeriesPoint
 }
 
 /**
- * The trailing average doc 21 draws in bold with the raw line faint.
+ * The trailing average doc 14 draws in bold with the raw line faint.
  *
  * One point out for every point in, so the average can be drawn over the same
  * x positions as the series it smooths. The window is a CALENDAR window: a day
@@ -246,7 +246,7 @@ export function periodDelta(
   timeZoneChanges: readonly TimeZoneChangePoint[] = [],
   provisionalFrom: string | null = null,
 ): PeriodDelta | null {
-  // THE DELTA EXCLUDES THE DAY THE PROVIDER HAS NOT CLOSED (doc 21, and doc
+  // THE DELTA EXCLUDES THE DAY THE PROVIDER HAS NOT CLOSED (doc 14, and doc
   // 14's "anchored on the last COMPLETE rolling day, never on a provisional
   // latest point"). A day still being counted is always short, so a comparison
   // anchored on it reports a fall every single morning.
@@ -345,7 +345,7 @@ export function lastPointIsProvisional(
 /** A mark on a chart's own x axis: what happened, and on which day. */
 export interface SurfaceAnnotation {
   date: string;
-  /** Defaults to the caret doc 21's footnote legend names. */
+  /** Defaults to the caret doc 14's footnote legend names. */
   glyph?: string;
   label: string;
   /** Full event explanation, disclosed at its marker rather than below the chart. */
@@ -366,7 +366,7 @@ export interface PlacedAnnotation {
 }
 
 /**
- * A SPAN drawn behind a series (D44, doc 21 § Asset · Overview — the story
+ * A SPAN drawn behind a series (D44, doc 14 § Asset · Overview — the story
  * chart): the days a change is being watched, so cause (the ▲ mark) and the
  * window its effect is judged in sit on one axis.
  */
@@ -453,7 +453,7 @@ export function placeAnnotations(
 /**
  * Saturday and Sunday, as index spans over a daily series.
  *
- * Doc 21 asks for weekend bands where doc 14's charts band alternating calendar
+ * doc 14 asks for weekend bands where doc 14's charts band alternating calendar
  * weeks. Both group the same seven days; the weekend is the one a reader can
  * decode with no legend, which is why the newer document wins here. A monthly
  * or stepped series gets none — a weekend inside an accounting month is not a

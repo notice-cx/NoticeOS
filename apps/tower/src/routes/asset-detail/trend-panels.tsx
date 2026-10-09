@@ -121,7 +121,7 @@ export interface TrendInput {
 // --- what happened on a day, as marks on the axis --------------------------
 
 /**
- * THE TWO THINGS A CHART OWES ITS OWN X AXIS (doc 21 principle 8).
+ * THE TWO THINGS A CHART OWES ITS OWN X AXIS (doc 14 principle 8).
  *
  * A reporting-timezone change and a recorded deploy are both "something happened
  * on this day", and both change how a reader should judge the shape around them.

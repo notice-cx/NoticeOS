@@ -29,12 +29,12 @@ export type SetupItemId = "identity" | "sources" | "first-report" | "baseline" |
  * the ring short of done. `unavailable` is a capability not implemented (D43),
  * not an offered action or a setup obligation. The WHY lives in its `note`; each
  * source's own status is its Data sources row, never repeated here (one status
- * per subject per screen, doc 21 principle 3b). */
+ * per subject per screen, doc 14 principle 3b). */
 export type SetupItemState = "done" | "pending" | "optional" | "unavailable";
 
 export interface SetupChecklistItem {
   id: SetupItemId;
-  /** The operator's words (doc 17). */
+  /** The operator's words (doc 14). */
   label: string;
   state: SetupItemState;
   /** The setup or historical-report fact behind this step, not a current

@@ -241,7 +241,7 @@ again, which is the same defeat by cron. `ack` and `resolve` remain untouchable
 Until `db/0018` this lane was append-only with **no key**: the same CSV posted
 twice inserted every row twice, and every total downstream inherited the error
 without a symptom. The then-`amount REAL` column compounded it — a sum of binary
-floats is never provably cent-exact (doc 19 finding 1).
+floats is never provably cent-exact (the 2026-07 audit's finding 1).
 
 Every row now carries a stable **`external_id`, namespaced by its source**, under
 a unique index, and an exact **`amount_minor`** in integer minor units of its stated currency.
@@ -621,8 +621,7 @@ rejected rather than stored — it is a contradiction, not producer skew.
 emitted `cronRunSuccess = 1` as a constant until 2026-08-04, so a collector that
 died still scored full marks and the one number that would have said *the lanes
 stopped* was the one number incapable of going bad
-([doc 19 finding 6](../../docs/19-architecture-implementation-ux-audit.md),
-bead `ro-uwo.4`, operator-approved).
+(the 2026-07 audit's finding 6, bead `ro-uwo.4`, operator-approved).
 
 **One writer, and it is the runner.** `scripts/os-up.mjs` fires every lane on
 this machine and records each firing to `.local/logs/job-runs.jsonl` first,
@@ -1325,9 +1324,8 @@ that measured nothing has not found nothing wrong.
 register records incidents. Each of the three founding guards came from a real
 "nobody noticed for months" event, and these four clear the same bar — each has a
 decision attached and no room to be wrong. A missing title or description is a
-lost click with a written repair
-([serp-snippet-standard](../../docs/playbooks/serp-snippet-standard.md), named in
-the flag message); a missing or duplicated `h1` is a page that states no subject
+lost click with a written repair (a title and description that answer the
+searcher's hesitations against the live result page); a missing or duplicated `h1` is a page that states no subject
 or several; a canonical pointing elsewhere means the page cannot rank however
 good it is, and it is the one most often shipped by accident — a template, a CMS
 default, a copied `<head>`.

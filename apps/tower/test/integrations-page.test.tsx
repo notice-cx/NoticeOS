@@ -294,7 +294,7 @@ describe("/integrations is a page, not an alias", () => {
   });
 
   it("stops Health claiming the word Integrations in the palette", () => {
-    // One word, one page (doc 17 rule 1). Health kept `integrations` as a
+    // One word, one page (doc 14 rule 1). Health kept `integrations` as a
     // keyword while it WAS the integrations page; leaving it there would send
     // ⌘K "integrations" to two different destinations.
     const health = NAV_ITEMS.find((item) => item.label === "System health");
@@ -656,7 +656,7 @@ describe("a metered data source says how much budget is left today", () => {
   });
 
   it("prints what is left per asset, because the cap is per asset", () => {
-    // Doc 15 flow C step 3's own example, finally rendered: the operator never
+    // doc 14 flow C step 3's own example, finally rendered: the operator never
     // wonders why a data source paused.
     renderCard(meteredStatus([{ asset: "meals.example", spent: 3 }]));
     const block = document.querySelector("[data-provider-meter]");
@@ -1600,8 +1600,8 @@ describe("the page", () => {
     });
 
   /**
-   * ONE ROW PER PROVIDER, AND THE CARD IS THE ROW'S EVIDENCE (doc 21). The list
-   * says the state; "what you need" is setup instruction, and doc 21 puts it
+   * ONE ROW PER PROVIDER, AND THE CARD IS THE ROW'S EVIDENCE (doc 14). The list
+   * says the state; "what you need" is setup instruction, and doc 14 puts it
    * inside the expanded, unconnected provider rather than on the page.
    */
   it("first run: every provider is one row saying Not connected", () => {
@@ -1985,7 +1985,7 @@ describe("the Google card offers a sign-in", () => {
     expect(document.querySelector("[data-oauth-account]")).toHaveTextContent(
       "Signed in as ops@example.test",
     );
-    // In words, never as scope URLs (doc 17 rule 8).
+    // In words, never as scope URLs (doc 14 rule 8).
     const scopes = document.querySelector("[data-oauth-scopes]")!;
     expect(scopes).toHaveTextContent("Analytics — read only");
     expect(scopes).toHaveTextContent("Search Console — read only");
@@ -2211,7 +2211,7 @@ describe("/health kept everything that pointed at it", () => {
   });
 });
 
-// --- when it stops working (bead `ro-vu8d.8`, doc 15 flow C step 4) ---------
+// --- when it stops working (bead `ro-vu8d.8`, doc 14 flow C step 4) ---------
 
 describe("an expiring credential warns before it stops the collectors", () => {
   const DAY = 24 * 60 * 60 * 1000;
@@ -2247,7 +2247,7 @@ describe("an expiring credential warns before it stops the collectors", () => {
     expect(screen.getByText("Expires in 40d")).toBeTruthy();
   });
 
-  it("turns warn-toned inside the fourteen-day window doc 15 named", () => {
+  it("turns warn-toned inside the fourteen-day window doc 14 named", () => {
     const { container } = renderCard({
       ...dated(9),
       provider: provider("dataforseo", DATAFORSEO_FIELDS, {

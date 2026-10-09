@@ -93,11 +93,11 @@ import { taskMetadataValue, type TaskMetadataName } from "@noticeos/contract/tas
  * bead `ro-ujb9.202`), so a closed blocker reads as out of the way rather than
  * as one more thing in it, and a task looks the same one click apart.
  *
- * A CLOSED TASK IS SHIPPED, NOT PROVEN (docs/playbooks/task-key-chain.md).
+ * A CLOSED TASK IS SHIPPED, NOT PROVEN (the task-key chain).
  * Nothing here is green and nothing says resolved: the outcome is read later in
  * a watch window carrying this bead id.
  *
- * NO PARAGRAPHS (bead `ro-ujb9.96.6.11`, doc 21 principle 3a). An empty
+ * NO PARAGRAPHS (bead `ro-ujb9.96.6.11`, doc 14 principle 3a). An empty
  * description is an "Add a description" button, not a sentence quoting the
  * `bd` flag that would fill it; a read-only build is one banner; the chips and
  * the editors carry their own state with no footnote under them.
@@ -1294,7 +1294,7 @@ function SaveButton({
  * change, incident, external), a different vocabulary over a different table,
  * and bending its `AnnotationKind` to mean "claimed" would make one component
  * answer two questions. It is one route's layout over one payload and stays
- * here until a second surface needs it (REGISTRY.md).
+ * here until a second surface needs it (components/registry.ts).
  *
  * Every node is DATED, and an undated fact is simply not a node: a claim with
  * no `started_at` would otherwise be dated by the last edit, quietly redating
@@ -1391,7 +1391,7 @@ function Activity({
 /**
  * When something on this page happened, always as a distance ("3d ago").
  *
- * ABSENCE IS A PHRASE, NOT A DASH (bead `ro-kukv.12`, doc 17 rule 6). All four
+ * ABSENCE IS A PHRASE, NOT A DASH (bead `ro-kukv.12`, doc 14 rule 6). All four
  * places this renders pair it with a word that needs it — *created*, *updated*,
  * a comment's author, a timeline event's label — so it is a labelled value slot
  * on every one of them, not the dense table cell rule 6 exempts. A bare em-dash

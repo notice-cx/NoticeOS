@@ -95,8 +95,8 @@ import {
  * cadence, the pull registry, the source catalog, the task-hub spoke map — was
  * rendered nowhere at all and lived only as files somebody had to know about.
  *
- * A FEW FOCUSED FORMS, GENERAL FIRST (bead `ro-ujb9.18`; prior art in
- * docs/briefs/2026-09-23-settings-forms.md — Vercel's and Plausible's General,
+ * A FEW FOCUSED FORMS, GENERAL FIRST (bead `ro-ujb9.18`; prior art:
+ * Vercel's and Plausible's General,
  * Stripe's grouping by what a setting applies to, Linear's sections that
  * appear only for the people they concern). **General** holds the two things a
  * new installation sets — the clock the OS reads in and what it may spend —
@@ -146,8 +146,8 @@ import {
  * asset's favicon. A settings page that is only labels and inputs is not
  * finished.
  *
- * AND NOTHING ON IT NEEDS A PARAGRAPH (bead `ro-ujb9.96.6.3`, doc 21 principle
- * 3a; prior art in docs/briefs/settings.md). Every field is a label, a
+ * AND NOTHING ON IT NEEDS A PARAGRAPH (bead `ro-ujb9.96.6.3`, doc 14 principle
+ * 3a). Every field is a label, a
  * label-length unit or effect line, its control, and its state beside it; a save
  * is confirmed where it was made ("Saved · Undo", `KnobEditor`);
  * a problem leads with what happened and ends in buttons.
@@ -278,7 +278,7 @@ function SettingsSectionNav({
  * title, and — only where the scope is not obvious from the fields — one chip or
  * link beside it.
  *
- * NO DESCRIPTION LINE AND NO HELP TOOLTIP (bead `ro-ujb9.96.6.3`, doc 21
+ * NO DESCRIPTION LINE AND NO HELP TOOLTIP (bead `ro-ujb9.96.6.3`, doc 14
  * principle 3a). Every section used to open with a sentence or an "About"
  * paragraph saying what it held; the fields below said the same thing, and the
  * one fact they added — alert rules judge every site — is an `aside` chip now.
@@ -392,10 +392,9 @@ function GeneralSection({
  * not only the time, but which date is yesterday's revenue and which month is
  * the current one, since a save moves both at once. Those used to be a
  * 32-word tooltip; they are values now, and they move as the zone does — the
- * Stripe start-of-day pattern (docs/briefs/settings.md#prior-art).
+ * Stripe start-of-day pattern.
  *
- * PICK TO SAVE, UNDO BESIDE IT (docs/briefs/2026-09-23-ux-prior-art.md
- * #settings-save-undo): a zone is one low-risk choice, so choosing it is the
+ * PICK TO SAVE, UNDO BESIDE IT: a zone is one low-risk choice, so choosing it is the
  * save and "Saved · Undo" appears next to the picker.
  *
  * THIS DEVICE'S ZONE LEADS THE LIST (bead `ro-ujb9.18`): the zone a person
@@ -694,7 +693,7 @@ function DataSpendMeter({
       />
       {/* What happens at the cap, as a state beside the meter rather than a
           sentence under it (bead `ro-ujb9.18`; Vercel's spend amount beside
-          its Pause action, docs/briefs/2026-09-23-settings-forms.md). */}
+          its Pause action). */}
       <div className="mt-1.5 flex items-center gap-1">
         <StateChip tone="neutral" label="Stops at the budget" glyph={<Ban className="size-3" />} subject="budget:portfolio" className="font-normal" />
         <InfoTooltip label="How data spend is counted">Includes scheduled DataForSEO collection and one-off research bought on the same account.</InfoTooltip>
@@ -1607,12 +1606,12 @@ const FOUND_UNKNOWN: DerivedColumn = {
  * WHAT HAPPENED, THEN TWO BUTTONS (bead `ro-ujb9.96.6.3`). This was an 83-word
  * paragraph explaining that the Tasks board keeps working and that the nightly
  * copy is what reads the name. The consequence is the headline now — the project
- * is not being backed up — and the fixes are side by side, Vercel-domain style
- * (docs/briefs/settings.md#prior-art): *Edit name* puts the cursor in the
+ * is not being backed up — and the fixes are side by side, Vercel-domain
+ * style: *Edit name* puts the cursor in the
  * Database cell, *Keep* is the command with Copy. Choosing between them is the
  * decision; nothing needs reading to make it.
  *
- * A COMMAND IS COPIED, NOT READ (doc 15 principle 10), so it keeps the
+ * A COMMAND IS COPIED, NOT READ (doc 14 principle 10), so it keeps the
  * machinery's own words inside a labelled block with a Copy button, exactly as
  * the onboarding checklist below does.
  */

@@ -119,7 +119,7 @@ operator-only, forever, never promotable.
   contact; operator governs by policy, budget, and the calibration report.
 
 **Starting tiers:** a newly onboarded asset sits at T0 while baselining
-(doc 15 flow A) — with one exemption: operator-invoked **onboarding runbooks**
+(doc 14 flow A) — with one exemption: operator-invoked **onboarding runbooks**
 (pulse endpoint, AGENTS.md) run at T1, since the operator is the merger by
 construction. After baselining, every allowed (asset × class) starts at
 **T1** — T0→T1 requires no earned evidence because T1's gate *is* the
@@ -177,6 +177,20 @@ minute as the number this ladder exists to improve.
   freeze class → revert → annotate timeline → postmortem → rule. Phase exits in
   [doc 07](07-roadmap.md) count sev-1/2 explicitly — "no prod incidents" is
   now a defined, countable claim.
+
+### The task key chain
+
+One key travels unchanged from the finding that raised work to the verdict that retires it; without it a shipped change and the observation that provoked it are two unrelated events in two stores. The key is the finding's own stable key — a query decision's normalized query, a finding card's `ExecutiveInsight.key`.
+
+1. **The Tower writes the key into the handoff.** The copied Markdown ends in a ready-to-run `bd create` labelled `noticeos-handoff`, `asset:<id>`, `rule:<id>`, `key:<slug>`, with `noticeos_key`, `noticeos_rule`, `noticeos_asset` and `noticeos_kind` in `--metadata` verbatim. Only the metadata is byte-exact: `bd` splits label values on commas.
+2. **The agent files the bead in the asset's own repo.** The prefix comes from the repo `bd` runs in, never from the handoff. The poller reads the bead back onto the finding card (`HandoffBeadBadge`, `packages/contract/src/task-snapshot.mts`).
+3. **Every commit names the bead id.**
+4. **The bead closes with the decision and its evidence** — a commit for shipped work, the basis for a decline. Closure records a decision, never a measured outcome.
+5. **A ship writes a timeline annotation** (`annotations.kind = 'deploy'`) whose `ref` is the same bead id, so Attribution ([doc 03](03-attribution.md)) sees a cause.
+6. **The watch window opens against the same ref**, sized to the change class.
+7. **The window's verdict retires the finding**, kept or reverted.
+
+No bead means untracked work, whatever the diff says. A bead without the rule id and key is a task, not a link. A bead id in a commit but on no annotation leaves Attribution blind. Never fake a link: an annotation for a ship that never happened, or a verdict read off a chart instead of a window, turns an unknown into a false known. Nothing auto-reverts. Renaming `noticeos-handoff` or the `noticeos_*` fields breaks every existing join; readers also accept the older `reindex_*` names (`packages/contract/src/task-metadata.mts`).
 
 ## Intelligence tiering: crystallize smarts into tools
 
@@ -249,7 +263,7 @@ Approval state (who approved which version, when) lives **Tower-side** in the
 grants table — never in the file, or a builder could self-approve. A rendered
 "approved v3 by operator" line in the library view is a display of that
 record. **Failure streaks suspend**: 3 consecutive failed runs auto-suspend a
-runbook's grants (same suspended state as a manifest deviation, doc 15 flow
+runbook's grants (same suspended state as a manifest deviation, doc 14 flow
 B) pending operator review — approval survives *edits* never, and failure
 streaks only until reviewed.
 

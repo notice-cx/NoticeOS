@@ -1,6 +1,5 @@
 // ONE THROWAWAY POSTGRES FOR A TEST RUN, AND A CLEAN COPY OF THE STORE FOR
-// EACH TEST FILE (the Postgres port pattern,
-// docs/briefs/2026-09-29-postgres-port-pattern.md; epic ro-ujb9.76).
+// EACH TEST FILE (epic ro-ujb9.76).
 //
 // The Workers' suites run on Postgres the way they ran on D1: each file
 // starts from the same new installation's store, and nothing a file writes

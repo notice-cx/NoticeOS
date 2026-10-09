@@ -623,7 +623,7 @@ function WiringHealth({ wiring, nowMs }: { wiring: Wiring; nowMs: number }) {
  * one of them PORTFOLIO-wide: typing a new `alpha` here re-tuned the anomaly
  * detector for every asset in the portfolio, and the only thing saying so was a
  * small "Applies to every asset" line under the label. The values still belong on
- * this page (doc 15 principle 10: every knob is visible where it acts), but the
+ * this page (doc 14 principle 10: every knob is visible where it acts), but the
  * EDITOR belongs where the scope is obvious.
  */
 function AlertRulesCard({ rules }: { rules: RulesInForce }) {
@@ -631,7 +631,7 @@ function AlertRulesCard({ rules }: { rules: RulesInForce }) {
     <Panel
       title="Alert rules in force"
       count={rules.hasOverride ? "per-site override" : "no per-site override"}
-      // Where every site's rules change — the header's "All →" slot (doc 21),
+      // Where every site's rules change — the header's "All →" slot (doc 14),
       // in place of two sentences pointing at Settings.
       action={
         <Link
@@ -643,8 +643,8 @@ function AlertRulesCard({ rules }: { rules: RulesInForce }) {
       }
     >
       <div>
-        {/* No `explain` here (doc 21, `ro-78qo.5`; bead `ro-ujb9.96.6.4`):
-            the VALUES stay — doc 15 principle 10 wants a setting visible where
+        {/* No `explain` here (doc 14, `ro-78qo.5`; bead `ro-ujb9.96.6.4`):
+            the VALUES stay — doc 14 principle 10 wants a setting visible where
             it acts — and the EDITORS, with their one-line effects, live on
             Settings, where the scope is obvious. */}
         {rules.knobs.map((k) => (
@@ -664,7 +664,7 @@ function AlertRulesCard({ rules }: { rules: RulesInForce }) {
  * WHICH TERMS THIS ASSET BUYS, AND WHETHER ITS LOCAL DIRECTORY IS KEPT CURRENT
  * (bead `ro-x5gu.4`, carried through `ro-78qo.4` to here by `ro-78qo.25`).
  *
- * IT MOVED HERE FROM THE SEARCH TAB (bead `ro-78qo.25`). Doc 21 principle 4:
+ * IT MOVED HERE FROM THE SEARCH TAB (bead `ro-78qo.25`). doc 14 principle 4:
  * a file-owned register belongs on Settings and Sources, never on a view
  * surface. `ro-78qo.4` parked it on Search behind a closed disclosure rather
  * than delete it — hand-editing `config/serp-panel.json` would have been the
@@ -771,7 +771,7 @@ function PanelSettings({
             </span>
           </div>
 
-          {/* THE 29 ROWS GO BEHIND ONE PRESS (doc 21 progressive disclosure).
+          {/* THE 29 ROWS GO BEHIND ONE PRESS (doc 14 progressive disclosure).
               Each tracked term is two inputs and two Save buttons, so the full
               list is ~1,400px of form on a tab whose other six cards are one
               screen between them — and it is the tail nobody edits daily: the

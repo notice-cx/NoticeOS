@@ -440,7 +440,7 @@ export interface IntegrationsHistory {
    * These predate typed verification and are NOT verified-working history. */
   states: Record<IntegrationState, SeriesPoint[]>;
   /** Freshness by DATA SOURCE, in HOURS since its newest dated evidence,
-   * measured at the instant the day was observed. Doc 21's step chart. A source
+   * measured at the instant the day was observed. doc 14's step chart. A source
    * that carried no dated evidence on a day is absent from that day rather than
    * drawn as infinitely stale. */
   sources: { source: string; points: SeriesPoint[] }[];
@@ -557,7 +557,7 @@ export interface AssetIntegrations {
 /**
  * Why a lane cannot apply to this asset at all — or `null` when it can.
  *
- * doc 19 finding 12: the register was a FULL matrix, and 27 of its 84 cells said
+ * the 2026-07 audit's finding 12: the register was a FULL matrix, and 27 of its 84 cells said
  * "not applicable" in prose. Fifteen of those were two rules written out fifteen
  * times, so a new asset arrived owing seven paragraphs restating what the
  * portfolio already knows, and the payload carried them as though each were a

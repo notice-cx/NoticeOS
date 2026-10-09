@@ -63,9 +63,9 @@ import { declineReason } from "@shared/lane-decline";
 
 /**
  * THE SOURCES TAB — where this asset's numbers come from (`ro-pbzu.4`),
- * restyled to doc 21 under `ro-78qo.5`.
+ * restyled to doc 14 under `ro-78qo.5`.
  *
- * IT TOOK THE SETUP CHECKLIST FROM OVERVIEW. Doc 21 replaces that section on the
+ * IT TOOK THE SETUP CHECKLIST FROM OVERVIEW. doc 14 replaces that section on the
  * Overview with a one-line `StatusBanner` and says its full checklist moves
  * here, which is also where it belongs: three of its four items are about data
  * sources, and the operator who reads "2 of 6 done" has to arrive on this tab to
@@ -199,7 +199,7 @@ export function sourcesAnswer(direct: readonly { lane: { catalog: { label: strin
 }
 
 /**
- * THE ASSET'S DATA SOURCES, as doc 21's list — each row wearing the ONE status
+ * THE ASSET'S DATA SOURCES, as doc 14's list — each row wearing the ONE status
  * the connection model gives this asset's site (bead `ro-ujb9.96.7.3`), so a
  * source never reads Not connected here while its provider reads Working on
  * Integrations. A row opens in place on what it needs: the provider to
@@ -444,8 +444,7 @@ function LaneRow({
  * WHEN THE OS LAST LOOKED (bead `ro-ujb9.165`): the uptime row's one fact
  * beside its Up or Down — the check's age, and for a site that did not answer,
  * what it answered with. The chip carries the verdict; this dates it, the way
- * Better Stack and UptimeRobot date a monitor's last check
- * (docs/briefs/2026-09-23-uptime.md#prior-art). An Up whose first try failed
+ * Better Stack and UptimeRobot date a monitor's last check. An Up whose first try failed
  * says so after the age (bead `ro-ujb9.180`): "checked 12m ago · 1 failed try".
  */
 function UptimeCheck({ evidence, nowMs }: { evidence: IntegrationEvidence; nowMs: number }) {
@@ -542,7 +541,7 @@ function PulseMetricsSection({
               const summary = productReportSummary(m, reportDate);
               return (
               <TableRow key={m.name}>
-                {/* THE OPERATOR'S WORDS, NOT THE ENVELOPE'S KEY (doc 17 rule 1).
+                {/* THE OPERATOR'S WORDS, NOT THE ENVELOPE'S KEY (doc 14 rule 1).
                     `signups` is fine; `plansSaved` and `recipesSaved` are the
                     asset's own identifiers wearing camel case on a view surface.
                     `humanizeMetric` is the same one `translateAlert` puts in
@@ -659,7 +658,7 @@ function HygieneSeries({
           />
         </div>
       </div>
-      {/* Doc 21's SMALL-MULTIPLE value: the reading is the large ink and its
+      {/* doc 14's SMALL-MULTIPLE value: the reading is the large ink and its
           unit the caption under it, rather than two lines of the same weight.
           `text-xl` and not the 28px KPI type, because three of these sit in one
           strip and the KPI scale belongs to a number that leads a screen. */}
@@ -673,7 +672,7 @@ function HygieneSeries({
           {latest ? unit : "never checked"}
         </span>
       </div>
-      {/* Doc 21's full-width sparkline. `Spark`'s range form printed a y-axis
+      {/* doc 14's full-width sparkline. `Spark`'s range form printed a y-axis
           gutter and dated x labels inside 250px, where the first x label
           overprinted the zero — three numbers fighting for the same corner to
           scale a shape whose figure is already stated above it in KPI type. The

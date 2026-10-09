@@ -462,7 +462,7 @@ function expectedProjection(seed: SeededRevenue) {
   return { headline: usd(projected, 0), reported: `${usd(earned, 2)} reported through ${seed.through}`, versus: `${change} ${ratio > 0 ? 'above' : ratio < 0 ? 'below' : 'level with'} ${previousLabel}` };
 }
 
-// D28 (bead ro-trai.11, docs/25-the-wall.md § Revenue): the store's
+// D28 (bead ro-trai.11, docs/14-design.md § Revenue): the store's
 // projection is the month's pace beside the revenue figure, and the change
 // against last month's total; the 30-day daily bars and the card's projection
 // block left the Wall. The journey's one site is shown in depth (§ Density).
@@ -728,7 +728,7 @@ test.describe(() => {
   });
 
   // The Wall on a phone and a portrait tablet (beads ro-trai.24, ro-trai.31,
-  // docs/25-the-wall.md § Laptop, tablet and phone): the strip wraps instead
+  // docs/14-design.md § Laptop, tablet and phone): the strip wraps instead
   // of cutting anything off, each site is a card whose charts span it with the
   // live figure at its right edge, the feed is as tall as its rows — the TV's
   // twelve at most, newest first — and nothing scrolls sideways.
@@ -801,7 +801,7 @@ test.describe(() => {
   });
 
   // The Wall on a laptop and a landscape tablet (bead ro-trai.31, operator
-  // 2026-09-23, docs/25-the-wall.md § Laptop, tablet and phone): a landscape
+  // 2026-09-23, docs/14-design.md § Laptop, tablet and phone): a landscape
   // screen at least 1024 px wide draws the TV's layout, zoomed by one scale —
   // a 13-inch MacBook Air's 1470 × 830 is the TV at 77 % — so the feed is a
   // bounded column to the right of the site rows, never the half of the screen
@@ -958,7 +958,7 @@ test.describe(() => {
     }
   });
 
-  // D28's budget (bead ro-trai.12, docs/25-the-wall.md § Budget): the TV fits
+  // D28's budget (bead ro-trai.12, docs/14-design.md § Budget): the TV fits
   // 1920×1080 at every site count the contract names, measured by the same
   // function `pnpm wall:fit` runs (scripts/wall-fit-measure.mts). Nothing
   // reaches past the screen, nothing paints outside its own box, no text is cut
@@ -2567,7 +2567,7 @@ test("each main address loads its own screen and no other", async ({ page }) => 
 const DESK_ONLY_MODULE =
   /\/(src\/components\/(RuleTune|KnobEditor|TaskComposer|Timeline|HandoffBeadBadge)\.tsx|src\/hooks\/useTasks\.ts|(scripts|shared)\/config-registers\.(mjs|ts))$/;
 
-// D28 (bead ro-trai.11, docs/25-the-wall.md § What leaves the Wall): the old
+// D28 (bead ro-trai.11, docs/14-design.md § What leaves the Wall): the old
 // Wall's widgets left the TV, and so did their modules — the alert rail, the
 // portfolio and System cards, the time faces and the meetings panel. The D28
 // widgets read the pure answers those modules used to hold from `lib/` instead

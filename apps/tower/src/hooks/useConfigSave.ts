@@ -199,7 +199,7 @@ export interface InlineSaved {
  * way back — or it did not, with the refusal's own words for the field to show
  * beside itself. Nothing here speaks in a toast: the field is where the operator
  * made the change, so the field is where its outcome is said (one status per
- * subject, doc 21 principle 3b).
+ * subject, doc 14 principle 3b).
  */
 export type FieldSaveOutcome =
   | { saved: true; undo: () => Promise<FieldUndoOutcome> }
@@ -249,8 +249,7 @@ export function useFieldConfigSave() {
  * THE SAME SAVE, CONFIRMED BESIDE THE FIELD (bead `ro-ujb9.96.6.3`).
  *
  * `/settings` confirms where the change was made — "Saved" and an Undo next to
- * the control, as GitLab Pajamas does for a single field
- * (docs/briefs/2026-09-23-ux-prior-art.md#settings-save-undo) — rather than in
+ * the control, as GitLab Pajamas does for a single field — rather than in
  * a toast in the corner that also carries the Undo. Same write, same inverse,
  * same refusals; only where the confirmation lives differs, so the field is the
  * one place the save's state is shown (one status per subject). A failed local

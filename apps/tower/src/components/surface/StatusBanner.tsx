@@ -15,7 +15,7 @@ export interface StatusBannerAction {
 
 export interface StatusBannerProps {
   /** The banner exists only while its state is open. `false` renders NOTHING —
-   * not a collapsed strip, not a dismissed placeholder — because doc 21's
+   * not a collapsed strip, not a dismissed placeholder — because doc 14's
    * contract is that it "disappears when it closes". */
   open?: boolean;
   /** The bold half: what state this is. Two or three words. */
@@ -34,7 +34,7 @@ export interface StatusBannerProps {
 }
 
 /**
- * ONE LINE, WHILE SOMETHING IS OPEN (doc 21).
+ * ONE LINE, WHILE SOMETHING IS OPEN (doc 14).
  *
  * *Registry justification:* it replaces the asset page's Setup checklist
  * SECTION — a full card with a heading, a paragraph and a list of steps sitting

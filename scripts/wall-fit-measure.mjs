@@ -6,7 +6,7 @@
 // `pnpm wall:fit` (scripts/wall-fit-check.mjs) runs it in a local Chrome
 // against a live or fixture Tower; the Wall journeys in
 // apps/tower/e2e/journeys.spec.ts run it in Playwright against the isolated
-// fixture at every site count the contract budgets for (docs/25-the-wall.md
+// fixture at every site count the contract budgets for (docs/14-design.md
 // § Budget), so CI fails the day the D28 Wall stops fitting 1920×1080. Both
 // read this one function and `wallFitVerdict`, so the operator's tool and the
 // gate can never disagree about what "fits" means.
@@ -235,7 +235,7 @@ export function measureWallFit() {
     }
     clipRange.detach();
     clipped.sort((a, b) => b.delta - a.delta);
-    /* The D28 budget (docs/25-the-wall.md § Budget): the regions, the rows, the
+    /* The D28 budget (docs/14-design.md § Budget): the regions, the rows, the
      * room under them, and the feed's whole rows. */
     const boxOf = (selector) => {
         const el = root.querySelector(selector);

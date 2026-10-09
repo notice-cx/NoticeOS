@@ -1,6 +1,6 @@
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import type { AssetDetailPayload } from "@shared/asset-detail";
-// The alert row is the registry's, and since bead `ro-78qo.17` it IS doc 21's
+// The alert row is the registry's, and since bead `ro-78qo.17` it IS doc 14's
 // `ListRow` — so this tab composes it rather than drawing a second one.
 import { AlertRow } from "@/components/AlertRow";
 import { ListPanel } from "@/components/surface/ListPanel";
@@ -11,13 +11,13 @@ import { alertsLine } from "@/lib/alerts-line";
 
 /**
  * THE ALERTS TAB — every alert this asset has ever raised, open first
- * (`ro-pbzu.4`, restyled to doc 21 under `ro-78qo.5`).
+ * (`ro-pbzu.4`, restyled to doc 14 under `ro-78qo.5`).
  *
  * TWO PANELS, NOT SEVEN CARDS. It was one `SectionCard` of settled alerts with a
  * paragraph under its heading, and each alert a bordered box of its own carrying
  * a severity dot, a headline, four dated facts, a chip row and an action row —
  * fifteen boxes stacked at the same weight, which is the "scattered rectangles"
- * the operator named. Doc 21's answer is a list: a mark, what it is, how long it
+ * the operator named. doc 14's answer is a list: a mark, what it is, how long it
  * has been open, and the evidence and the verbs revealed IN PLACE when the row
  * is opened.
  *
@@ -99,7 +99,7 @@ export function AlertsTab({
           <ListPanel
             title="History"
             count={historyCount(flags.history.length)}
-            // Collapsed to nothing (doc 21): the header states the size of the
+            // Collapsed to nothing (doc 14): the header states the size of the
             // history and the rows are one press away. A settled alert has no
             // claim on a screen the operator opened to see what is wrong now.
             limit={0}

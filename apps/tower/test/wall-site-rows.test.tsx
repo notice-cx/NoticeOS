@@ -1,4 +1,4 @@
-// D28's site rows (docs/25-the-wall.md § Site rows, bead `ro-trai.5`): one slim
+// D28's site rows (docs/14-design.md § Site rows, bead `ro-trai.5`): one slim
 // row per site, drawn from the synthetic Wall fixture.
 
 import { readFileSync } from "node:fs";
@@ -457,7 +457,7 @@ describe("any number of sites", () => {
   });
 });
 
-// docs/25-the-wall.md § Density, bead `ro-trai.13`.
+// docs/14-design.md § Density, bead `ro-trai.13`.
 describe("the density tiers", () => {
   const density = (container: HTMLElement) => container.querySelector("[data-wall-sites]")?.getAttribute("data-site-density");
 
