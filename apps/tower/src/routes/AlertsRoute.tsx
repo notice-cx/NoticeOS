@@ -33,6 +33,7 @@ import { EvidencePopover } from "@/components/EvidencePopover";
 import { FlagActions } from "@/components/FlagActions";
 import { HandoffBeadBadge } from "@/components/HandoffBeadBadge";
 import { PageHeader } from "@/components/PageHeader";
+import { alertsLine } from "@/lib/alerts-line";
 import { SeverityDot } from "@/components/SeverityDot";
 import { FinishLine, readingAge } from "@/components/surface/FinishLine";
 import { PageAnswer, type AnswerFigure } from "@/components/surface/PageAnswer";
@@ -273,18 +274,6 @@ const DAY_MS = 86_400_000;
 const WEEK_MS = 7 * DAY_MS;
 
 // --- the answer --------------------------------------------------------------
-
-/** "2 open alerts, both warnings" — the page's one sentence (D45). */
-export function alertsLine(items: readonly AttentionItem[]): string {
-  const errors = items.filter((item) => item.severity === "error").length;
-  const warnings = items.length - errors;
-  if (items.length === 0) return "No open alerts";
-  if (items.length === 1) return errors === 1 ? "1 open alert, an error" : "1 open alert, a warning";
-  const all = items.length === 2 ? "both" : "all";
-  if (errors === 0) return `${formatInt(items.length)} open alerts, ${all} warnings`;
-  if (warnings === 0) return `${formatInt(items.length)} open alerts, ${all} errors`;
-  return `${formatInt(items.length)} open alerts, ${formatInt(errors)} ${errors === 1 ? "error" : "errors"}`;
-}
 
 /** How many alerts closed in the last seven days, and whether that count is
  * exact: the archive is read one page at a time, so a page that does not reach

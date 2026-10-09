@@ -165,6 +165,14 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 <div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-alerts" class="flex flex-col gap-4">
 <div class="flex flex-col gap-3.5">
+<div class="flex flex-wrap items-end justify-between gap-x-6 gap-y-3" data-page-answer="" data-site-alerts-answer="error">
+<div class="flex min-w-0 flex-col gap-1">
+<h2 class="m-0 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[26px] font-bold leading-[1.1] tracking-[-0.03em] text-foreground max-sm:text-[22px]">
+<span class="min-w-0 [overflow-wrap:anywhere]">1 open alert, an error</span>
+</h2>
+<span class="text-[13px] tabular-nums text-muted-foreground" data-page-answer-detail="">1 settled</span>
+</div>
+</div>
 <div id="alerts" data-surface-hero="" class="scroll-mt-4">
 <section class="flex flex-col rounded-[10px] border border-border bg-card" aria-label="Open">
 <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">

@@ -5,6 +5,9 @@ import type { AssetDetailPayload } from "@shared/asset-detail";
 import { AlertRow } from "@/components/AlertRow";
 import { ListPanel } from "@/components/surface/ListPanel";
 import { Hero } from "@/routes/asset-detail/shared";
+import { FinishLine } from "@/components/surface/FinishLine";
+import { PageAnswer } from "@/components/surface/PageAnswer";
+import { alertsLine } from "@/lib/alerts-line";
 
 /**
  * THE ALERTS TAB — every alert this asset has ever raised, open first
@@ -41,17 +44,28 @@ export function AlertsTab({
   const assetId = data.asset.id;
   return (
     <div className="flex flex-col gap-3.5">
+      {/* ONE ANSWER FIRST (D45), in /alerts' own words (`alertsLine`). With
+          nothing open the answer is the whole of it: no empty Open panel and
+          no empty History panel saying "nothing" twice more. */}
+      <PageAnswer
+        answer={alertsLine(flags.open)}
+        detail={flags.history.length > 0 ? `${flags.history.length} settled` : undefined}
+        marks={{ "data-site-alerts-answer": flags.open.length === 0 ? "clear" : flags.openError > 0 ? "error" : "warn" }}
+      />
       <Hero id="alerts">
-        <ListPanel
-          title="Open"
-          count={openCount(flags)}
-          limit={5}
-          empty="Nothing is open on this site."
-        >
-          {flags.open.map((flag) => (
-            <AlertRow key={flag.id} flag={flag} nowMs={nowMs} assetId={assetId} />
-          ))}
-        </ListPanel>
+        {flags.open.length > 0 ? (
+          <ListPanel
+            title="Open"
+            count={openCount(flags)}
+            limit={5}
+          >
+            {flags.open.map((flag) => (
+              <AlertRow key={flag.id} flag={flag} nowMs={nowMs} assetId={assetId} />
+            ))}
+          </ListPanel>
+        ) : (
+          <FinishLine quiet line="All clear." />
+        )}
       </Hero>
 
       {/* PARKED, under Open and never in History (bead `ro-ujb9.194`): a snooze
@@ -81,19 +95,20 @@ export function AlertsTab({
       ) : null}
 
       <div id="alert-history" className="scroll-mt-4">
-        <ListPanel
-          title="History"
-          count={historyCount(flags.history.length)}
-          // Collapsed to nothing (doc 21): the header states the size of the
-          // history and the rows are one press away. A settled alert has no claim
-          // on a screen the operator opened to see what is wrong now.
-          limit={0}
-          empty="No alert on this site has been settled yet."
-        >
-          {flags.history.map((flag) => (
-            <AlertRow key={flag.id} flag={flag} nowMs={nowMs} assetId={assetId} history />
-          ))}
-        </ListPanel>
+        {flags.history.length > 0 ? (
+          <ListPanel
+            title="History"
+            count={historyCount(flags.history.length)}
+            // Collapsed to nothing (doc 21): the header states the size of the
+            // history and the rows are one press away. A settled alert has no
+            // claim on a screen the operator opened to see what is wrong now.
+            limit={0}
+          >
+            {flags.history.map((flag) => (
+              <AlertRow key={flag.id} flag={flag} nowMs={nowMs} assetId={assetId} history />
+            ))}
+          </ListPanel>
+        ) : null}
       </div>
       {/* NO ABOUT (bead `ro-ujb9.96.6.7`). Its three paragraphs defined
           Confirmed and Last known, said what First seen does not prove, and
