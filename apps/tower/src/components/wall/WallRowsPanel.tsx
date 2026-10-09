@@ -1,19 +1,20 @@
 import { ArrowDown, ArrowUp, Check, Columns2, Rows3, Trash2 } from "lucide-react";
 import { Fragment, useState, type DragEvent } from "react";
-import { WALL_MAX_ROWS, isWallColumn, type WallLayout, type WallSlot } from "@shared/wall-layout";
+import { WALL_MAX_ROWS, WALL_WIDGET_LIBRARY, isWallColumn, type WallLayout, type WallSlot, type WallWidget } from "@shared/wall-layout";
 import { WALL_DRAG_TYPE } from "@/components/wall/WallPreview";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-/** "3 widgets", "1 widget · 1 column" — what a row line holds. */
+/** "Revenue · Needs you", "Sites · 1 column" — what a row line holds, named
+ * as the library names each widget, so a row is found by what is on it (D44). */
 function slotCount(slots: WallSlot[]): string {
   const columns = slots.filter(isWallColumn).length;
-  const widgets = slots.length - columns;
+  const names = slots.filter((slot): slot is WallWidget => !isWallColumn(slot)).map((widget) => WALL_WIDGET_LIBRARY[widget.type]?.label ?? widget.type);
   const parts = [
-    widgets > 0 ? `${widgets} widget${widgets === 1 ? "" : "s"}` : null,
+    ...names,
     columns > 0 ? `${columns} column${columns === 1 ? "" : "s"}` : null,
   ];
-  return parts.filter((part): part is string => part !== null).join(" · ");
+  return parts.filter((part): part is string => part !== null).join(" · ") || "Empty";
 }
 
 export interface WallRowsPanelProps {
@@ -178,7 +179,7 @@ export function WallRowsPanel({
                   <Columns2 className="size-4 text-muted-foreground" aria-hidden />
                   <span className="text-sm font-medium text-foreground">Column row {innerIndex + 1}</span>
                   <span className="text-xs text-muted-foreground">
-                    {`${inner.widgets.length} widget${inner.widgets.length === 1 ? "" : "s"}`}
+                    {slotCount(inner.widgets)}
                   </span>
                   <Button
                     type="button"

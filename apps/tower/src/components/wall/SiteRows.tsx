@@ -14,6 +14,7 @@ import { LIVE_HEADING, LiveUsers } from "@/components/wall/LiveUsers";
 import { readingRuns, type ChartPoint } from "@/lib/chart-path";
 import { formatInt, formatPercent, formatPeriodMonthLong, formatSeriesDate, formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { siteHealth } from "@/lib/site-health";
 import { siteMark, type SiteMark, type WallIssue } from "@/lib/wall-issues";
 import {
   focusTiles,
@@ -240,7 +241,7 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
 }
 
 /** Names wrap within their existing track; the health mark keeps its space. */
-function SiteName({ asset, favicon, name, mark, hasData }: { asset: AssetCard; favicon: string; name: string; mark: SiteMark | null; hasData: boolean }) {
+function SiteName({ asset, favicon, name, mark }: { asset: AssetCard; favicon: string; name: string; mark: SiteMark | null }) {
   return (
     <>
       <PropertyFavicon
@@ -251,7 +252,7 @@ function SiteName({ asset, favicon, name, mark, hasData }: { asset: AssetCard; f
       <span className={`min-w-0 flex-1 whitespace-normal wrap-anywhere leading-tight ${name} font-semibold`} title={asset.displayName} data-site-label>
         {asset.displayName}
       </span>
-      <SiteHealth mark={mark} hasData={hasData} site={asset.id} />
+      <SiteHealth asset={asset} mark={mark} site={asset.id} />
     </>
   );
 }
@@ -278,7 +279,7 @@ function SiteRow({
     asset.pulseReceivedAt !== null || asset.activeUsers.series.length > 0 || snapshot?.status === "success" || asset.counters?.cards.some((card) => card.value !== null) === true;
   const hasTotals = visiblePulseCounters(asset, pulseMetrics).length > 0;
   const inlineTotals = size === "compact" && hasTotals;
-  const nameFacts = <SiteName asset={asset} favicon={style.favicon} name={style.name} mark={mark} hasData={hasData} />;
+  const nameFacts = <SiteName asset={asset} favicon={style.favicon} name={style.name} mark={mark} />;
   const name = (
     <span role="cell" className={cn("flex min-w-0 gap-3", inlineTotals ? "flex-col items-stretch gap-y-0" : "items-center")} data-site-name>
       {inlineTotals ? <><span className="flex min-w-0 items-center gap-3">{nameFacts}</span><PulseTotals asset={asset} choices={pulseMetrics} nowMs={nowMs} inline /></> : nameFacts}
@@ -390,9 +391,9 @@ function TodayCell({
             ? <AgeBadge iso={asset.activeUsers.collectedAt} cadenceHours={CADENCE_HOURS.signals} nowMs={nowMs} className={style.weekUnit} />
             : null}
         </span>
-        <span className="flex flex-wrap items-baseline gap-x-2" aria-label={`GA4 active users on ${saved.t}: ${formatInt(saved.v)}`}>
+        <span className="flex flex-wrap items-baseline gap-x-2" aria-label={`People on ${saved.t}: ${formatInt(saved.v)}`}>
           <span className={`${style.figure} font-semibold tabular-nums`}>{formatInt(saved.v)}</span>
-          <span className={`${style.weekUnit} text-muted-foreground`}>GA4 users</span>
+          <span className={`${style.weekUnit} text-muted-foreground`}>people</span>
         </span>
       </span>
     );
@@ -630,11 +631,16 @@ const CHART_CELL = "relative col-span-2 flex min-h-0 min-w-0 flex-col self-stret
 const COMPARISON_TYPE = "text-[length:calc(var(--wall-detail-size)*var(--wall-boost-detail,1))] leading-tight";
 const COMPARISON_OVERLAY = "absolute right-0 top-0 z-10 bg-background/85 pl-1 text-right";
 
-/** Signal level and colour both carry health; the site page owns the details. */
-function SiteHealth({ mark, hasData, site }: { mark: SiteMark | null; hasData: boolean; site: string }) {
-  const state = mark?.severity ?? (hasData ? "healthy" : "unknown");
+/** Signal level and colour both carry health; the site page owns the details.
+ * The level is the site's one health word (D44, `siteHealth`) — the same word
+ * Home, the Sites list and the site's own header say: off track one red bar,
+ * at risk two amber, on track or monitor only four, setting up none. The
+ * accessible name is the open problem when there is one, else the word. */
+function SiteHealth({ asset, mark, site }: { asset: AssetCard; mark: SiteMark | null; site: string }) {
+  const health = siteHealth(asset, mark ? [{ assets: [asset.id], severity: mark.severity }] : []);
+  const state = health.key === "off-track" ? "error" : health.key === "at-risk" ? "warn" : health.key === "setting-up" ? "unknown" : "healthy";
   const level = state === "error" ? 1 : state === "warn" ? 2 : state === "healthy" ? 4 : 0;
-  const label = mark ? `${mark.label}${mark.more ? `; ${mark.more} more ${mark.more === 1 ? "issue" : "issues"}` : ""}` : hasData ? "No open issues" : "No data yet";
+  const label = mark ? `${mark.label}${mark.more ? `; ${mark.more} more ${mark.more === 1 ? "issue" : "issues"}` : ""}` : health.word;
   return (
     <svg
       role="img"
@@ -679,7 +685,7 @@ function SiteFocus({
     <section aria-label="Sites" className="flex h-full min-h-0 min-w-0 flex-col gap-3" style={{ "--site-rows": 1 } as CSSProperties} data-wall-sites data-site-density="focus">
       <div className="flex min-w-0 items-center gap-4 border-t border-border/60 px-1 pt-3" data-site-row={asset.id} data-site-density="focus">
         <span className="flex min-w-0 items-center gap-3" data-site-name>
-          <SiteName asset={asset} favicon="size-9 text-base" name="text-2xl" mark={mark} hasData />
+          <SiteName asset={asset} favicon="size-9 text-base" name="text-2xl" mark={mark} />
         </span>
       </div>
       <PulseTotals asset={asset} choices={pulseMetrics} nowMs={nowMs} />

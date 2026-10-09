@@ -242,7 +242,7 @@ describe("/alerts — the Open | History switch", () => {
     expect(
       screen.getByRole("tab", { name: "Open" }),
     ).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("All clear")).toBeInTheDocument();
+    expect(screen.getByText("All clear.")).toBeInTheDocument();
   });
 
   it("keeps the filters while it corrects a mistyped tab", () => {

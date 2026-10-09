@@ -18,7 +18,7 @@ import { NIGHTLY_REPORT_LANE_ID, PROPERTY_DATA_SOURCE_IDS, UPTIME_LANE_ID, integ
 import { ageMs, formatAge } from "@shared/freshness";
 import { integrationFailureMessage, type IntegrationHealthItem } from "@noticeos/contract/integration-health";
 import { integrationProvider } from "@noticeos/contract/integrations";
-import { connectionFacts, laneStatus, sourceReadings, sourcesSummary, type ConnectionKind } from "@shared/connection-status";
+import { connectionFacts, laneStatus, sourceReadings, type ConnectionKind } from "@shared/connection-status";
 import { connectable, connectHref, connectsInPanel, firstToConnect, providerName } from "@shared/connect-panel";
 import { connectBlockers } from "@shared/integrations-page";
 import { ProviderConnectPanel, providerPanelOpening, type ProviderPanelOpening } from "@/routes/integrations/ProviderConnectPanel";
@@ -28,6 +28,7 @@ import { useWall } from "@/hooks/useWall";
 import { CADENCE_HOURS } from "@shared/wall";
 import type { SeriesPointOrGap } from "@shared/surface";
 import { AgeBadge } from "@/components/AgeBadge";
+import { PageAnswer } from "@/components/surface/PageAnswer";
 import { EvidencePopover } from "@/components/EvidencePopover";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { ConnectionFacts, IntegrationStateChip } from "@/components/IntegrationStateChip";
@@ -161,6 +162,42 @@ const KIND_TONE: Record<ConnectionKind | "not-applicable", ListRowTone> = {
 
 type LaneReading = ReturnType<typeof laneStatus>;
 
+const CONNECTED: ReadonlySet<ConnectionKind | "not-applicable"> = new Set(["working", "key-accepted", "collecting"]);
+
+/**
+ * THE TAB'S ONE ANSWER (D44): which of the site's own sources need the
+ * operator, else how many work. The rows below name each one's status; the
+ * sentence counts, and names them only when they are the problem.
+ */
+export function sourcesAnswer(direct: readonly { lane: { catalog: { label: string } }; reading: { kind: ConnectionKind | "not-applicable" } }[]): {
+  answer: string;
+  detail?: string;
+  mark: "problem" | "none" | "working" | "empty";
+} {
+  // A source the operator declared unused is a decision, not a gap.
+  const used = direct.filter(({ reading }) => reading.kind !== "not-using");
+  const total = used.length;
+  if (total === 0) return { answer: "No data sources in use", mark: "empty" };
+  const problems = used.filter(({ reading }) => reading.kind === "failing" || reading.kind === "overdue");
+  const connected = used.filter(({ reading }) => CONNECTED.has(reading.kind));
+  if (problems.length > 0) {
+    return {
+      answer: problems.length === 1 ? `${problems[0]!.lane.catalog.label} needs you` : `${problems.length} of ${total} sources need you`,
+      detail: problems.map(({ lane, reading }) => `${lane.catalog.label} ${reading.kind === "failing" ? "failing" : "overdue"}`).join(" · "),
+      mark: "problem",
+    };
+  }
+  if (connected.length === 0) return { answer: "No sources connected yet", detail: `${total} to connect`, mark: "none" };
+  const open = total - connected.length;
+  // Collecting or a key just accepted is connected, not yet proven working.
+  const word = connected.every(({ reading }) => reading.kind === "working") ? "working" : "connected";
+  return {
+    answer: open > 0 ? `${connected.length} of ${total} sources ${word}` : total === 1 ? `${connected[0]!.lane.catalog.label} ${word}` : `All ${total} sources ${word}`,
+    detail: open > 0 ? `${open} not connected` : undefined,
+    mark: "working",
+  };
+}
+
 /**
  * THE ASSET'S DATA SOURCES, as doc 21's list — each row wearing the ONE status
  * the connection model gives this asset's site (bead `ro-ujb9.96.7.3`), so a
@@ -225,22 +262,22 @@ function IntegrationsSection({
   const notApplicable = integrations.lanes.filter((l) => l.cell.declared === "not-applicable");
   const direct = applicable.filter(({ lane }) => PROPERTY_DATA_SOURCE_IDS.has(lane.catalog.id) || lane.catalog.id === NIGHTLY_REPORT_LANE_ID);
   const optional = applicable.filter((entry) => !direct.includes(entry));
-  // The one tally rule (`sourcesSummary`) the tab's hover also counts with.
-  const count = sourcesSummary(direct.map(({ reading }) => reading)).tally;
   // The first source still to connect carries the page's one primary action
   // (docs/15 principle 4); every other Connect is the outline weight. The
   // same rule picks Home's next first-run step (`firstToConnect`).
   const firstConnect = firstToConnect(direct.map(({ lane, reading }) => ({
     id: lane.cell.laneId, label: lane.catalog.label, kind: reading.kind, provider: reading.provider,
   })))?.id ?? null;
+  const answer = sourcesAnswer(direct);
   return (
     <div id="integrations" className="flex scroll-mt-4 flex-col gap-2">
+      <PageAnswer answer={answer.answer} detail={answer.detail} className="mb-1.5" marks={{ "data-sources-answer": answer.mark }} />
       <ListPanel
         title="Data sources"
-        count={count ? <span className="tabular-nums">{count}</span> : undefined}
         limit={7}
         empty="No data source applies to this site yet."
-        action={{ label: "Connect account", to: "/integrations" }}
+        // Every row carries its own Connect; this is the way to all of them.
+        action={{ label: "All integrations", to: "/integrations" }}
       >
         {direct.map(({ lane, reading }) => (
           <LaneRow key={lane.cell.laneId} lane={lane} reading={reading} asset={asset} ga4Config={ga4Config} nowMs={nowMs} primary={lane.cell.laneId === firstConnect} onConnect={openPanel} />

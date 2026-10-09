@@ -7,11 +7,18 @@ import { siteCount, siteNoun } from '@shared/site-noun';
 import { WorkflowStateLabel } from '@/components/WorkflowVisuals';
 import { useWorkflows } from '@/hooks/useWorkflows';
 import { useNow } from '@/hooks/useNow';
+import { useWall } from '@/hooks/useWall';
+import { withSystemIssues } from '@/lib/wall-system-state';
 import { cn } from '@/lib/utils';
 
 export function ServiceOverview({ dataCurrent, degraded, unverified, setup, integrations }: { dataCurrent: boolean; degraded: number; unverified: number; setup: number; integrations: IntegrationStatus }) {
   const query = useWorkflows();
   const now = useNow(5_000);
+  // THE OS'S OWN PROBLEMS, IN THE WALL'S AND HOME'S WORDS (D45). Home's brief
+  // sends a Stopped card here with Look; this page names the same problem
+  // first, from the same derivation (`withSystemIssues`), errors first.
+  const wall = useWall();
+  const systemIssues = wall.data ? withSystemIssues([], wall.data.system, now).sort((a, b) => Number(b.severity === 'error') - Number(a.severity === 'error')) : [];
   const payload = query.data;
   const recent = Boolean(payload && !query.isError && now - Date.parse(payload.generatedAt) >= -10_000 && now - Date.parse(payload.generatedAt) < 45_000);
   const scheduler = Boolean(recent && payload?.runtimeFresh && payload.runtime?.jobs.length);
@@ -33,8 +40,8 @@ export function ServiceOverview({ dataCurrent, degraded, unverified, setup, inte
   const paused = operations.some((item) => item.state === 'paused');
   const integrationsConfirmed = integrations.available && integrations.unconfirmed === 0;
   const confirmed = covered && scheduler && observations && history && dataCurrent && integrationsConfirmed && !payload?.runtime?.error;
-  const issues = (dataCurrent ? degraded : 0) + failures.length + integrations.attention;
-  const title = payload?.runtime?.error && scheduler ? 'Schedule settings need attention' : issues ? 'Needs attention' : !confirmed ? 'Current health is unconfirmed' : noRuns ? 'Some operations have not run yet' : paused ? 'Some background operations are paused' : unverified ? 'Some connections need verification' : setup ? 'Some connections need setup' : 'Checks are reporting normally';
+  const issues = (dataCurrent ? degraded : 0) + failures.length + integrations.attention + systemIssues.length;
+  const title = payload?.runtime?.error && scheduler ? 'Schedule settings need attention' : systemIssues.length ? systemIssues[0]!.line : issues ? 'Needs attention' : !confirmed ? 'Current health is unconfirmed' : noRuns ? 'Some operations have not run yet' : paused ? 'Some background operations are paused' : unverified ? 'Some connections need verification' : setup ? 'Some connections need setup' : 'Checks are reporting normally';
   const Icon = issues ? TriangleAlert : !confirmed || unverified || noRuns || paused ? CircleHelp : HeartPulse;
   const tone = issues ? 'text-error' : !confirmed || unverified || noRuns || paused ? 'text-muted-foreground' : setup ? 'text-warn' : 'text-healthy';
   const statusItems = [
@@ -47,14 +54,17 @@ export function ServiceOverview({ dataCurrent, degraded, unverified, setup, inte
     <div className="flex flex-wrap items-start justify-between gap-4 p-5 md:p-6">
       <div className="flex min-w-0 gap-3"><span className={cn('flex size-11 shrink-0 items-center justify-center rounded-lg border border-current/20', tone)}><Icon className="size-5" aria-hidden /></span><div>
         <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{issues ? [integrations.attention ? `${integrations.attention} ${integrations.attention === 1 ? 'connection needs' : 'connections need'} attention` : null, failures.length ? `${failures.length} background ${failures.length === 1 ? 'operation' : 'operations'} failed` : null, !dataCurrent ? 'Other sources unconfirmed' : degraded ? `${degraded} other ${degraded === 1 ? 'source' : 'sources'} not working` : null].filter(Boolean).join(' · ') : !confirmed ? null : 'Service activity, live feeds and scheduled data collection are checked separately.'}</p>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground" data-system-detail>{issues ? [...systemIssues.slice(1).map((issue) => issue.line), integrations.attention ? `${integrations.attention} ${integrations.attention === 1 ? 'connection needs' : 'connections need'} attention` : null, failures.length ? `${failures.length} background ${failures.length === 1 ? 'operation' : 'operations'} failed` : null, !dataCurrent ? 'Other sources unconfirmed' : degraded ? `${degraded} other ${degraded === 1 ? 'source' : 'sources'} not working` : null].filter(Boolean).join(' · ') : !confirmed ? null : 'Service activity, live feeds and scheduled data collection are checked separately.'}</p>
       </div></div>
       {payload && <time dateTime={payload.generatedAt} title={utcRunReference(payload.generatedAt)} className="text-xs text-muted-foreground tabular-nums">Updated {workflowRunAge(payload.generatedAt, now).toLowerCase()}</time>}
     </div>
-    <div className="grid divide-y divide-border border-t border-border md:grid-cols-4 md:divide-x md:divide-y-0">{statusItems.map((item) => <div key={item.label} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 p-4 md:block md:space-y-2 md:px-6">
+    {/* ONLY WHAT IS NOT FINE (D45): four equal cells saying "Reporting" were
+        a box per fact on a page whose answer is the line above. A cell that is
+        fine says nothing; all four fine is no grid at all. */}
+    {statusItems.some((item) => !item.ok) ? <div className="grid divide-y divide-border border-t border-border md:auto-cols-fr md:grid-flow-col md:divide-x md:divide-y-0" data-status-cells>{statusItems.filter((item) => !item.ok).map((item) => <div key={item.label} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 p-4 md:block md:space-y-2 md:px-6">
       <div className="flex items-center gap-2 text-xs text-muted-foreground"><item.icon className="size-3.5" aria-hidden />{item.label}</div>
       <p className={cn('text-sm font-medium', item.failed ? 'text-error' : item.ok ? 'text-healthy' : 'text-muted-foreground')}>{item.text}</p><p className={cn("col-span-2 text-xs text-muted-foreground", item.ok && "hidden md:block")}>{item.detail}</p>
-    </div>)}</div>
+    </div>)}</div> : null}
     {failures.length > 0 && <div className="space-y-1 border-t border-border p-3" aria-label="Failed background operations">{failures.slice(0, 3).map(({ definition, summary }) => <Link key={definition.id} to={`/health/operations/${definition.id}${summary.latest ? `?run=${encodeURIComponent(summary.latest.id)}` : ''}`} className="flex min-h-12 flex-wrap items-center justify-between gap-3 rounded-md px-3 py-2 text-sm outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring"><span className="font-medium">{definition.label}</span><span className="flex items-center gap-4"><WorkflowStateLabel state="failed" />{summary.latest && <time dateTime={summary.latest.startedAt} title={utcRunReference(summary.latest.startedAt)} className="text-xs text-muted-foreground">{workflowRunAge(summary.latest.startedAt, now)}</time>}<ArrowUpRight className="size-4" aria-hidden /></span></Link>)}</div>}
     {unread && pushCheck && <Link data-unread-sites to={`${workflowBasePath(pushCheck.surface)}/${pushCheck.id}?run=${encodeURIComponent(unread.runId)}`} className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-border px-5 py-2 text-sm outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring md:px-6">
       <span className="font-medium">{pushCheck.label}</span>

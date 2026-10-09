@@ -709,15 +709,16 @@ export function WatchesStrip({
   const byId = new Map((beads ?? []).map((bead) => [bead.beadId, bead]));
   const open = watches.open.length;
   const closed = watches.closed.length;
+  // The Overview's word for the same subject (doc 17: watch window → Bets).
   const count = [
-    open > 0 ? `${open} running` : null,
-    closed > 0 ? `${closed} read` : null,
+    open > 0 ? `${open} being watched` : null,
+    closed > 0 ? `${closed} with a verdict` : null,
   ]
     .filter((part): part is string => part !== null)
     .join(" · ");
 
   return (
-    <ListPanel title="Watches" count={count || undefined} limit={5}>
+    <ListPanel title="Bets" count={count || undefined} limit={5}>
       {watches.open.map((watch) => (
         <ListRow
           key={watch.id}

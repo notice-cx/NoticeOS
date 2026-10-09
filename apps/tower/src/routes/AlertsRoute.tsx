@@ -21,7 +21,6 @@ import {
   ALERT_EVIDENCE_QUESTION,
   AlertList,
   AlertRow,
-  AttentionAllClear,
   Recurrence,
   alertPopoverEvidence,
 } from "@/components/AlertRow";
@@ -34,12 +33,14 @@ import { EvidencePopover } from "@/components/EvidencePopover";
 import { FlagActions } from "@/components/FlagActions";
 import { HandoffBeadBadge } from "@/components/HandoffBeadBadge";
 import { PageHeader } from "@/components/PageHeader";
+import { alertsLine } from "@/lib/alerts-line";
+import { SeverityDot } from "@/components/SeverityDot";
+import { FinishLine, readingAge } from "@/components/surface/FinishLine";
+import { PageAnswer, type AnswerFigure } from "@/components/surface/PageAnswer";
 import { ReadFailed } from "@/components/ReadFailed";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
-import { SegmentBar } from "@/components/SegmentBar";
 import { SnoozeUntil } from "@/components/SnoozeUntil";
 import { FilterBar } from "@/components/surface/FilterBar";
-import { Kpi, KpiStrip } from "@/components/surface/KpiStrip";
 import { ListPanel, ListRow } from "@/components/surface/ListPanel";
 import { FileTaskButton } from "@/components/TaskComposer";
 import { TabPanel, Tabs, type TabSpec } from "@/components/Tabs";
@@ -221,29 +222,10 @@ export function AlertsRoute() {
         )
       ) : (
         <>
-          {/* THE FIRST SCREEN'S ANSWER, declared for the audit (`ro-78qo.9`).
-              It sits above the tabs because it is true of both: what is firing
-              and how bad does not change when the reader looks at what closed. */}
-          <section
-            data-surface-hero
-            className="overflow-hidden rounded-[10px] border border-border bg-card"
-          >
-            <KpiStrip columns={6}>
-              <OpenKpi items={data.attention} />
-              <SeverityKpi items={data.attention} severity="error" />
-              <SeverityKpi items={data.attention} severity="warn" />
-              <OpenedThisWeekKpi items={data.attention} nowMs={now} />
-              <MedianAgeKpi
-                items={data.attention}
-                nowMs={now}
-              />
-              <SettledThisWeekKpi
-                payload={settled.data}
-                failed={settled.isError}
-                nowMs={now}
-              />
-            </KpiStrip>
-          </section>
+          {/* ONE ANSWER FIRST (D45): how many are open and how bad, in a
+              sentence, with the oldest and the week's settled count beside it.
+              It sits above the tabs because it is true of both. */}
+          <AlertsAnswer items={data.attention} settled={settled.data} settledFailed={settled.isError} nowMs={now} />
 
           <Tabs
             label="Alert views"
@@ -291,327 +273,44 @@ const STRIP_HISTORY_QUERY: AlertHistoryQuery = {
 const DAY_MS = 86_400_000;
 const WEEK_MS = 7 * DAY_MS;
 
-// --- the strip ---------------------------------------------------------------
+// --- the answer --------------------------------------------------------------
 
-/**
- * HOW MANY CONDITIONS ARE OPEN TONIGHT.
- *
- * No series and no composition: the split by severity is the two KPIs beside
- * this one, and drawing it here as well would be one fact in three places. The
- * store keeps no by-day count of what was open, so the gap is DECLARED rather
- * than filled — `ro-78qo.36` is the bead that would give this number a line.
- */
-function OpenKpi({
-  items,
-}: {
-  items: AttentionItem[];
-}) {
+/** How many alerts closed in the last seven days, and whether that count is
+ * exact: the archive is read one page at a time, so a page that does not reach
+ * back past the week's start makes the count a floor. */
+export function settledThisWeek(payload: AlertHistoryPayload | undefined, nowMs: number): { count: number; exact: boolean } | null {
+  if (!payload) return null;
+  const closed = payload.rows.map(closedAtMs).filter((at): at is number => at !== null);
+  const oldest = closed.length === 0 ? null : Math.min(...closed);
+  const weekStart = nowMs - WEEK_MS;
+  return {
+    count: closed.filter((at) => at >= weekStart).length,
+    exact: !payload.hasMore || (oldest !== null && oldest <= weekStart),
+  };
+}
+
+function AlertsAnswer({ items, settled, settledFailed, nowMs }: { items: AttentionItem[]; settled: AlertHistoryPayload | undefined; settledFailed: boolean; nowMs: number }) {
+  const errors = items.some((item) => item.severity === "error");
+  const ages = items.map((item) => ageMs(nowMs, item.firstFiredAt)).filter((age): age is number => age !== null);
+  const week = settledFailed ? null : settledThisWeek(settled, nowMs);
+  const figures: AnswerFigure[] = [];
+  if (ages.length > 0) figures.push({ label: "Oldest", value: formatAge(Math.max(...ages)), mark: "alerts-oldest" });
+  if (week) figures.push({ label: "Settled this week", value: `${formatInt(week.count)}${week.exact ? "" : "+"}`, mark: "alerts-settled" });
   return (
-    <Kpi
-      label="Open"
-      value={formatInt(items.length)}
-      valueTone={items.length === 0 ? "healthy" : "default"}
-      improvement="down"
-      caption={items.length === 0 ? "all clear" : "unresolved"}
-      seriesUnavailable={CONDITION_HISTORY_GAP}
+    <PageAnswer
+      answer={alertsLine(items)}
+      mark={items.length === 0 ? null : <SeverityDot severity={errors ? "error" : "warn"} />}
+      figures={figures}
+      marks={{ "data-surface-hero": "", "data-alerts-answer": items.length === 0 ? "clear" : errors ? "error" : "warn" }}
     />
   );
 }
 
-// Legacy rollups count individual firings, not today's grouped conditions, so
-// they cannot truthfully be the trend of these condition-based headline KPIs.
-// The declared gap is a STATE — the reason is this comment, not a tooltip
-// paragraph (bead `ro-ujb9.96.6.7`) — and it promises nothing: neither more
-// nights nor a schema change turns firing counts into condition counts.
-const CONDITION_HISTORY_GAP = "Condition history not recorded";
-
-/** A strip figure with nothing open has no share, split or middle to draw. */
-const NOTHING_OPEN = "Nothing open";
-
-const SEVERITY_KPI: Record<
-  "error" | "warn",
-  { label: string; word: string; fill: string; tone: "error" | "warn" }
-> = {
-  error: { label: "Errors", word: "error", fill: "bg-error", tone: "error" },
-  warn: { label: "Warnings", word: "warning", fill: "bg-warn", tone: "warn" },
-};
-
-/**
- * HOW MUCH OF THE QUEUE IS THIS BAD — the fact that decides whether `/alerts`
- * is opened now or after coffee.
- *
- * Each of the two carries its OWN share of the open total as a `SegmentBar`, so
- * neither bar repeats the other: one says how much is red, the other how much is
- * amber, and the total above them is the KPI to their left. A count with a
- * proportion under it is doc 21's answer for a number whose shape is how a total
- * divides rather than how it moved.
- */
-function SeverityKpi({
-  items,
-  severity,
-}: {
-  items: AttentionItem[];
-  severity: "error" | "warn";
-}) {
-  const spec = SEVERITY_KPI[severity];
-  const count = items.filter((item) => item.severity === severity).length;
-  const rest = items.length - count;
-
-  if (items.length === 0) {
-    return (
-      <Kpi
-        label={spec.label}
-        value="0"
-        valueTone="healthy"
-        improvement="down"
-        caption={`no open ${spec.word}s`}
-        seriesUnavailable={NOTHING_OPEN}
-      />
-    );
-  }
-
-  return (
-    <Kpi
-      label={spec.label}
-      value={formatInt(count)}
-      valueTone={count > 0 ? spec.tone : "default"}
-      improvement="down"
-      caption={`of ${items.length} open`}
-      footer={
-        <SegmentBar
-          className="mt-2"
-          ariaLabel={`${count} of the ${items.length} open alerts are ${spec.word}s`}
-          title={`${count} ${spec.word}${count === 1 ? "" : "s"} among the ${items.length} conditions open tonight.`}
-          data-severity-share={severity}
-          segments={[
-            { name: severity, value: count, fill: spec.fill },
-            { name: "rest", value: rest, fill: "bg-muted-foreground/30" },
-          ]}
-        />
-      }
-    />
-  );
-}
-
-/**
- * WHAT STARTED THIS WEEK — how much of the open queue is new.
- *
- * Aged from first detection, not the latest confirmation. First detection does
- * not establish that the condition has been continuously true since that date.
- */
-function OpenedThisWeekKpi({
-  items,
-  nowMs,
-}: {
-  items: AttentionItem[];
-  nowMs: number;
-}) {
-  // A row whose onset cannot be read is NOT new: an unparseable date is an
-  // unknown, and putting it among this week's would make the fresher half of
-  // the bar the one you cannot trust.
-  const fresh = items.filter((item) => {
-    const age = ageMs(nowMs, item.firstFiredAt);
-    return age !== null && age <= WEEK_MS;
-  }).length;
-  const older = items.length - fresh;
-
-  if (items.length === 0) {
-    return (
-      <Kpi
-        label="Started · 7d"
-        value="0"
-        valueTone="healthy"
-        improvement="down"
-        caption="nothing is open"
-        seriesUnavailable={NOTHING_OPEN}
-      />
-    );
-  }
-
-  return (
-    <Kpi
-      label="Started · 7d"
-      value={formatInt(fresh)}
-      improvement="down"
-      caption={older === 0 ? "all of them new" : `${older} standing longer`}
-      footer={
-        <SegmentBar
-          className="mt-2"
-          ariaLabel={`${fresh} of the ${items.length} open alerts started in the last seven days`}
-          title={`${fresh} first seen this week · ${older} earlier`}
-          data-open-age-split=""
-          segments={[
-            { name: "new", value: fresh, fill: "bg-warn" },
-            { name: "standing", value: older, fill: "bg-muted-foreground/30" },
-          ]}
-        />
-      }
-    />
-  );
-}
-
-/**
- * HALF OF WHAT IS OPEN IS OLDER THAN THIS.
- *
- * The median rather than the mean: one condition that has stood since July drags
- * an average past every row in the list, and the question this answers is what a
- * TYPICAL open alert's age is — which is the one that says whether the queue is
- * being worked or accumulating.
- */
-function MedianAgeKpi({
-  items,
-  nowMs,
-}: {
-  items: AttentionItem[];
-  nowMs: number;
-}) {
-  if (items.length === 0) {
-    return (
-      <Kpi
-        label="Median age"
-        value="—"
-        improvement="down"
-        caption="nothing is open"
-        seriesUnavailable={NOTHING_OPEN}
-      />
-    );
-  }
-  const ages = items
-    .map((item) => ageMs(nowMs, item.firstFiredAt))
-    .filter((age): age is number => age !== null)
-    .sort((a, b) => a - b);
-
-  // Every open row carries an onset the store wrote, so this is defensive
-  // rather than expected — but a middle taken from nothing is a number, and a
-  // number from nothing is what doc 21 principle 8 exists to stop.
-  if (ages.length === 0) {
-    return (
-      <Kpi
-        label="Median age"
-        value="—"
-        improvement="down"
-        caption={`${items.length} open, none with a readable onset`}
-        seriesUnavailable="No readable first-seen dates"
-      />
-    );
-  }
-
-  const middle =
-    ages.length % 2 === 1
-      ? ages[(ages.length - 1) / 2]!
-      : (ages[ages.length / 2 - 1]! + ages[ages.length / 2]!) / 2;
-
-  return (
-    <Kpi
-      label="Median age"
-      value={formatAge(middle)}
-      improvement="down"
-      caption={`half of ${items.length} are older`}
-      seriesUnavailable={CONDITION_HISTORY_GAP}
-    />
-  );
-}
-
-/** When a settled row actually closed, or null for one written before the store
- * recorded it — an unmeasurable date is never treated as today. */
 function closedAtMs(row: AlertHistoryPayload["rows"][number]): number | null {
   const closed = row.flag.resolvedAt ?? row.flag.dispositionAt;
   if (closed === null) return null;
   const at = Date.parse(closed);
   return Number.isNaN(at) ? null : at;
-}
-
-/**
- * WHAT WAS CLOSED THIS WEEK — the only number on this strip that goes down when
- * things go well and up when the operator does the work.
- *
- * IT IS EXACT OR IT SAYS SO. The archive is paged and this reads one page of it,
- * newest-closed first, so the count is a true count whenever the page reaches
- * back past the window — either because it holds every settled row there is, or
- * because its oldest row closed before the window opened. When it does not, the
- * figure is a floor and wears a `+`, and the daily line is withheld rather than
- * drawn short. A truncated series is worse than no series: it slopes down toward
- * the past for a reason that is about paging rather than about the portfolio.
- */
-function SettledThisWeekKpi({
-  payload,
-  failed,
-  nowMs,
-}: {
-  payload: AlertHistoryPayload | undefined;
-  failed: boolean;
-  nowMs: number;
-}) {
-  if (failed || !payload) {
-    return (
-      <Kpi
-        label="Settled · 7d"
-        value="—"
-        improvement="up"
-        caption={failed ? "the archive did not answer" : "reading the archive…"}
-        seriesUnavailable={failed ? "Archive did not answer" : "Archive not read yet"}
-      />
-    );
-  }
-
-  const closed = payload.rows
-    .map(closedAtMs)
-    .filter((at): at is number => at !== null);
-  const oldest = closed.length === 0 ? null : Math.min(...closed);
-  const weekStart = nowMs - WEEK_MS;
-  const monthStart = nowMs - 28 * DAY_MS;
-  // The page covers a window when it holds everything there is, or when it
-  // already reaches back past the window's own start.
-  const covers = (start: number) =>
-    !payload.hasMore || (oldest !== null && oldest <= start);
-
-  const thisWeek = closed.filter((at) => at >= weekStart).length;
-  const exact = covers(weekStart);
-
-  const series = covers(monthStart)
-    ? byDay(closed.filter((at) => at >= monthStart), nowMs)
-    : null;
-
-  return (
-    <Kpi
-      label="Settled · 7d"
-      value={`${formatInt(thisWeek)}${exact ? "" : "+"}`}
-      valueTone={thisWeek > 0 ? "healthy" : "default"}
-      improvement="up"
-      // A floor wears its "+" and says "at least"; the line is withheld rather
-      // than drawn short when one read of the archive does not reach back 28
-      // days, and the declared reason is the count that made it so.
-      caption={
-        exact
-          ? thisWeek === 0 ? "none this week" : "settled"
-          : "at least"
-      }
-      spark={series && series.length >= 3 ? series : undefined}
-      sparkLabel="Alerts settled per day"
-      seriesUnavailable={
-        series && series.length >= 3
-          ? undefined
-          : `${formatInt(payload.rows.length)}+ settled in 28 days`
-      }
-      sparkAverage={false}
-    />
-  );
-}
-
-/** Epoch times → one point per day, zero-filled across the window. A day nobody
- * closed anything on is a real zero here and not a gap: the window is complete,
- * which is what `covers` above has already established. */
-function byDay(times: number[], nowMs: number): { t: string; v: number }[] {
-  const counts = new Map<string, number>();
-  const day = (at: number) => new Date(at).toISOString().slice(0, 10);
-  for (let back = 27; back >= 0; back -= 1) {
-    counts.set(day(nowMs - back * DAY_MS), 0);
-  }
-  for (const at of times) {
-    const key = day(at);
-    if (counts.has(key)) counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return [...counts.entries()].map(([t, v]) => ({ t, v }));
 }
 
 function filterOpen(
@@ -754,7 +453,12 @@ function OpenView({ data, nowMs }: { data: WallPayload; nowMs: number }) {
             ),
           )}
         </ListPanel>
-      ) : filtering ? (
+      ) : null}
+      {/* A list the eye can finish (D45): every open alert is above. */}
+      {filtered.length > 0 && !filtering ? (
+        <FinishLine line="That's every open alert." age={readingAge(data.generatedAt, nowMs)} />
+      ) : null}
+      {filtered.length > 0 ? null : filtering ? (
         // A filtered blank is not an all-clear: saying "All clear" here
         // would report the portfolio healthy because of a dropdown.
         <EmptyState
@@ -762,7 +466,7 @@ function OpenView({ data, nowMs }: { data: WallPayload; nowMs: number }) {
           hint="Widen a filter above to see the rest."
         />
       ) : (
-        <AttentionAllClear />
+        <FinishLine quiet line="All clear." age={readingAge(data.generatedAt, nowMs)} />
       )}
 
       <SnoozedAlerts items={data.snoozed} nowMs={nowMs} />
@@ -840,6 +544,10 @@ function OpenAlertRow({ item, nowMs }: { item: AttentionItem; nowMs: number }) {
       </>}
       value={formatAge(ageMs(nowMs, item.firstFiredAt))}
       valueLabel="first seen"
+      // VERBS IN THE ROW (D45): Snooze and Resolve take an alert out of the
+      // queue without opening it first; Mark read, Tune, a task and the site
+      // are in the opened row, after the evidence.
+      rowActions={<FlagActions flagId={item.id} assetId={item.asset} only={["snooze", "resolve"]} />}
       actions={
         <>
           {item.handoffBeads?.map((bead) => <HandoffBeadBadge key={bead.beadId} bead={bead} />)}
@@ -848,6 +556,7 @@ function OpenAlertRow({ item, nowMs }: { item: AttentionItem; nowMs: number }) {
             assetId={item.asset}
             ruleId={item.ruleId}
             metric={item.metric}
+            only={["acknowledge", "tune"]}
           />
           {/* Mark read and Resolve say what the operator did with the ALERT;
               this says what they are doing about the CONDITION. Two different

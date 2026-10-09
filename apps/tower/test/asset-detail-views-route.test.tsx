@@ -158,7 +158,7 @@ describe("the asset page reads one view per tab (ro-ujb9.64)", () => {
     renderAt("overview");
     await waitFor(() => expect(showing()).toBe("asset-tab-overview"));
 
-    fireEvent.click(tab("Financials"));
+    fireEvent.click(tab("Money"));
     await waitFor(() => expect(showing()).toBe("asset-tab-financials"));
     // The Overview read carries no daily revenue, so Financials waits for its own.
     expect(loadingFrame()).toHaveAttribute("data-route-loading", "panel");
@@ -176,7 +176,7 @@ describe("the asset page reads one view per tab (ro-ujb9.64)", () => {
     renderAt("overview");
     await waitFor(() => expect(showing()).toBe("asset-tab-overview"));
 
-    fireEvent.click(tab("Financials"));
+    fireEvent.click(tab("Money"));
     expect(await within(panel()).findByText("Couldn't load this site")).toBeInTheDocument();
     expect(within(panel()).getByRole("button", { name: /try again/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Meal Planner");
@@ -187,7 +187,7 @@ describe("the asset page reads one view per tab (ro-ujb9.64)", () => {
     renderAt("overview");
     await waitFor(() => expect(showing()).toBe("asset-tab-overview"));
 
-    fireEvent.click(tab("Financials"));
+    fireEvent.click(tab("Money"));
     await waitFor(() => expect(stub.held.has("financials")).toBe(true));
     const signal = stub.held.get("financials")!.signal;
     expect(signal?.aborted).toBe(false);

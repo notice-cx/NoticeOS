@@ -19,6 +19,8 @@ vi.mock("@/hooks/useIntegrations", () => ({ useIntegrations: () => ({ data: stat
 vi.mock("@/hooks/useIntegrationProviders", () => ({ useIntegrationProviders: () => ({ data: null }) }));
 vi.mock("@/hooks/useNow", () => ({ useNow: () => Date.parse("2026-09-06T12:00:00Z") }));
 vi.mock("@/hooks/useWorkflows", () => ({ useWorkflows: () => ({ data: undefined, isError: false }) }));
+// System health reads the Wall for the OS's own problems (D45); none here.
+vi.mock("@/hooks/useWall", () => ({ useWall: () => ({ data: undefined, isError: false }) }));
 vi.mock("@/hooks/useGa4Realtime", () => ({ useGa4Realtime: () => ({ data: undefined, isError: false }) }));
 import { HealthRoute } from "@/routes/HealthRoute";
 

@@ -1614,6 +1614,8 @@ describe("the page", () => {
 
     expect(document.querySelectorAll("[data-integration-tile]")).toHaveLength(2);
     expect(screen.getAllByText(/Not connected/)).toHaveLength(2);
+    // The page opens with its one answer (D44).
+    expect(document.querySelector("[data-integrations-answer]")).toHaveTextContent("Nothing connected yet");
     // Nothing is open, so no setup walkthrough is on the page.
     expect(document.querySelectorAll("[data-provider-card]")).toHaveLength(0);
     expect(document.querySelectorAll("[data-connect-form]")).toHaveLength(0);

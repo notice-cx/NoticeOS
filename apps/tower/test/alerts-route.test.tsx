@@ -195,11 +195,16 @@ afterEach(() => {
   history.isError = false;
 });
 
-/** One KPI's whole cell, by the metric name the strip marks it with. */
-function kpi(container: HTMLElement, label: string): HTMLElement {
-  const found = container.querySelector<HTMLElement>(`[data-kpi="${label}"]`);
-  if (found === null) throw new Error(`no KPI labelled ${label} on the strip`);
-  return found;
+/** The page's one sentence (D45): how many are open and how bad. */
+function answer(container: HTMLElement): string {
+  const found = container.querySelector<HTMLElement>("[data-alerts-answer] h2");
+  if (found === null) throw new Error("no answer line on the page");
+  return found.textContent ?? "";
+}
+
+/** One figure beside the answer, by its mark. */
+function figure(container: HTMLElement, mark: string): string | null {
+  return container.querySelector<HTMLElement>(`[data-${mark}] dd`)?.textContent ?? null;
 }
 
 /**
@@ -242,7 +247,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
    * five alerts meant twenty verbs on screen and the queue's own severity was
    * the quietest ink on it. A row is one line now and the verbs are inside it.
    */
-  it("gives each alert one line, with its four verbs behind the row", () => {
+  it("gives each alert one line, with Snooze and Resolve on the row and the rest behind it", () => {
     const { container } = renderAlerts([
       alert(),
       alert({
@@ -255,11 +260,13 @@ describe("/alerts — the portfolio's open exceptions", () => {
     ]);
 
     expect(screen.getByRole("heading", { level: 1, name: "Alerts" })).toBeInTheDocument();
-    // Not printed under every row any more — nothing is, until a row opens.
+    // Verbs in the row (D45): the two that take an alert out of the queue
+    // are on every closed row; Mark read waits until a row opens.
     expect(screen.queryByRole("button", { name: "Mark alert read" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Resolve alert" })).toBeNull();
-    // The strip owns the total, so the page states it exactly once.
-    expect(kpi(container, "Open").textContent).toContain("2");
+    expect(screen.getAllByRole("button", { name: "Resolve alert" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Snooze alert" })).toHaveLength(2);
+    // The answer owns the total, so the page states it exactly once.
+    expect(answer(container)).toBe("2 open alerts, 1 error");
 
     const row = openRow(/Signups well below normal/);
     expect(within(row).getByRole("button", { name: "Mark alert read" })).toBeInTheDocument();
@@ -289,7 +296,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(screen.queryByText("Signups well below normal")).toBeNull();
     // The strip stays portfolio-wide — "how bad is it tonight" does not change
     // because a dropdown did — and the panel says what a filter left on screen.
-    expect(kpi(container, "Open").textContent).toContain("2");
+    expect(answer(container)).toBe("2 open alerts, 1 error");
     expect(screen.getByText("1 of 2 open")).toBeInTheDocument();
     expect(screen.getByLabelText("Site")).toHaveValue("areas.example");
   });
@@ -439,16 +446,16 @@ describe("/alerts — the portfolio's open exceptions", () => {
       screen.getByText("No open alerts match these filters"),
     ).toBeInTheDocument();
     // The portfolio is NOT clear — one alert is open, it is just filtered out.
-    expect(screen.queryByText("All clear")).toBeNull();
+    expect(screen.queryByText("All clear.")).toBeNull();
   });
 
   it("states the all-clear when nothing at all is open", () => {
     const { container } = renderAlerts([]);
 
-    expect(screen.getByText("All clear")).toBeInTheDocument();
-    expect(screen.getByText("No open warnings or errors.")).toBeInTheDocument();
-    expect(container.querySelectorAll("[data-kpi] ~ *")).not.toHaveLength(0);
-    expect(kpi(container, "Open").textContent).toContain("0");
+    // The answer says it once; the list's end is the quiet finish line.
+    expect(answer(container)).toBe("No open alerts");
+    expect(container.querySelector('[data-finish-line="quiet"]')).toHaveTextContent("All clear.");
+    expect(container.querySelector("[data-kpi]")).toBeNull();
   });
 
   it("distinguishes an old first detection from a recent confirmation without nesting controls", () => {
@@ -547,72 +554,44 @@ describe("/alerts — the portfolio's open exceptions", () => {
    * screen, and each count carries the SHAPE of its own share — "9 open" is a
    * shrug when it is nine warnings and an emergency when it is nine errors.
    */
-  describe("the strip says how bad tonight is", () => {
-    it("keeps open status visible without claiming a fresh verification", () => {
-      const { container } = renderAlerts([alert({ id: 1 })]);
-      const open = kpi(container, "Open");
-      expect(open).toHaveTextContent("1");
-      expect(open).toHaveTextContent("unresolved");
-      expect(open).not.toHaveTextContent("still true tonight");
-      expect(screen.queryByText(/Distinct unresolved alert conditions/)).toBeNull();
-      fireEvent.click(within(open).getByRole("button", { name: "About Open" }));
-      // The tooltip holds the declared gap as a state, not a methodology note.
-      expect(screen.getByRole("tooltip")).toHaveTextContent("Condition history not recorded");
-      expect(screen.getByRole("tooltip").textContent!.split(/\s+/).length).toBeLessThanOrEqual(12);
-      expect(open.querySelectorAll("button")).toHaveLength(1);
+  describe("the answer says how bad tonight is (D45)", () => {
+    it("says how many are open and how bad, in a sentence", () => {
+      const lines = (severities: ("error" | "warn")[]) => {
+        const { container, unmount } = renderAlerts(severities.map((severity, index) => alert({ id: index + 1, severity })));
+        const line = answer(container);
+        unmount();
+        return line;
+      };
+      expect(lines(["warn"])).toBe("1 open alert, a warning");
+      expect(lines(["error"])).toBe("1 open alert, an error");
+      expect(lines(["warn", "warn"])).toBe("2 open alerts, both warnings");
+      expect(lines(["error", "error", "error"])).toBe("3 open alerts, all errors");
+      expect(lines(["error", "error", "warn"])).toBe("3 open alerts, 2 errors");
     });
 
-    it("splits the queue into errors and warnings, each with its share", () => {
-      const { container } = renderAlerts([
+    it("stays portfolio-wide while a filter narrows the list, and ends an unfiltered list", () => {
+      const both = [
         alert({ id: 1, severity: "error" }),
-        alert({ id: 2, severity: "error" }),
-        alert({ id: 3, severity: "warn" }),
-      ]);
-
-      expect(kpi(container, "Open").textContent).toContain("3");
-      expect(kpi(container, "Errors").textContent).toContain("2");
-      expect(kpi(container, "Errors").textContent).toContain("of 3 open");
-      expect(kpi(container, "Warnings").textContent).toContain("1");
-      // The bar is each severity's share of the whole, so neither repeats the
-      // other and the total above them is stated once.
-      expect(
-        container.querySelector('[data-severity-share="error"]')?.getAttribute("aria-label"),
-      ).toBe("2 of the 3 open alerts are errors");
-      expect(
-        container.querySelector('[data-severity-share="warn"]')?.getAttribute("aria-label"),
-      ).toBe("1 of the 3 open alerts are warnings");
-    });
-
-    it("stays portfolio-wide while a filter narrows the list", () => {
-      const { container } = renderAlerts(
-        [
-          alert({ id: 1, severity: "error" }),
-          alert({
-            id: 2,
-            severity: "warn",
-            asset: "areas.example",
-            assetDisplayName: "Areas",
-          }),
-        ],
-        "/alerts?asset=meals.example",
-      );
-
-      // Two are open tonight whatever the dropdown says; one is on screen.
-      expect(kpi(container, "Open").textContent).toContain("2");
+        alert({ id: 2, severity: "warn", asset: "areas.example", assetDisplayName: "Areas" }),
+      ];
+      const filtered = renderAlerts(both, "/alerts?asset=meals.example");
+      // Two are open tonight whatever the dropdown says; one is on screen, and
+      // a filtered list is not a finished one.
+      expect(answer(filtered.container)).toBe("2 open alerts, 1 error");
       expect(screen.getByText("1 of 2 open")).toBeInTheDocument();
+      expect(filtered.container.querySelector("[data-finish-line]")).toBeNull();
+      filtered.unmount();
+
+      const whole = renderAlerts(both);
+      expect(whole.container.querySelector("[data-finish-line]")).toHaveTextContent("That's every open alert.");
     });
 
-    it("says how much of the queue started this week, and its median age", () => {
+    it("names the oldest open alert's age beside the answer", () => {
       const { container } = renderAlerts([
-        // Yesterday, and four weeks ago.
         alert({ id: 1, firstFiredAt: "2026-07-31T12:00:00.000Z" }),
         alert({ id: 2, firstFiredAt: "2026-07-04T12:00:00.000Z" }),
       ]);
-
-      expect(kpi(container, "Started · 7d").textContent).toContain("1");
-      expect(kpi(container, "Started · 7d").textContent).toContain("1 standing longer");
-      // Half of two is the midpoint of one day and twenty-eight.
-      expect(kpi(container, "Median age").textContent).toContain("half of 2 are older");
+      expect(figure(container, "alerts-oldest")).toBe("28d");
     });
 
     it("counts what settled this week, and marks the figure a floor when the page cannot reach back", () => {
@@ -630,8 +609,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
       const exact = renderAlerts([alert()]);
       // One of the two closed inside the week, and the page holds every settled
       // row there is, so the count is a count rather than a floor.
-      expect(kpi(exact.container, "Settled · 7d").textContent).toContain("1");
-      expect(kpi(exact.container, "Settled · 7d").textContent).not.toContain("1+");
+      expect(figure(exact.container, "alerts-settled")).toBe("1");
       exact.unmount();
 
       history.data = {
@@ -643,49 +621,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
         generatedAt: "2026-08-01T12:00:00.000Z",
       };
       const floor = renderAlerts([alert()]);
-      expect(kpi(floor.container, "Settled · 7d").textContent).toContain("1+");
-      expect(kpi(floor.container, "Settled · 7d").textContent).toContain("at least");
-    });
-
-    describe("condition KPIs never imply raw firing history is comparable", () => {
-      // The payload carries no nightly rollup since bead ro-trai.44 (nothing
-      // drew it), so the Open and Median age tiles have no series to draw.
-      it("does not suggest a database change would make raw snapshots comparable", () => {
-        const { container } = renderAlerts([alert()]);
-        for (const name of ["Open", "Median age"]) {
-          expect(kpi(container, name).querySelector("[data-spark]")).toBeNull();
-          expect(kpi(container, name).getAttribute("data-series")).toBe("unavailable");
-        }
-        const reason = kpi(container, "Open").getAttribute("data-series-reason") ?? "";
-        expect(reason).toBe("Condition history not recorded");
-        expect(reason).not.toMatch(/database|migration|schema/i);
-        expect(reason).not.toMatch(/\byet\b/);
-      });
-    });
-
-    /**
-     * Doc 21's acceptance, held here so a regression fails in `pnpm test`: every
-     * number shows a series, shows how it divides, or declares in words that it
-     * has neither yet.
-     */
-    it("gives every KPI a series, a composition or a declared gap", () => {
-      const { container } = renderAlerts([
-        alert({ id: 1, severity: "error" }),
-        alert({ id: 2, severity: "warn" }),
-      ]);
-
-      for (const cell of container.querySelectorAll("[data-kpi]")) {
-        const answered =
-          cell.querySelector("[data-spark]") !== null ||
-          cell.querySelector("[data-composition]") !== null ||
-          cell.getAttribute("data-series") === "unavailable";
-        expect(answered, `${cell.getAttribute("data-kpi")} shows a bare number`).toBe(
-          true,
-        );
-        if (cell.getAttribute("data-series") === "unavailable") {
-          expect(cell.getAttribute("data-series-reason")).toBeTruthy();
-        }
-      }
+      expect(figure(floor.container, "alerts-settled")).toBe("1+");
     });
   });
 
@@ -777,11 +713,10 @@ describe("/alerts — the portfolio's open exceptions", () => {
       const { container } = renderAlerts([], "/alerts", [
         snoozed({ severity: "error" }),
       ]);
-      // The strip counts what NEEDS attention. A parked row appearing in it
+      // The answer counts what NEEDS attention. A parked row appearing in it
       // would put the number the operator reads first out of agreement with
       // the list under it.
-      expect(kpi(container, "Open").textContent).toContain("0");
-      expect(kpi(container, "Errors").textContent).toContain("0");
+      expect(answer(container)).toBe("No open alerts");
     });
 
     /**
@@ -812,10 +747,9 @@ describe("/alerts — the portfolio's open exceptions", () => {
       });
       expect(row.textContent).toContain("◦");
 
-      // Widening the LEDGER widens no count: the strip still answers for what
+      // Widening the LEDGER widens no count: the answer still speaks for what
       // needs attention.
-      expect(kpi(container, "Open").textContent).toContain("0");
-      expect(kpi(container, "Warnings").textContent).toContain("0");
+      expect(answer(container)).toBe("No open alerts");
     });
 
     it("is absent entirely when nothing is parked", () => {

@@ -3248,7 +3248,7 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
     // claimed before the split reached this component — and, for a site that
     // saved no search market, no market at all (bead ro-ujb9.230).
     const board = container.querySelector("[data-serp-panel]")!;
-    expect(board.textContent).toContain("Aug 3, 2026 · phone & desktop · depth 20");
+    expect(board.textContent).toContain("Aug 3, 2026 · phone & desktop · top 20 read");
     expect(board.textContent).not.toContain("US/English");
   });
 
@@ -3258,7 +3258,7 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
     );
     const board = container.querySelector("[data-serp-panel]")!;
     // The market's own spaces do not break: one fact stays on one line.
-    expect(board.textContent).toContain("Aug 3, 2026 · desktop · Germany\u00a0·\u00a0German · depth 20");
+    expect(board.textContent).toContain("Aug 3, 2026 · desktop · Germany\u00a0·\u00a0German · top 20 read");
     expect(board.textContent).not.toContain("US/English");
     expect(board.textContent).not.toContain("United States");
   });

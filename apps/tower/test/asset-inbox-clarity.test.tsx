@@ -44,14 +44,14 @@ describe("asset operator inbox evidence", () => {
       issueType: "task", assignee: null, updatedAt: "2026-08-06T00:00:00Z",
       closedAt: null, parent: null, deferUntil: null,
     }] });
-    expect(screen.getByText(/2 urgent · 20 waiting · 1 captured in preview/)).toBeVisible();
+    expect(screen.getByText(/2 urgent · 20 waiting · 1 shown/)).toBeVisible();
     expect(screen.getByText("updated")).toBeVisible();
     expect(screen.getByRole("link", { name: /Confirm the current release/ })).toHaveAttribute("href", "/tasks/mp-example");
     expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/assets/meals.example/tasks");
   });
   it("does not call a nonempty count clear when row details are missing", () => {
     view({ waiting: 4, urgent: 1 });
-    expect(screen.getByText("Task details not captured")).toBeVisible();
+    expect(screen.getByText("Task details not read")).toBeVisible();
     expect(screen.queryByText(/Nothing waiting/)).toBeNull();
   });
   it("keeps known requests visible when one inbox source fails", () => {
@@ -71,6 +71,6 @@ describe("asset operator inbox evidence", () => {
       closedAt: null, parent: null, deferUntil: null,
     }] });
     expect(screen.getByText("Last known: at least 1 waiting · total unavailable")).toBeVisible();
-    expect(screen.getByText("Outdated snapshot")).toBeVisible();
+    expect(screen.getByText("Outdated")).toBeVisible();
   });
 });

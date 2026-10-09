@@ -22,7 +22,7 @@ export interface WallLibraryPanelProps {
  * TV show" differently depending on what it currently shows, and the operator
  * would have to remove a widget to find out whether a second one was possible.
  * So a refused Add is replaced by its STATE on the row rather than hidden:
- * "On the Wall" (the preview shows where) or "Wall full".
+ * "On the TV" (the preview shows where) or "TV full".
  */
 export function WallLibraryPanel({
   layout,
@@ -44,8 +44,8 @@ export function WallLibraryPanel({
           >
             <div className="flex items-start justify-between gap-2">
               <span className="min-w-0 text-sm font-medium text-foreground">{spec.label}</span>
-              {/* A refused Add is a STATE in the button's place — "On the Wall"
-                  with a check, or "Wall full" — never a sentence under the row
+              {/* A refused Add is a STATE in the button's place — "On the TV"
+                  with a check, or "TV full" — never a sentence under the row
                   (bead `ro-ujb9.96.6.12`). */}
               {disabledReason ? (
                 <span

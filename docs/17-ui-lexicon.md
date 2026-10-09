@@ -28,6 +28,54 @@ forms; form labels and save confirmations use the plain-language name.
 The Wall keeps its TV-specific presentation; its separate visual evolution is
 tracked by `ro-ujb9.26`.
 
+## Altitude (2026-10-08, D44)
+
+A founder reviewer called the product "technical". The lexicon above maps
+coinages to plain words, but plain words at the wrong altitude still read as
+machinery: "4 / 6 fresh · 12 jobs" is English, and it is the OS talking about
+itself on the first screen. So every word has an altitude, and a surface shows
+its own altitude or lower, never higher
+([brief](briefs/2026-10-08-home-overview-redesign.md#language)).
+
+| Altitude | Surfaces | Nouns | Verbs and verdicts |
+|---|---|---|---|
+| **Business** — what a founder steers by | Home · Sites · Money · a site's Overview · TV mode (Sites and Money since 2026-10-09, D45) | money, revenue, costs, people, visitors, search, bets, decisions, wins, sites | on track, at risk, off track, ahead, usually N, verdict in N days, measured, unmeasured, still counting, approve, keep, revert, snooze, seen |
+| **Operational** — how the work is run | Alerts · Tasks · Workflows · a site's Activity, Bets, Alerts and Tasks tabs | alert, watch window, holdout, change, verifier, run, schedule, snapshot, gate (as "needs your approval") | fired, resolved, win, revert, not yet significant, building, verifying, shipped, reverted |
+| **Technical** — where the numbers come from | Data sources · System health · Integrations · Settings · a site's Sources and Settings tabs | GA4, Search Console, Bing, Mediavine, PostHog, DataForSEO, Clarity, job, nightly report, freshness, credential, property id, lane (never on screen) | collecting, working, overdue, failing, provisional, reconciled, estimated, stale, fresh |
+
+The rule, mechanically: a word in a lower band may not appear on a surface in
+a higher band. A business surface says "being watched · verdict in 3 days",
+never "watch window"; "still counting", never "provisional"; "people a day",
+never "GA4 users". A technical fact a business surface must carry is said in
+business words. A provider's name may appear on a business surface only as a
+chart key beside its own line (doc 14: Bing's blue is always beside the word
+"Bing"); never as a label, an eyebrow or a caption.
+
+**Enforced** by `scripts/ui-lexicon.test.mjs` (rule 9 below): the business
+surfaces' files carry the lower bands' words as banned, with the chart-key
+exemption as exact phrases. A word moves up a band only by a decision
+recorded here.
+
+Rows this adds to the map:
+
+| System term | UI renders | Why |
+|---|---|---|
+| `/financials` in the navigation | **Money** | the founder's word; the route, the payload and the asset tab's id keep `financials` |
+| `watch window` (business surfaces) | **Bets** (the panel), **being watched · verdict in N days** (the state), **Watching <series> · verdict <date>** (the chart's span label) | the window is machinery; the verdict date is the fact |
+| `ship_confirmed` / `kill_confirmed` / `inconclusive` / `unmeasurable` | **Improvement confirmed** / **Decline confirmed** / **No clear change** / **Could not be measured** (`WATCH_OUTCOME`, `components/watch-outcome.ts`), and while open **verdict in N days** | one vocabulary for the Bets panel, the Activity tab and an alert that owes a decision; never a number for an unmeasured window |
+| `provisional` (business surfaces) | **still counting** | the same honesty, in the reader's word; the hollow point is unchanged |
+| the Poisson baseline (`avg7d 39.3`) | **usually 39** | one baseline word everywhere, the alert headline included |
+| `gate` (business surfaces) | the sentence of the ask, with **Approve** as its verb, under **Decide** | the id and the mechanism never reach a view row |
+| `captured in preview` / `snapshot` (the task read's mechanics) | **N shown**, **Read N ago**, **Outdated** | the fact is how many and how old, never how it was read |
+| `Clarity · 72-hour report` / `DataForSEO · <date>` (a provider as a caption) | **Session report · 72 hours** / **Weekly report · <date>** | the provider stays on Data sources and in a chart key |
+| ingest freshness on Home | nothing, unless broken: **"One site stopped reporting"** as a highlight card | the fraction keeps its one phrasing on System health |
+| `watches` on a site's Activity tab and its tab tooltip | **Bets** — "N being watched · N with a verdict" | the Overview's word for the same windows (D45) |
+| `reconciled` on Money | **Confirmed** | the founder's word for revenue the network has finalized; "estimates" stays for the rest (D45) |
+| `Mediavine · Pacific · estimates` (a revenue caption) | **Ad revenue · estimates**, with the reporting day's time zone in the panel's hover | a provider and a zone in a caption are machinery (D45) |
+| `GA4 users` / `Users` on Sites and the TV | **Visitors** (Sites' columns), **people** (the TV's site bars) | Home's own word for the same count (D45) |
+| `acceptance criteria` (a task's field) | **Done when** | the board's word; the task page and the composer say it too (D45) |
+| `On the Wall` / `Wall full` (the TV layout editor) | **On the TV** / **TV full** | the editor's save chip already said TV (D45) |
+
 ## The map (system term → UI term)
 
 | System term (docs/schema — unchanged) | UI renders | Precedent / rationale |

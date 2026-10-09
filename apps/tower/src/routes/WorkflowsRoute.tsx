@@ -7,7 +7,7 @@ import { SCHEDULES_WAITING, WORKFLOW_GROUPS, formatNextRun, utcRunReference, loc
 import { PageHeader } from '@/components/PageHeader';
 import { ReadFailed } from '@/components/ReadFailed';
 import { Tabs, TabPanel } from '@/components/Tabs';
-import { Kpi, KpiStrip } from '@/components/surface/KpiStrip';
+import { PageAnswer } from '@/components/surface/PageAnswer';
 import { WorkflowActivity, WorkflowRunTrigger, WorkflowScheduleTimeline, WorkflowStages, WorkflowStateLabel, workflowDuration } from '@/components/WorkflowVisuals';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,25 @@ function RuntimeNotice({ data }: { data: WorkflowsPayload }) {
     <p>{!data.runtimeFresh ? 'Live operation is unconfirmed. The scheduler has not reported recently.' : !data.historyAvailable ? 'Execution history is unavailable. Workflow health cannot be confirmed.' : !data.observationsFresh ? 'Live execution observations are stale. Current workflow health is unconfirmed.' : data.runtime?.error === SCHEDULES_WAITING ? 'Saved schedules could not be read. Jobs are waiting for them.' : 'The scheduler could not refresh its settings. Previously confirmed schedules remain active.'}</p>
     <Link className="inline-flex min-h-8 items-center gap-1 font-medium underline underline-offset-4" to="/health">Check system health <ArrowUpRight className="size-3.5" aria-hidden /></Link>
   </div>;
+}
+
+/** The index's one sentence: how many need you (failed or unknown), else
+ * that none do; the detail counts every other state once, in its label. */
+export function workflowsAnswer(states: readonly WorkflowState[], noun: string): { answer: string; detail: string; mark: 'attention' | 'clear' | 'empty' } {
+  const counts = new Map<WorkflowState, number>();
+  for (const state of states) counts.set(state, (counts.get(state) ?? 0) + 1);
+  const tally = (order: readonly WorkflowState[]) => order.filter((state) => counts.get(state)).map((state) => `${counts.get(state)} ${WORKFLOW_STATE_LABEL[state].toLowerCase()}`).join(' · ');
+  if (states.length === 0) return { answer: `No ${noun} installed`, detail: '', mark: 'empty' };
+  const attention = states.filter((state) => ATTENTION.has(state)).length;
+  if (attention > 0) {
+    return { answer: `${attention} of ${states.length} ${noun} need you`, detail: tally(['failed', 'unknown', 'running', 'waiting', 'succeeded', 'skipped', 'paused', 'never']), mark: 'attention' };
+  }
+  return { answer: `No ${noun} need you`, detail: tally(['running', 'waiting', 'succeeded', 'skipped', 'paused', 'never']), mark: 'clear' };
+}
+
+function WorkflowsAnswer({ states, noun }: { states: readonly WorkflowState[]; noun: string }) {
+  const answer = workflowsAnswer(states, noun);
+  return <PageAnswer answer={answer.answer} detail={answer.detail || undefined} marks={{ 'data-workflows-answer': answer.mark }} />;
 }
 
 function NextRun({ workflow, data, showCadence = true }: { workflow: WorkflowDefinition; data: WorkflowsPayload; showCadence?: boolean }) {
@@ -86,30 +105,26 @@ function WorkflowIndex({ schedule, surface }: { schedule: boolean; surface: Work
       return latest(b) - latest(a) || name;
     });
   const sections = grouped ? [...new Set(rows.map((row) => row.workflow.group))].map((label) => ({ label, items: rows.filter((row) => row.workflow.group === label) })) : [{ label: null, items: rows }];
-  const count = (states: Set<WorkflowState>) => all.filter((row) => states.has(row.state)).length;
   const tab = schedule ? 'schedule' : 'overview';
   const suffix = search.size ? `?${search}` : '';
   return <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 p-4 md:p-6">
-    <PageHeader title={system ? 'System health' : 'Workflows'} description={system ? 'Service checks, data collection and maintenance.' : 'Automate reviews, notifications and outcome follow-through.'} actions={<span className="flex items-center gap-2 text-xs text-muted-foreground"><Clock className="size-3.5" aria-hidden />Times in {localTimezone()}</span>} />
+    <PageHeader title={system ? 'System health' : 'Workflows'} actions={<span className="flex items-center gap-2 text-xs text-muted-foreground"><Clock className="size-3.5" aria-hidden />Times in {localTimezone()}</span>} />
     {system && <HealthNavigation />}
     <div id={system ? 'health-view-panel' : undefined} role={system ? 'tabpanel' : undefined} aria-labelledby={system ? 'health-view-operations' : undefined} className="space-y-6">
     {/* A failed first read is the desk's one failure state (bead `ro-ujb9.242`),
         never the read's own sentence. */}
     {!data ? query.isError ? <ReadFailed title={`Couldn't load ${noun}`} subject={`read:${noun}`} error={query.error} retrying={query.isFetching} onRetry={() => void query.refetch()} /> : <div className="py-12 text-sm text-muted-foreground">Loading workflows…</div> : <>
       <RuntimeNotice data={data} />
-      {system && <h2 className="text-base font-semibold">Background operations</h2>}
-      <KpiStrip columns={4}>
-        <Kpi label="Needs attention" value={count(ATTENTION)} valueTone={count(ATTENTION) ? 'error' : 'default'} caption={`${all.filter((r) => r.state === 'failed').length} failed · ${all.filter((r) => r.state === 'unknown').length} unconfirmed`} />
-        <Kpi label="Successful" value={count(new Set(['succeeded']))} valueTone="healthy" caption="Latest recorded execution" />
-        <Kpi label="Running" value={count(new Set(['running']))} caption="Executing now" />
-        <Kpi label="Inactive" value={count(INACTIVE)} caption="Paused, skipped or no runs" />
-      </KpiStrip>
+      {/* THE ONE ANSWER (D44) in place of four equal tiles: what needs you,
+          else that nothing does, with the rest counted once in the states'
+          own words. The tab above already names Background operations. */}
+      <WorkflowsAnswer states={all.map((row) => row.state)} noun={noun} />
       <Tabs label={system ? 'Operation views' : 'Workflow views'} idBase="workflow-view" panelId="workflow-view-panel" tabs={[{ key: 'overview', to: `${base}${suffix}`, label: 'Activity', end: true }, { key: 'schedule', to: `${base}/schedule${suffix}`, label: 'Schedule', end: true }]} />
       <TabPanel idBase="workflow-view" id="workflow-view-panel" activeKey={tab}>
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
             <label className="relative min-w-48 flex-1"><Search className="pointer-events-none absolute left-3 top-3 size-4 text-muted-foreground" aria-hidden /><span className="sr-only">Search {noun}</span><input className={cn(fieldClass, 'w-full pl-9')} value={term} placeholder={`Search ${noun}…`} onChange={(e) => setFilter('q', e.target.value)} /></label>
-            <label><span className="sr-only">{system ? 'Operation' : 'Workflow'} state</span><select className={fieldClass} value={filter} onChange={(e) => setFilter('state', e.target.value)}><option value="all">All states</option><option value="attention">Needs attention</option><option value="failed">Failed</option><option value="running">Running</option><option value="succeeded">Successful</option><option value="inactive">Inactive</option></select></label>
+            <label><span className="sr-only">{system ? 'Operation' : 'Workflow'} state</span><select className={fieldClass} value={filter} onChange={(e) => setFilter('state', e.target.value)}><option value="all">All states</option><option value="attention">Needs attention</option><option value="failed">Failed</option><option value="running">Running</option><option value="succeeded">{WORKFLOW_STATE_LABEL.succeeded}</option><option value="inactive">Inactive</option></select></label>
             <label><span className="sr-only">{system ? 'Operation' : 'Workflow'} category</span><select className={fieldClass} value={group} onChange={(e) => setFilter('group', e.target.value)}><option value="all">All categories</option>{categories.map((g) => <option key={g.label}>{g.label}</option>)}</select></label>
             <label className="flex items-center gap-2 text-xs text-muted-foreground">Sort<select aria-label={`Sort ${noun}`} className={fieldClass} value={sort} onChange={(e) => setFilter('sort', e.target.value)}><option value="latest">Latest run</option><option value="attention">Needs attention</option><option value="next">Next run</option><option value="name">Name</option></select></label>
             <label className="flex items-center gap-2 text-xs text-muted-foreground">Group<select aria-label={`Group ${noun}`} className={fieldClass} value={grouped ? 'category' : 'flat'} onChange={(e) => setFilter('view', e.target.value)}><option value="category">Category</option><option value="flat">None</option></select></label>
@@ -127,7 +142,7 @@ function WorkflowIndex({ schedule, surface }: { schedule: boolean; surface: Work
                   <h2 className="text-sm font-semibold">{label} <span className="ml-1 text-xs font-normal text-muted-foreground tabular-nums">{items.length}</span></h2>
                   <div className="flex flex-wrap items-center gap-3 tabular-nums">{(['failed', 'unknown', 'running', 'succeeded', 'skipped', 'paused', 'never'] satisfies WorkflowState[]).map((state) => {
                     const total = items.filter((item) => item.state === state).length;
-                    return total ? <WorkflowStateLabel key={state} state={state} label={`${total} ${state === 'never' ? 'no runs' : state}`} /> : null;
+                    return total ? <WorkflowStateLabel key={state} state={state} label={`${total} ${WORKFLOW_STATE_LABEL[state].toLowerCase()}`} /> : null;
                   })}</div>
                 </div>}
                 <div className="divide-y divide-border">{items.map(({ summary, workflow, state }) => <div key={workflow.id} className={cn('grid items-center gap-x-5 gap-y-3 px-4 py-4 transition-colors hover:bg-muted/20 lg:py-5', schedule ? 'lg:grid-cols-[minmax(14rem,1.4fr)_minmax(16rem,2fr)_11rem]' : 'lg:grid-cols-[minmax(14rem,1.6fr)_6rem_minmax(10rem,1fr)_11rem]')}>

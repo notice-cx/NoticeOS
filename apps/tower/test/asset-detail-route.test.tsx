@@ -119,7 +119,7 @@ async function openComposer(
 ): Promise<void> {
   // The header action always opens on the event form, so pressing it twice is
   // harmless — it sets the state it is already in.
-  fireEvent.click(await findByRole("button", { name: /^record →$/i }));
+  fireEvent.click(await findByRole("button", { name: /^log a change →$/i }));
   if (which === "watch") {
     fireEvent.click(await findByRole("button", { name: /watch an outcome/i }));
   }
@@ -964,7 +964,7 @@ describe("AssetDetailRoute — material state on the current screens", () => {
     const { container, findByText } = renderRoute("meals.example");
     await findByText("Needs you");
     const preview = materialAsset(container, "human-gates");
-    expect(preview).toHaveTextContent("2 urgent · 6 waiting · 1 captured in preview");
+    expect(preview).toHaveTextContent("2 urgent · 6 waiting · 1 shown");
     expect(preview).toHaveTextContent("Approve the nutrition-source change");
     expect(preview).toHaveTextContent("△");
     expect(within(preview).getByRole("link", { name: /Approve the nutrition-source change/ })).toHaveAttribute("href", "/tasks/mp-gate");
@@ -996,10 +996,10 @@ describe("AssetDetailRoute — material state on the current screens", () => {
     const { container, findByText } = renderRoute("meals.example", "", "activity");
     await findByText("Timeline");
     const timeline = materialAsset(container, "active-changes");
-    expect(timeline).toHaveTextContent("1 recorded");
+    expect(timeline).toHaveTextContent("1 logged");
     expect(timeline).toHaveTextContent("Homepage answer-card experiment");
     const watches = materialAsset(container, "outcome-watches");
-    expect(watches).toHaveTextContent("1 running");
+    expect(watches).toHaveTextContent("1 being watched");
     expect(watches).toHaveTextContent("Aug 6, 2026");
     expect(watches).toHaveTextContent("next check");
     expect(watches.querySelector('[data-watch-progress] [title="1 of 3 checks read"]')).not.toBeNull();
@@ -1246,7 +1246,7 @@ describe("AssetDetailRoute — executive page identity", () => {
     // ONE strip, not three labelled groups of bordered cards.
     const strip = container.querySelector("#product-use")!;
     expect(container.querySelectorAll("#product-use")).toHaveLength(1);
-    expect(strip.textContent).toContain("fixed 28-day snapshot");
+    expect(strip.textContent).toContain("last 28 days");
     // The title and its dates are the whole description: no explainer.
     expect(strip.querySelector("[data-info-tooltip-trigger]")).toBeNull();
     expect(strip.textContent).toContain("233");
@@ -1270,7 +1270,7 @@ describe("AssetDetailRoute — executive page identity", () => {
     const view = renderRoute("nosh.example", "", "growth");
     await view.findByText("Audience");
     const productUse = view.container.querySelector<HTMLElement>("#product-use")!;
-    expect(within(productUse).getByRole("heading", { name: "Product use · fixed 28-day snapshot" })).toBeInTheDocument();
+    expect(within(productUse).getByRole("heading", { name: "Product use · last 28 days" })).toBeInTheDocument();
     // "Fixed" and its own dates are what say the range selector does not move it.
     expect(productUse).toHaveTextContent("Jul 2–29, 2026");
     const snapshot = productUse.textContent;
@@ -1322,7 +1322,7 @@ describe("AssetDetailRoute — executive page identity", () => {
     expect(tabs.map((t) => t.textContent?.replace(/\d+$/, ""))).toEqual([
       "Overview",
       "Growth",
-      "Financials",
+      "Money",
       "Search",
       "Alerts",
       "Tasks",
@@ -1505,7 +1505,7 @@ describe("AssetDetailRoute — executive page identity", () => {
     // count rather than a zero one.
     expect(tabs[0]!.textContent).toBe("Overview");
     expect(tabs[1]!.textContent).toBe("Growth");
-    expect(tabs[2]!.textContent).toBe("Financials");
+    expect(tabs[2]!.textContent).toBe("Money");
     expect(tabs[3]!.textContent).toBe("Search");
     expect(tabs[5]!.textContent).toBe("Tasks");
     expect(tabs[6]!.textContent).toBe("Activity");
@@ -1912,7 +1912,9 @@ describe("AssetDetailRoute — the setup checklist (bead ro-28ma)", () => {
     // ONE NAME AND ONE COUNT (bead `ro-ujb9.164`): the disclosure is the panel,
     // named as the Overview's banner names it, never "checks complete".
     expect(container.querySelector("[data-setup] summary")!.textContent).toBe("Data setup · 2 of 4 done");
-    expect(container.textContent).not.toMatch(/checks complete|Setting up/u);
+    // The header's verdict word may say "Setting up" (D44); the tab itself
+    // never repeats the checklist's state in those words.
+    expect(container.querySelector('[role="tabpanel"]')!.textContent).not.toMatch(/checks complete|Setting up/u);
     const pause = container.querySelector('[data-setup-item="pause-check"]')!;
     expect(pause).toHaveTextContent("Pause check");
     expect(pause).toHaveTextContent("Unavailable · Agent execution is manual.");
@@ -2121,13 +2123,13 @@ describe("AssetDetailRoute — inbound deep links", () => {
     expect(selectedTab(container)).toBe("Activity");
   });
 
-  it.each(["#pnl", "#ledger"])("opens asset Financials for %s", async (hash) => {
+  it.each(["#pnl", "#ledger"])("opens asset Money for %s", async (hash) => {
     const scrolled = captureScrollTargets();
     stubFetch(200, payload());
     const { container, findByText } = renderRoute("meals.example", hash);
     await findByText("Monthly accounting");
     await waitFor(() => expect(scrolled).toEqual([hash.slice(1)]));
-    expect(selectedTab(container)).toBe("Financials");
+    expect(selectedTab(container)).toBe("Money");
   });
 
   it("selects Settings for the configuration anchor", async () => {
@@ -2459,7 +2461,8 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     const row = view.container.querySelector("#integrations li")!;
     expect(row.querySelector("[data-connection]")).toHaveAttribute("data-connection", "working");
     expect(row).toHaveTextContent("1 report missing");
-    expect(view.container.querySelector("#integrations")).toHaveTextContent("1 working");
+    // The tab opens with the sentence, not a tally (D44).
+    expect(view.container.querySelector("[data-sources-answer]")).toHaveTextContent("Google Search Console working");
   });
 
   it("reads the source Failing, with why, when its latest pull fails", async () => {
@@ -2473,7 +2476,8 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     const row = view.container.querySelector("#integrations li")!;
     expect(row.querySelector("[data-connection]")).toHaveAttribute("data-connection", "failing");
     expect(row).toHaveTextContent("Access was refused.");
-    expect(view.container.querySelector("#integrations")).toHaveTextContent("1 failing");
+    expect(view.container.querySelector("[data-sources-answer]")).toHaveTextContent("Google Search Console needs you");
+    expect(view.container.querySelector("[data-page-answer-detail]")).toHaveTextContent("Google Search Console failing");
     // Bead ro-ujb9.96.7.4: its one action is Fix — Google's own page, since
     // Google does not connect in the panel — not a sentence saying what to review.
     expect(within(row as HTMLElement).getByRole("link", { name: "Fix Google" })).toHaveAttribute("href", "/integrations?provider=google");
@@ -2505,7 +2509,7 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     // `ListPanel` draws its own arrow after the label (doc 21's "All →"), so
     // the accessible name carries it too.
     expect(
-      await findByRole("link", { name: /^Connect account/u }),
+      await findByRole("link", { name: /^All integrations/u }),
     ).toHaveAttribute("href", "/integrations");
   });
 });
@@ -4405,7 +4409,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     );
     const { container, findByText } = renderRoute("meals.example", "", "activity");
 
-    await findByText("Watches");
+    await findByText("Bets");
     // The strip is doc 21's list now (`ro-78qo.5`): the series and its verdict
     // are the row's title, the date it waits on is the row's value under its own
     // micro label, and the ref and the reading count are the row's evidence —
@@ -4470,7 +4474,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     );
     const { container, findByText } = renderRoute("meals.example", "", "activity");
 
-    await findByText("Watches");
+    await findByText("Bets");
     expect(container.querySelector("[data-watch-scope-subject]")?.textContent).toBe(
       "“high protein meal plan”",
     );
@@ -4519,7 +4523,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
       }),
     );
     const { container, findByText } = renderRoute("meals.example", "", "activity");
-    await findByText("Watches");
+    await findByText("Bets");
 
     // The ref is the row's evidence, so it is inside it (`ro-78qo.5`).
     openRow("Google clicks");
@@ -4538,18 +4542,13 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
   // failure rather than as "nothing has been recorded". `formatAge` still
   // returns its dash — the WORD belongs to the component that knows it was
   // handed no timestamp at all, which is the fix `AgeBadge` got in 42bed39.
-  it("names the Timeline's absent age instead of drawing a dash", async () => {
+  it("says no change is logged once, in the answer, instead of an age badge (D45)", async () => {
     stubFetch(200, payload());
     const { container, findByText } = renderRoute("meals.example", "", "activity");
     await findByText("Timeline");
 
-    const age = container.querySelector("[data-lane-age]");
-    expect(age?.getAttribute("data-lane-age")).toBe("never");
-    expect(age?.textContent).toBe("never");
-    expect(age?.getAttribute("title")).toBe(
-      "Never — nothing has been recorded here yet",
-    );
-    expect(age?.textContent).not.toContain("—");
+    expect(container.querySelector('[data-activity-answer="none"] h2')).toHaveTextContent("No changes logged yet");
+    expect(container.querySelector("[data-lane-age]")).toBeNull();
   });
 
   // The third state stays distinct for rule 6's own reason: "never" would claim
@@ -4563,12 +4562,9 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     const { container, findByText } = renderRoute("meals.example", "", "activity");
     await findByText("Timeline");
 
-    const age = container.querySelector("[data-lane-age]");
-    expect(age?.getAttribute("data-lane-age")).toBe("unreadable");
-    expect(age?.textContent).toBe("unknown");
-    expect(age?.getAttribute("title")).toBe(
-      "The stored timestamp for this section could not be read",
-    );
+    // "No changes logged" would claim nothing ever arrived, which is untrue of
+    // a row that reported into a bad timestamp.
+    expect(container.querySelector('[data-activity-answer="unreadable"] h2')).toHaveTextContent("Last change date unreadable");
   });
 
   it("says nothing about watches when none are registered — there is no way to add one here", async () => {
@@ -4576,7 +4572,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     const { container, findByText } = renderRoute("meals.example", "", "activity");
 
     await findByText("Timeline");
-    expect(container.textContent).not.toContain("Watches");
+    expect(container.textContent).not.toContain("Bets");
   });
 
   it("reads the link-outreach campaign as a funnel and the targets that moved", async () => {
@@ -4643,7 +4639,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     // attribute — and the label is what the operator reads.
     // The month names the strip's cell AND a row in the entries table below it,
     // so this takes the strip's — the label is a span, the table cell a <td>.
-    const tile = (await findAllByText("2026-06"))
+    const tile = (await findAllByText("June 2026"))
       .find((node) => node.tagName === "SPAN")!.parentElement!;
     expect(tile.textContent).toContain("$498.10");
     expect(tile.textContent).toContain("$146.10");
@@ -4690,7 +4686,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     const { findAllByText, findByText } = renderRoute("meals.example", "", "financials");
 
     await findByText("Monthly accounting");
-    const tile = (await findAllByText("2026-06"))
+    const tile = (await findAllByText("June 2026"))
       .find((node) => node.tagName === "SPAN")!.parentElement!;
     // An em dash where the booked net goes, and the forecast still named beside
     // it — never promoted into the figure.
@@ -5911,14 +5907,10 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
       a.getAttribute("href"),
     );
     expect(pointers).toContain("/settings#alert-rules");
-    expect(pointers).toContain("/settings#budget");
     expect(container.textContent).not.toContain("Applies to every site");
-    expect(container.textContent).toContain(
-      "Defaults live in Settings → Alert rules",
-    );
-    expect(container.textContent).toContain(
-      "Spend caps and the operator rate live in Settings → Budget",
-    );
+    // One link in the header's "All →" slot, not sentences pointing away (D44).
+    expect(container.textContent).toContain("All sites' rules →");
+    expect(container.textContent).not.toContain("Defaults live in Settings");
     // One Save on this tab per this asset's own editable field: the display
     // name, automation and whether it sends a nightly report at all (bead
     // ro-ujb9.96.8 — this asset's own entry in a list, never a portfolio
@@ -6282,6 +6274,20 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
       },
     ],
   };
+
+  it("asks for a search source first when the site has none and tracks nothing (D44)", async () => {
+    const data = payload({ panelConfig: { trackedQueries: null, roster: null } });
+    data.integrations = { ...data.integrations, lanes: [] };
+    stubFetch(200, data);
+    const { container, findByText } = renderRoute("meals.example", "", "settings");
+
+    await findByText("Tracked search terms");
+    const settings = container.querySelector<HTMLElement>("#tracked-panels")!;
+    expect(settings.querySelector("[data-tracked-terms-needs-search]")).toHaveAttribute("href", "/assets/meals.example/sources");
+    // No meter, bill or refresh table over nothing.
+    expect(settings.querySelector("[data-panel-spend]")).toBeNull();
+    expect(settings.textContent).not.toContain("Panel refresh");
+  });
 
   it("states what the panel costs and how big it may get, beside the control that changes it", async () => {
     stubPanelLanes(
@@ -7120,7 +7126,7 @@ describe("Growth headline and chart date scopes", () => {
     const scope = chart.querySelector<HTMLElement>("[data-growth-headline-period]")!;
     const total = (12 * range - 14).toLocaleString("en-US");
     expect(chart).toHaveTextContent(`${total} from search`);
-    expect(scope).toHaveTextContent(`Completed reports · ${dates(range)[0]}`);
+    expect(scope).toHaveTextContent(`${dates(range)[0]}`);
     expect(scope).toHaveTextContent(`${range - 1} of ${range} days reported`);
     expect(scope).toHaveAttribute("data-window-start", day(-range));
     expect(scope).toHaveAttribute("data-window-end", day(-1));
@@ -7177,7 +7183,7 @@ describe("Growth headline and chart date scopes", () => {
     const view = renderPath("/assets/meals.example/growth?range=7");
     await view.findByText("Audience");
     const chart = view.container.querySelector<HTMLElement>('[data-growth-chart="Clicks"]')!;
-    expect(chart.querySelector("[data-growth-headline-period]")).toHaveTextContent("Completed reports · Aug 30–Sep 5, 2026");
+    expect(chart.querySelector("[data-growth-headline-period]")).toHaveTextContent("Aug 30–Sep 5, 2026");
     expect(within(chart).queryByText(/^Chart ·/)).toBeNull();
   });
 
@@ -7208,7 +7214,7 @@ describe("Growth headline and chart date scopes", () => {
     await view.findByText("Audience");
     const chart = view.container.querySelector<HTMLElement>('[data-growth-chart="Clicks"]')!;
     expect(within(chart).getByLabelText("Not enough completed reports")).toHaveTextContent("—");
-    expect(chart.querySelector("[data-growth-headline-period]")).toHaveTextContent("Completed reports · Aug 29–Sep 4, 2026");
+    expect(chart.querySelector("[data-growth-headline-period]")).toHaveTextContent("Aug 29–Sep 4, 2026");
     expect(chart.querySelector("[data-growth-headline-period]")).toHaveTextContent("2 of 7 days reported");
     expect(within(chart).queryByText("20 from search")).toBeNull();
   });

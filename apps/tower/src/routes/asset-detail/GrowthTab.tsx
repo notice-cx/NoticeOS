@@ -14,7 +14,6 @@ import {
 } from "@shared/surface";
 import type { SignalTrend } from "@shared/wall";
 import type { WatchSeed } from "@shared/watch-windows";
-import { AnalysisEvidence } from "@/components/AnalysisEvidence";
 import { ProductJourney } from "@/components/ProductJourney";
 import { serpPanelScope } from "@/components/SerpPanelBoard";
 import { productConnection } from "@shared/product";
@@ -66,7 +65,7 @@ import { useRange } from "@/routes/asset-detail/useRange";
  */
 export function GrowthTab({
   data,
-  nowMs,
+  nowMs: _nowMs,
   onWatch: _onWatch,
 }: {
   data: AssetDetailFor<"growth">;
@@ -139,12 +138,13 @@ export function GrowthTab({
         days={days}
         asset={data.asset.displayName}
         timeline={timeline}
-        action={{ to: searchTab, label: "Queries, pages and the tracked panel →" }}
+        action={{ to: searchTab, label: "Search →" }}
       />
 
       <AlsoCollected performance={performance} days={days} />
 
-      {data.executive ? <AnalysisEvidence snapshot={data.executive} nowMs={nowMs} /> : null}
+      {/* The analysis's age is Search's to state, beside the findings it
+          dates (D45); Growth draws the numbers. */}
       <PanelScoreboard panel={data.executive?.serpPanel ?? null} searchTab={searchTab} />
 
       <ProductUse snapshot={data.executive?.productUse ?? null} />
@@ -192,9 +192,9 @@ function PanelScoreboard({
   return (
     <section id="panel-scoreboard" className="scroll-mt-4 flex flex-col gap-2">
       <SectionLabel
-        title={`Tracked panel · ${formatInt(board.tracked)} terms`}
+        title={`Search terms · ${formatInt(board.tracked)} tracked`}
         caption={serpPanelScope(panel)}
-        action={{ to: searchTab, label: "Open the panel →" }}
+        action={{ to: searchTab, label: "Search terms →" }}
       />
       <SmallMultipleStrip columns={6}>
         <SmallMultiple
@@ -228,7 +228,7 @@ function PanelScoreboard({
             move === null ? (
               "—"
             ) : (
-              <span className="block truncate text-sm">{move.term.query}</span>
+              <span className="block text-sm [overflow-wrap:anywhere]">{move.term.query}</span>
             )
           }
           secondary={move === null ? "nothing within reach" : move.caption}
@@ -327,7 +327,7 @@ function AlsoCollected({
     },
     {
       key: "search-ctr",
-      label: "Google click rate",
+      label: "Click rate",
       trend: performance.searchCtr,
       values: performance.webSearchClicks.google,
       weights: performance.webSearchImpressions.google,
@@ -342,7 +342,7 @@ function AlsoCollected({
       weights: performance.webSearchImpressions.google,
       format: (value) => value.toFixed(1),
       aggregate: "weighted-mean",
-      secondary: "Google · weighted by impressions",
+      secondary: "weighted by impressions",
       lowerIsBetter: true,
     },
   ];
@@ -469,7 +469,7 @@ function ProductUse({ snapshot }: { snapshot: ProductUseSnapshot | null }) {
       {/* "Fixed" and its own dates say the range selector does not move it; no
           total is drawn, because one person can take several of these actions. */}
       <SectionLabel
-        title={`Product use · fixed ${formatInt(snapshot.days)}-day snapshot`}
+        title={`Product use · last ${formatInt(snapshot.days)} days`}
         caption={formatCalendarRange(snapshot.windowStart, snapshot.windowEnd)}
       />
       <SmallMultipleStrip columns={5}>

@@ -4,7 +4,7 @@
 import { createHash } from 'node:crypto';
 import { demoActivityPrefix } from './demo-activity-definition.mjs';
 import { demoAdPayment, demoAdRevenueMinor, demoRecipeSeasonAngle, demoScenarioHash, demoTrafficShape, demoWeekShape, generateDemoScenario, shiftDemoDay, shiftDemoMonth, DEMO_RECIPE_SEASON } from './demo-scenario.mjs';
-export const DEMO_ACTIVITY_VERSION = 1;
+export const DEMO_ACTIVITY_VERSION = 2;
 export const DEMO_ACTIVITY_LIMITS = Object.freeze({ daysPerBatch: 7, daysFromAnchor: 36_525 });
 const DAY = 86_400_000;
 /** Recurring synthetic incidents in a site's tracked action, as [period,
@@ -14,6 +14,24 @@ const DAY = 86_400_000;
 const INCIDENTS = {
     pw: [42, 12, 2, 0.6], lb: [19, 7, 4, 0.55], wp: [13, 2, 4, 0.6],
 };
+/** Recurring synthetic surges in a site's visits, as [period, first day,
+ * length, height]: a recipe shared widely, a brief template linked from a
+ * newsletter. Visits and tracked actions rise together and fall back on their
+ * own, so Home's brief can say "visitors up" one week and "down" the next
+ * without any story being invented for it. The young site has none. */
+const BURSTS = {
+    wp: [11, 4, 2, 0.5], lb: [23, 15, 1, 0.3], pw: [31, 20, 2, 0.35],
+};
+/** Every site's search queries, as a synthetic report names them: eight a
+ * site, each a fixed share of the site's impressions and a position that
+ * drifts week to week. Rankings are scenario choices, never market data. */
+const QUERIES = {
+    lb: ['one page brief template', 'weekly brief example', 'how to write a project brief', 'brief export pdf', 'client brief generator', 'project brief checklist', 'creative brief outline', 'brief vs proposal'],
+    pw: ['save sources from the web', 'research source manager', 'cite a web page later', 'collect reference links', 'source library app', 'pin research sources', 'organize saved articles', 'web clipper for research'],
+    wp: ['weeknight pasta bake', '30 minute chicken dinner', 'sheet pan sausage and peppers', 'easy pantry soup', 'one pot rice and beans', 'quick vegetarian dinner', 'leftover roast chicken recipes', 'freezer friendly meals'],
+    fr: ['csv row checker', 'validate csv before import', 'find duplicate rows csv', 'csv empty cells check', 'spreadsheet cleanup tool', 'csv number format errors', 'check csv columns online', 'csv validation rules'],
+};
+const QUERY_SHARE = [0.22, 0.17, 0.14, 0.11, 0.1, 0.09, 0.09, 0.08];
 function refuse() { throw new Error('Demo activity requires its fixed scenario and a bounded dated interval.'); }
 function dateNumber(value) {
     if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(value))
@@ -42,12 +60,19 @@ export function demoDayShare(minuteOfDay) {
     return DEMO_HOUR_SHARE.slice(0, hour).reduce((a, b) => a + b, 0)
         + DEMO_HOUR_SHARE[hour] * ((minuteOfDay % 60) + 1) / 60;
 }
-const tasks = {
-    lb: ['Check exported brief headings', 'Compare the synthetic brief preview with its exported headings.'],
-    pw: ['Review saved-source labels', 'Check that saved sources keep their titles and source links.'],
-    wp: ['Check printed recipe card margins', 'Print the synthetic recipe cards and check their margins.'],
-    fr: ['Verify repeated-row warnings', 'Review the fictional repeated-row examples and their warnings.'],
+/** Each site's two alternating weekly cycles: a review, then a ship whose
+ * close records a change and registers its comparison. */
+const WORK = {
+    lb: [['Check exported brief headings', 'Compare the synthetic brief preview with its exported headings.'],
+        ['Ship the grouped brief library', 'Group the synthetic brief library by project and record the shipped routes.']],
+    pw: [['Review saved-source labels', 'Check that saved sources keep their titles and source links.'],
+        ['Ship the revised collection labels', 'Apply the synthetic label revision and record the shipped collections.']],
+    wp: [['Check printed recipe card margins', 'Print the synthetic recipe cards and check their margins.'],
+        ['Ship the seasonal recipe updates', 'Publish the synthetic seasonal recipe updates and record the shipped pages.']],
+    fr: [['Verify repeated-row warnings', 'Review the fictional repeated-row examples and their warnings.'],
+        ['Ship the CSV input checklist', 'Publish the synthetic CSV input checklist and record the shipped help route.']],
 };
+const round1 = (value) => Math.round(value * 10) / 10;
 /** Capture one original scenario. Advancing time never regenerates its seed,
  * asset identities, historical incidents, task history or accounting anchor.
  * Cumulative counters use bounded closed-form sums, not a scan of elapsed days.
@@ -82,6 +107,8 @@ export function createDemoActivity(input) {
         };
         const [period, first, length, depth] = INCIDENTS[asset.prefix] ?? [1, 0, 0, 0];
         const incidentDays = (n) => Math.floor(n / period) * length + Math.min(length, Math.max(0, n % period - first));
+        const [burstPeriod, burstFirst, burstLength, burstHeight] = BURSTS[asset.prefix] ?? [1, 0, 0, 0];
+        const burstDays = (n) => Math.floor(n / burstPeriod) * burstLength + Math.min(burstLength, Math.max(0, n % burstPeriod - burstFirst));
         // A recipe site continues the seeded year (`demoRecipeSeasonAngle`), relative
         // to its level at the anchor; the others keep a gentle wave of their own.
         const omega = 2 * Math.PI / 365.25, angle = demoRecipeSeasonAngle(referenceDate);
@@ -93,11 +120,24 @@ export function createDemoActivity(input) {
                 return 0;
             const trend = growth * (n <= 365 ? n * n / 730 : n - 182.5);
             const noise = (draw(seed, `${asset.id}/${metric}/${n}`) - draw(seed, `${asset.id}/${metric}/0`)) * 0.08;
-            return weekly(n) + trend + season(n) + noise - (metric === 'events' ? incidentDays(n) * depth : 0);
+            return weekly(n) + trend + season(n) + noise + burstDays(n) * burstHeight - (metric === 'events' ? incidentDays(n) * depth : 0);
         };
         const cumulative = (n, metric) => Math.floor((metric === 'events' ? baseEvents : baseSessions) * area(n, metric));
         const count = (n, metric) => cumulative(n + 1, metric) - cumulative(n, metric);
-        return { asset, rows, initialTotal, cumulative, count };
+        const shape = demoTrafficShape(asset.prefix);
+        /** One day's search counts: the seeded row before the anchor, the
+         * continuation's after it. The daily facts and the weekly report agree. */
+        const search = (n) => {
+            if (n < 0) {
+                const row = rows.at(n);
+                return { clicks: row.clicks, impressions: row.impressions, position: row.position };
+            }
+            const date = shiftDemoDay(referenceDate, n);
+            const clicks = Math.round(count(n, 'sessions') * shape.clicks);
+            return { clicks, impressions: clicks * shape.impressionsPerClick + Math.round(draw(seed, `${asset.id}/${date}/search`) * 100),
+                position: Math.round((shape.position + draw(seed, `${asset.id}/${date}/position`) * shape.positionSpread) * 100) / 100 };
+        };
+        return { asset, rows, initialTotal, cumulative, count, search };
     });
     /** One day's synthetic ad estimate: seeded sessions before the anchor, the
      * continuation's after it. */
@@ -121,19 +161,18 @@ export function createDemoActivity(input) {
         if (ordinal < 0 || ordinal > DEMO_ACTIVITY_LIMITS.daysFromAnchor)
             refuse();
         const key = `${demoActivityPrefix(hash)}${date}`;
-        const assets = assetInputs.map(({ asset, rows, initialTotal, cumulative, count }) => {
+        const assets = assetInputs.map(({ asset, rows, initialTotal, cumulative, count, search }) => {
             const sessions = count(ordinal, 'sessions'), events = count(ordinal, 'events'), shape = demoTrafficShape(asset.prefix);
             const pageViews = Math.round(sessions * (shape.pages + draw(seed, `${asset.id}/${date}/pages`) * shape.pagesSpread));
             const activeUsers = Math.round(sessions * shape.activeUsers);
-            const clicks = Math.round(sessions * shape.clicks), impressions = clicks * shape.impressionsPerClick + Math.round(draw(seed, `${asset.id}/${date}/search`) * 100);
+            const { clicks, impressions, position } = search(ordinal);
             const reportMissing = asset.prefix === 'pw' && ordinal % 29 === 10;
             const observations = (values) => Object.entries(values).map(([metric, value]) => ({ date, metric, value }));
             const signals = [
                 { integration: 'ga4', propertyRef: `demo-${asset.prefix}-ga4`, credentialRef: 'synthetic-demo', timeZone: 'UTC',
                     observations: reportMissing ? null : observations({ sessions, active_users: activeUsers, page_views: pageViews, event_count: sessions + pageViews + events }) },
                 { integration: 'gsc', propertyRef: `demo-${asset.prefix}-gsc`, credentialRef: 'synthetic-demo', timeZone: 'UTC',
-                    observations: observations({ clicks, impressions, ctr: impressions === 0 ? 0 : clicks / impressions,
-                        position: Math.round((shape.position + draw(seed, `${asset.id}/${date}/position`) * shape.positionSpread) * 100) / 100 }) },
+                    observations: observations({ clicks, impressions, ctr: impressions === 0 ? 0 : clicks / impressions, position }) },
             ];
             const recent = Array.from({ length: 7 }, (_, i) => ordinal - 6 + i).map(n => n < 0 ? rows.at(n).events : count(n, 'events'));
             const pulse = reportMissing ? null : {
@@ -175,18 +214,80 @@ export function createDemoActivity(input) {
                     coverageEnd: shiftDemoDay(nextMonth.toISOString().slice(0, 10), -1), coverageComplete: true });
             }
         }
-        const week = Math.floor((anchor + ordinal - firstMonday) / 7);
-        const weekday = (anchor + ordinal - firstMonday) % 7;
-        let task = null;
-        if (week >= 0 && [0, 2, 4].includes(weekday)) {
-            const entry = assetInputs[week % assetInputs.length], copy = tasks[entry.asset.prefix];
-            const weekStart = shiftDemoDay(referenceDate, firstMonday - anchor + week * 7);
-            task = { asset: entry.asset.id, key: `demo-v1-${hash.slice(0, 12)}-${weekStart}`, phase: weekday === 0 ? 'create' : weekday === 2 ? 'start' : 'complete',
-                title: copy[0], description: `${copy[1]} This is a simulated review of fictional data.`,
-                acceptance: 'Record the synthetic review result; do not claim a live deployment or business improvement.',
-                closeReason: 'Synthetic review completed. No live deployment or measured business improvement.' };
+        // Days since the first Monday after the anchor. Each site runs its own
+        // weekly cycle one day after the site before it (filed, started two days
+        // later, closed two days after that), reviews and ships alternating, so
+        // most days close one task and every other week each site ships.
+        const dayIndex = anchor + ordinal - firstMonday;
+        const tasks = [];
+        const changes = [];
+        assetInputs.forEach(({ asset }, index) => {
+            const since = dayIndex - index;
+            if (since < 0)
+                return;
+            const cycle = Math.floor(since / 7), phase = since % 7;
+            if (phase !== 0 && phase !== 2 && phase !== 4)
+                return;
+            const ship = cycle % 2 === 1;
+            const copy = WORK[asset.prefix][ship ? 1 : 0];
+            const cycleStart = shiftDemoDay(referenceDate, firstMonday - anchor + cycle * 7 + index);
+            const taskKey = `demo-v2-${hash.slice(0, 12)}-${asset.prefix}-${cycleStart}`;
+            tasks.push({ asset: asset.id, key: taskKey, phase: phase === 0 ? 'create' : phase === 2 ? 'start' : 'complete',
+                title: copy[0], description: `${copy[1]} This is a simulated ${ship ? 'change' : 'review'} of fictional data.`,
+                acceptance: ship
+                    ? 'Record the synthetic change and its registered comparison; do not claim a live deployment or business improvement.'
+                    : 'Record the synthetic review result; do not claim a live deployment or business improvement.',
+                closeReason: ship
+                    ? 'Synthetic change recorded with a 28-day comparison. No live deployment or measured business improvement.'
+                    : 'Synthetic review completed. No live deployment or measured business improvement.' });
+            if (ship && phase === 4) {
+                changes.push({ asset: asset.id, at: `${date}T15:00:00.000Z`, kind: 'deploy', ref: taskKey,
+                    note: `Synthetic change: ${copy[0].replace(/^Ship /u, '')}. No live deployment.`,
+                    watch: { metricIntegration: 'ga4', metric: 'sessions', baselineStart: shiftDemoDay(date, -28), baselineEnd: shiftDemoDay(date, -1), checkOffsets: [28],
+                        thresholds: { ship: { direction: 'up', min_delta_pct: 10 }, kill: { direction: 'down', min_delta_pct: 10 } },
+                        note: 'Synthetic comparison; no causal revenue claim.' } });
+            }
+        });
+        // Every Monday, each site's search report: this week's queries against
+        // last week's, from the same daily impressions the signals carry.
+        const reports = [];
+        if (dayIndex >= 0 && dayIndex % 7 === 0) {
+            const week = dayIndex / 7;
+            const currentStart = shiftDemoDay(date, -7), currentEnd = shiftDemoDay(date, -1);
+            const previousStart = shiftDemoDay(date, -14), previousEnd = shiftDemoDay(date, -8);
+            for (const { asset, search } of assetInputs) {
+                const weekly = (from) => Array.from({ length: 7 }, (_, i) => search(from + i).impressions).reduce((a, b) => a + b, 0);
+                const current = weekly(ordinal - 7), previous = weekly(ordinal - 14);
+                const movers = QUERIES[asset.prefix].map((query, k) => {
+                    const share = QUERY_SHARE[k], base = 2 + k * 1.6;
+                    const phaseOf = draw(seed, `${asset.id}/query-${k}/phase`) * 2 * Math.PI;
+                    const position = (w) => Math.max(1, round1(base + 2.5 * Math.sin(phaseOf + (w + k * 0.9) * 1.1)));
+                    const currentImpressions = Math.round(current * share * (0.85 + draw(seed, `${asset.id}/query-${k}/${currentStart}`) * 0.3));
+                    const previousImpressions = Math.round(previous * share * (0.85 + draw(seed, `${asset.id}/query-${k}/${previousStart}`) * 0.3));
+                    const currentPosition = position(week), previousPosition = position(week - 1);
+                    return { query, currentImpressions, previousImpressions, impressionDelta: currentImpressions - previousImpressions,
+                        impressionDeltaPercent: previousImpressions === 0 ? 0 : round1((currentImpressions - previousImpressions) / previousImpressions * 100),
+                        currentPosition, previousPosition, positionImprovement: round1(previousPosition - currentPosition) };
+                });
+                const ranked = [...movers].sort((a, b) => b.positionImprovement - a.positionImprovement);
+                const rising = ranked[0].positionImprovement > 0;
+                const lead = rising ? ranked[0] : ranked.at(-1);
+                const places = Math.abs(lead.positionImprovement).toFixed(1);
+                reports.push({ schemaVersion: 1, asset: asset.id, generatedAt: `${date}T05:30:00.000Z`, windowStart: previousStart, windowEnd: currentEnd, sourceArchiveCount: 14,
+                    items: [{ key: `search-${rising ? 'riser' : 'faller'}-${date}`, kind: rising ? 'insight' : 'warning',
+                            title: `“${lead.query}” ${rising ? 'climbed' : 'slipped'} ${places} places to #${lead.currentPosition}`,
+                            summary: `Synthetic search report: “${lead.query}” moved from position ${lead.previousPosition} to ${lead.currentPosition} week over week.`,
+                            whyItMatters: rising ? 'A query climbing toward the first results brings more visits for the same pages.' : 'A query slipping down the results loses visits the pages used to earn.',
+                            primary: { value: `#${lead.currentPosition}`, label: 'position this week' }, confidence: 'medium', windowStart: currentStart, windowEnd: currentEnd,
+                            evidence: [{ label: 'Position last week', value: String(lead.previousPosition) }, { label: 'Impressions this week', value: String(lead.currentImpressions) }],
+                            sources: ['Synthetic search report'], caveat: 'Synthetic data; no search provider was read.' }],
+                    suppressedItems: [], methodology: ['Synthetic weekly query report derived from the demo scenario; no provider was called.'],
+                    searchQueries: { google: { provider: 'google', currentStart, currentEnd, previousStart, previousEnd, daysPerWindow: 7, movers,
+                            evidence: [{ label: 'Grounding queries excluded', value: '0', detail: 'No quoted-literal queries in this window' }],
+                            source: 'Synthetic search report', caveat: 'Synthetic query movements; no real search data.' }, bing: null, dataforseo: null } });
+            }
         }
-        return { synthetic: true, version: DEMO_ACTIVITY_VERSION, scenarioHash: hash, date, key, assets, money, task };
+        return { synthetic: true, version: DEMO_ACTIVITY_VERSION, scenarioHash: hash, date, key, assets, money, tasks, changes, reports };
     };
     /** Today so far: each provisional count is the finished day's count scaled
      * by the share of the day already counted, so the quarter-hour refreshes

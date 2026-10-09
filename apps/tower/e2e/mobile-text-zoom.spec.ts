@@ -40,8 +40,8 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
             : state === 'error' ? main.locator('[data-read-failed]')
             : state === 'empty' ? main.locator({ home: '[data-first-run]', sites: '[data-assets-empty]',
               alerts: '[data-surface-hero]', tasks: '[data-task-hub-unavailable]' }[name])
-            : main.locator({ home: '[aria-labelledby="home-status-scope"]', sites: '[data-asset-row]',
-              alerts: '[data-surface-hero]', tasks: '[data-inbox-row], [data-task-row]' }[name]).first();
+            : main.locator({ home: '[data-home-brief]', sites: '[data-sites-answer], [data-asset-row]',
+              alerts: '[data-surface-hero]', tasks: '[data-tasks-answer], [data-inbox-row], [data-task-row]' }[name]).first();
           await expect(answer).toBeVisible();
           const baselineFont = await heading.evaluate(el => parseFloat(getComputedStyle(el).fontSize));
           for (const scale of [1, 2]) {
@@ -73,28 +73,31 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
             expect(measurements).toMatchObject({ width: 390, height: 844, overflowX: 0, clipped: [], incorrectMarks: 0 });
           }
           if (state === 'populated' && name === 'home') {
-            // An enlarged third KPI may scroll, but a keyboard can still reach
-            // its explanation and bring that cell into view.
-            const info = main.getByRole('button', { name: 'About System', exact: true });
-            for (let n = 0; n < 80 && !await info.evaluate(el => el === document.activeElement); n += 1) {
+            // The brief's first card keeps its one action reachable by keyboard
+            // at double text, and scrolls it into view.
+            const action = main.locator('[data-highlight-action]').first();
+            for (let n = 0; n < 80 && !await action.evaluate(el => el === document.activeElement); n += 1) {
               await page.keyboard.press('Tab');
             }
-            await expect(info).toBeFocused();
-            await expect(info).toBeInViewport();
-            await page.keyboard.press('Enter');
-            await expect(page.getByRole('tooltip')).toBeVisible();
-            await page.keyboard.press('Escape');
+            await expect(action).toBeFocused();
+            await expect(action).toBeInViewport();
           }
           if (state === 'populated' && name === 'sites') {
-            expect(await answer.evaluate(el => getComputedStyle(el, '::after').content)).toBe('""');
-            await answer.getByRole('link').first().click();
-            await expect(page).toHaveURL(new RegExp(`/assets/${JOURNEY_ASSET.replace('.', '\\.')}`));
+            // The answer names the sites that need you, each a way in (D45);
+            // a row still draws its › on the stacked card.
+            const row = main.locator('[data-asset-row]').first();
+            expect(await row.evaluate(el => getComputedStyle(el, '::after').content)).toBe('""');
+            const named = answer.locator('a[data-sites-answer-site]').first();
+            await (await named.count() ? named : row.getByRole('link').first()).click();
+            await expect(page).toHaveURL(/\/assets\/[^/]+/);
           }
           if (state === 'populated' && name === 'tasks') {
-            const expand = answer.locator('button[aria-expanded]');
+            // The answer leads (D45); its first row still expands in place.
+            const first = main.locator('[data-inbox-row], [data-task-row]').first();
+            const expand = first.locator('button[aria-expanded]');
             await expand.click();
             await expect(expand).toHaveAttribute('aria-expanded', 'true');
-            await expect(answer.locator('[data-list-row-body]')).toBeVisible();
+            await expect(first.locator('[data-list-row-body]')).toBeVisible();
           }
         }
         expect(errors).toEqual([]);

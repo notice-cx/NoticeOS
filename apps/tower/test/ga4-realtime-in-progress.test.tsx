@@ -159,7 +159,7 @@ describe("a read in progress keeps what the Wall drew", () => {
     expect(history.getAttribute("data-date")).toBe("2026-09-21");
     expect(history.querySelector("time")?.getAttribute("dateTime")).toBe("2026-09-21");
     expect(history.textContent).toContain("Latest day");
-    expect(history.textContent).toContain("0GA4 users");
+    expect(history.textContent).toContain("0people");
     expect(blank.querySelector("[data-site-today]")).toBeNull();
     const kept = today(keepReadingsInProgress(before, answer));
     expect(kept.querySelector("[data-today]")).not.toBeNull();

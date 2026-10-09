@@ -10,16 +10,18 @@ import type {
   ExecutiveInsight,
   ExecutiveInsightKind,
   PulseMetric,
+  SearchQueryTrends,
   SiteCounters,
 } from "@shared/asset-detail";
 import { assetSetupChecklist } from "@shared/asset-setup";
 import { sourceReadings } from "@shared/connection-status";
 import { ageMs, formatAge, isAmber, pulseAmber } from "@shared/freshness";
 import { productReportSummary } from "@shared/product-reports";
-import { watchSeriesForSources, type WatchSeed } from "@shared/watch-windows";
+import { watchScopeText, watchSeriesForSources, watchSeriesLabel, watchVerdictFigures, type WatchSeed } from "@shared/watch-windows";
 import { WATCH_SERIES } from "@noticeos/contract/create-watch-window";
 import { WORK_POLL_CADENCE_HOURS } from "@shared/work";
 import { AgeBadge } from "@/components/AgeBadge";
+import { betsFact, daysUntil } from "@/routes/asset-detail/shared";
 import { ExecutiveFindingsList } from "@/components/ExecutiveFindingsList";
 import { AnalysisEvidence, RecommendationReview, useRecommendationAssessor, useRecommendationValidity } from "@/components/AnalysisEvidence";
 import { findingBasis } from "@shared/recommendation-validity";
@@ -41,14 +43,18 @@ import {
   SmallMultipleStrip,
 } from "@/components/surface/SmallMultiple";
 import { StatusBanner } from "@/components/surface/StatusBanner";
+import { watchOutcome } from "@/components/watch-outcome";
+import { cn } from "@/lib/utils";
 import { FileTaskButton } from "@/components/TaskComposer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useConnections } from "@/hooks/useConnections";
 import { useDecisionWriters } from "@/hooks/useDecisionWriters";
 import {
+  formatCalendarDate,
   formatCalendarRange,
   formatInt,
+  formatPeriodMonth,
   formatPeriodMonthYear,
   formatSignedMoney,
   formatSeriesDate,
@@ -132,13 +138,18 @@ export function OverviewTab({
         </div>
       ) : null}
 
+      {/* THE VERDICT LINE (D44, doc 21 § Asset · Overview): three facts
+          joined by dots, under the header's verdict word — money, alerts,
+          bets — each from the read this tab already makes. Never a sentence. */}
+      <VerdictLine money={money} moneyPeriod={moneyPeriod} alerts={alerts} watches={data.watches} nowMs={nowMs} />
+
       <SiteLead data={data} days={days} nowMs={nowMs} />
 
       <div className="grid items-start gap-3.5 lg:grid-cols-2" data-independent-snapshots>
         <section aria-labelledby="overview-financials" data-financial-snapshot className="overflow-hidden rounded-[10px] border border-border bg-card">
           <SectionLabel
             id="overview-financials"
-            title={moneyPeriod ? `Financials · ${formatPeriodMonthYear(moneyPeriod)}` : "Financials · no accounting month"}
+            title={moneyPeriod ? `Money · ${formatPeriodMonthYear(moneyPeriod)}` : "Money · no accounting month"}
             action={{ label: "View financials", to: `/assets/${encodeURIComponent(data.asset.id)}/financials` }}
             className="px-4 pt-3"
           />
@@ -208,6 +219,11 @@ export function OverviewTab({
         </div>
       </div>
 
+      <div className="grid gap-3.5 lg:grid-cols-2">
+        <Bets watches={data.watches} assetId={data.asset.id} nowMs={nowMs} />
+        <SearchMovers trends={data.executive?.searchQueries ?? null} assetId={data.asset.id} />
+      </div>
+
       <ProductUse assetId={data.asset.id} metrics={data.metrics}
         reportDate={data.wiring.lastPulseDate} receivedAt={data.wiring.lastPulseReceivedAt} nowMs={nowMs} />
 
@@ -266,6 +282,129 @@ function alertSplit(alerts: ReturnType<typeof alertPosture>): string {
     .join(" · ");
 }
 
+// --- the verdict line ------------------------------------------------------
+/** Days from today to a calendar date, never negative. */
+function VerdictLine({
+  money,
+  moneyPeriod,
+  alerts,
+  watches,
+  nowMs,
+}: {
+  money: ReturnType<typeof ledgerMonth>;
+  moneyPeriod: string | null;
+  alerts: ReturnType<typeof alertPosture>;
+  watches: AssetDetailFor<"overview">["watches"];
+  nowMs: number;
+}) {
+  const moneyFact = money && moneyPeriod
+    ? `${formatPeriodMonth(moneyPeriod)} net ${formatSignedMoney(money.net, money.currency)}${money.booking === "forecast" ? " est." : ""}`
+    : "no money recorded";
+  const alertsFact = alerts.open === 0 ? "no open alerts" : `${alertSplit(alerts)} open`;
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 text-[14px] text-foreground" data-verdict-line>
+      <span className="tabular-nums">{moneyFact}</span>
+      <span aria-hidden className="text-muted-foreground">·</span>
+      <span className={alerts.error > 0 ? "text-error" : alerts.warn > 0 ? "text-warn" : undefined}>{alertsFact}</span>
+      <span aria-hidden className="text-muted-foreground">·</span>
+      <span className="tabular-nums">{betsFact(watches, nowMs)}</span>
+    </div>
+  );
+}
+
+// --- bets --------------------------------------------------------------------
+/**
+ * THE BETS ON THIS SITE (D44; Statsig, Eppo and GrowthBook in the brief's
+ * prior art): every pre-registered outcome check, open first, as one row with
+ * its verdict chip — "verdict in N days" while it is being watched, the
+ * evaluator's word once it closed (`WATCH_OUTCOME`). No dollars are drawn
+ * until the ledger books a change's realized value (doc 00); an unmeasured
+ * window says so rather than showing a number.
+ */
+function Bets({ watches, assetId, nowMs }: { watches: AssetDetailFor<"overview">["watches"]; assetId: string; nowMs: number }) {
+  const assetTabPath = useAssetTabPath();
+  const rows = [
+    ...watches.open.map((watch) => ({ watch, open: true })),
+    ...watches.closed.map((watch) => ({ watch, open: false })),
+  ];
+  return (
+    <ListPanel
+      title="Bets"
+      count={watches.open.length > 0 ? `${watches.open.length} being watched` : undefined}
+      action={{ label: "Activity", to: assetTabPath(assetId, "activity") }}
+      empty="Nothing being watched yet"
+    >
+      {rows.map(({ watch, open }) => {
+        const outcome = watch.outcome ? watchOutcome(watch.outcome) : null;
+        const series = watchSeriesLabel(watch.metricIntegration, watch.metric);
+        const scope = watch.scope ? ` · ${watchScopeText(watch.scope)}` : "";
+        const days = watch.nextCheckDate ? daysUntil(watch.nextCheckDate, nowMs) : null;
+        return (
+          <ListRow
+            key={watch.id}
+            marks={{ "data-subject": `watch:${watch.id}`, "data-bet": open ? "open" : "closed" }}
+            tone={open ? "info" : (outcome?.tone ?? "info")}
+            glyph={open ? "◦" : (outcome?.glyph ?? "?")}
+            title={watch.note ?? `${series}${scope}`}
+            caption={watch.note ? `${series}${scope}` : `registered ${formatCalendarDate(watch.registeredAt.slice(0, 10))}`}
+            value={open
+              ? days === null ? `${watch.readings} of ${watch.checks}` : days === 0 ? "today" : `${days}d`
+              : outcome?.label ?? "verdict recorded"}
+            valueLabel={open ? (days === null ? "checks read" : "to a verdict") : watch.closedAt ? formatCalendarDate(watch.closedAt.slice(0, 10)) : undefined}
+          >
+            {watch.outcomeNote ? <span>{watchVerdictFigures(watch.outcomeNote, watch.metricIntegration, watch.metric)}</span> : null}
+          </ListRow>
+        );
+      })}
+    </ListPanel>
+  );
+}
+
+// --- search movers -----------------------------------------------------------
+/**
+ * THE QUERIES THAT MOVED THIS WEEK (D44; Semrush's winners and losers): the
+ * three that climbed furthest and the three that fell, as words, from the
+ * saved analysis's own like-for-like comparison. The Search tab holds the
+ * whole table.
+ */
+function SearchMovers({ trends, assetId }: { trends: SearchQueryTrends | null; assetId: string }) {
+  const assetTabPath = useAssetTabPath();
+  const lane = trends?.google ?? trends?.bing ?? null;
+  const movers = lane?.movers ?? [];
+  const rising = [...movers].filter((mover) => mover.positionImprovement > 0).sort((a, b) => b.positionImprovement - a.positionImprovement).slice(0, 3);
+  const falling = [...movers].filter((mover) => mover.positionImprovement < 0).sort((a, b) => a.positionImprovement - b.positionImprovement).slice(0, 3);
+  const position = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(1));
+  return (
+    <section aria-label="Search movers" className="flex flex-col rounded-[10px] border border-border bg-card" data-search-movers>
+      <SectionLabel
+        title="Search movers"
+        caption={lane ? `${formatCalendarDate(lane.currentStart)} – ${formatCalendarDate(lane.currentEnd)}` : undefined}
+        action={{ label: "Search →", to: assetTabPath(assetId, "search") }}
+        className="px-4 pb-2 pt-3"
+      />
+      {rising.length === 0 && falling.length === 0 ? (
+        <div className="px-4 pb-4 text-xs text-muted-foreground">{lane ? "Nothing moved this week" : "No search comparison yet"}</div>
+      ) : (
+        <div className="grid gap-x-6 gap-y-1 px-4 pb-3 sm:grid-cols-2">
+          {[{ word: "Rising", rows: rising, tone: "text-trend-positive", arrow: "▲" }, { word: "Falling", rows: falling, tone: "text-trend-negative", arrow: "▼" }].map((column) => (
+            <ul key={column.word} className="m-0 list-none p-0" data-movers={column.word.toLowerCase()}>
+              <li className="m-0 py-1 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">{column.word}</li>
+              {column.rows.length === 0 ? <li className="m-0 py-1 text-xs text-muted-foreground">none</li> : column.rows.map((mover) => (
+                <li key={mover.query} className="m-0 flex items-baseline justify-between gap-3 border-t border-border/60 py-1.5 text-[13px]" data-subject={`query:${mover.query}`}>
+                  <span className="min-w-0 truncate">{mover.query}</span>
+                  <span className={cn("shrink-0 tabular-nums", column.tone)}>
+                    {column.arrow} {position(mover.previousPosition)}→{position(mover.currentPosition)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 // --- needs you -------------------------------------------------------------
 /** The operator's own queue on this asset, urgent first. Three rows and a link:
  * the board itself is one tab away and does this properly. */
@@ -301,17 +440,17 @@ export function NeedsYou({
     : stale
       ? "Task status outdated"
       : operator.waiting! > 0
-        ? "Task details not captured"
+        ? "Task details not read"
         : "Nothing waiting";
   return (
     <ListPanel
       title="Needs you"
       count={<span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
         <span>{count}
-          {measured && rows.length < operator.waiting! ? ` · ${rows.length} captured in preview` : ""}
+          {measured && rows.length < operator.waiting! ? ` · ${rows.length} shown` : ""}
         </span>
-        <InfoTooltip label="About this task preview" trigger={age === null ? "Time unknown" : stale ? "Outdated snapshot" : `Read ${formatAge(age)} ago`}>
-          <span className="block">{age === null ? "Task status time unknown" : `Task status read ${formatAge(age)} ago${stale ? " · outdated snapshot" : ""}`}</span>
+        <InfoTooltip label="About this task preview" trigger={age === null ? "Time unknown" : stale ? "Outdated" : `Read ${formatAge(age)} ago`}>
+          <span className="block">{age === null ? "Task status time unknown" : `Task status read ${formatAge(age)} ago${stale ? " · outdated" : ""}`}</span>
           <span className="block">Task status does not verify that each request is still needed.</span>
           <span className="block">This is a preview. Open All tasks for the complete recorded queue.</span>
         </InfoTooltip>

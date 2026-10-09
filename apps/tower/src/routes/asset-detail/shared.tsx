@@ -3,12 +3,17 @@ import {
   lifecycleMoveSentence,
   parseLifecycleMoveRef,
 } from "@shared/asset-detail";
+import { watchDayOf, watchScopeText, watchSeriesLabel } from "@shared/watch-windows";
+import type { WatchWindowItem } from "@shared/asset-detail";
+import type { AssetDetailFor } from "@shared/asset-detail-views";
+import type { SurfaceSpan } from "@shared/surface";
 import type { AnnotationItem } from "@shared/annotations";
 import { ageMs, formatAge } from "@shared/freshness";
 import type { SurfaceAnnotation } from "@shared/surface";
 import { AgeBadge } from "@/components/AgeBadge";
 import { SectionLabel, eyebrowClass } from "@/components/surface/SectionLabel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatSeriesDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 // --- the small pieces every tab draws with --------------------------------
@@ -65,6 +70,24 @@ export function timelineAnnotations(
             : "Config change",
       };
     });
+}
+
+/**
+ * THE WINDOWS BEING WATCHED, as spans on the story chart (D44): from the day
+ * the watch was registered to its next verdict day, labelled with what is
+ * measured and when the verdict lands. A window with no check left draws to
+ * today. Nothing is invented: registration and check dates are the store's.
+ */
+export function watchSpans(open: readonly WatchWindowItem[], nowMs: number): SurfaceSpan[] {
+  const today = new Date(nowMs).toISOString().slice(0, 10);
+  return open.map((watch) => {
+    const start = watchDayOf(watch.registeredAt);
+    const end = watch.nextCheckDate ?? today;
+    const series = watchSeriesLabel(watch.metricIntegration, watch.metric);
+    const scope = watch.scope ? ` ${watchScopeText(watch.scope)}` : "";
+    const verdict = watch.nextCheckDate ? ` · verdict ${formatSeriesDate(watch.nextCheckDate)}` : "";
+    return { start, end: end < start ? start : end, label: `Watching ${series}${scope}${verdict}` };
+  });
 }
 
 // --- shared layout helpers -------------------------------------------------
@@ -250,3 +273,25 @@ export function LaneAge({
     </span>
   );
 }
+
+/** Days from now to a calendar date, never below zero (the Overview's and
+ * Activity's "verdict in N days"). */
+export function daysUntil(date: string, nowMs: number): number {
+  const target = Date.parse(`${date}T00:00:00.000Z`);
+  return Math.max(0, Math.ceil((target - nowMs) / 86_400_000));
+}
+
+/** "verdict in 3 days", "verdict today", or how many are being watched. */
+export function betsFact(watches: Pick<AssetDetailFor<"overview">["watches"], "open">, nowMs: number): string {
+  const next = watches.open
+    .map((watch) => watch.nextCheckDate)
+    .filter((date): date is string => date !== null)
+    .sort()[0];
+  if (next) {
+    const days = daysUntil(next, nowMs);
+    return days === 0 ? "verdict today" : `verdict in ${days} ${days === 1 ? "day" : "days"}`;
+  }
+  const open = watches.open.length;
+  return open === 0 ? "nothing being watched" : `${open} being watched`;
+}
+

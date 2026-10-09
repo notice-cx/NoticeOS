@@ -126,9 +126,12 @@ test("state reasons open from keyboard and tap", async ({ page }, testInfo) => {
       counts: { open: 0, highPriority: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0, deferred: 0, waiting: 0 },
       priorities: null, epics: null, deferred: [], waiting: [], ready: [], inProgress: [], recentlyClosed: [], history: emptyWorkHistory() }],
   } }));
+  // Home names no OS state since D44 (the Morning Brief never describes the
+  // OS), so its System reason is gone; the Sites list and Tasks keep theirs.
+  // A phone folds a site's task count behind its row's › (D45: name, health
+  // word and one figure), so the Sites reason is a desk check.
   for (const [route, name, evidence] of [
-    ["/assets", "No task data", "No task data"],
-    ["/", "About System", "fresh"],
+    ...(testInfo.project.name === "mobile" ? [] : [["/assets", "No task data", "No task data"]]),
     ["/tasks", "Why New task is unavailable", "Make changes from the local NoticeOS."],
   ]) {
     await page.goto(route!);
@@ -151,17 +154,8 @@ test("state reasons open from keyboard and tap", async ({ page }, testInfo) => {
     await page.screenshot({ path: testInfo.outputPath(`state-reason-${route!.slice(1) || "home"}.png`) });
     await expect(page).toHaveURL(new RegExp(`${route === "/" ? "/" : route}$`));
   }
-  await page.goto("/assets");
-  const sources = page.getByRole("button", { name: "About data source states", exact: true });
-  await keyboardFocus(page, sources);
-  await expect(page.getByRole("tooltip")).toContainText("Nightly report");
-  await page.keyboard.press("Escape");
-  if (testInfo.project.name === "mobile") await sources.tap();
-  else await sources.click();
-  await expect(page.getByRole("tooltip")).toContainText("Nightly report");
-  await assertNoPageOverflow(page);
-  await page.screenshot({ path: testInfo.outputPath("state-reason-sources.png") });
-  await expect(page).toHaveURL(/\/assets$/);
+  // The Sites list states each site's one health word since D45; the source
+  // states and their legend are on a site's Data sources tab.
 });
 
 test("desk pages share the same content edges", async ({ page }, testInfo) => {
@@ -257,7 +251,9 @@ test("KPI trends remain inside their cells on desk, tablet and phone", async ({ 
     : [{ width: 1440, height: 900 }, { width: 768, height: 1024 }, { width: 1024, height: 768 }];
   for (const viewport of viewports) {
     await page.setViewportSize(viewport);
-    for (const route of ["/", `/assets/${JOURNEY_ASSET}`, "/financials?period=2026-09"]) {
+    // Home and Money open with an answer sentence, not a KPI strip (D44,
+    // D45); the site Overview's hero cells are the KPIs left with trends.
+    for (const route of [`/assets/${JOURNEY_ASSET}`]) {
       await page.goto(route);
       const sparks = page.locator("[data-kpi] [data-spark]");
       await expect(sparks.first()).toBeVisible();
@@ -330,9 +326,10 @@ test('site order moves in the Wall editor, persists across every list, and suppo
   await page.reload();
   await expect.poll(() => ids('[data-site-order]', 'data-site-order')).toEqual(reordered);
   await testInfo.attach('site ordering', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
-  for (const route of ['/', '/assets']) {
+  // Home's sites strip (D44) and the Sites list follow the saved order.
+  for (const [route, attribute] of [['/', 'data-site-cell'], ['/assets', 'data-asset-row']] as const) {
     await page.goto(route); await page.reload();
-    await expect.poll(() => ids('main [data-asset-row]', 'data-asset-row')).toEqual(reordered);
+    await expect.poll(() => ids(`main [${attribute}]`, attribute)).toEqual(reordered);
   }
   const menu = page.getByRole('button', { name: 'Open navigation', exact: true });
   if (await menu.isVisible()) await menu.click();
@@ -406,7 +403,9 @@ test('Mediavine signs in in the panel, its site is matched by domain and synced 
   await assertNoPageOverflow(page);
   await page.screenshot({ path: testInfo.outputPath('mediavine-sources-after.png'), fullPage: true });
   await page.goto('/financials?period=2026-09');
-  await expect(page.getByRole('main')).toContainText('$5.00');
+  // Money's answer states the month in whole dollars (D45); the cents are the
+  // site Overview's, checked below.
+  await expect(page.locator('[data-money-revenue]')).toContainText('$5');
   await expect(page.getByRole('main')).not.toContainText('$5.02');
   await assertNoPageOverflow(page);
   await page.screenshot({ path: testInfo.outputPath('mediavine-financials-after.png'), fullPage: true });
@@ -435,7 +434,8 @@ test('Mediavine signs in in the panel, its site is matched by domain and synced 
   expect(state.documents['config/integrations.json'].assets[JOURNEY_ASSET]['ad-network']).toMatchObject({ mediavineSiteId: 'journey-mediavine-site' });
   expect(state.documents['config/integrations.json'].assets[JOURNEY_ASSET]['ad-network'].status).not.toBe('skipped');
   await page.goto('/financials?period=2026-09');
-  await expect(page.getByRole('main')).toContainText('$5.00');
+  // The disconnected network's revenue stays booked: Money's figure, whole dollars (D45).
+  await expect(page.locator('[data-money-revenue]')).toContainText('$5');
 });
 
 /** The fixture's money, with separate saved operator and provider clocks:
@@ -1670,7 +1670,7 @@ test("empty install → saved asset → fake connection and mapping → real met
   await keyboardActivate(page, page.getByRole("link", { name: /Review the synthetic launch copy/ }));
   await expect(page).toHaveURL(/\/tasks\/jt-review$/);
   await expect(page.getByRole("heading", { name: /Review the synthetic launch copy/ })).toBeVisible();
-  await keyboardActivate(page, page.getByRole("link", { name: "Back to overview", exact: true }));
+  await keyboardActivate(page, page.getByRole("link", { name: "Back to Home", exact: true }));
   await expect(page).toHaveURL(/\/\?range=7$/);
   await keyboardActivate(page, page.getByRole("link", { name: /Approve the synthetic launch/ }));
   await expect(page).toHaveURL(/\/tasks\/jt-approve$/);
@@ -1699,7 +1699,9 @@ test("empty install → saved asset → fake connection and mapping → real met
   const commands = (await status()).taskCommands.map((argv) => argv.slice(2).join(" "));
   expect(commands.some((line) => line.startsWith("gate resolve jt-approve --json --actor"))).toBe(true);
   expect(commands.some((line) => line.startsWith("human respond jt-review --response Approved wording: Plan meals in minutes --json --actor"))).toBe(true);
-  await expect(page.locator("[data-waiting-list]")).toContainText("Nothing is waiting on you.");
+  // Said once, in the answer (D45); an emptied queue draws no empty panel.
+  await expect(page.locator("[data-tasks-answer]")).toContainText("Nothing waits on you");
+  await expect(page.locator("[data-waiting-list]")).toHaveCount(0);
   await assertNoPageOverflow(page);
 
   // A finding's File task: prefilled from the finding's own fields, filed
@@ -1792,7 +1794,8 @@ test("a new site raises no nightly-report warning anywhere, and the System fract
   await expect(page.getByText("Waiting for first report")).toHaveCount(0);
 
   await page.goto("/health");
-  await expect(page.getByText("Source history").first()).toBeVisible();
+  // Source history waits for three points (D45); the status card is drawn.
+  await expect(page.getByRole("region", { name: "System status" })).toBeVisible();
   await expect(page.getByText("Finish setup on Journey Example")).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Other sources", exact: true })).not.toContainText(/nightly report/i);
 
@@ -1811,10 +1814,11 @@ test("a new site raises no nightly-report warning anywhere, and the System fract
   await expect(panel.locator('[data-site-row] [data-connection="working"]').first()).toBeVisible({ timeout: 60_000 });
   await page.goto("/");
   await expect(page.locator("[data-first-run]")).toHaveCount(0);
-  const system = page.locator('[data-kpi="System"]');
-  await expect(system).toContainText("nothing expected to report");
-  await expect(system).not.toContainText("fresh");
-  await expect(system.locator("[data-coverage-split]")).toHaveCount(0);
+  // Home is the brief (D44): the OS never describes itself here, so no
+  // System cell, no freshness fraction, nothing about a report it is not owed.
+  await expect(page.locator("[data-home-brief]")).toBeVisible();
+  await expect(page.locator('[data-kpi="System"]')).toHaveCount(0);
+  await expect(page.getByRole("main")).not.toContainText(/expected to report|fresh\b/);
   expect(pageErrors).toEqual([]);
 });
 
@@ -2235,18 +2239,13 @@ test("a new site's Settings fits a tablet, a laptop and a phone, and names its t
     await expect(page.locator("main")).not.toContainText("ASSET_TOKENS");
     const size = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
     expect(size.scroll, `Settings wider than a ${width}px screen`).toBe(size.width);
-    // Bead ro-ujb9.169: the Panel refresh table fits its own box too. At 768
-    // its card is ~450px wide, so its rows reflow into labelled cards rather
-    // than hiding Since and the row's actions behind a sideways scroll.
-    const panel = page.locator("table[data-stacked]").filter({ has: page.locator('td[data-label="Since"]') });
-    const fit = await panel.evaluate((table) => ({
-      table: [table.scrollWidth, table.clientWidth],
-      box: [table.parentElement!.scrollWidth, table.parentElement!.clientWidth],
-    }));
-    expect(fit.table[0], `the Panel refresh table scrolls sideways at ${width}px`).toBe(fit.table[1]);
-    expect(fit.box[0], `the Panel refresh box scrolls sideways at ${width}px`).toBe(fit.box[1]);
-    const since = await panel.locator('td[data-label="Since"]').boundingBox();
-    expect(since && since.x + since.width, `Since is off the right edge at ${width}px`).toBeLessThanOrEqual(width);
+    // A new site has no search source, so Tracked search terms is one link
+    // to its Data sources rather than the Panel refresh table (D45).
+    const needsSearch = page.locator("[data-tracked-terms-needs-search]");
+    await expect(needsSearch).toBeVisible();
+    await expect(page.locator("table[data-stacked]").filter({ has: page.locator('td[data-label="Since"]') })).toHaveCount(0);
+    const link = await needsSearch.boundingBox();
+    expect(link && link.x + link.width, `the search link is off the right edge at ${width}px`).toBeLessThanOrEqual(width);
   }
 });
 
@@ -2360,7 +2359,7 @@ test("Home guides a new site to its first number, then becomes the dashboard", a
   // opens on the chart of what was collected.
   await page.goto("/");
   await expect(page.locator("[data-first-run]")).toHaveCount(0);
-  await expect(page.locator("[data-kpi-strip]").first()).toBeVisible();
+  await expect(page.locator("[data-home-brief]")).toBeVisible();
   await page.goto(`/assets/${JOURNEY_ASSET}`);
   await expect(page.locator("[data-hero-chart]").filter({ hasText: "Search clicks · daily" })).toBeVisible();
   await assertNoPageOverflow(page);
@@ -2390,7 +2389,7 @@ test("a one-site install reads as one site: no portfolio words, and no filter wi
   const screens: [string, Locator][] = [
     ["/", page.locator("[data-portfolio-census]")],
     ["/assets", main.locator('[data-asset-row="journey.example"]').first()],
-    ["/health", main.getByText("Source history").first()],
+    ["/health", main.getByRole("region", { name: "System status" })],
     ["/financials", main.getByRole("region", { name: "Daily revenue" })],
     ["/alerts", main.locator("[data-alert-filters]")],
     ["/tasks", main.locator("[data-tasks-filters]")],

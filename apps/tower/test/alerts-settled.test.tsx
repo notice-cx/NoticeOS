@@ -131,9 +131,9 @@ function loadAlerts(url = "/alerts") {
 
 /** The strip's settled figure — the value printed right after its label. */
 function settledThisWeek(container: HTMLElement): string {
-  const cell = container.querySelector<HTMLElement>('[data-kpi="Settled · 7d"]');
-  if (cell === null) throw new Error("no Settled · 7d on the strip");
-  return /Settled · 7d(\d+\+?|—)/.exec(cell.textContent ?? "")?.[1] ?? "";
+  // The answer's "Settled this week" figure (D45); absent while the archive
+  // has not answered, which reads as the dash the strip used to print.
+  return container.querySelector<HTMLElement>("[data-alerts-settled] dd")?.textContent ?? "—";
 }
 
 /** Act on a row, and return once the Worker has answered the action: its

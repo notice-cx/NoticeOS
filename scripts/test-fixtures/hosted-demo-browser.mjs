@@ -203,7 +203,7 @@ export async function proveHostedDemoBrowser(t, options) {
           await expect(page.locator('[data-demo-viewer]')).toContainText('Scenario through');
           await expect(main).toBeVisible();
           if (route === '/') {
-            await expect(main.locator('[aria-labelledby="home-status-scope"]')).toBeVisible();
+            await expect(main.locator('[data-home-brief]')).toBeVisible();
             await expect(main.getByRole('region', { name: 'Sites', exact: true })).toContainText(scenario.assets[0].name);
           }
           if (route === '/assets') await expect(main.getByRole('link', { name: scenario.assets[0].name, exact: true })).toBeVisible();

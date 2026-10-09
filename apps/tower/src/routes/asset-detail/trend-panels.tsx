@@ -242,7 +242,7 @@ export function TrendPanel({
         data-window-start={completedWindow?.start}
         data-window-end={completedWindow?.end}>
         {completedWindow ? <>
-          <span>Completed reports · {formatCalendarRange(completedWindow.start, completedWindow.end)}</span>
+          <span>{formatCalendarRange(completedWindow.start, completedWindow.end)}</span>
           {settled.length < days ? <span>· {settled.length} of {days} days reported</span> : null}
         </> : <span>No completed reports</span>}
       </div>

@@ -12,11 +12,13 @@ import {
   DEFAULT_RANGE_DAYS,
   averageSeries,
   placeAnnotations,
+  placeSpans,
   provisionalIndex,
   seriesGrain,
   shiftLabel,
   weekendSpans,
   type SurfaceAnnotation,
+  type SurfaceSpan,
 } from "@shared/surface";
 import type { SeriesPoint } from "@shared/wall";
 import { formatCalendarDate, formatInt, formatSeriesDate } from "@/lib/format";
@@ -145,6 +147,9 @@ export interface HeroChartProps {
   area?: boolean;
   weekends?: boolean;
   annotations?: readonly SurfaceAnnotation[];
+  /** Watch windows shaded behind the series (D44): the days a shipped change
+   * is being judged in, each with one label at its start. */
+  spans?: readonly SurfaceSpan[];
   provisionalFrom?: string | null;
   format?: (value: number) => string;
   /** Point details and table values; defaults to the axis format. */
@@ -396,6 +401,7 @@ export function HeroChart({
   area = true,
   weekends = true,
   annotations = [],
+  spans = [],
   provisionalFrom = null,
   format = formatInt,
   formatValue = format,
@@ -520,6 +526,7 @@ export function HeroChart({
   const floor = PAD_TOP + plotHeight;
   const percentOf = (index: number) => (xOf(index) / VIEW_WIDTH) * 100;
 
+  const windows = placeSpans(domain, spans);
   const marks = placeAnnotations(
     domain.map((t) => ({ t, v: 0 })),
     annotations,
@@ -769,6 +776,22 @@ export function HeroChart({
               />
             ))}
 
+            {/* THE WINDOWS A CHANGE IS JUDGED IN (D44): a quiet warn wash
+                from the day the watch began to its verdict day, under the
+                series and the grid, so the ▲ mark and its consequence share
+                one axis. Clipped at the window's edge when it runs past it. */}
+            {windows.map((window) => (
+              <rect
+                key={`span-${window.startIndex}-${window.label}`}
+                data-hero-span={window.label}
+                x={xOf(Math.max(0, window.startIndex - 0.5))}
+                width={Math.max(2, xOf(Math.min(domain.length - 1, window.endIndex + 0.5)) - xOf(Math.max(0, window.startIndex - 0.5)))}
+                y={PAD_TOP}
+                height={plotHeight}
+                className="fill-warn opacity-10"
+              />
+            ))}
+
             {ticks.map((value, step) =>
               // The zero tick is drawn once, below, as the zero LINE.
               signed && value === 0 ? null : (
@@ -896,6 +919,17 @@ export function HeroChart({
               />
             ) : null}
           </svg>
+
+          {windows.map((window) => (
+            <span
+              key={`span-label-${window.startIndex}-${window.label}`}
+              data-hero-span-label=""
+              className="pointer-events-none absolute top-0.5 max-w-[45%] truncate rounded-sm bg-card/80 px-1 text-[10px] leading-4 text-warn"
+              style={{ left: `${Math.min(80, percentOf(Math.max(0, window.startIndex)))}%` }}
+            >
+              {window.label}
+            </span>
+          ))}
 
           {marks.length > 0 ? <ChartEventMarkers
             lineTargets

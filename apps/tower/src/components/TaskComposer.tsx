@@ -534,7 +534,7 @@ export function TaskComposer({
                 />
               </Field>
 
-              <Field id={`${fieldId}-acceptance`} label="Acceptance criteria">
+              <Field id={`${fieldId}-acceptance`} label="Done when">
                 <textarea
                   id={`${fieldId}-acceptance`}
                   className={cn(FIELD, "min-h-16 resize-y")}

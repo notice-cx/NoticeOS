@@ -100,7 +100,7 @@ export function SearchTab({
             to={`${pathFor(data.asset.id, "growth")}#panel-scoreboard`}
             className="mt-1 inline-flex min-h-11 items-center text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
           >
-            How the panel is moving →
+            How search terms move →
           </Link>
         </section>
       ) : null}

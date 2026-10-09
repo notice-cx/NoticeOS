@@ -107,43 +107,13 @@ export function createHostedDemo(options) {
                             }
                             return inTransaction(tx, signal, scoped => writer.write(scoped, facts));
                         } }, { ...DEMO_ACTIVITY_DEFINITION.steps[1], run: async ({ input, signal }) => {
-                            const task = activity.day(dateOf(input)).task;
-                            if (!task)
+                            const intentions = activity.day(dateOf(input)).tasks;
+                            if (intentions.length === 0)
                                 return { skipped: 1 };
-                            const projectId = projects.get(task.asset);
-                            const proof = new Request('https://noticeos.internal/demo-task', { method: 'POST', signal });
-                            const deadline = Date.now() + 29000;
-                            const execute = (operation) => tasks.execute(proof, workspaceId, { projectId, operation }, { signal, deadline });
-                            const active = rows(await execute({ kind: 'active-board', statuses: ['open', 'in_progress', 'blocked', 'deferred'] }));
-                            const label = `synthetic:${task.key}`;
-                            const matching = active.filter(row => Array.isArray(row.labels) && row.labels.includes(label));
-                            if (task.phase === 'create') {
-                                if (matching.length)
-                                    refuse();
-                                const created = await execute({ kind: 'create', title: task.title, description: task.description,
-                                    acceptance: task.acceptance, type: 'task', priority: 2, labels: ['synthetic-demo', label] });
-                                const row = Array.isArray(created) ? created[0] : created;
-                                if (!row || typeof row !== 'object' || !('id' in row) || typeof row.id !== 'string')
-                                    refuse();
-                                return { filed: 1 };
-                            }
-                            if (matching.length !== 1)
-                                refuse();
-                            const found = matching[0];
-                            if (typeof found.id !== 'string' || found.issue_type !== 'task'
-                                || found.created_by !== serviceId || !Array.isArray(found.labels) || !found.labels.includes('synthetic-demo')
-                                || found.labels.includes('human'))
-                                refuse();
-                            if (task.phase === 'start') {
-                                if (found.status !== 'open')
-                                    refuse();
-                                await execute({ kind: 'update', taskId: found.id, claim: true });
-                                return { written: 1 };
-                            }
-                            if (found.status !== 'in_progress' || found.assignee !== serviceId)
-                                refuse();
-                            await execute({ kind: 'close', taskId: found.id, reason: task.closeReason });
-                            return { closed: 1 };
+                            const tally = { filed: 0, written: 0, closed: 0 };
+                            for (const task of intentions)
+                                tally[await applyTask(task, signal)] += 1;
+                            return tally;
                         } }, { ...DEMO_ACTIVITY_DEFINITION.steps[2], run: async ({ signal }, tx) => {
                             // This is a bounded read of the actual task service, followed by the
                             // ordinary cache writer. A failed read can retry without repeating a
@@ -152,6 +122,47 @@ export function createHostedDemo(options) {
                             return inTransaction(tx, signal, scoped => writer.snapshot(scoped, snapshot));
                         } }],
             }] });
+    /** One site's task intention against the real task service: a repeated
+     * date finds its earlier write (a created task, a claim, a close) and
+     * refuses to repeat it. */
+    async function applyTask(task, signal) {
+        {
+            const projectId = projects.get(task.asset);
+            const proof = new Request('https://noticeos.internal/demo-task', { method: 'POST', signal });
+            const deadline = Date.now() + 29000;
+            const execute = (operation) => tasks.execute(proof, workspaceId, { projectId, operation }, { signal, deadline });
+            const active = rows(await execute({ kind: 'active-board', statuses: ['open', 'in_progress', 'blocked', 'deferred'] }));
+            const label = `synthetic:${task.key}`;
+            const matching = active.filter(row => Array.isArray(row.labels) && row.labels.includes(label));
+            if (task.phase === 'create') {
+                if (matching.length)
+                    refuse();
+                const created = await execute({ kind: 'create', title: task.title, description: task.description,
+                    acceptance: task.acceptance, type: 'task', priority: 2, labels: ['synthetic-demo', label] });
+                const row = Array.isArray(created) ? created[0] : created;
+                if (!row || typeof row !== 'object' || !('id' in row) || typeof row.id !== 'string')
+                    refuse();
+                return 'filed';
+            }
+            if (matching.length !== 1)
+                refuse();
+            const found = matching[0];
+            if (typeof found.id !== 'string' || found.issue_type !== 'task'
+                || found.created_by !== serviceId || !Array.isArray(found.labels) || !found.labels.includes('synthetic-demo')
+                || found.labels.includes('human'))
+                refuse();
+            if (task.phase === 'start') {
+                if (found.status !== 'open')
+                    refuse();
+                await execute({ kind: 'update', taskId: found.id, claim: true });
+                return 'written';
+            }
+            if (found.status !== 'in_progress' || found.assignee !== serviceId)
+                refuse();
+            await execute({ kind: 'close', taskId: found.id, reason: task.closeReason });
+            return 'closed';
+        }
+    }
     // The release's own job identities, so the hosted scheduler records each
     // execution in the journal Workflows and System health read: the
     // quarter-hour Google refresh writes today's provisional counts, the outcome

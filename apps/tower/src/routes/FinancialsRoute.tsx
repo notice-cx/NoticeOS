@@ -18,21 +18,21 @@ import {
   type RecurringCost,
 } from "@shared/financials";
 import { integrationLabel } from "@shared/integrations";
-import { periodDelta, type SeriesPointOrGap } from "@shared/surface";
+import { type SeriesPointOrGap } from "@shared/surface";
 import type { SeriesPoint } from "@shared/wall";
 import { CollectionEditor } from "@/components/CollectionEditor";
 import { EmptyState } from "@/components/EmptyState";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { PageHeader } from "@/components/PageHeader";
+import { PageAnswer } from "@/components/surface/PageAnswer";
+import { monthRevenue } from "@/lib/wall-revenue";
 import { SavesPaused } from "@/components/SavesPaused";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { SegmentBar } from "@/components/SegmentBar";
 import { StateChip, type StateChipProps, type StatusSubject } from "@/components/StateChip";
 import { HeroChart, type HeroSeries } from "@/components/surface/HeroChart";
-import { Kpi, KpiStrip } from "@/components/surface/KpiStrip";
 import { SectionLabel, eyebrowClass } from "@/components/surface/SectionLabel";
 import { Sparkline } from "@/components/surface/Sparkline";
-import { Card } from "@/components/ui/card";
 import { fieldClass } from "@/components/ui/field";
 import { pillControlClass } from "@/components/ui/pill";
 import {
@@ -49,6 +49,7 @@ import { useIntegrations } from "@/hooks/useIntegrations";
 import { FinancialsPeriodError } from "@/lib/api";
 import {
   formatPeriodMonth,
+  formatPeriodMonthLong,
   formatPeriodMonthYear,
   formatPercent,
   formatSignedMoney,
@@ -153,7 +154,7 @@ export default function FinancialsRoute() {
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3.5 p-4 md:p-6">
       <PageHeader
-        title="Financials"
+        title="Money"
         /* THE PAGE'S ONE QUESTION, not a fact about the query behind it (doc
            21). This slot used to read "latest month with rows" whenever the
            ledger's newest month was not the calendar one — a sentence about how
@@ -162,7 +163,6 @@ export default function FinancialsRoute() {
            the month in full ("August 2026") and a reader standing in September
            can see it; what nothing else on the page said was what the page is
            FOR. */
-        description="Am I making money, and where?"
         actions={
           /* THE SELECTOR SURVIVES A BAD MONTH (bead `ro-dm67`). It is the page's
              standing way to move, and it vanished on exactly the state that
@@ -445,17 +445,15 @@ function Panel({
   );
 }
 
-/** Positive money reads green, negative muted — never red: an asset that has
- * not been given a revenue source has not failed at anything. */
+/** A net is a level, not a trend (doc 21 principle 5; D45): ink for any
+ * amount, muted for a loss or nothing — never green for being positive and
+ * never red: an asset that has not been given a revenue source has not failed
+ * at anything. */
 function netClass(value: number | null): string {
   if (value === null) return "text-muted-foreground";
-  return value > 0 ? "text-trend-positive" : value < 0 ? "text-muted-foreground" : "";
+  return value < 0 ? "text-muted-foreground" : "";
 }
 
-/** Currency codes and unavailable states keep their full text inside a phone KPI. */
-function moneyKpiValue(value: string): ReactNode {
-  return <span data-money-value className={value.length > 8 ? "text-xl max-sm:text-lg" : undefined}>{value}</span>;
-}
 
 /** One month's figures as a series point, in the ledger's own monthly grain. */
 function monthly(
@@ -486,7 +484,7 @@ function PortfolioRevenue({ history, sites }: { history: PortfolioDailyRevenue; 
   ]));
   const partialDates = history.coverage.filter(day => day.reported > 0 && day.missingAssets.length > 0).map(day => day.date);
   return <DailyRevenuePanel history={history} range={revenueWindowDays(history.from, history.to)}
-    title="Daily revenue" notesByDate={notesByDate} partialDates={partialDates}
+    title="Daily revenue" notesByDate={notesByDate} partialDates={partialDates} totals={false}
     setupHref="/integrations"
     context={coverage ? <SourceCoverage history={history} /> : null} />;
 }
@@ -535,7 +533,8 @@ function Ledger({ data }: { data: FinancialsPayload }) {
   // How many sites the installation has — the sidebar's own read, already in
   // the cache — so a month in which only one of several sites earned keeps its
   // by-site table (bead `ro-ujb9.129`). Null until that read answers.
-  const sites = useWall().data?.assets.length ?? null;
+  const wall = useWall().data;
+  const sites = wall?.assets.length ?? null;
   /* The OPEN month is the calendar month the STORE is standing in, as the
      Worker worked it out on the operator's saved clock when it built this
      payload — not off `period`: the reader may have selected June, and June is
@@ -558,25 +557,6 @@ function Ledger({ data }: { data: FinancialsPayload }) {
   const revenue = monthly(upto, (month) => month.total.revenue);
   const cost = monthly(upto, (month) => month.total.cost);
   const net = monthly(upto, (month) => month.total.net);
-  const reconciled = monthly(upto, (month) => month.booked.currency === null ? null : month.booked.revenue + month.booked.cost);
-
-  /* ONE MONTH AGAINST THE ONE BEFORE IT — the delta an accounting page owes.
-     It is withheld while the shown month is still open: a month the ledger is
-     four days into is always short, so comparing it with a finished one reports
-     a collapse every single time the page is opened. */
-  const against = (series: SeriesPoint[]) =>
-    shownIsOpen ? null : periodDelta(series, 1);
-
-  /* WHILE THE MONTH IS OPEN, THE LAST CLOSED MONTH IS THE REFERENCE — its
-     whole figure, as a number with no verdict, where the withheld delta would
-     sit (Stripe and ChartMogul keep the comparison beside a partial period;
-     docs/briefs/financials.md). The header's "Month to date" chip says why
-     there is no percentage, once for all three. */
-  const previous = upto.at(-2);
-  const lastClosed = (read: (month: FinancialMonth) => number | null) =>
-    shownIsOpen && previous
-      ? `${formatPeriodMonth(previous.period)} total ${formatMoney(read(previous), previous.total.currency, CENTS)}`
-      : undefined;
 
   /** The month's whole turnover, both sides, split by what has settled.
    * MAGNITUDES, not signed sums: revenue and cost each have to be checked
@@ -584,113 +564,18 @@ function Ledger({ data }: { data: FinancialsPayload }) {
    * a negative estimated adjustment is still money nobody has checked — summed
    * with its sign it would shrink the unsettled share it belongs to. */
   const settled = shown.booked.currency === null ? null : Math.abs(shown.booked.revenue) + Math.abs(shown.booked.cost);
-  const unsettled = shown.estimated.currency === null ? null : Math.abs(shown.estimated.revenue) + Math.abs(shown.estimated.cost);
-  const summaryCurrency = moneyCurrency([shown.booked, shown.estimated]);
   const trendCurrency = moneyCurrency(upto.map(month => month.total));
+  // Whether any cost has been written down at all: a month with no cost line
+  // and a zero total has costs nobody recorded, not costs of zero.
+  const costRecorded = data.costLines.length > 0 || shown.total.cost !== 0;
 
   return (
     <>
-      {/* The monthly summary precedes daily estimates. Accounting history
-          stays with the month-by-month detail below asset contributions. */}
-      <div data-surface-hero>
-        <Card className="overflow-hidden p-0">
-          <KpiStrip columns={4}>
-            <Kpi
-              className="min-w-0 grid-cols-[minmax(0,1fr)]"
-              label="Net"
-              value={moneyKpiValue(formatSignedMoney(shown.total.net, shown.total.currency, CENTS))}
-              /* Doc 21: Net's movement carries no verdict — a month that
-                 doubled its revenue and its costs moved a long way and means
-                 nothing by it — so it shows its COMPOSITION instead. */
-              improvement="none"
-              delta={null}
-              /* How much of it is still an estimate is the Reconciled figure
-                 beside it — stated there once, not appended here as well. */
-              caption={`revenue ${formatMoney(shown.total.revenue, shown.total.currency, CENTS)} · cost ${formatMoney(shown.total.cost, shown.total.currency, CENTS)}`}
-              spark={net}
-              sparkTone={SERIES.net.tone}
-              sparkAverage={false}
-              sparkProvisionalFrom={openPeriod}
-              format={(value) => formatMoney(value, trendCurrency)}
-            />
-            <Kpi
-              className="min-w-0 grid-cols-[minmax(0,1fr)]"
-              label="Revenue"
-              value={moneyKpiValue(formatMoney(shown.total.revenue, shown.total.currency, CENTS))}
-              delta={against(revenue)}
-              caption={lastClosed((month) => month.total.revenue)}
-              spark={revenue}
-              sparkTone={SERIES.revenue.tone}
-              sparkAverage={false}
-              sparkProvisionalFrom={openPeriod}
-              format={(value) => formatMoney(value, trendCurrency)}
-            />
-            <Kpi
-              className="min-w-0 grid-cols-[minmax(0,1fr)]"
-              label="Cost"
-              value={moneyKpiValue(formatMoney(shown.total.cost, shown.total.currency, CENTS))}
-              /* Spending less is the good direction, so a falling cost is the
-                 green one (doc 21's `improvement`). */
-              improvement="down"
-              delta={against(cost)}
-              caption={lastClosed((month) => month.total.cost)}
-              spark={cost}
-              sparkTone={SERIES.cost.tone}
-              sparkAverage={false}
-              sparkProvisionalFrom={openPeriod}
-              format={(value) => formatMoney(value, trendCurrency)}
-            />
-            <Kpi
-              className="min-w-0 grid-cols-[minmax(0,1fr)]"
-              label="Reconciled"
-              /* WHAT HAS BEEN CHECKED AGAINST A STATEMENT, as money rather than
-                 as a share: "23% reconciled" of a month whose net is near zero
-                 is a percentage of almost nothing. The gross is the
-                 denominator — revenue and cost both have to be settled, and a
-                 net of zero can hide two large unsettled sides.
-
-                 IT SHOWS ITS COMPOSITION, NOT A SERIES. The bar is the whole of
-                 what the reader wants from this figure — how much of the month
-                 has been checked — and it says it in one glance where the
-                 caption needs two numbers subtracted. The complement used to be
-                 a sixth KPI labelled "Forecast", which was the same fact twice:
-                 $681.63 unreconciled is not a forecast of anything, it is what
-                 this bar's grey half already draws. */
-              value={moneyKpiValue(formatMoney(settled, shown.booked.currency, CENTS))}
-              /* THE OTHER HALF, NAMED (bead `ro-ujb9.96.6.9`) — the way a bank
-                 shows available beside pending rather than explaining what
-                 pending means. The bar under it is the same split as a shape;
-                 an explanation tooltip and an About paragraph used to say it
-                 in words. */
-              caption={
-                unsettled !== null && unsettled > 0
-                  ? `${formatMoney(unsettled, shown.estimated.currency, CENTS)} estimated`
-                  : settled === null || unsettled === null ? "Currency unavailable"
-                  : settled !== null && settled > 0
-                    ? "all reconciled"
-                    : "nothing recorded"
-              }
-              /* Nothing settled in either of the two months compared means no
-                 movement to report, and `−$0` beside a zero is a comparison
-                 pretending to be one — even when an older month did settle. */
-              delta={reconciled.slice(-2).every((point) => point.v === 0) ? null : against(reconciled)}
-              footer={summaryCurrency === null || settled === null || unsettled === null ? undefined :
-                <SegmentBar
-                  className="mt-2"
-                  ariaLabel={`${formatMoney(settled, shown.booked.currency, CENTS)} reconciled, ${formatMoney(unsettled, shown.estimated.currency, CENTS)} estimated`}
-                  segments={[
-                    { name: "reconciled", value: settled, fill: "bg-foreground/70" },
-                    { name: "estimated", value: unsettled, fill: "bg-muted-foreground/25" },
-                  ]}
-                />
-              }
-              format={(value) => formatMoney(value, trendCurrency)}
-            />
-          </KpiStrip>
-
-
-        </Card>
-      </div>
+      {/* ONE ANSWER FIRST (D45): the month's net in a sentence, the pace
+          Home and the TV say under it while the month is open, and revenue,
+          cost and what is confirmed beside it. A cost nobody recorded is a
+          dash, never $0 (doc 21 principle 8). */}
+      <MoneyAnswer shown={shown} shownIsOpen={shownIsOpen} costRecorded={costRecorded} settled={settled} wall={wall} />
 
       {data.dailyRevenue ? <PortfolioRevenue history={data.dailyRevenue} sites={sites} /> : null}
 
@@ -739,13 +624,16 @@ function Ledger({ data }: { data: FinancialsPayload }) {
         <MonthlyTable months={data.months} openPeriod={openPeriod} />
       </Panel>
 
-      <Panel
-        title="Where the cost comes from"
-        count={`${data.costLines.length} lines`}
-        mark="cost-breakdown"
-      >
-        <CostBreakdown lines={data.costLines} recurringCosts={data.recurringCosts} />
-      </Panel>
+      {/* A disclosure with nothing behind it is a box to open for nothing. */}
+      {data.costLines.length > 0 ? (
+        <Panel
+          title="Where the cost comes from"
+          count={`${data.costLines.length} lines`}
+          mark="cost-breakdown"
+        >
+          <CostBreakdown lines={data.costLines} recurringCosts={data.recurringCosts} />
+        </Panel>
+      ) : null}
 
       {/* THE TWO REGISTERS ARE DELIBERATELY ON A VIEW PAGE (bead `ro-x5gu.2`),
           which is what `data-config-surface` declares: doc 21 keeps owner chips
@@ -754,7 +642,6 @@ function Ledger({ data }: { data: FinancialsPayload }) {
           the page that spends them. */}
       <Panel
         title="Declared costs"
-        count="2 registers"
         mark="costs"
         configSurface
       >
@@ -777,6 +664,43 @@ function Ledger({ data }: { data: FinancialsPayload }) {
           reported revenue for is a dash; a domain about to renew wears a
           chip. Prior art: docs/briefs/financials.md. */}
     </>
+  );
+}
+
+/**
+ * THE MONTH'S ANSWER (D45). "September net +$135 so far", and while the month
+ * is open the revenue pace Home's brief and the TV state (`monthRevenue`, the
+ * one derivation), so September is one number on every screen. A cost nobody
+ * recorded is "none recorded", and the net says "revenue only", never a green
+ * net over a $0 nobody counted.
+ */
+function MoneyAnswer({ shown, shownIsOpen, costRecorded, settled, wall }: {
+  shown: FinancialMonth;
+  shownIsOpen: boolean;
+  costRecorded: boolean;
+  settled: number | null;
+  wall: ReturnType<typeof useWall>["data"];
+}) {
+  const currency = shown.total.currency;
+  const month = formatPeriodMonthLong(shown.period).replace(/\s\d{4}$/, "");
+  const pace = shownIsOpen && wall ? monthRevenue(wall.portfolio, wall.assets)?.pace ?? null : null;
+  const detail = [
+    pace ? `on pace for ${formatUsd(pace.projected)} revenue · ${pace.daysLeft} ${pace.daysLeft === 1 ? "day" : "days"} left` : null,
+    costRecorded ? null : "revenue only",
+  ].filter(Boolean).join(" · ") || undefined;
+  return (
+    <PageAnswer
+      answer={`${month} net ${formatSignedMoney(shown.total.net, currency)}${shownIsOpen ? " so far" : ""}`}
+      detail={detail}
+      figures={[
+        { label: "Revenue", value: formatMoney(shown.total.revenue, currency), tone: "text-financial-revenue", mark: "money-revenue" },
+        costRecorded
+          ? { label: "Cost", value: formatMoney(shown.total.cost, currency), mark: "money-cost" }
+          : { label: "Cost", value: "—", note: "none recorded", mark: "money-cost" },
+        { label: "Confirmed", value: formatMoney(settled, shown.booked.currency), mark: "money-confirmed" },
+      ]}
+      marks={{ "data-surface-hero": "", "data-money-answer": shownIsOpen ? "open" : "closed" }}
+    />
   );
 }
 
@@ -817,7 +741,9 @@ function PropertySplit({
   const several = (sites ?? owned.length) > 1;
   const overheadExists = overhead.cost !== 0 || overhead.revenue !== 0;
   if (!several && !overheadExists) return null;
-  const subtotal = several;
+  // "Sites, direct" is the total minus the overhead; with no overhead it is
+  // the total again, one figure twice (D45), so it goes with the overhead row.
+  const subtotal = several && overheadExists;
   const direct = sumMoneyFigures(owned.map(property => property.figure));
   const portfolio = sumMoneyFigures([...owned.map(property => property.figure), overhead]);
   const directNet = direct.net;
@@ -952,7 +878,7 @@ function PropertySplit({
             {/* The OS line is the whole reason nothing above it is allocated.
                 Splitting $200 of Claude Code six ways needs a key nobody
                 measured; subtracting it once, in the open, needs nothing. */}
-            <TableRow className={subtotal ? undefined : "border-t-2 border-border"}>
+            {overheadExists ? <TableRow className={subtotal ? undefined : "border-t-2 border-border"}>
               <TableCell className="font-medium">
                 Overhead
                 <span className="ml-2 text-xs font-normal text-muted-foreground">
@@ -967,7 +893,7 @@ function PropertySplit({
               <TableCell label="Net" className={cn("text-right tabular-nums", netClass(overhead.net))}>
                 {formatSignedMoney(overhead.net, overhead.currency, CENTS)}
               </TableCell>
-            </TableRow>
+            </TableRow> : null}
             <TableRow className="border-t-2 border-border">
               <TableCell className="font-semibold">Total net</TableCell>
               <TableCell />

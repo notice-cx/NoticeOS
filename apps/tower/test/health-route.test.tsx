@@ -30,6 +30,9 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('@/hooks/useWorkflows', () => ({ useWorkflows: () => ({ data: undefined, isError: false }) }));
+// System health names the OS's own problems from the Wall's read (D45); these
+// cases are about the workflow and connection reads, so the Wall has none.
+vi.mock('@/hooks/useWall', () => ({ useWall: () => ({ data: undefined, isError: false }) }));
 vi.mock('@/hooks/useGa4Realtime', () => ({ useGa4Realtime: () => ({ data: undefined, isError: false }) }));
 vi.mock("@/hooks/useIntegrations", () => ({
   useIntegrations: () => ({ data: state.data, isPending: false, isError: false }),
@@ -626,12 +629,12 @@ describe('source history shows available observations', () => {
     expect(getByText('View data · 4 days')).toBeInTheDocument();
     expect(container.querySelectorAll('[data-hero-point="Stalest source"]')).toHaveLength(2);
   });
-  it('shows progress when daily history is available but has no snapshots yet', () => {
-    const { container, getByText, queryByRole } = renderHealth({ history: emptyIntegrationsHistory() });
-    expect(container.querySelector('[data-source-history="building"]')).not.toBeNull();
-    expect(getByText('0 of 3 days recorded')).toBeInTheDocument();
-    expect(container.querySelector('[data-source-history="unavailable"]')).toBeNull();
-    expect(queryByRole('img', { name: "Hours since the stalest data source's newest evidence, by day" })).toBeNull();
+  it('draws no source-history card until it has three days to draw (D45)', () => {
+    const { container } = renderHealth({ history: emptyIntegrationsHistory() });
+    // A chart too short to be a line is not a card of its own; it arrives
+    // with its third day.
+    expect(container.querySelector('[data-source-history]')).toBeNull();
+    expect(container.querySelector('[aria-label="Source history"]')).toBeNull();
   });
 });
 

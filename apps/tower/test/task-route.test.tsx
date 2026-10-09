@@ -320,9 +320,9 @@ describe('hosted explicit project selection', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Claim' })).toBeEnabled());
     fireEvent.click(screen.getByRole('button', { name: 'Claim' }));
     await waitFor(() => expect(api.updateTask).toHaveBeenCalledWith(ID, { claim: true }, 'root-os'));
-    fireEvent.click(screen.getByRole('button', { name: 'Edit acceptance criteria' }));
-    fireEvent.change(screen.getByRole('textbox', { name: 'Acceptance criteria' }), { target: { value: 'Observed acceptance' } });
-    const field = document.querySelector('[data-task-field="Acceptance criteria"]') as HTMLElement;
+    fireEvent.click(screen.getByRole('button', { name: 'Edit done when' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Done when' }), { target: { value: 'Observed acceptance' } });
+    const field = document.querySelector('[data-task-field="Done when"]') as HTMLElement;
     fireEvent.click(within(field).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(api.updateTask).toHaveBeenCalledWith(ID, { acceptance: 'Observed acceptance' }, 'root-os'));
     pressUndo();
@@ -659,7 +659,7 @@ describe("the task page", () => {
     // The same way back every field has.
     pressUndo();
     await waitFor(() => expect(api.updateTask).toHaveBeenLastCalledWith(ID, { description: "" }));
-    expect(screen.getByRole("button", { name: /Add acceptance criteria/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Add when it is done/ })).toBeInTheDocument();
   });
 
   it("edits a written description in place and can cancel without a write", async () => {

@@ -142,20 +142,6 @@ export function AssetSettingsPanel({
   );
 }
 
-/** A one-line pointer to the portfolio Settings page, where a knob that governs
- * EVERY asset is actually edited. One line rather than an editor, because a
- * portfolio-wide number changed from one asset's page is a change the operator
- * did not know they were making. */
-function PortfolioPointer({ to, children }: { to: string; children: ReactNode }) {
-  return (
-    <p className="text-xs text-muted-foreground">
-      <Link to={to} className="font-medium text-foreground underline-offset-4 hover:underline">
-        {children}
-      </Link>
-    </p>
-  );
-}
-
 /** A value that cannot change here: the value, a lock, and the state in words
  * — the same "Fixed once added" a register's locked column wears (bead
  * `ro-ujb9.96.6.4`), in place of a sentence explaining why. */
@@ -645,6 +631,16 @@ function AlertRulesCard({ rules }: { rules: RulesInForce }) {
     <Panel
       title="Alert rules in force"
       count={rules.hasOverride ? "per-site override" : "no per-site override"}
+      // Where every site's rules change — the header's "All →" slot (doc 21),
+      // in place of two sentences pointing at Settings.
+      action={
+        <Link
+          to="/settings#alert-rules"
+          className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline max-sm:-my-2.5 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
+        >
+          All sites' rules →
+        </Link>
+      }
     >
       <div>
         {/* No `explain` here (doc 21, `ro-78qo.5`; bead `ro-ujb9.96.6.4`):
@@ -658,14 +654,6 @@ function AlertRulesCard({ rules }: { rules: RulesInForce }) {
             value={k.value}
           />
         ))}
-      </div>
-      <div className="mt-3 flex flex-col gap-1">
-        <PortfolioPointer to="/settings#alert-rules">
-          Defaults live in Settings → Alert rules
-        </PortfolioPointer>
-        <PortfolioPointer to="/settings#budget">
-          Spend caps and the operator rate live in Settings → Budget
-        </PortfolioPointer>
       </div>
     </Panel>
   );
@@ -700,6 +688,9 @@ function AlertRulesCard({ rules }: { rules: RulesInForce }) {
  * twenty-eight times (doc 14). The figure that does vary is the panel's own, so
  * the panel carries it, as a meter against the ceiling.
  */
+/** The sources a panel refresh reads (`SEARCH_LANES`, scripts/config-registers.mts). */
+const SEARCH_LANE_IDS: ReadonlySet<string> = new Set(["gsc", "ga4", "bing-webmaster"]);
+
 function PanelSettings({
   assetId,
   panelConfig,
@@ -723,6 +714,26 @@ function PanelSettings({
   const dataCapUsd =
     portfolio.knobs.find((knob) => knob.key === "monthly_caps.data_usd")?.value ??
     null;
+
+  // NOTHING TO SET UNTIL THERE IS SEARCH (D44: an empty state leads to the
+  // next action). With no live search source and nothing tracked, the meter,
+  // the bill and the refresh table were three empty controls; the one next
+  // step is the source.
+  const searchLive = integrations.lanes.some((lane) => SEARCH_LANE_IDS.has(lane.catalog.id) && lane.cell.declared === "live");
+  const refreshOn = typeof panelConfig.roster === "object" && panelConfig.roster !== null && !Array.isArray(panelConfig.roster) && panelConfig.roster.enabled === true;
+  if (!searchLive && tracked === 0 && !refreshOn) {
+    return (
+      <Panel id="tracked-panels" title="Tracked search terms">
+        <Link
+          to={`/assets/${encodeURIComponent(assetId)}/sources`}
+          className="inline-flex min-h-11 items-center text-sm font-medium text-foreground underline-offset-4 hover:underline sm:min-h-0"
+          data-tracked-terms-needs-search
+        >
+          Connect a search source first →
+        </Link>
+      </Panel>
+    );
+  }
 
   return (
     <Panel

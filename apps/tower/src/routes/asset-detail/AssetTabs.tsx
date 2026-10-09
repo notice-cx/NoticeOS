@@ -40,7 +40,7 @@ export type AssetTab = (typeof ASSET_TABS)[number];
 const TAB_LABEL: Record<AssetTab, string> = {
   overview: "Overview",
   growth: "Growth",
-  financials: "Financials",
+  financials: "Money",
   search: "Search",
   alerts: "Alerts",
   tasks: "Tasks",
@@ -211,7 +211,7 @@ export function AssetTabs({
       return {
         ...base,
         count: openWatches,
-        title: `${openWatches} outcome check${openWatches === 1 ? "" : "s"} still running`,
+        title: `${openWatches} ${openWatches === 1 ? "bet" : "bets"} being watched`,
       };
     }
     if (key === "sources") {

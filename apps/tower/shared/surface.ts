@@ -365,6 +365,46 @@ export interface PlacedAnnotation {
   events: SurfaceAnnotation[];
 }
 
+/**
+ * A SPAN drawn behind a series (D44, doc 21 § Asset · Overview — the story
+ * chart): the days a change is being watched, so cause (the ▲ mark) and the
+ * window its effect is judged in sit on one axis.
+ */
+export interface SurfaceSpan {
+  /** First and last day, inclusive, in the series' own labels. */
+  start: string;
+  end: string;
+  /** Under twelve words: what is being watched and when the verdict lands. */
+  label: string;
+}
+
+export interface PlacedSpan {
+  startIndex: number;
+  endIndex: number;
+  label: string;
+  /** The span runs past the window's edge on that side. */
+  clippedStart: boolean;
+  clippedEnd: boolean;
+}
+
+/** Where each span lands on a drawn axis. A span wholly outside the window
+ * is dropped; one that crosses an edge is clipped and says so. */
+export function placeSpans(domain: readonly string[], spans: readonly SurfaceSpan[]): PlacedSpan[] {
+  if (domain.length === 0) return [];
+  const first = domain[0]!;
+  const last = domain[domain.length - 1]!;
+  const indexOf = new Map(domain.map((label, index) => [label, index]));
+  return spans.flatMap((span) => {
+    if (span.end < first || span.start > last || span.end < span.start) return [];
+    const clippedStart = span.start < first;
+    const clippedEnd = span.end > last;
+    const startIndex = clippedStart ? 0 : (indexOf.get(span.start) ?? domain.findIndex((label) => label >= span.start));
+    const endIndex = clippedEnd ? domain.length - 1 : (indexOf.get(span.end) ?? domain.findLastIndex((label) => label <= span.end));
+    if (startIndex < 0 || endIndex < 0 || endIndex < startIndex) return [];
+    return [{ startIndex, endIndex, label: span.label, clippedStart, clippedEnd }];
+  }).sort((a, b) => a.startIndex - b.startIndex);
+}
+
 export const ANNOTATION_GLYPH = "▲";
 
 /**

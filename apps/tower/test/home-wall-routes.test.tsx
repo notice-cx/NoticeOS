@@ -1,6 +1,7 @@
 import { integrationStatus } from '@shared/integration-status';
 import { INTEGRATION_PROVIDERS } from "@noticeos/contract";
 import { fireEvent, render, screen, waitFor, within } from "./render";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AttentionItem, CardDataSource, PortfolioBand, WallPayload } from "@shared/wall";
@@ -267,12 +268,20 @@ afterEach(() => {
   clockState.undone = 0;
 });
 
-function renderHome() {
-  return render(
-    <MemoryRouter>
-      <HomeRoute />
-    </MemoryRouter>,
+/** Home with the query client Decide's verbs need: an answer goes through the
+ * Tasks board's own path, which refreshes the task reads (useTaskRefresh). */
+function homeTree() {
+  return (
+    <QueryClientProvider client={new QueryClient()}>
+      <MemoryRouter>
+        <HomeRoute />
+      </MemoryRouter>
+    </QueryClientProvider>
   );
+}
+
+function renderHome() {
+  return render(homeTree());
 }
 
 function renderWall() {
@@ -332,7 +341,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     const wall = renderWall();
     expect(statusOn(wall.container, "Nightly report")).toBeUndefined();
     expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "healthy");
-    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: No open issues");
+    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: On track");
     expect(needsOn(wall.container)).toHaveAttribute("data-wall-needs", "calm");
   });
 
@@ -344,7 +353,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     const wall = renderWall();
     expect(statusOn(wall.container, "Google Analytics")).toBeUndefined();
     expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "healthy");
-    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: No open issues");
+    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: On track");
     expect(needsOn(wall.container)).toHaveAttribute("data-wall-needs", "calm");
     expect(wall.container.querySelector("[data-system-state]")).toBeNull();
   });
@@ -373,7 +382,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     const wall = renderWall();
     expect(wall.container.querySelector("[data-source]")).toBeNull();
     expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "healthy");
-    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: No open issues");
+    expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: On track");
     expect(needsOn(wall.container)).toHaveAttribute("data-wall-needs", "calm");
   });
 });
@@ -386,20 +395,6 @@ describe("Home shows each source's one status, and the Wall marks only a failing
  * have to be rewritten the next time a component's box changes; these break only
  * when the COMPOSITION does, which is what doc 21 is about.
  */
-function stripKpis(container: HTMLElement): HTMLElement[] {
-  return [...container.querySelectorAll<HTMLElement>("[data-kpi-strip] [data-kpi]")];
-}
-
-/** One KPI by name. `data-kpi` carries the metric's own label since bead
- * `ro-78qo.1`, which is the same handle the surface audit reads. */
-function kpiFor(container: HTMLElement, label: string): HTMLElement {
-  const found = container.querySelector<HTMLElement>(
-    `[data-kpi-strip] [data-kpi="${label}"]`,
-  );
-  if (!found) throw new Error(`no KPI labelled "${label}" in the strip`);
-  return found;
-}
-
 /** A `ListPanel` by its title — the accessible name it gives its own section. */
 function panelFor(name: string): HTMLElement {
   return screen.getByRole("region", { name });
@@ -574,7 +569,7 @@ describe("Home — a fresh install", () => {
     // something was measured, and nothing has been.
     expect(container.querySelector("[data-kpi-strip]")).toBeNull();
     expect(container.querySelector("[data-surface-hero]")).toBeNull();
-    expect(screen.queryAllByText("Waiting on you")).toHaveLength(0);
+    expect(screen.queryAllByText("Decide")).toHaveLength(0);
     expect(container.querySelector("table")).toBeNull();
     // Not even the table's own empty state (bead ro-ujb9.96.6.18: "No sites
     // yet" with Add a site) — one first-run state, not six.
@@ -590,7 +585,7 @@ describe("Home — a fresh install", () => {
     const { container } = renderHome();
 
     expect(container.querySelector("[data-first-run]")).toBeNull();
-    expect(container.querySelector("[data-kpi-strip]")).not.toBeNull();
+    expect(container.querySelector("[data-home-brief]")).not.toBeNull();
     // One site: its own lead, not a table row (bead ro-ujb9.127).
     expect(container.querySelector('[data-one-site-lead="meals.example"]')).not.toBeNull();
     expect(container.querySelectorAll("[data-asset-row]")).toHaveLength(0);
@@ -717,7 +712,7 @@ describe("Home — a site still being set up", () => {
     expect(container.querySelector("[data-kpi-strip]")).toBeNull();
     expect(container.querySelector("table")).toBeNull();
     expect(container.querySelector("[data-portfolio-census]")).toBeNull();
-    expect(screen.queryAllByText("Waiting on you")).toHaveLength(0);
+    expect(screen.queryAllByText("Decide")).toHaveLength(0);
   });
 
   it("keeps Connect as the one action while the key is saved but this site is not collecting", () => {
@@ -774,8 +769,8 @@ describe("Home — a site still being set up", () => {
     const { container } = renderHome();
 
     expect(container.querySelector("[data-first-run]")).toBeNull();
-    expect(container.querySelector("[data-kpi-strip]")).not.toBeNull();
-    expect(container.querySelectorAll("[data-asset-row]")).toHaveLength(2);
+    expect(container.querySelector("[data-home-brief]")).not.toBeNull();
+    expect(container.querySelectorAll("[data-site-cell]")).toHaveLength(2);
   });
 });
 
@@ -783,10 +778,15 @@ describe("Home — a site still being set up", () => {
  * one assets table, prose behind one `About`. The four separate tiles it used to
  * open with (bead ro-pbzu.3) are the four cells of that strip now. */
 // Missing core hub readings are unknown, never an absent capability or all-clear.
+// D44 (doc 21 § Home — the Morning Brief): `/` opens with what changed since
+// the operator last looked — the greeting line, at most five highlight cards
+// with the first the big thing, Decide at three rows, the sites in seed order
+// and a finish line. The OS never describes itself here.
+// Missing core hub readings are unknown, never an absent capability or all-clear.
 describe("Home and the Wall with an unread core task hub", () => {
   afterEach(resetTaskSourceMock);
 
-  it("keeps task navigation and an unknown inbox visible before any project has been read", () => {
+  it("keeps the brief and an unread Decide visible before any project has been read", () => {
     const prior = payload.operator;
     payload.operator = null;
     taskSourceMock.connected = null;
@@ -794,11 +794,9 @@ describe("Home and the Wall with an unread core task hub", () => {
     const { container } = renderHome();
     payload.operator = prior;
 
-    expect(stripKpis(container).map((kpi) => kpi.getAttribute("data-kpi"))).toEqual(["Net · Jul", "Needs you", "Open alerts", "System"]);
-    expect(screen.getByText("Waiting on you")).toBeVisible();
-    expect(screen.getByRole("columnheader", { name: /Tasks/ })).toBeVisible();
-    expect(container.textContent).toContain("no project has been read yet");
-    expect(container.textContent).toContain("Reading your tasks…");
+    expect(container.querySelector("[data-home-brief]")).not.toBeNull();
+    expect(panelFor("Decide")).toHaveTextContent("Reading your tasks…");
+    expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks");
   });
 
   it("shows the Wall's tasks as unknown while keeping specific non-task concerns covered", () => {
@@ -820,78 +818,36 @@ describe("Home and the Wall with an unread core task hub", () => {
 });
 
 /**
- * Bead ro-ujb9.127: one site is the most common workspace, and with one site
- * the portfolio IS that site. Home used to open on "Portfolio · 1 asset" and a
- * comparison table of one row; it now leads with the site's own strip and
- * chart — the Overview's lead, from the Overview's own read.
+ * Bead ro-ujb9.127: with one site the portfolio IS that site, so Home draws
+ * the site's own strip and chart — the Overview's lead, from the Overview's
+ * own read — under the brief (D44), and never a comparison table of one row.
  */
-/**
- * Bead ro-ujb9.13: stacked in desk order, a phone put the one site's chart (or
- * the month's money) above Needs you and Open alerts — 942px down an 844px
- * screen. Below `sm` the status strip leads, then the site, then the rows that
- * need you, then the money, then the sites; the desk's order is its DOM order,
- * untouched. jsdom has no layout, so the order classes are asserted.
- */
-describe("Home — on a phone, what needs you comes first (ro-ujb9.13)", () => {
-  const order = (element: Element | null) => element?.className.match(/max-sm:order-(\d)/)?.[1] ?? null;
-
-  it("orders status, the site, the rows, then the money, with one site", () => {
-    detail.data = viewOf(everyTabPayload(), "overview");
-    const { container } = renderHome();
-
-    const status = screen.getByRole("region", { name: "Latest status" });
-    expect(order(status)).toBe("1");
-    expect(order(container.querySelector("[data-one-site-lead]"))).toBe("2");
-    expect(order(screen.getByRole("region", { name: "Waiting on you" }).parentElement)).toBe("3");
-    expect(order(screen.getByRole("region", { name: /^Financials/ }))).toBe("4");
-    // The two sections join the page's own column on a phone, and only there.
-    expect(status.parentElement).toHaveClass("max-sm:contents", "lg:grid-cols-4");
-    // The desk reads in DOM order: the site's lead first, as doc 21 draws it.
-    const all = [...container.querySelectorAll("[data-one-site-lead], section[aria-labelledby]")];
-    expect(all[0]).toHaveAttribute("data-one-site-lead");
-  });
-
-  it("puts the sites after the money, from two sites", () => {
-    withSecondSite();
-    const { container } = renderHome();
-
-    expect(order(screen.getByRole("region", { name: "Latest status" }))).toBe("1");
-    expect(order(screen.getByRole("region", { name: "Sites" }))).toBe("5");
-    // The status strip is the answer, and the one the audit measures.
-    expect(container.querySelector("[data-surface-hero]")).toBe(screen.getByRole("region", { name: "Latest status" }));
-  });
-});
-
 describe("Home — one site leads with its own numbers (ro-ujb9.127)", () => {
-  it("leads with the site's strip fused to its chart, and draws no one-row table", () => {
+  it("draws the site's strip fused to its chart under the brief, and no one-row table", () => {
     detail.data = viewOf(everyTabPayload(), "overview");
     const { container } = renderHome();
 
     // The site's own read, the one its Overview polls.
     expect(detail.asked).toContain("meals.example:overview");
-    // The first thing under the header is the site's lead: the page's hero.
-    const lead = container.querySelector<HTMLElement>("[data-surface-hero]")!;
-    expect(lead).toHaveAttribute("data-one-site-lead", "meals.example");
+    // The brief is the hero (D44); the site's lead follows Decide.
+    const hero = container.querySelector<HTMLElement>("[data-surface-hero]")!;
+    expect(hero).toHaveAttribute("data-home-brief");
+    const lead = container.querySelector<HTMLElement>('[data-one-site-lead="meals.example"]')!;
+    expect(hero.compareDocumentPosition(lead) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     const traffic = within(lead).getByRole("region", { name: "Traffic · last 28 days" });
     expect(traffic.querySelectorAll("[data-kpi]")).toHaveLength(4);
     expect(traffic.querySelector("[data-hero-chart]")).toHaveTextContent("Active users · daily");
     // The site is named once, as the way to its page, beside its state.
     expect(within(lead).getByRole("link", { name: "Meal Planner →" })).toHaveAttribute("href", "/assets/meals.example");
 
-    // No comparison table of one row, no "All sites", no census counting one.
+    // No comparison table, no sites strip, no "All sites", no census counting one.
     expect(container.querySelector("table")).toBeNull();
-    expect(container.querySelectorAll("[data-asset-row]")).toHaveLength(0);
+    expect(container.querySelector("[data-sites-strip]")).toBeNull();
     expect(screen.queryByRole("link", { name: "All sites →" })).toBeNull();
-    const census = container.querySelector("[data-portfolio-census]")!.textContent!;
-    expect(census).toBe("updated 5m ago");
+    expect(container.querySelector("[data-portfolio-census]")!.textContent).toBe("updated 5m ago");
     expect(container.textContent).not.toMatch(/portfolio|1 site/i);
-
-    // What needs the operator stays: the status strip, Waiting on you, Alerts.
-    expect(screen.getByRole("region", { name: "Latest status" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Waiting on you" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: "Alerts" })).toBeInTheDocument();
-    // The lead comes first; the status strip follows it.
-    expect(lead.compareDocumentPosition(screen.getByRole("region", { name: "Latest status" })) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    // What needs the operator stays: Decide.
+    expect(panelFor("Decide")).toBeInTheDocument();
   });
 
   it("leads with the one site's revenue when revenue is what it has (ro-ujb9.146)", () => {
@@ -918,254 +874,273 @@ describe("Home — one site leads with its own numbers (ro-ujb9.127)", () => {
     expect(container.querySelector("table")).toBeNull();
   });
 
-  it("brings the comparison table back, and reads no single site, from two sites", () => {
+  it("draws the sites strip, and reads no single site, from two sites", () => {
     withSecondSite();
     detail.data = viewOf(everyTabPayload(), "overview");
     const { container } = renderHome();
 
     expect(container.querySelector("[data-one-site-lead]")).toBeNull();
     expect(detail.asked).toEqual([]);
-    expect(container.querySelectorAll("[data-asset-row]")).toHaveLength(2);
+    expect(container.querySelectorAll("[data-site-cell]")).toHaveLength(2);
     expect(screen.queryByRole("region", { name: "Traffic · last 28 days" })).toBeNull();
-    // The status strip is the hero again.
-    expect(container.querySelector("[data-surface-hero]")!.querySelector("[data-kpi-strip]")).not.toBeNull();
+    expect(container.querySelector("[data-surface-hero]")).toHaveAttribute("data-home-brief");
   });
 });
 
-describe("Home — the operator's overview", () => {
-  it("answers the four questions in ONE strip, left to right", () => {
+describe("Home — the Morning Brief (D44)", () => {
+  it("opens with the greeting line, the month's money as a card, and an end", () => {
     withSecondSite();
     const { container } = renderHome();
 
     expect(screen.getByRole("heading", { level: 1, name: "Home" })).toBeInTheDocument();
     // The header's quiet census: what this page covers, and how old it is.
-    expect(
-      container.querySelector("[data-portfolio-census]")!.textContent,
-    ).toContain("2 sites · updated");
+    expect(container.querySelector("[data-portfolio-census]")!.textContent).toContain("2 sites · updated");
     expect(container.querySelector("[data-portfolio-census]")!.textContent).not.toMatch(/portfolio/i);
 
-    // ONE strip, and it IS the first screen's answer — the audit measures its
-    // bottom edge against 900px (`ro-78qo.9`).
-    const hero = container.querySelector("[data-surface-hero]")!;
-    expect(hero).not.toBeNull();
-    expect(hero.querySelector("[data-kpi-strip]")).not.toBeNull();
-    const financials = screen.getByRole("region", { name: "Financials · July 2026" });
-    const latestStatus = screen.getByRole("region", { name: "Latest status" });
-    expect(financials).toContainElement(kpiFor(container, "Net · Jul"));
-    expect(financials.querySelectorAll("[data-kpi]")).toHaveLength(1);
-    expect(latestStatus).toContainElement(kpiFor(container, "Needs you"));
-    expect(latestStatus).toContainElement(kpiFor(container, "Open alerts"));
-    expect(latestStatus).toContainElement(kpiFor(container, "System"));
-    expect(latestStatus).not.toContainElement(kpiFor(container, "Net · Jul"));
-    expect(stripKpis(container).map((kpi) => kpi.getAttribute("data-kpi"))).toEqual([
-      "Net · Jul",
-      "Needs you",
-      "Open alerts",
-      "System",
-    ]);
-    // NOT SELECTABLE (doc 21): there is no chart under this strip for a KPI to
-    // choose, and a button that does nothing is worse than a figure.
-    expect(hero.querySelector("button[aria-pressed]")).toBeNull();
+    // THE BRIEF IS THE FIRST SCREEN'S ANSWER — the audit measures its bottom
+    // edge against 900px (`ro-78qo.9`).
+    const hero = container.querySelector<HTMLElement>("[data-surface-hero]")!;
+    expect(hero).toHaveAttribute("data-home-brief");
+    expect(within(hero).getByRole("heading", { level: 2 })).toHaveTextContent(/^Good (morning|afternoon|evening)$/);
+    // A quiet evening with no open problem: nothing changed, and the line says so.
+    expect(hero.querySelector("[data-brief-since]")).toHaveTextContent("nothing changed");
 
-    // D13, money leads: the same figure the Portfolio card chooses — the
-    // forecast, because it is the side carrying money — with its own word, and
-    // its composition rather than a movement it cannot judge.
-    const money = kpiFor(container, "Net · Jul");
-    expect(within(money).getByText("$45")).toBeInTheDocument();
-    expect(money.textContent).toContain("revenue $45 · cost $0 · estimated");
-    expect(money.textContent).toContain("Jul");
-    // The sum of booked and forecast is not a number this page can produce.
-    expect(screen.queryByText("$125")).not.toBeInTheDocument();
+    // D13, money leads — as a card, not a strip cell: the ledger's July
+    // revenue with its month named, and the way to Money.
+    const money = hero.querySelector<HTMLElement>('[data-highlight="money"]')!;
+    expect(money).not.toBeNull();
+    expect(money).toHaveTextContent("July revenue so far");
+    expect(money.querySelector("[data-highlight-action]")).toHaveAttribute("href", "/financials");
 
-    // A complete, fresh zero is the one state that reads calm.
-    expect(kpiFor(container, "Needs you").textContent).toContain(
-      "nothing is waiting on you",
-    );
-    expect(kpiFor(container, "Open alerts").textContent).toContain("all clear");
-    // The System KPI carries the OS's own posture — the freshness fraction and
-    // the jobs that ran — rather than the Wall's status strip in a link.
-    const system = kpiFor(container, "System");
-    expect(system.textContent).toContain("/ 1 fresh");
-    expect(system.textContent).toContain("1 job");
-    expect(container.querySelector("[data-system-posture]")).toBeNull();
+    // No strip, and no OS self-talk: freshness, jobs and snapshots belong to
+    // System health (doc 17 altitude).
+    expect(container.querySelector("[data-kpi-strip]")).toBeNull();
+    expect(container.textContent).not.toMatch(/\bfresh\b|\bjobs?\b|snapshot|captured in preview/i);
 
-    // Each panel links to the page that owns its subject. `/tasks` is the
-    // canonical board; `/work` still redirects, but a link the product emits
-    // itself should not spend a hop on it (bead ro-l1ed.6).
-    expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute(
-      "href",
-      "/tasks",
-    );
-    expect(screen.getByRole("link", { name: "All alerts →" })).toHaveAttribute(
-      "href",
-      "/alerts",
-    );
+    // The brief ends, and says how old the reading is.
+    const end = hero.querySelector("[data-finish-line]")!;
+    expect(end).toHaveTextContent("That's everything");
+    expect(end).toHaveTextContent("data as of 5m ago");
+
+    // Each panel links to the page that owns its subject.
+    expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks");
+    expect(screen.getByRole("link", { name: "All sites →" })).toHaveAttribute("href", "/assets");
   });
 
-  /** Doc 21 principle 3a (bead ro-ujb9.96.6.12): nothing on Home needs a
-   * paragraph, so there is no About to hide one in. The facts it held are on
-   * the screen — the month on Net's label, "+" and "N of M projects measured"
-   * on Needs you, "first seen" on every alert row — or are the chart's own
-   * marks (a hollow endpoint, a dash). */
-  it("needs no About: its facts are on the numbers they qualify", () => {
+  /** Doc 21 principle 3a: nothing on Home needs a paragraph, so there is no
+   * About to hide one in. */
+  it("needs no About: its facts are on the cards they qualify", () => {
     const { container } = renderHome();
-
     expect(container.querySelector("[data-about]")).toBeNull();
     expect(container.querySelectorAll("p")).toHaveLength(0);
   });
 
   // Bead ro-bdkp: on the first days of a month the payload falls back to the
-  // latest month that HAS ledger rows. An unlabelled figure in the money slot
-  // would then be four-week-old money passing for today's — so the KPI names
-  // the month in the card's own words rather than a second phrasing.
-  it("names the fallback month when the newest ledger rows are not this month's", () => {
-    payload.portfolio = {
-      ...POPULATED_PORTFOLIO,
-      period: "2026-08",
-      periodIsCurrent: false,
-    };
-
+  // latest month that HAS ledger rows, and the card names that month.
+  it("names the fallback month on the money card when the newest ledger rows are not this month's", () => {
+    payload.portfolio = { ...POPULATED_PORTFOLIO, period: "2026-08", periodIsCurrent: false };
     const { container } = renderHome();
-
-    // THE EYEBROW NAMES THE MONTH, which is the whole guard: on the 2nd of
-    // September this figure is August's, and a KPI reading "Net this month"
-    // over it would be four-week-old money passing for today's. Two words in
-    // the label do that; the sentence explaining WHY a month can be the
-    // fallback is About material and lives there.
-    const money = kpiFor(container, "Net · Aug");
-    expect(money).not.toBeNull();
-    expect(screen.getByRole("region", { name: "Financials · August 2026" })).toContainElement(money);
-    expect(stripKpis(container).map((kpi) => kpi.getAttribute("data-kpi"))[0]).toBe(
-      "Net · Aug",
-    );
-    expect(
-      screen.queryByText("August 2026 · latest month on the ledger"),
-    ).toBeNull();
+    expect(container.querySelector('[data-highlight="money"]')).toHaveTextContent("August revenue so far");
+    expect(screen.queryByText("August 2026 · latest month on the ledger")).toBeNull();
   });
 
   it("carries no clock, countdown, meeting, asset card or attention table", () => {
     const { container } = renderHome();
-
     expect(screen.queryByText("Local time")).toBeNull();
     expect(screen.queryByText("SF Trip - August 2026")).toBeNull();
     expect(screen.queryByRole("button", { name: "Configure" })).toBeNull();
     expect(container.querySelector("[data-strip-meeting]")).toBeNull();
-    expect(screen.queryByText("Monthly net")).toBeNull();
-    expect(screen.queryByText("Chart key")).toBeNull();
-    // The asset GRID and its cards are `/assets`; Home has a table instead.
     expect(container.querySelector("[data-property-grid]")).toBeNull();
     expect(container.querySelector("[data-property-card]")).toBeNull();
+    expect(container.querySelector("table")).toBeNull();
     // Disposition is `/alerts`' business: no row action reaches this page.
     expect(screen.queryByRole("button", { name: "Mark alert read" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Resolve alert" })).toBeNull();
   });
 
-  it("gives every asset one row that opens its page", () => {
-    withSecondSite();
-    const { container } = renderHome();
-
-    expect(container.querySelectorAll("[data-asset-row]")).toHaveLength(2);
-    const row = container.querySelector<HTMLElement>('[data-asset-row="meals.example"]')!;
-    expect(within(row).getByRole("link", { name: "Meal Planner" })).toHaveAttribute(
-      "href",
-      "/assets/meals.example",
+  it("ranks an error above a warning, makes the first card the big thing, and caps the brief at five", () => {
+    payload.attention = Array.from({ length: 7 }, (_, index) =>
+      alert({
+        id: index + 1,
+        message: `Alert ${index + 1}`,
+        severity: index % 2 === 0 ? "error" : "warn",
+        firedAt: `2026-07-2${index + 1}T09:00:00.000Z`,
+        firstFiredAt: `2026-07-2${index + 1}T09:00:00.000Z`,
+      }),
     );
-    // No source slots, no source marks; the month's money, the queue, and an
-    // em dash wherever nothing was measured — never a zero.
-    expect(row.querySelector('[aria-label="Data source integration states"]')).toBeNull();
-    expect(row.textContent).not.toContain("Automation enabled");
-    expect(row.textContent).toContain("not booked");
-    expect(row.textContent).toContain("12 open");
-    expect(row.textContent).toContain("3 urgent");
-    expect(row.textContent).toContain("—");
-  });
 
-  it("offers All sites and counts them in the census once there are two (ro-ujb9.130)", () => {
-    payload.assets = [
-      SEEDED_ASSETS[0]!,
-      { ...SEEDED_ASSETS[0]!, id: "second.example", displayName: "Second" },
-    ];
     const { container } = renderHome();
-    expect(container.querySelector("[data-portfolio-census]")!.textContent).toContain("2 sites · updated");
-    expect(screen.getByRole("link", { name: "All sites →" })).toHaveAttribute("href", "/assets");
+    const hero = container.querySelector<HTMLElement>("[data-surface-hero]")!;
+    const cards = [...hero.querySelectorAll<HTMLElement>("[data-highlight]")];
+
+    // Five cards, the count of everything before the cap, and still an end.
+    expect(cards).toHaveLength(5);
+    expect(hero.querySelector("[data-brief-since]")).toHaveTextContent("7 things changed");
+    expect(hero.querySelector("[data-finish-line]")).not.toBeNull();
+    // Errors first, newest first within them: the newest error is the big thing.
+    expect(cards[0]).toHaveAttribute("data-highlight", "alert");
+    expect(cards[0]).toHaveAttribute("data-highlight-big");
+    expect(cards[0]).toHaveTextContent("Alert 7");
+    expect(cards.map((card) => card.getAttribute("data-highlight-big") !== null)).toEqual([true, false, false, false, false]);
+    expect(cards.slice(0, 4).map((card) => card.textContent)).toEqual(
+      expect.arrayContaining([expect.stringContaining("Alert 7"), expect.stringContaining("Alert 5"), expect.stringContaining("Alert 3"), expect.stringContaining("Alert 1")]),
+    );
+    expect(cards[4]).toHaveTextContent("Alert 6");
+    expect(screen.queryByText(/Alert 2/)).toBeNull();
+    // Money ranks after every open problem, so it fell past the cap.
+    expect(hero.querySelector('[data-highlight="money"]')).toBeNull();
+    // The one verb opens the site; the card names it.
+    expect(cards[0]!.querySelector("[data-highlight-action]")).toHaveAttribute("href", "/assets/meals.example");
+    expect(cards[0]).toHaveTextContent("Alert · Meal Planner");
+    expect(cards[0]).toHaveTextContent("since");
   });
 
-  it("puts an open gate above a higher-priority ask in Waiting on you", () => {
+  /** Bead `ro-ujb9.199`: a site with no number yet opens on its Data sources,
+   * as the sidebar sends it. */
+  it("opens a site with no number yet on its Data sources from its alert card", () => {
+    const empty = { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] };
+    payload.assets = [...SEEDED_ASSETS, { ...SEEDED_ASSETS[0]!, id: "fresh.example", displayName: "Fresh Example",
+      pulseReceivedAt: null, firstReportAt: null, activeUsers: empty, searchClicks: empty,
+      netByMonth: [], booked: { currency: 'USD', revenue: 0, cost: 0, net: 0 }, forecast: { currency: 'USD', revenue: 0, cost: 0, net: 0 },
+      dailyRevenue: undefined, dataSources: [], work: null,
+    }];
+    payload.attention = [alert({ id: 4, asset: "fresh.example", assetDisplayName: "Fresh Example" })];
+
+    const { container } = renderHome();
+    const card = container.querySelector<HTMLElement>('[data-highlight="alert"]')!;
+    expect(card.querySelector("[data-highlight-action]")).toHaveAttribute("href", "/assets/fresh.example/sources");
+  });
+
+  /** `ro-kukv.6` / decision D15: one fact about four sites is ONE card, and
+   * the way through is `/alerts`, where the four expand into four actions. */
+  it("shows sites that have never reported as ONE card, pointing at Alerts", () => {
+    payload.attention = [
+      alert({
+        id: 31, asset: "fees.example", assetDisplayName: "Fee Codes", severity: "error",
+        ruleId: "ingest-freshness", ruleInputs: { rule: "ingest-freshness", state: "never-reported" },
+        occurrences: 4, firstFiredAt: "2026-07-05T09:00:00.000Z",
+        members: [
+          { id: 31, asset: "fees.example", assetDisplayName: "Fee Codes", firedAt: "2026-07-05T09:00:00.000Z" },
+          { id: 32, asset: "pullups.example", assetDisplayName: "Pull-up Standards", firedAt: "2026-07-06T09:00:00.000Z" },
+          { id: 33, asset: "areas.info", assetDisplayName: "Area Lookup", firedAt: "2026-07-07T09:00:00.000Z" },
+          { id: 34, asset: "pacer.example", assetDisplayName: "Pacer Test", firedAt: "2026-07-08T09:00:00.000Z" },
+        ],
+      }),
+    ];
+
+    const { container } = renderHome();
+    const cards = container.querySelectorAll<HTMLElement>('[data-highlight="alert"]');
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toHaveTextContent("Four sites have no nightly reports");
+    expect(cards[0]!.textContent).not.toContain("recurred");
+    expect(cards[0]!.querySelector("[data-highlight-action]")).toHaveAttribute("href", "/alerts");
+  });
+
+  it("says a visitors move in business words, and only when the week moved it", () => {
+    const days = Array.from({ length: 14 }, (_, index) => ({ t: `2026-07-${String(15 + index).padStart(2, "0")}`, v: index === 13 ? 130 : 100 }));
+    payload.assets = [{ ...SEEDED_ASSETS[0]!, activeUsers: { series: days, provisionalFrom: "2026-07-29", collectedAt: null, timeZoneChanges: [] } }];
+
+    const moved = renderHome();
+    const hero = moved.container.querySelector<HTMLElement>("[data-surface-hero]")!;
+    expect(hero.querySelector("[data-page-answer-figures]")).toHaveTextContent("Visitors yesterday130");
+    const card = hero.querySelector<HTMLElement>('[data-highlight="people"]')!;
+    expect(card).toHaveTextContent("Visitors up 30% on the same day last week");
+    expect(card).toHaveTextContent("130 yesterday · 100 a week before");
+    expect(card.querySelector("[data-spark]")).not.toBeNull();
+    moved.unmount();
+
+    // Two percent is weather: the figure stays, the card does not.
+    payload.assets = [{ ...SEEDED_ASSETS[0]!, activeUsers: { series: days.map((day, index) => ({ ...day, v: index === 13 ? 102 : 100 })), provisionalFrom: "2026-07-29", collectedAt: null, timeZoneChanges: [] } }];
+    const quiet = renderHome();
+    expect(quiet.container.querySelector("[data-page-answer-figures]")).toHaveTextContent("Visitors yesterday102");
+    expect(quiet.container.querySelector('[data-highlight="people"]')).toBeNull();
+  });
+
+  it("gives every site one cell with its health word, in seed order, that opens its page", () => {
+    withSecondSite();
+    payload.attention = [alert({ id: 9, severity: "error" })];
+
+    const { container } = renderHome();
+    const cells = [...container.querySelectorAll<HTMLElement>("[data-site-cell]")];
+    expect(cells.map((cell) => cell.getAttribute("data-site-cell"))).toEqual(["meals.example", "second.example"]);
+    // The first site has an open error: Off track. The second has nothing: On track.
+    expect(cells[0]!.querySelector('[data-status-for="asset:meals.example"]')).toHaveTextContent("Off track");
+    expect(cells[1]!.querySelector('[data-status-for="asset:second.example"]')).toHaveTextContent("On track");
+    expect(within(cells[0]!).getByRole("link", { name: /Meal Planner/ })).toHaveAttribute("href", "/assets/meals.example");
+    // A cell says one figure and never a zero for nothing measured.
+    expect(cells[0]).toHaveTextContent("nothing reported yesterday");
+    // No source marks, no automation chips, no task counts: the table on
+    // Sites holds the comparison.
+    expect(container.textContent).not.toContain("Automation enabled");
+    expect(container.textContent).not.toContain("12 open");
+  });
+});
+
+describe("Home — Decide (D44)", () => {
+  it("puts an open gate above a higher-priority ask, with its verb on the row", () => {
     workState.data = workPayload([
-      project("Meal Planner", [
-        waiting({ id: "mp-9k1", priority: 0, title: "Top-priority ask" }),
-      ]),
-      project("NoticeOS", [
-        waiting({
-          id: "ro-3z7",
-          priority: 3,
-          issueType: "gate",
-          title: "Approve the spend cap",
-        }),
-      ]),
+      project("Meal Planner", [waiting({ id: "mp-9k1", priority: 0, title: "Top-priority ask" })]),
+      project("NoticeOS", [waiting({ id: "ro-3z7", priority: 3, issueType: "gate", title: "Approve the spend cap" })]),
     ]);
 
     renderHome();
 
-    const rows = within(panelFor("Waiting on you")).getAllByRole("listitem");
+    const rows = within(panelFor("Decide")).getAllByRole("listitem");
     expect(rows).toHaveLength(2);
-    // A gate holds a bead out of `bd ready`, so it leads regardless of its own
-    // priority band.
-    expect(rows[0]!.textContent).toContain("ro-3z7");
-    // Doc 17: what the hub calls a "gate" reaches the operator as what it DOES.
-    expect(rows[0]!.textContent).toContain("needs your approval");
+    // A gate holds work out of the ready queue, so it leads regardless of its
+    // own priority band — and reaches the operator as what it DOES (doc 17),
+    // with Approve on the row (Linear Triage, in the brief's prior art).
+    expect(rows[0]).toHaveTextContent("Approve the spend cap");
+    expect(rows[0]).toHaveTextContent("needs your approval");
+    expect(rows[0]).toHaveTextContent("NoticeOS");
     expect(rows[0]!.textContent).not.toContain("· gate");
-    expect(rows[0]!.textContent).toContain("NoticeOS");
-    expect(rows[1]!.textContent).toContain("mp-9k1");
-
-    expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute(
-      "href",
-      "/tasks",
-    );
+    // Business altitude: the task's id stays on the page the row opens.
+    expect(rows[0]!.textContent).not.toContain("ro-3z7");
+    expect(within(rows[0]!).getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    expect(within(rows[0]!).getByRole("link")).toHaveAttribute("href", "/tasks/ro-3z7");
+    expect(rows[1]).toHaveTextContent("Top-priority ask");
+    expect(within(rows[1]!).getByRole("button", { name: "Answer" })).toBeInTheDocument();
+    expect(within(rows[1]!).getByRole("button", { name: "Dismiss" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks");
   });
 
   it("tells an empty inbox apart from an inbox it has never seen", () => {
     workState.data = workPayload([project("Meal Planner", [])]);
     const clear = renderHome();
-    expect(screen.getByText("Nothing is waiting on you.")).toBeInTheDocument();
+    expect(screen.getByText("Nothing to decide.")).toBeInTheDocument();
     clear.unmount();
 
     workState.data = workPayload([project("Meal Planner", [])], null);
     renderHome();
-    expect(screen.getByText("No tasks have been read yet.")).toBeInTheDocument();
-    expect(screen.queryByText("Nothing is waiting on you.")).toBeNull();
+    expect(screen.getByText("No tasks read yet.")).toBeInTheDocument();
+    expect(screen.queryByText("Nothing to decide.")).toBeNull();
   });
 
-  it("uses complete waiting totals and identifies the capped preview", () => {
+  it("shows three rows, names the rest as the way out, and discloses them in place", () => {
     const capped = project("Meal Planner", Array.from({ length: 10 }, (_, index) =>
       waiting({ id: `mp-${index}`, title: `Request ${index + 1}` }),
     ));
     capped.counts.waiting = 24;
     workState.data = workPayload([capped]);
     renderHome();
-    const panel = panelFor("Waiting on you");
-    expect(panel).toHaveTextContent("24 waiting · 10 captured in preview");
-    expect(within(panel).getAllByRole("listitem")).toHaveLength(5);
-    fireEvent.click(within(panel).getByRole("button", { name: "Show 5 more" }));
+    const panel = panelFor("Decide");
+    expect(panel).toHaveTextContent("24 waiting");
+    expect(within(panel).getAllByRole("listitem")).toHaveLength(3);
+    expect(within(panel).getByRole("link", { name: "7 more →" })).toHaveAttribute("href", "/tasks");
+    fireEvent.click(within(panel).getByRole("button", { name: "Show 7 more" }));
     expect(within(panel).getAllByRole("listitem")).toHaveLength(10);
-    expect(panel).toHaveTextContent("24 waiting · 10 captured in preview");
-    expect(within(panel).getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks");
   });
 
-  it("names task update age separately from the fresh status read and premise verification", () => {
+  it("names the wait beside each row, and nothing about the read itself", () => {
     workState.data = workPayload([project("Meal Planner", [waiting({ updatedAt: "2026-07-01T12:05:00.000Z" })])]);
     renderHome();
-    const panel = panelFor("Waiting on you");
-    expect(panel).toHaveTextContent("Task status read 10s ago");
-    // The read's age and the preview's size are the facts; no info icon
-    // explains the preview (bead ro-ujb9.96.6.12).
-    expect(within(panel).queryByRole("button", { name: "What this task preview verifies" })).toBeNull();
-    expect(panel).not.toHaveTextContent("Task status does not verify");
+    const panel = panelFor("Decide");
+    expect(panel).not.toHaveTextContent("Task status read");
+    expect(panel).not.toHaveTextContent("captured in preview");
     expect(panel.querySelector("button button, a button")).toBeNull();
     const row = within(panel).getByRole("listitem");
     expect(row).toHaveTextContent("28d");
-    expect(row).toHaveTextContent("updated");
-    expect(within(row).queryByText("open")).toBeNull();
+    expect(row).toHaveTextContent("waiting");
   });
 
   it.each(["failed project", "unmeasured inbox", "no projects", "stale snapshot", "failed refresh"])(
@@ -1178,13 +1153,13 @@ describe("Home — the operator's overview", () => {
         failure === "stale snapshot" ? "2026-07-29T11:00:00.000Z" : undefined);
       workState.isError = failure === "failed refresh";
       renderHome();
-      const panel = panelFor("Waiting on you");
-      expect(panel).not.toHaveTextContent("Nothing is waiting on you.");
-      expect(panel).toHaveTextContent(/unknown/);
-      if (failure === "stale snapshot") expect(panel).toHaveTextContent("stale snapshot");
+      const panel = panelFor("Decide");
+      expect(panel).not.toHaveTextContent("Nothing to decide.");
+      expect(panel).toHaveTextContent(/not fully read|unknown/);
+      if (failure === "stale snapshot") expect(panel).toHaveTextContent("outdated");
       // The state is said once, in the header line; the empty row does not
       // repeat it (one status per subject).
-      expect(panel.textContent!.match(/stale/g)?.length ?? 0).toBeLessThanOrEqual(1);
+      expect(panel.textContent!.match(/outdated/g)?.length ?? 0).toBeLessThanOrEqual(1);
     },
   );
 
@@ -1196,8 +1171,8 @@ describe("Home — the operator's overview", () => {
     failed.counts.waiting = 99;
     workState.data = workPayload([known, failed]);
     renderHome();
-    const panel = panelFor("Waiting on you");
-    expect(panel).toHaveTextContent("12+ waiting · partial read · 1 captured in preview");
+    const panel = panelFor("Decide");
+    expect(panel).toHaveTextContent("12+ waiting · partial read");
     expect(panel).not.toHaveTextContent("111 waiting");
   });
 
@@ -1206,654 +1181,26 @@ describe("Home — the operator's overview", () => {
     emptyPreview.counts.waiting = 12;
     workState.data = workPayload([emptyPreview]);
     renderHome();
-    const panel = panelFor("Waiting on you");
+    const panel = panelFor("Decide");
     expect(panel).toHaveTextContent("12 waiting");
-    expect(panel).toHaveTextContent("No request details captured.");
-    expect(panel).not.toHaveTextContent("Nothing is waiting on you.");
+    expect(panel).toHaveTextContent("No request details read.");
+    expect(panel).not.toHaveTextContent("Nothing to decide.");
   });
 
   it("recovers from a failed initial read to an evidenced empty inbox", () => {
     workState.isError = true;
     const view = renderHome();
-    expect(panelFor("Waiting on you")).toHaveTextContent("Could not refresh your tasks.");
+    expect(panelFor("Decide")).toHaveTextContent("Could not read your tasks.");
     workState.isError = false;
     workState.data = workPayload([project("Meal Planner", [])]);
-    view.rerender(<MemoryRouter><HomeRoute /></MemoryRouter>);
-    expect(panelFor("Waiting on you")).toHaveTextContent("Nothing is waiting on you.");
-    expect(panelFor("Waiting on you")).not.toHaveTextContent("Could not refresh");
+    view.rerender(homeTree());
+    expect(panelFor("Decide")).toHaveTextContent("Nothing to decide.");
+    expect(panelFor("Decide")).not.toHaveTextContent("Could not read");
   });
 
-  it("shows five alerts and discloses the rest rather than dropping them", () => {
-    payload.attention = Array.from({ length: 7 }, (_, index) =>
-      alert({
-        id: index + 1,
-        message: `Alert ${index + 1}`,
-        severity: index % 2 === 0 ? "error" : "warn",
-      }),
-    );
-
-    const { container } = renderHome();
-
-    const panel = panelFor("Alerts");
-    const rows = within(panel).getAllByRole("listitem");
-    expect(rows).toHaveLength(5);
-    // Payload order, never re-sorted: the read model already ranks these.
-    expect(rows[0]!.textContent).toContain("Alert 1");
-    expect(screen.queryByText("Alert 6")).toBeNull();
-    // A panel that silently kept five of seven would be lying about the size of
-    // the queue: the header states the total and the expander names the rest.
-    expect(within(panel).getByText("7 open")).toBeInTheDocument();
-    expect(
-      within(panel).getByRole("button", { name: "Show 2 more" }),
-    ).toBeInTheDocument();
-    expect(
-      within(panel).getByRole("link", { name: "All alerts →" }),
-    ).toHaveAttribute("href", "/alerts");
-
-    // The strip is where the count and its severity split live — the panel
-    // shows rows and never a second tally of the same fact.
-    const kpi = kpiFor(container, "Open alerts");
-    expect(within(kpi).getByText("7")).toBeInTheDocument();
-    expect(within(kpi).getByText("4 errors")).toBeInTheDocument();
-    expect(within(kpi).getByText("3 warnings")).toBeInTheDocument();
-  });
-
-  /** Doc 21's row: the evidence and the way through open IN PLACE, so reading
-   * one alert never moves the rest of the page — and disposition stays on
-   * `/alerts`, where the history is. */
-  it("opens an alert row in place, and never states one fact twice", () => {
-    payload.attention = [alert({ id: 4, message: "Signups well below normal" })];
-
-    renderHome();
-
-    const row = within(panelFor("Alerts")).getAllByRole("listitem")[0]!;
-    expect(within(row).queryByRole("link")).toBeNull();
-    // Its age is from the FIRST firing, and the row says so itself.
-    expect(row).toHaveTextContent("first seen");
-
-    fireEvent.click(within(row).getByRole("button"));
-
-    // This rule has no translation, so the store's own words ARE the headline —
-    // and the expanded row does not print them a second time.
-    expect(within(row).getAllByText("Signups well below normal")).toHaveLength(1);
-    expect(within(row).getByRole("link", { name: "Open Meal Planner" })).toHaveAttribute(
-      "href",
-      "/assets/meals.example",
-    );
-    // Still a reading surface: disposition is `/alerts`' business, and a
-    // decision made from a five-row preview is made without the history.
-    expect(within(row).queryByRole("button", { name: /Resolve/ })).toBeNull();
-    expect(within(row).queryByRole("button", { name: /Mark alert read/ })).toBeNull();
-  });
-
-  /** Bead `ro-ujb9.199`: "Open <site>" used to open the Overview whatever the
-   * site had collected. It goes where the sidebar sends the same site now —
-   * its Data sources until its first number. */
-  it("opens a site with no number yet on its Data sources, as the sidebar does", () => {
-    const empty = { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] };
-    payload.assets = [...SEEDED_ASSETS, { ...SEEDED_ASSETS[0]!, id: "fresh.example", displayName: "Fresh Example",
-      pulseReceivedAt: null, firstReportAt: null, activeUsers: empty, searchClicks: empty,
-      netByMonth: [], booked: { currency: 'USD', revenue: 0, cost: 0, net: 0 }, forecast: { currency: 'USD', revenue: 0, cost: 0, net: 0 },
-      dailyRevenue: undefined, dataSources: [], work: null,
-    }];
-    payload.attention = [alert({ id: 4, asset: "fresh.example", assetDisplayName: "Fresh Example" })];
-
-    renderHome();
-
-    const row = within(panelFor("Alerts")).getAllByRole("listitem")[0]!;
-    fireEvent.click(within(row).getByRole("button"));
-    expect(within(row).getByRole("link", { name: "Open Fresh Example" }))
-      .toHaveAttribute("href", "/assets/fresh.example/sources");
-  });
-
-  /** `ro-kukv.6` / decision D15. Home shows the same one row the Wall and
-   * `/alerts` show — the fact stated once, the assets on hover — and leaves the
-   * four actions to `/alerts`, where this preview has always sent decisions. */
-  it("shows assets that have never reported as ONE row, with no asset link and no chip", () => {
-    payload.attention = [
-      alert({
-        id: 31,
-        asset: "fees.example",
-        assetDisplayName: "Fee Codes",
-        severity: "error",
-        ruleId: "ingest-freshness",
-        ruleInputs: { rule: "ingest-freshness", state: "never-reported" },
-        occurrences: 4,
-        firstFiredAt: "2026-07-05T09:00:00.000Z",
-        members: [
-          { id: 31, asset: "fees.example", assetDisplayName: "Fee Codes", firedAt: "2026-07-05T09:00:00.000Z" },
-          { id: 32, asset: "pullups.example", assetDisplayName: "Pull-up Standards", firedAt: "2026-07-06T09:00:00.000Z" },
-          { id: 33, asset: "areas.info", assetDisplayName: "Area Lookup", firedAt: "2026-07-07T09:00:00.000Z" },
-          { id: 34, asset: "pacer.example", assetDisplayName: "Pacer Test", firedAt: "2026-07-08T09:00:00.000Z" },
-        ],
-      }),
-    ];
-
-    renderHome();
-    const row = within(panelFor("Alerts")).getAllByRole("listitem")[0]!;
-
-    expect(row.textContent).toContain("Four sites have no nightly reports");
-    // The assets it stands for are the caption; there is no single asset to
-    // name, so the row names all four rather than the representative's.
-    expect(row.textContent).toContain("Fee Codes, Pull-up Standards");
-    // The count is of ASSETS, so the phrase that means re-firings stays away.
-    expect(row.textContent).not.toContain("recurred");
-
-    fireEvent.click(within(row).getByRole("button"));
-    // …and the way through is `/alerts`, where the four expand into four
-    // actions, not one asset page standing in for all of them.
-    expect(within(row).getByRole("link", { name: "Open in Alerts" })).toHaveAttribute(
-      "href",
-      "/alerts",
-    );
-  });
-});
-
-/**
- * Bead ro-pbzu.8 — docs/14's 2026-09-04 rule on this page: *what does the eye
- * read before the words?* Each of these asserts one visual renders from real
- * data AND stays away when the data cannot support it, because a shape drawn
- * from nothing is the failure mode the rule is guarding against.
- */
-describe("Home — a shape before the words", () => {
-  const ASSETS = payload.assets;
-  const OPERATOR = payload.operator;
-
-  afterEach(() => {
-    payload.assets = ASSETS;
-    payload.operator = OPERATOR;
-  });
-
-  /** `days` consecutive daily points ending on the given date. */
-  function daily(days: number, endsOn = "2026-07-29") {
-    const end = Date.parse(`${endsOn}T00:00:00.000Z`);
-    return Array.from({ length: days }, (_, index) => ({
-      t: new Date(end - (days - 1 - index) * 86_400_000)
-        .toISOString()
-        .slice(0, 10),
-      v: 100 + index,
-    }));
-  }
-
-  /** The seeded site as the case needs it, beside a quiet second site: the
-   * table these cases read is the several-site view (bead ro-ujb9.127). */
-  function withAsset(overrides: Partial<(typeof ASSETS)[number]>) {
-    payload.assets = [{ ...ASSETS[0]!, ...overrides }];
-    withSecondSite();
-  }
-
-  describe("the Net KPI draws the portfolio's months under its figure", () => {
-    /** The Sparkline's endpoint cap: hollow while the provider — here, the
-     * month itself — has not closed the last point. */
-    const endpointFill = (spark: Element) =>
-      spark.querySelector("[data-chart-dot]")!.getAttribute("data-chart-dot") ?? "";
-
-    it("charts every current row and hollows the month still being lived in", () => {
-      payload.portfolio = {
-        ...POPULATED_PORTFOLIO,
-        netTrendAll: [
-          { t: "2026-05", v: 40 },
-          { t: "2026-06", v: 60 },
-          { t: "2026-07", v: 80 },
-        ],
-      };
-
-      const { container } = renderHome();
-
-      const spark = kpiFor(container, "Net · Jul").querySelector("[data-spark]")!;
-      expect(spark).not.toBeNull();
-      // THE MONTHS THEMSELVES, not a seven-period mean of them: on a monthly
-      // series the default averaging would flatten a six-month portfolio into a
-      // line with no shape (bead ro-78qo.18). One path, because the KPI slot
-      // draws no area — six filled shapes in a strip are a skyline, not six
-      // trends.
-      expect(spark.querySelectorAll("[data-chart-line]")).toHaveLength(1);
-      expect(spark.querySelector("[data-chart-area]")).toBeNull();
-      // July is open, so the last point is provisional and its cap goes hollow.
-      expect(endpointFill(spark)).toBe("hollow");
-    });
-
-    it("reads a forecast-only EUR trend in the currency of its actual series", () => {
-      payload.portfolio = {
-        ...POPULATED_PORTFOLIO,
-        booked: { currency: "EUR", revenue: 0, cost: 0, net: 0 },
-        forecast: { currency: "EUR", revenue: 80, cost: 0, net: 80 },
-        revenueRecorded: { booked: false, forecast: true },
-        netTrend: [], netTrendCurrency: null, netTrendAllCurrency: "EUR",
-        netTrendAll: [{ t: "2026-05", v: 40 }, { t: "2026-06", v: 60 }, { t: "2026-07", v: 80 }],
-      };
-      const { container } = renderHome();
-      const kpi = kpiFor(container, "Net · Jul");
-      fireEvent.focus(kpi.querySelector("[data-spark] svg")!);
-      expect(kpi.querySelector('[data-status-for^="readout:"]')).toHaveTextContent("€80");
-      expect(kpi.querySelector('[data-status-for^="readout:"]')).not.toHaveTextContent("Unavailable");
-    });
-
-    it("claims nothing is open when the headline fell back to a closed month", () => {
-      payload.portfolio = {
-        ...POPULATED_PORTFOLIO,
-        period: "2026-08",
-        periodIsCurrent: false,
-        netTrendAll: [
-          { t: "2026-06", v: 40 },
-          { t: "2026-07", v: 60 },
-          { t: "2026-08", v: 80 },
-        ],
-      };
-
-      const { container } = renderHome();
-
-      const spark = kpiFor(container, "Net · Aug").querySelector("[data-spark]")!;
-      expect(spark).not.toBeNull();
-      expect(endpointFill(spark)).toBe("solid");
-    });
-
-    it("draws no line below the three points that make a direction", () => {
-      // The seed payload carries a single month — two dots joined by a segment
-      // is a shape the eye reads as a trend and the data cannot support.
-      const { container } = renderHome();
-      expect(
-        kpiFor(container, "Net · Jul").querySelector("[data-spark]"),
-      ).toBeNull();
-    });
-  });
-
-  it("shows what share of the inbox is urgent, and only on an exact count", () => {
-    payload.operator = {
-      waiting: 12,
-      urgent: 3,
-      measuredProjects: 1,
-      urgentMeasuredProjects: 1,
-      projectCount: 1,
-      capturedAt: "2026-07-29T12:04:50.000Z",
-    };
-    const exact = renderHome();
-    const bar = exact.container.querySelector("[data-inbox-urgency]")!;
-    expect(bar).not.toBeNull();
-    expect(bar.getAttribute("aria-label")).toBe(
-      "3 of 12 waiting on you are urgent",
-    );
-    expect(bar.querySelector('[data-segment="urgent"]')).not.toBeNull();
-    expect(bar.querySelector('[data-segment="rest"]')).not.toBeNull();
-    exact.unmount();
-
-    // A project that could not supply an untruncated count makes BOTH figures
-    // lower bounds ("3+ urgent · 12+ need you"), and a fraction of two lower
-    // bounds is not a lower bound — it is a wrong fraction, drawn loud.
-    payload.operator = { ...payload.operator, measuredProjects: 0, projectCount: 2 };
-    const partial = renderHome();
-    expect(partial.container.querySelector("[data-inbox-urgency]")).toBeNull();
-    expect(kpiFor(partial.container, "Needs you")).toHaveAttribute("data-series", "unavailable");
-    partial.unmount();
-
-    // Nothing waiting: nothing to divide.
-    payload.operator = OPERATOR;
-    const empty = renderHome();
-    expect(empty.container.querySelector("[data-inbox-urgency]")).toBeNull();
-    expect(kpiFor(empty.container, "Needs you")).toHaveAttribute("data-series", "unavailable");
-  });
-
-  it("shows how much of the open-alert count is red", () => {
-    payload.attention = Array.from({ length: 7 }, (_, index) =>
-      alert({ id: index + 1, severity: index % 2 === 0 ? "error" : "warn" }),
-    );
-
-    const open = renderHome();
-    const split = open.container.querySelector("[data-alert-split]")!;
-    expect(split).not.toBeNull();
-    expect(split.getAttribute("aria-label")).toBe(
-      "4 of 7 open alerts are errors, 3 are warnings",
-    );
-    expect(split.querySelector('[data-segment="error"]')).not.toBeNull();
-    expect(split.querySelector('[data-segment="warn"]')).not.toBeNull();
-    open.unmount();
-
-    // All clear is the tile's own state; a bar over zero would be a bar over
-    // nothing.
-    payload.attention = OPEN_ATTENTION;
-    const clear = renderHome();
-    expect(clear.container.querySelector("[data-alert-split]")).toBeNull();
-    expect(kpiFor(clear.container, "Open alerts")).toHaveAttribute("data-series", "unavailable");
-  });
-
-  /**
-   * The System KPI's shape is the coverage split, not a ring (design review on
-   * `ro-78qo.6`). Two reasons and the second is the better one: the strip's
-   * other counts are bars, so a third kind of graphic broke its grammar — and a
-   * ring can only draw done-of-total, which cannot tell a portfolio that has
-   * gone stale from one that never reported at all.
-   */
-  it("splits fresh, stale and unconfigured reporting without a fictitious error state", () => {
-    payload.system = {
-      ...payload.system,
-      ingest: { fresh: 3, stale: 1, notExpected: 5, expected: 4 },
-    };
-
-    const covered = renderHome();
-    const split = covered.container.querySelector("[data-coverage-split]")!;
-    expect(split).not.toBeNull();
-    // Read out as a SENTENCE, so the verbs agree with their counts — a
-    // template with a hard-coded "are" says "1 are stale" on the day exactly
-    // one asset goes quiet.
-    expect(split.getAttribute("aria-label")).toBe(
-      "3 of 4 sites owing a report sent a fresh one; 1 is stale",
-    );
-    // Current report state has only fresh/stale attention and neutral absence.
-    expect(split.querySelector('[data-segment="fresh"]')!.className).toContain("bg-healthy");
-    expect(split.querySelector('[data-segment="stale"]')!.className).toContain("bg-warn");
-    expect(split.querySelector('[data-segment="never-reported"]')).toBeNull();
-    // Pre-launch and retired assets are outside the fraction and inside the
-    // bar, which is why the portfolio is bigger than the denominator.
-    expect(split.querySelector('[data-segment="not-expected"]')).not.toBeNull();
-    // The digits still say it; the bar is the shape beside them, never instead.
-    expect(kpiFor(covered.container, "System").textContent).toContain("/ 4 fresh");
-    // And the ring that read as a spinner is gone from the strip.
-    expect(covered.container.querySelector("[data-progress-ring]")).toBeNull();
-    covered.unmount();
-
-    // Nothing expected to report: no denominator, so no fraction and no bar
-    // over it — an empty track would read as a measured zero.
-    payload.system = {
-      ...payload.system,
-      ingest: { fresh: 0, stale: 0, notExpected: 0, expected: 0 },
-    };
-    const nothing = renderHome();
-    expect(nothing.container.querySelector("[data-coverage-split]")).toBeNull();
-    expect(kpiFor(nothing.container, "System").textContent).toContain(
-      "nothing expected to report",
-    );
-    expect(kpiFor(nothing.container, "System")).toHaveAttribute("data-series", "unavailable");
-  });
-
-  /**
-   * The OS's own report is owed only where an OS row exists (bead
-   * `ro-ujb9.161`). A new installation has none — `pnpm start`'s store and the
-   * journey fixture both start without one — so red "no System report" beside
-   * "nothing expected to report" contradicted itself on a stranger's first
-   * screen. An installation WITH an OS row that sent nothing still says so in
-   * error ink.
-   */
-  it("says no System report in red only when an OS row owes one", () => {
-    const quiet = { fresh: 0, stale: 0, notExpected: 0, expected: 0 };
-    payload.system = { ...payload.system, assetId: null, hasPulse: false, ingest: quiet };
-    const fresh = renderHome();
-    const tile = kpiFor(fresh.container, "System");
-    expect(tile.textContent).not.toContain("System report");
-    expect(tile.querySelector(".text-error")).toBeNull();
-    fresh.unmount();
-
-    payload.system = { ...payload.system, assetId: "os.example", hasPulse: false };
-    const silent = kpiFor(renderHome().container, "System");
-    const missing = [...silent.querySelectorAll(".text-error")].find((node) => node.textContent === "no System report");
-    expect(missing).toBeDefined();
-  });
-
-  /**
-   * The setup ring LEFT this row on 2026-09-05 (design review on `ro-78qo.6`).
-   * `ro-28ma` put it here as a third fact — the stage word says which stage, the
-   * ring how far through its checklist — and the argument still holds where
-   * there is room for it. There is none here: at 16px, beside the mode glyph, a
-   * part-filled segmented ring reads as a spinner, and it drew on five of six
-   * rows, so the column's loudest shape was the one nobody could decode. The
-   * fraction is stated in words on the asset's own header instead.
-   */
-  describe("the assets table's State cell", () => {
-    const ONBOARDING = {
-      status: "onboarding",
-      displayName: "Meal Planner",
-      pulseReceivedAt: "2026-07-29T11:00:00.000Z",
-      firstReportAt: new Date(Date.now() - 9 * 86_400_000).toISOString(),
-      dataSources: [
-        { id: "nightly-report", label: "Nightly report", state: "live" as const, observedAt: "2026-07-29T11:00:00.000Z", verification: { kind: "collection-success" as const, laneId: "nightly-report" } },
-        { id: "gsc", label: "Google Search Console", state: "live" as const, observedAt: "2026-07-29T11:00:00.000Z" },
-        { id: "ga4", label: "Google Analytics 4", state: "needs-setup" as const },
-      ],
-    };
-
-    it("shows each source's status instead of a manual lifecycle — and no progress ring", () => {
-      withAsset(ONBOARDING);
-
-      const { container } = renderHome();
-      const row = container.querySelector('[data-asset-row="meals.example"]')!;
-      const cell = row.querySelector('td[data-label="State"]')!;
-
-      expect([...cell.querySelectorAll('[data-source]')].map((mark) => mark.getAttribute("aria-label"))).toEqual([
-        "Nightly report: Working",
-        "Google Search Console: Unknown",
-        "Google Analytics 4: Unknown",
-      ]);
-      expect(cell.textContent).not.toContain("Onboarding");
-      expect(cell.textContent).not.toContain("Automation enabled");
-      expect(cell.querySelector("[data-severity-dot], [aria-label]")).not.toBeNull();
-      // The shape that read as a spinner is gone from the whole row.
-      expect(row.querySelector("[data-progress-ring]")).toBeNull();
-    });
-
-    it("does not confuse automation permission with observed data health", () => {
-      withAsset({ ...ONBOARDING, senseOnly: true });
-
-      const monitored = renderHome();
-      const watching = monitored.container.querySelector('td[data-label="State"]')!;
-      expect(watching.querySelector('[aria-label="Nightly report: Working"]')).not.toBeNull();
-      monitored.unmount();
-
-      withAsset({ ...ONBOARDING, senseOnly: false });
-      const acting = renderHome().container.querySelector('td[data-label="State"]')!;
-      expect(acting.querySelector('[aria-label="Nightly report: Working"]')).not.toBeNull();
-    });
-  });
-
-  describe("the assets table's 28-day users column", () => {
-    it("draws the series at doc 21's cell size, with no bands and no labels", () => {
-      withAsset({
-        activeUsers: {
-          series: daily(28),
-          provisionalFrom: "2026-07-29",
-          collectedAt: "2026-07-29T12:00:00.000Z",
-          timeZoneChanges: [],
-        },
-      });
-
-      const { container } = renderHome();
-
-      // Short enough to stay on ONE line: "USERS · TODAY" and "7-DAY" each broke
-      // across two, which costs the table a whole row of height to say less.
-      // The method is the line's own readout (asserted below), not a third
-      // phrase on the header (bead ro-ujb9.96.6.10).
-      expect(screen.getByRole("columnheader", { name: "Users · 28d" })).toBeInTheDocument();
-      expect(screen.getByRole("columnheader", { name: "Daily users" })).toBeInTheDocument();
-      const cell = container.querySelector("[data-users-spark]")!;
-      expect(cell).not.toBeNull();
-      // `Sparkline` at `size="cell"` — 96×24, one of the three sizes doc 21
-      // allows, so five call sites cannot land on five nearly-equal rectangles.
-      const svg = cell.querySelector("svg")!;
-      expect(svg.getAttribute("viewBox")).toBe("0 0 96 24");
-      // A wordless line and nothing else: anything needing an axis, week bands
-      // or range labels is a `HeroChart`, not a table cell.
-      expect(cell.querySelector("[data-week-band]")).toBeNull();
-      expect(cell.querySelector("[data-chart-ranges]")).toBeNull();
-      expect(cell.querySelector("[data-chart-axis]")).toBeNull();
-      expect(within(cell as HTMLElement).getByRole("img")).toHaveAccessibleDescription(/trailing 7-day average/);
-      const visibleCell = cell.cloneNode(true) as HTMLElement;
-      visibleCell.querySelectorAll(".sr-only, title").forEach((node) => node.remove());
-      expect(visibleCell.textContent).toBe("");
-      // Today-so-far never poses as a settled reading: the loudest ink on the
-      // line goes hollow while the provider is still counting the day.
-      expect(svg.querySelector("[data-chart-dot]")!.getAttribute("data-chart-dot")).toBe("hollow");
-    });
-
-    // NINE COLUMNS THAT FIT THE CARD (bead `ro-pbzu.10`). At 1440 the card is
-    // ~1142px and the row's natural width was 1201: the last two columns went
-    // over the edge, "Last report" wrapped to "LAS / REPORT" and its cell was
-    // cut mid-word. Four cells were holding that width open — three phrases
-    // pinned with `whitespace-nowrap`, and a sparkline at a fixed `w-24` — and
-    // a truncating asset name whose `truncate` (which carries nowrap) made the
-    // column's MINIMUM the whole name.
-    //
-    // jsdom has no layout, so what is pinned here is the mechanism, not the
-    // pixels: the classes that decide whether a column can give anything back.
-    // Measured in a browser at 1440x900 and 1280x900 with two sites and a task
-    // source (docs/artifacts/site-table-fit-2026-09-24, bead ro-ujb9.163), the
-    // table's overflow is 0px at both; at 1280 it had crept back to 52px here
-    // and 129px on /assets, cutting off Reported, as columns arrived.
-    it("lets every column give width back, so ten of them fit the card", () => {
-      withAsset({
-        activeUsers: {
-          series: daily(28),
-          provisionalFrom: "2026-07-29",
-          collectedAt: "2026-07-29T12:00:00.000Z",
-          timeZoneChanges: [],
-        },
-      });
-
-      const { container } = renderHome();
-      const row = container.querySelector('[data-asset-row="meals.example"]')!;
-      const cellFor = (label: string) =>
-        row.querySelector<HTMLElement>(`td[data-label="${label}"]`)!;
-
-      // The two phrases left. Each still renders in full; neither may hold its
-      // column open at any width.
-      for (const cell of [row.querySelector<HTMLElement>('td[data-label^="Net · "]')!, cellFor("Tasks")]) {
-        expect(cell.className).not.toContain("whitespace-nowrap");
-      }
-      // STATE FITS ON ONE LINE NOW, so it can be nowrap: the mode is a glyph
-      // rather than "· Automation enabled", which is what used to wrap every
-      // row onto a second line. The cap is still what decides which column
-      // gives when the table is tight.
-      expect(cellFor("State").querySelector(".whitespace-nowrap")).toBeNull();
-      // The permission is still stated — as a shape, a hover sentence and an
-      // accessible word, never as colour alone.
-      const mode = cellFor("State").querySelector('[title*="approved automation"]')!;
-      expect(mode).toBeNull();
-
-      // The trend cell is doc 21's fixed 96px `cell` sparkline now, so it is no
-      // longer one of the columns the table negotiates with — which is why the
-      // cap above had to grow by one step to keep the other eight honest.
-      expect(row.querySelector("[data-users-spark] svg")!.getAttribute("viewBox")).toBe(
-        "0 0 96 24",
-      );
-
-      // The identity cap is what makes the name's truncation real. It tightened
-      // by one step when the search-clicks column arrived (`ro-78qo.35`): a
-      // name is the column that can most afford to give width back.
-      expect(row.querySelector(".max-w-44")).not.toBeNull();
-
-      // A 13-INCH LAPTOP'S CARD (bead ro-ujb9.163). Below 64rem of box — 982px
-      // at 1280 — the columns sit closer (8px a side, not 12), the name gives
-      // one more step, and today's pace drops under its figure rather than
-      // holding that column open. No column leaves.
-      const table = container.querySelector("table")!;
-      expect(table.className).toContain("@min-[40rem]:@max-[64rem]:[&_td]:px-2");
-      expect(table.className).toContain("@min-[40rem]:@max-[64rem]:[&_th:not([aria-sort])]:px-2");
-      expect(row.querySelector(".max-w-44")!.className).toContain("@max-[64rem]:max-w-36");
-      expect(cellFor("Daily users").querySelector("[data-users-day] > span")!.className).toContain("flex-wrap");
-
-      // NINE COLUMNS OF FACT. `ro-78qo.35` added the search-clicks line and put
-      // net's own months under its figure, which took the table past the width
-      // the shell leaves it — so the one column that was never a fact went: the
-      // chevron. The row still says it opens, through the pointer cursor, the
-      // hover ground and the asset name being a real link. EIGHT since bead
-      // `ro-ujb9.96.6.10`: the range's move rides the users line it describes
-      // instead of a column of its own that needed a paragraph to explain.
-      expect(row.querySelectorAll("td")).toHaveLength(8);
-      expect(row.querySelector(".lucide-chevron-right")).toBeNull();
-    });
-
-    it("says nothing below the three points that make a direction", () => {
-      withAsset({
-        activeUsers: {
-          series: daily(2),
-          provisionalFrom: null,
-          collectedAt: null,
-          timeZoneChanges: [],
-        },
-      });
-
-      const { container } = renderHome();
-
-      expect(container.querySelector("[data-users-spark]")).toBeNull();
-      const row = container.querySelector('[data-asset-row="meals.example"]')!;
-      expect(row.textContent).toContain("—");
-    });
-  });
-
-  it("puts the queue's shape beside its counts, and none where none was measured", () => {
-    withSecondSite();
-    const distributed = renderHome();
-    const bar = distributed.container
-      .querySelector('[data-asset-row="meals.example"]')!
-      .querySelector("[data-priority-bar]")!;
-    expect(bar).not.toBeNull();
-    // The seed asset's [1, 2, 8, 3, 1]: the two hot bands are drawn, so the row
-    // says WHAT KIND of 12 this is rather than only that it is 12.
-    expect(bar.querySelector('[data-priority-band="top"]')).not.toBeNull();
-    expect(bar.querySelector('[data-priority-band="high"]')).not.toBeNull();
-    distributed.unmount();
-
-    // No distribution in the snapshot means no bar — never a flat one invented
-    // from the total.
-    withAsset({ work: { ...ASSETS[0]!.work!, priorities: null } });
-    expect(renderHome().container.querySelector("[data-priority-bar]")).toBeNull();
-  });
-
-  /**
-   * The ledger's honesty split is still on every figure — but it is said ONCE
-   * where the whole column agrees, and per-row only where a row differs from
-   * its header (bead `ro-78qo.6`). Six identical "Forecast" chips down a column
-   * are one fact printed six times, in the loudest thing in the cell.
-   */
-  it("says the booking state once in the header, and marks only the exception", () => {
-    withAsset({ booked: { currency: 'USD', revenue: 300, cost: 100, net: 200 } });
-    const reconciled = renderHome();
-    const bookedRow = reconciled.container.querySelector('[data-asset-row="meals.example"]')!;
-    // One asset, one state: the header speaks for the column…
-    expect(
-      screen.getByRole("columnheader", { name: /Net · Jul\s*· reconciled/ }),
-    ).toBeInTheDocument();
-    // …so the row states the figure and nothing else.
-    expect(bookedRow.textContent).toContain("$200");
-    expect(bookedRow.textContent).not.toContain("Reconciled");
-    expect(bookedRow.textContent).not.toContain("Forecast");
-    reconciled.unmount();
-
-    withAsset({ forecast: { currency: 'USD', revenue: 90, cost: 0, net: 90 } });
-    const estimated = renderHome();
-    expect(
-      screen.getByRole("columnheader", { name: /Net · Jul\s*· forecast/ }),
-    ).toBeInTheDocument();
-    expect(
-      estimated.container.querySelector('[data-asset-row="meals.example"]')!.textContent,
-    ).not.toContain("Forecast");
-    estimated.unmount();
-
-    // TWO KINDS IN ONE COLUMN and the header cannot speak for it, so each row
-    // says which it is — which is the state the chips existed for.
-    payload.assets = [
-      { ...SEEDED_ASSETS[0]!, booked: { currency: 'USD', revenue: 300, cost: 100, net: 200 } },
-      {
-        ...SEEDED_ASSETS[0]!,
-        id: "nosh.example",
-        displayName: "Nosh",
-        forecast: { currency: 'USD', revenue: 90, cost: 0, net: 90 },
-      },
-    ];
-    const mixed = renderHome();
-    expect(
-      screen.getByRole("columnheader", { name: "Net · Jul" }),
-    ).toBeInTheDocument();
-    expect(
-      mixed.container.querySelector('[data-asset-row="meals.example"]')!.textContent,
-    ).toContain("Reconciled");
-    expect(
-      mixed.container.querySelector('[data-asset-row="nosh.example"]')!.textContent,
-    ).toContain("Forecast");
-  });
-
-  it("gives every waiting row the Tasks board's ask face — warn at every priority, a gate's △ (ro-ujb9.240)", () => {
+  it("gives every row the Tasks board's ask face — warn at every priority, a gate's △ (ro-ujb9.240)", () => {
     workState.data = workPayload([
-      project("NoticeOS", [
-        waiting({ id: "ro-3z7", priority: 3, issueType: "gate", title: "Approve the cap" }),
-      ]),
+      project("NoticeOS", [waiting({ id: "ro-3z7", priority: 3, issueType: "gate", title: "Approve the cap" })]),
       project("Meal Planner", [
         waiting({ id: "mp-9k1", priority: 0, title: "Top-priority ask" }),
         waiting({ id: "mp-2b4", priority: 1, title: "High-priority ask" }),
@@ -1863,38 +1210,20 @@ describe("Home — a shape before the words", () => {
 
     renderHome();
 
-    const rows = within(panelFor("Waiting on you")).getAllByRole("listitem");
+    const panel = panelFor("Decide");
+    fireEvent.click(within(panel).getByRole("button", { name: "Show 1 more" }));
+    const rows = within(panel).getAllByRole("listitem");
     // A task's priority is not a severity (doc 14): an ask waiting on the
-    // operator is warn at every band, a top one too — the same amber ring it
-    // wears one click later on /tasks. It used to be red at P0, beside real
-    // failures. Priority is the ORDER the rows arrive in, not their colour.
-    expect(rows.map(rowTone)).toEqual([
-      "text-warn",
-      "text-warn",
-      "text-warn",
-      "text-warn",
-    ]);
-    // Never colour-only: the ring carries the tone and the mark the meaning, so
-    // a gate holding other work (`△`) reads differently from an ask (`!`) on a
-    // grayscale screen — the board's inbox marks, exactly.
-    expect(rows.map((row) => row.querySelector("[aria-hidden]")!.textContent)).toEqual([
-      "△",
-      "!",
-      "!",
-      "!",
-    ]);
-    // The MEANING survives where a reader can read it: this row is holding work
-    // out of the ready queue until it is answered, and that is not something a
-    // colour can say — nor is "gate", which is the hub's word (doc 17).
-    expect(rows[0]!.textContent).toContain("needs your approval");
-    expect(rows[0]!.textContent).toContain("ro-3z7");
+    // operator is warn at every band. Priority is the ORDER, not the colour.
+    expect(rows.map(rowTone)).toEqual(["text-warn", "text-warn", "text-warn", "text-warn"]);
+    // Never colour-only: a gate holding other work (`△`) reads differently
+    // from an ask (`!`) on a grayscale screen — the board's inbox marks.
+    expect(rows.map((row) => row.querySelector("[aria-hidden]")!.textContent)).toEqual(["△", "!", "!", "!"]);
+    expect(rows[0]).toHaveTextContent("needs your approval");
     expect(rows[3]!.textContent).not.toContain("needs your approval");
   });
 });
 
-// The dot beside a site in the nav is its worst OPEN ALERT, and it says so:
-// read as a bare "Error" it was taken for a data source's status, which has its
-// own marks (bead ro-32ry).
 describe("the nav's site dot names its open alerts, never a bare severity (ro-32ry)", () => {
   it("reads '1 open error alert' and '2 open warning alerts' in its name and hover", () => {
     const saved = payload.assets;
@@ -2061,10 +1390,9 @@ describe("Home and Wall phase scoping", () => {
     expect(wall.container.querySelector('a[href="/tasks"]')).toBeNull();
     wall.unmount();
 
-    // Home states the urgent count in its assets table and links to the board.
+    // Home's Decide links to the board; the per-site counts are on Sites (D44).
     withSecondSite();
     const home = renderHome();
-    expect(home.container.textContent).toContain("3 urgent");
     expect(home.container.querySelector('a[href="/tasks"]')).not.toBeNull();
     // And nothing on either surface still points at the old address.
     expect(home.container.querySelector('a[href="/work"]')).toBeNull();
@@ -2109,18 +1437,17 @@ describe("Portfolio card with no ledger row at all", () => {
     }
   });
 
-  it("says so in one line on Home rather than leaving a hole in the strip", () => {
+  it("draws no money card on Home rather than a $0 nobody counted", () => {
     payload.portfolio = nothing;
 
     const { container } = renderHome();
 
-    const money = kpiFor(container, "Net · Jul");
-    // A DASH, not $0: a zero would claim a month was counted and came to
-    // nothing. The reason rides the caption where the composition usually is.
-    expect(within(money).getByText("—")).toBeInTheDocument();
-    expect(money.textContent).toContain("no revenue or costs for Jul yet");
-    expect(money.querySelector("[data-spark]")).toBeNull();
+    // Absence is the honest render (bead ro-yf3): no money card, no $0, and
+    // no estimate word over nothing. The brief still ends.
+    expect(container.querySelector('[data-highlight="money"]')).toBeNull();
+    expect(container.querySelector("[data-page-answer]")!.textContent).not.toContain("$");
     expect(screen.queryByText(/· estimated/)).toBeNull();
+    expect(container.querySelector("[data-finish-line]")).not.toBeNull();
   });
 
   it("brings the month's figure back on the first forecast-only row", () => {
@@ -2138,26 +1465,3 @@ describe("Portfolio card with no ledger row at all", () => {
   });
 });
 
-
-it("Home composition evidence opens by focus and tap (ro-ujb9.241)", () => {
-  const previousOperator = payload.operator;
-  payload.operator = { waiting: 4, urgent: 1, measuredProjects: 1, urgentMeasuredProjects: 1,
-    projectCount: 1, capturedAt: "2026-07-29T12:04:50.000Z" };
-  payload.attention = [alert({ id: 1, severity: "error" }), alert({ id: 2, severity: "warn" })];
-  payload.system = { ...payload.system, ingest: { fresh: 1, stale: 1, notExpected: 1, expected: 2 } };
-  try {
-    renderHome();
-    for (const [name, evidence] of [["Needs you", "1 urgent of the 4 waiting on you."],
-      ["Open alerts", "1 error and 1 warning flags are open."],
-      ["System", "1 fresh · 1 stale · 1 not expected to report"]]) {
-      const trigger = screen.getByRole("button", { name: `About ${name}` });
-      fireEvent.focus(trigger);
-      expect(screen.getByRole("tooltip")).toHaveTextContent(evidence!);
-      fireEvent.keyDown(window, { key: "Escape" });
-      expect(screen.queryByRole("tooltip")).toBeNull();
-      fireEvent.click(trigger);
-      expect(screen.getByRole("tooltip")).toHaveTextContent(evidence!);
-      fireEvent.keyDown(window, { key: "Escape" });
-    }
-  } finally { payload.operator = previousOperator; }
-});

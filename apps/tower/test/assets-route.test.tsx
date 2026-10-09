@@ -222,13 +222,6 @@ function shown(container: HTMLElement): string[] {
   );
 }
 
-/** One KPI's whole cell, by the metric name the strip marks it with. */
-function kpi(container: HTMLElement, label: string): HTMLElement {
-  const found = container.querySelector<HTMLElement>(`[data-kpi="${label}"]`);
-  if (found === null) throw new Error(`no KPI labelled ${label} on the strip`);
-  return found;
-}
-
 function chip(group: string, name: RegExp): HTMLElement {
   return within(screen.getByRole("group", { name: group })).getByRole("button", {
     name,
@@ -241,20 +234,18 @@ afterEach(() => {
 });
 
 describe("/assets — the portfolio index", () => {
-  it("states each source as a mark, with no control nested in the row, and the row opens its asset", () => {
-    // The State cell's data status is the sources' own marks (bead
-    // `ro-ujb9.96.7.16`), not a word with a help button beside it.
-    const assets = ASSETS.map((asset) => asset.id === "meals.example" ? {
-      ...asset,
-      dataSources: [{ id: "nightly-report", label: "Nightly report", state: "live" as const, observedAt: "2026-08-01T04:00:00.000Z", verification: { kind: "collection-success" as const, laneId: "nightly-report" } }],
-    } : asset);
+  it("states each site's one health word, with no control nested in the row, and the row opens its asset", () => {
+    // The Health cell is the site's one word (D44), the same derivation as
+    // Home's strip and the site's header — never a row of provider glyphs.
     const { container } = render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={["/assets"]}><Routes>
-      <Route path="/assets" element={<AssetsTable assets={assets} nowMs={Date.parse("2026-08-01T12:00:00.000Z")} />} />
+      <Route path="/assets" element={<AssetsTable assets={ASSETS} nowMs={Date.parse("2026-08-01T12:00:00.000Z")} />} />
       <Route path="/assets/:id" element={<p>Asset destination</p>} />
     </Routes></MemoryRouter></QueryClientProvider>);
-    const state = container.querySelector('[data-asset-row="meals.example"] td[data-label="State"]')!;
-    expect(state.querySelector('[data-source="nightly-report"]')).toHaveAttribute("aria-label", "Nightly report: Working");
-    expect(screen.queryByRole("button", { name: "About Meal Planner data status" })).toBeNull();
+    const health = (id: string) => container.querySelector(`[data-asset-row="${id}"] td[data-label="Health"] [data-status-for="asset:${id}"]`);
+    expect(health("meals.example")).toHaveTextContent("Off track");
+    expect(health("nosh.example")).toHaveTextContent("At risk");
+    expect(health("areas.example")).toHaveTextContent("Setting up");
+    expect(container.querySelector("[data-source]")).toBeNull();
     expect(container.querySelector("button button, a button")).toBeNull();
     fireEvent.click(container.querySelector('[data-asset-row="meals.example"]')!);
     expect(screen.getByText("Asset destination")).toBeVisible();
@@ -280,9 +271,10 @@ describe("/assets — the portfolio index", () => {
     // What folds on a phone, and what a glance keeps.
     expect(row).toHaveAttribute("data-stack-fold");
     const folded = [...row.querySelectorAll("td[data-fold]")].map((cell) => cell.getAttribute("data-label"));
-    expect(folded).toEqual(["Search clicks · 28d", "Net · August 2026", "Reported"]);
+    expect(folded).toEqual(["Visitors · 28d", "Search clicks · 28d", "Net · August 2026", "Tasks"]);
     const kept = [...row.querySelectorAll("td:not([data-fold])")].map((cell) => cell.getAttribute("data-label"));
-    expect(kept).toEqual([null, "State", "Daily users", "Users · 28d", "Tasks"]);
+    // A glance keeps the name, the health word and one figure (D44).
+    expect(kept).toEqual([null, "Health", "Visitors"]);
   });
 
   it("renders every asset in seed order by default, with no filter to clear", () => {
@@ -328,28 +320,23 @@ describe("/assets — the portfolio index", () => {
       "Retired · 0",
     ]);
 
-    // Each chip states its own count beside its glyph, so the answer to "how
-    // many are open?" is on screen without opening a control.
+    // One chip per health word the portfolio holds, worst first, each with its
+    // count: the answer to "which need me?" without opening a control.
     expect(
-      within(screen.getByRole("group", { name: "Automation" }))
+      within(screen.getByRole("group", { name: "Health" }))
         .getAllByRole("button")
         .map((button) => button.textContent),
-    ).toEqual(["All 4", "Automation enabled 3", "Monitor only 1"]);
-    expect(
-      within(screen.getByRole("group", { name: "Attention" }))
-        .getAllByRole("button")
-        .map((button) => button.textContent),
-    ).toEqual(["All 4", "Has open alerts 2", "All clear 2"]);
+    ).toEqual(["All 4", "Off track 1", "At risk 1", "Setting up 2"]);
   });
 
   it("reads its filters from the URL, so a narrowed grid is a link", () => {
-    const { container } = renderAssets("/assets?status=live&automation=observe");
+    const { container } = renderAssets("/assets?status=live&health=at-risk");
 
     expect(shown(container)).toEqual(["nosh.example"]);
     expect(screen.getByLabelText("Status")).toHaveValue("live");
-    expect(chip("Automation", /Monitor only/)).toHaveAttribute("aria-pressed", "true");
+    expect(chip("Health", /At risk/)).toHaveAttribute("aria-pressed", "true");
     expect(
-      screen.getByText("1 of 4 sites · status: live · automation: monitor only"),
+      screen.getByText("1 of 4 sites · status: live · health: at risk"),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Clear" })).toBeInTheDocument();
   });
@@ -357,29 +344,29 @@ describe("/assets — the portfolio index", () => {
   it("narrows the grid when the operator picks a chip", () => {
     const { container } = renderAssets();
 
-    fireEvent.click(chip("Attention", /Has open alerts/));
+    fireEvent.click(chip("Health", /Off track/));
 
-    expect(shown(container)).toEqual(["meals.example", "nosh.example"]);
-    expect(chip("Attention", /Has open alerts/)).toHaveAttribute("aria-pressed", "true");
+    expect(shown(container)).toEqual(["meals.example"]);
+    expect(chip("Health", /Off track/)).toHaveAttribute("aria-pressed", "true");
     expect(
-      screen.getByText("2 of 4 sites · attention: has open alerts"),
+      screen.getByText("1 of 4 sites · health: off track"),
     ).toBeInTheDocument();
   });
 
   it("orders from the URL, worst first, with seed order as the tie-break", () => {
-    const { container } = renderAssets("/assets?sort=alerts");
+    const { container } = renderAssets("/assets?sort=health");
 
     expect(shown(container)).toEqual([
-      "nosh.example",
       "meals.example",
+      "nosh.example",
       "areas.example",
       "fees.example",
     ]);
-    expect(screen.getByLabelText("Sort")).toHaveValue("alerts");
-    expect(screen.getByText("4 sites · sorted by open alerts")).toBeInTheDocument();
+    expect(screen.getByLabelText("Sort")).toHaveValue("health");
+    expect(screen.getByText("4 sites · sorted by health")).toBeInTheDocument();
   });
 
-  it("orders by name, urgent work, today's users and time since a report", () => {
+  it("orders by name, urgent work and visitors", () => {
     const byName = renderAssets("/assets?sort=name");
     expect(shown(byName.container)).toEqual([
       "areas.example",
@@ -407,16 +394,6 @@ describe("/assets — the portfolio index", () => {
       "areas.example",
       "fees.example",
     ]);
-    byUsers.unmount();
-
-    // Never-reported leads: silence is the longest gap there is.
-    const byReport = renderAssets("/assets?sort=report");
-    expect(shown(byReport.container)).toEqual([
-      "fees.example",
-      "areas.example",
-      "nosh.example",
-      "meals.example",
-    ]);
   });
 
   it("falls back to seed order when the URL carries an ordering it cannot name", () => {
@@ -432,9 +409,9 @@ describe("/assets — the portfolio index", () => {
   });
 
   it("clears every filter and the ordering at once", () => {
-    const { container } = renderAssets("/assets?status=live&attention=open&sort=name");
+    const { container } = renderAssets("/assets?status=live&health=off-track&sort=name");
 
-    expect(shown(container)).toEqual(["meals.example", "nosh.example"]);
+    expect(shown(container)).toEqual(["meals.example"]);
 
     fireEvent.click(screen.getByRole("link", { name: "Clear" }));
 
@@ -503,7 +480,7 @@ describe("/assets — the comparison arrives with a second site (ro-ujb9.128)", 
       chips: container.querySelectorAll("[data-assets-filter]").length,
       sort: screen.queryByLabelText("Sort"),
       status: screen.queryByLabelText("Status"),
-      strip: container.querySelector("[data-kpi-strip]"),
+      answer: container.querySelector("[data-sites-answer]"),
       summary: container.querySelector("[data-assets-summary]"),
       about: container.querySelector("[data-about]"),
       sortableHeaders: container.querySelectorAll("th[aria-sort]").length,
@@ -513,7 +490,7 @@ describe("/assets — the comparison arrives with a second site (ro-ujb9.128)", 
   it("with no sites, is its header, Add a site and one empty state", () => {
     const { container } = renderAssets("/assets", []);
     expect(machinery(container)).toEqual({
-      range: null, filters: null, chips: 0, sort: null, status: null, strip: null, summary: null, about: null, sortableHeaders: 0,
+      range: null, filters: null, chips: 0, sort: null, status: null, answer: null, summary: null, about: null, sortableHeaders: 0,
     });
     expect(screen.getByText("No sites yet")).toBeInTheDocument();
     expect(screen.getAllByRole("button")).toEqual([screen.getByRole("button", { name: "Add a site" })]);
@@ -525,14 +502,14 @@ describe("/assets — the comparison arrives with a second site (ro-ujb9.128)", 
   it("with one site, is that site's row and nothing to filter, sort or add up", () => {
     const { container } = renderAssets("/assets", [ASSETS[0]!]);
     expect(machinery(container)).toEqual({
-      range: null, filters: null, chips: 0, sort: null, status: null, strip: null, summary: null, about: null, sortableHeaders: 0,
+      range: null, filters: null, chips: 0, sort: null, status: null, answer: null, summary: null, about: null, sortableHeaders: 0,
     });
     expect(shown(container)).toEqual(["meals.example"]);
     expect(within(container.querySelector<HTMLElement>('[data-asset-row="meals.example"]')!)
       .getByRole("link", { name: "Meal Planner" }).getAttribute("href")).toMatch(/^\/assets\/meals\.example/);
     expect(container.querySelector("[data-assets-age]")).toHaveTextContent("updated");
     // A link that narrows cannot hide the only site.
-    renderAssets("/assets?status=retired&attention=open", [ASSETS[0]!]);
+    renderAssets("/assets?status=retired&health=at-risk", [ASSETS[0]!]);
     expect(screen.queryByText("No sites match these filters")).toBeNull();
   });
 
@@ -541,10 +518,10 @@ describe("/assets — the comparison arrives with a second site (ro-ujb9.128)", 
     const shownMachinery = machinery(container);
     expect(shownMachinery.range).not.toBeNull();
     expect(shownMachinery.filters).not.toBeNull();
-    expect(shownMachinery.chips).toBe(2);
+    expect(shownMachinery.chips).toBe(1);
     expect(shownMachinery.sort).not.toBeNull();
     expect(shownMachinery.status).not.toBeNull();
-    expect(shownMachinery.strip).not.toBeNull();
+    expect(shownMachinery.answer).toHaveTextContent("2 of 2 sites need you");
     expect(shownMachinery.summary).toHaveTextContent("2 sites");
     // Comparing needs no paragraph (bead ro-ujb9.96.6.10).
     expect(shownMachinery.about).toBeNull();
@@ -562,7 +539,7 @@ describe("/assets — the comparison arrives with a second site (ro-ujb9.128)", 
   it("orders by a header whose arrow takes no width, before a right-aligned label", () => {
     const { container } = renderAssets("/assets", ASSETS.slice(0, 2));
     const headers = [...container.querySelectorAll<HTMLElement>("th[aria-sort]")];
-    expect(headers.length).toBe(7);
+    expect(headers.length).toBe(6);
     for (const header of headers) {
       const glyph = header.querySelector("svg")!;
       expect(glyph.getAttribute("class")).toContain("absolute");
@@ -573,8 +550,7 @@ describe("/assets — the comparison arrives with a second site (ro-ujb9.128)", 
     }
     const glyphOf = (name: string) =>
       headers.find((header) => header.textContent === name)!.querySelector("svg")!.getAttribute("class")!;
-    expect(glyphOf("Reported")).toContain("right-full");
-    expect(glyphOf("Daily users")).toContain("right-full");
+    expect(glyphOf("Visitors")).toContain("right-full");
     expect(glyphOf("Site")).toContain("left-full");
     expect(glyphOf("Tasks")).toContain("left-full");
   });
@@ -586,37 +562,34 @@ describe("/assets — the comparison arrives with a second site (ro-ujb9.128)", 
  * an asset's own page.
  */
 describe("/assets — composed to doc 21", () => {
-  it("separates latest status, traffic, and the accounting month into labelled groups", () => {
+  it("opens with one answer: which sites need you, by the one health word (D44)", () => {
     const { container } = renderAssets();
 
-    const hero = container.querySelector("[data-surface-hero]")!;
-    expect(hero).not.toBeNull();
-    expect(hero.querySelector("[data-kpi-strip]")).not.toBeNull();
-    expect(
-      [...hero.querySelectorAll("[data-kpi]")].map((cell) =>
-        cell.getAttribute("data-kpi"),
-      ),
-    ).toEqual([
-      "Sites",
-      "Open alerts",
-      "Open tasks",
-      "Latest daily users",
-      "Avg. daily users · 28d",
-      "Net · Aug",
-    ]);
-    const status = screen.getByRole("region", { name: "Latest status" });
-    expect(status.querySelectorAll("[data-kpi]")).toHaveLength(3);
-    expect(status).toContainElement(kpi(container, "Sites"));
-    expect(status).not.toContainElement(kpi(container, "Net · Aug"));
-    expect(screen.getByRole("region", { name: "Traffic · 28 days" })).toContainElement(kpi(container, "Latest daily users"));
-    expect(screen.getByRole("region", { name: "Financials · August 2026" })).toContainElement(kpi(container, "Net · Aug"));
+    // No strip of equal boxes: one sentence, the sites it names, and the
+    // month's figure from Home's own derivation.
+    const answer = container.querySelector<HTMLElement>("[data-sites-answer]")!;
+    expect(answer).toHaveAttribute("data-surface-hero");
+    expect(answer).toHaveAttribute("data-sites-answer", "needs-you");
+    expect(within(answer).getByRole("heading", { level: 2 })).toHaveTextContent("2 of 4 sites need you");
+    expect([...answer.querySelectorAll("a[data-sites-answer-site]")].map((link) => link.textContent)).toEqual(["Meal Planner", "Nosh"]);
+    expect(container.querySelector("[data-kpi-strip]")).toBeNull();
     expect(screen.getByRole("button", { name: "Filters & sort" })).toHaveAttribute("aria-expanded", "false");
   });
 
+  it("says All on track when no site needs you, and counts the ones still setting up apart", () => {
+    const calm = [assetCard({ id: "one.example" }), assetCard({ id: "two.example" })];
+    const { container, unmount } = renderAssets("/assets", calm);
+    expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("All 2 sites on track");
+    unmount();
+    const young = [assetCard({ id: "one.example" }), assetCard({ id: "two.example", status: "baselining" })];
+    const second = renderAssets("/assets", young);
+    expect(second.container.querySelector("[data-sites-answer]")).toHaveTextContent("1 of 2 sites on track1 setting up");
+  });
+
   it("counts active filters on the phone control without counting traffic range or sort", () => {
-    const { container } = renderAssets("/assets?status=live&automation=observe&attention=open&range=7&sort=name");
+    const { container } = renderAssets("/assets?status=live&health=at-risk&range=7&sort=name");
     // The shared fold (bead ro-ujb9.13): the badge is the digit, the name says what it counts.
-    const control = screen.getByRole("button", { name: "Filters & sort, 3 on" });
+    const control = screen.getByRole("button", { name: "Filters & sort, 2 on" });
     expect(control).toHaveAttribute("aria-expanded", "false");
     expect(control).toHaveClass("sm:hidden");
     const filters = container.querySelector("[data-assets-filters]")!;
@@ -626,7 +599,7 @@ describe("/assets — composed to doc 21", () => {
     expect(control).toHaveAttribute("aria-expanded", "true");
     expect(filters).not.toHaveClass("max-sm:hidden");
     fireEvent.change(screen.getByRole("combobox", { name: "Status" }), { target: { value: "all" } });
-    expect(screen.getByRole("button", { name: "Filters & sort, 2 on" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Filters & sort, 1 on" })).toBeInTheDocument();
     // The period is not a filter: it stays in view beside the button.
     expect(container.querySelector("[data-assets-traffic-controls]")).toContainElement(control);
     expect(container.querySelector("[data-assets-traffic-controls]")).toContainElement(screen.getByRole("group", { name: "Traffic period" }));
@@ -660,27 +633,16 @@ describe("/assets — composed to doc 21", () => {
     }
   });
 
-  it("counts the portfolio, not the filtered view", () => {
+  it("answers for the portfolio, not the filtered view", () => {
     const { container } = renderAssets("/assets?status=live");
 
-    // Two of the four are live, and the strip still answers for all four: it
-    // is a fact about the portfolio this page is the index OF, and the summary
-    // line below owns the current view's arithmetic.
-    expect(kpi(container, "Sites").textContent).toContain("4");
-    expect(kpi(container, "Sites").textContent).toContain("0 receiving data · 4 unconfirmed");
+    // Two of the four are live, and the answer still speaks for all four: it
+    // is a fact about the portfolio, and the summary line below owns the
+    // current view's arithmetic.
+    expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("2 of 4 sites need you");
     expect(screen.getByText("2 of 4 sites · status: live")).toBeInTheDocument();
   });
 
-  it("adds up open tasks and marks the total a floor while an asset is unmeasured", () => {
-    const { container } = renderAssets();
-
-    // 5 + 1 + 2 open across the three assets that HAVE a beads snapshot;
-    // Areas has none, so the figure is a lower bound and says so.
-    const tasks = kpi(container, "Open tasks");
-    expect(tasks.textContent).toContain("8+");
-    expect(tasks.textContent).toContain("3 of 4 sites measured");
-    expect(tasks.querySelector("[data-task-urgency]")).not.toBeNull();
-  });
 
   it("draws the urgent count and share in PriorityBar's ink, never an attention hue (ro-ujb9.240)", () => {
     const { container } = renderAssets();
@@ -692,9 +654,6 @@ describe("/assets — composed to doc 21", () => {
     expect(urgent.textContent).toBe("2 urgent");
     expect(urgent.className).toContain("text-foreground");
     expect(urgent.className).not.toMatch(/\btext-(error|warn|info)\b/);
-    const share = kpi(container, "Open tasks").querySelector<HTMLElement>("[data-task-urgency]")!;
-    expect(share.innerHTML).toContain("bg-foreground");
-    expect(share.innerHTML).not.toMatch(/\bbg-(error|warn|info)\b/);
   });
 
   it("sorts from the header row, and a second press returns to seed order", () => {
@@ -782,82 +741,25 @@ describe("/assets — composed to doc 21", () => {
       QUIET,
     ];
 
-    it("uses the earlier context dates when stating a 90-day average", () => {
-      const { container } = renderAssets("/assets?range=90", withSeries());
-      const users = kpi(container, "Avg. daily users · 90d");
-      expect(users.textContent).toContain("145");
-      expect(users.textContent).toContain("90 reported days");
-      // The one fact the label cannot carry — a SUM of the sites — is a label
-      // in the KPI's own explanation, never a paragraph (bead ro-ujb9.96.6.10).
-      expect(users.textContent).not.toContain("added together");
-      fireEvent.focus(within(users).getByRole("button", { name: "About Avg. daily users · 90d" }));
-      expect(screen.getByRole("tooltip")).toHaveTextContent("Every site's users added together");
-      expect(within(users).getAllByRole("button")).toHaveLength(1);
-    });
 
-    it("changes only traffic when switching 7 and 90 days and dates the latest daily reading", () => {
+    it("changes only traffic when switching 7 and 90 days", () => {
       const { container } = renderAssets("/assets?range=7", withSeries(), {
         firstRun: false,
         booked: { currency: 'USD', revenue: 440, cost: 200, net: 240 },
       });
-      const latest = kpi(container, "Latest daily users");
-      expect(latest.querySelector("time")).toHaveAttribute("datetime", "2026-08-01");
-      expect(latest).toHaveTextContent("Aug 1, 2026");
-      expect(within(latest).getByText("189")).toBeInTheDocument();
-      const latestTrend = within(latest).getByRole("img", { name: "Latest daily users trend" });
-      fireEvent.focus(latestTrend);
-      fireEvent.keyDown(latestTrend, { key: "Home" });
-      expect(within(latest).getByRole("status")).toHaveTextContent("Jul 26");
-      fireEvent.keyDown(latestTrend, { key: "Escape" });
-      const status = screen.getByRole("region", { name: "Latest status" }).textContent;
-      const financials = screen.getByRole("region", { name: "Financials · August 2026" }).textContent;
-      expect(financials).toContain("$240");
-
+      const answer = container.querySelector("[data-sites-answer]")!.textContent;
       const range = screen.getByRole("group", { name: "Traffic period" });
       expect(container.querySelector("[data-assets-traffic-controls]")).toContainElement(range);
       expect(screen.getByText("Traffic period")).toBeInTheDocument();
       fireEvent.click(within(range).getByRole("button", { name: "90d" }));
 
-      expect(screen.getByRole("region", { name: "Latest status" }).textContent).toBe(status);
-      expect(screen.getByRole("region", { name: "Financials · August 2026" }).textContent).toBe(financials);
-      expect(screen.getByRole("region", { name: "Traffic · 90 days" })).toBeInTheDocument();
-      expect(within(kpi(container, "Latest daily users")).getByText("189")).toBeInTheDocument();
-      fireEvent.focus(latestTrend);
-      fireEvent.keyDown(latestTrend, { key: "Home" });
-      expect(within(latest).getByRole("status")).toHaveTextContent("May 4");
+      // The answer is not a traffic figure: the range leaves it alone.
+      expect(container.querySelector("[data-sites-answer]")!.textContent).toBe(answer);
+      expect(screen.getByRole("columnheader", { name: /^Visitors · 90d/ })).toBeInTheDocument();
       expect(screen.getByRole("link", { name: "full.example" })).toHaveAttribute("href", "/assets/full.example?range=90");
-      expect(screen.queryByText("Users today")).toBeNull();
     });
 
-    it("does not sum repeat daily visitors or include the unfinished day", () => {
-      const people = days(15).map((point, index) => ({ ...point, v: index === 14 ? 9999 : 100 }));
-      const data = [assetCard({
-        id: "repeat.example",
-        activeUsers: { series: people, provisionalFrom: "2026-08-01", collectedAt: null, timeZoneChanges: [] },
-      }), QUIET];
-      const { container } = renderAssets("/assets?range=7", data);
-      const users = kpi(container, "Avg. daily users · 7d");
-      expect(users.textContent).toContain("100");
-      expect(users.textContent).not.toContain("700");
-      expect(users.textContent).not.toContain("9,999");
-      expect(users.textContent).toContain("7 reported days");
-      expect(users.querySelector("[data-tone]")).toHaveAttribute("data-tone", "neutral");
-    });
 
-    it("compares daily averages when a prior period missed a report", () => {
-      const people = days(14).map((point) => ({ ...point, v: 100 }));
-      people.splice(1, 1);
-      const data = [assetCard({
-        id: "gapped.example",
-        activeUsers: { series: people, provisionalFrom: null, collectedAt: null, timeZoneChanges: [] },
-      }), QUIET];
-      const { container } = renderAssets("/assets?range=7", data);
-      const users = kpi(container, "Avg. daily users · 7d");
-      expect(users.querySelector("[data-tone]")).toHaveTextContent("Not comparable");
-      fireEvent.click(within(users).getByRole("button", { name: "About Avg. daily users · 7d" }));
-      expect(screen.getByRole("tooltip")).toHaveTextContent("7 vs 6 days reported");
-      expect(users.querySelector("[data-tone]")).toHaveAttribute("data-tone", "neutral");
-    });
 
     it("draws clicks and net beside users, each with its own line", () => {
       const { container } = renderAssets("/assets", withSeries());
@@ -883,7 +785,7 @@ describe("/assets — composed to doc 21", () => {
       expect(label(ninety.container, "data-users-spark")).toContain("2026-05-04");
       expect(label(ninety.container, "data-clicks-spark")).toContain("2026-05-04");
       expect(
-        screen.getByRole("columnheader", { name: /^Users · 90d/ }),
+        screen.getByRole("columnheader", { name: /^Visitors · 90d/ }),
       ).toBeInTheDocument();
       expect(
         screen.getByRole("columnheader", { name: /^Search clicks · 90d/ }),
@@ -911,17 +813,17 @@ describe("/assets — composed to doc 21", () => {
     it("puts the range's move beside the users line, and draws none it cannot defend", () => {
       const week = renderAssets("/assets?range=7", withSeries());
       expect(screen.queryByRole("columnheader", { name: "7-day" })).toBeNull();
-      const users = week.container.querySelector<HTMLElement>('tr[data-asset-row="full.example"] td[data-label="Users · 7d"]')!;
+      const users = week.container.querySelector<HTMLElement>('tr[data-asset-row="full.example"] td[data-label="Visitors · 7d"]')!;
       expect(users.querySelector("[data-users-spark]")).not.toBeNull();
       // Seven rising days against the seven before them.
       expect(users.querySelector("[data-tone]")?.textContent).toMatch(/%/u);
       expect(users.querySelector("[data-tone]")).toHaveAccessibleName(/Active users over/);
-      fireEvent.click(screen.getByRole("button", { name: /^Users · 7d/ }));
+      fireEvent.click(screen.getByRole("button", { name: /^Visitors · 7d/ }));
       expect(screen.getByLabelText("Sort")).toHaveValue("trend");
       week.unmount();
 
       const ninety = renderAssets("/assets?range=90", withSeries());
-      const wide = ninety.container.querySelector<HTMLElement>('tr[data-asset-row="full.example"] td[data-label="Users · 90d"]')!;
+      const wide = ninety.container.querySelector<HTMLElement>('tr[data-asset-row="full.example"] td[data-label="Visitors · 90d"]')!;
       expect(wide.querySelector("[data-users-spark]")).not.toBeNull();
       expect(wide.textContent).not.toMatch(/%|—/u);
     });
@@ -931,9 +833,9 @@ describe("/assets — composed to doc 21", () => {
         id: "older.example",
         activeUsers: { series: [{ t: "2026-07-30", v: 900 }], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] },
       })]);
-      expect(screen.getByRole("columnheader", { name: "Daily users" })).toBeInTheDocument();
+      expect(screen.getByRole("columnheader", { name: "Visitors" })).toBeInTheDocument();
       expect(screen.queryByRole("columnheader", { name: "Today" })).toBeNull();
-      const daily = container.querySelector<HTMLElement>('tr[data-asset-row="older.example"] td[data-label="Daily users"]')!;
+      const daily = container.querySelector<HTMLElement>('tr[data-asset-row="older.example"] td[data-label="Visitors"]')!;
       expect(daily.querySelector("time")).toHaveAttribute("dateTime", "2026-07-30");
       expect(daily).toHaveTextContent("900Jul 30");
       expect(daily.querySelector("[data-users-day]")).toHaveAttribute("data-users-day", "2026-07-30");
@@ -956,7 +858,7 @@ describe("/assets — composed to doc 21", () => {
     // header held the row past the card at 1440 (bead ro-ujb9.96.6.10).
     it("names the quantity and window on the header, and the method on the line", () => {
       const { container } = renderAssets("/assets", withSeries());
-      for (const name of ["Users · 28d", "Search clicks · 28d"]) {
+      for (const name of ["Visitors · 28d", "Search clicks · 28d"]) {
         const header = screen.getByRole("columnheader", { name });
         expect(within(header).queryByRole("button", { name: /^About/ })).toBeNull();
       }
@@ -967,7 +869,7 @@ describe("/assets — composed to doc 21", () => {
     });
   });
 
-  it("re-derives the sparkline column and the range KPI when the range changes", () => {
+  it("re-derives the sparkline column when the range changes", () => {
     /** `n` consecutive days ending on 2026-08-01, the fixture's "today". */
     const days = (n: number) =>
       Array.from({ length: n }, (_, index) => ({
@@ -996,7 +898,6 @@ describe("/assets — composed to doc 21", () => {
       wide.container.querySelector("[data-users-spark] [role='img']")
         ?.getAttribute("aria-label"),
     ).toContain("2026-07-05 to 2026-08-01");
-    expect(kpi(wide.container, "Avg. daily users · 28d")).toBeInTheDocument();
     wide.unmount();
 
     const narrow = renderAssets("/assets?range=7", long);
@@ -1005,8 +906,6 @@ describe("/assets — composed to doc 21", () => {
       narrow.container.querySelector("[data-users-spark] [role='img']")
         ?.getAttribute("aria-label"),
     ).toContain("2026-07-26 to 2026-08-01");
-    expect(kpi(narrow.container, "Avg. daily users · 7d")).toBeInTheDocument();
-    expect(narrow.container.querySelector("[data-kpi='Avg. daily users · 28d']")).toBeNull();
   });
 
   it("offers all three of doc 21's windows", () => {
@@ -1035,7 +934,7 @@ describe("/assets — composed to doc 21", () => {
     expect(screen.queryByText(/All-time totals/)).toBeNull();
     // One row per asset, and the row opens the asset.
     expect(container.querySelectorAll("[data-asset-row]")).toHaveLength(4);
-    expect(screen.getByRole("link", { name: "Meal Planner" })).toHaveAttribute(
+    expect(within(container.querySelector<HTMLElement>('[data-asset-row="meals.example"]')!).getByRole("link", { name: "Meal Planner" })).toHaveAttribute(
       "href",
       "/assets/meals.example",
     );
@@ -1095,8 +994,8 @@ describe("Sites reasons support focus and tap (ro-ujb9.241)", () => {
       series: [{ t: "2026-08-01", v: 0 }], provisionalFrom: "2026-08-01", collectedAt: null, timeZoneChanges: [],
     } })]);
     const today = screen.getByRole("button", { name: "About today's users" });
-    expect(screen.getByRole("columnheader", { name: "Daily users" })).toBeInTheDocument();
-    expect(today.closest("td")).toHaveAttribute("data-label", "Daily users");
+    expect(screen.getByRole("columnheader", { name: "Visitors" })).toBeInTheDocument();
+    expect(today.closest("td")).toHaveAttribute("data-label", "Visitors");
     expect(today.closest("[data-users-day]")).toHaveAttribute("data-users-day", "open");
     expect(today).toHaveTextContent("0");
     fireEvent.click(today);

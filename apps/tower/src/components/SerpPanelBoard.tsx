@@ -136,7 +136,7 @@ export function SerpPanelBoard({
     >
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
         <h3 className="text-wall-label font-semibold uppercase tracking-widest text-muted-foreground">
-          Tracked SERP panel
+          Search terms
         </h3>
         {/* The collection this whole block is about, stated ONCE (doc 14: time
             belongs to the fact it qualifies) — every number below is that day's,
@@ -448,7 +448,7 @@ export function serpPanelScope(panel: SerpPanelSnapshot): string {
     formatCalendarDate(panel.reportDate),
     surfacesRead(serpPanelTerms(panel)),
     panel.market === null ? "" : marketLabel(panel.market).replaceAll(" ", "\u00a0"),
-    depth === null ? "" : `depth ${formatInt(depth)}`,
+    depth === null ? "" : `top ${formatInt(depth)} read`,
   ]
     .filter(Boolean)
     .join(" · ");

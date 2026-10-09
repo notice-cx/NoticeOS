@@ -9,12 +9,9 @@ import { READ_ONLY_TASKS_HINT, TASK_PROJECTS_PATH, taskWritesAvailable, taskActo
 import { DEMO_READ_ONLY } from '@shared/demo-viewer';
 import {
   PRIORITY_BANDS,
-  WORK_HISTORY_MIN_POINTS,
   WORK_POLL_CADENCE_HOURS,
-  sumWorkHistory,
   priorityLabel,
 } from "@shared/work";
-import type { SeriesPoint } from "@shared/wall";
 import { ageMs, formatAge } from "@shared/freshness";
 import { AgeBadge } from "@/components/AgeBadge";
 import { TaskHubUnavailable } from "@/components/TaskSourceSection";
@@ -23,7 +20,8 @@ import { InfoTooltip } from "@/components/InfoTooltip";
 import { ReadFailed } from "@/components/ReadFailed";
 import { TaskComposer } from "@/components/TaskComposer";
 import { FilterBar } from "@/components/surface/FilterBar";
-import { Kpi, KpiStrip } from "@/components/surface/KpiStrip";
+import { FinishLine } from "@/components/surface/FinishLine";
+import { PageAnswer } from "@/components/surface/PageAnswer";
 import { ListPanel, ListRow } from "@/components/surface/ListPanel";
 import { SectionLabel } from "@/components/surface/SectionLabel";
 import { StatusBanner } from "@/components/surface/StatusBanner";
@@ -118,20 +116,6 @@ const PAGE_ROWS = 25;
  * that silently keeps five of nine is lying about the size of the queue. */
 const INBOX_ROWS = 5;
 
-/**
- * THE TWO REASONS A COUNT HAS NO TREND LINE YET, and they are different
- * sentences because they ask for different things (bead `ro-78qo.23`).
- *
- * The daily rollup behind the six counts is a table an OPERATOR has to create —
- * migrations here are operator-applied, forever (AGENTS.md HARD INVARIANTS) — so
- * the first reason is an instruction with the command in it. Once the table
- * exists it fills at one point a day, and until there are three of them a line
- * would be two dots joined by a segment: a shape the eye reads as a trend and
- * the data cannot support. That reason is a wait, not an action, and saying
- * "run migration 0032" to someone who already has would be the worse of the two
- * mistakes.
- */
-const SHORT_HISTORY_REASON = `the daily history needs ${WORK_HISTORY_MIN_POINTS} days before it is a line`;
 
 /** Location state that opens the board's composer without changing the URL. */
 const COMPOSE_STATE = "newTask";
@@ -258,7 +242,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
   const {
     data, scopeKey, isError, error, isFetching, refetch, live, spokes, projects, allTasks, shownAt,
     statusCounts, priorityCounts, assigneeCounts, projectCounts, rows, inbox: read,
-    totals: readTotals, pendingProjects, counts: readCounts, countsComplete, missingProjects, closedSince, byId, broken,
+    totals: readTotals, pendingProjects, counts: readCounts, countsComplete, missingProjects, byId, broken,
     closedHistoryState,
   } = useTaskBoard(scope, {
     project: projectFilter, status: statusFilter, priority: priorityFilter,
@@ -284,30 +268,6 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
     labelFilter !== "" ||
     assigneeFilter !== "all";
 
-  // THE SIX SERIES, summed over the projects this board is showing — every
-  // spoke on the index, one spoke on an asset's Tasks tab, so a scoped board's
-  // lines are that project's own. The daily rollup is the ONLY source: the live
-  // read answers "now" and has no yesterday in it.
-  const history = sumWorkHistory(spokes);
-  // The day the rollup is still accumulating, so every spark's endpoint cap goes
-  // hollow (doc 21: "the latest day of any daily series is provisional until the
-  // provider closes it"). It comes from the payload's own clock rather than the
-  // browser's, because that is the clock the rows were bucketed on.
-  const openDay = data ? data.generatedAt.slice(0, 10) : null;
-  const seriesGap = SHORT_HISTORY_REASON;
-  /**
-   * A series, or the reason there is not one yet — never both, which `Kpi`
-   * treats as a caller error.
-   *
-   * `sparkAverage={false}` because these are DAYS and the default smooths over
-   * seven of them: a seven-point daily series averaged over a seven-day window
-   * is one point, which is not a line. The raw days are the shape.
-   */
-  const series = (points: SeriesPoint[]) =>
-    points.length >= WORK_HISTORY_MIN_POINTS
-      ? { spark: points, sparkAverage: false, sparkProvisionalFrom: openDay }
-      : { seriesUnavailable: seriesGap };
-
   /**
    * A COUNT THAT IS MISSING A PROJECT IS A LOWER BOUND, and says so in its own
    * digits: `12+`. It used to be a dash with "12 observed · 1 project
@@ -318,95 +278,32 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
   const anyRead = missingProjects < projects.length;
   const bounded = (complete: number | null, observed: number | null) =>
     complete ?? (observed === null || !anyRead ? "—" : `${observed}+`);
-  /** Each count against the queue it is part of — `of 21 live` — which is a
-   * different share on every tile, and wears the same `+` when a project is
-   * missing. */
-  const ofLive = anyRead ? `of ${totals.live}${countsComplete ? "" : "+"} unfinished` : undefined;
-
-  const strip = (
-    // The strip draws no boundary of its own (doc 21: a container must earn
-    // one), so this page gives it the card it would otherwise share with the
-    // chart it selects. There is no chart here — the question this page answers
-    // is "what needs me", and six sparklines are the trend it needs.
-    //
-    // No `sparkLabel` on the five that plot the headline's own quantity: the
-    // tile's label already names it, and the Kpi's line says "daily values".
-    // Only Closed this week plots something else — a seven-day total over a
-    // line of single days — so only it names its line.
-    <KpiStrip columns={6} className="overflow-hidden rounded-[10px] border border-border max-sm:order-last">
-      <Kpi
-        label="Waiting on you"
-        value={bounded(counts.waiting, totals.waiting)}
-        valueTone={totals.waiting > 0 ? "warn" : "default"}
-        improvement="down"
-        caption={gates > 0 ? `${gates} approval ${gates === 1 ? "gate" : "gates"}` : ofLive}
-        explanation={gates > 0 ? "Approval gates hold related work until you approve or decline them." : undefined}
-        {...series(history.waiting)}
-      />
-      <Kpi
-        label="Urgent"
-        value={bounded(counts.urgent, totals.urgent)}
-        // No red: an urgent task is a rank, not a failure (doc 14).
-        improvement="down"
-        caption={
-          totals.urgent === null
-            ? "not measured"
-            : totals.blindUrgent > 0
-              ? `${totals.blindUrgent} ${totals.blindUrgent === 1 ? "project" : "projects"} not measured`
-              : ofLive
-        }
-        {...series(history.urgent)}
-      />
-      <Kpi
-        label="Open"
-        value={bounded(counts.open, totals.open)}
-        improvement="down"
-        caption={ofLive}
-        {...series(history.open)}
-      />
-      <Kpi
-        label="In progress"
-        value={bounded(counts.inProgress, totals.inProgress)}
-        improvement="none"
-        caption={ofLive}
-        {...series(history.inProgress)}
-      />
-      <Kpi
-        label="Blocked"
-        value={bounded(counts.blocked, totals.blocked)}
-        valueTone={totals.blocked > 0 ? "warn" : "default"}
-        improvement="down"
-        caption={ofLive}
-        {...series(history.blocked)}
-      />
-      <Kpi
-        label="Closed this week"
-        sparkLabel="Closed per day"
-        // Complete, or a saved count the snapshot holds in full: the number.
-        // A live board still waiting on a project's closings: a dash, whose
-        // reason is the loading mark beside the age badge — not a lower bound,
-        // because a saved and a live week are not the same seven days.
-        value={!countsComplete ? bounded(null, totals.closed) : (counts.closed ?? "—")}
-        // No green: a closing records a decision, not a proven outcome (doc 14,
-        // bead ro-ujb9.202) — the same reason a closed row wears none.
-        caption={closedSince ? `since ${closedSince} · UTC` : "last 7 days"}
-        // The VALUE is a seven-day total and the LINE is one point per day, which
-        // is the only pairing either read can defend: the photograph bounds the
-        // total, and the rollup counts the closings. The hover readout says which
-        // day each point is, so the two never have to be read as the same number.
-        {...series(history.closed)}
-      />
-    </KpiStrip>
+  // ONE ANSWER FIRST (D45): what waits on you, in a sentence, with the three
+  // counts that change what you do next beside it. The strip of six equal
+  // tiles said "2" three times over the same two tasks.
+  const waitingCount = bounded(counts.waiting, totals.waiting);
+  const nothingWaits = totals.waiting === 0 && countsComplete;
+  const answer = (
+    <PageAnswer
+      answer={nothingWaits ? "Nothing waits on you" : waitingCount === "—" ? "Couldn't read what waits on you" : `${waitingCount} ${totals.waiting === 1 && countsComplete ? "decision waits" : "decisions wait"} on you`}
+      detail={gates > 0 ? `${gates} ${gates === 1 ? "needs" : "need"} your approval` : undefined}
+      figures={[
+        { label: "Urgent", value: String(bounded(counts.urgent, totals.urgent)), mark: "tasks-urgent" },
+        { label: "Blocked", value: String(bounded(counts.blocked, totals.blocked)), mark: "tasks-blocked" },
+        { label: "Closed this week", value: String(!countsComplete ? bounded(null, totals.closed) : (counts.closed ?? "—")), mark: "tasks-closed" },
+      ]}
+      marks={{ "data-tasks-answer": nothingWaits ? "clear" : "waiting" }}
+    />
   );
 
-  const panel = (
+  const panel = nothingWaits && inbox.length === 0 ? null : (
     <div data-waiting-list className="contents">
     <ListPanel
       title="Waiting on you"
       count={
         totals.waiting === 0
           ? undefined
-          : `${totals.waiting}${countsComplete ? "" : "+"} ${totals.waiting === 1 ? "ask" : "asks"}${gates > 0 ? ` · ${gates} ${gates === 1 ? "gate" : "gates"}` : ""}`
+          : `${totals.waiting}${countsComplete ? "" : "+"} ${totals.waiting === 1 ? "ask" : "asks"}`
       }
       limit={INBOX_ROWS}
       empty={countsComplete ? "Nothing is waiting on you." : "Waiting work is unknown for unread projects."}
@@ -432,6 +329,8 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
         />
       ))}
     </ListPanel>
+    {/* A list the eye can finish (D45). */}
+    {inbox.length > 0 && countsComplete ? <FinishLine line="That's everything waiting on you." age={shownAt ? `read ${formatAge(ageMs(now, shownAt))} ago` : null} /> : null}
     </div>
   );
 
@@ -484,6 +383,21 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
         </div>
       ) : (
         <>
+          {/* THE FIRST SCREEN, and the whole of the page's one question: how big
+              is the queue, and what in it cannot move without you. Everything
+              below is the same rows in detail.
+
+              A SCOPED BOARD MARKS IT TOO (bead `ro-78qo.32`). The asset Tasks
+              tab used to declare the mark instead, with a wrapper around this
+              whole component — but a wrapper can only span the board, so the
+              audit measured the bottom of the 25-row table and reported the
+              first screen 973px over. Only the board knows where its answer
+              ends, so the board says. */}
+          <div data-surface-hero className="flex flex-col gap-3.5">
+            {answer}
+            {panel}
+          </div>
+
           <Filters
             live={live}
             scoped={scoped}
@@ -544,20 +458,6 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
             </span>
           </StatusBanner>
 
-          {/* THE FIRST SCREEN, and the whole of the page's one question: how big
-              is the queue, and what in it cannot move without you. Everything
-              below is the same rows in detail.
-
-              A SCOPED BOARD MARKS IT TOO (bead `ro-78qo.32`). The asset Tasks
-              tab used to declare the mark instead, with a wrapper around this
-              whole component — but a wrapper can only span the board, so the
-              audit measured the bottom of the 25-row table and reported the
-              first screen 973px over. Only the board knows where its answer
-              ends, so the board says. */}
-          <div data-surface-hero className="flex flex-col gap-3.5">
-            {strip}
-            {panel}
-          </div>
 
           <Board
             rows={rows}
@@ -824,8 +724,10 @@ function InboxRow({
       title={task.title}
       caption={
         <>
-          {showProject ? `${project.name} · ` : null}
-          <span className="font-mono">{task.id}</span>
+          {/* Business altitude (doc 17), as Home's Decide row says it: the
+              project and what the row asks, never the task's id — that is on
+              the task's own page. */}
+          {[showProject ? project.name : null, isGate(task) ? "needs your approval" : null].filter(Boolean).join(" · ") || null}
         </>
       }
       value={formatAge(ageMs(nowMs, task.updatedAt)) || "—"}
@@ -1069,7 +971,7 @@ function BoardRow({
             state's own dot too: on a phone this line IS the row. */}
         <TableCell onlyWhenStacked className="py-0 text-[11px] text-muted-foreground">
           <span className="inline-flex flex-wrap items-center gap-x-1.5">
-            <span className="font-mono">{task.id}</span>
+            {isGate(task) ? "needs your approval" : null}
             <span aria-hidden>·</span>
             <TaskStatusMark status={task.status} />
             <span aria-hidden>·</span>

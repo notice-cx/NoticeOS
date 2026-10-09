@@ -35,7 +35,8 @@ import { pillChoiceClass, pillChoiceStateClass } from "@/components/ui/pill";
 import { toLocalDateTimeInput } from "@/lib/countdown";
 import { formatCalendarDate, formatInt } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { Hero, Panel, LaneAge } from "@/routes/asset-detail/shared";
+import { Hero, Panel, betsFact } from "@/routes/asset-detail/shared";
+import { PageAnswer } from "@/components/surface/PageAnswer";
 import { WatchComposer, WatchesStrip } from "@/routes/asset-detail/WatchComposer";
 
 /**
@@ -140,26 +141,28 @@ function TimelineSection({
   const items = data.annotations.items;
   const watching = data.watches.open.length;
   const counted = [
-    items.length > 0 ? `${items.length} recorded` : null,
+    items.length > 0 ? `${items.length} logged` : null,
     data.annotations.olderCount > 0 ? `${data.annotations.olderCount} older` : null,
-    watching > 0 ? `${watching} on watch` : null,
   ]
     .filter((part): part is string => part !== null)
     .join(" · ");
+  // ONE ANSWER FIRST (D45): when this site last changed, and its bets in the
+  // Overview's own words (`betsFact`, one derivation).
+  const lastChange = data.freshness.annotationAt ? ageMs(nowMs, data.freshness.annotationAt) : null;
   // The freshest thing on this panel is its newest recorded change, and the age
   // rides in the header beside the count exactly as it did in the old card's
   // right slot — including the WORD it prints when nothing has ever been
   // recorded, because an em dash there reads as a rendering failure rather than
   // as "never" (`ro-kukv.12`, doc 17 rule 6).
-  const count = (
-    <>
-      {counted ? <>{counted} · </> : null}
-      <LaneAge iso={data.freshness.annotationAt} nowMs={nowMs} />
-    </>
-  );
+  const count = counted || undefined;
 
   return (
     <>
+      <PageAnswer
+        answer={lastChange !== null ? `Last change ${formatAge(lastChange)} ago` : data.freshness.annotationAt ? "Last change date unreadable" : "No changes logged yet"}
+        detail={watching > 0 ? betsFact(data.watches, nowMs) : undefined}
+        marks={{ "data-activity-answer": lastChange !== null ? "logged" : data.freshness.annotationAt ? "unreadable" : "none" }}
+      />
       <div ref={anchor} />
       {composing && writable ? (
         <Panel
@@ -231,9 +234,11 @@ function TimelineSection({
         <ListPanel
           title="Timeline"
           count={count}
-          action={writable ? { label: "Record", onClick: () => setComposing("event") } : undefined}
+          action={writable ? { label: "Log a change", onClick: () => setComposing("event") } : undefined}
           limit={3}
-          empty="Nothing has been recorded against this site yet."
+          // The answer above already says there are none; the panel says
+          // what comes next.
+          empty="Log the first change to see it here"
         >
           {items.map((item) => (
             <TimelineRow

@@ -16,6 +16,7 @@ export async function buildDemoWorkerHelpers(root, { activity = false, configura
     const require = createRequire(realpathSync(path.join(root, 'workers/ingest/node_modules/wrangler/package.json')));
     const { build } = require('esbuild');
     const contract = createRequire(path.join(root, 'packages/contract/package.json'));
+    const postgres = createRequire(path.join(root, 'packages/postgres/package.json'));
     const entries = {
       watch: path.join(root, 'workers/ingest/src/watch-windows.ts'),
       snapshots: path.join(root, 'workers/ingest/src/beads-snapshots.ts'),
@@ -28,13 +29,11 @@ export async function buildDemoWorkerHelpers(root, { activity = false, configura
       absWorkingDir: root, entryPoints: entries, outdir: output,
       bundle: true, platform: 'node', format: 'esm', target: 'node24',
       outExtension: { '.js': '.mjs' }, metafile: true, logLevel: 'silent',
-      alias: {
-        '@noticeos/postgres': path.join(root, 'packages/postgres/src/store.mjs'),
-      },
       plugins: [{ name: 'released-contract', setup(build) {
-        // Resolve each exact exported subpath from this source package. A
+        // Resolve each exact exported subpath from these source packages. A
         // prefix alias for the root incorrectly turns /money into index.ts/money.
         build.onResolve({ filter: /^@noticeos\/contract(?:\/|$)/ }, args => ({ path: contract.resolve(args.path) }));
+        build.onResolve({ filter: /^@noticeos\/postgres(?:\/|$)/ }, args => ({ path: postgres.resolve(args.path) }));
         // Disposable proofs use the frozen synthetic config folder. Runtime
         // composition leaves this at the release's generic default documents.
         build.onResolve({ filter: /\.json$/ }, args => {

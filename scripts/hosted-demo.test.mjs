@@ -87,12 +87,14 @@ test("the demo's outcome check runs the release's evaluator over the demo's own 
     const minute = `${shiftDemoDay(scenario.manifest.referenceDate, 1)}T03:30:00.000Z`;
     const run = () => store.write(tx => lane.steps[0].run({ input: minute, signal: new AbortController().signal }, tx));
     // The seeded repair window is due; the ordinary sweep closes it with the
-    // scenario's declared outcome, then finds nothing open.
+    // scenario's declared outcome. The recipe site's shipped change is still
+    // counting, so its window stays open and is scanned again, closed never.
     const first = await run();
     assert.deepEqual({ scanned: first.scanned, failed: first.failed, overdue: first.overdue, closed: first.closed.map(({ id, outcome }) => ({ id, outcome })) },
-      { scanned: 1, failed: [], overdue: [], closed: [{ id: scenario.manifest.stories.repair.watchId, outcome: 'ship_confirmed' }] });
+      { scanned: 2, failed: [], overdue: [], closed: [{ id: scenario.manifest.stories.repair.watchId, outcome: 'ship_confirmed' }] });
     const again = await run();
-    assert.equal(again.scanned, 0);
+    assert.equal(again.scanned, 1);
+    assert.deepEqual(again.closed, []);
     assert.equal(stepResult(again).state, 'succeeded');
   } finally {
     await store?.close(); await closeAdmin?.(); owner?.close();

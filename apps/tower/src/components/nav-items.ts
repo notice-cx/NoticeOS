@@ -80,9 +80,11 @@ export const NAV_ITEMS: NavItem[] = [
   { to: TASKS_ROUTE, label: "Tasks", icon: ListTodo, keywords: ["work", "queue", "beads", "todo"] },
   {
     to: "/financials",
-    label: "Financials",
+    // Money, not Financials (D44, doc 17 § Altitude): the founder's word.
+    // The route, the payload and the asset tab's id keep `financials`.
+    label: "Money",
     icon: Wallet,
-    keywords: ["revenue", "cost", "ledger", "money", "p&l"],
+    keywords: ["revenue", "cost", "ledger", "financials", "p&l"],
   },
   {
     to: "/health",

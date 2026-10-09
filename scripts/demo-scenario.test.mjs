@@ -105,6 +105,27 @@ test('the repair and current failure share their dated source facts', () => {
   }
 });
 
+test('the recipe site shipped a change a week ago whose comparison is still counting', () => {
+  const scenario = generateDemoScenario(options);
+  const { ship } = scenario.manifest;
+  const site = scenario.assets.find(a => a.prefix === 'wp');
+  assert.equal(ship.asset, site.id);
+  assert.ok(scenario.tasks.some(task => task.id === ship.ref && task.asset === site.id));
+  assert.ok(scenario.tasks.some(task => task.id === ship.readbackTaskId && task.asset === site.id));
+  assert.ok(ship.registeredAt <= ship.annotationAt && ship.annotationAt < options.cutoff);
+  assert.equal(ship.baselineEnd < ship.registeredAt.slice(0, 10), true);
+  assert.deepEqual(ship.checkOffsets, [28]);
+  const baseline = scenario.daily.filter(d => d.asset === site.id && d.date >= ship.baselineStart && d.date <= ship.baselineEnd);
+  assert.equal(baseline.length, 28);
+  // The verdict is still ahead: the final check falls after the cutoff.
+  assert.ok(shiftDemoDay(ship.registeredAt.slice(0, 10), 28) > options.cutoff.slice(0, 10));
+  // A modest lift after the ship, inside the kill and ship thresholds' reach, so nothing is claimed.
+  const week = scenario.daily.filter(d => d.asset === site.id && d.age >= -7);
+  const before = scenario.daily.filter(d => d.asset === site.id && d.age >= -14 && d.age < -7);
+  assert.ok(week.reduce((n, d) => n + d.sessions, 0) > before.reduce((n, d) => n + d.sessions, 0));
+  assert.notEqual(ship.watchId, scenario.manifest.stories.repair.watchId);
+});
+
 test('undeclared or malformed generator inputs fail before producing data', () => {
   for (const patch of [{ seed: '' }, { cutoff: 'today' }, { cutoff: '2026-02-30T12:00:00.000Z' }, { release: 'main' }, { timeZone: 'Not/AZone' }]) assert.throws(() => generateDemoScenario({ ...options, ...patch }));
 });
@@ -130,7 +151,7 @@ test('accounting anchors precede the unchanged repair windows across calendar bo
 // Income describes recorded monthly amounts, never a payment-provider model.
 test('the software portfolio retains meaningful metrics and honest monthly correction evidence', () => {
   const scenario = generateDemoScenario(options);
-  assert.equal(scenario.manifest.scenarioVersion, 4);
+  assert.equal(scenario.manifest.scenarioVersion, 5);
   assert.deepEqual(scenario.assets.filter(asset => !asset.isOs).map(asset => [asset.name, asset.id, asset.prefix, asset.event, asset.revenueFamily]), [
     ['Light Brief', 'lightbrief.example', 'lb', 'brief_exports', 'subs'],
     ['Pinwell', 'pinwell.example', 'pw', 'source_saves', 'licensing'],

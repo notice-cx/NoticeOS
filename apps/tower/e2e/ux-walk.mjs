@@ -73,7 +73,7 @@ export function areaOf(url) {
   if (/^\/assets\/[^/]+/.test(pathname)) return "Asset page";
   const first = pathname.split("/")[1];
   return { assets: "Assets", integrations: "Integrations", tasks: "Tasks", settings: "Settings", health: "Health",
-    wall: pathname.startsWith("/wall/edit") ? "Wall editor" : "Wall", alerts: "Alerts", financials: "Financials" }[first] ?? first;
+    wall: pathname.startsWith("/wall/edit") ? "Wall editor" : "Wall", alerts: "Alerts", financials: "Money" }[first] ?? first;
 }
 
 // ── in-page probes (each runs in the browser; no closures) ────────────────────

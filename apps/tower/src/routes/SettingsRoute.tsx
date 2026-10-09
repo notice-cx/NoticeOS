@@ -57,7 +57,7 @@ import { StateChip } from "@/components/StateChip";
 import { CommandBlock, NO_HUB_CONNECTION, TaskProjectSteps, TaskSourceSection, taskProjectInitCommand } from "@/components/TaskSourceSection";
 import { TuneRate } from "@/components/TuneRate";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { pillClass, pillControlClass, pillPickerStateClass } from "@/components/ui/pill";
 import { useAlertRuleStats } from "@/hooks/useAlertRuleStats";
 import { useConfigWritable } from "@/hooks/useConfigWritable";
@@ -294,13 +294,17 @@ function Section({
   aside?: ReactNode;
   children: ReactNode;
 }) {
+  // The navigator beside the card already names the one section shown
+  // (D44: not a repeat), so the title is the card's accessible name only.
   return (
-    <Card id={id} className="scroll-mt-4">
-      <CardHeader className="flex-row flex-wrap items-center justify-between gap-3">
-        <CardTitle className="text-base normal-case tracking-normal">{title}</CardTitle>
-        {aside ? <div className="flex shrink-0 items-center gap-2">{aside}</div> : null}
-      </CardHeader>
-      <CardContent>
+    <Card id={id} className="scroll-mt-4" aria-labelledby={`${id}-title`} role="region">
+      <h2 id={`${id}-title`} className="sr-only">{title}</h2>
+      {aside ? (
+        <CardHeader className="flex-row flex-wrap items-center justify-end gap-3 pb-0">
+          <div className="flex shrink-0 items-center gap-2">{aside}</div>
+        </CardHeader>
+      ) : null}
+      <CardContent className={aside ? undefined : "pt-4"}>
         {children}
       </CardContent>
     </Card>

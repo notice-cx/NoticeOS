@@ -9,11 +9,16 @@ import { stepResult } from '../../../scripts/workflow-trace.mjs';
 
 const mock = vi.hoisted(() => ({ data: undefined as WorkflowsPayload | undefined, isError: false }));
 vi.mock('@/hooks/useWorkflows', () => ({ useWorkflows: () => mock }));
+// System health names the OS's own problems from the Wall's read (D45); these
+// cases are about the workflow and connection reads, so the Wall has none.
+const wall = vi.hoisted(() => ({ data: undefined as unknown }));
+vi.mock('@/hooks/useWall', () => ({ useWall: () => ({ data: wall.data, isError: false }) }));
 vi.mock('@/hooks/useNow', () => ({ useNow: () => Date.parse('2026-09-09T12:00:00Z') }));
 function mount(dataCurrent = true, integrations: IntegrationStatus = integrationStatus({ generatedAt: '2026-09-09T12:00:00Z', available: true, items: [], events: [] }, false, Date.parse('2026-09-09T12:00:00Z'))) {
   render(<MemoryRouter><ServiceOverview dataCurrent={dataCurrent} degraded={0} unverified={0} setup={0} integrations={integrations} /></MemoryRouter>);
 }
 beforeEach(() => {
+  wall.data = undefined;
   mock.isError = false;
   mock.data = { generatedAt: '2026-09-09T12:00:00Z', overrides: null, runtimeFresh: true, observationsFresh: true, historyAvailable: true, selectedRun: null,
     runtime: { updatedAt: '2026-09-09T12:00:00Z', error: null, jobs: WORKFLOW_DEFINITIONS.map((job) => ({ id: job.id, cron: job.cron, enabled: true, nextRun: null })) },
@@ -22,6 +27,14 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe('System Health status evidence', () => {
+  it("names the OS's own problem first, in the words Home's Stopped card used (D45)", () => {
+    // The OS sent no report: Home's brief says "OS report missing" and its
+    // Look opens this page, which must say the same thing first.
+    wall.data = { system: { assetId: 'os-root', hasPulse: false, spendTodayUsd: 0, dailyCapUsd: 2, ingest: { fresh: 0, stale: 0, notExpected: 0, expected: 0 }, scheduledLanes: [] } };
+    mount();
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('OS report missing');
+  });
+
   it('links internal failures to their exact run and excludes operator workflows from the summary', () => {
     mount();
     // Only what happened: nothing is listed at zero.
