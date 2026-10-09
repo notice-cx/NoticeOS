@@ -8,7 +8,6 @@ import { ASSET_STATUS_LABEL as STATUS_LABEL, stageBeforeRetire } from "@shared/a
 import type { AnnotationTimeline, AssetInfo, AssetStatus } from "@shared/asset-detail";
 import { RESTORE_HASH } from "@shared/asset-detail-views";
 import { ASSET_STATUS } from "@shared/changeset";
-import { OwnerChip } from "@/components/OwnerChip";
 import { StateChip, type StatusSubject } from "@/components/StateChip";
 import { Button } from "@/components/ui/button";
 import { fieldClass } from "@/components/ui/field";
@@ -142,7 +141,6 @@ export function ArchiveCard({
         id={RESTORE_HASH.slice(1)}
         title="Restore"
         count="archived"
-        action={<OwnerChip path="db · assets row" />}
       >
         <div className="flex flex-wrap items-center gap-2">
           {recorded ? null : (
@@ -188,7 +186,7 @@ export function ArchiveCard({
   }
 
   return (
-    <Panel title="Archive" action={<OwnerChip path="db · assets row" />}>
+    <Panel title="Archive">
       {confirming && writable ? (
         <div
           data-archive-confirm

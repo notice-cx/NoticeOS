@@ -5907,14 +5907,10 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
       a.getAttribute("href"),
     );
     expect(pointers).toContain("/settings#alert-rules");
-    expect(pointers).toContain("/settings#budget");
     expect(container.textContent).not.toContain("Applies to every site");
-    expect(container.textContent).toContain(
-      "Defaults live in Settings → Alert rules",
-    );
-    expect(container.textContent).toContain(
-      "Spend caps and the operator rate live in Settings → Budget",
-    );
+    // One link in the header's "All →" slot, not sentences pointing away (D44).
+    expect(container.textContent).toContain("All sites' rules →");
+    expect(container.textContent).not.toContain("Defaults live in Settings");
     // One Save on this tab per this asset's own editable field: the display
     // name, automation and whether it sends a nightly report at all (bead
     // ro-ujb9.96.8 — this asset's own entry in a list, never a portfolio
@@ -6278,6 +6274,20 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
       },
     ],
   };
+
+  it("asks for a search source first when the site has none and tracks nothing (D44)", async () => {
+    const data = payload({ panelConfig: { trackedQueries: null, roster: null } });
+    data.integrations = { ...data.integrations, lanes: [] };
+    stubFetch(200, data);
+    const { container, findByText } = renderRoute("meals.example", "", "settings");
+
+    await findByText("Tracked search terms");
+    const settings = container.querySelector<HTMLElement>("#tracked-panels")!;
+    expect(settings.querySelector("[data-tracked-terms-needs-search]")).toHaveAttribute("href", "/assets/meals.example/sources");
+    // No meter, bill or refresh table over nothing.
+    expect(settings.querySelector("[data-panel-spend]")).toBeNull();
+    expect(settings.textContent).not.toContain("Panel refresh");
+  });
 
   it("states what the panel costs and how big it may get, beside the control that changes it", async () => {
     stubPanelLanes(
