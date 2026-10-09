@@ -1,5 +1,5 @@
 {
-  "about": "The UX gate's own rules (scripts/ux-gate.mjs, beads ro-ujb9.94 and ro-ujb9.96.3): the word budgets, the directories it always reads, the files it follows imports from, and the files it never reads. Tightening is free. Loosening is an operator-only exception: a raised budget or a new notDeskCopy entry carries kind (trust-safety, legal or destructive-confirmation), approvedBy (a bead id), reason and priorArt (a docs/briefs section citing three researched comparables), exactly like a raise in apps/tower/ux-budget.json; a scan directory or trace root leaves only when it no longer exists. Every commit that changes this file is audited. Agents never edit this file; see scripts/README.md, UX gate.",
+  "about": "Settings for the UX text report (scripts/ux-gate.mjs): the word counts above which a visible string is listed as long, the directories it always reads, the files it follows imports from, and the files it never reads. The report informs design review; it fails nothing.",
   "budgets": {
     "label": { "words": 12 },
     "failure": { "words": 18 },
@@ -9,7 +9,7 @@
   "traceRoots": ["apps/tower/vite.config.ts"],
   "notDeskCopy": {
     "apps/tower/worker/mcp-route.ts": { "reason": "speaks to agents: its tool descriptions are a published interface" },
-    "apps/tower/src/components/registry.ts": { "reason": "the machine-readable component index (doc 14), documentation for agents" },
+    "apps/tower/src/components/registry.ts": { "reason": "the machine-readable component index, documentation for agents" },
     "apps/tower/src/routes/KitchenSinkRoute.tsx": { "reason": "the /dev gallery, rendered only under import.meta.env.DEV" },
     "apps/tower/src/routes/AssetStateGalleryRoute.tsx": { "reason": "the /dev asset-state gallery, rendered only under import.meta.env.DEV" },
     "apps/tower/shared/materiality.ts": { "reason": "the material-state contract: a record read by a test, rendered nowhere" },

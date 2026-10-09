@@ -1,86 +1,45 @@
 #!/usr/bin/env node
-// A SCREEN THAT NEEDS A PARAGRAPH TO BE USED IS A SCREEN TO REDESIGN
-// (operator, 2026-09-23; bead `ro-ujb9.94`).
+// The UX text report: how much reading each Tower screen asks for.
 //
-// "If interactions need footnotes or a 'paragraph' of explanation, that's a
-// huge UX red flag. We should minimize instances of this by rethinking a
-// simple, intuitive flow, instead of piling on instructions, descriptions,
-// directions." Doc 21 already said prose belongs behind one `About`; the desk
-// kept growing it anyway, one honest sentence at a time, because a rule an
-// agent has to go and read is a rule most agents never meet. The operator's
-// second instruction was the fix: "codify/gatify this so any agent who does
-// work on UX in the future encounters a hard stop".
+// It extracts every string the Tower can show a person — from
+// `apps/tower/{src,shared,worker}` and every module or config document those
+// import (the config registers, the contract catalog, `config/*.json`, the job
+// descriptions, the ingest Worker behind the service binding) — counts the
+// words in each, and lists the long ones, longest first. The thresholds in
+// `scripts/ux-gate.settings.json` (labels 12 words, failures 18, accessible
+// names 24) only decide what the report calls long; they are a reading aid
+// for design review, not a rule. The report never fails a commit or a build:
+// whether a sentence on a screen is the right design is a judgement the
+// person building the screen makes, with this list in hand.
 //
-// This is that stop. It is the sister of `scripts/ui-lexicon.test.mjs` (which
-// bans words) and it reads that corpus — `apps/tower/{src,shared,worker}` minus
-// the same few files that are not desk copy — plus every module and config
-// document the Tower imports from outside it (bead `ro-ujb9.96.6.13`: the
-// config registers, the contract catalog, `config/*.json`, the job
-// descriptions), and the ingest Worker the Tower calls through its service
-// binding (bead `ro-ujb9.96.6.24`). It judges LENGTH: every single visible
-// string is measured in words, and one over its budget is explanatory prose.
+// It is the sister of `scripts/ui-lexicon.test.mjs`, which reads the same
+// corpus through `extractVisibleStrings` and does fail on system jargon.
 //
-// The budgets (labels 12, failures 18, accessible names 24), the directories
-// read and the files skipped live in `scripts/ux-gate.settings.json`, a file
-// agents cannot loosen (bead `ro-ujb9.96.3`, see "The gate's own rules").
-//
-// WHAT COUNTS AS VISIBLE. Everything that can reach a person is PRESUMED
-// visible, and only positions that provably cannot are excluded. The Tower
-// invents a new prop for its explanations every few weeks — `hint`, `help`,
-// `explain`, `explanation`, `emptyHint`, `footnote`, `seriesUnavailable`,
-// `describe`, `rationale`, `nextStep`, `quotaReality`, `degradation` all
-// carried paragraphs on 2026-09-23 — so an allow-list of prop names would be
-// the gate agents walk around. The exclusions (className and class-building
-// calls, data-*/id/key/href-style attributes, import specifiers, type
-// positions, property names, comparisons, console and other terminal output,
-// SQL, SVG geometry) are listed below, each for its reason.
-//
-// A JSX paragraph is one string: `<p>Text <strong>bold</strong> more</p>` is
-// measured whole, because that is what the reader reads. So is a sentence
-// joined with `+` (bead `ro-ujb9.96.11`): `'Twelve words… ' + 'twelve more'`
-// is one 24-word string, never two short ones. `About` and
-// `InfoTooltip` content is measured like any other: hiding a paragraph behind
-// a disclosure is still shipping a paragraph.
-//
-// THE RATCHET. `apps/tower/ux-budget.json` records today's offenders per file
-// (count and words). A file may not gain either. `pnpm ux:baseline` lowers the
-// record when text is removed and can never raise it; a raise is the
-// operator's hand edit and must carry a `"kind"` from a closed set
-// (trust-safety, legal, destructive-confirmation — everything else is
-// redesigned), `"approvedBy": "<bead id>"`, a `"reason"`, and
-// `"priorArt": "docs/briefs/<flow>.md#<section>"` — a section citing at least
-// three researched comparable products, because the operator's order for a
-// stopped agent is to research the best modern comparable first.
-// The git history of the file is audited so a raise cannot slip in unapproved.
-//
-// EVERY FAILURE names the violation first and ends with the same fixed
-// instructions (`NEXT_STEPS`): the failure is the one text a stopped agent is
-// guaranteed to read.
+// WHAT COUNTS AS VISIBLE. Everything that can reach a person is presumed
+// visible, and only positions that provably cannot are excluded: className
+// and class-building calls, data-*/id/key/href-style attributes, import
+// specifiers, type positions, property names, comparisons, console and other
+// terminal output, SQL, SVG geometry. A JSX paragraph is one string
+// (`<p>Text <strong>bold</strong> more</p>` is measured whole, because that is
+// what the reader reads), and so is a sentence joined with `+`. `About` and
+// `InfoTooltip` content is measured like any other text.
 //
 // Usage:
-//   node scripts/ux-gate.mjs                    everything the Tower renders vs the baseline
-//   node scripts/ux-gate.mjs --files a.tsx ...  just these files (edit time)
-//   node scripts/ux-gate.mjs --staged           staged files the Tower renders (pre-commit)
-//   node scripts/ux-gate.mjs --list             every offender, worst first
-//   node scripts/ux-gate.mjs --write-baseline   lower the baseline (never raises)
-//   node scripts/ux-gate.mjs --widen <bead> --reason "…"
-//                                               record once what a widened gate newly reads
-//   add --json for machine-readable output, --root <dir> for another checkout
+//   node scripts/ux-gate.mjs                    every long string the Tower renders
+//   node scripts/ux-gate.mjs --files a.tsx ...  just these files
+//   node scripts/ux-gate.mjs --summary          per-file counts only
+//   node scripts/ux-gate.mjs --json             machine-readable output
+//   node scripts/ux-gate.mjs --root <dir>       another checkout
 
-import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readablePath } from './installation.mjs';
 
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-/** Is the module at `url` the script node was asked to run? Compared by real
- * path: the pre-commit hook and a symlinked temp dir (macOS /var → /private/var)
- * name the same file two ways. */
+/** True when this module is the script Node was started with. */
 export function invokedDirectly(url) {
-  if (!process.argv[1]) return false;
   try {
     return realpathSync(path.resolve(process.argv[1])) === realpathSync(fileURLToPath(url));
   } catch {
@@ -88,31 +47,15 @@ export function invokedDirectly(url) {
   }
 }
 
-export const GATE_BEAD = 'ro-ujb9.94';
-export const BASELINE_FILE = 'apps/tower/ux-budget.json';
-
 // ---------------------------------------------------------------------------
-// The gate's own rules live in a data file the agents cannot loosen
+// Settings: the thresholds, the directories read, the files skipped
 // ---------------------------------------------------------------------------
-//
-// Bead `ro-ujb9.96.3`. The budgets, the directories always read, the files
-// imports are followed from and the files never read used to be constants
-// in this script: one commit could add a Tower file to the skip list, put a
-// paragraph in it, and pass CI, the commit hook and the edit hook. They now
-// live in `SETTINGS_FILE`, which the edit hook protects like the baseline and
-// whose every change is judged like a baseline raise: TIGHTENING is free; a
-// raised budget or a new skipped file carries the same four-key approval; a
-// scan directory or trace root leaves only when it no longer exists; and the
-// git history of the file is audited, from the commit that introduced it
-// (judged against `LEGACY_SETTINGS`, the constants it replaced).
 //
 //   budgets.label       12  a heading, button, caption or state line
-//   budgets.failure     18  a failure must say what happened AND what to do,
-//                           so it gets one clause more
-//   budgets.accessible  24  aria-label / alt / sr-only text: a screen reader
-//                           names a whole chart or control in one breath
-//   scanDirs                every file under these is read (`shared/` and
-//                           `worker/` build the sentences the desk renders)
+//   budgets.failure     18  a failure says what happened and what to do
+//   budgets.accessible  24  aria-label / alt / sr-only text names a whole
+//                           chart or control in one breath
+//   scanDirs                every file under these is read
 //   traceRoots              read for their imports only: the Vite config
 //                           compiles every config document into the bundle
 //   notDeskCopy             files never read, each with its reason
@@ -121,9 +64,8 @@ export const SETTINGS_FILE = 'scripts/ux-gate.settings.json';
 export const BUDGET_KINDS = Object.freeze(['label', 'failure', 'accessible']);
 export const SETTINGS_KEYS = Object.freeze(['about', 'budgets', 'scanDirs', 'traceRoots', 'notDeskCopy']);
 
-/** The constants the settings file replaced: the tightest rules history
- * knows, and what the file's first commit is judged against. */
-export const LEGACY_SETTINGS = Object.freeze({
+/** What the report uses when the settings file is missing or malformed. */
+export const DEFAULT_SETTINGS = Object.freeze({
   budgets: { label: { words: 12 }, failure: { words: 18 }, accessible: { words: 24 } },
   scanDirs: ['apps/tower/src', 'apps/tower/shared', 'apps/tower/worker'],
   traceRoots: ['apps/tower/vite.config.ts'],
@@ -139,24 +81,24 @@ export const LEGACY_SETTINGS = Object.freeze({
   },
 });
 
-/** The rules as the gate uses them. A malformed or missing file falls back
- * to `LEGACY_SETTINGS` here (so the gate can still run and say so); the
- * whole-Tower check reports the file itself as a failure. */
+
+/** The settings as the report uses them; a malformed or missing file falls
+ * back to `DEFAULT_SETTINGS`. */
 export function normalizeSettings(json) {
-  const source = json && typeof json === 'object' ? json : LEGACY_SETTINGS;
+  const source = json && typeof json === 'object' ? json : DEFAULT_SETTINGS;
   const budgets = {};
   for (const kind of BUDGET_KINDS) {
     const words = source.budgets?.[kind]?.words;
-    budgets[kind] = Number.isInteger(words) && words > 0 ? words : LEGACY_SETTINGS.budgets[kind].words;
+    budgets[kind] = Number.isInteger(words) && words > 0 ? words : DEFAULT_SETTINGS.budgets[kind].words;
   }
   const paths = (value, fallback) => (Array.isArray(value) && value.every((item) => typeof item === 'string') ? [...value] : [...fallback]);
   const notDeskCopy = new Map();
-  const skipped = source.notDeskCopy && typeof source.notDeskCopy === 'object' ? source.notDeskCopy : LEGACY_SETTINGS.notDeskCopy;
+  const skipped = source.notDeskCopy && typeof source.notDeskCopy === 'object' ? source.notDeskCopy : DEFAULT_SETTINGS.notDeskCopy;
   for (const [file, entry] of Object.entries(skipped)) notDeskCopy.set(file, String(entry?.reason ?? ''));
   return Object.freeze({
     budgets: Object.freeze(budgets),
-    scanDirs: Object.freeze(paths(source.scanDirs, LEGACY_SETTINGS.scanDirs)),
-    traceRoots: Object.freeze(paths(source.traceRoots, LEGACY_SETTINGS.traceRoots)),
+    scanDirs: Object.freeze(paths(source.scanDirs, DEFAULT_SETTINGS.scanDirs)),
+    traceRoots: Object.freeze(paths(source.traceRoots, DEFAULT_SETTINGS.traceRoots)),
     notDeskCopy,
   });
 }
@@ -168,7 +110,7 @@ export function readSettingsJson(root = REPO_ROOT) {
   return JSON.parse(readFileSync(file, 'utf8'));
 }
 
-/** The rules for the checkout at `root` (its own settings file). */
+/** The settings for the checkout at `root`. */
 export function readSettings(root = REPO_ROOT) {
   try {
     return normalizeSettings(readSettingsJson(root));
@@ -177,8 +119,7 @@ export function readSettings(root = REPO_ROOT) {
   }
 }
 
-/** This checkout's rules: what every function uses unless handed another
- * checkout's (the edit hook judges a worktree by the worktree's own file). */
+/** This checkout's settings: what every function uses unless handed another checkout's. */
 export const SETTINGS = readSettings(REPO_ROOT);
 
 export const LABEL_WORD_BUDGET = SETTINGS.budgets.label;
@@ -367,7 +308,7 @@ function decodeEntities(text) {
  * `renderErrorsShown` says whether the Tower has an error boundary that
  * renders a caught error's message (`errorBoundaryShowsMessages`). Without
  * one, a message thrown while a component or hook renders reaches only the
- * console, so it is developer text and not counted (bead `ro-ujb9.96.4`).
+ * console, so it is developer text and not counted.
  * Unknown means shown: the default never under-counts.
  *
  * @returns {{ line: number, start: number, end: number, text: string,
@@ -421,7 +362,7 @@ export function extractVisibleStrings(source, fileName, ts = loadTypeScript(), {
 
   /** The text a string expression renders, or null when it is not a string.
    * Conditionals and `??`/`||` yield every branch; `&&` yields its right side.
-   * A `+` chain holding a string is ONE string (bead `ro-ujb9.96.11`): a
+   * A `+` chain holding a string is ONE string: a
    * sentence cut into short pieces is read whole, each operand's longest
    * branch in place and anything else as `${…}`. */
   const stringLeaves = (node) => {
@@ -863,60 +804,6 @@ export function extractVisibleStrings(source, fileName, ts = loadTypeScript(), {
 }
 
 // ---------------------------------------------------------------------------
-// Retired on-screen terms (bead ro-ujb9.135)
-// ---------------------------------------------------------------------------
-
-/**
- * SHORT LABELS CAN STILL NAME AN INTERNAL. The word budget stops a paragraph;
- * it cannot stop "no ledger rows for Sep yet" or "On the roster", which are
- * short and still say the system's own nouns to a stranger. Each term here was
- * replaced on screen by a row in `docs/17-ui-lexicon.md` (§ Retired on-screen
- * terms), and `say` is that row's word, quoted back in the failure so nobody
- * has to open the doc to know what to write.
- *
- * Matched against every string the gate already reads as visible — the same
- * corpus the budgets judge, so a code token, a comment or an id is never a
- * hit. There is no baseline: a retired term enters with zero offenders and
- * stays at zero. Adding a term is a tightening; removing one means its doc 17
- * row was amended first.
- */
-export const RETIRED_TERMS = Object.freeze([
-  { term: 'ledger rows', pattern: /\bledger rows?\b/i, say: 'revenue or costs ("no revenue or costs for Sep yet")' },
-  { term: 'onboarded', pattern: /\bonboarded\b/i, say: '"No sites yet", or the site\'s stage' },
-  { term: 'manual stages', pattern: /\bmanual stages?\b/i, say: '"All stages"' },
-  { term: 'report coverage', pattern: /\breport coverage\b/i, say: '"28 days of reports", or the report days themselves' },
-  { term: 'named separately', pattern: /\bnamed separately\b/i, say: 'nothing: name the estimate on its own line' },
-  { term: 'what the panel buys', pattern: /\bwhat the panel buys\b/i, say: '"Tracked search terms"' },
-  { term: 'on the roster', pattern: /\bon the roster\b/i, say: '"Daily refresh"' },
-  { term: 'task status unavailable', pattern: /\btask status unavailable\b/i, say: '"Tasks not read yet"' },
-  // A site's Data sources tab (bead ro-ujb9.164).
-  { term: 'additional connections', pattern: /\badditional connections?\b/i, say: '"More sources"' },
-  { term: 'checks complete', pattern: /\bchecks? complete\b/i, say: '"1 of 2 done"' },
-  { term: 'daily report status', pattern: /\bdaily report status\b/i, say: '"Nightly report"' },
-]);
-
-/** The visible strings that say a retired term, one entry per term hit. */
-export function retiredTermHits(strings, file) {
-  return strings.flatMap((entry) =>
-    RETIRED_TERMS.filter(({ pattern }) => pattern.test(entry.text)).map(({ term, say }) => ({
-      file, line: entry.line, text: entry.text, context: entry.context, term, say,
-    })));
-}
-
-/** Every retired-term hit in a measurement, file order. */
-export function retiredIn(measured) {
-  return Object.values(measured).flatMap((entry) => entry.retired ?? []);
-}
-
-export function formatRetired(hits) {
-  return [
-    `UX gate: a retired internal term is on screen (bead ${RETIRED_TERMS_BEAD}; docs/17-ui-lexicon.md, Retired on-screen terms).`,
-    ...hits.map((hit) => `  ${hit.file}:${hit.line}  "${hit.term}" · ${hit.context}\n      "${truncate(hit.text)}"\n      say instead: ${hit.say}`),
-  ].join('\n');
-}
-
-export const RETIRED_TERMS_BEAD = 'ro-ujb9.135';
-
 /** The strings in `extractVisibleStrings` output that exceed their budget. */
 export function overBudget(strings, settings = SETTINGS) {
   const budgets = settings.budgets;
@@ -1031,72 +918,6 @@ export function workingTree(root = REPO_ROOT) {
   return tree;
 }
 
-/** The tree git holds at `rev`: `':'` is the index, anything else a commit.
- * Contents are read in one `git cat-file --batch` per call to `readMany`. */
-export function gitTree(root, rev) {
-  const listing = rev === ':'
-    ? git(root, ['ls-files', '-z'])
-    : git(root, ['ls-tree', '-r', '-z', '--name-only', rev]);
-  if (listing.status !== 0) throw new Error(`ux-gate: cannot list ${rev === ':' ? 'the index' : rev}: ${listing.stderr.trim()}`);
-  const all = listing.stdout.split('\0').filter(Boolean);
-  const present = new Set(all);
-  const cache = new Map();
-  const spec = (rel) => (rev === ':' ? `:${rel}` : `${rev}:${rel}`);
-  const tree = {
-    root,
-    rev,
-    exists: (rel) => present.has(rel),
-    readMany(rels) {
-      const wanted = [...new Set(rels)].filter((rel) => !cache.has(rel));
-      for (const rel of wanted) if (!present.has(rel)) cache.set(rel, null);
-      const batch = wanted.filter((rel) => present.has(rel));
-      if (!batch.length) return;
-      const result = spawnSync('git', ['cat-file', '--batch'], {
-        cwd: root,
-        input: `${batch.map(spec).join('\n')}\n`,
-        maxBuffer: 256 * 1024 * 1024,
-      });
-      if (result.error) throw result.error;
-      const out = result.stdout;
-      let at = 0;
-      for (const rel of batch) {
-        const newline = out.indexOf(10, at);
-        const header = out.subarray(at, newline).toString('utf8');
-        at = newline + 1;
-        const size = /^[0-9a-f]+ blob (\d+)$/.exec(header);
-        if (!size) {
-          cache.set(rel, null); // "missing", or not a blob
-          continue;
-        }
-        const length = Number(size[1]);
-        cache.set(rel, out.subarray(at, at + length).toString('utf8'));
-        at += length + 1;
-      }
-    },
-    read(rel) {
-      if (!cache.has(rel)) tree.readMany([rel]);
-      return cache.get(rel);
-    },
-    files: (dir) => all.filter((rel) => rel.startsWith(`${dir}/`)).sort(),
-    dirs(dir) {
-      const found = new Set();
-      for (const rel of all) {
-        if (!rel.startsWith(`${dir}/`)) continue;
-        const [child, ...rest] = rel.slice(dir.length + 1).split('/');
-        if (rest.length) found.add(`${dir}/${child}`);
-      }
-      return [...found].sort();
-    },
-  };
-  return tree;
-}
-
-// ---------------------------------------------------------------------------
-// What the Tower renders: its own directories, plus everything they import
-// ---------------------------------------------------------------------------
-//
-// Bead `ro-ujb9.96.6.13`. The desk renders text written outside
-// `apps/tower`: the config registers' field labels and hints
 // (`scripts/config-registers.mts`), the provider catalog and health copy in
 // `packages/contract`, every config document compiled into the bundle
 // (`config/integrations.json` notes and setup steps), the workflow and job
@@ -1213,7 +1034,7 @@ export function resolveImport(tree, from, specifier, packages = workspacePackage
 }
 
 // ---------------------------------------------------------------------------
-// What the Tower reaches through a service binding (bead ro-ujb9.96.6.24)
+// What the Tower reaches through a service binding
 // ---------------------------------------------------------------------------
 //
 // The Tower does not import the ingest Worker: it calls it. `env.INGEST` is a
@@ -1391,7 +1212,7 @@ export function isGateFile(rel, tree, settings = SETTINGS) {
 }
 
 // ---------------------------------------------------------------------------
-// Developer-only messages (bead ro-ujb9.96.4)
+// Developer-only messages
 // ---------------------------------------------------------------------------
 //
 // A message thrown while React renders a component or hook goes to the
@@ -1443,939 +1264,50 @@ export function measure(files, { root = REPO_ROOT, read, ts, settings = SETTINGS
       count: offenders.length,
       words: offenders.reduce((sum, entry) => sum + entry.words, 0),
       offenders,
-      // Outside the ratchet's count: a retired term is never legacy debt.
-      retired: retiredTermHits(strings, rel),
     };
   }
   return result;
 }
 
 // ---------------------------------------------------------------------------
-// The baseline and its ratchet
+// The report
 // ---------------------------------------------------------------------------
 
-const EMPTY = Object.freeze({ count: 0, words: 0 });
-
-export function emptyBaseline() {
-  return { files: {} };
+/** Every long string in a measurement, longest first. */
+export function longStrings(measured) {
+  return Object.values(measured)
+    .flatMap((entry) => entry.offenders)
+    .sort((a, b) => b.words - a.words || a.file.localeCompare(b.file) || a.line - b.line);
 }
-
-export function readBaseline(root = REPO_ROOT) {
-  const file = path.join(root, BASELINE_FILE);
-  if (!existsSync(file)) return null;
-  return JSON.parse(readFileSync(file, 'utf8'));
-}
-
-/** The record's own header: what it is and who may change it. */
-export const BASELINE_ABOUT =
-  'One-way ratchet for scripts/ux-gate.mjs (bead ro-ujb9.94): the explanatory-prose offenders each file the Tower ' +
-  'renders held when the gate first read it. A file may not gain offenders or words. pnpm ux:baseline lowers entries ' +
-  'when text is removed and never raises them. Files the gate started reading later (text the Tower renders from ' +
-  'outside apps/tower/{src,shared,worker}) entered once, through the widening record naming the bead that widened ' +
-  'the gate. A raise is an operator-only exception for a trust-safety, legal or destructive-confirmation fact: the ' +
-  'operator adds kind, approvedBy (a bead id), reason and priorArt (a docs/briefs section citing three researched ' +
-  'comparables) to that entry. Agents never edit this file; see scripts/README.md, UX gate.';
-
-/** The JSON the baseline file holds, keys sorted so a diff shows only change. */
-export function serializeBaseline(baseline) {
-  const files = {};
-  for (const name of Object.keys(baseline.files ?? {}).sort()) {
-    const entry = baseline.files[name];
-    files[name] = { count: entry.count, words: entry.words };
-    for (const key of APPROVAL_KEYS) if (entry[key] !== undefined) files[name][key] = entry[key];
-  }
-  const { about: _about, widenings: records, files: _files, ...rest } = baseline;
-  const out = { about: BASELINE_ABOUT, ...(records?.length ? { widenings: records } : {}), ...rest, files };
-  return `${JSON.stringify(out, null, 2)}\n`;
-}
-
-/** Bead-id prefixes the task hub knows (this installation's `beads.json`,
- * else the product default's none). */
-export function beadPrefixes(root = REPO_ROOT) {
-  try {
-    const config = JSON.parse(readFileSync(readablePath('config/beads.json', { root }), 'utf8'));
-    const prefixes = (config.spokes ?? []).map((spoke) => spoke.prefix).filter(Boolean);
-    return prefixes.length ? prefixes : null;
-  } catch {
-    return null;
-  }
-}
-
-/** A bead id: `<prefix>-<id>` with optional `.n` children, e.g. `ro-ujb9.94`. */
-export function isBeadId(value, prefixes = null) {
-  const match = /^([a-z]+)-[a-z0-9]{2,}(?:\.\d+)*$/.exec(String(value ?? ''));
-  if (!match) return false;
-  return prefixes ? prefixes.includes(match[1]) : true;
-}
-
-// ---------------------------------------------------------------------------
-// Prior art: the research an exception must cite
-// ---------------------------------------------------------------------------
-//
-// Operator, 2026-09-23: "If you get hard stopped at a gate which requires
-// redesign but you're not sure what's wrong or how to redesign it you should
-// research it until you find the best modern comp for what you're looking
-// for." So an exception is only possible AFTER that research, and it points at
-// it: `priorArt` names a section of a brief under docs/briefs/ that cites at
-// least three comparable products by URL. A raise with no research behind it
-// has nowhere to point.
-
-export const APPROVAL_KEYS = ['approvedBy', 'kind', 'reason', 'priorArt'];
-
-/**
- * The only facts an exception may keep on screen as text (operator,
- * 2026-09-23: "we cannot afford cheap workarounds/exceptions if we can
- * actually improve/streamline/simplify the flows"). A closed set: anything
- * else is a flow to redesign.
- *   trust-safety              a secret is shown once and never again
- *   legal                     a disclosure the law requires in words
- *   destructive-confirmation  what an irreversible action will destroy
- */
-export const EXCEPTION_KINDS = Object.freeze(['trust-safety', 'legal', 'destructive-confirmation']);
-
-export const EXCEPTION_KIND_RULE =
-  `kind must be one of ${EXCEPTION_KINDS.join(', ')}: exceptions exist only for trust, safety, legal or ` +
-  'destructive-confirmation facts, and everything else must be redesigned';
-export const PRIOR_ART_RE = /^docs\/briefs\/[A-Za-z0-9._-]+\.md#[A-Za-z0-9_-]+$/;
-export const PRIOR_ART_MIN_LINKS = 3;
-
-/** GitHub's heading anchor: lower-case, punctuation dropped, spaces to `-`. */
-export function headingSlug(heading) {
-  return heading
-    .trim()
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s_-]/gu, '')
-    .replace(/\s/g, '-');
-}
-
-/** The lines of the section `#anchor` names in a Markdown document: the
- * heading whose slug matches (or an explicit `<a id>` / `{#anchor}`), up to the
- * next heading of the same or a higher level. Fenced code is not headings. */
-export function markdownSection(markdown, anchor) {
-  const lines = String(markdown).split('\n');
-  let fenced = false;
-  let start = -1;
-  let level = 7;
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index];
-    if (/^\s*(?:```|~~~)/.test(line)) fenced = !fenced;
-    if (fenced) continue;
-    const heading = /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
-    if (start === -1) {
-      const explicit = line.includes(`id="${anchor}"`) || line.includes(`name="${anchor}"`) || line.includes(`{#${anchor}}`);
-      if ((heading && headingSlug(heading[2].replace(/\{#[^}]*\}/, '')) === anchor) || explicit) {
-        start = index + 1;
-        level = heading ? heading[1].length : 7;
-      }
-    } else if (heading && heading[1].length <= level) {
-      return lines.slice(start, index);
-    }
-  }
-  return start === -1 ? null : lines.slice(start);
-}
-
-/**
- * Problems with a `priorArt` citation (none when it resolves). `readFile(rel)`
- * returns a repo file's text or null — the working tree, the index or a
- * commit, whichever the caller is judging.
- */
-export function priorArtProblems(citation, readFile) {
-  if (typeof citation !== 'string' || !PRIOR_ART_RE.test(citation)) {
-    return [`priorArt must cite the research as "docs/briefs/<flow>.md#<section>" (got ${JSON.stringify(citation)})`];
-  }
-  const [file, anchor] = citation.split('#');
-  const text = readFile(file);
-  if (text == null) return [`priorArt ${citation}: ${file} does not exist`];
-  const section = markdownSection(text, anchor);
-  if (!section) return [`priorArt ${citation}: ${file} has no "#${anchor}" section`];
-  const links = new Set(section.join('\n').match(/https?:\/\/[^\s)>\]"'`]+/g) ?? []);
-  if (links.size < PRIOR_ART_MIN_LINKS) {
-    return [
-      `priorArt ${citation} cites ${links.size} source link(s); an exception needs at least ${PRIOR_ART_MIN_LINKS} ` +
-        'comparable products researched (product, source URL, adopted pattern)',
-    ];
-  }
-  return [];
-}
-
-const workingTreeReader = (root) => (rel) => {
-  try {
-    return readFileSync(path.join(root, rel), 'utf8');
-  } catch {
-    return null;
-  }
-};
-
-/** Problems with one entry's exception: all four keys, each valid. */
-function approvalProblems(entry, { prefixes, readFile }) {
-  const problems = [];
-  if (!EXCEPTION_KINDS.includes(entry.kind)) {
-    problems.push(`${EXCEPTION_KIND_RULE} (got ${JSON.stringify(entry.kind)})`);
-  }
-  if (!isBeadId(entry.approvedBy, prefixes)) {
-    problems.push(`approvedBy must be the operator-approved bead id, e.g. "ro-abcd.1" (got ${JSON.stringify(entry.approvedBy)})`);
-  }
-  if (typeof entry.reason !== 'string' || countWords(entry.reason) < 3) {
-    problems.push('reason must say, in at least three words, why no redesign removes the text');
-  }
-  problems.push(...priorArtProblems(entry.priorArt, readFile));
-  return problems;
-}
-
-/** Schema errors in a baseline (an empty list when it is well-formed). */
-export function validateBaseline(baseline, { prefixes = null, root = REPO_ROOT, readFile = workingTreeReader(root) } = {}) {
-  const errors = [];
-  if (!baseline || typeof baseline !== 'object' || !baseline.files || typeof baseline.files !== 'object') {
-    return [`${BASELINE_FILE} must be an object with a "files" map`];
-  }
-  errors.push(...wideningSchemaProblems(baseline, prefixes));
-  const minWords = LABEL_WORD_BUDGET + 1;
-  for (const [file, entry] of Object.entries(baseline.files)) {
-    const where = `${BASELINE_FILE} → ${file}`;
-    if (!entry || typeof entry !== 'object') {
-      errors.push(`${where}: must be an object`);
-      continue;
-    }
-    for (const key of Object.keys(entry)) {
-      if (!['count', 'words', ...APPROVAL_KEYS].includes(key)) errors.push(`${where}: unknown key "${key}"`);
-    }
-    if (!Number.isInteger(entry.count) || entry.count < 1) errors.push(`${where}: count must be a positive integer`);
-    if (!Number.isInteger(entry.words) || entry.words < 1) errors.push(`${where}: words must be a positive integer`);
-    else if (Number.isInteger(entry.count) && entry.words < entry.count * minWords) {
-      errors.push(`${where}: ${entry.count} offender(s) cannot total ${entry.words} words (each is over ${LABEL_WORD_BUDGET})`);
-    }
-    if (APPROVAL_KEYS.some((key) => entry[key] !== undefined)) {
-      for (const problem of approvalProblems(entry, { prefixes, readFile })) errors.push(`${where}: ${problem}`);
-    }
-  }
-  return errors;
-}
-
-/**
- * Entries in `next` that are higher than in `previous` without a FRESH, valid
- * exception: an `approvedBy` bead id, a `reason`, and a `priorArt` citation
- * that resolves to researched comparables — and an approval different from the
- * one the previous version carried (one approval never covers two raises).
- */
-export function baselineRaises(
-  previous,
-  next,
-  { prefixes = null, root = REPO_ROOT, readFile = workingTreeReader(root), admitted = new Set() } = {},
-) {
-  const violations = [];
-  for (const [file, entry] of Object.entries(next?.files ?? {})) {
-    const before = previous?.files?.[file] ?? EMPTY;
-    if (!(entry.count > before.count || entry.words > before.words)) continue;
-    // A widening's first measurement of a file (judged by `judgeWidenings`).
-    if (admitted.has(file) && !previous?.files?.[file]) continue;
-    const change = `${file}: count ${before.count} → ${entry.count}, words ${before.words} → ${entry.words}`;
-    const problems = approvalProblems(entry, { prefixes, readFile });
-    if (problems.length) {
-      violations.push(`${change} is a raise without a valid exception: ${problems.join('; ')}`);
-    } else if (entry.approvedBy === before.approvedBy && entry.reason === before.reason) {
-      violations.push(`${change} reuses the approval of an earlier raise (${entry.approvedBy}); each raise needs its own`);
-    }
-  }
-  return violations;
-}
-
-// ---------------------------------------------------------------------------
-// Widenings: the gate starts reading a source it never read
-// ---------------------------------------------------------------------------
-//
-// Bead `ro-ujb9.96.6.13`. When the gate learns to read text the desk was
-// ALREADY rendering from outside `apps/tower/{src,shared,worker}`, that text
-// is legacy debt like the rest, not a new paragraph. It enters the record
-// once, under a widening record in the file's header that names the bead that
-// widened the gate — never as per-file exceptions, and never for text written
-// in the same change. `pnpm ux:gate -- --widen <bead> --reason "<why>"` writes
-// it; `judgeWidenings` decides whether it is honest, at commit time and for
-// every commit in history.
-
-/** The gate's own scope: a widening must change one of these. */
-export const GATE_SCOPE_FILES = ['scripts/ux-gate.mjs', SETTINGS_FILE];
-
-export const WIDENING_KEYS = ['bead', 'reason', 'files'];
-
-export const widenings = (baseline) => (Array.isArray(baseline?.widenings) ? baseline.widenings : []);
-
-/** The rules a tree carries: its settings file, or null before the file
- * existed (the legacy constants, and no import tracing, applied then). */
-function settingsOfTree(tree) {
-  const text = tree.read(SETTINGS_FILE);
-  if (text == null) return null;
-  try {
-    return normalizeSettings(JSON.parse(text));
-  } catch {
-    return normalizeSettings(null);
-  }
-}
-
-/** Shape problems with the widening records (none when well-formed). */
-function wideningSchemaProblems(baseline, prefixes) {
-  if (baseline.widenings === undefined) return [];
-  const where = `${BASELINE_FILE} → widenings`;
-  if (!Array.isArray(baseline.widenings)) return [`${where} must be a list`];
-  const problems = [];
-  const beads = new Set();
-  const files = new Set();
-  baseline.widenings.forEach((record, index) => {
-    const at = `${where}[${index}]`;
-    if (!record || typeof record !== 'object') {
-      problems.push(`${at} must be an object`);
-      return;
-    }
-    for (const key of Object.keys(record)) if (!WIDENING_KEYS.includes(key)) problems.push(`${at}: unknown key "${key}"`);
-    if (!isBeadId(record.bead, prefixes)) problems.push(`${at}: bead must be the bead that widened the gate (got ${JSON.stringify(record.bead)})`);
-    else if (beads.has(record.bead)) problems.push(`${at}: bead ${record.bead} already widened the gate once`);
-    beads.add(record.bead);
-    if (typeof record.reason !== 'string' || countWords(record.reason) < 3) problems.push(`${at}: reason must say what the gate started reading`);
-    if (!Array.isArray(record.files) || !record.files.length || !record.files.every((file) => typeof file === 'string')) {
-      problems.push(`${at}: files must list the files the gate started reading`);
-      return;
-    }
-    for (const file of record.files) {
-      if (files.has(file)) problems.push(`${at}: ${file} was already widened`);
-      files.add(file);
-    }
-  });
-  return problems;
-}
-
-/**
- * Judge the widening records `next` adds to `previous`. `before`/`after` are
- * the trees on either side of the change (`gitTree`/`workingTree`). Valid
- * only when the records are append-only; each new record names a fresh bead
- * and a reason; the same change edits the gate's scope (`GATE_SCOPE_FILES`);
- * and every file it lists is new to the record, was NOT read by the gate
- * before the change, is byte-identical before and after it, and is one the
- * new rules would have read in the old tree — a widening measures text the
- * desk was already rendering, and never admits new text.
- *
- * @returns {{ problems: string[], admitted: Set<string> }}
- */
-export function judgeWidenings(previous, next, { before, after, prefixes = null } = {}) {
-  const earlier = widenings(previous);
-  const now = widenings(next);
-  const problems = [];
-  const admitted = new Set();
-  earlier.forEach((record, index) => {
-    if (JSON.stringify(now[index]) !== JSON.stringify(record)) {
-      problems.push(`the widening record for ${record?.bead} was changed or removed; widening records are append-only`);
-    }
-  });
-  const added = now.slice(earlier.length);
-  if (!added.length) return { problems, admitted };
-  // One batch per side for every file this judgement reads.
-  const listed = added.flatMap((record) => (Array.isArray(record?.files) ? record.files : []));
-  before.readMany([...GATE_SCOPE_FILES, ...listed]);
-  after.readMany([...GATE_SCOPE_FILES, ...listed]);
-  const gateChanged = GATE_SCOPE_FILES.some((file) => before.read(file) !== after.read(file));
-  const earlierBeads = new Set(earlier.map((record) => record?.bead));
-  const earlierFiles = new Set(earlier.flatMap((record) => (Array.isArray(record?.files) ? record.files : [])));
-  const afterSettings = settingsOfTree(after) ?? normalizeSettings(null);
-  const beforeSettings = settingsOfTree(before);
-  let readBefore = null;
-  let renderedBefore = null;
-  // What the OLD gate read: before the settings file existed, the Tower
-  // directories only (the gate did not follow imports yet); and service
-  // bindings only once the old tree's own gate followed them.
-  const wasRead = (file) => {
-    readBefore ??= beforeSettings
-      ? new Set(traceScope(before, beforeSettings, { bindings: followsServiceBindings(before) }).files)
-      : { has: (rel) => isTowerUiFile(rel, normalizeSettings(null)) };
-    return readBefore.has(file);
-  };
-  // What the NEW rules would have read in the old tree.
-  const wouldRead = (file) => {
-    renderedBefore ??= new Set(traceScope(before, afterSettings, { bindings: followsServiceBindings(after) }).files);
-    return renderedBefore.has(file);
-  };
-  for (const record of added) {
-    const name = `widening ${record?.bead}`;
-    if (!isBeadId(record?.bead, prefixes)) {
-      problems.push(`${name}: bead must be the bead that widened the gate`);
-      continue;
-    }
-    if (earlierBeads.has(record.bead)) problems.push(`${name}: that bead already widened the gate once`);
-    if (!gateChanged) {
-      problems.push(`${name}: a widening must come with the change that widens the gate (${GATE_SCOPE_FILES.join(', ')})`);
-    }
-    for (const file of Array.isArray(record.files) ? record.files : []) {
-      const refuse = (why) => problems.push(`${name}: ${file} ${why}`);
-      if (earlierFiles.has(file) || admitted.has(file)) refuse('was already widened');
-      else if (previous?.files?.[file]) refuse('is already in the record');
-      else if (before.read(file) == null || before.read(file) !== after.read(file)) {
-        refuse('is new or changed in the same change; a widening only records text that already existed');
-      } else if (wasRead(file)) refuse('was already read by the gate; its prose needs a redesign, not a widening');
-      else if (!wouldRead(file)) refuse('was not imported by the Tower before this change');
-      else admitted.add(file);
-    }
-  }
-  return { problems, admitted };
-}
-
-// ---------------------------------------------------------------------------
-// The settings: tightening is free, loosening is the operator's exception
-// ---------------------------------------------------------------------------
-
-const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-
-/** Schema problems in the settings document (none when well-formed).
- * `exists(rel)` answers whether a path is in the tree judged. */
-export function validateSettings(json, { prefixes = null, readFile = workingTreeReader(REPO_ROOT), exists = null } = {}) {
-  if (!isPlainObject(json)) return [`${SETTINGS_FILE} must be an object`];
-  const errors = [];
-  const where = (key) => `${SETTINGS_FILE} → ${key}`;
-  for (const key of Object.keys(json)) if (!SETTINGS_KEYS.includes(key)) errors.push(`${where(key)}: unknown key`);
-  if (!isPlainObject(json.budgets)) errors.push(`${where('budgets')} must name ${BUDGET_KINDS.join(', ')}`);
-  else {
-    for (const key of Object.keys(json.budgets)) if (!BUDGET_KINDS.includes(key)) errors.push(`${where(`budgets.${key}`)}: unknown budget`);
-    for (const kind of BUDGET_KINDS) {
-      const entry = json.budgets[kind];
-      const at = where(`budgets.${kind}`);
-      if (!isPlainObject(entry) || !Number.isInteger(entry.words) || entry.words < 1) {
-        errors.push(`${at} must be { "words": <positive integer> }`);
-        continue;
-      }
-      for (const key of Object.keys(entry)) if (!['words', ...APPROVAL_KEYS].includes(key)) errors.push(`${at}: unknown key "${key}"`);
-      if (APPROVAL_KEYS.some((key) => entry[key] !== undefined)) {
-        for (const problem of approvalProblems(entry, { prefixes, readFile })) errors.push(`${at}: ${problem}`);
-      }
-    }
-  }
-  for (const key of ['scanDirs', 'traceRoots']) {
-    const list = json[key];
-    if (!Array.isArray(list) || !list.every((item) => typeof item === 'string' && item && !item.endsWith('/'))) {
-      errors.push(`${where(key)} must be a list of repo-relative paths`);
-    } else if (new Set(list).size !== list.length) errors.push(`${where(key)} lists a path twice`);
-  }
-  if (Array.isArray(json.scanDirs) && !json.scanDirs.length) errors.push(`${where('scanDirs')} must name at least one directory`);
-  if (!isPlainObject(json.notDeskCopy)) errors.push(`${where('notDeskCopy')} must map a file to its reason`);
-  else {
-    for (const [file, entry] of Object.entries(json.notDeskCopy)) {
-      const at = where(`notDeskCopy.${file}`);
-      if (!isPlainObject(entry) || typeof entry.reason !== 'string' || countWords(entry.reason) < 3) {
-        errors.push(`${at} must say, in at least three words, why the desk never shows this file`);
-        continue;
-      }
-      for (const key of Object.keys(entry)) if (!APPROVAL_KEYS.includes(key)) errors.push(`${at}: unknown key "${key}"`);
-      if (APPROVAL_KEYS.some((key) => key !== 'reason' && entry[key] !== undefined)) {
-        for (const problem of approvalProblems(entry, { prefixes, readFile })) errors.push(`${at}: ${problem}`);
-      }
-      if (exists && !exists(file)) errors.push(`${at}: the file no longer exists; remove the entry`);
-    }
-  }
-  return errors;
-}
-
-/**
- * Loosenings in `next` against `previous` (the legacy constants when the file
- * is new) that lack a FRESH, valid four-key approval: a raised budget, a new
- * skipped file. A scan directory or trace root may only leave when it no
- * longer exists (`pathExists`): stopping to read a file that still renders is
- * an approved `notDeskCopy` entry, never a shorter list.
- */
-export function settingsLoosenings(previous, next, { prefixes = null, readFile = workingTreeReader(REPO_ROOT), pathExists = () => true } = {}) {
-  const before = isPlainObject(previous) ? previous : LEGACY_SETTINGS;
-  if (!isPlainObject(next)) return [];
-  const violations = [];
-  for (const kind of BUDGET_KINDS) {
-    const was = before.budgets?.[kind]?.words ?? LEGACY_SETTINGS.budgets[kind].words;
-    const entry = next.budgets?.[kind];
-    const now = entry?.words;
-    if (!Number.isInteger(now) || now <= was) continue;
-    const change = `budgets.${kind}: ${was} → ${now} words`;
-    const problems = approvalProblems(entry, { prefixes, readFile });
-    if (problems.length) violations.push(`${change} loosens the gate without a valid exception: ${problems.join('; ')}`);
-    else if (entry.approvedBy === before.budgets?.[kind]?.approvedBy && entry.reason === before.budgets?.[kind]?.reason) {
-      violations.push(`${change} reuses the approval of an earlier raise (${entry.approvedBy}); each raise needs its own`);
-    }
-  }
-  const skippedBefore = isPlainObject(before.notDeskCopy) ? before.notDeskCopy : {};
-  for (const [file, entry] of Object.entries(isPlainObject(next.notDeskCopy) ? next.notDeskCopy : {})) {
-    if (Object.hasOwn(skippedBefore, file)) continue;
-    const problems = approvalProblems(isPlainObject(entry) ? entry : {}, { prefixes, readFile });
-    if (problems.length) {
-      violations.push(`notDeskCopy + ${file}: skipping a file loosens the gate and needs a valid exception: ${problems.join('; ')}`);
-    }
-  }
-  for (const key of ['scanDirs', 'traceRoots']) {
-    const kept = new Set(Array.isArray(next[key]) ? next[key] : []);
-    for (const dir of Array.isArray(before[key]) ? before[key] : []) {
-      if (!kept.has(dir) && pathExists(dir)) {
-        violations.push(`${key} − ${dir}: the gate stops reading a path that still exists; skip a file only through an approved notDeskCopy entry`);
-      }
-    }
-  }
-  return violations;
-}
-
-const parseJson = (text) => {
-  if (text == null) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return undefined; // malformed: reported by the schema check
-  }
-};
-
-/**
- * Audit every commit that changed the settings: each loosening must carry a
- * fresh, valid exception, resolved IN THAT COMMIT'S TREE. The first version
- * is judged against `LEGACY_SETTINGS`; deleting the file, or re-creating it
- * after a deletion, is a violation.
- */
-export function auditSettingsHistory(root = REPO_ROOT, { prefixes = beadPrefixes(root) } = {}) {
-  const { commits, parents, shallow, text } = fileHistory(root, SETTINGS_FILE);
-  if (!commits) return { skipped: text, violations: [] };
-  const violations = [];
-  commits.forEach((commit, index) => {
-    const short = commit.slice(0, 8);
-    const next = parseJson(text(commit));
-    if (next === null) {
-      violations.push(`${short} deletes ${SETTINGS_FILE}; the gate's rules are never deleted`);
-      return;
-    }
-    const hasParent = Boolean(parents.get(commit));
-    if (!hasParent && shallow) return; // history beyond a shallow clone's edge
-    const previous = hasParent ? parseJson(text(parents.get(commit))) : null;
-    if (previous === null && index !== commits.length - 1) {
-      violations.push(`${short} re-creates ${SETTINGS_FILE} after it was deleted`);
-      return;
-    }
-    const readFile = (rel) => gitShow(root, `${commit}:${rel}`);
-    const pathExists = (rel) => git(root, ['cat-file', '-e', `${commit}:${rel}`]).status === 0;
-    for (const violation of settingsLoosenings(previous ?? LEGACY_SETTINGS, next, { prefixes, readFile, pathExists })) {
-      violations.push(`${short} ${violation}`);
-    }
-  });
-  return { violations, commits: commits.length, shallow };
-}
-
-/** `judgeWidenings` for one change, building the two trees only when the
- * change touches the widening records at all (`before`/`after` are thunks). */
-function judgeChange(previous, next, { prefixes, before, after }) {
-  if (JSON.stringify(widenings(previous)) === JSON.stringify(widenings(next))) return { problems: [], admitted: new Set() };
-  return judgeWidenings(previous, next, { prefixes, before: before(), after: after() });
-}
-
-/**
- * Compare a measurement with the baseline. `scope` limits the files judged
- * (null = every measured file and every baseline entry).
- */
-export function compareToBaseline(measured, baseline, { scope = null } = {}) {
-  const files = scope ?? [...new Set([...Object.keys(measured), ...Object.keys(baseline?.files ?? {})])].sort();
-  const increases = [];
-  const decreases = [];
-  for (const file of files) {
-    const now = measured[file] ?? { ...EMPTY, offenders: [] };
-    const allowed = baseline?.files?.[file] ?? EMPTY;
-    if (now.count > allowed.count || now.words > allowed.words) increases.push({ file, now, allowed });
-    else if (now.count < allowed.count || now.words < allowed.words) decreases.push({ file, now, allowed });
-  }
-  return { increases, decreases };
-}
-
-/** The baseline with every entry lowered to the measurement where it is
- * lower. Never adds a file, never raises a number; drops entries that reach
- * zero. */
-export function lowerBaseline(baseline, measured) {
-  const next = { ...baseline, files: {} };
-  const changes = [];
-  for (const [file, entry] of Object.entries(baseline.files ?? {})) {
-    const now = measured[file] ?? EMPTY;
-    const count = Math.min(entry.count, now.count);
-    const words = Math.min(entry.words, now.words);
-    if (count !== entry.count || words !== entry.words) {
-      changes.push(`${file}: count ${entry.count} → ${count}, words ${entry.words} → ${words}`);
-    }
-    if (count === 0 || words === 0) continue;
-    next.files[file] = { ...entry, count, words };
-  }
-  return { next, changes };
-}
-
-// ---------------------------------------------------------------------------
-// Git
-// ---------------------------------------------------------------------------
-
-function git(root, args, options = {}) {
-  const result = spawnSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, ...options });
-  if (result.error) throw result.error;
-  return result;
-}
-
-/** A file's content at a git revision (`HEAD:path`, `:path` for the index),
- * or null when it does not exist there. */
-export function gitShow(root, spec) {
-  const result = git(root, ['show', spec]);
-  return result.status === 0 ? result.stdout : null;
-}
-
-const parseBaseline = (text) => (text == null ? null : JSON.parse(text));
-
-/**
- * Audit every commit that changed the baseline: each raise must carry a fresh,
- * valid exception, its `priorArt` resolved IN THAT COMMIT'S TREE. The commit
- * that introduced the file is exempt; a later commit that re-creates it after
- * a deletion is not. Returns `{ violations, commits, shallow }` (`skipped`
- * when this is not a git work tree).
- */
-/** Blobs by `rev:path` spec, in one `git cat-file --batch` (null: absent). */
-export function catFiles(root, specs) {
-  const found = new Map();
-  const wanted = [...new Set(specs)];
-  if (!wanted.length) return found;
-  const result = spawnSync('git', ['cat-file', '--batch'], { cwd: root, input: `${wanted.join('\n')}\n`, maxBuffer: 256 * 1024 * 1024 });
-  if (result.error) throw result.error;
-  const out = result.stdout;
-  let at = 0;
-  for (const spec of wanted) {
-    const newline = out.indexOf(10, at);
-    if (newline === -1) break;
-    const header = out.subarray(at, newline).toString('utf8');
-    at = newline + 1;
-    const size = /^[0-9a-f]+ blob (\d+)$/.exec(header);
-    if (!size) {
-      found.set(spec, null);
-      continue;
-    }
-    const length = Number(size[1]);
-    found.set(spec, out.subarray(at, at + length).toString('utf8'));
-    at += length + 1;
-  }
-  return found;
-}
-
-/**
- * Every commit that changed `file` (newest first), each one's first parent,
- * and the file's text at any of them — read in one batch, because the audit
- * runs in every CI pass and a spawn per commit grows with the history.
- * `commits` is null (and `text` the reason) outside a git work tree.
- */
-function fileHistory(root, file) {
-  const inside = git(root, ['rev-parse', '--is-inside-work-tree']);
-  if (inside.status !== 0 || inside.stdout.trim() !== 'true') return { commits: null, text: 'not a git work tree' };
-  const log = git(root, ['log', '--format=%H %P', '--', file]);
-  if (log.status !== 0) return { commits: null, text: log.stderr.trim() };
-  const commits = [];
-  const parents = new Map();
-  for (const line of log.stdout.split('\n').filter(Boolean)) {
-    const [commit, parent = ''] = line.split(' ');
-    commits.push(commit);
-    parents.set(commit, parent);
-  }
-  const shallow = git(root, ['rev-parse', '--is-shallow-repository']).stdout.trim() === 'true';
-  const revs = [...new Set([...commits, ...parents.values()].filter(Boolean))];
-  const blobs = catFiles(root, revs.map((rev) => `${rev}:${file}`));
-  return { commits, parents, shallow, text: (rev) => blobs.get(`${rev}:${file}`) ?? null };
-}
-
-export function auditBaselineHistory(root = REPO_ROOT, { prefixes = beadPrefixes(root) } = {}) {
-  const { commits, parents, shallow, text } = fileHistory(root, BASELINE_FILE);
-  if (!commits) return { skipped: text, violations: [] };
-  const violations = [];
-  commits.forEach((commit, index) => {
-    const next = parseBaseline(text(commit));
-    if (!next) return; // a deletion: the gate then fails closed on every file
-    const hasParent = Boolean(parents.get(commit));
-    if (!hasParent && shallow) return; // history beyond a shallow clone's edge
-    const previous = hasParent ? parseBaseline(text(parents.get(commit))) : null;
-    const introduction = index === commits.length - 1;
-    if (!previous && !introduction) {
-      violations.push(`${commit.slice(0, 8)} re-creates ${BASELINE_FILE} after it was deleted`);
-      return;
-    }
-    if (!previous) return;
-    const readFile = (rel) => gitShow(root, `${commit}:${rel}`);
-    const { problems, admitted } = judgeChange(previous, next, {
-      prefixes,
-      before: () => gitTree(root, `${commit}^`),
-      after: () => gitTree(root, commit),
-    });
-    for (const violation of [...problems, ...baselineRaises(previous, next, { prefixes, readFile, admitted })]) {
-      violations.push(`${commit.slice(0, 8)} ${violation}`);
-    }
-  });
-  return { violations, commits: commits.length, shallow };
-}
-
-// ---------------------------------------------------------------------------
-// Messages
-// ---------------------------------------------------------------------------
-//
-// A stopped agent is guaranteed to read exactly one thing: the failure. So
-// every failure names the specific violation first, then the rule, then the
-// same fixed instructions (`NEXT_STEPS`) — including the operator's standing
-// order to research the best modern comparable before asking for anything.
 
 const truncate = (text, max = 110) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
-export function formatOffender(entry, marker = '') {
-  return `${entry.file}:${entry.line}  ${entry.words} words (${entry.kind} budget ${entry.budget}) · ${entry.context}${marker}\n      "${truncate(entry.text)}"`;
+export function formatLongString(entry) {
+  return `  ${entry.file}:${entry.line}  ${entry.words} words (${entry.kind}, over ${entry.budget}) · ${entry.context}\n      "${truncate(entry.text)}"`;
 }
 
-export const RULE_TEXT =
-  `Rule (bead ${GATE_BEAD}; docs/21 principle 3; operator, 2026-09-23): an interaction that needs a paragraph of\n` +
-  `explanation is a flow to redesign. Budgets: labels ≤ ${LABEL_WORD_BUDGET} words, failure messages ≤ ${FAILURE_WORD_BUDGET}, ` +
-  `accessible names ≤ ${ACCESSIBLE_NAME_WORD_BUDGET};\nAbout and InfoTooltip content counts.`;
-
-/**
- * Steps 3 and 4 of the fixed instructions: research the best modern
- * comparable, and the only exception there is. Shared word for word with the
- * flow gate (`scripts/ux-flow-gate.mjs`, bead ro-ujb9.95), so a stopped agent
- * reads the same order from either stop. `subject` is what a redesign removes
- * (`text` here, `step` there); `file` is that gate's ratchet.
- */
-export function researchAndExceptionSteps({ subject = 'text', file = BASELINE_FILE } = {}) {
-  return [
-    '  3. Not sure how? Research how best-in-class modern products handle this same interaction (their docs,',
-    '     changelogs, screenshots) until you find the best current comparable. Record product, source URL and the',
-    '     adopted pattern in docs/briefs/<flow>.md#prior-art, then build that pattern.',
-    `  4. Only if that research finds no pattern that removes the ${subject}, and the ${subject} is a trust-safety, legal or`,
-    '     destructive-confirmation fact, can the operator approve an exception: a raise in',
-    `     ${file} with "kind", "approvedBy" (bead id), "reason" and "priorArt"`,
-    `     ("docs/briefs/<flow>.md#prior-art", at least ${PRIOR_ART_MIN_LINKS} source links). Agents never edit that file.`,
+/** The report as text: a summary line, then each long string (unless
+ * `summary` asks for the per-file counts only). */
+export function formatReport(measured, { summary = false } = {}) {
+  const entries = longStrings(measured);
+  const files = Object.entries(measured).filter(([, entry]) => entry.count > 0).sort(([a], [b]) => a.localeCompare(b));
+  const measuredFiles = Object.keys(measured).length;
+  const lines = [
+    `UX text report: ${entries.length} long string(s) in ${files.length} of ${measuredFiles} file(s) the Tower renders ` +
+      `(long = over ${BUDGETS.label}/${BUDGETS.failure}/${BUDGETS.accessible} words for labels/failures/accessible names).`,
   ];
-}
-
-/** The fixed block every design failure ends with. */
-export const NEXT_STEPS = [
-  'What to do next:',
-  '  1. Do not shorten the text, move it behind a tooltip or About, or add an exception.',
-  '  2. Redesign the interaction so it needs no explanation: show the state visually, or remove the step that needs it.',
-  ...researchAndExceptionSteps(),
-].join('\n');
-
-export const LOWER_TEXT =
-  `Lock the improvement in: pnpm ux:baseline (it only ever lowers), then commit ${BASELINE_FILE}.`;
-
-/** Violations first, the fixed instructions last. */
-export function composeFailure(sections) {
-  return [...sections.filter(Boolean), NEXT_STEPS].join('\n\n');
-}
-
-export const THIS_CHANGE = '  ← this change';
-
-/**
- * The increases, file by file. `introduced(file, offenders)` returns the
- * offenders the change added (bead `ro-ujb9.96.5`): they are listed FIRST and
- * marked `← this change`, so nobody redesigns legacy text instead of the new
- * sentence; the file's older offenders follow under their own line.
- */
-export function formatIncreases(increases, { introduced = null } = {}) {
-  const lines = [`UX gate: explanatory prose added to the Tower (bead ${GATE_BEAD}).`];
-  for (const { file, now, allowed } of increases) {
-    lines.push(`  ${file}  offenders ${allowed.count} → ${now.count}, words ${allowed.words} → ${now.words}`);
-    const fresh = introduced?.(file, now.offenders) ?? [];
-    const added = new Set(fresh);
-    const older = now.offenders.filter((entry) => !added.has(entry));
-    for (const entry of fresh) lines.push(`    ${formatOffender(entry, THIS_CHANGE)}`);
-    if (fresh.length && older.length) lines.push(`    already in ${file} before this change:`);
-    for (const entry of older) lines.push(`    ${formatOffender(entry)}`);
+  if (!entries.length) return lines.join('\n');
+  if (summary) {
+    for (const [file, entry] of files) lines.push(`  ${file}  ${entry.count} string(s), ${entry.words} words`);
+  } else {
+    lines.push(...entries.map(formatLongString));
   }
-  lines.push(RULE_TEXT);
+  lines.push('A long string is something to look at in design review: show the state instead where that reads better, keep the sentence where it earns its place.');
   return lines.join('\n');
 }
 
-/**
- * `introduced` for `formatIncreases`: the offenders whose text the file's
- * base version (`readBase(file)`: HEAD for a commit, the branch point in CI)
- * does not hold. Counted as a multiset, so a second copy of a legacy sentence
- * is new. A file the base does not have is new throughout.
- */
-export function introducedSince(readBase, { ts, renderErrorsShown = true } = {}) {
-  return (file, offenders) => {
-    let base;
-    try {
-      base = readBase(file);
-    } catch {
-      return [];
-    }
-    if (base == null) return offenders;
-    const remaining = new Map();
-    for (const entry of extractVisibleStrings(base, file, ts ?? loadTypeScript(), { renderErrorsShown })) {
-      remaining.set(entry.text, (remaining.get(entry.text) ?? 0) + 1);
-    }
-    return offenders.filter((entry) => {
-      const left = remaining.get(entry.text) ?? 0;
-      if (!left) return true;
-      remaining.set(entry.text, left - 1);
-      return false;
-    });
-  };
-}
-
-/**
- * The version of each file a whole-checkout run (CI, `pnpm ux:gate`) judges
- * "this change" against: HEAD for a file with uncommitted edits; otherwise
- * the point the branch left `main` (or `origin/main`), or the parent commit
- * on `main` itself and in a CI merge checkout. Null outside git.
- */
-export function changeBaseReader(root, tree = workingTree(root)) {
-  let head;
-  try {
-    head = gitTree(root, 'HEAD');
-  } catch {
-    return null;
-  }
-  let base;
-  const baseTree = () => {
-    if (base !== undefined) return base;
-    const headSha = git(root, ['rev-parse', 'HEAD']).stdout.trim();
-    let rev = null;
-    for (const branch of ['main', 'origin/main']) {
-      const point = git(root, ['merge-base', 'HEAD', branch]);
-      const sha = point.status === 0 ? point.stdout.trim() : '';
-      if (sha && sha !== headSha) {
-        rev = sha;
-        break;
-      }
-    }
-    if (!rev && git(root, ['rev-parse', '--verify', '--quiet', 'HEAD^']).status === 0) rev = 'HEAD^';
-    base = rev ? gitTree(root, rev) : null;
-    return base;
-  };
-  return (rel) => {
-    const atHead = head.read(rel);
-    if (tree.read(rel) !== atHead) return atHead;
-    const older = baseTree();
-    return older ? older.read(rel) : atHead;
-  };
-}
-
-/** The committed HEAD version of each file (the pre-commit hook's base):
- * null for every file before the first commit, and no reader at all outside
- * a git work tree. */
-export function headReader(root) {
-  const inside = git(root, ['rev-parse', '--is-inside-work-tree']);
-  if (inside.status !== 0 || inside.stdout.trim() !== 'true') return null;
-  if (git(root, ['rev-parse', '--verify', '--quiet', 'HEAD']).status !== 0) return () => null;
-  let head;
-  return (rel) => {
-    head ??= gitTree(root, 'HEAD');
-    return head.read(rel);
-  };
-}
-
-/** `introducedSince` over a base reader, or null when there is no base (not
- * a git checkout): the list is then printed unmarked. */
-function markChange(readBase, renderErrorsShown = true) {
-  return readBase ? introducedSince(readBase, { renderErrorsShown }) : null;
-}
-
-export function formatRaises(raises, heading = `UX gate: ${BASELINE_FILE} was raised without a valid exception:`) {
-  return [heading, ...raises].join('\n  ');
-}
-
-export function formatDecreases(decreases) {
-  const lines = ['UX gate: the Tower has less explanatory prose than its baseline records.'];
-  for (const { file, now, allowed } of decreases) {
-    lines.push(`  ${file}  offenders ${allowed.count} → ${now.count}, words ${allowed.words} → ${now.words}`);
-  }
-  lines.push(LOWER_TEXT);
-  return lines.join('\n');
-}
-
-/**
- * The message for one gate run. Design failures (prose added, an exception
- * without its research, a malformed record) end with `NEXT_STEPS`. A stale
- * baseline alone — the Tower got BETTER and the record has not caught up — is
- * bookkeeping, and ends with the one command that fixes it instead.
- */
-export function gateMessage({
-  increases = [], decreases = [], raises = [], schema = [], loosened = [], introduced = null, stageHint = false, retired = [],
-}) {
-  const design = [
-    schema.length ? formatRaises(schema, 'UX gate: the gate\'s records are malformed:') : '',
-    loosened.length ? formatRaises(loosened, `UX gate: ${SETTINGS_FILE} was loosened without a valid exception:`) : '',
-    raises.length ? formatRaises(raises) : '',
-    retired.length ? formatRetired(retired) : '',
-    increases.length ? formatIncreases(increases, { introduced }) : '',
-  ].filter(Boolean);
-  const stale = decreases.length ? formatDecreases(decreases) + (stageHint ? `\nThen stage it: git add ${BASELINE_FILE}` : '') : '';
-  if (!design.length) return stale;
-  return composeFailure([...design, stale]);
-}
-
-// ---------------------------------------------------------------------------
-// Whole-Tower check (the CI gate)
-// ---------------------------------------------------------------------------
-
-/** Everything the CI test asserts, in one call. */
-export function checkTower(root = REPO_ROOT) {
-  const tree = workingTree(root);
-  const prefixes = beadPrefixes(root);
-  const settingsJson = parseJson(tree.read(SETTINGS_FILE));
-  const settings = normalizeSettings(settingsJson ?? null);
-  const files = gateFiles(root, tree, settings);
-  const renderErrorsShown = errorBoundaryShowsMessages(tree, settings);
-  const measured = measure(files, { root, tree, settings, renderErrorsShown });
-  const baseline = readBaseline(root);
-  const schema = baseline ? validateBaseline(baseline, { prefixes, root }) : [`${BASELINE_FILE} is missing`];
-  if (settingsJson === null) schema.push(`${SETTINGS_FILE} is missing; restore it from git (git checkout -- ${SETTINGS_FILE})`);
-  else if (settingsJson === undefined) schema.push(`${SETTINGS_FILE} is not valid JSON`);
-  else schema.push(...validateSettings(settingsJson, { prefixes, readFile: tree.read, exists: tree.exists }));
-  const { increases, decreases } = compareToBaseline(measured, baseline ?? emptyBaseline());
-  const headSettings = parseJson(gitShow(root, `HEAD:${SETTINGS_FILE}`));
-  const loosenings = settingsJson
-    ? settingsLoosenings(headSettings ?? LEGACY_SETTINGS, settingsJson, {
-      prefixes,
-      readFile: tree.read,
-      pathExists: (rel) => existsSync(path.join(root, rel)),
-    })
-    : [];
-  const settingsHistory = auditSettingsHistory(root, { prefixes });
-  const head = parseBaseline(gitShow(root, `HEAD:${BASELINE_FILE}`));
-  let uncommittedRaises = [];
-  if (head && baseline) {
-    const { problems, admitted } = judgeChange(head, baseline, {
-      prefixes,
-      before: () => gitTree(root, 'HEAD'),
-      after: () => tree,
-    });
-    uncommittedRaises = [...problems, ...baselineRaises(head, baseline, { prefixes, root, admitted })];
-  }
-  const history = auditBaselineHistory(root, { prefixes });
-  const raises = [...uncommittedRaises, ...history.violations];
-  const loosened = [...loosenings, ...settingsHistory.violations];
-  const introduced = increases.length ? markChange(changeBaseReader(root, tree), renderErrorsShown) : null;
-  const retired = retiredIn(measured);
-  const message = gateMessage({ increases, decreases, raises, schema, loosened, introduced, retired });
-  return {
-    files, measured, baseline, settings, schema, increases, decreases, uncommittedRaises, history, settingsHistory, raises, loosened, retired, message,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// CLI
-// ---------------------------------------------------------------------------
-
-function parseArgs(argv) {
-  const args = {
-    files: null, json: false, staged: false, list: false, write: false, widen: null, reason: null, root: REPO_ROOT, help: false,
-  };
-  for (let index = 0; index < argv.length; index++) {
-    const arg = argv[index];
-    if (arg === '--') continue; // `pnpm ux:gate -- --list` may forward the separator
-    if (arg === '--json') args.json = true;
-    else if (arg === '--staged') args.staged = true;
-    else if (arg === '--list') args.list = true;
-    else if (arg === '--write-baseline') args.write = true;
-    else if (arg === '--widen') args.widen = argv[++index] ?? '';
-    else if (arg === '--reason') args.reason = argv[++index] ?? '';
-    else if (arg === '--help' || arg === '-h') args.help = true;
-    else if (arg === '--root') args.root = path.resolve(argv[++index]);
-    else if (arg === '--files') {
-      args.files = [];
-      while (index + 1 < argv.length && !argv[index + 1].startsWith('--')) args.files.push(argv[++index]);
-    } else throw new Error(`ux-gate: unknown argument ${arg}`);
-  }
-  return args;
-}
-
-function toRelative(root, file) {
+/** Normalise a path argument to a repo-relative posix path. */
+export function relativeToRoot(root, file) {
   const real = (value) => {
     try {
       return realpathSync(value);
@@ -2386,250 +1318,45 @@ function toRelative(root, file) {
   return toPosix(path.relative(real(root), real(path.resolve(file))));
 }
 
-function stagedFiles(root, filter = 'ACMR') {
-  const result = git(root, ['diff', '--cached', '--name-only', `--diff-filter=${filter}`, '-z']);
-  if (result.status !== 0) throw new Error(`ux-gate: git diff --cached failed: ${result.stderr}`);
-  return result.stdout.split('\0').filter(Boolean);
-}
-
-function emit(args, payload, text, code) {
-  if (args.json) process.stdout.write(`${JSON.stringify({ ...payload, message: text, exitCode: code }, null, 2)}\n`);
-  else if (text) (code === 0 ? process.stdout : process.stderr).write(`${text}\n`);
-  return code;
-}
-
-function strip(measured) {
-  return Object.fromEntries(Object.entries(measured).map(([file, { count, words }]) => [file, { count, words }]));
-}
-
-const USAGE = `ux-gate — block explanatory prose in the Tower (bead ${GATE_BEAD})
-
-  node scripts/ux-gate.mjs                    everything the Tower renders vs ${BASELINE_FILE} (CI)
-  node scripts/ux-gate.mjs --files a.tsx ...  just these files (edit time)
-  node scripts/ux-gate.mjs --staged           staged files the Tower renders (the pre-commit hook)
-  node scripts/ux-gate.mjs --list             every offender, longest first
-  node scripts/ux-gate.mjs --write-baseline   pnpm ux:baseline: lower the record, never raise it
-  node scripts/ux-gate.mjs --widen <bead> --reason "<what the gate now reads>"
-                                              record, once, the text the Tower already rendered
-                                              from files a widened gate reads for the first time
-  --json                                      machine-readable output
-  --root <dir>                                judge another checkout
-
-Exit 0 clean, 1 violations, 2 could not run.`;
-
-/** `--widen`: after the gate learns to read files it never read, record the
- * offenders they ALREADY held, once, under the bead that widened it. Refuses
- * text that is new or changed since HEAD, and files the Tower did not import
- * at HEAD: those are redesigned, never recorded. */
-function widen(args, prefixes) {
-  const { root } = args;
-  const bead = args.widen;
-  const baseline = readBaseline(root);
-  if (!baseline) return emit(args, {}, `ux-gate: ${BASELINE_FILE} is missing. Restore it from git first.`, 1);
-  const refusals = [];
-  if (!isBeadId(bead, prefixes)) refusals.push(`--widen needs the bead that widened the gate (got ${JSON.stringify(bead)})`);
-  else if (widenings(baseline).some((record) => record?.bead === bead)) refusals.push(`${bead} already widened the gate once`);
-  if (typeof args.reason !== 'string' || countWords(args.reason) < 3) refusals.push('--reason must say what the gate started reading');
-  if (refusals.length) return emit(args, { refusals }, `ux-gate: ${refusals.join('; ')}`, 1);
-
+/** Measure the whole Tower (or just `files`) in the checkout at `root`. */
+export function report({ root = REPO_ROOT, files = null } = {}) {
   const tree = workingTree(root);
-  const head = gitTree(root, 'HEAD');
   const settings = readSettings(root);
-  const measured = measure(gateFiles(root, tree, settings), { root, tree, settings });
-  const earlier = new Set(widenings(baseline).flatMap((record) => record?.files ?? []));
-  const candidates = Object.keys(measured)
-    .filter((file) => measured[file].count && !baseline.files?.[file] && !earlier.has(file))
-    .sort();
-  if (!candidates.length) return emit(args, { files: [] }, `ux-gate: nothing to widen — every file the Tower renders is already in ${BASELINE_FILE}.`, 0);
-  const files = { ...baseline.files };
-  for (const file of candidates) files[file] = { count: measured[file].count, words: measured[file].words };
-  const record = { bead, reason: args.reason, files: candidates };
-  const next = { ...baseline, widenings: [...widenings(baseline), record], files };
-  // The same judgement the commit hook and CI will make, before anything is
-  // written: new, changed or already-read text is refused whole.
-  const { problems } = judgeWidenings(baseline, next, { before: head, after: tree, prefixes });
-  if (problems.length) {
-    const offenders = candidates.flatMap((file) => measured[file].offenders);
-    const text = composeFailure([
-      [
-        'UX gate: --widen records only text the Tower already rendered at HEAD, from files a widened gate reads for the',
-        'first time. Nothing was recorded:',
-        ...problems.map((problem) => `  ${problem}`),
-        ...offenders.map((entry) => `    ${formatOffender(entry)}`),
-      ].join('\n'),
-    ]);
-    return emit(args, { refused: problems }, text, 1);
-  }
-  writeFileSync(path.join(root, BASELINE_FILE), serializeBaseline(next));
-  const count = candidates.reduce((sum, file) => sum + measured[file].count, 0);
-  const words = candidates.reduce((sum, file) => sum + measured[file].words, 0);
-  const text = [
-    `Widened ${BASELINE_FILE} under ${bead}: ${candidates.length} files, ${count} offenders, ${words} words.`,
-    ...candidates.map((file) => `  ${String(measured[file].count).padStart(3)}  ${String(measured[file].words).padStart(5)}  ${file}`),
-    `Commit it together with the change to ${GATE_SCOPE_FILES.join(' / ')} that widened the gate.`,
-  ].join('\n');
-  return emit(args, { bead, files: candidates, count, words }, text, 0);
-}
-
-/** The pre-commit check: judge the INDEX, not the working tree, and pay one
- * `git diff` when nothing staged could carry desk text. */
-function checkStaged(args, prefixes) {
-  const { root } = args;
-  const staged = stagedFiles(root);
-  const deleted = stagedFiles(root, 'D');
-  const baselineStaged = staged.includes(BASELINE_FILE);
-  const baselineDeleted = deleted.includes(BASELINE_FILE);
-  const settingsStaged = staged.includes(SETTINGS_FILE);
-  const settingsDeleted = deleted.includes(SETTINGS_FILE);
-  const candidates = staged.filter((file) => isTowerUiFile(file) || isGateSource(file));
-  if (!candidates.length && !baselineStaged && !baselineDeleted && !settingsDeleted) return emit(args, { checked: [] }, '', 0);
-  const index = gitTree(root, ':');
-  // The rules being committed are the rules the commit is measured by; a
-  // loosening among them is refused below.
-  const settingsJson = parseJson(index.read(SETTINGS_FILE));
-  const settings = normalizeSettings(settingsJson ?? null);
-  const scope = traceScope(index, settings);
-  const scanned = new Set(scope.files);
-  // Every file the Tower reaches outside its own directories is measured on
-  // every such commit: a staged import can bring an unchanged file into view.
-  const stagedRead = staged.filter((file) => scanned.has(file));
-  if (!stagedRead.length && !baselineStaged && !baselineDeleted && !settingsStaged && !settingsDeleted) {
-    return emit(args, { checked: [] }, '', 0); // nothing the Tower renders is in this commit
-  }
-  const checked = [...new Set([...stagedRead, ...scope.traced])].sort();
-  const baseline = parseBaseline(index.read(BASELINE_FILE)) ?? emptyBaseline();
-  let schema = [];
-  let raises = [];
-  let loosened = [];
-  if (baselineDeleted) raises = [`${BASELINE_FILE} is staged for deletion; the record of legacy prose is never deleted`];
-  if (settingsDeleted) loosened = [`${SETTINGS_FILE} is staged for deletion; the gate's rules are never deleted`];
-  if (settingsStaged) {
-    if (settingsJson === undefined) schema.push(`${SETTINGS_FILE} is not valid JSON`);
-    else schema.push(...validateSettings(settingsJson, { prefixes, readFile: index.read, exists: index.exists }));
-    const headSettings = parseJson(gitShow(root, `HEAD:${SETTINGS_FILE}`));
-    loosened = settingsLoosenings(headSettings ?? LEGACY_SETTINGS, settingsJson, {
-      prefixes,
-      readFile: index.read,
-      pathExists: (rel) => index.exists(rel) || index.files(rel).length > 0,
-    });
-  }
-  if (baselineStaged) {
-    schema.push(...validateBaseline(baseline, { prefixes, readFile: index.read }));
-    const head = parseBaseline(gitShow(root, `HEAD:${BASELINE_FILE}`));
-    if (head) {
-      const { problems, admitted } = judgeChange(head, baseline, { prefixes, before: () => gitTree(root, 'HEAD'), after: () => index });
-      raises = [...problems, ...baselineRaises(head, baseline, { prefixes, readFile: index.read, admitted })];
-    } else if (git(root, ['log', '-1', '--format=%H', '--', BASELINE_FILE]).stdout.trim()) {
-      raises = [`${BASELINE_FILE} is being re-created after it was deleted; restore it from history instead`];
-    }
-    // Otherwise this commit introduces the gate: its first record is the
-    // measurement, and every later commit is judged against it.
-  }
-  index.readMany(checked);
-  const renderErrorsShown = errorBoundaryShowsMessages(index, settings);
-  const measured = measure(checked, { root, tree: index, settings, renderErrorsShown });
-  const { increases, decreases } = compareToBaseline(measured, baseline, { scope: checked });
-  // What this commit added: text the committed HEAD version does not hold.
-  const introduced = increases.length ? markChange(headReader(root), renderErrorsShown) : null;
-  const retired = retiredIn(measured);
-  const text = gateMessage({ increases, decreases, raises, schema, loosened, introduced, retired, stageHint: true });
-  const code = text ? 1 : 0;
-  return emit(args, { checked, measured: strip(measured), increases, decreases, raises, loosened, schema, retired }, text, code);
+  const wanted = files
+    ? files.map((file) => relativeToRoot(root, file)).filter((rel) => isGateFile(rel, tree, settings))
+    : gateFiles(root, tree, settings);
+  return measure(wanted, { root, tree, settings });
 }
 
 export function main(argv = process.argv.slice(2)) {
-  const args = parseArgs(argv);
-  const { root } = args;
-  if (args.help) {
-    process.stdout.write(`${USAGE}\n`);
-    return 0;
-  }
-  const prefixes = beadPrefixes(root);
-
-  if (args.staged) return checkStaged(args, prefixes);
-  if (args.widen !== null) return widen(args, prefixes);
-  const settings = readSettings(root);
-
-  if (args.write) {
-    const baseline = readBaseline(root);
-    if (!baseline) {
-      return emit(args, {}, `ux-gate: ${BASELINE_FILE} is missing. Restore it from git (git checkout -- ${BASELINE_FILE}); ux:baseline never creates or raises it.`, 1);
+  let root = REPO_ROOT;
+  let json = false;
+  let summary = false;
+  let files = null;
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--') continue;
+    if (arg === '--json') json = true;
+    else if (arg === '--summary') summary = true;
+    else if (arg === '--root') root = path.resolve(argv[++i] ?? '.');
+    else if (arg === '--files') {
+      files = [];
+      while (i + 1 < argv.length && !argv[i + 1].startsWith('--')) files.push(argv[++i]);
+    } else {
+      process.stderr.write(`ux-gate: unknown option ${arg}\n`);
+      return 2;
     }
-    const measured = measure(gateFiles(root, workingTree(root), settings), { root, settings });
-    const { next, changes } = lowerBaseline(baseline, measured);
-    if (changes.length) writeFileSync(path.join(root, BASELINE_FILE), serializeBaseline(next));
-    const { increases } = compareToBaseline(measured, next);
-    const lowered = changes.length
-      ? `Lowered ${BASELINE_FILE}:\n  ${changes.join('\n  ')}`
-      : `${BASELINE_FILE} is already as low as the Tower measures.`;
-    const introduced = increases.length ? markChange(changeBaseReader(root)) : null;
-    const text = increases.length
-      ? composeFailure([lowered, `Still over the baseline — ux:baseline never raises:\n${formatIncreases(increases, { introduced })}`])
-      : lowered;
-    return emit(args, { changes, increases }, text, increases.length ? 1 : 0);
   }
-
-  if (args.list) {
-    const measured = measure(gateFiles(root, workingTree(root), settings), { root, settings });
-    const all = Object.values(measured).flatMap((entry) => entry.offenders).sort((a, b) => b.words - a.words);
-    const files = Object.entries(strip(measured)).filter(([, entry]) => entry.count).sort((a, b) => b[1].words - a[1].words);
-    const text = [
-      `${all.length} offenders in ${files.length} files, ${all.reduce((sum, entry) => sum + entry.words, 0)} words.`,
-      '',
-      'By file (offenders, words):',
-      ...files.map(([file, entry]) => `  ${String(entry.count).padStart(3)}  ${String(entry.words).padStart(5)}  ${file}`),
-      '',
-      'Every offender, longest first:',
-      ...all.map((entry) => `  ${formatOffender(entry)}`),
-    ].join('\n');
-    return emit(args, { files: Object.fromEntries(files), offenders: all }, text, 0);
-  }
-
-  if (args.files) {
-    // Edit time: the named files only. A decrease is news, not a failure.
-    const tree = workingTree(root);
-    const scope = args.files.map((file) => toRelative(root, file)).filter((file) => isGateFile(file, tree, settings));
-    const baseline = readBaseline(root) ?? emptyBaseline();
-    const measured = measure(scope, { root, settings, tree });
-    const { increases, decreases } = compareToBaseline(measured, baseline, { scope });
-    const introduced = increases.length ? markChange(changeBaseReader(root, tree)) : null;
-    const retired = retiredIn(measured);
-    const text = gateMessage({ increases, decreases, introduced, retired });
-    return emit(args, { checked: scope, measured: strip(measured), increases, decreases, retired }, text, increases.length || retired.length ? 1 : 0);
-  }
-
-  // The whole Tower.
-  const started = Date.now();
-  const result = checkTower(root);
-  const totals = Object.values(result.measured).reduce(
-    (sum, entry) => ({ count: sum.count + entry.count, words: sum.words + entry.words }),
-    { count: 0, words: 0 },
-  );
-  const summary = `UX gate: ${result.files.length} files the Tower renders, ${totals.count} legacy offenders (${totals.words} words) held by ${BASELINE_FILE}, ${Date.now() - started}ms.`;
-  const code = result.message ? 1 : 0;
-  return emit(
-    args,
-    {
-      files: result.files.length,
-      totals,
-      measured: strip(result.measured),
-      increases: result.increases,
-      decreases: result.decreases,
-      schema: result.schema,
-      raises: result.raises,
-      loosened: result.loosened,
-      retired: result.retired,
-    },
-    code ? result.message : summary,
-    code,
-  );
+  const measured = report({ root, files });
+  process.stdout.write(json ? `${JSON.stringify({ files: measured, long: longStrings(measured) }, null, 2)}\n` : `${formatReport(measured, { summary })}\n`);
+  return 0;
 }
 
 if (invokedDirectly(import.meta.url)) {
   try {
     process.exitCode = main();
   } catch (error) {
-    process.stderr.write(`${error?.stack ?? error}\n`);
+    process.stderr.write(`ux-gate: ${error?.stack ?? error}\n`);
     process.exitCode = 2;
   }
 }

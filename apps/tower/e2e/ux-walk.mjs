@@ -1,11 +1,10 @@
-// The flow recorder the flow gate walks with (bead ro-ujb9.95).
+// The flow recorder the flow walker drives with.
 //
-// Grown from the UX audit's walker (docs/artifacts/ux-audit-2026-09-23/walk.mjs,
-// bead ro-ujb9.93) so the gate measures a flow exactly the way the audit did:
-// by clicking the controls the product offers, never by typing a URL the
-// product did not link to, and COUNTING what each flow costs. The step scripts
-// live in `ux-flows.mjs`; the runner is `flow-gate.mjs`; the rules and the
-// ratchet are `scripts/ux-flow-gate.mjs`.
+// Grown from a UX audit's walker so the walker measures a flow exactly the
+// way the audit did: by clicking the controls the product offers, never by
+// typing a URL the product did not link to, and COUNTING what each flow
+// costs. The step scripts live in `ux-flows.mjs`; the runner and the report
+// are `flow-gate.mjs`.
 //
 // This module holds no Playwright import: the runner owns the browser, and the
 // root script tests can load the flow registry without one.

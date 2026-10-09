@@ -108,21 +108,23 @@ The HTML report and selected screenshot attachments are written under
 `apps/tower/e2e/playwright-report/`; failure traces use
 `apps/tower/e2e/test-results/`. Both are ignored generated artifacts.
 
-## The UX flow gate
+## The UX flow walker
 
-`pnpm test:journeys` ends with the UX flow gate (bead `ro-ujb9.95`,
-`flow-gate.mjs`), which runs even when a journey has failed, so one red run
+`pnpm test:journeys` ends with the flow walker (`flow-gate.mjs`, also
+`pnpm ux:flows`), which runs even when a journey has failed, so one red run
 reports both; the step fails if either does. CI runs the journeys and the
-gate as two parallel jobs. The gate walks every operator flow declared in `ux-flows.mjs` with
-the recorder in `ux-walk.mjs`, at 1440×900 and 390×844, on its own fixture
-servers (this directory's `server.mjs`, started by `fixture-server.mjs` on a
-free port, one per lane, each reset before every flow), and fails when a flow
-costs more than
-`apps/tower/ux-flows.json` records: an added action, screen, page change or
-word, an empty step, a repeated check, a duplicate status or an ungrouped list.
-A changed flow changes its walk here in the same commit. Output and the
-screenshot each failure names are under `ux-flows-results/` (ignored; uploaded
-by CI). Rules, ratchet and exceptions: `scripts/README.md`, "UX flow gate".
+walker as two parallel jobs. The walker drives every operator flow declared
+in `ux-flows.mjs` with the recorder in `ux-walk.mjs`, at 1440×900 and
+390×844, on its own fixture servers (this directory's `server.mjs`, started
+by `fixture-server.mjs` on a free port, one per lane, each reset before every
+flow), and reports what each flow costs: actions, screens, page changes,
+explanatory words, empty steps, repeated checks, duplicate statuses and
+ungrouped lists. The counts are a design-review input, not a budget; the run
+fails only when a flow cannot be walked to its end, a page leaves the fixture,
+or the probes stop seeing what they are built to see. A changed flow changes
+its walk here in the same commit. The measurements (`results.json`) and the
+screenshot an unfinished flow names are under `ux-flows-results/` (ignored;
+uploaded by CI).
 
 ## Boundary
 

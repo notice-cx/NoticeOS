@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// INSTALL THE REPOSITORY'S GIT HOOKS ON `pnpm install` (bead `ro-ujb9.94`).
+// INSTALL THE REPOSITORY'S GIT HOOKS ON `pnpm install`.
 //
 // The root `prepare` script runs this after every install. It points
-// `core.hooksPath` at `.githooks/`, whose pre-commit runs the UX gate on staged
-// Tower UI files. No dependency: husky and friends do the same one line of git
-// config with a package attached.
+// `core.hooksPath` at `.githooks/`, whose pre-commit runs the neutral-code
+// gate on staged product files. No dependency: husky and friends do the same
+// one line of git config with a package attached.
 //
 // It does nothing, and never fails the install, when:
 //   - CI is set (CI runs the gate through `pnpm test:scripts`, not a hook);
@@ -42,17 +42,17 @@ export function installGitHooks({ cwd = process.cwd(), env = process.env, log = 
   if (current === HOOKS_DIR) return { installed: true, reason: 'already installed' };
   if (current) {
     log(
-      `git hooks: core.hooksPath is already "${current}", so ${HOOKS_DIR}/pre-commit (the UX gate) is NOT installed. ` +
+      `git hooks: core.hooksPath is already "${current}", so ${HOOKS_DIR}/pre-commit (the neutral-code gate) is NOT installed. ` +
         `Run it from your hook, or: git config core.hooksPath ${HOOKS_DIR}`,
     );
     return { installed: false, reason: `core.hooksPath is ${current}` };
   }
   const set = git(root, ['config', 'core.hooksPath', HOOKS_DIR]);
   if (!set.ok) {
-    log(`git hooks: could not set core.hooksPath (${set.stderr}); the UX gate still runs in pnpm test:scripts.`);
+    log(`git hooks: could not set core.hooksPath (${set.stderr}); the neutral-code gate still runs in pnpm test:scripts.`);
     return { installed: false, reason: set.stderr };
   }
-  log(`git hooks: installed ${HOOKS_DIR}/pre-commit (the UX gate on staged Tower UI files). Never bypass it with --no-verify.`);
+  log(`git hooks: installed ${HOOKS_DIR}/pre-commit (the neutral-code gate on staged product files).`);
   return { installed: true, reason: 'installed' };
 }
 

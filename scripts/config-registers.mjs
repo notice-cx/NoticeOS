@@ -1290,7 +1290,7 @@ function realDate(value) {
 }
 /** The name a person reads for a field: its label ("Site", "Panel freshness
  * bar"), or its key only where a declaration carries no label (bead
- * `ro-ujb9.154`; D31, doc 17 rule 8 — never a code key on screen). */
+ * `ro-ujb9.154`; D31, doc 14 rule 8 — never a code key on screen). */
 function fieldLabel(field) {
     return typeof field.label === 'string' && field.label.trim() !== '' ? field.label : field.name;
 }

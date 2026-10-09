@@ -107,8 +107,8 @@ export interface RegisterField {
   type: FieldType;
   required: boolean;
   /** The hint under the Add form's input and the column heading's hover: a
-   * format or an example, label-length (doc 21 principle 3a — the UX gate
-   * reads it). What a field MEANS is its label; what it may hold is its type
+   * format or an example, label-length (the hint is read at a glance; `pnpm ux:gate`
+   * lists long ones). What a field MEANS is its label; what it may hold is its type
    * and rule; a warning about editing it is a rule (`readOnly`), never a
    * sentence here. */
   describe: string;
@@ -1627,7 +1627,7 @@ function realDate(value: string): boolean {
 
 /** The name a person reads for a field: its label ("Site", "Panel freshness
  * bar"), or its key only where a declaration carries no label (bead
- * `ro-ujb9.154`; D31, doc 17 rule 8 — never a code key on screen). */
+ * `ro-ujb9.154`; D31, doc 14 rule 8 — never a code key on screen). */
 function fieldLabel(field: Pick<RegisterField, 'name' | 'label'>): string {
   return typeof field.label === 'string' && field.label.trim() !== '' ? field.label : field.name;
 }
