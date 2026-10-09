@@ -434,7 +434,8 @@ test('Mediavine signs in in the panel, its site is matched by domain and synced 
   expect(state.documents['config/integrations.json'].assets[JOURNEY_ASSET]['ad-network']).toMatchObject({ mediavineSiteId: 'journey-mediavine-site' });
   expect(state.documents['config/integrations.json'].assets[JOURNEY_ASSET]['ad-network'].status).not.toBe('skipped');
   await page.goto('/financials?period=2026-09');
-  await expect(page.getByRole('main')).toContainText('$5.00');
+  // The disconnected network's revenue stays booked: Money's figure, whole dollars (D45).
+  await expect(page.locator('[data-money-revenue]')).toContainText('$5');
 });
 
 /** The fixture's money, with separate saved operator and provider clocks:
