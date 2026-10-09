@@ -107,7 +107,7 @@ export function HomeRoute() {
         <>
           <Brief brief={brief!} assets={data.assets} portfolio={data.portfolio} system={data.system} nowMs={now} generatedAt={data.generatedAt} />
 
-          <div className={cn("grid gap-3.5", !oneSite && "lg:grid-cols-2")}>
+          <div className={cn("grid grid-cols-1 gap-3.5 [&>*]:min-w-0", !oneSite && "lg:grid-cols-2")}>
             <LiveDecidePanel nowMs={now} />
             {oneSite ? null : <SitesStrip assets={data.assets} brief={brief!} nowMs={now} />}
           </div>
@@ -402,7 +402,7 @@ function SitesStrip({ assets, brief, nowMs }: { assets: AssetCard[]; brief: Home
   return (
     <section aria-label="Sites" className="flex flex-col rounded-[10px] border border-border bg-card" data-sites-strip>
       <SectionLabel title="Sites" caption={siteCount(assets.length)} action={{ to: "/assets", label: "All sites →" }} className="px-4 pb-2 pt-3" />
-      <ul className="m-0 grid list-none gap-px bg-border/60 p-0 sm:grid-cols-2">
+      <ul className="m-0 grid list-none grid-cols-1 gap-px bg-border/60 p-0 sm:grid-cols-2 [&>*]:min-w-0">
         {assets.map((asset) => {
           const health = siteHealth(asset, brief.issues);
           const yesterday = hasRevenueSource(asset) ? yesterdayTotal([asset], nowMs) : null;
@@ -415,8 +415,8 @@ function SitesStrip({ assets, brief, nowMs }: { assets: AssetCard[]; brief: Home
               >
                 <PropertyFavicon domain={asset.id} displayName={asset.displayName} />
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="truncate text-[13px] font-medium text-foreground">{asset.displayName}</span>
-                  <span className="truncate text-xs tabular-nums text-muted-foreground">
+                  <span className="text-[13px] font-medium text-foreground [overflow-wrap:anywhere]">{asset.displayName}</span>
+                  <span className="text-xs tabular-nums text-muted-foreground [overflow-wrap:anywhere]">
                     {yesterday && yesterday.amount !== null && !yesterday.mixedBasis
                       ? `${formatUsd(yesterday.amount, { cents: true })} yesterday${people !== null ? ` · ${formatInt(people)} people` : ""}`
                       : people !== null
@@ -426,7 +426,7 @@ function SitesStrip({ assets, brief, nowMs }: { assets: AssetCard[]; brief: Home
                           : "nothing reported yesterday"}
                   </span>
                 </span>
-                <StateChip label={health.word} tone={health.tone} subject={`asset:${asset.id}`} />
+                <StateChip label={health.word} tone={health.tone} subject={`asset:${asset.id}`} className="shrink-0" />
               </Link>
             </li>
           );

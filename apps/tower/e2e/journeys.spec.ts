@@ -126,9 +126,10 @@ test("state reasons open from keyboard and tap", async ({ page }, testInfo) => {
       counts: { open: 0, highPriority: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0, deferred: 0, waiting: 0 },
       priorities: null, epics: null, deferred: [], waiting: [], ready: [], inProgress: [], recentlyClosed: [], history: emptyWorkHistory() }],
   } }));
+  // Home names no OS state since D44 (the Morning Brief never describes the
+  // OS), so its System reason is gone; the Sites list and Tasks keep theirs.
   for (const [route, name, evidence] of [
     ["/assets", "No task data", "No task data"],
-    ["/", "About System", "fresh"],
     ["/tasks", "Why New task is unavailable", "Make changes from the local NoticeOS."],
   ]) {
     await page.goto(route!);
@@ -330,9 +331,10 @@ test('site order moves in the Wall editor, persists across every list, and suppo
   await page.reload();
   await expect.poll(() => ids('[data-site-order]', 'data-site-order')).toEqual(reordered);
   await testInfo.attach('site ordering', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
-  for (const route of ['/', '/assets']) {
+  // Home's sites strip (D44) and the Sites list follow the saved order.
+  for (const [route, attribute] of [['/', 'data-site-cell'], ['/assets', 'data-asset-row']] as const) {
     await page.goto(route); await page.reload();
-    await expect.poll(() => ids('main [data-asset-row]', 'data-asset-row')).toEqual(reordered);
+    await expect.poll(() => ids(`main [${attribute}]`, attribute)).toEqual(reordered);
   }
   const menu = page.getByRole('button', { name: 'Open navigation', exact: true });
   if (await menu.isVisible()) await menu.click();

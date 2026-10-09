@@ -73,17 +73,14 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
             expect(measurements).toMatchObject({ width: 390, height: 844, overflowX: 0, clipped: [], incorrectMarks: 0 });
           }
           if (state === 'populated' && name === 'home') {
-            // An enlarged third KPI may scroll, but a keyboard can still reach
-            // its explanation and bring that cell into view.
-            const info = main.getByRole('button', { name: 'About System', exact: true });
-            for (let n = 0; n < 80 && !await info.evaluate(el => el === document.activeElement); n += 1) {
+            // The brief's first card keeps its one action reachable by keyboard
+            // at double text, and scrolls it into view.
+            const action = main.locator('[data-highlight-action]').first();
+            for (let n = 0; n < 80 && !await action.evaluate(el => el === document.activeElement); n += 1) {
               await page.keyboard.press('Tab');
             }
-            await expect(info).toBeFocused();
-            await expect(info).toBeInViewport();
-            await page.keyboard.press('Enter');
-            await expect(page.getByRole('tooltip')).toBeVisible();
-            await page.keyboard.press('Escape');
+            await expect(action).toBeFocused();
+            await expect(action).toBeInViewport();
           }
           if (state === 'populated' && name === 'sites') {
             expect(await answer.evaluate(el => getComputedStyle(el, '::after').content)).toBe('""');

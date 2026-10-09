@@ -191,9 +191,14 @@ describe("one source, one status, on every screen (ro-ujb9.96.7.16)", () => {
     const header = marks(document.querySelector("[data-page-header]")!);
     asset.unmount();
 
-    // Home's asset table row.
+    // Home (D44): no source marks. A failing source is one of the brief's
+    // Stopped cards, and the site's one health word says Off track.
     const home = renderAt("/", <HomeRoute />);
-    const homeRow = marks(home.container.querySelector(`[data-asset-row="${ASSET}"]`)!);
+    await waitFor(() => expect(home.container.querySelector("[data-home-brief]")).not.toBeNull());
+    const homeMarks = marks(home.container);
+    const brief = home.container.querySelector("[data-brief-cards]")!;
+    const homeCell = home.container.querySelector(`[data-status-for="asset:${ASSET}"]`);
+    const homeBriefText = brief.textContent ?? "";
     home.unmount();
 
     // The Wall: no source icons since D28 (bead ro-trai.11); a source Failing
@@ -233,9 +238,14 @@ describe("one source, one status, on every screen (ro-ujb9.96.7.16)", () => {
     // metrics' age, beside the header's own "Nightly report" age.
     expect(Object.entries(rows).filter(([, row]) => row === null).map(([lane]) => lane)).toEqual(["nightly-report"]);
     for (const lane of LANES) {
-      expect({ lane, row: rows[lane] ?? header[lane], home: homeRow[lane] })
-        .toEqual({ lane, row: header[lane], home: header[lane] });
+      expect({ lane, row: rows[lane] ?? header[lane] }).toEqual({ lane, row: header[lane] });
     }
+    // Home agrees in its own words: the two failing sources lead the brief,
+    // and the site reads Off track wherever Home names it.
+    expect(homeMarks).toEqual({});
+    expect(homeBriefText).toContain("Search Console collection failing");
+    expect(homeBriefText).toContain("Bing collection failing");
+    if (homeCell) expect(homeCell).toHaveTextContent("Off track");
     // The Wall agrees without a source icon row: its health bar and specific
     // concerns above represent the same failures as the desk's source status.
     expect(wallIcons).toEqual({});
