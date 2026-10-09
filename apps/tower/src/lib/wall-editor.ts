@@ -152,21 +152,21 @@ export function wallAddTarget(
 export interface WallLibraryOption {
   spec: WallWidgetSpec;
   /** Why Add is not offered, as a STATE the row shows in place of the button —
-   * "On the Wall" or "Wall full" — or null when it is offered. */
+   * "On the TV" or "TV full" — or null when it is offered. */
   disabledReason: string | null;
 }
 
 /** A one-of-a-kind widget that is already placed. */
-export const WALL_WIDGET_PLACED = "On the Wall";
+export const WALL_WIDGET_PLACED = "On the TV";
 /** Every row is at its widget limit and the Wall at its row limit. */
-export const WALL_FULL = "Wall full";
+export const WALL_FULL = "TV full";
 
 /**
  * The library panel's rows, in the contract's order.
  *
  * A refused Add shows WHY in place of the button, as a state rather than a
- * sentence (bead `ro-ujb9.96.6.12`): "On the Wall" for a one-of-a-kind widget
- * already placed — the preview beside it shows where — and "Wall full" when
+ * sentence (bead `ro-ujb9.96.6.12`): "On the TV" for a one-of-a-kind widget
+ * already placed — the preview beside it shows where — and "TV full" when
  * every row holds `WALL_MAX_WIDGETS_PER_ROW` and there are `WALL_MAX_ROWS`.
  */
 export function wallLibraryOptions(layout: WallLayout): WallLibraryOption[] {

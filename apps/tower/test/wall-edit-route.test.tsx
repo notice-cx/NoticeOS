@@ -323,11 +323,17 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+/** The layout's save state (the chip whose subject is `wall:layout`) — the
+ * library's placed widgets say "On the TV" too. */
+function layoutState(label: string): Element | null {
+  return [...document.querySelectorAll('[data-status-for="wall:layout"]')].find((el) => el.textContent?.includes(label)) ?? null;
+}
+
 describe("the page it opens on", () => {
   it("draws D28's default Wall when nothing has ever been saved", () => {
     renderEditor();
     expect(drawn()).toEqual(["strip", "revenue", "needs", "sites", "feed"]);
-    expect(screen.getByText("On the TV")).toBeTruthy();
+    expect(layoutState("On the TV")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Save" })).toHaveProperty("disabled", true);
     expect(warnings()).toEqual([]);
   });
@@ -382,7 +388,7 @@ describe("a saved layout the Tower refused", () => {
     const chip = refusedChip("wall:layout");
     expect(chip?.textContent).toBe("Saved layout refused");
     expect(chip?.getAttribute("title")).toBe(REASON);
-    expect(screen.queryByText("On the TV")).toBeNull();
+    expect(layoutState("On the TV")).toBeNull();
     expect(document.querySelector("[data-wall-unreadable]")).toBeNull();
     // The version that still reads is listed.
     expect(document.querySelectorAll("[data-wall-version]")).toHaveLength(1);
@@ -439,7 +445,7 @@ describe("a saved countdown the Tower refused", () => {
 
   it("names it once, and the layout's own state stays \"On the TV\"", () => {
     renderRefusedCountdown();
-    expect(screen.getByText("On the TV")).toBeTruthy();
+    expect(layoutState("On the TV")).not.toBeNull();
     const chip = refusedChip("wall:countdown");
     expect(chip?.textContent).toBe("Saved countdown refused");
     expect(chip?.getAttribute("title")).toBe(REASON);
@@ -512,7 +518,7 @@ describe("adding and removing", () => {
     renderEditor();
     expect(screen.queryByRole("button", { name: "Add Needs you" })).toBeNull();
     const row = document.querySelector('[data-wall-library-item="needs"]');
-    expect(row?.querySelector('[data-wall-library-refusal="On the Wall"]')).not.toBeNull();
+    expect(row?.querySelector('[data-wall-library-refusal="On the TV"]')).not.toBeNull();
     expect(row?.textContent).not.toContain("can appear only once");
   });
 
@@ -809,7 +815,7 @@ describe("save", () => {
     removeFromChrome("feed", "Live feed");
     saveWith("The feed moves to the kitchen screen");
     await waitFor(() =>
-      expect(screen.getByText("On the TV")).toBeTruthy(),
+      expect(layoutState("On the TV")).not.toBeNull(),
     );
     // And what is on screen is what was saved, not the value the poll still holds.
     expect(drawn()).not.toContain("feed");
@@ -822,7 +828,7 @@ describe("save", () => {
     renderEditor();
     removeFromChrome("feed", "Live feed");
     saveWith("Feed off the TV");
-    await waitFor(() => expect(screen.getByText("On the TV")).toBeTruthy());
+    await waitFor(() => expect(layoutState("On the TV")).not.toBeNull());
     expect(document.querySelector('[data-save-state="saved"] [data-status-for="wall:layout"]')).not.toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Add Live feed" }));

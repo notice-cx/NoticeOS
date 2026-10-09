@@ -171,7 +171,7 @@ describe("adding a widget", () => {
     const state = run(start(layout), { type: "add", widget: "feed" });
     expect(state.layout).toBe(layout);
     // The library says so as a state in the Add button's place.
-    expect(wallLibraryOptions(layout).find((o) => o.spec.type === "feed")?.disabledReason).toBe("Wall full");
+    expect(wallLibraryOptions(layout).find((o) => o.spec.type === "feed")?.disabledReason).toBe("TV full");
   });
 });
 
@@ -205,7 +205,7 @@ describe("the version's description when there is no note", () => {
 describe("the library panel's rows", () => {
   it("shows every widget of the default as placed, while the write lane still refuses a second", () => {
     expect(wallLibraryOptions(DEFAULT_WALL_LAYOUT).map((o) => o.disabledReason)).toEqual(
-      Array(5).fill("On the Wall"),
+      Array(5).fill("On the TV"),
     );
     // The write lane's own refusal is unchanged: a layout with two reaches it
     // only by hand, and gets the validator's sentence.
@@ -598,7 +598,7 @@ describe("stacking in a column", () => {
   it("counts every stacked widget as on the Wall", () => {
     const state = run(start(), { type: "stack", widgetId: "revenue" });
     const revenue = wallLibraryOptions(state.layout).find((o) => o.spec.type === "revenue");
-    expect(revenue?.disabledReason).toBe("On the Wall");
+    expect(revenue?.disabledReason).toBe("On the TV");
     // The neighbours kept their places; only the stacked widget moved.
     expect(wallChangeSummary(FLAT, state.layout)).toBe("Moved Revenue · rearranged rows");
   });
