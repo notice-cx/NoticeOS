@@ -5,6 +5,7 @@ import {
 } from "@shared/asset-detail";
 import { watchDayOf, watchScopeText, watchSeriesLabel } from "@shared/watch-windows";
 import type { WatchWindowItem } from "@shared/asset-detail";
+import type { AssetDetailFor } from "@shared/asset-detail-views";
 import type { SurfaceSpan } from "@shared/surface";
 import type { AnnotationItem } from "@shared/annotations";
 import { ageMs, formatAge } from "@shared/freshness";
@@ -272,3 +273,25 @@ export function LaneAge({
     </span>
   );
 }
+
+/** Days from now to a calendar date, never below zero (the Overview's and
+ * Activity's "verdict in N days"). */
+export function daysUntil(date: string, nowMs: number): number {
+  const target = Date.parse(`${date}T00:00:00.000Z`);
+  return Math.max(0, Math.ceil((target - nowMs) / 86_400_000));
+}
+
+/** "verdict in 3 days", "verdict today", or how many are being watched. */
+export function betsFact(watches: Pick<AssetDetailFor<"overview">["watches"], "open">, nowMs: number): string {
+  const next = watches.open
+    .map((watch) => watch.nextCheckDate)
+    .filter((date): date is string => date !== null)
+    .sort()[0];
+  if (next) {
+    const days = daysUntil(next, nowMs);
+    return days === 0 ? "verdict today" : `verdict in ${days} ${days === 1 ? "day" : "days"}`;
+  }
+  const open = watches.open.length;
+  return open === 0 ? "nothing being watched" : `${open} being watched`;
+}
+

@@ -152,7 +152,7 @@ export const MATERIALITY = {
       placement: "not-applicable",
       reason: "An open watch is true but does not move; the asset page owns it, and a watch that closes badly reaches Needs you as rollback-failure.",
     },
-    asset: { placement: "primary-content", component: "ActivityTab / WatchesStrip", selector: 'section[aria-label="Watches"]' },
+    asset: { placement: "primary-content", component: "ActivityTab / WatchesStrip", selector: 'section[aria-label="Bets"]' },
     behavior: {
       empty: "An empty watch list draws no panel; Activity retains the action to register a comparison.",
       unknown: "Unmeasured series stays unmeasurable; it is never converted to a zero outcome.",

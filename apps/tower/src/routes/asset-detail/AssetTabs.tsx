@@ -211,7 +211,7 @@ export function AssetTabs({
       return {
         ...base,
         count: openWatches,
-        title: `${openWatches} outcome check${openWatches === 1 ? "" : "s"} still running`,
+        title: `${openWatches} ${openWatches === 1 ? "bet" : "bets"} being watched`,
       };
     }
     if (key === "sources") {

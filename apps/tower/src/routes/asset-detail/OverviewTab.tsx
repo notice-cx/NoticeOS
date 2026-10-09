@@ -21,6 +21,7 @@ import { watchScopeText, watchSeriesForSources, watchSeriesLabel, watchVerdictFi
 import { WATCH_SERIES } from "@noticeos/contract/create-watch-window";
 import { WORK_POLL_CADENCE_HOURS } from "@shared/work";
 import { AgeBadge } from "@/components/AgeBadge";
+import { betsFact, daysUntil } from "@/routes/asset-detail/shared";
 import { ExecutiveFindingsList } from "@/components/ExecutiveFindingsList";
 import { AnalysisEvidence, RecommendationReview, useRecommendationAssessor, useRecommendationValidity } from "@/components/AnalysisEvidence";
 import { findingBasis } from "@shared/recommendation-validity";
@@ -283,25 +284,6 @@ function alertSplit(alerts: ReturnType<typeof alertPosture>): string {
 
 // --- the verdict line ------------------------------------------------------
 /** Days from today to a calendar date, never negative. */
-function daysUntil(date: string, nowMs: number): number {
-  const target = Date.parse(`${date}T00:00:00.000Z`);
-  return Math.max(0, Math.ceil((target - nowMs) / 86_400_000));
-}
-
-/** "verdict in 3 days", "verdict today", or how many are being watched. */
-function betsFact(watches: AssetDetailFor<"overview">["watches"], nowMs: number): string {
-  const next = watches.open
-    .map((watch) => watch.nextCheckDate)
-    .filter((date): date is string => date !== null)
-    .sort()[0];
-  if (next) {
-    const days = daysUntil(next, nowMs);
-    return days === 0 ? "verdict today" : `verdict in ${days} ${days === 1 ? "day" : "days"}`;
-  }
-  const open = watches.open.length;
-  return open === 0 ? "nothing being watched" : `${open} being watched`;
-}
-
 function VerdictLine({
   money,
   moneyPeriod,

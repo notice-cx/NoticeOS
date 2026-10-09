@@ -119,7 +119,7 @@ async function openComposer(
 ): Promise<void> {
   // The header action always opens on the event form, so pressing it twice is
   // harmless — it sets the state it is already in.
-  fireEvent.click(await findByRole("button", { name: /^record →$/i }));
+  fireEvent.click(await findByRole("button", { name: /^log a change →$/i }));
   if (which === "watch") {
     fireEvent.click(await findByRole("button", { name: /watch an outcome/i }));
   }
@@ -996,10 +996,10 @@ describe("AssetDetailRoute — material state on the current screens", () => {
     const { container, findByText } = renderRoute("meals.example", "", "activity");
     await findByText("Timeline");
     const timeline = materialAsset(container, "active-changes");
-    expect(timeline).toHaveTextContent("1 recorded");
+    expect(timeline).toHaveTextContent("1 logged");
     expect(timeline).toHaveTextContent("Homepage answer-card experiment");
     const watches = materialAsset(container, "outcome-watches");
-    expect(watches).toHaveTextContent("1 running");
+    expect(watches).toHaveTextContent("1 being watched");
     expect(watches).toHaveTextContent("Aug 6, 2026");
     expect(watches).toHaveTextContent("next check");
     expect(watches.querySelector('[data-watch-progress] [title="1 of 3 checks read"]')).not.toBeNull();
@@ -4407,7 +4407,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     );
     const { container, findByText } = renderRoute("meals.example", "", "activity");
 
-    await findByText("Watches");
+    await findByText("Bets");
     // The strip is doc 21's list now (`ro-78qo.5`): the series and its verdict
     // are the row's title, the date it waits on is the row's value under its own
     // micro label, and the ref and the reading count are the row's evidence —
@@ -4472,7 +4472,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     );
     const { container, findByText } = renderRoute("meals.example", "", "activity");
 
-    await findByText("Watches");
+    await findByText("Bets");
     expect(container.querySelector("[data-watch-scope-subject]")?.textContent).toBe(
       "“high protein meal plan”",
     );
@@ -4521,7 +4521,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
       }),
     );
     const { container, findByText } = renderRoute("meals.example", "", "activity");
-    await findByText("Watches");
+    await findByText("Bets");
 
     // The ref is the row's evidence, so it is inside it (`ro-78qo.5`).
     openRow("Google clicks");
@@ -4540,18 +4540,13 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
   // failure rather than as "nothing has been recorded". `formatAge` still
   // returns its dash — the WORD belongs to the component that knows it was
   // handed no timestamp at all, which is the fix `AgeBadge` got in 42bed39.
-  it("names the Timeline's absent age instead of drawing a dash", async () => {
+  it("says no change is logged once, in the answer, instead of an age badge (D45)", async () => {
     stubFetch(200, payload());
     const { container, findByText } = renderRoute("meals.example", "", "activity");
     await findByText("Timeline");
 
-    const age = container.querySelector("[data-lane-age]");
-    expect(age?.getAttribute("data-lane-age")).toBe("never");
-    expect(age?.textContent).toBe("never");
-    expect(age?.getAttribute("title")).toBe(
-      "Never — nothing has been recorded here yet",
-    );
-    expect(age?.textContent).not.toContain("—");
+    expect(container.querySelector('[data-activity-answer="none"] h2')).toHaveTextContent("No changes logged yet");
+    expect(container.querySelector("[data-lane-age]")).toBeNull();
   });
 
   // The third state stays distinct for rule 6's own reason: "never" would claim
@@ -4565,12 +4560,9 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     const { container, findByText } = renderRoute("meals.example", "", "activity");
     await findByText("Timeline");
 
-    const age = container.querySelector("[data-lane-age]");
-    expect(age?.getAttribute("data-lane-age")).toBe("unreadable");
-    expect(age?.textContent).toBe("unknown");
-    expect(age?.getAttribute("title")).toBe(
-      "The stored timestamp for this section could not be read",
-    );
+    // "No changes logged" would claim nothing ever arrived, which is untrue of
+    // a row that reported into a bad timestamp.
+    expect(container.querySelector('[data-activity-answer="unreadable"] h2')).toHaveTextContent("Last change date unreadable");
   });
 
   it("says nothing about watches when none are registered — there is no way to add one here", async () => {
@@ -4578,7 +4570,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     const { container, findByText } = renderRoute("meals.example", "", "activity");
 
     await findByText("Timeline");
-    expect(container.textContent).not.toContain("Watches");
+    expect(container.textContent).not.toContain("Bets");
   });
 
   it("reads the link-outreach campaign as a funnel and the targets that moved", async () => {
