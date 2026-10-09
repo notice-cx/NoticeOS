@@ -167,6 +167,8 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 <ul class="m-0 flex list-none flex-col gap-0.5 p-2 pt-0">
 <li class="m-0" data-flag-kind="anomaly" data-flag-severity="error" data-visual-state="error" data-material-condition="open-flags">
+<div class="flex items-center gap-x-2 rounded-md max-sm:flex-wrap">
+<div class="min-w-0 flex-1">
 <button type="button" aria-expanded="false" class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto_auto] outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
 <span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-error">△</span>
 <span class="grid min-w-0 gap-0.5">
@@ -204,6 +206,14 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </path>
 </svg>
 </button>
+</div>
+<span class="flex shrink-0 flex-wrap items-center gap-2 pe-2 max-sm:w-full max-sm:ps-9 max-sm:pb-2" data-list-row-actions="true">
+<div class="flex flex-wrap items-center gap-1 sm:flex-nowrap sm:shrink-0">
+<button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors duration-[var(--brand-fast)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 hover:bg-muted h-8 px-3 text-xs max-sm:min-h-11" type="button" aria-label="Snooze alert">Snooze</button>
+<button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors duration-[var(--brand-fast)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 border border-border bg-transparent hover:bg-muted h-8 px-3 text-xs max-sm:min-h-11" type="button" title="The issue is fixed" aria-label="Resolve alert">Resolve</button>
+</div>
+</span>
+</div>
 </li>
 </ul>
 </section>

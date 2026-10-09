@@ -1694,7 +1694,9 @@ test("empty install → saved asset → fake connection and mapping → real met
   const commands = (await status()).taskCommands.map((argv) => argv.slice(2).join(" "));
   expect(commands.some((line) => line.startsWith("gate resolve jt-approve --json --actor"))).toBe(true);
   expect(commands.some((line) => line.startsWith("human respond jt-review --response Approved wording: Plan meals in minutes --json --actor"))).toBe(true);
-  await expect(page.locator("[data-waiting-list]")).toContainText("Nothing is waiting on you.");
+  // Said once, in the answer (D45); an emptied queue draws no empty panel.
+  await expect(page.locator("[data-tasks-answer]")).toContainText("Nothing waits on you");
+  await expect(page.locator("[data-waiting-list]")).toHaveCount(0);
   await assertNoPageOverflow(page);
 
   // A finding's File task: prefilled from the finding's own fields, filed

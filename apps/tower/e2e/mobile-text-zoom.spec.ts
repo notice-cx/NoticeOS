@@ -41,7 +41,7 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
             : state === 'empty' ? main.locator({ home: '[data-first-run]', sites: '[data-assets-empty]',
               alerts: '[data-surface-hero]', tasks: '[data-task-hub-unavailable]' }[name])
             : main.locator({ home: '[data-home-brief]', sites: '[data-sites-answer], [data-asset-row]',
-              alerts: '[data-surface-hero]', tasks: '[data-inbox-row], [data-task-row]' }[name]).first();
+              alerts: '[data-surface-hero]', tasks: '[data-tasks-answer], [data-inbox-row], [data-task-row]' }[name]).first();
           await expect(answer).toBeVisible();
           const baselineFont = await heading.evaluate(el => parseFloat(getComputedStyle(el).fontSize));
           for (const scale of [1, 2]) {
@@ -92,10 +92,12 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
             await expect(page).toHaveURL(/\/assets\/[^/]+/);
           }
           if (state === 'populated' && name === 'tasks') {
-            const expand = answer.locator('button[aria-expanded]');
+            // The answer leads (D45); its first row still expands in place.
+            const first = main.locator('[data-inbox-row], [data-task-row]').first();
+            const expand = first.locator('button[aria-expanded]');
             await expand.click();
             await expect(expand).toHaveAttribute('aria-expanded', 'true');
-            await expect(answer.locator('[data-list-row-body]')).toBeVisible();
+            await expect(first.locator('[data-list-row-body]')).toBeVisible();
           }
         }
         expect(errors).toEqual([]);

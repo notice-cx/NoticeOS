@@ -292,11 +292,21 @@ it('shows the selected workspace member name in an expanded board row without ch
   expect(value.tasks[0].assignee).toBe(principal);
 });
 
-/** The five KPIs' labels, in the order the strip draws them. */
-function kpis(container: HTMLElement): string[] {
-  return [...container.querySelectorAll("[data-kpi]")].map(
-    (node) => node.querySelector("span")?.textContent ?? "",
-  );
+/** The answer's figures (D45), by label, in the order they are drawn. */
+function figures(container: HTMLElement): string[] {
+  return [...container.querySelectorAll("[data-page-answer-figures] dt")].map((node) => node.textContent ?? "");
+}
+
+/** One figure beside the answer, by its mark: Urgent, Blocked, Closed this week. */
+function fig(container: HTMLElement, mark: "urgent" | "blocked" | "closed"): HTMLElement {
+  const found = container.querySelector<HTMLElement>(`[data-tasks-${mark}]`);
+  if (found === null) throw new Error(`no ${mark} figure beside the answer`);
+  return found;
+}
+
+/** The page's one sentence. */
+function answerLine(container: HTMLElement): string {
+  return container.querySelector("[data-tasks-answer] h2")?.textContent ?? "";
 }
 
 afterEach(() => {
@@ -314,28 +324,23 @@ afterEach(() => {
 // ── the first screen ─────────────────────────────────────────────────────────
 
 describe("/tasks — the first screen answers the page's one question", () => {
-  it("is the strip and the inbox, and nothing else is above the fold", () => {
+  it("is the answer and the inbox, and nothing else is above the fold", () => {
     const { container } = renderBoard();
 
     expect(screen.getByRole("heading", { level: 1, name: "Tasks" })).toBeInTheDocument();
     const hero = container.querySelector("[data-surface-hero]")!;
     expect(hero).not.toBeNull();
-    expect(hero.querySelector("[data-kpi-strip]")).not.toBeNull();
-    expect(hero.querySelector("[data-waiting-list]")).not.toBeNull();
-    // The table is BELOW the answer, never inside it.
+    expect(hero.querySelector("[data-tasks-answer]")).not.toBeNull();
+    expect(hero.querySelector("[data-kpi-strip]")).toBeNull();
+    // The table and its filters are BELOW the answer, never above or in it.
+    expect(hero.compareDocumentPosition(container.querySelector("#tasks-status")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(hero.querySelector("table")).toBeNull();
   });
 
-  it("names the six counts an operator opens this page to read", () => {
+  it("answers what waits on you, with the three counts that change what you do next", () => {
     const { container } = renderBoard();
-    expect(kpis(container)).toEqual([
-      "Waiting on you",
-      "Urgent",
-      "Open",
-      "In progress",
-      "Blocked",
-      "Closed this week",
-    ]);
+    expect(answerLine(container)).toBe("Nothing waits on you");
+    expect(figures(container)).toEqual(["Urgent", "Blocked", "Closed this week"]);
   });
 
   it("counts over the whole board rather than over the current filter", () => {
@@ -359,39 +364,13 @@ describe("/tasks — the first screen answers the page's one question", () => {
       }),
     });
 
-    const strip = container.querySelector("[data-kpi-strip]")!;
     // "how much is blocked" is a fact about the portfolio and stays true
     // whatever the table below has been narrowed to.
-    expect(strip.textContent).toContain("4");
-    expect(strip.textContent).toContain("6");
+    expect(fig(container, "blocked")).toHaveTextContent("4");
+    expect(fig(container, "closed")).toHaveTextContent("6");
   });
 
-  it("draws each count's own daily line once the rollup has three days", () => {
-    // Doc 21 principle 2: a number without its series is noise. The series is
-    // the daily rollup (db/0032), summed over the projects on the board.
-    const { container } = renderBoard({ data: payload({ historyDays: 4, projects: [withHistory()] }) });
-    const numbers = container.querySelectorAll("[data-kpi]");
-    expect(numbers.length).toBe(6);
-    for (const kpi of numbers) {
-      expect(kpi.querySelector("[data-spark]"), kpi.textContent ?? "").not.toBeNull();
-      // A number with a series has no gap to declare.
-      expect(kpi.getAttribute("data-series")).toBeNull();
-    }
-  });
 
-  it("says a two-day history is a wait rather than telling a migrated store to migrate", () => {
-    const { container } = renderBoard({
-      data: payload({ historyDays: 2, projects: [withHistory(2)] }),
-    });
-    for (const kpi of container.querySelectorAll("[data-kpi]")) {
-      expect(kpi.getAttribute("data-series"), kpi.textContent ?? "").toBe("unavailable");
-      expect(kpi.getAttribute("data-series-reason")).toBe(
-        "the daily history needs 3 days before it is a line",
-      );
-      // Two dots joined by a segment is a shape the data cannot support.
-      expect(kpi.querySelector("[data-spark]")).toBeNull();
-    }
-  });
 
   it("says a count nobody measured is unknown rather than zero", () => {
     const { container } = renderBoard({
@@ -413,11 +392,7 @@ describe("/tasks — the first screen answers the page's one question", () => {
       }),
     });
 
-    const urgent = [...container.querySelectorAll("[data-kpi]")].find((node) =>
-      node.textContent?.startsWith("Urgent"),
-    )!;
-    expect(urgent.textContent).toContain("—");
-    expect(urgent.textContent).toContain("not measured");
+    expect(fig(container, "urgent")).toHaveTextContent("—");
   });
 
   it("needs no paragraph: no About, and no line over the label budget", () => {
@@ -528,7 +503,7 @@ describe("/tasks — the board is one table", () => {
     expect(statusFace("in_progress").tone).toBe("affirmative");
     expect(statusFace("triaged")).toMatchObject({ key: "unknown", label: "triaged", tone: "neutral" });
     // Neither does the week's count of closings.
-    expect(container.querySelector('[data-kpi="Closed this week"]')!.innerHTML).not.toContain("healthy");
+    expect(fig(container, "closed").innerHTML).not.toContain("healthy");
   });
 
   it("renders a state this build has never seen, without inventing one for it", () => {
@@ -823,9 +798,11 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
     const titles = [...inbox.querySelectorAll("li")].map((node) => node.textContent ?? "");
     expect(titles[0]).toContain("approve the spend");
     expect(titles[1]).toContain("Decide the Korea trip");
-    // The project and the id are the row's caption, exactly as the mockup draws.
+    // The project is the row's caption; the id is on the task's own page
+    // (doc 17 altitude, as Home's Decide row says it).
     expect(titles[1]).toContain("Meal Planner");
-    expect(titles[1]).toContain("mp-9k1");
+    expect(titles[1]).not.toContain("mp-9k1");
+    expect(titles[0]).toContain("needs your approval");
   });
 
   it("wears warn on a top-priority ask like every other ask, never error (bead ro-ujb9.200)", () => {
@@ -864,21 +841,18 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
     for (const mark of container.querySelectorAll("[data-task-row] [data-priority-mark]")) {
       expect(mark.className).not.toMatch(/\btext-(error|warn|info)\b/);
     }
-    expect(container.querySelector('[data-kpi="Urgent"]')!.innerHTML).not.toContain("text-error");
+    expect(fig(container, "urgent").innerHTML).not.toContain("text-error");
   });
 
   it("keeps approval and saved-sample status visible while moving definitions on demand", () => {
     const { container } = renderBoard({ data: withInbox });
-    const waiting = container.querySelector('[data-kpi="Waiting on you"]')!;
-    expect(waiting).toHaveTextContent("1 approval gate");
-    expect(waiting).not.toHaveTextContent("hold related work until");
-    fireEvent.focus(screen.getByRole("button", { name: "About Waiting on you" }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent("Approval gates hold related work until");
-    fireEvent.keyDown(window, { key: "Escape" });
+    // The approval is said in the answer's own words, never "gate".
+    const answer = container.querySelector("[data-tasks-answer]")!;
+    expect(answer).toHaveTextContent("1 needs your approval");
+    expect(answer).not.toHaveTextContent(/gate/);
     // The saved sample is said ONCE, by the Read-only snapshot banner; the
     // tile keeps only its period.
     expect(container.querySelector("[data-tasks-readonly]")).toHaveTextContent("Read-only snapshot");
-    expect(container.querySelector('[data-kpi="Closed this week"]')).toHaveTextContent("last 7 days");
     expect(container.querySelector("button button, a button")).toBeNull();
   });
 
@@ -898,7 +872,7 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
     state.boards = { "meals.example": board([gateTask, ...otherTasks]) };
     // A URL change rerenders the mocked live read without remounting the panel.
     fireEvent.change(container.querySelector("#tasks-status")!, { target: { value: "open" } });
-    expect(inbox.getByText("2 asks · 1 gate")).toBeTruthy();
+    expect(inbox.getByText("2 asks")).toBeTruthy();
     expect(inbox.queryByText("Wait for tomorrow")).toBeNull();
     expect(container.querySelector('[data-task-row="mp-timer"]')).toBeNull();
     const gate = within(container.querySelector('[data-inbox-row="mp-gate"]') as HTMLElement);
@@ -1049,7 +1023,7 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
     fireEvent.click(ask.getByRole("button", { name: "Dismiss" }));
     expect(container.querySelector('[data-inbox-row="mp-9k1"]')).toBeNull();
     // The panel's count follows the rows it shows.
-    expect(within(container.querySelector("[data-waiting-list]") as HTMLElement).getByText("1 ask · 1 gate")).toBeTruthy();
+    expect(within(container.querySelector("[data-waiting-list]") as HTMLElement).getByText("1 ask")).toBeTruthy();
 
     const undo = vi.mocked(toasts.success).mock.calls.at(-1)![1] as { action: { onClick: () => void } };
     act(() => undo.action.onClick());
@@ -1085,11 +1059,10 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
     expect(container.querySelector('[data-inbox-row="mp-9k1"]')).not.toBeNull();
   });
 
-  it("says nothing is waiting rather than drawing an empty panel", () => {
+  it("says nothing is waiting once, in the answer, rather than drawing an empty panel", () => {
     const { container } = renderBoard();
-    expect(container.querySelector("[data-waiting-list]")!.textContent).toContain(
-      "Nothing is waiting on you",
-    );
+    expect(answerLine(container)).toBe("Nothing waits on you");
+    expect(container.querySelector("[data-waiting-list]")).toBeNull();
   });
 });
 
@@ -1210,9 +1183,7 @@ describe("/tasks — live where the local read is, the photograph where it is no
       boards: { "meals.example": { ...board([liveTask(), ...closed]), closedSince: "2026-07-25" } },
       data: payload({ projects: [project({ recentlyClosed: closed.slice(0, 5) })] }),
     });
-    const closedKpi = [...container.querySelectorAll("[data-kpi]")].find((node) => node.textContent?.startsWith("Closed this week"))!;
-    expect(closedKpi.textContent).toContain("60");
-    expect(closedKpi.textContent).toContain("since 2026-07-25 · UTC");
+    expect(fig(container, "closed")).toHaveTextContent("60");
     expect(screen.getByRole("option", { name: "Closed this week · 60" })).toBeInTheDocument();
     expect(container.querySelectorAll("tr[data-task-row]")).toHaveLength(25);
     fireEvent.click(container.querySelector<HTMLElement>("[data-tasks-more]")!);
@@ -1221,8 +1192,7 @@ describe("/tasks — live where the local read is, the photograph where it is no
     expect(container.querySelector("[data-tasks-summary]")?.textContent).toBe("60 of 61");
     expect(container.querySelector("[data-task-history-status]")).toBeNull();
     // Closed P0s never inflate the active urgent queue.
-    const urgent = [...container.querySelectorAll("[data-kpi]")].find((node) => node.textContent?.startsWith("Urgent"))!;
-    expect(urgent.textContent).not.toContain("60");
+    expect(fig(container, "urgent").textContent).not.toContain("60");
   });
 
   it.each([false, true])("never presents an incomplete local history as complete (error=%s)", (failed) => {
@@ -1243,8 +1213,7 @@ describe("/tasks — live where the local read is, the photograph where it is no
       expect(container.querySelector('[data-task-history-status="loading"]')).not.toBeNull();
       expect(container.querySelector("[data-lane-error]")).toBeNull();
     }
-    const closedKpi = [...container.querySelectorAll("[data-kpi]")].find((node) => node.textContent?.startsWith("Closed this week"))!;
-    expect(closedKpi.textContent).toContain("—");
+    expect(fig(container, "closed")).toHaveTextContent("—");
     expect(screen.getByRole("option", { name: "Closed this week · —" })).toBeInTheDocument();
   });
 
@@ -1327,7 +1296,7 @@ describe("/tasks — the read-only fallback", () => {
   it("still shows the board — the fallback is a degradation, not a dead end", () => {
     const { container } = renderBoard();
     expect(row(container, "mp-1w2")).toBeInTheDocument();
-    expect(container.querySelector("[data-kpi-strip]")).not.toBeNull();
+    expect(container.querySelector("[data-tasks-answer]")).not.toBeNull();
   });
 });
 
@@ -1573,7 +1542,7 @@ describe("the asset page's Tasks tab", () => {
     // the Waiting-on-you panel, which is the answer, and only the board knows
     // where that ends.
     const hero = container.querySelector("[data-surface-hero]")!;
-    expect(hero.querySelector("[data-kpi-strip]")).not.toBeNull();
+    expect(hero.querySelector("[data-tasks-answer]")).not.toBeNull();
     expect(hero.querySelector("table")).toBeNull();
   });
 
@@ -1645,7 +1614,7 @@ describe("/tasks — per-project source and action guarantees", () => {
     const current = open(container, "mp-1w2");
     expect(within(current).getByRole("button", { name: "Claim" })).toBeEnabled();
     expect(container.querySelector("[data-lane-error]")).toHaveTextContent("Nosh");
-    expect(container.querySelector('[data-kpi="Closed this week"]')).toHaveTextContent("—");
+    expect(fig(container, "closed")).toHaveTextContent("—");
   });
 
   it.each(["failed refresh", "read-only capability"])("disables an already-open confirmation after %s", (transition) => {
@@ -1677,13 +1646,13 @@ describe("/tasks — per-project source and action guarantees", () => {
 
 it("shows unavailable project totals as unknown and never declares an empty queue", () => {
   const { container } = renderBoard({ live: true, data: payload({ projects: [project({ ok: false, error: "Snapshot failed" })] }), errors: { "meals.example": "Local read failed" } });
-  for (const label of ["Waiting on you", "Urgent", "Open", "In progress", "Blocked", "Closed this week"]) {
-    const kpi = container.querySelector(`[data-kpi="${label}"]`)!;
+  for (const mark of ["urgent", "blocked", "closed"] as const) {
     // Nothing was read at all, so nothing is bounded: a dash, never "0+".
-    expect(kpi).toHaveTextContent("—");
-    expect(kpi).not.toHaveTextContent("0+");
+    expect(fig(container, mark)).toHaveTextContent("—");
+    expect(fig(container, mark)).not.toHaveTextContent("0+");
   }
-  // Which project, once, in the banner — not under each of the six tiles.
+  expect(answerLine(container)).toBe("Couldn't read what waits on you");
+  // Which project, once, in the banner — not under each of the figures.
   expect(container.querySelector("[data-lane-error]")).toHaveTextContent("Meal Planner");
   expect(screen.getByText("Waiting work is unknown for unread projects.")).toBeInTheDocument();
   expect(screen.getByText("Task availability is unknown for unread projects.")).toBeInTheDocument();
@@ -1693,10 +1662,10 @@ it("shows unavailable project totals as unknown and never declares an empty queu
 
 it("labels observed counts as partial when another project's totals are unavailable", () => {
   const { container } = renderBoard({ live: true, data: payload({ projects: [project(), project({ asset: "nosh.example", prefix: "nom", name: "Nosh", ok: false, error: "No snapshot" })] }), boards: { "meals.example": board([liveTask()]) }, errors: { "nosh.example": "Cannot read Nosh" } });
-  const openKpi = container.querySelector('[data-kpi="Open"]')!;
+  const blocked = fig(container, "blocked");
   // A lower bound in the count's own digits; the banner names what is missing.
-  expect(openKpi).toHaveTextContent("1+");
-  expect(openKpi).not.toHaveTextContent("observed");
+  expect(blocked).toHaveTextContent("0+");
+  expect(blocked).not.toHaveTextContent("observed");
   expect(container.querySelector("[data-lane-error]")).toHaveTextContent("Nosh");
   expect(row(container, "mp-1w2")).toBeInTheDocument();
 });
