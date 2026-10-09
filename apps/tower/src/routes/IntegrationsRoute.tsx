@@ -11,7 +11,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { GOOGLE_OAUTH_RESULT_PARAM, GOOGLE_OAUTH_START_PATH } from "@noticeos/contract/google-oauth";
 import type { IntegrationHealthItem } from "@noticeos/contract/integration-health";
 import { connectsInPanel, providerName } from "@shared/connect-panel";
-import { connectionStatus } from "@shared/connection-status";
+import { connectionStatus, type ConnectionStatus } from "@shared/connection-status";
 import { IntegrationHealthPanel } from "@/components/IntegrationHealthPanel";
 import { ConnectionFacts, IntegrationStateChip } from "@/components/IntegrationStateChip";
 import { INTEGRATION_HEALTH_KEY, useIntegrationHealth } from "@/hooks/useIntegrationHealth";
@@ -37,6 +37,7 @@ import {
 import { IntegrationLogo } from "@/components/IntegrationLogo";
 import { StateChip, type StatusSubject } from "@/components/StateChip";
 import { SectionLabel } from "@/components/surface/SectionLabel";
+import { PageAnswer } from "@/components/surface/PageAnswer";
 import { Button } from "@/components/ui/button";
 import { envImportSummary } from "@shared/env-import";
 import { useEnvImportAvailability } from "@/hooks/useEnvImport";
@@ -296,9 +297,16 @@ export function IntegrationsRoute() {
               hint="The provider catalog could not be loaded from this installation."
             />
           ) : (
+            <>
+            <IntegrationsAnswer cards={cards} items={monitoring.status.items} />
             <section data-surface-hero aria-label="Providers" className="flex flex-col gap-6">
               {GROUPS.map((group) => {
-                const members = cards.filter((status) => groupOf(status) === group);
+                // What needs you first in its group; the rest in catalog order.
+                const members = cards
+                  .filter((status) => groupOf(status) === group)
+                  .map((status, order) => ({ status, order, needs: needsYou(connectionStatus(status.provider.id, status.credential, monitoring.status.items)) }))
+                  .sort((a, b) => Number(b.needs) - Number(a.needs) || a.order - b.order)
+                  .map(({ status }) => status);
                 if (members.length === 0) return null;
                 const headingId = `integrations-${group.replace(/\W+/g, "-").toLowerCase()}`;
                 return (
@@ -320,6 +328,7 @@ export function IntegrationsRoute() {
                 );
               })}
             </section>
+            </>
           )}
           {panel && connecting && !readOnly ? (
             <ProviderConnectPanel
@@ -337,6 +346,42 @@ export function IntegrationsRoute() {
       )}
     </div>
   );
+}
+
+/** A connection the operator has to act on: it fails, is overdue, or fails on a site. */
+function needsYou(shown: ConnectionStatus): boolean {
+  return shown.kind === "failing" || shown.kind === "overdue" || shown.sitesFailing > 0;
+}
+
+const CONNECTED = new Set(["working", "key-accepted", "collecting", "overdue", "failing", "unknown", "not-using"]);
+
+/**
+ * THE PAGE'S ONE ANSWER (D44): which connections need you, else how many are
+ * connected. The rows below carry each one's status; the sentence counts, and
+ * names a provider only when it is the problem.
+ */
+export function integrationsAnswer(rows: readonly { name: string; shown: ConnectionStatus }[]): {
+  answer: string;
+  detail?: string;
+  mark: "problem" | "none" | "connected";
+} {
+  const total = rows.length;
+  const problems = rows.filter(({ shown }) => needsYou(shown));
+  if (problems.length > 0) {
+    return {
+      answer: problems.length === 1 ? `${problems[0]!.name} needs you` : `${problems.length} of ${total} integrations need you`,
+      detail: problems.map(({ name, shown }) => `${name} ${shown.kind === "overdue" ? "overdue" : "failing"}`).join(" · "),
+      mark: "problem",
+    };
+  }
+  const connected = rows.filter(({ shown }) => CONNECTED.has(shown.kind)).length;
+  if (connected === 0) return { answer: "Nothing connected yet", detail: `${total} integrations to choose from`, mark: "none" };
+  return { answer: connected === total ? `All ${total} integrations connected` : `${connected} of ${total} integrations connected`, mark: "connected" };
+}
+
+function IntegrationsAnswer({ cards, items }: { cards: readonly IntegrationProviderStatus[]; items: IntegrationHealthItem[] }) {
+  const answer = integrationsAnswer(cards.map((status) => ({ name: providerName(status.provider), shown: connectionStatus(status.provider.id, status.credential, items) })));
+  return <PageAnswer answer={answer.answer} detail={answer.detail} marks={{ "data-integrations-answer": answer.mark }} />;
 }
 
 /** The catalog's groups, in the order a founder looks for them. */
