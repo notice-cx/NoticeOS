@@ -571,7 +571,7 @@ describe("/assets — composed to doc 21", () => {
     expect(answer).toHaveAttribute("data-surface-hero");
     expect(answer).toHaveAttribute("data-sites-answer", "needs-you");
     expect(within(answer).getByRole("heading", { level: 2 })).toHaveTextContent("2 of 4 sites need you");
-    expect(answer).toHaveTextContent("Meal Planner · Nosh");
+    expect([...answer.querySelectorAll("a[data-sites-answer-site]")].map((link) => link.textContent)).toEqual(["Meal Planner", "Nosh"]);
     expect(container.querySelector("[data-kpi-strip]")).toBeNull();
     expect(screen.getByRole("button", { name: "Filters & sort" })).toHaveAttribute("aria-expanded", "false");
   });
@@ -934,7 +934,7 @@ describe("/assets — composed to doc 21", () => {
     expect(screen.queryByText(/All-time totals/)).toBeNull();
     // One row per asset, and the row opens the asset.
     expect(container.querySelectorAll("[data-asset-row]")).toHaveLength(4);
-    expect(screen.getByRole("link", { name: "Meal Planner" })).toHaveAttribute(
+    expect(within(container.querySelector<HTMLElement>('[data-asset-row="meals.example"]')!).getByRole("link", { name: "Meal Planner" })).toHaveAttribute(
       "href",
       "/assets/meals.example",
     );
