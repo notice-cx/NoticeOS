@@ -5,8 +5,7 @@
 import { runCommand } from '../run-command.mjs';
 import { REPO_ROOT } from './config.mjs';
 import { isShuttingDown } from './lifecycle.mjs';
-import { log, writeLine } from './log.mjs';
-import { beadsSkipDecision } from './task-hub.mjs';
+import { laneSkips, log, writeLine } from './log.mjs';
 
 // Panel refresh — the lane that keeps `.local/signal-dumps/reports/<asset>/`
 // current for every rostered property (config/signal-panels.json), so a
@@ -41,25 +40,12 @@ export async function runPanelRefresh(runtime, deps = {}) {
     stopped = () => isShuttingDown(),
   } = deps;
 
-  const skip = (reason) => {
-    if (beadsSkipDecision(state, reason)) {
-      emit('WARN', `panel refresh skipped — ${reason} (silent until it changes)`);
-    }
-  };
+  const { skip, resume } = laneSkips('panel refresh', state, emit);
 
   if (stopped()) return null;
-  if (!runtime.running || !runtime.ready) {
-    skip('ingest is down/restarting');
-    return null;
-  }
-  if (state.running) {
-    skip('the previous pass has not finished');
-    return null;
-  }
-  if (state.skipping !== null) {
-    emit('INFO', `panel refresh resumed (was skipped: ${state.skipping})`);
-    state.skipping = null;
-  }
+  if (!runtime.running || !runtime.ready) return skip('ingest is down/restarting');
+  if (state.running) return skip('the previous pass has not finished');
+  resume();
 
   state.running = true;
   const startedAt = Date.now();

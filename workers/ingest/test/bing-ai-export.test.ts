@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { BING_AI_EXPORT_MAX_BYTES } from '../src/bing-ai-exports.js';
+import { BING_AI_REPORTS } from '@noticeos/contract/signal-families';
+import { BING_AI_EXPORT_MAX_BYTES, BING_AI_FORMATS } from '../src/bing-ai-exports.js';
 import { OPERATOR_TOKEN } from './fixtures.js';
 import { ARCHIVE_RUNS, call, pgAll, pgCount, pgFirst, reset } from './helpers.js';
 
@@ -84,6 +85,14 @@ async function archiveJson(objectKey: string): Promise<Record<string, any>> {
   ).text();
   return JSON.parse(text);
 }
+
+describe('the Bing AI export formats', () => {
+  /** The panel refresh measures these families on their own, from the
+   * contract's list, so the importer must read exactly that list. */
+  it('read exactly the report families the contract names', () => {
+    expect(BING_AI_FORMATS.map((format) => format.report)).toEqual([...BING_AI_REPORTS]);
+  });
+});
 
 describe('POST /api/bing-ai-export — the door', () => {
   it('rejects an unauthenticated import (401) and stores nothing', async () => {

@@ -130,9 +130,7 @@ export {
   beadsCreatedId,
   beadsHubDiagnosis,
   beadsHubHealthLine,
-  beadsSkipDecision,
   parseBeadsProjects,
-  parseBeadsSpokes,
   parseDoltServers,
   runBd,
 } from './runner/task-hub.mjs';

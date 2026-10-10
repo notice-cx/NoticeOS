@@ -76,7 +76,6 @@ import {
   beadsHubHealthLine,
   parseDoltServers,
   beadsPollArgs,
-  beadsSkipDecision,
   beadsSnapshotUrl,
   collectBeadsSnapshot,
   cronFireDecision,
@@ -120,7 +119,6 @@ import {
   beadsDatabaseName,
   parseBeadsDatabases,
   parseBeadsProjects,
-  parseBeadsSpokes,
   TASK_MAP_ACTOR,
   TASK_MAP_ASSET_KEY,
   TASK_MAP_HUMAN_LABEL,
@@ -1142,15 +1140,9 @@ test('a synthetic server config copy matches settings, detects drift and refuses
 /** A frozen copy of the task-hub map, never the checkout's own: the operator
  * adds and removes spokes from /settings, and that must not change a result
  * here. */
-test('every configured spoke is backed up', () => {
+test('every configured spoke carries its task database', () => {
   const raw = readFileSync(FIXTURE_BEADS_MAP, 'utf8');
-  assert.deepEqual(parseBeadsSpokes(raw), ['ro', 'mp', 'nom', 'pft', 'pts', 'ac', 'fin']);
-});
-
-test('a broken task map costs the operational backup nothing', () => {
-  assert.deepEqual(parseBeadsSpokes('not json at all'), []);
-  assert.deepEqual(parseBeadsSpokes('{}'), []);
-  assert.deepEqual(parseBeadsSpokes('{"spokes":"mp"}'), []);
+  assert.deepEqual(parseBeadsProjects(raw).map((project) => project.database), ['ro', 'mp', 'nom', 'pft', 'pts', 'ac', 'fin']);
 });
 
 test('what counts as a usable task database is declared once', () => {
@@ -1167,9 +1159,9 @@ test('what counts as a usable task database is declared once', () => {
   assert.equal(beadsDatabaseName(undefined), null);
 });
 
-test('the backup, the poller and the drift check agree on every spoke', () => {
-  // The whole point of one declaration: the same file read three ways cannot
-  // produce three different opinions about which project is safe to copy.
+test('the poller and the drift check agree on every spoke', () => {
+  // The whole point of one declaration: the same file read two ways cannot
+  // produce two different opinions about which database is usable.
   const raw = JSON.stringify({
     spokes: [
       { asset: 'meals.example', prefix: 'mp', repo: '../meals.example', database: ' mp ' },
@@ -1177,11 +1169,9 @@ test('the backup, the poller and the drift check agree on every spoke', () => {
       { asset: 'areas.example', prefix: 'ac', repo: '../areas.example' },
     ],
   });
-  const backedUp = parseBeadsSpokes(raw);
   const carried = parseBeadsProjects(raw).map((project) => project.database);
-  assert.deepEqual(backedUp, ['mp']);
   assert.deepEqual(carried, ['mp', null, null]);
-  // A spoke the backup would skip is exactly a spoke the drift check reports
+  // A spoke with no usable name is exactly a spoke the drift check reports
   // with no declared name — nothing in between, and nothing missed.
   assert.deepEqual(
     beadsDatabaseDrift(parseBeadsProjects(raw), new Set(['mp'])).map((entry) => [
@@ -1195,18 +1185,12 @@ test('the backup, the poller and the drift check agree on every spoke', () => {
   );
 });
 
-test('spoke database names that could not be safely interpolated are dropped', () => {
+test('spoke database names that could not be safely interpolated travel as null', () => {
+  const databases = ['mp', 'nom; DROP DATABASE mp', '', 42, undefined, 'mp'];
   const raw = JSON.stringify({
-    spokes: [
-      { database: 'mp' },
-      { database: 'nom; DROP DATABASE mp' },
-      { database: '' },
-      { database: 42 },
-      {},
-      { database: 'mp' },
-    ],
+    spokes: databases.map((database, index) => ({ asset: `s${index}.example`, prefix: `s${index}`, repo: `../s${index}`, database })),
   });
-  assert.deepEqual(parseBeadsSpokes(raw), ['mp']);
+  assert.deepEqual(parseBeadsProjects(raw).map((project) => project.database), ['mp', null, null, null, null, 'mp']);
 });
 
 test('an explicit binary override outranks anything on disk', () => {
@@ -2365,15 +2349,6 @@ test('the snapshot is filed against the ingest the runner actually started', () 
 
 test('the board is refreshed every minute', () => {
   assert.equal(CONFIG.beadsPollCron, '* * * * *');
-});
-
-test('a skip is logged when it starts, not on every tick', () => {
-  const state = { skipping: null };
-  assert.equal(beadsSkipDecision(state, 'hub down'), true);
-  assert.equal(beadsSkipDecision(state, 'hub down'), false);
-  assert.equal(beadsSkipDecision(state, 'hub down'), false);
-  // A different reason is genuinely new information.
-  assert.equal(beadsSkipDecision(state, 'ingest down'), true);
 });
 
 /** A poll with everything stubbed: no spawn, no socket, no network. */

@@ -18,3 +18,24 @@ export function beadsFailure(key, result) {
   const detail = beadsText(result?.stderr) || beadsText(result?.stdout) || 'no output';
   return `bd ${key} exited ${result?.code ?? '?'}: ${detail.split('\n')[0].slice(0, BEADS_ERROR_MAX)}`;
 }
+
+/** Every status but closed. A lane that files again on recurrence asks only
+ * for these: a closed task is a finished episode, not a claim on this one. */
+export const BEADS_OPEN_STATUSES = 'open,in_progress,blocked,deferred';
+
+/** Every task one repo holds under `label`, as `bd list` argv. A `limit` of 0
+ * is unlimited. */
+export function beadsLabelListArgs(repoDir, label, { closed = false, limit = 0 } = {}) {
+  return [
+    '-C',
+    repoDir,
+    'list',
+    '--label',
+    label,
+    '--status',
+    closed ? `${BEADS_OPEN_STATUSES},closed` : BEADS_OPEN_STATUSES,
+    '--json',
+    '--limit',
+    String(limit),
+  ];
+}

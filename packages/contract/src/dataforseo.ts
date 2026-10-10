@@ -1,29 +1,15 @@
 // The DataForSEO family contract shared by the collector and every read model:
 // a collection is complete only when it contains exactly the families this
-// module names for the property.
+// module names for the property. The family names live in the portable
+// signal-families module, which plain-Node scripts import too.
 
-export const DATAFORSEO_BASE_REPORTS = [
-  'ranked-keywords',
-  'backlinks-summary',
-  'backlinks-new-lost',
-  'backlinks-referring-domains',
-  'backlinks-anchors',
-  'llm-mentions-google',
-  'llm-mentions-chatgpt',
-] as const;
+import {
+  DATAFORSEO_BASE_REPORTS,
+  DATAFORSEO_PANEL_REPORT,
+  DATAFORSEO_PERIODIC_REPORTS,
+} from './signal-families.mjs';
 
-export const DATAFORSEO_PANEL_REPORT = 'serp-panel' as const;
-
-/**
- * Families on a slower-than-weekly cadence, collected by the same sweep but
- * not part of the weekly collection identity above: a 28-day family is
- * legitimately absent from three `report_date`s out of four, so grading
- * against it would call three weeks in four incomplete.
- */
-export const DATAFORSEO_PERIODIC_REPORTS = [
-  'keyword-ideas',
-  'serp-competitors',
-] as const;
+export { DATAFORSEO_BASE_REPORTS, DATAFORSEO_PANEL_REPORT, DATAFORSEO_PERIODIC_REPORTS };
 
 /**
  * The market a site's DataForSEO families ask in — its own saved one, or the

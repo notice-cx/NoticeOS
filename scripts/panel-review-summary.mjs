@@ -1,6 +1,6 @@
 // Pure panel-review convention; no installation or runtime imports.
 import { TASK_METADATA, taskMetadataValue } from "../packages/contract/src/task-metadata.mjs";
-import { beadsText, beadsInstant } from "./task-snapshot-values.mjs";
+import { beadsLabelListArgs, beadsText, beadsInstant } from "./task-snapshot-values.mjs";
 // The panel-review convention: one task per property per collection day,
 // filed in that property's own tracker when its weekly collection lands, due
 // a week later. Closing it means every row went through the decision rules
@@ -74,21 +74,10 @@ export function panelReviewDueDate(panelDate) {
  * duplicate the board would then fail to show.
  */
 export function panelReviewListArgs(repoDir) {
-  return [
-    '-C',
-    repoDir,
-    'list',
-    '--label',
-    PANEL_REVIEW_LABEL,
-    // Including closed: a property that finished its review this morning and
-    // one that has never had a panel both have no open review, and only the
-    // closed task separates them.
-    '--status',
-    'open,in_progress,blocked,deferred,closed',
-    '--json',
-    '--limit',
-    String(PANEL_REVIEW_LIMIT),
-  ];
+  // Including closed: a property that finished its review this morning and
+  // one that has never had a panel both have no open review, and only the
+  // closed task separates them.
+  return beadsLabelListArgs(repoDir, PANEL_REVIEW_LABEL, { closed: true, limit: PANEL_REVIEW_LIMIT });
 }
 
 /**

@@ -14,12 +14,13 @@ import { BEADS_HANDOFF_KINDS } from '../packages/contract/src/task-snapshot.mjs'
 // represented on six surfaces that ship on different clocks — the
 // emitter's type, the poller's array, the ingest validator's shared array, the Tower's
 // reader chain, the shared display type, and the operator-facing table in the
-// README. The validator imports its array; the other boundaries must agree.
+// README. The validator and the poller import the shared array; the other
+// boundaries must agree.
 //
 // Drift is SURVIVABLE: the ingest validator drops an unrecognized kind's own
 // row and logs `beads_handoff_kind_unknown`, instead of 422'ing the whole
 // project's snapshot and blanking the portfolio's board. It is not VISIBLE,
-// though: a fifth kind added to the emitter and forgotten in the poller is a
+// though: a fifth kind added to the emitter and forgotten in the contract is a
 // marker that simply never appears on the row that raised it, with nothing red
 // anywhere. That is what this file exists to turn into a failing gate.
 //
@@ -83,6 +84,7 @@ function emitterKinds() {
 function pollerKinds() {
   assert.match(source('scripts/runner/task-snapshot.mjs'), /export \* from '\.\.\/task-snapshot-summary\.mjs';/);
   assert.match(source('scripts/os-up.mjs'), /export\s*\{[^}]*\bHANDOFF_KINDS\b[^}]*\}\s*from '\.\/runner\/task-snapshot\.mjs';/);
+  assert.equal(HANDOFF_KINDS, BEADS_HANDOFF_KINDS, 'The poller must use the shared handoff-kind contract.');
   return HANDOFF_KINDS;
 }
 

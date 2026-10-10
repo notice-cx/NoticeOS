@@ -28,19 +28,16 @@ import {
   operatorToken,
 } from './ingest-door.mjs';
 import { POSTHOG_FAMILIES as CONTRACT_POSTHOG_FAMILIES } from '../packages/contract/src/posthog-families.mjs';
+import {
+  DATAFORSEO_BASE_REPORTS,
+  DATAFORSEO_PANEL_REPORT,
+  DATAFORSEO_PERIODIC_REPORTS,
+} from '../packages/contract/src/signal-families.mjs';
 
 /** The collector's families, for `--help` and for catching a typo before it
- * becomes a 422. The ingest validates the real list
- * (`DATAFORSEO_REPORTS` in workers/ingest/src/dataforseo-dumps.ts); this copy
- * only shapes the error message, and is never the authority. */
-const KNOWN_FAMILIES = [
-  'ranked-keywords',
-  'backlinks-summary',
-  'backlinks-new-lost',
-  'llm-mentions-google',
-  'llm-mentions-chatgpt',
-  'serp-panel',
-];
+ * becomes a 422. The ingest validates against its own registry
+ * (`DATAFORSEO_REPORTS`, pinned to these lists by its tests). */
+const KNOWN_FAMILIES = [...DATAFORSEO_BASE_REPORTS, ...DATAFORSEO_PERIODIC_REPORTS, DATAFORSEO_PANEL_REPORT];
 
 /** PostHog's families, named `posthog-<family>`; `posthog-*` asks for all
  * six. Read from the contract's own list rather than copied, so a family the

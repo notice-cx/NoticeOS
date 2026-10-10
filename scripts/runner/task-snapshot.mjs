@@ -9,14 +9,9 @@ import path from 'node:path';
 import { readTaskProjectConfig } from '../task-project-config.mjs';
 import { CONFIG, HOME_ROOT } from './config.mjs';
 import { isShuttingDown } from './lifecycle.mjs';
-import { log } from './log.mjs';
+import { laneSkips, log } from './log.mjs';
 import { operatorToken } from './operator-token.mjs';
-import {
-  beadsSkipDecision,
-  checkBeadsHub,
-  parseBeadsProjects,
-  runBd,
-} from './task-hub.mjs';
+import { checkBeadsHub, parseBeadsProjects, runBd } from './task-hub.mjs';
 
 /**
  * One snapshot of the whole portfolio.
@@ -57,9 +52,6 @@ export function beadsSnapshotUrl(config) {
   return `http://${config.ingestHost}:${config.ingestPort}/api/beads-snapshot`;
 }
 
-// One WARN per outage, not one per tick: the hub being down for an afternoon
-// would otherwise write 240 identical lines. `skipping` is the reason currently
-// being suppressed; null = nothing is being skipped.
 const beadsPollState = { skipping: null };
 
 /**
@@ -89,18 +81,11 @@ export async function runBeadsPoll(runtime, deps = {}) {
     repoRoot = HOME_ROOT,
   } = deps;
 
-  const skip = (reason) => {
-    if (beadsSkipDecision(state, reason)) {
-      emit('WARN', `beads snapshot skipped — ${reason} (silent until it changes)`);
-    }
-  };
+  const { skip, resume } = laneSkips('beads snapshot', state, emit);
 
   if (stopped()) return null;
   // The tower's child hosts both Workers, so its readiness is the ingest's.
-  if (!runtime.running || !runtime.ready) {
-    skip('ingest is down/restarting');
-    return null;
-  }
+  if (!runtime.running || !runtime.ready) return skip('ingest is down/restarting');
   let projects;
   try {
     const raw = await readConfig();
@@ -109,26 +94,15 @@ export async function runBeadsPoll(runtime, deps = {}) {
     projects = parseBeadsProjects(raw);
     if (projects.length !== parsed.spokes.length) throw new Error('invalid task project entries');
   } catch (err) {
-    skip(`the task map is unreadable (${err.message})`);
-    return null;
+    return skip(`the task map is unreadable (${err.message})`);
   }
   // An acknowledged empty map must clear the last snapshot even when the hub
   // is down. Store failures above never turn into a fabricated empty roster.
-  if (projects.length > 0 && !(await probe())) {
-    skip('the beads task hub is unreachable');
-    return null;
-  }
+  if (projects.length > 0 && !(await probe())) return skip('the beads task hub is unreachable');
 
   const token = await readToken().catch(() => null);
-  if (!token) {
-    skip('no OPERATOR_TOKEN is configured for the ingest worker');
-    return null;
-  }
-
-  if (state.skipping !== null) {
-    emit('INFO', `beads snapshot resumed (was skipped: ${state.skipping})`);
-    state.skipping = null;
-  }
+  if (!token) return skip('no OPERATOR_TOKEN is configured for the ingest worker');
+  resume();
 
   const body = await collectBeadsSnapshot({ projects, run, nowMs: now(), repoRoot });
   const failed = body.projects.filter((entry) => !entry.ok);

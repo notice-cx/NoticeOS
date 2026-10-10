@@ -45,6 +45,10 @@
     "./watch-series": {
       "types": "./src/watch-series.d.mts",
       "default": "./src/watch-series.mjs"
+    },
+    "./signal-families": {
+      "types": "./src/signal-families.d.mts",
+      "default": "./src/signal-families.mjs"
     }
   },
   "scripts": {

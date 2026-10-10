@@ -19,6 +19,7 @@
     "packages/contract/src/ledger-coverage.mts",
     "packages/contract/src/posthog-families.mts",
     "packages/contract/src/search-market.mts",
+    "packages/contract/src/signal-families.mts",
     "packages/contract/src/task-metadata.mts",
     "packages/contract/src/task-gate.mts",
     "packages/contract/src/watch-series.mts",

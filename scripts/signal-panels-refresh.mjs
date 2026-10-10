@@ -24,6 +24,7 @@ import { PANEL_FRESHNESS_FILE, PANEL_HISTORY_ROOT, PANEL_REPORTS_DIRECTORY, PANE
 import { publishExecutiveSnapshot } from './signal-insights-publish.mjs';
 import { DEFAULT_DOOR, doorUrl, operatorToken } from './ingest-door.mjs';
 import { readConfigSnapshot } from './config-store-client.mjs';
+import { BING_AI_INTEGRATION, BING_AI_REPORTS } from '../packages/contract/src/signal-families.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ROSTER_DOCUMENT = 'config/signal-panels.json';
@@ -50,15 +51,9 @@ export const FRESHNESS_FILE = PANEL_FRESHNESS_FILE;
  * an operator drops by hand. They share an integration id with the
  * API-collected families, so a per-integration freshness reading would let the
  * nightly `bing-webmaster` collection vouch for an export months old; they are
- * measured on their own. Source of truth for the report ids: `BING_AI_FORMATS`
- * in `workers/ingest/src/bing-ai-exports.ts`, kept as a literal because this
- * script is plain ESM and cannot import the Worker's TypeScript.
+ * measured on their own.
  */
-export const UNCOLLECTED_FAMILIES = [
-  { integration: 'bing-webmaster', report: 'ai-overview' },
-  { integration: 'bing-webmaster', report: 'ai-queries' },
-  { integration: 'bing-webmaster', report: 'ai-pages' },
-];
+export const UNCOLLECTED_FAMILIES = BING_AI_REPORTS.map((report) => ({ integration: BING_AI_INTEGRATION, report }));
 
 function isUncollected(integration, report) {
   return UNCOLLECTED_FAMILIES.some(

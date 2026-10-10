@@ -10,15 +10,21 @@ import { osAssetUrl, readOsAsset } from '../os-deploy-forward.mjs';
 import { beadsDatabaseName, readTaskProjectConfig } from '../task-project-config.mjs';
 import { CONFIG, HOME_ROOT } from './config.mjs';
 import { isShuttingDown } from './lifecycle.mjs';
-import { log } from './log.mjs';
+import { laneSkips, log } from './log.mjs';
 import { operatorToken } from './operator-token.mjs';
 import {
+  HUMAN_LABEL,
+  beadsCloseArgs,
+  beadsCreateArgs,
   beadsCreatedId,
   beadsFailure,
-  beadsSkipDecision,
+  beadsLabelListArgs,
+  beadsOpenRows,
   beadsText,
-  parseBeadsProjects,
+  readBeadsList,
+  readBeadsProjects,
   runBd,
+  runBeadsStep,
 } from './task-hub.mjs';
 
 // Task-map reconciliation — is each project's declared database one the hub
@@ -37,7 +43,7 @@ import {
  * how a bead filed by hand is adopted (and auto-closed) by it. */
 export const TASK_MAP_LABEL = 'task-map-drift';
 /** Filed for the operator: the fix is `bd init` or a settings edit. */
-export const TASK_MAP_HUMAN_LABEL = 'human';
+export const TASK_MAP_HUMAN_LABEL = HUMAN_LABEL;
 /** Who the audit trail names. Nobody chose to file this; a reconciliation did. */
 export const TASK_MAP_ACTOR = 'os-up-task-map';
 /** Which project a drift bead is about. Prefixed for the same reason the
@@ -150,22 +156,10 @@ export const TASK_MAP_ACCEPTANCE =
   '`bd --quiet sql "SHOW DATABASES"` against the hub lists the database `config/beads.json` ' +
   'declares for this project.';
 
-/** What is open against NoticeOS for this lane. Closed is deliberately NOT
- * asked for: drift RECURS, and a closed bead is a finished episode rather than
- * a duplicate — the push filer's query, for the push filer's reason. */
+/** What is open against NoticeOS for this lane. Drift recurs, so closed is
+ * not asked for. */
 export function taskMapListArgs(repoDir) {
-  return [
-    '-C',
-    repoDir,
-    'list',
-    '--label',
-    TASK_MAP_LABEL,
-    '--status',
-    'open,in_progress,blocked,deferred',
-    '--json',
-    '--limit',
-    '0',
-  ];
+  return beadsLabelListArgs(repoDir, TASK_MAP_LABEL);
 }
 
 /** Which project an open drift bead is about. Metadata first, title as the
@@ -184,44 +178,30 @@ export function taskMapBeadAsset(row) {
 /** Every open drift bead, keyed by the project it is about. Null when the list
  * could not be read — which forbids both filing and closing this pass. */
 export function taskMapOpenBeads(rows) {
-  if (!Array.isArray(rows)) return null;
-  const open = new Map();
-  for (const row of rows) {
-    const beadId = beadsText(row?.id);
-    if (beadId === '') continue;
-    if (beadsText(row?.status) === 'closed') continue;
+  const rowsOpen = beadsOpenRows(rows);
+  if (rowsOpen === null) return null;
+  const byAsset = new Map();
+  for (const { beadId, row } of rowsOpen) {
     const asset = taskMapBeadAsset(row);
-    if (asset === null) continue;
-    if (!open.has(asset)) open.set(asset, beadId);
+    if (asset !== null && !byAsset.has(asset)) byAsset.set(asset, beadId);
   }
-  return open;
+  return byAsset;
 }
 
 /** The bead, as argv. P1 and `human` for the push filer's reason: only the
  * operator can run `bd init` or change the value, and `bd human list` is the
  * operator's inbox. */
 export function taskMapCreateArgs(repoDir, filing) {
-  return [
-    '-C',
-    repoDir,
-    '--actor',
-    TASK_MAP_ACTOR,
-    'create',
-    taskMapTitle(filing.asset),
-    '--type',
-    'bug',
-    '--priority',
-    '1',
-    '--labels',
-    `${TASK_MAP_LABEL},${TASK_MAP_HUMAN_LABEL}`,
-    '--metadata',
-    JSON.stringify({ [TASK_MAP_ASSET_KEY]: filing.asset }),
-    '--description',
-    taskMapDescription(filing),
-    '--acceptance',
-    TASK_MAP_ACCEPTANCE,
-    '--json',
-  ];
+  return beadsCreateArgs(repoDir, {
+    actor: TASK_MAP_ACTOR,
+    title: taskMapTitle(filing.asset),
+    type: 'bug',
+    priority: 1,
+    labels: [TASK_MAP_LABEL, TASK_MAP_HUMAN_LABEL],
+    metadata: { [TASK_MAP_ASSET_KEY]: filing.asset },
+    description: taskMapDescription(filing),
+    acceptance: TASK_MAP_ACCEPTANCE,
+  });
 }
 
 /** The evidence, in the close reason. A bead a machine closes has to say what
@@ -237,10 +217,9 @@ export function taskMapCloseReason({ asset, declared, checkedAt }) {
 }
 
 export function taskMapCloseArgs(repoDir, beadId, reason) {
-  return ['-C', repoDir, '--actor', TASK_MAP_ACTOR, 'close', beadId, '-r', reason];
+  return beadsCloseArgs(repoDir, TASK_MAP_ACTOR, beadId, reason);
 }
 
-/** One WARN per outage, like the other filers'. */
 const taskMapState = { skipping: null };
 
 /**
@@ -258,79 +237,40 @@ export async function runTaskMapCheck(deps = {}) {
     homeAsset = taskMapHomeAsset,
   } = deps;
 
-  const skip = (reason) => {
-    if (beadsSkipDecision(state, reason)) {
-      emit('WARN', `task map check skipped — ${reason} (silent until it changes)`);
-    }
-  };
+  const { skip, resume } = laneSkips('task map check', state, emit);
 
   if (stopped()) return null;
 
-  let raw;
-  try {
-    raw = await readConfig();
-  } catch (err) {
-    skip(`the task map is unreadable (${err.message})`);
-    return null;
-  }
-  const spokes = parseBeadsProjects(raw);
-  if (spokes.length === 0) {
-    skip('no projects are configured');
-    return null;
-  }
+  const { projects: spokes, unreadable } = await readBeadsProjects(readConfig);
+  if (unreadable) return skip(unreadable);
+  if (spokes.length === 0) return skip('no projects are configured');
   const home = await homeAsset();
-  if (!home) {
-    skip('the store names no OS asset to file into');
-    return null;
-  }
+  if (!home) return skip('the store names no OS asset to file into');
   const self = spokes.find((spoke) => spoke.asset === home);
-  if (!self || self.unavailableReason) {
-    skip(`config/beads.json has no "${home}" project to file into`);
-    return null;
-  }
+  if (!self || self.unavailableReason) return skip(`config/beads.json has no "${home}" project to file into`);
 
   const selfRepo = path.resolve(HOME_ROOT, self.repo);
   let answer;
   try {
     answer = await run(beadsShowDatabasesArgs(selfRepo));
   } catch (err) {
-    skip(`the hub could not be asked what it holds (${err.message})`);
-    return null;
+    return skip(`the hub could not be asked what it holds (${err.message})`);
   }
-  if (answer.code !== 0) {
-    skip(beadsFailure('show databases', answer));
-    return null;
-  }
+  if (answer.code !== 0) return skip(beadsFailure('show databases', answer));
   const held = parseBeadsDatabases(answer.stdout);
-  if (held === null) {
-    skip('the hub returned unreadable SHOW DATABASES output');
-    return null;
-  }
+  if (held === null) return skip('the hub returned unreadable SHOW DATABASES output');
+  resume();
 
-  if (state.skipping !== null) {
-    emit('INFO', `task map check resumed (was skipped: ${state.skipping})`);
-    state.skipping = null;
-  }
-
-  let listed;
-  try {
-    listed = await run(taskMapListArgs(selfRepo));
-  } catch (err) {
-    emit('ERROR', `task map: bd list could not run: ${err.message}`);
+  const listed = await readBeadsList(run, taskMapListArgs(selfRepo), 'task map list');
+  if (listed.failure) {
+    emit('ERROR', `task map: ${listed.failure}`);
     return null;
   }
-  if (listed.code !== 0) {
-    emit('ERROR', `task map: ${beadsFailure('task map list', listed)}`);
-    return null;
-  }
-  let rows;
-  try {
-    rows = JSON.parse(listed.stdout);
-  } catch {
+  if (listed.unparseable) {
     emit('ERROR', 'task map: bd returned unparseable JSON; filing and closing nothing');
     return null;
   }
-  const open = taskMapOpenBeads(rows);
+  const open = taskMapOpenBeads(listed.rows);
   if (open === null) {
     emit('ERROR', 'task map: bd returned a list that is not a list; filing nothing');
     return null;
@@ -345,26 +285,23 @@ export async function runTaskMapCheck(deps = {}) {
   for (const entry of drift) {
     if (open.has(entry.asset)) continue;
     const spoke = spokes.find((s) => s.asset === entry.asset);
-    let created;
-    try {
-      created = await run(
-        taskMapCreateArgs(selfRepo, {
-          asset: entry.asset,
-          declared: entry.declared,
-          repo: spoke?.repo ?? '(unknown repo)',
-          held,
-          checkedAt,
-        }),
-      );
-    } catch (err) {
-      emit('ERROR', `task map: ${entry.asset} — bd create could not run: ${err.message}`);
+    const created = await runBeadsStep(
+      run,
+      taskMapCreateArgs(selfRepo, {
+        asset: entry.asset,
+        declared: entry.declared,
+        repo: spoke?.repo ?? '(unknown repo)',
+        held,
+        checkedAt,
+      }),
+      'create',
+      'task map create',
+    );
+    if (created.failure) {
+      emit('ERROR', `task map: ${entry.asset} — ${created.failure}`);
       continue;
     }
-    if (created.code !== 0) {
-      emit('ERROR', `task map: ${entry.asset} — ${beadsFailure('task map create', created)}`);
-      continue;
-    }
-    const beadId = beadsCreatedId(created.stdout);
+    const beadId = beadsCreatedId(created.result.stdout);
     filed.push({ asset: entry.asset, declared: entry.declared, beadId });
     emit(
       'ERROR',
@@ -377,17 +314,14 @@ export async function runTaskMapCheck(deps = {}) {
   for (const [asset, beadId] of open) {
     if (drifting.has(asset)) continue;
     const declared = spokes.find((s) => s.asset === asset)?.database ?? '(unknown)';
-    let done;
-    try {
-      done = await run(
-        taskMapCloseArgs(selfRepo, beadId, taskMapCloseReason({ asset, declared, checkedAt })),
-      );
-    } catch (err) {
-      emit('ERROR', `task map: ${asset} — bd close could not run: ${err.message}`);
-      continue;
-    }
-    if (done.code !== 0) {
-      emit('ERROR', `task map: ${asset} — ${beadsFailure('task map close', done)}`);
+    const done = await runBeadsStep(
+      run,
+      taskMapCloseArgs(selfRepo, beadId, taskMapCloseReason({ asset, declared, checkedAt })),
+      'close',
+      'task map close',
+    );
+    if (done.failure) {
+      emit('ERROR', `task map: ${asset} — ${done.failure}`);
       continue;
     }
     closed.push({ asset, beadId });

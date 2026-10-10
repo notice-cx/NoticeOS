@@ -305,14 +305,14 @@ describes (`taskHandoffPrefill`) and files it through the task lane in the
 asset's own spoke. Copy Markdown stays for agents and is the only path in a
 deployed build.
 
-The list of kinds is **stated in six places that ship separately** — the
-emitter's `TaskHandoffKind`, the poller's `HANDOFF_KINDS`
-(`scripts/runner/task-snapshot.mjs`), the ingest validator's
-`BEADS_HANDOFF_KINDS` (`workers/ingest/src/beads-snapshots.ts`), the Tower
-reader's `readHandoff` (`apps/tower/worker/beads-snapshot.ts`), the shared
-type `HandoffKind` (`apps/tower/shared/asset-detail.ts`), and **the table
-above** — so widen all six together; `scripts/handoff-kinds.test.mjs` reads
-all six and names the odd one out. At runtime an unknown kind costs its own
+The list of kinds is **stated in five places that ship separately** — the
+emitter's `TaskHandoffKind`, the contract's `BEADS_HANDOFF_KINDS`
+(`packages/contract/src/task-snapshot.mts`, which the poller and the ingest
+validator both import), the Tower reader's `readHandoff`
+(`apps/tower/worker/beads-snapshot.ts`), the shared type `HandoffKind`
+(`apps/tower/shared/asset-detail.ts`), and **the table above** — so widen all
+five together; `scripts/handoff-kinds.test.mjs` reads every one and names the
+odd one out. At runtime an unknown kind costs its own
 row, the rest of the project stores, and the Worker logs one
 `beads_handoff_kind_unknown` line per snapshot.
 
