@@ -248,16 +248,16 @@ describe('pull adapter — successful pull', () => {
     const presented: Array<string | null> = [];
     const recordingFetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
       presented.push(new Headers(init?.headers).get('authorization'));
-      return new Response(mealsBody(3), { status: 200 });
+      return new Response(meadowBody(3), { status: 200 });
     }) as typeof fetch;
     const feesEntry: PullAssetConfig = {
-      ...MEALS_ENTRY,
+      ...MEADOW_ENTRY,
       asset: 'ferns.example',
       url: 'https://ferns.example/api/internal/metrics',
     };
 
     const result = await runPullAdapter(legacy, {
-      entries: [MEALS_ENTRY, feesEntry],
+      entries: [MEADOW_ENTRY, feesEntry],
       nowMs: NOW,
       fetchImpl: recordingFetch,
     });

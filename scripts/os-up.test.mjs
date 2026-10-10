@@ -1198,7 +1198,7 @@ test('the poller and the drift check agree on every spoke', () => {
 });
 
 test('spoke database names that could not be safely interpolated travel as null', () => {
-  const databases = ['mp', 'nom; DROP DATABASE mp', '', 42, undefined, 'mp'];
+  const databases = ['md', 'nw; DROP DATABASE md', '', 42, undefined, 'md'];
   const raw = JSON.stringify({
     spokes: databases.map((database, index) => ({ asset: `s${index}.example`, prefix: `s${index}`, repo: `../s${index}`, database })),
   });

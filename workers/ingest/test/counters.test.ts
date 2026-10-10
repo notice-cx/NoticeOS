@@ -201,13 +201,13 @@ describe('counters lane — failure leaves the prior reading alone', () => {
       config: {
         assets: {
           'meadow.example': {
-            source: { kind: 'prometheus', url: MEALS_URL, enabled: true },
-            cards: [MEALS_CARDS[0]!, { metric: 'leads', label: 'Leads' }],
+            source: { kind: 'prometheus', url: MEADOW_URL, enabled: true },
+            cards: [MEADOW_CARDS[0]!, { metric: 'leads', label: 'Leads' }],
           },
         },
       },
       nowMs: NOW,
-      fetchImpl: stubFetch({ [MEALS_URL]: () => new Response(mealsBody(5000, 620), { status: 200 }) }),
+      fetchImpl: stubFetch({ [MEADOW_URL]: () => new Response(meadowBody(5000, 620), { status: 200 }) }),
     });
 
     expect(result).toMatchObject({ attempted: 1, succeeded: 0, failed: 1 });
