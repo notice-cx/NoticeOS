@@ -62,6 +62,8 @@
     "seed:local": "node scripts/db-seed.mjs",
     "config:generate": "node scripts/generate-config-contract.mjs",
     "config:check": "node scripts/generate-config-contract.mjs --check",
+    "scripts:index": "node scripts/scripts-index.mjs",
+    "config:docs": "node scripts/config-docs.mjs",
     "project:prepare": "node scripts/project-context.mjs",
     "stack:status": "node scripts/stack-control.mjs status",
     "stack:start": "node scripts/stack-control.mjs start",

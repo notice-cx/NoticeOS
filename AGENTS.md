@@ -96,6 +96,15 @@ present** — never wire them so an empty set fails.
   installation can replace. Maintainability counts as much as the feature:
   one derivation per fact, names a newcomer understands, and the change that
   leaves the design clearer.
+- **Documentation that restates code is generated from it, never hand-kept.**
+  The command index in `scripts/README.md` comes from `package.json` and each
+  script's header (`pnpm scripts:index -- --write`); the "what the Tower may
+  edit here" block in each `config/*.README.md` comes from
+  `scripts/config-registers.mts` (`pnpm config:docs -- --write`); the Postgres
+  README's revision matrix comes from `db/postgres/model.json`. A test fails
+  when a generated block is stale. Prose beside a block says why, never what:
+  a field's type, a command's flags, a component's variants and a colour's
+  value are read from the code that owns them.
 - **Flags carry severity AND kind as separate fields**
   ([doc 02](docs/02-signal-contract.md)): `info|warn|error` × `anomaly|
   opportunity|milestone`; milestone-kind is always info-severity. Volume-aware

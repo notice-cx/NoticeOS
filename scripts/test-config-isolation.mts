@@ -129,8 +129,12 @@ export const SEED_VALIDATION_TESTS: Readonly<Record<string, SeedValidationTest>>
     why: "It checks the operator's checked-out spoke repos, named by this installation's task-hub map, against the canonical stanza in the contract; a fixture map names no repo on disk.",
   }),
   "scripts/ux-gate.test.mjs": Object.freeze({
-    files: Object.freeze(["config/*.json", "installation/beads.json"]),
-    why: "The Tower renders the shipped config documents' text verbatim, so the UX gate measures the real files against its record (bead ro-ujb9.96.6.13); a fixture would measure nothing the desk shows. An exception's bead id is checked against this installation's task projects.",
+    files: Object.freeze(["config/*.json"]),
+    why: "The Tower renders the shipped config documents' text verbatim, so the UX text report reads the real files; a fixture would measure nothing the desk shows.",
+  }),
+  "scripts/config-docs.test.mjs": Object.freeze({
+    files: Object.freeze(["config/*.README.md"]),
+    why: "It compares each config README's generated registers block with the declaration in scripts/config-registers.mts; config/'s READMEs are prose. It reads no setting.",
   }),
   "scripts/neutral-code-gate.test.mjs": Object.freeze({
     files: Object.freeze(["config/*.json", "installation/*.json", "config/**/*.md"]),

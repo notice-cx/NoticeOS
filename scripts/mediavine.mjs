@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// The Mediavine publisher-portal client in the terminal: status, sites and a revenue sync for one site.
 import { pathToFileURL } from 'node:url';
 
 export const USAGE = `Usage:
