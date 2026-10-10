@@ -17,7 +17,7 @@ import {
   type RuleBacktest,
   type RuleBacktestDay,
   type RuleBacktestInput,
-  type RuleBacktestIssue,
+  type ValidationIssue,
   type RuleBacktestResult,
   type RuleConfig,
   type RuleVerdict,
@@ -46,8 +46,8 @@ const ASSET_PATTERN = /^[a-z0-9][a-z0-9.-]{0,62}$/;
  * never typed into that field. `alpha` at 0 silences every rule, at 1 fires on
  * every reading, and a non-positive window has no days in it.
  */
-function configIssues(config: unknown): RuleBacktestIssue[] {
-  const issues: RuleBacktestIssue[] = [];
+function configIssues(config: unknown): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
   const c = config as Partial<RuleConfig> | null | undefined;
   if (!c || typeof c !== 'object') {
     return [{ path: 'config', code: 'required', message: 'config must be an object' }];
@@ -71,8 +71,8 @@ function configIssues(config: unknown): RuleBacktestIssue[] {
   return issues;
 }
 
-function inputIssues(input: RuleBacktestInput): RuleBacktestIssue[] {
-  const issues: RuleBacktestIssue[] = [];
+function inputIssues(input: RuleBacktestInput): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
   if (typeof input?.asset !== 'string' || !ASSET_PATTERN.test(input.asset)) {
     issues.push({ path: 'asset', code: 'format', message: 'asset must be a store asset id' });
   }

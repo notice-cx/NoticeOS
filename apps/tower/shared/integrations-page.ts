@@ -35,7 +35,6 @@ export type {
   AssetDayMeter,
   AssetDayMeterReading,
   IntegrationMeter,
-  IntegrationTest,
   LegacyAssetBinding,
   PortfolioMonthMeter,
   PortfolioMonthMeterReading,

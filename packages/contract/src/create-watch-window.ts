@@ -4,10 +4,7 @@
  * never a credential. Every field is re-validated inside ingest: these types
  * describe the shape a caller intends, not one ingest trusts.
  */
-import type { AnnotationIssue } from './create-annotation.js';
-
-/** The same `{path, code, message}` vocabulary every operator write reports. */
-export type WatchWindowIssue = AnnotationIssue;
+import type { ValidationIssue } from './validation-issue.js';
 
 /** What the window is watching. Authority: `WATCH_REF_KINDS`, workers/ingest/src/watch-windows.ts. */
 export type WatchRefKind = 'annotation' | 'decision' | 'manual';
@@ -208,5 +205,5 @@ export type CreateWatchWindowResult =
    * the same asset, ref, series and scope. Idempotent because a spoke syncs
    * its whole freeze register every ship. */
   | { ok: true; created: boolean; watchWindow: WatchWindowRow }
-  | { ok: false; error: 'validation'; issues: WatchWindowIssue[] }
+  | { ok: false; error: 'validation'; issues: ValidationIssue[] }
   | { ok: false; error: 'unknown_asset'; asset: string };

@@ -7,7 +7,7 @@ import { observeIntegration, tryHealthConnection } from './integration-health-co
 // Three rules. The call is the cheapest authenticated read the provider offers
 // and free wherever it has a free tier; where it is not free of consequence
 // (Discord's only real proof is a posted message) the provider declares that in
-// `IntegrationTest`. The response body is read for a count and dropped: a
+// `test.cost`. The response body is read for a count and dropped: a
 // probe is not evidence, and the one thing kept is a fact about the credential
 // (DataForSEO's prepaid credit, with the instant it was seen). No result
 // contains a credential: a calendar failure names the label and never the url,

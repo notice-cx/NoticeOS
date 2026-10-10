@@ -19,7 +19,7 @@ import {
   type CredentialBalance,
   type ExactUsd,
   type CredentialExpirySource,
-  type CredentialIssue,
+  type ValidationIssue,
   type CredentialMetadata,
   type CredentialSource,
   type CredentialStoreState,
@@ -711,7 +711,7 @@ export async function credentialSigningKey(env: IngestEnv): Promise<CryptoKey> {
 // Validation — the same rules whichever door a write arrived at
 // ---------------------------------------------------------------------------
 
-function issue(path: string, code: string, message: string): CredentialIssue {
+function issue(path: string, code: string, message: string): ValidationIssue {
   return { path, code, message };
 }
 
@@ -720,8 +720,8 @@ function issue(path: string, code: string, message: string): CredentialIssue {
 export function validateCredentialFields(
   provider: IntegrationProvider,
   fields: Record<string, unknown>,
-): CredentialIssue[] {
-  const issues: CredentialIssue[] = [];
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
   if (provider.id === 'cloudflare') {
     if (Object.hasOwn(fields, CLOUDFLARE_D1_TARGETS)) issues.push(issue(CLOUDFLARE_D1_TARGETS, 'invalid', 'Choose databases in the Cloudflare panel.'));
     if (!cloudflareAccountId(fields.CLOUDFLARE_ACCOUNT_ID)) issues.push(issue('CLOUDFLARE_ACCOUNT_ID', 'invalid', 'Account ID must contain 32 hexadecimal characters.'));
@@ -769,7 +769,7 @@ export function validateCredentialFields(
   return issues;
 }
 
-function validateFieldShape(field: IntegrationField, value: string): CredentialIssue[] {
+function validateFieldShape(field: IntegrationField, value: string): ValidationIssue[] {
   if (field.kind === 'text' || field.kind === 'password') {
     return value.trim() === ''
       ? [issue(field.name, 'blank', `${field.label} is blank.`)]
@@ -810,7 +810,7 @@ function validateFieldShape(field: IntegrationField, value: string): CredentialI
   // asset-map: `asset id -> that asset's own key`. A rejection names the asset,
   // never the token.
   if (field.kind === 'asset-map') {
-    const issues: CredentialIssue[] = [];
+    const issues: ValidationIssue[] = [];
     for (const [asset, token] of entries) {
       if (typeof token !== 'string' || token.trim() === '') {
         issues.push(
@@ -823,7 +823,7 @@ function validateFieldShape(field: IntegrationField, value: string): CredentialI
 
   // url-list: `label -> url` or `label -> { url, … }`. The URL is the
   // credential, so a rejection names the label.
-  const issues: CredentialIssue[] = [];
+  const issues: ValidationIssue[] = [];
   for (const [label, entry] of entries) {
     const url = typeof entry === 'string' ? entry : credentialFeedUrl(entry);
     if (url === null) {

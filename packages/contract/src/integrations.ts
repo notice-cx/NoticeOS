@@ -13,6 +13,7 @@
  */
 
 import { legacyBindingAsset } from './configuration.mjs';
+import type { ValidationIssue } from './validation-issue.js';
 
 /** How the Tower renders one field, and how a value is validated.
  *
@@ -157,8 +158,13 @@ export function acceptedAs(
  *
  * `checkedAt` is when the answer arrived. No field ever carries a credential.
  */
-export interface ConnectFacts {
+export interface ConnectFacts extends ProviderFacts {
   cloudflareD1?: { accountId: string; databases: { id: string; name: string }[] };
+}
+
+/** What a provider's answer counted, the same facts whether a connect or a
+ * test asked. */
+export interface ProviderFacts {
   /** Bing Webmaster Tools: verified sites the key can read. */
   sites?: number;
   /** Cloudflare: D1 databases the account token can list. */
@@ -171,8 +177,8 @@ export interface ConnectFacts {
   /** PostHog: the Cloud region that answered for the key — found by asking
    * both, never typed. */
   region?: 'us' | 'eu';
-  /** Calendar feeds: how many feeds answered with a calendar — all of them,
-   * or the connect is refused. */
+  /** Calendar feeds that answered with a calendar. A connect is refused unless
+   * all of them did. */
   feeds?: number;
 }
 
@@ -191,7 +197,7 @@ export type ConnectCredentialResult =
   | { ok: false; error: 'not_supported'; provider: string }
   | { ok: false; error: 'key_missing'; message: string }
   | { ok: false; error: 'store_unavailable'; message: string }
-  | { ok: false; error: 'validation'; issues: CredentialIssue[] };
+  | { ok: false; error: 'validation'; issues: ValidationIssue[] };
 
 /** One site's token for a `site-tokens` provider: merged into the provider's
  * per-site map, never replacing the other sites' tokens. */
@@ -206,13 +212,6 @@ export interface PutSiteTokenInput {
 export type PutSiteTokenResult =
   | PutCredentialResult
   | { ok: false; error: 'not_supported'; provider: string };
-
-export interface IntegrationTest {
-  /** What the press does, said by the button itself: `free` is "Test
-   * connection", `side-effect` names the message it sends, `none` names the
-   * local check it runs. */
-  cost: ProbeCost;
-}
 
 /**
  * What a metered provider spends, where the OS's own rows can count it. The
@@ -467,10 +466,12 @@ export interface IntegrationProvider {
    */
   expiry: IntegrationExpiry;
   /**
-   * What the Test connection button does for this provider. Required for the
-   * same reason `expiry` is.
+   * What the Test connection button does for this provider, said by the
+   * button itself: `free` is "Test connection", `side-effect` names the message
+   * it sends, `none` names the local check it runs. Required for the same
+   * reason `expiry` is.
    */
-  test: IntegrationTest;
+  test: { cost: ProbeCost };
   /**
    * What this provider meters, where the OS's own rows can count it. Absent
    * for a provider with no cap the OS can measure; the card then shows nothing
@@ -1351,18 +1352,11 @@ export interface ProbeResult {
   fix?: ProbeFix;
 }
 
-export interface ProbeFacts {
-  sites?: number;
-  databases?: number;
-  projects?: number;
-  /** Calendar feeds that answered, of `feedsTotal`. */
-  feeds?: number;
+export interface ProbeFacts extends ProviderFacts {
+  /** Calendar feeds asked, the denominator of `feeds`. */
   feedsTotal?: number;
   /** Sites holding a token (Clarity). */
   tokens?: number;
-  /** DataForSEO: prepaid credit in USD, the digits the provider reported. */
-  creditUsd?: ExactUsd | null;
-  region?: 'us' | 'eu';
   /** The Google account or service-account address the test used. */
   account?: string;
   /** GA4 was not checked: no property is mapped to a site yet. */
@@ -1442,14 +1436,6 @@ export function probeLine(result: ProbeResult): string {
   return parts.join(' · ');
 }
 
-/** One rejected field, in the `{path, code, message}` shape every ingest lane
- * reports. `message` names the field, never the value. */
-export interface CredentialIssue {
-  path: string;
-  code: string;
-  message: string;
-}
-
 /** What the Tower PUTs. Values are strings — a `json`/`url-list` field carries
  * its JSON text. */
 export interface PutCredentialInput {
@@ -1469,7 +1455,7 @@ export type PutCredentialResult =
   | { ok: false; error: 'key_missing'; message: string }
   /** The table is not in the store yet: an answer, never a silent no-op. */
   | { ok: false; error: 'store_unavailable'; message: string }
-  | { ok: false; error: 'validation'; issues: CredentialIssue[] };
+  | { ok: false; error: 'validation'; issues: ValidationIssue[] };
 
 export type DeleteCredentialResult =
   | { ok: true; summary: CredentialSummary }
@@ -1498,7 +1484,7 @@ export type SetCredentialExpiryResult =
   /** The provider states no expiry AND offers no operator field — accepting a
    * date here would be storing a fact the card has already said cannot exist. */
   | { ok: false; error: 'not_expirable'; message: string }
-  | { ok: false; error: 'validation'; issues: CredentialIssue[] };
+  | { ok: false; error: 'validation'; issues: ValidationIssue[] };
 
 /** What `listCredentialSummaries()` answers: the key's state plus one summary
  * per provider, always all of them and always in catalog order — a provider
