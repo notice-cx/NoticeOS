@@ -663,6 +663,16 @@ describe('the older single-asset binding', () => {
       legacySlots: {},
     });
   });
+
+  it('reads no Mediavine login from the environment, so Disconnect leaves it disconnected', () => {
+    const mediavine = integrationProvider('mediavine')!;
+    const read = readEnvCredential(mediavine, {
+      MEDIAVINE_USER: 'someone@example.com',
+      MEDIAVINE_PASSWORD: 'env-password',
+    });
+    expect(read).toEqual({ fields: {}, legacySlots: {} });
+    expect(credentialAuthState(mediavine, Object.keys(read.fields)).complete).toBe(false);
+  });
 });
 
 describe('a provider’s own reporting day', () => {

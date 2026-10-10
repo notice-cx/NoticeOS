@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { monthsBetween, recurringFor } from './cost-import.mjs';
+import { domainCostsFor, monthsBetween, recurringFor } from './cost-import.mjs';
 
 const CONFIG = {
   costs: [
@@ -45,4 +45,25 @@ test('carries the config id into the idempotency source, and books estimated', (
   // A standing charge is not a reconciled invoice. Calling it reconciled would
   // erase the figure a real statement is later measured against.
   assert.equal(row.booking_state, 'estimated');
+});
+
+test('sums every domain a property carries into one rounded row per month', () => {
+  const domains = {
+    domains: [
+      { domain: 'b.example.com', asset: 'site-a', paidOn: '2026-03-14', paidUsd: 15 },
+      { domain: 'a.example.com', asset: 'site-a', paidOn: '2025-11-02', paidUsd: 10 },
+      { domain: 'c.example.net', asset: 'site-b', paidOn: '2026-03-01', paidUsd: 0.05 },
+    ],
+  };
+  // 10/12 + 15/12 = 2.0833…, one row under the one idempotency key; site-b's
+  // slice rounds to zero and books nothing.
+  assert.deepEqual(domainCostsFor(domains, '2026-03'), [{
+    kind: 'cost', asset: 'site-a', period: '2026-03', family: 'infra', amount: 2.08,
+    source: 'domains', booking_state: 'estimated',
+    note: '2 domain(s) amortized: a.example.com, b.example.com',
+  }]);
+  // The order bought in November covers through October and no further.
+  assert.deepEqual(domainCostsFor(domains, '2026-10').map((r) => [r.asset, r.amount]), [['site-a', 2.08]]);
+  assert.deepEqual(domainCostsFor(domains, '2026-11').map((r) => [r.asset, r.amount]), [['site-a', 1.25]]);
+  assert.deepEqual(domainCostsFor(domains, '2025-10'), []);
 });

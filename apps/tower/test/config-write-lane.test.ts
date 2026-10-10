@@ -169,6 +169,15 @@ describe("the config write lane", () => {
     expect(DEFAULT_REPO_ROOT).toBe(REPO_ROOT);
   });
 
+  it("finds the checkout by its workspace manifest, however deep the bundle sits", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "lane-root-"));
+    created.push(root);
+    await fs.writeFile(path.join(root, "pnpm-workspace.yaml"), "packages: []\n");
+    // Neither is three folders below the manifest, where a counted guess would land.
+    expect(laneRepoRoot({}, path.join(root, "node_modules", ".vite-temp"))).toBe(root);
+    expect(laneRepoRoot({}, path.join(root, "apps", "tower", "vite", "chunks"))).toBe(root);
+  });
+
   // The managed service runs this dev server from a runtime copy of the code
   // and names the operator's checkout in NOTICEOS_HOME (an older plist says
   // REINDEX_OS_HOME, still read). A Save must commit there; a commit inside

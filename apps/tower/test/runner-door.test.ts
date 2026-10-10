@@ -6,12 +6,14 @@
 // request could try to look like a door request has a case here.
 
 import type { IncomingMessage, ServerResponse } from "node:http";
+import net, { type AddressInfo } from "node:net";
 import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_DOOR_HOST,
   DEFAULT_DOOR_PORT,
   doorHostFromEnv,
   doorPortFromEnv,
+  ingestDoor,
   runnerGuard,
   serveDoorRequest,
 } from "../vite/runner-door";
@@ -293,5 +295,72 @@ describe("door address resolution", () => {
   it("refuses a port that is not one, rather than silently binding the default", () => {
     expect(() => doorPortFromEnv({ OS_UP_INGEST_DOOR_PORT: "nope" })).toThrow(/TCP port/);
     expect(() => doorPortFromEnv({ OS_UP_INGEST_DOOR_PORT: "70000" })).toThrow(/TCP port/);
+  });
+});
+
+describe("the door's bind", () => {
+  /** A port something else is listening on, and the way to free it. */
+  async function heldPort(): Promise<{ port: number; release: () => Promise<void> }> {
+    const holder = net.createServer();
+    await new Promise<void>((resolve) => holder.listen(0, "127.0.0.1", resolve));
+    const { port } = holder.address() as AddressInfo;
+    return { port, release: () => new Promise((resolve) => holder.close(() => resolve())) };
+  }
+
+  /** The plugin's door on `port`, beside a dev server with no listener of its own. */
+  function openDoor(port: number) {
+    vi.stubEnv("OS_UP_INGEST_DOOR_HOST", "127.0.0.1");
+    vi.stubEnv("OS_UP_INGEST_DOOR_PORT", String(port));
+    const logged = { info: [] as string[], error: [] as string[] };
+    let exit!: (code: number | string | null | undefined) => void;
+    const exited = new Promise<number | string | null | undefined>((resolve) => { exit = resolve; });
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(((code) => {
+      exit(code);
+      return undefined as never;
+    }) as typeof process.exit);
+    const before = process.listeners("exit");
+    const server = {
+      middlewares: Object.assign(() => undefined, { use: () => undefined }),
+      config: { logger: { info: (line: string) => logged.info.push(line), error: (line: string) => logged.error.push(line) } },
+      httpServer: null,
+    };
+    (ingestDoor().configureServer as unknown as (s: typeof server) => void)(server);
+    const closers = process.listeners("exit").filter((listener) => !before.includes(listener));
+    const close = () => {
+      for (const listener of closers) {
+        process.removeListener("exit", listener);
+        (listener as () => void)();
+      }
+      vi.restoreAllMocks();
+      vi.unstubAllEnvs();
+    };
+    return { logged, exited, exitSpy, close };
+  }
+
+  it("binds on its one retry when the port frees in time", async () => {
+    const held = await heldPort();
+    const door = openDoor(held.port);
+    try {
+      // Freed after the first bind has failed and before the retry, 300 ms on.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await held.release();
+      await vi.waitFor(() => expect(door.logged.info.join("\n")).toContain(`127.0.0.1:${held.port}`), { timeout: 3_000 });
+      expect(door.exitSpy).not.toHaveBeenCalled();
+    } finally {
+      door.close();
+    }
+  });
+
+  it("exits 1 when the port is still taken after the retry", async () => {
+    const held = await heldPort();
+    const door = openDoor(held.port);
+    try {
+      await expect(door.exited).resolves.toBe(1);
+      expect(door.logged.error.join("\n")).toContain(`cannot listen on 127.0.0.1:${held.port} (EADDRINUSE)`);
+      expect(door.exitSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      door.close();
+      await held.release();
+    }
   });
 });

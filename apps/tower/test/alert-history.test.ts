@@ -537,6 +537,19 @@ describe("a snoozed alert is in exactly one list", () => {
     );
   });
 
+  it("keeps a snooze with no date: nothing would ever bring it back", async () => {
+    const undated = await insertFlag(test, {
+      asset: "meals.example", firedAt: at(9), disposition: "snooze", dispositionAt: at(8), snoozeUntil: null,
+    });
+    const nowIso = NOW.toISOString();
+    const ids = async (where: string, binds: string[]) =>
+      (await readAlerts(test.call, where, binds)).map((row) => row.id);
+
+    expect(await settledIds(NOW)).toEqual([undated]);
+    expect(await ids(openFlagsSql("", "$1::timestamptz"), [nowIso])).toEqual([]);
+    expect(await ids(snoozedFlagsSql("", "$1::timestamptz"), [nowIso])).toEqual([]);
+  });
+
   it("leaves a tuned alert out until it is settled another way", async () => {
     // Tuning the rule is not answering the firing: open.
     await insertFlag(test, { asset: "meals.example", firedAt: at(9), disposition: "tune", dispositionAt: at(8) });

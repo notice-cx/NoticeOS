@@ -257,6 +257,39 @@ test('a blank binding counts as absent, not as a value worth storing', () => {
   assert.equal(skipped.length, 2);
 });
 
+/** Clarity as the providers route sends it: the legacy binding carries the
+ * asset the register gives it. */
+const clarityProvider = (asset) => ({
+  provider: {
+    id: 'clarity',
+    fields: [{
+      name: 'CLARITY_TOKENS',
+      kind: 'asset-map',
+      required: true,
+      legacyAssetBinding: { name: 'CLARITY_PROJECT_API_TOKEN', lane: 'clarity', ...(asset ? { asset } : {}) },
+    }],
+  },
+});
+const clarityFields = (bindings, asset = 'shop.example.com') =>
+  credentialImportPlan(bindings, [clarityProvider(asset)]).planned[0]?.fields.CLARITY_TOKENS;
+
+test('a legacy single-project Clarity binding is imported as its asset entry in the map', () => {
+  assert.equal(clarityFields({ CLARITY_PROJECT_API_TOKEN: ' single ' }), '{"shop.example.com":"single"}');
+  assert.equal(
+    clarityFields({ CLARITY_TOKENS: '{"blog.example.com":"b"}', CLARITY_PROJECT_API_TOKEN: 'single' }),
+    '{"blog.example.com":"b","shop.example.com":"single"}',
+  );
+  // The map wins where both name the asset.
+  assert.equal(
+    clarityFields({ CLARITY_TOKENS: '{"shop.example.com":"mapped"}', CLARITY_PROJECT_API_TOKEN: 'single' }),
+    '{"shop.example.com":"mapped"}',
+  );
+  // A map that does not parse goes as written, for the route to refuse.
+  assert.equal(clarityFields({ CLARITY_TOKENS: '{nope', CLARITY_PROJECT_API_TOKEN: 'single' }), '{nope');
+  // No asset in the register, no fold.
+  assert.equal(clarityFields({ CLARITY_PROJECT_API_TOKEN: 'single' }, null), undefined);
+});
+
 test('import PUTs each complete provider once and reports by NAME', async () => {
   const calls = [];
   const result = await runCredentialImport({

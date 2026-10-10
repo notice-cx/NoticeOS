@@ -406,6 +406,25 @@ test('a rejected token names ASSET_TOKENS in the fix, and untokened properties a
   assert.match(result.rows[0].sub[0], /ASSET_TOKENS\["/);
 });
 
+test('a mapped counter the endpoint no longer serves warns by name, beside the sample', async () => {
+  const prometheus = enabledPullEntries.find((e) => e.format === 'prometheus');
+  const mapped = Object.values(prometheus.metrics).map((m) => m.counter);
+  const [served, ...gone] = mapped;
+  const probeWith = (body) =>
+    withMockFetch(
+      async () => new Response(body, { status: 200 }),
+      () => probeFixturePull({ ASSET_TOKENS: JSON.stringify({ [prometheus.asset]: 't' }) }),
+    );
+
+  const result = await probeWith(`d1_row_count{table="${served}"} 5\nd1_row_count{table="extra"} 1\n`);
+  assert.deepEqual(result.rows.map((row) => row.state), ['warn', 'pass']);
+  assert.equal(result.rows[0].detail, `mapped counters absent from the response: ${gone.join(', ')}`);
+
+  // A body with no table or counter labels samples metric names and judges no mapping.
+  const unlabelled = await probeWith('process_uptime_seconds 12\n');
+  assert.deepEqual(unlabelled.rows.map((row) => [row.state, row.detail]), [['pass', '1 counters — process_uptime_seconds']]);
+});
+
 test('no pullable property yet → one quiet skip row, nothing fetched', async () => {
   let fetches = 0;
   const result = await withMockFetch(
