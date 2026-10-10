@@ -673,51 +673,28 @@ The word on the page is **task** ([doc 14](14-design.md)): `bd` keeps its own
 noun in the CLI and the ids, where it names the tool's object rather than
 ours.
 
-**What it reads.** The newest row of `beads_snapshots`
-([`noticeos.beads_snapshots`](../db/postgres/migrations/0001_baseline.sql)),
-plus its daily rollup (`beads_daily_counts`). The Tower cannot reach the task hub — the hub speaks MySQL
-and lives on the operator's Mac — so the local runner
-([`scripts/os-up.mjs`](../scripts/os-up.mjs)) shells `bd` once a minute per
-spoke and POSTs what it saw to `POST /api/beads-snapshot`. Only the **latest**
-snapshot is rendered: the table keeps two days
-(`BEADS_SNAPSHOT_RETENTION_DAYS`) for the Wall's feed, but falling back to an older row would hide exactly the
-failure the age chip exists to reveal.
+**What it reads.** The newest task snapshot the local runner filed: the Tower
+cannot reach the task hub, so the runner reads every project once a minute and
+posts what it saw ([how](../workers/ingest/README.md#beads-snapshots-the-task-hub-photograph)).
+Only the **latest** snapshot is rendered; falling back to an older row would
+hide exactly the failure the age chip exists to reveal.
 
 **Layout** (`apps/tower/src/routes/tasks/TasksBoard.tsx`): the filter row, a
 KPI strip, Waiting on you, then every other task in one table, each row
 expanding in place. A project the poller could not read is named in one banner
 with Retry; before any snapshot the page leads to Connect.
 
-**A local task lane, and it is the operator's.** An agent still claims and closes with `bd`, in the repo where
-the work is, because that is where it has the context to be honest about it.
-The operator does not need a second tool for the most frequent action in the
-product. The hub is a Dolt
-(MySQL) server on the local host that a Worker cannot reach, but
-the `os:up` Vite process can: `apps/tower/vite/task-lane.ts` serves
-`/api/tasks/*` and `/api/gates/*` by running `bd` inside the repository the
-saved task projects name, joined to the installation's `task-host.json`
-(`scripts/task-project-config.mts`) — the same projects the poller reads.
-
-Three guards, all load-bearing. **Same origin**, the shared boundary the config
-lane uses (`apps/tower/vite/lane.ts`) — there is no authentication on the LAN
-Tower and none is being added, so what must be impossible is another site
-steering this browser into a write here. **An allowlist of twelve verbs** —
-five reads (`list`, `ready`, `show`, `comments`, `epic status`) and seven writes
-(`create`, `update` incl. `--claim` and `--defer`, `close -r`, `comments add`,
-`human respond`, `human dismiss`, `gate resolve`) — checked *before* anything is
-spawned, so `bd delete`, `bd sql`, `bd import` and the rest are not commands
-this lane can be talked into. And **`--actor` on every write**, set to this
-checkout's own `git user.name`, so the hub's interaction log says the operator
-did it rather than guessing. `bd`'s stderr comes back verbatim in `detail`; a
-non-zero exit is a `502 bd_failed`, never a silent nothing.
-
-**A deployed build keeps the snapshot board, and says why.** `apply: "serve"`
-compiles the lane out of every build by construction, so there is nothing to
-guard there: the Worker answers `GET /api/tasks/capabilities` with
-`{live: false}` plus the reason, and `501 read_only_deployment` on every other
-task path (`apps/tower/worker/tasks-route.ts`). The `/api/work` snapshot still
-renders everywhere — the board degrades to what it always was rather than
-breaking.
+**A local task lane, and it is the operator's.** An agent still claims and
+closes with `bd`, in the repo where the work is, because that is where it has
+the context to be honest about it. The operator should not need a second tool
+for the most frequent action in the product, so the local Tower runs the
+operator's `bd` commands for them: a short allowlist of verbs, every write
+signed with the operator's name, nothing reachable from another site. The
+verbs, the guards and the refusals are written once, in
+[the task lane](../config/beads.README.md#the-towers-task-lane--the-operators-hands-not-an-agents).
+**A deployed build keeps the snapshot board, and says why**: it has no lane,
+so the board degrades to the read-only snapshot rather than breaking, says so
+once in a banner, and leaves its write controls disabled.
 
 **The board is a board you can act on.**
 
@@ -843,11 +820,11 @@ agent's path, carries the whole evidence brief rather than only the task, and is
 the only path in a deployed build — where the button renders disabled carrying
 the lane's own sentence rather than vanishing.
 
-`/alerts` gains a fourth handoff kind, `alert`, keyed on `flags.id` rather than
-the rule id: one rule fires many times on one asset, and only the flag id names
-the firing on screen. Filing does not touch the flag's own lifecycle — *somebody
-is working on it* and *the condition stopped* are different facts, so Mark read
-and Resolve keep meaning exactly what they meant. A **grouped** never-reported
+An alert row files the `alert` handoff kind (each kind's key is in
+[Handoff metadata](../config/beads.README.md#handoff-metadata)). Filing does not
+touch the flag's own lifecycle — *somebody is working on it* and *the condition
+stopped* are different facts, so Mark read and Resolve keep meaning exactly
+what they meant. A **grouped** never-reported
 row offers no File task at all: it stands for several assets that
 each have their own flag, so there is no single firing for `noticeos_key` to
 name, and work on a portfolio-wide condition is one task the operator writes

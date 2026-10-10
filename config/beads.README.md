@@ -203,19 +203,33 @@ any spoke's copy drifts. Change it here first, then re-stamp the spokes
 
 `bd` is the only write path an agent uses: an agent claims and closes work in
 the repo where the work happens, because that is where it has the context to be
-honest about what it did. The operator also has a UI: the Tower's `os:up`
-dev server carries a local lane (`apps/tower/vite/task-lane.ts`, serving
-`/api/tasks/*` and `/api/gates/*`) that runs `bd` for the operator inside the
-spoke this file names. Twelve verbs (`ALLOWED_VERBS`) are checked before
-anything is spawned — reads `list`, `ready`, `show`, `comments`,
-`epic status`; writes `create`, `update`, `close -r`, `comments add`,
-`human respond`, `human dismiss`, `gate resolve` — and everything else
-(`delete`, `sql`, `dolt`, `import`, `export`, `federation`, `backup`) is
-refused by name. `--actor` is the operator on every write, the checkout's own
-`git user.name`, so the hub's audit trail keeps saying who touched what. A
-deployed Tower answers `{live: false}` and `501` and keeps the read-only
-snapshot board. The lane's File button replaces the pasted `bd create`
-command, not the judgment.
+honest about what it did. The operator also has a UI. The hub is a Dolt server
+on the local host that a Worker cannot reach, but the Tower's `os:up` dev
+server can: a local lane (`apps/tower/vite/task-lane.ts`, serving
+`/api/tasks/*` and `/api/gates/*`) runs `bd` for the operator inside the
+checkout `task-host.json` links to each saved project, the same projects the
+poller reads. Three guards, all load-bearing:
+
+- **Same origin** (`apps/tower/vite/lane.ts`, the guard the config lane uses),
+  for reads too, since every path spawns a process. The LAN Tower has no
+  authentication, so what must be impossible is another site steering the
+  browser into a write here.
+- **An allowlist of twelve verbs** (`ALLOWED_VERBS`), checked before anything
+  is spawned: reads `list`, `ready`, `show`, `comments`, `epic status`; writes
+  `create`, `update` (including `--claim` and `--defer`), `close -r`,
+  `comments add`, `human respond`, `human dismiss`, `gate resolve`. Anything
+  else (`delete`, `sql`, `dolt`, `import`, `export`, `federation`, `backup`,
+  `restore`, `config`, `hooks`, `compact`, …) is refused with the verb named.
+- **`--actor` on every write**, the checkout's own `git user.name`, so the
+  hub's audit trail keeps saying who touched what.
+
+`bd`'s stderr comes back verbatim in `detail`; a non-zero exit is a
+`502 bd_failed`, never a silent nothing. A deployed Tower compiles the lane out
+(`apply: "serve"`): its Worker answers `GET /api/tasks/capabilities` with
+`{live: false}` and every other task path with `501 read_only_deployment`
+(`apps/tower/worker/tasks-route.ts`), and keeps the read-only snapshot board.
+The lane's File button replaces the pasted `bd create` command, not the
+judgment.
 
 ## Conventions
 

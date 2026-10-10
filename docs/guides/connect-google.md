@@ -45,6 +45,16 @@ The panel shows two numbered steps with links into the Google Cloud console, the
 3. In the console, download the client's JSON file and drop it on **Drop client_secret.json**. Its id and secret are stored encrypted like any other credential.
 4. Select **Continue with Google** and finish with the hosted sign-in steps.
 
+## If you opened the Tower from another computer
+
+Google accepts a plain `http://` return address only on the computer running NoticeOS itself (`127.0.0.1` or `localhost`). If you opened the Tower by its network address, the panel offers **Open on 127.0.0.1** instead of **Continue with Google**.
+
+1. On the computer running NoticeOS, select **Open on 127.0.0.1**, or open the Tower at `http://127.0.0.1` with its usual port.
+2. Make sure the redirect address the panel shows there is in the web client's redirect list.
+3. Sign in. Every other device then shows the Google row as connected; only starting a sign-in needs the local address.
+
+An installation served over `https://` needs none of this: register that address's redirect instead.
+
 ## Remove the seven-day limit
 
 A new consent screen in the Google Cloud console starts in Testing. While it stays there, Google ends the sign-in seven days after it is granted, and the row shows **Expires in 7d** from the start.
@@ -70,7 +80,7 @@ Which GA4 property and Search Console site belong to each of your sites is your 
 - The panel says **Redirect address not in the client**: the client's redirect list does not include this Tower's address. Add it in the console and drop the file again. A desktop or service-account file is refused.
 - The row names a revoked or expired grant, or shows the wrong email: select **Manage**, then **Disconnect**, and sign in again. Disconnecting also revokes the grant at Google.
 
-More symptoms are in [Troubleshooting](/operate/troubleshooting). The full account of connecting Google is in [doc 11, Integrations & economics](../11-integrations.md#connecting-google).
+More symptoms are in [Troubleshooting](/operate/troubleshooting). What Google costs, its quotas and how a sign-in fails are in [doc 11, Integrations & economics](../11-integrations.md#connecting-google).
 
 ## Next steps
 
