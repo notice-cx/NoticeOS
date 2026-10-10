@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import * as osUp from './os-up.mjs';
 import {
   configDocumentsUrl,
   configStoreLine,
@@ -60,13 +59,4 @@ test('each note is said once from the OS’s answer, and is silent when it canno
 test('the notes ask this machine’s own Tower and ingest', () => {
   assert.equal(integrationProvidersUrl({ towerPort: 8854 }), 'http://127.0.0.1:8854/api/integrations/providers');
   assert.equal(configDocumentsUrl({ ingestHost: '127.0.0.1', ingestPort: 8855 }), 'http://127.0.0.1:8855/api/config-documents');
-});
-
-test('os-up.mjs still offers the same startup notes', () => {
-  assert.equal(osUp.reportConfigStore, reportConfigStore);
-  assert.equal(osUp.reportLegacyEnvCredentials, reportLegacyEnvCredentials);
-  assert.equal(osUp.configStoreLine, configStoreLine);
-  assert.equal(osUp.legacyEnvLine, legacyEnvLine);
-  assert.equal(osUp.configDocumentsUrl, configDocumentsUrl);
-  assert.equal(osUp.integrationProvidersUrl, integrationProvidersUrl);
 });

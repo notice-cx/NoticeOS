@@ -29,7 +29,9 @@ import {
   runtimeLayout,
   statePaths,
 } from './os-runtime.mjs';
-import { parseJobRuns, runnerPaths, startupCatchupPlan } from './os-up.mjs';
+import { parseJobRuns } from './job-runs.mjs';
+import { runnerPaths } from './runner/config.mjs';
+import { startupCatchupPlan } from './runner/scheduler.mjs';
 import { postgresRequired, startTestCluster, unavailableReason } from './postgres-test-cluster.mjs';
 import { runCommand } from './run-command.mjs';
 import { runnerRecordedMigrations } from './runner/database.mjs';

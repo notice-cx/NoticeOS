@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import * as osUp from './os-up.mjs';
 import { CONFIG } from './runner/config.mjs';
 import {
   INVALID_PANEL_REVIEW_LABEL,
@@ -145,11 +144,4 @@ test('an already-filed review is not held for its panel', async () => {
   const pass = filer({ landings: [{ asset: 'shop.example', panelDate: '2026-09-21', queries: 4 }], existing: filed, panel: () => null });
   assert.deepEqual((await runPanelReviewFiler(UP, pass.deps)).filed, []);
   assert.deepEqual(pass.lines, []);
-});
-
-test('os-up.mjs still offers the same panel-review names', () => {
-  assert.equal(osUp.runPanelReviewFiler, runPanelReviewFiler);
-  assert.equal(osUp.panelReviewEntry, panelReviewEntry);
-  assert.equal(osUp.panelReviewTitle, panelReviewTitle);
-  assert.equal(osUp.PANEL_REVIEW_LABEL, PANEL_REVIEW_LABEL);
 });

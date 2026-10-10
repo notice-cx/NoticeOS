@@ -83,7 +83,6 @@ function emitterKinds() {
 
 function pollerKinds() {
   assert.match(source('scripts/runner/task-snapshot.mjs'), /export \* from '\.\.\/task-snapshot-summary\.mjs';/);
-  assert.match(source('scripts/os-up.mjs'), /export\s*\{[^}]*\bHANDOFF_KINDS\b[^}]*\}\s*from '\.\/runner\/task-snapshot\.mjs';/);
   assert.equal(HANDOFF_KINDS, BEADS_HANDOFF_KINDS, 'The poller must use the shared handoff-kind contract.');
   return HANDOFF_KINDS;
 }
@@ -160,7 +159,7 @@ function readmeKinds() {
 /** Read in the order a change travels: emitted, polled, validated, rendered. */
 const SOURCES = [
   { where: 'apps/tower/src/lib/task-handoff.ts', what: 'TaskHandoffKind', read: emitterKinds },
-  { where: 'scripts/os-up.mjs', what: 'HANDOFF_KINDS', read: pollerKinds },
+  { where: 'scripts/runner/task-snapshot.mjs', what: 'HANDOFF_KINDS', read: pollerKinds },
   { where: 'workers/ingest/src/beads-snapshots.ts', what: 'BEADS_HANDOFF_KINDS', read: validatorKinds },
   { where: 'apps/tower/worker/beads-snapshot.ts', what: 'readHandoff', read: towerReaderKinds },
   { where: 'apps/tower/shared/asset-detail.ts', what: 'HandoffKind', read: sharedTypeKinds },

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import * as osUp from './os-up.mjs';
 import { laneSkips } from './runner/log.mjs';
+
 import {
   BEADS_ERROR_MAX,
   beadsCloseArgs,
@@ -149,12 +149,5 @@ test("a bd that exits non-zero is data for the lane, never a throw", async () =>
   } finally {
     if (saved === undefined) delete process.env.BEADS_BD_BIN;
     else process.env.BEADS_BD_BIN = saved;
-  }
-});
-
-test('os-up.mjs still offers the same task-hub names', () => {
-  for (const [name, value] of Object.entries({ beadsCreatedId, beadsHubDiagnosis, beadsHubHealthLine,
-    parseBeadsProjects, parseDoltServers, runBd })) {
-    assert.equal(osUp[name], value, name);
   }
 });

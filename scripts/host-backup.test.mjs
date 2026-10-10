@@ -11,7 +11,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { createHash, randomUUID } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { runBackup, backupRunOutcome, hostBackupFile, readOffsiteBackupDir } from './host-backup.mjs';
-import { runJobLane } from './os-up.mjs';
+import { runJobLane } from './runner/job-record.mjs';
 import { createWorkflowRecorder } from './workflow-trace.mjs';
 import { isWorkflowStepOutput } from './workflow-output.mjs';
 import { heldHistory, heldRows } from './test-fixtures/analytical-history.mjs';

@@ -4,9 +4,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import * as osUp from './os-up.mjs';
 import { parseJobRuns } from './job-runs.mjs';
-import { REPO_ROOT, runnerPaths } from './runner/config.mjs';
+import { REPO_ROOT, runnerPaths, CONFIG } from './runner/config.mjs';
 import {
   JOB_RUNS_FILE,
   REGULAR_LANE_HELD,
@@ -94,13 +93,5 @@ test('shipping waits for a runtime, then posts to this runner’s door', async (
   assert.equal(posted.length, 0);
   armJobRunShipping({ running: true, ready: true }, [record], NOW, state);
   await shipJobRuns(null, deps);
-  assert.equal(posted[0]?.url, jobRunsUrl(osUp.CONFIG));
-});
-
-test('os-up.mjs still offers the same job-record functions', () => {
-  for (const name of ['armJobRunShipping', 'jobRunAge', 'jobRunStartupLines', 'jobRunsUrl', 'reportJobRuns',
-    'runJobLane', 'shipJobRuns', 'summarizeJobRuns']) {
-    assert.equal(osUp[name], { armJobRunShipping, jobRunAge, jobRunStartupLines, jobRunsUrl, reportJobRuns,
-      runJobLane, shipJobRuns, summarizeJobRuns }[name], name);
-  }
+  assert.equal(posted[0]?.url, jobRunsUrl(CONFIG));
 });

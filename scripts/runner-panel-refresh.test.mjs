@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import * as osUp from './os-up.mjs';
 import { REPO_ROOT } from './runner/config.mjs';
 import { runPanelRefresh } from './runner/panel-refresh.mjs';
 
@@ -53,8 +52,4 @@ test('a command that could not start is a failed pass, not a crash', async () =>
   const { deps } = lane({ code: null, error: new Error('pnpm not found') });
   assert.deepEqual(await runPanelRefresh(UP, deps), { code: 1, seconds: 0 });
   assert.equal(deps.state.running, false, 'the lane is free for the next pass');
-});
-
-test('os-up.mjs still offers the same panel refresh', () => {
-  assert.equal(osUp.runPanelRefresh, runPanelRefresh);
 });

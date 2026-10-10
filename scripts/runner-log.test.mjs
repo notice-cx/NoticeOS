@@ -4,15 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import * as osUp from './os-up.mjs';
-import {
-  LOG_LINE_MAX_CHARS,
-  LOG_MAX_BYTES,
-  LOG_ROTATIONS,
-  log,
-  rotateLogFile,
-  writeLine,
-} from './runner/log.mjs';
+import { LOG_LINE_MAX_CHARS, log, rotateLogFile, writeLine } from './runner/log.mjs';
 
 // scripts/runner/log.mjs: the runner's one combined log.
 // These tests never open the log file itself (openLog), so they write nothing
@@ -79,11 +71,4 @@ test('rotation at the bound keeps a fixed number of old logs', async () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
-});
-
-test('os-up.mjs still offers the same log bounds and rotation', () => {
-  assert.equal(osUp.rotateLogFile, rotateLogFile);
-  assert.equal(osUp.LOG_MAX_BYTES, LOG_MAX_BYTES);
-  assert.equal(osUp.LOG_ROTATIONS, LOG_ROTATIONS);
-  assert.equal(osUp.LOG_LINE_MAX_CHARS, LOG_LINE_MAX_CHARS);
 });

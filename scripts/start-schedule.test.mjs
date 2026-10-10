@@ -197,8 +197,9 @@ async function settingsDoor(t, { spokes = [] } = {}) {
 
 /** The managed runner's task board code, with `bd` answered here. */
 async function taskBoardRunner(bdCalls) {
-  const managed = await import('./os-up.mjs');
-  return { ...managed, runBd: async (argv) => (bdCalls.push(argv), { code: 0, stdout: '[]', stderr: '' }) };
+  const { runBeadsPoll } = await import('./runner/task-snapshot.mjs');
+  const { probeTcp } = await import('./runner/host-tools.mjs');
+  return { runBeadsPoll, probeTcp, runBd: async (argv) => (bdCalls.push(argv), { code: 0, stdout: '[]', stderr: '' }) };
 }
 
 function installationFile(home, name, body) {

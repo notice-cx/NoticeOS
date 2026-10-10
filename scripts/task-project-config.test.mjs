@@ -4,7 +4,9 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { beadsDatabaseName, readTaskHost, readTaskProjects, readTaskProjectConfig, resolveTaskProjects } from './task-project-config.mjs';
-import { collectBeadsSnapshot, parseBeadsProjects, runBeadsPoll, runWatchReadbackFiler } from './os-up.mjs';
+import { parseBeadsProjects } from './runner/task-hub.mjs';
+import { collectBeadsSnapshot, runBeadsPoll } from './runner/task-snapshot.mjs';
+import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 
 const old = { asset: 'old.example', prefix: 'old', database: 'old', repo: '../old' };
 const current = { asset: 'current.example', prefix: 'cur', database: 'cur', repo: '../untrusted-request' };
