@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
-import { END, REPO_ROOT, START, blocks, currentBlock, fieldRule, renderRegister } from './config-docs.mjs';
+import { DOCS_PAGE, END, REPO_ROOT, START, blocks, currentBlock, fieldRule, renderDocsPage, renderRegister } from './config-docs.mjs';
 
 // Each config README's "what the Tower may edit here" block is generated from
 // scripts/config-registers.mts, so a README cannot describe a field the
@@ -32,4 +32,7 @@ test('every owning README exists and carries the current block (pnpm config:docs
     assert.ok(current, `${owner} has no ${START} … ${END} block`);
     assert.equal(current, block, `${owner}: the registers block is stale`);
   }
+  const page = path.join(REPO_ROOT, DOCS_PAGE);
+  assert.ok(existsSync(page), `${DOCS_PAGE} is missing`);
+  assert.equal(readFileSync(page, 'utf8'), renderDocsPage(), `${DOCS_PAGE} is stale`);
 });

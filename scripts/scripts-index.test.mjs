@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
-import { END, README, REPO_ROOT, START, currentBlock, headerLine, indexRows, renderIndex, scriptFile, withBlock } from './scripts-index.mjs';
+import { END, README, REPO_ROOT, START, currentBlock, headerLine, indexRows, renderIndex, scriptFile, targets, withBlock } from './scripts-index.mjs';
 
 // The command index in scripts/README.md is generated from package.json and
 // each script's header, so it cannot say something the code does not.
@@ -36,6 +36,11 @@ test('the committed index matches what the code says (pnpm scripts:index -- --wr
   const block = currentBlock(readme);
   assert.ok(block, `${README} has no ${START} … ${END} block`);
   assert.equal(block, renderIndex(indexRows(REPO_ROOT)));
+  for (const target of targets(REPO_ROOT)) {
+    const file = path.join(REPO_ROOT, target.file);
+    assert.ok(existsSync(file), `${target.file} is missing`);
+    assert.ok(target.current(readFileSync(file, 'utf8')), `${target.file} is stale`);
+  }
 });
 
 test('a README without markers gets the block before its first section', () => {

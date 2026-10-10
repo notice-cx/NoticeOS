@@ -92,27 +92,58 @@ export function currentBlock(readme) {
 
 export function withBlock(readme, block) {
   const current = currentBlock(readme);
-  if (current) return readme.replace(current, block);
+  // A function replacer: a `$` inside the block is never a replacement pattern.
+  if (current) return readme.replace(current, () => block);
   // No markers yet: the index goes before the first section heading.
   const at = readme.search(/^# /mu);
   return at < 0 ? `${readme.trimEnd()}\n\n${block}\n` : `${readme.slice(0, at)}${block}\n\n${readme.slice(at)}`;
 }
 
-export function main(argv = process.argv.slice(2), root = REPO_ROOT) {
+/** The documentation site's commands page: the same block under a page heading. */
+export const DOCS_PAGE = 'apps/docs/reference/commands.md';
+
+export function renderDocsPage(block) {
+  return [
+    '---',
+    'title: Commands',
+    'description: Every command the repository offers, generated from package.json and each script\'s own header.',
+    '---',
+    '',
+    '# Commands',
+    '',
+    'Every command is a `pnpm` script in the repository\'s `package.json`. Run one from a checkout as `pnpm <name>`; pass a script\'s own options after `--`, for example `pnpm os:logs -- --lines 200`. The procedures behind the commands that need one are in [`scripts/README.md`](https://github.com/notice-cx/NoticeOS/blob/main/scripts/README.md).',
+    '',
+    block,
+    '',
+  ].join('\n');
+}
+
+/** Every file that carries the index, with the content it should hold. */
+export function targets(root = REPO_ROOT) {
   const block = renderIndex(indexRows(root));
-  const file = path.join(root, README);
-  const readme = readFileSync(file, 'utf8');
-  if (argv.includes('--write')) {
-    writeFileSync(file, withBlock(readme, block));
-    return 0;
+  return [
+    { file: README, content: (text) => withBlock(text, block), current: (text) => currentBlock(text) === block },
+    { file: DOCS_PAGE, content: () => renderDocsPage(block), current: (text) => text === renderDocsPage(block) },
+  ];
+}
+
+export function main(argv = process.argv.slice(2), root = REPO_ROOT) {
+  let stale = 0;
+  for (const target of targets(root)) {
+    const file = path.join(root, target.file);
+    const text = existsSync(file) ? readFileSync(file, 'utf8') : '';
+    if (argv.includes('--write')) {
+      writeFileSync(file, target.content(text));
+    } else if (argv.includes('--check')) {
+      if (!target.current(text)) {
+        stale += 1;
+        process.stderr.write(`${target.file}: the command index is stale; run pnpm scripts:index -- --write\n`);
+      }
+    } else if (target.file === README) {
+      process.stdout.write(`${renderIndex(indexRows(root))}\n`);
+    }
   }
-  if (argv.includes('--check')) {
-    if (currentBlock(readme) === block) return 0;
-    process.stderr.write(`${README}: the command index is stale; run pnpm scripts:index -- --write\n`);
-    return 1;
-  }
-  process.stdout.write(`${block}\n`);
-  return 0;
+  return stale ? 1 : 0;
 }
 
 const invoked = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
