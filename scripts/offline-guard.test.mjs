@@ -1,12 +1,10 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import http from 'node:http';
 import { once } from 'node:events';
 import { installOfflineGuard, startOfflineProxy } from '../apps/tower/e2e/offline-guard.mjs';
-import { exerciseCopiedStoreBrowser, withOfflineContext } from '../apps/tower/e2e/rehearsal-browser.mjs';
 
-test('normal contexts require their own fixture transport and the proxy rejects foreign authorities', async t => {
+test('a guarded context requires its own fixture transport and the proxy rejects foreign authorities', async t => {
   await assert.rejects(installOfflineGuard({}, 'http://127.0.0.1:5333'), /owned proxy transport/);
   for (const origin of ['https://127.0.0.1:5333', 'http://localhost:5333', 'http://127.0.0.1:5333/path']) {
     await assert.rejects(startOfflineProxy(origin), /owned loopback origin/);
@@ -72,91 +70,55 @@ test('the proxy retains a truncated owned response as a failure and closes held 
   await transport.close(); await held;
 });
 
-test('route failures remain generic caller-visible failures instead of rejected event callbacks', async () => {
-  let handler;
-  const context = { async route(_, handle) { handler = handle; }, async routeWebSocket() {}, on() {}, async close() {} };
-  const guard = await installOfflineGuard(context, 'http://127.0.0.1:5333', { strict: true });
-  await handler({ request: () => ({ url: () => 'http://127.0.0.1:5333/private-url-sentinel' }),
-    async fetch() { throw new Error('private-url-sentinel'); }, async abort() {} });
-  assert.equal(guard.check(), 'The offline browser could not complete an internal request.');
-  await assert.rejects(guard.close(), error => error.code === 'OFFLINE_BROWSER_REQUEST_FAILED' && !error.message.includes('sentinel'));
-});
-
-test('fallback, fulfil, abort and WebSocket failures are retained without exposing diagnostics', async t => {
-  for (const operation of ['fallback', 'fulfill', 'abort', 'websocket']) {
-    let handler, websocket;
-    const context = { async route(_, handle) { handler = handle; }, async routeWebSocket(_, handle) { websocket = handle; }, on() {}, async close() {} };
-    const transport = operation === 'fallback' ? await startOfflineProxy('http://127.0.0.1:5333') : undefined;
-    if (transport) t.after(() => transport.close());
-    const guard = await installOfflineGuard(context, 'http://127.0.0.1:5333', { strict: operation !== 'fallback', transport });
+test('fallback and abort failures are retained without exposing diagnostics', async t => {
+  for (const operation of ['fallback', 'abort']) {
+    let handler;
+    const context = { async route(_, handle) { handler = handle; }, on() {}, async close() {} };
+    const transport = await startOfflineProxy('http://127.0.0.1:5333');
+    t.after(() => transport.close());
+    const guard = await installOfflineGuard(context, 'http://127.0.0.1:5333', { transport });
     const fail = async () => { throw new Error('private-url-sentinel'); };
-    if (operation === 'websocket') await websocket({ close: fail });
-    else await handler({ request: () => ({ url: () => operation === 'abort' ? 'http://127.0.0.1:5334/private-url-sentinel' : 'http://127.0.0.1:5333/save',
-      isNavigationRequest: () => false }), fallback: fail, fulfill: fail,
-      async fetch() { return { status: () => 200, headers: () => ({}) }; }, abort: operation === 'abort' ? fail : async () => {} });
+    await handler({ request: () => ({ url: () => operation === 'abort' ? 'http://127.0.0.1:5334/private-url-sentinel' : 'http://127.0.0.1:5333/save' }),
+      fallback: fail, abort: operation === 'abort' ? fail : async () => {} });
     guard.clear(); // Refusal can be reset; transport failure cannot.
     await assert.rejects(guard.close(), error => error.code === 'OFFLINE_BROWSER_REQUEST_FAILED' && !error.message.includes('sentinel'));
   }
 });
 
-test('denial stays installed during close and cancellation is recognized only by its owned close reason', async () => {
-  let handler, websocket, rejectFetch, started;
+test('denial stays installed during close and cancellation is recognized only by its owned close reason', async t => {
+  let handler, rejectFallback, started;
   const inFlight = new Promise(resolve => { started = resolve; });
-  let aborted = 0, socketClosed = 0;
-  const context = { async route(_, handle) { handler = handle; }, async routeWebSocket(_, handle) { websocket = handle; }, on() {},
+  let aborted = 0;
+  const context = { async route(_, handle) { handler = handle; }, on() {},
     async close({ reason }) {
       await handler({ request: () => ({ url: () => 'http://127.0.0.1:5334/private-url-sentinel' }), async abort() { aborted++; } });
-      await websocket({ async close() { socketClosed++; } });
-      rejectFetch(new Error(reason));
+      rejectFallback(new Error(reason));
     } };
-  const guard = await installOfflineGuard(context, 'http://127.0.0.1:5333', { strict: true });
+  const transport = await startOfflineProxy('http://127.0.0.1:5333');
+  t.after(() => transport.close());
+  const guard = await installOfflineGuard(context, 'http://127.0.0.1:5333', { transport });
   const pending = handler({ request: () => ({ url: () => 'http://127.0.0.1:5333/delayed' }),
-    fetch() { started(); return new Promise((_, reject) => { rejectFetch = reject; }); }, async abort() {} });
+    fallback() { started(); return new Promise((_, reject) => { rejectFallback = reject; }); }, async abort() {} });
   await inFlight;
   await guard.close();
   await pending;
-  assert.deepEqual([aborted, socketClosed], [1, 1]);
-  assert.equal(guard.check(), 'The offline browser refused an external request.');
+  assert.equal(aborted, 1);
+  assert.equal(guard.check(), null);
 });
 
-test('genuine request failure during teardown still reaches the caller', async () => {
-  let handler, rejectFetch, started;
+test('genuine request failure during teardown still reaches the caller', async t => {
+  let handler, rejectFallback, started;
   const inFlight = new Promise(resolve => { started = resolve; });
-  const context = { async route(_, handle) { handler = handle; }, async routeWebSocket() {}, on() {},
-    async close() { rejectFetch(new Error('private-url-sentinel genuine failure')); } };
-  const guard = await installOfflineGuard(context, 'http://127.0.0.1:5333', { strict: true });
+  const context = { async route(_, handle) { handler = handle; }, on() {},
+    async close() { rejectFallback(new Error('private-url-sentinel genuine failure')); } };
+  const transport = await startOfflineProxy('http://127.0.0.1:5333');
+  t.after(() => transport.close());
+  const guard = await installOfflineGuard(context, 'http://127.0.0.1:5333', { transport });
   const pending = handler({ request: () => ({ url: () => 'http://127.0.0.1:5333/delayed' }),
-    fetch() { started(); return new Promise((_, reject) => { rejectFetch = reject; }); }, async abort() {} });
+    fallback() { started(); return new Promise((_, reject) => { rejectFallback = reject; }); }, async abort() {} });
   await inFlight;
   await assert.rejects(guard.close(), error => error.code === 'OFFLINE_BROWSER_REQUEST_FAILED');
   await pending;
-});
-
-test('guarded context cleanup preserves its primary failed check and reports late failures', async () => {
-  const primary = new Error('original required check');
-  const context = () => ({ async route() {}, async routeWebSocket() {}, on() {}, async close() { throw new Error('private cleanup sentinel'); } });
-  const browser = { async newContext() { return context(); } };
-  await assert.rejects(withOfflineContext(browser, 'http://127.0.0.1:5333', async () => { throw primary; }), error => error === primary);
-  await assert.rejects(withOfflineContext(browser, 'http://127.0.0.1:5333', async () => {}), error => error.code === 'OFFLINE_BROWSER_CLEANUP_FAILED' && !error.message.includes('sentinel'));
-  const steps = [];
-  await assert.rejects(exerciseCopiedStoreBrowser({ rateValue: NaN, onStep: step => steps.push(step) }), error =>
-    error.code === 'COPIED_BROWSER_CHECK_FAILED' && error.step === 'input' && !error.message.includes('NaN'));
-  assert.deepEqual(steps, ['input']);
-});
-
-test('primary assertion survives cancellation of a route still in flight', async () => {
-  const primary = new Error('original required check');
-  let handler, rejectFetch, started;
-  const inFlight = new Promise(resolve => { started = resolve; });
-  const context = { async route(_, handle) { handler = handle; }, async routeWebSocket() {}, on() {},
-    async close({ reason }) { rejectFetch(new Error(reason)); } };
-  const browser = { async newContext() { return context; } };
-  await assert.rejects(withOfflineContext(browser, 'http://127.0.0.1:5333', async () => {
-    void handler({ request: () => ({ url: () => 'http://127.0.0.1:5333/delayed' }),
-      fetch() { started(); return new Promise((_, reject) => { rejectFetch = reject; }); }, async abort() {} });
-    await inFlight;
-    throw primary;
-  }), error => error === primary);
 });
 
 const enabled = process.env.NOTICEOS_TEST_OFFLINE_BROWSER === '1';
@@ -271,48 +233,4 @@ test('owned proxy preserves native redirects and HMR while foreign redirects and
       }
     }
   }
-});
-
-test('delayed actual route is cancelled and drained before context teardown completes', { skip: !enabled, timeout: 30000 }, () => {
-  // Child isolation is intentional: the old route callback exits the process
-  // before caller cleanup can report its failure.
-  const script = `
-    import assert from 'node:assert/strict';
-    import http from 'node:http';
-    import { once } from 'node:events';
-    import { JOURNEY_BROWSERS } from './apps/tower/e2e/journey-browsers.mjs';
-    import { installOfflineGuard } from './apps/tower/e2e/offline-guard.mjs';
-    process.env.PLAYWRIGHT_BROWSERS_PATH = JOURNEY_BROWSERS;
-    const { chromium } = await import('./apps/tower/node_modules/@playwright/test/index.mjs');
-    let arrived;
-    const pending = new Promise(resolve => arrived = resolve);
-    const source = http.createServer((req, res) => {
-      if (req.url === '/private-url-sentinel') { arrived(); return; }
-      res.setHeader('content-type', 'text/html'); res.end('<!doctype html><title>Owned delayed request</title>');
-    });
-    source.listen(0, '127.0.0.1'); await once(source, 'listening');
-    const origin = 'http://127.0.0.1:' + source.address().port;
-    const browser = await chromium.launch({ headless: true });
-    try {
-      const context = await browser.newContext({ serviceWorkers: 'block' });
-      const guard = await installOfflineGuard(context, origin, { strict: true });
-      const page = await context.newPage();
-      await page.goto(origin);
-      await page.evaluate(() => { void fetch('/private-url-sentinel').catch(() => {}); });
-      await pending;
-      // The fallback makes this same reproduction executable against the
-      // original guard, where closing the request context causes the crash.
-      await (guard.close ? guard.close() : context.close());
-      assert.equal(guard.check(), null);
-    } finally {
-      await browser.close(); source.closeAllConnections();
-      await new Promise(resolve => source.close(resolve));
-    }
-    console.log('owned teardown complete');
-  `;
-  const run = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', timeout: 25000,
-    env: Object.fromEntries(['PATH', 'HOME', 'TMPDIR', 'LANG', 'LC_ALL', 'LC_CTYPE'].filter(key => process.env[key] !== undefined).map(key => [key, process.env[key]])) });
-  assert.equal(run.status, 0, 'delayed teardown must reach the caller without an unhandled rejection');
-  assert.equal(run.stdout.trim(), 'owned teardown complete');
-  assert.equal(run.stderr, '');
 });

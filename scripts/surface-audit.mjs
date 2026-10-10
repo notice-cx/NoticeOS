@@ -153,15 +153,9 @@ export function selfAndAncestors(node) {
   return [node, ...(node?.ancestors ?? [])];
 }
 
-/** Prose lives behind the one disclosure per screen. `[data-about]` is the
- * contract; `details.about` is an older shape still accepted. */
+/** Prose lives behind the one disclosure per screen, marked `[data-about]`. */
 export function isInsideAbout(node) {
-  return selfAndAncestors(node).some((step) => {
-    if (!step) return false;
-    if (hasAttribute(step, "data-about")) return true;
-    const classes = collapse(step.attrs?.class ?? "").split(" ");
-    return step.tag === "details" && classes.includes("about");
-  });
+  return selfAndAncestors(node).some((step) => hasAttribute(step, "data-about"));
 }
 
 /** A subtree the audit is told to ignore — the kitchen sink demonstrating a

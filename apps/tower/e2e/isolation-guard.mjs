@@ -21,6 +21,7 @@ import path from "node:path";
 import { syncBuiltinESMExports } from "node:module";
 import { fileURLToPath } from "node:url";
 import { installationDir } from "../../../scripts/installation.mjs";
+import { OWNER_PORTS } from "./journey-port.mjs";
 
 export const SECRET_FILES = Object.freeze([".dev.vars", ".dev.secrets.json"]);
 /** The checkout's own configuration directory: the operator's settings. */
@@ -28,7 +29,6 @@ export const OWNER_CONFIG_DIR = path.resolve(path.dirname(fileURLToPath(import.m
 /** This installation's own folder: its saved documents, change history and
  * host files. Refused exactly like config/. */
 export const OWNER_INSTALLATION_DIR = installationDir({ root: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..") });
-export const OWNER_PORTS = Object.freeze([5173, 8791, 3308]);
 export const VIOLATION_MARK = "JOURNEY_ISOLATION_VIOLATION";
 export const ARMED_MARK = "JOURNEY_ISOLATION_GUARD armed";
 

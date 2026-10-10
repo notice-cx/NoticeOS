@@ -560,7 +560,7 @@ async function pinnedGeneration(history, asset, generation) {
   if (!manifest) throw new JobFailure('refused', `${shown(history)} holds no published generation. Run pnpm signals:history first.`);
   if (manifest.asset === null) throw new JobFailure('refused', `${shown(history)} holds no site's provider archive yet. Run pnpm signals:history first.`);
   if (manifest.asset !== asset) throw new JobFailure('refused', `${shown(history)} holds ${manifest.asset}'s history, not ${asset}'s.`);
-  const derivation = await derivationOf(manifest.derivation.partitionBy);
+  const derivation = await derivationOf();
   if (manifest.derivation.id !== derivation.id) {
     throw new JobFailure('refused', `Generation ${manifest.generation} was written by other archive rules (derivation ${manifest.derivation.id}; this checkout's is ${derivation.id}). Run pnpm signals:history, which rewrites it under these rules, then analyze again.`);
   }

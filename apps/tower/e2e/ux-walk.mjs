@@ -45,23 +45,16 @@
 // the line it leads with, so an undeclared repeat fails the gate rather than
 // passing as two subjects.
 
+import { JOURNEY_NOW as NOW } from "./fixtures.ts";
 import { installGoogleConsent } from "./google-consent.mjs";
-import { mkdir } from "node:fs/promises";
 import path from "node:path";
-
-// Synthetic, public values: the same ones apps/tower/e2e/fixtures.ts exports
-// (JOURNEY_KEY, JOURNEY_ASSET, JOURNEY_SITE, JOURNEY_NOW). Never a real key.
-export const KEY = "journey-only-not-a-real-key";
-export const ASSET = "journey.example";
-export const SITE = "https://journey.example/";
-export const NOW = "2026-09-06T12:00:00.000Z";
 
 export const VIEWPORTS = Object.freeze({
   desktop: { viewport: { width: 1440, height: 900 } },
   phone: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1 },
 });
 
-export function areaOf(url) {
+function areaOf(url) {
   const { pathname } = new URL(url);
   if (pathname === "/") return "Home";
   if (pathname === "/assets/new") return "New asset";
@@ -73,16 +66,38 @@ export function areaOf(url) {
 
 // ── in-page probes (each runs in the browser; no closures) ────────────────────
 
-/** The guided step on screen, or null: runs in the page. A step navigation
- * inside an open dialog counts (a wizard in a panel is still a wizard); the
- * dialog itself does not. */
-export function viewInPage() {
+/** Where the person is reading: an open modal dialog (not the phone's
+ * navigation drawer or the command palette), else <main>. */
+function readingRoot() {
   const modal = [...document.querySelectorAll('[role="dialog"][aria-modal="true"], [role="alertdialog"]')].find((el) => {
     if (el.getAttribute("aria-label") === "Navigation" || el.querySelector("[cmdk-root]")) return false;
     const box = el.getBoundingClientRect();
     return box.width > 0 && box.height > 0;
   });
-  const root = modal ?? document.querySelector("main") ?? document.body;
+  return modal ?? document.querySelector("main") ?? document.body;
+}
+
+/** Whether the person can see `el`: it has a box, is not hidden, and is not
+ * inside a closed <details> (its summary excepted). */
+function shown(el) {
+  const box = el.getBoundingClientRect();
+  if (box.width === 0 || box.height === 0) return false;
+  const style = getComputedStyle(el);
+  if (style.visibility === "hidden" || style.display === "none" || Number(style.opacity) === 0) return false;
+  const closed = el.closest("details:not([open])");
+  return !(closed && !el.closest("summary"));
+}
+
+/** Runs an in-page probe as `fn({ root, shown }, arg)`: the two helpers are
+ * serialised into the page with it, since a probe can close over nothing. */
+export function probe(page, fn, arg = null) {
+  return page.evaluate(`(${fn})({ root: (${readingRoot})(), shown: ${shown} }, ${JSON.stringify(arg)})`);
+}
+
+/** The guided step on screen, or null. A step navigation inside an open
+ * dialog counts (a wizard in a panel is still a wizard); the dialog itself
+ * does not. */
+export function viewInPage({ root }) {
   let current = root.querySelector('[aria-current="step"]');
   if (!current) {
     for (const nav of root.querySelectorAll("nav[aria-label]")) {
@@ -95,23 +110,9 @@ export function viewInPage() {
   return (current.textContent ?? "").replace(/\s+/g, " ").trim().replace(/^\d+\s*/, "").slice(0, 60) || null;
 }
 
-/** Visible explanatory sentences where the person is reading: runs in the page. */
-export function proseInPage() {
-  // Where the person is reading: an open modal dialog (not the phone's
-  // navigation drawer or the command palette), else <main>.
-  const modal = [...document.querySelectorAll('[role="dialog"][aria-modal="true"], [role="alertdialog"]')]
-    .find((el) => el.getAttribute("aria-label") !== "Navigation" && !el.querySelector("[cmdk-root]") && el.getBoundingClientRect().width > 0);
-  const root = modal ?? document.querySelector("main") ?? document.body;
+/** Visible explanatory sentences where the person is reading. */
+export function proseInPage({ root, shown }) {
   const EXCLUDE = 'button,a,label,h1,h2,h3,h4,h5,h6,summary,nav,th,td,dt,dd,option,select,input,textarea,code,pre,svg,[role="tab"],[role="tooltip"],[data-sonner-toaster],[data-owner-chip],.sr-only,[data-walk-overlay]';
-  const shown = (el) => {
-    const box = el.getBoundingClientRect();
-    if (box.width === 0 || box.height === 0) return false;
-    const style = getComputedStyle(el);
-    if (style.visibility === "hidden" || style.display === "none" || Number(style.opacity) === 0) return false;
-    const closed = el.closest("details:not([open])");
-    if (closed && !el.closest("summary")) return false;
-    return true;
-  };
   // A text run belongs to its nearest block box, so an inline label and the
   // sentence beside it are one reading unit but two separate rows are two.
   const blockOf = (el) => {
@@ -140,32 +141,21 @@ export function proseInPage() {
       return !(parts.length >= 2 && parts.every((part) => words(part) <= 5));
     });
 }
-export const wordCount = (text) => text.split(" ").filter((word) => /[A-Za-z0-9]/.test(word)).length;
+const wordCount = (text) => text.split(" ").filter((word) => /[A-Za-z0-9]/.test(word)).length;
 
-/** Every visible status on the screen, with the subject it describes: runs in
- * the page. A status is a state chip, a banner, a setup-step state, or a leaf
- * element whose whole text is one of the product's status words. Its subject
+/** Every visible status on the screen, with the subject it describes. A
+ * status is a state chip, a banner, a setup-step state, or a leaf element
+ * whose whole text is one of the product's status words. Its subject
  * is the nearest `data-status-for` the markup declares; one that declares none
  * belongs to the screen (`page:<path>`), so two undeclared copies of one
  * status on a screen are a duplicate, never two subjects. */
-export function statusesInPage() {
-  const modal = [...document.querySelectorAll('[role="dialog"][aria-modal="true"], [role="alertdialog"]')]
-    .find((el) => el.getAttribute("aria-label") !== "Navigation" && !el.querySelector("[cmdk-root]") && el.getBoundingClientRect().width > 0);
-  const root = modal ?? document.querySelector("main") ?? document.body;
+export function statusesInPage({ root, shown }) {
   const url = new URL(location.href);
   const WORDS = new Set(["not connected", "connected", "awaiting first result", "working", "failing", "overdue", "idle", "paused",
     "not monitored", "unknown", "not recorded", "ready to connect", "connection saved", "no recorded use", "no assets assigned",
     "configured · not verified", "not set up", "needs setup", "awaiting first sync", "syncing daily", "never", "no data connected",
     "not connected · open to set up", "legacy env", "not verified", "verified", "receiving data", "onboarding",
     "key accepted", "signed in", "url accepted", "checking"]);
-  const shown = (el) => {
-    const box = el.getBoundingClientRect();
-    if (box.width === 0 || box.height === 0) return false;
-    const style = getComputedStyle(el);
-    if (style.visibility === "hidden" || style.display === "none" || Number(style.opacity) === 0) return false;
-    const closed = el.closest("details:not([open])");
-    return !(closed && !el.closest("summary"));
-  };
   const found = [];
   const seen = new Set();
   const add = (el, label, kind) => {
@@ -199,35 +189,26 @@ export function statusesInPage() {
   return found;
 }
 
-/** Every list on the screen and the SUBJECT each item is about: runs in the
- * page. A list is a <ul>/<ol>/<tbody>/role=list, or an element holding two or
- * more <details> rows. An item's subject is the `data-subject` it declares (on
+/** Every list on the screen and the SUBJECT each item is about. A list is a
+ * <ul>/<ol>/<tbody>/role=list, or an element holding two or more <details>
+ * rows. An item's subject is the `data-subject` it declares (on
  * the row or inside it); an item that declares none is read by the line it
  * leads with, status words skipped. One subject heading two or more items is
  * an UNGROUPED REPEAT, unless the list is a timeline or a log
  * (`data-order="chronological"`, or a timeline/history/changes/log region),
  * whose order is the meaning. */
-export function listsInPage({ statusWords }) {
-  const modal = [...document.querySelectorAll('[role="dialog"][aria-modal="true"], [role="alertdialog"]')]
-    .find((el) => el.getAttribute("aria-label") !== "Navigation" && !el.querySelector("[cmdk-root]") && el.getBoundingClientRect().width > 0);
-  const root = modal ?? document.querySelector("main") ?? document.body;
+export function listsInPage({ root, shown }, { statusWords }) {
   const words = new Set(statusWords);
-  const shown = (el) => {
-    const box = el.getBoundingClientRect();
-    if (box.width === 0 || box.height === 0) return false;
-    const style = getComputedStyle(el);
-    if (style.visibility === "hidden" || style.display === "none") return false;
-    const closed = el.closest("details:not([open])");
-    return !(closed && closed !== el && !el.closest("summary"));
-  };
+  // A collapsed <details> row is itself on screen: read it by its summary.
+  const rowShown = (el) => shown(el.tagName === "DETAILS" ? el.querySelector(":scope > summary") ?? el : el);
   const containers = new Set(root.querySelectorAll('ul, ol, tbody, [role="list"]'));
   for (const el of root.querySelectorAll("*")) {
     if ([...el.children].filter((child) => child.tagName === "DETAILS").length >= 2) containers.add(el);
   }
   const lists = [];
   for (const list of containers) {
-    if (!shown(list) || list.closest('nav, [role="tablist"], select, [data-sonner-toaster]')) continue;
-    const items = [...list.children].filter((child) => ["LI", "TR", "DETAILS"].includes(child.tagName) || child.getAttribute("role") === "listitem").filter(shown);
+    if (!rowShown(list) || list.closest('nav, [role="tablist"], select, [data-sonner-toaster]')) continue;
+    const items = [...list.children].filter((child) => ["LI", "TR", "DETAILS"].includes(child.tagName) || child.getAttribute("role") === "listitem").filter(rowShown);
     if (items.length < 2) continue;
     const exempt = Boolean(list.closest('[data-order="chronological"], #timeline, [data-timeline], [aria-label*="changes" i], [aria-label*="history" i], [aria-label*="timeline" i], [aria-label*="log" i]'));
     const region = list.closest("section, [role=region], details, [data-list-panel]");
@@ -377,8 +358,6 @@ export class Walk {
     this.marks = 0;
     this.external = [];
     this.mustKnow = [];
-    this.system = [];
-    this.notes = [];
     this.manualDuplicates = [];
     this.requests = [];
     this.dialogs = [];
@@ -398,7 +377,7 @@ export class Walk {
   rel(file) { return path.relative(this.repoRoot, file).split(path.sep).join("/"); }
   async screenKey() {
     const url = new URL(this.page.url());
-    const view = await this.page.evaluate(viewInPage).catch(() => null);
+    const view = await probe(this.page, viewInPage).catch(() => null);
     return `${url.pathname}${url.search}${url.hash}${view ? ` [${view}]` : ""}`;
   }
   /** Where the person is now, what they read there, which statuses it shows —
@@ -420,7 +399,7 @@ export class Walk {
     }
     this.screens.add(key);
     if (this.areas.at(-1) !== area) this.areas.push(area);
-    const prose = await this.page.evaluate(proseInPage);
+    const prose = await probe(this.page, proseInPage);
     let words = 0;
     // The screen a flow STARTS on (usually Home) is where the person already
     // was; its text is not part of the flow unless the flow acts on it.
@@ -439,7 +418,7 @@ export class Walk {
   }
   /** Statuses and lists on this screen: duplicates and ungrouped repeats. */
   async scan(key) {
-    const statuses = await this.page.evaluate(statusesInPage);
+    const statuses = await probe(this.page, statusesInPage);
     if ((this.statusByScreen.get(key)?.length ?? -1) < statuses.length) this.statusByScreen.set(key, statuses);
     const groups = new Map();
     for (const status of statuses) {
@@ -465,7 +444,7 @@ export class Walk {
       this.duplicateStatuses.set(id, { screen: key, subject: list[0].subject, label: list[0].label, count: list.length, kinds: list.map((s) => s.kind),
         undeclared: list.filter((s) => s.declared === false).length, shot });
     }
-    const lists = await this.page.evaluate(listsInPage, { statusWords: STATUS_WORDS });
+    const lists = await probe(this.page, listsInPage, { statusWords: STATUS_WORDS });
     this.listsByScreen.set(key, lists.map(({ name, items, exempt, subjects, repeats }) => ({ name, items, exempt, subjects, repeats: repeats.map(({ subject, properties, declared }) => ({ subject, properties, declared })) })));
     for (const list of lists) {
       if (list.exempt) continue;
@@ -587,9 +566,6 @@ export class Walk {
     this.external.push({ label, clicks, fields, estimate, source });
   }
   know(label) { this.mustKnow.push(label); }
-  /** A step the system performs on its own schedule (the person waits). */
-  systemStep(label, delay) { this.system.push({ label, delay }); }
-  note(text) { this.notes.push(text); }
   /** A verification or confirmation that repeats one already made in this
    * flow, which no request or step label reveals on its own. Removed only by
    * the redesign that removes the second check. */
@@ -653,7 +629,7 @@ export class Walk {
       ungroupedRepeats: this.ungrouped.size,
       proseWords, proseBlocks: this.prose.size,
       worstScreen: worst ? { screen: worst[0], words: worst[1] } : null,
-      external: this.external, mustKnow: this.mustKnow, system: this.system, notes: this.notes,
+      external: this.external, mustKnow: this.mustKnow,
       transitions: this.transitions.map((t) => ({ ...t, shot: shotOf(t.atStep) })),
       emptyStepList: emptySteps.map((t) => ({ left: t.from, to: t.to, by: t.by, atStep: t.atStep, shot: shotOf(t.atStep) })),
       duplicatedCheckList: duplicatedChecks,
@@ -669,10 +645,6 @@ export class Walk {
       steps: this.steps,
     };
   }
-}
-
-export async function ensureDir(dir) {
-  await mkdir(dir, { recursive: true });
 }
 
 // ── navigation the product offers ─────────────────────────────────────────────
@@ -709,14 +681,6 @@ export async function assetTab(w, name) {
   await settle(w.page);
 }
 
-/** A provider's own page, through its catalog row's one action (Connect or
- * Manage); the row itself is not a link. */
-export async function openIntegration(w, label) {
-  await nav(w, "Integrations");
-  const row = w.page.locator("[data-integration-tile]").filter({ hasText: label }).first();
-  await w.click(row.getByRole("link"), `row ${label}`, { role: "choose" });
-}
-
 /** The connect panel: the row's Connect opens it over the list, the same
  * screen, and one Connect press
  * saves and tests the key. The account's sites then appear in the same panel,
@@ -728,14 +692,7 @@ export async function connectInPanel(w, id, fields) {
   await nav(w, "Integrations");
   const row = w.page.locator(`[data-integration-tile="${id}"]`);
   await w.click(row.getByRole("button", { name: /^Connect / }), "row Connect", { role: "reveal" });
-  const panel = w.page.locator(`[data-connect-panel="${id}"]`);
-  for (const [label, value] of fields) await w.fill(panel.getByLabel(label, { exact: true }), value, label, { paste: true });
-  await w.click(panel.getByRole("button", { name: "Connect", exact: true }), "Connect", { role: "commit" });
-  await w.waitFor("Connect → Key accepted", () => panel.locator('[data-connect-state="accepted"]').waitFor({ timeout: 15_000 }));
-  const start = panel.locator("[data-sites-start]");
-  await w.waitFor("Key accepted → sites matched", () => start.waitFor({ timeout: 15_000 }));
-  await w.click(start, "Start collecting", { role: "commit" });
-  await w.waitFor("Start → Working", () => panel.locator('[data-site-row] [data-connection="working"]').first().waitFor({ timeout: 60_000 }));
+  await connectAndStart(w, id, fields);
 }
 
 /** The same panel reached from where a new site lands: the asset's Data
@@ -745,6 +702,12 @@ export async function connectFromSource(w, id, fields) {
   const connect = w.page.locator(`#integrations [data-source-connect="${id}"]`);
   await w.click(connect, "source Connect", { role: "choose" });
   await w.waitFor("Connect → panel", () => w.page.locator(`[data-connect-panel="${id}"]`).waitFor({ timeout: 15_000 }));
+  await connectAndStart(w, id, fields);
+}
+
+/** The open panel's key, one Connect press, then Start on the matched sites;
+ * done when a collected site reads Working. */
+async function connectAndStart(w, id, fields) {
   const panel = w.page.locator(`[data-connect-panel="${id}"]`);
   for (const [label, value] of fields) await w.fill(panel.getByLabel(label, { exact: true }), value, label, { paste: true });
   await w.click(panel.getByRole("button", { name: "Connect", exact: true }), "Connect", { role: "commit" });
@@ -753,31 +716,6 @@ export async function connectFromSource(w, id, fields) {
   await w.waitFor("Key accepted → sites matched", () => start.waitFor({ timeout: 15_000 }));
   await w.click(start, "Start collecting", { role: "commit" });
   await w.waitFor("Start → Working", () => panel.locator('[data-site-row] [data-connection="working"]').first().waitFor({ timeout: 60_000 }));
-}
-
-export async function guidedStep(w, name) {
-  const card = w.page.locator("[data-provider-card]");
-  await w.click(card.getByRole("navigation", { name: "Integration setup" }).getByRole("button", { name: new RegExp(`${name}$`) }), `step ${name}`, { role: "advance" });
-}
-
-export async function saveCredential(w, label = "Save credential") {
-  const card = w.page.locator("[data-provider-card]");
-  const button = card.getByRole("button", { name: label, exact: true });
-  await w.click(button, label, { role: "commit" });
-  await w.waitFor(`${label} → saved`, () => card.locator("form[data-connect-form]").first().waitFor({ state: "detached", timeout: 15_000 }).catch(() => {}));
-}
-
-/** The card's Test button, named for what the press does: "Test connection"
- * for a free read, "Check keys" where the provider offers no free call. */
-export async function testConnection(w, label = "Test connection") {
-  const card = w.page.locator("[data-provider-card]");
-  await w.click(card.getByRole("button", { name: label, exact: true }), label, { role: "verify" });
-  await w.waitFor(`${label} → verdict`, () => card.getByRole("button", { name: label, exact: true }).waitFor({ state: "visible", timeout: 15_000 }));
-}
-
-export async function continueTo(w, label) {
-  const card = w.page.locator("[data-provider-card]");
-  await w.click(card.getByRole("button", { name: label, exact: true }), label, { role: "advance" });
 }
 
 /** A row on the asset's Sources tab, opened. */
@@ -800,7 +738,7 @@ export const SAVED = '[data-sonner-toast][data-type="success"], [data-save-state
 
 /** A save the product refused: its error toast, or "Not saved" beside the
  * field (InlineSaveState). */
-export const REFUSED = '[data-sonner-toast][data-type="error"], [data-save-state="refused"]';
+const REFUSED = '[data-sonner-toast][data-type="error"], [data-save-state="refused"]';
 
 /** The words of the refusal on screen, or null when there is none. */
 export async function refusalOnScreen(page) {

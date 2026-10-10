@@ -41,10 +41,6 @@ import {
   type LaneRequest,
 } from "./lane";
 
-// Re-exported from vite/lane.ts because callers and tests name them here.
-export { DEFAULT_REPO_ROOT, crossOrigin };
-export type { LaneReply, LaneRequest };
-
 /** The one path this lane answers on. */
 export const CONFIG_PATH = "/api/config";
 

@@ -6,7 +6,6 @@ import {
   firedFlags,
   flowLowVolumeAnomaly,
   flowPoissonAnomaly,
-  percentageDropAnomaly,
 } from '../src/rules.js';
 
 describe('flowPoissonAnomaly (normal-volume drop)', () => {
@@ -75,30 +74,6 @@ describe('flowLowVolumeAnomaly (multi-day window)', () => {
 
   it('stands down when no baseline is established yet (lambda <= 0)', () => {
     expect(flowLowVolumeAnomaly('leads', 0, 0).outcome).toBe('not-applicable');
-  });
-});
-
-describe('percentageDropAnomaly (gated on min absolute count)', () => {
-  it('stands down below the absolute-count gate', () => {
-    // default minAbsoluteCount = 5; a 4/day metric never trips this rule
-    expect(percentageDropAnomaly('x', 0, 4).outcome).toBe('not-applicable');
-  });
-
-  it('fires on a large relative drop above the gate', () => {
-    const v = percentageDropAnomaly('x', 2, 10);
-    expect(v.outcome).toBe('fired');
-    expect(v.inputs.dropFraction as number).toBeCloseTo(0.8, 10);
-    expect(v.flag?.message).toContain('80% below');
-  });
-
-  it('does not fire on a modest drop', () => {
-    expect(percentageDropAnomaly('x', 8, 10).outcome).toBe('ok');
-  });
-
-  it('respects custom gate/threshold options', () => {
-    const v = percentageDropAnomaly('x', 0, 4, { minAbsoluteCount: 3, minDropFraction: 0.5 });
-    expect(v.outcome).toBe('fired');
-    expect(v.inputs.dropFraction).toBe(1);
   });
 });
 

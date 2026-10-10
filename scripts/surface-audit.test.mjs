@@ -151,17 +151,6 @@ test('paragraphOffenders: clipped screen-reader text is excluded, including its 
   assert.equal(paragraphOffenders(visible).length, 1, 'small text alone is not an exemption');
 });
 
-test('paragraphOffenders: details.about is accepted too, so a surface built before the attribute still measures', () => {
-  const nodes = dom({
-    tag: 'details',
-    attrs: { class: 'about card' },
-    children: [
-      { tag: 'p', text: 'What these numbers are. Where they come from.' },
-    ],
-  });
-  assert.deepEqual(paragraphOffenders(pick(nodes, 'p')), []);
-});
-
 test('paragraphOffenders: prose that is not visible by default is not on the page', () => {
   const nodes = dom({
     tag: 'section',

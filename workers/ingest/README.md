@@ -322,8 +322,7 @@ keeps the rule unarmed; no code falls back to the envelope's `avg7d`. Each new
 metric reading resolves the prior open central flow event before the current
 one is evaluated, so recovered metrics stop contributing to property health.
 Each fired flag stores `rule_id` + `rule_inputs` (including comparison dates)
-for auditability. (`flow-pct-drop` remains an available, non-default
-alternative; running it alongside Poisson would double-fire.)
+for auditability.
 
 ## Annotations (the timeline writer)
 

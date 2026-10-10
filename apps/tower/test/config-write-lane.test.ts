@@ -5,12 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
-import {
-  DEFAULT_REPO_ROOT,
-  crossOrigin,
-  handleConfigRequest,
-} from "../vite/config-write-lane";
-import { laneRepoRoot } from "../vite/lane";
+import { handleConfigRequest } from "../vite/config-write-lane";
+import { DEFAULT_REPO_ROOT, crossOrigin, laneRepoRoot } from "../vite/lane";
 import { parseDashboardConfig } from "../shared/dashboard";
 import { DEFAULT_WALL_LAYOUT } from "../shared/wall-layout";
 

@@ -118,15 +118,15 @@ const PROBE_PAGE = `<!doctype html><html><body><main>
 </ol></section></body></html>`;
 
 export async function probeSelfTest(browser) {
-  const { SAVED, STATUS_WORDS, listsInPage, proseInPage, refusalOnScreen, statusesInPage, viewInPage } = await import("./ux-walk.mjs");
+  const { SAVED, STATUS_WORDS, listsInPage, probe, proseInPage, refusalOnScreen, statusesInPage, viewInPage } = await import("./ux-walk.mjs");
   const context = await browser.newContext();
   try {
     const page = await context.newPage();
     await page.setContent(PROBE_PAGE);
     const problems = [];
-    const view = await page.evaluate(viewInPage);
+    const view = await probe(page, viewInPage);
     if (view !== "Choose assets") problems.push(`the guided-step probe read ${JSON.stringify(view)}, not "Choose assets"`);
-    const statuses = await page.evaluate(statusesInPage);
+    const statuses = await probe(page, statusesInPage);
     const acme = statuses.filter((status) => status.subject === "integration:acme" && status.label === "Connected").length;
     if (acme !== 2) problems.push(`the status probe found "Connected" for integration:acme ${acme} time(s), not 2`);
     const paused = statuses.filter((status) => status.label === "Paused").length;
@@ -135,7 +135,7 @@ export async function probeSelfTest(browser) {
     if (undeclared?.declared !== false || !undeclared.subject.startsWith("page:")) {
       problems.push(`the status probe did not read a chip with no data-status-for as the screen's (${JSON.stringify(undeclared ?? null)})`);
     }
-    const lists = await page.evaluate(listsInPage, { statusWords: STATUS_WORDS });
+    const lists = await probe(page, listsInPage, { statusWords: STATUS_WORDS });
     const signals = lists.find((list) => list.name === "Signals");
     if (signals?.repeats?.[0]?.subject !== "asset:journey.example" || signals.repeats[0].properties.length !== 2) {
       problems.push(`the list probe did not see asset:journey.example repeated in the Signals list (${JSON.stringify(signals?.repeats ?? null)})`);
@@ -151,7 +151,7 @@ export async function probeSelfTest(browser) {
     if (refusal !== "Changed elsewhere — reload to see the current value") problems.push(`the refusal probe read ${JSON.stringify(refusal)}, not the error toast`);
     const confirmations = await page.locator(SAVED).allInnerTexts();
     if (confirmations.join("|") !== "Saved — TV layout") problems.push(`the save probe counted ${JSON.stringify(confirmations)} as saved, not only the success toast`);
-    const prose = await page.evaluate(proseInPage);
+    const prose = await probe(page, proseInPage);
     if (prose.length !== 1) problems.push(`the prose probe found ${prose.length} explanatory sentence(s), not 1`);
     return problems;
   } finally {

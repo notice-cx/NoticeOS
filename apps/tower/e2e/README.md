@@ -190,6 +190,12 @@ SIGTERM included, waits for the dependency optimizer. `fixture-server.mjs`
 fails the run unless a stopped server exits 0, and kills one that has not
 exited 90 s after its SIGTERM.
 
+Backup recovery is not a journey: `scripts/host-backup-postgres.test.mjs`
+seeds every operational table on a disposable Postgres, runs the real backup
+helper, restores into an empty independent cluster, compares records and
+schema, resolves the copied R2 objects, and proves the restored application
+reads and writes.
+
 ## Interactive reproduction
 
 `pnpm --filter @noticeos/tower run journey:serve` starts a separate instance at

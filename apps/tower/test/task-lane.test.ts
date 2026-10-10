@@ -14,8 +14,8 @@ import {
   readSpokes,
   resolveBdBin,
   taskLane,
-  toLiveTask,
 } from "../vite/task-lane";
+import { toLiveTask } from "../../../scripts/task-row.mjs";
 
 // The Tower's write path to the portfolio's task hub. It spawns a CLI with
 // the operator's own credentials, so what is asserted is the three guards, in

@@ -3,8 +3,9 @@ import http from 'node:http';
 import net from 'node:net';
 import { once } from 'node:events';
 
-// Normal Chromium contexts use this transport before creating a page. Route
-// handlers alone cannot intercept later redirect hops or WebSocket handshakes.
+// Every guarded Chromium context uses this transport before creating a page.
+// Route handlers alone cannot intercept later redirect hops or WebSocket
+// handshakes.
 // Chromium's <-loopback> rule removes its implicit localhost proxy bypass.
 const transports = new WeakMap();
 export async function startOfflineProxy(origin) {
@@ -115,11 +116,8 @@ export async function startOfflineProxy(origin) {
 // browser to the real internet unseen. google-consent.mjs closes that for one
 // route; this closes it for every route, in both runners:
 //
-//   - strict mode fetches every method without following redirects; one
-//     that answers a redirect to another origin is refused before the browser
-//     sees it, and recorded;
-//   - normal mode's owned proxy refuses every foreign HTTP or CONNECT target
-//     before connecting, retaining native redirect and WebSocket semantics;
+//   - the owned proxy refuses every foreign HTTP or CONNECT target before
+//     connecting, retaining native redirect and WebSocket semantics;
 //   - `check()` names the first recorded URL; the runner fails the test on it.
 //
 // Requests to other origins that are not redirect hops are aborted silently:
@@ -139,9 +137,9 @@ function onOrigin(url, origin) {
  * Keep `context` on `origin`. Install before any other route: later routes
  * (a test's own stubs, google-consent.mjs) run first and fall back to this.
  */
-export async function installOfflineGuard(context, origin, { strict = false, transport } = {}) {
-  if (!strict && transports.get(transport) !== origin) {
-    throw new Error('The normal offline browser requires its owned proxy transport.');
+export async function installOfflineGuard(context, origin, { transport } = {}) {
+  if (transports.get(transport) !== origin) {
+    throw new Error('The offline browser requires its owned proxy transport.');
   }
   const escapes = [];
   const pending = new Set();
@@ -150,7 +148,8 @@ export async function installOfflineGuard(context, origin, { strict = false, tra
   const failure = (code, message) => Object.assign(new Error(message), { code });
   const recordFailure = error => {
     // Playwright includes our explicit close reason when context.close cancels
-    // its API requests. Other errors, even during cleanup, remain failures.
+    // a route still in flight. Other errors, even during cleanup, remain
+    // failures.
     if (!closing || !String(error?.message).includes(closeReason)) requestFailed = true;
   };
   const track = (action, abort) => {
@@ -161,47 +160,28 @@ export async function installOfflineGuard(context, origin, { strict = false, tra
     pending.add(run);
     return run;
   };
-  const note = (url) => {
-    if (strict) url = 'An external request was refused';
-    if (!escapes.includes(url)) escapes.push(url);
-  };
-  // An imported-copy rehearsal has no legitimate WebSocket transport. This
-  // must be installed before its first page; HTTP routing does not cover WS.
-  if (strict) await context.routeWebSocket('**/*', socket => track(async () => { note('WebSocket'); await socket.close(); }));
   await context.route("**/*", route => track(async () => {
-    const request = route.request();
-    if (!onOrigin(request.url(), origin)) { if (strict) note(request.url()); return route.abort("blockedbyclient"); }
-    if (!strict) return route.fallback();
-    const response = await route.fetch({ maxRedirects: 0 });
-    const location = response.headers().location;
-    if (response.status() >= 300 && response.status() < 400 && location) {
-      const target = new URL(location, request.url()).href;
-      if (!onOrigin(target, origin)) {
-        note(target);
-        return route.abort("blockedbyclient");
-      }
-    }
-    return route.fulfill({ response });
+    if (!onOrigin(route.request().url(), origin)) return route.abort("blockedbyclient");
+    return route.fallback();
   }, () => route.abort("blockedbyclient")));
   context.on("request", (request) => {
-    if (request.redirectedFrom() && !onOrigin(request.url(), origin)) note(request.url());
+    if (request.redirectedFrom() && !onOrigin(request.url(), origin)) escapes.push(request.url());
   });
   return {
     /** The foreign URLs a redirect or WebSocket tried to reach, in order. */
-    escapes: () => [...new Set([...escapes, ...(transport?.escapes() ?? [])])],
+    escapes: () => [...new Set([...escapes, ...transport.escapes()])],
     /** Null, or the failure naming the first foreign URL. */
     check() {
-      if (requestFailed || transport?.failed()) return 'The offline browser could not complete an internal request.';
+      if (requestFailed || transport.failed()) return 'The offline browser could not complete an internal request.';
       const attempted = this.escapes();
       if (!attempted.length) return null;
-      if (strict) return 'The offline browser refused an external request.';
       return `The browser attempted to leave the fixture for ${attempted[0]}${attempted.length > 1 ? ` (and ${attempted.length - 1} more)` : ""}. ` +
         "A test reaches only its fixture server: answer that route in the fixture, or rewrite the redirect (see google-consent.mjs).";
     },
     /** Forget what was recorded (a test that provoked it on purpose). */
     clear() {
       escapes.length = 0;
-      transport?.clear();
+      transport.clear();
     },
     /** Keep denial installed until pages close, then drain cancelled callbacks. */
     close() {
