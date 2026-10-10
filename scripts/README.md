@@ -168,7 +168,7 @@ runner's host lanes runs only the task board refresh and the backup
 
 # Prepare an asset repository's context
 
-Follow [the project setup guide](../docs/guides/connect-a-project.md), then from the
+Follow [the task project guide](../docs/guides/connect-a-task-project.md), then from the
 NoticeOS checkout:
 
 ```sh
@@ -329,8 +329,8 @@ persistence and one runner fires schedules.
   needs the store reaches it via `scripts/ingest-door.mjs`;
   `scripts/no-second-runtime.test.mjs` fails on a script that grows the habit.
 
-The checks that prove one runtime, and what to do when one fails:
-[the shared runtime](../docs/operate/shared-runtime.md).
+What to do when one of these checks fails:
+[Runtime log lines](../docs/operate/troubleshooting.md#runtime-log-lines).
 
 Standalone has no user login: anyone who can reach the Tower can read and
 change its data. The default is `127.0.0.1`; `--host` or `OS_UP_HOST=true`

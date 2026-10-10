@@ -43,6 +43,31 @@ A runtime copy lost its links to the checkout's state, or its database check fai
 **`REFUSING to start Tower: prepared dependencies are unavailable or stale`.**
 Run `pnpm install --frozen-lockfile` and start again.
 
+## Runtime log lines
+
+On the macOS service, one process runs the Tower and the data receiver together, and one runner fires every schedule. A second copy would run every schedule twice, so the runtime refuses to share its ports. A `pnpm start` installation or a browser-test server has its own folder and ports; it does not make the service unhealthy.
+
+**`[ingest-door] cannot listen on <host>:<port>`.**
+Another runtime already holds the data port. The line prints the `lsof` command that names it. Stop that runtime under your own direction, then start again. `pnpm os:restart` only touches the managed service.
+
+**`cron … fired → HTTP 403 runner_lane_loopback_only`, and every request on the data port answers 403.**
+The runner's mark is not reaching the app, so every schedule is refused. A restart runs the same code. File an issue with the log lines; the fix arrives through `pnpm os:deploy`.
+
+**One request path answers 403 while the others work.**
+The failure belongs to that path. Keep the redacted request and log lines, and file them.
+
+**`cron … fired → HTTP 500 {"error":"scheduled_failed"}`.**
+The job failed in its provider, credential or database work. Read its recorded failure under **System health** > **Background operations**, or in `pnpm os:doctor`. Do not rerun the job to test health.
+
+**`/api/pulse` answers 401 where it used to work.**
+The data receiver's bootstrap secret is missing or changed. See [bootstrap secrets](../06-operations.md#bootstrap-secrets-vs-integration-credentials). Keep the value out of anything you share.
+
+**The Tower loads, but every card is empty.**
+An empty screen does not prove the database is behind. Read the migration report in `pnpm os:doctor` first. A migration is always your own step; see [Upgrade](/start/upgrade).
+
+**`pnpm --filter @noticeos/ingest dev` refuses to start.**
+Expected while the service runs: a standalone data receiver would be a second runtime over the same files.
+
 ## `pnpm start` refusals
 
 **"port N belongs to the managed service".**
@@ -66,7 +91,7 @@ Apply the migration as your own step, then start again. See [Upgrade](/start/upg
 Expected. Run the printed sequence: `pnpm os:stop`, `pnpm postgres:migrate apply …`, `pnpm os:start`, then deploy again.
 
 **`os:deploy` refuses: not on main, moves backwards, or a runtime copy is dirty.**
-Deploy only a commit on `main` that is ahead of what runs. To go back, use `-- --rollback`. Clean the runtime copy before deploying.
+Deploy only a commit on `main` that is ahead of what runs. To go back, use `-- --rollback`; it moves code only and never restores a database. Clean the runtime copy before deploying.
 
 **`stack:deploy` refuses changed source, declarations or image labels.**
 The stack changed between preparing and applying the plan. Run `pnpm stack:status`, then prepare a new plan.

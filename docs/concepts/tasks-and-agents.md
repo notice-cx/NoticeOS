@@ -83,4 +83,3 @@ The design describes a ladder where a kind of change on a site earns more autono
 - [Connect a task project](/guides/connect-a-task-project)
 - [Attribution and measurement](/concepts/attribution-and-measurement)
 - [Budgets and the kill switch](/operate/budgets-and-the-kill-switch)
-- The full rule in [Connect a project repository](../guides/connect-a-project.md)

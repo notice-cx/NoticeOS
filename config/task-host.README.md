@@ -1,6 +1,6 @@
 # Local task repository links
 
-The complete [project setup guide](../docs/guides/connect-a-project.md) explains this
+The [task project guide](../docs/guides/connect-a-task-project.md) explains this
 host link alongside the saved asset/task mapping and agent CLI access.
 
 `installation/task-host.json` is the local host's explicit checkout inventory;

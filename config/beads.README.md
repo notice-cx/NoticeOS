@@ -8,7 +8,7 @@ an existing installation may keep a host-managed server,
 client in server mode holding no database of its own, only connection
 settings. This file maps the three names one project answers to — its
 **asset id**, its **bead prefix** and its **database** on the hub. Start with
-[Connect a project](../docs/guides/connect-a-project.md) for the complete path.
+[Connect a task project](../docs/guides/connect-a-task-project.md) for the complete path.
 
 `config/beads.json` is the product default (the local hub, no projects) and
 `installation/beads.json` this installation's export. Settings, local

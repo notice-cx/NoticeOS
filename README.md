@@ -71,8 +71,8 @@ and [bootstrap credential setup](docs/06-operations.md#bootstrap-secrets-vs-inte
 People and agents coordinate the same tasks across NoticeOS and the projects
 it manages, with status, ownership, dependencies, approval gates and evidence.
 New installations include a NoticeOS task project, so Tasks works before you
-add a website. [Connect a project](docs/guides/connect-a-project.md) walks through asset
-setup, shared tasks, repository access, agent instructions and data sources.
+add a website. [Connect a task project](docs/guides/connect-a-task-project.md) walks through
+a project's shared tasks, repository access and agent instructions.
 
 Use the **Tasks** page today. A supported task API, installable Claude Code/Codex
 skills and hooks, and connections to tools such as Jira or Linear are planned;

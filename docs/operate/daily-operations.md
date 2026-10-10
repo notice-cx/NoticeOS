@@ -39,15 +39,15 @@ pnpm os:deploy                 # move the live service to main after a verified 
 
 `pnpm os:status` reports one of five states.
 
-| State | What it means | What to do |
-| --- | --- | --- |
-| `healthy` | The service is loaded, the heartbeat is fresh, the Tower and the data receiver answer, and both databases pass a readiness read. | Nothing. |
-| `starting` | The service is running and the runtime or scheduler is not ready yet. | Wait, then check again. |
-| `stale` | The endpoints answer, but the supervisor's heartbeat is more than 90 seconds old. | Run `pnpm os:doctor`, then `pnpm os:restart`. |
-| `unhealthy` | Something answers without supervision, a database readiness read failed, or the service exited. The reason is printed. | Read the reason. Run `pnpm os:doctor` before restarting when the cause is unclear. |
-| `stopped` | No service is loaded and nothing answers. | `pnpm os:start` if you stopped it; `pnpm os:install` if it was never installed. |
+| State | What it means |
+| --- | --- |
+| `healthy` | The service is loaded, the heartbeat is fresh, the Tower and the data receiver answer, and both databases pass a readiness read. |
+| `starting` | The service is running and the runtime or scheduler is not ready yet. |
+| `stale` | The endpoints answer, but the supervisor's heartbeat is more than 90 seconds old. |
+| `unhealthy` | Something answers without supervision, a database readiness read failed, or the service exited. The reason is printed. |
+| `stopped` | No service is loaded and nothing answers. |
 
-An answering process without a supervisor is `unhealthy`, never good enough. If status says an unmanaged runtime answers, a foreground `pnpm os:up` is holding the port: stop that terminal first. The control command refuses to guess which unknown process to kill.
+An answering process without a supervisor is `unhealthy`, never good enough. For what to do about any state other than `healthy`, see [Service states](/operate/troubleshooting#service-states).
 
 The status also prints which commit runs and whether `main` is ahead. If it says the service runs from the checkout folder itself, run `pnpm os:deploy` and then `pnpm os:install` once to move it to a runtime copy.
 
