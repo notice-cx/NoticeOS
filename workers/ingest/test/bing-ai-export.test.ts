@@ -156,6 +156,22 @@ describe('POST /api/bing-ai-export — what it refuses to guess', () => {
     expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS}`)).toBe(0);
   });
 
+  it('refuses a row with fewer fields than the header rather than padding it', async () => {
+    const { status, body } = await importExport({
+      contentBase64: base64(
+        exportFile([
+          '"Grounding Query","Intent","Topic","Citations","Citation Share"',
+          '"my plate food guide","Learn and Solve","Health","4299","44.06%"',
+          '"how much protein should i eat daily","Learn and Solve","42488"',
+        ]),
+      ),
+    });
+    expect(status).toBe(422);
+    expect(body.error).toBe('bing_ai_export_ragged_row');
+    expect(body.detail).toContain('Row 3 has 3 field(s); the header declares 5.');
+    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS}`)).toBe(0);
+  });
+
   it('refuses a header that merely gained a column', async () => {
     const { status, body } = await importExport({
       contentBase64: base64(

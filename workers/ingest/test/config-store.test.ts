@@ -238,6 +238,31 @@ describe('writing', () => {
     expect(JSON.parse(change!.ops)).toHaveLength(1);
   });
 
+  it('refuses a change to a document neither the store nor this Worker holds, naming the seed', async () => {
+    const result = await applyConfigOps(
+      env,
+      {
+        ops: [
+          {
+            kind: 'file-json-insert',
+            file: 'config/beads.json',
+            pointer: '/spokes/-',
+            value: { asset: 'meals.example', prefix: 'meals', database: 'meals' },
+          },
+        ],
+        actor: ACTOR,
+      },
+      NOW,
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: 'not_seeded',
+      detail: 'Not seeded · config/beads.json · pnpm config:seed',
+      files: ['config/beads.json'],
+    });
+    expect(await listConfigDocuments(env)).toEqual({ documents: [] });
+  });
+
   it('seeds an unseeded document from the compiled copy rather than refusing', async () => {
     // A freshly deployed Tower can save without a terminal step. The audit row
     // says the document entered the store here.

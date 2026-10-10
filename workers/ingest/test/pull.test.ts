@@ -240,6 +240,32 @@ describe('pull adapter — successful pull', () => {
       },
     ]);
   });
+
+  it('reads no PULL_TOKENS binding a deployed worker may still carry', async () => {
+    const legacy = Object.assign({}, env, {
+      PULL_TOKENS: JSON.stringify({ 'meals.example': 'legacy-meals-token', 'fees.example': 'legacy-fees-token' }),
+    });
+    const presented: Array<string | null> = [];
+    const recordingFetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      presented.push(new Headers(init?.headers).get('authorization'));
+      return new Response(mealsBody(3), { status: 200 });
+    }) as typeof fetch;
+    const feesEntry: PullAssetConfig = {
+      ...MEALS_ENTRY,
+      asset: 'fees.example',
+      url: 'https://fees.example/api/internal/metrics',
+    };
+
+    const result = await runPullAdapter(legacy, {
+      entries: [MEALS_ENTRY, feesEntry],
+      nowMs: NOW,
+      fetchImpl: recordingFetch,
+    });
+
+    expect(presented).toEqual([`Bearer ${ASSET_TOKENS['meals.example']}`]);
+    expect(result.outcomes.map((outcome) => outcome.ok)).toEqual([true, false]);
+    expect(result.outcomes[1]?.error).toContain('no pull token');
+  });
 });
 
 describe('pull adapter — failure handling', () => {

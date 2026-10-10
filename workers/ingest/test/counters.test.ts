@@ -133,7 +133,7 @@ describe('counters lane — failure leaves the prior reading alone', () => {
     });
 
     expect(result).toMatchObject({ attempted: 1, succeeded: 0, failed: 1 });
-    expect(result.outcomes[0]).toMatchObject({ ok: false, status: 500, written: 0 });
+    expect(result.outcomes[0]).toMatchObject({ ok: false, status: 500, written: 0, error: 'non-200 response (500)' });
     // the FIRST run's values and the FIRST run's clock — a stale number must
     // never wear a fresh timestamp
     expect(await readings('meals.example')).toEqual([
@@ -193,6 +193,25 @@ describe('counters lane — failure leaves the prior reading alone', () => {
 
     expect(result).toMatchObject({ succeeded: 0, failed: 1 });
     expect(result.outcomes[0]?.error).toContain('not a row count');
+    expect(await readings('meals.example')).toEqual([]);
+  });
+
+  it('names a card that has no source counter, writing nothing', async () => {
+    const result = await runCountersScrape(env, {
+      config: {
+        assets: {
+          'meals.example': {
+            source: { kind: 'prometheus', url: MEALS_URL, enabled: true },
+            cards: [MEALS_CARDS[0]!, { metric: 'leads', label: 'Leads' }],
+          },
+        },
+      },
+      nowMs: NOW,
+      fetchImpl: stubFetch({ [MEALS_URL]: () => new Response(mealsBody(5000, 620), { status: 200 }) }),
+    });
+
+    expect(result).toMatchObject({ attempted: 1, succeeded: 0, failed: 1 });
+    expect(result.outcomes[0]).toMatchObject({ ok: false, status: 200, written: 0, error: 'card "leads" has no source counter' });
     expect(await readings('meals.example')).toEqual([]);
   });
 

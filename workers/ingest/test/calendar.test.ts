@@ -935,6 +935,27 @@ describe('feed isolation', () => {
     expect(String(warn.mock.calls[0]?.[0])).toContain('"code":"http_503"');
   });
 
+  it('names a feed that is not a calendar and one that is too large', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { fetchImpl } = feedFetch({
+      [WORK_URL]: '<!doctype html><title>Sign in</title>',
+      [PERSONAL_URL]: ics(...laEvent('p', '20260810', '1000', 'x'.repeat(4 * 1024 * 1024))),
+    });
+
+    const payload = await calendarUpcoming(feedEnv(), {
+      nowMs: NOW,
+      fetchImpl,
+      rawFeeds: JSON.stringify({ work: WORK_URL, personal: PERSONAL_URL }),
+    });
+
+    expect(payload.feedsConfigured).toBe(2);
+    expect(payload.feedsOk).toBe(0);
+    expect(payload.meetings).toEqual([]);
+    const logged = warn.mock.calls.map(([line]) => String(line)).join('\n');
+    expect(logged).toContain('"code":"not_calendar"');
+    expect(logged).toContain('"code":"too_large"');
+  });
+
   it('survives a feed that never answers at all', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const timeout = new Error('The operation was aborted due to timeout');

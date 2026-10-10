@@ -869,6 +869,64 @@ describe('watch-window evaluation — outcomes', () => {
     expect((await closedFlags())[0]).toMatchObject({ severity: 'info', kind: 'anomaly' });
   });
 
+  it('closes inconclusive when the ship and the kill predicate both match', async () => {
+    await observeClicks(10, 13);
+    await register({
+      thresholds: {
+        ship: { direction: 'up', min_delta_pct: 10 },
+        kill: { direction: 'up', min_delta_pct: 20 },
+      },
+    });
+
+    const result = await runWatchWindows(env, FINAL_RUN_MS);
+    expect(result.closed[0]).toMatchObject({ outcome: 'inconclusive' });
+    expect(result.closed[0]?.note).toContain('ship and kill thresholds both match');
+    expect((await closedFlags())[0]).toMatchObject({ severity: 'info', kind: 'anomaly' });
+  });
+
+  it('files one verdict when two sweeps close the same window', async () => {
+    await observeClicks(10, 13);
+    const id = await register();
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    let readOpen!: () => void;
+    const lateReadOpen = new Promise<void>((resolve) => { readOpen = resolve; });
+    // The late sweep reads the window open, then waits to write until the
+    // other sweep has closed it.
+    const slowStore = new Proxy(env.STORE, {
+      get(target, property) {
+        if (property === 'read') {
+          return async (work: Parameters<typeof target.read>[0]) => {
+            const rows = await target.read(work);
+            readOpen();
+            return rows;
+          };
+        }
+        if (property === 'write') {
+          return async (work: Parameters<typeof target.write>[0]) => {
+            await held;
+            return target.write(work);
+          };
+        }
+        const value = Reflect.get(target, property, target) as unknown;
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+
+    const late = runWatchWindows(Object.assign({}, env, { STORE: slowStore }), FINAL_RUN_MS);
+    await lateReadOpen;
+    const first = await runWatchWindows(env, FINAL_RUN_MS);
+    release();
+    const second = await late;
+
+    expect(first.closed.map((closed) => closed.id)).toEqual([id]);
+    expect(second.failed).toEqual([]);
+    const stored = await storedWindow(id);
+    expect(stored).toMatchObject({ status: 'closed', outcome: 'ship_confirmed' });
+    expect(readings(stored).map((reading) => reading.offset_days)).toEqual([3, 7]);
+    expect(await closedFlags()).toHaveLength(1);
+  });
+
   // The system may not invent a verdict it was never given.
   it('closes inconclusive with the numbers when no threshold was registered', async () => {
     await observeClicks(10, 13);

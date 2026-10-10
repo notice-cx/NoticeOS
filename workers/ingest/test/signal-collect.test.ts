@@ -491,6 +491,7 @@ describe('POST /api/signal-collect — PostHog families', () => {
       [{ asset: 'meals.example', families: ['posthog-*'], start: '2026-09-08' }, 'together'],
       [{ asset: 'meals.example', families: ['posthog-*'], start: '2026-09-22', end: '2026-09-08' }, 'not be after'],
       [{ asset: 'meals.example', families: ['posthog-*'], start: '2026-08-01', end: '2026-09-22' }, 'at most 28 days'],
+      [{ asset: 'meals.example', families: ['posthog-*'], start: '2999-01-01', end: '2999-01-02' }, 'not be in the future'],
       [{ asset: 'nosh.example', families: ['ranked-keywords'], start: '2026-09-08', end: '2026-09-22' }, 'PostHog families only'],
     ];
     for (const [request, message] of cases) {

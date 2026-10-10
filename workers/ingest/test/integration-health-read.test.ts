@@ -2,7 +2,7 @@ import { beginCollection, recordCollectedHealth, collectionMonitoring } from '..
 import { archiveCollectedDump, archiveDumpFailure, integrationArchivePlan } from '../src/signal-dumps.js';
 import { env } from 'cloudflare:test';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
-import { asOwner, emptyTables, forgetConfigDocuments, pgExecute, refuseHealthStates, reset, setConnection, storeArchiveRun, storedCount, storedHealthEvents, storeSignalRun, WORKERD_TRANSPORT_ERROR } from './helpers.js';
+import { asOwner, emptyTables, forgetConfigDocuments, pgExecute, refuseHealthStates, reset, setConnection, storeArchiveRun, storeArchiveRuns, storedCount, storedHealthEvents, storeSignalRun, WORKERD_TRANSPORT_ERROR } from './helpers.js';
 import { POSTHOG_FAMILIES } from '@noticeos/contract';
 import { EGRESS_BEACONS } from '../src/egress.js';
 import { runPosthogDumps } from '../src/posthog-dumps.js';
@@ -202,6 +202,22 @@ it('keeps an unresolved archived failure when an unmonitored source success move
   const result = await readIntegrationHealth(env, Date.now() + 1000);
   expect(result.items.find(i => i.asset === target.asset && i.detail === `${first.report} · ${date}`)?.state).toBe('failing');
   expect(result.events.some(event => event.kind === 'recovered')).toBe(false);
+});
+
+it('says a list of unresolved archive failures was cut at 256, and how many there are', async () => {
+  const register = (await getConfigDocument(env, 'config/integrations.json')).body as LaneRegister;
+  const google = await resolveGoogleCredential(env);
+  const target = googleTargets(google, google.source, googleCredentialResolver(env), register).find(t => t.integration === 'ga4')!;
+  const report = (await integrationArchivePlan(env.STORE, target, NOW))[0]!.report;
+  const day = (n: number) => new Date(Date.parse('2025-01-01T00:00:00Z') + n * 86_400_000).toISOString().slice(0, 10);
+  await storeArchiveRuns(Array.from({ length: 300 }, (_, n) => ({
+    id: `failed-date-${n}`, asset: target.asset, integration: target.integration, report, credential_ref: target.credentialRef,
+    property_ref: target.propertyRef, report_date: day(n), finished_at: new Date(NOW - 10_000 - n).toISOString(),
+    data_state: 'provider-final', status: 'error', error_code: 'http_500', error_message: 'Refused',
+  })));
+  const result = await readIntegrationHealth(env, Date.now() + 1000);
+  const overflow = result.items.filter(i => i.asset === target.asset && i.detail?.startsWith('256 of '));
+  expect(overflow).toEqual([expect.objectContaining({ detail: '256 of 300 report dates · 300 unresolved failures', state: 'unknown', code: 'monitoring' })]);
 });
 
 it('does not let thousands of resolved historical archive dates exhaust current health coverage', async () => {

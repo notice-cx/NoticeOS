@@ -249,6 +249,38 @@ describe('what the OS interrupts the operator about', () => {
     expect((await notified()).map((row) => row.subject)).toEqual(['alert']);
   });
 
+  it('stands down, and says so, when it cannot read what it already said', async () => {
+    await connectDiscord();
+    await insertFlag({});
+    const memoryless = new Proxy(env.STORE, {
+      get(target, property) {
+        if (property === 'read') {
+          return (work: Parameters<typeof target.read>[0]) =>
+            target.read((tx) => work(new Proxy(tx, {
+              get(inner, name) {
+                const value = Reflect.get(inner, name, inner) as unknown;
+                if (name !== 'query' || typeof value !== 'function') {
+                  return typeof value === 'function' ? value.bind(inner) : value;
+                }
+                return (sql: string, ...rest: unknown[]) => {
+                  if (sql.includes('noticeos.notifications')) throw new Error('fixture: notifications unreadable');
+                  return value.call(inner, sql, ...rest);
+                };
+              },
+            })));
+        }
+        const value = Reflect.get(target, property, target) as unknown;
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const discord = discordFetch();
+
+    const result = await runNotifier(Object.assign({}, env, { STORE: memoryless }), { nowMs: NOW, fetchImpl: discord.fetchImpl });
+    expect(result).toEqual({ found: 1, fresh: 0, sent: 0, skipped: 'store-unavailable' });
+    expect(discord.posts).toHaveLength(0);
+    expect(await notified()).toEqual([]);
+  });
+
   it('says nothing at all when no credential is held', async () => {
     await insertFlag({});
     const discord = discordFetch();

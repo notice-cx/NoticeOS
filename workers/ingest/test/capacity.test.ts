@@ -206,6 +206,18 @@ describe('readCapacityInventory', () => {
     expect(measured.bytesPerDay).toBe(Math.round(measured.valueBytes / 5));
   });
 
+  it('divides a table born within the last day by one day, never by a fraction of one', async () => {
+    const hour = 3_600_000;
+    await env.STORE.write((tx) => tx.execute(
+      `INSERT INTO noticeos.egress_checks (workspace_id, observed_at, up)
+       SELECT $1::uuid, stamp, true FROM unnest($2::timestamptz[]) AS stamp`,
+      [tx.workspaceId, [new Date(NOW - hour).toISOString(), new Date(NOW - hour / 2).toISOString(), new Date(NOW - hour / 6).toISOString()]],
+    ));
+    const measured = table(await readCapacityInventory(env, NOW), 'egress_checks');
+    expect(measured.rowsPerDay).toBe(3);
+    expect(measured.bytesPerDay).toBe(measured.valueBytes);
+  });
+
   it('sizes insight snapshots per site: what is read, what is superseded, what arrives per day', async () => {
     const before = (await readCapacityInventory(env, NOW)).insightSnapshots;
     expect(before).not.toBeNull();

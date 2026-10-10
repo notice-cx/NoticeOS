@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { LOCAL_STORE_FAILED, runSignalDumps } from '../src/signal-dumps.js';
+import { LOCAL_STORE_FAILED, archiveCollectedDump, runSignalDumps } from '../src/signal-dumps.js';
 import { EGRESS_DOWN_CODE } from '../src/egress.js';
 import { healthFailure } from '../src/integration-health-store.js';
 import {
@@ -1599,5 +1599,24 @@ describe('analysis-grade signal dumps', () => {
     expect(new Set(result.outcomes.map((outcome) => outcome.reportDate))).toEqual(
       new Set(['2026-07-28']),
     );
+  });
+});
+
+describe('an archive larger than the store keeps', () => {
+  it('is refused as archive_too_large and stores nothing', async () => {
+    const before = (await env.RAW_SIGNALS.list()).objects.length;
+    const oversized = 'x'.repeat(32 * 1024 * 1024 + 1);
+    await expect(archiveCollectedDump(env, {
+      provider: 'google',
+      target: { asset: 'meals.example', integration: 'gsc', credentialRef: 'fixture', propertyRef: 'sc-domain:meals.example' },
+      report: 'query',
+      reportDate: '2026-07-28',
+      requestedAt: new Date(NOW).toISOString(),
+      dataState: 'provider-final',
+      collected: { pages: [{ request: {}, response: { blob: oversized } }], providerRows: 1, providerTruncated: false },
+    })).rejects.toMatchObject({ code: 'archive_too_large' });
+
+    expect((await env.RAW_SIGNALS.list()).objects).toHaveLength(before);
+    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE asset = 'meals.example'`)).toBe(0);
   });
 });

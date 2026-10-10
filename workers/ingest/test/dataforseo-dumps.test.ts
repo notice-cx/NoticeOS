@@ -2379,6 +2379,25 @@ describe('a scoped run — the same run, narrowed', () => {
     );
   });
 
+  it('asks for SERP competitors without the property itself among them', async () => {
+    const { fetchImpl, calls } = providerFetch();
+    const result = await runDataForSeoDumps(env, {
+      nowMs: NOW,
+      fetchImpl,
+      login: 'operator-login',
+      password: 'operator-password',
+      scope: { asset: 'meals.example', families: ['serp-competitors'] },
+    });
+
+    expect(result).toMatchObject({ attempted: 1, succeeded: 1, failed: 0 });
+    const asked = calls.filter((call) => call.url.endsWith('/competitors_domain/live'));
+    expect(asked).toHaveLength(1);
+    expect(asked[0]!.task).toMatchObject({
+      target: 'meals.example',
+      filters: [['intersections', '>', 0], 'and', ['domain', '<>', 'meals.example']],
+    });
+  });
+
   /**
    * Defense in depth. `POST /api/signal-collect` turns this into a 422 before
    * anything runs, but the runner must not bill a family a property does not own

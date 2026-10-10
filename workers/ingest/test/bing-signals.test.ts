@@ -222,6 +222,28 @@ describe('Bing Webmaster signal collector', () => {
     });
   });
 
+  it('refuses a 200 whose body is Bing reporting an error', async () => {
+    const { fetchImpl: answering } = bingFetch();
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
+      if (url.pathname.endsWith('/GetRankAndTrafficStats') && new URL(url.searchParams.get('siteUrl')!).hostname === 'nosh.example') {
+        return Response.json({ ErrorCode: 14, Message: 'NotAuthorized' });
+      }
+      return answering(input, init);
+    }) as typeof fetch;
+
+    const result = await runBingSignals(env, { nowMs: NOW, fetchImpl });
+
+    expect(result).toMatchObject({ attempted: 6, succeeded: 5, failed: 1 });
+    const failed = await env.STORE.read((tx) =>
+      tx.query<{ asset: string; errorCode: string; errorMessage: string }>(
+        `SELECT asset_id AS asset, error_code AS "errorCode", error_message AS "errorMessage"
+           FROM noticeos.signal_runs WHERE status = 'error'`,
+      ),
+    );
+    expect(failed).toEqual([{ asset: 'nosh.example', errorCode: 'bwt_http_200', errorMessage: 'NotAuthorized' }]);
+  });
+
   describe('when the OS is what is down', () => {
     async function residue(): Promise<{ runs: number; health: number; egressFlags: number }> {
       return {
