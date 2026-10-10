@@ -152,16 +152,15 @@ not promises of payment.
 
 ## How to connect one
 
-Every provider with a portfolio credential is connected **in the product**, on
-the Tower's `/integrations` page — `/health` remains the observability view of
-what each data source is producing.
+Every provider is connected in the product, on the Tower's `/integrations`
+page; `/health` shows what each data source is producing. How the credential
+store works (encryption, store before environment, what a run records, the
+legacy environment fallback and **Import from this machine**) is written once,
+in the [ingest README](../workers/ingest/README.md#credential-store-one-key-every-provider).
 
-**What *Test connection* costs is declared, not assumed.** Five of the probes
-below are the free read-only call a Test button is taken to be, and the card
-says nothing about them. Two are not, and the card prints the sentence in the
-last column **before** the press: Discord's posts a real message into the
-operator's channel, and the OAuth app's calls nobody at all. A button that
-surprises somebody once is a button they stop pressing.
+What **Test connection** costs is declared on the card. Five probes are a free
+read-only call. Two are not, and the card says so before the press: Discord's
+posts a real message, and the OAuth app's calls nobody.
 
 | Provider (id) | Fields | Probe the *Test connection* button makes |
 |---|---|---|
@@ -173,167 +172,58 @@ surprises somebody once is a button they stop pressing.
 | Calendar feeds (`calendar`) | `CALENDAR_FEEDS` — name → secret ICS url | one bounded GET per feed, reported **by label**; the url is the credential and never appears in a verdict |
 | Discord (`discord`) | `DISCORD_WEBHOOK_URL` — the whole `https://discord.com/api/webhooks/…` address | **posts one labelled message to the channel, and the card says so before the press.** Discord does offer a read of the webhook object and it would prove the wrong thing: the catalog row above defines this data source as live when the OS *can deliver a notification* — "not merely that a webhook URL exists" — and a webhook whose channel the operator lost still answers a read. The url is the credential and never appears in a verdict, and Discord's own error body is never reflected back |
 
-### What the notification channel actually carries
+### What the notification channel carries
 
-- **Two conditions, declared once.** `NOTIFIED_CONDITIONS` in
-  `packages/contract` is what the notifier decides from AND what the card prints
-  before you connect it, so the promise and the delivery are one list: a **new
-  open error alert** (error only — `warn` is what the desk is for, and a
-  notifier that forwarded every alert would be `/alerts` again, at 3am), and a
-  **data source that turns Failing**, read through the same `connectionState`
-  the card's own chip is derived from. Nothing else. Alert fatigue is this
-  channel's documented failure mode, and the shortest honest list is the design.
-- **Once per condition, and that needs a memory.** The lane runs hourly at
-  `:05`, so a notifier with no record of what it had already said would re-send
-  every open condition every hour. `notifications` is that record, and it is
-  written **only on a successful delivery** — a failed send is retried on
-  the next tick, and the Alerts row's *notified* mark therefore means a message
-  actually landed rather than that one was attempted.
-- **A real delivery stamps the credential.** The card's verdict now comes from
-  the channel doing its job, not only from a Test press — the same rule the
-  04:30 Clarity export follows.
-- **Where the `notifications` table is absent, nothing is sent, and the card
-  says so.** Migrations are operator-only ([AGENTS.md](../AGENTS.md)). Silence
-  with a sentence and the apply command is the honest degradation; sending
-  without being able to record would be the fatigue this whole design avoids.
-- **A horizon, so the first tick is not a replay.** Only conditions that arose
-  in the last 24 hours qualify, and one message carries at most ten lines with a
-  count of the rest — if more than ten things need attention the volume is
-  itself the finding.
+- **Two conditions.** `NOTIFIED_CONDITIONS` in `packages/contract` is both what
+  the notifier sends and what the card promises: a new open **error** alert,
+  and a data source that turns **Failing** (read through the same
+  `connectionState` as the card's chip). Nothing else.
+- **Once per condition.** The lane runs hourly at `:05`. The `notifications`
+  table records each condition only after a successful delivery, so a failed
+  send is retried next tick and the Alerts row's *notified* mark means a
+  message landed.
+- **A real delivery stamps the credential**, like the Clarity export does.
+- **No `notifications` table, nothing sent**, and the card says so; migrations
+  are operator-only.
+- **A 24-hour horizon**, so the first tick is not a replay, and at most ten
+  lines per message with a count of the rest.
 
-**Clarity is the one `per-asset` credential**:
+### Clarity: the one per-asset credential
 
-- **One row, one map.** Clarity issues a data-export token per project, so the
-  credential is an `asset-map` field — `asset id → that asset's token` — inside
-  the single `credentials` row keyed on the provider. A compound
-  `(provider, asset)` key would have been a migration, and migrations are
-  operator-only; what *per-asset* actually changes is the FORM (one input per
-  asset) and the CARD (which assets have a key), not the store.
-- **The older single-project binding is one entry of that map.**
-  `CLARITY_PROJECT_API_TOKEN` is **kept, not retired**, and it is declared on
-  the map field (`legacyAssetBinding` in `packages/contract`) rather
-  than read separately by the collector. One declaration, three readers: the
-  card counts it as the first Clarity asset's key so an install running on it stops
-  reading *Not connected* over a data source that is collecting, **Import from
-  this machine** moves it into the store as that one map entry, and the nightly
-  export still records `CLARITY_PROJECT_API_TOKEN` on the manifest row it
-  answered for, so *which slot held this token* stays a fact you read. **The map
-  wins wherever both name the asset**, and there is deliberately **no form input
-  for it**: the product teaches the map, because a field offering "the token,
-  but only for one asset" would teach the shape it replaced.
-- **Its cap is a number on the card, not a sentence**, and so is DataForSEO's
-  — see below. *"Clarity: 7/10 calls left today"* is rendered per asset, and it costs nothing to read: the export writes one
-  manifest row per call it makes, so calls-spent-today is a COUNT of
-  `archive_runs` rows this OS wrote — never a provider call, which on a
-  ten-a-day cap would be the meter spending what it measures. It counts ROWS
-  rather than `request_count`, because a failed call archives no pages and
-  summing that column would report a rejected token as budget still available.
-  Days are UTC, like the metered spend figure beside it: the OS cannot know
-  Clarity's own reset clock, and the card says which calendar it counted in
-  rather than implying it does.
-- **Its test calls nobody, and says so.** Ten calls per project per day and no
-  free metadata endpoint means the cheapest available probe would spend a tenth
-  of one asset's daily budget. So *Test connection* reports which assets hold a
-  token, states plainly that it did not call Clarity, and — because it proved
-  nothing — leaves `last_ok_at` alone. **The 04:30 export is the proof**: that
-  run stamps the credential, so the verdict on the card comes from a real
-  collection rather than from a button.
+- **One connection, one map.** Clarity issues a token per project, so its
+  credential is an `asset-map` field (asset id → that asset's token) on the
+  provider's one connection. *Per-asset* changes the form (one input per asset)
+  and the card (which assets have a key), not the store.
+- **The single-project `CLARITY_PROJECT_API_TOKEN` is one entry of that map**,
+  declared as `legacyAssetBinding` in `packages/contract`. The card counts it,
+  **Import from this machine** moves it into the map, and the export records
+  which slot answered. The map wins wherever both name the asset, and the form
+  offers no input for the single token.
+- **Calls left today, per asset**, counted from the `archive_runs` rows the
+  export wrote (one per call, a failed call included) in UTC days. Reading it
+  costs no provider call.
+- **Test connection calls nobody.** With ten calls a day and no free endpoint,
+  the test reports which assets hold a token and leaves `last_ok_at` alone; the
+  04:30 export is the proof that stamps it.
 
-**DataForSEO's card says how much of the month's data cap is left**, on the
-same budget line Clarity's card carries. It is the second and last provider with a ceiling this OS can count, and the two
-ceilings are different in kind, which is what the design turns on:
+### DataForSEO: the month's cap and the account's credit
 
-- **The bar is the CAP, not the account.** DataForSEO is prepaid, and the two
-  numbers are different in kind: the cap is a ceiling this OS enforces and can
-  count, the credit is the vendor's own figure. The bar draws the one that
-  actually decides whether next Monday's sweep runs — month-to-date spend
-  against `monthly_caps.data_usd`, the $25 portfolio reserve that **fails
-  closed** before a call.
-- **The credit sits beside it as a dated sighting.** It is recorded from the free
-  `appendix/user_data` read — the one behind *Test connection*, and the SAME
-  ONE CALL the weekly sweep makes at the end of a run that worked. That second
-  half is what stops the figure from ageing for months: the report endpoints
-  never carry a `money` object, so only a free read can stamp it. Asking the
-  free endpoint once is the cheapest honest fix — no money, no metered quota, outside the cap guard
-  because there is nothing to cap, and **never retried**, since a courtesy read
-  has nothing to lose. A sweep that failed or had nothing due asks nothing at
-  all, and a read that is refused or times out leaves the run green and the card
-  on its last sighting with its age. The run's `dataforseo_dumps_complete` line
-  says `refreshed` or `not refreshed` — the word, never the figure. The sighting
-  is stored as a non-secret fact beside the ciphertext
-  (`balance_usd` and `balance_seen_at` on `noticeos.integration_connections`,
-  the same public half the expiry uses, so no re-seal and no
-  `CREDENTIALS_KEY`). The card
-  reads *Account credit $18.72 · seen 2h ago*, with the exact instant on hover.
-  **The amount and its age are one sentence**, because a stale balance drawn as
-  a live one is the failure this task existed to prevent; a sighting whose
-  stored instant will not parse is dropped rather than shown undated. **And a
-  sighting older than fourteen days — two missed weekly refreshes — is said to
-  be too old to act on**: the free refresh is silent when it is
-  refused, so the age turns warn-toned and says so instead of leaving the
-  operator to do arithmetic on a timestamp; the amount stays, dimmed. It is
-  **not drawn as a bar** — a balance has no ceiling to draw against — and an
-  account nobody has read yet says so in words rather than leaving the line out,
-  which would read as an account with no credit on it. **A rotation drops it**:
-  what was just pasted may name a different account, so the figure goes and the
-  next answer replaces it. One writer (`setCredentialBalance`), one caller-shared
-  account read and one wire parse (`workers/ingest/src/dataforseo-balance.ts`),
-  one reader (`credentialBalance` in `packages/contract`).
-- **One representation, no second sum — and the same sum the gate enforces.**
-  The card reads `loadDataForSeoSpend`, which is the Tower's name for
-  `loadMeteredDataSpend` in [`packages/contract`](../packages/contract/src/metered-spend.ts) —
-  the one body `/health`'s spend summary, `/settings`' budget meter, the Wall's
-  daily pace **and the collector's own cap gate** all read. A second aggregate
-  over the same rows would be free to disagree by a float, and three surfaces
-  quoting three different months is worse than one surface quoting none.
-- **The figure includes ad-hoc research.** Metered spend is two tables,
-  because the portfolio spends this account two ways: the `provider_cost_usd`
-  column every collected report writes on its own manifest row, **plus**
-  [`research_log`](../db/postgres/migrations/0001_baseline.sql) — what an
-  agent or the operator bought one question at a time on the same credentials.
-  The gate and every desk meter count both; a budget display that errs low is
-  the one error it must not make. The two halves are disjoint by
-  `actor` — research rows the collector wrote for itself are already in its
-  manifest rows — and research bought about no single property is stated as its
-  own line rather than pinned onto an asset that did not spend it.
-- **One line, not one per asset.** Clarity's cap is per asset, so it draws a line
-  per asset; this cap is portfolio-wide, so drawing it five times would say the
-  same thing five times against a ceiling none of them individually has. Which
-  asset the month's money went on is already a per-asset list on `/health`.
-- **The ceiling is not in the catalog.** `monthly_caps.data_usd` is edited in
-  `/settings`, so the provider declaration carries no copy of it; the cap rides
-  on the reading, and a card with no cap to draw against draws nothing.
-
-The rules the implementation keeps, each test-pinned
-([`workers/ingest/test/credentials.test.ts`](../workers/ingest/test/credentials.test.ts)):
-
-- **Connect it on `/integrations`; env is the legacy fallback.** Every provider
-  below is connected, tested and disconnected in the product, and its credential
-  lives AES-GCM-encrypted in [`credentials`](../db/postgres/README.md). An
-  install still holding a binding keeps working, and moves when it wants to.
-  Which secrets stay in the environment and why is written once, in
-  [doc 06 § Bootstrap secrets vs. integration credentials](06-operations.md#bootstrap-secrets-vs-integration-credentials).
-- **One env secret for this.** `CREDENTIALS_KEY`, 32 bytes base64
-  (`openssl rand -base64 32`), in `.dev.vars` locally or
-  `wrangler secret put CREDENTIALS_KEY` deployed.
-- **Store first, env second, all or nothing.** A provider with a stored row is
-  served entirely from the store; one without falls back entirely to its legacy
-  binding. `signal_runs.credential_ref` records which — `store:` prefixed when
-  the product's credential ran the pull — so "the collector is still on
-  `.dev.vars`" is a fact you read rather than one you assume.
-- **The plaintext never leaves the ingest Worker.** The Tower asks over a
-  private Service Binding for the *answer* — is this connected, when did it last
-  work — and receives field NAMES and metadata. A PUT answers `204` with no
-  body: there is nothing safe to echo.
-- **Nothing about a probe is persisted.** A connection test is not evidence; it
-  writes no observation, no manifest and no R2 object, and it stamps only the
-  credential's own `last_ok_at` / `last_error`.
-- **Moving without retyping:** a provider still reading its binding wears the
-  *Legacy env* chip on `/integrations`, and the card carries **Import from this
-  machine** — one press reads the operator's existing `.dev.secrets.json` and
-  PUTs every complete provider through the running Tower. It is the same code `pnpm dev:secrets:import` runs, which is what a deployed
-  Tower shows instead: there is no secrets file beside a Worker to read. The
-  bindings stay as the fallback either way; the store wins.
+- **The bar is the cap**: month-to-date metered spend against
+  `monthly_caps.data_usd`, the reserve that fails closed before a call. One bar
+  for the portfolio, not one per asset; the cap is edited in `/settings`.
+- **The credit is a dated sighting beside it**, from the free
+  `appendix/user_data` read that **Test connection** makes and the weekly sweep
+  repeats once after a run that worked (never retried). It is stored as
+  `balance_usd` and `balance_seen_at` on `noticeos.integration_connections` and
+  shown as *Account credit $18.72 · seen 2h ago*. A sighting older than
+  fourteen days turns warn-toned; an unparseable one is dropped; a rotation
+  clears it.
+- **One sum.** The card, `/health`, `/settings`, the Wall's pace and the
+  collector's own cap gate all read `loadMeteredDataSpend` in
+  [`packages/contract`](../packages/contract/src/metered-spend.ts): each
+  collected report's `provider_cost_usd` plus the
+  [`research_log`](../db/postgres/migrations/0001_baseline.sql) rows bought one
+  question at a time, disjoint by `actor`.
 
 ## Connecting Google
 
