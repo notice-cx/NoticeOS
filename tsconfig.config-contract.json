@@ -24,6 +24,7 @@
     "packages/contract/src/task-gate.mts",
     "packages/contract/src/watch-series.mts",
     "packages/contract/src/task-snapshot.mts",
+    "packages/contract/src/provider-requests.mts",
     "scripts/config-documents.mts",
     "scripts/config-defaults.mts",
     "scripts/released-defaults.mts",

@@ -24,6 +24,7 @@ import type {
   ProbeResult,
 } from '@noticeos/contract';
 import { OS_TIME_ZONE, integrationProvider, probeLine, savedOsTimeZone, siteHost } from '@noticeos/contract';
+import { DISCORD_TEST_MESSAGE } from '@noticeos/contract/provider-requests';
 import { getBingVerifiedSites } from './bing-client.js';
 import { readDataForSeoAccount, recordDataForSeoBalance } from './dataforseo-balance.js';
 import {
@@ -465,14 +466,6 @@ export async function probeCalendar(
     ? { ok, result: { outcome: 'answered', facts } }
     : { ok, result: { outcome: 'refused', facts, failing: failures, fix: { kind: 'replace' } } };
 }
-
-/**
- * The line a Discord connection test posts. One constant, because
- * `scripts/creds-check.mjs` posts the same sentence from Node. It says what it
- * is and that nothing is wrong, in that order.
- */
-export const DISCORD_TEST_MESSAGE =
-  'NoticeOS connection test — nothing is wrong, you can ignore this.';
 
 /**
  * Discord: post one labelled message, the one probe with a side effect. A GET

@@ -11,11 +11,11 @@ import { javascriptInstant, openWorkspaceStore } from '@noticeos/postgres';
 import { putCredential, resolveCredential } from '../src/credentials.js';
 import {
   CALENDAR_CACHE_TTL_MS,
-  CALENDAR_USER_AGENT,
   calendarUpcoming as readCalendarUpcoming,
   CalendarReadError,
   parseIcsEvents,
 } from '../src/calendar.js';
+import { CALENDAR_USER_AGENT } from '@noticeos/contract/provider-requests';
 import { pgCount, storedCount, reset, asOwner } from './helpers.js';
 
 /** The secret in these URLs is the point: no assertion may ever find it. */

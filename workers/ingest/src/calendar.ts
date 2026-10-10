@@ -19,19 +19,16 @@ import type {
   CalendarUpcoming,
   UpcomingMeeting,
 } from '@noticeos/contract';
+import {
+  CALENDAR_ACCEPT,
+  CALENDAR_REQUEST_TIMEOUT_MS,
+  CALENDAR_RESPONSE_BYTE_LIMIT,
+  CALENDAR_USER_AGENT,
+  calendarFeedField,
+} from '@noticeos/contract/provider-requests';
 import { resolveCredential, type ResolvedCredential } from './credentials.js';
 import { cachedProviderRead, ProviderReadCacheError, providerCacheScope } from './provider-read-cache.js';
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
-
-/**
- * Honest identification with a contact URL, and a product token distinct enough
- * that a calendar operator reading their logs can tell this read apart.
- */
-export const CALENDAR_USER_AGENT =
-  'NoticeOS-Calendar/1.0 (+https://www.notice.cx; operator dashboard read)';
-
-/** Per-feed ceiling. One feed's slow origin must not hold the Wall's poll. */
-const REQUEST_TIMEOUT_MS = 10_000;
 
 /** How long one fetch round's bytes stand; politer than the Wall's 60s poll. */
 export const CALENDAR_CACHE_TTL_MS = 5 * 60_000;
@@ -48,9 +45,6 @@ const IN_PROGRESS_LOOKBACK_MS = 24 * 60 * 60_000;
 
 /** What the Wall can draw before the type size stops being a TV's business. */
 const MEETING_LIMIT = 20;
-
-/** A calendar past this is likelier a feed URL pointed at something else. */
-const RESPONSE_BYTE_LIMIT = 4 * 1024 * 1024;
 
 /**
  * Hard stop on rule iteration. Open-ended rules are fast-forwarded to the
@@ -298,16 +292,16 @@ export function parseFeedTargets(raw: string | undefined): FeedTarget[] {
 
   const targets: FeedTarget[] = [];
   for (const [label, value] of Object.entries(parsed)) {
-    const raw = typeof value === 'string' ? value : feedField(value, 'url');
+    const raw = typeof value === 'string' ? value : calendarFeedField(value, 'url');
     const url = raw === null || raw.trim() === '' ? null : raw.trim();
     if (url === null) warnFeedFailure(label, 'config_missing_url');
 
-    const pinned = typeof value === 'string' ? null : feedField(value, 'color');
+    const pinned = typeof value === 'string' ? null : calendarFeedField(value, 'color');
     const color = pinned?.trim() ?? '';
     if (color !== '' && !CSS_COLOR_CHARS.test(color)) {
       warnFeedFailure(label, 'config_unusable_color');
     }
-    const declared = typeof value === 'string' ? null : feedField(value, 'email');
+    const declared = typeof value === 'string' ? null : calendarFeedField(value, 'email');
 
     targets.push({
       label,
@@ -379,14 +373,6 @@ function deriveSelfEmail(url: string): string | null {
   return candidate;
 }
 
-function feedField(value: unknown, field: string): string | null {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    return null;
-  }
-  const read = (value as Record<string, unknown>)[field];
-  return typeof read === 'string' ? read : null;
-}
-
 // --- one feed ---------------------------------------------------------------
 
 /**
@@ -456,11 +442,11 @@ async function fetchFeedEvents(
   try {
     response = await fetchImpl(url.href, {
       headers: {
-        accept: 'text/calendar, text/plain;q=0.5',
+        accept: CALENDAR_ACCEPT,
         'user-agent': CALENDAR_USER_AGENT,
       },
       redirect: 'follow',
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(CALENDAR_REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
     // Deliberately not `error.message`: it may hold the URL.
@@ -475,13 +461,13 @@ async function fetchFeedEvents(
     throw new CalendarFeedError(`http_${response.status}`, target.label);
   }
   const declared = Number(response.headers.get('content-length'));
-  if (Number.isFinite(declared) && declared > RESPONSE_BYTE_LIMIT) {
+  if (Number.isFinite(declared) && declared > CALENDAR_RESPONSE_BYTE_LIMIT) {
     await response.body?.cancel();
     throw new CalendarFeedError('too_large', target.label);
   }
 
   const text = await response.text();
-  if (text.length > RESPONSE_BYTE_LIMIT) {
+  if (text.length > CALENDAR_RESPONSE_BYTE_LIMIT) {
     throw new CalendarFeedError('too_large', target.label);
   }
   return parseIcsEvents(text, target.label, target.selfEmail);

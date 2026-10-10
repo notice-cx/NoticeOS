@@ -25,7 +25,8 @@ import {
   sourcedCredentialRef,
   validateCredentialFields,
 } from '../src/credentials.js';
-import { DISCORD_TEST_MESSAGE, probeCredential } from '../src/credential-probes.js';
+import { probeCredential } from '../src/credential-probes.js';
+import { DISCORD_TEST_MESSAGE } from '@noticeos/contract/provider-requests';
 import { INTEGRATION_PROVIDER_IDS, integrationProvider } from '@noticeos/contract';
 import { runBingSignals } from '../src/bing-signals.js';
 import { forgetConfigCache, seedConfigDocuments } from '../src/config-store.js';
