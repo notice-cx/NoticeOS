@@ -1,0 +1,17 @@
+{
+  "name": "@noticeos/docs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The hosted documentation site: how to install, use and operate NoticeOS, written for the person at the desk.",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "1.6.4",
+    "vitepress-plugin-llms": "1.14.0",
+    "vue": "^3.5.43"
+  }
+}

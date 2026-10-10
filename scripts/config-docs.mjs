@@ -100,24 +100,52 @@ export function currentBlock(text) {
 
 export function withBlock(text, block) {
   const current = currentBlock(text);
-  if (current) return text.replace(current, block);
+  // A function replacer: a `$` inside the block (a field's regex) is never a pattern.
+  if (current) return text.replace(current, () => block);
   return `${text.trimEnd()}\n\n${block}\n`;
+}
+
+/** The documentation site's configuration page: every README's block under its file's heading. */
+export const DOCS_PAGE = 'apps/docs/reference/configuration.md';
+
+export function renderDocsPage(all = blocks()) {
+  const lines = [
+    '---',
+    'title: Configuration',
+    'description: Every setting the Tower may edit, generated from the one declaration of the configuration registers.',
+    '---',
+    '',
+    '# Configuration',
+    '',
+    'Settings live in the store once an installation is seeded; the `config/*.json` files in the repository are the generic defaults a new installation starts from, and each has a README beside it that says why the file exists. What the Tower may edit in each file is declared once, in `scripts/config-registers.mts`, and this page is generated from that declaration. A register lists rows (a site\'s data sources, a recurring cost); a knob is one value.',
+    '',
+  ];
+  for (const [owner, block] of all) {
+    const file = `config/${path.basename(owner, '.README.md')}.json`;
+    lines.push(`## ${file}`, '', `Its README: [${owner}](https://github.com/notice-cx/NoticeOS/blob/main/${owner}).`, '', block, '');
+  }
+  return lines.join('\n');
 }
 
 export function main(argv = process.argv.slice(2), root = REPO_ROOT) {
   let stale = 0;
-  for (const [owner, block] of blocks()) {
-    const file = path.join(root, owner);
-    const text = existsSync(file) ? readFileSync(file, 'utf8') : `# ${path.basename(owner, '.README.md')}.json\n`;
+  const all = blocks();
+  const targets = [
+    ...[...all].map(([owner, block]) => ({ file: owner, content: (text) => withBlock(text || `# ${path.basename(owner, '.README.md')}.json\n`, block), current: (text) => currentBlock(text) === block })),
+    { file: DOCS_PAGE, content: () => renderDocsPage(all), current: (text) => text === renderDocsPage(all) },
+  ];
+  for (const target of targets) {
+    const file = path.join(root, target.file);
+    const text = existsSync(file) ? readFileSync(file, 'utf8') : '';
     if (argv.includes('--write')) {
-      writeFileSync(file, withBlock(text, block));
+      writeFileSync(file, target.content(text));
     } else if (argv.includes('--check')) {
-      if (currentBlock(text) !== block) {
+      if (!target.current(text)) {
         stale += 1;
-        process.stderr.write(`${owner}: the registers block is stale; run pnpm config:docs -- --write\n`);
+        process.stderr.write(`${target.file}: the registers block is stale; run pnpm config:docs -- --write\n`);
       }
-    } else {
-      process.stdout.write(`## ${owner}\n\n${block}\n\n`);
+    } else if (target.file !== DOCS_PAGE) {
+      process.stdout.write(`## ${target.file}\n\n${all.get(target.file)}\n\n`);
     }
   }
   return stale ? 1 : 0;

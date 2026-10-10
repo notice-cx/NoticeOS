@@ -1,0 +1,49 @@
+# Build the documentation site (apps/docs, VitePress) and publish it to GitHub
+# Pages on every push to main. Enabling Pages for the repository (Settings →
+# Pages → Source: GitHub Actions) is a one-time choice the owner makes; until
+# then the deploy step is skipped and the build still proves the site is sound.
+name: docs
+
+on:
+  push:
+    branches: [main]
+    paths: ['apps/docs/**', 'scripts/scripts-index.mjs', 'scripts/config-docs.mjs', '.github/workflows/docs.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: docs-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @noticeos/docs run build
+        env:
+          DOCS_BASE: /NoticeOS/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/docs/.vitepress/dist
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
