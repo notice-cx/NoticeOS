@@ -1,49 +1,36 @@
-// THE ONE WAY THE WORKERS AND THE SCRIPTS REACH THE POSTGRES STORE (bead
-// ro-ujb9.76.18, under D25's storage move and D27's customer separation in
-// config/decisions.md). The migration runner is not a caller: it keeps its own
-// administrative connection, and this module never runs a migration.
+// The one way the Workers and the scripts reach the Postgres store. The
+// migration runner is not a caller: it keeps its own administrative
+// connection, and this module never runs a migration.
 //
-// THE DRIVER is node-postgres (`pg`), pinned exactly in this package:
-//   - Cloudflare names it the recommended driver for Workers behind Hyperdrive
-//     (it needs the `nodejs_compat` flag; Hyperdrive's floor is 8.16.3).
-//   - Its surface is SQL text plus a list of parameters: the shape the D1 code
-//     being ported already has (`prepare(sql).bind(...)`), and one a Node script
-//     uses unchanged.
-//   - Result parsing is replaceable per query (`types`), so every exactness rule
-//     below lives in one function here and no process-wide setting changes.
-//   Postgres.js was the alternative; its parsing is configured process-wide,
-//   so the exactness rules below could not live in one place.
+// The driver is node-postgres (`pg`), pinned exactly: result parsing is
+// replaceable per query (`types`), so every exactness rule below lives in one
+// function here and no process-wide setting changes.
 //
-// EVERY TRANSACTION NAMES ONE WORKSPACE. `inWorkspace(workspaceId, work)` sends
-// BEGIN and, in the same round trip, sets the workspace with
+// Every transaction names one workspace. `inWorkspace(workspaceId, work)`
+// sends BEGIN and, in the same round trip, sets the workspace with
 // set_config('noticeos.workspace_id', id, true) — SET LOCAL — plus UTC, ISO
-// dates, shortest-exact floats and hex bytea, and reads back who the connection
-// is. It refuses to go on unless the connection is the application role itself
-// (noticeos_app: owns nothing, bypasses no row security). Then `work` runs its
-// statements — one at a time, in the order it calls them, all finished before
-// anything else — and the transaction commits. A failed statement, an error `work`
-// throws, or a failure `work` caught and swallowed rolls the whole transaction
-// back and throws. The settings are LOCAL, so they end with the transaction: a
-// connection Hyperdrive's transaction pooling hands to the next request carries
-// no workspace, and forced row security shows a transaction without one no rows
-// and refuses its writes. There is no way to open one without a workspace.
+// dates, shortest-exact floats and hex bytea, and reads back who the
+// connection is. It refuses to go on unless the connection is the application
+// role itself (noticeos_app: owns nothing, bypasses no row security). `work`
+// runs its statements one at a time, in the order it calls them, and the
+// transaction commits; a failed statement, an error `work` throws, or a
+// failure `work` caught and swallowed rolls the whole transaction back and
+// throws. The settings are LOCAL, so a connection Hyperdrive's transaction
+// pooling hands to the next request carries no workspace, and forced row
+// security shows a transaction without one no rows and refuses its writes.
 //
-// WHERE THE WORKSPACE ID COMES FROM (bead ro-ujb9.76.22). A self-hosted
-// installation has exactly one workspace, created once by its bootstrap, and
-// the store itself names it: `onlyWorkspace()` asks noticeos.only_workspace()
-// (0001_baseline.sql), which answers the id while exactly one workspace exists.
-// So a Worker request or a script gets its id from the store it already
-// reaches, and no id is copied into a file or a binding (D30). With none or
-// several it throws NoSingleWorkspace, and no transaction is opened. A hosted
-// installation with several workspaces names each request's workspace itself
-// and passes it to `inWorkspace`.
+// A self-hosted installation has exactly one workspace, and the store itself
+// names it: `onlyWorkspace()` asks noticeos.only_workspace(), which answers
+// the id while exactly one workspace exists, so no id is copied into a file
+// or a binding. With none or several it throws NoSingleWorkspace. A hosted
+// installation names each request's workspace and passes it to `inWorkspace`.
 //
-// `work` runs one statement per call, with $1…$n parameters. The helper owns the
-// transaction and its settings, so a statement that controls the transaction
-// (BEGIN, COMMIT, SAVEPOINT …), changes a setting (SET, RESET, DISCARD) or names
-// noticeos.workspace_id is refused before it is sent.
+// `work` runs one statement per call, with $1…$n parameters. A statement that
+// controls the transaction (BEGIN, COMMIT, SAVEPOINT …), changes a setting
+// (SET, RESET, DISCARD) or names noticeos.workspace_id is refused before it is
+// sent.
 //
-// VALUES ARE EXACT BOTH WAYS.
+// Values are exact both ways.
 //   Postgres → JavaScript:
 //     int8                    bigint (9007199254740993n, never a rounded number)
 //     int2, int4, oid         number
@@ -65,12 +52,10 @@
 //   bytea; arrays of the above are arrays. Any other object is refused:
 //   JSON.stringify it for a json or jsonb column.
 //
-// CONNECTING. `openStore(connectionString)` keeps a small pool (at most five
-// connections, the Workers' guidance for Hyperdrive). In a Worker the string is
-// the Hyperdrive binding's `connectionString`, and a store is opened per
-// request and closed with `ctx.waitUntil(store.close())`. The string is the
-// whole configuration: which host, database and login (noticeos_app) it names
-// is the operator's, never this module's.
+// `openStore(connectionString)` keeps a small pool (at most five connections,
+// the Workers' guidance for Hyperdrive). In a Worker the string is the
+// Hyperdrive binding's `connectionString`, and a store is opened per request
+// and closed with `ctx.waitUntil(store.close())`.
 
 import { Pool, type PoolClient, type QueryConfig } from 'pg';
 
@@ -472,9 +457,9 @@ export function openStore(connectionString: string, options: StoreOptions = {}):
     throw new TransactionRefused('a store needs a connection string');
   }
   // No `allowExitOnIdle`: it makes the pool call unref() on its timers and
-  // connections, which a Worker's have not, so every release threw there
-  // (found by workers/ingest/test/postgres-store.test.ts). A script closes its
-  // store; one that forgets exits once the idle connections time out (10 s).
+  // connections, which a Worker's have not, so every release would throw
+  // there. A script closes its store; one that forgets exits once the idle
+  // connections time out (10 s).
   const pool = new Pool({
     connectionString,
     max: options.maxConnections ?? DEFAULT_MAX_CONNECTIONS,
@@ -527,13 +512,11 @@ export function openStore(connectionString: string, options: StoreOptions = {}):
 
 // ─── The store one call works in ────────────────────────────────────────────
 //
-// WHAT A PORTED MODULE TAKES. A Worker opens one per
-// call — a request, a scheduled run, an RPC call — and closes it when the call
-// ends; a script opens one per run. It finds the workspace once (the store's
-// only one, unless the caller names another) and runs each unit of work in a
-// transaction of its own: `read` READ ONLY, `write` committed whole or not at
-// all. Nothing connects before the first unit of work, so a call that never
-// touches the store costs nothing.
+// A Worker opens one per call — a request, a scheduled run, an RPC call — and
+// closes it when the call ends; a script opens one per run. It finds the
+// workspace once and runs each unit of work in a transaction of its own:
+// `read` READ ONLY, `write` committed whole or not at all. Nothing connects
+// before the first unit of work.
 
 /** The store one call works in: one workspace, a transaction per unit of work. */
 export interface WorkspaceStore {

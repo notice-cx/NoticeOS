@@ -129,7 +129,7 @@ function offsiteDirectory(settings, where) {
  * `taskHub` says whose task hub this is. `required` — the managed service's
  * host runs the hub, so an empty inventory is a failure and every database is
  * copied through the checkout at `repoRoot`. `linked` — an installation
- * `pnpm start` runs (bead ro-ujb9.174) backs up only the task databases its
+ * `pnpm start` runs backs up only the task databases its
  * host links, each through its own linked checkout; linking none is
  * `not_configured`, like an offsite folder nobody named.
  */
@@ -269,16 +269,13 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
   }
 
   // SQLite's online-backup API only reads the source, but the connection is
-  // deliberately read-write (ro-paxb). A WAL database cannot be read without
-  // its -shm index, and a read-only connection may not create one, so an idle
-  // WAL file with no sidecars (the R2 metadata between requests) failed with
-  // "unable to open database file". Read-write lets SQLite create them;
-  // `persist_wal 0` overrides Apple's default so the last connection to close
-  // removes them again, leaving an idle source exactly as found. A live
-  // writer's sidecars stay untouched because this is not the last connection.
-  // URI `mode=rw` never creates a missing source and works with older Linux
-  // CLIs that lack `-ifexists`. Never `?immutable=1`: it
-  // skips locking and the WAL, so a live source loses committed data.
+  // deliberately read-write: a WAL database cannot be read without its -shm
+  // index, and a read-only connection may not create one. `persist_wal 0`
+  // overrides Apple's default so the last connection to close removes the
+  // sidecars again; a live writer's stay untouched. URI `mode=rw` never
+  // creates a missing source and works with older Linux CLIs that lack
+  // `-ifexists`. Never `?immutable=1`: it skips locking and the WAL, so a
+  // live source loses committed data.
   const snapshot = (source, output) => command('sqlite3', [
     '-bail', `${pathToFileURL(source).href}?mode=rw`, '.timeout 5000', '.filectrl persist_wal 0', `.backup ${JSON.stringify(output)}`,
   ]);
@@ -705,7 +702,7 @@ ${composeTaskHub
     : '- Task hub: from an empty scratch directory, run\n  `dolt backup restore file://<this-dir>/beads/<db> <db>`, then inspect with `dolt sql`.\n  Move it into the hub\'s data directory only with the hub service stopped.'}
 
 Operational detail and the restore drill: scripts/README.md in the repo.
-Cadence and retention: decision D10 in config/decisions.md.
+Cadence and retention: config/host-backup.README.md.
 Terminology: CONTEXT.md in the repo.
 `;
 }
