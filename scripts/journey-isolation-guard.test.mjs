@@ -27,7 +27,7 @@ import { fileURLToPath } from 'node:url';
 const reached = [];
 // Node 24 loads ESM through this primitive. Only these public module sources
 // retain real reads; every configuration/secret probe still reaches a stub.
-const moduleFiles = new Set(${JSON.stringify([fileURLToPath(GUARD), path.join(REPO_ROOT, 'scripts/installation.mjs'), path.join(REPO_ROOT, 'scripts/product-env.mjs')])});
+const moduleFiles = new Set(${JSON.stringify([fileURLToPath(GUARD), path.join(REPO_ROOT, 'apps/tower/e2e/journey-port.mjs'), path.join(REPO_ROOT, 'scripts/installation.mjs'), path.join(REPO_ROOT, 'scripts/product-env.mjs')])});
 const sourceRead = fs.readFileSync.bind(fs);
 fs.readFileSync = (file, ...args) => {
   if (moduleFiles.has(file instanceof URL ? fileURLToPath(file) : String(file))) return sourceRead(file, ...args);
