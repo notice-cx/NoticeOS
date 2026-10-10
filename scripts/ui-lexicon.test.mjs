@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { commentsBlanked, coveredByPhrase, sourceFiles, stringValues, withoutComments } from './test/shipped-copy.mjs';
 import { extractVisibleStrings, loadTypeScript } from './ux-gate.mjs';
 
 // The desk speaks plain English, and a sweep is only true on the day it runs.
@@ -215,31 +216,6 @@ const ALLOWED_ON_BUSINESS = [
   '"signal-freshness"',
 ];
 
-/** Comments are not labels, and neither is a module path. Block comments (JSX
- * `{/* … *\/}` included) go whole; line comments only when the `//` opens the
- * line, so a `https://…` inside a string survives. `${…}` is an EXPRESSION.
- * `from "…"` and `import("…")` are module specifiers — `@shared/changeset`,
- * `@/lib/knob-validators` and `components/decision-lanes` are file names.
- * Everything is replaced by spaces so every offset still points at the same
- * character it did in the file. */
-// Newlines SURVIVE the blanking, so the line number in a failure is the line
-// in the file. Blanking them too (which `' '.repeat(m.length)` does) makes
-// every number after the first multi-line comment point at the wrong place,
-// and a guard nobody can navigate from is a guard people learn to ignore.
-const blank = (m) => m.replace(/[^\n]/g, ' ');
-
-/** Comments only, offsets kept — the text an expression-level rule reads. */
-function commentsBlanked(source) {
-  return source.replace(/\/\*[\s\S]*?\*\//g, blank).replace(/^[ \t]*\/\/.*$/gm, blank);
-}
-
-function withoutComments(source) {
-  return commentsBlanked(source)
-    .replace(/\$\{[^{}]*\}/g, blank)
-    .replace(/\bfrom\s+(["'])(?:[^"'\\\n]|\\.)*\1/g, blank)
-    .replace(/\bimport\s*\(\s*(["'])(?:[^"'\\\n]|\\.)*\1\s*\)/g, blank);
-}
-
 /** The spans of a file that end up in front of a person: string and template
  * literals, plus JSX text nodes. Offsets are into the original file.
  *
@@ -281,30 +257,7 @@ function insideLabelledCommand(text, at) {
   return lead !== '' && !/[=(:,+[{;]/.test(lead);
 }
 
-/** Is the hit at `at` covered by one of `phrases`? Checked against THIS hit,
- * not "the line mentions a path somewhere". `window` is `text.slice(from, …)`,
- * so `from` maps back to file offsets. */
-function coveredByPhrase(window, from, at, phrases) {
-  return phrases.some((phrase) => {
-    for (let found = window.indexOf(phrase); found >= 0; found = window.indexOf(phrase, found + 1)) {
-      const start = from + found;
-      if (start <= at && at < start + phrase.length) return true;
-    }
-    return false;
-  });
-}
-
-function sourceFiles(dir) {
-  const found = [];
-  for (const entry of readdirSync(path.join(REPO_ROOT, dir), { withFileTypes: true })) {
-    const rel = `${dir}/${entry.name}`;
-    if (entry.isDirectory()) found.push(...sourceFiles(rel));
-    else if (/\.tsx?$/.test(entry.name) && !NOT_DESK_COPY.has(rel)) found.push(rel);
-  }
-  return found;
-}
-
-const FILES = SCAN_DIRS.flatMap(sourceFiles);
+const FILES = SCAN_DIRS.flatMap((dir) => sourceFiles(REPO_ROOT, dir, NOT_DESK_COPY));
 
 // A guard that scans nothing passes forever.
 test('the lexicon sweep has files to sweep', () => {
@@ -666,17 +619,6 @@ const CONFIG_ALLOWED_PHRASES = [
   'config/beads.json', // the file that register writes — an owner path
   'config/beads.README.md',
 ];
-
-/** Every string VALUE in a parsed config, with a JSON-path label for the error
- * message. Keys are deliberately not yielded: a key is code. */
-function* stringValues(node, at = '$') {
-  if (typeof node === 'string') yield [at, node];
-  else if (Array.isArray(node)) {
-    for (const [i, child] of node.entries()) yield* stringValues(child, `${at}[${i}]`);
-  } else if (node && typeof node === 'object') {
-    for (const [key, child] of Object.entries(node)) yield* stringValues(child, `${at}.${key}`);
-  }
-}
 
 // A guard that scans nothing passes forever.
 test('the config corpus has prose to scan', () => {

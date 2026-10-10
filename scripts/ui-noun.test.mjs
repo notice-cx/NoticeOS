@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { coveredByPhrase, sourceFiles, stringValues, withoutComments } from './test/shipped-copy.mjs';
 
 // A site is never a *property*, and one word means one thing. The word a
 // person reads is *site*; *property* collides with the GA4/Search Console
@@ -80,19 +81,6 @@ const ALLOWED_PHRASES = [
   '"google-properties"',
 ];
 
-/** Comments are not labels. Block comments (JSX `{/* … *\/}` included) go
- * whole; line comments only when the `//` opens the line, so a `https://…`
- * inside a string survives. Replaced by spaces so every offset still points at
- * the same character it did in the file. */
-function withoutComments(source) {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, (m) => ' '.repeat(m.length))
-    .replace(/^[ \t]*\/\/.*$/gm, (m) => ' '.repeat(m.length))
-    // A `${…}` inside a template literal is an EXPRESSION, not copy: blanked
-    // so `${property.asset}` reads as the identifier it is.
-    .replace(/\$\{[^{}]*\}/g, (m) => ' '.repeat(m.length));
-}
-
 /** The spans of a file that end up in front of a person: string and template
  * literals, plus JSX text nodes. Offsets are into the original file. */
 function shippedSpans(text) {
@@ -112,31 +100,7 @@ function shippedSpans(text) {
   return spans;
 }
 
-/** Is the `propert…` at `at` inside one of `phrases` — the exact-phrase kind of
- * exemption, checked against THIS hit rather than "the line mentions GA4
- * somewhere". `window` is `text.slice(from, …)`, so `from` maps back to file
- * offsets. Shared by the Tower scan and the config scan below. */
-function coveredByPhrase(window, from, at, phrases) {
-  return phrases.some((phrase) => {
-    for (let found = window.indexOf(phrase); found >= 0; found = window.indexOf(phrase, found + 1)) {
-      const start = from + found;
-      if (start <= at && at < start + phrase.length) return true;
-    }
-    return false;
-  });
-}
-
-function sourceFiles(dir) {
-  const found = [];
-  for (const entry of readdirSync(path.join(REPO_ROOT, dir), { withFileTypes: true })) {
-    const rel = `${dir}/${entry.name}`;
-    if (entry.isDirectory()) found.push(...sourceFiles(rel));
-    else if (/\.tsx?$/.test(entry.name) && !NOT_OPERATOR_FACING.has(rel)) found.push(rel);
-  }
-  return found;
-}
-
-const FILES = SCAN_DIRS.flatMap(sourceFiles);
+const FILES = SCAN_DIRS.flatMap((dir) => sourceFiles(REPO_ROOT, dir, NOT_OPERATOR_FACING));
 
 // A guard that scans nothing passes forever.
 test('the UI-noun sweep has files to sweep', () => {
@@ -239,17 +203,6 @@ const SCHEMA_VALUES = new Set(['property', 'per-property']);
 // provider's object named in config prose again earns its place here with its
 // reason.
 const CONFIG_ALLOWED_PHRASES = [];
-
-/** Every string VALUE in a parsed config, with a JSON-path label for the error
- * message. Keys are deliberately not yielded. */
-function* stringValues(node, at = '$') {
-  if (typeof node === 'string') yield [at, node];
-  else if (Array.isArray(node)) {
-    for (const [i, child] of node.entries()) yield* stringValues(child, `${at}[${i}]`);
-  } else if (node && typeof node === 'object') {
-    for (const [key, child] of Object.entries(node)) yield* stringValues(child, `${at}.${key}`);
-  }
-}
 
 const CONFIG_VALUES = CONFIG_FILES.map((name) => ({
   name,
