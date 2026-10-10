@@ -411,7 +411,6 @@ one is absent, and each old spelling lives in exactly one module:
 |---|---|---|---|
 | `REINDEX_OS_HOME`, `REINDEX_OS_MANAGED` | `NOTICEOS_HOME`, `NOTICEOS_MANAGED` | a launchd plist installed before the rename (reinstalling it is operator-only) | `scripts/product-env.mts` |
 | `REINDEX_OS_INSTALLATION_DIR`, `REINDEX_OS_WORKER_CONFIG_ROOT`, `REINDEX_OPERATOR_TOKEN` | `NOTICEOS_INSTALLATION_DIR`, `NOTICEOS_WORKER_CONFIG_ROOT`, `NOTICEOS_OPERATOR_TOKEN` | an operator's shell or script | `scripts/product-env.mts` |
-| `reindex-os:*` browser keys (theme, Sites list, palette recents, …) | `noticeos:*` | every browser that used the desk before | `apps/tower/src/lib/browser-storage.ts` (moves the value on first read) |
 | `reindex_key`, `reindex_kind`, `reindex_asset`, `reindex_rule`, `reindex_source`, the `reindex-handoff` label | `noticeos_*`, `noticeos-handoff` | handoff tasks in every project's tracker | `packages/contract/src/task-metadata.mts` |
 | `reindex_panel_asset`, `reindex_panel_date`, `reindex_push_asset`, `reindex_task_map_asset` | `noticeos_*` | panel-review, unpushed-work and task-map tasks | `packages/contract/src/task-metadata.mts` |
 

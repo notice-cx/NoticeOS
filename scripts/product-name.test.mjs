@@ -129,8 +129,8 @@ export const LEGACY_LITERALS = Object.freeze([
   }),
   Object.freeze({
     pattern: /["']reindex-os:/,
-    registry: ['apps/tower/src/lib/browser-storage.ts'],
-    what: 'a pre-rename browser storage key',
+    registry: [],
+    what: 'a retired browser storage key',
   }),
   Object.freeze({
     pattern: /["'](?:reindex_(?:source|asset|kind|rule|key|panel_asset|panel_date|push_asset|task_map_asset)|reindex-handoff)["']/,
@@ -243,7 +243,6 @@ test('the code-name rule sees every retired name, and lets the registries and th
     assert.equal(codeNameProblems('scripts/example.mjs', line).length, 1, line);
   }
   assert.deepEqual(codeNameProblems('scripts/product-env.mts', 'home: { name: "NOTICEOS_HOME", legacy: "REINDEX_OS_HOME" },'), []);
-  assert.deepEqual(codeNameProblems('apps/tower/src/lib/browser-storage.ts', 'export const LEGACY_STORAGE_PREFIX = "reindex-os:";'), []);
   // Prose about the legacy names, and ids that stay ids, pass.
   for (const line of ['// a bead filed before the rename carries `reindex_*` and `reindex-handoff`', "asset: 'reindex-os'", 'reindex-os-central',
     '<string>com.reindexos.local</string>', 'Reindex Ventures LLC']) {

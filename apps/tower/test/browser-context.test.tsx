@@ -40,9 +40,8 @@ it('missing owner context refuses rather than using standalone transport', () =>
   expect(() => renderHook(useTowerApi)).toThrow('verified browser runtime');
   silence.mockRestore();
 });
-it('two owners with colliding query/preference names share neither values nor legacy imports', () => {
+it('two owners with colliding query/preference names share no values', () => {
   window.localStorage.setItem('noticeos:palette-recent', 'private standalone');
-  window.localStorage.setItem('reindex-os:palette-recent', 'old standalone');
   const a = owned(); const b = owned('22222222-2222-4222-8222-222222222222');
   const pa = renderHook(useOwnerPreferences, { wrapper: wrapper(a) });
   const pb = renderHook(useOwnerPreferences, { wrapper: wrapper(b) });
