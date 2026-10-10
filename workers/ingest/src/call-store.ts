@@ -1,13 +1,7 @@
-// ONE STORE PER CALL (epic ro-ujb9.76).
-//
-// Every way into this Worker — a request, a scheduled run, an RPC call —
-// runs its work with `withCallStore`: the Worker's own bindings plus `STORE`,
-// a store opened on the POSTGRES Hyperdrive binding for this call alone and
-// closed when the call ends (@noticeos/postgres `withWorkspaceStore`, which
-// the Tower's entry uses too). Nothing connects until a module does a unit of
-// work, so a call that never reads the store costs nothing.
-//
-// Modules use `env.STORE` for all operational data.
+// One store per call. Every way into this Worker (a request, a scheduled run,
+// an RPC call) runs with `withCallStore`: the bindings plus `STORE`, opened on
+// the POSTGRES Hyperdrive binding for this call alone and closed when it ends.
+// Nothing connects until a module does a unit of work.
 
 import { type CallContext, type WorkspaceStore, withWorkspaceStore } from '@noticeos/postgres';
 import { requireStandaloneWorkspace } from '../../../scripts/workspace-entry.mjs';

@@ -1,17 +1,9 @@
-// The store's capacity inventory, for `pnpm os:doctor` and `pnpm os:capacity`
-// (bead ro-ujb9.66).
-//
-// It measures the live store without opening it. The store's sqlite file
-// belongs to the one runtime serving the ingest door, and a second reader over
-// that file is the 2026-08-02 corruption topology (scripts/ingest-door.mjs).
-// So this asks that runtime — GET /api/capacity over the loopback door, with
-// the operator bearer every other script read uses — and formats the answer.
-// The answer is metadata only: names, counts, byte totals and arrival dates
-// (workers/ingest/src/capacity.ts). The backup line stats the newest nightly
-// backup's files for their sizes; it never opens one.
-//
-// What the numbers are for, and how they size the move to Postgres and
-// Parquet: docs/26-storage-capacity.md.
+// The store's capacity inventory, for `pnpm os:doctor` and `pnpm os:capacity`.
+// It measures the live store without opening it: GET /api/capacity over the
+// loopback door, with the operator bearer, answers metadata only (names,
+// counts, byte totals and arrival dates; workers/ingest/src/capacity.ts). The
+// backup line stats the newest nightly backup's files; it never opens one.
+// What the numbers are for: docs/26-storage-capacity.md.
 
 import fs from 'node:fs/promises';
 import path from 'node:path';

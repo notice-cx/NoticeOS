@@ -3,15 +3,11 @@
 // POST /api/config-documents/apply  — apply one changeset to the stored documents
 //
 // Operator-authed, all three. The callers are `pnpm config:seed`,
-// `pnpm config:export` and the Tower's local write lane — every one of them a
-// process on the operator's own machine reaching the store through the
-// loopback-only ingest door (scripts/ingest-door.mjs). None of them opens the
-// store itself; these routes are how a script asks the runtime that already
-// holds it (bead ro-mad), so no script needs the store's credential.
-//
-// The DEPLOYED path does not come through here at all: the Tower calls
-// `applyConfigOps` over its private INGEST Service Binding, where the binding
-// itself is the capability and no bearer exists to borrow.
+// `pnpm config:export` and the Tower's local write lane, each a process on the
+// operator's own machine reaching the store through the loopback-only ingest
+// door, so no script needs the store's credential. The deployed path does not
+// come through here: the Tower calls `applyConfigOps` over its private INGEST
+// Service Binding, where the binding itself is the capability.
 
 import { authenticateOperator } from '../auth.js';
 import {
@@ -36,9 +32,8 @@ export async function handleConfigDocuments(
   const url = new URL(request.url);
 
   if (request.method === 'GET' && url.pathname === CONFIG_DOCUMENTS_PREFIX) {
-    // `ready` stays in the answer its readers parse (`pnpm config:seed`,
-    // `pnpm config:export`): on Postgres the store is always built whole, so a
-    // store that answers is ready, and one that fails answers 500.
+    // `ready` stays in the answer its readers parse: a store that answers is
+    // built whole and ready, and one that fails answers 500.
     const wantBodies = url.searchParams.get('bodies') === '1';
     const reads = await getConfigDocuments(env, CONFIG_DOCUMENT_FILES);
     return json(

@@ -1,44 +1,29 @@
-// os-deploy.mjs — `pnpm os:deploy`: move the live OS to a verified main commit.
+// `pnpm os:deploy`: move the live OS to a verified main commit.
 //
-// Merging is not deploying (bead ro-ujb9.113). The managed service runs from a
-// runtime copy of the code under `<home>/.local/runtime/` (scripts/os-runtime.mjs
-// says why and how its state stays home), so a merge changes nothing live. This
-// is the one step that does:
+// The managed service runs from a runtime copy under `<home>/.local/runtime/`
+// (scripts/os-runtime.mjs), so a merge changes nothing live; this is the one
+// step that does.
 //
 //   pnpm os:deploy                 main's HEAD → the live OS, one restart, health wait
 //   pnpm os:deploy -- <commit>     a commit main already contains
 //   pnpm os:deploy -- --check      verify only; changes nothing
 //   pnpm os:deploy -- --rollback   back to the previous runtime copy, one restart
 //
-// WHAT "VERIFIED" MEANS HERE — every one is checked before anything is written:
-//   • the commit is on main (main's HEAD or an ancestor of it);
-//   • it is a fast-forward from the commit the OS runs now (no silent rewind;
-//     going back is the explicit --rollback);
-//   • it carries the runtime-copy support itself (scripts/os-runtime.mjs);
-//   • both runtime copies are clean — nobody hand-edited production;
-//   • both Worker configs use Postgres alone, including rollback targets;
-//   • a deploy never applies migrations (operator-only, AGENTS.md):
-//     every db/postgres/migrations file it carries is one the installation's
-//     database records applying, with the same SHA-256. The record is read in
-//     a READ ONLY transaction as the application login, through the address
-//     the runner starts with (scripts/runner/database.mjs): the deploy names
-//     no secrets file itself and never prints the address. A migration the
-//     database records and the commit does not carry (a rollback past a
-//     migration) is named and allowed: the code before a migration runs on it
-//     for every application version eligible for rollback.
-// CI results are not visible on this machine, so "verified" does not claim them.
+// Verified, before anything is written: the commit is on main; it is a
+// fast-forward from the commit the OS runs now; it carries the runtime-copy
+// support; both runtime copies are clean; both Worker configs use Postgres
+// alone; and every Postgres migration it carries is one the installation's
+// database records applying with the same SHA-256, read in a READ ONLY
+// transaction through the address the runner starts with, never printed. A
+// migration the database records and the commit does not carry (a rollback
+// past a migration) is named and allowed. CI results are not visible here,
+// so "verified" does not claim them.
 //
-// HOW IT MOVES. Two runtime copies are used alternately. The idle one is brought
-// to the commit, linked to home's state, and `pnpm install --frozen-lockfile`ed
-// while the live one keeps serving — a failure there changes nothing live. Then
-// `current` is pointed at it and the service restarts ONCE, through the same
-// restart-and-health-wait `pnpm os:restart` uses, and the new runner must report
-// the deployed commit. The previous copy stays installed for --rollback.
-//
-// WHEN THAT RESTART DOES NOT COME BACK HEALTHY (bead ro-ujb9.114) the deploy goes
-// back by itself: the same --rollback plan and move, one more restart, both
-// recorded. At most once — a rollback, automatic or typed, that fails stops and
-// says so; nothing ever loops between the two copies.
+// Two runtime copies are used alternately: the idle one is prepared while the
+// live one keeps serving, then `current` is pointed at it and the service
+// restarts once, and the new runner must report the deployed commit. When
+// that restart does not come back healthy the deploy rolls back by itself, at
+// most once; nothing ever loops between the two copies.
 
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
@@ -94,10 +79,9 @@ const short = (commit) => (commit ? String(commit).slice(0, 8) : 'none');
 const R2_INDEX_DIR = 'miniflare-R2BucketObject';
 
 /**
- * The raw-signal bucket a commit opens on this installation: its ingest Worker
- * config's RAW_SIGNALS bucket, with the names the installation's store was made
- * under applied (scripts/resource-names.mts applyResourceNames, bead
- * ro-ujb9.77.8) exactly as the Tower's dev server applies them. Null when the
+ * The raw-signal bucket a commit opens on this installation: its ingest
+ * Worker config's RAW_SIGNALS bucket, with the installation's resource names
+ * applied exactly as the Tower's dev server applies them. Null when the
  * config binds no such bucket.
  */
 export function openedRawSignalsBucket(configText, names) {
@@ -235,9 +219,8 @@ export async function postgresMigrationFiles(git, homeRoot, commit) {
   if (listed.code !== 0) return null;
   const files = [];
   for (const file of listed.stdout.split('\n').map((line) => line.trim()).filter((name) => MIGRATION_FILE.test(name)).sort()) {
-    // The blob exactly as committed, no filter applied. It arrives as UTF-8
-    // text (scripts/run-command.mjs), which a migration is, so encoding it
-    // again gives back the file's bytes.
+    // The blob exactly as committed; it arrives as UTF-8 text, which a
+    // migration is, so encoding it again gives back the file's bytes.
     const blob = await git(homeRoot, ['cat-file', 'blob', `${commit}:db/postgres/migrations/${file}`]);
     if (blob.code !== 0) return null;
     files.push({
@@ -339,9 +322,8 @@ export async function planDeploy({ homeRoot, target = 'main', rollback = false, 
     }
     plan.live = { ...live.slot, commit: state.commit };
     if (state.dirty.length === 0) checks.push(`the live runtime copy (${live.slot.name}) is clean`);
-    // A rollback leaves the live copy exactly as it is, so a hand edit there does
-    // not block getting back to working code; the next deploy, which WOULD move
-    // that copy, still refuses until it is dealt with.
+    // A rollback leaves the live copy as it is, so a hand edit there does not
+    // block getting back to working code.
     else if (!rollback) refusals.push(dirtyRefusal(live.slot, state.dirty, 'live'));
   }
 
@@ -412,8 +394,7 @@ export async function planDeploy({ homeRoot, target = 'main', rollback = false, 
   }
   const ingestConfig = await fileAt(git, homeRoot, commit, 'workers/ingest/wrangler.jsonc');
   {
-    // The runner's own reader (scripts/runner/database.mjs), handed in by
-    // `pnpm os:deploy`; a test hands in its own.
+    // The runner's own reader (scripts/runner/database.mjs).
     if (typeof deps.readPostgresMigrations !== 'function') {
       throw new TypeError('planDeploy needs deps.readPostgresMigrations: this commit opens the Postgres store');
     }
@@ -432,9 +413,8 @@ export async function planDeploy({ homeRoot, target = 'main', rollback = false, 
     }
   }
 
-  // The raw-signal archive this commit would open (bead ro-ujb9.77.8). miniflare
-  // keeps local R2 objects under the bucket's name, so a commit whose configs
-  // name another bucket would start on an empty one beside the archives.
+  // miniflare keeps local R2 objects under the bucket's name, so a commit
+  // whose configs name another bucket would start on an empty one.
   const namesFile = checkoutRelative(installationPath(RESOURCE_NAMES_FILE, { root: homeRoot }), { root: homeRoot });
   let names;
   try {
@@ -474,8 +454,7 @@ async function record(homeRoot, entry, fsp, now) {
     await fsp.mkdir(path.dirname(file), { recursive: true });
     await fsp.appendFile(file, `${JSON.stringify({ at: new Date(now()).toISOString(), ...entry })}\n`);
   } catch {
-    // The record is evidence, not a precondition; a failed append must not
-    // turn a finished deploy into a reported failure.
+    // A failed append must not turn a finished deploy into a reported failure.
   }
 }
 
@@ -562,11 +541,9 @@ export async function executeDeploy(planned, deps) {
     after = await deps.restart({ timeoutMs: DEPLOY_HEALTH_WAIT_MS, action });
   } catch (error) {
     await record(homeRoot, { ...base, result: 'failed' }, fsp, now);
-    // The restart's own message: the status and the recent redacted log, exactly
-    // what `pnpm os:restart` prints when health does not return.
     const failed = String(error?.message ?? error);
     if (plan.rollback) {
-      // A rollback never goes anywhere else by itself — that way lies a loop.
+      // A rollback never goes anywhere else by itself.
       throw new Error(
         [
           failed,

@@ -1,27 +1,24 @@
-// A SAVED MAPPING REACHES THE NEXT COLLECTOR RUN (beads `ro-7xv2`, `ro-syok.7`).
+// A saved mapping reaches the next collector run, driven end to end in one
+// isolate: an operator changes which Bing site an asset maps to, nothing
+// restarts, and the very next cron fire asks the provider for the site they
+// saved. Everything in between is the real path — `applyConfigOps` is the door
+// the Sources tab's Save goes through, `runCron` is the function both the
+// platform's `scheduled()` and the local runner's RPC call, and the collector
+// is the one that talks to Bing.
 //
-// This is the bead's whole claim, driven end to end in one isolate: an operator
-// changes which Bing site an asset maps to, nothing restarts, and the very next
-// cron fire asks the provider for the site they saved. Everything in between is
-// the real path — `applyConfigOps` is the door the Sources tab's Save goes
-// through, `runCron` is the function both the platform's `scheduled()` and the
-// local runner's RPC call, and the collector is the one that talks to Bing.
-//
-// WHY BING IS THE LANE UNDER TEST. It is the cheapest mapped lane to drive
+// Bing is the lane under test because it is the cheapest mapped lane to drive
 // honestly: one API key, one site list, and the site it asks for is a string
 // this suite can read straight off the request. GA4 and Search Console resolve
-// the same mapping through the same resolver on the same read, so a second
-// signed-in fixture would prove the same seam twice.
+// the same mapping through the same resolver on the same read.
 //
-// THE FIRST RUN IS HALF THE PROOF. Before anything is seeded the same fire reads
-// the copy compiled into this Worker and matches the asset's own domain — which
-// is what makes "applying the migration changes nothing on its own" (D22) a
-// tested claim rather than a promise.
+// The first run is half the proof: before anything is seeded the same fire
+// reads the copy compiled into this Worker and matches the asset's own domain,
+// which is what makes applying the migration change nothing on its own.
 
 import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // The compiled copy this Worker falls back to is, in this suite, the frozen
-// test/fixture-config/ document, never the checkout's own (bead ro-ujb9.92).
+// test/fixture-config/ document, never the checkout's own.
 import integrationsJson from './fixture-config/integrations.json';
 import { applyConfigOps, forgetConfigCache, seedConfigDocuments } from '../src/config-store.js';
 import { PULL_CRON } from '../src/crons.js';
@@ -152,7 +149,7 @@ describe('a saved mapping reaches the collectors without a restart', () => {
       'config/integrations.json': 'store',
     });
 
-    // THE SAVE. Exactly the op the Sources tab builds for this field — one
+    // The Save: exactly the op the Sources tab builds for this field — one
     // `file-json-set` at the pointer the `asset-lane` declaration licenses,
     // guarded by the value the browser rendered.
     const saved = await applyConfigOps(
@@ -174,9 +171,9 @@ describe('a saved mapping reaches the collectors without a restart', () => {
     );
     expect(saved.ok, JSON.stringify(saved)).toBe(true);
 
-    // NOTHING RESTARTS AND NOTHING IS FLUSHED BY HAND between the Save and the
+    // Nothing restarts and nothing is flushed by hand between the Save and the
     // run: `applyConfigOps` forgets the read cache itself, which is what makes
-    // "the next run" true for the isolate that took the Save and for one that
+    // the next run true for the isolate that took the Save and for one that
     // did not.
     logged = [];
     const after = stubOutbound();

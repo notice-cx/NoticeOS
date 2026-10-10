@@ -1,10 +1,7 @@
 # Postgres operational store
 
-*Beads `ro-ujb9.76.2` (the model) and `ro-ujb9.71` (the baseline), under the
-storage move decided in D25 and the customer separation decided in D27
-([decision register](../../config/decisions.md)). Postgres is the supported
-operational store. Applying migrations to an existing installation requires
-explicit operator approval. `pnpm postgres:migrate` is operator-only
+*Postgres is the supported operational store. Applying migrations to an
+existing installation requires explicit operator approval. `pnpm postgres:migrate` is operator-only
 ([Applying it to an installation's own database](#applying-it-to-an-installations-own-database)).
 The approved exception for a provably new, empty installation is
 [`pnpm start`](host/README.md#a-new-installation), using the same helpers.*
@@ -12,23 +9,21 @@ The approved exception for a provably new, empty installation is
 | File | What it is |
 |---|---|
 | [`migrations/`](migrations/) | The store's schema, in numbered migrations; [`0001_baseline.sql`](migrations/0001_baseline.sql) is the approved model |
-| [`frozen-migrations.sha256`](frozen-migrations.sha256) | The migrations that may never change again, with their hashes, and the only ones a real database may apply ([Changing the schema](#changing-the-schema)); the baseline, frozen 2026-09-30 |
+| [`frozen-migrations.sha256`](frozen-migrations.sha256) | The migrations that may never change again, with their hashes, and the only ones a real database may apply ([Changing the schema](#changing-the-schema)) |
 | [`roles.sql`](roles.sql) | Owner, application, maintenance, identity, platform and task-directory roles, created once per cluster before the first migration |
-| [`host/`](host/README.md) | The installation's Postgres as a Compose service (the operator's choice on `ro-ujb9.76.32`), its secrets made by `pnpm postgres:secrets`; independently proven on throwaway data before the approved cutover |
+| [`host/`](host/README.md) | The installation's Postgres as a Compose service, its secrets made by `pnpm postgres:secrets` |
 | [`model.json`](model.json) | Application revision rules, NULL identities, retention windows, maintenance privileges and shared reference catalogs |
-| [`REVIEW.md`](REVIEW.md) | The orchestrator's review of the draft (2026-09-24); its six changes are built into the baseline, and each of its recommendations is [done or declined](#the-reviews-recommendations) |
 | [`constraints.md`](constraints.md) | The constraint matrix: every table's types, required columns, checks, keys, links and triggers (generated from Postgres) |
 | [`tests/`](tests/) | A synthetic fixture for every table, the cross-workspace denial proof and the edge cases with their accepted outcomes |
 | [`consumers.md`](consumers.md) | How to read current SQL consumers directly from source |
 
-The frozen baseline retains its original comments, including references to the
-retired D1 mapping. That historical source is preserved with the cutover release
-in `installation/recovery/d1-cutover`; current operational rules live in `model.json`.
+The frozen migrations retain their original comments, hash and all; current
+operational rules live in `model.json`.
 
 ## Hosted identity storage
 
 [`0002_identity.sql`](migrations/0002_identity.sql) adds the maintained identity
-schema under D39. Its `noticeos_identity` runtime role owns nothing, has no
+schema. Its `noticeos_identity` runtime role owns nothing, has no
 other role memberships, cannot create tables and cannot access the operational
 schema. Organizations use the exact canonical workspace UUID through a foreign
 key; workspace display and lifecycle remain NoticeOS-owned. Identity records
@@ -81,7 +76,7 @@ and captured mail; it does not validate live delivery or proxy peer extraction.
 
 [`0014_agent_sign_in.sql`](migrations/0014_agent_sign_in.sql) adds the
 maintained tables of Better Auth's JWT plugin and `@better-auth/oauth-provider`
-for agent sign-in (epic `ro-cvl9`): signing keys, OAuth clients, MCP
+for agent sign-in: signing keys, OAuth clients, MCP
 resources and their client links, refresh and access tokens, consents and
 client assertions, all in `noticeos_identity` under `auth_` snake_case names.
 Refresh tokens and codes are stored hashed and signing keys encrypted with the
@@ -107,14 +102,11 @@ contract are checked by `scripts/postgres-task-directory.test.mjs`.
 
 ## The decided model
 
-The operator approved all eleven choices the draft asked about on 2026-09-24
-(bead `ro-ujb9.76.14`; its comment is the record). As built:
-
 1. **Two roles.** `noticeos_owner` owns every object and runs migrations;
    `noticeos_app` is what Workers and scripts connect as, owns nothing and
    cannot bypass row security. [`roles.sql`](roles.sql) creates both without a
-   login; giving each a login on a real host is the operator's step. (A third,
-   `noticeos_maint`, came from the review, below.)
+   login; giving each a login on a real host is the operator's step. A third,
+   `noticeos_maint`, is below.
 2. **Forced row security on every table**, keyed on the per-transaction
    setting `noticeos.workspace_id` (`SET LOCAL`), the OS's own job runs and
    internet checks included. With no workspace named, every table reads empty
@@ -136,8 +128,8 @@ The operator approved all eleven choices the draft asked about on 2026-09-24
 8. **The text site id (`example.com`-style) stays the key.**
 9. **Each site's two newest insight snapshots stay; older ones move** to the
    analytical store and are never simply deleted. Two, because the site page
-   reads the newest and the Wall's feed compares it with the one before (the
-   operator's answer on `ro-ujb9.76.17`, 2026-09-29). A mover, as
+   reads the newest and the Wall's feed compares it with the one before. A
+   mover, as
    `noticeos_maint`, must record the move in `asset_insight_snapshot_moves` (where
    the snapshot now lives) before the row may leave, and the store refuses to
    move or remove either of a site's two newest, or to remove one whose move
@@ -149,14 +141,11 @@ The operator approved all eleven choices the draft asked about on 2026-09-24
     `asset_insight_snapshots`, `ledger_entries`, `archive_runs`,
     `archive_objects`, `task_*`, connections and secret versions.
 
-Decided by the operator since, on 2026-09-29: a shipped change is the ledger's
-third kind (D36), every money entry names its currency (D37), and a change
-entry freezes the prediction it shipped with (D38); see
+A shipped change is the ledger's third kind, every money entry names its
+currency, and a change entry freezes the prediction it shipped with; see
 [The ledger's three kinds](#the-ledgers-three-kinds).
 
-## What the review changed
-
-[`REVIEW.md`](REVIEW.md) asked for six changes before building. As built:
+## Vocabulary, identities and maintenance
 
 1. **Providers, metrics and checks are data.** Schema `noticeos_ref` holds
    `integrations` (the value rows store, like `ga4`, and the provider whose
@@ -165,9 +154,9 @@ entry freezes the prediction it shipped with (D38); see
    `archive_runs`, `research_log`, `watch_windows` and `hygiene_checks`
    reference them by foreign key; the CHECK lists and the repeated
    metric→unit rule are gone, and the series takes its unit from its metric
-   kind. The table is `integrations`, not the review's `providers`, because
-   the columns that reference it hold `ga4`/`gsc` while *provider* already
-   names the connected account (`google`). The vocabulary has no workspace and
+   kind. The table is `integrations`, not `providers`, because the columns
+   that reference it hold `ga4`/`gsc` while *provider* already names the
+   connected account (`google`). The vocabulary has no workspace and
    no row security; the application and maintenance only read it, and adding a
    source is a migration that inserts its rows. Closed product sets
    (severity, status, outcome, unit, booking state) stay CHECKs.
@@ -187,76 +176,43 @@ entry freezes the prediction it shipped with (D38); see
    `noticeos_app` and names it with `SET LOCAL`. No role is a member of
    another, so the application can never become it
    ([`tests/rls-denial.sql`](tests/rls-denial.sql) proves it). Creating a
-   `BYPASSRLS` role needs a superuser: a constraint on the host choice
-   (`ro-ujb9.76.12`).
+   `BYPASSRLS` role needs a superuser: a constraint on the host choice.
 4. **A bounded operational store:** see [What stays in Postgres](#what-stays-in-postgres).
 5. **Sites are retired, never deleted.** The application has no `DELETE` on
    `assets`; `retired` is the only exit, matching the immutable history that
-   references a site. An archive-then-delete path would be a new maintenance
-   operation, not built. The Tower follows it: Archive is its one way out,
-   with no Delete card (operator, 2026-09-29, bead `ro-ujb9.76.4.5`).
-6. **The table stays `assets`.** [D31](../../config/decisions.md) (operator,
-   2026-09-23) made *site* the word a person reads and kept *asset* in code,
-   URLs, tables and APIs so that nothing stored or linked changes. The APIs
-   (`/api/assets`), task labels (`asset:`), config documents and every Worker
-   still say *asset*, so renaming only these tables would give one concept two
-   names at the store boundary — and collide `site_id` with Mediavine's own
-   `site_id`. Changing it means amending D31 first.
-
-## The review's recommendations
-
-[`REVIEW.md`](REVIEW.md) also listed nine changes that did not block the
-baseline (bead `ro-ujb9.76.19`). Each is done, with the test that holds it, or
-declined, with the reason.
-
-- **One site per domain — done.** `UNIQUE (workspace_id, domain) WHERE domain
-  IS NOT NULL`; the edge case "a second site on a domain another has" is
-  refused.
-- **The first workspace's bootstrap — done.** An explicit runner step
-  ([below](#applying-it-the-development-profile)); the runner test "bootstrap
-  creates the one workspace once" holds it.
-- **Keep the two unique keys that look redundant — done.** [The model in one
-  page](#the-model-in-one-page) says why. The links that need them cannot be
-  built without them, and [`constraints.md`](constraints.md) would change.
-- **`financial_ledger`: a view, never materialized, one test per branch —
-  done.** [`tests/edge-cases.sql`](tests/edge-cases.sql) "financial_ledger: one
-  case per branch of its WHERE" has a case for each condition that decides
-  what a month shows, and checks it is a plain view and
-  that maintenance, reading every workspace at once, keeps each workspace's
-  months apart.
-- **Query statistics — done for development; a hosted database's is the host
-  choice's.** Every throwaway cluster loads `pg_stat_statements` where the
-  server build has it (CI's does), so `SELECT * FROM pg_stat_statements` shows
-  what ran (the runner test "a throwaway cluster records query statistics").
-  The capacity readback scans workspace rows as `noticeos_app`; its catalog
-  [`tables.json`](tables.json) names each table's shape and arrival stamp.
-  It uses `pg_column_size` for stored values and exposes physical database
-  and relation sizes only for a single-workspace store
-  ([doc 26](../../docs/26-storage-capacity.md), `ro-ujb9.76.7.4`).
-  A hosted database must offer `pg_stat_statements`:
-  a requirement on the host (`ro-ujb9.76.12`).
-- **Numbers that count other workspaces' activity — done** (bead
-  `ro-ujb9.76.21`). Each id (`flag_id`, `annotation_id`, …) is one sequence
-  per table, shared by every workspace, so the store never shows it: every
-  row people or other systems name also carries its workspace's own number,
-  counted from 1. See [Numbers a workspace hands out](#numbers-a-workspace-hands-out);
-  the edge cases and the model's live test hold it.
-- **Insight and task payloads in object storage — declined.** The store keeps
-  each site's two newest insight snapshots, each under 1 MB, and two days of
-  task-board photographs. Revisit only if a site ever keeps more snapshots
-  than that.
-- **Replace `integration_leases` with row locks — declined.** A lease must
-  outlive a transaction: a Worker holds it through provider calls that take
-  minutes, and renews it (Mediavine every ten minutes). A row lock lasts one
-  transaction and an advisory lock one session, and holding either through a
-  provider call pins a pooled connection (Hyperdrive's transaction pooling,
-  D27). The table also keeps each provider's cooldown, cached site list and
-  blocked-sign-in state. The edge case "a lease has one holder at a time"
-  proves the Workers' one-statement take works on Postgres.
-- **Partitioning — declined at this scale.** About 250 MB a year today, and the
-  13-month window keeps `signal_observations` near 660,000 rows at today's
-  1,678 a day. Partition by month only past about 10 million rows; nothing
-  links to that table, so adding the day to its key then is one migration.
+   references a site. The Tower follows it: Archive is its one way out, with
+   no Delete card.
+6. **The table is `assets`.** *Site* is the word a person reads; *asset*
+   stays in code, URLs, tables and APIs so that nothing stored or linked
+   changes. The APIs (`/api/assets`), task labels (`asset:`), config documents
+   and every Worker say *asset*, so renaming only these tables would give one
+   concept two names at the store boundary, and collide `site_id` with
+   Mediavine's own `site_id`.
+7. **One site per domain.** `UNIQUE (workspace_id, domain) WHERE domain IS
+   NOT NULL`; the edge case "a second site on a domain another has" is
+   refused.
+8. **`financial_ledger` is a view, never materialized**, with one edge case
+   per branch of its WHERE ([`tests/edge-cases.sql`](tests/edge-cases.sql)),
+   and maintenance, reading every workspace at once, keeps each workspace's
+   months apart.
+9. **Query statistics.** Every throwaway cluster loads `pg_stat_statements`
+   where the server build has it, and a hosted database must offer it. The
+   capacity readback scans workspace rows as `noticeos_app`; its catalog
+   [`tables.json`](tables.json) names each table's shape and arrival stamp.
+   It uses `pg_column_size` for stored values and exposes physical database
+   and relation sizes only for a single-workspace store
+   ([doc 26](../../docs/26-storage-capacity.md)).
+10. **Leases are a table, not row locks.** A lease (`integration_leases`)
+    must outlive a transaction: a Worker holds it through provider calls that
+    take minutes, and renews it. A row lock lasts one transaction and an
+    advisory lock one session, and holding either through a provider call
+    pins a pooled connection under Hyperdrive's transaction pooling. The table
+    also keeps each provider's cooldown, cached site list and blocked-sign-in
+    state; the edge case "a lease has one holder at a time" proves the
+    Workers' one-statement take.
+11. **No partitioning.** `signal_observations` stays near 660,000 rows under
+    its 13-month window; nothing links to that table, so partitioning it later
+    is one migration.
 
 ## The model in one page
 
@@ -284,7 +240,7 @@ declined, with the reason.
   `jsonb`.
 - **New tables** make hidden structure explicit: `workspaces`,
   `measurement_series` (a site's metric from one provider resource under one
-  reporting zone, bead `ro-ujb9.70`), `flag_evidence`, `watch_window_readings`
+  reporting zone), `flag_evidence`, `watch_window_readings`
   (one row per evaluated offset, instead of a growing JSON array),
   `archive_objects` (each stored object once, however many runs reuse it),
   `capability_targets`, `connection_secrets`, `asset_insight_snapshot_moves`
@@ -306,13 +262,13 @@ declined, with the reason.
 
 A hosted customer who saw alert 1000 and then alert 1030 would learn that 29
 alerts fired for someone else, if the number came from a sequence every
-workspace shares (bead `ro-ujb9.76.21`). So the identities (`flag_id`,
+workspace shares. So the identities (`flag_id`,
 `pulse_id`, …) stay the store's own keys, used by every link between rows,
 and **never leave it**. Every row that people or other systems name carries
 a second number, its workspace's own: 1, 2, 3 … within one workspace, unique
 there, never handed out twice.
 
-**What the readers show** (`ro-ujb9.76.6` builds them on this): wherever a
+**What the readers show.** Wherever a
 row's id leaves the store — an API response or route (`PATCH /api/flags/:id`),
 the Wall and its feed, task-hub labels (`key:`, `noticeos_key`), MCP answers —
 it is this number. So is a pointer another row stores as text:
@@ -349,17 +305,15 @@ workspace's counter is another row, which neither waits nor counts. A counter
 never moves back (`workspace_counter_never_moves_back`), so a number whose row
 left under retention is still never reused. An insert that `ON CONFLICT` finds
 its row already there has used a number, so a workspace's numbers may skip,
-only ever for its own writes. A sequence per workspace was not chosen: it would
-be a schema object per customer, created at signup, and it skips a number on
-every rollback.
+only ever for its own writes.
 
 **Who picks a number.** The application never does: a row it inserts with
 one is refused, and it cannot change one. Only the owner may supply a
 number during explicit provisioning or recovery; the counter advances past
 the largest by itself, preserving the numbers existing links name.
 
-**A site's place in the list** (`assets.list_position`, bead `ro-ujb9.76.52`)
-comes from the same counter. The operator reads the TV by position, so the
+**A site's place in the list** (`assets.list_position`) comes from the same
+counter. The operator reads the TV by position, so the
 order of sites is a stored fact, never an accident of when or under what id a
 site was written:
 
@@ -375,22 +329,21 @@ site was written:
 ## The ledger's three kinds
 
 `ledger_entries` holds revenue, cost and change, as
-[docs/00](../../docs/00-objective-and-roi.md#the-ledger) lists them (D36,
-bead `ro-ujb9.76.27`).
+[docs/00](../../docs/00-objective-and-roi.md#the-ledger) lists them.
 
 | Columns | Revenue and cost | Change |
 |---|---|---|
 | `asset_id`, `period_month`, `family` | Required | Required: the month it shipped, and its change class (`content-data`, `copy`, `template`, `feature`, `infra`) |
-| `currency` | Required: its amount's (D37) | Required: its prediction's (D38) |
+| `currency` | Required: its amount's | Required: its prediction's |
 | `amount_minor`, `booking_state` | Required | Empty: a change books no money |
-| `predicted_monthly_value_minor`, `predicted_success_chance`, `predicted_cost_minor`, `predicted_days_to_signal` | Empty: money predicts nothing | Required: the prediction it shipped with (D38) |
+| `predicted_monthly_value_minor`, `predicted_success_chance`, `predicted_cost_minor`, `predicted_days_to_signal` | Empty: money predicts nothing | Required: the prediction it shipped with |
 | `ref` | Optional; a cost's names the change or run it was spent on | Required: the change's own id |
 | `coverage_start`, `coverage_end`, `coverage_complete` | Optional | Empty |
 
 - **A change is booked once, when it ships**: one first entry per change id
   (`ledger_entries_one_per_change`). A cost names the change it was spent on
   by the same id.
-- **A change freezes the prediction it shipped with** (D38, bead `ro-qfcg`):
+- **A change freezes the prediction it shipped with**:
   the value per month and the full cost in integer minor units of its
   currency, the chance of success (0 to 1) and the days until a signal can be
   read (at least 1). Nothing edits it: no entry takes an update, and a
@@ -413,7 +366,7 @@ bead `ro-ujb9.76.27`).
 
 The full per-table matrix is [`constraints.md`](constraints.md), generated
 from what Postgres builds. Beyond types, required columns and the
-per-workspace keys, the baseline guards (`ro-ujb9.71`):
+per-workspace keys, the baseline guards:
 
 - **JSON shapes.** Malformed JSON never enters (`json`/`jsonb`). A document
   its writer always builds as an object is checked to be one: report
@@ -453,7 +406,7 @@ per-workspace keys, the baseline guards (`ro-ujb9.71`):
 
 Left unconstrained on purpose: references into the task hub
 (`watch_windows.readback_bead`, `flags.hypothesis_ref`, `flags.incident_ref`),
-which is another store (D32); research object keys, which may name a
+which is another store; research object keys, which may name a
 checkpoint rather than an archive object; a notification's `subject_ref`,
 which names a flag or a provider; a settings change, which outlives its
 document; and `flags.rule_inputs`, which may hold any JSON because legacy rows
@@ -461,11 +414,11 @@ do and readers treat a non-object as absent.
 
 ## What stays in Postgres
 
-The operational store keeps what the Tower reads live (D25); history past its
-window lives in the analytical store (Parquet read with DuckDB, `ro-ujb9.67`).
+The operational store keeps what the Tower reads live; history past its
+window lives in the analytical store (Parquet read with DuckDB).
 [`model.json`](model.json) `retention` states each window and the destination
-of older records. Export and snapshot-move jobs are tracked in
-`ro-ujb9.67` and `ro-ujb9.76.66`; these schema rules do not run those jobs.
+of older records. These schema rules do not run the export and snapshot-move
+jobs.
 
 | Table | Postgres keeps | Past that |
 |---|---|---|
@@ -489,12 +442,7 @@ analytical history source for both native and container backups through
 Published manifests and their complete Parquet closure travel together; rotation
 preserves held-table files until another verified retained set covers them.
 Backup completeness does not replace approved export and restore readback before
-operational deletion. The completed D1 cutover's frozen
-source and recovery instructions are private installation material at
-`installation/recovery/d1-cutover/README.md`, pinned to commit
-`a85e82837411729bc15b5cf1c2feacc7de209083`. It is outside active imports and
-test discovery. Permanent transition history is retained separately from
-ordinary backup rotation.
+operational deletion.
 
 ## Application revision rules
 
@@ -512,7 +460,7 @@ by column; retention and maintenance privileges are checked separately.
 | `archive_runs` | append-only | Append-only. |
 | `asset_insight_snapshot_moves` | read-only | Read-only for the application: the mover records moves as noticeos_maint. A move names a stored snapshot by its site and hash, never one of the site's two newest. |
 | `asset_insight_snapshots` | append-only | Append-only for the application; republishing identical content is a no-op. Older snapshots move as maintenance. |
-| `assets` | insert; update only status, sense_only, display_name, list_position, updated_at | Identity never changes; a site is retired, never deleted, since history references it. A new site takes the next place in the list from the workspace's counter; a move deals the places of the sites it spans out again (ro-ujb9.76.52). |
+| `assets` | insert; update only status, sense_only, display_name, list_position, updated_at | Identity never changes; a site is retired, never deleted, since history references it. A new site takes the next place in the list from the workspace's counter; a move deals the places of the sites it spans out again. |
 | `capability_targets` | append-only | A monitored target, once named, is permanent; state and events refer to it by target_seq. |
 | `config_changes` | append-only | Append-only. |
 | `config_documents` | insert; update only body, version, updated_at, updated_by | Versioned; every change also appends config_changes. |
@@ -537,7 +485,7 @@ by column; retention and maintenance privileges are checked separately.
 | `integration_leases` | insert, update, delete | Coordination state. |
 | `item_dispositions` | insert; update only status, updated_at, note; delete | Display state; an undo removes it. |
 | `job_runs` | insert, delete | Written once; swept after 90 days (retention). |
-| `ledger_entries` | append-only | Immutable; a correction is a new entry. Three kinds (D36), each naming its currency (D37): revenue and cost name money and its booking state; a change names a shipped change by its id and class and the prediction it shipped with (value per month, chance of success, full cost, days to signal), is booked once, books no money, and a correction of it repeats that prediction (D38). |
+| `ledger_entries` | append-only | Immutable; a correction is a new entry. Three kinds, each naming its currency: revenue and cost name money and its booking state; a change names a shipped change by its id and class and the prediction it shipped with (value per month, chance of success, full cost, days to signal), is booked once, books no money, and a correction of it repeats that prediction. |
 | `measurement_series` | append-only | A series, once named, is permanent. |
 | `mediavine_current_daily` (view) | read-only view | The newest daily fact per site and day. |
 | `mediavine_daily` | append-only | Append-only; the newest per day is current. |
@@ -555,7 +503,7 @@ by column; retention and maintenance privileges are checked separately.
 | `task_snapshots` | insert; update only captured_at, payload; delete | An unchanged board re-stamps its photograph; a replaced one keeps only what the Wall feed reads; swept after 2 days. |
 | `watch_window_readings` | append-only | Append-only, one per offset. |
 | `watch_windows` | insert; update only status, outcome, closed_at, outcome_note, last_checked_at, readback_bead, readback_posted_at | The registration is fixed; the close is one-way. |
-| `workspace_counters` | insert; update only last_number | The last number each workspace handed out per numbered table, and the last place in its list of sites, started and advanced by the numbering trigger in the inserting transaction; it never moves back (ro-ujb9.76.21, ro-ujb9.76.52). |
+| `workspace_counters` | insert; update only last_number | The last number each workspace handed out per numbered table, and the last place in its list of sites, started and advanced by the numbering trigger in the inserting transaction; it never moves back. |
 | `workspace_mutation_audit` | append-only | Append-only actor evidence recorded in the same transaction as an asset or finding effect. Historical and standalone authors stay explicitly unknown; no free-form values or notes are copied. |
 | `workspaces` | read-only | Provisioned by the owner role; new hosted workspaces start provisioning, and only platform setup activates or suspends them. Fresh standalone bootstrap creates active. The application only reads its own. |
 <!-- matrix:end -->
@@ -699,9 +647,8 @@ connections are its own, never the application's pool.
 
 ## Applying it to an installation's own database
 
-*Bead `ro-ujb9.76.34`. **Operator-only.** Independently proven on throwaway
-clusters before the approved cutover. DB migrations for existing installations
-remain operator-only forever ([AGENTS.md](../../AGENTS.md)). The approved
+***Operator-only.** DB migrations for existing installations remain
+operator-only forever ([AGENTS.md](../../AGENTS.md)). The approved
 [`pnpm start` exception](host/README.md#a-new-installation) uses the same helpers
 only for a provably new, empty installation; it does not apply to managed startup.*
 
@@ -725,8 +672,8 @@ pnpm postgres:migrate bootstrap --database noticeos --confirm noticeos --slug ma
 | Runs as `noticeos_owner` | The session must be the owner's own login. The roles and the database come first, from the Postgres service's first start ([step 2](host/README.md#the-steps)); it never creates a role or a database, and refuses where one is missing or the owner may not create schemas |
 | Applies only frozen migrations | A pending migration [`frozen-migrations.sha256`](frozen-migrations.sha256) does not list stops the run, and so does a frozen file that changed ([below](#changing-the-schema)) |
 
-**Connecting.** It needs psql alone on the machine, not a Postgres server
-(bead `ro-ujb9.76.39`): the database may run in a container or at a provider.
+**Connecting.** It needs psql alone on the machine, not a Postgres server:
+the database may run in a container or at a provider.
 The installation's Compose service ([`host/`](host/README.md)) needs a
 password, so it gets `--url-from <VARIABLE>`: the variable, named on the
 command line, holds `postgresql://noticeos_owner:<password>@<host>:<port>/<name>`
@@ -756,7 +703,7 @@ The import-graph guard in
 [`scripts/postgres-migrate.test.mjs`](../../scripts/postgres-migrate.test.mjs)
 checks those boundaries and catches planted runtime entrypoints.
 `pnpm os:deploy` holds a commit that opens this store against the database's
-record (bead `ro-ujb9.76.7.1`): it refuses a migration the database has not
+record: it refuses a migration the database has not
 applied, printing `pnpm os:stop` → this command's `apply` → `pnpm os:start`,
 and one it applied with another SHA-256. It reads the record in a READ ONLY
 transaction as the application login, through the address the runner starts
@@ -765,17 +712,16 @@ with, and loads neither this command nor the runner
 
 ## Changing the schema
 
-`0001_baseline.sql` is frozen (2026-09-30, bead `ro-ujb9.76.55`): the last
-table unit of the port had landed, and
-[`frozen-migrations.sha256`](frozen-migrations.sha256) records its hash. It
-never changes again. Every later change is the next numbered migration
+`0001_baseline.sql` is frozen:
+[`frozen-migrations.sha256`](frozen-migrations.sha256) records its hash, and
+it never changes again. Every later change is the next numbered migration
 (`pnpm postgres:dev new <name>`), frozen the same way once a kept database
 applies it: whoever applies it first runs, from this folder,
 `shasum -a 256 migrations/<file>.sql >> frozen-migrations.sha256` and commits
 the line. `scripts/postgres-model.test.mjs`
 fails while a listed file's hash differs, and it checks the operational model
 against the schema the whole set of migrations builds, however many there
-are (bead `ro-ujb9.76.20`).
+are.
 
 **Before a real database applies a migration, it is frozen.**
 `pnpm postgres:migrate` refuses a pending migration the list does not hold,
@@ -785,12 +731,12 @@ command never writes the list itself: the freeze is a commit, reviewed and teste
 like any other, and a command that edited the repository would leave every
 installation's checkout changed.
 
-**A migration keeps every app version eligible for rollback working**
-(operator, 2026-09-30, `ro-ujb9.76.68`). The previous code runs on the new
+**A migration keeps every app version eligible for rollback working.** The
+previous code runs on the new
 schema from the apply until the deploy (`pnpm os:stop` → `pnpm postgres:migrate
 apply` → `pnpm os:start` → `pnpm os:deploy`), and again after a rollback, which
 `pnpm os:deploy` allows while the database has a migration the commit does not
-carry (bead `ro-ujb9.76.7.1`). So a change that would break it, such as a
+carry. So a change that would break it, such as a
 dropped or renamed column, is split: add in one migration, remove in a later
 one, once no commit a deploy could go back to still uses it. App rollback retains
 the updated database; it never reverses a migration. This compatibility rule
@@ -809,23 +755,20 @@ its password is in no file. A machine that cannot start a Postgres 15+ server
 skips their live parts with the reason; `NOTICEOS_REQUIRE_POSTGRES=1` makes
 them required. CI puts PostgreSQL 18's server binaries on PATH before
 `pnpm -r test` and sets it for that and for `pnpm test:scripts`, so there they
-always run (beads `ro-ujb9.76.15`, `ro-ujb9.76.35`;
-`scripts/ci-contract.test.mjs` keeps both in the workflow).
+always run (`scripts/ci-contract.test.mjs` keeps both in the workflow).
 
 Fresh throwaway clusters on PostgreSQL 17+ use the builtin `C.UTF-8` locale,
 matching the pinned fresh-install host. The runner proof reads the database's
 locale provider and locale, then checks default ordering of non-ASCII text.
-PostgreSQL 15 and 16 remain supported locally without the newer initdb flags
-(bead `ro-ujb9.76.33`).
+PostgreSQL 15 and 16 remain supported locally without the newer initdb flags.
 
 `scripts/postgres-upgrade.test.mjs` restores a synthetic PostgreSQL 17 dump
 into PostgreSQL 18 and compares every row, sequence and operational constraint.
 It also checks workspace isolation, immutable ledger entries and the next
 workspace number after restore. CI supplies its old binaries through
-`NOTICEOS_TEST_POSTGRES17_BIN`; no installation is discovered
-(bead `ro-ujb9.76.83`).
+`NOTICEOS_TEST_POSTGRES17_BIN`; no installation is discovered.
 
-**Shared memory** (bead `ro-ujb9.76.25`). Each running server holds one
+**Shared memory.** Each running server holds one
 System V shared-memory segment, and a machine has few (macOS: 32). A
 throwaway start therefore refuses where this process may not list segments,
 as in an agent's sandbox, which lets a server make one and then refuses it
@@ -835,8 +778,8 @@ made by a process that has exited, of a server's size and mode, logging
 each. Every server is stopped by its own `close()`, and on exit, SIGINT,
 SIGTERM or SIGHUP. SIGKILL lets a process run nothing, so the process that
 starts a server also starts a watchdog beside it
-([`scripts/postgres-watchdog.mjs`](../../scripts/postgres-watchdog.mjs), beads
-`ro-ujb9.76.26` and `ro-ujb9.76.29`): detached, reading from a pipe only that
+([`scripts/postgres-watchdog.mjs`](../../scripts/postgres-watchdog.mjs)):
+detached, reading from a pipe only that
 process holds one line per server, written before `pg_ctl start` runs, and
 another once the start returns. When the pipe closes, however the process
 ended, the watchdog gives each of its servers still running an immediate
@@ -873,7 +816,7 @@ is still there. The sweep above stays the second line.
   shared vocabulary's (read-only for both), the retention
   trigger's arguments with `retention`, `nullIdentity` with the keys and links
   Postgres built, and [`constraints.md`](constraints.md) with the catalog.
-- **On a cluster of its own, the numbers** (bead `ro-ujb9.76.21`): two
+- **On a cluster of its own, the numbers**: two
   workspaces writing in turn through the application's transaction each count
   from 1 while the identity underneath counts both; two transactions numbering
   in one workspace at once — before its counter exists, and again once it
@@ -909,7 +852,7 @@ is still there. The sweep above stays the second line.
   that watchdog leaves running a server someone started again in its folder.
 
 [`scripts/postgres-apply.test.mjs`](../../scripts/postgres-apply.test.mjs), the operator's
-command for an installation's own database (bead `ro-ujb9.76.34`):
+command for an installation's own database:
 
 - **Always:** the target is checked before anything connects (a development
   database, `--dir` or `--url`, a relative socket, an unset variable, a URL
@@ -930,16 +873,16 @@ command for an installation's own database (bead `ro-ujb9.76.34`):
   nothing; a failing migration leaves the database exactly as it was; a
   second run is refused while one holds the lock; bootstrap creates the one
   workspace once, and two at once in separate processes cannot both create
-  one. With psql alone on the machine, no `initdb` or `pg_ctl` (bead
-  `ro-ujb9.76.39`), status reaches the server and prints its plan, while a
+  one. With psql alone on the machine, no `initdb` or `pg_ctl`, status
+  reaches the server and prints its plan, while a
   throwaway cluster still needs the server binaries. On a second cluster, a
   host that needs a password: the owner's URL comes from the variable named,
   works over TCP, and neither it nor a wrong one is repeated.
 
 [`scripts/postgres-host-profile.test.mjs`](../../scripts/postgres-host-profile.test.mjs)
 and [`scripts/postgres-secrets.test.mjs`](../../scripts/postgres-secrets.test.mjs),
-the Compose profile ([`host/`](host/README.md), bead `ro-ujb9.76.12`) where
-no container app is needed:
+the Compose profile ([`host/`](host/README.md)) where no container app is
+needed:
 
 - **Always:** `compose.yaml` publishes one port, on 127.0.0.1 alone; runs the
   pinned multi-architecture PostgreSQL 17 with query statistics and the
@@ -959,11 +902,8 @@ no container app is needed:
   Workers' store helper; and no password is in the query statistics, their
   text file or the server's log.
 
-The dated container rehearsal (first start, published binding, backup and
-restore, restart after a killed server, and minor update) is recorded in
-`compose-proof-2026-09-29.mjs` and `compose-proof-2026-09-29.json`, private
-historical evidence excluded from the public source. Current rerunnable
-fixtures are [the application Compose proof](../../scripts/container-compose.test.mjs)
+The rerunnable container fixtures are
+[the application Compose proof](../../scripts/container-compose.test.mjs)
 and [the container backup/restore proof](../../scripts/container-backup-compose.test.mjs).
 Read their explicit opt-ins and fixture requirements before running them;
 they create disposable resources and are not checks against an installation.

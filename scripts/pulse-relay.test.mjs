@@ -1,6 +1,6 @@
 // The by-hand pulse relay (`pnpm pulse:relay`) reads WHICH site to relay, and
 // from where, out of the installation's saved pull roster — never a site
-// written into the script (bead ro-ujb9.120). No secret file is read here: the
+// written into the script. No secret file is read here: the
 // token is handed in, as the script's own main hands it over.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

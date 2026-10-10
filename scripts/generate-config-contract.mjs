@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Every checked TypeScript source that ships as a committed `.mjs` + `.d.mts`
-// pair (bead ro-ujb9.61). The PROJECT decides what a source may reach: the
+// pair. The project decides what a source may reach: the
 // portable one compiles with no ambient types, so a module the browser and the
 // Workers import cannot quietly grow a `node:` import; the Node one adds
 // @types/node for the terminal and local-runner adapters. Each project's

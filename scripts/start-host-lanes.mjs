@@ -1,5 +1,5 @@
 // start-host-lanes.mjs — the host lanes an installation `pnpm start` runs,
-// once it has set them up (bead ro-ujb9.174; decisions D30, D32).
+// once it has set them up.
 //
 // The managed service runs every host lane on the host it owns
 // (scripts/os-up.mjs). A started installation runs the two a stranger's

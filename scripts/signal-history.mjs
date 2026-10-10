@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// THE PROVIDER HISTORY AS ANALYTICAL FILES (bead ro-ujb9.67.2, decision D25).
+// The provider history as analytical files.
 //
 // One site's downloaded provider archive — a folder `signals:download` or
 // `signals:refresh` wrote — published as Parquet datasets that DuckDB reads:
@@ -26,7 +26,7 @@
 // and a manifest is never published over another. To publish to an object
 // store, copy the data files first and the manifest last.
 //
-// HOW LONG A GENERATION IS KEPT (bead ro-ujb9.67.4)
+// How long a generation is kept
 //
 // After it publishes, or finds nothing changed, a run keeps every generation
 // published in the last KEEP_GENERATIONS_DAYS days and the newest, and removes
@@ -39,7 +39,7 @@
 // that asks for a generation no longer kept is refused, naming it and the rule
 // (scripts/signal-history-analyze.mjs).
 //
-// WHAT A DATASET HOLDS
+// What a dataset holds
 //
 // Rows come from scripts/signal-archive.mjs and nowhere else: `parseArchive`,
 // `archiveRows` with the downloads manifest's confirmations, `resolveFamily`,
@@ -65,7 +65,7 @@
 // order; every other family is ORDER BY report_date, then row within its file,
 // because a report day's rows all sit in one file. The manifest says which.
 //
-// THE REGISTER OF SOURCES
+// The register of sources
 //
 // Every archive the run found — read, superseded or unreadable — and every
 // report day the downloads manifest names without an archive (missing) is a row
@@ -73,20 +73,19 @@
 // hash, state, report day, rows and columns. A row that cannot be read is listed
 // with its reason and adds no rows: its report day is unknown, never empty.
 //
-// So that the analysis read from these files (scripts/signal-history-analyze.
-// mjs, bead ro-ujb9.67.3) can name its sources exactly as the analyzer's
-// summary does, a readable archive's row also keeps `envelope` — its own
+// So that the analysis read from these files (scripts/signal-history-analyze.mjs)
+// can name its sources exactly as the analyzer's summary does, a readable
+// archive's row also keeps `envelope` — its own
 // `reportDate`, `providerRows` and `providerTruncated`, as JSON, as the archive
 // states them — and the manifest names the downloads folder it read
 // (`downloadsFolder`, relative to the repository, as the analyzer's summary
 // names it). A run that finds the same content in a moved folder publishes a
 // generation naming the new folder.
 //
-// INCREMENTAL, AND THE SAME AS A REBUILD
+// Incremental, and the same as a rebuild
 //
-// A dataset is split into periods of report dates: a calendar month, chosen
-// from the measurements in docs/artifacts/signal-history-2026-09-29/. A period is
-// rewritten only when one of its archives' bytes, its downloads-manifest
+// A dataset is split into periods of report dates: a calendar month. A period
+// is rewritten only when one of its archives' bytes, its downloads-manifest
 // confirmation or object key changed, or the family's schema changed; every
 // other file is carried into the new generation as it is. A later confirmation
 // that settles a provisional GA4 day therefore rewrites that day's period. A
@@ -101,8 +100,7 @@
 // changed rule rebuilds everything, and an old generation names the code that
 // produced it.
 //
-// Nothing here schedules itself or reads the running OS (the runner job is
-// bead ro-ujb9.76.7; reports produced from these files are ro-ujb9.67.3).
+// Nothing here schedules itself or reads the running OS.
 //
 // How a generation is written, published, locked and kept is shared with every
 // writer of a history folder: scripts/history-files.mjs.

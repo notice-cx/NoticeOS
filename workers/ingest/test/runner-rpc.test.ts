@@ -1,16 +1,16 @@
 // `runScheduled()` — the local runner's cron fire — must be the same event as a
 // real Cloudflare cron.
 //
-// Since the one-runtime change (bead ro-mad) the ingest has no listener of its
-// own locally: it runs as an auxiliary Worker inside the Tower's workerd, so
-// `os:up` can no longer GET `/cdn-cgi/handler/scheduled` at a second process and
-// fires this RPC through the Tower's private Service Binding instead. If that
-// path ever dispatched differently from `scheduled()`, every local rehearsal
-// would be rehearsing something the deployed Worker does not do — and the
-// difference would only show up in production.
+// The ingest has no listener of its own locally: it runs as an auxiliary
+// Worker inside the Tower's workerd, so `os:up` fires this RPC through the
+// Tower's private Service Binding instead of GETting
+// `/cdn-cgi/handler/scheduled` at a second process. If that path ever
+// dispatched differently from `scheduled()`, every local rehearsal would be
+// rehearsing something the deployed Worker does not do.
 //
-// The freshness lane is the one used here because it is pure D1: no provider
-// call, no credential, so "did the event actually run" is a row in `flags`.
+// The freshness lane is the one used here because it is pure store work: no
+// provider call, no credential, so whether the event actually ran is a row in
+// `flags`.
 
 import { createExecutionContext, env } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -38,8 +38,8 @@ async function openFreshnessFlags(): Promise<number> {
 
 describe('the runner cron RPC', () => {
   beforeEach(reset);
-  // The hourly tick also checks every site's home page (bead ro-ujb9.165).
-  // Every site answers here, so the suite asks the real network nothing.
+  // The hourly tick also checks every site's home page. Every site answers
+  // here, so the suite asks the real network nothing.
   beforeEach(() => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
       new Response('<html><body>up</body></html>', { status: 200, headers: { 'content-type': 'text/html' } }));
@@ -68,9 +68,9 @@ describe('the runner cron RPC', () => {
     expect(viaRpc).toBeGreaterThan(0);
   });
 
-  it('checks each site is up on the same hourly tick (bead ro-ujb9.165)', async () => {
+  it('checks each site is up on the same hourly tick', async () => {
     await worker().runScheduled(FRESHNESS_CRON);
-    // The site checks' readings are on Postgres (bead ro-ujb9.76.5.8).
+    // The site checks' readings are on Postgres.
     const [row] = await env.STORE.read((tx) =>
       tx.query<{ n: number }>(
         `SELECT count(*)::int AS n FROM noticeos.hygiene_checks WHERE check_id = 'html-depth' AND status = 'ok'`,

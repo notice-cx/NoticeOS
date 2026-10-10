@@ -1,9 +1,8 @@
 # 06 — Operations & self-observability
 
-*New in v2. v1 built a control plane with write access into every asset and
-gave it no pulse, no spend meter, no kill switch, and no vendor-failure plan.
-This doc makes NoticeOS **asset #0** — held to every standard it holds assets
-to — and writes down the boring machinery autonomy actually rests on.*
+*NoticeOS is **asset #0** — held to every standard it holds assets to. This
+doc writes down the boring machinery autonomy actually rests on: the OS's own
+pulse, its spend meter, its kill switch and its vendor-failure plan.*
 
 ## Asset #0: the OS's own pulse
 
@@ -20,10 +19,9 @@ Nightly, same contract as everyone else ([doc 02](02-signal-contract.md)):
   — and it is the ONE number both surfaces read: the hourly `ingest-freshness`
   cron fires its error past that age and the Tower counts the property stale past
   that same age, so an open error and a "fresh" tally can never describe one
-  property in one payload (ro-uwo.1). Want a dead lane named sooner? Move the
-  constant, not this sentence. An asset whose Settings declare that it sends
-  no nightly report (`config/constants.json` `no_nightly_report`, bead
-  `ro-ujb9.96.8`) owes none: `owesNightlyReport` in the same file leaves it
+  property in one payload. Want a dead lane named sooner? Move the constant,
+  not this sentence. An asset whose Settings declare that it sends no nightly
+  report (`config/constants.json` `no_nightly_report`) owes none: `owesNightlyReport` in the same file leaves it
   out of both surfaces' counts, it never earns the flag, a flag still open for
   it is resolved on the next hourly run, and its card reads a neutral
   "No report".
@@ -40,7 +38,7 @@ displays is trustworthy.
 ## Local runner operability contract
 
 A standalone installation on an always-on macOS host uses this adapter (the
-Compose stack and the hosted path, D39, replace it elsewhere). Its normal
+Compose stack and the hosted path replace it elsewhere). Its normal
 runtime is the repo-generated launchd user agent (`RunAtLoad` + `KeepAlive`), not
 a terminal somebody must remember to keep open. `pnpm os:install` installs or
 refreshes that service idempotently; `pnpm os:uninstall` is its bounded restore
@@ -100,8 +98,8 @@ has not applied, or applied with another hash.
 
 For a provably new, empty installation only, `pnpm start` may create its own
 isolated Compose Postgres, apply the committed frozen schema and bootstrap
-one workspace ([approved exception](../AGENTS.md#hard-invariants-non-negotiable--from-doc-01),
-owner 2026-09-30, `ro-ujb9.8.1`). Existing installations, the managed service
+one workspace ([approved exception](../AGENTS.md#hard-invariants)). Existing
+installations, the managed service
 and production remain operator-only. The checks and first-run steps are in
 [scripts/README.md](../scripts/README.md#a-new-installation-in-one-command-pnpm-start).
 
@@ -123,14 +121,13 @@ definitions; it cannot edit the measurement channel.
 
 ## Budget enforcement (hard caps; alerts are not enforcement)
 
-**What is in force today (2026-09-05).** One cap, and it is real:
+**What is in force today.** One cap, and it is real:
 `config/constants.json` `monthly_caps.data_usd` — $25/mo of metered data spend,
 reserved before every paid DataForSEO read and failing closed. There is **no
 model gateway and no inference cap**, because no process in this repo calls a
-model: the analyzer is rule-based, and every model call happens in a Claude Code
-session billed outside the OS. The $100/mo inference ceiling this section
-implied was withdrawn on 2026-09-05 (D6, bead `ro-uj7x`) rather than left on a
-settings page that had to admit nothing measured it. Everything below is the
+model: the analyzer is rule-based, and every model call happens in an agent
+session billed outside the OS, so no settings page carries an inference
+ceiling that nothing measures. Everything below is the
 design that takes effect **when the OS makes its first model call of its own** —
 it is a specification, not a description of the running system.
 
@@ -142,24 +139,21 @@ LiteLLM-class proxy equivalent):
   portfolio monthly cap. Breach = block or fall back to a cheaper model —
   degrade, don't die.
 - **Spend-velocity circuit breaker** independent of totals ($/min beyond N×
-  the planned rate trips before the daily cap ever would — the $47k loop ran
-  11 days on alerts alone).
+  the planned rate trips before the daily cap ever would; a runaway loop can
+  run for days on alerts alone).
 - Loop detectors: identical-call dedup, A↔B round-trip counters,
-  recursion-depth caps, error-streak halts (one documented burn ignored 253
-  consecutive usage-limit errors).
+  recursion-depth caps, error-streak halts.
 - **Kill must reach the provider**: cancellation of provider-side runs is part
-  of the switch — documented incidents kept billing after the local process
-  died.
-- Caps exist per credential, so a leaked key is bounded (documented leaks run
-  $1k–$60k before humans notice).
+  of the switch — a provider keeps billing after the local process dies.
+- Caps exist per credential, so a leaked key is bounded before a human
+  notices it.
 
 ## The kill switch
 
 **Required before automated asset execution, not a built first-release
-control (D43).** Asset agent execution remains manual; operators stop their
+control.** Asset agent execution remains manual; operators stop their
 external agents directly. NoticeOS's collection schedule controls do not
-establish an agent pause. The execution service and its enforceable pause
-boundary are tracked in `ro-lwo6`.
+establish an agent pause.
 
 The future operating contract requires one documented, rehearsed action to
 stop the system: disable all NoticeOS crons
@@ -183,8 +177,7 @@ interventions.
 
 ### Bootstrap secrets vs. integration credentials
 
-*The line, written here and linked from everywhere else (D21, epic `ro-vu8d`;
-the fourth secret, the operator's choice on `ro-ujb9.76.32`). Four bootstrap
+*The line, written here and linked from everywhere else: four bootstrap
 secrets, and everything else in the product.*
 
 **Four secrets stay in the environment, forever.** They are how the OS starts
@@ -231,8 +224,8 @@ resolves the store first.
 **Env bindings remain the legacy fallback for existing installs.** A provider
 with no stored row falls back entirely to its binding and keeps working — the
 card wears a neutral *Legacy env* chip and offers **Import from this machine**,
-which moves the whole secrets file across in one press (bead `ro-vu8d.7`;
-`pnpm dev:secrets:import` is the same code where there is no dev server). `os:up`
+which moves the whole secrets file across in one press
+(`pnpm dev:secrets:import` is the same code where there is no dev server). `os:up`
 names any provider still on env in one line at startup, and `/health` says so in
 one line too. The fallback is not deprecated and nothing forces the move; what
 it costs is portability, because a fresh install would need those secrets copied
@@ -286,8 +279,8 @@ GA4's current display data is demand-driven, not another cron or
 measurement-history lane. An open Home/Wall polls the Tower every 30 seconds;
 Tower calls ingest over a private Service Binding, and ingest concurrently
 makes two `runRealtimeReport` requests/property — both trailing 30- and
-5-minute ranges, and the per-minute rows of the Wall's minute pulse (bead
-`ro-trai.27`) — shared by every display for one minute, plus one bounded Core
+5-minute ranges, and the per-minute rows of the Wall's minute pulse — shared
+by every display for one minute, plus one bounded Core
 hourly report for today and seven days ago. It reuses a short-lived read-only Google access token but persists nothing.
 The current-day line stops after GA4's newest reported hour; unreported future
 hours are null rather than zero, while the same-weekday reference spans its
@@ -300,7 +293,7 @@ be based on observed token consumption.
 The analysis-grade provider lanes are isolated from those live chart
 collectors. They write bounded daily GA4/GSC/BWT and weekly DataForSEO gzip
 JSON to the private/local `RAW_SIGNALS` R2 binding and append-only attempt
-manifests to `signal_dump_runs`. Google re-fetches the previous four completed
+manifests to `archive_runs`. Google re-fetches the previous four completed
 dates; BWT retains one current provider snapshot for each of six report
 families; DataForSEO retains ranked-keyword, backlink, and Google/ChatGPT
 mention snapshots and exact metered cost.
@@ -334,24 +327,22 @@ property has ever produced a warning.
 - **Where config lives, reconciled:** ALL config — including doc 02's
   per-asset anomaly thresholds and the Tower's layout/threshold edits — is a
   store document seeded from the installation folder (or the `config/`
-  defaults) and exported back to the installation folder (D22 below); the
+  defaults) and exported back to the installation folder (below); the
   store's other tables hold *data*, never tunables. "Tunable per asset" means
   per-asset values inside the versioned config.
-- **Narrowed 2026-09-05 (D21): "never tunables" means never MEASUREMENT RULES.**
-  The rule exists so that anything which can change a verdict is visible in a
-  diff — thresholds, the scoring policy, the tracked-query list that decides
-  spend. It was never an argument about *credentials*, and treating it as one
-  cost a self-hoster the ability to connect Google Analytics without editing two
-  gitignored files and restarting the OS. A provider secret is per-install
+- **"Never tunables" means never measurement rules.** The rule exists so that
+  anything which can change a verdict is visible in a diff — thresholds, the
+  scoring policy, the tracked-query list that decides spend. It is not an
+  argument about *credentials*. A provider secret is per-install
   operator state that must never enter version control, changes on the
   operator's schedule rather than the repo's, and has to work in a deployed
   Worker with no filesystem — so it lives encrypted in the store's
   `noticeos.connection_secrets` versions, alongside the public facts in
   `noticeos.integration_connections`, under the bootstrap secret `CREDENTIALS_KEY`.
-  It is entered and tested on the Tower's Integrations page (epic `ro-vu8d`,
-  [Postgres model](../db/postgres/README.md#the-decided-model)). Operator
-  *settings* move the same way for the same reason (epic `ro-syok`). The measurement channel does not
-  move, and never will: it is a HARD INVARIANT above.
+  It is entered and tested on the Tower's Integrations page
+  ([Postgres model](../db/postgres/README.md#the-decided-model)). Operator
+  *settings* move the same way for the same reason. The measurement channel
+  does not move, and never will: it is a hard invariant above.
   `config/tower.json` owns the shared Home/Wall countdown; applied values ride
   `/api/wall`, while the live clock always uses the display's local civil time.
   `config/serp-panel.json` owns the per-property tracked head terms the weekly
@@ -359,16 +350,15 @@ property has ever produced a warning.
   down, and the document that decides that spend, so it is a config document
   like every other tunable.
   `config/entities.json` owns the portfolio's legal entities and the asset ids
-  each one owns — the one place *which entity owns this asset* is written down
-  (D5; bead `ro-aodz`, 2026-09-05). It is config rather than a column on
+  each one owns — the one place *which entity owns this asset* is written down.
+  It is config rather than a column on
   `assets` because it changes on a lawyer's schedule rather than the store's,
   and because a column would have been a migration for a fact the product can
   own; it is edited on `/settings` → **Ownership** and on each asset's
   **Settings → Identity** card.
-- **Narrowed again 2026-09-05 (D22, operator-decided): the files are the SEED
-  and the EXPORT; the store is the source of truth once seeded.** Both reasons
-  the rule was chosen survive, and neither is the file being the thing a Worker
-  reads. `pnpm config:seed` loads each document from the installation folder, or
+- **The files are the seed and the export; the store is the source of truth
+  once seeded.** Both reasons for the rule survive, and neither is the file
+  being the thing a Worker reads. `pnpm config:seed` loads each document from the installation folder, or
   from the generic default in `config/` where the installation has none, into
   `noticeos.config_documents` as a whole JSON document keyed by its file name
   without directory or extension (`config/tower.json` → `tower`); APIs still
@@ -379,11 +369,9 @@ property has ever produced a warning.
   half beside it — who changed
   what, why, and the version either side
   ([Postgres model](../db/postgres/model.json)).
-  What this buys is the thing D18 could not: **a deployed Tower saves a
-  setting.** Until now the only deployment that could was the local `os:up` dev
-  server, because a Node process had the repo beside it; anywhere else every
-  file-owned field was read-only, which is a footnote a self-hoster hits on day
-  one (epic `ro-syok`).
+  What this buys: **a deployed Tower saves a setting.** A file-owned field is
+  writable only where a Node process has the repo beside it; a store document
+  is writable from any deployment.
   **Seeding selects the stored document.** Both Workers read a
   document from the store when it is there and fall back to the copy compiled
   into them when it is not. A reachable, initialized Postgres store with an
@@ -392,7 +380,7 @@ property has ever produced a warning.
   once, at startup. The measurement channel still does not move: a guardrail
   threshold is operator-only whichever table it sits in, and this changes where
   a value is read, never who may change one.
-  **The ingest's own collectors read it per run** *(bead `ro-syok.7`)*. One read
+  **The ingest's own collectors read it per run.** One read
   per cron fire — `readCollectorConfigs` in `workers/ingest/src/config-store.ts`,
   resolved at `dispatch.ts` and handed to each collector as the parameter it
   already took — covers the six documents those jobs need: `pull.json`,
@@ -403,21 +391,20 @@ property has ever produced a warning.
   line carries `configSource` per file — the word only, never a document — so
   "which configuration did last night run on" is something a run SAID rather than
   something a reader infers. That is what makes a data-source mapping saved on an
-  asset's Sources tab reach the next collection run with no restart (`ro-7xv2`);
+  asset's Sources tab reach the next collection run with no restart;
   an unseeded install answers `file` for every one of them and runs the run it
   ran yesterday.
 
 ## Legacy names
 
 <!-- legacy-names:begin -->
-The product was called ReindexOS until 2026-09-23 and is NoticeOS now
-(decision D26; epic `ro-ujb9.77`). Everything a person or a contributor reads,
-every package (`@noticeos/*`) and every code and wire name says NoticeOS, and
-`scripts/product-name.test.mjs` keeps it that way. Two kinds of old name remain
-on purpose, and nothing else may carry one.
+The product was once called ReindexOS and is NoticeOS now. Everything a
+person or a contributor reads, every package (`@noticeos/*`) and every code
+and wire name says NoticeOS, and `scripts/product-name.test.mjs` keeps it that
+way. Two kinds of old name remain on purpose, and nothing else may carry one.
 
 **Read for compatibility, never written.** A running installation and the
-beads it filed still carry these; the product reads the old name when the new
+tasks it filed still carry these; the product reads the old name when the new
 one is absent, and each old spelling lives in exactly one module:
 
 | Old name | New name | Where it still turns up | Read by |
@@ -425,8 +412,8 @@ one is absent, and each old spelling lives in exactly one module:
 | `REINDEX_OS_HOME`, `REINDEX_OS_MANAGED` | `NOTICEOS_HOME`, `NOTICEOS_MANAGED` | a launchd plist installed before the rename (reinstalling it is operator-only) | `scripts/product-env.mts` |
 | `REINDEX_OS_INSTALLATION_DIR`, `REINDEX_OS_WORKER_CONFIG_ROOT`, `REINDEX_OPERATOR_TOKEN` | `NOTICEOS_INSTALLATION_DIR`, `NOTICEOS_WORKER_CONFIG_ROOT`, `NOTICEOS_OPERATOR_TOKEN` | an operator's shell or script | `scripts/product-env.mts` |
 | `reindex-os:*` browser keys (theme, Sites list, palette recents, …) | `noticeos:*` | every browser that used the desk before | `apps/tower/src/lib/browser-storage.ts` (moves the value on first read) |
-| `reindex_key`, `reindex_kind`, `reindex_asset`, `reindex_rule`, `reindex_source`, the `reindex-handoff` label | `noticeos_*`, `noticeos-handoff` | handoff beads in every project's tracker | `packages/contract/src/task-metadata.mts` |
-| `reindex_panel_asset`, `reindex_panel_date`, `reindex_push_asset`, `reindex_task_map_asset` | `noticeos_*` | panel-review, unpushed-work and task-map beads | `packages/contract/src/task-metadata.mts` |
+| `reindex_key`, `reindex_kind`, `reindex_asset`, `reindex_rule`, `reindex_source`, the `reindex-handoff` label | `noticeos_*`, `noticeos-handoff` | handoff tasks in every project's tracker | `packages/contract/src/task-metadata.mts` |
+| `reindex_panel_asset`, `reindex_panel_date`, `reindex_push_asset`, `reindex_task_map_asset` | `noticeos_*` | panel-review, unpushed-work and task-map tasks | `packages/contract/src/task-metadata.mts` |
 
 **Born with NoticeOS names.** A resource that does not exist yet costs
 nothing to name right, so everything a new installation creates is named in
@@ -438,7 +425,7 @@ one place, [`scripts/resource-names.mts`](../scripts/resource-names.mts), and
 | the Tower and ingest Workers | `noticeos-tower`, `noticeos-ingest` | the checkout's Worker configs, for every installation |
 | the Postgres database and R2 bucket | `noticeos`, `noticeos-raw-signals` | the checkout's Worker configs — what a stranger deploys and what `pnpm start` sets up |
 | the managed service on a Mac with none installed | `com.noticeos.local` | `pnpm os:install` |
-| the Postgres database and role | `noticeos`, `noticeos_app` | the Postgres profile (`ro-ujb9.76.12`) |
+| the Postgres database and role | `noticeos`, `noticeos_app` | the Postgres profile |
 
 Wrangler reaches the database by its binding, `DB`, so the same migrate,
 seed and config commands work on a store of either vintage. A store made under
@@ -454,16 +441,16 @@ for no benefit to anyone using the product:
 
 | Name | What it is | Why it stays |
 |---|---|---|
-| the product's old slug, as an id | asset #0's id (the OS's own historical row, retained through the Postgres cutover) | an id every stored row, pulse and token keys on. The row is always shown as NoticeOS, known by `is_os`, never by this id; the `ReindexOS` its `display_name` still stores is legacy data nothing displays (`ro-ujb9.77.10`) |
-| `reindex-os-central`, `reindex-os-raw-signals` | the retired D1 database and current R2 bucket the owner's store was made under, named in that installation's own `resource-names.json` (bead `ro-ujb9.77.8`), never in the checked-in Worker configs | the local R2 store is kept under the bucket's name; resource names are operator-only (D25 retires D1 for Postgres) |
+| the product's old slug, as an id | asset #0's id (the OS's own historical row) | an id every stored row, pulse and token keys on. The row is always shown as NoticeOS, known by `is_os`, never by this id; the `ReindexOS` its `display_name` still stores is legacy data nothing displays |
+| `reindex-os-central`, `reindex-os-raw-signals` | the retired D1 database and current R2 bucket an older store was made under, named in that installation's own `resource-names.json`, never in the checked-in Worker configs | the local R2 store is kept under the bucket's name; resource names are operator-only |
 | `com.reindexos.local` | the launchd label of a service installed before the rename | installing, renaming or removing the service is operator-only; `pnpm os:*` finds it by its installed plist and keeps using it |
-| `~/dev/reindex-os` | the owner's checkout | the task hub keeps its Dolt data inside it and the service runs from it (D33) |
-| the Dolt hub databases and the `ro-` bead prefix | the task hub | every bead id and every project's link to the hub |
-| `git@github.com:reindex-os/reindex-os.git` | the private repository | agents never rename or move a repository or a remote (D33) |
-| the old name in `docs/reports`, `docs/artifacts`, `docs/briefs`, the rows of `config/decisions.md` and the frozen migration source in `installation/recovery/d1-cutover` | dated records | they keep the words they were written in |
+| an older checkout's path | the maintainer's checkout | the task hub keeps its Dolt data inside it and the service runs from it |
+| the Dolt hub databases and the `ro-` task prefix | the task hub | every task id and every project's link to the hub |
+| the private repository's remote | the maintainers' repository | agents never rename or move a repository or a remote |
+| the old name in `docs/reports`, `docs/artifacts`, `docs/briefs` and the frozen migration source in `installation/recovery/d1-cutover` | dated records | they keep the words they were written in |
 <!-- legacy-names:end -->
 
-## The beads task hub (landed 2026-08-01)
+## The task hub
 
 Operator and agent work is tracked in [Beads](https://github.com/gastownhall/beads)
 (`bd`), a Dolt-backed task tracker. One shared Dolt SQL server is the hub;
@@ -490,13 +477,13 @@ to an installation still using the [legacy native profile](../config/dolt-server
 Dolt holds an exclusive write lock per database; a second server must never
 open the same data directory.
 
-**Tasks are coordination state, not signals.** A bead records what someone
+**Tasks are coordination state, not signals.** A task records what someone
 intends to do; a pulse records what an asset observed. The hub is a second store
 beside the ledger and never inside it — nothing in it enters the pulse envelope
-or the signal contract ([doc 02](02-signal-contract.md)), and no bead is
+or the signal contract ([doc 02](02-signal-contract.md)), and no task is
 evidence of an outcome. Intent must never be able to masquerade as measurement.
 
-**Durability (extends D10).** The runner's nightly 04:00 UTC job backs up all
+**Durability.** The runner's nightly 04:00 UTC job backs up all
 three stores into the same dated directory under `.local/backups/`, on the same
 30-day retention: the declared Compose Postgres through a custom-format
 `pg_dump`, the R2 raw-archive store's sqlite via sqlite's **online-backup API**
@@ -512,17 +499,17 @@ the restore proof also checks their archive references. Postgres requires the
 installation's explicit `postgres/profile.json`; no project is inferred or
 started by a backup. See [backup and restore](../scripts/README.md#backups--restore).
 
-**Off-machine durability is wired (2026-08-02).** The finished dated dir is
+**Off-machine durability.** The finished dated dir is
 copied to `<offsiteBackupDir>/<date>/`, the folder this host names in its
 installation's `host-backup.json` ([`config/host-backup.README.md`](../config/host-backup.README.md)),
-which a sync client carries offsite with no extra tool or credential — chosen
-over a Dolt remote / per-store export in `ro-t34`. Only the *completed* copy
+which a sync client carries offsite with no extra tool or credential. Only
+the *completed* copy
 travels, never live stores, so the sync client cannot see a torn file; pruning
 sweeps the offsite tree on the same 30-day window. The `DOLT_BACKUP` dirs in
 that copy restore via `dolt backup restore file://…`, which satisfies the hub's
-off-machine need too — `ro-2nd`'s Dolt-remote wiring stays unbuilt unless a
-drill proves the copied backups insufficient. D10's standing warning applies
-unchanged — *untested backups are hopes* — so the quarterly restore drill
+off-machine need too; a Dolt remote stays unbuilt unless a drill proves the
+copied backups insufficient. *Untested backups are hopes*, so the quarterly
+restore drill
 restores from the **offsite copy alone**, all three stores, into an isolated
 scratch location (procedure in [`scripts/README.md`](../scripts/README.md)).
 

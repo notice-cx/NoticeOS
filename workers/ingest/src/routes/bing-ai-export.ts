@@ -1,26 +1,10 @@
-// POST /api/bing-ai-export — archive one operator-downloaded Bing AI
-// Performance export (bead ro-2dn).
-//
-// WHY A ROUTE AND NOT A SCRIPT THAT WRITES THE STORE. The importer runs on the
-// operator's machine, beside a live `os:up`, which is the only state that
-// machine is ever in. A script that opened D1 and R2 itself would start a
-// second workerd over the sqlite file the Tower already owns — the 2026-08-02
-// corruption topology (beads ro-mad, ro-icq). So the file crosses the loopback
-// ingest door as base64 and the one runtime that owns the store does the write,
-// exactly as `signals:publish-insights` does (scripts/ingest-door.mjs).
-//
-// WHAT IS CHECKED BEFORE ANYTHING IS STORED. The header row decides which of
-// the three exports this is, and an unrecognized header is a 422 that prints
-// what arrived next to the three known shapes — never a positional guess. The
-// filename must agree with the header, because the export date this archive is
-// keyed on is read off that same filename. The property must exist. Only then
-// does a byte enter R2.
-//
-// IDEMPOTENT BY CONTENT. The archive is built from the file alone, so the same
-// file imported twice hashes the same, matches the prior manifest row and is
-// recorded `unchanged` — a 200 that says so, rather than a second copy of the
-// same 740 queries. A later export lands on its own export date and appends to
-// the dated series.
+// POST /api/bing-ai-export: archive one operator-downloaded Bing AI
+// Performance export. The file crosses the loopback ingest door as base64 so
+// the one runtime that owns the store does the write. The header row decides
+// which of the three exports this is, the filename must agree with it because
+// the export date is read off the filename, and the property must exist before
+// a byte enters R2. The archive is built from the file alone, so the same file
+// imported twice is recorded `unchanged`; a later export lands on its own date.
 
 import {
   BING_AI_CREDENTIAL_REF,
@@ -79,10 +63,8 @@ export async function handleBingAiExport(
     Date.parse(`${exportDate}T00:00:00.000Z`) > nowMs + 86_400_000
   ) {
     // A day of slack for the operator's timezone: Bing stamps the filename in
-    // local time, and a file downloaded on the evening of the 3rd in the US can
-    // honestly say the 4th. Anything further ahead is a typo, and a snapshot
-    // dated into the future would sort itself to the top of the dated series
-    // forever.
+    // local time. Further ahead is a typo, and a future date would sort itself
+    // to the top of the dated series forever.
     issues.add('exportDate', 'custom', 'exportDate must not be in the future');
   }
   const contentBase64 = requiredString(issues, body.contentBase64, 'contentBase64', BASE64_MAX_LENGTH);
@@ -115,10 +97,8 @@ export async function handleBingAiExport(
 
   let text: string;
   try {
-    // `ignoreBOM: true` keeps the byte-order mark in the string rather than
-    // having the decoder eat it, so the ONE place that decides what to do with
-    // a BOM is the parser (bing-ai-exports.ts) — and it reads the same whether
-    // the bytes arrived here or off a disk somewhere else.
+    // `ignoreBOM: true` keeps the byte-order mark in the string so the one
+    // place that decides what to do with a BOM is the parser (bing-ai-exports.ts).
     text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
   } catch {
     return json(
@@ -141,9 +121,8 @@ export async function handleBingAiExport(
     throw error;
   }
 
-  // The property, and the site the export is about. A property the store does
-  // not know is a 422 that says so rather than a foreign-key failure. The site
-  // list is on Postgres (bead ro-ujb9.76.4.2).
+  // A property the store does not know is a 422 that says so rather than a
+  // foreign-key failure.
   const [property] = await env.STORE.read((tx) =>
     tx.query<{ id: string; domain: string | null }>(
       `SELECT asset_id AS id, domain FROM noticeos.assets WHERE asset_id = $1`,
@@ -179,10 +158,8 @@ export async function handleBingAiExport(
       collected: bingAiCollectedDump({ file, exportDate, bytes, fileSha256, parse }),
     });
   } catch (error) {
-    // No failure row is written here. `signal_dump_runs` errors describe a
-    // COLLECTOR that ran and could not reach a provider; this lane has an
-    // operator standing in front of it who sees this body and retries. A row
-    // claiming Bing failed would be a lie about a lane that never called Bing.
+    // No failure row is written here: `signal_dump_runs` errors describe a
+    // collector that could not reach a provider, and this lane never called Bing.
     if (error instanceof SignalError) {
       return json({ error: error.code, detail: error.message }, 422);
     }

@@ -1,12 +1,8 @@
 /** Portable PostHog archive shape. No schema library, storage, or runtime globals. */
-// ── The six PostHog families and their row fields (beads ro-ghis.1, ro-ghis.4) ──
-// ONE definition for two runtimes. The collector's zod row schemas
-// (`posthog.ts`) must name exactly these fields — a field missing or extra there
-// is a compile error — and the plain-Node flattener
-// (`scripts/signal-archive.mjs`) reads the generated `.mjs` sibling, so a
-// field added here reaches the collector's check and the flattened
-// `posthog-<family>.csv` together. Before this file each side carried its own
-// list, because the flattener cannot import TypeScript.
+// ── The PostHog families and their row fields ───────────────────────────────
+// One definition for two runtimes: the collector's zod row schemas
+// (`posthog.ts`) must name exactly these fields, and the plain-Node flattener
+// (`scripts/signal-archive.mjs`) reads the generated `.mjs` sibling.
 //
 // `grain` is what one row of that family counts ("one row per day", "per event
 // name"); the flattener writes it as each CSV row's `row_grain`. `fields` are

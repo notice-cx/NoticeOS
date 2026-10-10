@@ -7,7 +7,7 @@ import {
   rotationReport,
 } from './creds-rotate-key.mjs';
 
-// `pnpm creds:rotate-key` (bead `ro-vu8d.11`).
+// `pnpm creds:rotate-key`.
 //
 // WHAT IS PINNED HERE, and what deliberately is not. The rotation itself —
 // AES-GCM, the two-key read, the atomic per-row update, the resumable pass — is
@@ -111,7 +111,7 @@ test('tells the operator a contended row lost nothing and to run it again', () =
 });
 
 test('carries the refusal line through verbatim, and prints the runbook for a missing previous key', () => {
-  // The Worker answers a state and a code (bead ro-ujb9.96.6.25); the steps
+  // The Worker answers a state and a code; the steps
   // are printed here, where the operator performs them.
   const lines = rotationReport({
     ok: false,

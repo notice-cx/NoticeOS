@@ -1,5 +1,5 @@
 // runner/watch-readbacks.mjs — carries each closed bet's verdict to the bead
-// that owns its reading: the store keeps the queue (db/0024), this lane posts
+// that owns its reading: the store keeps the queue, this lane posts
 // a `bd comment` in the owning project, then tells the store what landed.
 
 import path from 'node:path';
@@ -15,7 +15,7 @@ export function watchReadbacksUrl(config) {
 }
 
 /**
- * Carry each closed bet's verdict to the bead that owns its reading (db/0024).
+ * Carry each closed bet's verdict to the bead that owns its reading.
  *
  * This lane exists because neither end can do it alone. The evaluator lives in
  * a Worker and cannot run `bd`; the beads hub knows nothing about watch

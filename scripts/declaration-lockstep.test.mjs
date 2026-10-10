@@ -4,41 +4,27 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-// A HAND-WRITTEN `.d.mts` IS A SECOND IMPLEMENTATION OF THE SAME CONTRACT
-// (bead `ro-7uy0`).
+// A hand-written `.d.mts` is a second implementation of the same contract.
 //
 // `scripts/` is plain ESM with no build step, on purpose: one implementation
-// bundles into a Worker, runs in a terminal, and is imported by the Tower —
+// bundles into a Worker, runs in a terminal, and is imported by the Tower,
 // which is exactly why `config-registers.mjs` and `wall-layout.mjs` live here
 // rather than in `apps/tower/shared/`. The price is that TypeScript callers
-// reach them through a declaration file somebody typed by hand, and every one of
-// those files says "keep in lockstep with the .mjs" in its own header with
-// nothing behind the sentence.
+// reach them through a declaration file, and a name added to the `.mjs` and
+// forgotten in the `.d.mts` goes red nowhere: it simply is not there when a
+// Tower import site reaches for it. The mirror image is quieter still: a name
+// declared that the runtime no longer exports typechecks green and is
+// `undefined` at the point it matters.
 //
-// The failure that actually happens: an export is added to the `.mjs` and
-// forgotten in the `.d.mts`. Nothing goes red — the name simply is not there
-// when a Tower import site reaches for it, and the four gates had no opinion.
-// The mirror image is quieter still: a name declared that the runtime no longer
-// exports typechecks green and is `undefined` at the point it matters, which for
-// `wall-layout.d.mts` would be a Wall the types promise and the renderer cannot
-// draw.
-//
-// SO THIS TEST FINDS EVERY PAIR ITSELF. Any `scripts/*.d.mts` with a sibling
-// `.mjs` is checked the day it lands; nobody has to remember to add it here.
-//
-// IT STOPS AT NAMES, deliberately. Whether a declared TYPE still describes what
-// the runtime returns is a question only `tsc` over the pair can answer, and it
-// is a bigger one — see `ro-7uy0`'s own note. A name-set comparison is cheap,
-// needs no TypeScript loader, and catches the drift that occurs.
-//
-// `tsc` NOW ANSWERS IT (bead `ro-ujb9.61`). A shared module is authored as
-// `scripts/<name>.mts`, and `pnpm config:generate` writes the `.mjs` and the
-// `.d.mts` from it, so a TypeScript caller compiles against the implementation
-// itself and `pnpm config:check` fails a stale output. Those pairs leave this
-// name check: their declarations cannot disagree with their runtime. What stays
-// here is (1) the ratchet below — a HAND-WRITTEN pair is allowed only where
-// `HANDWRITTEN_PAIRS` names it with its reason — and (2) the name check for
-// exactly those pairs.
+// A shared module is authored as `scripts/<name>.mts`, and `pnpm
+// config:generate` writes the `.mjs` and the `.d.mts` from it, so a TypeScript
+// caller compiles against the implementation itself and `pnpm config:check`
+// fails a stale output. Those pairs leave this name check: their declarations
+// cannot disagree with their runtime. What stays here is (1) the ratchet
+// below (a HAND-WRITTEN pair is allowed only where `HANDWRITTEN_PAIRS` names
+// it with its reason) and (2) the name check for exactly those pairs, which
+// finds every pair itself by walking `scripts/`. It stops at names: whether a
+// declared TYPE still describes what the runtime returns is `tsc`'s question.
 
 const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -55,12 +41,12 @@ const HANDWRITTEN_PAIRS = {
   'config-store-client.d.mts':
     'it reads the operator bearer and attaches it to every request to the ingest door. ' +
     'Moving that code into a generated file is a change to a protected auth path, which ' +
-    'needs explicit operator scope (bead ro-ujb9.98); until then its three typed callers ' +
+    'needs explicit operator scope; until then its three typed callers ' +
     'read these declarations.',
   'dev-secrets.d.mts':
     'it reads and moves credential values between the local secrets file and the store. ' +
     'Moving that code into a generated file is a change to a protected credential path, ' +
-    'which needs explicit operator scope (bead ro-ujb9.98).',
+    'which needs explicit operator scope.',
 };
 
 /**
@@ -223,8 +209,8 @@ test('the walk finds the generated pairs and the hand-written ones', () => {
     'last one gained its .mts and this name check can be retired with HANDWRITTEN_PAIRS');
 });
 
-// The ratchet (bead ro-ujb9.61): a new shared module is authored as `.mts`
-// and generated, never typed twice by hand.
+// The ratchet: a new shared module is authored as `.mts` and generated, never
+// typed twice by hand.
 test('a hand-written declaration pair exists only where HANDWRITTEN_PAIRS says why', () => {
   const found = PAIRS.map((pair) => pair.declarations);
   assert.deepEqual(
@@ -309,19 +295,15 @@ test('a partial-declarations exemption that has caught up is deleted', async () 
 });
 
 // ---------------------------------------------------------------------------
-// THE THIRD FILE IN THE CHAIN (bead `ro-yibc`).
+// The third file in the chain.
 //
 // `.mjs` → `.d.mts` → `apps/tower/shared/<name>.ts` → every `@shared/…` import
-// site. The Tower reaches these modules through a path alias, so the shared file
-// is a hand-written MIRROR of the two beside it — twenty-five value names and
-// ten type names for `wall-layout` — and its own header stated the rule it
-// cannot enforce: "add a name here when you add one there".
-//
-// The same drift, one file further along, and quieter: a name added to the
+// site. The Tower reaches these modules through a path alias, so the shared
+// file is a hand-written MIRROR of the two beside it. A name added to the
 // runtime and its declarations but forgotten in the mirror is a name no Tower
 // component can import, and every gate stays green until somebody reaches for
-// it. The other direction — a mirror naming what `scripts/` no longer has — is
-// the half `tsc` would refuse, and it costs one comparison to say so here.
+// it; a mirror naming what `scripts/` no longer has is the half `tsc` would
+// refuse, and it costs one comparison to say so here.
 //
 // Textual by necessity: the alias means no plain Node loader resolves the
 // shared file. It reuses the parser above rather than growing a second one, and
@@ -329,9 +311,8 @@ test('a partial-declarations exemption that has caught up is deleted', async () 
 // tomorrow.
 //
 // ONLY THE `export … from` FORM IS A MIRROR. A file that imports names and
-// re-exports a chosen few beside its own code — `config-registers.ts` — passes
-// through what its callers use and never claimed to carry the whole list;
-// holding it to one would be inventing a rule its author did not write.
+// re-exports a chosen few beside its own code (`config-registers.ts`) passes
+// through what its callers use and never claimed to carry the whole list.
 // ---------------------------------------------------------------------------
 
 test('the mirror check has mirrors to check', () => {

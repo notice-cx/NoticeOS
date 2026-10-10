@@ -14,8 +14,8 @@ import {
   finishTaskReceipt, interruptTaskReceipt, retryTaskReceipt, startTaskReceipt, TaskReceiptRefused,
 } from '../packages/postgres/src/task-receipts.mjs';
 
-// Migrations 0012-0013 and packages/postgres/src/task-receipts.mts (epic
-// ro-cvl9): one receipt per (workspace, principal, operation, key), bound to
+// Migrations 0012-0013 and packages/postgres/src/task-receipts.mts: one
+// receipt per (workspace, principal, operation, key), bound to
 // its request; every transition a compare-and-set on the attempt; workspaces
 // isolated; kept seven days after its last attempt and never removed sooner.
 

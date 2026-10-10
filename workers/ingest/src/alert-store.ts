@@ -1,19 +1,11 @@
-// THE ALERT STATEMENTS THE LANES SHARE (bead ro-ujb9.76.5.2), on this call's
-// store.
-//
-// Alerts live on Postgres: `noticeos.flags` holds each firing as it was first
-// raised, `noticeos.flag_evidence` each later reading of a condition that is
+// The alert statements the lanes share. `noticeos.flags` holds each firing as
+// first raised, `noticeos.flag_evidence` each later reading of a condition
 // still open, and `noticeos.current_flags` shows every alert as its newest
-// reading states it (db/postgres/migrations/0001_baseline.sql). The
-// application may not rewrite a firing's message, inputs or severity, so a lane
-// that finds its condition still open APPENDS a reading here where the D1 lanes
-// rewrote the row; what the operator reads is the same.
-//
-// ONE OPEN ALERT PER CONDITION. A lane that keeps one open alert for its (site,
-// rule) — the freshness check, the nightly pull, the internet check, GA4 quota,
-// the site checks — reads, decides and writes inside one transaction that holds
-// that condition (`holdCondition`), so two runs can never both find nothing
-// open and raise two. D1 got that from running one statement at a time.
+// reading states it; a firing's message, inputs and severity are never
+// rewritten, so a lane that finds its condition still open appends a reading.
+// One open alert per condition: a lane reads, decides and writes inside one
+// transaction that holds the condition (`holdCondition`), so two runs can
+// never both find nothing open and raise two.
 
 import type { Transaction } from '@noticeos/postgres';
 
@@ -32,9 +24,8 @@ export interface OpenAlert {
 }
 
 /**
- * The condition's open alert — the oldest, as the D1 lanes read it — or null.
- * Open is `resolved_at IS NULL`: an alert the operator acknowledged or parked
- * is still the condition's record, and its next reading lands on it.
+ * The condition's open alert, the oldest, or null. Open is `resolved_at IS
+ * NULL`: an acknowledged or parked alert is still the condition's record.
  */
 export async function readOpenAlert(tx: Transaction, asset: string, ruleId: string): Promise<OpenAlert | null> {
   const [row] = await tx.query<{ flag_id: bigint; rule_inputs: string | null }>(
@@ -62,9 +53,8 @@ export interface NewAlert {
 }
 
 /**
- * Raise the condition's alert unless one is already open, as the D1 lanes'
- * `INSERT … WHERE NOT EXISTS` did; the flag id, or null when one was open.
- * Called under `holdCondition`.
+ * Raise the condition's alert unless one is already open; the flag id, or
+ * null when one was open. Called under `holdCondition`.
  */
 export async function raiseAlertUnlessOpen(tx: Transaction, alert: NewAlert): Promise<bigint | null> {
   const [row] = await tx.query<{ flag_id: bigint }>(
@@ -93,9 +83,8 @@ export interface Reading {
 }
 
 /**
- * Append a reading to every open alert of a condition — the D1 lanes rewrote
- * each one's summary — and say how many alerts it reached. A second reading at
- * an instant an alert already holds is the same reading, and is kept once.
+ * Append a reading to every open alert of a condition and say how many it
+ * reached. A second reading at an instant an alert already holds is kept once.
  */
 export async function appendReadingToOpen(
   tx: Transaction,

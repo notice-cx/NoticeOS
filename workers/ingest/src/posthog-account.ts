@@ -1,23 +1,9 @@
-// ONE POSTHOG KEY FOR THE ACCOUNT: which region answers for it, which projects
-// it can read, and each project's saved funnels (bead `ro-ujb9.96.7.8`, epic
-// `ro-ujb9.96.7`).
-//
-// The connect panel used to ask for a key per site, then the site's region,
-// project id and every funnel step typed by hand. PostHog already knows all of
-// it: a personal API key belongs to one Cloud region, the region's
-// `/api/projects/` lists the projects the key can read, each project records
-// the domains it serves (`app_urls`, `recording_domains`) and its saved funnel
-// insights hold the steps. So the panel asks for the key alone and this module
-// finds the rest.
-//
-// WHEN IT CALLS POSTHOG. Only after the operator presses Connect (the
-// save-and-test in credential-connect.ts) and when the panel lists the
-// account's sites (site-discovery.ts) — never on a page load, never on a
-// schedule. Every call is bounded by its own timeout and the whole discovery
-// by one deadline, and every answer is read against a byte cap.
-//
-// WHAT IT RETURNS: a verdict and public identities (a project's id, name,
-// domain and funnel steps). Never the key, never PostHog's own error text.
+// One PostHog key for the account: which region answers for it, which
+// projects it can read, and each project's saved funnels, so the panel asks
+// for the key alone. Called only on Connect and when the panel lists the
+// account's sites, never on a page load or a schedule; every call is bounded
+// by a timeout and a byte cap. Returns a verdict and public identities, never
+// the key or PostHog's own error text.
 
 import type { DiscoveredSite } from '@noticeos/contract';
 import {

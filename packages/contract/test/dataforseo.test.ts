@@ -37,14 +37,8 @@ describe('the DataForSEO family vocabulary', () => {
   });
 
   /**
-   * The regression this whole mechanism exists to prevent (ro-cda6.1).
-   *
-   * Two read models grade a stored collection COMPLETE by comparing the
-   * families it holds against the families this module names. Graded against
-   * TODAY's list, every collection stored before a new family shipped becomes
-   * retroactively short: the Wall's panel-landing filer stops recognising any
-   * landing and stops filing reviews, and every property's integration lane
-   * turns amber over families that did not exist when those rows were written.
+   * Graded against today's list, every collection stored before a new family
+   * shipped would become retroactively short.
    */
   describe('what was due is a question about a date', () => {
     it('excludes a family from collections that predate it', () => {
@@ -108,12 +102,9 @@ describe('the DataForSEO family vocabulary', () => {
   });
 
   /**
-   * The second way a family can be wrongly called missing (ro-cda6.2). The
-   * availability map handles "registered later"; this handles "not weekly".
-   *
-   * A 28-day family is absent from three `report_date`s out of four by design.
-   * Listed in the weekly identity it would call three weeks in four torn — the
-   * same retroactive accusation, arriving through the other door.
+   * The availability map handles "registered later"; this handles "not
+   * weekly": a 28-day family is absent from three `report_date`s out of four
+   * by design.
    */
   describe('a periodic family is not part of the weekly identity', () => {
     it('keeps the two sets disjoint', () => {

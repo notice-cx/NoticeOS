@@ -1,4 +1,4 @@
-// WHERE POSTGRES CANNOT START, A ROOT SCRIPT TEST SKIPS — ONE WAY (issue #11).
+// Where Postgres cannot start, a root script test skips — one way.
 //
 // `findPostgres()` answers null on a machine without server binaries rather
 // than throwing, and `initdb` can still refuse later (run as root, or in a

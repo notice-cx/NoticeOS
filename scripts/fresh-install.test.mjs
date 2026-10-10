@@ -1,4 +1,4 @@
-// A fresh clone seeds an EMPTY installation (bead ro-ujb9.125, D30, D33).
+// A fresh clone seeds an EMPTY installation.
 //
 // The public repository carries config/ — the product's generic defaults —
 // and no installation folder. This runs the real `pnpm config:seed` read path
@@ -92,7 +92,7 @@ test('a fresh clone links no task checkout and owns no site name', async (t) => 
   assert.deepEqual(fromDocuments, []);
 });
 
-// Bead ro-ujb9.120: the offsite backup folder is a host setting; a clone ships
+// The offsite backup folder is a host setting; a clone ships
 // none, so a stranger's runner never copies its backups into somebody else's.
 test('a fresh clone copies its backups to no offsite folder', async (t) => {
   await freshClone(t);

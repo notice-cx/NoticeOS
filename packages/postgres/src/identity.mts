@@ -25,7 +25,7 @@ export interface WorkspaceSummary {
 export interface AdmissionMembershipFacts extends MembershipFacts {
   readonly workspaceStatus: WorkspaceStatus;
 }
-/** A verified agent access token (epic ro-cvl9): the person it acts for,
+/** A verified agent access token: the person it acts for,
  * the client, its scopes still consented, and when it expires. */
 export interface AgentToken {
   readonly principalId: string;
@@ -66,10 +66,9 @@ export interface Identity {
    * selected workspace; no email/account fields or foreign UUID lookup. The
    * bounded roster refuses over 1,000 members rather than returning a sample. */
   workspaceActors(workspaceId: string): Promise<readonly WorkspaceActor[]>;
-  /** The request's agent access token (epic ro-cvl9), or null: signed by
-   * this deployment's key, issued here for its MCP endpoint, unexpired, and
-   * still backed by a live consent and an enabled client. Requires
-   * migration 0014. */
+  /** The request's agent access token, or null: signed by this deployment's
+   * key, issued here for its MCP endpoint, unexpired, and still backed by a
+   * live consent and an enabled client. */
   agentToken(request: Request): Promise<AgentToken | null>;
   /** The token plus its person's current membership in this workspace and
    * the workspace's lifecycle, in one observation; null when either lapsed. */

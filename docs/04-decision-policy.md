@@ -1,11 +1,9 @@
 # 04 — Decision policy & context
 
-*v2 — absorbs v1's context-packs doc and adds the part v1 referenced twice and
-specified zero times: the actual ranking policy. For a low-oversight optimizer
-the ranking function IS the product; leaving it as "scored on value/effort"
-means the real policy is whatever order an agent happened to emit — invisible,
-unversioned, unauditable. This doc makes it explicit, versioned, and the
-subject of the Learn stage.*
+*For a low-oversight optimizer the ranking function IS the product; leaving it
+as "scored on value/effort" means the real policy is whatever order an agent
+happened to emit — invisible, unversioned, unauditable. This doc makes it
+explicit, versioned, and the subject of the Learn stage.*
 
 ## The scoring function (policy v1.0 — versioned, logged on every ranking)
 
@@ -39,7 +37,7 @@ score = (P_success × ΔV_predicted × F) / C_fully_loaded / max(T_signal, 2wk)
   Learn from the calibration report. This closes the loop: the system's
   estimates are graded against outcomes and the grading changes the estimates.
 - **The card is editable until the change ships.** Its change entry then
-  freezes ΔV per month, P_success, C and T_signal as they stood (D38), and
+  freezes ΔV per month, P_success, C and T_signal as they stood, and
   grading reads those, never a later edit.
 
 **Why not a live bandit:** SEO/revenue rewards arrive over weeks-to-months;
@@ -91,17 +89,17 @@ gameable harnesses at 25–100% rates; instructions don't fix it; structure does
    are stress-tested before becoming load-bearing
    ([doc 05](05-execution-and-accountability.md)).
 
-## Context packs (carried from v1, with the staleness fix)
+## Context packs
 
-Two tiers, unchanged in concept: per-asset `AGENTS.md` (positioning, brand and
+Two tiers: per-asset `AGENTS.md` (positioning, brand and
 legal rules, do-not-touch, CI bar, deploy model, conventions) and the portfolio
 context in NoticeOS (current focus, scoring config, global guardrails).
 
-**The staleness mechanism v1 lacked** (its own invariants drifted within hours
-of being written):
+**The staleness mechanism** (a pack's invariants drift within hours of being
+written unless something dates them):
 
-- `AGENTS.md` carries `reviewed: <date>`; **staleness beyond 30 days blocks the
-  builder** on that asset (warn at 14).
+- `AGENTS.md` carries `reviewed: <date>`, so a reader knows how old its facts
+  are; the pack is dated, with facts separated from rules.
 - **Stable rules vs volatile state are separated.** Rules (brand, never-do,
   conventions) live in `AGENTS.md`; volatile facts (application states,
   pending reviews, temporary holds, dated postures) live in a `STATE` section

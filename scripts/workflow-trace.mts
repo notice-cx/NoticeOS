@@ -1,6 +1,6 @@
 // Portable instrumentation: no I/O, raw payloads, credentials or execution policy.
 //
-// Authored TypeScript (bead ro-ujb9.61): `pnpm config:generate` writes the
+// Authored TypeScript: `pnpm config:generate` writes the
 // `.mjs` the ingest Worker and local runner import and the `.d.mts` beside it.
 
 import type { WorkflowStepRun } from '../packages/contract/src/workflows.js';
@@ -11,7 +11,7 @@ type Probe = { readonly [key: string]: unknown } | null | undefined;
 type StepVerdict = Pick<WorkflowStepRun, 'state' | 'summary'>;
 
 /** A failed step's first line, naming what failed: sites whose remote could
- * not be read (bead ro-ujb9.233), else collections. */
+ * not be read, else collections. */
 function failedSummary(result: unknown, failed: number): string {
   const sites = unreadSiteCount(result);
   if (sites !== null) return `${sites} site${sites === 1 ? '' : 's'} could not be read.`;
@@ -53,8 +53,8 @@ export interface WorkflowRecorder {
 
 /**
  * `failed` hears each step's own error as it is recorded, so the caller can
- * write it where "Check the service logs" sends the operator (bead
- * ro-ujb9.173). The recorder itself still does no I/O and keeps no error.
+ * write it where "Check the service logs" sends the operator. The recorder
+ * itself still does no I/O and keeps no error.
  */
 export function createWorkflowRecorder({ now = Date.now, changed = () => {}, failed = () => {} }: {
   now?: () => number;

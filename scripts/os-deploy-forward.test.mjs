@@ -1,4 +1,4 @@
-// The OS's own deploys reach the store as annotations (bead ro-trai.8).
+// The OS's own deploys reach the store as annotations.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { NO_DEPLOY_SOURCE, OS_DEPLOY_NOTES, osDeployAnnotation, osDeployOutcome } from './os-deploy-events.mjs';
@@ -96,7 +96,7 @@ test('a store that is down, or no token, leaves every deploy for the next pass',
   assert.deepEqual(await forwardOsDeploys(base(s, state)), { sent: 3, pending: 0 });
 });
 
-// Beads ro-k9hf / ro-ujb9.118: the runner asks the STORE which asset is the OS
+// The runner asks the STORE which asset is the OS
 // (`GET /api/os-asset`, `assets.is_os`) and files the deploys against that id —
 // an installation whose OS asset is called something else still gets them.
 test('the runner files deploys against whichever asset the store names as the OS', async () => {

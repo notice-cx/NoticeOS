@@ -59,12 +59,12 @@ export interface BingSignalOutcome {
   providerRows: number;
   observationCount: number;
   errorCode: string | null;
-  /** Which mapping named the site this attempt asked for (bead `ro-vu8d.16`):
-   * the asset's own register entry, or the domain match. */
+  /** Which mapping named the site this attempt asked for: the asset's own
+   * register entry, or the domain match. */
   mappingSource: LaneMappingSource;
   /** True when the OS's own uplink, not Bing, is why this property went
-   * uncollected (bead `ro-aed0.2`): still a failure, but no `signal_runs` row
-   * and no Health observation accuse the property or Bing. */
+   * uncollected: still a failure, but no `signal_runs` row and no Health
+   * observation accuse the property or Bing. */
   egressDown?: true;
 }
 
@@ -84,18 +84,14 @@ export interface BingSignalsOptions {
   /** Override the compiled-in config/integrations.json mapping (tests state
    * their own register instead of editing the operator's file). */
   laneRegister?: LaneRegister;
-  /** Where this run's config came from, per file — resolved once per cron fire
-   * in dispatch.ts and reported on the completion line below (`ro-syok.7`). */
+  /** Where this run's config came from, per file, reported on the completion line. */
   configSources?: ConfigSourceMap;
   /** Override the run's egress gate (tests control the verdict TTL); every other
    * caller gets a real one over the same fetcher. */
   egress?: EgressGate;
-  /**
-   * Only these assets, instead of every portfolio candidate (bead
-   * `ro-ujb9.96.7.2`): the connect panel's Start collecting runs this lane for
-   * the sites the operator just confirmed. The membership rule is unchanged —
-   * an asset the nightly run would not collect is not collected here either.
-   */
+  /** Only these assets, instead of every portfolio candidate. The membership
+   * rule is unchanged: an asset the nightly run would not collect is not
+   * collected here either. */
   assets?: readonly string[];
 }
 
@@ -105,26 +101,23 @@ export async function runBingSignals(
 ): Promise<BingSignalsResult> {
   const nowMs = options.nowMs ?? Date.now();
   const fetchImpl = options.fetchImpl ?? fetch;
-  // CAN THE OS GET OUT (bead `ro-aed0.2`)? The whole run hangs off ONE
-  // discovery call, so a dead uplink used to become a `request_failed` row on
-  // every non-retired property — pre-launch ones included — each rendered as
-  // "Bing returned request_failed". The gate is asked only about a Bing call
-  // that came back with no status; its beacons use the raw fetcher.
+  // The whole run hangs off one discovery call, so a dead uplink must not
+  // become a `request_failed` row on every property. The gate is asked only
+  // about a Bing call that came back with no status; its beacons use the raw
+  // fetcher.
   const gate = options.egress ?? new EgressGate(env, { lane: 'bing-signals', fetchImpl, at: new Date(nowMs).toISOString() });
   const transport = watchTransport(fetchImpl);
   const bingFetch = transport.fetch;
   const scope = options.assets === undefined ? null : new Set(options.assets);
-  // A site its Data sources row declines (Not using) is not asked for at all —
-  // the domain match below would otherwise still find it (bead
-  // `ro-ujb9.96.7.18`).
+  // A site its Data sources row declines is not asked for at all; the domain
+  // match below would otherwise still find it.
   const candidates = (await loadBingPortfolioCandidates(env.STORE))
     .filter((candidate) => scope === null || scope.has(candidate.asset))
     .filter((candidate) => !laneDeclined(candidate.asset, 'bing-webmaster', options.laneRegister));
   const requestedWindow = collectionWindow(nowMs);
   const outcomes: BingSignalOutcome[] = [];
-  // Store first, legacy env binding second (bead `ro-vu8d.1`). A caller that
-  // passed a key explicitly is a test: it is `env` by definition, because
-  // nothing resolved it.
+  // Store first, legacy env binding second. A caller that passed a key
+  // explicitly is a test: it is `env` by definition, because nothing resolved it.
   const resolved = await resolveCredential(env, 'bing-webmaster');
   const health = await tryHealthConnection(env, 'bing-webmaster', resolved);
   const monitoring = beginCollection(env.STORE, health);
@@ -132,10 +125,8 @@ export async function runBingSignals(
   const source: CredentialSource = options.apiKey === undefined ? resolved.source : 'env';
   const ref = sourcedCredentialRef(BING_CREDENTIAL_REF, source);
 
-  // BING NOT CONNECTED AT ALL IS NO WORK, NOT A FAILURE (bead `ro-ujb9.176`).
-  // A new installation's first site used to turn this lane red with a
-  // `config_missing` row per site, for a source nobody set up. A stored key
-  // this Worker cannot open is still connected, and still fails below.
+  // Bing not connected at all is no work, not a failure. A stored key this
+  // Worker cannot open is still connected, and still fails below.
   if (!apiKey && options.apiKey === undefined && !(await credentialConnected(env, 'bing-webmaster', resolved))) {
     console.log(JSON.stringify({ event: 'bing_signals_not_connected' }));
     return { attempted: 0, succeeded: 0, failed: 0, outcomes: [], egress: EGRESS_NOT_ASKED };
@@ -169,9 +160,9 @@ export async function runBingSignals(
     }
     const normalized = normalizeSignalError(error, 'Bing Webmaster request failed.');
     for (const candidate of candidates) {
-      // No site list was fetched, so only the register can name a site here —
-      // and an asset it maps still records that its mapping is the register's,
-      // because what failed was the credential, not the mapping.
+      // No site list was fetched, so only the register can name a site here;
+      // its mapping is still the register's, because what failed was the
+      // credential, not the mapping.
       const mapped = bingSiteMapping(
         candidate.asset,
         candidate.domain,
@@ -182,8 +173,8 @@ export async function runBingSignals(
       await recordSignalFailure(env, target, requestedWindow, nowMs, normalized, monitoring);
       outcomes.push(errorOutcome(target, normalized, mapped?.source ?? 'domain-match'));
     }
-    // The credential itself is what failed here — every property fails with it —
-    // so it is the credential's own status that has to say so (db/0028).
+    // Every property fails with the credential, so the credential's own status
+    // has to say so.
     if (source === 'store') {
       await recordCredentialOutcome(env, 'bing-webmaster', {
         ok: false,
@@ -194,7 +185,7 @@ export async function runBingSignals(
   }
 
   for (const candidate of candidates) {
-    // The register first, the verified-site domain match second (`ro-vu8d.16`).
+    // The register first, the verified-site domain match second.
     const mapped = bingSiteMapping(
       candidate.asset,
       candidate.domain,
@@ -382,13 +373,10 @@ async function finish(
       attempted: result.attempted,
       succeeded: result.succeeded,
       failed: result.failed,
-      // WHERE THE MAPPING ITSELF CAME FROM (bead `ro-syok.7`) — `store` means
-      // this run read the document an operator saved, with no restart between
-      // the Save and the run; `file` means the copy compiled into this Worker.
+      // `store` means this run read the document an operator saved; `file`
+      // means the copy compiled into this Worker.
       ...configSourceLine(configSources, ['config/integrations.json']),
-      // Which mapping named each site (bead `ro-vu8d.16`): `{register: 1,
-      // "domain-match": 4}` is one asset steered by its Sources tab and four
-      // still matched by their own domain.
+      // Which mapping named each site.
       mappingSources: mappingSourceTally(
         outcomes.map((outcome) => outcome.mappingSource),
       ),

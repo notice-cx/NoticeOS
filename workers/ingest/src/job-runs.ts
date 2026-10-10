@@ -1,31 +1,14 @@
-// The job-run writer, and the reader that turns it into a metric
-// (db/migrations/0022_job_runs.sql, bead ro-uwo.4). On Postgres,
-// `noticeos.job_runs`, since bead ro-ujb9.76.4.3.
-//
-// The producer is `scripts/os-up.mjs` — the only process on this machine that
-// fires the scheduled lanes, and therefore the only witness to a lane that fires
-// while the ingest is down. It records every firing to disk first
-// (`.local/logs/job-runs.jsonl`, ro-ic5) and ships batches here whenever the
-// door answers. So this module is a MIRROR of that record, and everything about
-// its shape follows from that. (One more producer writes here directly: a
-// job step a person runs now from the connect panel, `recordManualRun` below,
-// marked so the latest-run read leaves it out.)
-//
-//   * BATCHES, not one row per request. After an outage the runner has a queue,
-//     and a lane that fires once a minute would need an hour of requests to
-//     catch up one-at-a-time.
-//   * IDEMPOTENT on (job, startedAt). The runner cannot know which of its
-//     records the store already holds — a restart re-seeds the queue from the
-//     disk file — so re-posting is the normal case, not the error case. A
-//     duplicate is dropped and counted, never a 422: a producer punished for
-//     re-sending would learn to forget instead.
-//   * TOLERANT of an unknown lane name. The lane list lives in the runner and
-//     changes with it; a store that rejects a lane somebody added has stopped
-//     recording the thing it exists to record.
-//
-// What it does NOT tolerate is a malformed firing. `outcome` IS pinned to an
-// enum, because it is the OS's own three-valued vocabulary rather than a third
-// party's, and a fourth value would be a producer bug arriving as evidence.
+// The job-run writer, and the reader that turns it into a metric. The
+// producer is the runner, the only process that fires the scheduled lanes and
+// therefore the only witness to a lane that fires while the ingest is down; it
+// records every firing to disk first and ships batches whenever the door
+// answers, so this module is a mirror of that record: batches, not one row per
+// request; idempotent on (job, startedAt), because a restart re-seeds the
+// runner's queue and re-posting is the normal case; tolerant of an unknown
+// lane name, because the lane list lives in the runner. A malformed firing is
+// not tolerated: `outcome` is the OS's own vocabulary. One more producer
+// writes here directly: a job step a person runs now (`recordManualRun`),
+// marked so the latest-run read leaves it out.
 
 import {
   CRON_RUN_SILENCE_MS,
@@ -46,32 +29,27 @@ import {
   requiredString,
 } from './routes/validate.js';
 
-/** How much history the table keeps. Fixed HERE, in the migration comment, and
- * as `JOB_RUN_RETENTION_DAYS` in scripts/job-runs.mjs — change all three together.
- * The mirror cannot outlive the record it mirrors: the runner can only ever ship
- * what its own 30-day file still holds. */
+/** How much history the table keeps; the same number as `JOB_RUN_RETENTION_DAYS`
+ * in scripts/job-runs.mjs. The mirror cannot outlive the record it mirrors. */
 export const JOB_RUN_RETENTION_DAYS = 30;
 
-/** The outer bound on one POST. The runner ships oldest-first in slices of this
- * size and drains its queue over the following ticks, so a longer outage costs
- * more requests rather than one unbounded body. */
+/** The outer bound on one POST. The runner ships oldest-first in slices of
+ * this size, so a longer outage costs more requests rather than one unbounded
+ * body. */
 export const JOB_RUN_MAX_BATCH = 500;
 
 /** A lane name ('backup', 'cron 45 12 * * 1'). */
 export const JOB_RUN_JOB_MAX = 128;
-/** The runner flattens and truncates its detail to 200 chars; this is the
- * ceiling on what any producer may send. */
+/** The ceiling on what any producer may send; the runner truncates to 200. */
 export const JOB_RUN_DETAIL_MAX = 500;
-/** A firing longer than a day is a producer computing a duration wrong — the
- * longest real lane here is a nightly backup measured in minutes. */
+/** A firing longer than a day is a producer computing a duration wrong. */
 export const JOB_RUN_MAX_MS = 86_400_000;
 
 export const JOB_RUN_OUTCOMES = ['ran', 'skipped', 'failed'] as const;
 export type JobRunOutcome = (typeof JOB_RUN_OUTCOMES)[number];
 
 /** One firing on the wire. `ms` rather than a finish timestamp, because that is
- * what the runner measures; the store derives `finished_at` once, on the way in,
- * so it can never hold a duration that disagrees with its own timestamps. */
+ * what the runner measures; the store derives `finished_at` once. */
 export interface JobRunInput {
   job: string;
   startedAt: string;
@@ -79,7 +57,7 @@ export interface JobRunInput {
   outcome: JobRunOutcome;
   detail?: string | null;
   /** The tick this firing belongs to, when a producer can honestly distinguish
-   * it from the start. The runner cannot and sends none — see db/0022. */
+   * it from the start. The runner cannot and sends none. */
   scheduledAt?: string | null;
 }
 
@@ -92,12 +70,10 @@ export type JobRunsResult =
       ok: true;
       received: number;
       created: number;
-      /** Already in the store under the same (job, startedAt) — the normal cost
-       * of a producer that re-sends rather than forgets. */
+      /** Already in the store under the same (job, startedAt). */
       duplicate: number;
-      /** Older than the retention window, so accepted and not stored. A row
-       * inserted and then swept by its own insert would be a write reported as
-       * successful and silently undone. */
+      /** Older than the retention window: accepted and not stored, since a row
+       * inserted and then swept by its own insert would be a silently undone write. */
       stale: number;
       pruned: number;
     }
@@ -112,9 +88,8 @@ interface StoredRun {
   detail: string | null;
 }
 
-/** An ISO instant that may be absent. Tolerates a future value the way the
- * beads lane does: this is the producer's clock, and a second of skew must not
- * cost the record. */
+/** An ISO instant that may be absent. Tolerates a future value: this is the
+ * producer's clock, and a second of skew must not cost the record. */
 function optionalInstant(issues: Issues, value: unknown, path: string): string | null {
   if (value === undefined || value === null) return null;
   if (typeof value !== 'string') {
@@ -136,9 +111,8 @@ function parseRun(
   nowMs: number,
 ): StoredRun | null {
   const job = requiredString(issues, raw.job, `${path}.job`, JOB_RUN_JOB_MAX);
-  // A firing is always in the past. A record from the future would sit at the
-  // top of "what did each lane last do?" forever, which is precisely how a dead
-  // lane would go on looking alive.
+  // A firing is always in the past: a record from the future would sit at the
+  // top of "what did each lane last do?" forever.
   const startedAt = pastInstant(issues, raw.startedAt, `${path}.startedAt`, nowMs, FUTURE_SKEW_MS);
   const ms = nonNegativeInteger(issues, raw.ms, `${path}.ms`, JOB_RUN_MAX_MS);
   const outcome = enumValue(issues, raw.outcome, `${path}.outcome`, JOB_RUN_OUTCOMES);
@@ -157,11 +131,9 @@ function parseRun(
 }
 
 /**
- * Validate one batch of firings and store what is still inside the window.
- *
- * The whole batch fails on any malformed run: a producer sending garbage is
- * broken, and storing the readable half of a broken batch would leave the record
- * with holes nobody can see.
+ * Validate one batch of firings and store what is still inside the window. The
+ * whole batch fails on any malformed run: storing the readable half of a broken
+ * batch would leave holes nobody can see.
  */
 export async function writeJobRuns(
   env: IngestEnv,
@@ -203,8 +175,6 @@ export async function writeJobRuns(
   const { created, pruned } = await env.STORE.write(async (tx) => {
     let created = 0;
     if (fresh.length > 0) {
-      // `ON CONFLICT DO NOTHING` plus `RETURNING`: the conflict is the
-      // idempotence contract, and the returned rows are what count the insert.
       // A firing the store already holds, or one this batch already named, is
       // left out before the insert, so a re-sent record takes no number of the
       // workspace's (the numbering trigger runs before the conflict is found).
@@ -233,9 +203,8 @@ export async function writeJobRuns(
       );
       created = inserted.length;
     }
-    // Bounded history, swept on the way in so nothing has to remember to (the
-    // posture db/0017 set). Rows older than the window were already excluded
-    // from this insert, so the sweep can never delete what it just wrote.
+    // Rows older than the window were already excluded from this insert, so
+    // the sweep can never delete what it just wrote.
     const pruned = await tx.execute(`DELETE FROM noticeos.job_runs WHERE started_at < $1::timestamptz`, [cutoff]);
     return { created, pruned };
   });
@@ -251,17 +220,14 @@ export async function writeJobRuns(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Manual firings (bead ro-ujb9.96.7.19): a job step a person ran now.
+// Manual firings: a job step a person ran now.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Record one manual firing — the connect panel's Start collecting, run inside
- * this Worker rather than by the runner, which therefore never sees it. Marked
- * `MANUAL_RUN_DETAIL`, so the latest-run read (cron health, a lane's scheduled
- * last run) leaves it out and the Workflows page lists it marked Manual.
- *
- * Never throws: the record is telemetry about a press that already happened,
- * and failing to write it must not turn a collected site into an error.
+ * Record one manual firing, run inside this Worker rather than by the runner.
+ * Marked `MANUAL_RUN_DETAIL`, so the latest-run read leaves it out and the
+ * Workflows page lists it as Manual. Never throws: the record is telemetry
+ * about a press that already happened.
  */
 export async function recordManualRun(
   env: IngestEnv,
@@ -316,9 +282,8 @@ export interface JobRunLatest {
 export { CRON_RUN_SILENCE_MS };
 
 /**
- * Each lane's latest firing: one row per lane, carrying the outcome of its
- * most recent run (`LATEST_JOB_RUNS_SQL`). `(job, started_at)` is UNIQUE, so
- * there is never a tie to break.
+ * Each lane's latest firing. `(job, started_at)` is unique, so there is never
+ * a tie to break.
  */
 export async function latestJobRuns(env: Pick<IngestEnv, 'STORE'>): Promise<JobRunLatest[]> {
   const rows = await env.STORE.read((tx) =>
@@ -332,27 +297,12 @@ export async function latestJobRuns(env: Pick<IngestEnv, 'STORE'>): Promise<JobR
 }
 
 /**
- * Did the scheduled lanes run? `1` yes, `0` no, `null` UNKNOWN.
- *
- * The three states are the point of this whole lane. Asset #0 used to emit a
- * hard-coded `1`, so a cron that never fired still scored full marks (docs/19
- * finding 6). The replacement must never manufacture that `1` again — which
- * means "the record is empty" cannot round up to success, and it cannot round
- * down to failure either: before the operator's first restart after this shipped
- * there is nothing in the table, and "the lanes failed" would be as invented as
- * "the lanes are fine". Nothing observed is reported as nothing observed, by
- * omitting the metric AND its capability from the envelope — which is exactly
- * what `capabilities` means in docs/02: the metric families the asset can
- * actually observe.
- *
- * Once there IS a record, two things make it 0:
- *   - a lane whose LATEST firing failed (the bead's acceptance criterion) —
- *     regardless of age, because a failed lane stays failed until a later firing
- *     says otherwise;
- *   - total silence for a day, because the mirror only grows while the runner is
- *     alive. Without this rule a dead runner would freeze the table on its last
- *     healthy row and the metric would report 1 forever — the hard-coded
- *     constant rebuilt out of stale evidence.
+ * Did the scheduled lanes run? `1` yes, `0` no, `null` unknown. An empty
+ * record cannot round up to success or down to failure: nothing observed is
+ * reported as nothing observed, by omitting the metric and its capability from
+ * the envelope. Once there is a record, a lane whose latest firing failed is
+ * 0 regardless of age, and so is total silence for a day, because the mirror
+ * only grows while the runner is alive.
  */
 export function cronRunSuccessValue(latest: JobRunLatest[], nowMs: number): 0 | 1 | null {
   if (latest.length === 0) return null;

@@ -1,29 +1,16 @@
 /**
- * The operator's clock as a SETTING: what makes a zone valid, and how a reader
- * turns the saved value into the zone it uses (bead `ro-ujb9.88`).
- *
- * Deliberately config-free. `os-time-zone.ts` beside this compiles
- * `config/constants.json` into whatever imports it, which is right for the one
- * job it has — the fallback a Worker answers with when its store holds no
- * document — and wrong for everything else. Browser code and the journey
- * harness import this module, so neither ever loads the checkout's config just
- * to validate a zone name.
- *
- * WHY A READER NEEDS `savedOsTimeZone`. Since D22 `/settings` saves
- * `os_time_zone` into the config store, and both Workers read a document store
- * first with their compiled copy as the fallback. A reader that used the
- * compiled constant directly kept the zone of the last BUILD on a deployed
- * install, so revenue days, the open month and intraday hours disagreed with
- * the zone the Settings page showed until the operator exported, rebuilt and
- * redeployed. Every day-boundary reader resolves the zone through this one
- * function instead.
+ * The operator's clock as a setting: what makes a zone valid, and how a reader
+ * turns the saved value into the zone it uses. Config-free, so browser code
+ * and the journey harness can import it; `os-time-zone.ts` beside this
+ * compiles `config/constants.json` in and serves only as the fallback. Every
+ * day-boundary reader resolves the zone through `savedOsTimeZone`, store
+ * first, so a deployed install never keeps the zone of its last build.
  */
 
 /**
  * Does `Intl` know this zone? The runtime's own tz database is the only
- * authority worth asking — a hand-written list of IANA names would go stale
- * the next time a country moves its clocks. `Intl.DateTimeFormat` throws a
- * RangeError on a name it cannot resolve, which is exactly the test.
+ * authority: `Intl.DateTimeFormat` throws a RangeError on a name it cannot
+ * resolve.
  */
 export function isIanaTimeZone(value: unknown): value is string {
   if (typeof value !== 'string' || value.trim().length === 0) return false;
@@ -80,10 +67,9 @@ function canonicalZone(value: unknown): string | null {
 }
 
 /**
- * HAS SOMEBODY CHOSEN THIS INSTALLATION'S CLOCK? (bead `ro-ujb9.134`) Yes once
- * a save ever set `os_time_zone` (`everSaved`, the config change record), or
- * when the saved zone is not the product's default — an installation seeded
- * from its own file chose it there. A new installation runs on the default
+ * Has somebody chosen this installation's clock? Yes once a save ever set
+ * `os_time_zone` (`everSaved`, the config change record), or when the saved
+ * zone is not the product's default. A new installation runs on the default
  * (UTC) and nobody chose it.
  */
 export function timeZoneChosen(saved: string, productDefault: string, everSaved: boolean): boolean {

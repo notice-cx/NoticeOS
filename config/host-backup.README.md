@@ -7,8 +7,8 @@ installation has none. Like the task repository links
 only — the nightly backup in
 [`scripts/host-backup.mjs`](../scripts/host-backup.mjs) — never seeded into
 `config_documents`, exported from the store, or compiled into the deployed
-Tower. Decision D10 in [`decisions.md`](decisions.md) is why the copy exists;
-the backup operation, restore and the drill are in
+Tower. The copy exists so a backup survives the host; the backup operation,
+restore and the drill are in
 [`scripts/README.md`](../scripts/README.md).
 
 ```json

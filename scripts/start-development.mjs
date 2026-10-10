@@ -1,4 +1,4 @@
-// Foreground-owned development database for pnpm start (ro-ujb9.76.69).
+// Foreground-owned development database for pnpm start.
 // Never adopts a server or reads an installation/Compose database address.
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';

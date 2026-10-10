@@ -51,11 +51,10 @@ highest-EV discovery class to operator serendipity.
    criteria) as a low-cadence lane.
 6. **Cross-asset transfer** — the cheapest lane: a measured win on one asset
    auto-generates candidate cards for the others (the ledger already knows
-   what worked; transfer is scouting one's own evidence). *First harvest
-   (2026-07-31): seven deterministic executive rules mined from one site's
-   manual-analysis archaeology and generalized portfolio-wide —
-   [doc 08](08-seo-geo-signals.md)'s rule inventory, thresholds in
-   `scripts/signal-insights.mjs`.*
+   what worked; transfer is scouting one's own evidence). The deterministic
+   executive rules generalized from one site's manual analysis are this
+   lane's first harvest — [doc 08](08-seo-geo-signals.md)'s rule inventory,
+   thresholds in `scripts/signal-insights.mjs`.
 
 ## The radar: ambient trend & news intake (feeds the lanes, isn't one)
 
@@ -154,23 +153,18 @@ evaporating at session end. A playbook entry's mature form is a **tool**
 method → documented playbook entry → deterministic script a cheap model
 operates.
 
-**Delta 2026-07-31 — the collection existed, and was retired 2026-10-09.** A
-`docs/playbooks/` library of one site's SEO methods was seeded on 2026-07-31
-and retired on 2026-10-09: the methods that survived live as rules in
-[doc 08](08-seo-geo-signals.md) and in the panel review's own asks
-(`scripts/runner/panel-review.mjs`); the rest was one installation's history
-and belongs in that site's repository. The lesson stands: a method is
-portfolio-generic only when its thresholds are re-earned per asset, negative
-results are method capital, and a method's mature form is a tool.
+**There is no playbook library in this repo.** The methods that are
+portfolio-generic live as rules in [doc 08](08-seo-geo-signals.md) and in the
+panel review's own asks (`scripts/runner/panel-review.mjs`); one site's own
+methods belong in that site's repository. A method is portfolio-generic only
+when its thresholds are re-earned per asset, negative results are method
+capital, and a method's mature form is a tool.
 
-**Delta 2026-07-31 — the first playbook to get a table.** `reclamation-pipeline`
-crystallized one step further: its step-7 touch log is now
-`db/migrations/0015_reclamation_targets.sql`, filled by
-`scripts/reclamation-import.mjs`, read as the property page's Link outreach
-funnel, and watched by a twenty-first rule (`reclamation-match`). The method text
-is unchanged — a playbook earns a table when its log is the thing that makes its
-own decision rules enforceable, and a campaign with no conversion rate cannot
-run the abandonment rule it already documents.
+**A playbook earns a table when its log is what makes its own decision rules
+enforceable.** `reclamation-pipeline`'s touch log is `noticeos.reclamation_targets`,
+filled by `scripts/reclamation-import.mjs`, read as the property page's Link
+outreach funnel, and watched by the `reclamation-match` rule — a campaign with
+no conversion rate cannot run the abandonment rule it documents.
 
 ## Integrations this adds ([doc 11](11-integrations.md) rows)
 

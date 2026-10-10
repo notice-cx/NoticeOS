@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { DEFAULT_UNIT_TEST_WORKERS, unitTestWorkers } from './unit-test-workers.mjs';
 
-// Each unit suite takes half the cores unless UNIT_TEST_WORKERS says otherwise
-// (bead ro-ujb9.170): `pnpm -r test` runs the Tower and ingest suites at once.
+// Each unit suite takes half the cores unless UNIT_TEST_WORKERS says otherwise:
+// `pnpm -r test` runs the Tower and ingest suites at once.
 
 test('each suite takes half the cores by default', () => {
   assert.equal(DEFAULT_UNIT_TEST_WORKERS, '50%');

@@ -1,28 +1,13 @@
-// The COUNTERS lane — the 15-minute fast read of a property's own totals
-// (config/counters.json, table `noticeos.counter_readings` on Postgres, bead
-// ro-ujb9.76.5.1; docs/06 "Where config lives").
+// The counters lane: the 15-minute fast read of a property's own totals, so
+// the handful an operator watches on the property page is fresh.
 //
-// The nightly pull already carries every metric's all-time `total` once a day.
-// This lane exists only to make the handful of totals an operator watches on the
-// property page *fresh*, so it does the smallest possible thing:
-//
-//   INVARIANT — it writes `counter_readings` and NOTHING else. It never writes
-//   `pulses` and never writes `flags`. The nightly report stays the single
-//   durable record of a day's numbers, and a 15-minute lane that could raise
-//   alerts would raise them 96×/day.
-//
-//   INVARIANT — it is not an alerting lane. A failed scrape leaves the previous
-//   reading ENTIRELY untouched (value AND observed_at), so the card's age badge
-//   ambers on its own at 2× the interval: staleness is the signal, and it is a
-//   fact the reader can re-derive from the clock rather than an assertion the OS
-//   has to keep true. A persistent endpoint outage is still alerted within 24h
-//   by the nightly pull's `asset-pull-failed` flag — same endpoint, same token,
-//   so there is nothing this lane would catch that that one misses.
-//
-//   INVARIANT — writes are all-or-nothing per property per run. One unreadable
-//   counter fails that property's whole refresh; a half-refreshed card set would
-//   put two different moments under one age badge. Other properties are
-//   unaffected (per-entry try/catch, like the nightly pull's `pullOne`).
+// Invariants: it writes `counter_readings` and nothing else, never `pulses` or
+// `flags`, so it cannot raise alerts 96 times a day. It is not an alerting
+// lane: a failed scrape leaves the previous reading entirely untouched (value
+// and observed_at), so the card's age badge ambers on its own; a persistent
+// outage is alerted by the nightly pull's `asset-pull-failed` flag. Writes are
+// all-or-nothing per property per run, so one age badge never covers two
+// moments; other properties are unaffected.
 
 import { fetchScrape, parsePrometheus, tokenFor, totalFor } from './pull.js';
 import { type ConfigSourceMap, configSourceLine } from './config-store.js';
@@ -83,8 +68,7 @@ export interface CountersOptions {
   /** Override the outbound fetcher (tests stub the scrape responses). */
   fetchImpl?: typeof fetch;
   nowMs?: number;
-  /** Where this run's config came from, per file — resolved once per cron fire
-   * in dispatch.ts and reported on the completion line below (`ro-syok.7`). */
+  /** Where this run's config came from, per file, reported on the completion line. */
   configSources?: ConfigSourceMap;
 }
 
@@ -130,9 +114,8 @@ async function scrapeAsset(
       readings.push({ metric: card.metric, value: total });
     }
 
-    // One transaction for the property's whole set (the all-or-nothing
-    // invariant above), one statement per card in config order, as the D1
-    // batch ran them: a card listed twice is written twice and the later wins.
+    // One transaction for the property's whole set, one statement per card in
+    // config order: a card listed twice is written twice and the later wins.
     await env.STORE.write(async (tx) => {
       for (const r of readings) {
         await tx.execute(
@@ -191,10 +174,8 @@ export async function runCountersScrape(
     observedAt,
     outcomes,
   };
-  // ONE COMPLETION LINE, and the reason it exists is `configSource` (bead
-  // `ro-syok.7`): which totals each property's cards show moved into the store,
-  // and a run that cannot say which of the two it read leaves an operator to
-  // infer it from behaviour. Counts and asset ids only.
+  // One completion line, so a run says which config it read. Counts and asset
+  // ids only.
   console.log(
     JSON.stringify({
       event: 'counters_complete',

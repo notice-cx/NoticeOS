@@ -1,16 +1,9 @@
-// WHERE A READBACK WINDOW LIVES (bead ro-ujb9.76.5.7), on this call's store.
-//
-// A window is one `noticeos.watch_windows` row: its registration, fixed, and
-// its close, one-way. Each offset the sweep has read is one
-// `noticeos.watch_window_readings` row, appended; D1 rewrote a growing JSON
-// array on the window instead, and the readings table's key (window, offset)
-// is now what stops a re-run from reading an offset twice
-// (db/postgres/migrations/0001_baseline.sql).
-//
-// Every caller still speaks the D1 row (`WatchWindowRow`, @noticeos/contract):
-// the registration route answers with it and the sweep evaluates it. This
-// module turns the Postgres rows into that shape and back, and nothing else
-// does.
+// Where a watch window lives. A window is one `noticeos.watch_windows` row:
+// its registration, fixed, and its close, one-way. Each offset the sweep has
+// read is one `noticeos.watch_window_readings` row, and that table's key
+// (window, offset) is what stops a re-run from reading an offset twice. Every
+// caller speaks `WatchWindowRow` (@noticeos/contract); this module turns the
+// store's rows into that shape and back, and nothing else does.
 
 import type { WatchWindowRow } from '@noticeos/contract';
 import { javascriptInstant, type Transaction } from '@noticeos/postgres';
@@ -58,7 +51,7 @@ const WINDOW_COLUMNS = `window_id, asset_id, ref_kind, ref, metric_integration, 
        status, outcome, last_checked_at, closed_at, note, outcome_note, created_at,
        readback_bead, readback_posted_at`;
 
-/** `jsonb` text as `JSON.stringify` writes it, the form D1 kept. */
+/** `jsonb` text as `JSON.stringify` writes it. */
 function compactJson(text: string | null): string | null {
   return text === null ? null : JSON.stringify(JSON.parse(text));
 }
@@ -67,7 +60,7 @@ function instantOrNull(value: string | null): string | null {
   return value === null ? null : javascriptInstant(value);
 }
 
-/** A window in the D1 row's words, its readings in offset order. */
+/** A window as a `WatchWindowRow`, its readings in offset order. */
 function asRow(record: WindowRecord, readings: readonly WatchReading[]): WatchWindowRow {
   return {
     id: record.window_id,
@@ -153,8 +146,7 @@ export interface WatchBet {
 
 /**
  * Hold one bet until the transaction ends, so two registrations of it at once
- * are one window: each reads, decides and writes under it. D1 had that from
- * running one statement at a time.
+ * are one window: each reads, decides and writes under it.
  */
 export async function holdBet(tx: Transaction, bet: WatchBet): Promise<void> {
   await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [

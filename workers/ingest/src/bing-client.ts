@@ -30,7 +30,7 @@ export interface BingWebmasterTarget extends SignalTarget {
 }
 
 /** The sites Bing is asked about: every one but the OS that is not retired and
- * has a domain, from the site list on Postgres (bead ro-ujb9.76.4.2). */
+ * has a domain. */
 export async function loadBingPortfolioCandidates(
   store: WorkspaceStore,
 ): Promise<BingPortfolioCandidate[]> {
@@ -47,12 +47,10 @@ export async function loadBingPortfolioCandidates(
 }
 
 /**
- * `credentialRef` names WHICH credential ran the pull, and since the credential
- * store landed it also says WHERE that credential came from — the caller passes
- * `sourcedCredentialRef(BING_CREDENTIAL_REF, source)`, which is
+ * `credentialRef` names which credential ran the pull and where it came from:
+ * the caller passes `sourcedCredentialRef(BING_CREDENTIAL_REF, source)`,
  * `store:BING_WEBMASTER_API_KEY` for a product-held key and the bare binding
- * name for the legacy env one. It defaults to the bare name so a caller with no
- * opinion records what has always been recorded.
+ * name for the legacy env one, which is also the default.
  */
 export function bingTarget(
   candidate: BingPortfolioCandidate,
@@ -68,18 +66,13 @@ export function bingTarget(
 }
 
 /**
- * WHICH BING SITE THIS ASSET IS (bead `ro-vu8d.16`), for both Bing lanes.
- *
- * The register's `siteUrl` wins where the operator has stated one — Bing spells
- * a site as a URL and the account may hold several that share a host, which is
- * exactly what the domain match cannot tell apart. Otherwise the lane keeps the
- * behaviour it has always had: the asset's own domain matched against the sites
- * the central account lists as verified, and `null` when there is no match,
- * which both callers report as `bwt_site_unverified`.
- *
- * `sites` is null when the credential itself failed and no list was fetched. A
- * register-mapped asset still resolves there — the mapping is a fact about the
- * asset, not about whether this run could authenticate.
+ * Which Bing site this asset is, for both Bing lanes. The register's `siteUrl`
+ * wins where the operator has stated one: Bing spells a site as a URL and the
+ * account may hold several that share a host, which the domain match cannot
+ * tell apart. Otherwise the asset's own domain is matched against the sites
+ * the account lists as verified, and `null` means `bwt_site_unverified`.
+ * `sites` is null when the credential itself failed; a register-mapped asset
+ * still resolves, because the mapping is a fact about the asset.
  */
 export function bingSiteMapping(
   asset: string,

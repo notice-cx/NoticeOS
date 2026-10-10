@@ -1,6 +1,5 @@
-// THE STATE OF EACH POSTGRES MIGRATION: the migration files a piece of code
-// carries, held against what a database's noticeos_migrations.applied records
-// (bead ro-ujb9.76.7.1).
+// The state of each Postgres migration: the migration files a piece of code
+// carries, held against what a database's noticeos_migrations.applied records.
 //
 // One derivation, three readers: the development runner's and
 // `pnpm postgres:migrate`'s status (what stops an apply), and `pnpm os:deploy`

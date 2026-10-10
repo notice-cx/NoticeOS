@@ -13,7 +13,7 @@ The product should answer four questions in order:
 3. When will it run next?
 4. What happened inside the run I am inspecting?
 
-The implementation associated with this design is tracked by `ro-ky6w`. Evidence was checked on September 9, 2026. The comparison covers seven relevant platforms rather than claiming a market-share ranking. Official documentation and product release notes establish feature behavior; published product screenshots establish visual references. No paid customer workspace was used to independently validate performance or every advertised interaction.
+The comparison covers seven relevant platforms rather than claiming a market-share ranking. Official documentation and product release notes establish feature behavior; published product screenshots establish visual references. No paid customer workspace was used to independently validate performance or every advertised interaction.
 
 ## Platform comparison
 
@@ -202,13 +202,13 @@ The implementation is acceptable when an operator can identify a failed workflow
 [^16]: OpenTelemetry, [Inside the LLM Call: GenAI Observability with OpenTelemetry](https://opentelemetry.io/blog/2026/genai-observability/), 2026; [Gen AI attribute registry](https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/), accessed September 9, 2026, with relocation/deprecation notices.
 
 
-## Operations and integration boundaries — 2026-09-09
+## Operations and integration boundaries
 
 The five current operator automations cover notifications, outcome checks, search
 review tasks, unpublished-change checks and outcome task updates. Fourteen
 internal operations are discoverable in System health. These are built-in
-capabilities; arbitrary custom and LLM workflows are not yet implemented
-(`ro-uojt`). Scheduling alone does not decide which surface owns an operation:
+capabilities; arbitrary custom and LLM workflows are not yet implemented.
+Scheduling alone does not decide which surface owns an operation:
 its operator purpose does.
 
 System health starts with observed scheduler, live-execution and history status,
@@ -232,34 +232,25 @@ schemas. [Windmill integration documentation](https://www.windmill.dev/docs/inte
 
 ## Integration discovery and connection lifecycle
 
-The Integrations redesign uses a searchable catalog with Traffic & search,
-Revenue and Coordination categories. Each provider explains the outcome it
-supports and displays its credential state, configured assets and last use.
-Category, search and connection-state filters remain in the URL while opening
-and returning from a provider. Names omit parenthetical implementation detail;
-purposes explain the capabilities underneath.
+The Integrations catalog is one row per provider, grouped by category (Traffic
+& search, Revenue, Coordination, Tasks), with one status and one action. There
+is no search, no filter and no purpose sentence: those read without deciding.
+Names omit parenthetical implementation detail.
 
-The focused provider page has four sections: Connect, Choose assets, Verify and
-Settings. This reuses the existing credential forms, Google sign-in, per-asset
-configuration links, connection probes, expiry editor and deliberate disconnect
-confirmation. Setup navigation indicates the current section, not a claim that
-previous sections passed. Saving access, assigning an asset and observing a
-successful collection are separate facts. Failures remain visible across steps.
-No new provider calls happen merely by opening the page or moving between steps.
+A provider that declares a connect kind in the contract (`IntegrationConnect`)
+connects in one panel over the list: the operator pastes the key and presses
+Connect, the ingest asks the provider first and stores the key only if it
+accepts (`POST /api/integrations/:provider/connect`), and the panel shows
+Checking, then Key accepted or the provider's refusal. There is no Choose
+assets step and no detour through the asset.
 
-**Superseded for the catalog and for key-based providers (2026-09-22, bead
-`ro-ujb9.96.7.1`, epic `ro-ujb9.96.7`).** The catalog is now one row per
-provider, grouped by category, with one status and one action; search, filters
-and purpose sentences are gone (the private historical audit in
-`reports/2026-09-23-ux-flow-audit.html` measured them as reading without deciding). A provider that declares a connect
-kind in the contract (`IntegrationConnect`: Bing Webmaster Tools and
-DataForSEO today) connects in one panel over the list: the operator pastes the
-key and presses Connect, the ingest asks the provider first and stores the key
-only if it accepts (`POST /api/integrations/:provider/connect`), and the panel
-shows Checking, then Key accepted or the provider's refusal. There is no Choose
-assets step and no detour through the asset. The four-section page above
-remains for managing a connected provider and for every provider whose own bead
-under the epic has not moved it into the panel yet.
+A provider's own page remains for managing a connected provider and for every
+provider not yet moved into the panel. It reuses the credential forms, Google
+sign-in, per-asset configuration links, connection probes, expiry editor and
+deliberate disconnect confirmation. Saving access, assigning an asset and
+observing a successful collection are separate facts. Failures remain visible
+across steps. No new provider calls happen merely by opening the page or
+moving between steps.
 
 This design adapts the separation of catalog schema and configured resources in
 [Windmill’s integration model](https://www.windmill.dev/docs/integrations/integrations_on_windmill),

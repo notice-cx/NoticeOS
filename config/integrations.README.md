@@ -2,11 +2,10 @@
 
 Per asset × per data source: whether that lane applies and what setup is
 known. Current health for automated lanes is observed from collector runs; it
-is not a switch in this file. This is the living form of the "inventory
-pending" that [decisions.md](decisions.md) D5 (revenue plumbing) and D8
-(analytics inventory) point at.
+is not a switch in this file. This is the living inventory of revenue
+plumbing and analytics coverage per asset.
 
-**Seed and export, not source of truth** (D22): `pnpm config:seed` loads this
+**Seed and export, not source of truth**: `pnpm config:seed` loads this
 installation's copy (else this generic default) into the store's
 `config_documents` table, the running OS reads and saves it there, and
 `pnpm config:export` writes it to `installation/`. Until an install seeds,
@@ -86,7 +85,7 @@ confabulating ([doc 11](../docs/11-integrations.md)).
 
 For GA4, GSC and Bing Webmaster the Tower loads the latest `signal_runs`
 attempt; for DataForSEO, the newest attempt for each required
-`signal_dump_runs` report family. On every read a fresh success is `live`, a
+`archive_runs` report family. On every read a fresh success is `live`, a
 latest error or a run older than the lane's cadence allows is `degraded`, and
 no attempt on record is `needs-setup` — whatever older value the file holds.
 `skipped` and `not-applicable` stay file-owned: evidence never enrolls a

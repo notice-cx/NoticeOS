@@ -11,7 +11,7 @@ import { stripJsonc } from './os-runtime.mjs';
 import { NEW_INSTALL_NAMES, applyResourceNames, readResourceNames, serviceLabel } from './resource-names.mjs';
 import { workerConfig } from './start.mjs';
 
-// A NEW INSTALLATION IS BORN WITH NOTICEOS NAMES (bead ro-ujb9.77.5).
+// A new installation is born with NoticeOS names.
 //
 // What `pnpm start` sets up for a stranger — its Workers, database and bucket —
 // what `pnpm os:install` installs on a Mac that has no service yet, the names
@@ -52,7 +52,7 @@ test("pnpm start's Workers, database and bucket are born with NoticeOS names", (
   }
 });
 
-// What a stranger deploys (bead ro-ujb9.77.8): the checked-in Worker configs
+// What a stranger deploys: the checked-in Worker configs
 // carry no old name at all. An older store's names live in its own folder.
 test('the Worker configs a stranger deploys name the NoticeOS Workers, database and bucket, and nothing old', () => {
   for (const file of WORKER_CONFIGS) {

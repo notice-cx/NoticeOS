@@ -1,54 +1,18 @@
 #!/usr/bin/env node
-// os-up.mjs — the NoticeOS LOCAL RUNNER / supervisor.
+// The local runner and supervisor.
 //
-// "The OS runs on the operator's Mac for a while" made true. It:
-//   - refuses to start at all when another runner already holds the ingest port
-//     (two runners = every cron fired twice),
-//   - never applies migrations: those are an explicit operator-only command,
-//   - starts nothing without its Postgres: DATABASE_URL, read from home's
-//     secrets file and checked as the application login, rides in the Tower
-//     child's environment and nowhere else; a missing or unusable address, or
-//     a database behind this code, stops it in one sentence (runner/database.mjs),
-//     and it never applies a Postgres migration either,
-//   - spawns + supervises ONE child: the tower (vite), whose workerd runtime
-//     hosts BOTH Workers — the Tower as the entry Worker and the ingest as an
-//     auxiliary Worker beside it. That is deliberate and load-bearing: two
-//     Workers share one supervised runtime and one ingest door. The runner
-//     arms schedules only after proving that its own child holds that door,
-//   - health-checks the beads task hub (hosted by `brew services`, not us) and
-//     photographs it once a minute into the central store for the Tower's
-//     read-only /work board,
-//   - files the signal review bead into a property's own tracker when its weekly
-//     DataForSEO collection lands, panel or no panel (one of the two lanes here
-//     that WRITE a bead),
-//   - reconciles every spoke's "unpushed commits" bead against the live push
-//     state — files one when commits sit unpushed too long, closes it when the
-//     push lands — and evaluates that spoke's gates on the same tick (the other
-//     bead-writing lane, and the only one that also CLOSES),
-//   - rebuilds every rostered property's local signal panels on a cadence
-//     (config/signal-panels.json, docs/20-signal-panels.md) — the flatten half
-//     of the signals lane, which a Worker cron cannot do because a Worker cannot
-//     write this machine's disk,
-//   - restarts a child that dies (backoff, then gives up loudly),
-//   - schedules the ingest crons (read from workers/ingest/wrangler.jsonc, UTC)
-//     and fires them against the local scheduled endpoint — each fire proving
-//     first that its OWN child holds the ingest door, so a runner that lost a
-//     bind race stands down instead of doubling somebody else's schedule,
-//   - keeps a job-run record (.local/logs/job-runs.jsonl): one line per lane per
-//     firing (ran/skipped/failed, when, how long), read back at startup so a
-//     lane that died is a last-run that stopped moving rather than a silence,
-//   - runs a nightly backup (Postgres + the R2 raw-archive store + every task-hub
-//     database, plus approved asset exports) with host-configured retention,
-//     copying the finished dir to the
-//     offsite folder this host names (its installation's host-backup.json),
-//   - shuts down cleanly on SIGINT/SIGTERM.
+// It refuses to start when another runner holds the ingest port, never
+// applies migrations, starts nothing without its
+// Postgres (DATABASE_URL rides in the Tower child's environment and nowhere
+// else), and spawns and supervises one child: the tower (vite), whose workerd
+// runtime hosts both Workers and holds the one ingest door. It arms the
+// schedules only after proving its own child holds that door, fires the
+// ingest crons and the host lanes (task-hub snapshot, review and push-state
+// filers, panel refresh, nightly backup), keeps the job-run record, and shuts
+// down cleanly on SIGINT/SIGTERM.
 //
-// Plain Node ESM — no TypeScript, no build step. Run via `pnpm os:up`.
-// Modes:  (default) supervise with loopback Tower · --host (network Tower) ·
-// --tick "<expr>" (os:cron) · --backup (os:backup)
-//
-// See scripts/README.md for the port map, cron behavior, backups + restore
-// drill, and the launchd install.
+// Modes: (default) supervise with loopback Tower · --host (network Tower) ·
+// --tick "<expr>" (os:cron) · --backup (os:backup). See scripts/README.md.
 
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
@@ -60,10 +24,8 @@ import { createDeployForwardState, deployLogSource, forwardOsDeploysToStore } fr
 import { invokedDirectly, runtimeChildEnv, samePath } from './os-runtime.mjs';
 import { readProductEnv } from './product-env.mjs';
 import { SCHEDULED_JOBS } from './scheduled-jobs.mjs';
-// What this file coordinates, one responsibility per module under
-// scripts/runner/ (bead ro-ujb9.22), each with its own test file. CONFIG — the port
-// map and every knob — and where this runner's code and state are live in
-// scripts/runner/config.mjs.
+// One responsibility per module under scripts/runner/; the port map and every
+// knob live in scripts/runner/config.mjs.
 import {
   BACKUPS_DIR,
   BEADS_DOLT_DIR,
@@ -103,11 +65,8 @@ import { runTaskMapCheck } from './runner/task-map.mjs';
 import { runBeadsPoll } from './runner/task-snapshot.mjs';
 import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The names this file has always exported, for the code that imports them from
-// here (the root tests, scripts/start-host-lanes.mjs). Each is defined in the
-// module it is re-exported from.
-// ─────────────────────────────────────────────────────────────────────────────
+// Re-exports for the code that imports these from here (the root tests,
+// scripts/start-host-lanes.mjs).
 export {
   JOB_RUN_CATCHUP_DAYS,
   JOB_RUN_OUTCOMES,
@@ -303,9 +262,8 @@ const runnerState = {
   towerReady: false,
   towerPid: null,
   schedulerArmed: false,
-  // Which code this runner is (bead ro-ujb9.113): `pnpm os:status` compares the
-  // commit with main, and `pnpm os:deploy` requires the restarted runner to
-  // report the commit it deployed.
+  // Which code this runner is: `pnpm os:status` compares the commit with
+  // main, and `pnpm os:deploy` requires the restarted runner to report it.
   codeRoot: REPO_ROOT,
   homeRoot: HOME_ROOT,
   commit: null,
@@ -331,10 +289,8 @@ async function writeRunnerState(patch = {}) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Child supervision. Each child is a plain object; spawn detached so it leads
-// its own process group and we can group-kill wrangler→workerd / vite cleanly.
-// ─────────────────────────────────────────────────────────────────────────────
+// Child supervision. Each child is spawned detached so it leads its own
+// process group and can be group-killed cleanly.
 
 function makeChild({ tag, command, cwd, args, readyMatcher, env = {} }) {
   return {
@@ -343,8 +299,8 @@ function makeChild({ tag, command, cwd, args, readyMatcher, env = {} }) {
     cwd,
     args,
     readyMatcher,
-    // Extra environment on top of ours. The tower's runtime learns the ingest
-    // door's address this way, so CONFIG above stays the one port map.
+    // Extra environment on top of ours; the tower's runtime learns the ingest
+    // door's address this way.
     env,
     proc: null,
     running: false,
@@ -357,19 +313,12 @@ function makeChild({ tag, command, cwd, args, readyMatcher, env = {} }) {
 }
 
 /**
- * The ONLY child. Its vite dev server runs one workerd hosting both Workers —
- * the Tower as the entry Worker, the ingest as an auxiliary Worker
- * (apps/tower/vite.config.ts). It also binds the loopback ingest door at
- * config.ingestHost:config.ingestPort, which is the address every line below
- * (crons, snapshots, panel reads) still fires at.
- *
- * Its arguments name ports and a host, never a secret. Its environment carries
- * the door address, where the store and the home checkout are (a runtime
- * copy's dev server opens home's store and its local lanes read and commit in
- * home, scripts/os-runtime.mjs; from home itself these are the paths the dev
- * server has always defaulted to), and the database's address `database`
- * (scripts/database-address.mts), which travels nowhere else. Exported so a
- * rehearsal starts exactly this child on ports of its own.
+ * The only child. Its vite dev server runs one workerd hosting both Workers
+ * (apps/tower/vite.config.ts) and binds the loopback ingest door every lane
+ * fires at. Its arguments name ports and a host, never a secret; its
+ * environment carries the door address, where the store and the home checkout
+ * are (scripts/os-runtime.mjs), and the database's address, which travels
+ * nowhere else.
  */
 export function towerChild({ config = CONFIG, exposeTowerToLan, database }) {
   const launch = towerLaunch(REPO_ROOT);
@@ -416,8 +365,7 @@ function pipeStream(stream, child) {
 }
 
 /** Start `child` supervised: its output into the redacted log, its heartbeat
- * fields, restarts with backoff. Exported, with `killChild`, so a rehearsal
- * supervises `towerChild` exactly as the runner does. */
+ * fields, restarts with backoff. */
 export async function startChild(child) {
   if (!await towerDependenciesReady({ root: REPO_ROOT })) {
     child.gaveUp = true;
@@ -530,12 +478,10 @@ function waitForExit(children, timeoutMs) {
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Backup — the module owns copy completeness; the runner schedules and records.
-// ─────────────────────────────────────────────────────────────────────────────
+// Backup: the module owns copy completeness; the runner schedules and records.
 async function runBackup() {
-  // The offsite folder is the home installation's host-backup.json, read by the
-  // backup itself (scripts/host-backup.mjs), so an edit applies at the next run.
+  // The offsite folder is read by the backup itself (scripts/host-backup.mjs),
+  // so an edit applies at the next run.
   const result = process.env.NOTICEOS_BACKUP_CLIENT_PROFILE !== undefined
     ? await requestContainerBackup(process.env.NOTICEOS_BACKUP_CLIENT_PROFILE)
     : await backupHost({
@@ -548,12 +494,9 @@ async function runBackup() {
   return result;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The host lanes — what each local scheduled job runs, for the scheduler
-// (scripts/runner/scheduler.mjs), which decides only when. `outcomeOf` turns a
-// lane's result into its job-run outcome; without one, null is a skip.
-// Exported so a test can prove every local job has exactly one body here.
-// ─────────────────────────────────────────────────────────────────────────────
+// The host lanes: what each local scheduled job runs, for the scheduler
+// (scripts/runner/scheduler.mjs), which decides only when. `outcomeOf` turns
+// a lane's result into its job-run outcome; without one, null is a skip.
 export function hostLanes(runtime) {
   return {
     'beads-hub': {
@@ -570,16 +513,12 @@ export function hostLanes(runtime) {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// OS deploys → the store (bead ro-trai.8)
-//
-// `pnpm os:deploy` records every move of the live OS in this host's deploy log;
-// the Wall feed reads only the store. Once a minute the runner forwards what
-// the log holds, as annotations on the OS asset, through the ingest's own
-// annotation route (scripts/os-deploy-forward.mjs). A deploy restarts this
-// runner, and the record of a failed deploy's automatic rollback is written
-// after the new runner is up — so a start-up pass alone would miss it.
-// ─────────────────────────────────────────────────────────────────────────────
+// OS deploys → the store. `pnpm os:deploy` records every move of the live OS
+// in this host's deploy log; the Wall feed reads only the store. Once a minute
+// the runner forwards what the log holds as annotations on the OS asset
+// (scripts/os-deploy-forward.mjs). The record of a failed deploy's rollback
+// is written after the new runner is up, so a start-up pass alone would miss
+// it.
 
 /** How often the deploy log is re-read. */
 export const DEPLOY_FORWARD_INTERVAL_MS = 60_000;
@@ -588,8 +527,7 @@ const deployForwardState = createDeployForwardState();
 async function forwardDeploysOnce(runtime) {
   if (isShuttingDown() || !runtime.running || !runtime.ready) return;
   try {
-    // Filed against asset #0, the OS itself, as the store names it
-    // (`assets.is_os`, beads ro-k9hf / ro-ujb9.118) — never an id written here.
+    // Filed against the OS asset as the store names it (`assets.is_os`).
     const result = await forwardOsDeploysToStore({
       source: deployLogSource(STATE.deploysFile),
       config: CONFIG,
@@ -610,14 +548,10 @@ function startDeployForwarding(runtime) {
     .catch(() => {});
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Modes
-// ─────────────────────────────────────────────────────────────────────────────
-
 /**
- * What `pnpm os:cron` says when the dispatch refused the expression (bead
- * ro-ujb9.217): the refusal by name, then the expressions it does run, so a
- * typo is fixed from the same screen. Null for any other failure.
+ * What `pnpm os:cron` says when the dispatch refused the expression: the
+ * refusal by name, then the expressions it does run. Null for any other
+ * failure.
  */
 export function tickRefusal(expr, code) {
   if (code !== 'unknown_cron') return null;
@@ -625,9 +559,8 @@ export function tickRefusal(expr, code) {
   return `tick: refused "${expr}" — unknown_cron: no scheduled job runs on it; nothing ran. Scheduled: ${known.join(', ')}`;
 }
 
-// os:cron — fire one scheduled endpoint immediately and exit. Assumes os:up is
-// already running, with its tower child holding the ingest door on the pinned
-// port.
+// os:cron: fire one scheduled endpoint immediately and exit. Assumes os:up is
+// already running.
 async function tickOnce(expr) {
   const url = scheduledUrl(expr);
   log('INFO', `tick: firing "${expr}" → ${url}`);
@@ -670,8 +603,8 @@ async function supervise({ exposeTowerToLan }) {
   );
   if (exposeTowerToLan) log('WARN', TOWER_NETWORK_NOTICE);
 
-  // Single instance, decided before ANY of the work below: a runner that is
-  // about to refuse must not spawn children that would lose the bind race.
+  // Single instance, decided before any of the work below: a runner about to
+  // refuse must not spawn children that would lose the bind race.
   let ingestPortAnswers = await probeTcp(CONFIG.ingestHost, CONFIG.ingestPort);
   if (ingestPortAnswers && readProductEnv(process.env, 'managed') === '1') {
     const previous = await readPreviousRunnerState();
@@ -681,18 +614,17 @@ async function supervise({ exposeTowerToLan }) {
   log(instance.level, instance.text);
   if (!instance.arm) process.exit(EXIT_ALREADY_RUNNING);
 
-  // A runner running from a runtime copy starts nothing until its copy is linked
-  // to home's state and home's store exists (bead ro-ujb9.113).
+  // A runner running from a runtime copy starts nothing until its copy is
+  // linked to home's state and home's store exists.
   const copyRefusal = await runtimeCopyRefusal({ codeRoot: REPO_ROOT, homeRoot: HOME_ROOT, liveSourceRoot: process.env.NOTICEOS_LIVE_SOURCE_ROOT });
   if (copyRefusal) {
     log('ERROR', copyRefusal);
     process.exit(EXIT_RUNTIME_COPY);
   }
 
-  // The store's address, before anything starts (bead ro-ujb9.76.7.2):
-  // DATABASE_URL from home's secrets file, checked as the application login,
-  // then handed to the Tower child's environment and nowhere else. Checking
-  // applies nothing: a database behind this code stops the start.
+  // The store's address, before anything starts: DATABASE_URL from home's
+  // secrets file, checked as the application login, then handed to the Tower
+  // child's environment and nowhere else. Checking applies nothing.
   const database = await runnerDatabase();
   if (!database.ok) {
     log('ERROR', `REFUSING to start: ${database.line}`);
@@ -758,12 +690,11 @@ async function supervise({ exposeTowerToLan }) {
   }
   // force: say where the hub stands every startup, even when nothing changed.
   await checkBeadsHub({ force: true });
-  // What the lanes did last time this machine was up — read before they arm, so
-  // a restart answers "has the nightly backup been running?" without a scroll.
+  // Read before the lanes arm, so a restart answers "has the nightly backup
+  // been running?" without a scroll.
   const recorded = await reportJobRuns();
-  // The store's copy of that record (db/0022): armed with what disk already
-  // holds, so firings from before this process — or from while the store was
-  // unreachable — reach `job_runs` on the first tick that finds the door open.
+  // Armed with what disk already holds, so firings from before this process
+  // reach `job_runs` on the first tick that finds the door open.
   const queued = armJobRunShipping(tower, recorded);
   log('INFO', `  job-run shipping → ${jobRunsUrl(CONFIG)} (${queued} record(s) queued to catch up)`);
   startDeployForwarding(tower);
@@ -783,14 +714,11 @@ async function supervise({ exposeTowerToLan }) {
   });
   const heartbeat = setInterval(() => void writeRunnerState(), 30_000);
   trackTimer(heartbeat);
-  // Which half of D21 this install is on, said once (bead `ro-vu8d.5`). After
-  // the runtime is up, because the answer comes from the OS itself.
+  // Where this install's credentials and config are read from, said once,
+  // after the runtime is up, because the answer comes from the OS itself.
   void waitForRuntime(tower)
     .then(() => reportLegacyEnvCredentials(tower))
     .catch(() => {});
-  // And which config this install is reading (epic `ro-syok`). Same posture as
-  // the line above: after the runtime is up, from the OS's own answer, never
-  // fatal.
   void waitForRuntime(tower)
     .then(() => reportConfigStore(tower))
     .catch(() => {});
@@ -798,9 +726,6 @@ async function supervise({ exposeTowerToLan }) {
   log('INFO', 'runner up — children supervised, scheduler armed. Ctrl-C to stop.');
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Entry
-// ─────────────────────────────────────────────────────────────────────────────
 async function main() {
   await ensureDirs();
   await openLog();
@@ -822,9 +747,8 @@ async function main() {
   }
 
   if (argv.includes('--backup')) {
-    // Recorded like the scheduled one: a backup the operator ran by hand is
-    // still the backup lane running, and leaving it out would make the record
-    // claim a gap that never existed.
+    // Recorded like the scheduled one, or the record would claim a gap that
+    // never existed.
     const result = await runJobLane('backup', () => runBackup(), backupRunOutcome);
     process.exit(result?.ok === true ? 0 : 1);
   }
@@ -855,11 +779,10 @@ export function resolveTowerExposure(argv, hostEnvValue) {
   throw new Error('OS_UP_HOST must be true/1 or false/0; use --host for network access or --local for loopback');
 }
 
-// Through realpath: launchd runs this file through the runtime copy's `current`
-// link, and a plain comparison with the link-resolved module URL says "not me".
+// Through realpath: launchd runs this file through the runtime copy's
+// `current` link.
 if (invokedDirectly(process.argv[1], import.meta.url)) {
   main().catch((err) => {
-    // Last-resort guard: log and exit non-zero rather than an ugly stack trace.
     log('ERROR', `fatal: ${err?.stack || err?.message || err}`);
     process.exit(1);
   });

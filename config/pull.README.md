@@ -8,7 +8,7 @@ site is held to the identical contract as a pushed one
 (`workers/ingest/src/pull.ts`). When a site later starts pushing, its row is
 set to `enabled: false` and the two lanes never collide.
 
-**Seed and export, not source of truth** (D22): `pnpm config:seed` loads this
+**Seed and export, not source of truth**: `pnpm config:seed` loads this
 installation's copy (else this generic default) into the store, the running OS
 reads and saves it there, and `pnpm config:export` writes it to
 `installation/`. Until an install seeds, every read falls back to the copy

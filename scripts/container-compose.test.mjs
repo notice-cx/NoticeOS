@@ -69,7 +69,7 @@ async function until(check, timeoutMs = 90_000) {
 
 test('the prepared application container serves tasks and schedules, preserving state across its own restart', { skip: !enabled, timeout: 480_000 }, async t => {
   const image = process.env.NOTICEOS_TEST_APP_IMAGE;
-  assert.match(image ?? '', /^noticeos-local:ro-ujb9-9-2-[a-z0-9]+$/u, 'use the explicitly built local proof image');
+  assert.match(image ?? '', /^noticeos-local:compose-proof-[a-z0-9]+$/u, 'use the explicitly built local proof image');
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-container-proof-'));
   // Nothing else exists yet; an early preflight refusal still owns this folder.
   let cleanupServices = null;

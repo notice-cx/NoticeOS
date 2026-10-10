@@ -1,17 +1,12 @@
 #!/usr/bin/env node
-// Does the Wall still FIT the TV? Measures the LIVE Tower's /wall at the DietPi
-// kiosk's exact CSS viewport (1920×1080) and fails when wall content spills past
-// it on either axis. `--viewports laptops` measures the screens that draw the
-// TV's layout scaled, 1280×720 to 1920×1080, one after another (bead
-// ro-trai.31).
+// Does the Wall still fit the TV? Measures the live Tower's /wall at the TV
+// kiosk's exact CSS viewport (1920×1080) and fails when wall content spills
+// past it on either axis. `--viewports laptops` measures the screens that draw
+// the TV's layout scaled, 1280×720 to 1920×1080, one after another. The fit
+// contract breaks on data growth alone, which the jsdom suite cannot see; only
+// a real engine at the real geometry can.
 //
-// Why this exists (bead ro-wb5d): the fit-at-1080 contract has broken twice on
-// DATA growth alone — a sixth property began reporting and stacked column 5 past
-// the fold, and DailyBars' nowrap week labels painted 7px past the viewport
-// without moving a single element box. Neither is visible to the jsdom suite,
-// which has no layout at all; only a real engine at the real geometry can see it.
-//
-// Why it does NOT read the document's scroll size: at TV geometry .wall-root
+// Why it does not read the document's scroll size: at TV geometry .wall-root
 // clips to height:100vh/overflow:hidden (apps/tower/src/index.css — the accepted
 // backstop, so the kiosk never grows a scrollbar), which makes the document
 // report a perfect fit no matter how far content spills. This measures CONTENT:
@@ -56,8 +51,7 @@ function pixels(name, fallback) {
   return Math.round(value);
 }
 
-/** The screens the TV's layout is drawn on, scaled (bead ro-trai.31,
- * docs/14-design.md § Laptop, tablet and phone): the 16:9 laptops, the
+/** The screens the TV's layout is drawn on, scaled: the 16:9 laptops, the
  * 16:10 MacBooks as Chrome leaves them, and the TV itself. */
 const LAPTOP_VIEWPORTS = ["1280x720", "1366x768", "1440x900", "1470x830", "1512x860", "1728x1000", "1920x1080"];
 
@@ -111,7 +105,7 @@ const wait = (milliseconds) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 /** What the page measures: the one function the Wall journeys run too
- * (scripts/wall-fit-measure.mts, bead ro-trai.12), serialized into the page. */
+ * (scripts/wall-fit-measure.mts), serialized into the page. */
 const MEASURE_SOURCE = `(${measureWallFit.toString()})()`;
 
 function fail(message) {
@@ -191,8 +185,7 @@ async function checkAt(page, { width, height }) {
     await wait(250);
     ready = await page
       .evaluate(
-        // D28's widgets, drawn by the canvas once the payload arrived (epic
-        // ro-trai; the header row left the Wall with bead ro-trai.11).
+        // The widgets, drawn by the canvas once the payload arrived.
         `!!document.querySelector('[data-wall-canvas]') && document.querySelectorAll('[data-wall-strip], [data-wall-revenue], [data-wall-needs], [data-wall-sites], [data-wall-feed]').length > 0`,
       )
       .catch((error) => {
@@ -260,7 +253,7 @@ async function checkAt(page, { width, height }) {
     console.log(
       `  spread      ${report.spread.map((take) => `${take.right}×${take.bottom}`).join("  ")}`,
     );
-    // Which Wall this screen drew (bead ro-trai.31): the TV's layout, scaled on
+    // Which Wall this screen drew: the TV's layout, scaled on
     // a laptop or a landscape tablet, or one column on a portrait screen.
     if (report.layout === "tv" && report.scale < 1) {
       console.log(`  layout      the TV's, scaled to ${Math.round(report.scale * 1000) / 10} %`);

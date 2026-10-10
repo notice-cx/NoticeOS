@@ -6,12 +6,11 @@ import { JOB_LANES, UnknownCronError, runCron, runScheduledCron } from '../src/d
 import IngestWorker from '../src/index.js';
 import { reset } from './helpers.js';
 
-// ONE LIST OF SCHEDULED JOBS (bead ro-ujb9.217). scripts/scheduled-jobs.mts
-// names every job and its dispatch key; wrangler.jsonc registers the keys of the
-// jobs the ingest runs, and the dispatch table says which lanes each job is.
-// The three are pinned to the same jobs here, and any expression outside them
-// is refused by name and runs nothing — before this bead an unmatched
-// expression ran every collector and the notifier at once, untraced.
+// One list of scheduled jobs. scripts/scheduled-jobs.mts names every job and
+// its dispatch key; wrangler.jsonc registers the keys of the jobs the ingest
+// runs, and the dispatch table says which lanes each job is. The three are
+// pinned to the same jobs here, and any expression outside them is refused by
+// name and runs nothing.
 //
 // `env.TEST_CRONS` is wrangler.jsonc's `triggers.crons`, parsed in
 // vitest.config.ts (Node) and injected as a binding: workerd has no node:fs, so

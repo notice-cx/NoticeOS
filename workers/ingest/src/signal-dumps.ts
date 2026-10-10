@@ -1,13 +1,9 @@
 import { tryHealthConnection } from './integration-health-context.js';
 import { beginCollection, persistCollectionAttempt, collectionMonitoring, type CollectionMonitoring } from './collection-attempt.js';
-// Operator-directed, analysis-grade GA4, Search Console, and Bing Webmaster
-// archives.
-//
-// This lane is deliberately separate from the 15-minute chart aggregates.
-// It re-fetches a short completed-day revision window, preserves bounded raw
-// provider responses as gzip JSON in private R2, and writes only append-only
-// manifests to the store: each run in `noticeos.archive_runs`, naming the
-// object it stored in `noticeos.archive_objects` (bead ro-ujb9.76.5.4).
+// Analysis-grade GA4, Search Console and Bing Webmaster archives, separate
+// from the 15-minute chart aggregates: a short completed-day revision window,
+// bounded raw provider responses as gzip JSON in private R2, and append-only
+// manifests (`noticeos.archive_runs` naming `noticeos.archive_objects`).
 // Credentials and access tokens never enter either store.
 
 import { storedProviderCost, type Ga4PropertyQuota } from '@noticeos/contract';
@@ -74,13 +70,8 @@ const JS_ERROR_EVENT = 'js_error';
 
 /**
  * How many earlier GA4 / Search Console report dates one run re-asks after an
- * outage (bead `ro-aed0.7`).
- *
- * A dead night's leftovers are the revision window's oldest date for every
- * family plus the newest date of the families collected for one date only —
- * about ninety requests for a five-property portfolio, the shape 2026-09-14
- * left. One hundred re-collects a night like that on the next tick, and a
- * week-long outage drains over the following days instead of doubling one run.
+ * outage: about one dead night's leftovers for a small portfolio, so a longer
+ * outage drains over the following days instead of doubling one run.
  */
 export const ARCHIVE_RETRY_LIMIT = 100;
 
@@ -95,15 +86,11 @@ export interface Ga4CustomDimensionConfig {
 const GA4_CUSTOM_DIMENSIONS = ga4CustomDimensionsJson as Ga4CustomDimensionConfig;
 
 /**
- * Whether this property can answer for every `customEvent:` dimension the spec
- * needs — i.e. whether `config/ga4-custom-dimensions.json` records the operator
- * having registered them (see that file's README). A property it does not cover
- * is skipped entirely: no request, no manifest row. Absence of config is not a
- * failed collection, the same rule the tracked SERP panel follows.
- *
- * This gate does NOT retire `ga4_custom_dimension_unregistered`. Registration is
- * forward-only, so a listed property can still be asked for a date before its
- * dimensions existed — and the file is a hand-maintained claim about a system it
+ * Whether `config/ga4-custom-dimensions.json` records the operator having
+ * registered every `customEvent:` dimension the spec needs. A property it does
+ * not cover is skipped entirely: absence of config is not a failed collection.
+ * This does not retire `ga4_custom_dimension_unregistered`: registration is
+ * forward-only, and the file is a hand-maintained claim about a system it
  * cannot inspect, so a wrong entry has to fail loudly rather than read as zero.
  */
 function ga4DimensionsRegistered(
@@ -123,14 +110,10 @@ function ga4DimensionsRegistered(
 interface DumpReportSpec {
   name: string;
   /**
-   * Opt in to probe mode. A family a property does not participate in at all
-   * (Discover for a site Google has never surfaced there) answers every
-   * revision date with an empty page, so the full window costs four requests a
-   * day to re-learn the same nothing. With this set, once every completed run
-   * for an (asset, report) has come back with zero rows the collector asks for
-   * only the newest completed date — enough to notice the family turning on,
-   * at which point the full revision window resumes. The first-ever run has no
-   * history and always takes the full window.
+   * Once every completed run for an (asset, report) has come back with zero
+   * rows, ask only the newest completed date, enough to notice the family
+   * turning on; the full window resumes on any non-empty run. The first-ever
+   * run always takes the full window.
    */
   probeWhenAlwaysEmpty?: boolean;
 }
@@ -153,11 +136,8 @@ interface Ga4ReportSpec extends DumpReportSpec {
   windowDays?: number;
   /** Collect once for the newest completed date, not once per revision date. */
   latestOnly?: boolean;
-  /**
-   * A GA4 `FilterExpression`, sent verbatim and archived with every request so
-   * the stored rows carry the population they describe. A family that filters
-   * to one event must never be read as a property-wide total.
-   */
+  /** A GA4 `FilterExpression`, sent verbatim and archived with every request so
+   * the stored rows carry the population they describe. */
   dimensionFilter?: Record<string, unknown>;
 }
 
@@ -171,14 +151,9 @@ interface BingReportSpec {
     | 'GetCrawlIssues'
     | 'GetFeeds';
   /**
-   * How often the PROVIDER refreshes this family, in whole days. Omitted means
-   * 1 — ask every day, because the answer can differ every day.
-   *
-   * A family Microsoft refreshes weekly answers six of every seven daily calls
-   * with the snapshot it already gave us, so those six buy nothing and are
-   * spent on someone else's rate limit. Set this and the collector asks only
-   * once per cadence per property; see `dueBingReports` for how "once" is
-   * decided and what it deliberately does NOT do (latch, or hide a failure).
+   * How often the provider refreshes this family, in whole days; omitted means
+   * every day. A weekly family asked daily answers six of seven calls with the
+   * same snapshot. See `dueBingReports` for how "once" is decided.
    */
   cadenceDays?: number;
 }
@@ -206,9 +181,9 @@ const GSC_REPORTS: GscReportSpec[] = [
   },
 ];
 
-// These mirror durable GA4 report families rather than the UI's current CSV
-// layout. Expressions are stored with every request so later analysis can
-// reproduce exactly what a metric meant at collection time.
+// Durable GA4 report families rather than the UI's current CSV layout.
+// Expressions are stored with every request so later analysis can reproduce
+// what a metric meant at collection time.
 const GA4_REPORTS: Ga4ReportSpec[] = [
   {
     name: 'pages-screens',
@@ -300,16 +275,11 @@ const GA4_REPORTS: Ga4ReportSpec[] = [
     ],
   },
   {
-    // The triage half of the `javascript-errors` card. The events family counts
-    // js_error per page, which names the worst page and nothing an engineer can
-    // act on; the emitter already sends `message` and `source` on every report,
-    // so this family asks for those two next to the page.
-    //
-    // GA4 will only answer for an event parameter an operator has REGISTERED as
-    // a custom dimension, and it backfills nothing before that registration —
-    // so an empty window here can mean "no errors" or "not collecting yet", and
-    // `ga4_custom_dimension_unregistered` exists to keep those apart (doc 02:
-    // absent is never zero).
+    // The triage half of the `javascript-errors` card: `message` and `source`
+    // next to the page. GA4 only answers for an event parameter registered as
+    // a custom dimension and backfills nothing before that, so an empty window
+    // can mean "no errors" or "not collecting yet";
+    // `ga4_custom_dimension_unregistered` keeps those apart.
     name: 'js-errors',
     dimensions: [
       `${GA4_CUSTOM_EVENT_PREFIX}message`,
@@ -323,8 +293,7 @@ const GA4_REPORTS: Ga4ReportSpec[] = [
         stringFilter: { matchType: 'EXACT', value: JS_ERROR_EVENT },
       },
     },
-    // A property whose pages never throw answers every revision date with an
-    // empty page, and re-learning that costs four requests a day.
+    // A property whose pages never throw answers every revision date empty.
     probeWhenAlwaysEmpty: true,
   },
   {
@@ -343,16 +312,13 @@ const GA4_REPORTS: Ga4ReportSpec[] = [
   },
 ];
 
-/** Microsoft's own refresh interval for the top-query and top-page snapshots
- * (doc 11: "current top-result snapshots that update weekly"). */
+/** Microsoft's own refresh interval for the top-query and top-page snapshots. */
 const BING_WEEKLY = 7;
 
 const BING_INTEGRATION: DumpIntegration = 'bing-webmaster';
 
-// Rank/traffic and the crawl families are genuine daily provider series — a new
-// day of history appears every day, so they are asked for every day. The query
-// and page families are one current top-result snapshot that Microsoft rebuilds
-// weekly, so asking daily re-downloads the same snapshot six times.
+// Rank/traffic and the crawl families are daily provider series. The query and
+// page families are one snapshot Microsoft rebuilds weekly.
 const BING_REPORTS: BingReportSpec[] = [
   { name: 'rank-traffic', method: 'GetRankAndTrafficStats' },
   { name: 'queries', method: 'GetQueryStats', cadenceDays: BING_WEEKLY },
@@ -371,18 +337,11 @@ export interface CollectedDump {
   pages: DumpPage[];
   providerRows: number;
   providerTruncated: boolean;
-  /**
-   * What the provider said this collection cost, where it meters in a budget
-   * (GA4 only today). Carried beside the pages rather than inside them — see
-   * the note in `collectGa4Dump` on why it never enters the content hash.
-   */
+  /** What the provider said this collection cost, where it meters a budget
+   * (GA4). Carried beside the pages, never inside the content hash. */
   quota?: Ga4PropertyQuota | null;
-  /**
-   * The pages as the content hash sees them, when a page carries a field that
-   * changes on every call (bead `ro-ghis.1`: a PostHog body's own
-   * `collectedAt`). Archived bytes are always `pages`; only the hash reads
-   * this, so an unchanged re-run still dedupes. Omitted means `pages`.
-   */
+  /** The pages as the content hash sees them, when a page carries a field that
+   * changes on every call. Archived bytes are always `pages`. */
   canonicalPages?: DumpPage[];
 }
 
@@ -400,12 +359,8 @@ interface SignalDumpEnvelope {
   providerRows: number;
   providerTruncated: boolean;
   pages: DumpPage[];
-  /**
-   * What the collection cost us, archived with the run and deliberately ABSENT
-   * from the canonical bytes the content hash is taken over: it changes on every
-   * call, so hashing it would retire the unchanged-detection this lane depends
-   * on. Present only for lanes whose provider meters a budget.
-   */
+  /** What the collection cost us, absent from the canonical bytes the content
+   * hash is taken over because it changes on every call. */
   providerQuota?: Ga4PropertyQuota | null;
 }
 
@@ -452,18 +407,11 @@ export interface SignalDumpsResult {
   succeeded: number;
   unchanged: number;
   failed: number;
-  /**
-   * (property, family) pairs this run did not ask for because the provider had
-   * not refreshed them yet — today only, never a running total. Counted rather
-   * than folded into `attempted` so a shrinking request count reads as the
-   * cadence working and never as a lane that quietly collected less.
-   */
+  /** (property, family) pairs this run did not ask for because the provider
+   * had not refreshed them yet; today only, never a running total. */
   skipped: number;
-  /**
-   * Earlier report dates this run asked for again because an outage cost them
-   * (bead `ro-aed0.7`) — already counted in `attempted` and `outcomes`, named
-   * here so a larger run reads as a gap being filled, not as a bigger window.
-   */
+  /** Earlier report dates this run asked for again because an outage cost
+   * them, already counted in `attempted` and `outcomes`. */
   retried: number;
   outcomes: SignalDumpOutcome[];
   /** What the run's egress gate concluded — see {@link EgressRunOutcome}. */
@@ -478,18 +426,14 @@ export interface SignalDumpsOptions {
   revisionDays?: number;
   /** Override the built-in config/ga4-custom-dimensions.json (tests inject their own). */
   ga4CustomDimensions?: Ga4CustomDimensionConfig;
-  /** Override the compiled-in config/integrations.json mapping (tests state
-   * their own register instead of editing the operator's file). */
+  /** Override the compiled-in config/integrations.json mapping (tests). */
   laneRegister?: LaneRegister;
-  /** Where this run's config came from, per file — resolved once per cron fire
-   * in dispatch.ts and reported on the completion line below (`ro-syok.7`). */
+  /** Where this run's config came from, per file; reported on the completion line. */
   configSources?: ConfigSourceMap;
-  /** The operator's saved clock (config/constants.json `os_time_zone`, store
-   * first — bead `ro-ujb9.88`), assumed for a GA4 property that states no
+  /** The operator's saved clock, assumed for a GA4 property that states no
    * zone of its own. Absent: the zone compiled into this Worker. */
   osTimeZone?: string;
-  /** Override the run's egress gate (tests control the verdict TTL); every other
-   * caller gets a real one over the same fetcher. */
+  /** Override the run's egress gate (tests control the verdict TTL). */
   egress?: EgressGate;
   /** Override {@link ARCHIVE_RETRY_LIMIT} (tests pin the bound with a small one). */
   retryLimit?: number;
@@ -542,33 +486,25 @@ export async function runSignalDumps(
     throw new SignalError('config_invalid', 'Signal dump revisionDays must be between 1 and 14.');
   }
   const reportDates = completedDates(nowMs, revisionDays);
-  // CAN THE OS GET OUT (bead `ro-aed0.4`)? This lane was the worst of the dead
-  // uplink's fan-outs: one failed token mint walked every target x family x
-  // revision date and wrote a `request_failed` manifest for each — several
-  // hundred for one dark night, each rendered as "Nightly archive failed — the
-  // provider returned request_failed". One gate per run, asked only about a
-  // provider call that came back with no status; its beacons use the raw fetcher.
+  // One gate per run, asked only about a provider call that came back with no
+  // status; its beacons use the raw fetcher. Without it one failed token mint
+  // would write a `request_failed` manifest for every target x family x date.
   const egress: EgressLane = {
     gate: options.egress ?? new EgressGate(env, { lane: 'signal-dumps', fetchImpl, at: requestedAt }),
     transport: watchTransport(fetchImpl),
   };
   const providerFetch = egress.transport.fetch;
   const ga4CustomDimensions = options.ga4CustomDimensions ?? GA4_CUSTOM_DIMENSIONS;
-  // Store first, legacy env binding second (bead `ro-vu8d.1`), for both halves
-  // of this lane: the Google account map here and the Bing key below.
+  // Store first, legacy env binding second, for both halves of this lane.
   const google = await resolveGoogleCredential(env);
   const googleHealth = await tryHealthConnection(env, 'google', google.credential, [google.oauth?.clientId ?? '', google.oauth?.clientSecret ?? '']);
   const googleMonitoring = beginCollection(env.STORE, googleHealth);
   const googleSource: CredentialSource =
     options.rawConfig === undefined ? google.source : 'env';
   const googleAccounts = options.rawConfig ?? google.accounts;
-  // The register first, the credential blob second, through the one door the
-  // live collector uses (`ro-vu8d.16`). An OAuth install with nothing mapped
-  // anywhere archives nothing rather than failing every report family, and so
-  // does one where Google is not connected at all (bead `ro-ujb9.172`).
-  // …and a property its Data sources row declines (Not using) is not
-  // archived: the one skip rule every collector applies (bead
-  // `ro-ujb9.96.7.18`).
+  // The register first, the credential blob second. An install with nothing
+  // mapped, or with Google not connected, archives nothing rather than failing
+  // every family; a property its Data sources row declines is not archived.
   const targets = googleTargets(
     { accounts: googleAccounts, oauth: google.oauth, connected: google.connected },
     googleSource,
@@ -578,8 +514,8 @@ export async function runSignalDumps(
   ).filter((target) => !laneDeclined(target.asset, target.integration, options.laneRegister));
   const outcomes: SignalDumpOutcome[] = [];
   // Every (property, family) -> the dates this run asks for, resolved before
-  // this run writes any of its own manifests, so a probe day's zero-row result
-  // (or a re-collected earlier date) cannot narrow the same run's window.
+  // this run writes any manifests, so a probe day's zero-row result cannot
+  // narrow the same run's window.
   const plans = new Map<GooglePropertyTarget, Map<string, string[]>>();
   for (const target of targets) {
     const byReport = new Map<string, string[]>();
@@ -591,7 +527,7 @@ export async function runSignalDumps(
     }
     plans.set(target, byReport);
   }
-  // The earlier dates an outage cost this lane (bead `ro-aed0.7`), capped.
+  // The earlier dates an outage cost this lane, capped.
   const retry = await owedArchiveDates(
     env,
     targets,
@@ -615,10 +551,8 @@ export async function runSignalDumps(
           providerFetch,
         );
       } catch (error) {
-        // The same walk either way — the run still owes every one of these
-        // dates — but a dead uplink records none of them against the provider.
-        // The earlier dates owed a re-collection are not walked: nothing asked
-        // for them, so they stay owed exactly as they were.
+        // The same walk either way, but a dead uplink records none of these
+        // against the provider, and the owed earlier dates are not walked.
         const unmeasured = await egressExplains(egress.gate, egress.transport, error);
         if (unmeasured) retry.halt();
         const normalized = normalizeSignalError(error, 'Google authentication failed.');
@@ -645,9 +579,8 @@ export async function runSignalDumps(
         continue;
       }
 
-      // The owed earlier dates go FIRST, so the newest manifest of every
-      // family is still this run's own window — the Tower reads a family's
-      // latest row as its current date.
+      // The owed earlier dates go first, so the newest manifest of every family
+      // is still this run's own window, which the Tower reads as current.
       for (const target of scopedTargets) {
         for (const { report, reportDate } of retry.dates.get(target) ?? []) {
           if (!retry.open) break;
@@ -663,9 +596,8 @@ export async function runSignalDumps(
           );
           outcomes.push(outcome);
           retried += 1;
-          // A connection that is down, or still dropping requests, stops the
-          // pass after ONE ask: the rest stay owed for the next run rather than
-          // spending a timeout each against the same wall.
+          // A connection that is down stops the pass after one ask: the rest
+          // stay owed for the next run.
           if (outcome.egressDown || networkFailure(outcome.errorCode)) retry.halt();
         }
       }
@@ -707,9 +639,8 @@ export async function runSignalDumps(
   const bing = await resolveCredential(env, 'bing-webmaster');
   const bingHealth = await tryHealthConnection(env, 'bing-webmaster', bing);
   const bingMonitoring = beginCollection(env.STORE, bingHealth);
-  // Bing not connected at all archives nothing and records nothing, so the
-  // Bing half of this step is no work rather than a failure per site and due
-  // family (bead `ro-ujb9.176`). A caller that passed a key is a test: `env`.
+  // Bing not connected at all is no work, not a failure per site and family.
+  // A caller that passed a key is a test: `env`.
   const bingConnected =
     options.bingApiKey !== undefined || (await credentialConnected(env, 'bing-webmaster', bing));
   const skipped = !bingConnected
@@ -730,11 +661,9 @@ export async function runSignalDumps(
       );
 
   // What this run answered for on the flag's `signal-dumps` entry: a dated
-  // GA4 / Search Console obligation leaves it only once something asked for
-  // that exact date and heard back (or no property owes it any more), so an
-  // outage's dates stay owed until they are re-collected, however many runs
-  // that takes. An undated part — a Bing family, whose provider can only
-  // answer "now" — is answered by this run's own snapshot, as before.
+  // obligation leaves it only once something asked for that exact date and
+  // heard back, however many runs that takes. An undated part (a Bing family)
+  // is answered by this run's own snapshot.
   const answered = new Set(
     outcomes
       .filter((outcome) => !outcome.egressDown)
@@ -767,24 +696,20 @@ export async function runSignalDumps(
       succeeded: result.succeeded,
       unchanged: result.unchanged,
       failed: result.failed,
-      // WHERE THIS RUN'S CONFIG CAME FROM (bead `ro-syok.7`) — the per-asset
-      // mapping and the GA4 custom-dimension roster, each `store` when the run
-      // read the document an operator saved and `file` when it read the copy
-      // compiled into this Worker. The words only; never a document.
+      // Per file: `store` when the run read the document an operator saved,
+      // `file` when it read the compiled copy. The words only; never a document.
       ...configSourceLine(options.configSources, [
         'config/integrations.json',
         'config/ga4-custom-dimensions.json',
       ]),
-      // Named for its reason, so a smaller `attempted` is legible as "the
-      // provider has nothing new for these yet" rather than as lost coverage.
+      // Named for its reason, so a smaller `attempted` reads as "nothing new"
+      // rather than as lost coverage.
       skippedNotDue: result.skipped,
-      // Earlier dates an outage cost, asked again (bead `ro-aed0.7`), and how
-      // many owed ones this run left for the next (the bound, or a pass the
-      // connection cut short).
+      // Earlier dates asked again, and how many owed ones were left.
       retried: result.retried,
       retryNotAsked: retry.owed - result.retried,
-      // Provider failures only: a family the dead uplink swallowed is counted
-      // in `failed` and `unmeasured`, never listed as the provider's error.
+      // Provider failures only: an unmeasured family is never listed as the
+      // provider's error.
       errors: measured
         .filter((outcome) => outcome.status === 'error')
         .map(({ asset, integration, report, reportDate, errorCode }) => ({
@@ -813,16 +738,13 @@ async function collectBingDumps(
   laneRegister?: LaneRegister,
   monitoring?: CollectionMonitoring,
 ): Promise<number> {
-  // A site its Data sources row declines (Not using) owes no archive: it is
-  // not asked for, and no attempt is recorded for it (bead `ro-ujb9.96.7.18`).
+  // A site its Data sources row declines (Not using) owes no archive.
   const candidates = (await loadBingPortfolioCandidates(env.STORE))
     .filter((candidate) => !laneDeclined(candidate.asset, 'bing-webmaster', laneRegister));
-  // What this run owes, decided for the whole lane before it writes a single
-  // manifest of its own — so today's archive can never satisfy today's own
-  // cadence check — and consulted by every path below. A family that is not due
-  // is not one of this run's reports at all, so the credential failure and the
-  // unverified-site failure do not invent an attempt for it either: an error row
-  // for a request nobody was going to make is a fabricated attempt.
+  // What this run owes, decided before it writes a single manifest, so today's
+  // archive can never satisfy today's own cadence check. A family that is not
+  // due is not one of this run's reports, so the credential and
+  // unverified-site failures do not invent an attempt for it.
   const plan = new Map<string, BingReportSpec[]>();
   for (const candidate of candidates) {
     plan.set(
@@ -845,7 +767,7 @@ async function collectBingDumps(
     sites = await getBingVerifiedSites(apiKey, egress.transport.fetch);
   } catch (error) {
     // One dead discovery call is one fact about this OS, not a manifest per
-    // property per due family — and returning before the site loop keeps
+    // property per due family; returning before the site loop keeps
     // `bwt_site_unverified` unreachable on a night no site list arrived.
     const unmeasured = await egressExplains(egress.gate, egress.transport, error);
     const normalized = normalizeSignalError(
@@ -879,7 +801,7 @@ async function collectBingDumps(
   }
 
   for (const candidate of candidates) {
-    // The register first, the verified-site domain match second (`ro-vu8d.16`).
+    // The register first, the verified-site domain match second.
     const siteUrl = bingSiteMapping(
       candidate.asset,
       candidate.domain,
@@ -926,27 +848,13 @@ async function collectBingDumps(
 }
 
 /**
- * The BWT families this property owes for `reportDate`, in declaration order.
- *
- * A daily family is always due. A family on a longer cadence is due when the
- * newest date it has ever ARCHIVED is at least that many days behind the date
- * being collected — so a property collects it once a week and, on the other six
- * days, is simply not asked.
- *
- * Three properties this deliberately has:
- *
- * - **It is measured from archives, not from the calendar.** No day-of-week
- *   anchor, so a run the OS missed does not push the family a further week out;
- *   the day after an outage it is overdue and collected.
- * - **A failure never satisfies a cadence.** Only `success`/`unchanged` rows
- *   count, so a weekly family that failed today is due again tomorrow instead of
- *   waiting out a week on the strength of an error.
- * - **Skipping writes nothing.** A run's status is a closed vocabulary of
- *   attempts (`success`, `unchanged`, `error`), and a day we did
- *   not ask about is not an attempt. The family keeps its last real manifest, so
- *   "we asked and it was the same" stays distinguishable from "we did not ask" —
- *   and the lane's freshness, which reads the newest manifest across families,
- *   is still carried by the four daily ones.
+ * The BWT families this property owes for `reportDate`. A daily family is
+ * always due; a family on a longer cadence is due when the newest date it has
+ * ever archived is at least that many days behind. Measured from archives, not
+ * the calendar, so a missed run does not push the family a further week out;
+ * only `success`/`unchanged` rows count, so a failure never satisfies a
+ * cadence; and skipping writes nothing, so "we asked and it was the same" stays
+ * distinguishable from "we did not ask".
  */
 async function dueBingReports(
   store: WorkspaceStore,
@@ -1018,8 +926,8 @@ async function collectAndArchive(
             egress.transport.fetch,
           );
     if (target.integration === 'ga4') {
-      // The quota flag is this machine's store too: its failure is not
-      // Google's, and must not read as Google unreachable (bead `ro-aed0.10`).
+      // The quota flag is this machine's store too: its failure must not read
+      // as Google unreachable.
       await recordGa4Quota(env, {
         asset: target.asset,
         lane: 'signal-dumps',
@@ -1122,17 +1030,9 @@ async function collectAndArchiveBing(
 }
 
 /**
- * The code an attempt carries when the provider ANSWERED but this machine could
- * not keep the answer: a D1 read or write, or the R2 put, while archiving it
- * (bead `ro-aed0.10`).
- *
- * Before this code, every collector's catch turned such a failure into its own
- * `request_failed` — the words for a provider that never answered — so the
- * Integrations page said "the provider could not be reached" about this
- * machine's own store, and the dated archives (GA4, Search Console, PostHog)
- * asked the provider again for an answer they had already been given.
- * `healthFailure` files this code as `monitoring` — NoticeOS's own fault —
- * and, not being a network failure, it is never re-asked daily.
+ * The code an attempt carries when the provider answered but this machine
+ * could not keep the answer. `healthFailure` files it as `monitoring`, the
+ * OS's own fault, and it is never re-asked daily.
  */
 export const LOCAL_STORE_FAILED = 'local_store_failed';
 
@@ -1152,9 +1052,8 @@ export async function archiveCollectedDump(
   env: IngestEnv,
   input: ArchiveInput,
 ): Promise<SignalDumpOutcome> {
-  // Everything below is this machine's work — hashing, compressing, the
-  // manifest reads and writes, the R2 put — so anything it throws is the
-  // store's fault and is named as such, whichever collector called.
+  // Everything below is this machine's work, so anything it throws is the
+  // store's fault and is named as such.
   try {
     return await storeCollectedDump(env, input);
   } catch (error) {
@@ -1328,8 +1227,7 @@ async function storeCollectedDump(
 
 function providerName(provider: DumpProvider): string {
   if (provider === 'google') return 'Google';
-  // Two Microsoft lanes now share this provider (Bing Webmaster and Clarity),
-  // so the vendor is the honest label; the report name carries the rest.
+  // Bing Webmaster and Clarity share this provider; the report name carries the rest.
   if (provider === 'microsoft') return 'Microsoft';
   if (provider === 'posthog') return 'PostHog';
   return 'DataForSEO';
@@ -1471,9 +1369,8 @@ async function collectGa4Dump(
   let providerRows = 0;
   let providerTruncated = false;
   let declaredRows: number | null = null;
-  // The LAST page's quota, not the first: a paginated family spends tokens on
-  // every page, so the newest reading is the only one that describes the budget
-  // as it stands when the family finishes.
+  // The last page's quota: the newest reading is the only one that describes
+  // the budget as it stands when the family finishes.
   let quota: Ga4PropertyQuota | null = null;
 
   while (providerRows < GA4_REPORT_ROWS) {
@@ -1486,10 +1383,8 @@ async function collectGa4Dump(
       keepEmptyRows: true,
       limit: String(GA4_PAGE_ROWS),
       offset: String(providerRows),
-      // 33 base requests per property per day before pagination, and no idea
-      // what they cost until now. Asking changes the archived REQUEST, so every
-      // GA4 family reads as changed once on the run after this shipped, then
-      // settles back to its usual unchanged rate.
+      // Asking changes the archived request, which is why it is part of the
+      // content hash while the answer is lifted out below.
       returnPropertyQuota: true,
     };
     if (spec.dimensionFilter) request.dimensionFilter = spec.dimensionFilter;
@@ -1508,13 +1403,9 @@ async function collectGa4Dump(
     const rows = arrayField(record, 'rows');
     const rowCount = finiteNonNegativeInteger(record?.rowCount);
     if (rowCount !== null) declaredRows = rowCount;
-    // The quota block is the ONE field lifted out of a response before it is
-    // archived. Everything else goes in verbatim, but `consumed` moves on every
-    // single call by construction: leaving it in the bytes would put it in the
-    // content hash, and every GA4 archive would read as changed forever — the
-    // unchanged detection that keeps this lane's R2 footprint honest would
-    // silently stop working. The archive is evidence about the PROPERTY's data;
-    // what the call cost US is a different fact, and it travels beside it.
+    // The quota block is the one field lifted out of a response before it is
+    // archived: `consumed` moves on every call, so leaving it in would put it in
+    // the content hash and every GA4 archive would read as changed forever.
     const { propertyQuota: _lifted, ...archived } = record ?? {};
     quota = parseGa4PropertyQuota(record) ?? quota;
     pages.push({ request, response: record === null ? body : archived });
@@ -1531,8 +1422,7 @@ async function collectGa4Dump(
 
 /**
  * A GA4 archive failure, with an exhausted budget told apart from an ordinary
- * rate limit. Both arrive as 429; only one needs an operator, and a manifest
- * that calls them the same thing is why a quota crunch could not be seen.
+ * rate limit. Both arrive as 429; only one needs an operator.
  */
 function ga4DumpError(status: number, body: unknown): SignalError {
   const generic = googleProviderError('ga4_dump', status, body);
@@ -1544,18 +1434,9 @@ function ga4DumpError(status: number, body: unknown): SignalError {
 /**
  * The one GA4 rejection that is a lane-configuration fact rather than a
  * provider or credential fault: an event parameter nobody has registered as a
- * custom dimension is not a queryable field, and the Data API answers by
- * rejecting the field name.
- *
- * It earns its own error code because every other outcome reads the same on the
- * manifest. A generic `ga4_dump_http_400` sends the operator to check
- * credentials; a zero-row success would say this property throws no errors —
- * the exact "absent means zero" reading doc 02 forbids. Registration is
- * operator work in the GA4 admin (the measurement channel is `forbidden`-class
- * per AGENTS.md), so the honest state to record is "asked, not yet answerable".
- *
- * Returns null when the failure is anything else, so the normal error path
- * still owns quota, auth, and malformed-request responses.
+ * custom dimension is not a queryable field. A generic 400 would send the
+ * operator to check credentials, and a zero-row success would say this
+ * property throws no errors. Null for any other failure.
  */
 function unregisteredCustomDimensionError(
   spec: Ga4ReportSpec,
@@ -1567,16 +1448,13 @@ function unregisteredCustomDimensionError(
   if (custom.length === 0) return null;
   const message = stringField(asRecord(asRecord(body)?.error), 'message');
   if (!message) return null;
-  // Google has worded this several ways over the API's life; all of them name
-  // the offending field, which is the part worth matching on.
+  // Google has worded this several ways; all of them name the offending field.
   if (!/not a valid dimension|is not registered|did not match/i.test(message)) {
     return null;
   }
   const named = custom.filter((dimension) => message.includes(dimension));
   if (named.length === 0) return null;
-  // The state and its one fix (bead `ro-ujb9.96.6.27`): the event parameter
-  // has to be registered as a custom dimension in GA4's admin before this
-  // family can collect. Google's own words follow.
+  // The state and its one fix, then Google's own words.
   return new SignalError(
     'ga4_custom_dimension_unregistered',
     `No GA4 custom dimension ${named.join(', ')} · register it in GA4 admin · Google: ${message}`,
@@ -1646,23 +1524,11 @@ async function boundedResponseJson(response: Response): Promise<unknown> {
 
 /**
  * The object this exact content is already stored under, for this exact report
- * date — the whole reach of the dedup, deliberately (`ro-z86`).
- *
- * `report_date` is in the WHERE clause and inside the hashed canonical bytes, so
- * two consecutive dates carrying a byte-identical provider answer each write
- * their own object. What that catches is a RE-FETCH: a re-run of
- * `signals:collect`, a revision window re-asking a GSC day. What it deliberately
- * does not catch is a snapshot family whose payload has not moved since
- * yesterday.
- *
- * Measured over 1105 archives (2026-07-25..08-04) before it was left alone: 61
- * objects, 5.5% of the archive and 22% of the provider-snapshot lanes, repeat an
- * earlier date's payload — but they are all tiny BWT families and cost 35 KiB of
- * 8.3 MiB, 0.42%. Reaching across dates would save ~1.8 MiB a year and cost the
- * panel dir its dates: the shared object's envelope names the FIRST date, and
- * `scripts/signal-archive.mjs` takes every row's `report_date` from that
- * envelope, so day two's rows would arrive stamped day one. See
- * workers/ingest/README.md for the full accounting.
+ * date. `report_date` is in the WHERE and inside the hashed bytes, so two
+ * consecutive dates carrying a byte-identical answer each write their own
+ * object: the dedup catches a re-fetch, not a snapshot that has not moved since
+ * yesterday. Reaching across dates would stamp day two's rows with day one's
+ * envelope date.
  */
 async function findPriorDump(
   store: WorkspaceStore,
@@ -1687,11 +1553,10 @@ async function findPriorDump(
 }
 
 /**
- * The stored object a run names, recorded once per key and dated by the run
- * that stored it (`archive_objects.object_key`): its number back.
- * A key already recorded with the same content is that object — an unchanged
- * run names the object an earlier run stored. A key recorded with other
- * content answers no row, and the run is refused.
+ * The stored object a run names, recorded once per key: its number back. A key
+ * already recorded with the same content is that object (an unchanged run
+ * names the object an earlier run stored); a key recorded with other content
+ * answers no row, and the run is refused.
  */
 const RECORD_OBJECT_SQL = `WITH stored AS (
   INSERT INTO noticeos.archive_objects (workspace_id, object_key, content_sha256, object_bytes, first_stored_at)
@@ -1703,8 +1568,7 @@ UNION ALL
 SELECT object_seq FROM noticeos.archive_objects
  WHERE object_key = $2 AND content_sha256 = $3 AND object_bytes = $4`;
 
-/** One attempt. A failed run names no object and states its error; a stored
- * one names its object. */
+/** One attempt: a failed run names no object and states its error. */
 const INSERT_RUN_SQL = `INSERT INTO noticeos.archive_runs
   (workspace_id, run_id, asset_id, integration, report, credential_ref, property_ref, report_date,
    requested_at, finished_at, status, data_state, schema_version, provider_rows, request_count,
@@ -1770,9 +1634,8 @@ async function recordDumpFailure(store: WorkspaceStore, manifest: ManifestFailur
   );
 }
 
-/** The families this (property, integration) is actually due. A GA4 family that
- * reads event parameters is offered only where the operator has registered
- * them; everything else applies everywhere. */
+/** The families this (property, integration) is due. A GA4 family that reads
+ * event parameters is offered only where the operator has registered them. */
 function reportsFor(
   integration: GoogleIntegrationId,
   asset: string,
@@ -1799,9 +1662,9 @@ function datesForReport(
 }
 
 /**
- * The revision window this (asset, report) actually costs today: the spec's own
- * window, narrowed to a single newest-date probe for an opted-in family whose
- * every completed run so far has returned nothing.
+ * The revision window this (asset, report) costs today: the spec's own window,
+ * narrowed to a newest-date probe for an opted-in family whose every completed
+ * run so far has returned nothing.
  */
 async function resolveReportDates(
   store: WorkspaceStore,
@@ -1824,9 +1687,8 @@ async function resolveReportDates(
 
 /**
  * True only when this (asset, report) has completed at least once and no
- * completed run has ever carried a row. Errors are not evidence of emptiness,
- * so they neither arm nor disarm the probe; a single non-empty run anywhere in
- * the history restores the full window permanently.
+ * completed run has ever carried a row. Errors neither arm nor disarm the
+ * probe; a single non-empty run restores the full window permanently.
  */
 async function everyCompletedRunWasEmpty(
   store: WorkspaceStore,
@@ -1860,10 +1722,9 @@ function completedDates(nowMs: number, count: number): string[] {
   const dates: string[] = [];
   const now = new Date(nowMs);
   const today = Date.parse(`${now.toISOString().slice(0, 10)}T00:00:00.000Z`);
-  // The scheduled 12:15 UTC run can safely call the previous UTC date for the
-  // portfolio's continental-US property timezones. A manual/pre-cutoff replay
-  // shifts back one more day rather than mislabeling a still-open local day as
-  // completed.
+  // After 12:15 UTC the previous UTC date is complete for continental-US
+  // property timezones. An earlier replay shifts back one more day rather than
+  // mislabeling a still-open local day as completed.
   const latestOffset = now.getUTCHours() * 60 + now.getUTCMinutes() < 12 * 60 + 15 ? 2 : 1;
   for (let offset = latestOffset + count - 1; offset >= latestOffset; offset--) {
     dates.push(new Date(today - offset * 86_400_000).toISOString().slice(0, 10));
@@ -1915,8 +1776,7 @@ interface OwedArchiveDate {
   reportDate: string;
 }
 
-/** A run's re-collection pass (bead `ro-aed0.7`): what it may ask, and whether
- * it still may. */
+/** A run's re-collection pass: what it may ask, and whether it still may. */
 interface ArchiveRetryPass {
   /** Per property, the owed dates this run asks for — oldest first, bounded. */
   dates: Map<GooglePropertyTarget, OwedArchiveDate[]>;
@@ -1928,32 +1788,16 @@ interface ArchiveRetryPass {
 }
 
 /**
- * The earlier GA4 / Search Console report dates an outage cost this lane, for
- * this run to ask again (bead `ro-aed0.7`).
- *
- * THE GAP. A run asks for the last four completed dates, so a date a dead night
- * missed is usually asked again the next day — but not always: the window's
- * oldest date falls out of it, and a family collected for the newest date only
- * (`events-28d`, a probing family) never comes back to that date at all. The
- * 2026-09-14 outage left 92 of those failing with nothing due to ask again.
- *
- * WHAT IS OWED — two records, and nothing else:
- *
- * - **A date whose LATEST attempt failed for a network reason**, by the same
- *   rule (`healthFailure`) that shows it as `network` on the Integrations
- *   page, so what the page calls a connection failure is exactly what is asked
- *   again. Anything the provider answered — a 403, a quota refusal, an
- *   unregistered dimension — is the provider's verdict and is never re-asked
- *   daily.
- * - **A date the dead uplink swallowed.** Such a date has no manifest
- *   (`ro-aed0.4`), so the open `os-egress-down` flag's `signal-dumps` entry
- *   names it instead, down to the date, until something asks for it.
- *
- * Only for a property and family this run still collects, on the same Google
- * property, and never a date the run's own window asks for anyway — nor one
- * newer than its newest completed date, which may still be an open US day.
- * Oldest first, at most `limit` a run: a long outage drains over several days
- * rather than doubling one tick.
+ * The earlier GA4 / Search Console report dates an outage cost this lane. A run
+ * asks for the last four completed dates, so a missed date is usually asked
+ * again the next day, but the window's oldest date falls out of it and a
+ * `latestOnly` or probing family never comes back to it. Owed: a date whose
+ * latest attempt failed for a network reason (`healthFailure`'s `network`), and
+ * a date the dead uplink swallowed, which the open `os-egress-down` flag names.
+ * Anything the provider answered is its verdict and is never re-asked. Only for
+ * a property and family this run still collects, on the same Google property,
+ * never a date the run's own window asks for, nor one newer than its newest
+ * completed date. Oldest first, at most `limit` a run.
  */
 async function owedArchiveDates(
   env: IngestEnv,
@@ -2013,12 +1857,8 @@ async function owedArchiveDates(
 }
 
 /**
- * Report dates of these lanes whose latest attempt failed for a network reason
- * — GA4 / Search Console, whose provider can be asked for a past date. PostHog
- * reads a wider rule of its own (`owedWindows`, src/posthog-dumps.ts, beads
- * `ro-aed0.8`, `ro-aed0.9`). The ILIKE filter only narrows the scan to codes
- * that could be one (case-blind, as D1's LIKE was); `networkFailure` is the
- * rule.
+ * Report dates of these lanes whose latest attempt failed for a network reason.
+ * The ILIKE filter only narrows the scan; `networkFailure` is the rule.
  */
 export async function networkFailedArchiveDates(
   store: WorkspaceStore,
@@ -2054,23 +1894,21 @@ export async function networkFailedArchiveDates(
   return rows.filter((row) => networkFailure(row.errorCode));
 }
 
-/** A failure the Integrations page shows as `network` — the provider never
+/** A failure the Integrations page shows as `network`: the provider never
  * answered. The one kind of failed date a dated archive asks about again. */
 export function networkFailure(code: string | null): boolean {
   return code !== null && healthFailure(code).failure === 'network';
 }
 
-/** The archives whose provider can be asked for a past date: GA4 and Search
- * Console name the date, PostHog bounds every query to its window (`ro-aed0.8`). */
+/** The archives whose provider can be asked for a past date. */
 type DatedArchive = 'ga4' | 'gsc' | 'posthog';
 const DATED_ARCHIVES: ReadonlySet<DumpIntegration> = new Set<DatedArchive>(['ga4', 'gsc', 'posthog']);
 
 /**
  * What one owed collection is called on its collector's flag entry:
- * `ga4:events-28d:2026-09-13` for a GA4 / Search Console family and
- * `posthog:events:2026-09-13` for a PostHog window end, whose date can be asked
- * for again; the bare family for anything else, whose provider only ever
- * answers with its current state.
+ * `ga4:events-28d:2026-09-13` or `posthog:events:2026-09-13` for a dated
+ * archive; the bare family for anything else, whose provider only answers with
+ * its current state.
  */
 export function archivePart(integration: DumpIntegration, report: string, reportDate: string): string {
   return DATED_ARCHIVES.has(integration) ? `${integration}:${report}:${reportDate}` : report;
@@ -2097,12 +1935,10 @@ export function archivePartKey(asset: string, part: string): string {
 }
 
 /**
- * A family the dead uplink swallowed (beads `ro-aed0.3`, `ro-aed0.4`): noted on
- * the run's gate, which names the property on its one `os-egress-down` flag, and
- * NOWHERE ELSE. No manifest row means no provider-blaming sentence on the
- * property's card, no Health observation, and — because only a success or
- * unchanged row satisfies a cadence — a family that is still due for the next
- * run to collect.
+ * A family the dead uplink swallowed: noted on the run's gate, which names the
+ * property on its one `os-egress-down` flag, and nowhere else. No manifest row
+ * means no provider-blaming sentence, no Health observation, and a family that
+ * is still due for the next run.
  */
 export function unmeasuredDumpOutcome(
   gate: EgressGate,
@@ -2110,11 +1946,8 @@ export function unmeasuredDumpOutcome(
   report: string,
   reportDate: string,
 ): SignalDumpOutcome {
-  // Named down to the family, so the flag can say exactly what the outage
-  // skipped — the DataForSEO daily re-collection runs from that list
-  // (`ro-aed0.6`) — and, for a GA4 / Search Console family or a PostHog window,
-  // down to the DATE, which that lane's own re-collection asks for again
-  // (`ro-aed0.7`, `ro-aed0.8`).
+  // Named down to the family, and for a dated archive down to the date, so
+  // each lane's re-collection can ask for exactly what the outage skipped.
   gate.recordUnmeasured(target.asset, archivePart(target.integration, report, reportDate));
   return {
     asset: target.asset,

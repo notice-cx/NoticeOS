@@ -1,5 +1,5 @@
-// What a failed journey fixture call says (apps/tower/e2e/handler-failure.mjs,
-// bead ro-ujb9.76.56): the error's own words and its causes', in the failing
+// What a failed journey fixture call says (apps/tower/e2e/handler-failure.mjs):
+// the error's own words and its causes', in the failing
 // test's output, and never an address, a socket or the run's database
 // password. The harness test (apps/tower/e2e/harness.test.mjs) proves a real
 // refused reset reaches the answer and the server's marked line; this proves

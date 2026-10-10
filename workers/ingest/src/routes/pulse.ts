@@ -1,4 +1,4 @@
-// POST /api/pulse — an asset pushes its nightly pulse (docs/02).
+// POST /api/pulse — an asset pushes its nightly pulse.
 //
 // Order matters: we need the asset id from the body to select the right token,
 // so we parse JSON, identify the asset, authenticate, then fully validate the

@@ -1,5 +1,5 @@
 {
-  "about": "Synthetic site rows shared by the ingest and Tower tests (ro-ujb9.76.40). Their identities, order, statuses, posture and dates are explicit fixture data; no operational test needs historical D1 seed migrations. New installations still start with no sites.",
+  "about": "Synthetic site rows shared by the ingest and Tower tests. Their identities, order, statuses, posture and dates are explicit fixture data. New installations still start with no sites.",
   "os": {
     "id": "root-os", "domain": "os.example", "displayName": "NoticeOS",
     "status": "live", "senseOnly": 0, "isOs": 1,

@@ -2,8 +2,8 @@
 import type { WorkflowStepOutput } from '../packages/contract/src/workflows.js';
 /**
  * How many sites a step could not read, when every item of its `failed` list
- * is a site whose remote the unpublished-commit check could not read (bead
- * ro-ujb9.233); otherwise null. The step summary names those as sites, since
+ * is a site whose remote the unpublished-commit check could not read;
+ * otherwise null. The step summary names those as sites, since
  * nothing was collected from them.
  */
 export declare function unreadSiteCount(value: unknown): number | null;

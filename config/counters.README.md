@@ -5,7 +5,7 @@ Which of an asset's own metrics get a big-number **total** on its asset card
 values live in the store's `counter_readings` table (one current-state row per
 card); this file owns *which* counters exist, their group heading and labels.
 
-**Seed and export, not source of truth** (D22): `pnpm config:seed` loads this
+**Seed and export, not source of truth**: `pnpm config:seed` loads this
 installation's copy (else this generic default) into the store's
 `config_documents` table, the running OS reads and saves it there, and
 `pnpm config:export` writes it to `installation/`. Until an install seeds,

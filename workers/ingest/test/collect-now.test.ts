@@ -1,5 +1,4 @@
-// START COLLECTING RUNS THE SCHEDULED STEP, NOT A SECOND COLLECTOR (bead
-// `ro-ujb9.96.7.2`).
+// Start collecting runs the scheduled step, not a second collector.
 //
 // The connect panel's one press collects the confirmed sites at once. These
 // tests hold it to the promise written in `scripts/scheduled-jobs.mts`
@@ -135,10 +134,10 @@ describe('collect now runs the job step for the confirmed sites', () => {
     expect(onlyPreLaunch).toEqual({ ok: false, provider: 'dataforseo', error: 'no-sites', job: 'dataforseo' });
   });
 
-  // IN ITS JOB'S RUN HISTORY (bead `ro-ujb9.96.7.19`): the press is one firing
-  // of the job's step, recorded marked manual, read back through the door the
-  // Workflows page reads (GET /api/job-runs?trigger=manual) — and left out of
-  // the scheduled read, so cron health cannot be moved by a press.
+  // In its job's run history: the press is one firing of the job's step,
+  // recorded marked manual, read back through the door the Workflows page
+  // reads (GET /api/job-runs?trigger=manual) — and left out of the scheduled
+  // read, so cron health cannot be moved by a press.
   it('records the press once in its job\'s run history, marked manual, and nowhere a scheduled firing is read', async () => {
     await seed();
     const provider = bing();

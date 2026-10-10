@@ -10,7 +10,7 @@ import { createHostedTaskOperations } from './hosted-task-operations.mjs';
 import { createHostedMcp, MCP_PATH } from './hosted-mcp.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 
-// Epic ro-cvl9 against the real task store: the pinned task client on a
+// Against the real task store: the pinned task client on a
 // disposable Dolt server (the CI task-store job; see db/dolt/host/README.md
 // for the opt-in inputs). Ordinary suites skip it and never start Docker.
 

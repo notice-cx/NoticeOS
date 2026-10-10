@@ -39,8 +39,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @noticeos/tower run typecheck
-      # The Postgres proofs (bead ro-ujb9.76.15, epic ro-ujb9.76) never skip:
-      # PostgreSQL 18's server binaries go on PATH before the first suite that
+      # The Postgres proofs never skip: PostgreSQL 18's server binaries go on
+      # PATH before the first suite that
       # starts a server (installed from PGDG if the runner lacks them), and
       # NOTICEOS_REQUIRE_POSTGRES turns a server that cannot start into a
       # failure. Every job that starts Postgres repeats this step.
@@ -108,9 +108,8 @@ jobs:
       - run: pnpm --filter @noticeos/tower run journey:install --with-deps
       - run: pnpm --filter @noticeos/tower run test:journeys
         env:
-          # Browser workers, each with its own fixture server (bead
-          # ro-ujb9.167). Unset, a run takes half the machine's cores, which
-          # on a small runner is 1.
+          # Browser workers, each with its own fixture server. Unset, a run
+          # takes half the machine's cores, which on a small runner is 1.
           JOURNEY_WORKERS: 3
       - uses: actions/upload-artifact@v4
         if: always()
@@ -152,7 +151,7 @@ jobs:
           path: apps/tower/e2e/ux-flows-results/
           retention-days: 14
 
-  # The real task store (epic ro-cvl9): the task client and Dolt server the
+  # The real task store: the task client and Dolt server the
   # application pins, in Docker. Two servers racing one claim have one winner;
   # a change retried after a lost reply is not repeated. The root suite skips
   # these tests; this job supplies their opt-in inputs (db/dolt/host/README.md).

@@ -1,7 +1,5 @@
 # 24 — Integration monitoring
 
-Reviewed: 2026-09-10. Persistence and read model for `ro-klom`.
-
 An operator should learn about missing data from System Health before noticing
 an empty card. A connected account proves access was configured. It does not
 prove that every report, live feed, calendar, or notification is working.
@@ -59,7 +57,7 @@ report remain separate facts.
 
 ## Evidence and failure detection
 
-Scheduled collectors already keep `signal_runs`, `signal_dump_runs`, and
+Scheduled collectors already keep `signal_runs`, `archive_runs`, and
 `mediavine_runs`. Their adapters read those records, including the failed
 family/date and incomplete reports. Source lag is distinct from transport
 failure: a successful response containing no new finalized date must not be

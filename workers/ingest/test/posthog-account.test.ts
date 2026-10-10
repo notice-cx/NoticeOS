@@ -1,9 +1,9 @@
-// ONE POSTHOG KEY FOR THE ACCOUNT (bead `ro-ujb9.96.7.8`).
+// One PostHog key for the account.
 //
 // The connect panel asks for the personal API key alone: the region is the
 // cloud that accepts it, the projects are that region's list, each project is
 // matched to a site by the domain it records, and its saved funnels are
-// picked up rather than typed. Against real D1 and WebCrypto; PostHog is
+// picked up rather than typed. Against a real store and WebCrypto; PostHog is
 // stubbed at the network boundary (the `fetchImpl` every call goes through),
 // so its own paths, headers and answer shapes are what is exercised.
 

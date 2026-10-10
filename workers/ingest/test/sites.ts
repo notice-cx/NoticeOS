@@ -50,7 +50,7 @@ function fullRow(site: TestSite, at: string): SiteRow {
 
 /** Insert these rows into the Postgres copy, as its owner, one after another
  * in the order given: each takes the next place in the list, as a site the
- * product adds does (bead ro-ujb9.76.52). */
+ * product adds does. */
 async function insertIntoStore(rows: SiteRow[]): Promise<void> {
   if (rows.length === 0) return;
   const values = rows.map((row, index) =>

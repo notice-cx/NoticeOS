@@ -82,8 +82,8 @@ describe('PostHog archive contract', () => {
   });
 });
 
-// Bead ro-ghis.4: the family list and each row's fields are declared once, in
-// src/posthog-families.mts. At runtime this suite reads the GENERATED
+// The family list and each row's fields are declared once, in
+// src/posthog-families.mts. This suite reads the generated
 // posthog-families.mjs (the file the plain-Node flattener imports), so a stale
 // generation fails here as well as in `config:generate --check`.
 describe('PostHog family fields — one definition', () => {

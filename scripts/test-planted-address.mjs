@@ -1,5 +1,5 @@
-// What the end-to-end proofs of the database address share (bead
-// ro-ujb9.76.7.2): scripts/start.test.mjs starts `pnpm start`, and
+// What the end-to-end proofs of the database address share:
+// scripts/start.test.mjs starts `pnpm start`, and
 // scripts/runner-database.test.mjs the runner's own Tower child, each on a
 // throwaway Postgres whose application login has a PLANTED password — one no
 // other run uses — so the proofs can then look for it everywhere the OS

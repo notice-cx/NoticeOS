@@ -14,7 +14,7 @@ import {
   runtimeDoorOwnership,
 } from './runner/door-ownership.mjs';
 
-// scripts/runner/door-ownership.mjs (bead ro-ujb9.22): a cron fires only at a
+// scripts/runner/door-ownership.mjs: a cron fires only at a
 // door this runner's own child holds. Everything here is fed recorded output;
 // nothing asks the real lsof or ps.
 

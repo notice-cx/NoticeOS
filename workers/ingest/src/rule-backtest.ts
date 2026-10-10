@@ -1,25 +1,12 @@
 /**
- * Replay one alert rule over the stored pulses — "how often would this have
- * fired in the last 30 days with these settings?" (bead `ro-u072`, docs/15
- * principle 1 "show, then ask").
- *
- * IT LIVES HERE BECAUSE THE RULER DOES. `evaluatePulse` is pure, so a replay is
- * possible anywhere; what is not portable is the BASELINE it must be judged
- * against. The nightly lane judges a pulse against four matching weekdays
- * assembled from the `pulses` table (`seasonalInputsFrom` in db.ts), and this
- * Worker owns that read. A preview computed in the Tower against a flat `avg7d`
- * would produce a number that looks exactly like this one and means something
- * else — in the single place the operator is being asked to trust a number.
- *
- * READ-ONLY. Nothing here writes a flag, a disposition, or a config value. The
- * settings that arrive are CANDIDATES; saving them is a separate operator action
- * through the D18 write lane.
- *
- * ONE WIDE READ, THIRTY REPLAYS. The window needs each day's own envelope plus
- * the four weeks behind it, so the days overlap almost entirely: reading them
- * per day would be thirty near-identical queries. One read spans the whole
- * horizon and `seasonalInputsFrom` — which only ever looks at dates strictly
- * before the day it is judging — is called once per day over it.
+ * Replay one alert rule over the stored pulses: how often would it have fired
+ * in the last 30 days with these settings? It lives here because the baseline
+ * does: the nightly lane judges a pulse against four matching weekdays from the
+ * `pulses` table (`seasonalInputsFrom`), and a preview computed against a flat
+ * `avg7d` would look the same and mean something else. Read-only: the settings
+ * that arrive are candidates. One wide read spans the whole horizon and
+ * `seasonalInputsFrom`, which only looks strictly before the day it judges, is
+ * called once per day over it.
  */
 
 import {
@@ -54,14 +41,10 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const ASSET_PATTERN = /^[a-z0-9][a-z0-9.-]{0,62}$/;
 
 /**
- * Bounds the replay refuses outright.
- *
- * They are the same bounds the Tower's own field validators enforce
- * (`apps/tower/src/lib/knob-validators.ts`), restated here because this runtime
- * is the authority: a candidate that arrived over the binding was never typed
- * into that field. A value outside them is not a stricter rule, it is a config
- * that would break the detector — `alpha` at 0 silences every rule, `alpha` at 1
- * fires on every reading, and a non-positive window has no days in it.
+ * Bounds the replay refuses outright: the Tower's own field bounds, restated
+ * because this runtime is the authority and a candidate over the binding was
+ * never typed into that field. `alpha` at 0 silences every rule, at 1 fires on
+ * every reading, and a non-positive window has no days in it.
  */
 function configIssues(config: unknown): RuleBacktestIssue[] {
   const issues: RuleBacktestIssue[] = [];
@@ -103,11 +86,8 @@ function inputIssues(input: RuleBacktestInput): RuleBacktestIssue[] {
 }
 
 /**
- * The replay.
- *
- * Refusals come back as RESULTS — "no preview for this rule", "no such asset",
- * "that value is out of range" are all sentences a panel renders in place of a
- * strip, and none of them is an exception. Only a store failure throws.
+ * Refusals come back as results a panel renders in place of a strip; only a
+ * store failure throws.
  */
 export async function backtestRule(
   env: IngestEnv,
@@ -169,12 +149,9 @@ export async function backtestRule(
 }
 
 /**
- * One day, replayed.
- *
- * The day is judged with exactly the options the nightly lane passes, including
- * `requireHistoricalBaseline: true` — the preview must inherit the lane's own
- * refusal to guess, or it would promise alerts on days the real detector stays
- * silent through.
+ * One day, judged with exactly the options the nightly lane passes, including
+ * `requireHistoricalBaseline: true`, or it would promise alerts on days the
+ * real detector stays silent through.
  */
 function replayDay(
   date: string,
@@ -203,11 +180,9 @@ function replayDay(
     }));
   if (firings.length > 0) return { date, state: 'fired', firings, stored };
 
-  // Nothing fired — but "it ran and stayed silent" and "it never ran" are
-  // different facts, and a strip that drew them alike would claim evidence
-  // nobody has. `flow-seasonal-baseline` is the lane standing a metric down for
-  // want of a cohort; `not-applicable` on this rule is the metric sitting in the
-  // OTHER volume regime that day, which this rule cannot speak about either.
+  // "It ran and stayed silent" and "it never ran" are different facts.
+  // `flow-seasonal-baseline` is the lane standing a metric down for want of a
+  // cohort; `not-applicable` is the metric sitting in the other volume regime.
   const ran = verdicts.some(
     (verdict) => verdict.ruleId === ruleId && verdict.outcome === 'ok',
   );
@@ -231,13 +206,8 @@ function verdictMetric(verdict: RuleVerdict): string | null {
 }
 
 /**
- * The days this rule ACTUALLY fired on, from the stored alerts — reality, beside the
- * replay.
- *
- * Distinct DAYS rather than rows, so it is the same unit as `wouldFire`: a rule
- * that fired twice on one day is one day the operator was interrupted. Every
- * stored firing counts, whatever the operator later did with it — a
- * dispositioned alert still fired.
+ * The days this rule actually fired on, from the stored alerts. Distinct days,
+ * the same unit as `wouldFire`; a dispositioned alert still fired.
  */
 async function storedFiringDays(
   env: IngestEnv,
@@ -247,8 +217,7 @@ async function storedFiringDays(
   firstDay: string,
   lastDay: string,
 ): Promise<Set<string>> {
-  // On Postgres (bead ro-ujb9.76.5.2): the UTC day each alert fired on, and
-  // never one a same-day report retry replaced — D1 had deleted those.
+  // The UTC day each alert fired on, never one a same-day report retry replaced.
   const rows = await env.STORE.read((tx) =>
     tx.query<{ day: string }>(
       `SELECT DISTINCT ((fired_at AT TIME ZONE 'UTC')::date)::text AS day

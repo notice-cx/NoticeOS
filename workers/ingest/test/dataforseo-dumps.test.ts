@@ -45,15 +45,12 @@ import {
 import { changeSites, inSiteOrder } from './sites';
 
 const NOW = Date.parse('2026-07-27T12:45:00.000Z');
-/** The suite's frozen copy of config/serp-panel.json (doc 08 §S1b) — the same
- * document the collector's compiled fallback reads here — never the checkout's
- * own (bead ro-ujb9.92): an operator seeding a panel must not change what this
- * suite proves. Whether every SHIPPED panel fits its reserve is checked on the
- * real file in config-seeds.test.ts. */
+/** The suite's frozen copy of config/serp-panel.json, never the checkout's
+ * own. Whether every shipped panel fits its reserve is checked on the real
+ * file in config-seeds.test.ts. */
 const PANEL_ASSETS = Object.keys(serpPanelConfig.assets);
 
-/** A panel entry is a bare query or a query carrying the cluster it measures
- * (`ro-282.2`); both shapes ship today, so the suite reads both. */
+/** A panel entry is a bare query or a query carrying the cluster it measures. */
 function panelEntries(asset: string): SerpPanelQuery[] {
   return (serpPanelConfig.assets as Record<string, { queries: SerpPanelQuery[] }>)[
     asset
@@ -65,11 +62,9 @@ const panelLabel = (entry: SerpPanelQuery): string | undefined =>
   typeof entry === 'string' ? undefined : entry.label;
 
 const PANEL_QUERIES = panelEntries('meals.example').map(panelKeyword);
-/** Every panel call a property buys: one per tracked query PER DEVICE since
- * ro-o1n. Derived from the shipped device list rather than hard-coded, so a
- * third dimension shows up here as a doubled bill rather than a red test. The
- * cluster label costs nothing — it is never transmitted — so it does not appear
- * in this arithmetic at all. */
+/** Every panel call a property buys: one per tracked query per device,
+ * derived from the shipped device list. The cluster label is never
+ * transmitted and costs nothing. */
 const panelCallCount = (entries: readonly unknown[]): number =>
   entries.length * SERP_PANEL_DEVICES.length;
 /** Every panel call across every seeded property: this — not the property
@@ -83,17 +78,12 @@ const PANEL_CALLS = Object.values(serpPanelConfig.assets).reduce(
  * the DESKTOP call is the last word on that query. */
 const panelKeywordOrder = (queries: readonly string[]): string[] =>
   queries.flatMap((keyword) => SERP_PANEL_DEVICES.map(() => keyword));
-/** The collector covers every property past pre-launch: four initially,
- * pullups.example joined as the fifth (db/0019), and the applied fees.example
- * lifecycle changeset made six on 2026-08-05. The migration stays historical,
- * so this suite applies that mutable current-state fact in beforeEach. */
+/** The collector covers every property past pre-launch; the suite sets that
+ * lifecycle fact in beforeEach. */
 const LAUNCHED_ASSETS = 6;
-/**
- * The launched properties by name, so a count can be DERIVED per property
- * rather than multiplied by a portfolio constant. Since ro-cda6.2 not every
- * property is due the same families: `keyword-ideas` seeds from the tracked
- * panel, so a property without one is not due it.
- */
+/** The launched properties by name, so a count is derived per property:
+ * `keyword-ideas` seeds from the tracked panel, so a property without one is
+ * not due it. */
 const LAUNCHED = [
   'areas.example',
   'fees.example',
@@ -102,19 +92,9 @@ const LAUNCHED = [
   'pacer.example',
   'pullups.example',
 ] as const;
-/**
- * Every single-call (non-panel) family attempt a FIRST sweep makes, derived per
- * property from the shipped registry rather than multiplied by hand.
- *
- * It was a hand-set 5 until ro-cda6.1 added the two named-backlink families and
- * turned fifteen tests red at once, every one for the same reason and none for a
- * real defect. A family count is a fact about the contract; a suite that copies
- * it is a second copy that goes stale the day the first one moves.
- *
- * "FIRST sweep" is load-bearing since ro-cda6.2: nothing has been collected, so
- * every family is due including the 28-day ones. A sweep seven days later is a
- * different number — see the weekly-cadence test.
- */
+/** Every single-call (non-panel) family attempt a first sweep makes, derived
+ * per property from the shipped registry. On a first sweep every family is
+ * due, including the 28-day ones; see the weekly-cadence test. */
 const DOMAIN_ATTEMPTS = LAUNCHED.reduce(
   (total, asset) =>
     total +
@@ -169,11 +149,9 @@ function providerFetch({
   /** One tracked query the provider accepts and cannot answer. */
   failSerpKeyword?: string | null;
   aiOverview?: boolean;
-  /** The prepaid credit the FREE ACCOUNT ENDPOINT reports (beads `ro-qpas`,
-   * `ro-vu8d.26`). Null is the default and means the account answered without
-   * stating a figure, which the collector must treat as "nothing seen" rather
-   * than as a zero balance. The paid report endpoints never state one — that is
-   * why the sweep asks the account directly. */
+  /** The prepaid credit the free account endpoint reports. Null means the
+   * account answered without a figure, which the collector treats as 'nothing
+   * seen', never as a zero balance. */
   accountBalanceUsd?: number | null;
   /** What the free account read gets instead of an answer, when the failure of
    * that one call is the thing under test. */
@@ -201,9 +179,8 @@ function providerFetch({
       authorization: new Headers(init?.headers).get('authorization'),
       task,
     });
-    // The free account read (bead `ro-vu8d.26`) — never a report, never billed,
-    // and answered here before the fail/report branches so no paid-path
-    // condition can ever be applied to it.
+    // The free account read: never a report, never billed, and answered before
+    // the fail/report branches so no paid-path condition applies to it.
     if (url.endsWith('/appendix/user_data')) {
       if (accountFailWith) {
         return Response.json(
@@ -499,12 +476,8 @@ describe('DataForSEO weekly archives', () => {
     );
   });
 
-  /**
-   * Two cadences since ro-cda6.2, and the whole point of the second one is that
-   * three Mondays in four must NOT buy the discovery families again. Net-new
-   * demand and the competitive set do not move week to week; collecting them
-   * weekly would buy four copies of one answer.
-   */
+  /** Three Mondays in four must not buy the discovery families again: they do
+   * not move week to week. */
   it('makes every weekly family due after seven whole UTC days, not six', async () => {
     expect(new Set(Object.values(DATAFORSEO_REPORT_CADENCE_DAYS))).toEqual(
       new Set([7, 28]),
@@ -795,18 +768,11 @@ describe('DataForSEO weekly archives', () => {
     ).toEqual({ reportDate: '2026-08-05' });
   });
 
-  /**
-   * ro-540.1 (2026-08-03): the domain-driven lane has NO roster to add a
-   * property to. `loadCandidates` reads the `assets` table, so a launched
-   * property with a domain is enrolled the moment it is seeded — which is why
-   * nosh.example's five families were already landing weekly before anyone went
-   * looking for the switch that turns them on. The tracked panel is the one
-   * DataForSEO family a property must be named in config to receive.
-   *
-   * Pinned because the alternative failure is silent: narrow this sweep to a
-   * hand-kept list and a property stops being collected without a single error
-   * row to say so — the lane simply never attempts it.
-   */
+  /** The domain-driven lane has no roster: `loadCandidates` reads the `assets`
+   * table, so a launched property with a domain is enrolled the moment it is
+   * seeded. The tracked panel is the one family a property must be named in
+   * config to receive. Pinned because narrowing to a hand-kept list would stop
+   * collecting a property without an error row to say so. */
   it('sweeps every launched property by store membership, not a roster', async () => {
     const { fetchImpl } = providerFetch();
     await runDataForSeoDumps(env, {
@@ -824,11 +790,8 @@ describe('DataForSEO weekly archives', () => {
           ORDER BY asset COLLATE "C"`)
     ).results;
 
-    // The PROPERTY LIST is the assertion here; the per-property family count is
-    // the registry's business and is derived so that adding a family does not
-    // masquerade as a membership regression. It is per property rather than a
-    // portfolio constant because `keyword-ideas` is owed only where a tracked
-    // panel supplies its seeds (ro-cda6.2).
+    // The property list is the assertion; the per-property family count is
+    // derived so adding a family does not masquerade as a membership regression.
     const owed = (asset: string) =>
       dataForSeoFamiliesFor(asset).filter((f) => f !== 'serp-panel').length;
     expect(rows).toEqual(
@@ -895,13 +858,9 @@ describe('DataForSEO weekly archives', () => {
     );
   });
 
-  /**
-   * 2026-08-03: both meals.example backlinks families were stored as
-   * `dataforseo_http_500` with the message "Ok." — DataForSEO's word for a part
-   * that worked — and the Tower showed that single word as the reason the lane
-   * was red. The envelope's status is about the call being accepted; it says
-   * nothing about the task inside it.
-   */
+  /** DataForSEO's envelope status ('Ok.') is about the call being accepted and
+   * says nothing about the task inside it; a failure row must not carry that
+   * phrase as its reason. */
   describe('a failure never speaks in the provider’s success phrase', () => {
     async function backlinksFailures(): Promise<
       { errorCode: string; errorMessage: string }[]
@@ -1015,15 +974,8 @@ describe('DataForSEO weekly archives', () => {
     });
   });
 
-  /**
-   * ro-qgn. The 2026-08-03 16:02 UTC sweep failed exactly one of 26 reports:
-   * pullups.example backlinks-summary, `dataforseo_invalid_response` "returned
-   * no result", while every other property's backlinks-summary succeeded. The
-   * domain was registered the day before and does not serve yet, so DataForSEO
-   * has never crawled it and holds no backlink summary for it. The provider
-   * answering "nothing" and the response being unreadable had one error code
-   * between them.
-   */
+  /** A domain the provider has never crawled answers with an empty result:
+   * that is an answer, not an unreadable response. */
   describe('a provider that holds nothing for a target has still answered', () => {
     const backlinksBody = (task: Record<string, unknown>) => ({
       status: 200,
@@ -1130,14 +1082,9 @@ describe('DataForSEO weekly archives', () => {
     });
   });
 
-  /**
-   * 2026-08-03: the weekly run wrote five rows, all for meals.example, and
-   * nothing at all for the four properties behind it — the runtime was restarted
-   * 92 seconds into meals's ~112-second tracked panel (ro-q18). A family's
-   * manifest row is written only after its last request returns, so nothing can
-   * save the family an interruption lands in. What CAN be saved is everything
-   * that had no reason to be waiting on it.
-   */
+  /** A family's manifest row is written only after its last request returns,
+   * so a runtime restart mid-panel loses that family; everything that had no
+   * reason to wait on it must already be collected. */
   describe('a family the property is due is never silently skipped', () => {
     it('collects every property’s single-call families before any long one', async () => {
       const { fetchImpl, calls } = providerFetch();
@@ -1197,12 +1144,7 @@ describe('DataForSEO weekly archives', () => {
     });
   });
 
-  /**
-   * ro-aed0.3: a dead uplink used to be treated as a provider blip — every
-   * family walked the full retry ladder against a wall, then stored "Gave up
-   * after 3 attempts", a first-person claim of an outage the OS never reached.
-   */
-  describe('when the OS is what is down (ro-aed0.3)', () => {
+  describe('when the OS is what is down', () => {
     const isBeacon = (url: string): boolean =>
       (EGRESS_BEACONS as readonly string[]).includes(url);
 
@@ -1331,12 +1273,7 @@ describe('DataForSEO weekly archives', () => {
     });
   });
 
-  /**
-   * 2026-08-03: meals.example's two backlinks families both came back HTTP 500
-   * with provider_rows 0 and provider_cost_usd 0.0, three days after the same
-   * two families returned 480 backlinks and 10 timeseries rows. The cron is
-   * `45 12 * * 1`, so a blip that cost nothing cost the property a week.
-   */
+  /** A transient provider failure on the weekly cron costs the property a week. */
   describe('a transient provider failure is repeated, a bad request is not', () => {
     const backlinksCalls = (calls: FetchCall[]) =>
       calls.filter((call) => call.url.endsWith('/backlinks/summary/live'));
@@ -1487,9 +1424,8 @@ describe('DataForSEO weekly archives', () => {
     });
 
     it('spends one budget across a whole family, not one per tracked query', async () => {
-      // The panel is 56 sequential calls (28 terms x 2 devices). If each bought
-      // its own two retries a provider outage would mean 168 calls and minutes
-      // of waiting inside a sweep that has a runtime to fit into.
+      // If each panel call bought its own retries a provider outage would mean
+      // hundreds of calls and minutes of waiting inside one sweep.
       const { fetchImpl, calls } = providerFetch({ failPath: SERP_PATH });
       const result = await runDataForSeoDumps(env, {
         nowMs: NOW,
@@ -1514,13 +1450,8 @@ describe('DataForSEO weekly archives', () => {
       }
     });
 
-    /**
-     * ro-mr3. 429 is the one 4xx a second call usually DOES answer: every other
-     * 4xx is about what we asked for, a rate limit is about when we asked.
-     * DataForSEO meters 2000 requests a minute, and it says when to come back —
-     * so the repair is the provider's interval, bounded, rather than the
-     * collector's guess.
-     */
+    /** 429 is the one 4xx a second call usually does answer: a rate limit is
+     * about when we asked, and the provider says when to come back. */
     describe('a rate limit is repeated on the provider’s own clock', () => {
       const rateLimited = (headers?: Record<string, string>) => ({
         status: 429,
@@ -1664,13 +1595,9 @@ describe('DataForSEO weekly archives', () => {
     ).toBe(EXPECTED_ATTEMPTS);
   });
 
-  /**
-   * The gate and the desk read ONE sum (bead `ro-ukus`). Ad-hoc research spends
-   * the same DataForSEO account and lands in the research log rather than
-   * the report runs, so a month whose collected reports cost nothing can
-   * still be over the cap — and the collector has to refuse on money the Tower
-   * is showing the operator, not on the half it can see for itself.
-   */
+  /** The gate and the desk read one sum. Ad-hoc research spends the same
+   * account and lands in the research log, so a month whose collected reports
+   * cost nothing can still be over the cap. */
   it('fails closed on ad-hoc research alone, with no collected report to see', async () => {
     const { fetchImpl, calls } = providerFetch();
     await recordResearch(
@@ -1807,9 +1734,8 @@ describe('tracked-query SERP panel', () => {
   });
 
   /** The refusal code one panel earns from the collector's own validation, or
-   * null when the panel is fine. Every rule here is a loud failure rather than
-   * a quiet repair. Checked directly: a sweep per case cost ~1 s each (issue #6),
-   * and `panelError` below proves a refusal reaches the sweep's outcome. */
+   * null when the panel is fine. Checked directly because a sweep per case is
+   * slow; `panelError` below proves a refusal reaches the sweep's outcome. */
   function panelRefusal(queries: SerpPanelQuery[]): string | null {
     try {
       trackedQueries({ assets: { 'meals.example': { queries } } }, 'meals.example');
@@ -1862,12 +1788,10 @@ describe('tracked-query SERP panel', () => {
       depth: 20,
       load_async_ai_overview: true,
     });
-    // The device rides in the request body, which is archived verbatim — that
-    // is how an observation records its device with no manifest column and no
-    // migration. Devices are asked for in a fixed order, desktop last, so a
-    // query's two pages are adjacent and readable in the archive; which device a
-    // one-row-per-query reader reports is named in that reader, not inferred
-    // from this order (ro-14d.1).
+    // The device rides in the request body, which is archived verbatim: that is
+    // how an observation records its device with no manifest column. Devices are
+    // asked in a fixed order, desktop last, so a query's two pages are adjacent;
+    // which device a one-row-per-query reader reports is named in that reader.
     expect(
       panelCalls.slice(0, SERP_PANEL_DEVICES.length).map((call) => call.task.device),
     ).toEqual([...SERP_PANEL_DEVICES]);
@@ -1920,17 +1844,11 @@ describe('tracked-query SERP panel', () => {
     expect(JSON.stringify(archived.pages[0])).toContain('ai_overview');
   });
 
-  /**
-   * A phone reading and a desktop reading of the same term are two observations,
-   * and the archive must never be able to collapse them into one.
-   *
-   * They cannot: both are pages of ONE archive, so the content hash that decides
-   * `success` vs `unchanged` compares whole archives, never one device's page
-   * against another's. This test proves the harder half — that a provider
-   * answering both devices IDENTICALLY still stores two distinguishable pages,
-   * because the archived request body carries the device even when the response
-   * does not.
-   */
+  /** A phone reading and a desktop reading of the same term are two
+   * observations. Both are pages of one archive, so the content hash compares
+   * whole archives; this proves a provider answering both devices identically
+   * still stores two distinguishable pages, because the archived request body
+   * carries the device. */
   it('never lets one device\'s result page stand in for the other\'s', async () => {
     const { fetchImpl } = providerFetch();
     await runDataForSeoDumps(env, {
@@ -1958,19 +1876,11 @@ describe('tracked-query SERP panel', () => {
     ).toEqual(SERP_PANEL_DEVICES.map((device) => ['my plate', device]));
   });
 
-  /**
-   * ro-282.2 — the label is stored WITH the observation, and nowhere else.
-   *
-   * The flattened CSV derives only from the immutable archive, so a label the
-   * analyzer looked up in today's config would silently relabel every
-   * already-collected row the day a cluster is renamed. Archiving it in the page
-   * envelope — beside `path` and `attempts`, which are equally not the
-   * provider's business — keeps a rename applying forward only.
-   *
-   * It is also the other half of the body/envelope line the device dimension
-   * sits on: `device` is a provider-documented field and IS posted; the label is
-   * our taxonomy and is not. Both are archived; only one is transmitted.
-   */
+  /** The label is stored with the observation and nowhere else: the flattened
+   * CSV derives only from the immutable archive, so a label looked up in
+   * today's config would relabel already-collected rows when a cluster is
+   * renamed. `device` is a provider field and is posted; the label is our
+   * taxonomy and is not. */
   it('archives each query beside the cluster it measures, and tells the provider nothing new', async () => {
     const { fetchImpl, calls } = providerFetch();
     await runDataForSeoDumps(env, {
@@ -1989,10 +1899,8 @@ describe('tracked-query SERP panel', () => {
       expect(call.task.tag).toMatch(/^[a-z0-9.]+:serp-panel$/);
     }
 
-    // nosh.example's terms are seven bets; every page says which one it was — and
-    // each term now has one page per device, both carrying the same label,
-    // because a cluster is a property of the term rather than of the surface it
-    // was read on.
+    // Every page says which bet it was, one page per device, both carrying the
+    // same label: a cluster is a property of the term, not of the surface.
     const nom = await archivedPanelPages('nosh.example');
     expect(
       nom.map((page) => [page.request.body.keyword, page.request.label]),
@@ -2097,7 +2005,7 @@ describe('tracked-query SERP panel', () => {
       costUsd: 0,
       costState: 'reported',
     });
-    // Counted values, then DataForSEO's own words (bead ro-ujb9.96.6.27).
+    // Counted values, then DataForSEO's own words.
     expect(attempts.results[1]!.errorMessage).toBe(
       '2 of 60 calls unanswered · 58 answered · DataForSEO: Invalid Field: keyword.',
     );
@@ -2282,9 +2190,8 @@ describe('tracked-query SERP panel', () => {
 
   it('fails one property\'s panel for an over-cap config without touching the others', async () => {
     const { fetchImpl } = providerFetch();
-    // One term past the enforced ceiling. The ceiling is no longer a taste
-    // decision: it is what the $0.25 per-report reserve buys at two devices
-    // and $0.004 a call, so adding the phone halved it from 40 to 31.
+    // One term past the enforced ceiling, which is what the $0.25 per-report
+    // reserve buys at two devices and $0.004 a call.
     const overCapPanel = {
       assets: {
         'meals.example': {
@@ -2310,11 +2217,10 @@ describe('tracked-query SERP panel', () => {
       status: 'error',
       errorCode: 'config_invalid',
     });
-    // The over-cap panel is the ONLY casualty — and specifically not
-    // `keyword-ideas`, which reads the same config to seed one call and has no
-    // stake in a per-(query, device) cost ceiling (ro-cda6.2). Counted against
-    // the INJECTED panel, since that decides which properties are due
-    // panel-seeded families at all.
+    // The over-cap panel is the only casualty — not `keyword-ideas`, which reads
+    // the same config to seed one call and has no stake in a per-(query, device)
+    // cost ceiling. Counted against the injected panel, since that decides which
+    // properties are due panel-seeded families at all.
     expect(result.failed).toBe(1);
     expect(
       result.outcomes.filter((outcome) => outcome.status === 'error'),
@@ -2334,14 +2240,9 @@ describe('tracked-query SERP panel', () => {
     ).toBe(true);
   });
 
-  /**
-   * The gate reserves $0.25 for a family BEFORE it calls, and the panel is the
-   * only family whose cost is a function of config. So the ceiling has to be
-   * whatever that reserve buys — otherwise a legal panel outspends the reserve
-   * its own gate took, and the portfolio cap is crossed by calls nobody
-   * reserved for. The invariant is asserted, not the number: a third device, or
-   * a price change, must move the ceiling rather than break this.
-   */
+  /** The gate reserves $0.25 for a family before it calls, and the panel is the
+   * only family whose cost is a function of config, so the ceiling must be
+   * whatever that reserve buys. The invariant is asserted, not the number. */
   it('keeps the biggest legal panel inside the reserve its gate takes', async () => {
     expect(PANEL_CEILING * SERP_PANEL_DEVICES.length * CALL_USD).toBeLessThanOrEqual(
       REPORT_RESERVE_USD,
@@ -2349,9 +2250,8 @@ describe('tracked-query SERP panel', () => {
     expect(
       (PANEL_CEILING + 1) * SERP_PANEL_DEVICES.length * CALL_USD,
     ).toBeGreaterThan(REPORT_RESERVE_USD);
-    // That every SHIPPED panel still fits under it — so the operator learns
-    // about a narrowed ceiling from a red gate rather than a red Monday — is a
-    // check of the committed file, in config-seeds.test.ts (bead ro-ujb9.92).
+    // That every shipped panel still fits under it is a check of the committed
+    // file, in config-seeds.test.ts.
   });
 
   it('rejects an empty or duplicated panel rather than quietly repairing it', async () => {
@@ -2369,15 +2269,9 @@ describe('tracked-query SERP panel', () => {
   });
 });
 
-/**
- * ro-282.1: a bet that launched on a Tuesday should have a baseline on Tuesday.
- * Before this, the only lever was `runScheduled('45 12 * * 1')`, which re-bills
- * every property — ~$1.60 to buy ~$0.07 of new data.
- *
- * A scope is not a second collector and these tests exist to keep it from
- * becoming one: it narrows the sweep plan and nothing else, so what lands is
- * what the Monday lane would have landed for that property.
- */
+/** A scope is not a second collector: it narrows the sweep plan and nothing
+ * else, so what lands is what the Monday lane would have landed for that
+ * property. */
 describe('a scoped run — the same run, narrowed', () => {
   const NOM_QUERIES = panelEntries('nosh.example');
 
@@ -2403,12 +2297,8 @@ describe('a scoped run — the same run, narrowed', () => {
     ).text();
   }
 
-  /**
-   * THE load-bearing test. The panel-review filer files off landings, the daily
-   * refresh reads the manifest, the lane evidence counts these rows — and none
-   * of them may need to know which door a run came through. Same clock, same
-   * provider answers: the two rows must agree on every field they read.
-   */
+  /** The panel-review filer, the daily refresh and the lane evidence read these
+   * rows, and none may need to know which door a run came through. */
   it('lands a row indistinguishable from the Monday one', async () => {
     const { fetchImpl } = providerFetch();
     await runDataForSeoDumps(env, {
@@ -2478,8 +2368,8 @@ describe('a scoped run — the same run, narrowed', () => {
       scope: { asset: 'nosh.example' },
     });
 
-    // Breadth-first survives the narrowing (ro-q18): an interruption during the
-    // ~112-second panel still cannot take the cheap families with it.
+    // Breadth-first survives the narrowing: an interruption during the panel
+    // cannot take the cheap families with it.
     const firstPanelCall = calls.findIndex((call) => call.url.endsWith(SERP_PATH));
     expect(firstPanelCall).toBe(
       dataForSeoFamiliesFor('nosh.example').filter((f) => f !== 'serp-panel').length,
@@ -2514,8 +2404,8 @@ describe('a scoped run — the same run, narrowed', () => {
 
   it('cannot reach a property the weekly lane would not collect', async () => {
     const { fetchImpl, calls } = providerFetch();
-    // Lifecycle remains a mutable store fact rather than a migration rewrite.
-    // Put fees.example back before launch to prove the gate still excludes it.
+    // Lifecycle is a mutable store fact; put fees.example back before launch to
+    // prove the gate still excludes it.
     await changeSites(['fees.example'], { status: 'pre-launch' });
     for (const asset of ['fees.example', 'root-os', 'not-a-property']) {
       const result = await runDataForSeoDumps(env, {
@@ -2530,16 +2420,10 @@ describe('a scoped run — the same run, narrowed', () => {
     expect(calls).toHaveLength(0);
   });
 
-  /**
-   * The two named-backlink families (ro-cda6.1). `backlinks-summary` returns a
-   * referring-domain COUNT and `backlinks-new-lost` its weekly delta; neither
-   * names a domain, so "we lost 12 referring domains" had nothing behind it.
-   *
-   * Both orderings are asserted because both are the whole point of the
-   * bounded read: a 100-row cap filled by whichever scraper farm links most
-   * times would answer a different question than the one these families exist
-   * to answer.
-   */
+  /** `backlinks-summary` returns a referring-domain count and
+   * `backlinks-new-lost` its weekly delta; neither names a domain. Both
+   * orderings are asserted because a 100-row cap filled by whichever scraper
+   * farm links most would answer a different question. */
   it('asks for referring domains by rank and anchors by reach', async () => {
     const { fetchImpl, calls } = providerFetch();
     await runDataForSeoDumps(env, {
@@ -2581,13 +2465,9 @@ describe('a scoped run — the same run, narrowed', () => {
     expect(calls).toHaveLength(2);
   });
 
-  /**
-   * The row cap is a COST decision, so it is pinned against the reserve rather
-   * than merely asserted. Backlinks bills $0.024/request + $0.000036/row, and
-   * August 2026 had already committed $12.41 of the $25 portfolio cap when
-   * these families were added — a family that could outspend the reserve its
-   * own gate takes is how a cap gets crossed by a call nobody reserved for.
-   */
+  /** The row cap is a cost decision, so it is pinned against the reserve:
+   * backlinks bills per request plus per row, and a family that could outspend
+   * the reserve its own gate takes is how a cap gets crossed. */
   it('keeps a full-limit backlinks call inside the per-family reserve', () => {
     const worstCaseUsd = 0.024 + 100 * 0.000036;
     expect(worstCaseUsd).toBeLessThan(REPORT_RESERVE_USD);
@@ -2603,9 +2483,9 @@ describe('a scoped run — the same run, narrowed', () => {
         DATAFORSEO_PANEL_REPORT,
       ].sort(),
     );
-    // What a WEEK OWES and what may be REQUESTED stopped being one question at
-    // ro-cda6.2: the requestable set is a superset by exactly the periodic
-    // families this property is due.
+    // What a week owes and what may be requested are different questions: the
+    // requestable set is a superset by exactly the periodic families this
+    // property is due.
     const weekly = dataForSeoReportsFor('nosh.example', new Set(PANEL_ASSETS));
     const requestable = dataForSeoFamiliesFor('nosh.example');
     expect(weekly.every((family) => requestable.includes(family))).toBe(true);
@@ -2620,18 +2500,11 @@ describe('a scoped run — the same run, narrowed', () => {
   });
 });
 
-// --- the account credit the sweep refreshes (beads `ro-qpas`, `ro-vu8d.26`) --
-//
-// The prepaid balance is the vendor's own figure, and it decides whether next
-// Monday's sweep can run. `ro-qpas` recorded it wherever the OS saw it, which in
-// practice meant only behind Test connection: the paid report endpoints answer
-// with no `money` object at all, so the sweep's per-response parse returned null
-// every week and the card's figure aged for as long as nobody pressed a button.
-//
-// So the sweep now makes ONE read of the free account endpoint at the end of a
-// run that worked. What these pin is the price of that: exactly one extra call,
-// zero spend, no retry, nothing at all from a run that failed or had nothing to
-// do, and a failure of the read itself that leaves the sweep green.
+// The prepaid balance decides whether next Monday's sweep can run, and the paid
+// report endpoints never state it, so the sweep makes one read of the free
+// account endpoint at the end of a run that worked. These pin the price of that:
+// one extra call, zero spend, no retry, nothing from a run that failed or had
+// nothing to do, and a failure of the read that leaves the sweep green.
 
 const ACCOUNT_PATH = '/appendix/user_data';
 
@@ -2795,13 +2668,10 @@ describe('DataForSEO account credit', () => {
   }
 });
 
-/**
- * ro-aed0.6: since ro-aed0.3 a family the dead uplink swallowed stays due
- * instead of being written off — but the sweep is weekly, so nothing collected
- * it until the next Monday. The daily pass re-runs exactly what the outage
- * skipped, and nothing a provider actually refused.
- */
-describe('the daily re-collection of what an offline Monday skipped (ro-aed0.6)', () => {
+/** A family the dead uplink swallowed stays due, but the sweep is weekly; the
+ * daily pass re-runs exactly what the outage skipped and nothing a provider
+ * refused. */
+describe('the daily re-collection of what an offline Monday skipped', () => {
   /** Tuesday 12:15 UTC — the next daily archive tick after the Monday sweep. */
   const TUESDAY = NOW + 86_400_000 - 30 * 60_000;
   const WEDNESDAY = TUESDAY + 86_400_000;

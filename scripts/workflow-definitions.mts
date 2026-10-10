@@ -1,6 +1,6 @@
 // The workflow each scheduled job runs, as the stages its trace records.
 //
-// Authored TypeScript (bead ro-ujb9.61): `pnpm config:generate` writes the
+// Authored TypeScript: `pnpm config:generate` writes the
 // `.mjs` the Tower and local runner import and the `.d.mts` beside it.
 
 import type { WorkflowStepDefinition, WorkflowStepKind } from '../packages/contract/src/workflows.js';
@@ -12,8 +12,7 @@ const action = (id: string, label: string, description: string, kind: WorkflowSt
 const workerSteps: Readonly<Record<string, WorkflowStepDefinition[]>> = {
   mediavine: [action('revenue', 'Collect ad revenue', 'Checks the collection window and records revenue when due.', 'collection')],
   // `connection-counts` and `source-history` are the Tower's steps of this tick
-  // (apps/tower/worker/tower-cron.ts, beads ro-ujb9.96.7.29 and
-  // ro-ujb9.96.7.31), run once the ingest's checks are done.
+  // (apps/tower/worker/tower-cron.ts), run once the ingest's checks are done.
   freshness: [action('freshness', 'Check report freshness', 'Compares received reports with their reporting obligations.', 'check'), action('uptime', 'Check sites are up', 'Fetches each site’s home page and records whether it answered.', 'check'),
     action('connection-counts', 'Record connection counts', 'Records today’s System health connection counts.', 'storage', ['freshness', 'uptime']),
     action('source-history', 'Record source history', 'Records today’s state and freshness of each data source.', 'storage', ['freshness', 'uptime'])],

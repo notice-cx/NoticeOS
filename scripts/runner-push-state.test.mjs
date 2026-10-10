@@ -12,7 +12,7 @@ import {
   runPushStateFiler,
 } from './runner/push-state.mjs';
 
-// scripts/runner/push-state.mjs (bead ro-ujb9.22): the push-state lane. Git and
+// scripts/runner/push-state.mjs: the push-state lane. Git and
 // `bd` are answered here; nothing fetches a real remote or writes a tracker.
 
 const NOW = Date.parse('2026-09-24T12:00:00Z');

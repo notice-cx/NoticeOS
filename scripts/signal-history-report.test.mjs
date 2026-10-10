@@ -7,8 +7,8 @@ import { storedSearchMarket } from './signal-history-analyze.mjs';
 import { analyzeArchiveFixture } from './test-fixtures/signal-report.mjs';
 
 // Explicit fixture input: these archive regressions never require a live store,
-// and never the checkout's own config/value-events.json either (bead
-// ro-ujb9.97) — the frozen copy in scripts/fixture-config/.
+// and never the checkout's own config/value-events.json either, only the
+// frozen copy in scripts/fixture-config/.
 const fixtureValueEvents = async () => ({
   body: JSON.parse(await fs.readFile(new URL('./fixture-config/value-events.json', import.meta.url), 'utf8')),
   version: 1,
@@ -324,9 +324,9 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
     // collapse into "no overview".
     //
     // `device` is omitted from most of these bodies on purpose: that is the
-    // shape of every archive written before 2026-08-04, and those rows must come
-    // back as `desktop` — the collector had no other literal in it — rather than
-    // as an unknown device.
+    // shape of every archive written before the collector sent a device, and
+    // those rows must come back as `desktop` (the collector had no other
+    // literal in it) rather than as an unknown device.
     const serpPage = (
       keyword,
       items,
@@ -395,8 +395,8 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
               links: [],
             },
             { type: 'organic', rank_group: 3, domain: 'wadairy.org' },
-            // The property's SECOND slot on the same result page (`ro-463`) —
-            // the double listing GSC can only ever show as split impressions.
+            // The property's SECOND slot on the same result page: the double
+            // listing GSC can only ever show as split impressions.
             {
               type: 'organic',
               rank_group: 5,
@@ -447,9 +447,8 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
           }),
           // The device pair, in collection order (mobile, then desktop), for a
           // term the ranked-keyword inventory also carries. The two surfaces
-          // disagree — an overview consumes the click on the phone and there is
-          // none on the desktop — which is the whole reason ro-o1n bought the
-          // second device, and is exactly what a single-device panel could not
+          // disagree (an overview consumes the click on the phone and there is
+          // none on the desktop), which is what a single-device panel could not
           // have said.
           serpPage(
             'easy weekly meal plan',
@@ -536,9 +535,9 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
       'meals.gov|meals.example|wadairy.org',
     );
     assert.equal(byQuery.get('meals calculator').organic_results, '4');
-    // The property's second slot on the same page, bounded like the first
-    // (`ro-463`): rank and URL together, because a rank nobody can attribute to
-    // a page is a fact with no next step.
+    // The property's second slot on the same page, bounded like the first:
+    // rank and URL together, because a rank nobody can attribute to a page is a
+    // fact with no next step.
     assert.equal(byQuery.get('meals calculator').second_rank, '5');
     assert.equal(
       byQuery.get('meals calculator').second_url,
@@ -553,11 +552,10 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
     // No result inside the tracked depth is empty, never a rank of 0.
     assert.equal(byQuery.get('food groups').best_rank, '');
     assert.equal(byQuery.get('food groups').tracked_depth, '20');
-    // THE ABSENT-VERSUS-FALSE CASE (`ro-463`). We hold no result inside the
-    // tracked depth here, so there was no result of ours for sitelinks to hang
-    // off: unknown, never "the sitelinks are gone". Read as `false`, this cell
-    // would turn every week the property ranked past depth 20 into a sitelink
-    // loss alert (the rule waiting on it is `ro-770`).
+    // THE ABSENT-VERSUS-FALSE CASE. We hold no result inside the tracked depth
+    // here, so there was no result of ours for sitelinks to hang off: unknown,
+    // never "the sitelinks are gone". Read as `false`, this cell would turn
+    // every week the property ranked past depth 20 into a sitelink loss alert.
     assert.equal(byQuery.get('food groups').sitelinks_us, '');
     assert.equal(byQuery.get('food groups').second_rank, '');
     assert.equal(byQuery.get('food groups').second_url, '');
@@ -679,12 +677,12 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
       Math.abs(executive.searchIntelligence.costUsd - (0.251 + 7 * 0.004)) <
         0.000001,
     );
-    // ...and BOTH of the snapshot's panel readers now carry the split through
-    // (ro-14d.1). Neither reduces the panel to one row per query any more, so
-    // neither can quietly report the surface its tie-break happened to land on
-    // — which is what this assertion catches: the phone row says an overview
-    // consumes this query's click, the desktop row says the page is clear, and
-    // a reader that kept one of them would erase a finding either way.
+    // ...and BOTH of the snapshot's panel readers carry the split through.
+    // Neither reduces the panel to one row per query, so neither can quietly
+    // report the surface its tie-break happened to land on: the phone row says
+    // an overview consumes this query's click, the desktop row says the page is
+    // clear, and a reader that kept one of them would erase a finding either
+    // way.
     const decided = executive.searchQueries.dataforseo.queries.find(
       (row) => row.query === 'easy weekly meal plan',
     );
@@ -999,10 +997,9 @@ function ga4ChannelArchive({ report = 'traffic-acquisition', reportDate, collect
   });
 }
 
-test('marks a GA4 attribution day provisional until it was collected two days after it (ro-wo0j)', async () => {
-  // meals.example's 2026-09-21, collected at D+1, read 3,380 "Unassigned"
-  // sessions and was published as final. Every day collected at D+2 or later
-  // read correctly.
+test('marks a GA4 attribution day provisional until it was collected two days after it', async () => {
+  // A day collected at D+1 can read thousands of "Unassigned" sessions and be
+  // published as final; every day collected at D+2 or later reads correctly.
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'reindex-ga4-settle-'));
   const input = path.join(root, 'input');
   const output = path.join(root, 'output');
@@ -1276,14 +1273,14 @@ test('two overlapping AI overview exports resolve to the newest, never to both',
 });
 
 /**
- * ro-282.2 — a panel groups by the bet it measures, and the grouping is a fact
- * of the COLLECTION rather than of today's config.
+ * A panel groups by the bet it measures, and the grouping is a fact of the
+ * COLLECTION rather than of today's config.
  *
  * The label rides in the archived page envelope beside `path` and `attempts`,
  * never inside the body that was posted to the provider. This tool is the reason
  * that matters: it reads only archives, so a label it looked up in
  * config/serp-panel.json would rewrite the cluster on every historical row the
- * day a cluster is renamed — the same observations, retitled, with nothing
+ * day a cluster is renamed, the same observations retitled with nothing
  * recording that the question had changed.
  */
 test('a labelled panel carries its cluster into the CSV and leaves older rows empty', async () => {
@@ -1298,7 +1295,7 @@ test('a labelled panel carries its cluster into the CSV and leaves older rows em
         body: { keyword, depth: 20, load_async_ai_overview: true },
         attempts: 1,
         // Absent on every archive collected before this property labelled its
-        // panel — which is every archive nosh.example has today.
+        // panel.
         ...(label === undefined ? {} : { label }),
       },
       response: {
@@ -1378,8 +1375,8 @@ test('a labelled panel carries its cluster into the CSV and leaves older rows em
     // The bet each observation was placed on, as that collection recorded it.
     assert.equal(labelOn('2026-08-10', 'big mac calories'), 'Item head');
     assert.equal(labelOn('2026-08-10', 'big mac vs whopper'), 'Comparisons');
-    // History is not backfilled. The panel gained labels on 2026-08-10; the
-    // July rows were collected without one and say so by staying empty.
+    // History is not backfilled: rows collected before the panel gained labels
+    // say so by staying empty.
     assert.equal(labelOn('2026-07-27', 'big mac calories'), '');
     assert.equal(labelOn('2026-07-27', 'big mac vs whopper'), '');
     // The device is the OPPOSITE call on the same fixture, and the contrast is
@@ -1404,11 +1401,11 @@ test('a labelled panel carries its cluster into the CSV and leaves older rows em
 });
 
 /**
- * ro-2zk.1. Nothing in the panel dir answered "how many of our pages are
- * indexed" — `gsc-page.csv` lists pages that earned IMPRESSIONS, a strict
- * subset of the indexed set, so a property triaging a traffic drop could not
- * tell "we lost rankings" from "we lost the index". Bing already tells us, in
- * a family the nightly lane has been archiving all along.
+ * Nothing else in the panel dir answers "how many of our pages are indexed":
+ * `gsc-page.csv` lists pages that earned IMPRESSIONS, a strict subset of the
+ * indexed set, so a property triaging a traffic drop could not tell "we lost
+ * rankings" from "we lost the index". Bing tells us, in a family the nightly
+ * lane archives.
  */
 function bingArchive({ report, reportDate, method, rows }) {
   return JSON.stringify({
@@ -1605,8 +1602,8 @@ test('a property whose Bing lane collected nothing gets no coverage file at all'
   }
 });
 
-// Bead ro-ujb9.207: the market a site's DataForSEO numbers were asked in is the
-// one its saved settings name — read by the rule the collector asks by.
+// The market a site's DataForSEO numbers were asked in is the one its saved
+// settings name, read by the rule the collector asks by.
 test('reads each site’s saved search market from the stored settings, by the collector’s rule', () => {
   const snapshot = (assets) => new Map([['config/integrations.json', { file: 'config/integrations.json', version: 2, body: { assets } }]]);
   const assets = {

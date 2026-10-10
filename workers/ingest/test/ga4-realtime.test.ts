@@ -36,8 +36,8 @@ const PACIFIC_INTRADAY_ROWS: IntradayRow[] = [
   ['same_day_last_week', '2026072223', '9'],
 ];
 
-/** GA4's per-minute realtime answer (bead ro-trai.27): `minutesAgo` rows, or a
- * whole body or HTTP status standing in for a bad one. */
+/** GA4's per-minute realtime answer: `minutesAgo` rows, or a whole body or
+ * HTTP status standing in for a bad one. */
 interface MinutesFixture {
   rows?: Array<[minutesAgo: string, value: string]>;
   body?: unknown;
@@ -297,8 +297,7 @@ describe('GA4 realtime service read', () => {
     const second = await runGa4Realtime(env, { ...options, nowMs: NOW + 10_000 });
     expect(second.assets[0]?.observedAt).toBe(first.assets[0]?.observedAt);
     // A reading is two realtime requests per property — the windows and the
-    // minutes (bead ro-trai.27) — and it is good for a minute: the pulse's own
-    // resolution, and two a minute spend what one every 30 seconds did.
+    // minutes — and it is good for a minute: the pulse's own resolution.
     expect(live()).toHaveLength(4);
     expect(live().filter((call) => isMinutesRequest(call.body))).toHaveLength(2);
     await runGa4Realtime(env, { ...options, nowMs: NOW + 30_000 });
@@ -308,7 +307,7 @@ describe('GA4 realtime service read', () => {
     expect(calls.filter((call) => call.url.endsWith(':runReport'))).toHaveLength(2);
   });
 
-  it('draws the minute pulse on the clock it is served at, the minutes after the reading absent (ro-trai.27)', async () => {
+  it('draws the minute pulse on the clock it is served at, the minutes after the reading absent', async () => {
     const { fetchImpl } = realtimeFetch();
     const responseCache = await caches.open(crypto.randomUUID());
     const options = { fetchImpl, responseCache, tokenCache: new Map() };
@@ -353,7 +352,7 @@ describe('GA4 realtime service read', () => {
       tokenCache,
     });
 
-    // Both configured properties are read, on one minted token (ro-93l).
+    // Both configured properties are read, on one minted token.
     expect(result.assets.map((asset) => asset.asset)).toEqual([
       'meals.example',
       'nosh.example',
@@ -505,7 +504,7 @@ describe('GA4 realtime service read', () => {
     expect(await storedCount(`SELECT count(*)::int AS n FROM noticeos.signal_runs`)).toBe(0);
   });
 
-  it('re-buckets onto the zone saved in Settings and names it on the snapshot (ro-ujb9.88)', async () => {
+  it('re-buckets onto the zone saved in Settings and names it on the snapshot', async () => {
     // A Pacific property read by an operator who saved Eastern time in
     // Settings. The store answers, not the zone compiled into this Worker: at
     // 2026-07-29T12:00Z it is 08:00 in New York, and Pacific midnight is
@@ -534,7 +533,7 @@ describe('GA4 realtime service read', () => {
     expect(compiled.assets[0].timeZone).toBe(OS_TIME_ZONE);
   });
 
-  it('does not serve hours bucketed on the old zone from cache after a Settings save (ro-ujb9.88)', async () => {
+  it('does not serve hours bucketed on the old zone from cache after a Settings save', async () => {
     const { fetchImpl, calls } = realtimeFetch();
     const options = { fetchImpl, responseCache: await caches.open(crypto.randomUUID()), tokenCache: new Map() };
     const before = await runGa4Realtime(env, { ...options, nowMs: NOW });
@@ -543,10 +542,10 @@ describe('GA4 realtime service read', () => {
     forgetConfigCache();
     try {
       // Ten seconds later, inside the hourly chart's 15-minute cooldown. The
-      // hours cached on the old clock are NOT served under the new zone's
+      // hours cached on the old clock are not served under the new zone's
       // name; the new clock's key has nothing cached, so it is read at once
-      // rather than leaving the chart blank for the rest of the cooldown
-      // (ro-trai.40) — one extra report per property.
+      // rather than leaving the chart blank for the rest of the cooldown — one
+      // extra report per property.
       const during = await runGa4Realtime(env, { ...options, nowMs: NOW + 10_000 });
       expect(calls.filter((call) => call.url.endsWith(':runReport'))).toHaveLength(4);
       if (before.assets[0]?.status !== 'success' || during.assets[0]?.status !== 'success') throw new Error('expected GA4 realtime success');
@@ -565,9 +564,9 @@ describe('GA4 realtime service read', () => {
   });
 
   it('converts last week with the clock the provider used then, so the pace compares the same real hours', async () => {
-    // GA4 buckets at processing time and never reprocesses history (ro-tzq),
-    // so after a PT→ET move last week's rows are PT-bucketed and today's are
-    // ET-bucketed while `metadata.timeZone` says ET for both.
+    // GA4 buckets at processing time and never reprocesses history, so after a
+    // PT→ET move last week's rows are PT-bucketed and today's are ET-bucketed
+    // while `metadata.timeZone` says ET for both.
     await recordTimeZoneChange(env, {
       asset: 'meals.example',
       integration: 'ga4',
@@ -857,9 +856,8 @@ describe('GA4 realtime service read', () => {
   });
 });
 
-// Bead ro-trai.27: the per-minute rows behind the Wall's minute pulse are
-// parsed as strictly as the windows, and refusing them never costs the
-// reading its live figure.
+// The per-minute rows behind the Wall's minute pulse are parsed as strictly as
+// the windows, and refusing them never costs the reading its live figure.
 describe('the per-minute realtime rows', () => {
   const report = (rows: unknown[], dimension = 'minutesAgo') => ({
     dimensionHeaders: [{ name: dimension }],

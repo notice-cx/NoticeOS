@@ -188,7 +188,7 @@ test('does not claim publication from an empty or mismatched success acknowledge
   }
 });
 
-// The snapshots are in the installation's own store (bead ro-ujb9.76.5.4),
+// The snapshots are in the installation's own store,
 // reached only through its ingest: --remote writes nothing and says so.
 test('--remote is refused before anything is published', () => {
   assert.throws(() => parseArgs(['--asset', 'meals.example', '--remote']), (error) => error.message === REMOTE_REFUSED);

@@ -5,11 +5,9 @@ import { DESKTOP_ONLY } from "./fixtures";
 
 process.env.PLAYWRIGHT_BROWSERS_PATH = JOURNEY_BROWSERS;
 
-// No shared server and no base URL here (bead ro-ujb9.167): every worker
-// starts and owns its own isolated fixture server on its own free loopback
-// port, and its tests reach only that server (journey-test.ts). So the tests
-// run in parallel — JOURNEY_WORKERS workers, or half this machine's cores up
-// to 4 — and none can see another's store. The run's one throwaway Postgres
+// No shared server and no base URL here: every worker starts and owns its
+// own isolated fixture server on its own free loopback port, and its tests
+// reach only that server (journey-test.ts). The run's one throwaway Postgres
 // starts first (postgres-global-setup.mjs); each server takes its own copies.
 export default defineConfig({
   testDir: ".", testMatch: ["journeys.spec.ts", "mobile-text-zoom.spec.ts"], fullyParallel: true, workers: parallelServers(),

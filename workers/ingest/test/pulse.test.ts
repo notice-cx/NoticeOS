@@ -154,17 +154,11 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
     ]);
   });
 
-  /**
-   * The cohort decision (2026-09-04, bead `ro-kukv.8`, docs/02).
-   *
-   * The charts now MARK the two days a reporting-timezone change distorted, and
-   * a mark on one surface invites the same exclusion everywhere. It does not
-   * apply here: this cohort is built from stored PULSES — the asset's own
-   * counters out of its own database — while a reporting timezone is a setting
-   * on a provider's property. This test pins the boundary, so a later
-   * "helpful" exclusion has to argue with a red test rather than quietly
-   * silence a metric for four weeks.
-   */
+  /** The charts mark the two days a reporting-timezone change distorted, and a
+   * mark on one surface invites the same exclusion everywhere. It does not
+   * apply here: this cohort is built from stored pulses — the asset's own
+   * counters out of its own database — while a reporting timezone is a
+   * setting on a provider's property. This pins the boundary. */
   it('keeps a day a reporting-timezone change distorted inside the baseline cohort', async () => {
     await seedSeasonalHistory();
     // The collector's own record of the change, dated to the day the two
@@ -224,8 +218,8 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
     ).toBe(1);
   });
 
-  // Bead ro-ujb9.76.5.2: the first push's untouched alerts stay in the store,
-  // replaced, where D1 deleted them; no count reads them.
+  // The first push's untouched alerts stay in the store, replaced; no count
+  // reads them.
   it('same-day re-push leaves its replaced alerts out of the nightly open count', async () => {
     await seedSeasonalHistory();
     expect((await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEALS]))).status).toBe(201);
@@ -287,13 +281,11 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
     ).toBe(0);
   });
 
-  /**
-   * `ro-c7qq`. Every other lane's dedup is keyed on (asset, rule, unresolved),
-   * so an open flag — snoozed or not — already stops it re-firing. THIS lane is
-   * keyed on `pulse_id`, and a pulse is a new row every night, so without an
-   * explicit arm the operator would park a condition at 09:00 and find it back
-   * on the board by morning. The cron would defeat the feature.
-   */
+  /** Every other lane's dedup is keyed on (asset, rule, unresolved), so an
+   * open flag — snoozed or not — already stops it re-firing. This lane is keyed
+   * on `pulse_id`, and a pulse is a new row every night, so without an explicit
+   * arm the operator would park a condition at 09:00 and find it back on the
+   * board by morning. */
   describe('a condition the operator snoozed is not raised again tonight', () => {
     /**
      * This fixture seeds its OWN weekday history rather than reusing

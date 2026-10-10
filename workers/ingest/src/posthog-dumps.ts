@@ -1,49 +1,18 @@
 import { tryHealthConnection } from './integration-health-context.js';
 import { beginCollection, collectionMonitoring, type CollectionMonitoring } from './collection-attempt.js';
-// PostHog product analytics archive (bead `ro-ghis.1`, epic `ro-ghis`).
+// PostHog product analytics archive: once a day, per asset with a key and a
+// saved region + project, six aggregate families are read from the query API
+// and archived through the ordinary signal-dump path.
 //
-// Once a day, per asset with a PostHog key AND a saved region + project, six
-// aggregate families are read from PostHog's query API and archived through the
-// ordinary signal-dump path: one R2 object per (asset, family, window end), one
-// report run per attempt. The body inside each archive is the
-// contract in `packages/contract/src/posthog.ts`, validated before it is stored.
-//
-// READ-ONLY, AND ONLY TWO ENDPOINTS. `GET /api/projects/{id}/` (the project's
-// timezone, and the proof the key can read the project) and
-// `POST /api/projects/{id}/query/` with a HogQLQuery. POST is how PostHog runs a
-// read; nothing here calls an endpoint that creates or edits anything.
-//
-// BOUNDED BY CONSTRUCTION. Every query aggregates server-side, filters to its
-// window on `timestamp`, and carries an explicit LIMIT of the contract bound
-// plus one (the extra row is how truncation is detected, then dropped). Raw
-// events are never pulled.
-//
-// BUDGET-AWARE. PostHog allows 3 concurrent queries per project and an hourly
-// bytes-read budget. Families run strictly one after another, the remaining
-// budget header is read on every answer, and a 429 stops the WHOLE run: the
-// family that was refused gets an error row naming why, and every family not
-// yet asked is recorded in the result as skipped — no request, no row, because
-// a request nobody made is not an attempt. The refused row is what the next run
-// reads to ask them after all (bead `ro-aed0.9`, `stoppedRuns` below).
-//
-// SKIPS ARE NAMED, NEVER SILENT. No key, no region/project, a key for an asset
-// with no mapping, no funnels declared, another run already collecting that
-// asset: each is a reason on the completion line. With no key connected at all
-// the run makes no call and writes nothing.
-//
-// ONE RUN PER ASSET AT A TIME (bead ro-ghis.5). See `claimPosthogLease` below.
-//
-// AN OFFLINE NIGHT IS THE OS'S, AND ITS WINDOWS ARE ASKED AGAIN (bead
-// `ro-aed0.8`). Every PostHog call goes through the run's watched fetcher, so a
-// call that never came back asks the egress gate before PostHog is blamed: with
-// the OS's own uplink down, the window is unmeasured (no row, no Health
-// observation, no credential stamp) and named on the one `os-egress-down` flag
-// down to its window end. Every query is bounded to its window on `timestamp`,
-// so unlike Bing or Clarity a missed window CAN be asked for again: the next
-// run re-collects a window end the flag names, or whose latest attempt failed
-// for a network reason — see `owedWindows` below. Since bead `ro-aed0.9` it
-// also asks, once, a window PostHog answered with a 5xx, a malformed answer or
-// a 429, and every window a 429 stopped the run before asking.
+// Read-only, two endpoints: the project read (timezone, and proof the key can
+// read the project) and `POST .../query/` with a HogQLQuery. Every query
+// aggregates server-side, filters to its window on `timestamp` and carries an
+// explicit LIMIT of the contract bound plus one (the extra row detects
+// truncation). Families run one after another; a 429 stops the whole run, and
+// a family not yet asked is recorded as skipped, never as an attempt. One run
+// per asset at a time (`claimPosthogLease`). A call that never came back asks
+// the egress gate before PostHog is blamed; because every query is bounded to
+// its window, a missed window can be asked for again (`owedWindows`).
 
 import {
   POSTHOG_FAMILIES,
@@ -96,24 +65,16 @@ export const POSTHOG_KEY_SLOT = 'POSTHOG_KEYS';
 /** Every PostHog request is cut off after this long by its abort signal. */
 export const POSTHOG_REQUEST_TIMEOUT_MS = 30_000;
 /**
- * At most this many earlier window ends an outage cost are asked again, per
- * asset per run (bead `ro-aed0.8`): one dark night's worth, a window per
- * family. Each re-asked window re-reads its whole trailing range against the
- * project's hourly bytes-read budget, so a longer outage drains one night per
- * daily run instead of tripling one run's reads and meeting a 429.
+ * At most this many earlier window ends are asked again per asset per run: one
+ * dark night's worth. Each re-asked window re-reads its whole trailing range
+ * against the project's hourly bytes-read budget.
  */
 export const POSTHOG_RETRY_LIMIT = POSTHOG_FAMILIES.length;
 /**
- * How long a run may hold one asset's PostHog lease without releasing it.
- *
- * The longest a run can spend on one asset: the project read, the six family
- * queries and at most `POSTHOG_RETRY_LIMIT` re-collected windows, strictly one
- * after another, each cut off at `POSTHOG_REQUEST_TIMEOUT_MS` — thirteen
- * requests, 6.5 minutes of PostHog time — plus the store and archive writes
- * between them, which take well under a second each. Thirty minutes is more
- * than four times that, so a live run is never mistaken for a dead one; and a
- * run killed mid-await (a runtime restart, a torn-down request) frees the asset
- * within thirty minutes, so the next daily run is never blocked by it.
+ * How long a run may hold one asset's PostHog lease: several times the longest
+ * run over one asset (thirteen requests at `POSTHOG_REQUEST_TIMEOUT_MS`), so a
+ * live run is never mistaken for a dead one and a run killed mid-await frees
+ * the asset before the next daily run.
  */
 export const POSTHOG_LEASE_MS = 30 * 60_000;
 const RESPONSE_BYTE_LIMIT = 8 * 1024 * 1024;
@@ -186,15 +147,11 @@ export interface PosthogDumpsOptions {
   laneRegister?: LaneRegister;
   configSources?: ConfigSourceMap;
   scope?: PosthogCollectScope;
-  /**
-   * The lease clock, `Date.now` unless a test states its own. Windows are dated
-   * from `nowMs`, the run's start; a lease is dated when it is TAKEN, because a
-   * later asset in a long run must still hold its lease for the full
-   * `POSTHOG_LEASE_MS`.
-   */
+  /** The lease clock. Windows are dated from `nowMs`; a lease is dated when it
+   * is taken, because a later asset in a long run must still hold its lease for
+   * the full `POSTHOG_LEASE_MS`. */
   clock?: () => number;
-  /** Override the run's egress gate (tests control the verdict TTL); every other
-   * caller gets a real one over the same fetcher. */
+  /** Override the run's egress gate (tests control the verdict TTL). */
   egress?: EgressGate;
   /** Override {@link POSTHOG_RETRY_LIMIT} (tests pin the bound; 0 asks nothing again). */
   retryLimit?: number;
@@ -212,14 +169,9 @@ export interface PosthogDumpsResult {
   budgetRemainingBytes: number | null;
   /** Bytes PostHog reported reading across this run's queries. */
   bytesRead: number;
-  /**
-   * Earlier window ends this run asked again because an outage cost them (bead
-   * `ro-aed0.8`) — already counted in `attempted` and `outcomes`, named here so
-   * a larger run reads as a gap being filled.
-   */
+  /** Earlier window ends this run asked again, already counted in `attempted`. */
   retried: number;
-  /** Those earlier windows' outcomes, the same objects as in `outcomes`, so an
-   * on-demand run reports what it re-collected (bead `ro-aed0.11`). */
+  /** Those earlier windows' outcomes, the same objects as in `outcomes`. */
   recollected: SignalDumpOutcome[];
   /** Owed earlier windows this run found and left for the next one: the bound,
    * or a pass the connection or PostHog cut short. */
@@ -253,8 +205,7 @@ interface OwedWindow {
 
 /**
  * Earlier runs a PostHog 429 stopped, and what each asset has on record around
- * them — enough for `assetAsks` to date, in the asset's own calendar, the
- * windows those runs never asked (bead `ro-aed0.9`). Read once per run.
+ * them, so `assetAsks` can date the windows those runs never asked.
  */
 interface StoppedRuns {
   /** The shared `requested_at` of each run a 429 stopped, oldest first. */
@@ -264,11 +215,11 @@ interface StoppedRuns {
   assets: Map<string, { since: string; recorded: Set<string> }>;
 }
 
-/** The run's re-collection pass (bead `ro-aed0.8`). */
+/** The run's re-collection pass. */
 interface RetryPass {
   /** Per asset, every window end owed before the bound — read once per run. */
   owed: Map<string, OwedWindow[]>;
-  /** The runs a 429 stopped, whose unasked windows are owed too (`ro-aed0.9`). */
+  /** The runs a 429 stopped, whose unasked windows are owed too. */
   stopped: StoppedRuns;
   /** At most this many are asked per asset. */
   limit: number;
@@ -306,8 +257,8 @@ export async function runPosthogDumps(
     POSTHOG_KEY_SLOT,
     options.rawKeys === undefined ? resolved.source : 'env',
   );
-  // The account's one key (bead `ro-ujb9.96.7.8`): every site without a key of
-  // its own in the older per-site map reads its mapped project with it.
+  // The account's one key: every site without a key of its own in the older
+  // per-site map reads its mapped project with it.
   const accountKey = options.rawKeys === undefined ? resolved.fields[POSTHOG_ACCOUNT_KEY_SLOT] : undefined;
   const accountRef = sourcedCredentialRef(POSTHOG_ACCOUNT_KEY_SLOT, resolved.source);
   const keyFor = (asset: string): { key: string; ref: string } | undefined => {
@@ -316,15 +267,14 @@ export async function runPosthogDumps(
     return accountKey ? { key: accountKey, ref: accountRef } : undefined;
   };
 
-  // CAN THE OS GET OUT (bead `ro-aed0.8`)? One gate per run, asked only about
-  // a PostHog call that came back with no status; its beacons use the raw fetcher.
+  // One gate per run, asked only about a PostHog call that came back with no
+  // status; its beacons use the raw fetcher.
   const egress: EgressLane = {
     gate: options.egress ?? new EgressGate(env, { lane: 'posthog', fetchImpl, at: requestedAt }),
     transport: watchTransport(fetchImpl),
   };
 
-  // Declined on its Data sources row (Not using): not asked for — the one skip
-  // rule every collector applies (bead `ro-ujb9.96.7.18`).
+  // Declined on its Data sources row (Not using): not asked for.
   let candidates = (await posthogCandidates(env.STORE))
     .filter((c) => !laneDeclined(c.asset, 'posthog', options.laneRegister));
   if (options.scope) candidates = candidates.filter((c) => c.asset === options.scope!.asset);
@@ -357,8 +307,7 @@ export async function runPosthogDumps(
       continue;
     }
     if (key === undefined) {
-      // A state and where it is fixed: the key is connected on PostHog's card
-      // (bead `ro-ujb9.96.6.27`).
+      // A state and where it is fixed.
       skipped.push({ asset: candidate.asset, family: null, reason: 'no-key', detail: 'PostHog project saved · no PostHog key connected' });
       continue;
     }
@@ -374,8 +323,8 @@ export async function runPosthogDumps(
     plans.push({ candidate, key, ref: held!.ref, settings: read.settings });
   }
 
-  // The earlier window ends an outage cost (bead `ro-aed0.8`), read once. A run
-  // pinned to an explicit window reproduces that window and nothing else.
+  // The earlier window ends an outage cost, read once. A run pinned to an
+  // explicit window reproduces that window and nothing else.
   if (plans.length > 0 && options.scope?.window === undefined && state.retry.limit > 0) {
     state.retry.owed = await owedWindows(env, plans);
     state.retry.stopped = await stoppedRuns(env.STORE, plans);
@@ -400,9 +349,8 @@ export async function runPosthogDumps(
       for (const family of families) skipped.push({ asset: candidate.asset, family, ...state.stop });
       continue;
     }
-    // Taken here, inside the collector, so the daily cron, the runner's
-    // `runScheduled` RPC and `POST /api/signal-collect` all ask for it by
-    // construction; the route turns an `in-flight` skip into its 409.
+    // Taken inside the collector, so every door asks for it by construction;
+    // the route turns an `in-flight` skip into its 409.
     const lease = await claimPosthogLease(env.STORE, candidate.asset, clock());
     if (lease.owner === null) {
       skipped.push({
@@ -438,10 +386,9 @@ export async function runPosthogDumps(
   }
 
   // What this run answered for on the flag's `posthog` entry: a window end
-  // leaves it once something asked for that exact window and heard back — or
-  // once nothing will ever ask for it again (the asset has no key or project
-  // any more, or no funnels to count). A scoped run answers only for its own
-  // asset and families, so the rest stays owed until a run re-collects it.
+  // leaves it once something asked for that exact window and heard back, or
+  // once nothing will ever ask for it again. A scoped run answers only for its
+  // own asset and families.
   const answered = new Set(
     outcomes
       .filter((outcome) => !outcome.egressDown)
@@ -460,8 +407,7 @@ export async function runPosthogDumps(
     return answered.has(archivePartKey(asset, part!));
   };
   const measured = outcomes.filter((outcome) => !outcome.egressDown);
-  // PostHog answered these, and this machine could not keep the answer (bead
-  // `ro-aed0.10`): the store's failure, not the key's and not PostHog's.
+  // PostHog answered these, and this machine could not keep the answer.
   const storeFailed = measured.filter((outcome) => outcome.errorCode === LOCAL_STORE_FAILED);
   const posthogAnswered = measured.filter((outcome) => outcome.errorCode !== LOCAL_STORE_FAILED);
 
@@ -483,19 +429,13 @@ export async function runPosthogDumps(
     egress: await egress.gate.finalize({ covers }),
   };
 
-  // The run is the proof the stored keys work, the same as Clarity's: a run
-  // where something answered is a working credential, one where every attempt
-  // failed is the sentence the card needs, in the ingest's own codes. A window
-  // the dead uplink swallowed, or one this machine failed to save, says nothing
-  // about the key either way.
+  // The run is the proof the stored keys work. A window the dead uplink
+  // swallowed, or one this machine failed to save, says nothing about the key.
   if (resolved.source === 'store' && options.rawKeys === undefined && posthogAnswered.length > 0) {
     const failures = posthogAnswered.filter((outcome) => outcome.status === 'error');
     await recordCredentialOutcome(env, 'posthog', {
       ok: failures.length < posthogAnswered.length,
-      // One short line (bead `ro-ujb9.96.6.27`): what went wrong in the words
-      // the site's own row uses (`integrationFailureMessage` over the health
-      // classifier), then the count. Which site and report failed is each
-      // site's Data sources row.
+      // One short line in the words the site's own row uses, then the count.
       error:
         failures.length === 0
           ? null
@@ -519,14 +459,11 @@ export async function runPosthogDumps(
       budgetRemainingBytes: result.budgetRemainingBytes,
       bytesRead: result.bytesRead,
       skipped: skipped.map(({ asset, family, reason }) => ({ asset, family, reason })),
-      // Earlier window ends an outage cost, asked again (bead `ro-aed0.8`), and
-      // how many owed ones this run left for the next (the bound, or a pass
-      // the connection cut short).
+      // Earlier window ends asked again, and how many owed ones were left.
       retried: result.retried,
       retryNotAsked: result.retryNotAsked,
-      // PostHog's failures only: a window the dead uplink swallowed is counted
-      // in `failed` and `unmeasured`, one this machine could not save in
-      // `failed` and `storeErrors` — never listed as PostHog's error.
+      // PostHog's failures only: an unmeasured window and a store failure are
+      // counted elsewhere, never listed as PostHog's error.
       errors: posthogAnswered
         .filter((outcome) => outcome.status === 'error')
         .map(({ asset, report, reportDate, errorCode }) => ({ asset, report, reportDate, errorCode })),
@@ -543,39 +480,15 @@ function posthogPropertyRef(settings: PosthogAssetSettings): string {
 }
 
 /**
- * The earlier PostHog window ends owed a re-collection, per asset (beads
- * `ro-aed0.8`, `ro-aed0.9`).
- *
- * THE GAP. A daily run asks for the window ending yesterday, and the next run
- * for the one ending today — so a window end a run did not collect was never
- * asked for again, and its failure stayed red on the Integrations page for
- * good. Every PostHog query is bounded to its window on `timestamp`, so that
- * window can be asked for again and answers the same.
- *
- * WHAT IS OWED — these records, and nothing else:
- *
- * - **A window end whose LATEST attempt failed for a network reason**
- *   (`posthog_request_failed`, `posthog_timeout`), by the same `healthFailure`
- *   rule that shows it as `network` on the page, on the asset's current
- *   project — the rule GA4 and Search Console follow (`owedArchiveDates`,
- *   src/signal-dumps.ts). Asked again until PostHog answers.
- * - **A window end whose latest attempt PostHog answered "not now"** (bead
- *   `ro-aed0.9`): a 5xx, a malformed answer or a 429 (`transientRefusal`).
- *   Asked ONCE more per kind: the same kind of answer twice for one window is
- *   PostHog's settled answer and stays on the page, because a malformed answer
- *   that repeats is a changed PostHog, not a bad night, and re-asking it daily
- *   would spend the hourly budget forever.
- * - **A window end the dead uplink swallowed.** It has no row, so the open
- *   `os-egress-down` flag's `posthog` entry names it (`posthog:events:2026-09-13`)
- *   until something asks for it.
- * - **A window a 429 stopped the run before asking** — see `stoppedRuns`.
- *
- * A 401/403 (`posthog_access_denied`) is PostHog refusing the key, and a
- * `local_store_failed` is this machine failing to keep an answer PostHog gave
- * (bead `ro-aed0.10`): neither is ever re-asked daily.
- *
- * Which of these a run asks, and in what order, is `assetAsks`'s decision: it
- * needs the project's timezone, which only the project read can tell.
+ * The earlier PostHog window ends owed a re-collection, per asset. A daily run
+ * asks for the window ending yesterday, so a window end a run did not collect
+ * would never be asked again. Owed: a window end whose latest attempt failed
+ * for a network reason (asked again until PostHog answers); one whose latest
+ * attempt PostHog answered "not now" (5xx, malformed, 429), asked once more
+ * per kind, because the same answer twice is PostHog's settled answer; one the
+ * dead uplink swallowed (named on the open `os-egress-down` flag); and one a
+ * 429 stopped the run before asking (`stoppedRuns`). A refused key and a local
+ * store failure are never re-asked. `assetAsks` decides which a run asks.
  */
 async function owedWindows(
   env: IngestEnv,
@@ -611,10 +524,8 @@ async function owedWindows(
 const RATE_LIMITED_CODES: ReadonlySet<string> = new Set(['posthog_query_budget_exceeded', 'posthog_rate_limit']);
 
 /**
- * A PostHog answer that means "not now" rather than "no" (bead `ro-aed0.9`),
- * by kind: its servers failed (5xx), its answer did not match the query, or it
- * limited this run (429). Null for anything else — a refused key, a missing
- * project, a network failure (asked again by its own rule), a local store fault.
+ * A PostHog answer that means "not now" rather than "no", by kind. Null for
+ * anything else.
  */
 function transientRefusal(code: string | null): 'server' | 'malformed' | 'rate-limited' | null {
   if (code === null) return null;
@@ -636,11 +547,9 @@ interface FailedWindow {
 
 /**
  * Every PostHog window end whose latest attempt failed in a way that may be
- * owed again, with its failure history — `owedWindows` decides. The WHERE only
- * narrows the scan to codes that could be owed; its ILIKEs are case-blind, as
- * D1's LIKE was, and the 5xx match is case-exact, as its GLOB was. A window's
- * failures come oldest asked first, two asked at one instant in the order they
- * were written.
+ * owed again, with its failure history; `owedWindows` decides. The WHERE only
+ * narrows the scan to codes that could be owed. A window's failures come
+ * oldest asked first.
  */
 async function failedWindows(store: WorkspaceStore): Promise<FailedWindow[]> {
   const rows = await store.read((tx) =>
@@ -674,28 +583,12 @@ async function failedWindows(store: WorkspaceStore): Promise<FailedWindow[]> {
 }
 
 /**
- * The runs a PostHog 429 stopped, read back from the rows they left (bead
- * `ro-aed0.9`).
- *
- * THE GAP. A 429 stops the WHOLE run: the refused request gets its row, and
- * every family and asset the run had not reached yet gets none — a request
- * nobody made is not an attempt. So that day's window was never archived for
- * them, and nothing on record owed it.
- *
- * THE MARKER IS THE REFUSAL ITSELF. Every stop writes exactly one 429 row
- * (`posthog_query_budget_exceeded` or `posthog_rate_limit`), and every row of a
- * run shares its `requested_at`. So a 429 row's `requested_at` names a stopped
- * run, and the window that run would have asked of an asset's family is
- * `windowFor(family, the asset's timezone, no explicit window, that instant)`.
- * A family with no row at all for that window was never asked, by that run or
- * any other: it is owed. No new row, flag or table: a skipped family never
- * pretends to have been an attempt, an operator alert is not raised for a
- * routine allowance, and the evidence cannot drift from the refusal it rests on.
- *
- * Only for an asset already being collected on its current project when the
- * run was stopped (`since`), so a newly connected asset or project is not
- * back-filled. The dates read are the three a run's window end can fall on
- * (its UTC date and the two days before), so the read stays small.
+ * The runs a PostHog 429 stopped, read back from the rows they left. Every stop
+ * writes exactly one 429 row and every row of a run shares its `requested_at`,
+ * so a 429 row's `requested_at` names a stopped run, and a family with no row
+ * for the window that run would have asked is owed. Only for an asset already
+ * being collected on its current project when the run was stopped (`since`).
+ * The dates read are the three a run's window end can fall on.
  */
 async function stoppedRuns(
   store: WorkspaceStore,
@@ -704,8 +597,7 @@ async function stoppedRuns(
   const stopped: StoppedRuns = { runs: [], assets: new Map() };
   const propertyRefs = new Map(plans.map(({ candidate, settings }) => [candidate.asset, posthogPropertyRef(settings)]));
   const assets = [...propertyRefs.keys()];
-  // One read: the stopped runs, then, where there are any, what each asset
-  // recorded around them. Instants leave in the form the collector wrote them.
+  // One read: the stopped runs, then what each asset recorded around them.
   const read = await store.read(async (tx) => {
     const runs = await tx.query<{ stoppedAt: string }>(
       `SELECT DISTINCT requested_at AS "stoppedAt" FROM noticeos.archive_runs
@@ -754,7 +646,7 @@ async function stoppedRuns(
 }
 
 /** This asset's windows a 429-stopped run never asked, dated in its project's
- * calendar (bead `ro-aed0.9`; see `stoppedRuns`). */
+ * calendar. */
 function skippedByStop(run: AssetRun, projectTimeZone: string | null): OwedWindow[] {
   const history = run.state.retry.stopped.assets.get(run.target.asset);
   if (history === undefined) return [];
@@ -791,9 +683,8 @@ export function resolvePosthogKeys(rawMap: string | undefined): Map<string, stri
   return keys;
 }
 
-/** The launched, non-OS assets with a domain — the same membership rule as
- * the other per-asset provider archives — from the site list on Postgres
- * (bead ro-ujb9.76.4.2). */
+/** The launched, non-OS assets with a domain: the same membership rule as the
+ * other per-asset provider archives. */
 export async function posthogCandidates(store: WorkspaceStore): Promise<Candidate[]> {
   return store.read((tx) =>
     tx.query<{ asset: string; domain: string }>(
@@ -807,32 +698,14 @@ export async function posthogCandidates(store: WorkspaceStore): Promise<Candidat
   );
 }
 
-// ONE RUN PER ASSET AT A TIME (bead ro-ghis.5).
-//
-// PostHog meters queries per project (3 concurrent queries, 2,400 requests an
-// hour, an hourly bytes-read budget), and each asset reads its own project with
-// its own key. Two runs over the same asset at once — two on-demand requests,
-// or one and the 12:30 UTC daily run — ask the same questions twice and spend
-// that hour's budget twice, which is how a daily run ends in HTTP 429 with
-// families skipped. So every run, whoever started it, takes the asset's lease
-// before its first PostHog request and gives it back on every exit. A run that
-// finds the lease held asks PostHog nothing for that asset and records an
-// `in-flight` skip naming the holder; the on-demand route answers that with a
-// 409. The lease is per asset, so runs over DIFFERENT assets still overlap.
-//
-// WHY A STORE ROW, WHEN DATAFORSEO USES A MODULE VARIABLE. DataForSEO's lane
-// (`claimLane` in dataforseo-dumps.ts) is isolate-local: it serializes only
-// because the ingest runs as one Worker inside the Tower's single runtime, and
-// it predates any lease table (ro-axo tracks what breaks on a real deploy).
-// `noticeos.integration_leases` already carries the Mediavine and GA4 leases,
-// so this lease is one row in it — `lease_key` = `posthog:<asset>` — with no
-// schema of its own. A row holds across isolates and
-// across a runtime restart. That second property is also the risk: a module
-// variable dies with a crashed run, a row does not. So the row carries its own
-// end, `POSTHOG_LEASE_MS` after it was taken, and a run that finds an expired
-// row takes it over: a crash costs at most one lease length, never a wedge.
-// Release deletes the row only when this run still owns it, so a run that
-// outlived its lease cannot free the lease its successor now holds.
+// One run per asset at a time. PostHog meters queries per project, so two runs
+// over the same asset at once spend the hour's budget twice. Every run takes
+// the asset's lease before its first PostHog request and gives it back on
+// every exit; a run that finds it held records an `in-flight` skip. The lease
+// is a row in `noticeos.integration_leases` (`posthog:<asset>`) rather than a
+// module variable: a row holds across isolates and a runtime restart. It
+// carries its own end, so a crash costs at most one lease length, and release
+// deletes the row only when this run still owns it.
 
 /** The `lease_key` of one asset's PostHog lease. */
 export function posthogLeaseKey(asset: string): string {
@@ -844,8 +717,7 @@ type PosthogLeaseClaim =
   | { owner: null; heldBy: PosthogRunInFlight };
 
 /** Take the asset's lease, or say who holds it. One upsert: Postgres locks the
- * row, so of two runs that ask together the second waits for the first and
- * then finds it held — exactly one gets a change. */
+ * row, so of two runs that ask together exactly one gets a change. */
 export async function claimPosthogLease(
   store: WorkspaceStore,
   asset: string,
@@ -874,14 +746,12 @@ export async function claimPosthogLease(
       return { owner: null, heldBy: runInFlight(expiresAtMs, nowMs) };
     }
   }
-  // Unreachable in practice (a third run would have to claim between each of
-  // our reads); refuse rather than risk a second concurrent run.
+  // Refuse rather than risk a second concurrent run.
   return { owner: null, heldBy: runInFlight(nowMs + POSTHOG_LEASE_MS, nowMs) };
 }
 
-/** Give the lease back if this run still holds it. Never throws: a release the
- * store refused must not turn a finished run into a failed one, and the lease
- * runs out on its own at `POSTHOG_LEASE_MS`. */
+/** Give the lease back if this run still holds it. Never throws: a refused
+ * release must not fail a finished run, and the lease runs out on its own. */
 export async function releasePosthogLease(store: WorkspaceStore, asset: string, owner: string): Promise<void> {
   try {
     await store.write((tx) =>
@@ -911,13 +781,8 @@ function runInFlight(expiresAtMs: number, nowMs: number): PosthogRunInFlight {
 }
 
 /**
- * The refusal as one line, for whoever fired the second run: what is running,
- * that nothing was asked, and when the site frees itself if that run died
- * (bead `ro-ujb9.96.6.27`). Two runs at once would spend PostHog's hourly query
- * allowance twice, which is why the second asks nothing; the run's own
- * `posthog_dumps_complete` line in `pnpm os:logs` says when it finished. It
- * fits the first 400 characters `pnpm signals:collect` prints
- * (scripts/ingest-door.mjs).
+ * The refusal as one line, for whoever fired the second run. Fits the first
+ * 400 characters `pnpm signals:collect` prints.
  */
 export function posthogInFlightDetail(asset: string, inFlight: PosthogRunInFlight): string {
   return (
@@ -959,10 +824,8 @@ async function collectAsset(env: IngestEnv, run: AssetRun): Promise<SignalDumpOu
   try {
     projectTimeZone = await readProjectTimeZone(origin, settings.projectId, key, egress.transport.fetch, state);
   } catch (error) {
-    // The OS's own uplink, not PostHog (bead `ro-aed0.8`): every family this
-    // asset was due goes unmeasured — no row, no Health observation — and is
-    // named down to its window end on the run's one `os-egress-down` flag, so
-    // the next run asks for it again. Nothing more is re-collected this run.
+    // The OS's own uplink, not PostHog: every family goes unmeasured and is
+    // named on the run's `os-egress-down` flag, so the next run asks again.
     if (await egressExplains(egress.gate, egress.transport, error)) {
       state.retry.open = false;
       for (const family of families) {
@@ -971,11 +834,9 @@ async function collectAsset(env: IngestEnv, run: AssetRun): Promise<SignalDumpOu
       return outcomes;
     }
     const normalized = asPosthogError(error, 'PostHog project read failed.');
-    // A 429 is PostHog saying "not now", not a fault in any family: the one
-    // refused request is recorded against the first family and the rest are
-    // skipped. Anything else — a refused key, a missing project, an outage —
-    // is today's answer for every family this asset was due, so each gets the
-    // same failure row and none is asked.
+    // A 429 is "not now", recorded against the first family with the rest
+    // skipped. Anything else is today's answer for every family this asset was
+    // due, so each gets the same failure row and none is asked.
     const refused = state.stop !== null ? families.slice(0, 1) : families;
     for (const family of refused) {
       outcomes.push(await failFamily(env, run, family, windowFor(family, null, run.window, nowMs), normalized));
@@ -988,10 +849,8 @@ async function collectAsset(env: IngestEnv, run: AssetRun): Promise<SignalDumpOu
 
   const asks = assetAsks(run, projectTimeZone);
   for (const [index, ask] of asks.entries()) {
-    // A 429 stops the WHOLE run, a re-collection included: every window of
-    // today's not yet asked is named as skipped, and an owed one stays owed.
-    // The refusal's row names this run, so the next one asks today's skipped
-    // windows too (`stoppedRuns`, bead `ro-aed0.9`).
+    // A 429 stops the whole run, a re-collection included: today's unasked
+    // windows are named as skipped, and an owed one stays owed.
     if (state.stop !== null) {
       for (const rest of asks.slice(index)) {
         if (!rest.owed) skipped.push({ asset: target.asset, family: rest.family, ...state.stop });
@@ -999,7 +858,7 @@ async function collectAsset(env: IngestEnv, run: AssetRun): Promise<SignalDumpOu
       break;
     }
     // An earlier window is asked only while this run has not seen the
-    // connection fail; otherwise it stays owed for the next run.
+    // connection fail.
     if (ask.owed && !state.retry.open) continue;
     const outcome = await collectFamily(env, {
       target,
@@ -1019,14 +878,11 @@ async function collectAsset(env: IngestEnv, run: AssetRun): Promise<SignalDumpOu
       state.retry.asked += 1;
       state.retry.outcomes.push(outcome);
     }
-    // A connection that is down, or still dropping requests, stops the
-    // re-collection after ONE ask: the rest stay owed for the next run rather
-    // than spending a timeout each against the same wall. So does PostHog's
-    // own servers failing a re-ask (bead `ro-aed0.9`): the windows not yet
-    // asked keep their one more ask for a day PostHog is well.
+    // A connection that is down, or PostHog's servers failing a re-ask, stops
+    // the re-collection after one ask: the rest stay owed for the next run.
     const serverFailed = transientRefusal(outcome.errorCode) === 'server';
     if (outcome.egressDown || (ask.owed && (networkFailure(outcome.errorCode) || serverFailed))) state.retry.open = false;
-    // The uplink went mid-asset: today's remaining windows are unmeasured, and
+    // The uplink went mid-asset: today's remaining windows are unmeasured and
     // owed on the flag, without asking into the same wall.
     if (outcome.egressDown) {
       for (const rest of asks.slice(index + 1)) {
@@ -1034,9 +890,8 @@ async function collectAsset(env: IngestEnv, run: AssetRun): Promise<SignalDumpOu
       }
       break;
     }
-    // A key PostHog refuses for one query is refused for all of them, so the
-    // rest of today's windows carry the same failure — recorded without asking
-    // PostHog again. An owed window not yet asked stays owed.
+    // A key PostHog refuses for one query is refused for all of them: the rest
+    // of today's windows carry the same failure without asking again.
     if (outcome.status === 'error' && outcome.errorCode === ACCESS_DENIED) {
       const error = new SignalError(ACCESS_DENIED, 'Not asked · PostHog refused the key earlier in this run');
       for (const rest of asks.slice(index + 1)) {
@@ -1049,22 +904,11 @@ async function collectAsset(env: IngestEnv, run: AssetRun): Promise<SignalDumpOu
 }
 
 /**
- * This asset's requests, in order (bead `ro-aed0.8`): per family, the earlier
- * window ends it is owed (`owedWindows`, and since `ro-aed0.9` the windows a
- * 429-stopped run never asked, `skippedByStop`), oldest first, then today's
- * window.
- *
- * WHICH OWED WINDOWS. Only families this run collects, and only window ends
- * OLDER than today's — today's own window asks that date anyway, and a newer
- * one may not be a complete day in the project's calendar yet. Oldest first
- * across the asset's families, at most `POSTHOG_RETRY_LIMIT` a run: a long
- * outage drains one night per run rather than tripling one run's reads.
- *
- * WHY THIS ORDER. Today's window is each family's LAST request, so its row is
- * the family's newest — the Tower reads a family's newest row as its current
- * window (`latestDumpRunsSql`, apps/tower/worker/integration-evidence.ts). And
- * a family's re-collection spends the hourly budget only after every earlier
- * family's window of today is archived.
+ * This asset's requests, in order: per family, the earlier window ends it is
+ * owed (oldest first, at most `POSTHOG_RETRY_LIMIT` a run, and only ends older
+ * than today's), then today's window. Today's window is each family's last
+ * request so its row is the family's newest, which the Tower reads as its
+ * current window.
  */
 function assetAsks(run: AssetRun, projectTimeZone: string | null): Ask[] {
   const today = new Map(run.families.map((family) => [family, windowFor(family, projectTimeZone, run.window, run.nowMs)]));
@@ -1106,10 +950,8 @@ function failFamily(
   });
 }
 
-/** Any thrown value as a PostHog-coded failure: a SignalError keeps its code,
- * a transport failure becomes `posthog_timeout` or `posthog_request_failed`.
- * A store failure while archiving never reaches here as one: it arrives as
- * `local_store_failed` from `archiveCollectedDump` (bead `ro-aed0.10`). */
+/** Any thrown value as a PostHog-coded failure. A store failure while archiving
+ * arrives as `local_store_failed` from `archiveCollectedDump`, never here. */
 function asPosthogError(error: unknown, fallback: string): SignalError {
   if (error instanceof SignalError) return error;
   const base = normalizeSignalError(error, fallback);
@@ -1117,12 +959,9 @@ function asPosthogError(error: unknown, fallback: string): SignalError {
 }
 
 /**
- * The inclusive window a family covers, in the project's own calendar.
- *
- * A daily run ends yesterday in the project's timezone — the last complete day
- * — and reaches back the family's trailing length. An on-demand run with an
- * explicit window uses it for every family, so a past reading can be
- * reproduced exactly. With no timezone from PostHog the dates are UTC.
+ * The inclusive window a family covers, in the project's own calendar: a daily
+ * run ends yesterday there and reaches back the family's trailing length; an
+ * explicit window is used as given. With no timezone the dates are UTC.
  */
 export function windowFor(
   family: PosthogFamily,
@@ -1226,7 +1065,7 @@ async function collectFamily(env: IngestEnv, run: FamilyRun): Promise<SignalDump
       },
     });
   } catch (error) {
-    // The uplink can also die after the project read: the OS's fact, not PostHog's.
+    // The uplink can also die after the project read.
     if (await egressExplains(egress.gate, egress.transport, error)) {
       return unmeasuredDumpOutcome(egress.gate, target, family, window.end);
     }
@@ -1292,9 +1131,7 @@ function posthogProviderError(status: number, payload: unknown, state: RunState)
   const detail =
     stringField(record, 'detail') ?? stringField(record, 'error') ?? `PostHog returned HTTP ${status}.`;
   if (status === 401 || status === 403) {
-    // The refusal and its status; the fix — a key that is not revoked and can
-    // read Query and Project — is Replace on PostHog's card (bead
-    // `ro-ujb9.96.6.27`). PostHog's own words follow.
+    // The refusal and its status, then PostHog's own words.
     return new SignalError(ACCESS_DENIED, `PostHog refused the key · HTTP ${status} · ${detail}`.slice(0, 500));
   }
   if (status === 429) {
@@ -1338,10 +1175,9 @@ function queryResults(payload: unknown, columns: readonly string[]): unknown[][]
 }
 
 // ---------------------------------------------------------------------------
-// The six queries. The HogQL text is the contract with PostHog: every one reads
-// the `events` table inside its window, aggregates server-side and ends in an
-// explicit LIMIT. Timestamps and date literals are interpreted in the
-// project's timezone by PostHog, so `toDate(timestamp)` is a project-local day.
+// The six queries. Every one reads `events` inside its window, aggregates
+// server-side and ends in an explicit LIMIT. PostHog interprets timestamps in
+// the project's timezone, so `toDate(timestamp)` is a project-local day.
 // ---------------------------------------------------------------------------
 
 export interface PosthogQuery {
@@ -1349,8 +1185,8 @@ export interface PosthogQuery {
   columns: readonly string[];
 }
 
-/** A HogQL string literal. Values reaching here are already validated (event
- * names and paths refuse quotes and backslashes); escaping is the second lock. */
+/** A HogQL string literal. Values are already validated upstream; escaping is
+ * the second lock. */
 export function hogqlString(value: string): string {
   return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 }
@@ -1610,8 +1446,7 @@ export function parseFamilyRows(
           step: index + 1,
           event: step.event,
           path: step.path ?? null,
-          // No person matched any step event in the window: every step is a
-          // counted zero, because the query ran and counted nobody.
+          // No person matched any step event: a counted zero, not a gap.
           people: only === undefined ? 0 : count(only[column]),
         });
         column += 1;

@@ -4,9 +4,7 @@ import { healthFailure, tryRecordIntegrationObservation } from './integration-he
 
 /** Captured separately from provider targets so copying or reconstructing a
  * target never changes which connection performed the collection. No secrets
- * belong here; this context is not part of reports or provider requests. Its
- * store is the collecting call's, where the result is recorded (bead
- * ro-ujb9.76.5.6). */
+ * belong here; this context is not part of reports or provider requests. */
 export interface CollectionMonitoring {
   readonly connection: Readonly<HealthConnection> | null;
   readonly store: WorkspaceStore;

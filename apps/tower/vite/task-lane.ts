@@ -1,51 +1,11 @@
-// The task lane — how the Tower creates, claims, closes and answers work.
+// The task lane: dev-server middleware that runs the operator's `bd` commands
+// against the task hub. A Worker can spawn no process and reach no Dolt socket,
+// so a built Tower answers these paths read-only from worker/tasks-route.ts.
 //
-// WHY THIS EXISTS. The portfolio's task hub is a Dolt (MySQL) server on the
-// operator's Mac at 127.0.0.1:3308, and the `bd` CLI is the only client that
-// speaks to it. A Worker can reach neither: no socket to that host, no process
-// to spawn. So until 2026-09-04 the Tower's /work board was a photograph — the
-// runner shelled `bd` once a minute and the board rendered the result, read-only
-// and saying so. Every claim, close, comment and answer happened in a terminal.
-//
-// D19 changed that for the OPERATOR, and only for the operator. The `os:up` dev
-// server is a Node process with the repo checked out beside it and `bd` on the
-// machine, so a middleware there can run the same commands a terminal would.
-// This is that middleware.
-//
-// WHAT DID NOT CHANGE, and is restated here because the code is where it will be
-// read: **an agent still uses `bd` in the repo where the work happens.** That
-// rule (config/beads.README.md, AGENTS.md) was never about the mechanism — it
-// exists because an agent claiming and closing work has the context to be honest
-// about it, and a button in a browser does not confer that context. This lane is
-// the operator's hands, not an agent path.
-//
-// THREE GUARDS, all of them load-bearing:
-//
-//   1. SAME ORIGIN (vite/lane.ts, shared with the config lane). There is no
-//      authentication on the Tower and there must not be (docs/10: single
-//      operator, LAN-served, no credential a LAN request could borrow), so the
-//      boundary is that a page on another site cannot steer the operator's
-//      browser into a write here.
-//   2. AN ALLOWLIST OF VERBS. `bd` has seventy-odd commands, including `delete`,
-//      `sql`, `import`, `federation` and `dolt`. Twelve are reachable from here
-//      (`ALLOWED_VERBS`), and the check happens BEFORE anything is spawned —
-//      a verb outside the list is refused, not attempted and reported.
-//   3. `--actor`, ON EVERY WRITE. The hub keeps a per-machine interaction audit
-//      and every bead carries who touched it. A write through this lane is the
-//      operator's, so it says so — the repo's own `git user.name`. A write whose
-//      actor was ambiguous would corrupt the one thing the audit is for.
-//
-// AND IT IS COMPILED OUT OF EVERY BUILD BY CONSTRUCTION. `apply: "serve"`: this
-// plugin does not run for `vite build`, so a deployed Tower has no task lane to
-// guard — its Worker answers `{live: false}` with the reason and 501 on
-// everything else (worker/tasks-route.ts), and the board falls back to the
-// snapshot it has always had.
-//
-// NOTHING HERE INTERPRETS A BEAD. `bd`'s output is flattened into
-// shared/tasks.ts's vocabulary and nothing more: no derived status, no
-// re-implemented blocker semantics (that is what `bd ready` is for), no
-// invented grouping. Two implementations of `bd`'s meaning would drift the
-// first time it learns a new status.
+// Three guards: same origin (vite/lane.ts), an allowlist of verbs checked
+// before anything is spawned, and `--actor` on every write. `bd`'s output is
+// flattened into shared/tasks.ts's vocabulary and nothing more: no derived
+// status, no re-implemented blocker semantics, no invented grouping.
 
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -73,14 +33,11 @@ import {
   type LaneRequest,
 } from "./lane";
 
-/** The two path roots this lane owns. Gates live beside tasks rather than under
- * them because a gate is not a task: it is a wait condition holding one out of
- * `bd ready`, with its own id space and its own verb. */
+/** Gates live beside tasks because a gate has its own id space and verb. */
 export const TASKS_PATH = "/api/tasks";
 export const GATES_PATH = "/api/gates";
 
-/** Asked once per session by the browser, before anything else — so it must
- * never depend on a spoke, a project, or `bd` being installed. */
+/** Asked first by the browser; must never depend on a project or on `bd`. */
 export const CAPABILITIES_PATH = `${TASKS_PATH}/capabilities`;
 
 export function ownsPath(pathname: string): boolean {
@@ -98,24 +55,15 @@ export function ownsPath(pathname: string): boolean {
 export interface BdVerb {
   /** The subcommand tokens, exactly as `bd` takes them. */
   tokens: readonly string[];
-  /** A write carries `--actor` and gets a line in the dev-server log. A read
-   * carries neither: nothing to attribute, nothing worth a line per poll. */
+  /** A write carries `--actor` and gets a log line; a read carries neither. */
   write: boolean;
 }
 
 /**
- * Every `bd` command this lane can run. Keyed by the verb as a human would say
- * it, which is also what a refusal names.
- *
- * The reads are the five the board and the task page need. The writes are the
- * operator's seven: file, edit (claim, status, priority, assignee, labels,
- * parent, defer, title, description, acceptance — see `UPDATE_FIELDS`), close
- * with a reason, comment, answer or decline an ask, and release a gate.
- *
- * Absent, deliberately: `delete`, `sql`, `dolt`, `import`, `export`,
- * `federation`, `backup`, `restore`, `config`, `hooks`, `compact`. Several of
- * those would let a browser request rewrite or destroy the portfolio's register
- * of work; none of them is something an operator does from a task board.
+ * Every `bd` command this lane can run, keyed by the verb a refusal names.
+ * Absent on purpose: `delete`, `sql`, `dolt`, `import`, `export`, `federation`,
+ * `backup`, `restore`, `config`, `hooks`, `compact` — a browser request must
+ * not be able to rewrite or destroy the register of work.
  */
 export const ALLOWED_VERBS: Readonly<Record<string, BdVerb>> = {
   list: { tokens: ["list"], write: false },
@@ -134,10 +82,7 @@ export const ALLOWED_VERBS: Readonly<Record<string, BdVerb>> = {
 
 /**
  * The fields `PATCH /api/tasks/:id` may set, and the `bd update` flag each one
- * becomes. A body key that is not here is refused by name — the same rule as
- * the verb list, one level down: `bd update` alone can set metadata, spec ids,
- * ephemerality and Dolt history flags, and none of those is a thing an operator
- * edits from a task page.
+ * becomes. A body key not here is refused by name.
  */
 export const UPDATE_FIELDS: Readonly<Record<string, string>> = {
   status: "--status",
@@ -150,15 +95,13 @@ export const UPDATE_FIELDS: Readonly<Record<string, string>> = {
   acceptance: "--acceptance",
 };
 
-/** The two list-valued edits, kept apart because they are repeatable flags
- * rather than a single value. */
+/** List-valued edits: repeatable flags rather than a single value. */
 export const UPDATE_LABEL_FIELDS: Readonly<Record<string, string>> = {
   addLabels: "--add-label",
   removeLabels: "--remove-label",
 };
 
-/** The sub-actions `POST /api/tasks/:id/<action>` accepts. Anything else is a
- * verb this lane does not run, and says so. */
+/** The sub-actions `POST /api/tasks/:id/<action>` accepts. */
 export const TASK_ACTION_VERBS: Readonly<Record<string, string>> = {
   close: "close",
   comments: "comments add",
@@ -188,8 +131,7 @@ export interface TaskLaneOptions {
   now?: () => Date;
   /** Runs one `bd` invocation. Injectable so a test can watch, or refuse. */
   run?: (argv: string[], cwd: string) => BdResult;
-  /** The audit name every write carries. Defaults to the repo's `git
-   * user.name` — the operator, because this lane is the operator's. */
+  /** The audit name every write carries; defaults to the repo's `git user.name`. */
   actor?: string;
 }
 
@@ -202,13 +144,9 @@ interface Resolved {
   actor: string | null;
 }
 
-/** `bd` is not reliably on PATH. `os:up` may be started by launchd, which hands
- * a minimal environment, so the runner looks where the installer puts it
- * (scripts/runner/host-tools.mjs `BD_CANDIDATES`) — and this process is its child.
- *
- * PATH IS CONSULTED FIRST, which is what makes this testable at all: the test
- * puts a fake `bd` at the front of PATH and every spawn goes there. A machine
- * with a real `bd` on PATH gets the same one a terminal would. */
+/** `bd` is not reliably on PATH under launchd's minimal environment, so the
+ * installer's locations are the fallbacks. PATH is consulted first: a test puts
+ * a fake `bd` at the front of PATH and every spawn goes there. */
 export function resolveBdBin(env: NodeJS.ProcessEnv = process.env): string {
   const fromPath = (env.PATH ?? "").split(path.delimiter).filter(Boolean);
   const fallbacks = [
@@ -226,10 +164,7 @@ export function resolveBdBin(env: NodeJS.ProcessEnv = process.env): string {
   return "bd"; // let the spawn fail with a message that names it
 }
 
-/** A `bd` call is a subprocess against a local SQL server: fast when the hub is
- * up, and hung forever when it is not. The bound is generous enough for a
- * portfolio-sized `bd list` and short enough that a dead hub answers the
- * browser rather than holding the socket. */
+/** A dead hub hangs `bd` forever; the bound lets it answer the browser instead. */
 const BD_TIMEOUT_MS = 30_000;
 
 export function defaultRun(argv: string[], cwd: string, env: NodeJS.ProcessEnv = process.env): BdResult {
@@ -263,10 +198,8 @@ function resolveOptions(options: TaskLaneOptions = {}): Resolved {
   };
 }
 
-/** Who the hub records. The repo's own `git user.name` — the same name every
- * commit in this checkout carries — because a write from this lane IS the
- * operator's. `operator` when git cannot say, which is honest rather than
- * silently attributing the write to whatever `bd` would have guessed. */
+/** Who the hub records for a write: the repo's `git user.name`, or `operator`
+ * when git cannot say, rather than whatever `bd` would have guessed. */
 export function operatorActor(repoRoot: string): string {
   const res = spawnSync("git", ["-C", repoRoot, "config", "user.name"], {
     encoding: "utf8",
@@ -292,10 +225,8 @@ export async function readSpokes(repoRoot: string, options: TaskProjectReadOptio
   return readTaskProjects({ ...options, repoRoot });
 }
 
-/** The bead id's prefix — `ro-l1ed.1` → `ro`. Ids are `<prefix>-<hash>` and the
- * prefix is NOT derivable from the asset (`ex` is not `example.com`), which is
- * exactly why a saved task project records its prefix (Settings → Task
- * projects). */
+/** The id's prefix — `ab-x1y2.1` → `ab`. The prefix is not derivable from the
+ * asset, which is why a saved task project records it. */
 export function prefixOf(id: string): string {
   const dash = id.indexOf("-");
   return dash <= 0 ? "" : id.slice(0, dash);
@@ -305,8 +236,7 @@ export function prefixOf(id: string): string {
 // Refusals
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** A refusal, thrown so a handler reads top to bottom instead of threading an
- * error shape through every step. Caught once, at the entry point. */
+/** A refusal, thrown so a handler reads top to bottom; caught once at the entry point. */
 class Refused extends Error {
   constructor(readonly reply: LaneReply) {
     super(typeof reply.body.error === "string" ? reply.body.error : "refused");
@@ -326,12 +256,9 @@ function refuse(status: number, error: string, detail?: string): Refused {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * One `bd` invocation, guarded.
- *
- * The allowlist is consulted BEFORE the spawn, which is the whole point: a verb
- * this lane does not run never becomes a process. A non-zero exit comes back as
- * 502 with `bd`'s own stderr verbatim in `detail` — the operator is looking at a
- * board, and "bd said this" is more useful than any sentence written here.
+ * One `bd` invocation. The allowlist is consulted before the spawn, so a verb
+ * this lane does not run never becomes a process. A non-zero exit comes back
+ * as 502 with `bd`'s own stderr verbatim in `detail`.
  */
 export function runVerb(
   verb: string,
@@ -374,10 +301,8 @@ export function runVerb(
   return { result, json: parseJson(result.stdout) };
 }
 
-/** `bd` writes its JSON to stdout and its notices ("Showing 1 of 59 ready
- * issues…") to stderr, so stdout parses cleanly — but a write verb may answer
- * in prose, and that is not a failure. Unparseable output becomes `undefined`
- * and the caller decides whether it needed it. */
+/** `bd` writes JSON to stdout and notices to stderr, but a write verb may
+ * answer in prose; unparseable output is `undefined`, not a failure. */
 function parseJson(stdout: string): unknown {
   const text = stdout.trim();
   if (text === "") return undefined;
@@ -400,14 +325,10 @@ function rows(json: unknown): unknown[] {
 // Request parsing
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** The statuses a caller may filter a list by. Passed through to `bd` rather
- * than reinterpreted, but shaped: this becomes a CLI argument, and a free-form
- * string there is an argument-injection surface for no gain. */
+/** Shaped because it becomes a CLI argument. */
 const STATUS_PATTERN = /^[a-z_]+(,[a-z_]+)*$/;
 
-/** Active and parked work, plus the complete recent closed window. Parked work
- * stays visible without becoming queued; closed work explains the completion
- * count rather than being a sampled afterthought. */
+/** Active and parked work, plus the complete recent closed window. */
 const DEFAULT_STATUSES = "open,in_progress,blocked,deferred,closed";
 
 function body(request: LaneRequest): Record<string, unknown> {
@@ -443,10 +364,7 @@ function optionalString(source: Record<string, unknown>, key: string): string | 
   return value;
 }
 
-/** The spoke a request names, or a 404 that says which projects exist. An
- * unknown project is not an error to swallow: the operator's next move is
- * Settings → Task projects, where the saved task projects are edited
- * (`readTaskProjects`), and the answer says so (bead `ro-ujb9.215`). */
+/** The spoke a request names, or a 404 that says which projects exist. */
 async function spokeByAsset(asset: string | null, opts: Resolved): Promise<Spoke> {
   const spokes = await opts.readProjects();
   if (asset === null || asset === "") {
@@ -464,8 +382,7 @@ async function spokeByAsset(asset: string | null, opts: Resolved): Promise<Spoke
   return spoke;
 }
 
-/** The spoke a bead id belongs to, read off its prefix. A task page is reached
- * by id alone, and the id already says which repo answers for it. */
+/** The spoke a task id belongs to, read off its prefix. */
 async function spokeById(id: string, opts: Resolved): Promise<Spoke> {
   const spokes = await opts.readProjects();
   const prefix = prefixOf(id);
@@ -484,10 +401,8 @@ async function spokeById(id: string, opts: Resolved): Promise<Spoke> {
 }
 
 /**
- * Bead ids are `<prefix>-<hash>` with optional `.n` child segments; a gate's may
- * carry a doubled dash (`bd show --help` names `gt--xyz`). Checked because the
- * id reaches a command line — and note what the shape guarantees: an id starts
- * with an alphanumeric, so it can never arrive looking like a flag.
+ * Checked because the id reaches a command line: the shape starts with an
+ * alphanumeric, so an id can never arrive looking like a flag.
  */
 function beadId(raw: string): string {
   const id = decodeURIComponent(raw);
@@ -512,10 +427,8 @@ function readReady(spoke: Spoke, opts: Resolved): Set<string> {
 }
 
 /**
- * `bd epic status` is an ENHANCEMENT, not the work itself: it supplies the
- * all-time child denominator a trailing list read cannot. A spoke whose `bd`
- * cannot answer it still gets a board — `epics: null`, and the index falls back
- * to flat lists. Same rule the poller applies (`BEADS_OPTIONAL_READS`).
+ * `bd epic status` supplies the all-time child denominator a list read cannot.
+ * A spoke whose `bd` cannot answer it still gets a board: `epics: null`.
  */
 function readEpics(spoke: Spoke, opts: Resolved): LiveEpic[] | null {
   try {
@@ -626,9 +539,7 @@ async function createTask(request: LaneRequest, opts: Resolved): Promise<LaneRep
   if (parent !== null) args.push("--parent", parent);
   const acceptance = optionalString(input, "acceptance");
   if (acceptance !== null) args.push("--acceptance", acceptance);
-  // The handoff grammar (config/beads.README.md §Handoff metadata) travels as a
-  // JSON object and reaches `bd` as one, so a bead filed from a finding carries
-  // the same `noticeos_*` keys the copied command would have written.
+  // The handoff metadata travels as a JSON object and reaches `bd` as one.
   const metadata = input.metadata;
   if (metadata !== undefined && metadata !== null) {
     if (typeof metadata !== "object" || Array.isArray(metadata)) {
@@ -641,8 +552,7 @@ async function createTask(request: LaneRequest, opts: Resolved): Promise<LaneRep
   const created = (json ?? {}) as Record<string, unknown>;
   const id = text(created.id);
   if (id === "") {
-    // The bead may well exist; what is missing is the id, and a task page
-    // cannot be opened without one. Say that rather than invent an id.
+    // The task may exist; only the id is missing, and a task page needs one.
     throw refuse(502, "bd_failed", result.stdout.trim() || "bd create returned no id");
   }
   return { status: 201, body: { id, project: spoke.asset } };
@@ -653,8 +563,7 @@ async function updateTask(id: string, request: LaneRequest, opts: Resolved): Pro
   const spoke = await spokeById(id, opts);
   const args: string[] = [id];
 
-  // `--claim` is atomic (assignee + in_progress in one step, idempotent), which
-  // is why it is a flag rather than two field writes that could half-land.
+  // `--claim` is atomic (assignee + in_progress), unlike two field writes.
   if (input.claim === true) args.push("--claim");
 
   for (const [key, value] of Object.entries(input)) {
@@ -668,9 +577,7 @@ async function updateTask(id: string, request: LaneRequest, opts: Resolved): Pro
       if (typeof value !== "string") {
         throw refuse(422, "invalid_body", `${key} must be a string`);
       }
-      // An empty string is meaningful for two of these: `--defer ""` clears a
-      // deferral and `--parent ""` un-parents. Passed through rather than
-      // filtered out, because "clear this" is an edit.
+      // An empty string is meaningful: `--defer ""` and `--parent ""` clear.
       args.push(flag, value);
       continue;
     }
@@ -696,11 +603,6 @@ async function updateTask(id: string, request: LaneRequest, opts: Resolved): Pro
   return { status: 200, body: { id, project: spoke.asset } };
 }
 
-/**
- * The four things done TO a task: close it, comment on it, answer it, decline
- * it. An action outside this set is refused as a verb this lane does not run —
- * the allowlist rule, expressed at the URL where a caller would meet it.
- */
 async function actOnTask(
   id: string,
   action: string,
@@ -719,8 +621,7 @@ async function actOnTask(
   const spoke = await spokeById(id, opts);
 
   if (action === "close") {
-    // Completion is evidence (config/beads.README.md): a close without a reason
-    // is a close nobody can audit, so the lane will not make one.
+    // A close without a reason is one nobody can audit.
     const reason = requiredString(input, "reason");
     runVerb(verb, [id, "--reason", reason], spoke, opts);
   } else if (action === "comments") {
@@ -730,17 +631,16 @@ async function actOnTask(
     const response = requiredString(input, "response");
     respondToHuman(id, response, spoke, opts);
   } else {
-    // `bd human dismiss` takes an OPTIONAL reason: declining an ask is itself
-    // the answer, and forcing prose for it would only produce empty prose.
+    // `bd human dismiss` takes an optional reason.
     const reason = optionalString(input, "reason");
     runVerb(verb, reason === null ? [id] : [id, "--reason", reason], spoke, opts);
   }
   return { status: 200, body: { id, project: spoke.asset } };
 }
 
-/** bd 1.1.2 can leave its server-mode store inactive in human respond.
- * Only its known ID-resolution failure happens before the response write;
- * every other failure remains a failure, without replaying any write. */
+/** `bd human respond` can fail to resolve the id before writing anything
+ * ("storage is nil"); only that failure is retried as comment + close.
+ * Every other failure remains a failure, without replaying any write. */
 function respondToHuman(id: string, response: string, spoke: Spoke, opts: Resolved): void {
   // Resolve the operator once, so every write in this action has one actor.
   const operatorOpts = { ...opts, actor: opts.actor ?? operatorActor(opts.repoRoot) };
@@ -770,8 +670,7 @@ function respondToHuman(id: string, response: string, spoke: Spoke, opts: Resolv
       !Array.isArray(issue.labels) || !issue.labels.includes("human")) {
     throw refuse(502, "bd_failed", "This task is not an active human decision.");
   }
-  // Match bd human respond's comment and close reason exactly. Both writes
-  // retain the same operator actor and explicit project as the native call.
+  // Match `bd human respond`'s comment and close reason exactly.
   runVerb("comments add", [resolvedId, `Response: ${response}`], spoke, operatorOpts);
   try {
     runVerb("close", [resolvedId, "--reason", "Responded"], spoke, operatorOpts);
@@ -783,9 +682,6 @@ function respondToHuman(id: string, response: string, spoke: Spoke, opts: Resolv
   }
 }
 
-/** Releasing a gate. Its own path because a gate is its own thing: it holds a
- * bead out of `bd ready` until a person says the condition is met, and
- * `bd gate resolve` is the verb that says so. */
 async function resolveGate(id: string, request: LaneRequest, opts: Resolved): Promise<LaneReply> {
   const input = body(request);
   const spoke = await spokeById(id, opts);
@@ -806,17 +702,13 @@ export async function handleTasksRequest(
   const url = new URL(request.url ?? TASKS_PATH, "http://lane.local");
   const pathname = url.pathname;
 
-  // Asked before anything else and answered before anything else: no spoke, no
-  // project, no `bd`. A browser that cannot get this far renders the snapshot
-  // board, which is the correct fallback whatever the reason.
+  // Answered before anything else: no spoke, no project, no `bd`.
   if (pathname === CAPABILITIES_PATH) {
     if (request.method !== "GET") return { status: 405, body: { error: "method_not_allowed" } };
     return { status: 200, body: { live: true, reason: null } };
   }
 
-  // Same origin for READS too, not only writes. Every path here spawns a
-  // process against the operator's own task hub; a foreign page has no business
-  // enumerating the portfolio's work any more than closing a bead in it.
+  // Same origin for reads too: every path here spawns a process.
   if (crossOrigin(request.headers)) {
     return { status: 403, body: { error: "forbidden" } };
   }
@@ -889,11 +781,8 @@ export function taskLaneMiddleware(options: TaskLaneOptions = {}) {
   });
 }
 
-/**
- * The plugin. Dev only, `enforce: "pre"` — it has to answer `/api/tasks/*`
- * before the Cloudflare plugin dispatches those paths into the Worker, which is
- * where the deployed (read-only) answer lives.
- */
+/** `enforce: "pre"`: it must answer before the Cloudflare plugin dispatches
+ * these paths into the Worker. */
 export function taskLane(options: TaskLaneOptions = {}): Plugin {
   return {
     name: "noticeos:task-lane",

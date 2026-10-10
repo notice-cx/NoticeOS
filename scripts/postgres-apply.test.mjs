@@ -27,10 +27,9 @@ import { LOCK_KEY, MigrationRefused } from './postgres-migrate.mjs';
 import { OWNER, checkTarget, main } from './postgres-apply.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
 
-// THE OPERATOR-ONLY COMMAND THAT BUILDS THE POSTGRES SCHEMA IN AN
-// INSTALLATION'S OWN DATABASE (bead ro-ujb9.76.34): `pnpm postgres:migrate`,
-// scripts/postgres-apply.mjs. It has never been run on this installation's
-// database; these proofs run it on throwaway clusters only.
+// The operator-only command that builds the Postgres schema in an
+// installation's own database: `pnpm postgres:migrate`,
+// scripts/postgres-apply.mjs. These proofs run it on throwaway clusters only.
 //
 //   - STATIC, always: the target is checked before anything connects (a
 //     development database, --dir or --url, a relative socket, an unnamed or
@@ -54,8 +53,8 @@ import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
 //     a failing migration leaves the database exactly as it was; a second run
 //     is refused while one holds the lock; bootstrap creates the one workspace
 //     once, and two at once cannot both create one. With psql alone on the
-//     machine, no initdb or pg_ctl (bead ro-ujb9.76.39), status reaches the
-//     server and prints its plan, while a throwaway cluster still needs the
+//     machine, no initdb or pg_ctl, status reaches the server and prints its
+//     plan, while a throwaway cluster still needs the
 //     server binaries. On a second throwaway cluster, a host that needs a
 //     password, as the Compose profile does (db/postgres/host/): the owner's
 //     URL comes from the variable named, works over TCP, and neither it nor a
@@ -243,7 +242,7 @@ process.exit(2);
   );
   assert.equal(seen.password, createHash('sha256').update(password).digest('hex'), 'the password reached psql in its environment');
   assert.deepEqual(seen.pg, ['PGAPPNAME', 'PGCONNECT_TIMEOUT', 'PGPASSFILE', 'PGPASSWORD', 'PGSERVICEFILE'], 'and nothing else of the kind');
-  // The operator's command is told within seconds that it cannot connect (bead ro-4qrz).
+  // The operator's command is told within seconds that it cannot connect.
   assert.equal(OPERATOR_CONNECT_SECONDS, 5);
   assert.equal(seen.connectTimeout, '5', "the operator's command waits 5 s to connect");
 
@@ -627,7 +626,7 @@ test('bootstrap creates the one workspace once, as the owner, after the migratio
   });
 });
 
-// ─── Live: psql alone on the machine (bead ro-ujb9.76.39) ──────────────────
+// ─── Live: psql alone on the machine ───────────────────────────────────────
 
 test('with psql alone, no initdb or pg_ctl, status reaches the server and prints its plan; a throwaway cluster still needs the server binaries', async (t) => {
   await live(t, async () => {
@@ -650,9 +649,9 @@ test('with psql alone, no initdb or pg_ctl, status reaches the server and prints
       { env, encoding: 'utf8' },
     );
     assert.deepEqual(JSON.parse(found.stdout), { psql: path.join(bin, 'psql'), server: null }, found.stderr);
-    // The committed list freezes the baseline (bead ro-ujb9.76.55), so the
-    // command as the operator runs it, with no list handed in, finds the
-    // baseline pending and applicable, and reads no "not frozen" against it.
+    // The committed list freezes the baseline, so the command as the operator
+    // runs it, with no list handed in, finds the baseline pending and
+    // applicable, and reads no "not frozen" against it.
     const child = spawnSync(process.execPath, [path.join(REPO_ROOT, 'scripts', 'postgres-apply.mjs'), 'status', ...db.flags], { cwd: REPO_ROOT, env, encoding: 'utf8' });
     assert.equal(child.status, 0, `the committed list freezes the baseline, so status prints its plan: ${child.stderr}`);
     assert.match(child.stdout, /, as noticeos_owner$/mu);

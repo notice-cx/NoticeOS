@@ -1,29 +1,18 @@
 /**
- * A firing a person started from the product rather than the scheduler — the
- * connect panel's Start collecting, which runs one job step now (bead
- * `ro-ujb9.96.7.19`). It is recorded in `job_runs` like any firing, marked in
- * its `detail` column (no schema change), so the Workflows page can list it in
- * its job's run history, marked Manual.
- *
- * The runner never writes this detail: its own records carry a lane's summary
- * or nothing.
+ * A firing a person started from the product rather than the scheduler. It is
+ * recorded in `job_runs` like any firing, marked in its `detail` column, so
+ * the Workflows page can list it marked Manual. The runner never writes this
+ * detail.
  */
 export const MANUAL_RUN_DETAIL = "trigger:manual";
 
 /**
- * The one latest-run read shared by asset #0's signal and every Tower surface.
- * Keeping the SQL here prevents the monitoring metric and the operator view
- * from quietly choosing different rows for the same scheduled lane.
- *
- * On Postgres (bead `ro-ujb9.76.4.3`): each job's newest start, one row per
- * job. `(job, started_at)` is unique, so there is never a tie to break.
- * Instants leave as the store prints them; each reader passes them through
- * `javascriptInstant`.
- *
- * SCHEDULED FIRINGS ONLY. A manual run is left out, so "did the crons run?"
- * (`cronRunSuccessValue`) and a lane's scheduled last run mean exactly what
- * they meant before manual runs were recorded: a press cannot make a silent
- * scheduler look alive, nor a failed press make a healthy one look broken.
+ * The one latest-run read shared by asset #0's signal and every Tower
+ * surface: each job's newest start, one row per job (`(job, started_at)` is
+ * unique). Instants leave as the store prints them; each reader passes them
+ * through `javascriptInstant`. Scheduled firings only: a press cannot make a
+ * silent scheduler look alive, nor a failed press make a healthy one look
+ * broken.
  */
 export const LATEST_JOB_RUNS_SQL =
   `SELECT DISTINCT ON (job) job, outcome, started_at FROM noticeos.job_runs WHERE detail IS NULL OR detail <> '${MANUAL_RUN_DETAIL}' ORDER BY job, started_at DESC`;

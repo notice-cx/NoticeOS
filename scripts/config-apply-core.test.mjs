@@ -22,11 +22,10 @@ import {
 } from './config-apply-core.mjs';
 import { documentRefusal } from './config-documents.mjs';
 
-// The FILE half of the pipeline, which two entry points now share: the operator's
-// `pnpm config:apply` and the Tower's write lane (D18, ro-pbzu.5). The CLI's own
-// suite covers the store lane against a stubbed ingest door; this one covers what
-// the extraction moved — pointer writes, the read-modify-write, the archive's
-// numbering, and the refusals that stand between a request body and a repo file.
+// The FILE half of the pipeline, shared by `pnpm config:apply` and the Tower's
+// write lane: pointer writes, the read-modify-write, the archive's numbering,
+// and the refusals that stand between a request body and a repo file. The
+// CLI's own suite covers the store lane against a stubbed ingest door.
 //
 // Every case runs against a THROWAWAY repo root. `repoRoot` is a parameter on
 // each function precisely so a test never has to write into the real config/.
@@ -41,8 +40,8 @@ async function tempRepo(files = {}) {
 }
 
 /** The smallest layout the Wall can draw: one row, taking the screen, with the
- * asset grid in it. Enough for the pipeline's own checks (bead `ro-lzmq.3`);
- * the layout GRAMMAR is tested in apps/tower/test/wall-layout.test.ts. */
+ * asset grid in it. Enough for the pipeline's own checks; the layout GRAMMAR
+ * is tested in apps/tower/test/wall-layout.test.ts. */
 const DRAWABLE_WALL = {
   version: 1,
   rows: [{ id: 'sites', height: 'fill', widgets: [{ id: 'sites', type: 'sites', width: 1 }] }],
@@ -107,7 +106,7 @@ test('deepEqual compares JSON structurally, not by reference', () => {
 test('the file allowlist is the boundary — anything outside it is refused by name', () => {
   // A file that declares a KNOB answers with the knob it declares rather than
   // with the four wholesale-editable files, which are not what the writer was
-  // reaching for (bead ro-x5gu.8).
+  // reaching for.
   assert.throws(
     () => validateSchemaAndSafety(changeset([fileOp({ file: 'config/signal-panels.json' })])),
     /is not a settable knob in config\/signal-panels\.json/,
@@ -184,10 +183,10 @@ test('applyFileOps writes each touched file once, 2-space JSON with a trailing n
   assert.equal(doc.flag_defaults.min_baseline_per_day, 3);
 });
 
-// Bead ro-ujb9.125: config/ holds the product's defaults, the installation
-// folder holds this installation's own copy. A write starts from the default
-// when the installation has none, lands in the installation, and the default
-// is never rewritten; the next read takes the installation's copy.
+// config/ holds the product's defaults, the installation folder holds this
+// installation's own copy. A write starts from the default when the
+// installation has none, lands in the installation, and the default is never
+// rewritten; the next read takes the installation's copy.
 test('a write lands in the installation folder and leaves the product default alone', async () => {
   const root = await tempRepo({ 'config/constants.json': CONSTANTS });
   const before = await fs.readFile(path.join(root, 'config/constants.json'), 'utf8');
@@ -226,16 +225,12 @@ test('the archive takes the next four-digit number, migration-style', async () =
   assert.equal(stored.ops.length, 1);
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// file-json-insert / file-json-delete — the ops that change a config file's
-// SHAPE, added with the add-asset wizard (bead ro-z349.1).
-//
-// The pipeline's original rule was "we never create structure", which is what
-// kept a settings write from being an arbitrary file write. Adding an asset
-// needs exactly the opposite, so these two get their OWN allowlist — one
-// container per file, addressed by asset id — rather than widening the one that
-// governs `file-json-set`.
-// ─────────────────────────────────────────────────────────────────────────────
+// file-json-insert / file-json-delete: the ops that change a config file's
+// SHAPE. The pipeline's rule is "never create structure", which is what keeps a
+// settings write from being an arbitrary file write; adding an asset needs
+// exactly the opposite, so these two get their OWN allowlist (one container per
+// file, addressed by asset id) rather than widening the one that governs
+// `file-json-set`.
 
 const INTEGRATIONS = {
   version: 1,
@@ -247,9 +242,9 @@ const PULL = [
   { asset: 'meals.example', url: 'https://meals.example/m', enabled: true },
   { asset: 'nosh.example', url: 'https://nosh.example/o', enabled: true },
 ];
-// The two panel registers (bead ro-sk7q). Both carry file-level metadata beside
-// their `/assets` map — the roster's refresh block is what a pass costs — which
-// is exactly what the one-container rule keeps an asset write away from.
+// The two panel registers. Both carry file-level metadata beside their
+// `/assets` map (the roster's refresh block is what a pass costs), which is
+// exactly what the one-container rule keeps an asset write away from.
 const SIGNAL_PANELS = {
   version: 1,
   refresh: { windowDays: 35, freshnessMaxAgeDays: 7, providerCostUsdPerPass: 0 },
@@ -257,9 +252,9 @@ const SIGNAL_PANELS = {
     'meals.example': {
       enabled: true,
       reason: 'live-lanes',
-      task: 'ro-2zk.5',
-      // A LEGACY key (bead `ro-ujb9.96.6.17` retired the roster's free-text
-      // note): stored rows still carry one, and a field write must leave it.
+      task: 'ex-12.5',
+      // A LEGACY key: stored rows still carry one, and a field write must
+      // leave it.
       note: 'GSC + GA4 live.',
       since: '2026-08-03',
     },
@@ -270,16 +265,16 @@ const SERP_PANEL = {
     'meals.example': { queries: ['meals', 'meals calculator'] },
   },
 };
-// The portfolio's legal entities (bead ro-aodz). An asset's owner is a string on
-// one of these rows rather than an entry of the asset's own, which is why a
-// delete reaches it with a guarded SET (bead ro-xzxg).
+// The portfolio's legal entities. An asset's owner is a string on one of these
+// rows rather than an entry of the asset's own, which is why a delete reaches it
+// with a guarded SET.
 const ENTITIES = {
   version: 1,
   entities: [
     { slug: 'first-co', name: 'First Co' },
     {
-      slug: 'reindex-ventures',
-      name: 'Reindex Ventures LLC',
+      slug: 'second-co',
+      name: 'Second Co LLC',
       assets: ['meals.example', 'fees.example'],
     },
   ],
@@ -312,10 +307,10 @@ test('pointerInsert adds a key, appends, or splices in at a position', () => {
   pointerInsert(doc, '/list/-', 3);
   assert.deepEqual(doc.list, [1, 2, 3]);
 
-  // An INDEX splices in and shifts the rest down — RFC 6902's `add` for an
-  // array, and what undoing a removal needs (bead `ro-asj9`). Which registers
-  // may say one is `positionedInsert`'s answer, one level up; this primitive
-  // just does it. The end of the list is a position too.
+  // An INDEX splices in and shifts the rest down (RFC 6902's `add` for an
+  // array), which is what undoing a removal needs. Which registers may say one
+  // is `positionedInsert`'s answer, one level up; this primitive just does it.
+  // The end of the list is a position too.
   pointerInsert(doc, '/list/1', 9);
   assert.deepEqual(doc.list, [1, 9, 2, 3]);
   pointerInsert(doc, '/list/4', 5);
@@ -339,17 +334,11 @@ test('pointerDelete removes a key and SPLICES an array element rather than holin
   assert.throws(() => pointerDelete(doc, '/list/9'), /out-of-range array index/);
 });
 
-// THIS KEY SET IS PINNED SO GROWING IT IS A DECISION (bead `ro-sk7q`), not a
-// side effect of declaring a register. It is the ASSET LIFECYCLE's list: the
-// files an asset is born into and deleted out of, which is exactly the list the
-// Settings tab's Delete confirmation names and clears.
-//
-// The two GA4 declarations joined on 2026-09-05 (bead `ro-vyer`), and that is
-// the decision this test forced: an asset's own value events and registered
-// dimensions are part of what the asset IS, so they leave with it. Before that
-// a deleted asset stayed named in both files, in silence — a slow leak while an
-// entry could only appear by hand-editing JSON, and an operator-speed one once
-// the Sources tab could file one with a click.
+// This key set is pinned so growing it is a decision, not a side effect of
+// declaring a register. It is the ASSET LIFECYCLE's list: the files an asset is
+// born into and deleted out of, which is exactly the list the Settings tab's
+// Delete confirmation names and clears. An asset's own value events and
+// registered dimensions are part of what the asset IS, so they leave with it.
 test('the add/remove allowlist names one container per file, and nothing else', () => {
   assert.deepEqual([...ADDABLE_CONTAINERS.keys()].sort(), [
     'config/counters.json',
@@ -366,12 +355,11 @@ test('the add/remove allowlist names one container per file, and nothing else', 
     () => validateSchemaAndSafety(changeset([insertOp({ file: 'config/constants.json' })])),
     /may not touch/,
   );
-  // And the reverse: these three may grow by an asset but not be edited — "may
+  // And the reverse: these three may grow by an asset but not be edited. "May
   // add an asset's entry" and "may rewrite any value in this file" are separate
-  // permissions, and they are refusable separately. One of them declares a
-  // scalar KNOB (bead ro-x5gu.8), so its refusal names the pointers that would
-  // have worked instead of the wholesale allowlist; the permission is the same
-  // size either way, because a knob licenses one pointer and not the file.
+  // permissions, refusable separately. One of them declares a scalar KNOB, so
+  // its refusal names the pointers that would have worked instead of the
+  // wholesale allowlist; a knob licenses one pointer and not the file.
   for (const [file, rule] of [
     ['config/counters.json', /is not editable/],
     ['config/signal-panels.json', /is not a settable knob/],
@@ -392,18 +380,16 @@ test('the add/remove allowlist names one container per file, and nothing else', 
       `pointer ${pointer}`,
     );
   }
-  // `/catalog/0` IS a row of this file — the catalog is an array register with
-  // declared fields, so an insert may name a POSITION in it (bead `ro-asj9`),
-  // and what decides is the VALUE. The same shape as the lane case below.
+  // `/catalog/0` IS a row of this file (the catalog is an array register with
+  // declared fields, so an insert may name a POSITION in it), and what decides
+  // is the VALUE. The same shape as the lane case below.
   assert.throws(
     () => validateSchemaAndSafety(changeset([insertOp({ pointer: '/catalog/0' })])),
     /is not a field here — this one declares id, label/,
   );
   // ONE LANE INSIDE AN ASSET'S ENTRY is a row too, since `asset-lane` declared
-  // it (bead `ro-vu8d.4`) — the register whose fields the Sources tab edits. So
-  // the pointer is legal and the VALUE is what decides: a lane cell needs the
-  // fields a lane cell has, and the refusal names them. That is the declaration
-  // doing its job rather than a pointer error standing in for it.
+  // it. So the pointer is legal and the VALUE is what decides: a lane cell
+  // needs the fields a lane cell has, and the refusal names them.
   assert.throws(
     () => validateSchemaAndSafety(changeset([insertOp({ pointer: '/assets/meals.example/gsc' })])),
     /is not a field here — this one declares/,
@@ -420,9 +406,9 @@ test('the add/remove allowlist names one container per file, and nothing else', 
   );
 
   // A tracked query's own list is an array register with declared fields, so a
-  // POSITION in it is a row an insert may name (bead `ro-asj9`) — which is how
-  // undoing a removal puts the term back where it was. The pointer is legal and
-  // the value decides, exactly as above; the LIST itself still is not.
+  // POSITION in it is a row an insert may name, which is how undoing a removal
+  // puts the term back where it was. The pointer is legal and the value
+  // decides, exactly as above; the LIST itself still is not.
   assert.throws(
     () =>
       validateSchemaAndSafety(
@@ -445,8 +431,8 @@ test('the add/remove allowlist names one container per file, and nothing else', 
   );
 
   // The two panel registers hold more than their `/assets` map, and nothing
-  // above it is reachable (bead ro-sk7q): not the refresh cadence, not the list
-  // holding a panel's terms.
+  // above it is reachable: not the refresh cadence, not the list holding a
+  // panel's terms.
   for (const [file, pointer] of [
     ['config/signal-panels.json', '/refresh'],
     ['config/signal-panels.json', '/assets/meals.example/enabled'],
@@ -493,10 +479,10 @@ test('config/pull.json is an ARRAY: an insert appends, a delete names an index',
   validateSchemaAndSafety(changeset([append]));
 
   // An append is the only insert THIS array takes. It is the one register in the
-  // map whose rows are OPAQUE — whole asset endpoints the wizard files and
-  // unfiles — so nothing reads their order and an index would be a claim about
-  // nothing (bead `ro-asj9`: every array register with declared FIELDS may name
-  // a position, because that is what puts a removed row back where it was).
+  // map whose rows are OPAQUE (whole asset endpoints the wizard files and
+  // unfiles), so nothing reads their order and an index would be a claim about
+  // nothing; every array register with declared FIELDS may name a position,
+  // because that is what puts a removed row back where it was.
   assert.throws(
     () => validateSchemaAndSafety(changeset([{ ...append, pointer: '/0' }])),
     /pointer must be "\/-"/,
@@ -622,8 +608,7 @@ test('an asset is added to all three registers, and removed from them again', as
   assert.deepEqual(await readBack('config/pull.json'), PULL);
 });
 
-// The two panel registers (bead ro-sk7q). Both key by asset id and neither was
-// on the allowlist, so an asset could be deleted out of the store and go on
+// The two panel registers key by asset id, and a deleted asset must not go on
 // being named by the file that decides what the weekly collector buys.
 test('the two panel registers grow and shrink by one asset, and nothing else moves', async () => {
   const root = await tempRepo({
@@ -635,7 +620,7 @@ test('the two panel registers grow and shrink by one asset, and nothing else mov
   const rosterRow = {
     enabled: false,
     reason: 'no-lane-yet',
-    task: 'ro-2zk.2',
+    task: 'ex-12.2',
     since: '2026-09-04',
   };
   const panel = { queries: ['brandnew calculator'] };
@@ -681,10 +666,9 @@ test('the two panel registers grow and shrink by one asset, and nothing else mov
   assert.deepEqual(await readBack('config/serp-panel.json'), SERP_PANEL);
 });
 
-// A DELETED ASSET COMES OFF ITS OWNER'S LIST (bead ro-xzxg). The other half of
-// the delete the two tests above cover: the asset's own entries go, and the id
-// it left on the entity that owned it is written out of that row's list — one
-// changeset, so the terminal cannot leave a ghost the Tower would not.
+// A deleted asset comes off its owner's list: the asset's own entries go, and
+// the id it left on the entity that owned it is written out of that row's list
+// in one changeset, so the terminal cannot leave a ghost the Tower would not.
 test("an asset's id leaves the entity that owned it, and the row itself stays", async () => {
   const root = await tempRepo({
     'config/integrations.json': INTEGRATIONS,
@@ -714,8 +698,8 @@ test("an asset's id leaves the entity that owned it, and the row itself stays", 
   // The entity is a legal person: it keeps its row, its name, and every other
   // asset it owns. Only the id of the asset that no longer exists is gone.
   assert.deepEqual(entities.entities[1], {
-    slug: 'reindex-ventures',
-    name: 'Reindex Ventures LLC',
+    slug: 'second-co',
+    name: 'Second Co LLC',
     assets: ['fees.example'],
   });
   assert.deepEqual(entities.entities[0], ENTITIES.entities[0]);
@@ -728,7 +712,7 @@ test('a list that moved since the delete was offered is a mismatch, and nothing 
       kind: 'file-json-set',
       file: 'config/entities.json',
       pointer: '/entities/1/assets',
-      // What the page rendered before somebody else claimed a second asset.
+      // What the page rendered before a second asset was claimed.
       expect: ['meals.example'],
       value: [],
     },
@@ -742,21 +726,15 @@ test('a list that moved since the delete was offered is a mismatch, and nothing 
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// THE DATE A FILE STATES ABOUT ITSELF (bead `ro-auav`).
+// The date a file states about itself.
 //
 // `config/integrations.json` and `config/signal-panels.json` each carry a
-// top-level `updated` beside their version. The write lane only ever
-// touched the container an op named, so every asset the wizard filed and every
-// posture the Sources tab recorded left the file naming a date before the
-// change. Nothing reads the field — what is wrong is a file allowed to state a
-// fact about itself falsely.
-//
-// The rule is DECLARED (`DOCUMENT_STAMPS`) and applied by `applyDocumentOps`,
-// which is the one place every entry point applies its ops — so the terminal,
-// the dev write lane and the ingest Worker stamp identically, and a file the
-// declaration does not name is stamped by nothing.
-// ─────────────────────────────────────────────────────────────────────────────
+// top-level `updated` beside their version. Nothing reads the field; what is
+// wrong is a file allowed to state a fact about itself falsely. The rule is
+// DECLARED (`DOCUMENT_STAMPS`) and applied by `applyDocumentOps`, the one place
+// every entry point applies its ops, so the terminal, the dev write lane and
+// the ingest Worker stamp identically, and a file the declaration does not name
+// is stamped by nothing.
 const DATED_INTEGRATIONS = { ...INTEGRATIONS, updated: '2026-08-09' };
 const DATED_SIGNAL_PANELS = { ...SIGNAL_PANELS, updated: '2026-08-05' };
 
@@ -772,8 +750,7 @@ test("an insert and a delete each leave the file's own updated date equal to the
   await applyFileOps(added.resolved, added.fileCache, { repoRoot: root, at });
   assert.equal((await readBack('config/integrations.json')).updated, '2026-09-05');
 
-  // A DELETE is a change to the file too — the old lane bumped nothing either
-  // way, so removing an asset was the other half of the same stale claim.
+  // A DELETE is a change to the file too.
   const remove = changeset([deleteOp({ pointer: '/assets/brandnew.test', expect: insertOp().value })], {
     createdAt: '2026-09-06T02:00:00.000Z',
   });
@@ -794,8 +771,8 @@ test('a set stamps the roster file too, and a file that states no date gains non
   const root = await tempRepo({
     'config/signal-panels.json': DATED_SIGNAL_PANELS,
     // The same register in a file that never claimed a date. A stamp REFRESHES
-    // what is there; creating structure is the one thing this pipeline has never
-    // done, and a file that claims nothing is not lying.
+    // what is there; creating structure is the one thing this pipeline never
+    // does, and a file that claims nothing is not lying.
     'config/serp-panel.json': SERP_PANEL,
   });
   const readBack = async (rel) => JSON.parse(await fs.readFile(path.join(root, rel.replace(/^config\//, 'installation/')), 'utf8'));
@@ -823,19 +800,14 @@ test('a set stamps the roster file too, and a file that states no date gains non
   assert.equal('updated' in (await readBack('config/serp-panel.json')), false);
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// A ROSTER ROW'S DECISION DATE MOVES WITH THE DECISION (bead `ro-6kd6`).
+// A roster row's decision date moves with the decision.
 //
 // `since` is defined as "when the decision was taken", and the Growth tab edits
-// `enabled`, `reason`, `note` (now `task`) and `since` as four independent cells — so
-// flipping the switch stamped the NEW decision with the OLD one's day, in the
-// only audit trail this file carries for a roster change.
-//
-// The pair is DECLARED on the register (`stamps`) rather than written into the
-// surface, so it holds for a hand-written changeset and for a deployed Save as
-// well as for the click, and CollectionEditor's one-changeset-per-cell contract
-// is untouched.
-// ─────────────────────────────────────────────────────────────────────────────
+// `enabled`, `reason`, `task` and `since` as four independent cells, so the
+// pipeline has to stamp the NEW decision with its own day. The pair is DECLARED
+// on the register (`stamps`) rather than written into the surface, so it holds
+// for a hand-written changeset and for a deployed Save as well as for the
+// click, and CollectionEditor's one-changeset-per-cell contract is untouched.
 test('flipping a roster row dates the decision, in both directions', async () => {
   const root = await tempRepo({ 'config/signal-panels.json': DATED_SIGNAL_PANELS });
   const readBack = async () =>
@@ -876,8 +848,8 @@ test('a roster write that decides nothing new moves no date', async () => {
     JSON.parse(await fs.readFile(path.join(root, 'installation/signal-panels.json'), 'utf8'));
 
   // Editing the TASK is not the decision, so the day the decision was taken
-  // stands. (The file's own `updated` still moves — that IS a change to the
-  // file, bead `ro-auav`.)
+  // stands. (The file's own `updated` still moves: that IS a change to the
+  // file.)
   const cs = changeset(
     [
       {
@@ -885,7 +857,7 @@ test('a roster write that decides nothing new moves no date', async () => {
         file: 'config/signal-panels.json',
         pointer: '/assets/meals.example/task',
         expect: SIGNAL_PANELS.assets['meals.example'].task,
-        value: 'ro-2zk.7',
+        value: 'ex-12.7',
       },
     ],
     { createdAt: '2026-09-09T11:00:00.000Z' },
@@ -900,15 +872,12 @@ test('a roster write that decides nothing new moves no date', async () => {
   assert.equal(roster.updated, '2026-09-09');
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// A DATA SOURCE'S POSTURE IS DATED THE SAME WAY (bead `ro-t7fz`).
+// A data source's posture is dated the same way.
 //
 // `asset-lane` is the roster register's sibling: `since` means "when this
 // posture was recorded", and the Sources tab writes `status` and `note` as two
-// cells with no date field at all — so declining a source stamped the new
-// posture with the old one's day, and no surface could correct it. One declared
-// `stamps` pair, the same mechanism, both files.
-// ─────────────────────────────────────────────────────────────────────────────
+// cells with no date field at all. One declared `stamps` pair, the same
+// mechanism, both files.
 const POSTURED_INTEGRATIONS = {
   ...INTEGRATIONS,
   assets: {
@@ -1009,13 +978,11 @@ test('display_name is a store column now, bounded at 80 characters', () => {
   assert.throws(() => validateSchemaAndSafety(changeset([rename(7)])), /1–80 characters/);
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The DECLARED registers (bead ro-x5gu.1). Every list-shaped config register now
-// has a container, a key and per-field rules in `config-registers.mjs`, and this
-// module derives its allowlists and its refusals from them. What follows is one
-// pass per register file: an insert, a set INSIDE a row, a delete, and the
-// refusals that stand between a wrong row and a config file.
-// ─────────────────────────────────────────────────────────────────────────────
+// The DECLARED registers. Every list-shaped config register has a container,
+// a key and per-field rules in `config-registers.mjs`, and this module derives
+// its allowlists and its refusals from them. What follows is one pass per
+// register file: an insert, a set INSIDE a row, a delete, and the refusals that
+// stand between a wrong row and a config file.
 
 const DOMAIN_COSTS = {
   domains: [
@@ -1037,8 +1004,8 @@ const RECURRING_COSTS = {
 };
 const VALUE_EVENTS = { assets: { 'meals.example': { valueEvents: ['sign_up', 'auth_complete'] } } };
 // `SIGNAL_PANELS` and `SERP_PANEL` are declared at the top of this file: they
-// are the same two files a whole-asset add/remove touches (ro-sk7q), and the
-// same two an operator now edits row by row.
+// are the same two files a whole-asset add/remove touches, and the same two an
+// operator edits row by row.
 const BEADS = {
   hub: { host: '127.0.0.1' },
   spokes: [{ asset: 'root-os', prefix: 'ro', database: 'ro', repo: '.' }],
@@ -1074,8 +1041,8 @@ test('a declared register takes an insert, a set inside a row, and a delete', as
     {
       kind: 'file-json-set',
       file: 'config/recurring-costs.json',
-      // The label, not the amount: the amount is fixed once added (bead
-      // `ro-ujb9.96.6.17`) — a price change is a new row.
+      // The label, not the amount: the amount is fixed once added, and a price
+      // change is a new row.
       pointer: '/costs/0/label',
       expect: 'Claude Code (Max)',
       value: 'Claude Max',
@@ -1110,13 +1077,12 @@ test('a declared register takes an insert, a set inside a row, and a delete', as
   );
 });
 
-// UNDOING A REMOVAL PUTS THE ROW BACK WHERE IT WAS (bead `ro-asj9`).
+// Undoing a removal puts the row back where it was.
 //
-// A delete SPLICES, so an insert that could only append returned the row at the
-// end of the list: the row came back, its neighbours' order did not — visible
-// wherever a table is drawn in file order, which /financials is. An indexed
-// insert is RFC 6902's `add` for an array, and it is what makes the Undo in the
-// toast an undo.
+// A delete SPLICES, so an insert that could only append would return the row
+// at the end of the list, visible wherever a table is drawn in file order. An
+// indexed insert is RFC 6902's `add` for an array, and it is what makes the
+// Undo in the toast an undo.
 test('an array insert may name a position, and puts a removed row back in it', async () => {
   const root = await tempRepo({ 'config/domain-costs.json': DOMAIN_COSTS });
   const readBack = async () =>
@@ -1157,14 +1123,13 @@ test('an array insert may name a position, and puts a removed row back in it', a
   );
 });
 
-// A JOIN KEY IS SET WHEN THE ROW IS CREATED AND NOT RENAMED (bead `ro-xhy5`).
+// A join key is set when the row is created and not renamed.
 //
 // The Tower renders such a field as text rather than a control, but a UI-only
 // rule is a suggestion: this is the door a hand-written rename changeset comes
-// through, and it is refused here too. The refusal is deliberate rather than an
-// omission — a rename needs matching edits in files (and collectors) this
-// pipeline cannot make, so the way to change one is the way the money and the
-// code already went: remove the row, record the new one.
+// through, and it is refused here too. A rename needs matching edits in files
+// (and collectors) this pipeline cannot make, so the way to change one is to
+// remove the row and record the new one.
 test('a read-only field is refused a rename, at its own pointer and inside a whole row', () => {
   const renameField = {
     kind: 'file-json-set',
@@ -1273,14 +1238,12 @@ test('a read-only field is refused a rename, at its own pointer and inside a who
   );
 });
 
-// AN `asset-id` FIELD HAS TO NAME AN ASSET THAT EXISTS (bead `ro-x5gu.10`).
-//
-// The field rule only ever judged SHAPE, so `meals.fod` was accepted and
-// booked a recurring cost against an asset no row in `assets` has — money that
-// silently leaves the by-asset split while the total goes on including it. The
+// An `asset-id` field has to name an asset that exists, or a recurring cost
+// can be booked against an asset no row in `assets` has: money that silently
+// leaves the by-asset split while the total goes on including it. The
 // candidates are `config/integrations.json` `/assets`, the config-side roster
 // every asset is filed into on Create; the store is deliberately out of reach
-// here, because `pnpm config:apply` shares this module and may not open a D1.
+// here, because `pnpm config:apply` shares this module and may not open it.
 test('a row naming an asset the roster does not have is refused, by both entry points', async () => {
   const root = await tempRepo({
     'config/integrations.json': INTEGRATIONS,
@@ -1332,8 +1295,8 @@ test('a row naming an asset the roster does not have is refused, by both entry p
   );
 });
 
-// A REPO WITH NO ROSTER REFUSES NOTHING. "Nobody answered" is not "nothing is
-// allowed" — the same reading the browser gives an empty picker, and what keeps
+// A repo with no roster refuses nothing. "Nobody answered" is not "nothing is
+// allowed": the same reading the browser gives an empty picker, and what keeps
 // a throwaway root (and an early checkout) applying its changesets.
 test('an absent roster file leaves the asset check silent rather than refusing everything', async () => {
   const root = await tempRepo({ 'config/recurring-costs.json': RECURRING_COSTS });
@@ -1368,7 +1331,7 @@ test('a set inside a declared row is checked against the FIELD, by name and rule
   assert.throws(
     () => validateSchemaAndSafety(changeset([set('/domains/0/paidUsd', 'twelve')])),
     // The pointer names the key for whoever reads the file; the sentence
-    // names the field by its label, as the Tower shows it (ro-ujb9.154).
+    // names the field by its label, as the Tower shows it.
     /\/domains\/0\/paidUsd — Paid \(USD\) must be a number$/,
   );
   assert.throws(
@@ -1396,10 +1359,10 @@ test('a set inside a declared row is checked against the FIELD, by name and rule
 test('the wholesale four keep their freedom, and gain field checks where a register overlaps', () => {
   const set = (file, pointer, value) => ({ kind: 'file-json-set', file, pointer, expect: null, value });
   // integrations.json is BOTH wholesale-settable and the home of the catalog
-  // register: a lane status is unvalidated as it always was, and an undeclared
-  // key elsewhere in the file still passes on the file's own permission rather
-  // than being newly refused. A catalog field is the product's own definition
-  // (bead `ro-ujb9.96.14`): every one is fixed, so a set is refused.
+  // register: a lane status is unvalidated, and an undeclared key elsewhere in
+  // the file still passes on the file's own permission rather than being newly
+  // refused. A catalog field is the product's own definition: every one is
+  // fixed, so a set is refused.
   validateSchemaAndSafety(changeset([set('config/integrations.json', '/assets/meals.example/gsc/status', 'live')]));
   validateSchemaAndSafety(changeset([set('config/integrations.json', '/states/0/anything', 1)]));
   for (const [pointer, value] of [['/catalog/0/label', 'Search Console'], ['/catalog/0/layer', 'os'], ['/catalog/0/docRef', 'docs/x.md']]) {
@@ -1411,9 +1374,9 @@ test('the wholesale four keep their freedom, and gain field checks where a regis
   }
 });
 
-// A PRODUCT UPDATE STILL REACHES AN INSTALLATION (bead `ro-ujb9.96.14`): a new
-// data source arrives as one catalog row inserted (0008 did PostHog so), and
-// that row is checked against the declaration like any other insert.
+// A product update still reaches an installation: a new data source arrives as
+// one catalog row inserted, and that row is checked against the declaration
+// like any other insert.
 test('a new data source still arrives as a checked catalog row', () => {
   const row = { id: 'example-source', label: 'Example source', scope: 'property', layer: 'provider', credential: 'shared', docRef: 'docs/11-integrations.md' };
   const insert = (value) => ({ kind: 'file-json-insert', file: 'config/integrations.json', pointer: '/catalog/-', value });
@@ -1495,9 +1458,9 @@ test('a per-asset register carries the asset in its container', async () => {
     ]),
   );
 
-  // And that is how the Tower declares an asset's FIRST value event (bead
-  // `ro-x5gu.3`): one insert carrying the whole entry, applied here end to end
-  // so the surface's op and the lane's answer cannot drift apart.
+  // And that is how the Tower declares an asset's FIRST value event: one insert
+  // carrying the whole entry, applied here end to end so the surface's op and
+  // the lane's answer cannot drift apart.
   const seed = changeset([
     {
       kind: 'file-json-insert',
@@ -1575,11 +1538,11 @@ test('an object register keyed by asset id takes rows and field sets', async () 
   );
 });
 
-// ONE CLUSTER, ONE SPELLING (bead `ro-cnsj`) — the rule config/serp-panel's
-// README states and the collector enforces, applied where the row is written
-// instead of a week later. Grouping is an exact string match on the stored
-// label, so relabelling one row of a cluster into a case variant made two bets
-// out of one and failed that asset's WHOLE panel on the next Monday run.
+// One cluster, one spelling: the rule config/serp-panel's README states and the
+// collector enforces, applied where the row is written instead of a week later.
+// Grouping is an exact string match on the stored label, so relabelling one row
+// of a cluster into a case variant makes two bets out of one and fails that
+// asset's WHOLE panel on the next run.
 test('a tracked query may not be relabelled into a second spelling of one cluster', async () => {
   const root = await tempRepo({
     'config/serp-panel.json': {
@@ -1649,13 +1612,13 @@ test('a tracked query may not be relabelled into a second spelling of one cluste
   assert.deepEqual(joined.mismatches, []);
 });
 
-// TURNING A ROSTER ROW ON IS A CLAIM ABOUT ANOTHER FILE (bead `ro-uko8`).
+// Turning a roster row on is a claim about another file.
 //
 // config/signal-panels.README.md states the rule and its own validation snippet
 // fails a roster with this sentence; the register declares
 // `requiresLiveSearchLane`, and the pipeline reads the lanes out of the file the
 // snippet reads. A refresh pass over an asset with no live lane writes an EMPTY
-// panel dir, which doc 20 says is indistinguishable on disk from a collapsed one.
+// panel dir, indistinguishable on disk from a collapsed one.
 test('a roster row is only enabled when integrations.json shows a live search lane', async () => {
   const root = await tempRepo({
     'config/signal-panels.json': SIGNAL_PANELS,
@@ -1822,8 +1785,8 @@ test('one declared DOCUMENT may appear in a wholesale-editable file, and nothing
   );
 
   // The Wall's saved composition is a key config/tower.json does not have until
-  // the operator arranges one — a set cannot create it, and no register is
-  // shaped like it, so it is declared on its own (epic ro-lzmq).
+  // the operator arranges one: a set cannot create it, and no register is
+  // shaped like it, so it is declared on its own.
   const wall = { layout: DRAWABLE_WALL, history: [] };
   validateSchemaAndSafety(
     changeset([
@@ -1836,10 +1799,9 @@ test('one declared DOCUMENT may appear in a wholesale-editable file, and nothing
     ]),
   );
 
-  // The countdown is the same shape (bead `ro-fqag`): optional, one whole block
-  // at one pointer, and unmakeable from the product until it could be inserted —
-  // a set never creates a key, so /settings could edit three fields it could
-  // never create. The three move together because they are one landmark.
+  // The countdown is the same shape: optional, one whole block at one pointer,
+  // and unmakeable from the product until it could be inserted, since a set
+  // never creates a key. The three move together because they are one landmark.
   const countdown = { emoji: '🌁', label: 'SF MOVE', targetAt: '2026-11-16T08:00:00.000Z' };
   validateSchemaAndSafety(
     changeset([
@@ -1900,18 +1862,11 @@ test('one declared DOCUMENT may appear in a wholesale-editable file, and nothing
       ),
     /missing "expect"/,
   );
-
-  // And WHAT the document holds IS this module's question since bead ro-lzmq.3:
-  // the layout contract's runtime moved to scripts/wall-layout.mjs so this
-  // pipeline can run it, which is the test below.
 });
 
 test('an undrawable /wall is refused here, in the words the editor prints', () => {
-  // The gap this closes: until 2026-09-05 the rule lived only in the Tower's
-  // dev write lane, so `pnpm config:apply --stdin --yes` committed a layout the
-  // television could not draw and the first thing to notice was the next Worker
-  // build. The contract's runtime now lives in scripts/wall-layout.mjs, which
-  // this pipeline imports — so every door refuses in the same sentence.
+  // The layout contract's runtime lives in scripts/wall-layout.mjs, which this
+  // pipeline imports, so every door refuses in the same sentence.
   const undrawable = { layout: { version: 1, rows: [] }, history: [] };
 
   // Inserting the whole landmark, which is how a first layout arrives.
@@ -2014,7 +1969,7 @@ test('an undrawable /wall is refused here, in the words the editor prints', () =
   );
 });
 
-test('a column is judged at this door too: one level deep, never empty (ro-trai.2)', () => {
+test('a column is judged at this door too: one level deep, never empty', () => {
   // The column slot (docs/14-design.md § Regions) is part of the one rule,
   // so config:apply and the ingest's applyConfigOps — both through
   // validateSchemaAndSafety — refuse a layout the Wall cannot draw in the
@@ -2051,11 +2006,11 @@ test('a column is judged at this door too: one level deep, never empty (ro-trai.
   );
 });
 
-test('a layout saved before D28 is taken back whole, never as a piece, and the read-side marker is never written (ro-trai.11)', () => {
-  // D28 retired seven widget types. A whole `/wall` naming one still reads (as
+test('a layout saved with a retired widget type is taken back whole, never as a piece, and the read-side marker is never written', () => {
+  // Seven widget types are retired. A whole `/wall` naming one still reads (as
   // the default), so an Undo that puts one back is not refused; a fresh
   // `/wall/layout` naming one is, and `retired` is what a READ says about the
-  // store — written into it, every later read would believe it.
+  // store: written into it, every later read would believe it.
   const old = { version: 1, rows: [{ id: 'assets', height: 'fill', widgets: [{ id: 'assets', type: 'assets', width: 1 }] }] };
   validateSchemaAndSafety(
     changeset([{ kind: 'file-json-set', file: 'config/tower.json', pointer: '/wall', expect: null, value: { layout: old, history: [] } }]),
@@ -2081,10 +2036,10 @@ test('a layout saved before D28 is taken back whole, never as a piece, and the r
   );
 });
 
-// A WHOLE DOCUMENT, judged by the same declarations (bead ro-ujb9.222): the
-// Tower's build checks the product defaults it compiles in with this, so a
-// malformed default fails the build naming the file and where. That the shipped
-// and saved documents pass is scripts/config-registers.test.mjs's.
+// A WHOLE DOCUMENT, judged by the same declarations: the Tower's build checks
+// the product defaults it compiles in with this, so a malformed default fails
+// the build naming the file and where. That the shipped and saved documents
+// pass is scripts/config-registers.test.mjs's.
 test('documentRefusal names what is wrong with a malformed document, and where', () => {
   assert.equal(documentRefusal('config/pull.json', []), null);
   assert.equal(documentRefusal('config/counters.json', { assets: {} }), null);

@@ -13,9 +13,9 @@ import { OPERATOR_TOKEN } from './fixtures.js';
 import { asOwner, call, reset, storeArchiveRuns, storeInsightSnapshots, storeSignalRuns } from './helpers.js';
 import { addSites, removeSites } from './sites';
 
-// The capacity inventory against a synthetic store (bead ro-ujb9.66). This test
-// Postgres copy carries every migration, so it proves the operational catalog
-// agrees with the schema. No capacity sample is written into D1.
+// The capacity inventory against a synthetic store. This test Postgres copy
+// carries every migration, so it proves the operational catalog agrees with
+// the schema.
 
 const NOW = Date.parse('2026-09-24T12:00:00.000Z');
 const DAY = 86_400_000;

@@ -1,22 +1,12 @@
-// WHAT A MEDIAVINE ESTIMATE COVERS, READ ONCE FROM ITS NOTE (beads ro-ujb9.72
-// and ro-ujb9.76.6.1).
+// What a Mediavine estimate covers, read once from its note. The ledger keeps
+// the answer as data (`ledger_entries.coverage_end`), and both writers of that
+// column (`pnpm postgres:import` and the ledger route) apply this one rule.
 //
-// D1's financial view decides whether a month of Mediavine daily estimates may
-// stand in for an imported monthly estimate by parsing that estimate's note
-// (db/migrations/0034_mediavine.sql, `usable_months`). The Postgres ledger
-// keeps the answer as data instead, `ledger_entries.coverage_end`, and its view
-// reads the column (db/postgres/migrations/0001_baseline.sql). Two writers set
-// the column from the same wording: the D1 importer, for the entries D1 holds
-// (`pnpm postgres:import`, its ledger rules), and the ledger route, for an entry
-// booked after the switch (workers/ingest/src/routes/revenue.ts). This is the
-// one rule both apply, so an estimate counts the same whichever wrote it, and
-// the same as D1 counted it.
-//
-// Authored TypeScript: `pnpm config:generate` writes the `.mjs` the importer
-// and the ingest import, and the `.d.mts` beside it.
+// Authored TypeScript: `pnpm config:generate` writes the `.mjs` and `.d.mts`
+// beside it.
 
 /** The sources whose monthly estimates a month of Mediavine daily estimates
- * may replace (0034's view, 0001_baseline.sql's). */
+ * may replace. */
 export const MEDIAVINE_SOURCES: readonly string[] = ['mediavine-journey', 'mediavine'];
 
 /** What of an entry the rule reads. */
@@ -29,8 +19,8 @@ export interface CoverageNoteEntry {
 
 /** A Mediavine estimate's coverage end: a 'YYYY-MM-DD' day, or null when its
  * note states none. `unreadable` marks a note that starts like a PARTIAL
- * coverage note and does not parse: it has no end, as D1 read it, and the
- * importer reports it for review. */
+ * coverage note and does not parse: it has no end, and the importer reports
+ * it for review. */
 export interface MediavineCoverage {
   end: string | null;
   unreadable: boolean;
@@ -47,11 +37,10 @@ function realDay(year: number, month: number, day: number): boolean {
 }
 
 /**
- * The coverage end of a Mediavine estimate for `period` ('YYYY-MM'), read from
- * its note exactly as D1's view read it: a revenue `ads` entry from a
- * Mediavine source whose note is 'Mediavine Journey, … days — PARTIAL, covers
- * …..YYYY-MM-DD', that last day falling in the entry's own month. The note is
- * read in characters (code points), as SQLite's `substr` reads text.
+ * The coverage end of a Mediavine estimate for `period` ('YYYY-MM'), read
+ * from its note: a revenue `ads` entry from a Mediavine source whose note is
+ * 'Mediavine Journey, … days — PARTIAL, covers …..YYYY-MM-DD', that last day
+ * falling in the entry's own month. The note is read in code points.
  */
 export function mediavineCoverage(entry: CoverageNoteEntry, period: string): MediavineCoverage {
   const none: MediavineCoverage = { end: null, unreadable: false };

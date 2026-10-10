@@ -7,7 +7,7 @@ exactly as doc 06 wants.
 
 **Two entry points apply one.**
 
-1. **The Tower** (D18, 2026-09-04). A settings field has a Save. Pressing it
+1. **The Tower.** A settings field has a Save. Pressing it
    PUTs the ops to `/api/config`, where a local write lane inside the `os:up`
    dev server applies them, archives the changeset here, and commits it — then
    the toast offers Undo. Most changesets in this directory now arrive this way.
@@ -24,10 +24,8 @@ run — so "what may be edited" has one answer, and
 `apps/tower/test/config-write-lane.test.ts` runs both entry points over identical
 temp repos and compares what each left behind.
 
-**There is no cart.** Until 2026-09-04 the Tower could not write config at all:
-an edit was staged into a browser-local cart, exported as a changeset, and
-pasted into a terminal. D18 retired that — a setting saves where it stands, and
-the way back is an Undo afterwards rather than a review step before.
+**There is no cart.** A setting saves where it stands, and the way back is an
+Undo afterwards rather than a review step before.
 
 This file is the format's single source of truth.
 [`apps/tower/shared/changeset.ts`](../../apps/tower/shared/changeset.ts) builds the
@@ -93,8 +91,7 @@ version of this one.
 
 #### A first write into a declared optional field
 
-The **one** exception, and it is a single key wide *(2026-09-05, bead
-`ro-j71v`)*. A register field the declaration marks optional is **absent** until
+The **one** exception, and it is a single key wide. A register field the declaration marks optional is **absent** until
 something writes it — every mapping field in `config/integrations.json` is, so
 the GA4 property id, the Search Console or Bing site and the DataForSEO scope
 are each written for the first time on some asset's Sources tab.
@@ -122,13 +119,12 @@ model:
    **row** rather than a field is a whole-row set, checked as a whole row —
    which is how a row that is one bare string is edited at all, and how an
    optional field is *cleared away* rather than written as a `null`.
-   A field the register marks **`readOnly`** is refused outright *(bead
-   `ro-xhy5`)*: it may be set when the row is created and not afterwards, and a
+   A field the register marks **`readOnly`** is refused outright: it may be set when the row is created and not afterwards, and a
    whole-row set that *moves* one is the same rename by another pointer. The
    join keys whose rename breaks something no table shows carry it — the
    data-source catalog's `id`, a recurring cost's `id`, a domain order's
    `domain`, an entity's `slug` — and so does a recurring cost's
-   `amountUsdPerMonth` *(bead `ro-ujb9.96.6.17`)*, because every month already
+   `amountUsdPerMonth`, because every month already
    booked was booked at it: a price change closes the row with `to` and adds a
    new one, as Stripe does for a price's amount. That refuses a hand-authored
    rename changeset too, deliberately: a rename needs matching edits in files
@@ -150,11 +146,10 @@ model:
 
 ### `file-json-insert` / `file-json-delete`
 
-Add or remove **one row** of a declared register. They arrived as the file half
-of "an asset was created" (bead `ro-z349.1`, the add-asset wizard) — until
-2026-09-04 an asset was born as a seed migration plus a handful of hand edits —
-and since bead `ro-x5gu.1` every list-shaped register in `config/` is reachable
-the same way, because [every one of them has a CRUD surface](#the-register-map).
+Add or remove **one row** of a declared register: the file half of "an asset
+was created" (the add-asset wizard), and the same way every list-shaped
+register in `config/` is reachable, because
+[every one of them has a CRUD surface](#the-register-map).
 
 They have their **own allowlist**, narrower than the one above: a declared
 container, and a pointer that is exactly one reference token past it.
@@ -164,19 +159,18 @@ container, and a pointer that is exactly one reference token past it.
 | an **array** container | `<container>/-` (append — RFC 6902's "end of array"), or `<container>/<index>` where the register's rows have declared **fields** | `<container>/<index>` |
 | an **object** container | `<container>/<asset-id>` | `<container>/<asset-id>` |
 
-**A delete has one more legal pointer than an insert** *(2026-09-05, bead
-`ro-pkpz`)*: `<container>/<row>/<field>`, where the field is one the register
+**A delete has one more legal pointer than an insert**:
+`<container>/<row>/<field>`, where the field is one the register
 declares **optional** — the exact mirror of [a first
 write](#a-first-write-into-a-declared-optional-field), licensed by the same rule
 and refusing the same shapes. It is how a mapping comes back **off**: a GA4
 property id, a Search Console or Bing site and a DataForSEO scope are each
-absent until an operator writes one, and clearing the box was refused (a field
-rule reads `""` as a blank string, not as "take this away"), so a wrong mapping
-could be replaced and never removed and the asset could not go back to reading
-its fallback source. It is also what makes a **first save undoable at all** —
-the way back from writing a key is taking it away, and until this op there was
-none, so the Sources tab was the one Save surface in the Tower with no Undo
-(against [doc 14](../../docs/14-design.md) principle 5).
+absent until an operator writes one, and clearing the box is refused (a field
+rule reads `""` as a blank string, not as "take this away"), so without this
+op a wrong mapping could be replaced and never removed and the asset could not
+go back to reading its fallback source. It is also what makes a **first save
+undoable at all** — the way back from writing a key is taking it away
+([doc 14](../../docs/14-design.md)).
 
 An **insert** is deliberately not legal there. A field's first value is a set
 that says `expectAbsent`, so an insert has nothing to do at a field, and
@@ -184,10 +178,10 @@ licensing one would widen the permission that keeps "a row may be added"
 separate from "this file may be rewritten".
 
 **An indexed insert SPLICES IN** — RFC 6902's `add` for an array — and it exists
-so that undoing a removal puts the row back **where it was** *(2026-09-05, bead
-`ro-asj9`)*: a delete splices, so an undo that could only append returned the row
-at the end and left its neighbours in an order nothing had asked for, which is
-visible wherever a table is drawn in file order (`/financials` is). The one array
+so that undoing a removal puts the row back **where it was**: a delete
+splices, so an undo that could only append would return the row at the end and
+leave its neighbours in an order nothing had asked for, which is visible
+wherever a table is drawn in file order (`/financials` is). The one array
 register that keeps the append-only rule is `config/pull.json`, whose rows are
 **opaque** — whole asset endpoints the wizard files and unfiles, whose order
 nothing reads, so an index there would be a claim about nothing. An index past
@@ -212,15 +206,11 @@ is reachable from nowhere at all: no register names it, the file is not
 wholesale-editable, and the two [knobs](#the-knobs) inside it license their own
 two pointers rather than the block holding them.
 
-The two panel registers were added on 2026-09-04 (bead `ro-sk7q`) and the two GA4
-declarations on 2026-09-05 (bead `ro-vyer`), because a **delete** has to reach
-them. All four key entries by asset id and none of them was on this list, so the
-Tower's delete confirmation neither listed nor removed them — deleting an asset
-with a tracked SERP panel left `config/serp-panel.json` naming an id the store no
-longer had, and said nothing. A file this list does not know about is worse than
-one it fails on: the failure at least prints a changeset. The GA4 pair was the
-slower leak of the two while an entry could only appear by hand-editing JSON, and
-stopped being slow the moment the Sources tab could file one with a click.
+The two panel registers and the two GA4 declarations are on the list because
+a **delete** has to reach them: all four key entries by asset id, and a file
+this list did not know about would leave `config/serp-panel.json` naming an id
+the store no longer had, and say nothing. A file this list does not know about
+is worse than one it fails on: the failure at least prints a changeset.
 
 Note the two allowlists are deliberately **not the same set**:
 `config/counters.json`, `config/signal-panels.json`, `config/serp-panel.json`,
@@ -229,7 +219,7 @@ whole asset here and are *not* wholesale-editable by `file-json-set`. "May add a
 file" are different permissions, and they are refusable separately.
 `config/counters.json` has no field-level register at all, so a counter card
 still cannot be set; the two panel files do — a roster row's `enabled` and a
-tracked query, which the asset's Growth tab edits (`ro-x5gu.4`) — and each of
+tracked query, which the asset's Growth tab edits — and each of
 those is a *declared field*, checked by type, never a free write into the file.
 
 | field | meaning |
@@ -246,8 +236,8 @@ container. A second one is its own changeset. (Two *different* containers are tw
 different arrays and may both change in one changeset. An **append** renumbers
 nothing and does not count.)
 
-So the Tower's Undo of a removal puts the row back **where it was** *(2026-09-05,
-bead `ro-asj9`)*, and its `expect` guard is unchanged: an insert has never
+So the Tower's Undo of a removal puts the row back **where it was**, and its
+`expect` guard is unchanged: an insert has never
 carried one — its guard is absence for a key, and for a position it is that the
 index still exists, which is checked against the file and refused loudly when it
 does not.
@@ -299,8 +289,8 @@ Three of the per-asset files carry **two registers**: a list inside each asset,
 and an opaque HOLDER at `/assets` above it. The holder exists because a pointer
 never creates structure — an asset with no entry at all (the common case in all
 three, where absence means *not declared*) has no list to append to, so its
-holder entry is filed first. All three holders are now whole-asset registers
-*(2026-09-05, bead `ro-vyer`)*: an asset's GA4 declarations leave with it exactly
+holder entry is filed first. All three holders are whole-asset registers: an
+asset's GA4 declarations leave with it exactly
 as its tracked panel does. Being ✦ is not the same as being written on **Create**
 — the wizard files the first three and the roster row, and deliberately asks for
 none of these four, because a panel is a weekly bill and a GA4 declaration is a
@@ -311,7 +301,7 @@ never by declaration order, so a pointer inside an asset's list always belongs t
 the list rather than to the holder above it.
 
 `entities` is the one register whose rows are **not** about a single asset, and
-it stores an EDGE *(2026-09-05, bead `ro-aodz`)*: an entity owns a list of asset
+it stores an EDGE: an entity owns a list of asset
 ids, and an asset's owner is read back out of those lists rather than stored a
 second time beside the asset. So moving an asset between entities is two sets in
 one changeset — off the old row's `assets`, onto the new one's — and the asset's
@@ -326,30 +316,30 @@ Each field declares a **type** (`string`, `number`, `integer`, `boolean`,
 saying what it means — the same line the Tower shows under the input and the
 refusal quotes back. A value that breaks a rule is refused naming the file, the
 pointer, the field by its label and the rule. A site's row in the store is
-declared the same way (`SITE_ROW_FIELDS`, bead `ro-ujb9.183`), so Add a site and
+declared the same way (`SITE_ROW_FIELDS`), so Add a site and
 the other site lanes refuse in the same words ("Domain must be a hostname such
 as example.com"); `store-asset-id` is the store's id spelling and `asset-id`
 the configuration key's.
 
-**One cluster, one spelling** *(2026-09-05, bead `ro-cnsj`)*. A register may name
-a `clusterField` — the field naming a GROUP something downstream matches by exact
-string. `serp-panel-queries` names `label`, so relabelling one row of a cluster
-into a case variant made two bets out of one and failed that asset's whole panel
-on the next Monday run. A near miss is now refused where it is typed and by the
+**One cluster, one spelling.** A register may name a `clusterField` — the
+field naming a GROUP something downstream matches by exact string.
+`serp-panel-queries` names `label`, so relabelling one row of a cluster into a
+case variant would make two bets out of one and fail that asset's whole panel
+on the next Monday run. A near miss is refused where it is typed and by the
 pipeline, in the collector's own words (`clusterSpellingRefusal`); joining a
 cluster with its exact spelling and moving a term to a different bet stay
 ordinary edits.
 
-An **`asset-id` field is a shape plus a candidate set** *(2026-09-05, bead
-`ro-x5gu.10`)*. The type only pins the shape, so `shop.exmaple.com` used to be
-accepted and book a recurring cost against an asset no row in `assets` has —
-money quietly outside the by-asset split of a total that still counted it. The
+An **`asset-id` field is a shape plus a candidate set.** The type only pins
+the shape, so `shop.exmaple.com` would otherwise be accepted and book a
+recurring cost against an asset no row in `assets` has — money quietly outside
+the by-asset split of a total that still counted it. The
 candidates come from whoever knows, through one rule (`candidateRefusal`, beside
 `fieldRefusal`): the Tower passes the integration matrix's asset list, which is
 also the picker beside the input, and the pipeline passes the keys of
 `integrations.json` `/assets`. The pipeline's set is deliberately the **weaker**
 of the two — the store is out of reach here, since `pnpm config:apply` shares
-this code and may not open a D1 — so it never refuses an id the browser accepts;
+this code and may not open the store — so it never refuses an id the browser accepts;
 what it catches is the hand-written changeset naming an asset that is in neither.
 An empty or absent candidate set means *nobody answered* and refuses nothing.
 
@@ -366,13 +356,10 @@ follow from the declaration; none of them needs a change.
 
 ### The knobs
 
-*(added 2026-09-05, bead `ro-x5gu.8`.)*
-
 A register describes a **list**. Beside those lists sit plain numbers that are
 every bit as much settings, in files that are deliberately *not*
-wholesale-editable — so until this they were reachable from nowhere at all, and
-`/settings` rendered them as read-only rows pointing at their file because a
-Save would have been refused.
+wholesale-editable — without a declaration of their own they would be
+reachable from nowhere at all.
 
 `CONFIG_KNOBS`, in the same
 [`scripts/config-registers.mjs`](../../scripts/config-registers.mjs), declares
@@ -383,14 +370,14 @@ them **one pointer at a time**:
 | `panel-refresh-window` | `signal-panels.json` · `/refresh/windowDays` | integer, 1–365 | `/settings` |
 | `panel-freshness-bar` | `signal-panels.json` · `/refresh/freshnessMaxAgeDays` | integer, 1–365 | `/settings` |
 
-`counters.json` `/intervalMinutes` was a third, retired by bead `ro-ujb9.222`:
-the counters job's schedule is the one place that cadence is written.
+There is no counters-interval knob: the counters job's schedule is the one
+place that cadence is written.
 
 Each carries the **same field declaration a register column carries**, so
 `fieldRefusal` writes the refusal and the operator reads one sentence rather than
 two wordings of it. What changing a value costs is **drawn beside the field** on
 `/settings` — the price per pass, the freshness bar's fit inside the window —
-rather than written as a paragraph (beads `ro-ujb9.96.6.3`, `ro-ujb9.96.6.17`):
+rather than written as a paragraph:
 a cadence with no visible cost is an invitation to make the OS read more often
 and find out afterwards what that bought.
 
@@ -426,11 +413,11 @@ knobs — `db/README.md` sanctions `assets.status`, `assets.sense_only` and
 
 **A `status` op writes TWO rows.** The column, and an annotation recording the
 move — `kind: "config"`, `ref: "lifecycle:<from>><to>"`, the same string the
-Tower writes (bead `ro-3085`), stamped at the same instant on the same lane.
+Tower writes, stamped at the same instant on the same lane.
 `<from>` is the value the `expect` guard already read, so nothing is re-read
 mid-apply. Restore reads the most recent recorded move into `retired` to decide
 which stage to bring an archived asset back to; a writer that moved the column
-and recorded nothing sent it back to a labelled default instead (bead `ro-mz39`).
+and recorded nothing would send it back to a labelled default instead.
 Only `status` does this — `sense_only` and `display_name` are settings, not
 stages. If the record is refused the run says so on its own line and keeps going:
 the column HAS moved by then, and failing the apply over the record of it would
@@ -439,8 +426,7 @@ archive nothing and report a change that happened as a change that did not.
 Creating an asset ROW is not a changeset op at all. It is `POST /api/assets`
 on the Tower, over the ingest binding — see
 [the Tower's API](../../apps/tower/README.md#api). Nothing deletes one: the
-store is history, and a site's one exit is `status = 'retired'` (bead
-`ro-ujb9.76.4.5`).
+store is history, and a site's one exit is `status = 'retired'`.
 
 **The write lane does not accept these** — it answers `422
 store_op_not_accepted`, naming the route that does. They are not files, so they
@@ -509,11 +495,10 @@ been chosen, and the way back is the Undo in its toast (principle 5).
   directs the operator to `pnpm config:export`. Unknown save outcomes require
   checking current settings before retrying. Neither case blindly reapplies.
   A deployed installation's settings and sites are configured in its Tower:
-  asset columns are saved on Postgres through the ingest, which keeps D1 in
-  step while the store moves, so `--remote` (which wrote a deployed D1
-  directly) is refused and changes nothing (bead `ro-ujb9.76.4.2`).
-- **A write also refreshes the date a file states about itself** (bead
-  `ro-auav`). `config/integrations.json` and `config/signal-panels.json` each
+  asset columns are saved on Postgres through the ingest, so `--remote` is
+  refused and changes nothing.
+- **A write also refreshes the date a file states about itself.**
+  `config/integrations.json` and `config/signal-panels.json` each
   carry a top-level `updated`; applying any op that touches one sets it to the
   write's day. The database audit records the save time; offline seed mode uses
   the changeset's timestamp.
@@ -522,7 +507,7 @@ been chosen, and the way back is the Undo in its toast (principle 5).
   terminal, the browser Save and the deployed Worker all do it. It **refreshes
   and never invents**: a file that states no date gains none.
 - **A write also moves a row's decision date** where a register declares one
-  (`stamps`, bead `ro-6kd6`). The panel-refresh roster is the case: `since`
+  (`stamps`). The panel-refresh roster is the case: `since`
   means *when the decision was taken* and `enabled` is the decision, so a set
   that changes `enabled` dates that row. Only a set that actually changes the
   watched field counts — an insert carries its author's own date, a delete has
@@ -532,12 +517,11 @@ been chosen, and the way back is the Undo in its toast (principle 5).
   every changeset.
 - Store ops go through the ingest's operator-authed `/api/asset-state` routes on
   the loopback door — the read the `expect` guard makes and the write the apply
-  makes, both through the one runtime that owns the local sqlite file. Shelling
-  out to `wrangler … --local --persist-to` would start a second one over it,
-  which is the 2026-08-02 corruption topology (`ro-mad`, `ro-bko`), and this tool
-  is run by hand *beside a live `os:up`*. So a local run needs `pnpm os:up`
-  running; `--remote` still uses wrangler, because a production D1 has no local
-  file to share. Values are checked against the enum/type here and again at the
+  makes, both through the one runtime that owns the local R2 state. Shelling
+  out to `wrangler … --local --persist-to` would start a second runtime over
+  it and corrupt it, and this tool is run by hand *beside a live `os:up`*. So
+  a local run needs `pnpm os:up` running; `--remote` still uses wrangler,
+  because a deployed store has no local file to share. Values are checked against the enum/type here and again at the
   route, since an HTTP body is untrusted.
 
 ## Where a Save is refused
@@ -556,7 +540,7 @@ An unavailable configuration store produces a refusal, not a fallback file edit.
 ## Archive
 
 Every *applied* changeset is copied to `installation/changesets/NNNN_<slug>.json`
-— one installation's history, never the product's (bead ro-ujb9.125) —
+— one installation's history, never the product's —
 (zero-padded, next number after the highest already there) — migration-style, an
 honest audit artifact, and **the record whichever entry point applied it**. The
 archive is committed alongside the files it changed: `config:apply` prints the

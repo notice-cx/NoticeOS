@@ -1,20 +1,8 @@
-// /api/research-log — the ask-before-you-buy door, and the record-after-you-did.
-//
-// GET  answers "has this exact question been bought recently, and where is the
-//      answer" for a caller about to spend provider money.
-// POST records a purchase that was made.
-//
-// WHY A ROUTE AND NOT A LIBRARY. The callers that need this most are not
-// Workers: the `dataforseo` skill's `.mjs` callers, scratchpad copies of them,
-// and whatever an agent runs in a session. None of them can reach D1 — the
-// central store lives behind this Worker — which is exactly why their spend went
-// unrecorded in the first place. Giving them a library would have left the same
-// hole for anything written next week in another language.
-//
-// The GET decides nothing. It reports a prior purchase and its age; the caller
-// reuses or re-buys and says which. A route that answered "don't buy this" would
-// be making a spending decision from behind a cache, and a caller silently
-// skipping a call is indistinguishable from one that forgot to make it.
+// /api/research-log: GET answers "has this exact question been bought
+// recently, and where is the answer"; POST records a purchase. A route because
+// the callers that need it most are scripts and agent sessions that cannot
+// reach the store. The GET decides nothing: it reports a prior purchase and
+// its age, and the caller reuses or re-buys and says which.
 
 import { assetKnown } from '../asset-registry.js';
 import { authenticateOperator } from '../auth.js';
@@ -155,7 +143,7 @@ export async function handleResearchLogRecord(
   // per-property read of this table.
   const asset = typeof body.asset === 'string' ? body.asset : null;
   if (asset !== null) {
-    // The site list is on Postgres (bead ro-ujb9.76.4.2).
+    // An unknown asset is a clean error, not a raw FK failure.
     if (!(await assetKnown(env.STORE, asset))) {
       return json(
         { error: 'unknown_asset', detail: `no asset with id ${asset}` },

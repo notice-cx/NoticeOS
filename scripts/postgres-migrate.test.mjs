@@ -43,25 +43,23 @@ import {
 } from './postgres-migrate.mjs';
 import { START_WAIT_MS, parseWatched, stopOwnedServers, whatToDo } from './postgres-watchdog.mjs';
 
-// THE POSTGRES MIGRATION RUNNER TOUCHES DEVELOPMENT DATABASES ONLY, AND EVERY
-// RUN IS ONE TRANSACTION (bead ro-ujb9.76.3).
+// The Postgres migration runner touches development databases only, and every
+// run is one transaction.
 //
 //   - STATIC, always: which connection strings the development profile refuses
 //     before connecting, what a psql child inherits (no PG* settings, no
 //     password file), that values never pass through a floating-point number,
 //     that `new` writes the next numbered file, that the freeze guard catches
-//     an edited frozen migration (ro-ujb9.76.20), and that no runtime, restart
-//     or deploy path can reach the runner, nor the operator's command that runs
-//     it on a real database (ro-ujb9.76.34), whose checks only the importer
-//     may borrow (ro-ujb9.76.38) — the guard shown to catch each way in on a
-//     planted checkout. Every case holds for the real
-//     migrations however many follow the baseline. And shared memory
-//     (ro-ujb9.76.25): the segment listing reads alike on macOS and Linux,
-//     only a dead server's segment is ever removed, and where the OS refuses
-//     the listing (a sandbox) no server is started to leave one behind. The
-//     watchdog (ro-ujb9.76.26, ro-ujb9.76.29) stops only a server its folder
-//     names as listening in its owner's socket folder, and waits, bounded,
-//     for one still starting.
+//     an edited frozen migration, and that no runtime, restart or deploy path
+//     can reach the runner, nor the operator's command that runs it on a real
+//     database, whose checks only the importer may borrow; the guard is shown
+//     to catch each way in on a planted checkout. Every case holds for the
+//     real migrations however many follow the baseline. And shared memory: the
+//     segment listing reads alike on macOS and Linux, only a dead server's
+//     segment is ever removed, and where the OS refuses the listing (a
+//     sandbox) no server is started to leave one behind. The watchdog stops
+//     only a server its folder names as listening in its owner's socket
+//     folder, and waits, bounded, for one still starting.
 //   - LIVE, on throwaway clusters in temporary folders (skipped with the reason
 //     where no Postgres 15+ can start; NOTICEOS_REQUIRE_POSTGRES=1 makes it
 //     required): status only reads; apply records each file's hash; a second
@@ -427,7 +425,7 @@ test('the command refuses a missing, doubled or remote target before touching an
   assert.equal(run(['drop']).code, 2);
 });
 
-// ─── Shared memory (ro-ujb9.76.25) ──────────────────────────────────────────
+// ─── Shared memory ──────────────────────────────────────────────────────────
 
 test('the shared-memory listing reads alike from macOS ipcs and Linux /proc, and anything else reads as unknown', () => {
   const fromIpcs = parseSegments(`IPC status from <running system> as of Thu Sep 24 07:02:13 PDT 2026
@@ -904,7 +902,7 @@ test('the command applies to a throwaway folder and reuses it on the next run', 
   });
 });
 
-// ─── Live: shared memory (ro-ujb9.76.25) ────────────────────────────────────
+// ─── Live: shared memory ────────────────────────────────────────────────────
 
 /** The postmaster's pid, from a throwaway cluster folder. */
 const postmasterPid = (root) => Number(readFileSync(path.join(root, 'data', 'postmaster.pid'), 'utf8').split('\n')[0]);
@@ -947,8 +945,8 @@ test('a server killed with SIGKILL leaves its segment, attached by nobody, and t
     process.kill(pid, 'SIGKILL');
     // Its children see the postmaster gone and exit; then nobody is attached.
     // From then on the next throwaway start ANYWHERE on this machine removes
-    // it — another test run's may come first (bead ro-ujb9.76.28) — and a
-    // sweep removes only a segment attached by nobody, so gone means that too.
+    // it (another test run's may come first), and a sweep removes only a
+    // segment attached by nobody, so gone means that too.
     const left = await eventually(() => {
       const segment = segmentOf();
       if (!segment) return 'removed by another start';
@@ -1072,7 +1070,7 @@ test('a command interrupted by SIGTERM, SIGINT or SIGHUP, or exiting before clos
   });
 });
 
-// ─── Live: the watchdog (ro-ujb9.76.26) ─────────────────────────────────────
+// ─── Live: the watchdog ─────────────────────────────────────────────────────
 
 /** How long a killed command's server may outlive it. */
 const WATCHDOG_STOPS_WITHIN_MS = 10_000;
@@ -1110,7 +1108,7 @@ test('a command killed with SIGKILL has its server stopped by its watchdog withi
 
 /** A pg_ctl that runs the real one, except that on `start` it kills the
  * command running it with SIGKILL the moment the real start is under way:
- * a command killed while its server is still starting (bead ro-ujb9.76.29). */
+ * a command killed while its server is still starting. */
 function killedWhileStarting(tools, dir) {
   const pgCtl = path.join(dir, 'pg_ctl');
   const real = `'${tools.pgCtl.replaceAll("'", `'\\''`)}'`;

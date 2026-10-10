@@ -1,16 +1,10 @@
-// Signing in to Google from the Integrations page — the whole round trip
-// (bead `ro-vu8d.3`, epic `ro-vu8d`, D21, doc 14 flow C).
-//
-// WHY IT ALL LIVES IN THE INGEST WORKER. The Tower is served unauthenticated on
-// the LAN and must never hold a credential. So its two routes carry a redirect
-// and an authorization code and nothing else: the authorization URL is BUILT
-// here, the code is EXCHANGED here, and the refresh token is sealed into the
-// store here. No token, no client secret and no state signing key ever crosses
-// the Service Binding in either direction.
-//
-// Standalone retains its legacy signed state. Hosted entry uses durable,
-// person/session/workspace-bound single-use custody in the identity store.
-// The fixed receiver commits that custody before these provider helpers run.
+// Signing in to Google from the Integrations page: the whole round trip lives
+// in the ingest Worker because the Tower is served unauthenticated on the LAN
+// and must never hold a credential. The authorization URL is built here, the
+// code is exchanged here, and the refresh token is sealed here; no token,
+// client secret or state signing key crosses the Service Binding. Standalone
+// retains its signed state; hosted entry uses single-use custody in the
+// identity store, committed by the fixed receiver before these helpers run.
 
 import {
   type CredentialMetadata,
@@ -54,9 +48,8 @@ import {
 
 const REQUEST_TIMEOUT_MS = 20_000;
 
-/** The two scopes a collector cannot work without. `openid`/`email` are asked
- * for as well but their absence only costs the card an address, so an
- * incomplete grant is judged on these. */
+/** The two scopes a collector cannot work without; `openid`/`email` only cost
+ * the card an address. */
 const REQUIRED_SCOPES = [GOOGLE_SCOPES.ga4, GOOGLE_SCOPES.gsc] as const;
 
 // ---------------------------------------------------------------------------
@@ -64,32 +57,24 @@ const REQUIRED_SCOPES = [GOOGLE_SCOPES.ga4, GOOGLE_SCOPES.gsc] as const;
 // ---------------------------------------------------------------------------
 
 /** Everything the Google collectors need to know about their credential, read
- * once and passed down rather than re-resolved per lane. */
+ * once and passed down. */
 export interface ResolvedGoogleCredential {
   credential: Awaited<ReturnType<typeof resolveCredential>>;
   /** Where the credential came from — `store`, `env`, or `none`. */
   source: 'store' | 'env' | 'none';
-  /** The account → properties map, when one is configured. Undefined under an
-   * OAuth-only install, which has no properties mapped until `ro-vu8d.4`. */
+  /** The account → properties map, when one is configured. */
   accounts: string | undefined;
   /** The sign-in, when the operator made one AND the OAuth app is set. */
   oauth: GoogleOAuthGrant | null;
-  /**
-   * False exactly when Integrations draws Google as not connected: no stored
-   * row (readable or not) and no complete env binding (bead `ro-ujb9.172`).
-   * A row this Worker cannot open is still a connection, one that broke.
-   */
+  /** False exactly when Integrations draws Google as not connected: no stored
+   * row (readable or not) and no complete env binding. */
   connected: boolean;
 }
 
 /**
- * The Google credential, both halves.
- *
- * The refresh token and the client id/secret are two SEPARATE rows on purpose
- * (`google` and `google-oauth-app`): the app is a fact about this deployment
- * that survives every reconnection, and the grant is a fact about one sign-in.
- * Rotating a client secret must not log the operator out, and disconnecting
- * must not throw away the console setup they would have to redo.
+ * The Google credential, both halves. The refresh token and the client
+ * id/secret are two separate rows: the app is a fact about this deployment
+ * that survives every reconnection, the grant a fact about one sign-in.
  */
 export async function resolveGoogleCredential(
   env: IngestEnv,
@@ -178,12 +163,8 @@ export type StateVerdict =
 
 /**
  * Check a state came from this install, has not expired, and names the redirect
- * URI it is being presented at.
- *
- * Every refusal is `state_invalid` except the expiry, which is its own answer
- * because it is the one an honest operator hits — a consent screen left open
- * over lunch — and "start again" is a different instruction from "something is
- * wrong".
+ * URI it is presented at. Expiry is its own answer because it is the one an
+ * honest operator hits, and "start again" differs from "something is wrong".
  */
 export async function verifyOAuthState(
   env: IngestEnv,
@@ -237,27 +218,22 @@ export async function verifyOAuthState(
 // ---------------------------------------------------------------------------
 
 export interface BeginGoogleOAuthInput {
-  /** The origin the operator has the Tower open at. The redirect URI is derived
-   * from it, because that is the only place it can be right. */
+  /** The origin the operator has the Tower open at; the redirect URI is derived from it. */
   origin: string;
   nowMs?: number;
 }
 
 /**
  * Where to send the browser, or the one thing standing in the way.
- *
- * `prompt=consent` + `access_type=offline` together are what guarantee a
- * REFRESH token: Google issues one only on a fresh consent, and an operator who
- * has connected before would otherwise be handed an hour-long access token and
- * a card that goes dead overnight. `include_granted_scopes` is deliberately
- * absent — this OS asks for exactly what it reads and nothing it inherited.
+ * `prompt=consent` + `access_type=offline` together guarantee a refresh token:
+ * Google issues one only on a fresh consent. `include_granted_scopes` is
+ * deliberately absent: this OS asks for exactly what it reads.
  */
 export async function beginGoogleOAuth(
   env: IngestEnv,
   input: BeginGoogleOAuthInput,
 ): Promise<GoogleOAuthStart> {
-  // Every refusal below is a code the Tower words (`googleOAuthNotice`), with
-  // its one press — the loopback address, the client fields — beside it.
+  // Every refusal below is a code the Tower words, with its one press beside it.
   const verdict = googleRedirectVerdict(input.origin);
   if (!verdict.usable) return { ok: false, error: 'redirect_unusable' };
   const app = await resolveGoogleOAuthApp(env);
@@ -302,24 +278,18 @@ export interface CompleteGoogleOAuthInput {
   /** The authorization code Google put on the callback. */
   code: string;
   state: string;
-  /** The redirect URI the callback was served at — re-derived from the request
-   * rather than trusted from the state, so the two have to agree. */
+  /** The redirect URI the callback was served at, re-derived from the request
+   * rather than trusted from the state. */
   redirectUri: string;
   nowMs?: number;
   fetchImpl?: typeof fetch;
 }
 
 /**
- * Turn an authorization code into a stored refresh token.
- *
- * The code is used ONCE and never persisted, logged or echoed. What is stored
- * is the refresh token (sealed) plus the two non-secret facts the card needs:
- * the account address and the scopes Google actually granted.
- *
- * A grant missing either read scope is REFUSED rather than stored. Google's
- * consent screen lets an operator untick a box, and a credential that can read
- * Analytics but not Search Console would look connected and then fail one lane
- * a day later with a 403 nobody could trace back to a checkbox.
+ * Turn an authorization code into a stored refresh token. The code is used
+ * once and never persisted, logged or echoed. A grant missing either read
+ * scope is refused rather than stored: a credential that can read Analytics
+ * but not Search Console would look connected and fail one lane a day later.
  */
 export async function completeGoogleOAuth(
   env: IngestEnv,
@@ -362,22 +332,18 @@ async function exchangeGoogleOAuth(env: IngestEnv,
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     payload = await responseJson(response);
-    // Google answered no — a redirect mismatch, a wrong client secret, a code
-    // already spent. Its status rides along; its body never does, and neither
-    // does anything derived from what was sent.
+    // Google answered no. Its status rides along; its body never does.
     if (!response.ok) return { ok: false, error: 'exchange_failed', status: response.status };
   } catch {
-    // The thrown thing may be holding a url, and this url has a code in it.
-    // Never copy a transport error's message here. Google did not answer,
-    // which is a different instruction (try again) from a refusal.
+    // The thrown thing may be holding a url with the code in it. Google did
+    // not answer, which is a different instruction from a refusal.
     return { ok: false, error: 'unreachable' };
   }
 
   const record = asRecord(payload);
   const refreshToken = stringField(record, 'refresh_token');
-  // No refresh token: the grant would die within the hour. Google withholds
-  // one while an earlier grant stands, so the page's press is Google's own
-  // connections screen (remove the old access), then Sign in again.
+  // No refresh token: Google withholds one while an earlier grant stands, so
+  // the page's press is Google's own connections screen, then Sign in again.
   if (refreshToken === null) return { ok: false, error: 'no_refresh_token' };
 
   const scopes = (stringField(record, 'scope') ?? '').split(' ').filter(Boolean);
@@ -394,20 +360,12 @@ async function exchangeGoogleOAuth(env: IngestEnv,
     idTokenEmail(stringField(record, 'id_token')) ??
     (await userInfoEmail(stringField(record, 'access_token'), fetchImpl));
 
-  // WHEN THIS SIGN-IN DIES, as far as anything here can honestly know (bead
-  // `ro-vu8d.8`).
-  //
-  // Google publishes NO API that reports whether a consent screen is still in
-  // Testing, and a Testing screen expires every refresh token seven days after
-  // it is granted. So the default is the setup this OS itself prescribes — doc
-  // 11's console steps say External plus a test user, which IS a Testing screen
-  // — and the card states the assumption in words with a one-press correction
-  // beside it. An operator who has published the app answers once and
-  // `carriedExpiry` keeps that answer through every later sign-in.
-  //
-  // This is the difference between .8 and what shipped in `ro-vu8d.3`: the
-  // revoked-grant detection in `google-auth.ts` is honest and arrives AFTER the
-  // collectors have already failed. A date is what lets the card speak first.
+  // When this sign-in dies, as far as anything here can know: Google publishes
+  // no API that says whether a consent screen is still in Testing, and a
+  // Testing screen expires every refresh token after seven days. The default is
+  // the Testing setup; the card states the assumption with a one-press
+  // correction, and `carriedExpiry` keeps the operator's answer through every
+  // later sign-in.
   const previous = (await credentialSummary(env, 'google', policy))?.metadata ?? null;
   const metadata: CredentialMetadata = {
     account,
@@ -419,9 +377,8 @@ async function exchangeGoogleOAuth(env: IngestEnv,
     }),
   };
 
-  // Carry forward whatever else the credential held — a service-account map an
-  // install is still pulling properties from must survive a sign-in, and
-  // `putCredential` replaces rather than merges by design.
+  // Carry forward whatever else the credential held: `putCredential` replaces
+  // rather than merges.
   const existing = await resolveCredential(env, 'google', policy);
   const fields: Record<string, string> = {};
   if (existing.source === 'store' && existing.fields.GOOGLE_SIGNAL_ACCOUNTS) {
@@ -432,8 +389,7 @@ async function exchangeGoogleOAuth(env: IngestEnv,
   const stored = await putCredential(env, { provider: 'google', fields, metadata });
   if (stored.ok) {
     // Google just issued this grant for both read scopes: that is the proof,
-    // stamped where the connect panel's accepted keys are (bead
-    // `ro-ujb9.96.7.7`), so the panel reads Signed in rather than Not checked.
+    // so the panel reads Signed in rather than Not checked.
     const at = new Date(nowMs).toISOString();
     await recordCredentialOutcome(env, 'google', { ok: true, error: null, at });
     await observeIntegration(env, await tryHealthConnection(env, 'google'), {
@@ -445,13 +401,10 @@ async function exchangeGoogleOAuth(env: IngestEnv,
 }
 
 /**
- * The address out of the id token Google just issued.
- *
- * The signature is NOT verified, and that is correct here rather than lazy:
- * this token came back over TLS on a response to a request this Worker made,
- * authenticated with the client secret. There is no third party in the path
- * whose forgery a signature check would catch. It is read for a display string
- * and nothing is authorized by it.
+ * The address out of the id token Google just issued. The signature is not
+ * verified: the token came back over TLS on a request this Worker made,
+ * authenticated with the client secret, and it is read for a display string
+ * that authorizes nothing.
  */
 export function idTokenEmail(idToken: string | null): string | null {
   if (idToken === null) return null;
@@ -466,7 +419,7 @@ export function idTokenEmail(idToken: string | null): string | null {
 }
 
 /** The fallback when the grant carried no id token: one free userinfo read.
- * A failure costs the card an address and nothing else, so it never throws. */
+ * A failure costs the card an address and nothing else. */
 async function userInfoEmail(
   accessToken: string | null,
   fetchImpl: typeof fetch,
@@ -492,16 +445,10 @@ async function userInfoEmail(
 // ---------------------------------------------------------------------------
 
 /**
- * Tell Google to forget the grant, before the store forgets the token.
- *
- * BEST EFFORT AND IN THAT ORDER. Revoking first means a network failure leaves
- * the token still stored and still revocable on the next attempt; deleting
- * first would leave a live grant on the operator's Google account that this OS
- * can no longer name. Nothing here can fail a disconnect — an operator pressing
- * Disconnect while offline still gets the credential removed, and the grant is
- * one they can remove from their Google account page.
- *
- * Returns whether Google confirmed, so the card can say which happened.
+ * Tell Google to forget the grant, before the store forgets the token: a
+ * network failure then leaves the token stored and still revocable, whereas
+ * deleting first would leave a live grant this OS can no longer name. Best
+ * effort; nothing here can fail a disconnect. Returns whether Google confirmed.
  */
 export async function revokeGoogleGrant(
   env: IngestEnv,
@@ -533,13 +480,10 @@ export async function revokeGoogleGrant(
 // ---------------------------------------------------------------------------
 
 /**
- * The GA4 properties this credential can see — the Admin API's account
- * summaries, which `analytics.readonly` already covers.
- *
- * Free, read-only and unstored. The caller (`credential-probes.ts`) is the one
- * that knows how to get a token, because working out WHICH credential is in
- * force means knowing about the collectors and this module deliberately does
- * not.
+ * The GA4 properties this credential can see: the Admin API's account
+ * summaries. Free, read-only and unstored. The caller knows how to get a
+ * token, because knowing which credential is in force means knowing about the
+ * collectors, which this module deliberately does not.
  */
 export async function listGa4Properties(
   token: string,
@@ -560,7 +504,7 @@ export async function listGa4Properties(
     const accountName = stringField(account, 'displayName');
     for (const entry of arrayField(account, 'propertySummaries')) {
       const property = asRecord(entry);
-      // `properties/123456789` — the collector stores the bare id.
+      // `properties/123456789`: the collector stores the bare id.
       const ref = stringField(property, 'property')?.split('/').pop() ?? null;
       if (ref === null) continue;
       found.push({
@@ -574,8 +518,8 @@ export async function listGa4Properties(
   return found;
 }
 
-/** The Search Console sites this credential can see, with the permission level
- * Google reports for each — the cheapest call Search Console has. */
+/** The Search Console sites this credential can see, with the permission
+ * level Google reports for each. */
 export async function listGscSites(
   token: string,
   fetchImpl: typeof fetch,

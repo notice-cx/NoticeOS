@@ -25,35 +25,25 @@ import {
   runBd,
 } from './task-hub.mjs';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Panel-review filer — one of the two lanes here that WRITE a bead (the
-// push-state filer below is the other; it is the only one that also closes).
+// Panel-review filer — one of the two lanes here that write a bead (the
+// push-state filer is the other). Once an hour the runner asks ingest which
+// properties have a fresh weekly DataForSEO collection, and files the review
+// bead into that property's own spoke if it is not already there. The
+// tracked-query panel is one family of that collection, not the trigger: a
+// property without one buys the other families and owes the same review.
 //
-// A weekly DataForSEO collection lands in the archive (doc 08 §S1b) and nothing
-// asks anybody to read it. This closes that: once an hour the runner asks ingest
-// which properties have a fresh collection, and files the review bead into that
-// property's own spoke if it is not already there. The S1b panel is one family
-// of that collection, not the trigger (ro-478) — a property without one buys the
-// other five and owes the same review.
-//
-// IDEMPOTENCE COMES FROM THE DATA, NOT FROM A CURSOR. The pair that identifies
-// a review is (property, collection day), and both halves are re-derivable — the
-// day from the collection manifest, the "already filed?" answer from the spoke
-// itself. So there is no state file to corrupt, no "last seen" to reset:
-// a runner that was asleep when the collection landed files it on its next pass,
-// and a runner that files it and then runs a hundred more passes creates nothing.
-//
-// The write is deliberately narrow: `bd create` in one repo, and only after a
+// Idempotence comes from the data, not from a cursor. The pair that identifies
+// a review is (property, collection day), and both halves are re-derivable —
+// the day from the collection manifest, the "already filed?" answer from the
+// spoke itself. The write is narrow: `bd create` in one repo, and only after a
 // `bd list` in that same repo came back clean. Every failure path below
-// continues WITHOUT creating — a duplicate review is worse than a late one, and
-// the next pass is an hour away.
+// continues without creating — a duplicate review is worse than a late one.
 //
-// PUBLISHED BEFORE REVIEWED (epic ro-cvl9). A landing is evidence in the
-// archive, not in the panel dir the review points at; the daily refresh puts
-// it there on its own schedule. So a review is filed only once the published
-// panel's freshness.json holds every family of that collection day. Until then
-// the landing waits, said once per collection in the runner's log.
-// ─────────────────────────────────────────────────────────────────────────────
+// Published before reviewed. A landing is evidence in the archive, not in the
+// panel dir the review points at; the daily refresh puts it there on its own
+// schedule. So a review is filed only once the published panel's
+// freshness.json holds every family of that collection day. Until then the
+// landing waits, said once per collection in the runner's log.
 
 /** Where the runner asks what landed. A read; the Worker owns the store, this
  * process owns the spokes, and this URL is the seam. */
@@ -62,18 +52,12 @@ export function serpPanelLandingsUrl(config) {
 }
 
 /**
- * The landings this pass can act on.
- *
- * Anything without an asset and a well-formed collection day is dropped rather
- * than repaired: those two ARE the identity of a review, and a filer that
- * guesses at either would file a bead nothing can later recognize as already
- * filed.
- *
- * `panel` decides the wording and the scope of the review, never its identity.
- * An endpoint that does not send the flag at all — an ingest deployed before
- * ro-478, which this process can outlive by a restart — is read the way that
- * ingest meant it: it only ever reported panel collections, and it always sized
- * them, so a landing carrying a query count is a panel.
+ * The landings this pass can act on. Anything without an asset and a
+ * well-formed collection day is dropped rather than repaired: those two are
+ * the identity of a review. `panel` decides the wording and the scope of the
+ * review, never its identity; an endpoint that does not send the flag at all
+ * only ever reported panel collections and always sized them, so a landing
+ * carrying a query count is a panel.
  */
 export function parsePanelLandings(body) {
   const rows = Array.isArray(body?.landings) ? body.landings : [];
@@ -163,20 +147,11 @@ export function panelReviewDescription(landing, { osCheckout = OS_CHECKOUT, inst
   const settings = `NoticeOS: Sites → ${landing.asset} → Settings → Tracked search terms`;
   const exports = { terms: exportPath('serp-panel.json'), roster: exportPath('signal-panels.json') };
   if (landing.panel === false) return collectionReviewDescription(landing, osCheckout, settings, exports);
-  // The landing's `queries` field counts PROVIDER CALLS, and since ro-o1n the
-  // panel buys one call per (tracked term, DEVICE) — so a 28-term panel reports
-  // 56. Calling that "56 tracked queries" put this bead in open disagreement
-  // with config/serp-panel.json, which the same bead hands the reviewer as the
-  // list of terms: they count 28 there, read 56 here, and have to work out which
-  // register is lying (ro-1b0.3). Neither was. The number is right about the
-  // WORK — the panel CSV really does hold one row per term per device — and
-  // wrong about the WORD.
-  //
-  // It is NOT divided back into terms here, because the device count does not
-  // ride on the wire: the manifest has no device column and gets none (that is
-  // what let ro-o1n land without a migration), so a filer that guessed at two
-  // devices would be inventing a denominator. So the count is named for what it
-  // honestly is — result pages — and the term list stays where it is authored.
+  // The landing's `queries` field counts provider calls — one per (tracked
+  // term, device) — not terms. The device count does not ride on the wire
+  // (the manifest has no device column), so it is not divided back: the count
+  // is named for what it is, result pages, and the term list stays where it
+  // is authored.
   const size =
     landing.queries === null
       ? 'every result page in the panel'
@@ -222,9 +197,9 @@ export function panelReviewDescription(landing, { osCheckout = OS_CHECKOUT, inst
   ].join('\n\n');
 }
 
-/** The same ask for a property with no tracked-query panel (ro-478): the
- * Inventory pass IS the review, and the panel is named only as something this
- * property could earn. */
+/** The same ask for a property with no tracked-query panel: the Inventory
+ * pass is the review, and the panel is named only as something this property
+ * could earn. */
 function collectionReviewDescription(landing, osCheckout, settings, exports) {
   const bought =
     landing.families === null
@@ -352,15 +327,9 @@ export const panelReviewCreatedId = beadsCreatedId;
 const panelFilerState = { skipping: null, unmapped: new Set(), waiting: new Set() };
 
 /**
- * One pass: ask what landed, file what is missing.
- *
- * Every dependency that touches the world is injectable, for the same reason as
- * the poller's — what this does when something is missing IS the behavior, and
- * none of it is reachable from a test that has to spawn `bd` against a real
- * property tracker.
- *
- * Returns what it did, so a caller (and a test) can see a pass that filed
- * nothing as distinct from one that never ran.
+ * One pass: ask what landed, file what is missing. Every dependency that
+ * touches the world is injectable. Returns what it did, so a caller can see a
+ * pass that filed nothing as distinct from one that never ran.
  */
 export async function runPanelReviewFiler(runtime, deps = {}) {
   const {
@@ -382,8 +351,7 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
   };
 
   if (stopped()) return null;
-  // The tower's child hosts BOTH Workers now, so its readiness is the ingest's:
-  // there is no separate ingest process left to ask.
+  // The tower's child hosts both Workers, so its readiness is the ingest's.
   if (!runtime.running || !runtime.ready) {
     skip('ingest is down/restarting');
     return null;

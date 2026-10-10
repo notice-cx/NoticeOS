@@ -22,13 +22,11 @@ function desktopOnly(reason: string) {
 }
 
 test.beforeEach(async ({ request, baseURL }) => {
-  // No real network, profile, credentials, task hub or pre-existing browser.
-  // The one origin allowed is this worker's own fixture server, and no
-  // redirect leaves it: journey-test.ts installs the offline guard on every
-  // test's context (beads ro-ujb9.167, ro-o3hv).
+  // No real network, profile, credentials, task hub or pre-existing browser:
+  // journey-test.ts installs the offline guard on every test's context.
   if (!baseURL) throw new Error("This worker has no fixture server");
   const reset = await request.post("/__journey/reset");
-  // A refused reset says why (bead ro-ujb9.76.56).
+  // A refused reset says why.
   expect(reset.ok(), `POST /__journey/reset answered ${reset.status()}: ${reset.ok() ? "" : await reset.text()}`).toBeTruthy();
   expect((await (await request.get("/__journey/status")).json()).isolated).toBe(true);
 });
@@ -51,13 +49,11 @@ async function keyboardFocus(page: Page, target: Locator, direction: "Tab" | "Sh
   throw new Error(`Keyboard never reached ${await target.textContent()}; focus path: ${focusTrace.join(" → ")}`);
 }
 
-/** Bead ro-ujb9.87: while a toast is up, Tab from the page's last control
- * enters the toast once and then leaves the page. It never hands focus back to
- * that control, which made Tab alternate between the two for as long as the
- * toast stayed. The pointer rests on the toast first, as a reader's would, so
- * its own timer waits; every focus move is a real key press. Then the toast is
- * left to close while focus is on it, and focus returns to that last control
- * rather than being dropped. */
+/** While a toast is up, Tab from the page's last control enters the toast once
+ * and then leaves the page, never alternating between the two. The pointer
+ * rests on the toast first so its own timer waits; every focus move is a real
+ * key press. When the toast closes with focus on it, focus returns to that
+ * last control rather than being dropped. */
 async function tabPastToast(page: Page, toast: Locator) {
   await toast.hover();
   await keyboardFocus(page, toast);
@@ -126,10 +122,9 @@ test("state reasons open from keyboard and tap", async ({ page }, testInfo) => {
       counts: { open: 0, highPriority: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0, deferred: 0, waiting: 0 },
       priorities: null, epics: null, deferred: [], waiting: [], ready: [], inProgress: [], recentlyClosed: [], history: emptyWorkHistory() }],
   } }));
-  // Home names no OS state since D44 (the Morning Brief never describes the
-  // OS), so its System reason is gone; the Sites list and Tasks keep theirs.
-  // A phone folds a site's task count behind its row's › (D45: name, health
-  // word and one figure), so the Sites reason is a desk check.
+  // Home names no OS state, so it has no System reason; the Sites list and
+  // Tasks keep theirs. A phone folds a site's task count behind its row's ›,
+  // so the Sites reason is a desk check.
   for (const [route, name, evidence] of [
     ...(testInfo.project.name === "mobile" ? [] : [["/assets", "No task data", "No task data"]]),
     ["/tasks", "Why New task is unavailable", "Make changes from the local NoticeOS."],
@@ -154,8 +149,8 @@ test("state reasons open from keyboard and tap", async ({ page }, testInfo) => {
     await page.screenshot({ path: testInfo.outputPath(`state-reason-${route!.slice(1) || "home"}.png`) });
     await expect(page).toHaveURL(new RegExp(`${route === "/" ? "/" : route}$`));
   }
-  // The Sites list states each site's one health word since D45; the source
-  // states and their legend are on a site's Data sources tab.
+  // The Sites list states each site's one health word; the source states and
+  // their legend are on a site's Data sources tab.
 });
 
 test("desk pages share the same content edges", async ({ page }, testInfo) => {
@@ -232,8 +227,7 @@ for (const theme of ["dark", "light"] as const) {
   });
 }
 
-/** The one status on an Integrations catalog row, as the connection model
- * names it (bead ro-ujb9.96.7.3): `working`, `collecting`, `failing`… */
+/** The one status on an Integrations catalog row: `working`, `collecting`, `failing`… */
 function tileHealth(tile: Locator) {
   return tile.locator("[data-connection]");
 }
@@ -251,8 +245,8 @@ test("KPI trends remain inside their cells on desk, tablet and phone", async ({ 
     : [{ width: 1440, height: 900 }, { width: 768, height: 1024 }, { width: 1024, height: 768 }];
   for (const viewport of viewports) {
     await page.setViewportSize(viewport);
-    // Home and Money open with an answer sentence, not a KPI strip (D44,
-    // D45); the site Overview's hero cells are the KPIs left with trends.
+    // Home and Money open with an answer sentence, not a KPI strip; the site
+    // Overview's hero cells are the KPIs left with trends.
     for (const route of [`/assets/${JOURNEY_ASSET}`]) {
       await page.goto(route);
       const sparks = page.locator("[data-kpi] [data-spark]");
@@ -272,9 +266,9 @@ test("KPI trends remain inside their cells on desk, tablet and phone", async ({ 
   }
 });
 
-/** A site added the way the operator adds one (bead ro-ujb9.96.7.5): Home's
- * first-run Add a site opens one question over Home, the domain; the name is
- * read off it; Enter adds; the new asset opens on its Data sources. */
+/** A site added the way the operator adds one: Home's first-run Add a site
+ * opens one question over Home, the domain; the name is read off it; Enter
+ * adds; the new asset opens on its Data sources. */
 async function createAsset(page: Page, failSetup = false) {
   await page.goto("/");
   await expect(page.locator("[data-first-run]")).toBeVisible();
@@ -326,7 +320,7 @@ test('site order moves in the Wall editor, persists across every list, and suppo
   await page.reload();
   await expect.poll(() => ids('[data-site-order]', 'data-site-order')).toEqual(reordered);
   await testInfo.attach('site ordering', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
-  // Home's sites strip (D44) and the Sites list follow the saved order.
+  // Home's sites strip and the Sites list follow the saved order.
   for (const [route, attribute] of [['/', 'data-site-cell'], ['/assets', 'data-asset-row']] as const) {
     await page.goto(route); await page.reload();
     await expect.poll(() => ids(`main [${attribute}]`, attribute)).toEqual(reordered);
@@ -354,8 +348,8 @@ test('site order moves in the Wall editor, persists across every list, and suppo
 test('Mediavine signs in in the panel, its site is matched by domain and synced on Start, and it disconnects', async ({ page }, testInfo) => {
   await createAsset(page);
   await page.goto('/integrations');
-  // Mediavine connects in the panel over the list (bead ro-ujb9.96.7.6): the
-  // login is shown to Mediavine before it is kept.
+  // Mediavine connects in the panel over the list: the login is shown to
+  // Mediavine before it is kept.
   await page.locator('[data-integration-tile="mediavine"]').getByRole('button', { name: 'Connect Mediavine', exact: true }).click();
   const panel = page.locator('[data-connect-panel="mediavine"]');
   await panel.getByLabel('Email', { exact: true }).fill('journey@example.test');
@@ -385,7 +379,7 @@ test('Mediavine signs in in the panel, its site is matched by domain and synced 
   expect(state.documents['config/integrations.json'].assets[JOURNEY_ASSET]['ad-network'].mediavineSiteId).toBe('journey-mediavine-site');
   await page.keyboard.press('Escape');
   await page.goto(`/assets/${JOURNEY_ASSET}/sources`);
-  // Ad revenue is a row of More sources, open on arrival (bead ro-ujb9.164).
+  // Ad revenue is a row of More sources, open on arrival.
   await page.getByRole('region', { name: 'More sources', exact: true }).getByRole('button', { name: /^Ad revenue/ }).click();
   await expect(page.getByRole('button', { name: /^Ad revenue/ })).toContainText('Working');
   const revenue = page.getByRole('region', { name: 'Mediavine revenue', exact: true });
@@ -394,8 +388,7 @@ test('Mediavine signs in in the panel, its site is matched by domain and synced 
   await expect(revenue.getByRole('button', { name: 'Load my sites' })).toHaveCount(0);
   await expect(revenue.getByRole('button', { name: /automatic sync/ })).toHaveCount(0);
   await expect(revenue).toContainText('2026-09-04');
-  // Mediavine's two totals for the same days, as one labelled figure (bead
-  // ro-ujb9.96.6.4) rather than a sentence.
+  // Mediavine's two totals for the same days, as one labelled figure.
   await expect(revenue.locator('[data-mediavine-difference]')).toContainText('off by $0.02');
   await revenue.getByLabel('Forecast holiday calendar').selectOption('US');
   await revenue.getByRole('button', { name: 'Save forecast calendar' }).click();
@@ -403,8 +396,8 @@ test('Mediavine signs in in the panel, its site is matched by domain and synced 
   await assertNoPageOverflow(page);
   await page.screenshot({ path: testInfo.outputPath('mediavine-sources-after.png'), fullPage: true });
   await page.goto('/financials?period=2026-09');
-  // Money's answer states the month in whole dollars (D45); the cents are the
-  // site Overview's, checked below.
+  // Money's answer states the month in whole dollars; the cents are the site
+  // Overview's, checked below.
   await expect(page.locator('[data-money-revenue]')).toContainText('$5');
   await expect(page.getByRole('main')).not.toContainText('$5.02');
   await assertNoPageOverflow(page);
@@ -413,20 +406,19 @@ test('Mediavine signs in in the panel, its site is matched by domain and synced 
   await expect(page.getByRole('main')).toContainText('$5.00');
   await page.goto('/integrations');
   // A saved connection's row shows its collection health, read by the ingest
-  // from what the sync recorded (bead ro-ujb9.86): the revenue report worked.
+  // from what the sync recorded.
   const tile = page.locator('[data-integration-tile="mediavine"]');
   await expect(tileHealth(tile)).toHaveAttribute('data-connection', 'working');
-  // Removal is on the connection itself (bead ro-ujb9.96.7.10): Manage opens
-  // it in the panel; Disconnect, then one confirmation naming the sites that
-  // stop and what is deleted.
+  // Removal is on the connection itself: Manage opens it in the panel;
+  // Disconnect, then one confirmation naming the sites that stop and what is
+  // deleted.
   await tile.getByRole('button', { name: 'Manage Mediavine', exact: true }).click();
   await panel.getByRole('button', { name: 'Disconnect', exact: true }).click();
   await expect(panel.locator('[data-disconnect-stops]')).toContainText('Journey Example');
   await expect(panel.locator('[data-disconnect-effects]')).toContainText('Login deleted · no undo');
   await panel.getByRole('button', { name: 'Disconnect Mediavine', exact: true }).click();
   await expect(tileHealth(tile)).toHaveAttribute('data-connection', 'not-connected');
-  // Its toast can be tabbed past and closes without dropping focus (bead
-  // ro-ujb9.87).
+  // Its toast can be tabbed past and closes without dropping focus.
   await tabPastToast(page, page.locator('[data-sonner-toast]', { hasText: 'Disconnected — Mediavine' }));
   // The site keeps its mapping: connecting again lists it as already mapped,
   // not as Not using.
@@ -434,7 +426,7 @@ test('Mediavine signs in in the panel, its site is matched by domain and synced 
   expect(state.documents['config/integrations.json'].assets[JOURNEY_ASSET]['ad-network']).toMatchObject({ mediavineSiteId: 'journey-mediavine-site' });
   expect(state.documents['config/integrations.json'].assets[JOURNEY_ASSET]['ad-network'].status).not.toBe('skipped');
   await page.goto('/financials?period=2026-09');
-  // The disconnected network's revenue stays booked: Money's figure, whole dollars (D45).
+  // The disconnected network's revenue stays booked: Money's figure, whole dollars.
   await expect(page.locator('[data-money-revenue]')).toContainText('$5');
 });
 
@@ -462,10 +454,9 @@ function expectedProjection(seed: SeededRevenue) {
   return { headline: usd(projected, 0), reported: `${usd(earned, 2)} reported through ${seed.through}`, versus: `${change} ${ratio > 0 ? 'above' : ratio < 0 ? 'below' : 'level with'} ${previousLabel}` };
 }
 
-// D28 (bead ro-trai.11, docs/14-design.md § Revenue): the store's
-// projection is the month's pace beside the revenue figure, and the change
-// against last month's total; the 30-day daily bars and the card's projection
-// block left the Wall. The journey's one site is shown in depth (§ Density).
+// The store's projection is the month's pace beside the revenue figure, and
+// the change against last month's total; the Wall draws no daily bars and no
+// asset card.
 test('the Wall states the month on pace from the store\'s projection, and draws no asset card', async ({ page }, testInfo) => {
   await createAsset(page);
   const seeded = await page.request.post('/__journey/revenue-history');
@@ -509,8 +500,7 @@ function attentionTones() {
 }
 
 // A TV has no controls, so a stranger's first Wall must not be alarms for
-// things nobody set up: no OS report lane, no task source, no connected source
-// (bead ro-ujb9.132; D30; doc 14: warn and error mean something broke).
+// things nobody set up: warn and error mean something broke.
 test("an empty installation's Wall is calm: the clock, no alarms, and a quiet line where sites will be", desktopOnly("a Wall size check: the TV and a laptop"), async ({ page }, testInfo) => {
   for (const [width, height] of [[1920, 1080], [1440, 900]] as const) {
     await wallAt(page, [width, height]);
@@ -534,10 +524,9 @@ test("an empty installation's Wall is calm: the clock, no alarms, and a quiet li
 });
 
 /**
- * What a Wall card cuts off or squeezes, measured in the page (beads ro-n5ya,
- * ro-yo4h). `wall:fit` looks for content spilling past the TV; a card that
- * CLIPS its own text never spills, so it passed while "AUG ↑$128 VS JUL" read
- * "AUG ↑$12…" and the first site's totals label stood one word per line.
+ * What a Wall card cuts off or squeezes, measured in the page. `wall:fit`
+ * looks for content spilling past the TV; a card that clips its own text
+ * never spills, so this is the other half.
  *
  * - `clipped`: a text run an ancestor's overflow cuts off sideways. Designed
  *   truncation (`text-overflow: ellipsis`) is a choice and is not counted.
@@ -623,9 +612,9 @@ function stripGroups() {
 }
 
 /**
- * Where the Wall's five regions sit (beads ro-trai.24, ro-trai.29): each
- * region's box, the canvas's, whether the strip's meeting sits below its time
- * (the strip wrapped) and how the feed's rows fill it.
+ * Where the Wall's five regions sit: each region's box, the canvas's, whether
+ * the strip's meeting sits below its time (the strip wrapped) and how the
+ * feed's rows fill it.
  */
 function wallStack() {
   const box = (selector: string) => {
@@ -647,7 +636,7 @@ function wallStack() {
   const groups = [...strip.children].map((el) => el.getBoundingClientRect()).filter((rect) => rect.width > 0);
   const list = document.querySelector("[data-wall-feed] ol")!;
   // The rows drawn: in one column the feed lists the TV's rows at most and
-  // hides the rest (bead ro-trai.31).
+  // hides the rest.
   const items = [...list.children].filter((item) => getComputedStyle(item).display !== "none");
   return {
     canvas: box("[data-wall-canvas]"),
@@ -681,22 +670,20 @@ function expectStackedInOrder(stack: ReturnType<typeof wallStack>, at: string) {
 }
 
 test.describe(() => {
-  // The fixture's own zone: its clock below reads 12:30 PM PT (bead ro-r49j).
+  // The fixture's own zone: its clock below reads 12:30 PM PT.
   test.use({ timezoneId: WALL_FIXTURE_TIME_ZONE });
-  // D28 (bead ro-trai.11): the Wall the fixture draws with nothing saved is the
-  // strip, revenue beside Needs you over the site rows, and the feed. The old
-  // cards' totals, projection headings and chart keys left with them; what is
-  // checked now is every region's text and the site rows' one-line headings.
+  // The Wall the fixture draws with nothing saved is the strip, revenue beside
+  // Needs you over the site rows, and the feed: every region's text and the
+  // site rows' one-line headings are checked.
   test("the Wall cuts off no text in any region, and marks only the first site's out-of-date live users", desktopOnly("a TV and a desk-width Wall; the phone Wall stacks one region per row"), async ({ page }, testInfo) => {
     await wallScene(page);
     for (const [width, height] of [[1920, 1080], [1440, 900]] as const) {
       await wallAt(page, [width, height]);
-      // The Wall runs on the fixture's time, not the journey server's Sep 6: the
-      // server's pinned Date used to win over page.clock (bead ro-r49j).
+      // The Wall runs on the fixture's time, not the journey server's Sep 6.
       const time = page.locator("[data-wall-strip] [data-strip-time]");
       await expect(time).toHaveAttribute("datetime", WALL_FIXTURE_NOW);
       await expect(time).toHaveText("12:30PM");
-      // The locale's day period, drawn apart from the numerals (bead ro-trai.3).
+      // The locale's day period, drawn apart from the numerals.
       await expect(time.locator("[data-strip-day-period]")).toHaveText("PM");
       // No header row above the strip: identity and time are the strip's.
       await expect(page.locator("[data-wall-header]")).toHaveCount(0);
@@ -705,8 +692,8 @@ test.describe(() => {
       await expect(page.locator('[data-site-row] [data-live="stale"]')).toHaveCount(1);
       await expect(page.locator('[data-site-row="plate.example"] [data-live="stale"]')).toBeVisible();
       await expect(page.locator('[data-site-row="menus.example"] [data-live="stale"]')).toHaveCount(0);
-      // Each live figure over its minute pulse (bead ro-trai.27): thirty bars
-      // on a fresh reading, the old one dimmed.
+      // Each live figure over its minute pulse: thirty bars on a fresh
+      // reading, the old one dimmed.
       await expect(page.locator('[data-site-row="menus.example"] [data-minute-pulse="live"] [data-minute-bar]')).toHaveCount(30);
       await expect(page.locator('[data-site-row="plate.example"] [data-minute-pulse="dimmed"]')).toBeVisible();
       // Measure the type the TV shows: Inter swaps in, and a fallback face is wider.
@@ -714,9 +701,9 @@ test.describe(() => {
       const found = await page.evaluate(wallLegibility, "[data-wall-sites] [role='columnheader']:not(.sr-only)");
       expect(found.clipped, `text cut off at ${width}×${height}`).toEqual([]);
       expect(found.wrapped, `site headings off their line at ${width}×${height}`).toEqual([]);
-      // A site that has sent nothing says so IN FULL (bead ro-vtqf): that line
-      // is the one fact its row exists to say, so not even a designed
-      // ellipsis may shorten it — the old card's "Waiting for first re…" did.
+      // A site that has sent nothing says so in full: that line is the one
+      // fact its row exists to say, so not even a designed ellipsis may
+      // shorten it.
       const waiting = await page.evaluate(() => [...document.querySelectorAll("[data-site-waiting]")].map((cell) => ({
         text: (cell.textContent ?? "").trim(), cut: cell.scrollWidth - cell.clientWidth,
       })));
@@ -727,18 +714,17 @@ test.describe(() => {
     }
   });
 
-  // The Wall on a phone and a portrait tablet (beads ro-trai.24, ro-trai.31,
-  // docs/14-design.md § Laptop, tablet and phone): the strip wraps instead
-  // of cutting anything off, each site is a card whose charts span it with the
-  // live figure at its right edge, the feed is as tall as its rows — the TV's
-  // twelve at most, newest first — and nothing scrolls sideways.
+  // The Wall on a phone and a portrait tablet: the strip wraps instead of
+  // cutting anything off, each site is a card whose charts span it with the
+  // live figure at its right edge, the feed is as tall as its rows (the TV's
+  // twelve at most, newest first) and nothing scrolls sideways.
   test("the Wall reads on a phone and a tablet: the strip wraps, each site's charts span its card, the feed grows", desktopOnly("walks the phone and tablet widths itself"), async ({ page }, testInfo) => {
     test.setTimeout(90_000);
     expect((await page.request.post("/__journey/wall-feed")).ok()).toBe(true);
     await wallScene(page, "fire");
     for (const [width, height] of [[390, 844], [430, 932], [768, 1024]] as const) {
       await wallAt(page, [width, height]);
-      // A portrait screen keeps the one column (bead ro-trai.31).
+      // A portrait screen keeps the one column.
       await expect(page.locator(".wall-root")).toHaveAttribute("data-wall-layout", "stack");
       await expect(page.locator('[data-site-row] [data-live]:not([data-live="none"])')).toHaveCount(wallFixtureRealtime(20, "fire").assets.length);
       await expect(page.locator("[data-wall-feed]")).toHaveAttribute("data-feed-state", "live");
@@ -800,14 +786,12 @@ test.describe(() => {
     }
   });
 
-  // The Wall on a laptop and a landscape tablet (bead ro-trai.31, operator
-  // 2026-09-23, docs/14-design.md § Laptop, tablet and phone): a landscape
-  // screen at least 1024 px wide draws the TV's layout, zoomed by one scale —
-  // a 13-inch MacBook Air's 1470 × 830 is the TV at 77 % — so the feed is a
-  // bounded column to the right of the site rows, never the half of the screen
-  // it once took, the small type stays on its floors, and the Wall fits the
-  // screen exactly as the TV fits 1920 × 1080, measured by `pnpm wall:fit`'s
-  // own function.
+  // The Wall on a laptop and a landscape tablet: a landscape screen at least
+  // 1024 px wide draws the TV's layout, zoomed by one scale (1470 × 830 is the
+  // TV at 77 %), so the feed is a bounded column to the right of the site
+  // rows, the small type stays on its floors, and the Wall fits the screen
+  // exactly as the TV fits 1920 × 1080, measured by `pnpm wall:fit`'s own
+  // function.
   test("the Wall on a laptop is the TV's layout scaled to the screen: the feed a bounded column right of the site rows, the small type on its floors, nothing cut off", desktopOnly("walks the laptop widths itself"), async ({ page }, testInfo) => {
     test.setTimeout(90_000);
     expect((await page.request.post("/__journey/wall-feed")).ok()).toBe(true);
@@ -864,9 +848,8 @@ test.describe(() => {
       expect(found.feed.width, `${at}: the feed at most 30 rem`).toBeLessThanOrEqual(30 * 16 * found.zoom + 1);
       expect(found.feed.width / width, `${at}: the feed about a quarter of the screen`).toBeLessThan(0.3);
       expect(found.sites.width, `${at}: the site rows take the rest`).toBeGreaterThan(found.feed.width * 2.5);
-      // The small type on its floors (docs/25 § Type): 11 px for the axis
-      // words and a list's label and meta, 12 for the headings, 13 for a
-      // list's line.
+      // The small type on its floors: 11 px for the axis words and a list's
+      // label and meta, 12 for the headings, 13 for a list's line.
       const floors = { axis: 11, listLabel: 11, listMeta: 11, eyebrow: 12, listLine: 13 } as const;
       for (const [step, floor] of Object.entries(floors)) {
         expect(found.type[step as keyof typeof floors], `${at}: ${step} on its ${floor} px floor`).toBeGreaterThanOrEqual(floor - 0.05);
@@ -958,12 +941,11 @@ test.describe(() => {
     }
   });
 
-  // D28's budget (bead ro-trai.12, docs/14-design.md § Budget): the TV fits
-  // 1920×1080 at every site count the contract names, measured by the same
-  // function `pnpm wall:fit` runs (scripts/wall-fit-measure.mts). Nothing
-  // reaches past the screen, nothing paints outside its own box, no text is cut
-  // off, the feed draws only whole rows, and rows and plots use the region
-  // while remaining readable at each supported density.
+  // The TV fits 1920×1080 at every site count the contract names, measured by
+  // the same function `pnpm wall:fit` runs (scripts/wall-fit-measure.mts).
+  // Nothing reaches past the screen, nothing paints outside its own box, no
+  // text is cut off, the feed draws only whole rows, and rows and plots use
+  // the region while remaining readable at each supported density.
   test("the Wall fits the TV with one, two, three, six, seven or eight sites and on fire, cutting off no text", desktopOnly("the TV's budget; the phone Wall stacks one region per row"), async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     // The source-health reads included: a failing source is read from them (`fire`).
@@ -1097,11 +1079,9 @@ test.describe(() => {
   });
 });
 
-// The TV layout on a fresh install (bead ro-nuz9): the fixture's store holds no
-// `/wall`, as a store seeded without the key does, and the first Save was
-// refused with "Changed elsewhere — reload to see the current value". Now it
-// saves, and the next Save — straight after, before the payload catches up —
-// saves on top of it: created, then updated, both in the store.
+// The TV layout on a fresh install: the fixture's store holds no `/wall`, as a
+// store seeded without the key does. The first Save creates it, and the next
+// Save, straight after and before the payload catches up, saves on top of it.
 test("the TV layout saves on a fresh install, then saves again on top of it", desktopOnly("the layout's save is the same on a phone; the arrange-wall walk covers the phone"), async ({ page, request }, testInfo) => {
   await createAsset(page);
   await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
@@ -1212,10 +1192,8 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   await page.screenshot({ path: testInfo.outputPath("wall-layout-missing-total-editable.png") });
 });
 
-// The TV layout editor's preview is the TV, and the TV is dark (bead ro-c0l3).
-// On a light desk the preview used to take some of the desk's light tokens —
-// the strip and the feed pale grey, the clock and the site's name dark ink on
-// black. Every token and ink the preview draws with must equal the TV's own.
+// The TV layout editor's preview is the TV, and the TV is dark: every token
+// and ink the preview draws with must equal the TV's own, even on a light desk.
 test("the TV layout's preview draws the TV dark on a light desk, exactly as the TV draws itself", desktopOnly("the preview's tokens do not depend on the screen's width"), async ({ page }, testInfo) => {
   await page.addInitScript(() => window.localStorage.setItem("noticeos:theme", "light"));
   await createAsset(page);
@@ -1254,18 +1232,18 @@ test("the TV layout's preview draws the TV dark on a light desk, exactly as the 
   await page.locator("[data-wall-preview]").screenshot({ path: testInfo.outputPath("preview-light-desk.png") });
 });
 
-// A saved TV layout the Tower cannot read (bead ro-trai.45): the store holds a
-// layout with no rows beside one version that still reads. The TV draws the
-// default; the editor names the save as refused instead of calling the default
-// "On the TV", and a Save and a Revert from that state both land, guarded by
-// what the store really holds.
+// A saved TV layout the Tower cannot read: the store holds a layout with no
+// rows beside one version that still reads. The TV draws the default; the
+// editor names the save as refused instead of calling the default "On the
+// TV", and a Save and a Revert from that state both land, guarded by what the
+// store really holds.
 test("a saved TV layout the Tower cannot read is named as refused, and a Save or a Revert replaces it", desktopOnly("the layout's save is the same on a phone"), async ({ page, request }, testInfo) => {
   await createAsset(page);
   expect((await request.post("/__journey/refused-tower?part=wall")).ok()).toBe(true);
   const wall = async () => (await (await request.get("/__journey/status")).json()).documents["config/tower.json"].wall;
 
   await page.goto("/wall");
-  await expect(page.locator("[data-wall-slot]")).toHaveCount(5); // D28's default, in its place
+  await expect(page.locator("[data-wall-slot]")).toHaveCount(5); // the default, in its place
 
   await page.goto("/wall/edit");
   const bar = page.locator("[data-wall-save-bar]");
@@ -1294,9 +1272,9 @@ test("a saved TV layout the Tower cannot read is named as refused, and a Save or
   await expect(layoutState("saved")).toHaveText("On the TV");
 });
 
-// A countdown the Tower cannot read beside a valid saved layout (bead
-// ro-trai.45): the layout stays standing, the countdown is named as refused,
-// and its form saves over the stored value.
+// A countdown the Tower cannot read beside a valid saved layout: the layout
+// stays standing, the countdown is named as refused, and its form saves over
+// the stored value.
 test("a saved countdown the Tower cannot read leaves the layout standing, and its form saves over it", desktopOnly("the countdown's form is the same on a phone"), async ({ page, request }, testInfo) => {
   await createAsset(page);
   expect((await request.post("/__journey/refused-tower?part=countdown")).ok()).toBe(true);
@@ -1323,10 +1301,9 @@ test("a saved countdown the Tower cannot read leaves the layout standing, and it
   await expect(countdown).toHaveCount(0);
 });
 
-// A setting shown from the built-in copy (bead ro-dk4u): the fixture's stored
-// settings lack the monthly cap, as a store seeded by older code does, so
-// Settings shows the compiled value — and its Save was refused as "Changed
-// elsewhere". Now the first Save creates the key, and the next is guarded by it.
+// A setting shown from the built-in copy: the fixture's stored settings lack
+// the monthly cap, so Settings shows the compiled value. The first Save
+// creates the key, and the next is guarded by it.
 test("a setting the saved settings lack saves from the value shown, then saves on top of it", desktopOnly("the write lane's rule is the same on a phone; this pins the lane, not the layout"), async ({ page, request }, testInfo) => {
   expect((await request.post("/__journey/older-settings")).ok()).toBe(true);
   const constants = async () => (await (await request.get("/__journey/status")).json()).documents["config/constants.json"];
@@ -1357,9 +1334,9 @@ test("a setting the saved settings lack saves from the value shown, then saves o
   expect((await constants()).monthly_caps).toEqual({ data_usd: 50 });
 });
 
-// The live feed (beads ro-trai.6, ro-trai.9): stored events read by the real
-// Worker over the fixture store, and one new stored event arriving at the top
-// within one 30-second poll. The fixture's clock is the journey server's own.
+// The live feed: stored events read by the real Worker over the fixture
+// store, and one new stored event arriving at the top within one 30-second
+// poll. The fixture's clock is the journey server's own.
 test("Wall feedback keeps the brand large, pace compact and each stored task named", desktopOnly("walks the commented screen, TV and phone in one fixture"), async ({ page, request }, testInfo) => {
   expect((await request.post("/__journey/wall-feed")).ok()).toBe(true);
   await wallScene(page);
@@ -1413,10 +1390,10 @@ test("Wall feedback keeps the brand large, pace compact and each stored task nam
 
 test("the Wall's live feed shows the stored events newest first, and a new one arrives at the top within one poll", desktopOnly("the feed's arrival is a TV behaviour; the phone Wall stacks the same column"), async ({ page, request }, testInfo) => {
   expect((await request.post("/__journey/wall-feed")).ok()).toBe(true);
-  // The journey server's own time, on a clock the journey can skip ahead:
-  // the poll is 30 s, and waiting it out was most of this journey (issue #14).
+  // The journey server's own time, on a clock the journey can skip ahead
+  // past the 30 s poll.
   await page.clock.install({ time: new Date(JOURNEY_NOW) });
-  // No saved layout: D28's default places the feed (bead ro-trai.11).
+  // No saved layout: the default places the feed.
   await wallScene(page, "six", { clock: false });
   await openWall(page, [1920, 1080]);
   const feed = page.locator("[data-wall-feed]");
@@ -1425,8 +1402,7 @@ test("the Wall's live feed shows the stored events newest first, and a new one a
   await expect(feed).toHaveAttribute("data-feed-state", "live");
   // What the room walked in on arrives with no animation.
   await expect(feed.locator("li[data-feed-arrived]")).toHaveCount(0);
-  // Every line draws at the Wall's body step, not a size it inherited: the
-  // class combiner once dropped the step beside the line's ink (bead ro-trai.23).
+  // Every line draws at the Wall's body step, not a size it inherited.
   const lineSizes = await feed.locator("[data-feed-text]").evaluateAll((lines) =>
     lines.map((line) => {
       const style = getComputedStyle(line);
@@ -1437,9 +1413,8 @@ test("the Wall's live feed shows the stored events newest first, and a new one a
   );
   expect(lineSizes.length).toBeGreaterThan(0);
   for (const { drawn, step } of lineSizes) expect(drawn).toBe(step);
-  // One list ramp (bead ro-trai.23, docs/25 § Type): a Needs you row and a
-  // feed row draw their label, main line and meta at the same sizes, so
-  // neither list reads louder than the other.
+  // One list ramp: a Needs you row and a feed row draw their label, main line
+  // and meta at the same sizes, so neither list reads louder than the other.
   await expect(page.locator("[data-wall-needs] [data-needs-row]")).toHaveCount(1);
   const ramp = await page.evaluate(() => {
     const size = (selector: string) => {
@@ -1473,8 +1448,8 @@ test("the Wall's live feed shows the stored events newest first, and a new one a
   expect(cut).toBe(0);
   await feed.screenshot({ path: testInfo.outputPath("wall-feed-after.png") });
 
-  // The OS's own deploy reads NoticeOS, though its row stores another name
-  // (bead ro-ujb9.77.10). It is the window's oldest line, so a taller TV shows it.
+  // The OS's own deploy reads NoticeOS, though its row stores another name.
+  // It is the window's oldest line, so a taller TV shows it.
   await page.setViewportSize({ width: 1920, height: 1600 });
   const deployed = rows.filter({ hasText: "The OS moved to a newer version" });
   await expect(deployed).toBeVisible();
@@ -1490,9 +1465,9 @@ test("empty install → saved asset → fake connection and mapping → real met
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await createAsset(page);
   await page.goto("/integrations");
-  // Bing connects in one panel over the list (bead ro-ujb9.96.7.1): paste,
-  // Connect, the provider's answer. The ingest's real save-and-test runs; only
-  // Bing's network answer is the fixture's (harness.ts journeyProviderNetwork).
+  // Bing connects in one panel over the list: paste, Connect, the provider's
+  // answer. The ingest's real save-and-test runs; only Bing's network answer
+  // is the fixture's (harness.ts journeyProviderNetwork).
   const row = page.locator('[data-integration-tile="bing-webmaster"]');
   await expect(row).toHaveAttribute("data-integration-status", "not-connected");
   await keyboardActivate(page, row.getByRole("button", { name: "Connect Bing Webmaster Tools", exact: true }));
@@ -1509,9 +1484,9 @@ test("empty install → saved asset → fake connection and mapping → real met
   await expect(panel.getByText("Key accepted")).toHaveCount(0);
   expect((await (await page.request.get("/__journey/status")).json()).connected).toBe(false);
   // The right key: Checking, then Key accepted, and the account's sites in the
-  // same panel (bead ro-ujb9.96.7.2): the journey's own site matched to the
-  // asset by domain and ticked; the subdomain Bing never verified listed under
-  // it, matched to nothing, never ticked. Nothing is saved yet.
+  // same panel: the journey's own site matched to the asset by domain and
+  // ticked; the subdomain Bing never verified listed under it, matched to
+  // nothing, never ticked. Nothing is saved yet.
   await key.fill(JOURNEY_KEY);
   await keyboardActivate(page, panel.getByRole("button", { name: "Connect", exact: true }));
   await expect(panel.getByText("Key accepted", { exact: true })).toBeVisible();
@@ -1548,13 +1523,13 @@ test("empty install → saved asset → fake connection and mapping → real met
   await page.keyboard.press("Escape");
   await expect(panel).toHaveCount(0);
   await expect(row).toHaveAttribute("data-integration-status", "working");
-  // Connect the beads task source (D32, bead ro-ujb9.143): its project saved
-  // and the runner's first snapshot filed. The task screens below appear.
+  // Connect the beads task source: its project saved and the runner's first
+  // snapshot filed. The task screens below appear.
   expect((await page.request.post("/__journey/task-source")).ok()).toBe(true);
 
   // The asset's Data sources row holds the saved site as its mapping, and
-  // reads Working from the stored collection — its one status, with no setup
-  // checklist restating it (bead ro-ujb9.96.7.4).
+  // reads Working from the stored collection: its one status, with no setup
+  // checklist restating it.
   await page.goto(`/assets/${JOURNEY_ASSET}/sources`);
   const bingRow = page.locator("#integrations li").filter({ has: page.getByRole("button", { name: /Bing Webmaster/ }) }).first();
   await expect(bingRow.locator("[data-connection]").first()).toHaveAttribute("data-connection", "working");
@@ -1577,10 +1552,10 @@ test("empty install → saved asset → fake connection and mapping → real met
   await expect(tileHealth(page.locator('[data-integration-tile="bing-webmaster"]'))).toHaveAttribute("data-connection", "working");
   await assertNoPageOverflow(page);
 
-  // Replacing the key happens on the connection itself (bead ro-ujb9.96.7.10):
-  // the row's Manage opens it in the panel; Replace API key, paste, Connect.
-  // The new key is shown to Bing before it is kept, and the panel ends on
-  // Bing's answer — the rotation reads the account's sites no second time.
+  // Replacing the key happens on the connection itself: the row's Manage
+  // opens it in the panel; Replace API key, paste, Connect. The new key is
+  // shown to Bing before it is kept, and the panel ends on Bing's answer: the
+  // rotation reads the account's sites no second time.
   await keyboardActivate(page, row.getByRole("button", { name: "Manage Bing Webmaster Tools", exact: true }));
   const connection = page.getByRole("dialog", { name: "Bing Webmaster Tools" });
   await expect(connection.locator('[data-status-for="integration:bing-webmaster"][data-connection]')).toHaveAttribute("data-connection", "working");
@@ -1638,8 +1613,8 @@ test("empty install → saved asset → fake connection and mapping → real met
   await keyboardActivate(page, clicks.getByRole("button", { name: "About Journey Example clicks over the last 7 days", exact: true }));
   const tooltip = page.getByRole("tooltip");
   await expect(tooltip).toBeVisible();
-  // How many of the headline days each provider reported, as counts (bead
-  // `ro-ujb9.96.6.5`); the headline period itself is printed above the chart.
+  // How many of the headline days each provider reported, as counts; the
+  // headline period itself is printed above the chart.
   await expect(tooltip).toContainText("Bing · 7 of 7 days");
   const tooltipSize = await tooltip.boundingBox();
   const viewport = page.viewportSize()!;
@@ -1675,9 +1650,9 @@ test("empty install → saved asset → fake connection and mapping → real met
   await keyboardActivate(page, page.getByRole("link", { name: /Approve the synthetic launch/ }));
   await expect(page).toHaveURL(/\/tasks\/jt-approve$/);
   await expect(page.getByRole("heading", { name: /Approve the synthetic launch/ })).toBeVisible();
-  // Bead ro-ujb9.96.7.11: each decision is answered on its row. Approve is one
-  // press; Answer opens a box, Enter sends. Each reaches `bd` through the real
-  // task lane once its Undo window closes.
+  // Each decision is answered on its row. Approve is one press; Answer opens
+  // a box, Enter sends. Each reaches `bd` through the real task lane once its
+  // Undo window closes.
   await page.goto(`/tasks?project=${JOURNEY_ASSET}`);
   const status = async () => (await (await page.request.get("/__journey/status")).json()) as {
     tasks: { id: string; status: string }[]; taskCommands: string[][];
@@ -1689,7 +1664,7 @@ test("empty install → saved asset → fake connection and mapping → real met
   const askRow = page.locator('[data-inbox-row="jt-review"]');
   await keyboardActivate(page, askRow.getByRole("button", { name: "Answer", exact: true }));
   await expect(askRow.getByLabel("Your answer to jt-review")).toBeFocused();
-  await page.keyboard.type("Approved wording: Plan meals in minutes");
+  await page.keyboard.type("Approved wording: Example headline");
   await page.keyboard.press("Enter");
   await expect(askRow).toHaveCount(0);
   // Neither answer is written inside its Undo window.
@@ -1698,8 +1673,8 @@ test("empty install → saved asset → fake connection and mapping → real met
     .toEqual(["jt-approve:closed", "jt-review:closed"]);
   const commands = (await status()).taskCommands.map((argv) => argv.slice(2).join(" "));
   expect(commands.some((line) => line.startsWith("gate resolve jt-approve --json --actor"))).toBe(true);
-  expect(commands.some((line) => line.startsWith("human respond jt-review --response Approved wording: Plan meals in minutes --json --actor"))).toBe(true);
-  // Said once, in the answer (D45); an emptied queue draws no empty panel.
+  expect(commands.some((line) => line.startsWith("human respond jt-review --response Approved wording: Example headline --json --actor"))).toBe(true);
+  // Said once, in the answer; an emptied queue draws no empty panel.
   await expect(page.locator("[data-tasks-answer]")).toContainText("Nothing waits on you");
   await expect(page.locator("[data-waiting-list]")).toHaveCount(0);
   await assertNoPageOverflow(page);
@@ -1751,16 +1726,13 @@ async function assertSourcesFit(page: Page, context: string) {
   expect(size.scroll, `page wider than the viewport ${context}: ${escapes}`).toBeLessThanOrEqual(size.width + 1);
 }
 
-// Bead ro-ujb9.79: opening a Sources row on a phone made the whole page scroll
-// sideways. A doc reference that could not wrap stretched every open row, and a
-// Google picker was as wide as its longest option.
-// Bead ro-ujb9.121 (D29 amended): a site expects a nightly report once it has
-// sent one. Right after the one-screen add on an empty install, no screen warns
-// about a report the operator never set up, and the System fraction does not
-// count the site: the header, the Overview's Data setup, Home's first-run
-// guide, the Wall and Health's list of things to set up; Settings still offers
-// No report. Once the first number turns Home into the dashboard (bead
-// ro-ujb9.123), Home's System does not count the site either.
+// A site expects a nightly report once it has sent one. Right after the
+// one-screen add on an empty install, no screen warns about a report the
+// operator never set up, and the System fraction does not count the site: the
+// header, the Overview's Data setup, Home's first-run guide, the Wall and
+// Health's list of things to set up; Settings still offers No report. Once the
+// first number turns Home into the dashboard, Home's System does not count the
+// site either.
 test("a new site raises no nightly-report warning anywhere, and the System fraction does not count it", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -1780,8 +1752,8 @@ test("a new site raises no nightly-report warning anywhere, and the System fract
   await expect(setup).toBeVisible();
   await expect(setup).not.toContainText(/nightly report/i);
 
-  // Home is still the first-run guide (bead ro-ujb9.123): the next step is a
-  // source to connect, and nothing on it mentions a nightly report.
+  // Home is still the first-run guide: the next step is a source to connect,
+  // and nothing on it mentions a nightly report.
   await page.goto("/");
   const guide = page.locator("[data-first-run]");
   await expect(guide.locator('[data-first-run-state="current"]')).toContainText("Connect Bing Webmaster Tools");
@@ -1794,7 +1766,7 @@ test("a new site raises no nightly-report warning anywhere, and the System fract
   await expect(page.getByText("Waiting for first report")).toHaveCount(0);
 
   await page.goto("/health");
-  // Source history waits for three points (D45); the status card is drawn.
+  // Source history waits for three points; the status card is drawn.
   await expect(page.getByRole("region", { name: "System status" })).toBeVisible();
   await expect(page.getByText("Finish setup on Journey Example")).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Other sources", exact: true })).not.toContainText(/nightly report/i);
@@ -1814,18 +1786,18 @@ test("a new site raises no nightly-report warning anywhere, and the System fract
   await expect(panel.locator('[data-site-row] [data-connection="working"]').first()).toBeVisible({ timeout: 60_000 });
   await page.goto("/");
   await expect(page.locator("[data-first-run]")).toHaveCount(0);
-  // Home is the brief (D44): the OS never describes itself here, so no
-  // System cell, no freshness fraction, nothing about a report it is not owed.
+  // Home is the brief: the OS never describes itself here, so no System
+  // cell, no freshness fraction, nothing about a report it is not owed.
   await expect(page.locator("[data-home-brief]")).toBeVisible();
   await expect(page.locator('[data-kpi="System"]')).toHaveCount(0);
   await expect(page.getByRole("main")).not.toContainText(/expected to report|fresh\b/);
   expect(pageErrors).toEqual([]);
 });
 
-// Archive is the one way out of the site list (bead ro-ujb9.76.4.5), so adding
-// an archived site's domain again is the way back: "Already added" opens the
-// site that holds the domain, never a page for the id just typed (bead
-// ro-ujb9.76.4.6), on its Settings tab at Restore, and nothing offers Delete.
+// Archive is the one way out of the site list, so adding an archived site's
+// domain again is the way back: "Already added" opens the site that holds the
+// domain, never a page for the id just typed, on its Settings tab at Restore,
+// and nothing offers Delete.
 for (const status of ['retired', 'live'] as const) {
   test(status === 'retired'
     ? "adding an archived site's domain again opens that site at Restore, and nothing offers Delete"
@@ -1838,7 +1810,7 @@ for (const status of ['retired', 'live'] as const) {
     expect(id).not.toBe(domain);
 
     // The duplicate refusal can beat the unrelated Wall read. Keep that read
-    // pending until the link has been followed, reproducing ro-p190 deterministically.
+    // pending until the link has been followed, so the race is deterministic.
     let releaseWall!: () => void;
     let wallStarted!: () => void;
     const pendingWall = new Promise<void>(resolve => { releaseWall = resolve; });
@@ -1883,8 +1855,7 @@ test("PostHog connects with one key: the region found, the project matched by do
   expect((await page.request.post("/__journey/every-source")).ok()).toBe(true);
   await createAsset(page);
   await page.goto("/integrations");
-  // Bead ro-ujb9.96.7.8: one field, the access it needs as chips, no region
-  // or project to type.
+  // One field, the access it needs as chips, no region or project to type.
   await page.locator('[data-integration-tile="posthog"]').getByRole("button", { name: "Connect PostHog", exact: true }).click();
   const panel = page.getByRole("dialog", { name: "PostHog" });
   await expect(panel.locator("input")).toHaveCount(1);
@@ -1926,9 +1897,8 @@ test("Google connects in the panel: the client file dropped, signed in, GA4 and 
   expect((await page.request.post("/__journey/every-source")).ok()).toBe(true);
   await createAsset(page);
   await page.goto("/integrations");
-  // Bead ro-ujb9.96.7.7: self-hosted, the one-time setup is the panel itself —
-  // two deep links into the Cloud console, the redirect address with Copy,
-  // and the client file.
+  // Self-hosted, the one-time setup is the panel itself: two deep links into
+  // the Cloud console, the redirect address with Copy, and the client file.
   await page.locator('[data-integration-tile="google"]').getByRole("button", { name: "Connect Google", exact: true }).click();
   const panel = page.getByRole("dialog", { name: "Google" });
   await expect(panel.locator('[data-google-setup="self-hosted"]')).toBeVisible();
@@ -1987,7 +1957,7 @@ test("Google, hosted: the installation's own client makes the panel one button",
   await expect(row.locator("[data-connection]")).toHaveAttribute("data-connection", "working", { timeout: 60_000 });
 });
 
-test("a press the Tower answers with a redirect to another site never leaves the fixture, and the test names the URL (bead ro-o3hv)", async ({ page, offlineGuard }) => {
+test("a press the Tower answers with a redirect to another site never leaves the fixture, and the test names the URL", async ({ page, offlineGuard }) => {
   const failed = await page.goto("/__journey/redirect-away").then(() => null, (error: Error) => error);
   expect(failed, "the proxy refused the foreign redirect before returning it").toBeInstanceOf(Error);
   expect(page.url()).not.toContain("example.com");
@@ -1997,7 +1967,7 @@ test("a press the Tower answers with a redirect to another site never leaves the
   offlineGuard.clear();
 });
 
-test("a revoked Google sign-in says so on Integrations in one short line, the ingest's own words (bead ro-ujb9.96.6.24)", async ({ page, baseURL }, testInfo) => {
+test("a revoked Google sign-in says so on Integrations in one short line, the ingest's own words", async ({ page, baseURL }, testInfo) => {
   await installGoogleConsent(page.context(), baseURL!);
   expect((await page.request.post("/__journey/every-source")).ok()).toBe(true);
   expect((await page.request.post("/__journey/google-hosted")).ok()).toBe(true);
@@ -2012,8 +1982,8 @@ test("a revoked Google sign-in says so on Integrations in one short line, the in
   const verdict = page.locator('[data-verdict="stored-verdict"]');
   await expect(verdict).toHaveText(new RegExp(revoked.lastError.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   await expect(verdict).toHaveAttribute("data-verdict-ok", "false");
-  // A failure's budget (docs/21 principle 3a): what happened, in the words the
-  // ingest stamped; the ways out are the card's presses, not the sentence.
+  // A failure's budget: what happened, in the words the ingest stamped; the
+  // ways out are the card's presses, not the sentence.
   const words = revoked.lastError.split(/\s+/).filter((token) => /[\p{L}\p{N}]/u.test(token)).length;
   expect(words).toBeLessThanOrEqual(18);
   await verdict.scrollIntoViewIfNeeded();
@@ -2058,8 +2028,7 @@ test("every Sources row opens on a phone without widening the page, and long ref
   await expect(sources).toBeVisible();
   // A reason naming a long identifier: no space, slash or hyphen to break at.
   // Written through the real config lane as the operator's own words on Not
-  // using (bead ro-ujb9.96.7.13), and shown once — as the row's caption, never
-  // as a paragraph under the row (bead ro-ujb9.96.6.4).
+  // using, and shown once, as the row's caption.
   const longId = "BING_WEBMASTER_API_KEY_JOURNEY_EXAMPLE_WITH_A_LONG_SUBDOMAIN_PRODUCTION";
   await sources.getByRole("button", { name: /^Bing Webmaster Tools/ }).click();
   await page.locator('[data-lane-decline="bing-webmaster"]').click();
@@ -2073,7 +2042,7 @@ test("every Sources row opens on a phone without widening the page, and long ref
   await assertSourcesFit(page, "after declining with a reason that names a long identifier");
   const more = sources.getByRole("button", { name: /^Show \d+ more$/ });
   if (await more.count()) await more.click();
-  // More sources is open on arrival (bead ro-ujb9.164); only its own rows past three are behind a press.
+  // More sources is open on arrival; only its own rows past three are behind a press.
   const othersMore = page.getByRole("region", { name: "More sources", exact: true }).getByRole("button", { name: /^Show \d+ more$/ });
   if (await othersMore.count()) await othersMore.click();
   // One row at a time, so a regression names the row that widened the page.
@@ -2087,17 +2056,17 @@ test("every Sources row opens on a phone without widening the page, and long ref
   const closedDetails = page.locator("#integrations details:not([open]) > summary");
   while (await closedDetails.count()) await closedDetails.first().click();
   // A source with something to map opens on it; one with nothing to map
-  // (Clarity) has no settings to open (bead ro-ujb9.96.7.4).
+  // (Clarity) has no settings to open.
   for (const lane of ["gsc", "bing-webmaster", "ga4", "posthog", "dataforseo"]) {
     await expect(page.locator(`[data-lane-config="${lane}"]`)).toBeVisible();
   }
   await expect(page.locator('[data-lane-config="clarity"]')).toHaveCount(0);
   // Uptime has no card on Integrations to connect it: no row at all, so no
-  // dead Connect (bead ro-ujb9.133).
+  // dead Connect.
   await expect(page.locator("#integrations").getByText("Uptime monitoring")).toHaveCount(0);
   await expect(page.locator('[data-lane-config="uptime"], [data-source-connect="uptime"]')).toHaveCount(0);
   // Ad revenue, not connected: its Connect is the row's one action, and no
-  // revenue section is drawn under it (bead ro-ujb9.96.7.6).
+  // revenue section is drawn under it.
   await expect(page.locator('[data-source-connect="ad-network"]')).toBeVisible();
   await expect(page.getByRole("region", { name: "Mediavine revenue", exact: true })).toHaveCount(0);
   await expect(page.locator('[data-lane-picker="ga4"][data-lane-picker-state="ready"]')).toBeVisible();
@@ -2109,7 +2078,7 @@ test("every Sources row opens on a phone without widening the page, and long ref
 
   const mobile = testInfo.project.name === "mobile";
   // No row carries a documentation path or a setup checklist: its one action
-  // is how it gets set up (bead ro-ujb9.96.7.4).
+  // is how it gets set up.
   await expect(page.locator("#integrations [data-lane-doc-ref]")).toHaveCount(0);
   await expect(page.locator("#integrations [data-lane-step]")).toHaveCount(0);
   if (mobile) {
@@ -2121,7 +2090,7 @@ test("every Sources row opens on a phone without widening the page, and long ref
   expect(pageErrors).toEqual([]);
 });
 
-// Real stored counters, their read age and absent values (ro-ujb9.76.58).
+// Real stored counters, their read age and absent values.
 for (const minutesAgo of [10, 40]) {
   test(`stored counters show all-time totals and their ${minutesAgo}-minute age`, async ({ page }, testInfo) => {
     await createAsset(page);
@@ -2148,11 +2117,11 @@ for (const minutesAgo of [10, 40]) {
   });
 }
 
-// Bead ro-ujb9.165: uptime needs no account and no connect step. The OS checks
-// each site's home page itself every hour (the production ingest lane, over
-// the fixture store; only the site's answer is the fixture's). The Data
-// sources row reads Up with when it was checked, then Down with what the page
-// answered, and a site that is down is an error alert.
+// Uptime needs no account and no connect step. The OS checks each site's home
+// page itself every hour (the production ingest lane, over the fixture store;
+// only the site's answer is the fixture's). The Data sources row reads Up
+// with when it was checked, then Down with what the page answered, and a site
+// that is down is an error alert.
 test("a site's uptime row reads Up, stays Up after one failed try, then Down with an error alert when the retry fails too", async ({ page }) => {
   expect((await page.request.post("/__journey/every-source")).ok()).toBe(true);
   await createAsset(page);
@@ -2166,8 +2135,8 @@ test("a site's uptime row reads Up, stays Up after one failed try, then Down wit
   await expect(row().locator("[data-uptime-check]")).toHaveText("checked 1h ago");
   await expect(row().locator("[data-source-connect]")).toHaveCount(0);
 
-  // Bead ro-ujb9.180: one failed GET that the retry answers is not Down. The
-  // row stays Up and says so; no alert is filed.
+  // One failed GET that the retry answers is not Down. The row stays Up and
+  // says so; no alert is filed.
   const blip = await page.request.post("/__journey/uptime?status=503&transient=1&minutesAgo=50");
   expect(await blip.json()).toMatchObject({ checked: 1, retried: 1, fired: 0 });
   await page.reload();
@@ -2186,11 +2155,11 @@ test("a site's uptime row reads Up, stays Up after one failed try, then Down wit
   await expect(page.getByText("Home page check failed — HTTP 503").first()).toBeVisible();
 });
 
-// Bead ro-ujb9.220: every failed nightly fetch keeps its own record. The
-// production pull lane runs three nights over the fixture store (only the
-// site's answer is the fixture's): 503 "unconfigured", then 401 twice. The
-// alert speaks for last night; the site's Data sources tab and the alert's
-// Evidence list every night, so the first night's 503 is still readable.
+// Every failed nightly fetch keeps its own record. The production pull lane
+// runs three nights over the fixture store (only the site's answer is the
+// fixture's): 503 "unconfigured", then 401 twice. The alert speaks for last
+// night; the site's Data sources tab and the alert's Evidence list every
+// night, so the first night's 503 is still readable.
 test("a site whose nightly fetch fails lists each failed night on Data sources and in the alert's Evidence", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -2224,10 +2193,9 @@ test("a site whose nightly fetch fails lists each failed night on Data sources a
   expect(pageErrors).toEqual([]);
 });
 
-// Bead ro-ujb9.166: a new site's Settings scrolled 24px sideways at 768 wide,
-// because its report's auth row printed the environment binding
-// (`ASSET_TOKENS['journey.example']`) as one unbreakable line. It is a state
-// now — "Site token", locked, "Never shown" — and the page fits at every width.
+// A new site's report auth row is a state ("Site token", locked, "Never
+// shown"), never the environment binding as one unbreakable line, and the
+// page fits at every width.
 test("a new site's Settings fits a tablet, a laptop and a phone, and names its token without the binding", desktopOnly("walks the tablet, laptop and phone widths itself"), async ({ page }) => {
   await createAsset(page);
   for (const [width, height] of [[768, 1024], [1440, 900], [390, 844]] as const) {
@@ -2240,7 +2208,7 @@ test("a new site's Settings fits a tablet, a laptop and a phone, and names its t
     const size = await page.evaluate(() => ({ width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth }));
     expect(size.scroll, `Settings wider than a ${width}px screen`).toBe(size.width);
     // A new site has no search source, so Tracked search terms is one link
-    // to its Data sources rather than the Panel refresh table (D45).
+    // to its Data sources rather than the Panel refresh table.
     const needsSearch = page.locator("[data-tracked-terms-needs-search]");
     await expect(needsSearch).toBeVisible();
     await expect(page.locator("table[data-stacked]").filter({ has: page.locator('td[data-label="Since"]') })).toHaveCount(0);
@@ -2258,9 +2226,8 @@ test("a failed setup save is recoverable without duplicate creation or false suc
   await testInfo.attach("recovered-asset", { body: await page.screenshot({ fullPage: true, animations: "disabled" }), contentType: "image/png" });
 });
 
-// Beads ro-ujb9.123 and ro-ujb9.124: Home keeps the three steps until the
-// first number, each step opens this site's own next screen, and the number
-// lands on a chart of itself.
+// Home keeps the three steps until the first number, each step opens this
+// site's own next screen, and the number lands on a chart of itself.
 test("Home first-run actions keep their destinations and phone touch targets in every state", async ({ page }, testInfo) => {
   const guide = page.locator("[data-first-run]");
   const phone = (page.viewportSize()?.width ?? 0) < 640;
@@ -2366,9 +2333,9 @@ test("Home guides a new site to its first number, then becomes the dashboard", a
 });
 
 /** Words that describe a portfolio of several sites, or the code's word for
- * one (D31). The one-site walk below must meet none of them (bead
- * ro-ujb9.130); the Financials by-site table, which has no row to compare with
- * one site, is checked by its own heading below (bead ro-ujb9.129). */
+ * one. The one-site walk below must meet none of them; the Financials by-site
+ * table, which has no row to compare with one site, is checked by its own
+ * heading below. */
 const MANY_SITE_WORDS =
   /\bportfolio\b|\bassets?\b|\bevery site\b|\ball sites\b|\beach site\b|\bacross (?:all |your )?sites\b|\b1 sites\b|\bsite by site\b/gi;
 
@@ -2396,8 +2363,8 @@ test("a one-site install reads as one site: no portfolio words, and no filter wi
   ];
   const found: string[] = [];
   for (const [path, drawn] of screens) {
-    // Tasks draws only once a task source is connected (D32, bead ro-ujb9.143),
-    // and its project filter is what this walk checks, so Beads connects here.
+    // Tasks draws only once a task source is connected, and its project
+    // filter is what this walk checks, so Beads connects here.
     if (path === "/tasks") expect((await page.request.post("/__journey/task-source")).ok()).toBe(true);
     await page.goto(path);
     await expect(drawn).toBeVisible();
@@ -2407,23 +2374,22 @@ test("a one-site install reads as one site: no portfolio words, and no filter wi
   expect(found).toEqual([]);
 
   // Home leads with the one site's own strip and chart, never a comparison
-  // table of one row (bead ro-ujb9.127).
+  // table of one row.
   await page.goto("/");
   await expect(main.locator("[data-one-site-lead] [data-hero-chart]")).toBeVisible();
   await expect(main.locator("table")).toHaveCount(0);
-  // Sites is that site's row: nothing to filter, sort or add up (bead
-  // ro-ujb9.128).
+  // Sites is that site's row: nothing to filter, sort or add up.
   await page.goto("/assets");
   await expect(main.locator('[data-asset-row="journey.example"]').first()).toBeVisible();
   await expect(main.locator("[data-assets-filters], [data-kpi-strip], [data-assets-summary]")).toHaveCount(0);
   await expect(main.getByRole("group", { name: "Traffic period" })).toHaveCount(0);
   // Financials states the one site's money without a by-site table repeating
-  // it: nothing is shared, so there is nothing to allocate (bead ro-ujb9.129).
+  // it: nothing is shared, so there is nothing to allocate.
   await page.goto("/financials");
   await expect(main.getByRole("region", { name: "Daily revenue" })).toBeVisible();
   await expect(main.getByRole("heading", { name: "By site" })).toHaveCount(0);
   // The site's Search tab opens on its Bing numbers and the one step to
-  // tracking terms, never a blank page (bead ro-ujb9.136).
+  // tracking terms, never a blank page.
   await page.goto(`/assets/${JOURNEY_ASSET}/search`);
   await expect(main.locator('[data-search-start="numbers"] [data-growth-chart="Clicks"]')).toBeVisible();
   await expect(main.locator("[data-search-next]").getByRole("link")).toHaveCount(1);
@@ -2437,9 +2403,9 @@ test("a one-site install reads as one site: no portfolio words, and no filter wi
   await expect(page.locator("#tasks-project")).toHaveCount(0);
 });
 
-// Bead ro-ujb9.146: a site whose first source is ad revenue or PostHog opens
-// its Overview on that number — the first KPI drawn under the header — never on
-// a row of traffic dashes.
+// A site whose first source is ad revenue or PostHog opens its Overview on
+// that number, the first KPI drawn under the header, never on a row of
+// traffic dashes.
 test("a revenue-first and a PostHog-first site each open on their own number", async ({ page, request, baseURL }) => {
   const origin = new URL(baseURL!).origin;
   const main = page.locator("main");
@@ -2463,7 +2429,7 @@ test("a revenue-first and a PostHog-first site each open on their own number", a
   }
 });
 
-// ── the route split (bead ro-82x) ────────────────────────────────────────────
+// ── the route split ──────────────────────────────────────────────────────────
 //
 // Each address downloads the desk shell plus its own screen; the rest arrive
 // when somebody goes there. This server is Vite's dev server, where every source
@@ -2492,9 +2458,9 @@ async function openAndListScreens(page: Page, path: string, landmark: (page: Pag
   return [...new Set(screens.filter((screen): screen is string => screen !== undefined))].sort();
 }
 
-// What loads on demand INSIDE a screen since bead ro-ujb9.84: each asset tab's
-// module, the command palette's module, and cmdk (a pre-bundled dependency on
-// this server, served from the dep cache as `cmdk.js`).
+// What loads on demand inside a screen: each asset tab's module, the command
+// palette's module, and cmdk (a pre-bundled dependency on this server, served
+// from the dep cache as `cmdk.js`).
 const PART_MODULE = /\/src\/(routes\/asset-detail\/[A-Za-z]+Tab|components\/CommandPalette)\.tsx$|\/deps\/(cmdk)\.js$/;
 
 function partOf(pathname: string): string | null {
@@ -2530,7 +2496,7 @@ test("each main address loads its own screen and no other", async ({ page }) => 
     await expect(p.locator("[data-wall-strip]")).toBeVisible();
   })).toEqual(["routes/WallRoute"]);
 
-  // `/work` is the Tasks board's older address and still redirects to it.
+  // `/work` redirects to the Tasks board.
   expect(await openAndListScreens(page, "/work", async (p) => {
     await expect(p).toHaveURL(/\/tasks$/);
     await expect(p.getByRole("heading", { name: "Tasks", level: 1 })).toBeVisible();
@@ -2547,7 +2513,7 @@ test("each main address loads its own screen and no other", async ({ page }) => 
   });
   expect(asset.screens).toEqual(["components/AppShell", "routes/AssetDetailRoute"]);
   // …and none of its tabs' code but the one it was about to show, and no
-  // palette (bead ro-ujb9.84). The page starts fetching the tab it will show
+  // palette. The page starts fetching the tab it will show
   // while the asset's report is on its way, so Overview's code may arrive
   // before the store says there is no such asset; no other tab's may, and cmdk
   // waits for the first ⌘K.
@@ -2556,32 +2522,19 @@ test("each main address loads its own screen and no other", async ({ page }) => 
   expect(pageErrors).toEqual([]);
 });
 
-// The TV draws its widgets from read-only modules (bead ro-ujb9.82). Until then
-// the Wall reached the desk's editing and action code through the components it
-// shares with the desk — the attention table's flag actions and rule tuning, the
-// countdown's settings form, the task composer — and downloaded it on every cold
-// start. Each is named by the module that pulls the rest in behind it. The desk
-// Timeline and its task badge joined the list with bead ro-ujb9.85: the alert
-// rail's change chip reached them for one constant, the annotation kinds'
-// glyphs and words, which now live in their own module.
+// The desk's editing and action code, each named by the module that pulls
+// the rest in behind it. The TV draws its widgets from read-only modules and
+// must download none of these.
 const DESK_ONLY_MODULE =
   /\/(src\/components\/(RuleTune|KnobEditor|TaskComposer|Timeline|HandoffBeadBadge)\.tsx|src\/hooks\/useTasks\.ts|(scripts|shared)\/config-registers\.(mjs|ts))$/;
 
-// D28 (bead ro-trai.11, docs/14-design.md § What leaves the Wall): the old
-// Wall's widgets left the TV, and so did their modules — the alert rail, the
-// portfolio and System cards, the time faces and the meetings panel. The D28
-// widgets read the pure answers those modules used to hold from `lib/` instead
-// (operator posture, the portfolio headline, the meetings view). Since bead
-// ro-trai.14 the old asset card is off it too — the site rows read today's pace
-// from `lib/intraday-pace` — and with it the source icon row, the task strip and
-// the card's daily bars. Bead ro-trai.20 took those modules out of the Tower
-// altogether; what this still guards are the desk's own relatives of them —
-// the alert rows (the desk table left too, bead ro-trai.25), the countdown's
-// face and form, the source mark row — which the TV must never download again.
+// The desk's relatives of widgets the Wall no longer draws: the alert rows,
+// the countdown's face and form, the source mark row. The TV must never
+// download them.
 const RETIRED_WALL_MODULE =
   /\/src\/components\/(AlertRow|TimeFaces|DashboardWidgets|DataSourceIcons)\.tsx$/;
 
-test("the TV downloads no desk editing or task code, and none of the widgets D28 retired", async ({ page }) => {
+test("the TV downloads no desk editing or task code, and none of the widgets the Wall retired", async ({ page }) => {
   const modules = await openAndListModules(page, "/wall", async (p) => {
     await expect(p.locator("[data-wall-strip]")).toBeVisible();
   });
@@ -2594,7 +2547,7 @@ test("the TV downloads no desk editing or task code, and none of the widgets D28
   expect(modules.filter((path) => RETIRED_WALL_MODULE.test(path))).toEqual([]);
 });
 
-// ── the asset page's tabs and the command palette (bead ro-ujb9.84) ─────────
+// ── the asset page's tabs and the command palette ───────────────────────────
 
 test("an asset's tabs fetch their code when opened, and the palette on its first ⌘K", async ({ page }) => {
   const pageErrors: string[] = [];
@@ -2659,7 +2612,7 @@ test("an asset tab whose code cannot be fetched preserves its panel and recovers
   const panel = page.getByRole("tabpanel");
   const alert = panel.getByRole("alert");
   await expect(alert).toContainText("This section didn't load");
-  // D41: missing code must not reload a document or discard another editor.
+  // Missing code must not reload a document or discard another editor.
   expect(documents).toBe(1);
   expect(refused).toBeGreaterThanOrEqual(1);
   const originalUrl = page.url();
@@ -2707,7 +2660,7 @@ test("a screen whose code cannot be fetched preserves its document and recovers 
   await page.goto("/tasks");
   const alert = page.getByRole("alert");
   await expect(alert).toContainText("This page didn't load");
-  // D41: no automatic reload; the failed document stays available to its owner.
+  // No automatic reload; the failed document stays available to its owner.
   expect(documents).toBe(1);
   expect(refused).toBe(1);
   const originalUrl = page.url();
@@ -2745,8 +2698,8 @@ test("the nav fetches a screen's code when the pointer rests on its link", deskt
   await expect(page).toHaveURL(/\/$/);
 });
 
-// D32: core work is usable before the first managed site and independent of a
-// delayed snapshot-health request. External providers are separate integrations.
+// Core work is usable before the first managed site and independent of a
+// delayed snapshot-health request.
 test("core Tasks creates, opens and completes work before any user site", async ({ page, request }, testInfo) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));

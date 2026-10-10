@@ -1,26 +1,23 @@
-// The flow recorder the flow walker drives with.
-//
-// Grown from a UX audit's walker so the walker measures a flow exactly the
-// way the audit did: by clicking the controls the product offers, never by
-// typing a URL the product did not link to, and COUNTING what each flow
-// costs. The step scripts live in `ux-flows.mjs`; the runner and the report
-// are `flow-gate.mjs`.
+// The flow recorder the flow walker drives with: it measures a flow by
+// clicking the controls the product offers, never by typing a URL the product
+// did not link to, and counts what each flow costs. The step scripts live in
+// `ux-flows.mjs`; the runner and the report are `flow-gate.mjs`.
 //
 // This module holds no Playwright import: the runner owns the browser, and the
 // root script tests can load the flow registry without one.
 //
-// COUNTING RULES (the audit's, unchanged unless noted):
+// Counting rules:
 //   click    a press on a control: button, link, tile, tab, disclosure, choice
 //   field    an input the person fills (typed or pasted)
 //   select   one native <select> choice
 //   confirm  an "are you sure" gate (typed confirmation, second button, reason)
 //   screen   a distinct place to orient on: a URL (path + query + hash) or a
 //            guided-setup step that replaces the content. A panel or dialog
-//            opened over the page is NOT a screen of its own (the audit's rule:
-//            the connect panel is a control on the current step); every press
-//            inside it still counts as an action. The guided step is detected
-//            from the page, not declared by the script (new in the gate): the
-//            current step of a step navigation (`aria-current="step"`, or the
+//            opened over the page is not a screen of its own (the connect
+//            panel is a control on the current step); every press inside it
+//            still counts as an action. The guided step is detected from the
+//            page, not declared by the script: the current step of a step
+//            navigation (`aria-current="step"`, or the
 //            pressed button of a nav labelled as setup/steps), in the open
 //            dialog if there is one, else in <main>.
 //   hop      moving between product areas (Home, Integrations, an asset page,
@@ -36,18 +33,17 @@
 //            (…/test, …/sites, google/properties), the same browser dialog
 //            twice, or one observed and named with its code evidence.
 //   dup status the same status for the same subject shown more than once on
-//            one screen (doc 14's one representation per fact)
+//            one screen (one representation per fact)
 //   ungrouped a list whose items repeat one subject (timelines and logs, whose
 //            order is the meaning, are exempt)
 //
-// SUBJECTS ARE READ FROM THE MARKUP, NEVER GUESSED (bead ro-ujb9.96.10). A
-// status names what it is about in `data-status-for` (every status component
-// draws it: `StateChip`, `IntegrationStateChip`, `StatusBanner`,
-// `InlineSaveState`; `scripts/status-subject.test.mjs` fails a call site
-// without one), and a row in a list of subjects carries `data-subject`. A
-// status that declares nothing is the SCREEN's (`page:<path>`), and a row that
-// declares nothing is read by the line it leads with, so an undeclared repeat
-// fails the gate rather than passing as two subjects.
+// Subjects are read from the markup, never guessed. A status names what it is
+// about in `data-status-for` (every status component draws it;
+// `scripts/status-subject.test.mjs` fails a call site without one), and a row
+// in a list of subjects carries `data-subject`. A status that declares nothing
+// is the screen's (`page:<path>`), and a row that declares nothing is read by
+// the line it leads with, so an undeclared repeat fails the gate rather than
+// passing as two subjects.
 
 import { installGoogleConsent } from "./google-consent.mjs";
 import { mkdir } from "node:fs/promises";
@@ -571,8 +567,7 @@ export class Walk {
     this.m.selects += 1;
     await this.step("select", "select", label, target, () => target.selectOption(value));
   }
-  /** A file dropped or chosen (Google's client_secret.json, bead
-   * ro-ujb9.96.7.7): one field, like a paste. */
+  /** A file dropped or chosen (Google's client_secret.json): one field, like a paste. */
   async upload(target, file, label) {
     this.m.fields += 1;
     this.m.pastes += 1;
@@ -603,9 +598,8 @@ export class Walk {
     const { key } = await this.observe();
     const shot = await this.shot("end", label, null);
     this.steps.push({ n: this.n, kind: "end", role: "end", label, screen: key, shot });
-    // A flow never finishes on a refusal (bead ro-nuz9): whatever it waited
-    // for, an error toast or a "Not saved" still on screen means the product
-    // said no, and the walk is a failure however many steps it took.
+    // A flow never finishes on a refusal: an error toast or a "Not saved"
+    // still on screen means the product said no, however many steps it took.
     const refusal = await refusalOnScreen(this.page);
     if (refusal !== null) throw new Error(`the walk ended on a refusal: ${refusal}`);
   }
@@ -716,15 +710,15 @@ export async function assetTab(w, name) {
 }
 
 /** A provider's own page, through its catalog row's one action (Connect or
- * Manage). The row itself is not a link since bead ro-ujb9.96.7.1. */
+ * Manage); the row itself is not a link. */
 export async function openIntegration(w, label) {
   await nav(w, "Integrations");
   const row = w.page.locator("[data-integration-tile]").filter({ hasText: label }).first();
   await w.click(row.getByRole("link"), `row ${label}`, { role: "choose" });
 }
 
-/** The connect panel (beads ro-ujb9.96.7.1, ro-ujb9.96.7.2): the row's
- * Connect opens it over the list — the same screen — and one Connect press
+/** The connect panel: the row's Connect opens it over the list, the same
+ * screen, and one Connect press
  * saves and tests the key. The account's sites then appear in the same panel,
  * matched to assets by domain and ticked; one Start press saves those matches
  * (the Data sources tab's own write) and runs the first collection through the
@@ -744,10 +738,9 @@ export async function connectInPanel(w, id, fields) {
   await w.waitFor("Start → Working", () => panel.locator('[data-site-row] [data-connection="working"]').first().waitFor({ timeout: 60_000 }));
 }
 
-/** The same panel reached from where a new site lands (bead ro-ujb9.96.7.5):
- * the asset's Data sources row's one Connect — picking which source to connect
- * — opens the panel for this asset on Integrations; the key, the match and
- * Start are the panel's own, as above. */
+/** The same panel reached from where a new site lands: the asset's Data
+ * sources row's one Connect opens the panel for this asset on Integrations;
+ * the key, the match and Start are the panel's own, as above. */
 export async function connectFromSource(w, id, fields) {
   const connect = w.page.locator(`#integrations [data-source-connect="${id}"]`);
   await w.click(connect, "source Connect", { role: "choose" });
@@ -774,9 +767,8 @@ export async function saveCredential(w, label = "Save credential") {
   await w.waitFor(`${label} → saved`, () => card.locator("form[data-connect-form]").first().waitFor({ state: "detached", timeout: 15_000 }).catch(() => {}));
 }
 
-/** The card's Test button, named for what the press does (bead
- * ro-ujb9.96.6.1): "Test connection" for a free read, "Check keys" where the
- * provider offers no free call (Clarity). */
+/** The card's Test button, named for what the press does: "Test connection"
+ * for a free read, "Check keys" where the provider offers no free call. */
 export async function testConnection(w, label = "Test connection") {
   const card = w.page.locator("[data-provider-card]");
   await w.click(card.getByRole("button", { name: label, exact: true }), label, { role: "verify" });
@@ -792,8 +784,8 @@ export async function continueTo(w, label) {
 export async function openSourceRow(w, name) {
   const sources = w.page.locator("#integrations");
   const row = sources.getByRole("button", { name: new RegExp(`^${name}`) }).first();
-  // Data sources and More sources each keep their rows past three behind their
-  // own "Show N more" (bead ro-ujb9.164: More sources is no longer a closed box).
+  // Data sources and More sources each keep their rows past three behind
+  // their own "Show N more".
   for (const panel of ["Data sources", "More sources"]) {
     if (await row.isVisible().catch(() => false)) break;
     const more = sources.getByRole("region", { name: panel, exact: true }).getByRole("button", { name: /^Show \d+ more$/ });
@@ -803,7 +795,7 @@ export async function openSourceRow(w, name) {
 }
 
 /** A save the product confirmed: its success toast, or "Saved" beside the
- * field. Never any toast: an error toast is the refusal (bead ro-nuz9). */
+ * field. Never any toast: an error toast is the refusal. */
 export const SAVED = '[data-sonner-toast][data-type="success"], [data-save-state="saved"]';
 
 /** A save the product refused: its error toast, or "Not saved" beside the
@@ -818,11 +810,9 @@ export async function refusalOnScreen(page) {
 }
 
 /**
- * Wait for the product's answer to a commit and accept only a confirmation
- * (bead ro-nuz9): `confirmation` — by default any SAVED — passes; a refusal
- * appearing first fails the walk in the refusal's own words, and so does no
- * answer at all. The arrange-wall walk used to wait for ANY toast, so the
- * "Changed elsewhere" refusal of a first Save counted as saved.
+ * Wait for the product's answer to a commit and accept only a confirmation:
+ * `confirmation` (by default any SAVED) passes; a refusal appearing first
+ * fails the walk in the refusal's own words, and so does no answer at all.
  */
 export async function awaitSaved(w, label, confirmation = w.page.locator(SAVED).first()) {
   await w.waitFor(label, async () => {
@@ -849,13 +839,12 @@ export async function knobSave(w, control, label) {
 //
 // The connect panels (Bing, DataForSEO, PostHog, Clarity, Mediavine, Google)
 // run the production ingest over the fixture, with only each provider's
-// network answered by harness.ts. What is still answered here: the older
-// credential writes and connection tests of the providers on their own pages
-// (Discord, calendars), and Google's consent screen — a full-page trip to
-// accounts.google.com that is not walked: it answers with the redirect Google
-// sends back after a person consents, carrying the fixture's synthetic code
-// (bead ro-ujb9.96.7.7), so the callback, the token exchange and the account's
-// lists are the product's own.
+// network answered by harness.ts. Answered here: the credential writes and
+// connection tests of the providers on their own pages (Discord, calendars),
+// and Google's consent screen, a full-page trip to accounts.google.com that
+// is not walked: it answers with the redirect Google sends back after a
+// person consents, carrying the fixture's synthetic code, so the callback,
+// the token exchange and the account's lists are the product's own.
 
 const REQUIRED = {
   dataforseo: ["DATAFORSEO_LOGIN", "DATAFORSEO_PASSWORD"],
@@ -895,14 +884,14 @@ export async function installSyntheticProviders(context, base) {
     if (what === "test") {
       const entry = held.get(id);
       if (entry) entry.tested = true;
-      // A result, never a sentence (bead ro-ujb9.96.6.19).
+      // A result, never a sentence.
       const result = entry ? { outcome: "answered" } : { outcome: "not-connected", fix: { kind: "connect" } };
       return route.fulfill({ json: { ok: Boolean(entry), message: entry ? "Answered" : "Not connected", result, checkedAt: NOW } });
     }
     return route.continue();
   });
   await installGoogleConsent(context, base);
-  // Task writes (answer, dismiss, approve, file) go through the real task lane
-  // to the fixture's `bd` (bead ro-ujb9.96.7.11); nothing is answered here.
+  // Task writes (answer, dismiss, approve, file) go through the real task
+  // lane to the fixture's `bd`; nothing is answered here.
   return held;
 }

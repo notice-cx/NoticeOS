@@ -45,10 +45,9 @@ Monthly net P&L is neither quantity; the Tower labels it **Net P&L**, not ROI.
   ([doc 02](02-signal-contract.md)): display ads (RPM × monetizable sessions),
   affiliate commissions, subscriptions, licensing. Booked from payout/reporting
   APIs and platform exports, not inferred from traffic.
-- **Risk-adjusted asset value** — the design's 2026-07-03 working assumption
-  was **~24–40× monthly net profit**. That market range is a dated STATE input,
-  not a permanent rule: re-verify it before each scoring-policy version that
-  uses asset value. Heavily discount any current multiple for
+- **Risk-adjusted asset value** — the working assumption is **~24–40× monthly
+  net profit**. That market range is a market input, not a permanent rule:
+  re-verify it before each scoring-policy version that uses asset value. Heavily discount any current multiple for
   **traffic-source concentration** (85%+ Google-organic + single revenue stream
   trades at the bottom of the range and is "very hard to sell" — the #1
   devaluation factor and the portfolio's dominant correlated risk). So value
@@ -56,7 +55,7 @@ Monthly net P&L is neither quantity; the Tower labels it **Net P&L**, not ROI.
   that adds $50/mo of algorithm-fragile revenue is worth less than one that adds
   $50/mo of email/direct/subscription revenue, and the scoring function prices
   that ([doc 04](04-decision-policy.md)).
-- **Fully-loaded system cost** — the side v1 of these docs didn't have:
+- **Fully-loaded system cost**:
   - agent inference (tokens per proposal/build/verify run, metered per change —
     *not yet: nothing in the OS calls a model, so this arrives as an imported
     monthly cost row, see principle 5*),
@@ -70,7 +69,7 @@ Monthly net P&L is neither quantity; the Tower labels it **Net P&L**, not ROI.
 ## The ledger
 
 One append-only record per asset, with three kinds of entry: revenue, cost and
-change ([D36](../config/decisions.md)); the shared substrate every loop stage
+change; the shared substrate every loop stage
 reads and writes ([doc 01](01-architecture.md)). A booked entry never changes:
 a correction is a new entry that supersedes it.
 
@@ -87,10 +86,10 @@ a correction is a new entry that supersedes it.
 **One change, one id, three views** (so builders don't model it thrice):
 Decide creates the hypothesis card (status `ranked`), and the card's id is
 the change's id from then on. When the change ships, the ledger books its
-change entry under that id (the accounting view above, D36); the registry row
+change entry under that id (the accounting view above); the registry row
 is the Tower's post-ship view of it (doc 10), and every cost spent on the
 change names the same id. The entry freezes the prediction the change shipped
-with (D38): the card can be edited until then, the entry never. The kill
+with: the card can be edited until then, the entry never. The kill
 criterion is the change's watch window ([doc 03](03-attribution.md)), not
 part of the entry. What happens to the change afterwards (its revert, its
 realized value) is a new entry that supersedes it and repeats its
@@ -98,9 +97,9 @@ prediction, so the chain's newest entry is the change's current record. A
 change entry books no money and the P&L never counts it: the revenue a change
 earns is already booked as revenue, and the entry only attributes it.
 
-**State, 2026-09-30:** the Postgres model ([`db/postgres/`](../db/postgres/README.md))
+**State:** the Postgres model ([`db/postgres/`](../db/postgres/README.md))
 books a change entry's site, the month it shipped, its class, its id and the
-prediction it shipped with, and no amount (D38). No code books a change entry
+prediction it shipped with, and no amount. No code books a change entry
 yet, and the realized value has no lane until doc 03's attribution is built.
 
 ### Booking rules (the honesty core)
@@ -119,7 +118,7 @@ yet, and the realized value has no lane until doc 03's attribution is built.
    roll up to change-class and asset level; the number the operator steers by is
    the program-level P&L, where small effects aggregate into measurable ones.
 4. **Prediction is mandatory, and the gap is the product.** Every change carries
-   `predicted` at intake, and its ledger entry freezes it at ship (D38), so
+   `predicted` at intake, and its ledger entry freezes it at ship, so
    grading reads the prediction as it shipped, never a later edit.
    Predicted-vs-realized calibration per change class is
    what the Learn stage feeds on ([doc 01](01-architecture.md)) — it is the
@@ -129,14 +128,13 @@ yet, and the realized value has no lane until doc 03's attribution is built.
    cost-per-shipped-retained-improvement is a first-class Tower metric
    ([doc 06](06-operations.md)); an optimizer that costs more than it returns
    gets caught by its own ledger.
-   **State, 2026-09-05:** it does not bill itself yet, and nothing pretends
-   otherwise. No process in this repo calls a model — the analyzer is
-   rule-based and every model call happens in a Claude Code session billed
-   outside the OS — so inference reaches the ledger only as a monthly
-   `os-overhead` cost row somebody imports, never metered per run. The monthly
-   inference cap was withdrawn for exactly that reason (D6, bead `ro-uj7x`);
-   this principle returns to force the day the OS makes a model call of its
-   own. The data plane already works this way and keeps its fail-closed cap.
+   **State:** it does not bill itself yet, and nothing pretends otherwise. No
+   process in this repo calls a model — the analyzer is rule-based and every
+   model call happens in an agent session billed outside the OS — so
+   inference reaches the ledger only as a monthly `os-overhead` cost row
+   somebody imports, never metered per run. There is no monthly inference cap
+   for the same reason; this principle returns to force the day the OS makes
+   a model call of its own. The data plane already works this way and keeps its fail-closed cap.
 
 ## Near-term ROI levers already visible in the ledger frame
 
@@ -148,8 +146,7 @@ Grounding, so the first backlogs rank against real numbers:
   RPMs (~$11–15 typical, $30–50+ in strong niches/Q4) are multiples of AdSense.
   Portfolio assets at 10k–100k PV/mo are *inside* eligibility today.
 - **Affiliate is declining/volatile at the Amazon end** (rate cuts up to 50%,
-  degraded reporting, 60-day payment lag — and the portfolio's own measured
-  $2.92 experiment). Favor higher-EPC direct programs, contextually placed;
+  degraded reporting, 60-day payment lag). Favor higher-EPC direct programs, contextually placed;
   treat affiliate forecasts with a wide interval.
 - **Subscriptions/licensing are the concentration hedge** — the revenue families
   the asset-value discount rewards most.

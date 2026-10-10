@@ -1,18 +1,17 @@
-# Home and the site Overview, redesigned (2026-10-08, D44)
+# Home and the site Overview, redesigned (2026-10-08)
 
-The operator's brief: the Home and each site's Overview "look boring, repetitive
-of the details pages, cookie cutter, not visually engaging", pack "way lower
-level than necessary", and the chosen components "seem unrelated to the
-underlying business needs". Two further constraints: the operator has ADHD, so
-the first screen must keep a distracted brain engaged without overwhelming it;
-and a founder reviewer called the whole product "technical", which turns away
-the business-focused founders NoticeOS is for.
+The brief: the Home and each site's Overview "look boring, repetitive of the
+details pages, cookie cutter, not visually engaging", pack "way lower level
+than necessary", and the chosen components "seem unrelated to the underlying
+business needs". Two further constraints: the first screen must keep a
+distracted brain engaged without overwhelming it; and a founder reviewer
+called the whole product "technical", which turns away the business-focused
+founders NoticeOS is for.
 
 This brief records the research, the decision and the prior art each new flow
 cites. The directions themselves were presented as a private design canvas
 (fifteen boards; historical evidence, not in the public source). The rule is
-[doc 14](../14-design.md); this brief is the evidence behind its
-2026-10-08 amendment.
+[doc 14](../14-design.md); this brief is the evidence behind it.
 
 ## What the code showed (the diagnosis)
 
@@ -28,7 +27,7 @@ cites. The directions themselves were presented as a private design canvas
 6. The altitude is wrong for the audience: "GA4", "nightly report",
    "provisional", "gate", "captured in preview" are operator-of-the-OS words.
 
-## Decision (operator, 2026-10-08)
+## Decision
 
 - **Home is the Morning Brief** (direction A). A greeting line with three small
   figures (yesterday's revenue, the month's pace, yesterday's visitors); then at
@@ -177,4 +176,4 @@ AttentionGuard and FocusView studies, practitioner ADHD-UX writing):
 Provisional is hollow, missing is a dash, unmeasured says so, a projection is
 dashed and neutral, a comparison that is not like for like carries no colour.
 Said-versus-got (the Learn stage) draws nothing until the realized-value lane
-exists ([doc 00](../00-objective-and-roi.md), state 2026-09-30).
+exists ([doc 00](../00-objective-and-roi.md)).

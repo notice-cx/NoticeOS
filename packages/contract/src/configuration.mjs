@@ -27,7 +27,7 @@ export const ASSET_ID_RE = /^[a-z0-9.-]+$/;
 export const CONFIG_ASSET_KEY_SOURCE = '[a-z0-9][a-z0-9._-]*';
 export const CONFIG_ASSET_KEY_RE = new RegExp(`^${CONFIG_ASSET_KEY_SOURCE}$`);
 export const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
-// ── PostHog per-asset settings (bead ro-ghis.1) ─────────────────────────────
+// ── PostHog per-asset settings ──────────────────────────────────────────────
 // One rule for three readers: the store save (scripts/config-registers.mjs
 // `fieldRefusal`), the Tower's funnel editor, and the ingest collector, which
 // refuses a funnel the save would have refused rather than sending it to
@@ -121,7 +121,7 @@ export function posthogFunnelsRefusal(value, name = 'funnels') {
     }
     return null;
 }
-// ── Assets that send no nightly report (bead ro-ujb9.96.8) ──────────────────
+// ── Assets that send no nightly report ──────────────────────────────────────
 // The operator's declaration that an asset owes the OS no nightly report, so
 // the report's absence is a state and never a failure. One list in the saved
 // constants, written whole by the asset's Settings switch, read by the ingest
@@ -174,17 +174,13 @@ export function noNightlyReportAssets(constants) {
         return [];
     return held.filter((id) => typeof id === 'string' && CONFIG_ASSET_KEY_RE.test(id));
 }
-// ── The older single-asset credential binding (beads ro-vu8d.24, ro-ujb9.118) ─
-// One rule for every reader: the ingest's card summary and collector, the
-// Tower's providers route (which hands the answer to the env importer) and
-// `pnpm creds:check`. No site is written down anywhere.
+// ── The older single-asset credential binding ───────────────────────────────
+// One rule for every reader; no site is written down anywhere.
 /**
- * WHICH ASSET AN OLDER SINGLE-ASSET BINDING SERVES: the first asset, in the
+ * Which asset an older single-asset binding serves: the first asset, in the
  * installation's own data-source register order (`config/integrations.json`
- * `/assets`, store first), whose entry has `lane` — the one site an install
- * had when it was set up with a single token, before a per-asset map existed.
- * Null, and the binding serves no asset, when the register is missing or no
- * asset has the lane.
+ * `/assets`, store first), whose entry has `lane`. Null, and the binding
+ * serves no asset, when the register is missing or no asset has the lane.
  */
 export function legacyBindingAsset(lane, register) {
     if (!isPlainObject(register) || !isPlainObject(register.assets))

@@ -1,19 +1,15 @@
-// Deterministic executive insights from flattened GA4, GSC, and Bing
-// Webmaster report families.
-//
-// This is deliberately a small evidence engine, not an LLM prompt. Every card
-// is produced by an explicit rule over named provider reports and carries its
-// own date window, evidence, and limitations. Missing rows never imply zero and
-// can never produce a deprecation recommendation.
+// Deterministic executive insights from flattened GA4, GSC and Bing Webmaster
+// report families. Every card is produced by an explicit rule over named
+// provider reports and carries its own date window, evidence and limitations.
+// Missing rows never imply zero and never produce a deprecation recommendation.
 
 import { readProductUseStages } from '../packages/contract/src/product-use.mjs';
 import { marketLabel } from '../packages/contract/src/search-market.mjs';
 
 /**
- * THE MARKET A SITE'S DATAFORSEO NUMBERS WERE ASKED IN, as a finding names it
- * (bead ro-ujb9.207): the site's saved location and language in words, or the
- * site's default market when it saved none (`savedSearchMarket` in the
- * contract, the rule the collector asks by). Never one market for every site.
+ * The market a site's DataForSEO numbers were asked in, as a finding names it:
+ * the site's saved location and language in words, or its default market when
+ * it saved none (`savedSearchMarket`, the rule the collector asks by).
  */
 export function marketPhrase(market) {
   return market ? `the ${marketLabel(market)} market` : 'the site’s default market';
@@ -39,10 +35,9 @@ function nullableNumber(value) {
 }
 
 /**
- * A provider count the row may not state (bead ro-8s5): the number, or null
- * when the field is blank or the row is absent. DataForSEO answers some LLM
- * platform rows with no figures at all, and `number()` would turn that into a
- * zero — negative evidence nobody measured. An explicit provider 0 stays 0.
+ * A provider count the row may not state: the number, or null when the field
+ * is blank or the row is absent. `number()` would turn a blank into a zero
+ * nobody measured; an explicit provider 0 stays 0.
  */
 function reportedCount(row, field) {
   return row ? nullableNumber(row[field]) : null;
@@ -198,10 +193,9 @@ function queryWindow({
   positionField,
   sourceName,
   caveat,
-  /** Rows this provider's lane states about its own series before ranking it —
-   * the same `{label, value, detail}` shape the cards carry. Empty means the
-   * lane makes no such statement, never that a check ran and found nothing:
-   * a check that ran is a row that is present. */
+  /** Rows this provider's lane states about its own series before ranking it,
+   * in the `{label, value, detail}` shape the cards carry. Empty means the lane
+   * makes no such statement, never that a check ran and found nothing. */
   evidence: evidenceRows = [],
 }) {
   const dates = [
@@ -318,30 +312,21 @@ function nullableBoolean(value) {
 }
 
 /**
- * The device a panel row was read on (`ro-14d.1`).
- *
- * Since `ro-o1n` the panel collects every tracked term on BOTH mobile and
- * desktop, so `dataforseo-serp-panel.csv` carries one row per term PER DEVICE
- * and every reader below is keyed on the pair. A row naming no device at all —
- * anything archived before 2026-08-04, when the collector had exactly one
- * `device` literal in it — is desktop by construction, which is the same call
- * `serpPageDevice()` makes in scripts/signal-archive.mjs for the same
- * reason: the device was structurally true, so leaving it unknown would break
- * every device-vs-device comparison across the cutover for no gain.
- *
- * The cost path is never keyed on this — `searchIntelligenceSnapshot` sums
- * every panel row, because both devices were billed and the snapshot's cost is
- * the real bill or it is worth nothing.
+ * The device a panel row was read on. `dataforseo-serp-panel.csv` carries one
+ * row per term per device and every reader below is keyed on the pair. A row
+ * naming no device is desktop by construction — the same call
+ * `serpPageDevice()` makes in scripts/signal-archive.mjs. The cost path is
+ * never keyed on this: `searchIntelligenceSnapshot` sums every panel row,
+ * because both devices were billed.
  */
 function panelDevice(row) {
   return text(row.device).trim().toLocaleLowerCase('en-US') || 'desktop';
 }
 
-/** The order every device-keyed surface states the two in. The phone leads
- * because that is where most of this demand actually searches (the reason
- * `ro-o1n` bought the second device), and the first column is the one that gets
- * read. An unrecognized device sorts after both, alphabetically, rather than
- * being dropped: the collector's device list is config, not a closed set. */
+/** The order every device-keyed surface states the two in; the phone leads
+ * because that is where most of this demand searches. An unrecognized device
+ * sorts after both, alphabetically, rather than being dropped: the collector's
+ * device list is config, not a closed set. */
 const PANEL_DEVICE_ORDER = ['mobile', 'desktop'];
 
 function byPanelDevice(left, right) {
@@ -353,27 +338,15 @@ function byPanelDevice(left, right) {
 }
 
 /**
- * The tracked-query panel's AI Overview evidence, keyed by normalized query —
- * the one read both consumers share: the ranked-keyword visibility rows it
- * enriches, and the striking-distance gate it withholds on.
+ * The tracked-query panel's AI Overview evidence, keyed by normalized query,
+ * shared by the ranked-keyword visibility rows and the striking-distance gate.
  *
- * Each query maps to ONE READING PER DEVICE, in `PANEL_DEVICE_ORDER`, never to
- * a single folded verdict. An overview that fires on the phone and not on the
- * desktop is the finding — a phone result page is not a narrower desktop one —
- * and a reader that kept one row per query would have reported whichever
- * surface its tie-break happened to land on.
- *
- * The tie-break is stated once and shared with `serpPanelSnapshot()` below:
- * FIRST row wins per (query, device). Two rows for one pair are a duplicated
- * collection, not two observations, so the choice is arbitrary — but it has to
- * be the SAME arbitrary choice in both readers, because they publish onto the
- * same page and opposite tie-breaks are how two surfaces start disagreeing
- * about one collection.
- *
- * The panel is additive wherever it is joined: it enriches queries a series
- * already surfaced and adds none of its own, so a term on the panel but outside
- * that series contributes nothing, and a query nobody tracked stays exactly as
- * unknown as it was before the panel existed.
+ * Each query maps to one reading per device, in `PANEL_DEVICE_ORDER`, never a
+ * folded verdict: an overview that fires on the phone and not on the desktop
+ * is the finding. First row wins per (query, device) — the same tie-break as
+ * `serpPanelSnapshot()`, so the two readers never describe different
+ * collections. The panel is additive: it enriches queries a series already
+ * surfaced and adds none of its own.
  */
 function serpPanelEvidence(families) {
   const input = latestSnapshotRows(families, 'dataforseo-serp-panel');
@@ -407,34 +380,18 @@ function serpPanelEvidence(families) {
 }
 
 /**
- * The whole tracked panel, one entry per term the property paid a call for —
- * NOT the intersection `serpPanelEvidence()` joins onto another series. Both
- * existing consumers (the ranked-keyword rows it enriches, the striking-distance
- * gate) are intersections, so a tracked term outside the ranking inventory was
- * invisible on every rendered surface; this block is what the Tower's panel
- * scoreboard reads.
+ * The whole tracked panel, one entry per (term, device) — not the intersection
+ * `serpPanelEvidence()` joins onto another series. This is what the Tower's
+ * panel scoreboard reads. Devices are not folded: the Tower groups rows back
+ * into terms (`serpPanelTerms` in apps/tower/shared/asset-detail.ts). A
+ * snapshot carrying no `device` is read as a desktop row. First row wins per
+ * (term, device), the same tie-break as `serpPanelEvidence()`.
  *
- * ONE ENTRY PER (TERM, DEVICE) since `ro-14d.1`, each naming its own `device`.
- * Two devices are two observations of two different result pages, so folding
- * them here would decide on the producer's behalf which surface the property
- * page is about; the Tower groups the rows back into terms for its counts
- * (`serpPanelTerms` in apps/tower/shared/asset-detail.ts) so a split multiplies
- * no denominator. A snapshot written before this change carries no `device` at
- * all, and the payload parser reads that absence as the desktop-era row it is.
- * First row wins per (term, device) — the same tie-break `serpPanelEvidence()`
- * states above, so the two readers cannot answer about different collections.
- *
- * Empty cells stay `null` in both directions the family means them: an empty
- * `best_rank` is "no result inside the tracked depth", never "does not rank",
- * and an empty `aio_*` is unknown, never `false`.
- *
- * A property with no panel rows gets NO block. Absence is "this property has no
- * panel", which is a different fact from an empty panel, and the Tower renders
- * nothing rather than an empty scoreboard.
- *
- * `market` is the site's saved search market the panel is asked in, or null
- * when it saved none (bead ro-ujb9.230): the Tower's caption names it, and
- * names no market rather than a default one the site never chose.
+ * Empty cells stay `null`: an empty `best_rank` is "no result inside the
+ * tracked depth", never "does not rank", and an empty `aio_*` is unknown,
+ * never `false`. A property with no panel rows gets no block — absence is "no
+ * panel", a different fact from an empty panel. `market` is the site's saved
+ * search market, or null when it saved none, so the caption names no default.
  */
 function serpPanelSnapshot(families, market) {
   const input = latestSnapshotRows(families, 'dataforseo-serp-panel');
@@ -453,23 +410,21 @@ function serpPanelSnapshot(families, market) {
     queries.push({
       query,
       device,
-      // The cluster this query measures, as the COLLECTION recorded it —
-      // `flattenSerpPanel` emits `query_label` from the archived page envelope
-      // and never from config (`ro-282.2`). Carried through unread and
-      // un-normalized: a cluster rename must not relabel history, so nothing
-      // downstream may look this up in config/serp-panel.json at render time.
-      // Blank for a property that labels nothing, and for nom's own pre-label
-      // collections — a mixed panel is normal input, not a defect.
+      // The cluster label as the collection recorded it (`flattenSerpPanel`
+      // emits `query_label` from the archived page envelope, never from
+      // config). Carried through unread: a cluster rename must not relabel
+      // history, so nothing downstream may look this up in config at render
+      // time. Blank rows are normal input, not a defect.
       label: text(row.query_label).trim() || null,
       bestRank: nullableNumber(row.best_rank),
       bestUrl: text(row.best_url) || null,
       aioPresent: nullableBoolean(row.aio_present),
       aioCitesUs: nullableBoolean(row.aio_cites_us),
-      // One availability boundary, not five independent blanks. The flattener
+      // One availability boundary, not five independent blanks: the flattener
       // leaves `organic_results` empty only on a billed-but-unanswered page; a
-      // readable organic-only page is a real zero and keeps an empty feature
-      // list. This is CURRENT composition only — one retained panel snapshot
-      // cannot say that any domain arrived, left, rose, or fell.
+      // readable organic-only page is a real zero with an empty feature list.
+      // Current composition only — one snapshot cannot say a domain arrived,
+      // left, rose or fell.
       composition:
         organicResults === null
           ? null
@@ -604,13 +559,11 @@ function dataForSeoQueryVisibility(families, market) {
         aiCitationPosition: aiReference
           ? nullableNumber(aiReference.rank_group)
           : null,
-        // Live tracked-panel evidence where it exists, ONE READING PER DEVICE,
-        // and an empty list everywhere else. Deliberately not derived from
-        // `aiOverview` above: that is a provider ranking-inventory field about
-        // the week's ranked results, while these are the exact result pages
-        // pulled for this term — one per surface, because an overview can
-        // consume the click on the phone and not on the desktop. An empty list
-        // is UNKNOWN (not on the panel), never "no overview".
+        // Live tracked-panel evidence where it exists, one reading per device,
+        // and an empty list everywhere else. Not derived from `aiOverview`
+        // above, a provider ranking-inventory field: these are the exact result
+        // pages pulled for this term. An empty list is unknown (not on the
+        // panel), never "no overview".
         aioDevices: panel?.byQuery.get(queryKey) ?? [],
       },
     ];
@@ -675,41 +628,12 @@ function dataForSeoQueryVisibility(families, market) {
  * locally retained market-demand, rank, and AI-citation baseline immediately.
  * `market` is the site's saved search market, or null (`marketPhrase`). */
 export function buildSearchQueryTrends(families, market = null) {
-  // The movers are a position-and-impression surface like the CTR rules, so they
-  // read the same decontaminated series: a quoted-literal grounding query that
-  // doubles its impressions is a machine retrying a retrieval, not demand
-  // moving, and it would outrank real movement on absolute change. Excluded is
-  // not deleted — each lane carries the same `Grounding queries excluded` row the
-  // rules do, at zero as well, so the surface proves the check ran.
-  //
-  // BOTH PROVIDERS, since 2026-08-04 (`ro-pvl`). `ro-frx` ran the classifier on
-  // Google alone and left Bing raw on purpose: the quoted signature had only ever
-  // been measured in the GSC series (the 2026-07-31 audit, F2), so an exclusion
-  // row on Bing would have claimed a check that never ran. That reason expired the
-  // moment the check ran. Measured over the whole archive on 2026-08-04, latest
-  // snapshot per property (the then-current `pnpm signals:analyze` →
-  // `.local/signal-dumps/analysis/<asset>/bing-webmaster-queries.csv`):
-  //
-  //   site A   3 of 133,728 impressions   2 queries   0 clicks
-  //   site B   1 of   9,072               1 query     1 click
-  //   site C   1 of   1,494               1 query     1 click
-  //   site D   0 of     556               —           —
-  //   site E   0 of     497               —           —
-  //
-  // Bing is CLEAN, and by three orders of magnitude: across every retained
-  // snapshot site A's Bing series carries 25 quoted-literal impressions of
-  // 907,006 (0.003%) against 4,351 of 133,898 (3.25%) in the same property's GSC
-  // page/query archive. Copilot grounding, if it ever lands here, is not landing
-  // in this family today. The two clicked matches are humans using the quote
-  // operator (`"ally bank" 7122766`), the opposite of the zero-click signature —
-  // which the evidence row's own clicks figure shows a reader, so the row informs
-  // rather than overclaims.
-  //
-  // Clean is why the check runs, not why it is skipped. A measurement recorded
-  // only in this comment is true on the day it was taken and decays silently
-  // afterwards; a row recomputed every run stays true, and states zero out loud
-  // when Bing is clean. The false-positive cost is one quote-operator query that
-  // must also survive both seven-date windows to have been a mover at all.
+  // The movers are a position-and-impression surface like the CTR rules, so
+  // they read the same grounding-decontaminated series on both providers: a
+  // quoted-literal query that doubles its impressions is a machine retrying a
+  // retrieval, not demand moving. Each lane carries the same `Grounding queries
+  // excluded` row the rules do, at zero as well, so the surface proves the
+  // check ran.
   const { rows: googleRows, excluded: googleExcluded } = excludeGroundingQueries(
     rows(families, 'gsc-query'),
   );
@@ -745,41 +669,25 @@ export function buildSearchQueryTrends(families, market = null) {
 }
 
 // ---------------------------------------------------------------------------
-// Page-grain decisions (`ro-427`)
+// Page-grain decisions
 // ---------------------------------------------------------------------------
-// The queries surface has carried rule-driven verdicts since it shipped; the
-// page grain had cards and nothing else, so the page an operator actually edits
-// was the one grain with no act/investigate/protect row. This block is the
-// producer half: the EVIDENCE, at page grain, in the same shape the query lanes
-// publish. The verdict itself is computed where the query verdict is computed —
-// in the Tower component — so one grain cannot drift into a second decision
-// engine with its own vocabulary.
+// The evidence at page grain, in the shape the query lanes publish. The verdict
+// is computed where the query verdict is — in the Tower component — so one
+// grain cannot drift into a second decision engine with its own vocabulary.
 //
-// THE SERIES IS NOT DECONTAMINATED, and this is the honest limit of the grain.
-// `gsc-page` carries no query dimension, so the quoted-literal grounding
-// classifier (F2 of the 2026-07-31 audit) cannot be applied to a page's own
-// clicks and impressions — there is nothing in a page row to classify. What CAN
-// be measured is the join this lane makes on top: each page's leading query
-// comes from the decontaminated `gsc-page-query` series, and the lane states the
-// exclusion it applied THERE, labelled so nobody reads it as a correction to the
-// totals above it. Excluded is not deleted; mislabelled is worse than either.
+// The series is not decontaminated: `gsc-page` carries no query dimension, so
+// the grounding classifier cannot apply to a page's own clicks and
+// impressions. Only the leading-query join on top reads the decontaminated
+// `gsc-page-query` series, and the lane states the exclusion it applied there,
+// labelled so nobody reads it as a correction to the totals above it.
 const PAGE_DECISION_LIMIT = 16;
 
-/** The leading query per page, over the CURRENT window only, off the
- * grounding-decontaminated page/query series — plus whatever the tracked panel
- * saw on that term.
- *
- * "Leading" is by impressions, not clicks: the question a page decision answers
- * is what Google is showing this page FOR, and a page in the harvest band is
- * precisely one whose leading query takes few clicks. Ranking by clicks would
- * name the query that already works on every page worth reviewing.
- *
- * The panel reading rides along unfolded, one per device, exactly as the query
- * rows carry it (`ro-14d.1`): an overview that consumes the click on the phone
- * and not the desktop is the finding at page grain too, and the component
- * applies the same impression-harvest gate to it. An empty list is UNKNOWN — the
- * term is not on this property's panel — and must keep behaving as it did before
- * the panel existed. */
+/** The leading query per page over the current window only, off the
+ * grounding-decontaminated page/query series, plus whatever the tracked panel
+ * saw on that term. "Leading" is by impressions, not clicks: the question is
+ * what Google shows this page for, and ranking by clicks would name the query
+ * that already works. The panel reading rides along one per device, as the
+ * query rows carry it; an empty list is unknown (not on the panel). */
 function leadingQueriesByPage(pageQueryRows, panel, currentDates) {
   const byPage = new Map();
   for (const row of pageQueryRows) {
@@ -847,12 +755,10 @@ function pageGroundingEvidence(excluded) {
 }
 
 /**
- * One row per page present in BOTH comparable Google windows — the page-grain
- * analogue of the query movers, and the evidence a page decision is made on.
- *
- * A page reported in only one week is UNKNOWN, not zero: `gsc-page` is a top-row
- * export, so a page that fell below the cut-off did not necessarily fall to
- * nothing. Excluding it understates movement at the export boundary, which is
+ * One row per page present in both comparable Google windows — the page-grain
+ * analogue of the query movers. A page reported in only one week is unknown,
+ * not zero: `gsc-page` is a top-row export, so a page below the cut-off did
+ * not necessarily fall to nothing. Excluding it understates movement, which is
  * the direction that cannot invent a finding, and the caveat says so.
  */
 export function buildSearchPageTrends(families) {
@@ -1028,28 +934,17 @@ function card({
 }
 
 // ---------------------------------------------------------------------------
-// GA4 days that were still being attributed when collected (bead ro-5e8.10)
+// GA4 days that were still being attributed when collected
 // ---------------------------------------------------------------------------
 // GA4 keeps assigning a day's sessions to channels after the day ends, so the
-// analyzer marks its three attribution families `provisional=1` until a
-// collection on day D+2 confirmed the day (ro-wo0j, docs/20 honesty rules). A
-// provisional day is not a noisier copy of the settled one — it is wrong in a
-// known direction: one site's 2026-09-21, read at D+1, put 3,380 sessions in
-// "Unassigned" against 101–340 on every other September day, and read Organic
-// Search low. Every rule over these families therefore reads SETTLED days only.
-//
-// SKIPPED, NOT LABELLED. A "provisional" label on the card would still publish a
-// finding the next collection is expected to reverse, and would need its own
-// ranking rule and its own rendering; a real finding costs nothing to wait for,
-// because the day settles within two days and the next analysis reads it.
-//
-// SET ASIDE IS NOT DELETED. A card built beside provisional days names them in a
-// `Provisional days set aside` evidence row, and the rows stay in the CSV,
-// marked. A family holding ONLY provisional days raises no card at all.
-//
-// Only an explicit `provisional=1` is set aside. An empty cell (the analyzer
-// could not read the collection date) or a row from before the column existed
-// is read exactly as it was before this rule.
+// analyzer marks its attribution families `provisional=1` until a collection
+// on day D+2 confirmed the day. A provisional day is wrong in a known direction
+// (Unassigned high, Organic Search low), so every rule over these families
+// reads settled days only. Skipped, not labelled: a real finding costs nothing
+// to wait for. Set aside, not deleted: a card built beside provisional days
+// names them in a `Provisional days set aside` evidence row, and a family
+// holding only provisional days raises no card. Only an explicit
+// `provisional=1` is set aside; an empty cell reads as it always did.
 function isProvisionalAttributionRow(row) {
   return nullableNumber(row.provisional) === 1;
 }
@@ -1084,37 +979,23 @@ function provisionalDaysEvidence(provisionalDates) {
 
 // ---------------------------------------------------------------------------
 // LLM-grounding / quoted-literal query classification
-// (the 2026-07-31 signal audit, F2)
 // ---------------------------------------------------------------------------
-// 4,217 impressions — 9.0% of every captured page/query impression in the
-// largest site's archive — came from queries carrying quoted phrases, and they
-// produced zero clicks between them: `"1 medium banana" "3/4 cup" myplate` and
-// 101 siblings. Nobody types a quoted phrase pair a thousand times in three days
-// and never clicks. That is a machine verifying a retrieved claim, and left in
-// the series it chose the striking-distance rule's next candidate, seeded the
-// cannibalization rule's runner-up, and sat on the desktop side of the device
-// split.
-//
-// EXCLUDED IS NOT DELETED. Every rule reading a decontaminated series states
-// what was removed in its own evidence — the system may decide not to act on
-// something, never not to mention it (AGENTS.md) — and the traffic gets its own
-// card below rather than vanishing: programmatic grounding is a GEO signal, not
-// noise.
-//
-// SCOPE, deliberately narrow. Only the quoted-phrase signature is classified.
-// The same archive holds an unquoted homework-shaped family — `usda myplate
-// tomatoes vegetable group` and kin, also zero-click — that reads identically
-// to a human, but every generalization of it that does not hard-code one
-// property's brand also catches ordinary long-tail informational demand. Those
-// queries stay in the series and the grounding card says so.
+// Queries carrying quoted phrases at volume and never clicking are a machine
+// verifying a retrieved claim, not demand. Left in the series they pick the
+// striking-distance rule's candidates, seed the cannibalization rule and sit on
+// the desktop side of the device split. Excluded is not deleted: every rule
+// reading a decontaminated series states what it removed in its own evidence,
+// and the traffic gets its own card below — programmatic grounding is a GEO
+// signal, not noise. Only the quoted-phrase signature is classified; unquoted
+// zero-click families read identically to ordinary long-tail demand and stay
+// in the series, and the grounding card says so.
 const GROUNDING_QUOTED_PHRASE = /"[^"]+"/;
 
 /**
  * A GSC page/query series split into the rows a CTR or position rule may read
  * and the grounding rows it may not, with the totals such a rule must state.
- * Rows are never dropped without an accounting: `excluded` is what the evidence
- * row is built from, and it stays present (at zero) when nothing matched, so a
- * card proves the check ran rather than implying it.
+ * `excluded` stays present (at zero) when nothing matched, so a card proves the
+ * check ran rather than implying it.
  */
 function excludeGroundingQueries(input) {
   const kept = [];
@@ -1186,23 +1067,15 @@ function groundingExclusion(families) {
 
 // ---------------------------------------------------------------------------
 // The AI Overview gate on harvest recommendations
-// (`ro-gyu`; the zero-click question is F1 of the 2026-07-31 myplate audit)
 // ---------------------------------------------------------------------------
-// The striking-distance rule scores position 4–12 terms and REWARDS low
-// click-through, so with grounding queries excluded it preferentially surfaces
-// exactly the zero-click SERPs where an AI Overview is consuming the click: the
-// term ranks well, takes nothing, and looks like the largest opportunity on the
-// page. Copy and link work on such a term is churn without reach.
-//
-// The tracked panel is the only evidence that separates the two cases, and it is
-// three-state (scripts/README §serp-panel). Only `uncited` — a parsed overview
-// that demonstrably does not cite this property — withholds a recommendation,
-// because it is the only positive observation of the click being consumed
-// inside the block. A term nobody tracked, and a tracked term whose
-// asynchronous overview never loaded, are UNKNOWN: still offered, and marked as
-// unknown on the card, exactly as offerable as they were before the panel
-// existed. Unknown hardening into `false` is the one failure this contract
-// exists to prevent.
+// The striking-distance rule rewards low click-through on position 4–12 terms,
+// so it preferentially surfaces the zero-click SERPs where an AI Overview is
+// consuming the click; copy and link work on such a term is churn without
+// reach. The tracked panel is the only evidence separating the two cases, and
+// it is three-state. Only `uncited` — a parsed overview that demonstrably does
+// not cite this property — withholds a recommendation. A term nobody tracked,
+// or whose asynchronous overview never loaded, is unknown: still offered, and
+// marked unknown on the card. Unknown must never harden into `false`.
 
 /** One device's reading of one term, as the gate reads it. */
 function aiOverviewStateOf(reading) {
@@ -1215,9 +1088,9 @@ function aiOverviewStateOf(reading) {
   return 'present';
 }
 
-/** One term's tracked-panel state PER DEVICE, in device order — empty when the
- * term is not on the panel at all (`ro-14d.1`). A folded verdict would have to
- * pick a surface, and the surfaces are the finding. */
+/** One term's tracked-panel state per device, in device order — empty when the
+ * term is not on the panel at all. A folded verdict would have to pick a
+ * surface, and the surfaces are the finding. */
 function trackedAiOverviewStates(panel, query) {
   return (panel?.byQuery.get(normalizedQuery(query)) ?? []).map((reading) => ({
     device: reading.device,
@@ -1225,21 +1098,15 @@ function trackedAiOverviewStates(panel, query) {
   }));
 }
 
-/** The gate itself: a recommendation is withheld when ANY device the panel read
- * shows an overview that demonstrably does not cite this property.
- *
- * Any, not all, and that is the point of the second device. `uncited` is a
- * POSITIVE observation of the click being consumed inside the block on a real
- * result page a real person sees; a clear desktop page does not give that click
- * back to a phone searcher, and most food/health search happens on a phone.
- * Requiring both surfaces to agree would let the quieter one veto the evidence
- * — the exact failure of reading one device, rebuilt with extra steps. */
+/** The gate itself: a recommendation is withheld when any device the panel
+ * read shows an overview that demonstrably does not cite this property. Any,
+ * not all: `uncited` is a positive observation on a real result page, and a
+ * clear desktop page does not give that click back to a phone searcher. */
 function withholdsForAiOverview(states) {
   return states.some(({ state }) => state === 'uncited');
 }
 
-/** The device as the operator names it, never as the data lane does (doc 14:
- * the collection mechanism is not vocabulary for a property page). */
+/** The device as the operator names it, never as the data lane does. */
 function deviceNoun(device) {
   if (device === 'mobile') return 'Phone';
   if (device === 'desktop') return 'Desktop';
@@ -1276,14 +1143,10 @@ const AI_OVERVIEW_SHORT = {
 };
 
 /** What the card says about the term it recommends. Stated in every state,
- * including unknown, so the card never implies the SERP was checked when it was
- * not — and never implies it was clear when it is merely unobserved.
- *
- * When the devices DISAGREE the line names both rather than folding to one
- * (`ro-14d.1`): a term walled on the phone and clear on the desktop is two
- * facts, and either half alone is a claim about a page the reader is not
- * looking at. When they agree, the wording is the single-surface wording it has
- * always been — a device column that never varies is noise. */
+ * including unknown, so the card never implies the SERP was checked when it
+ * was not, nor that it was clear when it is merely unobserved. When the devices
+ * disagree the line names both rather than folding to one; when they agree,
+ * the single-surface wording — a device column that never varies is noise. */
 function aiOverviewEvidence(states, panel) {
   const observed = panel?.observedAt
     ? `tracked panel observed ${panel.observedAt}`
@@ -1651,44 +1514,22 @@ function bingFeedIssueInsight(families) {
   });
 }
 
-// Three corrections to this rule from
-// the 2026-07-31 signal audit (F3),
-// which caught it calling a four-month decline an opportunity at high
-// confidence and pointing the operator at the wrong page to fix it.
-//
-// (a) The join. "dri" (an English/US Bing query) was joined to
-// `/es/calculadora-dri` purely because GSC happened to carry the query on that
-// page. A localized page is a different surface for a different searcher, and
-// Bing's top-query export has no locale dimension to prove otherwise, so a page
-// under a locale subtree can never be the identified landing page. No candidate
-// outside one means the card says it has none — an unidentified page is a
+// A page under a locale subtree is never the identified landing page: Bing's
+// top-query export has no locale dimension, and an unidentified page is a
 // smaller error than a confidently wrong one.
 const LOCALE_PATH_PREFIX = /^\/[a-z]{2}(?:-[a-z]{2})?(?:\/|$)/i;
-// (b) The trend. The "dri" weekly series ran 2,054 → 1,614 → 438 → 604 → 261 →
-// 372: the last two weeks sat near a quarter of the window's own mean while the
-// card presented the four-month total as current demand. Two periods is the
+// The trend reads the last two periods against the window's own mean — the
 // shortest recent stretch that is not one revisable week.
 const BING_TREND_RECENT_PERIODS = 2;
 const BING_TREND_DECLINE_RATIO = 0.7;
-// (c) The intent read. Months of ~0% CTR at a visible position is not an
-// unconverted opportunity, it is evidence the query means something else —
-// "dri" is an ambiguous acronym, and the property took 5 clicks on 11,825
-// impressions across ten weeks at position 6–9. Long window, visible position,
-// no clicks: name intent mismatch and stop claiming high confidence.
+// Months of ~0% CTR at a visible position is intent mismatch, not an
+// unconverted opportunity, and cannot carry high confidence.
 const BING_INTENT_MISMATCH_MAX_CTR = 0.005;
 const BING_INTENT_MISMATCH_MIN_PERIODS = 8;
-// (d) The join floor. With the locale rule in place "dri" joined
-// `/dri-calculator` on ONE captured GSC impression: the card named a page as
-// *the* review target off a single row, and the join was the only step in this
-// file with no evidence floor at all (recorded noticed-not-fixed by the audit
-// brief's F3, tracked as `ro-otv`). GSC page/query exports are top rows, so a
-// page the property's own Google series carries a handful of times is the
-// export catching it once, not a page Google repeatedly returns for the term.
-// Ten is the prune rule's five-impression long-tail line doubled, because this
-// claim names one page as the thing to work on rather than listing pages to
-// read. Below it the card says it has no landing page — and names the
-// candidate it declined, because a thin candidate and no candidate are
-// different facts and only the card can tell them apart.
+// GSC page/query exports are top rows, so a page carried once is the export
+// catching it, not a page Google repeatedly returns. Ten is the prune rule's
+// long-tail line doubled; below it the card says it has no landing page and
+// names the candidate it declined.
 const BING_JOIN_MIN_GSC_IMPRESSIONS = 10;
 
 function bingSearchOpportunityInsight(families) {
@@ -1738,9 +1579,7 @@ function bingSearchOpportunityInsight(families) {
     );
   const best = candidates[0];
   if (!best) return null;
-  // The window is this query's own reported periods, not the snapshot's: the
-  // rule previously quoted every date any query was reported on, which read as
-  // 18 dates for a query the provider reported on 10.
+  // The window is this query's own reported periods, not the snapshot's.
   const window = providerDateWindow(best.rows);
   if (!window) return null;
 
@@ -1919,14 +1758,12 @@ function aiReferralInsight(families) {
 }
 
 /**
- * GA4's answer to "which page is worst for JavaScript errors", extracted so the
- * `javascript-errors` card and the reconciliation card below read ONE ranking.
- * Two rules recomputing this separately could name different pages while
- * claiming to speak for the same observer, which is the failure the
- * reconciliation card exists to expose — it must not commit it itself.
+ * GA4's answer to "which page is worst for JavaScript errors", extracted so
+ * the `javascript-errors` card and the reconciliation card below read one
+ * ranking and cannot name different pages for the same observer.
  *
- * null means GA4 has no answer at all: no reported `js_error` dates, or a volume
- * under the floor. That is "GA4 did not say", never "GA4 says zero".
+ * null means GA4 has no answer at all: no reported `js_error` dates, or a
+ * volume under the floor. That is "GA4 did not say", never "GA4 says zero".
  */
 function javascriptErrorRanking(families) {
   const input = rows(families, 'ga4-page-events');
@@ -1976,52 +1813,26 @@ function javascriptErrorRanking(families) {
 }
 
 // ---------------------------------------------------------------------------
-// The triage half of the javascript-errors card (`ro-14d.3`)
+// The triage half of the javascript-errors card
 // ---------------------------------------------------------------------------
-// `javascriptErrorRanking` above answers WHICH PAGE throws. `ga4-js-errors`
-// answers WHAT IT THROWS — the only half an engineer can act on, and the stated
-// reason the family was built (the 2026-07-31 myplate audit, F5; docs/11
-// §js-errors). It has been collected, flattened and documented since then with
-// no reader at all: 584 rows over eight reported dates on one site, 44
-// distinct message buckets, and every one of them invisible.
+// `javascriptErrorRanking` above answers which page throws; `ga4-js-errors`
+// answers what it throws. This is not a second card: it adds rows to the card
+// that already owns the question, so the page ranking and the message ranking
+// cannot drift apart. Which observer is right is
+// `error-observer-disagreement`'s finding, not this block's.
 //
-// This is NOT a second card. It adds rows to the card that already owns the
-// question, so the page ranking and the message ranking cannot drift apart, and
-// it says nothing about which observer is right — that is
-// `error-observer-disagreement`'s finding (`ro-d5c`) and duplicating it here
-// would put two cards in the room arguing about the same page.
-//
-// THREE BOUNDARIES the rows are built around.
-//
-// 1. COUNT THE BUCKET, NOT THE MESSAGE. Raw `message` carries the URL, build
-//    hash, and line number of each occurrence, so every row looks unique and
-//    ranking it would return a list of ones. `message_bucket` masks those
-//    (`<url>`, `<id>`, `<n>`) and is what recurs.
-//
-// 2. `(not set)` MAY NOT RANK, EVER. GA4 answers for an event parameter only
-//    after an operator registers it as a custom dimension, and it backfills
-//    NOTHING — so `message` is `(not set)` on every myplate row before roughly
-//    2026-08-01/02 (the operator's own verdict, `ro-rkx`, docs/11) and those
-//    events can never acquire one. Letting that token rank would put "(not set)"
-//    at the top of a triage list as if it were an error to go and fix. The
-//    boundary is implemented as a property of the ROW rather than as a date
-//    constant: an unattributable row is one whose bucket is GA4's absence token,
-//    which is true on any property and any vintage without hard-coding a day.
-//    The events are not discarded — they are counted into their own row, so the
-//    reader can see how much of the family cannot be triaged.
-//
-// 3. AN ABSENT FAMILY CHANGES NOTHING. It is registered for the sites that
-//    declare it (`config/ga4-custom-dimensions.json`); on every other site the
-//    collector records `ga4_custom_dimension_unregistered` and archives nothing,
-//    and that is a permanent unknown, never a zero. So the whole triage block is
-//    additive: no family, no rows, no sentence, no source, no caveat clause —
-//    the card is byte-identical to what it was before this rule existed.
+// Three boundaries. Count the bucket, not the message: raw `message` carries
+// the URL, build hash and line number of each occurrence, so every row looks
+// unique; `message_bucket` masks those (`<url>`, `<id>`, `<n>`) and is what
+// recurs. `(not set)` may not rank: GA4 answers for an event parameter only
+// once it is registered as a custom dimension and backfills nothing, so an
+// unattributable row (bucket equal to GA4's absence token) is counted into its
+// own row rather than ranked — a row property, not a date constant. An absent
+// family changes nothing: no rows, no sentence, no source, no caveat clause.
 const GA4_NOT_SET = '(not set)';
-/** Below this the family answered but nothing in it is a *leading* error. One
- * or two events is the long tail of a browser extension, not the fault worth an
- * engineer's morning, and naming it would spend the card's most actionable line
- * on noise. The accounting row still renders, so a reader can tell "the check
- * ran and found nothing big" from "the check never ran". */
+/** Below this the family answered but nothing in it is a leading error: one or
+ * two events is the long tail of a browser extension. The accounting row still
+ * renders, so "ran and found nothing big" differs from "never ran". */
 const JS_ERROR_MIN_BUCKET_EVENTS = 5;
 
 /** The heaviest entry in a `Map<string, number>`, ties broken by name so two
@@ -2035,12 +1846,8 @@ function heaviestEntry(counts) {
 
 /**
  * `ga4-js-errors` ranked by masked message bucket, with the unattributable
- * events counted rather than dropped.
- *
- * null means the family is not there at all — unregistered dimensions, or a
- * property that was never offered the family. That is UNKNOWN and the card must
- * behave exactly as it did before this rule existed; it is never "this property
- * throws no errors", which is a different fact the manifest records separately.
+ * events counted rather than dropped. null means the family is not there at
+ * all — unknown, never "this property throws no errors".
  */
 function javascriptErrorMessageRanking(families) {
   const input = rows(families, 'ga4-js-errors');
@@ -2050,12 +1857,10 @@ function javascriptErrorMessageRanking(families) {
 
   const buckets = new Map();
   const attributedDates = new Set();
-  // Positions are ranked over EVERY row, including the ones whose message can
-  // never be recovered. `source` and `message` are two separately registered
-  // dimensions and the operator registered `source` first, so a date that
-  // carries no message can still carry a bundle position — that is the half of
-  // the triage that survives boundary 2, and scoping it to attributable rows
-  // would throw it away for no reason.
+  // Positions are ranked over every row, including those whose message can
+  // never be recovered: `source` and `message` are separately registered
+  // dimensions, so a date carrying no message can still carry a bundle
+  // position.
   const positions = new Map();
   let totalEvents = 0;
   let unattributedEvents = 0;
@@ -2117,7 +1922,7 @@ function javascriptErrorMessageRanking(families) {
     positionedEvents,
     positionCount: positions.size,
     /** The first reported date carrying any message at all — the observable
-     * edge of the operator's registration, not a date anybody typed. */
+     * edge of the dimension's registration. */
     attributedFrom: [...attributedDates].sort()[0] ?? null,
     bucketCount: ranked.length,
     topPosition: topPosition
@@ -2141,9 +1946,7 @@ function javascriptErrorTriageEvidence(triage) {
   const attributedWindow = triage.attributedFrom
     ? `${triage.attributedFrom}–${triage.window.end}`
     : null;
-  // Only when it adds a name the leading-error row did not already give. When
-  // the property's heaviest position IS the leading message's position, a
-  // second row would say the same string twice and spend attention on nothing.
+  // Only when it adds a name the leading-error row did not already give.
   const showTopPosition =
     triage.topPosition !== null &&
     triage.topPosition.position !== triage.leader?.topSource?.key;
@@ -2202,20 +2005,16 @@ function javascriptErrorInsight(families) {
   const { top, totalErrors, totalUsers, window } = ga4;
   const perHundredViews =
     top.pageViews > 0 ? (top.errors / top.pageViews) * 100 : null;
-  // The second observer, stated on the card that would otherwise be the only
-  // voice in the room. Absent when Clarity has no usable read for this property
-  // — and absence here is "nobody else looked", never "the other observer
-  // agrees" (`ro-d5c`).
+  // The second observer. Absent when Clarity has no usable read for this
+  // property — "nobody else looked", never "the other observer agrees".
   const clarity = clarityScriptErrorRanking(families);
   const agrees = clarity ? clarity.top.path === top.path : null;
   return card({
     key: 'javascript-errors',
     kind: 'warning',
     title: `JavaScript errors concentrate on ${pagePath(top.page)}`,
-    // The message sentence sits between the volume and the instruction because
-    // that is the order the reading happens in: how much, what it is, what to
-    // do. With no triage family the join collapses to the exact sentence pair
-    // the card carried before this rule — the absent family changes nothing.
+    // Order: how much, what it is, what to do. With no triage family the join
+    // collapses to the sentence pair alone.
     summary: [
       `${formatInt(totalErrors)} js_error events affected ${formatInt(totalUsers)} reported users.`,
       ...(triage?.leader
@@ -2276,44 +2075,30 @@ function javascriptErrorInsight(families) {
 
 // ---------------------------------------------------------------------------
 // Two observers, one question: which page is worst for JavaScript errors
-// (`ro-d5c`)
 // ---------------------------------------------------------------------------
-// Clarity and GA4 both rank error-y pages and they do not always agree. On
-// one site's 2026-08-01 archive Clarity ranked `/recipes` worst (203 script
-// errors over 43 page views, 2.9% of 238 sampled sessions) while GA4 ranked
-// `/calculator` worst (281 `js_error` events from 186 reported users over ten
-// reported dates) — and by the 2026-08-04 snapshot Clarity had moved to
-// `/calculator` and the two agreed again. A divergence that comes and goes is
-// exactly the kind nobody catches by eye.
-//
-// Both readings are true. They differ in UNIT (Clarity's `ScriptErrorCount`
-// sub-total is a metric total over sampled sessions; GA4 counts `js_error`
-// events from reported users), in WINDOW (a trailing 72-hour snapshot against
-// N completed reported dates), and in POPULATION (clarity.ms is adblock-DNS
-// listed and undercounts 15–25%). Nothing converts one into the other, so this
-// card reports the divergence and NEVER a merged number, a ratio between the
-// two, or a winner. The disagreement is the finding: it says check both pages.
-//
-// The card is deliberately hard to fire on noise. It needs GA4 to have an
-// answer at all (the same floor the `javascript-errors` card clears), Clarity's
-// leader to clear its own floors, and the disagreement to survive a tie inside
-// Clarity's own ranking — if GA4's page ties Clarity's leader in Clarity's
-// numbers, the two observers are not actually disagreeing.
+// Clarity and GA4 both rank error-y pages and do not always agree. They differ
+// in unit (Clarity's `ScriptErrorCount` sub-total over sampled sessions against
+// GA4's `js_error` events from reported users), window (a trailing 72-hour
+// snapshot against N completed reported dates) and population (clarity.ms is
+// adblock-DNS listed and undercounts 15–25%). Nothing converts one into the
+// other, so this card reports the divergence and never a merged number, a
+// ratio or a winner. It needs GA4 to have an answer at all, Clarity's leader to
+// clear its own floors, and the disagreement to survive a tie inside Clarity's
+// own ranking.
 
 const CLARITY_SCRIPT_ERROR_METRIC = 'ScriptErrorCount';
 /** Clarity's leader must carry at least this many script errors and be seen on
  * at least this many sampled sessions. Below either floor a trailing 72-hour,
- * undercounting read is too thin to contradict anything: the archive holds
- * single-session URLs at a 100% error rate, and one such session is not a
- * property's worst page. */
+ * undercounting read is too thin to contradict anything: one single-session
+ * URL at a 100% error rate is not a property's worst page. */
 const CLARITY_MIN_SCRIPT_ERRORS = 5;
 const CLARITY_MIN_SESSIONS = 10;
 /** How far Clarity's leader must clear Clarity's own count for GA4's page
  * before the two observers count as disagreeing rather than tie-breaking. */
 const CLARITY_DISAGREEMENT_MARGIN = 2;
-/** The documented trailing window (doc 11 §Clarity), not a provider field: the
- * export carries no window bounds, only the date it was collected. Used for the
- * card's date envelope; the evidence row states the trailing read in words. */
+/** The documented trailing window, not a provider field: the export carries
+ * no window bounds, only the date it was collected. Used for the card's date
+ * envelope; the evidence row states the trailing read in words. */
 const CLARITY_TRAILING_DAYS = 3;
 
 function shiftDate(date, days) {
@@ -2339,12 +2124,10 @@ function isPropertyPageUrl(raw) {
 }
 
 /**
- * Clarity's answer to the same question, from the latest snapshot only: the
- * family is a trailing 72-hour read, so consecutive collections overlap and
- * adding their rows together would count the same sessions more than once.
- *
- * null means Clarity did not answer — no token, no collection, or nothing over
- * the floors. It never means Clarity saw no errors.
+ * Clarity's answer to the same question, from the latest snapshot only:
+ * consecutive trailing 72-hour reads overlap, so adding them would count the
+ * same sessions more than once. null means Clarity did not answer — no token,
+ * no collection, or nothing over the floors — never that it saw no errors.
  */
 function clarityScriptErrorRanking(families) {
   const input = latestSnapshotRows(families, 'clarity-url-3d').filter(
@@ -2420,13 +2203,9 @@ function errorObserverDisagreementInsight(families) {
   if (!ga4 || !clarity) return null;
   if (ga4.top.path === clarity.top.path) return null;
   const clarityOnGa4Page = clarity.byPath.get(ga4.top.path) ?? null;
-  // A hairline lead is not a disagreement. In a sampled read that undercounts
-  // 15–25%, Clarity preferring its own leader by an error or two is the
-  // tie-break talking; the divergence has to be bigger than the noise before it
-  // is worth an operator's attention. Clarity's leader must therefore carry at
-  // least twice the script errors Clarity itself recorded on GA4's page — or
-  // GA4's page must be missing from Clarity's read entirely, which is a
-  // disagreement of a different and starker kind.
+  // A hairline lead is the tie-break talking, not a disagreement: Clarity's
+  // leader must carry at least twice the script errors Clarity itself recorded
+  // on GA4's page, or GA4's page must be missing from Clarity's read entirely.
   if (
     clarityOnGa4Page &&
     clarity.top.errors < clarityOnGa4Page.errors * CLARITY_DISAGREEMENT_MARGIN
@@ -2554,43 +2333,15 @@ function featureUsageInsight(families) {
 }
 
 // ---------------------------------------------------------------------------
-// Rules transferred from one site's manual-analysis history (cross-asset
-// transfer, [doc 13](../docs/13-opportunity-scouting.md) lane 6, 2026-07-31).
-// Each one consumes an already-archived report family and each threshold cites
-// the finding it was derived from.
-//
-// What acting on each rule means (added 2026-07-31). The rule detects the
-// condition; a card's `rule: <id>` evidence row is the join to the work it
-// raises:
-//
-//   concentration-risk      -> a dependency/scale stop rule stated before
-//                              spending; the finding itself came out of a
-//                              third-source cross-reference
-//   measurement-integrity   -> a broken collection is an unknown, not a small
-//                              error; the Unassigned half has a cause and a
-//                              fix in the campaign-link grammar
-//   query-cannibalization   -> diagnose which page owns which intent before
-//                              touching copy
-//   query-language-drift    -> per-locale surgery is its own surgery, never a
-//                              translated echo
-//   device-ctr-gap          -> the same diagnosis discipline, split by device
-//                              instead of by query
-//   prune-candidates        -> the no-new-inventory gate
-//   page-movers             -> a week-over-week move is only readable against
-//                              a release register
-//   reclamation-match       -> the campaign's touch log; the proof is live
-//                              link updates, tracked per wave with a
-//                              conversion rate; the card is the noticing half,
-//                              the human confirmation is the other
+// Rules over already-archived report families
 // ---------------------------------------------------------------------------
 
-// [doc 00](../docs/00-objective-and-roi.md): 85%+ dependence on a single traffic
-// source trades at the bottom of the valuation range and is named there as the
-// #1 devaluation factor and the portfolio's dominant correlated risk.
+// 85%+ dependence on a single traffic source trades at the bottom of the
+// valuation range and is the dominant correlated risk.
 const CONCENTRATION_WARN_SHARE = 0.85;
 // Below this the channel split is sampling noise rather than a structural claim
-// about the property. The portfolio's smallest configured properties report
-// 20–30 sessions a day, so a hundred sessions is a few days of real shape.
+// about the property; for a property reporting 20–30 sessions a day, a hundred
+// sessions is a few days of real shape.
 const CONCENTRATION_MIN_SESSIONS = 100;
 
 function concentrationRiskInsight(families) {
@@ -2655,24 +2406,15 @@ function concentrationRiskInsight(families) {
 }
 
 // Two or more of a property's own pages each holding a fifth of one query's
-// impressions is the mechanized form of one site's months-long homepage-versus-
-// interior-page overlap, which its own repository fixed by hand.
+// impressions.
 const CANNIBALIZATION_MIN_PAGE_SHARE = 0.2;
 // Same floor shape as the striking-distance rule above — 25 impressions per
-// reported date, never below 100. At the three-date GSC window currently
-// archived this keeps 9 of one site's 862 multi-page queries: the ones carrying
-// enough volume to be worth a canonical or internal-link decision.
+// reported date, never below 100.
 const CANNIBALIZATION_MIN_IMPRESSIONS = 100;
-// One SERP block is not three competing pages
-// (the 2026-07-31 signal audit, F1).
-// The rule told the operator to consolidate `/`, `/calculator` and `/recipes`
-// for "where to find free diet plans" on 1,283 split impressions. The source
-// rows: byte-identical impression counts on every single date (94/94, 93/93,
-// 226/226), all three pages at position 1.0–1.3, zero clicks anywhere. That is
-// one block — an AI Overview or a sitelink group — crediting several of our URLs
-// at the block's own position, and the canonical/internal-link consolidation the
-// card recommended would have been actively harmful. Two independent signatures
-// of the same artifact, either one sufficient:
+// One SERP block is not three competing pages: an AI Overview or a sitelink
+// group credits several of the property's URLs at the block's own position,
+// and consolidating them would be harmful. Two independent signatures of the
+// same artifact, either one sufficient:
 //   * counts within 5% at positions within 1.5 of each other — real competing
 //     pages drift apart on both axes within days;
 //   * zero clicks across every competing page — a block consumes the click
@@ -2819,8 +2561,7 @@ function cannibalizationInsight(families) {
 }
 
 // Page-grain click movement needs a delta large enough to outrun ordinary daily
-// variance. Ten clicks across a week is the smallest change that is still
-// legible at the portfolio's page-grain volumes; below that it is weather.
+// variance; below ten clicks across a week it is weather.
 const PAGE_MOVER_MIN_CLICK_DELTA = 10;
 const PAGE_MOVER_EVIDENCE_LIMIT = 3;
 
@@ -2916,13 +2657,11 @@ function pageMoversInsight(families) {
   });
 }
 
-// One site's largest manual analysis had to caveat every number because 13.7% of
-// its sessions were Unassigned. Past this line the property's own totals are
-// the finding, and every other card is bounded by it.
+// Past this unattributed share the property's own totals are the finding, and
+// every other card is bounded by it.
 const UNASSIGNED_WARN_SHARE = 0.1;
 // An event that was running at this volume and then all but stops is
-// instrumentation breakage, not behavior: its form_start fired 8 times
-// against 41,195 completions before anyone checked.
+// instrumentation breakage, not behavior.
 const EVENT_BREAK_MIN_PRIOR_PER_DAY = 100;
 const EVENT_BREAK_DROP_SHARE = 0.9;
 
@@ -2938,10 +2677,7 @@ function sessionShare(input, field, matches) {
 }
 
 // GA4 writes `(data not available)` where it could not attach a session's
-// source at all. docs/20 names it beside Unassigned as the settled-day share
-// that says the two-day settle rule is too short (ro-5e8.11), and the archive
-// carries it on settled days of one site (2026-08-29 and 2026-09-02 in
-// ga4-traffic-sources), so it counts as unattributed like `(not set)`.
+// source at all; it counts as unattributed like `(not set)`.
 const GA4_DATA_NOT_AVAILABLE = '(data not available)';
 
 function unattributed(value) {
@@ -3011,7 +2747,7 @@ function brokenEventCheck(families) {
 function measurementIntegrityInsight(families) {
   // Settled days only: an unsettled GA4 day reads high on Unassigned by
   // construction, so reading it here would report GA4's processing lag as a
-  // tagging fault (ro-5e8.10).
+  // tagging fault.
   const acquisition = settledAttributionRows(families, 'ga4-traffic-acquisition');
   const trafficSources = settledAttributionRows(families, 'ga4-traffic-sources');
   const channels = unattributedShare(
@@ -3119,18 +2855,16 @@ function measurementIntegrityInsight(families) {
   });
 }
 
-// One site found meta copy written in the site's language rather than the
-// searcher's; one Korean character was worth roughly 1,300 impressions a month.
-// That country held 6.5% of impressions, so the share gate sits at 5% — a
-// locale problem is a minority-of-traffic problem by construction.
+// Meta copy written in the site's language rather than the searcher's shows as
+// one country clicking far below the rest. A locale problem is a
+// minority-of-traffic problem by construction, so the share gate sits at 5%.
 const COUNTRY_DRIFT_MIN_SHARE = 0.05;
 // Compared against the CTR of the property *excluding* this country, never the
 // overall CTR: a country large enough to matter is also large enough to drag
 // the overall number down toward itself and hide its own gap.
 const COUNTRY_DRIFT_CTR_RATIO = 0.5;
 // Below a thousand impressions a country's CTR is a handful of clicks and the
-// ratio is noise; at current portfolio scale this admits the top two or three
-// countries per property.
+// ratio is noise.
 const COUNTRY_DRIFT_MIN_IMPRESSIONS = 1000;
 
 function queryLanguageDriftInsight(families) {
@@ -3251,12 +2985,8 @@ function queryLanguageDriftInsight(families) {
 // above-the-fold layout — rather than at demand.
 const DEVICE_CTR_RATIO = 0.5;
 const DEVICE_MIN_IMPRESSIONS = 1000;
-// The rule was mobile-only and missed a real gap
-// (the 2026-07-31 signal audit, F8):
-// one site ran desktop at roughly a quarter of mobile's CTR on double the
-// impressions for three straight days and the rule stayed silent, because it
-// only ever tested mobile against desktop. Whichever side is worse is the
-// finding; which side that turns out to be is an observation, not an assumption.
+// Whichever side is worse is the finding; the rule tests both directions, not
+// mobile against desktop only.
 const DEVICE_SURFACES = [
   { key: 'MOBILE', label: 'Mobile', noun: 'mobile' },
   { key: 'DESKTOP', label: 'Desktop', noun: 'desktop' },
@@ -3298,12 +3028,11 @@ function deviceCtrGapInsight(families) {
   const [worse, better] = [...surfaces].sort((left, right) => left.ctr - right.ctr);
   if (better.ctr <= 0 || worse.ctr > better.ctr * DEVICE_CTR_RATIO) return null;
 
-  // Decontamination, applied as a worst case rather than a measurement. The
-  // grounding traffic that F2 classifies presents as desktop, but no archived
-  // family carries query × device, so it cannot be subtracted where it was
-  // observed. Charging every excluded impression to the deficit side instead can
-  // only raise that side's CTR, and therefore can only make this rule quieter: a
-  // gap that survives the correction is a gap grounding traffic does not explain.
+  // Decontamination as a worst case rather than a measurement: no archived
+  // family carries query × device, so every excluded grounding impression is
+  // charged to the deficit side. That can only raise that side's CTR and make
+  // this rule quieter; a gap that survives it is one grounding traffic does not
+  // explain.
   const excluded = groundingExclusion(families);
   if (excluded.impressions >= worse.impressions) return null;
   const correctedImpressions = worse.impressions - excluded.impressions;
@@ -3365,17 +3094,16 @@ function deviceCtrGapInsight(families) {
   });
 }
 
-// One site's noindex rule was "<5 impressions in 90 days AND no internal links".
-// Only the impressions half of that rule exists in this archive; the card says
-// so rather than implying the other half was checked.
+// The usual noindex rule is "<5 impressions in 90 days AND no internal links".
+// Only the impressions half exists in this archive; the card says so rather
+// than implying the other half was checked.
 const PRUNE_MAX_IMPRESSIONS = 5;
 // Below a hundred reported pages a thin-page list is something an operator
 // reads directly, and pruning is not a program worth a card.
 const PRUNE_MIN_PROPERTY_PAGES = 100;
-// A page under five impressions across three reported dates is the ordinary
-// long tail. Fourteen reported dates is the shortest window where the count
-// carries meaning, and matches the two-week comparison window used elsewhere
-// in this file.
+// A page under five impressions is the ordinary long tail. Fourteen reported
+// dates is the shortest window where the count carries meaning, matching the
+// two-week comparison window used elsewhere in this file.
 const PRUNE_MIN_WINDOW_DAYS = 14;
 const PRUNE_EXAMPLE_LIMIT = 5;
 
@@ -3638,14 +3366,9 @@ function backlinkMomentumInsight(families) {
         ? [source('dataforseo', 'backlinks-summary')]
         : []),
     ],
-    // The inventory size is stated because the audit found it implausible and
-    // the card had no way to show that: 11 referring domains / 404 backlinks for
-    // a domain an independent index rates DR 32
-    // (the 2026-07-31 signal audit, F7).
-    // The direction may well be right; the absolute basis is not decision-grade,
-    // and only the operator can see that if the card says how small it is. A
-    // second observer (Ahrefs API v3, or GSC links) is NOT wired — the honest
-    // state, parked rather than implied.
+    // The inventory size is stated because the direction may be right while
+    // the absolute basis is not decision-grade, and only the operator can see
+    // that if the card says how small it is. No second observer is wired.
     caveat:
       (summary
         ? `This is DataForSEO's observed inventory and nothing more: ${formatInt(number(summary.backlinks))} backlinks across ` +
@@ -3659,23 +3382,16 @@ function backlinkMomentumInsight(families) {
 // ---------------------------------------------------------------------------
 // Reclamation match
 // ---------------------------------------------------------------------------
-// A reclamation campaign's proof is "live link updates, tracked per wave with a
-// conversion rate", and its pipeline table (db/0015 `reclamation_targets`) has
-// nowhere for a win to come from unless someone notices one. This rule notices.
+// This rule notices a possible reclamation win; it never marks one.
+// `reclamation_targets.status = 'won'` is human-only, because a campaign that
+// scores itself cannot be graded against its own conversion band.
 //
-// WHAT IT DOES NOT DO: mark the win. `reclamation_targets.status = 'won'` is
-// human-only and terminal, because a campaign that scores itself cannot be
-// graded against the campaign's own 10-20% conversion band, and the abandonment
-// rule that band feeds would then be reading its own optimism.
-//
-// EVIDENCE HONESTY. The obvious source — DataForSEO's new/lost referring-domain
-// series — reports COUNTS and never names a domain, so it cannot support a
-// match; it appears here only as timing corroboration, labelled as such. The one
-// archived family that names an external host is GA4's session source/medium,
-// where a referral reads `host / referral`. That is a stronger signal anyway: a
-// backlink index says a link exists, a referral session says a real person
-// followed it. It is still not proof that the pitched link is the one they
-// clicked, which is why the card asks the operator to open the page.
+// DataForSEO's new/lost referring-domain series reports counts and never names
+// a domain, so it appears only as timing corroboration, labelled as such. The
+// one archived family naming an external host is GA4's session source/medium
+// (`host / referral`) — a real person followed the link — which is still not
+// proof the pitched link is the one clicked, so the card asks the operator to
+// open the page.
 const RECLAMATION_REFERRAL_MEDIUM = 'referral';
 // Every status before the three terminal ones. A target that is 'won', 'skip',
 // or 'dead' has nothing left to verify, so referral traffic from it is ordinary
@@ -3687,9 +3403,9 @@ const RECLAMATION_OPEN_STATUSES = new Set([
   'clicked',
   'replied',
 ]);
-// A screenful of matches to check by hand. The origin's actionable list was 49
-// rows; more than a handful firing at once means a wave landed, and the count in
-// the summary carries that better than fifty evidence rows would.
+// A screenful of matches to check by hand; more than a handful firing at once
+// means a wave landed, and the count in the summary carries that better than
+// fifty evidence rows would.
 const RECLAMATION_MATCH_EVIDENCE_LIMIT = 5;
 
 /** Hosts as GA4 reports them: lowercase, and `www.` is not a different site. */
@@ -3700,8 +3416,8 @@ function referralHost(value) {
 /**
  * A referral host belongs to a target when it IS that domain, or sits under it
  * (`blog.example.org` under `example.org` — the same institution, often the same
- * curator). Never the other way round: `cornell.edu` is not evidence about
- * `genesee.cce.cornell.edu`, it is a different office.
+ * curator). Never the other way round: `example.edu` is not evidence about
+ * `extension.example.edu`, it is a different office.
  */
 function matchesTargetDomain(host, domain) {
   return host === domain || host.endsWith(`.${domain}`);
@@ -3735,8 +3451,8 @@ export function reclamationTargetList(value) {
 }
 
 function reclamationWonInsight(families, reclamationTargets) {
-  // Silent without the export. The rule has no store access by design — this script
-  // runs over immutable archive CSVs — so an absent input is "not asked", never
+  // Silent without the export. The rule has no store access — this script runs
+  // over immutable archive CSVs — so an absent input is "not asked", never
   // "no matches".
   if (reclamationTargets === null || reclamationTargets === undefined) return null;
   const targets = reclamationTargetList(reclamationTargets);
@@ -3842,15 +3558,10 @@ function reclamationWonInsight(families, reclamationTargets) {
 
 /**
  * Where the property itself sits in a platform's cited-source ranking, and who
- * is above it. The audit found this the strongest fact in the lane and the one
- * the card was not showing: the audited site is the #1 cited domain on Google AI
- * surfaces for its query set, and #3 on ChatGPT behind healthline and
- * diabetes.org — a competitive position, not a volume count
- * (the 2026-07-31 signal audit, "verified correct" section).
- *
- * The rank is among the domains this snapshot returned, which is a provider
- * top-N and not a census; a domain the provider did not return is unranked
- * here, not absent from the platform.
+ * is above it — a competitive position, not a volume count. The rank is among
+ * the domains this snapshot returned, a provider top-N and not a census; a
+ * domain the provider did not return is unranked here, not absent from the
+ * platform.
  */
 function citedDomainRank(families, family, asset) {
   const ours = referralHost(asset);
@@ -3946,7 +3657,7 @@ function llmVisibilityInsight(families, asset, market) {
     confidence: mentions >= 10 ? 'high' : 'medium',
     window,
     evidence: [
-      // A platform whose row stated nothing is "not reported", never "0" (ro-8s5).
+      // A platform whose row stated nothing is "not reported", never "0".
       evidence('Google mentions', formatReported(reportedCount(google, 'mentions'))),
       evidence('ChatGPT mentions', formatReported(reportedCount(chatgpt, 'mentions'))),
       ...(googleRank
@@ -3975,20 +3686,11 @@ function llmVisibilityInsight(families, asset, market) {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Rules added from the 2026-07-31 signal audit.
-// The audit cross-checked every card against the raw archive CSVs; these three
-// cover conditions that were true in the data and produced no card at all.
-// ---------------------------------------------------------------------------
-
-// Programmatic grounding traffic is a finding, not a filter (F2b). At 9.0% of
-// one site's captured page/query impressions it is larger than most cards on
-// the page, and it corroborates the LLM-mentions lane from a completely
-// independent direction: the same property that is the top-cited domain on
-// Google AI surfaces is also being read, at scale, by something that never
-// clicks. The floor is a share rather than a count because the question is
-// whether the property's demand profile is meaningfully programmatic, which a
-// large property can reach with a rounding error's worth of queries.
+// Programmatic grounding traffic is a finding, not a filter: it corroborates
+// the LLM-mentions lane from an independent direction. The floor is a share
+// rather than a count because the question is whether the property's demand
+// profile is meaningfully programmatic, which a large property can reach with
+// a rounding error's worth of queries.
 const GROUNDING_TRAFFIC_MIN_SHARE = 0.05;
 // And an absolute floor so a small archive cannot cross the share gate on three
 // stray queries. Same shape as the striking-distance floor it sits beside.
@@ -4084,18 +3786,12 @@ function llmGroundingTrafficInsight(families) {
   });
 }
 
-// A declared value event that GA4 does not count as a key event (F4).
-// one site's `calculation_complete` — the property's core value event, 1,989
-// events in five days — carried `keyEvents = 0` while `auth_complete` carried
-// 142, and no rule noticed. That misconfiguration silently zeroes every
-// conversion-flavored read the OS does, including the AI-referral card's own
-// evidence row, which reported "Key events: 0" as if it were a behavior.
-//
-// The rule only reads. Which events are a property's value events is a
-// declaration the operator makes in config/value-events.json, and the GA4
-// key-event setting itself is inside the measurement channel — `forbidden` class
-// by AGENTS.md, operator-only forever. The OS says the ruler disagrees with the
-// declaration; the operator decides which one is wrong.
+// A declared value event that GA4 does not count as a key event silently
+// zeroes every conversion-flavored read the OS does. The rule only reads:
+// which events are value events is declared in config/value-events.json, and
+// the GA4 key-event setting is inside the measurement channel, operator-only.
+// The OS says the ruler disagrees with the declaration; the operator decides
+// which one is wrong.
 const VALUE_EVENT_MIN_EVENTS_PER_DAY = 10;
 const VALUE_EVENT_EVIDENCE_LIMIT = 5;
 
@@ -4194,24 +3890,16 @@ function valueEventInsight(families, asset, valueEvents) {
   });
 }
 
-// High-demand distant clusters (F10). The near-win rule's position 4–20 filter
-// is right for near-wins and wrong as the property's whole aperture: it silently
-// excluded the largest raw demand in one site's archive — ~56k/month across
-// three water-intake queries at positions 37–49, and ~36k across the weight-loss
-// -percentage variants, every one of them already mapped to an existing page.
-// [Doc 13](../docs/13-opportunity-scouting.md)'s outer loop exists precisely so a
-// scope filter does not become a blind spot.
+// High-demand distant clusters. The near-win rule's position 4–20 filter is
+// right for near-wins and wrong as the property's whole aperture: the largest
+// raw demand can sit at positions 37–49, already mapped to an existing page.
 const CLUSTER_DEMAND_MIN_VOLUME = 10_000;
-// Difficulty is the whole reason a distant position is interesting: rank 90 on a
-// KD 4 term is a page nobody has fought for, rank 90 on a KD 60 term is a
+// Difficulty is the whole reason a distant position is interesting: rank 90 on
+// a KD 4 term is a page nobody has fought for, rank 90 on a KD 60 term is a
 // market. 25 is the near-win rule's "cheap" band read at distance.
 const CLUSTER_DEMAND_MAX_DIFFICULTY = 25;
 // Starts where the near-win rule stops so the two never emit the same keyword,
-// and ends at the depth the provider's ranked-keyword inventory actually
-// reaches. The brief proposed a ceiling of 60; its own evidence (and its
-// acceptance check) put the weight-loss cluster at 56–106, so the ceiling is the
-// inventory's depth instead — a page at position 94 for a 12k/month KD 4 term is
-// exactly the invisible-but-cheap case this rule exists to surface.
+// and ends at the depth the provider's ranked-keyword inventory reaches.
 const CLUSTER_DEMAND_MIN_POSITION = 21;
 const CLUSTER_DEMAND_MAX_POSITION = 100;
 // One card per URL cluster, capped: this is a discovery lane, and a property
@@ -4339,15 +4027,11 @@ function rankedVocabularyOf(rankings) {
 }
 
 /**
- * Is this idea about anything this property does? (`ro-kukv.2`, measured.)
- *
- * `keyword_ideas` expands a seed set by CATEGORY, so even under a volume
- * ceiling it returns terms with no connection to the property — "free chat now"
- * came back at 246k against a USDA nutrition site. A request-time filter cannot
- * express relevance, so it is applied here, against the property's OWN ranked
- * vocabulary rather than a hand-kept seed list: an idea is relevant when it
- * shares a real word with something the property already ranks for. Nothing to
- * keep true, and it tightens automatically as the property's footprint grows.
+ * Is this idea about anything this property does? `keyword_ideas` expands a
+ * seed set by category, so it returns terms with no connection to the
+ * property. Relevance is judged against the property's own ranked vocabulary
+ * rather than a hand-kept seed list: an idea is relevant when it shares a real
+ * word with something the property already ranks for.
  */
 function ideaIsRelevant(keyword, vocabulary) {
   if (vocabulary.size === 0) return true; // nothing to judge against yet
@@ -4399,9 +4083,9 @@ function searchIntelligenceSnapshot(families) {
   ].filter((input) => input.length > 0);
   // One cost per family — every row of a single-call family repeats it. The
   // panel is the exception: each row is its own metered call, so its rows add.
-  // The four families added 2026-08-31 (ro-kukv.2). Each is absent until its
-  // first collection, and an absent family renders nothing rather than an empty
-  // panel claiming the property has no backlinks or no competitors.
+  // A family is absent until its first collection, and an absent family
+  // renders nothing rather than an empty panel claiming the property has no
+  // backlinks or no competitors.
   const referring = latestSnapshotRows(families, 'dataforseo-backlinks-referring-domains');
   const anchorRows = latestSnapshotRows(families, 'dataforseo-backlinks-anchors');
   const ideaRows = latestSnapshotRows(families, 'dataforseo-keyword-ideas');
@@ -4476,12 +4160,10 @@ function searchIntelligenceSnapshot(families) {
       .filter((entry) => entry.keyword)
       .sort((a, b) => b.searchVolume - a.searchVolume)
       .slice(0, 15),
-    // RANKED BY OVERLAP SHARE, not raw intersections (operator decision
-    // 2026-08-31). Raw counts put the general web first — YouTube, Facebook and
-    // Reddit overlap us on thousands of keywords because they rank for
-    // everything, which is true and useless. Share asks how much of THEIR
-    // footprint is ours, so the giants sink on their own and no denylist has to
-    // be kept true.
+    // Ranked by overlap share, not raw intersections: raw counts put the
+    // general web first because it ranks for everything. Share asks how much of
+    // their footprint is ours, so the giants sink on their own and no denylist
+    // has to be kept true.
     competitors: competitorRows
       .map((row) => {
         const intersections = number(row.intersections);
@@ -4530,7 +4212,7 @@ function searchIntelligenceSnapshot(families) {
         }
       : null,
     // Null when the platform row is blank or its family was never collected —
-    // absent is never zero (docs/20). The Tower renders null as "not reported".
+    // absent is never zero. The Tower renders null as "not reported".
     ai: {
       googleMentions: reportedCount(google, 'mentions'),
       googleSearchVolume: reportedCount(google, 'ai_search_volume'),
@@ -4541,16 +4223,10 @@ function searchIntelligenceSnapshot(families) {
 }
 
 // ---------------------------------------------------------------------------
-// PostHog: what people do once they arrive, and where it breaks (bead ro-ghis.3)
+// PostHog: what people do once they arrive, and where it breaks
 // ---------------------------------------------------------------------------
-// Five rules over the six `posthog-*` families, each grounded in a real
-// finding from the first manual PostHog read of one site (2026-09-08 → 09-22):
-// rage clicks on the calculator's inputs, an exception total that was 84% one
-// unattributable message, a `first_meal_logged` that fired three times per
-// person, Chrome OS desktops waiting 744 ms for an interaction, and a funnel
-// where 97% of starters finish but 8% of finishers save.
-//
-// EVERY RULE SAYS WHICH OF FOUR THINGS IT FOUND, and only one of them is a card:
+// Five rules over the six `posthog-*` families. Every rule says which of four
+// things it found, and only one of them is a card:
 //   fired            — the line was crossed; a card carries the facts.
 //   clear            — enough data, nothing crossed.
 //   not-enough-data  — the family was collected but is too thin to judge; the
@@ -5582,15 +5258,10 @@ const KIND_ORDER = {
 };
 
 /** A screen an operator reads in one sitting. Sorting by kind before the cut
- * means the cards that survive are the most severe, and `Array#sort` is stable
- * (ES2019), so within one kind the rule list order below decides.
- *
- * The cut is a display decision, not a judgment that the dropped cards are
- * false, so what it drops is listed in `suppressedItems` rather than discarded:
- * the system may decide not to show something, never not to mention it
- * (AGENTS.md). This started mattering on 2026-07-31, when four rules were added
- * and one site's three warnings plus five recommendations filled the page on
- * their own — including the largest single finding in its archive. */
+ * means the cards that survive are the most severe, and `Array#sort` is
+ * stable, so within one kind the rule list order below decides. The cut is a
+ * display decision, not a judgment that the dropped cards are false, so what
+ * it drops is listed in `suppressedItems` rather than discarded. */
 const INSIGHT_CARD_LIMIT = 8;
 
 /** Display one retained Clarity observation, not a daily series or a finding.
@@ -5647,10 +5318,9 @@ export function buildExecutiveSnapshot({
   families,
   archives,
   generatedAt = new Date().toISOString(),
-  /** Optional export of this property's OPEN outreach targets
-   * (`pnpm reclamation:open-targets`, `--reclamation-targets` — see
-   * scripts/README). null means the operator did
-   * not ask, which is not the same as "no matches": the reclamation rule stays
+  /** Optional export of this property's open outreach targets
+   * (`pnpm reclamation:open-targets`, `--reclamation-targets`). null means the
+   * operator did not ask, which is not "no matches": the reclamation rule stays
    * silent rather than reporting an absence it never looked for. */
   reclamationTargets = null,
   /** Parsed `config/value-events.json` — which GA4 events this property counts
@@ -5665,7 +5335,7 @@ export function buildExecutiveSnapshot({
   market = null,
 }) {
   // PostHog's cards and the Growth tab's Product block come from one pass over
-  // the same readings (ro-ghis.3).
+  // the same readings.
   const posthog = posthogProduct(families, archives);
   // Order inside a kind is the tie-break the eight-card cap uses, so it is a
   // priority list, not a call order. Measurement faults lead: if the ruler is
@@ -5675,8 +5345,7 @@ export function buildExecutiveSnapshot({
     valueEventInsight(families, asset, valueEvents),
     concentrationRiskInsight(families),
     // Above the card it bounds: when two observers name different worst pages,
-    // the single-observer card is the one that would send the fix to the wrong
-    // page, so the operator must meet the divergence first (`ro-d5c`).
+    // the operator must meet the divergence first.
     errorObserverDisagreementInsight(families),
     javascriptErrorInsight(families),
     bingCrawlIssueInsight(families),
@@ -5725,19 +5394,16 @@ export function buildExecutiveSnapshot({
     items,
     suppressedItems,
     searchQueries: buildSearchQueryTrends(families, market),
-    // The page-grain analogue (`ro-427`). Null until the archive holds fourteen
-    // reported dates, the same bar the movers lanes are held to: a page
-    // comparison needs two complete weeks or it is comparing a week to a
-    // fragment.
+    // The page-grain analogue. Null until the archive holds fourteen reported
+    // dates, the same bar the movers lanes are held to.
     searchPages: buildSearchPageTrends(families),
     productUse: productUseSnapshot(families, asset, valueEvents),
     searchIntelligence: searchIntelligenceSnapshot(families),
     // Absent, not null, for a property with no panel: the key's presence is the
     // claim that a panel exists.
     ...(serpPanel ? { serpPanel } : {}),
-    // What people do once they arrive, and where it breaks (ro-ghis.3). null
-    // when no PostHog family was ever collected for this property — the Tower
-    // says "not collected", never a row of zeros.
+    // null when no PostHog family was ever collected for this property — the
+    // Tower says "not collected", never a row of zeros.
     product: posthog.product,
     ...(clarity ? { clarity } : {}),
     methodology: [

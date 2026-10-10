@@ -1,4 +1,4 @@
-// Retry-safe hosted task writes (epic ro-cvl9; migration 0012).
+// Retry-safe hosted task writes.
 //
 // A receipt binds one idempotency key, scoped to a workspace, principal and
 // operation, to the exact request it first carried and to a server-generated

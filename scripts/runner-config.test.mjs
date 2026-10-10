@@ -22,7 +22,7 @@ import {
   runnerPaths,
 } from './runner/config.mjs';
 
-// scripts/runner/config.mjs (bead ro-ujb9.22): where the local runner's code
+// scripts/runner/config.mjs: where the local runner's code
 // and state are, and its knobs. It moved one directory down from
 // scripts/os-up.mjs, so the one thing that could silently change is which
 // checkout it thinks it is in.

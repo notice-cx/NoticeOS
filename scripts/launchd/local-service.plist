@@ -42,7 +42,7 @@
     <key>NOTICEOS_MANAGED</key>
     <string>1</string>
     <!-- Where the state stays while the code runs from the runtime copy
-         (scripts/os-runtime.mjs, bead ro-ujb9.113). -->
+         (scripts/os-runtime.mjs). -->
     <key>NOTICEOS_HOME</key>
     <string>__HOME_ROOT__</string>
 __DOLT_HOME_ENV__

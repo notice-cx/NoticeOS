@@ -9,7 +9,7 @@ import { runCommand } from './run-command.mjs';
 import { localDockerEndpoint } from './postgres-compose.mjs';
 
 const project = 'noticeos-start-1234567890abcdef';
-const image = 'noticeos-local:ro-ujb9-9-2-cleanup';
+const image = 'noticeos-local:compose-proof-cleanup';
 const id = 'a'.repeat(64);
 const replacementId = 'b'.repeat(64);
 const ok = (stdout = '', stderr = '') => ({ code: 0, stdout, stderr });
@@ -188,7 +188,7 @@ test('real detached one-off cleanup survives a wait timeout and removes its inte
   skip: process.env.NOTICEOS_TEST_CONTAINER_CLEANUP !== '1', timeout: 60_000,
 }, async t => {
   const baseImage = process.env.NOTICEOS_TEST_CLEANUP_BASE_IMAGE;
-  assert.match(baseImage ?? '', /^noticeos-local:ro-ujb9-9-2-[a-z0-9]+$/u);
+  assert.match(baseImage ?? '', /^noticeos-local:compose-proof-[a-z0-9]+$/u);
   const env = Object.fromEntries(['PATH', 'HOME', 'DOCKER_CONFIG', 'TMPDIR', 'LANG'].filter(key => process.env[key] !== undefined).map(key => [key, process.env[key]]));
   const endpoint = await localDockerEndpoint(runCommand, { env });
   assert.ok(endpoint, 'prove a local Docker endpoint before resource requests');

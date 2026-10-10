@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import * as osUp from './os-up.mjs';
 import { runWatchReadbackFiler, watchReadbacksUrl } from './runner/watch-readbacks.mjs';
 
-// scripts/runner/watch-readbacks.mjs (bead ro-ujb9.22): a closed bet's
+// scripts/runner/watch-readbacks.mjs: a closed bet's
 // verdict is posted to its bead, and only then stamped in the store. The door
 // and `bd` are recorded here; nothing reaches a real store or tracker.
 

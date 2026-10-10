@@ -15,8 +15,8 @@ import {
   stopLocalSecretReads,
 } from './worker-config-folder.mjs';
 
-// The unit tests' Worker configs sit in a folder with no local secrets (bead
-// ro-ujb9.182): wrangler reads `.dev.vars` from beside the config it is given,
+// The unit tests' Worker configs sit in a folder with no local secrets:
+// wrangler reads `.dev.vars` from beside the config it is given,
 // and a checkout that runs the OS keeps the installation's real secrets there.
 // Every value below is invented; no test here opens a checkout's own secrets.
 

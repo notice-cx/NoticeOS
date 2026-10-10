@@ -860,7 +860,7 @@ test('missing Postgres/hub inventories fail; a readable empty R2 store is a vali
 });
 
 test('an installation pnpm start runs backs up only the task databases it links, each through its own checkout', async (t) => {
-  // bead ro-ujb9.174: linking none is not configured, not a failed set.
+  // Linking none is not configured, not a failed set.
   const f = await fixture(t);
   for (const inventory of ['empty', 'absent']) {
     if (inventory === 'empty') await f.host([]);
@@ -914,7 +914,7 @@ test('an unconfigured offsite handoff is explicit and optional', async (t) => {
   await absent(f.offsite);
 });
 
-// Bead ro-ujb9.120: the offsite folder is THIS host's setting, read from its
+// The offsite folder is THIS host's setting, read from its
 // installation's host-backup.json at each run — never a path written into the
 // runner. The runner passes no folder; these runs do the same.
 test("the offsite folder is read from the installation's host-backup.json, in the real file shape", async (t) => {
@@ -1279,11 +1279,11 @@ test('real SQLite snapshots include committed WAL data and remain independently 
   assert.equal(writer.prepare('PRAGMA integrity_check').get().integrity_check, 'ok');
 });
 
-test('an idle WAL database without sidecars snapshots and is left exactly as found (ro-paxb)', async (t) => {
+test('an idle WAL database without sidecars snapshots and is left exactly as found', async (t) => {
   // Miniflare's stores between requests: WAL mode, the last connection has
   // closed, so SQLite removed the -wal/-shm. A read-only connection cannot
-  // create the -shm index it needs, and failed with "unable to open database
-  // file" every night from 2026-09-15 for the R2 metadata database.
+  // create the -shm index it needs, and fails with "unable to open database
+  // file".
   const f = await fixture(t);
   async function idleWal(file, rows) {
     await fs.mkdir(path.dirname(file), { recursive: true });

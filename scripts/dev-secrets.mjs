@@ -1,29 +1,15 @@
 #!/usr/bin/env node
-// dev-secrets.mjs — readable local secret source → Wrangler's dotenv input.
+// The readable local secret source → Wrangler's dotenv input.
 //
-// Cloudflare Workers receive secrets as string bindings. That is appropriate at
-// runtime, but it makes nested local maps painful to maintain when they are
-// hand-minified inside `.dev.vars`. The operator instead edits the gitignored,
-// formatted `workers/ingest/.dev.secrets.json`; `os:up` compiles it to the
-// `.dev.vars` file Wrangler expects before starting the Worker.
-//
-// Service-account payloads are larger than the small routing map around them.
-// The readable source keeps each account together, while sync extracts every
-// encoded key into its own generated Worker binding. This prevents a
-// multi-account GOOGLE_SIGNAL_ACCOUNTS value from crossing Cloudflare's
-// per-binding size ceiling.
-//
-// Since the credential store landed (epic `ro-vu8d`), these local files are the
-// LEGACY path: a credential entered on the Tower's Integrations page lives
-// encrypted in D1 and wins over any binding here. `import` is the one-way door
-// between them — it reads the same `.dev.secrets.json` and PUTs each provider
-// through the running Tower once, so the operator's existing secrets move
-// without being retyped into a form.
-//
-// That door is ALSO a button: the Legacy env explainer on an Integrations card
-// posts to a local dev-server lane which calls `importDevSecrets` below, in
-// process (bead `ro-vu8d.7`). One function, so pressing the button and pasting
-// the command cannot come to different conclusions.
+// The operator edits the gitignored, formatted
+// `workers/ingest/.dev.secrets.json`; `os:up`
+// compiles it to the `.dev.vars` Wrangler expects. Sync extracts each Google
+// service-account key into its own generated binding, so a multi-account
+// GOOGLE_SIGNAL_ACCOUNTS value never crosses Cloudflare's per-binding size
+// ceiling. These files are the legacy path: a credential connected in the
+// product wins over any binding here, and `import` moves them there once,
+// through the running Tower. The Integrations card's Import button calls
+// `importDevSecrets` in process, so the two cannot differ.
 //
 //   pnpm dev:secrets:migrate  # one-time .dev.vars → formatted JSON
 //   pnpm dev:secrets:sync     # rebuild generated .dev.vars
@@ -36,11 +22,9 @@ import { readProductEnv } from './product-env.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
-// The secrets belong to the installation's HOME, not to wherever this code is:
-// `NOTICEOS_HOME` (scripts/os-runtime.mjs HOME_ENV, read the same way as
-// apps/tower/vite/lane.ts) names it for the managed service's runtime copy and
-// for `pnpm start`'s own folder, so a lane in either never reads another
-// installation's bearer. Unset, home is this checkout, as it always was.
+// The secrets belong to the installation's home, not to wherever this code
+// is: `NOTICEOS_HOME` names it for a runtime copy and for `pnpm start`'s own
+// folder. Unset, home is this checkout.
 const NAMED_HOME = readProductEnv(process.env, 'home');
 const HOME_ROOT = NAMED_HOME ? path.resolve(NAMED_HOME) : REPO_ROOT;
 export const DEFAULT_DEV_VARS = path.join(HOME_ROOT, 'workers', 'ingest', '.dev.vars');
@@ -54,13 +38,10 @@ export const DEFAULT_DEV_SECRETS = path.join(
 const KEY_RE = /^[A-Z][A-Z0-9_]*$/;
 
 /**
- * The fourth bootstrap secret (docs/06-operations.md, bead ro-ujb9.76.7.2): the
- * application login's connection string to the installation's Postgres. It is
- * kept in this file beside the other three, and read from it by the runner and
- * `pnpm start` (scripts/database-address.mts), which hand it to the dev server
- * in its environment only, as the POSTGRES binding's local address. It is never
- * a Worker binding, so it is never compiled into `.dev.vars`: a Worker reaches
- * Postgres through its Hyperdrive binding alone.
+ * The application login's connection string to the installation's Postgres,
+ * read by the runner and `pnpm start` (scripts/database-address.mts), which
+ * hand it to the dev server in its environment only. Never a Worker binding,
+ * so never compiled into `.dev.vars`.
  */
 export const DATABASE_URL = 'DATABASE_URL';
 const NOT_WORKER_BINDINGS = new Set([DATABASE_URL]);
@@ -195,8 +176,7 @@ export function structureLegacyBindings(bindings) {
         document[key] = JSON.parse(trimmed);
         continue;
       } catch {
-        // Keep malformed JSON as a string. The consuming lane will report the
-        // precise config error instead of migration silently changing it.
+        // Malformed JSON stays a string, so the consuming lane reports it.
       }
     }
     document[key] = value;
@@ -299,18 +279,14 @@ export async function migrateDevVars({
 /** Where a local `pnpm os:up` serves the Tower (scripts/runner/config.mjs CONFIG). */
 export const DEFAULT_TOWER_ORIGIN = 'http://127.0.0.1:5173';
 
-/** The OS's answer to "what is connected". Written once: the import below and
- * `creds:check` both ask it, and two spellings of one path would be two ways to
- * be wrong about whether the OS is running. */
+/** The OS's answer to "what is connected"; the import and `creds:check` both
+ * ask it. */
 export const INTEGRATION_PROVIDERS_PATH = '/api/integrations/providers';
 
 /**
- * Ask the running Tower what it holds — the provider catalog straight out of
- * `packages/contract`, plus each provider's connection state.
- *
- * THROWS when the OS is not running, and says so: every caller has to decide
- * what that means for it (the import stops; the checker falls back to reading
- * the env bindings and says it did).
+ * Ask the running Tower what it holds: the provider catalog out of
+ * `packages/contract`, plus each provider's connection state. Throws when the
+ * OS is not running; every caller decides what that means for it.
  */
 export async function fetchIntegrationProviders({
   origin = DEFAULT_TOWER_ORIGIN,
@@ -325,34 +301,13 @@ export async function fetchIntegrationProviders({
 }
 
 /**
- * Which providers can be imported from these bindings, and with which fields.
- *
- * The provider catalog is NOT duplicated here — it is read from the running
- * Tower (`GET /api/integrations/providers`), which serves
- * `INTEGRATION_PROVIDERS` straight out of `packages/contract`. One declaration,
- * and a provider added there is importable the same day with no edit to this
- * file.
- *
- * A provider missing a required binding is SKIPPED with its reason rather than
- * half-imported: an incomplete credential in the store would shadow a complete
- * one in the env, which is the one outcome worse than not importing at all.
- */
-/**
- * What is still missing before this provider could be stored — the SAME rule as
- * `credentialAuthState` in `packages/contract`.
- *
- * Mirrored rather than imported because that package ships TypeScript with no
- * build output, and this is a Node script. The DATA is still single-sourced:
- * `authPaths` and `required` arrive on the wire from
- * `GET /api/integrations/providers`, which serves the contract's own catalog.
- * What is duplicated is eight lines of predicate, and the contract's own test
- * pins the behaviour both copies have to agree on.
- *
- * Google is why this exists: it declares two ways in and marks NEITHER field
- * required, because "required" cannot express *either a sign-in or a service
- * account*. Reading only `required` would call an empty Google credential
- * complete and PUT a row with no fields — which would then shadow a working env
- * binding, the one outcome worse than not importing at all.
+ * What is still missing before this provider could be stored: the same rule
+ * as `credentialAuthState` in `packages/contract`, mirrored because that
+ * package ships TypeScript with no build output. The data (`authPaths`,
+ * `required`) arrives on the wire from `GET /api/integrations/providers`.
+ * Google declares two ways in and marks neither field required, so reading
+ * only `required` would PUT a row with no fields, which would then shadow a
+ * working env binding.
  */
 function providerShortfall(provider, held) {
   const paths = provider.authPaths ?? [];
@@ -374,19 +329,11 @@ function providerShortfall(provider, held) {
 
 /**
  * One field's value out of these bindings, with a legacy single-asset binding
- * folded into the asset map it belongs to (bead `ro-vu8d.24`).
- *
- * Mirrored from `readEnvCredential` in `packages/contract` for the reason
- * `providerShortfall` is: that package ships TypeScript and this is Node. The
- * DECLARATION is single-sourced — `legacyAssetBinding` arrives on the wire from
- * `GET /api/integrations/providers` — so what is duplicated is the fold, not the
- * fact that Clarity has one. The map WINS wherever both name the asset, and a
- * map that does not parse is left exactly as it is so the route's own refusal is
- * what the operator sees.
- *
- * WHICH ASSET is the route's answer too (bead `ro-ujb9.118`): it fills
- * `legacyAssetBinding.asset` from the installation's own register
- * (`legacyBindingAsset`). No answer, no fold — never a guessed site.
+ * folded into the asset map it belongs to. Mirrored from `readEnvCredential`
+ * in `packages/contract`, as `providerShortfall` is; `legacyAssetBinding`,
+ * including which asset, arrives on the wire. The map wins wherever both
+ * name the asset, and a map that does not parse is left as it is so the
+ * route's own refusal is what the operator sees. No asset, no fold.
  */
 function fieldValue(field, bindings) {
   const direct = bindings[field.name];
@@ -425,17 +372,16 @@ export function credentialImportPlan(bindings, providers) {
       skipped.push({ provider: provider.id, missing });
       continue;
     }
-    // The VALUES ride in `fields` and are never logged; only the names are.
+    // The values ride in `fields` and are never logged; only the names are.
     planned.push({ provider: provider.id, fields, names: Object.keys(fields) });
   }
   return { planned, skipped };
 }
 
 /**
- * PUT each planned credential through the Tower's same-origin route.
- *
- * One request per provider, and the outcome is reported by NAME — a failure
- * says which provider and what the route answered, never what was sent.
+ * PUT each planned credential through the Tower's same-origin route. The
+ * outcome is reported by name: a failure says which provider and what the
+ * route answered, never what was sent.
  */
 export async function runCredentialImport({
   bindings,
@@ -476,18 +422,10 @@ export async function runCredentialImport({
 }
 
 /**
- * The WHOLE of `pnpm dev:secrets:import`, minus the printing.
- *
- * Extracted so the Tower's Import button runs this exact code rather than a
- * second implementation of it — and runs it in-process, never by shelling out
- * to `pnpm`: a web request that spawns a package manager is a different and
- * much larger thing to guard than a web request that reads one file.
- *
- * `secretsFile` is a parameter and not a default read of `DEFAULT_DEV_SECRETS`
- * because the Vite lane BUNDLES this module before executing it, so the repo
- * root derived here from `import.meta.url` is a fact about that bundler's temp
- * directory rather than about the checkout. The lane walks up to the real root
- * (vite/lane.ts `findRepoRoot`) and passes the path it found.
+ * The whole of `pnpm dev:secrets:import`, minus the printing; the Tower's
+ * Import button runs it in process. `secretsFile` is a parameter because the
+ * Vite lane bundles this module, so the root derived from `import.meta.url`
+ * is the bundler's temp directory; the lane passes the real path.
  */
 export async function importDevSecrets({
   secretsFile = DEFAULT_DEV_SECRETS,

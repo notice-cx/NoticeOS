@@ -15,7 +15,7 @@
 // It is the sister of `scripts/ui-lexicon.test.mjs`, which reads the same
 // corpus through `extractVisibleStrings` and does fail on system jargon.
 //
-// WHAT COUNTS AS VISIBLE. Everything that can reach a person is presumed
+// What counts as visible. Everything that can reach a person is presumed
 // visible, and only positions that provably cannot are excluded: className
 // and class-building calls, data-*/id/key/href-style attributes, import
 // specifiers, type positions, property names, comparisons, console and other

@@ -1,14 +1,11 @@
-/* NoticeOS: the Notice identity (decision D35, 2026-09-23), the same one
-   www.notice.cx wears. Shared by the product and the standalone design-system
+/* The brand identity, shared by the product and the standalone design-system
    reference. Brand/action, operational state and chart series have distinct
    roles: nothing here is a severity, a status or a series colour, and no such
-   token may point at the brand blue (docs/14-design.md § The Notice
-   identity, apps/tower/test/brand-identity.test.ts).
+   token may point at the brand blue (apps/tower/test/brand-identity.test.ts).
 
    Dark is the default, and `[data-theme="dark"]` draws one subtree dark inside
-   a light page — the product's television preview on a light desk (bead
-   ro-c0l3). `data-theme` is this file's own switch, as `[data-theme="light"]`
-   is below. */
+   a light page (the television preview on a light desk). `data-theme` is this
+   file's own switch, as `[data-theme="light"]` is below. */
 @font-face {
   font-family: Inter;
   src: url("../fonts/InterVariable.woff2") format("woff2");

@@ -22,10 +22,9 @@ test-results/
 !/docs/artifacts/viewport-audit/README.md
 
 # cloudflare / wrangler
-# No trailing slash on these two: inside a runtime copy (.local/runtime/, bead
-# ro-ujb9.113) they are LINKS to the home checkout's store and state, and a
-# pattern ending in / matches only directories, so the links would read as
-# untracked files and the deploy would call the copy dirty.
+# No trailing slash: inside a runtime copy (.local/runtime/) these are links,
+# and a pattern ending in / matches only directories, so the deploy would call
+# the copy dirty.
 .wrangler
 
 # local runner state (logs, D1 backups, the runtime copies) — never committed

@@ -9,74 +9,46 @@ import {
 import { panelReviewEntry, panelReviewListArgs } from "./panel-review-summary.mjs";
 import { BEADS_ERROR_MAX, beadsFailure, beadsInstant, beadsText } from "./task-snapshot-values.mjs";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The Tower handoff join (bead `ro-248`): one key carried from the finding to
-// the bead filed for it, so the finding can show its task.
-//
-// A Tower finding or query decision is handed off as a ready-to-run `bd create`
-// (apps/tower/src/lib/task-handoff.ts) that an agent executes in the property's
-// own repo. That bead carries `noticeos_*` metadata (`reindex_*` on a bead filed
-// before the NoticeOS rename, read the same way) naming the finding it came
-// from — which means the register can be asked the question the Tower could not
-// answer before: has this finding already been filed as work?
-//
-// This is the READ side of that grammar, and it is a CONTRACT with the emitter:
-// the label and the three metadata keys below are copied from task-handoff.ts,
-// and renaming either side silently empties a marker on every finding card.
-//
-// It is a filtered query per spoke, not a slice of the lists this poller
-// already captures, and that is the whole point: those lists are capped heads
-// (ten ready, five recently closed), so a bead filed a month ago or closed last
-// week falls outside all of them. A join that can only see the head of a queue
-// answers "no bead was ever filed" for work that plainly was.
-// ─────────────────────────────────────────────────────────────────────────────
+// The Tower handoff join: one key carried from the finding to the task filed
+// for it, so the finding can show its task. A handoff (apps/tower/src/lib/
+// task-handoff.ts) carries `noticeos_*` metadata (`reindex_*` on older
+// tasks, read the same way) naming the finding it came from. The label and
+// the three metadata keys below are a contract with that emitter: renaming
+// either side silently empties the marker on every finding card. It is a
+// filtered query per spoke, not a slice of the capped lists this poller
+// captures, because a task filed a month ago falls outside all of them.
 
-/** The label every Tower handoff bead carries — `HANDOFF_SOURCE_LABEL` in
- * apps/tower/src/lib/task-handoff.ts. The lane is one `bd list --label-any`
- * away, which also finds the `reindex-handoff` beads filed before the rename. */
+/** The label every Tower handoff task carries — `HANDOFF_SOURCE_LABEL` in
+ * apps/tower/src/lib/task-handoff.ts; `--label-any` also finds the older
+ * `reindex-handoff` label. */
 export const HANDOFF_LABEL = TASK_HANDOFF_LABEL;
-/** The finding/query identity, byte-exact. Read from METADATA and never from
- * the `key:` label: `bd` splits label values on commas, so a query containing
- * one arrives as two labels, and the label deliberately carries a lossy slug. */
+/** The finding/query identity, byte-exact. Read from metadata and never from
+ * the `key:` label: `bd` splits label values on commas, and the label carries
+ * a lossy slug. */
 export const HANDOFF_KEY_FIELD = TASK_METADATA.key.name;
 /** Which Tower surface raised it. This is wider than `decisions.kind`: page
  * rows file work but carry no mark/dismiss display state. */
 export const HANDOFF_KIND_FIELD = TASK_METADATA.kind.name;
 /** Which property it was raised for. */
 export const HANDOFF_ASSET_FIELD = TASK_METADATA.asset.name;
-/** The only four surfaces that emit a handoff — queries, findings, page
- * decisions, and alerts. A bead claiming anything else is not one of ours,
- * whatever label it wears. Kept in step with `BEADS_HANDOFF_KINDS`
- * (workers/ingest/src/beads-snapshots.ts) and the emitter's own list
- * (apps/tower/src/lib/task-handoff.ts); the ingest validator now drops an
- * unrecognized kind's own row rather than the project (`ro-05hb`), so the two
- * lists drifting is a missing marker and no longer a blank board. */
+/** The only four surfaces that emit a handoff. Kept in step with
+ * `BEADS_HANDOFF_KINDS` (workers/ingest/src/beads-snapshots.ts) and the
+ * emitter's own list (apps/tower/src/lib/task-handoff.ts); the ingest
+ * validator drops an unrecognized kind's row, not the project. */
 export const HANDOFF_KINDS = ['query', 'finding', 'page', 'alert'];
 /**
- * How many filed beads one spoke may REPORT — a rendering bound, not a truth
- * bound, and the same order of magnitude as the other per-project lists (the
- * ingest route's own ceiling is 50 items).
- *
- * The read below is unlimited so the dedupe sees every attempt; the truncation
- * happens after ranking, so what a saturated property loses is its OLDEST
- * SHIPPED work — a finding from last year whose bead closed and was never
- * proven, which is the least useful marker on the page. Open work is never
- * dropped short of fifty simultaneously-open handoffs for one property, which
- * is a planning problem and not a rendering one.
+ * How many filed tasks one spoke may report — a rendering bound, not a truth
+ * bound (the ingest route's own ceiling is 50 items). The read is unlimited so
+ * the dedupe sees every attempt; truncation happens after ranking, so a
+ * saturated property loses its oldest shipped work first.
  */
 export const HANDOFF_LIMIT = 50;
 
 /**
- * Every handoff bead one spoke holds, any status.
- *
- * Closed beads are asked for in the SAME call, which none of the queue reads
- * do: a finding whose work shipped last month and a finding nobody ever filed
- * both have no open bead, and only the closed one tells them apart — which is
- * exactly the difference between "shipped, not proven" and "untouched".
- *
- * `--limit 0` means unlimited, exactly as the counting reads use it: several
- * beads can carry one key (a refiled finding), and picking which one to show
- * has to happen over all of them rather than over whichever page `bd` returned.
+ * Every handoff task one spoke holds, any status. Closed tasks are asked for in
+ * the same call: only a closed task tells "shipped, not proven" from
+ * "untouched". `--limit 0` means unlimited, because several tasks can carry one
+ * key (a refiled finding) and the choice has to be made over all of them.
  */
 export function handoffListArgs(repoDir) {
   return [
@@ -93,30 +65,20 @@ export function handoffListArgs(repoDir) {
   ];
 }
 
-/** One bead's handoff metadata, or null when it carries none. `bd list
- * --json` omits the key entirely for a bead with no metadata (verified against
- * bd 1.1.2, 2026-08-03) and returns a parsed object otherwise. */
+/** One task's handoff metadata, or null when it carries none. `bd list --json`
+ * omits the key entirely for a task with no metadata. */
 function handoffMetadata(row) {
   const metadata = row?.metadata;
   return metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : null;
 }
 
 /**
- * The spoke's handoff beads, one per rendered query, finding, page, or alert
- * row.
- *
- * `asset` is the SPOKE's asset, and a bead naming a different one is dropped.
- * That is not defensiveness about a typo: finding keys are rule ids
- * (`item-openers`, `gsc-decline-1`) that every property's analyzer emits, so a
- * bead filed in the wrong repo — the one failure the handoff text warns about
- * by name — would otherwise attach to a completely unrelated property's finding
- * that happens to share the key. A bead carrying no handoff asset at all is
- * kept: the repo it was filed in already answers which property it belongs to.
- *
- * One bead per (kind, key), because the marker is a state and not a count. An
- * OPEN bead always wins — work in flight is the live fact — and among closed
- * ones the most recently closed, so a finding refiled after a first attempt
- * reads as the attempt that is actually current.
+ * The spoke's handoff tasks, one per rendered query, finding, page or alert
+ * row. A task naming a different asset than the spoke's is dropped: finding
+ * keys are rule ids every property's analyzer emits, so a task filed in the
+ * wrong repo would attach to an unrelated property's finding. A task carrying
+ * no handoff asset is kept. One task per (kind, key): an open task always
+ * wins, then the most recently closed.
  */
 export function handoffEntries(rows, asset) {
   if (!Array.isArray(rows)) return [];
@@ -127,9 +89,8 @@ export function handoffEntries(rows, asset) {
     if (beadId === '' || metadata === null) continue;
     const key = beadsText(taskMetadataValue(metadata, 'key'));
     const kind = beadsText(taskMetadataValue(metadata, 'kind'));
-    // No key or an unknown surface: a labelled bead nothing can be joined to.
-    // Dropped rather than guessed — a marker on the wrong finding is worse than
-    // no marker, because it claims work that is not about it.
+    // No key or an unknown surface: dropped rather than guessed, because a
+    // marker on the wrong finding is worse than no marker.
     if (key === '' || !HANDOFF_KINDS.includes(kind)) continue;
     const owner = beadsText(taskMetadataValue(metadata, 'asset'));
     if (owner !== '' && owner !== asset) continue;
@@ -145,19 +106,17 @@ export function handoffEntries(rows, asset) {
     const held = byKey.get(mapKey);
     if (!held || handoffRank(entry, held) < 0) byKey.set(mapKey, entry);
   }
-  // Ranked, then truncated, then sorted. The rank decides WHAT survives a
-  // saturated property (see HANDOFF_LIMIT); the final sort makes the payload a
-  // function of the hub's state rather than of the order `bd` answered in, so
-  // two identical hubs produce two identical snapshots.
+  // Ranked, then truncated, then sorted: the rank decides what survives a
+  // saturated property; the final sort makes the payload a function of the
+  // hub's state rather than of the order `bd` answered in.
   return [...byKey.values()]
     .sort(handoffRank)
     .slice(0, HANDOFF_LIMIT)
     .sort((a, b) => a.kind.localeCompare(b.kind) || a.key.localeCompare(b.key));
 }
 
-/** Which of two beads for the same finding is the one to show. Negative means
- * `a` wins: open over closed, then the newer close, then the lower id — the
- * last purely so a tie is decided by the data rather than by list order. */
+/** Which of two tasks for the same finding is the one to show. Negative means
+ * `a` wins: open over closed, then the newer close, then the lower id. */
 function handoffRank(a, b) {
   return (
     Number(a.status === 'closed') - Number(b.status === 'closed') ||
@@ -166,60 +125,41 @@ function handoffRank(a, b) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Beads snapshot poller — the hub's state, once a minute, into the central
-// store so the Tower can render it (db/postgres/migrations/0001_baseline.sql,
-// docs/10 "Work").
-//
-// The Tower cannot read the hub: it is a Worker, the hub speaks MySQL, and the
-// hub is on this Mac. So this process — which can reach both — shells the `bd`
-// CLI once per spoke and POSTs what it saw to the ingest worker. `bd` resolves
-// its own server-mode connection settings from each repo's `.beads/config.yaml`,
-// so the poller never holds hub credentials; it only says WHERE to look (-C).
-//
-// This is a READ. The poller never creates, closes, or edits a bead — writes
-// happen where the work happens, via `bd` in each repo. (The panel-review filer
-// and the push-state filer, runner/panel-review.mjs and runner/push-state.mjs,
-// are the two deliberate exceptions, and
-// each is a separate lane on a separate schedule precisely so this one stays a
-// read.)
-// ─────────────────────────────────────────────────────────────────────────────
+// Task snapshot poller — the hub's state, once a minute, into the central
+// store so the Tower can render it. The Tower cannot read the hub directly, so
+// this process shells the `bd` CLI once per spoke and POSTs what it saw to the
+// ingest worker. `bd` resolves its own connection settings from each repo's
+// `.beads/config.yaml`, so the poller never holds hub credentials; it only
+// says where to look (-C). This is a read: the poller never creates, closes
+// or edits a task (runner/panel-review.mjs and runner/push-state.mjs are
+// separate lanes that write).
 
-/** How many of each list a project reports. The board shows the head of the
- * queue, not the queue: a project with 200 ready beads is a planning problem,
- * and rendering all 200 would not help anyone see it. */
+/** How many of each list a project reports: the board shows the head of the
+ * queue, not the queue. */
 export const BEADS_READY_LIMIT = 10;
 export const BEADS_IN_PROGRESS_LIMIT = 10;
 export const BEADS_CLOSED_LIMIT = 5;
 /** Newest-filed work a project reports, so the Wall feed can say "New task"
- * the minute one is filed (bead `ro-trai.7`). Capped like the closed list. */
+ * the minute one is filed. Capped like the closed list. */
 export const BEADS_CREATED_LIMIT = 5;
 /** "Recently closed" means closed within this many days — the "what moved?"
  * window, at day grain because `bd --closed-after` takes a date. */
 export const BEADS_CLOSED_WINDOW_DAYS = 7;
 /** `bd`'s documented default priority, used when a bead carries none. */
 const BEADS_DEFAULT_PRIORITY = 2;
-/** The `bd` type that is a CONTAINER rather than work. An epic holds other
- * beads; nobody claims one, closes one by doing it, or is blocked by one being
- * open. Counting them inflates every "how much is left?" number by however much
- * structure a repo happens to use — six epics turned the OS project's 33 claimable
- * beads into 39 on 2026-08-01. Filtered here, at the only place that can see
- * the untruncated lists, so no consumer has to re-derive it (a truncated list
- * cannot: `bd ready` returned 39 rows and the stored list keeps 10). */
+/** The `bd` type that is a container rather than work. Counting epics inflates
+ * every "how much is left?" number, so they are filtered here, at the only
+ * place that can see the untruncated lists. */
 export const BEADS_CONTAINER_TYPE = 'epic';
 /** P0–P1. The urgency question a property card asks, and the one thing about a
  * queue that cannot wait for someone to open the board. */
 export const BEADS_HIGH_PRIORITY_MAX = 1;
-/** `bd` ships P0–P4, so a queue's shape is five numbers. Sent alongside the
- * scalar counts because "33 open" and "33 open, 5 of them P0" are the same
- * number describing two completely different mornings — and a card that only
- * ever shows the total makes the operator open the board to find that out.
- * Computed here for the same reason every other count is: the lists are
- * truncated to ten downstream, so nothing else can see the whole distribution. */
+/** `bd` ships P0–P4, so a queue's shape is five numbers. Computed here because
+ * the lists are truncated downstream, so nothing else can see the whole
+ * distribution. */
 export const BEADS_PRIORITY_BANDS = 5;
 /** `bd`'s own token for deliberately parked work (category `frozen`, glyph ❄).
- * It is deliberately absent from every other read here: none of them ask for
- * it, which is exactly how a deferral used to become a disappearance. */
+ * No other read here asks for it, so this is the only read that sees it. */
 export const BEADS_DEFERRED_STATUS = 'deferred';
 
 /** The oldest close still worth showing, as the YYYY-MM-DD `bd` expects. */
@@ -229,22 +169,12 @@ export function beadsClosedSince(nowMs) {
 
 /**
  * The reads that make one project's snapshot, keyed by what they answer.
- *
- * Why several and not one: `bd list` reports each bead's STORED status, which
- * says nothing about whether its dependencies are done — `bd ready` and
- * `bd blocked` are the blocker-aware questions, and re-deriving them here from
- * dependency ids would be a second implementation of `bd`'s own semantics,
- * drifting the first time it learns a new one. Closed beads are a separate call
- * because they are the only ones the store keeps a time window on.
- *
- * `--limit 0` means unlimited: the counts must be true even though the lists
- * are truncated afterwards.
- *
- * The last two are OPTIONAL (`BEADS_OPTIONAL_READS`): a project whose `bd`
- * cannot answer them still files a snapshot, and the board falls back to its
- * flat lists. They are enhancements to how work is GROUPED and what is visibly
- * parked — not the work itself — so failing a whole project over them would
- * trade a real outage for a missing nicety.
+ * `bd list` reports each task's stored status, which says nothing about its
+ * dependencies; `bd ready` and `bd blocked` are the blocker-aware questions,
+ * and re-deriving them here would be a second implementation of `bd`'s
+ * semantics. `--limit 0` means unlimited: the counts must be true even though
+ * the lists are truncated afterwards. The `BEADS_OPTIONAL_READS` may fail
+ * without costing the project its snapshot.
  */
 export function beadsPollArgs(repoDir, closedSince) {
   return {
@@ -266,34 +196,26 @@ export function beadsPollArgs(repoDir, closedSince) {
       '--limit',
       '0',
     ],
-    // Epic containers with their ALL-TIME child progress. `bd epic status` is
-    // the only source for that denominator: the closed list above is a trailing
-    // week, so an epic whose children were finished last month would otherwise
-    // read as 0% done.
+    // Epic containers with their all-time child progress: the closed list
+    // above is a trailing week, so an epic whose children were finished last
+    // month would otherwise read as 0% done.
     epics: ['-C', repoDir, 'epic', 'status', '--json'],
-    // The operator label set: beads carrying `human` — a decision, a
-    // credential, an admin-console step. This is NOT yet the inbox because it
-    // also includes parked, blocked and in-progress rows; summarizeBeadsProject
-    // intersects it with this same poll's `ready` result. `bd human list` and
-    // `bd list -l human` return the same set (verified 2026-08-02); this one has
-    // the documented respond/dismiss verbs the operator ultimately acts with.
+    // Tasks carrying `human`. Not yet the inbox: it also includes parked,
+    // blocked and in-progress rows, so summarizeBeadsProject intersects it
+    // with this poll's `ready` result.
     human: ['-C', repoDir, 'human', 'list', '--json'],
-    // Open gates. They do NOT carry the `human` label, so the read above cannot
-    // see them (verified) — and a human gate is the sharpest form of waiting on
-    // the operator, because it holds a bead out of `bd ready` until resolved.
+    // Open gates. They do not carry the `human` label, so the read above
+    // cannot see them; a human gate holds a task out of `bd ready` until
+    // resolved.
     gates: ['-C', repoDir, 'gate', 'list', '--json'],
-    // Deliberately parked work (`❄ deferred`, bd's own `frozen` category).
-    // Invisible until now, because every other read asks for open/in-progress/
-    // blocked/closed and deferred is none of them — a silent deferral, which
-    // doc 05 forbids.
+    // Deliberately parked work (`❄ deferred`, bd's own `frozen` category),
+    // which no other read returns.
     deferred: ['-C', repoDir, 'list', '--status', 'deferred', '--json', '--limit', '0'],
     // This property's SERP-panel triage state — the same query the filer uses to
     // decide whether to write one (see panelReviewListArgs).
     panelReview: panelReviewListArgs(repoDir),
     // Work filed from this property's Tower handoffs, so a finding card can see
-    // its own bead. Its own filtered read for the same reason panelReview has
-    // one: the lists above are capped heads, and the bead for a finding is
-    // routinely older or longer-closed than any of them reach.
+    // its own task. Its own read because the lists above are capped heads.
     handoffs: handoffListArgs(repoDir),
   };
 }
@@ -319,24 +241,23 @@ function beadsIssue(row) {
     assignee: beadsText(row?.assignee) || null,
     updatedAt: beadsInstant(row?.updated_at),
     closedAt: beadsInstant(row?.closed_at),
-    // When the bead was filed: the only field that tells a new task from an
-    // old one (bead `ro-trai.7`).
+    // When the task was filed: the only field that tells a new task from an
+    // old one.
     createdAt: beadsInstant(row?.created_at),
     // The epic this bead belongs to (`bd`'s own `parent`, backed by a
     // parent-child dependency edge). null = un-epiced, which the board groups
     // as the remainder rather than hiding.
     parent: beadsText(row?.parent) || null,
-    // When a parked bead asks to be looked at again. Only deferred beads carry
-    // one; it is the whole reason a deferral is a decision rather than a
-    // disappearance.
+    // When a parked task asks to be looked at again. Only deferred tasks carry
+    // one.
     deferUntil: beadsInstant(row?.defer_until),
   };
 }
 
 /**
  * The ask inside a gate's description — the one reader the Tower's live task
- * read shares (packages/contract/src/task-gate.mts, bead ro-ujb9.201), so the
- * snapshot and the live board can never title one gate two ways.
+ * read shares (packages/contract/src/task-gate.mts), so the snapshot and the
+ * live board never title one gate two ways.
  */
 export { gateReason as beadsGateReason };
 
@@ -364,13 +285,10 @@ export function beadsProjectError(project, error) {
   };
 }
 
-/** How many epics and parked beads one project may report. Both are bounded for
- * the same reason the work lists are: the board shows the head of a queue, not
- * the queue, and an unbounded payload is a column that grows without a reader. */
+/** How many epics and parked tasks one project may report. */
 export const BEADS_EPIC_LIMIT = 25;
 export const BEADS_DEFERRED_LIMIT = 15;
-/** The operator inbox is a top-N, not a queue: if there are twelve things
- * waiting on him the answer is not to render twelve. */
+/** The operator inbox is a top-N, not a queue. */
 export const BEADS_WAITING_LIMIT = 10;
 /** `bd gate --help`: only a `human` gate waits on a person. A timer or a
  * GitHub gate resolves itself and is nobody's inbox item. */
@@ -378,12 +296,9 @@ export const BEADS_HUMAN_GATE = 'human';
 
 /**
  * One epic's grouping row: the container, plus what its children are doing.
- *
- * `total`/`closed` come from `bd epic status`, which counts ALL children ever —
- * the only honest denominator for progress, since this poller's closed list is
- * a trailing week and an epic finished last month would otherwise read 0%.
- * The status counts and the priority shape come from the live children, so they
- * agree with the lists the board renders beneath.
+ * `total`/`closed` come from `bd epic status`, which counts all children ever;
+ * the status counts and the priority shape come from the live children, so
+ * they agree with the lists the board renders beneath.
  */
 function beadsEpicSummary(entry, childrenByParent) {
   const epic = entry?.epic;
@@ -419,22 +334,12 @@ function beadsEpicSummary(entry, childrenByParent) {
 }
 
 /**
- * Turn one project's four `bd` results into its snapshot entry.
- *
- * Pure: the caller owns spawning, so the tests feed recorded `bd` output. Any
- * non-zero exit, unparseable stdout or invalid issue-list shape fails THIS
- * project only — one missing sibling repo must never cost the other five their
- * snapshot.
- *
- * The ready list keeps `bd`'s own order. It already ranks by blocker-awareness
- * then priority, and re-sorting it here would silently disagree with what an
- * agent running `bd ready` in that repo is told to work on next.
- *
- * Epic-type containers are dropped from every list BEFORE anything is counted
- * or truncated (`BEADS_CONTAINER_TYPE`). This is the only place in the system
- * that can do it: the counts are the only untruncated view of the hub, so a
- * consumer holding the stored payload can no more subtract the epics from a
- * 39-item queue than it can name them.
+ * Turn one project's `bd` results into its snapshot entry. Pure: the caller
+ * owns spawning. Any non-zero exit, unparseable stdout or invalid issue-list
+ * shape fails this project only. The ready list keeps `bd`'s own order, which
+ * is what an agent running `bd ready` in that repo is told. Epic-type
+ * containers are dropped from every list before anything is counted or
+ * truncated, the only place that can see the untruncated lists.
  */
 /** @returns {import('../packages/contract/src/task-snapshot.mjs').BeadsProjectInput} */
 export function summarizeBeadsProject(project, results) {
@@ -449,10 +354,10 @@ export function summarizeBeadsProject(project, results) {
     } catch {
       return beadsProjectError(project, `bd ${key} returned unparseable JSON`);
     }
-    // These required commands return issue arrays, including [] when empty
-    // (verified with bd 1.1.2). Unlike the optional human/gate reads below,
-    // literal null is not their empty-list representation. Reject malformed
-    // rows too: silently dropping a missing id would undercount the queue.
+    // These required commands return issue arrays, including [] when empty.
+    // Unlike the optional human/gate reads below, literal null is not their
+    // empty-list representation. Reject malformed rows too: silently dropping
+    // a missing id would undercount the queue.
     if (!Array.isArray(parsed[key]) || !parsed[key].every(
       (row) => row !== null && typeof row === 'object' && !Array.isArray(row) && beadsText(row.id) !== '',
     )) {
@@ -482,30 +387,23 @@ export function summarizeBeadsProject(project, results) {
   const blocked = work(beadsIssues(parsed.blocked));
   const closed = work(beadsIssues(parsed.closed));
   const inProgress = active.filter((issue) => issue.status === 'in_progress');
-  // Whether we LOOKED, which is not the same as finding none. A project whose
-  // `bd` could not answer must not report "0 parked" — that is a measurement
-  // nobody took, and the skew rule says absent stays absent.
+  // Whether we looked, which is not the same as finding none: a project whose
+  // `bd` could not answer must not report "0 parked".
   const sawDeferred = Array.isArray(parsed.deferred);
   const deferred = sawDeferred ? work(beadsIssues(parsed.deferred)) : [];
-  // Same distinction, one level up: a poller that could not run the read sends
-  // NO key, and a poller that ran it and found nothing sends `null`. The store
-  // keeps both, because "we never asked" must not render as "nothing to
-  // triage" — which is the exact silence this whole lane exists to break.
+  // A poller that could not run the read sends no key; one that ran it and
+  // found nothing sends `null`. "We never asked" must not render as "nothing
+  // to triage".
   const sawPanelReview = Array.isArray(parsed.panelReview);
-  // Same distinction again, and it is the whole honesty of the finding marker:
-  // an ABSENT key means this poller never asked the register, while an empty
-  // list means it asked and nobody has filed anything for this property. Only
-  // the second one licenses a card to say a finding is untouched.
+  // An absent key means this poller never asked the register; an empty list
+  // means it asked and nobody has filed anything. Only the second licenses a
+  // card to say a finding is untouched.
   const sawHandoffs = Array.isArray(parsed.handoffs);
 
-  // What is waiting on the OPERATOR, from two reads that do not overlap:
-  // blocker-aware READY beads that also carry `human`, and open gates of
-  // await_type `human`. `bd human list` is only the label source — by itself it
-  // also returns deferred, blocked and in-progress rows, which are not actions
-  // the operator can take now. `bd ready` is already the hub's authoritative
-  // answer to that question, so intersection beats reimplementing blockers,
-  // deferrals and status here. A gate stays separate because resolving it is
-  // itself the action that releases the bead it holds out of `bd ready`.
+  // What is waiting on the operator, from two reads that do not overlap:
+  // blocker-aware ready tasks that also carry `human`, and open gates of
+  // await_type `human`. A gate stays separate because resolving it is itself
+  // the action that releases the task it holds out of `bd ready`.
   const sawHuman = Array.isArray(parsed.human);
   const sawGates = Array.isArray(parsed.gates);
   // Either read can preserve known rows, but only BOTH license an exact total.
@@ -527,21 +425,16 @@ export function summarizeBeadsProject(project, results) {
         )
         .map((row) => {
           const issue = beadsIssue(row);
-          // The inbox exists so the operator can act without investigating, and
-          // "Gate: human" names the mechanism rather than the ask. Its reason is
-          // the ask, so it takes the title slot — which already means "the best
-          // label we have for this row" (a blank title falls back to the id).
+          // "Gate: human" names the mechanism rather than the ask; its reason
+          // is the ask, so it takes the title slot.
           return { ...issue, title: gateTitle(issue.title, row?.description) };
         })
         .filter((issue) => issue.id !== '')
     : [];
   const waiting = [...humanGates, ...humanBeads]
-    // A gate first, then by priority, then oldest activity first — the ask
-    // nobody has touched is the one rotting.
-    // A gate first (it is holding work hostage, not merely asking), then by
-    // priority, then oldest activity first — the ask nobody has touched is the
-    // one rotting. `bd`'s own issue_type already says which is which, so no
-    // extra field rides the payload to carry it.
+    // A gate first (it is holding work, not merely asking), then by priority,
+    // then oldest activity first — the ask nobody has touched is the one
+    // rotting.
     .sort(
       (a, b) =>
         Number(b.issueType === 'gate') - Number(a.issueType === 'gate') ||
@@ -549,9 +442,8 @@ export function summarizeBeadsProject(project, results) {
         (a.updatedAt ?? '').localeCompare(b.updatedAt ?? ''),
     );
   // Gates are urgent regardless of their stored priority because they hold a
-  // blocked bead out of `bd ready`. For ordinary human asks the portfolio's
-  // existing P0/P1 definition applies. This rides separately from the bounded
-  // waiting list so a Wall total can never be re-derived from a truncated head.
+  // blocked task out of `bd ready`. This rides separately from the bounded
+  // waiting list so a Wall total is never re-derived from a truncated head.
   const waitingUrgent =
     humanGates.length +
     humanBeads.filter((issue) => issue.priority <= BEADS_HIGH_PRIORITY_MAX).length;
@@ -591,27 +483,21 @@ export function summarizeBeadsProject(project, results) {
     ok: true,
     error: null,
     counts: {
-      // Stored status `open` — not started. `ready` and `blocked` are subsets of
-      // it, split by whether anything is in the way, so the three chips answer
-      // three different questions rather than partitioning one number.
+      // Stored status `open` — not started. `ready` and `blocked` are subsets
+      // of it, not a partition.
       open: active.filter((issue) => issue.status === 'open').length,
-      // Cuts ACROSS the other four: a P0 can be open, in flight, or blocked.
-      // Deliberately not a partition — the question is "how much of this is
-      // urgent?", which every status can answer yes to.
+      // Cuts across the other four: a P0 can be open, in flight or blocked.
       highPriority: active.filter((issue) => issue.priority <= BEADS_HIGH_PRIORITY_MAX).length,
       ready: ready.length,
       inProgress: inProgress.length,
       blocked: blocked.length,
       closedRecent: closed.length,
-      // Parked, and therefore in NONE of the counts above: `open` comes from a
-      // read that never asks for it, and it stays out of the ready math on
-      // purpose. The point of carrying it is that parked is visible, not that
-      // parked is counted as active.
+      // Parked, and therefore in none of the counts above: visible, not
+      // counted as active.
       ...(sawDeferred ? { deferred: deferred.length } : {}),
-      // Waiting on the operator. Human beads are a FILTER over `ready`, while
-      // human gates live outside the work queue. The count is never added to a
-      // queue total; its purpose is to move those ready rows into the stronger
-      // operator-inbox lane without listing them twice.
+      // Waiting on the operator. Human tasks are a filter over `ready`, while
+      // human gates live outside the work queue; the count is never added to a
+      // queue total.
       ...(completeWaiting ? { waiting: waiting.length } : {}),
     },
     ...(completeWaiting ? { waitingUrgent } : {}),

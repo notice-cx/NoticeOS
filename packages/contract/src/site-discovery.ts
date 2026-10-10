@@ -1,18 +1,11 @@
-// AFTER A CONNECTION IS ACCEPTED: WHICH SITES, AND COLLECT THEM NOW (bead
-// `ro-ujb9.96.7.2`, epic `ro-ujb9.96.7`).
+// After a connection is accepted: which sites, and collect them now. The
+// ingest Worker lists what a connected account can see and runs the first
+// collection; the Tower composes that list with the portfolio's assets; the
+// connect panel draws the result and sends one press.
 //
-// Three runtimes share these shapes. The ingest Worker lists what a connected
-// account can see (it alone holds the credential) and runs the first
-// collection through the scheduled-job dispatch; the Tower composes that list
-// with the portfolio's own assets and the register; the connect panel draws
-// the result and sends one press. Mediavine, Google and PostHog join through
-// the same shapes under their own beads (`ro-ujb9.96.7.6`–`.8`), so nothing
-// here is Bing- or DataForSEO-shaped except the data the two carry today.
-//
-// NOTHING HERE CARRIES A CREDENTIAL. A site is a public identity (a URL, a
-// property id, a project number) plus the mapping fields the asset's Data
-// sources tab would write for it — the same `asset-lane` register fields
-// (`scripts/config-registers.mts`), never a key.
+// Nothing here carries a credential. A site is a public identity plus the
+// mapping fields the asset's Data sources tab would write for it (the
+// `asset-lane` register fields in `scripts/config-registers.mts`).
 
 import type { PosthogFunnel } from './configuration.mjs';
 
@@ -39,10 +32,8 @@ export interface DiscoveredSite {
   mapping: Record<string, string | number>;
   /** For a portfolio provider: the asset this site IS. */
   asset?: string;
-  /** PostHog: the project's saved funnel insights, as the register's funnels
-   * (bead `ro-ujb9.96.7.8`) — picked up from PostHog, never typed. Start writes
-   * them only where the site's entry holds none, so a funnel list somebody
-   * already chose is never replaced. */
+  /** PostHog: the project's saved funnel insights, as the register's funnels.
+   * Start writes them only where the site's entry holds none. */
   funnels?: PosthogFunnel[];
   /** False when the provider lists the site but will not serve it yet — a
    * Bing site whose ownership was never verified. Such a site is listed, never
@@ -64,28 +55,23 @@ export type SiteDiscovery =
 
 /** `not-connected` — no credential is stored; `refused` — the provider said
  * no; `unreachable` — it did not answer; `not-supported` — this provider does
- * not list sites here yet (its own bead adds it). */
+ * not list sites here. */
 export type SiteDiscoveryFailure = 'not-connected' | 'refused' | 'unreachable' | 'not-supported';
 
 /**
- * THE ONE HOST RULE: what "matches by domain" means, everywhere.
- *
- * Lowercased hostname, a leading `www.` dropped, any scheme, port, path or
- * query ignored; a Search Console domain property (`sc-domain:example.com`)
- * reads as its domain. This is the rule the Bing collector has always used to
- * match an unmapped asset against the account's verified sites
- * (`normalizeBingHost`, workers/ingest/src/bing-client.ts — a test pins the two
- * equal), so what the panel suggests is exactly what the collector would have
- * picked. Anything unparseable is null: a guess is never a match.
+ * The one host rule: what "matches by domain" means, everywhere. Lowercased
+ * hostname, a leading `www.` dropped, any scheme, port, path or query ignored;
+ * a Search Console domain property (`sc-domain:example.com`) reads as its
+ * domain. A test pins it equal to the Bing collector's `normalizeBingHost`.
+ * Anything unparseable is null: a guess is never a match.
  */
 export function siteHost(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   if (trimmed === '') return null;
   const domain = /^sc-domain:(.+)$/i.exec(trimmed)?.[1];
-  // Parsed by hand rather than with `URL`: this package runs in three
-  // runtimes and types none of their globals. Scheme, credentials, port, path,
-  // query and fragment are dropped; what is left must be a plain hostname.
+  // Parsed by hand rather than with `URL`: this package types no runtime
+  // globals.
   const authority = (domain ?? trimmed).replace(/^[a-z][a-z\d+.-]*:\/\//i, '').split(/[/?#]/, 1)[0] ?? '';
   const host = authority.slice(authority.lastIndexOf('@') + 1).replace(/:\d*$/, '').toLowerCase();
   if (!/^[a-z0-9-]+(\.[a-z0-9-]+)*$/.test(host)) return null;
@@ -102,9 +88,8 @@ export interface CollectNowInput {
 
 /**
  * What the first collection did for one asset, as the lane's own run reported
- * it. Its STATUS is never read from here — the connection model reads the
- * stored attempt (`apps/tower/shared/connection-status.ts`), so a site is
- * Working only once its result is stored.
+ * it. Its status is never read from here: the connection model reads the
+ * stored attempt, so a site is Working only once its result is stored.
  *
  * `collected` — the lane stored a result; `failed` — the provider refused or
  * failed it (`code` is the lane's own error code); `unmeasured` — the OS could

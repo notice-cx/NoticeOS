@@ -13,7 +13,7 @@
 // the source, not to patch here.
 //
 // WHICH SITES: `--asset <id>`, else every enabled envelope entry in the roster —
-// read from this installation, never a site written here (bead ro-ujb9.120).
+// read from this installation, never a site written here.
 //
 // ONE token, both hops: ASSET_TOKENS["<site id>"] (the structured local secret
 // source, gitignored) is that site's own ASSET_TOKEN — it gates the envelope

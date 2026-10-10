@@ -1,11 +1,7 @@
-// Field validation for the operator JSON routes.
-//
-// The pulse and revenue lanes validate through the contract package's Zod
-// schemas. These routes describe rows the contract package does not model (a
-// timeline annotation, a pre-registered watch), and zod is not a dependency of
-// this Worker — so validation is hand-rolled here and emits the SAME
+// Field validation for the operator JSON routes whose rows the contract
+// package does not model. Hand-rolled, and it emits the same
 // `{ path, code, message }` issue shape `zodIssues` produces, because the 422
-// body is the operator-facing contract and it must not vary per route.
+// body is the operator-facing contract and must not vary per route.
 
 export interface Issue {
   path: string;
@@ -63,13 +59,11 @@ export function requiredString(
 }
 
 /**
- * One value checked against a DECLARED field (`SITE_ROW_FIELDS` — a site's row,
- * bead `ro-ujb9.183`): the refusal is `fieldRefusal`'s sentence, the one every
- * register's refusal is worded by, so it names the field by the label beside
- * its input ("Domain must be a hostname such as example.com") and the issue's
- * `path` keeps the key the body sent. A string is trimmed first, as
- * `requiredString` trims. Returns the value, or null when it was refused or,
- * for an optional field, absent — `issues.ok` tells the two apart.
+ * One value checked against a declared field: the refusal is `fieldRefusal`'s
+ * sentence, naming the field by the label beside its input, and the issue's
+ * `path` keeps the key the body sent. A string is trimmed first. Returns the
+ * value, or null when refused or, for an optional field, absent; `issues.ok`
+ * tells the two apart.
  */
 function declared(issues: Issues, value: unknown, path: string, field: RegisterField): unknown {
   const candidate = typeof value === 'string' ? value.trim() : value;
@@ -123,13 +117,10 @@ export function enumValue<T extends string>(
 }
 
 /**
- * A wall-clock instant, normalized to ISO-8601 UTC.
- *
- * Backdating is deliberately allowed — an annotation for a batch that shipped
- * three weeks ago is the whole point of the route. A *future* timestamp is
- * rejected: it would let a change claim to have happened after outcomes that
- * are already recorded. `skewMs` tolerates a client clock running slightly
- * ahead of ours; it is not a window for scheduling.
+ * A wall-clock instant, normalized to ISO-8601 UTC. Backdating is allowed; a
+ * future timestamp is rejected because it would let a change claim to have
+ * happened after outcomes already recorded. `skewMs` tolerates a client clock
+ * running slightly ahead.
  */
 export function pastInstant(
   issues: Issues,
@@ -169,8 +160,7 @@ export function isoDate(issues: Issues, value: unknown, path: string): string | 
   return value;
 }
 
-/** A whole count — rows, items, beads. Rejects fractions and negatives, which a
- * count can only be if the producer computed it wrong. */
+/** A whole count. Rejects fractions and negatives. */
 export function nonNegativeInteger(
   issues: Issues,
   value: unknown,

@@ -8,8 +8,7 @@
 // modules here (`schema`, `posthog`) build zod schemas as they load, so the index
 // would put zod on every screen. Browser code imports one module by subpath
 // instead (`@noticeos/contract/<module>`, the `./*` entry in package.json);
-// apps/tower/test/client-contract-imports.test.ts fails if it stops doing so
-// (bead ro-ujb9.83).
+// apps/tower/test/client-contract-imports.test.ts fails if it stops doing so.
 export * from './schema.js';
 export * from './rules.js';
 export * from './rule-backtest.js';

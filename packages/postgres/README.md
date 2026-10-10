@@ -1,11 +1,10 @@
 # Postgres helper
 
 The one way the Workers and the scripts reach the Postgres operational store
-(bead `ro-ujb9.76.18`; the store is [`db/postgres/`](../../db/postgres/README.md)).
-It opens every transaction as the application role, `noticeos_app`, with one
-workspace named by `SET LOCAL`, and reads and writes every value exactly. The
-rules, and why the driver is node-postgres rather than Postgres.js, are in the
-header of [`src/store.mts`](src/store.mts).
+([`db/postgres/`](../../db/postgres/README.md)). It opens every transaction as
+the application role, `noticeos_app`, with one workspace named by `SET LOCAL`,
+and reads and writes every value exactly. The rules are in the header of
+[`src/store.mts`](src/store.mts).
 
 Operational settings, evidence and readers use this helper: a Worker reaches
 Postgres only through its `POSTGRES` Hyperdrive binding, one store per call;
@@ -67,7 +66,7 @@ try {
   [authorized execution contract](../../docs/23-configuration-ownership.md#authorized-execution-context-v1).
 - A `timestamptz` comes back as Postgres writes it. `javascriptInstant(text)`
   turns it into the form `new Date().toISOString()` writes, where a response
-  or a comparison expects that form, as every instant D1 stored did.
+  or a comparison expects that form.
 - `tx.query` returns rows; `tx.execute` returns how many rows a write touched.
   One statement per call, `$1…$n` parameters.
 - `tx.workspaceId` is the transaction's workspace, for a statement that writes
@@ -117,7 +116,6 @@ application uses advisory transaction locks. Cloudflare currently lists
 advisory locks as unsupported by Hyperdrive without a transaction-lock
 exception. Local native/workerd tests do not certify hosted transport:
 Hyperdrive pooling and caching do not operate with `localConnectionString`.
-Actual hosted qualification is tracked by `ro-ujb9.289.7`.
 [Supported features](https://developers.cloudflare.com/hyperdrive/reference/supported-databases-and-features/),
 [local development](https://developers.cloudflare.com/hyperdrive/configuration/local-development/).
 
@@ -126,9 +124,9 @@ must also budget connections across simultaneous calls and replicas; this
 per-call limit is not a deployment-wide cap. A Worker must not share a live
 connection across invocations.
 
-Locally, the binding's connection string (Miniflare 4.20260701) must carry a
-password, even for a development database that never asks for one: Miniflare
-refuses a string without one. It comes from the environment,
+Locally, the binding's connection string must carry a password, even for a
+development database that never asks for one: Miniflare refuses a string
+without one. It comes from the environment,
 `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES`, never from a
 checked-in `localConnectionString`, and ends in `?sslmode=disable` so workerd
 connects straight to the server. A throwaway cluster in loopback mode
@@ -283,15 +281,13 @@ on the original flag and introduces no new input length limit. Actual no-ops
 append nothing; a successful column write retains its existing timestamp effect
 and records it. Any audit insert failure rolls back the effect. New writers
 require `0011_workspace_mutation_audit.sql`; earlier code remains compatible
-after that additive migration. Production receiver enablement is separate
-(`ro-ujb9.289.8.3.3.13`), and no live migration or activation is implied.
+after that additive migration.
 Native and ordinary Worker fixtures are in
 [`postgres-mutation-audit.test.mjs`](../../scripts/postgres-mutation-audit.test.mjs).
 
-The `./agent-sign-in` module is agent sign-in's authorization server (epic
-`ro-cvl9`): the identity engine's maintained OAuth 2.1 provider
-(`@better-auth/oauth-provider` 1.7.7 with Better Auth's JWT plugin) behind fixed
-routes only. It serves the MCP resource's protected-resource metadata, the
+The `./agent-sign-in` module is agent sign-in's authorization server: the
+identity engine's maintained OAuth 2.1 provider (`@better-auth/oauth-provider`
+with Better Auth's JWT plugin) behind fixed routes only. It serves the MCP resource's protected-resource metadata, the
 authorization-server metadata, authorize, token, dynamic registration, revoke
 and the signing keys, plus the agent page's two calls. Approval checks that the
 page's session header names the browser's own session, then records the
@@ -305,8 +301,8 @@ workspace a call names. Each reads its facts in one observation. All require
 `0014_agent_sign_in.sql`. Proofs are in
 [`postgres-agent-sign-in.test.mjs`](../../scripts/postgres-agent-sign-in.test.mjs).
 
-The `./task-receipts` module records retry-safe hosted task writes (epic
-`ro-cvl9`) in `noticeos.task_operation_receipts`. One receipt binds an
+The `./task-receipts` module records retry-safe hosted task writes in
+`noticeos.task_operation_receipts`. One receipt binds an
 idempotency key, scoped to the workspace, the admitted principal and the
 operation, to its request's hash and a server operation identity; every state
 change is a compare-and-set on the attempt number, so two callers cannot both
@@ -315,6 +311,5 @@ runs no task command. A receipt is kept seven days after its last attempt:
 recording a change first removes the workspace's expired receipts, so a retry
 that late runs as a new change, and a trigger refuses any earlier removal.
 Writers require `0012_task_operation_receipts.sql` and
-`0013_task_receipt_retention.sql`, both additive; no live migration or
-activation is implied. Proofs are in
+`0013_task_receipt_retention.sql`, both additive. Proofs are in
 [`postgres-task-receipts.test.mjs`](../../scripts/postgres-task-receipts.test.mjs).

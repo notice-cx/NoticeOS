@@ -1,23 +1,12 @@
-/** Cross-Worker contract for registering a pre-registered outcome check (docs/03).
- *
- * Same posture as the annotation write: the ingest Worker owns `watch_windows`
- * and the operator bearer guarding its HTTP lane, and the Control Tower is
- * served unauthenticated on the trusted LAN — so the Tower reaches this write
- * through the private INGEST Service Binding, where the binding itself is the
- * capability. Plain data crosses, never a credential.
- *
- * Every field is re-validated inside ingest. These types describe the shape a
- * caller INTENDS, not a shape ingest is willing to trust — which matters more
- * here than anywhere else in the OS, because the honesty of a watch window is
- * exactly the set of rules a convenient UI would be tempted to relax.
+/** Cross-Worker contract for registering a pre-registered outcome check
+ * (docs/03). The ingest Worker owns `watch_windows`; the Tower reaches the
+ * write through the private ingest Service Binding, and plain data crosses,
+ * never a credential. Every field is re-validated inside ingest: these types
+ * describe the shape a caller intends, not one ingest trusts.
  */
 import type { AnnotationIssue } from './create-annotation.js';
 
-/**
- * The same `{path, code, message}` vocabulary every operator write reports.
- * Aliased rather than re-declared: two identical interfaces are two things to
- * keep in step.
- */
+/** The same `{path, code, message}` vocabulary every operator write reports. */
 export type WatchWindowIssue = AnnotationIssue;
 
 /** What the window is watching. Authority: `WATCH_REF_KINDS`, workers/ingest/src/watch-windows.ts. */
@@ -34,34 +23,23 @@ export interface WatchThresholdInput {
   min_delta_pct: number;
 }
 
-/** One search query, as the operator typed it.
- *
- * GSC's retained `query` archive is one provider-final calendar day at query
- * grain, which is what makes this scope answerable. */
+/** One search query, as the operator typed it. GSC's retained `query`
+ * archive is one provider-final calendar day at query grain. */
 export interface WatchQueryScope {
   query: string;
 }
 
-/** One page, named the way a freeze entry names it.
- *
- * The retained `page` archive is the same provider-final daily shape at URL
- * grain. A value beginning with `/` is a route and matches the page on any host
- * the property covers — which is what a domain property mixes anyway, and what
- * a register entry means when it says `/water-intake-calculator`. An absolute
- * URL keeps its host, for the case where two hosts under one property are
+/** One page, named the way a freeze entry names it. A value beginning with
+ * `/` is a route and matches the page on any host the property covers; an
+ * absolute URL keeps its host, for two hosts under one property that are
  * genuinely different pages. */
 export interface WatchPageScope {
   page: string;
 }
 
 /**
- * What a scoped window compares.
- *
- * Exactly one selector, never both: a window that narrowed twice would be
- * answering a question neither the archive nor the operator asked. Other scopes
- * stay out of this union until an equally durable daily source exists — an
- * open-ended object would let a caller register a question the evaluator cannot
- * answer.
+ * What a scoped window compares. Exactly one selector, never both; other
+ * scopes stay out of this union until an equally durable daily source exists.
  */
 export type WatchScopeInput = WatchQueryScope | WatchPageScope;
 
@@ -72,7 +50,7 @@ export { WATCH_QUERY_MAX_CHARS, WATCH_CALIBRATION_DAYS } from './watch-series.mj
  * selectors, not payloads. */
 export const WATCH_PAGE_MAX_CHARS = 2000;
 
-/** A bead id ('mp-f0g.35'), not a title. */
+/** A task id, not a title. */
 export const WATCH_READBACK_BEAD_MAX = 128;
 
 /**
@@ -88,14 +66,11 @@ export interface WatchRecordedChangeCalendar {
 }
 
 /**
- * Dense provider-final history for one query-scoped GSC series.
- *
- * `values[0]` belongs to `firstDay`; a null is a day on which the retained
- * archive did not carry this query, never a measured zero. `archiveFirstDay`
- * and `archiveLastDay` describe the retained daily archive itself, while
- * `observedDays` counts the days on which this exact query supplied the metric.
- * Keeping both is what lets a UI say "Google was collected, but this query was
- * suppressed/absent" without collapsing the two facts.
+ * Dense provider-final history for one query-scoped GSC series. `values[0]`
+ * belongs to `firstDay`; a null is a day on which the retained archive did
+ * not carry this query, never a measured zero. `archiveFirstDay` and
+ * `archiveLastDay` describe the retained archive itself; `observedDays` counts
+ * the days on which this exact query supplied the metric.
  */
 export interface WatchQueryHistory {
   integration: 'gsc';
@@ -120,14 +95,11 @@ export interface WatchQueryHistoryInput {
 }
 
 /**
- * One measurable series, named once for the whole OS.
- *
- * A metric name alone does not identify a series — `clicks` is a different
- * number depending on the provider — so the integration always travels with it,
- * exactly as the schema stores it. `improvesWhen` is what stops a UI from
- * asking the operator which direction is good: for average search position, it
- * is `down`, and a composer that defaulted `ship` to `up` would pre-register a
- * predicate that fires on the property getting worse.
+ * One measurable series, named once for the whole OS. A metric name alone
+ * does not identify a series (`clicks` differs by provider), so the
+ * integration always travels with it. `improvesWhen` is what stops a UI from
+ * asking the operator which direction is good: for average search position it
+ * is `down`.
  */
 export interface WatchSeries {
   integration: WatchMetricIntegration;
@@ -136,52 +108,37 @@ export interface WatchSeries {
   label: string;
   improvesWhen: 'up' | 'down';
   /**
-   * How a day's values combine across a window — and therefore whether the
-   * series can be bet on property-wide at all.
-   *
-   * A `sum` is scope-independent: clicks are clicks whether they arrived on one
-   * page or forty, so a property total answers the same question a page total
-   * does, one level up. A `mean` is an average over whatever the property
-   * happened to appear for, so it moves whenever the query mix moves — a change
-   * that earns impressions on searches you rank badly for drags the property
-   * average down while winning. Registering a `mean` property-wide measures the
-   * mix as much as the change, which is why `watchScopeRequired` refuses it.
+   * How a day's values combine across a window. A `sum` is scope-independent.
+   * A `mean` moves whenever the query mix moves, so registering one
+   * property-wide measures the mix as much as the change; `watchScopeRequired`
+   * refuses it.
    */
   aggregation: 'sum' | 'mean';
 }
 
 /**
- * Whether this series may only be registered inside a scope.
- *
- * The rule in one line: bet property-wide on sums, bet scoped on averages.
- * Authority for the aggregations themselves is ingest's `WATCH_METRICS`, which
- * an ingest test pins against `WATCH_SERIES` field by field.
+ * Whether this series may only be registered inside a scope: bet
+ * property-wide on sums, scoped on averages. Authority for the aggregations
+ * is ingest's `WATCH_METRICS`, which an ingest test pins against
+ * `WATCH_SERIES`.
  */
 export function watchScopeRequired(series: WatchSeries): boolean {
   return series.aggregation === 'mean';
 }
 
 /**
- * Every series a watch window may name, in the order a chooser should show them.
- *
- * This is the same vocabulary as ingest's `WATCH_METRICS` (and db/0012's CHECK
- * constraint) with operator labels attached; an ingest test asserts the two
- * cover each other exactly, so adding a metric on one side fails the suite
- * rather than silently leaving a chooser one option short.
+ * Every series a watch window may name, in the order a chooser should show
+ * them: the same vocabulary as ingest's `WATCH_METRICS` with operator labels
+ * attached; an ingest test asserts the two cover each other exactly.
  */
 export { WATCH_SERIES } from './watch-series.mjs';
 
 /**
- * How much of a window must carry observations before the evaluator will read a
- * verdict out of it. Authority: `MIN_WINDOW_COVERAGE`,
- * workers/ingest/src/watch-windows.ts — an ingest test asserts the two agree, so
- * changing one fails the suite rather than silently letting two surfaces
- * disagree about what "measurable" means.
- *
- * It lives in the contract because it is not only the evaluator's business: a
- * threshold CALIBRATED from history has to skip the same thin stretches the
- * evaluator would refuse to judge, or the noise floor it reports is measured
- * over comparisons that would never be made (bead `ro-5e8.2`).
+ * How much of a window must carry observations before the evaluator will read
+ * a verdict out of it. Authority: `MIN_WINDOW_COVERAGE`,
+ * workers/ingest/src/watch-windows.ts; an ingest test asserts the two agree.
+ * In the contract because a threshold calibrated from history has to skip the
+ * same thin stretches the evaluator would refuse to judge.
  */
 export const WATCH_MIN_WINDOW_COVERAGE = 0.8;
 
@@ -206,16 +163,14 @@ export interface CreateWatchWindowInput {
   scope?: WatchScopeInput | null;
   note?: string | null;
   /**
-   * The bead that owns the reading — a spoke's freeze register names one per
-   * entry, and the verdict is posted there when the window closes.
-   *
-   * A documented pointer, never checked against the register: a bet must not
-   * fail to register because the beads mirror is stale.
+   * The task that owns the reading; the verdict is posted there when the
+   * window closes. A documented pointer, never checked against the task hub:
+   * a bet must not fail to register because the task mirror is stale.
    */
   readback_bead?: string | null;
 }
 
-/** One `watch_windows` row as the store holds it (db/0012, snake_case). */
+/** One `watch_windows` row as the store holds it (snake_case). */
 export interface WatchWindowRow {
   id: string;
   asset: string;
@@ -237,27 +192,21 @@ export interface WatchWindowRow {
   note: string | null;
   outcome_note: string | null;
   created_at: string;
-  /** The bead owed this window's reading, or null when nothing claimed it. */
+  /** The task owed this window's reading, or null when nothing claimed it. */
   readback_bead: string | null;
-  /** When the verdict was posted to that bead. Null while a closed window's
-   * answer has not reached it yet — which is exactly the runner's work queue. */
+  /** When the verdict was posted to that task. Null while a closed window's
+   * answer has not reached it yet, which is the runner's work queue. */
   readback_posted_at: string | null;
 }
 
 /**
- * The outcome of one registration attempt.
- *
- * A rejected field and an unknown asset are RESULTS, not thrown errors — both
- * are ordinary answers a caller renders. Only an infrastructure failure throws.
- * There is no idempotent case: unlike an annotation, a second registration of
- * the same question is a second question, and collapsing them would silently
- * discard the offsets or thresholds the operator just chose.
+ * The outcome of one registration attempt. A rejected field and an unknown
+ * asset are results, not thrown errors; only an infrastructure failure throws.
  */
 export type CreateWatchWindowResult =
   /** `created: false` is a re-registration of a bet the store already holds —
-   * the same asset, ref, series and scope. Registering is idempotent because a
-   * spoke syncs its whole freeze register every ship, and a producer punished
-   * for re-sending would learn to send less. */
+   * the same asset, ref, series and scope. Idempotent because a spoke syncs
+   * its whole freeze register every ship. */
   | { ok: true; created: boolean; watchWindow: WatchWindowRow }
   | { ok: false; error: 'validation'; issues: WatchWindowIssue[] }
   | { ok: false; error: 'unknown_asset'; asset: string };

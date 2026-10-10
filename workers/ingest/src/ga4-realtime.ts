@@ -1,18 +1,11 @@
 import { getConfigDocuments } from './config-store.js';
 import { type LaneRegister, laneDeclined } from './lane-mapping.js';
-// On-demand GA4 realtime read for the Tower.
-//
-// This module stays in ingest because ingest alone owns
-// GOOGLE_SIGNAL_ACCOUNTS. The Tower reaches it through a private Service
-// Binding RPC method; neither the service-account key nor Google access token
-// enters the Tower Worker or browser.
-//
-// GA4 answers in the property's own reporting timezone. The hourly series is
-// re-bucketed here onto the operator's clock so every property on the Wall is
-// drawn against it rather than against its own. That clock is the SAVED
-// `os_time_zone`, read store first on every read with the compiled
-// `OS_TIME_ZONE` only as the fallback (bead `ro-ujb9.88`), and each snapshot
-// names it so the Wall labels its axis with the zone the hours are really on.
+// On-demand GA4 realtime read for the Tower, in ingest because ingest alone
+// owns the Google credential; neither the key nor an access token enters the
+// Tower. GA4 answers in the property's own reporting timezone; the hourly
+// series is re-bucketed onto the operator's saved `os_time_zone` (store first,
+// compiled `OS_TIME_ZONE` as fallback), and each snapshot names the zone so the
+// Wall labels its axis with the clock the hours are really on.
 
 import type {
   Ga4HourlyActiveUsers,
@@ -68,16 +61,10 @@ const TODAY = 'today';
 const SAME_DAY_LAST_WEEK = 'same_day_last_week';
 
 /**
- * ONE LIVE READING A MINUTE (bead `ro-trai.27`). A reading is two realtime
- * requests read together: the exact 5- and 30-minute windows, and the per-minute
- * rows the Wall's minute pulse is drawn from. The pulse cannot show anything
- * finer than a minute, and one realtime request costs a property about 46–49
- * tokens (measured 2026-09-12,
- * docs/artifacts/integration-monitoring/ga4-recovery-2026-09-12.json): the
- * one request every 30 seconds this replaced already spent ~132k of the
- * 200k-token daily realtime budget on a Wall left on all day. Two requests a
- * minute spend what one every 30 seconds did; two every 30 seconds would run
- * the budget out before the day ends.
+ * One live reading a minute: two realtime requests read together, the exact 5-
+ * and 30-minute windows and the per-minute rows. The pulse cannot show
+ * anything finer than a minute, and two requests every 30 seconds would run
+ * the daily realtime token budget out before the day ends.
  */
 const LIVE_READING_TTL_MS = 60_000;
 /** Names the cached reading's shape: a reading cached before the pulse existed
@@ -99,15 +86,14 @@ export interface Ga4RealtimeOptions {
   /** Tests can inject an isolated cache; `null` disables reuse. */
   tokenCache?: Map<string, TokenEntry> | null;
   /** Production uses the platform cache plus a DB lease. Injected fetches
-   * bypass it by default; cache tests explicitly pass their isolated cache. */
+   * bypass it by default. */
   responseCache?: Cache | null;
   clock?: () => number;
 }
 
 /**
  * Query every configured GA4 property. Failures are isolated per account and
- * property: the UI can keep working values visible without turning a single
- * authorization or provider error into a portfolio-wide blank.
+ * property, so one authorization error is not a portfolio-wide blank.
  */
 export async function runGa4Realtime(
   env: IngestEnv,
@@ -120,24 +106,18 @@ export async function runGa4Realtime(
   const responseCache = options.responseCache === undefined ? options.fetchImpl ? null : caches.default : options.responseCache;
   const tokenCache =
     options.tokenCache === undefined ? sharedTokenCache : options.tokenCache;
-  // Store first, legacy env binding second (bead `ro-vu8d.1`). This read is
-  // polled every 30 seconds by the Wall, so it deliberately does NOT stamp
-  // `last_used_at` — a status column is not worth two writes a minute.
+  // Polled every 30 seconds by the Wall, so this read does not stamp
+  // `last_used_at`: a status column is not worth two writes a minute.
   const resolved = await resolveGoogleCredential(env);
   const health = await tryHealthConnection(env, 'google', resolved.credential, [resolved.oauth?.clientId ?? '', resolved.oauth?.clientSecret ?? '']);
   let monitoringAvailable = health !== null;
   const accounts = options.rawConfig ?? resolved.accounts;
-  // Signed in with nothing mapped yet is an EMPTY read, not a failure: the
-  // asset ↔ property mapping is `ro-vu8d.4`, and the Wall must not show a red
-  // tile for a credential the operator has only just connected.
-  // A clean, disconnected install has no live targets. An unreadable saved
-  // credential is still connected (`resolved.connected`), so it never becomes
-  // "not set up" merely because resolution fell back to an empty environment.
+  // Signed in with nothing mapped yet is an empty read, not a failure. An
+  // unreadable saved credential is still connected (`resolved.connected`).
   if (accounts === undefined && !resolved.connected) {
     return { generatedAt: new Date(nowMs).toISOString(), assets: [] };
   }
-  // One store read for both documents this read depends on: the register, and
-  // the operator's saved clock the hours are placed on.
+  // One store read for both documents this read depends on.
   const [registerRead, constantsRead] = await getConfigDocuments(env, [
     'config/integrations.json',
     'config/constants.json',
@@ -153,15 +133,13 @@ export async function runGa4Realtime(
   ).filter(
     (target): target is GooglePropertyTarget & { integration: 'ga4' } =>
       target.integration === 'ga4' &&
-      // Declined on its Data sources row (Not using): not read — the one skip
-      // rule every collector applies (bead `ro-ujb9.96.7.18`).
+      // Declined on its Data sources row (Not using): not read.
       !laneDeclined(target.asset, 'ga4', options.rawConfig === undefined ? register : undefined),
   );
   const assets: Ga4RealtimeAsset[] = [];
-  // One query for the whole portfolio, and a failure is allowed to throw. The
-  // RPC's own error path is the honest answer; falling back to "no changes"
-  // would silently convert a property that has moved zones with the wrong
-  // clock, which is the exact bug this read exists to avoid.
+  // One query for the whole portfolio, and a failure is allowed to throw:
+  // falling back to "no changes" would silently convert a property that has
+  // moved zones with the wrong clock.
   const timeZoneChanges = await timeZoneChangesFor(env.STORE, 'ga4');
 
   for (const [account, accountTargets] of groupGoogleTargetsByAccount(targets)) {
@@ -249,9 +227,8 @@ async function accessTokenFor(
   fetchImpl: typeof fetch,
   tokenCache: Map<string, TokenEntry> | null,
 ): Promise<string> {
-  // Keyed on the CREDENTIAL rather than on the account label: a rotated key or
-  // a re-granted sign-in must never be served the token minted for the one it
-  // replaced (`googleAuthCacheKey`).
+  // Keyed on the credential rather than the account label: a rotated key or a
+  // re-granted sign-in must never be served the token minted for its predecessor.
   const cacheKey = await ga4CacheScope([
     store.where, await store.workspaceId(), googleAuthCacheKey(auth, GOOGLE_SCOPES.ga4),
   ]);
@@ -261,8 +238,8 @@ async function accessTokenFor(
   const accessToken = await googleAccessToken(auth, GOOGLE_SCOPES.ga4, nowMs, fetchImpl);
   tokenCache?.set(cacheKey, {
     accessToken,
-    // The signed assertion asks Google for a one-hour token. Reuse for only
-    // fifty minutes so clock skew cannot put an expired token on the hot path.
+    // Google issues a one-hour token; fifty minutes keeps clock skew from
+    // putting an expired one on the hot path.
     validUntil: nowMs + TOKEN_REUSE_MS,
   });
   return accessToken;
@@ -291,9 +268,9 @@ export async function collectGa4Realtime(
 }> {
   const [windowsRead, hourlyRead] = await Promise.allSettled([
     cachedGa4Read(cache && { ...cache, version: LIVE_READING_VERSION }, 'realtime', nowMs, LIVE_READING_TTL_MS, () => collectGa4RealtimeWindows(propertyId, accessToken, fetchImpl, cache?.clock?.() ?? nowMs, cache?.clock)),
-    // The cached hours are only good for the day AND the clock they were
+    // The cached hours are only good for the day and the clock they were
     // bucketed on: a Settings save that moves the zone must not be answered
-    // with hours placed on the old one for the rest of the cache's life.
+    // with hours placed on the old one.
     cachedGa4Read(cache && { ...cache, version: `${dateInTimeZone(nowMs, osTimeZone)}@${encodeURIComponent(osTimeZone)}` }, 'hourly', nowMs, 15 * 60_000, () => collectGa4HourlyActiveUsers(
       propertyId,
       accessToken,
@@ -325,8 +302,8 @@ export async function collectGa4Realtime(
   return {
     activeUsers5m: windows.activeUsers5m,
     activeUsers30m: windows.activeUsers30m,
-    // Placed on the clock of THIS answer, not of the reading: a reading
-    // served from the cache a minute on has not seen the newest minute.
+    // Placed on the clock of this answer, not of the reading: a reading served
+    // from the cache a minute on has not seen the newest minute.
     activeUsersByMinute: windows.minutes === null
       ? null
       : ga4MinuteBuckets(windows.minutes, Date.parse(windowsRead.value.observedAt), cache?.clock?.() ?? nowMs),
@@ -370,12 +347,10 @@ async function runRealtimeReport(
 }
 
 /**
- * One live reading: the exact 5- and 30-minute windows and the per-minute rows,
- * asked for together so the figure and the pulse describe the same moment.
- * The windows are the reading — without them it fails, as it always has. The
- * minutes only add the pulse: a failed or malformed per-minute answer is
- * refused and logged, and the reading stands without a pulse rather than
- * losing the live figure with it.
+ * One live reading: the windows and the per-minute rows, asked for together so
+ * the figure and the pulse describe the same moment. The windows are the
+ * reading; the minutes only add the pulse, so a failed or malformed per-minute
+ * answer is refused and logged and the reading stands without a pulse.
  */
 async function collectGa4RealtimeWindows(
   propertyId: string,
@@ -488,11 +463,8 @@ function logMinutesRefused(propertyId: string, error: unknown): void {
 }
 
 /**
- * GA4's per-minute realtime rows, parsed as strictly as the windows are: one
- * `minutesAgo` dimension and one `activeUsers` metric, each row a two-digit
- * minute inside the 30 and a whole non-negative count, no minute twice.
- * Anything else is refused whole — a pulse with a guessed bar is worse than
- * none.
+ * GA4's per-minute realtime rows, parsed as strictly as the windows are.
+ * Anything else is refused whole: a pulse with a guessed bar is worse than none.
  */
 export function parseGa4MinuteRows(record: Record<string, unknown> | null): Ga4MinuteRow[] {
   const dimensionHeaders = arrayField(record, 'dimensionHeaders');
@@ -540,11 +512,8 @@ export function parseGa4MinuteRows(record: Record<string, unknown> | null): Ga4M
 
 /**
  * The realtime budget one reading drew on. Both requests spend the same
- * property's realtime tokens, so `consumed` is their sum — unknown unless both
- * reported it, since half a sum would understate the cost — and `remaining`
- * the lower of what they reported, the budget as it stood after both. A
- * per-minute request that got no answer leaves its cost unknown, and what
- * remains is the windows' own report.
+ * property's tokens, so `consumed` is their sum, unknown unless both reported
+ * it, and `remaining` the lower of what they reported.
  */
 function combineRealtimeQuota(
   windows: Ga4PropertyQuota | null,
@@ -584,11 +553,9 @@ async function collectGa4HourlyActiveUsers(
         'content-type': 'application/json',
       },
       // GA4 resolves both the relative dates and the hour bucket in the
-      // property's reporting timezone. The OS day being filled straddles two
-      // property days, and which neighbour it reaches into depends on whether
-      // the property's clock runs ahead of or behind the operator's, so both
-      // neighbours are asked for and the re-bucketing below discards whatever
-      // falls outside the OS day.
+      // property's reporting timezone. The OS day straddles two property days,
+      // so both neighbours are asked for and the re-bucketing below discards
+      // whatever falls outside the OS day.
       body: JSON.stringify({
         dimensions: [{ name: 'dateHour' }],
         metrics: [{ name: 'activeUsers' }],
@@ -681,12 +648,11 @@ async function collectGa4HourlyActiveUsers(
     seen.add(key);
 
     // The dateRange name is validated but never routes a row: the OS calendar
-    // date the property hour actually lands on decides which line it joins.
+    // date the property hour lands on decides which line it joins.
     const propertyDate = `${dateHour.slice(0, 4)}-${dateHour.slice(4, 6)}-${dateHour.slice(6, 8)}`;
     // Each row carries the clock the provider used the day it bucketed that
-    // row, not the one it uses now: GA4 never reprocesses history. So a change
-    // between last week and today converts each side with its own zone, and
-    // both land on the OS hours where they really happened.
+    // row: GA4 never reprocesses history, so each side of a change converts
+    // with its own zone.
     const propertyZone = reportingTimeZoneOn(
       timeZoneChanges,
       propertyDate,
@@ -699,15 +665,13 @@ async function collectGa4HourlyActiveUsers(
     const target =
       osDate === osToday ? today : osDate === osLastWeek ? sameDayLastWeek : null;
     // Buckets accumulate rather than reject a collision: on the property's
-    // fall-back day two property-local hours land in one OS hour, once a
-    // year, and their sum is the honest bucket.
+    // fall-back day two property-local hours land in one OS hour.
     if (target !== null) target.set(osHour, (target.get(osHour) ?? 0) + value);
   }
 
-  // GA4 includes future clock hours as explicit zero rows in a `today`
-  // report. Stop at the newest hour with observed traffic so the chart never
-  // depicts the unelapsed rest of the day as a forecast of zero. Real zero
-  // gaps between observed hours remain visible.
+  // GA4 includes future clock hours as explicit zero rows in a `today` report.
+  // Stop at the newest hour with observed traffic so the chart never depicts
+  // the unelapsed rest of the day as a forecast of zero.
   const observedTodayHours = [...today.entries()]
     .filter(([, value]) => value > 0)
     .map(([hour]) => hour);

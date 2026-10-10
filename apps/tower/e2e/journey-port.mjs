@@ -1,10 +1,6 @@
-// ONE PLACE FOR THE JOURNEY FIXTURES' PORTS (beads ro-ujb9.107, ro-ujb9.167).
-//
-// The journeys used to bind 127.0.0.1:4188 on every run, so two runs on one
-// machine (two worktrees verifying two branches) failed at once with "already
-// used". Now every fixture server a run starts — one per Playwright worker
-// (journey-test.ts), one per flow-gate lane (flow-gate.mjs), one for the
-// harness test — binds a loopback port the OS reports free, and each runner
+// One place for the journey fixtures' ports. Every fixture server a run
+// starts (one per Playwright worker, one per flow-gate lane, one for the
+// harness test) binds a loopback port the OS reports free, and each runner
 // hands its own server's origin to the browser it drives, so no two servers,
 // runs or worktrees ever share a port or a store. JOURNEY_SUITE_PORT pins the
 // Playwright workers' ports instead (worker 0 takes it, worker 1 the next…).

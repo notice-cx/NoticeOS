@@ -1,4 +1,4 @@
-// `pnpm reclamation:open-targets` (bead ro-ujb9.76.5.9): what it asks the
+// `pnpm reclamation:open-targets`: what it asks the
 // ingest's door and what it writes. The door's answer is the one the ingest's
 // own test reads back from a throwaway store
 // (workers/ingest/test/reclamation-targets.test.ts asserts the same file), so

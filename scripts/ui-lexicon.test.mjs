@@ -5,27 +5,18 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { extractVisibleStrings, loadTypeScript } from './ux-gate.mjs';
 
-// THE DESK SPEAKS PLAIN ENGLISH, AND A SWEEP IS ONLY TRUE ON THE DAY IT RUNS
-// (doc 14, the demo test; bead `ro-ui73`).
+// The desk speaks plain English, and a sweep is only true on the day it runs.
 //
-// `docs/14-design.md` maps every internal coinage to the word the UI
-// renders, and rule 8 is mechanical: read a screen aloud to somebody who has
-// never seen this repo, and any term you would have to stop and define fails
-// review. On 2026-09-04 the desk still said *bead*, *spoke*, *lane*, *pulse*,
-// *asset #0*, *poller*, *knob* and *task hub* in visible copy — precise words
-// for the operator, private vocabulary for the open-source reader D17 is
-// building this shape for.
+// `docs/14-design.md` maps every internal coinage to the word the UI renders:
+// read a screen aloud to somebody who has never seen this repo, and any term
+// you would have to stop and define fails review. Every one of these words
+// survives in the schema, the docs, the CLI and working vocabulary, so they
+// come back one string at a time; this is what fails when one does. It is the
+// sister of `ui-noun.test.mjs` and reads the same corpus the same way.
 //
-// The sweep that removed them is worth exactly one commit unless something
-// fails afterwards: every one of these words survives in the schema, the docs,
-// the CLI and the vocabulary of anyone who worked here before the decision, so
-// they come back one string at a time. This is that something. It is the sister
-// of `ui-noun.test.mjs` and reads the same corpus the same way.
-//
-// WHAT IT READS: shipped text only — string and template literals, and JSX text
-// nodes. Not comments, not identifiers, not module paths. `ScheduledLanes`,
-// `WorkPanel`, `taskHub.spokes` and a `lanes` local are code nobody but us
-// reads; a LABEL is what this guard is about.
+// WHAT IT READS: shipped text only, string and template literals and JSX text
+// nodes. Not comments, not identifiers, not module paths: a LABEL is what this
+// guard is about.
 //
 // The exemptions are exact phrases rather than patterns, so widening the guard
 // is a decision somebody makes on purpose.
@@ -41,29 +32,25 @@ const SCAN_DIRS = ['apps/tower/src', 'apps/tower/shared', 'apps/tower/worker'];
 
 /**
  * Files whose strings are not desk copy. Each is here for its own reason, and
- * the list is deliberately short — an exclusion is a page this guard stops
+ * the list is deliberately short: an exclusion is a page this guard stops
  * watching.
  *
  *  - `worker/mcp-route.ts` speaks to AGENTS: its tool descriptions are a
  *    published interface, exactly as `ui-noun.test.mjs` records.
- *  - `components/registry.ts` is the machine-readable component index (doc 14).
- *    It is documentation for the next agent and CITES bead ids by design. Its
- *    one importer since bead `ro-6bhm` is `KitchenSinkRoute`, which renders the
- *    entry names as the gallery's contents — and that route is excluded here
- *    two lines down for its own reason, so nothing in this file has ever
- *    reached the desk.
- *  - The `/dev/*` gallery renders only under `import.meta.env.DEV` and are
- *    the agent's visual reference, not a desk route.
- *  - `shared/materiality.ts` is the material-state contract — a record read by
- *    `test/materiality.test.tsx`, rendered nowhere.
+ *  - `components/registry.ts` is the machine-readable component index,
+ *    documentation for the next agent. Its one importer is `KitchenSinkRoute`,
+ *    which renders the entry names as the gallery's contents, and that route
+ *    is excluded here for its own reason, so nothing in this file reaches the
+ *    desk.
+ *  - The `/dev/*` gallery renders only under `import.meta.env.DEV` and is the
+ *    agent's visual reference, not a desk route.
+ *  - `shared/materiality.ts` is the material-state contract, a record read by
+ *    `test/materiality.test.tsx` and rendered nowhere.
  *  - `lib/task-handoff.ts` writes the `bd create` command an agent runs, and
- *    that command IS its payload (doc 14 principle 10, the same reason owner
- *    chips keep their file paths). Bead `ro-ui73` scoped out all THREE Markdown
- *    builders on that reasoning; `ro-gj7s` pruned it back to the one it is
- *    actually true of. The other two build the evidence brief around the
- *    section and emit no command of their own, so they are swept like any other
- *    document the operator reads — which is what caught `- **Lane:**` sitting
- *    above the decision in both exports.
+ *    that command IS its payload (the same reason owner chips keep their file
+ *    paths). The other two Markdown builders build the evidence brief around
+ *    the section and emit no command of their own, so they are swept like any
+ *    other document the operator reads.
  */
 const NOT_DESK_COPY = new Set([
   'apps/tower/worker/mcp-route.ts',
@@ -79,19 +66,19 @@ const NOT_DESK_COPY = new Set([
  * what to write.
  *
  * `changeset` is deliberately ABSENT: doc 14 keeps it as a justified exception
- * (git's own vocabulary for a preview-then-apply document), and it now renders
+ * (git's own vocabulary for a preview-then-apply document), and it renders
  * only beside `pnpm config:apply --stdin`, the command that consumes it.
- * `sense_only` is absent for the same kind of reason — doc 14 rule 3 sanctions
- * it as the jargon suffix on "Automation", and it has no prose use to guard.
+ * `sense_only` is absent for the same kind of reason: doc 14 sanctions it as
+ * the jargon suffix on "Automation", and it has no prose use to guard.
  */
 const BANNED = [
   { pattern: /\bbeads?\b/gi, word: 'task' },
   { pattern: /\bbd\b/g, word: 'a labelled command — `bd` inside <code> or backticks' },
   { pattern: /\bspokes?\b/gi, word: 'project' },
   // NOT a bare `hub`: `config/serp-panel.json` tracks queries in clusters the
-  // operator named "Stats hub" and "Restaurant hubs", which are his own content
-  // taxonomy and have nothing to do with `bd`'s server. The coinage is the
-  // COMPOUND, so the compound is what is banned.
+  // operator names ("Recipe hub"), which are content taxonomy and have nothing
+  // to do with `bd`'s server. The coinage is the COMPOUND, so the compound is
+  // what is banned.
   { pattern: /\btask[- ]hubs?\b|\bthe hubs?\b/gi, word: 'the task database (or just Tasks)' },
   { pattern: /\blanes?\b/gi, word: 'data source, scheduled job, or write path — say which' },
   { pattern: /\bpulses?\b/gi, word: 'nightly report' },
@@ -99,30 +86,25 @@ const BANNED = [
   { pattern: /\bpollers?\b/gi, word: 'the OS' },
   { pattern: /\bknobs?\b/gi, word: 'setting' },
   { pattern: /\b(?:the|a|this) registers?\b/gi, word: 'the catalog' },
-  // `tile` is docs/15 flow D's word for a box on the Wall and it is OURS: it
-  // names a shape rather than a thing, appears nowhere else in the product, and
-  // a library listing "tiles" would have to teach the word before it could be
-  // used. Every dashboard the operator has ever used calls that box a WIDGET
-  // (doc 14's 2026-09-05 row, bead `ro-lzmq.4`). Flow D keeps the old word
-  // where it describes the 2026-07 design; nothing rendered says it.
+  // `tile` names a shape rather than a thing and appears nowhere else in the
+  // product; every dashboard the operator has ever used calls that box a
+  // WIDGET.
   { pattern: /\btiles?\b/gi, word: 'widget' },
   // The other half of rule 1: a SYNONYM for a word doc 14 has already mapped is
-  // the same failure as a coinage. `sense_only` renders as exactly one pair —
-  // "Monitor only" and "Automation enabled" — and the assets index said
-  // "Observe only" / "Automation on" for the same two states (bead `ro-06ww`).
+  // the same failure as a coinage. `sense_only` renders as exactly one pair,
+  // "Monitor only" and "Automation enabled".
   { pattern: /\bObserve only\b/gi, word: 'Monitor only' },
   { pattern: /\bAutomation on\b/gi, word: 'Automation enabled' },
 ];
 
 /**
  * Exact strings that may contain a banned word and are NOT desk copy. Five
- * kinds, and nothing else belongs here. The Wall's own word was a sixth until
- * 2026-09-05: the operator decided the television says Tasks like everything
- * else (`ro-l1ed.7`), so *bead* now fails on every surface with no way back.
+ * kinds, and nothing else belongs here; the television says Tasks like every
+ * other surface, so *bead* fails everywhere.
  */
 const ALLOWED_PHRASES = [
-  // 1. FILE PATHS THE OPERATOR EXECUTES AGAINST — owner chips and command
-  //    labels, kept verbatim by doc 14's owner-chip row (doc 14 principle 10).
+  // 1. FILE PATHS THE OPERATOR EXECUTES AGAINST: owner chips and command
+  //    labels, kept verbatim by doc 14's owner-chip row.
   'config/beads.json',
   'config/beads.README.md',
   '/.beads/config.yaml',
@@ -136,8 +118,7 @@ const ALLOWED_PHRASES = [
   '"asset-lane"', // ditto — the per-asset data-source register the write lane validates against
   'POST /api/pulse', // the endpoint an asset posts its nightly report to
   'dataforseo_incomplete', // a collector error code, shown as the code it is
-  // 3. SQL. A `lanes(…)` CTE is the store's own name. (The `pulses` table's
-  //    reads name `noticeos.current_pulses` since bead ro-ujb9.76.5.2.)
+  // 3. SQL. A `lanes(…)` CTE is the store's own name.
   'lanes(integration)',
   'lanes.integration',
   'JOIN lanes',
@@ -153,8 +134,8 @@ const ALLOWED_PHRASES = [
   //    against and never rendered: an operator who knows the old word should
   //    still find the page.
   '"beads", "todo"',
-  // The task source's id, declared once (apps/tower/shared/task-source.ts) —
-  // a key and a wire value, never a label (D32, bead ro-ujb9.143).
+  // The task source's id, declared once (apps/tower/shared/task-source.ts):
+  // a key and a wire value, never a label.
   'BEADS = "beads"',
   // …and its NAME on the Integrations row: the product a stranger installs,
   // as a provider row names Bing (doc 14, "Beads (a task source)").
@@ -168,17 +149,16 @@ const ALLOWED_PHRASES = [
 ];
 
 /**
- * THE ALTITUDE RULE (doc 14 § Altitude, D44). A founder reviewer called the
- * product "technical", and the words were English: "4 / 6 fresh · 12 jobs" on
- * the first screen is the OS talking about itself. So every word has an
- * altitude — business, operational, technical — and a surface shows its own
- * altitude or lower, never higher. These are the BUSINESS surfaces, and the
- * lower altitudes' words that may not reach them.
+ * The altitude rule (doc 14 § Altitude). "4 / 6 fresh · 12 jobs" on the first
+ * screen is the OS talking about itself, so every word has an altitude
+ * (business, operational, technical) and a surface shows its own altitude or
+ * lower, never higher. These are the BUSINESS surfaces, and the lower
+ * altitudes' words that may not reach them.
  *
  * A provider's name may appear on a business surface only as a chart key
- * beside its own line (doc 14: Bing's blue is always beside the word "Bing"),
- * which the exact phrases below cover; never as a label, an eyebrow or a
- * caption. Widening this list is a doc 14 row, never a quick fix.
+ * beside its own line (Bing's blue is always beside the word "Bing"), which
+ * the exact phrases below cover; never as a label, an eyebrow or a caption.
+ * Widening this list is a doc 14 row, never a quick fix.
  */
 const BUSINESS_SURFACES = [
   'apps/tower/src/routes/HomeRoute.tsx',
@@ -189,14 +169,14 @@ const BUSINESS_SURFACES = [
   'apps/tower/src/lib/home-brief.ts',
   'apps/tower/src/lib/site-health.ts',
   'apps/tower/src/components/HighlightCard.tsx',
-  // D45 (2026-10-09): the Sites list is the portfolio's business index.
+  // The Sites list is the portfolio's business index.
   'apps/tower/src/routes/AssetsRoute.tsx',
   'apps/tower/src/routes/assets/AssetsTable.tsx',
   'apps/tower/src/hooks/useSiteIssues.ts',
   'apps/tower/src/components/surface/PageAnswer.tsx',
   'apps/tower/src/components/surface/FinishLine.tsx',
-  // D45: Money (the portfolio page and its daily revenue panel, which is also
-  // a revenue-only site's Overview lead) is a business surface.
+  // Money (the portfolio page and its daily revenue panel, which is also a
+  // revenue-only site's Overview lead) is a business surface.
   'apps/tower/src/routes/FinancialsRoute.tsx',
   'apps/tower/src/components/DailyRevenuePanel.tsx',
 ];
@@ -358,7 +338,7 @@ test('every business surface is in the scan, and exists', () => {
   }
 });
 
-test('no business surface says a lower altitude\'s word (doc 14 § Altitude, D44)', () => {
+test('no business surface says a lower altitude\'s word', () => {
   const offenders = [];
   for (const name of BUSINESS_SURFACES) {
     const text = withoutComments(readFileSync(path.join(REPO_ROOT, name), 'utf8'));
@@ -426,7 +406,7 @@ test('no shipped desk string uses an internal coinage (doc 14)', () => {
     offenders,
     [],
     'these shipped desk strings still use internal vocabulary ' +
-      `(doc 14, bead ro-ui73):\n  ${offenders.join('\n  ')}\n` +
+      `(doc 14):\n  ${offenders.join('\n  ')}\n` +
       'Every one of these words is precise for the operator and private for the ' +
       'stranger doc 14 rule 8 asks you to read the screen to. Replace it with the ' +
       'mapped word, or add the row to docs/14-design.md and the exact phrase to ' +
@@ -482,15 +462,15 @@ test('SQL table-name exemptions do not exempt nearby user-facing vocabulary', ()
 });
 
 // ---------------------------------------------------------------------------
-// The word a person reads for a site (D31, bead `ro-ujb9.142`)
+// The word a person reads for a site
 // ---------------------------------------------------------------------------
-// D31 (2026-09-23): everything a person reads says *site* — the navigation, the
-// index page, headings, columns, counts, empty states, the palette, hover and
+// Everything a person reads says *site*: the navigation, the index page,
+// headings, columns, counts, empty states, the palette, hover and
 // screen-reader text. Code keeps *asset*: `/assets` and `/assets/:id`, the
 // `assets` table and its `asset` columns, `/api/assets`, asset ids, `asset:`
-// task labels, query keys and DOM ids. So *asset* cannot simply join BANNED —
-// it is the most common identifier in the Tower — and an exact-phrase allowlist
-// would be a list of every query key in the product.
+// task labels, query keys and DOM ids. So *asset* cannot simply join BANNED
+// (it is the most common identifier in the Tower), and an exact-phrase
+// allowlist would be a list of every query key in the product.
 //
 // WHAT IT READS is the UX gate's own answer to "what does a person read"
 // (`extractVisibleStrings` in `scripts/ux-gate.mjs`, one derivation): JSX
@@ -499,29 +479,27 @@ test('SQL table-name exemptions do not exempt nearby user-facing vocabulary', ()
 // comparisons, imports and SQL already set aside. Inside what is left, three
 // shapes are still code, and nothing else is:
 //
-//   - a path — the word right after a `/` (a route, an API URL, a JSON
-//     pointer) — or a qualified name, right after a `.` (`f.asset`), or a
-//     bound SQL column too short for the gate's SQL test (`asset = ?`);
-//   - a string that is ONE lowercase token — `"asset"`, `"asset-detail"`,
-//     `"per-asset"`, `asset:${id}` — a URL parameter, a query key, a step id or
-//     a task label, unless it is handed to a prop a person reads (`label`,
+//   - a path, the word right after a `/` (a route, an API URL, a JSON
+//     pointer), or a qualified name right after a `.` (`f.asset`), or a bound
+//     SQL column too short for the gate's SQL test (`asset = ?`);
+//   - a string that is ONE lowercase token (`"asset"`, `"asset-detail"`,
+//     `"per-asset"`, `asset:${id}`): a URL parameter, a query key, a step id
+//     or a task label, unless it is handed to a prop a person reads (`label`,
 //     `title`, `placeholder`, an accessible name);
 //   - an identifier inside a longer string, named in SITE_NOUN_IDENTIFIERS.
 //
 // And one shape is copy wherever it sits: singular and plural side by side in
-// a conditional (`n === 1 ? "asset" : "assets"`), which is how "1 assets" was
+// a conditional (`n === 1 ? "asset" : "assets"`), which is how "1 assets" is
 // born. A count of sites is written by `siteCount()` / `siteNoun()` in
-// `apps/tower/shared/site-noun.ts` (bead `ro-ujb9.130`), so a hand-rolled
-// `? "site" : "sites"` fails too, anywhere but in that helper.
+// `apps/tower/shared/site-noun.ts`, so a hand-rolled `? "site" : "sites"`
+// fails too, anywhere but in that helper.
 //
 // It reads the Tower's source, `scripts/config-registers.mjs` (the labels,
 // `surface` lines and refusals `/settings` renders verbatim),
 // `scripts/scheduled-jobs.mjs` (the job names and categories Settings → Data
-// collection and Workflows render), `config/integrations.json` (the
+// collection and Workflows render) and `config/integrations.json` (the
 // data-source catalog the Integrations page and a site's Sources tab render).
-// `config/signal-panels.json` left the corpus with its last prose string (bead
-// `ro-ujb9.96.6.16`); the UX gate still reads every config document. There is
-// no baseline: the day this landed every such string said *site*.
+// The UX gate still reads every config document.
 
 const SITE_NOUN = /\bassets?\b/gi;
 
@@ -598,7 +576,7 @@ function siteNounOffenders(name, source) {
   return found;
 }
 
-test('no shipped desk string calls a site an asset, and every site count uses the helper (D31)', () => {
+test('no shipped desk string calls a site an asset, and every site count uses the helper', () => {
   assert.ok(SITE_NOUN_FILES.includes(SITE_COUNT_HELPER), `${SITE_COUNT_HELPER} must be in the scan`);
   const offenders = SITE_NOUN_FILES.flatMap((name) =>
     siteNounOffenders(name, readFileSync(path.join(REPO_ROOT, name), 'utf8')),
@@ -606,7 +584,7 @@ test('no shipped desk string calls a site an asset, and every site count uses th
   assert.deepEqual(
     offenders,
     [],
-    `these shipped desk strings still say asset where a person reads it (D31, bead ro-ujb9.142):\n  ${offenders.join('\n  ')}\n` +
+    `these shipped desk strings still say asset where a person reads it:\n  ${offenders.join('\n  ')}\n` +
       'A person reads *site*: "Sites", "1 site", "this site", "Every site". Code keeps asset — ' +
       'a route or API path, SQL, a query key, a DOM id or a task label passes on its own shape. ' +
       'An identifier inside a multi-word string goes in SITE_NOUN_IDENTIFIERS with its reason; ' +
@@ -653,25 +631,18 @@ test('the site-noun guard tells copy from code', () => {
 });
 
 // ---------------------------------------------------------------------------
-// The second corpus: the sentences the Tower does not write (bead `ro-ui73`)
+// The second corpus: the sentences the Tower does not write
 // ---------------------------------------------------------------------------
-// `ui-noun.test.mjs` learned this the hard way as `ro-1f3y`: half the prose on
-// the Data-sources surfaces is not in `apps/tower/` at all. The Sources tab and
-// `/health` render `config/integrations.json` verbatim — each lane's label and
-// every per-site `note` (its prose fields retired, ro-ujb9.96.6.20) — and
-// `/settings` renders the field labels and `describe` lines out of
-// `scripts/config-registers.mjs`, which is where the write lane's declarations
-// live.
-//
-// This corpus caught the sweep's own blind spot: a Playwright pass over the desk
-// found "which side of the portfolio the lane can attach to" on `/settings` and
-// "Optional UX lane" on a Sources tab AFTER the Tower source was clean. A guard
-// that reads only the app would let the vocabulary back in through a file
-// nobody thinks of as copy.
+// Half the prose on the Data-sources surfaces is not in `apps/tower/` at all.
+// The Sources tab and `/health` render `config/integrations.json` verbatim
+// (each lane's label), and `/settings` renders the field labels and `describe`
+// lines out of `scripts/config-registers.mjs`, where the write lane's
+// declarations live. A guard that reads only the app would let the vocabulary
+// back in through a file nobody thinks of as copy.
 const CONFIG_SOURCES = ['scripts/config-registers.mjs'];
 // The product defaults that carry prose. Per-asset notes and tracked queries
-// are one installation's own words, kept in its installation folder
-// (bead ro-ujb9.125), not product copy.
+// are one installation's own words, kept in its installation folder, not
+// product copy.
 const CONFIG_JSON = [
   'config/integrations.json',
 ];
@@ -764,7 +735,7 @@ test('no operator-visible config string uses an internal coinage (doc 14)', () =
     offenders,
     [],
     'these config strings reach the operator and still use internal vocabulary ' +
-      `(doc 14, bead ro-ui73):\n  ${offenders.join('\n  ')}\n` +
+      `(doc 14):\n  ${offenders.join('\n  ')}\n` +
       'The Tower renders these verbatim — the register labels and describe lines on ' +
       '/settings, the lane labels and per-site notes on a Sources tab ' +
       'and /health. A stored value or a register id belongs in CONFIG_ALLOWED_PHRASES ' +

@@ -1,7 +1,6 @@
-// The browser-journey server's isolation guard (apps/tower/e2e/isolation-guard.mjs,
-// bead ro-ujb9.81) must refuse the operator's secrets files, the checkout's own
-// config/ directory (bead ro-ujb9.89), its installation folder (bead
-// ro-ujb9.125) and owner ports BEFORE the filesystem or
+// The browser-journey server's isolation guard (apps/tower/e2e/isolation-guard.mjs)
+// must refuse the operator's secrets files, the checkout's own config/
+// directory, its installation folder and owner ports BEFORE the filesystem or
 // network is touched. The harness test proves a full journey trips it zero
 // times; this proves the guard would have tripped.
 //

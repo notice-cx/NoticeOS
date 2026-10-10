@@ -7,20 +7,12 @@ import { CONFIG } from './config.mjs';
 import { log } from './log.mjs';
 import { operatorToken } from './operator-token.mjs';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// WHICH PROVIDERS ARE STILL ON THE ENVIRONMENT FILE (bead `ro-vu8d.5`)
-//
-// Since D21 a provider credential is entered in the product and kept encrypted
-// in the store; a binding in `.dev.secrets.json` is the LEGACY fallback for
-// installs that have not moved. Both work, so nothing here is a warning — but
-// "which half am I on" is invisible until something breaks, and a fresh install
-// that still needs six env secrets has not actually got the property the epic
-// promises.
-//
-// So the runner says it once, at startup, from the OS's own answer: the Tower's
-// `/api/integrations/providers`, which serves the ingest's credential summaries
-// (names and metadata only — no value crosses, here or anywhere).
-// ─────────────────────────────────────────────────────────────────────────────
+// Which providers are still on the environment file. A provider credential is
+// entered in the product and kept encrypted in the store; a binding in
+// `.dev.secrets.json` is the legacy fallback. Both work, so nothing here is a
+// warning, but "which half am I on" is invisible until something breaks, so
+// the runner says it once, at startup, from the Tower's
+// `/api/integrations/providers` (names and metadata only — no value crosses).
 
 /** Where this machine's Tower serves the credential summaries. */
 export function integrationProvidersUrl(config) {
@@ -76,17 +68,10 @@ export async function reportLegacyEnvCredentials(runtime, deps = {}) {
   return line;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// WHICH CONFIG THIS INSTALL IS READING (epic `ro-syok`, db/0029).
-//
-// Since 0029 a setting can live in the store, which is what lets a deployed
-// Tower save one. The files are the seed and the export; until `pnpm config:seed`
-// runs, every read falls back to the copy compiled into the Workers — correct,
-// and completely invisible. So the runner says it once, at startup, in the same
-// spirit as the credentials line above: a Save that lands in a file rather than
-// the store is a different OS from the one the docs describe, and the operator
-// should not have to discover which one they have by testing it.
-// ─────────────────────────────────────────────────────────────────────────────
+// Which config this install is reading. A setting lives in the store; the
+// files are the seed and the export. Until `pnpm config:seed` runs, every read
+// falls back to the copy compiled into the Workers — correct, and invisible —
+// so the runner says it once, at startup.
 
 /** Where the ingest answers for the config store. */
 export function configDocumentsUrl(config) {

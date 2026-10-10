@@ -17,7 +17,7 @@ export interface WorkflowSummary {
     runs: WorkflowRun[];
 }
 /**
- * A MANUAL FIRING as the run history reads it (bead `ro-ujb9.96.7.19`): a job
+ * A manual firing as the run history reads it: a job
  * step a person ran now from the connect panel, recorded by the ingest in
  * `job_runs` (`GET /api/job-runs?trigger=manual`) because the runner that
  * writes the file below never saw it. Shaped as a file record, marked manual.

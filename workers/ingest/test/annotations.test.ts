@@ -87,9 +87,9 @@ describe('POST /api/annotations — writes', () => {
     expect(body.annotation.ref).toBeNull();
   });
 
-  // The meals.example SEO batch shipped in July; its results land mid-August.
-  // Annotating it truthfully means writing it at the ship time, not at the
-  // time somebody got around to recording it.
+  // A batch that shipped in July has results that land mid-August. Annotating
+  // it truthfully means writing it at the ship time, not at the time somebody
+  // got around to recording it.
   it('accepts a backdated `at`', async () => {
     const res = await call(
       annotationRequest(
@@ -216,9 +216,8 @@ describe('POST /api/annotations — idempotence', () => {
     expect(await pgCount(`SELECT COUNT(*) AS n FROM noticeos.annotations`)).toBe(2);
   });
 
-  // Postgres runs two writers side by side, where D1 ran one statement at a
-  // time: the read and the insert hold the event's identity (bead
-  // ro-ujb9.76.5.7), so posts of one event at once are one row and one answer.
+  // Postgres runs two writers side by side: the read and the insert hold the
+  // event's identity, so posts of one event at once are one row and one answer.
   it('stores one row for one event posted several times at once', async () => {
     const posts = await Promise.all(
       Array.from({ length: 6 }, () => writeAnnotation(env, row as CreateAnnotationInput)),
@@ -244,7 +243,7 @@ describe('POST /api/annotations — idempotence', () => {
 // private Service Binding, where the binding itself is the capability. Same
 // writer, same rules — these cases pin that.
 describe('createAnnotation() RPC', () => {
-  // The real WorkerEntrypoint over the real test D1, constructed the way the
+  // The real WorkerEntrypoint over the real test store, constructed the way the
   // runtime constructs it for a Service Binding call. It is not reached through
   // a stub: this pool version's `SELF` is fetch-only and cannot carry RPC. What
   // that leaves untested here is the serialization hop, which the plain-data

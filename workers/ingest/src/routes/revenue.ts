@@ -1,57 +1,29 @@
-// POST /api/revenue — the revenue/cost ledger lane (docs/12 checklist #6).
+// POST /api/revenue: the revenue/cost ledger lane. Operator-authed. Accepts a
+// CSV export or a JSON array of the same rows; each row is validated against
+// the same CHECK constraints the migration enforces; results are per row.
 //
-// Operator-authed. Accepts a CSV export (text/csv) or a JSON array of the same
-// rows: kind,asset,period,family,amount,source,ref,booking_state,note, plus the
-// optional external_id / supersedes_external_id and coverage fields. Each row is validated
-// against the same CHECK constraints the migration enforces before insert;
-// results are reported per row.
+// Idempotent: every row carries a stable, source-namespaced `external_id`
+// under a unique index, so the same export posted twice books the money once.
+// An identical replay is `already_imported`; a replay carrying a different
+// figure, currency or replacement link is `conflicting_replay` and refused,
+// because rows are history and a restated figure is a reconciliation: a new
+// row that supersedes the old one, linked by `supersedes_external_id`.
 //
-// IDEMPOTENT SINCE db/0018 (the 2026-07 audit's finding 1, bead ro-dql). Every row carries a
-// stable, source-namespaced `external_id` under a unique index, so the same
-// export posted twice books the money once:
+// One entry, one current figure. A correction replaces an entry only when both
+// describe the same thing (asset, period, kind, family, currency) and only the
+// entry that is current now. `supersedes_mismatch` names the fields that
+// differ, `already_superseded` names the entry that replaced the target, and
+// two rows in one upload replacing the same entry are both
+// `duplicate_supersedes`. The head check is enforced by the write itself: a
+// correction is inserted by one `INSERT … SELECT … WHERE` that re-checks the
+// target, and gives way (ON CONFLICT DO NOTHING) to a correction another
+// upload booked on the one-successor index, so two concurrent uploads book
+// exactly one correction.
 //
-//   * an identical replay is `already_imported` — nothing is written, the
-//     existing row's id comes back, and the ledger total does not move;
-//   * a replay of the same id carrying a DIFFERENT figure, currency or
-//     replacement link is `conflicting_replay` and is refused. It is not an
-//     edit: rows in this store are history, and a restated figure is a
-//     reconciliation — a new row that supersedes the old one (db/README, 0001
-//     §ledger). Silently overwriting would erase the very estimate the
-//     reconciliation is supposed to be measured against.
-//
-// Reconciliation links by id rather than by match: `supersedes_external_id`
-// names the estimate's stable id and the route resolves it to `supersedes_id`.
-//
-// ONE ENTRY, ONE CURRENT FIGURE (bead ro-ujb9.69). A correction replaces an
-// entry only when both describe the same thing — same asset, period, kind,
-// family and currency — and only the entry that is current right now, the head
-// of its chain. Anything else is refused per row: `supersedes_mismatch` names
-// the fields that differ, `already_superseded` names the entry that replaced
-// the target (supersede that one instead), and two rows in one upload that
-// replace the same entry are both `duplicate_supersedes`. Without these rules a
-// cost for another property could hide a revenue estimate, and two corrections
-// of one estimate would both count, so the effective total would add them up.
-//
-// The head check is enforced by the write itself, not only by the read before
-// it: a correction is inserted by one `INSERT … SELECT … WHERE` that re-checks
-// the target's identity and that nothing supersedes it yet, and gives way (ON
-// CONFLICT DO NOTHING) to a correction another upload booked on the store's
-// one-successor index (0001_baseline.sql `ledger_entries_one_successor`) while
-// this one was reading. A 0-row result is a per-row refusal, so two concurrent
-// uploads correcting one estimate book exactly one correction and the other
-// hears which rule it broke.
-//
-// Every entry is shown by its workspace's number (`entry_number`), never the
-// store's own identity, which only links a correction to its target.
-//
-// The wire states major units and currency; the STORE keeps minor units only: db/0020 dropped the
-// `amount REAL` mirror 0018 had kept for the read models that still summed
-// dollars, so this route converts once, at the boundary, and writes
-// `amount_minor` alone (bead ro-k5s).
-//
-// Coverage is supplied as fields. Only uploads with none of those fields use
-// the unchanged legacy note rule; unreadable partial coverage is reported for
-// review while preserving the conservative financial view's eligibility.
+// Every entry is shown by its workspace's `entry_number`, never the store's
+// own identity. The wire states major units and currency; the store keeps
+// minor units only, converted once at the boundary. Coverage is supplied as
+// fields; only uploads with none of them use the legacy note rule.
 
 import {
   LedgerInputRow,
@@ -87,8 +59,8 @@ export interface LedgerImportSummary {
   results: RowResult[];
 }
 
-/** What an entry IS. A correction may only replace an entry with the same
- * identity; the figure and booking state are what it is allowed to change. */
+/** What an entry is. A correction may only replace an entry with the same
+ * identity; the figure and booking state are what it may change. */
 type Identity = {
   asset: string;
   period: string;
@@ -117,8 +89,8 @@ function coverageOf(row: LedgerRow): Coverage {
   const legacy = mediavineCoverage({
     kind: row.kind, family: row.family, source: row.source ?? null, note: row.note ?? null,
   }, row.period);
-  // Separator variants must remain conservative, but their partial coverage
-  // should be visible for review even when the old parser recognizes no marker.
+  // Separator variants stay conservative, but their partial coverage should be
+  // visible for review even when the old parser recognizes no marker.
   const partial = row.kind === 'revenue' && row.family === 'ads' &&
     MEDIAVINE_SOURCES.includes(row.source ?? '') && /\bPARTIAL\b/i.test(row.note ?? '');
   return { start: null, end: legacy.end, complete: null, explicit, review: legacy.unreadable || (legacy.end === null && partial) };
@@ -158,15 +130,14 @@ interface StoredRow {
   superseded: boolean;
 }
 
-/** A per-workspace number or an amount in cents from the store (int8), as the
- * number the route has always answered with. */
+/** A per-workspace number or an amount in minor units from the store (int8). */
 function exact(value: bigint): number {
   const n = Number(value);
   if (!Number.isSafeInteger(n)) throw new RangeError(`${value} is past 2^53 and no longer exact`);
   return n;
 }
 
-/** Money entries only: a change entry names no money (D36). */
+/** Money entries only: a change entry names no money. */
 const MONEY = `kind IN ('revenue', 'cost')`;
 
 function identityOf(row: LedgerRow): Identity {
@@ -224,8 +195,7 @@ function replayConflict(stableId: string, upload: Booked, stored: StoredRow): st
     );
   }
   // The replacement link is part of the entry: the same key re-posted with a
-  // different target (or with the link added or removed) describes a different
-  // booking, and accepting it as a no-op would report a link that is not there.
+  // different target describes a different booking.
   const sameLink =
     stored.supersedes_number === null
       ? upload.supersedes === null
@@ -292,9 +262,9 @@ async function alreadySuperseded(
   targetRef: string,
   targetId: bigint,
 ): Promise<RowResult> {
-  // Walk forward from the target to every entry nothing supersedes. UNION (not
-  // UNION ALL) de-duplicates, so the walk ends even on a chain the store's
-  // one-successor rule never let exist.
+  // Walk forward from the target to every entry nothing supersedes. UNION
+  // de-duplicates, so the walk ends even on a chain the one-successor rule
+  // never let exist.
   const rows = await store.read((tx) =>
     tx.query<{ number: bigint; external_id: string | null; amount_minor: bigint; currency: string; booking_state: string }>(
       `WITH RECURSIVE chain(entry_id) AS (
@@ -337,9 +307,8 @@ interface Pending {
   row: LedgerRow;
   stableId: string;
   /** The entry this row replaces: `ref` is its stable id; `storedId` is its
-   * identity when it was already in the store, or null when it is another row
-   * of this same batch — which cannot be resolved until that row has been
-   * written (see the two insert passes). */
+   * identity when already in the store, or null when it is another row of
+   * this batch, resolvable only after that row has been written. */
   target: { ref: string; storedId: bigint | null } | null;
   coverage: Coverage;
 }
@@ -379,13 +348,13 @@ export async function handleRevenue(request: Request, env: IngestEnv): Promise<R
   }
 }
 
-/** Shared ordinary ledger writer. The caller must first obtain its authorized
- * workspace store; this function authenticates nobody and reads no env token. */
+/** Shared ledger writer. The caller must first obtain its authorized workspace
+ * store; this function authenticates nobody and reads no env token. */
 export async function importLedgerRows(rawRows: unknown[], store: WorkspaceStore): Promise<LedgerImportSummary> {
   if (!Array.isArray(rawRows) || rawRows.length === 0) throw new TypeError('No ledger rows supplied.');
 
   // Known asset ids, so an unknown asset is a clean per-row error rather than a
-  // raw FK failure. The site list is on Postgres (bead ro-ujb9.76.4.2).
+  // raw FK failure.
   const knownAssets = await knownAssetIds(store);
 
   const results: RowResult[] = new Array(rawRows.length);
@@ -405,9 +374,9 @@ export async function importLedgerRows(rawRows: unknown[], store: WorkspaceStore
   }
 
   // --- what the store already holds under these ids ---------------------------
-  // One read for the whole batch, covering both the rows being uploaded and the
-  // estimates they claim to supersede — with each row's own link and whether
-  // anything replaces it yet.
+  // One read for the whole batch: the rows being uploaded and the estimates
+  // they claim to supersede, with each row's own link and whether anything
+  // replaces it yet.
   const wanted = new Set<string>();
   for (const { row, stableId } of accepted) {
     wanted.add(stableId);
@@ -466,7 +435,7 @@ export async function importLedgerRows(rawRows: unknown[], store: WorkspaceStore
       continue;
     }
 
-    // Claimed earlier in THIS batch? Same handling, so a doubled row inside one
+    // Claimed earlier in this batch? Same handling, so a doubled row inside one
     // file is caught before it reaches the unique index.
     const earlier = claimed.get(stableId);
     if (earlier) {
@@ -532,8 +501,8 @@ export async function importLedgerRows(rawRows: unknown[], store: WorkspaceStore
   }
 
   // --- one replacement per entry ---------------------------------------------
-  // Two rows of one upload replacing the same entry would both be current. The
-  // file is ambiguous about which figure stands, so neither is booked.
+  // Two rows of one upload replacing the same entry would both be current, so
+  // neither is booked.
   const byTarget = new Map<string, Pending[]>();
   for (const p of pending) {
     if (p.target === null) continue;
@@ -561,27 +530,21 @@ export async function importLedgerRows(rawRows: unknown[], store: WorkspaceStore
 
   // --- write ------------------------------------------------------------------
   // Two passes so an export may carry an estimate and the row reconciling it:
-  // everything independent goes first, then the rows whose target was written by
-  // that first pass. A chain deeper than one link is refused rather than guessed.
+  // everything independent first, then the rows whose target the first pass
+  // wrote. A chain deeper than one link is refused rather than guessed.
   const firstPass = writable.filter((p) => p.target === null || p.target.storedId !== null);
   const secondPass = writable.filter((p) => p.target !== null && p.target.storedId === null);
   const idByStableId = new Map<string, bigint>();
   // Corrections the guarded insert declined: explained after the writes.
   const declined: { p: Pending; targetId: bigint }[] = [];
 
-  // `amount_minor` is the only money column since db/0020 (bead ro-k5s). The
-  // dollars figure the upload states is still parsed and validated — it is what
-  // an operator's export carries — but it is converted once, on the way in, and
-  // never stored a second time as a REAL.
-  //
-  // A row with no target ($12 IS NULL) is always inserted. A correction is
-  // inserted only if, at the moment of the write, its target still has the
-  // same identity and nothing supersedes it yet — checked by this statement
-  // itself — and it gives way to a correction another upload booked on the
-  // one-successor index, so a concurrent upload that booked a correction
-  // between our read and our write turns this one into 0 rows instead of a
-  // second head. Every value is a parameter, and each is cast, since a SELECT
-  // list gives Postgres no column to infer its type from.
+  // The major-units figure the upload states is validated, converted once on
+  // the way in, and never stored. A row with no target ($12 IS NULL) is always
+  // inserted. A correction is inserted only if, at the moment of the write, its
+  // target still has the same identity and nothing supersedes it yet, and it
+  // gives way to a correction another upload booked on the one-successor index.
+  // Every value is cast, since a SELECT list gives Postgres no column to infer
+  // its type from.
   const insert = async (tx: Transaction, p: Pending, supersedesId: bigint | null) => {
     const [row] = await tx.query<{ entry_id: bigint; number: bigint }>(
       `INSERT INTO noticeos.ledger_entries
@@ -634,7 +597,7 @@ export async function importLedgerRows(rawRows: unknown[], store: WorkspaceStore
     }
   };
 
-  // Each pass is one transaction, its inserts in upload order: the batch D1 ran.
+  // Each pass is one transaction, its inserts in upload order.
   const writePass = (rows: { p: Pending; supersedesId: bigint | null }[]) =>
     store.write(async (tx) => {
       const written: ({ entry_id: bigint; number: bigint } | undefined)[] = [];
@@ -675,12 +638,12 @@ export async function importLedgerRows(rawRows: unknown[], store: WorkspaceStore
     }
   } catch (err) {
     // The unique index is the real guard; this is the concurrent-upload case the
-    // read above cannot see. Answering 409 keeps a double-post from ever looking
-    // like a successful second booking.
+    // read above cannot see. A 409 keeps a double-post from ever looking like a
+    // successful second booking.
     throw new LedgerImportConflict(`ledger write rejected: ${String(err)}`);
   }
 
-  // A declined correction lost a race (or its target changed under it): say
+  // A declined correction lost a race, or its target changed under it: say
   // which rule it would have broken, from a fresh read.
   for (const { p, targetId } of declined) {
     const ref = p.target!.ref;

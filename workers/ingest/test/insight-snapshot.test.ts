@@ -58,9 +58,7 @@ async function publish(
 }
 
 describe('POST /api/insight-snapshot — the door', () => {
-  // The whole reason this route exists is that the publisher used to open a
-  // second runtime over the store. It must not have traded that for an
-  // unauthenticated write.
+  // The route must not be an unauthenticated write.
   it('rejects a write with no operator token (401)', async () => {
     const { status, body } = await publish(snapshot(), null);
     expect(status).toBe(401);

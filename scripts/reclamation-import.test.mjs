@@ -198,7 +198,7 @@ test('a list carrying the same page twice is rejected before it reaches the stor
   assert.throws(() => build({ csvText: duplicated }), /duplicate \(domain, referring page\)/);
 });
 
-// An installation's send state is its own data (bead ro-ujb9.157): the product
+// An installation's send state is its own data: the product
 // ships no overlay, and one installation keeps its in its own folder.
 test("the overlay is the installation's own file, and without one there is none", async (t) => {
   const { mkdtempSync, mkdirSync, rmSync, writeFileSync } = await import('node:fs');

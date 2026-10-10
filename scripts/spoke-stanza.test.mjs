@@ -9,8 +9,8 @@ import { readablePath } from './installation.mjs';
 // (and nom's AGENTS.md) duplicates on purpose, byte-identical, so the
 // invariants survive an agent who never opens the contract. The canonical copy
 // lives in config/beads.README.md between the markers; this test is what keeps
-// seven copies from drifting (operator decision 2026-08-03: same-bytes stanzas
-// plus a pointer, never symlinks — a symlink dangles off this machine).
+// the copies from drifting (same-bytes stanzas plus a pointer, never symlinks:
+// a symlink dangles off this machine).
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CONTRACT = path.join(REPO_ROOT, 'config', 'beads.README.md');

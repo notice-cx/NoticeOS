@@ -1,4 +1,4 @@
-// The docs index cannot go stale (bead ro-ujb9.139, D30).
+// The docs index cannot go stale.
 //
 // docs/README.md lists every numbered doc. The root README once hand-kept the
 // same list and missed 21, 24 and 25 while docs/ grew; a list nobody checks is

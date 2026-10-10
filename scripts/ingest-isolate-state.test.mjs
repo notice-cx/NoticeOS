@@ -4,10 +4,10 @@ import path from 'node:path';
 import test from 'node:test';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 
-// MODULE-LEVEL STATE IN THE INGEST WORKER IS REGISTERED OR DECLARED PURE
-// (issue #5). The ingest suite reuses one Workers runtime from file to file
-// and no longer evaluates every module again for each one: it forgets what
-// the registered modules hold instead (workers/ingest/src/isolate-state.ts,
+// Module-level state in the ingest Worker is registered or declared pure. The
+// ingest suite reuses one Workers runtime from file to file rather than
+// evaluating every module again for each one: it forgets what the registered
+// modules hold instead (workers/ingest/src/isolate-state.ts,
 // test/clean-start.ts). State nobody registered would carry from one test
 // file into the next, so a new piece of it stops here until it is registered
 // or named a pure cache below.

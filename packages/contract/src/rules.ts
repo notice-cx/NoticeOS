@@ -1,15 +1,9 @@
-// Volume-aware anomaly rules (docs/02 §"Volume-aware anomaly rules").
+// Volume-aware anomaly rules (docs/02): at healthy volume a drop is judged by
+// its Poisson tail probability; below that volume a single zero-day is routine
+// noise, so the rule widens to a multi-day window, or stays quiet.
 //
-// v1 fired "0 in last24h when avg7d > ~1" and false-positived constantly on
-// low-volume assets, training the operator to ignore the channel. These rules
-// are volume-aware instead: at healthy volume a drop is judged by its Poisson
-// tail probability; below that volume a single zero-day is routine noise, so
-// the rule widens to a multi-day window (or stays quiet when it can't).
-//
-// Every rule is pure and returns a full RuleVerdict — {ruleId, inputs, outcome}
-// plus, when it fires, the flag payload — so the caller can persist the exact
-// inputs a rule saw (the mandatory `rule_inputs` auditability field) whether or
-// not it fired.
+// Every rule is pure and returns a full RuleVerdict, fired or not, so the
+// caller can persist the exact inputs a rule saw as `rule_inputs`.
 
 import { poissonLowerTail } from './poisson.js';
 import type { FlagKind, FlagSeverity, PulseEnvelope } from './schema.js';
@@ -216,22 +210,12 @@ export interface EvaluateOptions {
 /**
  * One metric's historical ruler, and the dates it was read from.
  *
- * REPORTING-TIMEZONE CHANGES DO NOT THIN THIS COHORT *(decided 2026-09-04, bead
- * `ro-kukv.8`)*. When a provider's reporting timezone moves, the change day and
- * the one before it are short and long by the move alone, and the Tower now
- * marks them on every chart that draws them. These rules keep reading them,
- * because the days they read are not those days: `comparisonDates` index stored
- * PULSE rows — an asset reporting its own counters out of its own database —
- * while a reporting timezone is a setting on a provider's property, and moving
- * it redistributes hours only inside that provider's series. Dropping a date
- * here would also be expensive rather than merely wrong: a cohort is used only
- * when all four dates are present, so one exclusion silences the metric for
- * four weeks.
- *
- * This holds only while the inputs stay asset-reported. A rule fed a
- * provider-bucketed daily series must exclude the distorted days from its own
- * cohort; see `assembleSeasonalInputs` in `workers/ingest/src/db.ts` and
- * docs/02.
+ * A provider reporting-timezone change does not thin this cohort:
+ * `comparisonDates` index stored pulse rows, which an asset reports out of its
+ * own database, and a reporting timezone redistributes hours only inside that
+ * provider's series. This holds only while the inputs stay asset-reported; a
+ * rule fed a provider-bucketed daily series must exclude the distorted days
+ * (`assembleSeasonalInputs` in `workers/ingest/src/db.ts`, docs/02).
  */
 export interface MetricBaseline {
   perDay: number;

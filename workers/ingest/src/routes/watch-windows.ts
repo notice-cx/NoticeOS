@@ -1,22 +1,8 @@
-// POST /api/watch-windows — register a pre-registered outcome check.
-//
-// Operator-authed, same shape as /api/revenue and /api/annotations. Everything
-// this route validates exists so the daily evaluator (src/watch-windows.ts)
-// cannot later be asked an unanswerable question: the metric must name a series
-// the collectors write, the baseline must end before the change, and the final
-// check must be far enough out that its post window is a clean like-for-like
-// comparison. docs/03's rule is that the comparison is chosen before the
-// numbers exist — a registration that cannot be evaluated is not a
-// pre-registration, it is a note.
-//
-// TWO CAPABILITIES, ONE WRITER (bead `ro-71r`). `writeWatchWindow` below is the
-// whole registration — validation and insert; this route is the operator-bearer
-// door onto it, and the `createWatchWindow()` RPC on the WorkerEntrypoint is the
-// Tower's (index.ts). The Tower is served unauthenticated on the LAN and must
-// never hold the operator bearer, so the Service Binding is its capability —
-// the same posture as `writeAnnotation`. What matters here is that the Tower's
-// composer cannot reach a softer set of rules than curl does: the UI prefills,
-// it does not relax, and both lanes land on the checks below.
+// POST /api/watch-windows: register a pre-registered outcome check. Everything
+// validated here exists so the daily evaluator (src/watch-windows.ts) is never
+// asked an unanswerable question. `writeWatchWindow` is the whole registration;
+// this route is the operator-bearer door onto it and the `createWatchWindow()`
+// RPC is the Tower's, so the composer cannot reach softer rules than curl.
 
 import type {
   CreateWatchWindowInput,
@@ -57,7 +43,7 @@ import {
 export const WATCH_REF_MAX = 256;
 export const WATCH_NOTE_MAX = 1000;
 export const WATCH_MAX_OFFSETS = 10;
-/** A year out is the longest horizon docs/03's 4–8 week windows imply, with room. */
+/** The longest horizon the 4–8 week windows imply, with room. */
 export const WATCH_MAX_OFFSET_DAYS = 365;
 /** A registration is a JSON scope object at most this big; it is a selector, not a payload. */
 export const WATCH_SCOPE_MAX_CHARS = 2000;
@@ -90,8 +76,7 @@ export async function handleWatchWindows(
       ? json({ error: 'unknown_asset', detail: result.asset }, 422)
       : json({ error: 'validation', issues: result.issues }, 422);
   }
-  // 200 + `duplicate` on a re-registration, the same vocabulary /api/annotations
-  // answers with: the caller's intent already holds, and nothing was written.
+  // 200 + `duplicate` on a re-registration: the caller's intent already holds.
   return result.created
     ? json({ created: true, duplicate: false, watch_window: result.watchWindow }, 201)
     : json({ created: false, duplicate: true, watch_window: result.watchWindow }, 200);
@@ -141,18 +126,10 @@ export async function writeWatchWindow(
     WATCH_READBACK_BEAD_MAX,
   );
 
-  // Bet property-wide on sums, bet scoped on averages (ro-715c).
-  //
-  // A sum is scope-independent — clicks are clicks whether they landed on one
-  // page or forty — so a property total answers the same question one level up.
-  // An average is taken over whatever the property happened to appear for, so a
-  // change that earns impressions on searches the site ranks badly for drags the
-  // property average DOWN while winning. Two July deploys on one asset closed
-  // `kill_confirmed` on site-wide average position while both won on clicks;
-  // that is the registration this rule refuses to accept again. The refusal is
-  // the field and what it needs (bead `ro-ujb9.96.6.28`): a scope of
-  // {"query": "…"} or {"page": "/route"}; the composer offers an average only
-  // from a query row.
+  // Bet property-wide on sums, bet scoped on averages: a sum is
+  // scope-independent, but an average is taken over whatever the property
+  // appeared for, so a change that earns impressions on badly ranked searches
+  // drags the property average down while winning.
   if (
     integration &&
     metric &&
@@ -166,16 +143,13 @@ export async function writeWatchWindow(
     if (baselineStart > baselineEnd) {
       issues.add('baseline_start', 'custom', 'baseline_start must be on or before baseline_end');
     } else if (registeredAt && baselineEnd > registeredAt.slice(0, 10)) {
-      // A baseline that runs past the change is measuring the change against
-      // itself: the baseline is the pre-change window. The refusal is the
-      // field and its last valid date (bead `ro-ujb9.96.6.28`).
+      // The baseline is the pre-change window; one that runs past the change
+      // measures the change against itself.
       issues.add('baseline_end', 'custom', `baseline_end must be on or before ${registeredAt.slice(0, 10)}`);
     } else if (offsets && offsets[offsets.length - 1]! < daySpan(baselineStart, baselineEnd)) {
       // The final post window is baseline-length and ends on the final check
-      // date. If that check comes sooner than the baseline is long, the post
-      // window reaches back past the change and the comparison is
-      // contaminated — catch it at pre-registration, where it is still free.
-      // The refusal is the field and its least valid value.
+      // date; a check sooner than the baseline is long reaches back past the
+      // change.
       issues.add(
         'check_offsets',
         'custom',
@@ -194,13 +168,10 @@ export async function writeWatchWindow(
 
   const scopeJson = scope === null ? null : JSON.stringify(scope);
 
-  // Idempotent on the bet itself — asset, what is watched, the series, the
-  // scope. A spoke syncs its whole freeze register on every ship, so re-sending
-  // is the normal case rather than the error case (the posture db/0022 set for
-  // job runs). Closed windows count: a bet that has already been answered must
-  // not quietly re-open because a sync ran again. The read and the write are
-  // one transaction holding the bet, so two registrations of it at once are
-  // one window (bead ro-ujb9.76.5.7).
+  // Idempotent on the bet itself: a spoke syncs its whole freeze register on
+  // every ship, so re-sending is the normal case. Closed windows count, so an
+  // answered bet never re-opens. The read and the write are one transaction
+  // holding the bet, so two registrations at once are one window.
   const bet: WatchBet = { asset, refKind, ref, integration, metric, scopeJson };
   return env.STORE.write(async (tx) => {
     await holdBet(tx, bet);

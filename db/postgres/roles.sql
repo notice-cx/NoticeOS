@@ -1,6 +1,4 @@
--- The database roles the model needs (bead ro-ujb9.76.2; the operator's
--- choice 1, approved 2026-09-24 on ro-ujb9.76.14; the maintenance role from
--- the review in REVIEW.md, item 3).
+-- The database roles the model needs.
 --
 -- Cluster-wide, so not a migration: run once per database cluster, before the
 -- first migration, by whoever administers it (BYPASSRLS needs a superuser).

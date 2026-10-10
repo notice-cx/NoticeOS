@@ -1,16 +1,12 @@
 #!/usr/bin/env node
-// config-apply.mjs — apply a config CHANGESET in the operator's terminal.
+// Apply a config changeset in the operator's terminal.
 //
 // Settings documents are saved to the active database, then exported for the
-// checkout's audit history. --seed-files explicitly edits offline seed files;
-// it never claims to update the running OS. Asset-column changes go through the
-// local ingest's asset-state door, which saves the site list, and must be
-// submitted separately. A deployed installation changes its settings and its
-// sites in its own Tower: `--remote` is refused (see REMOTE_REFUSED).
-//
-// Validation and pointer expectations remain in config-documents.mjs. The
-// database checks document versions again at Save, after the preview/prompt.
-// No terminal path opens a second local D1 runtime.
+// checkout's audit history; --seed-files edits offline seed files only.
+// Asset-column changes
+// go through the local ingest's asset-state door and must be submitted
+// separately. `--remote` is refused (REMOTE_REFUSED). The database checks
+// document versions again at Save, after the preview and prompt.
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -33,20 +29,15 @@ import {
 import { DEFAULT_DOOR, doorRequest, doorUrl, operatorToken } from './ingest-door.mjs';
 import { CONFIG_APPLY_PATH, configStoreRequest, readConfigSnapshot } from './config-store-client.mjs';
 
-// The repo this run edits. CONFIG_APPLY_REPO_ROOT points it at a throwaway copy
-// — the same knob, and the same reason, as vite.config.ts's OS_UP_PERSIST_STATE:
-// the equivalence test in apps/tower/test/config-write-lane.test.ts runs BOTH
-// entry points over identical temp repos and compares what each left behind, and
-// nothing should have to edit this file to make that possible.
+// CONFIG_APPLY_REPO_ROOT points a run at a throwaway copy
+// (apps/tower/test/config-write-lane.test.ts runs both entry points over
+// identical temp repos).
 const REPO_ROOT = process.env.CONFIG_APPLY_REPO_ROOT
   ? path.resolve(process.env.CONFIG_APPLY_REPO_ROOT)
   : DEFAULT_REPO_ROOT;
 
-// Re-exported so the existing importers (scripts/config-apply.test.mjs) keep
-// reaching the pipeline through the tool that owns the CLI half of it.
 export { MISSING, resolve, validateSchemaAndSafety };
 
-// ── tiny logging (plain, no timestamps — this is an interactive CLI) ──────────
 const c = process.stdout.isTTY
   ? {
       dim: (s) => `\x1b[2m${s}\x1b[0m`,
@@ -77,9 +68,6 @@ function show(v) {
   return JSON.stringify(v);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Arg parsing + input.
-// ─────────────────────────────────────────────────────────────────────────────
 export function parseArgs(argv) {
   const opts = {
     file: null,
@@ -154,35 +142,20 @@ async function loadChangeset(opts) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The store lane: the ingest's operator-authed asset-state routes on the
-// loopback door — never a second runtime over the live store (see the header,
-// bead ro-bko).
-//
-// THERE IS NO REMOTE LANE (bead ro-ujb9.76.4.2). `--remote` wrote a site's
-// columns, and the timeline line recording a stage move, straight into a
-// deployed D1 through wrangler. The site list is saved on Postgres now,
-// through the ingest, which keeps D1 in step while D1 tables still join it; a
-// write around the ingest would change D1 alone. A deployed installation's
-// Tower already saves a site's columns through its ingest, as it saves every
-// setting, so that is where the refusal points.
-// ─────────────────────────────────────────────────────────────────────────────
+// loopback door, never a second runtime over the live store. There is no
+// remote lane: a write around the ingest would change one store alone, and a
+// deployed installation's Tower saves a site's columns through its ingest.
 
 /** What `--remote` answers: nothing is read or written. */
 export const REMOTE_REFUSED =
   '--remote changes nothing now: a deployed installation saves its settings and its sites in its own Tower. Nothing applied.';
 
 /**
- * The two store operations this tool performs, through the ingest's door.
- *
- * A run reads each asset's row at most once: `resolve` asks for one column per
- * op, and a changeset that moves both of an asset's columns would otherwise ask
- * the same question twice. Nothing re-reads after the apply, so a run-lifetime
- * cache cannot go stale within a run.
- *
- * `fetchImpl` and `token` are injectable so the lane is testable without a
- * running OS — and so the write lane can be exercised without ever touching the
- * operator's live store.
+ * The two store operations this tool performs, through the ingest's door. A
+ * run reads each asset's row at most once and nothing re-reads after the
+ * apply, so the run-lifetime cache cannot go stale. `fetchImpl` and `token`
+ * are injectable so the lane is testable without a running OS.
  */
 export function storeLane({
   door = DEFAULT_DOOR,
@@ -197,10 +170,8 @@ export function storeLane({
     return bearer;
   }
 
-  /** Door failures are ChangesetErrors like every other refusal this tool
-   * prints. `ingest-door.mjs` already writes the sentence an operator can act on
-   * — "is `pnpm os:up` running?", or the ingest's own 4xx body — and it deserves
-   * the clean `✘` line, not a stack trace under "unexpected:". */
+  /** Door failures are ChangesetErrors like every other refusal: the clean
+   * `✘` line, not a stack trace. */
   async function throughTheDoor(work) {
     try {
       return await work();
@@ -227,14 +198,10 @@ export function storeLane({
   }
 
   /**
-   * The `<from>` half of a stage move — the status the store held BEFORE this
-   * run wrote anything.
-   *
-   * It comes out of the same run-lifetime `rows` cache the expect guard filled,
-   * which is the point: it is the value the changeset was staged against and
-   * already agreed with, not a re-read that could catch the row mid-apply. An
-   * asset the store does not have, or a row without a readable status, returns
-   * null — there is no move to record when nothing says where it started.
+   * The `<from>` half of a stage move: the status the store held before this
+   * run wrote anything, out of the run-lifetime cache the expect guard
+   * filled, not a re-read that could catch the row mid-apply. Null when
+   * nothing says where it started.
    */
   async function statusBefore(asset) {
     const row = await readRow(asset);
@@ -243,9 +210,8 @@ export function storeLane({
     return typeof status === 'string' && status !== '' ? status : null;
   }
 
-  /** Write the move as a timeline row, through the same door. The kind and the
-   * ref shape come from the shared core, so this and the Tower record the same
-   * string for the same move. */
+  /** Write the move as a timeline row, through the same door, with the kind
+   * and ref shape the Tower records. */
   async function recordLifecycleMove(asset, move, at) {
     const ref = lifecycleMoveRef(move);
     const kind = LIFECYCLE_ANNOTATION_KIND;
@@ -261,8 +227,7 @@ export function storeLane({
   }
 
   return {
-    /** The value the store holds now, or MISSING when there is no such asset —
-     * which the expect guard reports as `(absent)` rather than a crash. */
+    /** The value the store holds now, or MISSING when there is no such asset. */
     async column(asset, column) {
       const row = await readRow(asset);
       if (!row.known) return MISSING;
@@ -271,26 +236,15 @@ export function storeLane({
     },
 
     /**
-     * Apply one `store-asset-set` op. Values are already enum/type-validated by
-     * validateSchemaAndSafety, and the ingest validates them again because an
-     * HTTP body is untrusted.
-     *
-     * A `status` op ALSO records the move it is (bead `ro-mz39`). `assets.status`
-     * says where an asset is; the timeline is the only record of where it has
-     * been, and Restore reads it to decide which stage to bring an archived
-     * asset back to — so a terminal apply that moved the column and recorded
-     * nothing sent the asset back to a labelled default. Both halves go over the
-     * lane this run is already on, at the same instant, so the record cannot end
-     * up in a different store from the value it describes.
-     *
-     * Returns what was recorded, or null when there was no move to record, so
-     * the caller can print it. A refusal comes back in `error` rather than
-     * thrown: the column HAS moved by then, and failing the run over the record
-     * of it would archive nothing and report a change that happened as a change
-     * that did not. Same posture as the Tower's `record` hook (commit f2ce513).
+     * Apply one `store-asset-set` op. A `status` op also records the move on
+     * the timeline, which Restore reads to decide which stage to bring an
+     * archived asset back to. Returns what was recorded, or null when there
+     * was no move. A refusal of the record comes back in `error` rather than
+     * thrown: the column has moved by then, and failing the run would archive
+     * nothing and report a change that happened as one that did not.
      */
     async set(asset, column, value) {
-      // Read BEFORE the write, out of the cache the expect guard filled.
+      // Read before the write, out of the cache the expect guard filled.
       const expected = (await readRow(asset)).columns?.[column];
       if (expected === undefined) throw new ChangesetError('Asset column guard unavailable. Nothing applied.');
       const from = column === 'status' ? await statusBefore(asset) : null;
@@ -305,13 +259,12 @@ export function storeLane({
         });
         return response.json();
       });
-      // Later operations in this same run expect our own committed value,
-      // rather than the value from before the run's first write.
+      // Later operations in this run expect our own committed value.
       const row = await readRow(asset);
       row.columns = { ...row.columns, [column]: saved.value };
 
-      // Nothing to record: another column, an asset whose starting stage is
-      // unreadable, or a "move" that lands where it already was.
+      // Nothing to record: another column, an unreadable starting stage, or a
+      // move that lands where it already was.
       if (column !== 'status' || from === null || from === value) return null;
       try {
         return { ref: await recordLifecycleMove(asset, { from, to: value }, at), error: null };
@@ -322,15 +275,12 @@ export function storeLane({
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Human diff (docs/15 principle 1). File ops: file · pointer · current→proposed.
-// Store ops: plain sentences.
-// ─────────────────────────────────────────────────────────────────────────────
+// The human diff. File ops: file · pointer · current→proposed. Store ops:
+// plain sentences.
 const FILE_KINDS = new Set(['file-json-set', 'file-json-insert', 'file-json-delete']);
 
-/** One line of the file diff. A set shows current → proposed; an insert and a
- * delete each have only one side, and saying so in words beats printing
- * `(absent) → {…}` and asking the operator to work out which way it goes. */
+/** One line of the file diff. An insert and a delete each have only one
+ * side, said in words. */
 function fileDiffLine(r) {
   if (r.op.kind === 'file-json-insert') {
     return `    ${r.op.pointer}  ${c.green('+ add')} ${c.dim(show(r.op.value))}`;
@@ -391,10 +341,8 @@ function printMismatches(mismatches) {
   out('\n' + c.dim('  Fix: reload the Tower so it reads the current values and edit there, or rewrite this changeset by hand.'));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Read and apply through an explicit persistence mode. The preview uses the
-// same acknowledged document that the database version guard will protect.
-// ─────────────────────────────────────────────────────────────────────────────
+// same acknowledged document the database version guard protects.
 export async function prepareChangeset(cs, store, opts = {}) {
   validateSchemaAndSafety(cs);
   const fileOps = cs.ops.filter((op) => FILE_KINDS.has(op.kind));
@@ -418,8 +366,8 @@ export async function prepareChangeset(cs, store, opts = {}) {
   }
   const { resolved, mismatches, documents } = await resolveOps(cs, store, {
     readDocument: async (file) => snapshot.get(file)?.body ?? null,
-    // What the database's Worker compares a key its document lacks with: the
-    // product's own default (bead ro-dk4u), so the preview agrees with the door.
+    // What the Worker compares a key its document lacks with, so the preview
+    // agrees with the door.
     readBuiltIn: builtInDocumentReader({ repoRoot }),
   });
   return { resolved, mismatches, fileCache: documents, mode: 'database',
@@ -474,8 +422,7 @@ export async function applyChangeset(cs, prepared, store, opts = {}) {
     const { asset, column, value } = r.op;
     const record = await store.set(asset, column, value);
     out(`  ${c.green('updated')} ${asset}.${column} → ${show(value)}`);
-    // The move is a line of its own, because the record and the value are two
-    // separate things that can succeed separately (bead `ro-mz39`).
+    // The record and the value can succeed separately.
     if (record?.error) {
       out(`  ${c.yellow('not recorded')} ${asset} ${record.ref} — ${record.error}`);
     } else if (record) {
@@ -486,9 +433,6 @@ export async function applyChangeset(cs, prepared, store, opts = {}) {
   return { changedFiles, exported: true };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Main
-// ─────────────────────────────────────────────────────────────────────────────
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.help) {
@@ -551,8 +495,6 @@ async function main() {
   out(c.dim('  ') + `git commit -m ${JSON.stringify(`config: ${cs.slug}`)}`);
 }
 
-// Only when RUN, so the store lane and the resolver can be imported and tested
-// without a live OS — and without this file's `main()` firing on import.
 const isEntrypoint =
   process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isEntrypoint) {

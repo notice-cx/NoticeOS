@@ -1,16 +1,11 @@
-// What "unchanged" means to the change-only signal store (ro-ujb9.70).
+// What "unchanged" means to the change-only signal store.
 //
-// `recordSignalSuccess` stores a value only when it differs from the stored one.
-// The defect: "the stored one" was read across every run of the asset and
-// integration, so when an asset was repointed at a different provider property,
-// a new property's value that happened to equal the old property's (25 = 25 on
-// the same day) was never written under the new property. Its provenance stayed
-// with a resource the OS no longer measures, and every reader that takes the
-// latest value per date spliced two resources into one series.
-//
-// The contract pinned here: a series is asset + integration + property_ref +
-// metric, measured under one reporting-day definition (time_zone, NULL matching
-// only NULL). credential_ref is not part of it.
+// `recordSignalSuccess` stores a value only when it differs from the stored
+// one. The contract pinned here: a series is asset + integration +
+// property_ref + metric, measured under one reporting-day definition
+// (time_zone, NULL matching only NULL). credential_ref is not part of it, so
+// an asset repointed at a different provider property starts a new series even
+// where a value happens to equal the old property's.
 
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -190,8 +185,8 @@ describe('recordSignalSuccess — one series per provider resource and day defin
     expect(aggregate).toMatchObject({ days: 2, span_days: 2, total: 0, per_day: 0 });
   });
 
-  // On Postgres the series is a row of its own (bead ro-ujb9.76.5.3), named
-  // once by the values that first need it.
+  // On Postgres the series is a row of its own, named once by the values that
+  // first need it.
   it('names one series per site, provider, property, zone and metric; a rotated credential keeps it', async () => {
     await record({ '2026-09-01': 25 });
     await record({ '2026-09-01': 26 }, { to: target({ credentialRef: 'account-b' }) });

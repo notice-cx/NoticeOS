@@ -5,22 +5,18 @@ import { persistCollectionAttempt, type CollectionMonitoring } from './collectio
 // a provider revision appends a new fact, while an unchanged rolling window
 // records a zero-change success without duplicating the whole history.
 //
-// "Changed" is judged within ONE measurement series (ro-ujb9.70): the same
-// asset, integration and provider resource (`property_ref`), measured under the
-// same reporting-day definition (`time_zone`). Another property's figure for the
-// same day is a different resource's measurement, and a figure bucketed by a
-// different midnight is a different unit, so neither can make this run's value
-// "unchanged". `credential_ref` is deliberately NOT part of the series: rotating
-// the credential that reads a resource does not change what is measured.
+// "Changed" is judged within one measurement series: the same asset,
+// integration and provider resource (`property_ref`), measured under the same
+// reporting-day definition (`time_zone`). `credential_ref` is deliberately not
+// part of the series: rotating the credential does not change what is measured.
 
 import type { Ga4PropertyQuota } from '@noticeos/contract';
 
 export type SignalIntegration = 'ga4' | 'gsc' | 'bing-webmaster';
 
-/** Rolling provider horizon retained for property-level operating charts.
- * Compact Wall cards intentionally apply their own shorter 28-day slice. */
 /** Ninety visible chart days plus seven calculation-only days so the first
- * visible date has a real prior-week comparison and rolling-average context. */
+ * visible date has a real prior-week comparison; compact Wall cards apply their
+ * own shorter 28-day slice. */
 export const LIVE_SIGNAL_WINDOW_DAYS = 97;
 
 export interface SignalTarget {
@@ -42,21 +38,17 @@ export interface SignalProviderResult {
   dataState: 'final' | 'includes-provisional';
   provisionalFrom: string | null;
   /**
-   * What the provider said this call cost, when it meters in a budget worth
-   * watching and was asked (`returnPropertyQuota`, GA4 only today). It is
-   * deliberately NOT stored on the run row: `signal_runs` records what was
-   * observed about the PROPERTY, and our own spend is a different fact with a
-   * different reader — see `src/ga4-quota.ts`.
+   * What the provider said this call cost (`returnPropertyQuota`, GA4 only).
+   * Deliberately not stored on the run row: `signal_runs` records what was
+   * observed about the property, and our own spend is a different fact with a
+   * different reader (`src/ga4-quota.ts`).
    */
   quota?: Ga4PropertyQuota | null;
   /**
-   * The IANA zone whose midnight bounded these observations' days (`ro-tzq`).
-   *
-   * A daily figure is only comparable to another measured the same way, and the
-   * date alone cannot say whether two were. GA4 reports this on every response;
-   * Search Console has none because Google fixes its boundary. Null means the
-   * provider did not say and nothing else knew — never "UTC", and never the
-   * collector's own default silently substituted for the property's answer.
+   * The IANA zone whose midnight bounded these observations' days. GA4 reports
+   * it on every response; Search Console has none because Google fixes its
+   * boundary. Null means the provider did not say and nothing else knew, never
+   * "UTC" silently substituted.
    */
   timeZone?: string | null;
 }
@@ -75,9 +67,8 @@ export class SignalError extends Error {
   }
 }
 
-/** Where a collection's rows go: its run and its changed values to this
- * call's Postgres store (bead ro-ujb9.76.5.3); its monitoring result goes to
- * the same store, on the monitoring object (`persistCollectionAttempt`). */
+/** The run and its changed values go to this call's store; its monitoring
+ * result goes to the same store (`persistCollectionAttempt`). */
 export type SignalStoreEnv = Pick<IngestEnv, 'STORE'>;
 
 /** The prior values of one measurement series inside a window, oldest write

@@ -13,16 +13,12 @@ import { bdBin, probeTcp } from './host-tools.mjs';
 import { log } from './log.mjs';
 import { declaredTaskClient, taskChildEnvironment } from '../task-client.mjs';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Beads task hub — the shared Dolt SQL server every portfolio repo files its
 // tasks against (config/beads.json holds the asset ↔ prefix ↔ database map).
-//
-// We do NOT run it. `brew services` does, as a login-scoped launchd service
-// reading the installation's dolt-server.yaml, which is the point: agents in six repos keep
-// filing tasks while os:up is stopped, restarting, or mid-deploy. Supervising it
-// here would have tied every repo's task tracker to this process's lifecycle.
-// So os:up only *observes* it — a health line, and the nightly backup.
-// ─────────────────────────────────────────────────────────────────────────────
+// We do not run it: `brew services` does, as a login-scoped launchd service
+// reading the installation's dolt-server.yaml, so agents keep filing tasks
+// while os:up is stopped, restarting or mid-deploy. os:up only observes it — a
+// health line, and the nightly backup.
 
 /** What to say about the hub. A down hub is not an os:up failure — it is one
  * brew command away — so the WARN carries the fix rather than a bare symptom. */
@@ -54,13 +50,9 @@ export function parseDoltServers(stdout) {
     const match = /^\s*(\d+)\s+(\S.*)$/.exec(line);
     if (!match) continue;
     const command = match[2].trim();
-    // Only processes whose BINARY is dolt count. `pgrep -f` matches the
-    // pattern anywhere in an argv, which includes another pgrep running this
-    // very search — pgrep excludes itself but not a concurrent twin. The
-    // 15-minute cron check and the per-poll check coincide at :00/:15/:30/:45,
-    // so each tick briefly ran two of these probes, and each counted the
-    // other as a "dolt sql-server": 175 phantom CONTENDED warnings between
-    // 2026-08-01 and 2026-08-03 with never a real second server (ro-4q9).
+    // Only processes whose binary is dolt count: `pgrep -f` matches the
+    // pattern anywhere in an argv, which includes a concurrent twin of this
+    // very search — pgrep excludes itself but not a twin.
     if (!/(^|\/)dolt\s/.test(command)) continue;
     servers.push({ pid: Number(match[1]), command });
   }
@@ -80,23 +72,15 @@ async function listDoltServers() {
 }
 
 /**
- * What the hub's state actually is, in one operator-actionable line.
+ * What the hub's state actually is, in one operator-actionable line. Dolt
+ * takes an exclusive write lock per database, so two servers over one data
+ * directory is never a survivable state. The two failure shapes it names:
  *
- * Born from a real incident (2026-08-01): a hand-run `dolt sql-server` was left
- * holding 3308 and the per-database write locks, the supervised hub then died
- * five times on `database "ac" is locked by another dolt process`, and the
- * runner gave up — after five blind restarts that never named the cause. Under
- * brew's `keep_alive true` the same collision has no give-up at all; it
- * restarts forever, in a log nobody is tailing.
- *
- * Dolt takes an EXCLUSIVE WRITE LOCK PER DATABASE, so two servers over one data
- * directory is never a survivable state — which is what makes this diagnosable
- * rather than merely reportable. The two failure shapes it names:
- *
- *   reachable + more than one server → a stray is up; whichever server lost the
- *     race is the one crash-looping, and the port being open proves nothing.
- *   unreachable + at least one server → the crash-loop signature itself: a dolt
- *     process exists but nothing answers, because it dies before it can serve.
+ *   reachable + more than one server → a stray is up; whichever server lost
+ *     the race is the one crash-looping, and the port being open proves nothing.
+ *   unreachable + at least one server → the crash-loop signature itself: a
+ *     dolt process exists but nothing answers, because it dies before it can
+ *     serve.
  *
  * `servers === null` means we could not enumerate; fall back to the plain
  * reachable/down line rather than guessing.
@@ -201,26 +185,18 @@ const BEADS_CALL_TIMEOUT_MS = 20_000;
 /**
  * The spokes, fully resolved. `parseBeadsSpokes` above answers a narrower
  * question (which databases to back up); this one keeps the asset id and repo
- * path, which are exactly what the backup does not need and the poller cannot
- * work without.
+ * path, which the poller cannot work without. A spoke missing `asset`,
+ * `prefix` or `repo` is dropped rather than half-polled.
  *
- * A spoke missing `asset`, `prefix` or `repo` is dropped rather than
- * half-polled — config/beads.README.md calls them load-bearing, and the poll
- * cannot run without any of them.
+ * `database` is carried rather than required: the poll never uses it (`bd`
+ * resolves the database from the repo's own `.beads/config.yaml`), so a
+ * project's board is not dropped over a field only the backup reads. It
+ * travels as `null` when it is not usable, and `beadsDatabaseName` is the
+ * single answer to what that means.
  *
- * `database` is CARRIED RATHER THAN REQUIRED (bead `ro-237o`). The poll itself
- * never uses it — `bd` runs inside the repo and resolves the database from that
- * repo's own `.beads/config.yaml` — so dropping a whole project's board over a
- * field only the backup reads would trade a real outage for a config typo. But
- * it used to be dropped on the floor here entirely, which is how a wrong value
- * stayed invisible until a restore. It travels as `null` when it is not usable,
- * and `beadsDatabaseName` is the single answer to what that means (bead
- * `ro-pb2u`), so the task-map lane sees exactly what the backup lane skips.
- *
- * There is deliberately no charset guard on `repo`: `beadsDatabaseName`
- * interpolates database names into SQL, whereas `repo` only ever becomes one
- * element of a spawn argv array with no shell. If anything here is ever moved
- * into a shell string or a query, it needs its own guard first.
+ * There is no charset guard on `repo`: it only ever becomes one element of a
+ * spawn argv array with no shell. If it is ever moved into a shell string or a
+ * query, it needs its own guard first.
  */
 export function parseBeadsProjects(raw) {
   let cfg;

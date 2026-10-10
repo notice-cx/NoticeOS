@@ -31,9 +31,8 @@ function laneFor(config: Register, asset: string): Lane {
   return config.assets?.[asset]?.['ad-network'] ?? {};
 }
 function enabled(lane: Lane): boolean {
-  // A mapped site syncs until its Data sources row says Not using — the one
-  // rule the Tower and the monitoring read too (`mediavineSyncOn`, bead
-  // `ro-ujb9.96.7.6`), so the connect panel's Start is what starts it.
+  // A mapped site syncs until its Data sources row says Not using, the one
+  // rule the Tower and the monitoring read too (`mediavineSyncOn`).
   return mediavineSyncOn(lane);
 }
 async function validateSiteAssignment(env: IngestEnv, config: Register, asset: string, siteId: string): Promise<void> {
@@ -48,10 +47,8 @@ function settingOp(asset: string, field: string, held: unknown, value: JsonValue
     ...(held === undefined ? { expectAbsent: true as const } : { expect: held as JsonValue }) };
 }
 async function writeSettings(env: IngestEnv, input: MediavineSettings, lane: Lane): Promise<void> {
-  // This door STARTS a sync and never records a decline (bead
-  // `ro-ujb9.96.7.21`): Not using is the site's own row, which saves the reason
-  // with it (`declineOps`, apps/tower/shared/lane-decline.ts), so no `skipped`
-  // cell is ever written here without one.
+  // This door starts a sync and never records a decline: Not using is the
+  // site's own row, which saves the reason with it (`declineOps`).
   const starts = input.enabled && !(input.holidayCalendar !== undefined && enabled(lane) && input.siteId === lane.mediavineSiteId);
   const result = await applyConfigOps(env, { actor: 'operator', reason: 'Configure Mediavine revenue sync', ops: [
     settingOp(input.asset, 'mediavineSiteId', lane.mediavineSiteId, input.siteId),
@@ -105,19 +102,16 @@ export async function putMediavineCredential(env: IngestEnv, input: PutCredentia
     }, {}, true);
   } catch (error) { return { ok: false, error: 'store_unavailable', message: mediavineMessage(error) }; }
 }
-/** How long the connect panel's Checking waits on Mediavine for each call —
- * a person is watching it. */
+/** A person is watching the panel's Checking. */
 const CONNECT_TIMEOUT_MS = 10_000;
 
 /**
- * THE CONNECT PANEL'S PRESS FOR MEDIAVINE (bead `ro-ujb9.96.7.6`): sign in with
- * the typed login and list the account's sites — the free read Test makes —
- * and keep the login only if Mediavine accepts it. It runs under the one
- * Mediavine lease, so no sync or probe interleaves with it, and a login that
- * is refused changes nothing already stored. What the sign-in produced is kept
- * with the login: the session (so the next call does not sign in again) and
- * the site list (so the panel's list that follows asks Mediavine nothing more).
- * The answer is a verdict, never Mediavine's own words.
+ * The connect panel's press for Mediavine: sign in with the typed login and
+ * list the account's sites, keeping the login only if Mediavine accepts it.
+ * Runs under the one Mediavine lease, so no sync or probe interleaves. The
+ * session and the site list the sign-in produced are kept with the login, so
+ * the panel's list that follows asks Mediavine nothing more. The answer is a
+ * verdict, never Mediavine's own words.
  */
 export async function connectMediavine(
   env: IngestEnv,
@@ -164,10 +158,9 @@ export async function connectMediavine(
 }
 
 /**
- * Forget the login and its session. The sites' mappings stay as they are, as
- * every other provider's do (bead `ro-ujb9.96.7.6`): with no login nothing
- * syncs, and connecting again lists them as already mapped — rather than
- * each one reading Not using, a reason nobody gave.
+ * Forget the login and its session. The sites' mappings stay as they are:
+ * with no login nothing syncs, and connecting again lists them as already
+ * mapped rather than each reading Not using, a reason nobody gave.
  */
 export async function disconnectMediavine(env: IngestEnv): Promise<DeleteCredentialResult> {
   return withMediavineLease(env, async () => {
@@ -189,7 +182,7 @@ export async function mediavineStatus(env: IngestEnv, asset: string): Promise<Me
   const lane = laneFor(await register(env), asset);
   const [credential, { last, success, daily, state }] = await Promise.all([
     credentialSummary(env, 'mediavine'),
-    // Ties on one instant go to the attempt written last, as D1's rowid did.
+    // Ties on one instant go to the attempt written last.
     env.STORE.read(async (tx) => ({
       last: (await tx.query<RunRow>(
         `SELECT attempted_at, message, start_date, end_date, summary_minor, daily_minor, difference_minor
@@ -227,8 +220,8 @@ export async function persistReport(env: Pick<IngestEnv, 'STORE'>, asset: string
   });
   // One transaction: a run and every changed daily observation land together.
   // A day is written only when its current figure differs, one statement a
-  // day in the report's order, so a day repeated in one report reads the
-  // figure the report wrote before it, as it did in D1's batch.
+  // day in the report's order, so a repeated day reads the figure the report
+  // wrote before it.
   await env.STORE.write(async (tx) => {
     await tx.execute(
       'INSERT INTO noticeos.mediavine_sites (workspace_id, site_id, asset_id) VALUES ($1::uuid, $2, $3) ON CONFLICT DO NOTHING',

@@ -4,8 +4,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-// THE COMPONENT REGISTRY IS ONLY AN INDEX IF SOMETHING READS IT
-// (doc 14 anti-duplication mechanic #1).
+// The component registry is only an index if something reads it.
 //
 // `apps/tower/src/components/registry.ts` is the Tower's component index, and
 // the `/dev/kitchen-sink` route renders it. Nothing else describes the

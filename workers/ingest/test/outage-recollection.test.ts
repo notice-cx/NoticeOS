@@ -1,15 +1,12 @@
-// The 2026-09-14 outage, replayed end to end (beads `ro-aed0.7`, `ro-aed0.8`).
-//
-// That day the scheduled archive run could reach the reference sites but none
-// of the providers, so every GA4 / Search Console date it owed (2026-09-10..13)
-// and every Bing family it owed (report date 2026-09-13) was written as a
-// network failure, and the 04:30 Clarity export failed the same way. The days
-// after collected normally — and still left the Integrations page red: 92
-// Google, 26 Bing and 1 Clarity item with failure `network` on 2026-09-23. The
-// 12:30 PostHog archive met the same wall, so every product analytics window
-// ending 2026-09-13 failed at the network too, and was never asked again.
-// This file rebuilds that store through the real lanes (with the re-collection
-// switched off, as the collectors ran then) and proves the next tick clears it.
+// An outage night, replayed end to end: the scheduled archive run could reach
+// the reference sites but none of the providers, so every GA4 / Search Console
+// date it owed (2026-09-10..13) and every Bing family it owed (report date
+// 2026-09-13) was written as a network failure, and the 04:30 Clarity export
+// failed the same way. The 12:30 PostHog archive met the same wall, so every
+// product analytics window ending 2026-09-13 failed at the network too. The
+// days after collect normally; without re-collection the Integrations page
+// would stay red. This file rebuilds that store through the real lanes (with
+// the re-collection switched off) and proves the next tick clears it.
 import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { POSTHOG_FAMILIES, type IntegrationHealthPayload } from '@noticeos/contract';
@@ -23,8 +20,8 @@ import { runPosthogDumps } from '../src/posthog-dumps.js';
 import { runSignalDumps } from '../src/signal-dumps.js';
 import { ARCHIVE_RUNS, emptyTables, pgAll, reset, setConnection, WORKERD_TRANSPORT_ERROR } from './helpers.js';
 
-/** Bing verifies every property but pullups.example — the standing provider
- * refusal of bead `ro-63na`, which this fix must leave visible. */
+/** Bing verifies every property but pullups.example — a standing provider
+ * refusal, which this fix must leave visible. */
 const BING_VERIFIED = ['meals.example', 'nosh.example', 'pacer.example', 'areas.example', 'fees.example'];
 
 /** Every provider the archive lanes call, as one fake. `providersDown` is the
@@ -90,9 +87,9 @@ beforeEach(async () => {
 });
 afterEach(() => forgetConfigCache());
 
-// A replay of a whole outage night through the real lanes (hundreds of D1
+// A replay of a whole outage night through the real lanes (hundreds of store
 // writes): it runs ~6 s on a busy host, so it carries its own limit.
-it('re-collects the 2026-09-14 outage and leaves no network failure on Google, Bing, Clarity or PostHog', async () => {
+it('re-collects an outage night and leaves no network failure on Google, Bing, Clarity or PostHog', async () => {
   // The collectors as they ran then: no re-collection pass.
   const asThen = { retryLimit: 0 };
   const laneRegister = (await getConfigDocument(env, 'config/integrations.json')).body as LaneRegister;
@@ -109,7 +106,7 @@ it('re-collects the 2026-09-14 outage and leaves no network failure on Google, B
     await posthog(`2026-09-${day}T12:30:00.000Z`);
   }
 
-  // What the 09-14 run recorded, as the live store holds it.
+  // What the outage run recorded.
   expect(
     await pgAll(`SELECT integration, count(*)::int AS n FROM ${ARCHIVE_RUNS}
         WHERE requested_at = '2026-09-14T12:15:00.000Z' AND error_code = 'request_failed'
@@ -118,7 +115,7 @@ it('re-collects the 2026-09-14 outage and leaves no network failure on Google, B
 
   const stuck = await readIntegrationHealth(env, Date.now() + 1000);
   // Google: every property's oldest window date, plus the rolling family's
-  // newest — the two report windows the live page showed.
+  // newest — the two report windows the page shows.
   const google = networkItems(stuck, 'google');
   expect(google).toHaveLength(2 * (8 + 1 + 10));
   expect(new Set(google.map((item) => item.detail?.split(' · ')[1]))).toEqual(new Set(['2026-09-10', '2026-09-13']));

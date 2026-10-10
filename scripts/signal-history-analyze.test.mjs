@@ -24,7 +24,7 @@ import {
   reportsFolder,
 } from './signal-history-analyze.mjs';
 
-// Bead ro-ujb9.67.3: the analysis read from a published generation of the
+// The analysis read from a published generation of the
 // history files with DuckDB, in a bounded job, proven to write the analyzer's
 // files. Synthetic archives only (scripts/signal-archive-fixture.mjs).
 

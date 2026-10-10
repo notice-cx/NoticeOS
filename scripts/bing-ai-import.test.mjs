@@ -8,8 +8,7 @@ import {
   resolveImport,
 } from './bing-ai-import.mjs';
 
-// The three files the operator actually delivered on 2026-08-04 (bead ro-2dn),
-// named exactly as Bing's Export button wrote them.
+// Three files named exactly as Bing's Export button writes them.
 const OVERVIEW = 'meals.example_AIPerformanceOverviewStats_8_4_2026.csv';
 const QUERIES = 'meals.example_AISearchQueriesReport_8_4_2026.csv';
 const PAGES = 'meals.example_AIPageStatsReport_8_4_2026.csv';

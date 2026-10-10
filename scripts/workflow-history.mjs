@@ -2,7 +2,7 @@
 // The local runner's workflow history: one JSONL line per finished run and an
 // active-run heartbeat, both under `.local/`. Node-only.
 //
-// Authored TypeScript (bead ro-ujb9.61): `pnpm config:generate` writes the
+// Authored TypeScript: `pnpm config:generate` writes the
 // `.mjs` the local runner imports and the `.d.mts` the Tower's Vite lanes read.
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -17,7 +17,7 @@ export const WORKFLOW_SESSION_ID = randomUUID();
 /**
  * The workflow history of the installation whose state is under `root`: the
  * checkout for the managed runner (its runtime copy links `.local` to home),
- * the installation's own folder for `pnpm start` (bead ro-ujb9.156). The Tower
+ * the installation's own folder for `pnpm start`. The Tower
  * reads the same two files under its home (apps/tower/vite/workflow-history.ts).
  */
 export function createWorkflowHistory(root) {

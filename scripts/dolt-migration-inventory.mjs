@@ -1,4 +1,4 @@
-// One explicit read-only metadata batch for ro-ujb9.9.1. No adoption/capture.
+// One explicit read-only metadata batch for an existing-hub migration. No adoption/capture.
 import { execFile } from 'node:child_process';
 import * as nodeFs from 'node:fs';
 import path from 'node:path';

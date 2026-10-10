@@ -9,9 +9,9 @@ import {
   attributionReporter, traceOn, unfinishedFiles, unfinishedReport, unitTestAttribution,
 } from './unit-test-attribution.mjs';
 
-// A unit-test worker that dies names the file it was running (bead
-// ro-ujb9.179). Vitest alone said "Worker exited unexpectedly" and counted the
-// file as neither passed nor failed ("1 passed (2)").
+// A unit-test worker that dies names the file it was running. Vitest alone
+// says "Worker exited unexpectedly" and counts the file as neither passed nor
+// failed ("1 passed (2)").
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 
@@ -101,13 +101,13 @@ test('both unit suites load it', () => {
 // The real thing, against the Vitest this repo installs: a worker killed in
 // the middle of a test. Proves the hook still exists and still hears of it.
 //
-// The worker is killed only once the main process has heard the test start
-// (bead ro-ujb9.225). A Vitest worker sends test events in batches, at most
+// The worker is killed only once the main process has heard the test start.
+// A Vitest worker sends test events in batches, at most
 // one batch per 100 ms (the runner's `sendTasksUpdateThrottled`), so a fixed
-// wait before the kill (it was 100 ms) raced the batch that says the test
-// started, and on a loaded host the kill won: "dying.test.mjs — started", with
-// no test named. Now a reporter in the main process writes `heard` when it is
-// told the test started, and the test kills its worker once that file exists.
+// wait before the kill would race the batch that says the test started, and
+// on a loaded host the kill wins. A reporter in the main process writes
+// `heard` when it is told the test started, and the test kills its worker
+// once that file exists.
 //
 // The beforeEach is what makes that batch go out at all. Vitest holds a batch
 // on a timer, and a timer that fires with the clock exactly 100 ms on leaves

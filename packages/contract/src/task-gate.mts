@@ -1,16 +1,11 @@
-// HOW A HUMAN GATE READS: the ask it holds, not the mechanism's name
-// (bead ro-ujb9.201).
+// How a human gate reads: the ask it holds, not the mechanism's name. `bd`
+// titles every gate "Gate: human" and has no reason field; `bd gate create
+// --reason` writes the ask into the description as
+// `Ad-hoc gate blocking <id>\n\nReason: <text>`. Every reader that shows a
+// gate titles it with that reason through this one module.
 //
-// `bd` titles every gate "Gate: human" and has no reason FIELD: `bd gate create
-// -r/--reason` writes the ask into the description under a generated first
-// line, as `Ad-hoc gate blocking <id>\n\nReason: <text>` (verified against bd
-// 1.1.2 and its own --help, 2026-08-02). The operator's inbox exists so a gate
-// can be answered without opening it, so every reader that shows a gate — the
-// runner's task snapshot and the Tower's live task read — titles it with this
-// reason, through this one module rather than a copy each.
-//
-// Authored TypeScript: `pnpm config:generate` writes the `.mjs` the runner and
-// the Tower import, and the `.d.mts` beside it.
+// Authored TypeScript: `pnpm config:generate` writes the `.mjs` and `.d.mts`
+// beside it.
 
 /** A gate's reason is free text an operator typed, and the route caps a title
  * at 512. Bounded here so a long reason costs the gate its tail rather than

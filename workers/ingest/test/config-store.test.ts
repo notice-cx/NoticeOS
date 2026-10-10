@@ -1,7 +1,5 @@
-// The config store (epic `ro-syok`), on Postgres (bead ro-ujb9.76.4.1).
-//
-// TWO RULES HOLD THIS DESIGN UP, and everything below is one of them asserted
-// from a different angle:
+// The config store. Two rules hold the design up, and everything below is one
+// of them asserted from a different angle:
 //
 //   1. An install that has not seeded behaves exactly as it did before. Every
 //      read falls back to the copy compiled into this Worker, so applying the
@@ -10,10 +8,9 @@
 //      outcome available, so a stale version and a stale `expect` each refuse
 //      with a sentence and change nothing.
 //
-// Against REAL Postgres, on purpose: the version guard, the one transaction
-// that writes documents and audit rows together, and the store's own checks
-// are facts about the store rather than about a mock. Each test has its own
-// store on this runtime's copy (test/clean-start.ts).
+// Against real Postgres: the version guard, the one transaction that writes
+// documents and audit rows together, and the store's own checks are facts
+// about the store rather than about a mock.
 
 import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -30,7 +27,7 @@ import {
 } from '../src/config-store.js';
 import { emptyTables, reset } from './helpers.js';
 // The copy compiled into the Worker under test (the suite's fixture config) —
-// what a reader shows for a key a stored document lacks (bead `ro-dk4u`).
+// what a reader shows for a key a stored document lacks.
 import bundledConstants from './fixture-config/constants.json';
 
 const NOW = Date.parse('2026-09-05T09:00:00.000Z');
@@ -60,16 +57,11 @@ async function seedTower(countdownLabel = 'Launch'): Promise<number> {
   return result.seeded[0]!.version;
 }
 
-/**
- * `config/integrations.json` as the store holds it before an operator has mapped
- * anything: one lane row, its posture written down, and NO mapping field — which
- * is the state every asset starts in (bead `ro-j71v`).
- *
- * Seeded rather than left to the compiled fallback on purpose: the fallback is
- * the operator's own file, and a case about one lane row must state the row it
- * is about. (It is also a COPY since bead `ro-pg1l` — the case below pins that
- * — so a write can no longer reach the module object either way.)
- */
+/** `config/integrations.json` as the store holds it before an operator has
+ * mapped anything: one lane row, its posture written down, and no mapping
+ * field — the state every asset starts in. Seeded rather than left to the
+ * compiled fallback because a case about one lane row must state the row it
+ * is about; it is also a copy, which the case below pins. */
 async function seedIntegrations(): Promise<void> {
   const result = await seedConfigDocuments(
     env,
@@ -247,8 +239,8 @@ describe('writing', () => {
   });
 
   it('seeds an unseeded document from the compiled copy rather than refusing', async () => {
-    // The whole point of the epic: a freshly deployed Tower can save without a
-    // terminal step. The audit row says the document entered the store here.
+    // A freshly deployed Tower can save without a terminal step. The audit row
+    // says the document entered the store here.
     const result = await applyConfigOps(
       env,
       {
@@ -272,11 +264,11 @@ describe('writing', () => {
     expect(read.body).toMatchObject({ refresh: { windowDays: 20 } });
   });
 
-  // THE FIRST SAVE OF THE TV LAYOUT ON A NEW INSTALLATION (bead `ro-nuz9`).
-  // The product's config/tower.json ships `"wall": null`; a store seeded
-  // without that key holds no `/wall` at all. The editor guards its first Save
-  // with the `null` it read, and both stores must take it — then take the next
-  // Save, guarded by the layout the first one wrote.
+  // The first Save of the TV layout on a new installation: the product's
+  // config/tower.json ships `"wall": null`; a store seeded without that key
+  // holds no `/wall` at all. The editor guards its first Save with the `null`
+  // it read, and both stores must take it — then the next Save, guarded by the
+  // layout the first one wrote.
   it.each([
     ['the product default, "wall": null', { readme: 'config/tower.README.md', wall: null }],
     ['a document with no /wall key', { readme: 'config/tower.README.md' }],
@@ -320,10 +312,9 @@ describe('writing', () => {
     expect(read.body).toEqual({ readme: 'config/tower.README.md', wall: updated });
   });
 
-  // A SETTING SHOWN FROM THE BUILT-IN COPY (bead `ro-dk4u`). A stored
-  // constants document seeded before a key existed lacks it; Settings shows
-  // the value compiled into the Workers and guards its Save with it. The Save
-  // was refused as "Changed elsewhere"; now it creates the key, and the next
+  // A setting shown from the built-in copy: a stored constants document seeded
+  // before a key existed lacks it; Settings shows the value compiled into the
+  // Workers and guards its Save with it. The Save creates the key, and the next
   // Save is guarded by what it saved.
   it.each([
     ['monthly_caps', '/monthly_caps/data_usd', 'data_usd', (d: Record<string, unknown>) => { delete d.monthly_caps; }],
@@ -350,13 +341,10 @@ describe('writing', () => {
   });
 
   it('refuses a /wall the television could not draw, in the editor\'s own words', async () => {
-    // THE THIRD DOOR (bead `ro-lzmq.3`). `config/tower.json` is wholesale
-    // editable, so no register or knob has an opinion about `/wall` — and until
-    // today the layout rule lived only in the Tower's dev write lane, which
-    // meant this door and `pnpm config:apply` both accepted a layout whose
-    // first reader would be the television. The rule now lives in
-    // scripts/wall-layout.mjs, which validateSchemaAndSafety runs, so every
-    // door refuses in the sentence the editor prints under Save.
+    // `config/tower.json` is wholesale editable, so no register or knob has an
+    // opinion about `/wall`; the layout rule lives in scripts/wall-layout.mjs,
+    // which validateSchemaAndSafety runs, so every door refuses in the sentence
+    // the editor prints under Save.
     await seedTower();
     const result = await applyConfigOps(
       env,
@@ -416,20 +404,13 @@ describe('writing', () => {
     });
   });
 
-  // THE COMPILED COPY IS READ-ONLY FOR THE LIFE OF THE ISOLATE (bead `ro-pg1l`).
-  //
-  // A write seeds an unseeded document from the copy compiled into this Worker,
-  // and `applyDocumentOps` mutates the document it is handed — by design; the
-  // caller owns persisting it. So a read that answered the module object itself
-  // meant the FIRST save on an unseeded install rewrote the Worker's own
-  // compiled config in memory, before a single D1 statement ran. It normally
-  // hides behind the store, and shows up the moment a write does not land: the
-  // isolate keeps answering reads with an edit nobody persisted, and rule 1 at
-  // the top of this file stops being true.
-  //
-  // Emptying the table is that failure, made deliberate: the store holds
-  // nothing again, so the next read is the compiled copy, and it must be the
-  // one this Worker shipped with.
+  // The compiled copy is read-only for the life of the isolate. A write seeds
+  // an unseeded document from the copy compiled into this Worker, and
+  // `applyDocumentOps` mutates the document it is handed — the caller owns
+  // persisting it. A read that answered the module object itself would let the
+  // first save on an unseeded install rewrite the Worker's own compiled config
+  // in memory, and rule 1 above would stop being true the moment a write did
+  // not land. Emptying the table is that failure, made deliberate.
   it('leaves the copy compiled into this Worker untouched when it seeds from it', async () => {
     const before = (await getConfigDocument(env, 'config/signal-panels.json')).body;
     expect(before).toMatchObject({ refresh: { windowDays: 35 } });
@@ -461,9 +442,7 @@ describe('writing', () => {
     expect(read.body).toMatchObject({ refresh: { windowDays: 35 } });
     expect(read.body).toEqual(before);
 
-    // And the same op is still a first write rather than a stale one — which is
-    // how the defect was found: two consecutive saves with the table emptied in
-    // between saw the first one's value.
+    // And the same op is still a first write rather than a stale one.
     const again = await applyConfigOps(
       env,
       {
@@ -486,12 +465,10 @@ describe('writing', () => {
     });
   });
 
-  // THE STAMP IS THE PIPELINE'S, NOT THE LANE'S (bead `ro-auav`). The file's own
-  // `updated` was refreshed by nothing, so an asset filed from the wizard or a
-  // posture recorded on a Sources tab left the document naming a day before the
-  // change. The rule lives in `applyDocumentOps`, which is what BOTH halves run
-  // — so this asserts the deployed path stamps exactly what the dev write lane's
-  // own suite asserts for a file, from the changeset's own instant.
+  // The stamp is the pipeline's, not the lane's: the rule lives in
+  // `applyDocumentOps`, which both halves run, so this asserts the deployed
+  // path stamps exactly what the dev write lane's own suite asserts for a
+  // file, from the changeset's own instant.
   it("refreshes the date a document states about itself, from the write's own day", async () => {
     const result = await applyConfigOps(
       env,
@@ -514,11 +491,9 @@ describe('writing', () => {
     expect(read.body).toMatchObject({ updated: '2026-09-05', refresh: { windowDays: 42 } });
   });
 
-  // The other half of the same rule (bead `ro-6kd6`): `since` on the roster
-  // means "when the decision was taken", and `enabled` IS the decision, so a
-  // flip that left the old date behind was the row's only audit trail lying.
-  // Declared on the register, applied by the shared pipeline — which is why the
-  // deployed door does it without knowing anything about a roster.
+  // `since` on the roster means when the decision was taken, and `enabled` is
+  // the decision. Declared on the register, applied by the shared pipeline —
+  // which is why the deployed door does it without knowing about a roster.
   it("dates a roster row's decision when the decision changes", async () => {
     const result = await applyConfigOps(
       env,
@@ -572,13 +547,10 @@ describe('writing', () => {
     expect((await getConfigDocument(env, 'config/tower.json')).version).toBe(1);
   });
 
-  // THE FIRST MAPPING SAVED ON AN ASSET (bead `ro-j71v`). Every mapping field in
-  // `config/integrations.json` is sparse — the key is absent until an operator
-  // maps the asset — so an empty-string guard was compared against MISSING and
-  // every first save on the Sources tab came back stale. The rule lives in the
-  // shared pipeline, which is why the DEPLOYED door proves it too: `expectAbsent`
-  // is the guard for a key that is not there, and it creates that one declared
-  // optional field and nothing above it.
+  // Every mapping field in `config/integrations.json` is sparse — the key is
+  // absent until an operator maps the asset. `expectAbsent` is the guard for a
+  // key that is not there, and it creates that one declared optional field and
+  // nothing above it.
   it('writes the first value into a field nothing had written yet', async () => {
     await seedIntegrations();
     const result = await applyConfigOps(
@@ -676,13 +648,9 @@ describe('writing', () => {
     }
   });
 
-  // AND BACK OFF AGAIN (bead `ro-pkpz`). Nothing could remove a mapping field
-  // once it was written — clearing the box is refused, because a field rule
-  // reads `""` as a blank string rather than as "take this away" — so an asset
-  // could be re-mapped but never handed back to the fallback source, and a first
-  // save carried no Undo because its inverse had no op. The delete is licensed
-  // at the same pointer `expectAbsent` is, by the same predicate, which is why
-  // the deployed door proves it beside the first write.
+  // A mapping field can be taken back off: `""` is a blank string, not
+  // removal, so the delete is licensed at the same pointer `expectAbsent` is,
+  // by the same predicate.
   it('takes a mapping back off, and leaves the rest of the row alone', async () => {
     await seedIntegrations();
     const wrote = await applyConfigOps(
@@ -874,7 +842,7 @@ describe('writing', () => {
       },
       NOW,
     );
-    // The refusal is the route the write belongs to (bead ro-ujb9.96.6.29).
+    // The refusal is the route the write belongs to.
     expect(result).toMatchObject({
       ok: false,
       error: 'store_op_not_accepted',
@@ -903,8 +871,8 @@ describe('writing', () => {
   });
 
   it('lands several files together or not at all', async () => {
-    // An asset is born into three registers at once (ro-z349.1). One stale op
-    // refuses the whole set, and neither document moves.
+    // An asset is born into three registers at once. One stale op refuses the
+    // whole set, and neither document moves.
     await seedConfigDocuments(
       env,
       {

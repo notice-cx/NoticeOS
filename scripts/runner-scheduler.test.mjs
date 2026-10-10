@@ -15,7 +15,7 @@ import {
   waitForRuntime,
 } from './runner/scheduler.mjs';
 
-// scripts/runner/scheduler.mjs (bead ro-ujb9.22): when the lanes fire. It is
+// scripts/runner/scheduler.mjs: when the lanes fire. It is
 // handed the coordinator's lane table and never imports a lane itself. Nothing
 // here arms the real scheduler: that reads the store through the live door.
 

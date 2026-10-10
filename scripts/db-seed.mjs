@@ -1,41 +1,23 @@
 #!/usr/bin/env node
-// db-seed.mjs — `pnpm seed:local`: a new installation's store filled with
-// invented history, so a developer sees a populated Tower without real data
-// (bead ro-ujb9.76.57).
+// `pnpm seed:local`: a new installation's store filled with invented history.
 //
 //   pnpm seed:local                     # the installation `pnpm start` keeps in .local/start
 //   pnpm seed:local -- --dir <folder>   # the one it keeps in <folder>
 //
-// WHAT IT WRITES. db/fixtures/dev-seed.json: rows of the Postgres store's own
-// tables — two invented sites, fourteen nights of their reports, five alerts,
-// two months of money and the change a build cost was spent on, two counter
-// readings, six change notes. In ONE transaction, through the one helper
-// (packages/postgres), as the application login: every row passes the grants
-// and row security a Worker's write passes, the store hands out every number
-// and every site's place, and a failure keeps nothing, so a developer sees
-// one populated Tower or none.
+// It writes db/fixtures/dev-seed.json in one transaction, through the one
+// helper (packages/postgres), as the application login, so every row passes
+// the grants and row security a Worker's write passes and a failure keeps
+// nothing. It reaches the installation `pnpm start` made in the folder through
+// DATABASE_URL in that folder's secrets file, checked as `pnpm start` checks
+// it; never the checkout's own secrets and never the managed service's
+// installation. No local store file is opened.
 //
-// WHERE. The installation `pnpm start` made in the folder, reached by the one
-// fact `pnpm start` reads: DATABASE_URL in that folder's secrets file, checked
-// as `pnpm start` checks it (scripts/database-address.mts). Never the
-// checkout's own secrets and never the managed service's installation. No
-// local store file is opened, so it runs beside a started Tower as well as
-// before one; the D1 half of the store is not touched at all.
-//
-// IT REFUSES, WRITING NOTHING, when:
-//   - the folder is not one `pnpm start` made;
-//   - its database does not say it is for development
-//     (`noticeos.profile = 'development'`, scripts/postgres-profile.mjs). A
-//     `pnpm start` folder takes the Compose profile's address by default,
-//     which is an installation's own database, and invented rows never go
-//     into one: `pnpm postgres:migrate` refuses a
-//     database with that mark, so a database is seedable or real, never both;
-//   - the store already holds a row in a table the fixture fills, or a site
-//     on one of its ids or domains. The rows are invented, and nothing in a
-//     row says so: mixed in with reports the OS really received, no query
-//     and no operator could tell them apart again.
-// The last two are decided inside the writing transaction, behind a
-// transaction lock, so two seeds at once seed once.
+// It refuses, writing nothing, when the folder is not one `pnpm start` made;
+// when its database is not marked `noticeos.profile = 'development'` (a
+// database is seedable or real, never both); and when the store already holds
+// a row in a table the fixture fills, or a site on one of its ids or domains,
+// because nothing in an invented row says so. The last two are decided inside
+// the writing transaction, behind a transaction lock.
 
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -227,8 +209,7 @@ export function parseArgs(argv) {
 
 /**
  * Seed the store of the installation `pnpm start` keeps in `dir`, or refuse
- * and say why. Returns the exit code rather than calling process.exit, so the
- * refusals are testable; `fixture` is injectable for the same reason.
+ * and say why. Returns the exit code.
  */
 export async function seedLocal({ dir = null, root = REPO_ROOT, fixture = null } = {}) {
   const plan = startPlan({ root, dir });

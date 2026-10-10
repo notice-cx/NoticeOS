@@ -5,7 +5,7 @@ import { createHostedTaskOperations, HostedTaskReceiptsUnavailable } from './hos
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { fakeTaskExecutor, memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 
-// scripts/hosted-task-operations.mts (epic ro-cvl9): retry-safe writes over the
+// scripts/hosted-task-operations.mts: retry-safe writes over the
 // shared fakes in test-fixtures/hosted-task-fakes.mjs.
 
 const [A, B, P, S, PERSON, OTHER] = ['11111111', '22222222', '33333333', '44444444', '55555555', '66666666']

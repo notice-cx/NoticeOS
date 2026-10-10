@@ -2,7 +2,7 @@
 // The local runner's schedule: one timer per enabled job, re-armed from the
 // saved schedules the config store holds. Node-only.
 //
-// Authored TypeScript (bead ro-ujb9.61): `pnpm config:generate` writes the
+// Authored TypeScript: `pnpm config:generate` writes the
 // `.mjs` the local runner imports and the `.d.mts` the Tower's Vite lane reads.
 import { Cron } from 'croner';
 import { configStoreRequest, CONFIG_DOCUMENTS_PATH } from './config-store-client.mjs';

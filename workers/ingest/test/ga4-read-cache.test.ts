@@ -100,7 +100,7 @@ describe('shared Google read budget', () => {
     await cachedGa4Read({ ...ctx, scope: 'property-b' }, 'realtime', NOW, 30_000, read);
     expect(read).toHaveBeenCalledTimes(2);
   });
-  it('never serves yesterday’s chart: the new day’s key reads once at midnight, inside the last cooldown (ro-trai.40)', async () => {
+  it('never serves yesterday’s chart: the new day’s key reads once at midnight, inside the last cooldown', async () => {
     const ctx = await context();
     await cachedGa4Read({ ...ctx, version: 'day-one' }, 'hourly', NOW, 900_000, async () => 'yesterday');
     const read = vi.fn(async () => 'today');
@@ -117,8 +117,7 @@ describe('shared Google read budget', () => {
 });
 
 /** Lease rows as the read left them, instants in epoch milliseconds: a lease
- * given back ends at the epoch (0), and no cooldown yet (NULL) reads as 0, as
- * D1 kept both. */
+ * given back ends at the epoch (0), and no cooldown yet (NULL) reads as 0. */
 async function leaseRow(capability = 'realtime', scope = 'property-a') {
   const [row] = await env.STORE.read((tx) => tx.query<{ expires_at: string; cooldown_until: string | null; last_error: string | null }>(
     'SELECT expires_at, cooldown_until, last_error FROM noticeos.integration_leases WHERE lease_key = $1', [`ga4-read:${scope}:${capability}`]));
@@ -127,7 +126,7 @@ async function leaseRow(capability = 'realtime', scope = 'property-a') {
   return { expires_at: ms(row.expires_at), cooldown_until: row.cooldown_until === null ? 0 : ms(row.cooldown_until), last_error: row.last_error };
 }
 
-describe('an empty cache never blanks the Wall for a success cooldown (ro-trai.40)', () => {
+describe('an empty cache never blanks the Wall for a success cooldown', () => {
   it('reads at once when the cache is empty and only a success cooldown is held', async () => {
     const ctx = await context();
     await cachedGa4Read(ctx, 'hourly', NOW, 900_000, async () => 'before the deploy');

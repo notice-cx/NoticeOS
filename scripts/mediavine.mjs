@@ -36,7 +36,7 @@ export function parseArgs(argv) {
 export async function run(options, fetcher = fetch) {
   const url = new URL(`/api/integrations/mediavine/${options.command}`, options.url);
   if (options.command === 'status') url.searchParams.set('asset', options.asset);
-  // `sites` is the connect panel's own listing (bead ro-ujb9.96.7.6).
+  // `sites` is the connect panel's own listing.
   const method = options.command === 'sync' ? 'POST' : 'GET';
   const response = await fetcher(url, {
     method, redirect: 'error', signal: AbortSignal.timeout(120_000),

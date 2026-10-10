@@ -1,12 +1,10 @@
 // A synthetic, healthy six-site Wall for the Wall journeys and every Wall
-// capture (beads ro-n5ya, ro-yo4h, ro-trai.12). The Wall's own read models need
-// weeks of provider rows to draw a full site row, so the journeys answer
-// /api/wall, /api/ga4/realtime and the source-health reads from here: the
-// SHAPES are the Tower's payload types, the values are invented, and nothing
-// here comes from the owner's config. `WallFixtureVariant` is the same Wall at
-// every site count the contract budgets for, and on fire. The
-// sites are invented too, on the reserved `.example` domain (bead ro-trai.16):
-// every Wall capture drawn from this file shows a stranger's install.
+// capture. The Wall's own read models need weeks of provider rows to draw a
+// full site row, so the journeys answer /api/wall, /api/ga4/realtime and the
+// source-health reads from here: the shapes are the Tower's payload types,
+// the values are invented, and the sites are on the reserved `.example`
+// domain. `WallFixtureVariant` is the same Wall at every site count the
+// contract budgets for, and on fire.
 import type {
   CalendarUpcoming, CredentialSummary, Ga4MinuteRow, Ga4RealtimeAsset, Ga4RealtimePayload, IntegrationHealthItem,
   IntegrationHealthPayload,
@@ -34,10 +32,8 @@ function days(values: number[]): SeriesPoint[] {
 }
 
 /** Ninety days of a weekly-seasonal series, as the payload carries them: the
- * 28 the Wall draws and the 62 before them (`contextSeries`); the last point is
- * today, provisional. The newest 35 days are the ones this fixture has always
- * had; the earlier ones run the same wave back in time, a little lower, so the
- * four weeks before the drawn four are whole (bead ro-trai.26). */
+ * 28 the Wall draws and the 62 before them (`contextSeries`); the last point
+ * is today, provisional. */
 function trend(scale: number, seed: number): AssetCard["activeUsers"] {
   const values = Array.from({ length: 90 }, (_, k) => {
     const i = k - 55;
@@ -135,7 +131,7 @@ const PORTFOLIO = { netTrendCurrency: 'USD', netTrendAllCurrency: 'USD',
   netTrend: [612, 744, 803, 931].map((v, i) => ({ t: `2026-0${5 + i}`, v })),
   netTrendAll: [612, 744, 803, 931, 1088].map((v, i) => ({ t: `2026-0${5 + i}`, v })),
   trendGranularity: "monthly",
-  // The comparison that clipped at 1920 (ro-n5ya): "AUG ↑$128 VS JUL".
+  // The longest comparison the band draws: "AUG ↑$128 VS JUL".
   bookedDelta: { currency: 'USD', value: 128, percent: 15.9, period: "2026-08", priorPeriod: "2026-07" },
   residue: { booked: ZERO, forecast: ZERO }, firstRun: false, daysIn: 22,
 } as PortfolioBand;
@@ -154,8 +150,7 @@ const ATTENTION = [{
 }] as AttentionItem[];
 
 /**
- * The Wall at every size the contract budgets for (docs/14-design.md
- * § Density and § Budget, bead ro-trai.12), all from the six sites above:
+ * The Wall at every size the contract budgets for, all from the six sites above:
  *
  *   one, two, three  the first one, two or three sites (the focus and roomier tiers)
  *   six              the fixture as it is: healthy, one warning, one site still waiting
@@ -236,8 +231,8 @@ function hourly(scale: number): NonNullable<Extract<Ga4RealtimeAsset, { status: 
   return shape.map((f, hour) => ({ hour, today: hour <= 12 ? Math.round(scale * f * 1.07) : null, sameDayLastWeek: Math.round(scale * f) }));
 }
 
-/** A site's last 30 minutes as GA4 sends them — newest first, quiet
- * minutes left out — for the minute pulse (bead ro-trai.27). */
+/** A site's last 30 minutes as GA4 sends them, newest first, quiet minutes
+ * left out, for the minute pulse. */
 function minuteRows(scale: number): Ga4MinuteRow[] {
   return Array.from({ length: 30 }, (_, minutesAgo) => ({
     minutesAgo,
@@ -246,10 +241,9 @@ function minuteRows(scale: number): Ga4MinuteRow[] {
 }
 
 /** Every site reading live, except the first site's reading is `staleMinutes`
- * old — the state whose words once squeezed that site's totals column
- * (ro-yo4h). The variants read what their Wall draws: fewer sites, the extra
- * sites at the third site's hours scaled down, or the fourth site down since
- * noon (`fire`). */
+ * old. The variants read what their Wall draws: fewer sites, the extra sites
+ * at the third site's hours scaled down, or the fourth site down since noon
+ * (`fire`). */
 export function wallFixtureRealtime(staleMinutes = 20, variant: WallFixtureVariant = "six"): Ga4RealtimePayload {
   const scales: Record<string, number> = { "plate.example": 150, "menus.example": 64, "fitness.example": 22, "areas.example": 10, "rates.example": 5 };
   const readAt = (asset: string) => NOW - (asset === "plate.example" ? staleMinutes * MINUTE : 12_000);

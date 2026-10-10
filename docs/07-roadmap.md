@@ -1,18 +1,17 @@
 # 07 — Roadmap
 
-*v2. Phases re-cut against the loop, and every exit criterion is now a number —
-v1's "consistently useful," "healthy accept rate," and "no prod incidents"
-gated the most consequential decisions on feel. Each phase still ships
-something independently useful, and each phase adds a **Learn artifact**: from
-day one the system is graded on whether it knows what works, not only on
-whether it works.*
+*Phases cut against the loop, and every exit criterion is a number — "consistently
+useful," "healthy accept rate," and "no prod incidents" would gate the most
+consequential decisions on feel. Each phase ships something independently
+useful, and each phase adds a **Learn artifact**: from day one the system is
+graded on whether it knows what works, not only on whether it works.*
 
 ## Phase 0 — Ledger + contract on two nodes
 
 Repo, central store, Tower shell behind CF Access, GitHub App. The first
 two sites emit contract-compliant pulses; revenue & cost ingestion live (even
 if revenue is "AdSense + CJ exports" initially); `OPERATOR_RATE` set; both
-assets' `AGENTS.md` written with `reviewed:` dates and STATE separation.
+assets' `AGENTS.md` written dated, with facts separated from rules.
 
 **Exit (all numeric):** 2 assets × 14 consecutive days of pulses with zero
 ingest-freshness flags; ledger shows revenue + cost rows for a full calendar
@@ -99,10 +98,9 @@ its own medicine to itself)
 
 ## Product scope
 
-The original roadmap deferred selling NoticeOS until demonstrated portfolio
-ROI and inbound demand. The owner expanded open-source readiness on 2026-10-01
-to include hosted tenant isolation and a real public demo workspace (D39).
-Customer onboarding is initially invitation-only; public demo exploration is
-read-only. [Doc 23](23-configuration-ownership.md) defines the trust boundary,
-and `ro-ujb9.289` carries implementation. This does not add billing or authorize
-public production activation. The portfolio ROI and autonomy gates above remain.
+Selling NoticeOS waits on demonstrated portfolio ROI and inbound demand.
+Open-source readiness includes hosted tenant isolation and a real public demo
+workspace. Customer onboarding is initially invitation-only; public demo
+exploration is read-only. [Doc 23](23-configuration-ownership.md) defines the
+trust boundary. None of this adds billing or authorizes public production
+activation. The portfolio ROI and autonomy gates above remain.

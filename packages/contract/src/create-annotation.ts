@@ -1,14 +1,7 @@
-/** Cross-Worker contract for the annotation write.
- *
- * The ingest Worker owns the `annotations` table and the operator bearer that
- * guards its HTTP lane. The Control Tower is served unauthenticated on the
- * trusted LAN, so it must never hold that bearer — it reaches this one write
- * through the private INGEST Service Binding instead, where the binding itself
- * is the capability. Same posture as the GA4 realtime read: plain data crosses,
- * never a credential.
- *
- * Every field of the input is re-validated inside ingest. These types describe
- * the shape a caller intends, not a shape ingest is willing to trust.
+/** Cross-Worker contract for the annotation write. The ingest Worker owns the
+ * `annotations` table; the Tower reaches the write through the private ingest
+ * Service Binding, and plain data crosses, never a credential. Every field is
+ * re-validated inside ingest.
  */
 import type { AnnotationKind } from './schema.js';
 
@@ -38,7 +31,7 @@ export interface AnnotationRow {
 }
 
 /** One rejected field, in the same `{path, code, message}` shape the operator
- * HTTP routes report — one validation vocabulary, whichever lane called. */
+ * HTTP routes report. */
 export interface AnnotationIssue {
   path: string;
   code: string;
@@ -46,13 +39,10 @@ export interface AnnotationIssue {
 }
 
 /**
- * The outcome of one write attempt.
- *
- * A rejected field and an unknown asset are RESULTS, not thrown errors: both
- * are ordinary answers a caller renders. Only an infrastructure failure (a D1
- * error) throws across the binding. `created: false` is the idempotent case —
- * identity is `(asset, at, kind, ref)`, so a re-post returns the row already
- * there rather than a second one.
+ * The outcome of one write attempt. A rejected field and an unknown asset are
+ * results, not thrown errors; only an infrastructure failure throws.
+ * `created: false` is the idempotent case: identity is `(asset, at, kind,
+ * ref)`, so a re-post returns the row already there.
  */
 export type CreateAnnotationResult =
   | { ok: true; created: boolean; annotation: AnnotationRow }

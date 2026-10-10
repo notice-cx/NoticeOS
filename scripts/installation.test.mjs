@@ -1,4 +1,4 @@
-// One resolver for "this installation's folder" (bead ro-ujb9.125).
+// One resolver for "this installation's folder".
 //
 // config/ holds the product's generic defaults; the installation folder
 // (`installation/`, or NOTICEOS_INSTALLATION_DIR) holds one installation's own
@@ -108,7 +108,7 @@ test('the runner resolves the stored task projects against the installation\'s l
 });
 
 test('a folder pnpm start made, with no inventory at all, links no checkouts rather than failing', async (t) => {
-  // bead ro-ujb9.174: not a checkout, so neither its own copy nor a default.
+  // Not a checkout, so neither its own copy nor a default.
   const started = await checkout(t);
   assert.deepEqual(await readTaskHost({ repoRoot: started, absentLinksNone: true }), { repositories: [] });
   // The managed host's backup reads a lost inventory as lost, not as empty.

@@ -9,14 +9,12 @@ import {
 } from '../src/alert-daily.js';
 import { emptyTables, insertFlag, pgRows, reset } from './helpers.js';
 
-// The nightly rollup that gives /alerts' Open and Median-age figures a series
-// (db/0033, bead `ro-78qo.36`).
+// The nightly rollup that gives /alerts' Open and Median-age figures a series.
 //
 // The writer is driven directly rather than through `runAssetZeroPulse`,
 // because what is being asserted is the arithmetic; that the nightly lane calls
 // it is one line in `db.ts` and is asserted there by the pulse suite continuing
-// to pass. On Postgres (bead ro-ujb9.76.5.2) the portfolio's row is the one with
-// no site, read here as `*`.
+// to pass. The portfolio's row is the one with no site, read here as `*`.
 
 beforeEach(reset);
 

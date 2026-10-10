@@ -42,18 +42,18 @@ import {
 import { documentRefusal } from './config-documents.mjs';
 import { installationPath } from './installation.mjs';
 
-// THE DECLARATION IS ONLY TRUE IF IT DESCRIBES THE FILES (bead ro-x5gu.1).
+// The declaration is only true if it describes the files.
 //
 // `config-registers.mjs` is read by two things that cannot check each other: the
 // changeset pipeline, which refuses a row the declaration does not allow, and
 // the Tower, which builds a table out of the same fields. Neither notices when a
-// register drifts from the file it claims to describe — a renamed key, a
+// register drifts from the file it claims to describe (a renamed key, a
 // container pointer that resolves nowhere, an enum missing a value the file
-// already holds. This is what notices.
+// already holds). This is what notices.
 //
 // It reads the REAL config files, deliberately. A fixture would pass forever:
 // the product's defaults in config/, and this installation's own copies when
-// the checkout carries them (bead ro-ujb9.125).
+// the checkout carries them.
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -121,10 +121,9 @@ test('every register is well formed', () => {
         assert.notEqual(field.defaultFrom, field.name, `${key}.${field.name}: defaultFrom is another field`);
       }
       // A read-only field with no stated state is a control that vanished and
-      // never said why (bead `ro-xhy5`). It states one — "Fixed once added",
-      // or its own label-length state — and never a paragraph (bead
-      // `ro-ujb9.96.6.17`): the lock is the explanation, and why a key is fixed
-      // is the declaration's comment.
+      // never said why. It states one ("Fixed once added", or its own
+      // label-length state) and never a paragraph: the lock is the explanation,
+      // and why a key is fixed is the declaration's comment.
       if (field.readOnly === true) {
         const state = fixedFieldLabel(field);
         assert.ok(typeof state === 'string' && state.length > 0, `${key}.${field.name}: readOnly states its state`);
@@ -160,7 +159,7 @@ test('every register is well formed', () => {
 // the declaration has to accept what is already committed, because a rule
 // stricter than the file refuses the operator's own data back at them the first
 // time they edit a row. Both are the whole-document check the Tower's build
-// runs on the defaults it compiles in (`documentRefusal`, bead ro-ujb9.222).
+// runs on the defaults it compiles in (`documentRefusal`).
 test('every document a register names passes the whole-document check, shipped and saved', () => {
   const offenders = [];
   for (const file of registerFiles()) {
@@ -173,8 +172,8 @@ test('every document a register names passes the whole-document check, shipped a
 });
 
 // A `unique` column the committed file already repeats is a rule the Add form
-// would enforce against the operator while the file itself breaks it — the
-// worst of both, and the reason this reads the real files too (bead ro-x5gu.5).
+// would enforce against the operator while the file itself breaks it: the
+// worst of both, and the reason this reads the real files too.
 test('no committed row repeats a value its register declares unique', () => {
   const offenders = [];
   for (const [key, register] of registerEntries()) {
@@ -219,8 +218,8 @@ test('a pointer resolves to the register that owns it, and to its row and field'
 
   // One file, two containers.
   // `config/integrations.json` holds three registers, and the longest container
-  // wins at every depth (bead `ro-vu8d.4`): the whole asset entry belongs to the
-  // holder, one lane inside it to `asset-lane`, and the catalog to its own.
+  // wins at every depth: the whole asset entry belongs to the holder, one lane
+  // inside it to `asset-lane`, and the catalog to its own.
   assert.equal(matchRegister('config/integrations.json', '/assets/meals.example').key, 'asset-lane');
   const laneField = matchRegister('config/integrations.json', '/assets/meals.example/ga4/propertyId');
   assert.equal(laneField.key, 'asset-lane');
@@ -260,7 +259,7 @@ test('resolveContainer fills the asset in, and refuses to guess one', () => {
   assert.ok(!containerRegExp(register).test('/assets/nosh.example/other'));
 });
 
-test('a field refusal names the field by its label and the rule it broke (ro-ujb9.154)', () => {
+test('a field refusal names the field by its label and the rule it broke', () => {
   const domain = CONFIG_REGISTERS['domain-costs'];
   assert.equal(fieldRefusal(fieldOf(domain, 'paidUsd'), 12.5), null);
   assert.match(fieldRefusal(fieldOf(domain, 'paidUsd'), 'twelve'), /^Paid \(USD\) must be a number$/);
@@ -287,11 +286,11 @@ test('a field refusal names the field by its label and the rule it broke (ro-ujb
   assert.equal(fieldRefusal({ name: 'retries', label: '', type: 'integer', required: true }, 'x'), 'retries must be a number');
 });
 
-// A REFUSAL KNOWS ITS FIELD (bead `ro-ujb9.184`): the Add form outlines the one
-// input a refusal is about, so the row and duplicate checks say which field it
-// is — or none, when the refusal is the row's as a whole. The lane and the CLI
-// read the same sentence through `rowRefusal` and `duplicateKey`.
-test('a row refusal names the field it is about, or none for the whole row (ro-ujb9.184)', () => {
+// A refusal knows its field: the Add form outlines the one input a refusal is
+// about, so the row and duplicate checks say which field it is, or none when
+// the refusal is the row's as a whole. The lane and the CLI read the same
+// sentence through `rowRefusal` and `duplicateKey`.
+test('a row refusal names the field it is about, or none for the whole row', () => {
   const costs = CONFIG_REGISTERS['recurring-costs'];
   const row = { id: 'chatgpt', label: 'ChatGPT Team', asset: 'plate.example', family: 'inference', amountUsdPerMonth: -5, from: '2026-09' };
   assert.deepEqual(rowIssue(costs, row), { field: 'amountUsdPerMonth', message: 'USD / month must be at least 0' });
@@ -309,12 +308,11 @@ test('a row refusal names the field it is about, or none for the whole row (ro-u
   assert.equal(duplicateIssue(costs, stored, { ...row, id: 'claude' }), null);
 });
 
-// A SITE'S ROW is refused in the same words (bead `ro-ujb9.183`): the ingest's
-// site lanes word every refusal through `fieldRefusal` over `SITE_ROW_FIELDS`,
-// so Add a site reads "Domain must be a hostname such as example.com" beside
-// its Domain input — never a request key ("domain must …") and never the
-// retired noun ("… a property id").
-test('a site row refusal names the field by its label and says site (ro-ujb9.183)', () => {
+// A site's row is refused in the same words: the ingest's site lanes word every
+// refusal through `fieldRefusal` over `SITE_ROW_FIELDS`, so Add a site reads
+// "Domain must be a hostname such as example.com" beside its Domain input,
+// never a request key ("domain must …") and never "… a property id".
+test('a site row refusal names the field by its label and says site', () => {
   const { id, displayName, domain, status, senseOnly } = SITE_ROW_FIELDS;
   assert.equal(fieldRefusal(domain, 'shop.example.com'), null);
   assert.equal(fieldRefusal(domain, undefined), null, 'a site with no domain is a service');
@@ -346,17 +344,16 @@ test('a site row refusal names the field by its label and says site (ro-ujb9.183
   }
 });
 
-// THE THREE JOIN KEYS (bead `ro-xhy5`). Each is set when its row is created and
-// never after, because a rename here breaks something in a file this pipeline
-// does not edit — the catalog id every asset entry and collector names, the
-// recurring-cost id the ledger's idempotency key is built from, and the domain a
-// registrar's export is reconciled against.
+// The three join keys. Each is set when its row is created and never after,
+// because a rename here breaks something in a file this pipeline does not edit:
+// the catalog id every asset entry and collector names, the recurring-cost id
+// the ledger's idempotency key is built from, and the domain a registrar's
+// export is reconciled against.
 //
-// A recurring cost's monthly AMOUNT joined them (bead `ro-ujb9.96.6.17`): every
-// month already booked was booked at it and cost-import refuses a replay whose
-// amount moved, so a price change is the row's To plus a new row — Stripe's
-// rule for a price's amount — and the lane refuses the in-place edit that a
-// sentence under the To column used to forbid.
+// A recurring cost's monthly AMOUNT is a join key too: every month already
+// booked was booked at it and cost-import refuses a replay whose amount moved,
+// so a price change is the row's To plus a new row, Stripe's rule for a price's
+// amount.
 test('a join key may be set when the row is created and not renamed afterwards', () => {
   const fixed = [
     ['data-source-catalog', 'id'],
@@ -442,13 +439,13 @@ test('every register file is in the Tower\'s RegisterFile union', () => {
   }
 });
 
-// AN `asset-id` FIELD IS A SHAPE PLUS A CANDIDATE SET (bead `ro-x5gu.10`).
+// An `asset-id` field is a shape plus a candidate set.
 //
 // `fieldRefusal` can only judge the shape, because this module has no store and
-// no filesystem — so "meals.fod" passed every check and booked a recurring
-// cost against an asset that does not exist. The candidates come from whoever
-// knows: the browser passes the integration matrix's asset list, the apply
-// pipeline passes the roster below. One function, one sentence, both ends.
+// no filesystem, so a typo would book a recurring cost against an asset that
+// does not exist. The candidates come from whoever knows: the browser passes
+// the integration matrix's asset list, the apply pipeline passes the roster
+// below. One function, one sentence, both ends.
 test('a candidate set refuses an id nobody has, and an empty one refuses nothing', () => {
   const field = fieldOf(CONFIG_REGISTERS['recurring-costs'], 'asset');
   const known = ['root-os', 'meals.example', 'nosh.example'];
@@ -473,14 +470,13 @@ test('a candidate set refuses an id nobody has, and an empty one refuses nothing
   assert.equal(candidateRefusal(field, many, 'g'), 'asset "g" is not one of a, b, c, d, e, …');
 });
 
-// A PICKER IS NOT AN ALLOWLIST (bead `ro-g318`).
+// A picker is not an allowlist.
 //
 // The same list means two different things depending on the field: an asset id
 // the OS does not have is a typo, and a cluster label the panel does not use yet
-// is a new bet. One prop did both jobs, so the tracked-query Bet column offered
-// no picker at all rather than one that refused every new cluster — and the
-// operator retyped a label by eye, which is exactly what `clusterSpellingRefusal`
-// exists to catch. The FIELD says which kind it is, once.
+// is a new bet. A picker that refused every new cluster would make the operator
+// retype a label by eye, which is exactly what `clusterSpellingRefusal` exists
+// to catch. The FIELD says which kind it is, once.
 test('an open-domain field offers its list as a picker and refuses nothing', () => {
   const label = fieldOf(CONFIG_REGISTERS['serp-panel-queries'], 'label');
   const inUse = ['Item head', 'Chain calories'];
@@ -504,13 +500,12 @@ test('an open-domain field offers its list as a picker and refuses nothing', () 
   }
 });
 
-// ONE CLUSTER, ONE SPELLING (bead `ro-cnsj`).
+// One cluster, one spelling.
 //
 // Grouping is an exact string match on the stored label, so "Item head" and
-// "Item Head" are two bets in the readout and one in the operator's head — and
+// "Item Head" are two bets in the readout and one in the operator's head, and
 // the collector (`trackedLabel` in workers/ingest/src/dataforseo-dumps.ts)
-// refuses the asset's whole panel for that run. Relabelling one row of a six-row
-// cluster therefore wrote a config that failed next Monday.
+// refuses the asset's whole panel for that run.
 test('a cluster label that only differs in case or spacing is refused', () => {
   const queries = CONFIG_REGISTERS['serp-panel-queries'];
   assert.equal(queries.clusterField, 'label', 'the cluster key is declared');
@@ -521,7 +516,7 @@ test('a cluster label that only differs in case or spacing is refused', () => {
     { query: 'mcchicken calories', label: 'Item head' },
   ];
 
-  // Row 2 relabelled into a spelling variant — the bead's own case.
+  // Row 2 relabelled into a spelling variant.
   const refusal = clusterSpellingRefusal(queries, rows, '2', label, 'Item Head');
   assert.match(refusal, /spells one cluster two ways/);
   assert.match(refusal, /"Item head" and "Item Head"/);
@@ -553,13 +548,12 @@ test('a cluster label that only differs in case or spacing is refused', () => {
   assert.equal(clusterSpellingRefusal(queries, rows, null, label, '  '), null);
 });
 
-// TURNING A ROSTER ROW ON IS A CLAIM ABOUT ANOTHER FILE (bead `ro-uko8`).
+// Turning a roster row on is a claim about another file.
 //
 // config/signal-panels.README.md states it and its own validation snippet
 // enforces it: an asset is enabled when at least one of its gsc / ga4 /
-// bing-webmaster lanes is live in config/integrations.json. Before the Growth
-// tab that row could only be hand-edited, where a person reading the README
-// beside the file was the check; a click needs the rule itself.
+// bing-webmaster lanes is live in config/integrations.json. A click needs the
+// rule itself, not a person reading the README beside the file.
 test('a roster row may only be turned ON when a search lane is live', () => {
   const roster = CONFIG_REGISTERS['signal-panels'];
   assert.equal(roster.requiresLiveSearchLane, true, 'the rule is declared on the register');
@@ -661,7 +655,7 @@ test('the settable four are still exactly four, and still exist', () => {
 });
 
 /**
- * THE TWO SENTENCES A LANE CARD CAN PRINT (bead `ro-vu8d.16`).
+ * The two sentences a lane card can print.
  *
  * The collectors read the register where an asset states a value and their old
  * source where it does not, so every mapped lane owes BOTH lines — `reads` for
@@ -679,8 +673,8 @@ test('every mapped lane states what reads it, and what reads it when nothing is 
     for (const field of spec.fields) {
       assert.ok(declared.has(field), `${id} maps ${field}, which asset-lane does not declare`);
     }
-    // A state, not a sentence (bead `ro-ujb9.96.6.4`): the fallback is a code
-    // the card draws as a chip, and every code has its chip.
+    // A state, not a sentence: the fallback is a code the card draws as a
+    // chip, and every code has its chip.
     assert.ok(Object.hasOwn(LANE_FALLBACK_LABEL, spec.fallback), `${id} names no known fallback`);
     assert.equal('reads' in spec, false, `${id} still carries a sentence`);
   }
@@ -693,7 +687,7 @@ test('every mapped lane states what reads it, and what reads it when nothing is 
 });
 
 /**
- * POSTHOG'S PER-ASSET SETTINGS (bead `ro-ghis.1`). Region and project are two
+ * PostHog's per-asset settings. Region and project are two
  * plain mapping fields; funnels are one structured list judged whole by the
  * portable contract's rule, so the store save, the Tower editor and the
  * collector refuse exactly the same values.

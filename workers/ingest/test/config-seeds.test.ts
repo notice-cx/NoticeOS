@@ -11,7 +11,7 @@ import shippedSerpPanel from '../../../config/serp-panel.json';
 
 describe('the committed config files', () => {
   // How often the counter cards are read, and what the Tower ages them
-  // against, is the counters job's schedule alone since bead ro-ujb9.222
+  // against, is the counters job's schedule alone
   // (apps/tower/worker/counters.ts `countersCadenceHours`), so no file here has
   // a cadence to hold to the cron.
 

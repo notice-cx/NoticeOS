@@ -74,7 +74,7 @@ test('records proof (one-line note + since) and does not edit status', () => {
     file: 'config/integrations.json',
     pointer: '/assets/meals.example/gsc/note',
     expect: 'central pull not built',
-    // One line replaces the note (bead ro-ujb9.96.6.4); it never grows a log.
+    // One line replaces the note; it never grows a log.
     value: MARKER,
   });
   assert.deepEqual(cs.ops[1], {
@@ -143,9 +143,9 @@ test('unknown property in proofs is ignored, not thrown', () => {
   assert.equal(suggestChangeset([{ integrationId: 'gsc', assets: ['ghost.example'] }], register, NOW), null);
 });
 
-// Bead ro-ujb9.120: a delivered Discord test proves the lane on the register's
-// row that carries it — read from the register, never an OS id written into
-// the script — and records exactly the note it always recorded there.
+// A delivered Discord test proves the lane on the register's row that carries
+// it, read from the register, never an OS id written into the script, and
+// records exactly the note it always recorded there.
 test('a delivered Discord test proves the discord-webhooks lane on the rows that carry it', async () => {
   const home = {
     assets: {
@@ -355,8 +355,8 @@ test('a property assigned to two service accounts fails closed before authentica
 // SAME per-asset map the ingest Worker checks pushes against (ASSET_TOKENS);
 // a property holds one secret, so there is no second map to drift from.
 // The probe reads scripts/fixture-config/pull.json, a frozen copy, never the
-// checkout's config/pull.json (bead ro-ujb9.97): enabling or retiring a pull
-// node there changes nothing here.
+// checkout's config/pull.json: enabling or retiring a pull node there changes
+// nothing here.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PULL_FIXTURE = fileURLToPath(new URL('./fixture-config/pull.json', import.meta.url));
@@ -716,16 +716,12 @@ test('a label that is really a url is withheld — the map written inside out', 
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The STORE half (beads ro-vu8d.10 / ro-vu8d.15).
-//
-// The bug these close: a provider connected in the product has no env binding at
-// all, and this script called it "not configured yet" — a false red on the one
-// tool the repo tells an operator to trust, about exactly the credentials the
-// epic was succeeding at moving. What is asserted here is that the checker asks
-// the running OS, believes BOTH of Google's ways in, proves a store credential
-// through the OS instead of decrypting anything, spends one test per provider
-// rather than one per lane, and falls back to the env-only check — saying so —
-// when the OS is not running.
+// The STORE half. A provider connected in the product has no env binding at
+// all, and must not read as "not configured yet". What is asserted here is that
+// the checker asks the running OS, believes BOTH of Google's ways in, proves a
+// store credential through the OS instead of decrypting anything, spends one
+// test per provider rather than one per lane, and falls back to the env-only
+// check, saying so, when the OS is not running.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ORIGIN = 'http://127.0.0.1:5173';
@@ -766,18 +762,17 @@ test('every lane names the catalog provider it belongs to, or says it has none',
     ga4: 'google',
     gsc: 'google',
     calendar: 'calendar',
-    // Clarity got its catalog row in bead `ro-vu8d.9` — as the first per-asset
-    // credential — so a store-only install stops reading as "not configured".
-    // It stays EXPLICIT: proving it from the environment file still spends one
-    // of that asset's ten daily calls.
+    // Clarity is a per-asset credential, so a store-only install stops reading
+    // as "not configured". It stays EXPLICIT: proving it from the environment
+    // file still spends one of that asset's ten daily calls.
     clarity: 'clarity',
-    // PostHog (bead ro-ghis.1): per-asset like Clarity, but its probe is a free
-    // project-settings read, so it runs in a default sweep.
+    // PostHog: per-asset like Clarity, but its probe is a free project-settings
+    // read, so it runs in a default sweep.
     posthog: 'posthog',
-    // Discord got its catalog row in bead `ro-vu8d.18`, so this lane can be read
-    // out of the store and proved by the OS like every other one. It stays
-    // EXPLICIT either way — the probe posts a real message whichever half of the
-    // move the credential is on.
+    // Discord has a catalog row, so this lane can be read out of the store and
+    // proved by the OS like every other one. It stays EXPLICIT either way: the
+    // probe posts a real message whichever half of the move the credential is
+    // on.
     discord: 'discord',
   });
 });
@@ -815,8 +810,7 @@ test('a credential connected in the product counts as configured with no env bin
   const store = await readStoreCredentials({ origin: ORIGIN, fetchImpl: tower.fetchImpl });
 
   assert.equal(store.reachable, true);
-  // The exact bug of ro-vu8d.15: signed in, no GOOGLE_SIGNAL_ACCOUNTS anywhere,
-  // and the checker used to report Google as unconfigured.
+  // Signed in, no GOOGLE_SIGNAL_ACCOUNTS anywhere: Google is configured.
   assert.equal(laneSource(laneById('gsc'), {}, store), 'store');
   assert.equal(laneSource(laneById('bing'), {}, store), 'store');
   // And with neither, it still says nothing is configured.

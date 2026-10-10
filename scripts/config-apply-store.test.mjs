@@ -7,7 +7,7 @@ import { REMOTE_REFUSED, applyChangeset, prepareChangeset, parseArgs } from './c
 import { readConfigSnapshot } from './config-store-client.mjs';
 
 const FILE = 'config/tower.json';
-// The installation's own export of it (scripts/installation.mts, bead ro-ujb9.125).
+// The installation's own export of it (scripts/installation.mts).
 const EXPORTED = 'installation/tower.json';
 const cs = (expect = 'Stored launch') => ({ version: 1, slug: 'countdown-label', createdAt: '2026-09-09T12:00:00Z', ops: [
   { kind: 'file-json-set', file: FILE, pointer: '/countdown/label', expect, value: 'New launch' },
@@ -132,8 +132,8 @@ test('offline seed edits require an explicit mode and never call the database', 
 test('mixed or remote targets refuse before contacting either destination', async (t) => {
   const f = await fixture(t);
   const asset = { kind: 'store-asset-set', asset: 'example.test', column: 'display_name', expect: 'Old', value: 'New' };
-  // A deployed installation saves its settings and its sites in its own Tower
-  // (bead ro-ujb9.76.4.2): --remote refuses documents and asset columns alike.
+  // A deployed installation saves its settings and its sites in its own Tower:
+  // --remote refuses documents and asset columns alike.
   for (const options of [{ remote: true }, { seedFiles: true, remote: true }]) {
     await assert.rejects(prepareChangeset(cs(), null, { ...f.options, ...options }), new RegExp(REMOTE_REFUSED.slice(0, 20)));
     await assert.rejects(prepareChangeset({ ...cs(), ops: [asset] }, null, { ...f.options, ...options }), /Nothing applied/);

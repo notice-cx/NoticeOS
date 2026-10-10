@@ -1,19 +1,12 @@
-// An asset row is born (bead `ro-z349.1`).
-//
-// This RPC is the write plumbing under the Tower's Add a site. Until now an
-// asset was born as a seed MIGRATION plus hand edits. Nothing removes a site:
-// the model gives the application no DELETE on one (db/postgres/README.md,
-// choice 5), and a mistaken add is archived like any site (bead
-// ro-ujb9.76.4.5).
-//
-// Site writes and rollback are checked against the real Postgres store.
+// An asset row is born. This RPC is the write plumbing under the Tower's Add
+// a site. Nothing removes a site: the model gives the application no DELETE on
+// one (db/postgres/README.md), and a mistaken add is archived like any site.
 //
 // Called as functions rather than through a route: they have no HTTP door. The
 // Tower reaches them over the private INGEST Service Binding (index.ts's
-// `createAsset`), which is one `return` away from these.
-// The real stores are the point — the CHECK constraints, the foreign keys and
-// the insert that does nothing on a conflict are facts about the store, not
-// about a mock.
+// `createAsset`), which is one `return` away from these. The real store is the
+// point — the CHECK constraints, the foreign keys and the insert that does
+// nothing on a conflict are facts about the store, not about a mock.
 
 import { env } from 'cloudflare:test';
 import type { Transaction, WorkspaceStore } from '@noticeos/postgres';
@@ -141,10 +134,10 @@ describe('createAsset — what a wizard may bring into being', () => {
     expect(await stored(NEW_ID)).toBeNull();
   });
 
-  // Add a site shows the first refusal beside its Domain input (bead
-  // `ro-ujb9.183`). It names the field by the label a person reads, in the words
-  // every register refusal uses (`fieldRefusal`), and says site — never the
-  // body's key ("domain must …") or the retired noun ("… a property id").
+  // Add a site shows the first refusal beside its Domain input. It names the
+  // field by the label a person reads, in the words every register refusal
+  // uses (`fieldRefusal`), and says site — never the body's key or a system
+  // noun.
   it('words each refusal by the field’s label and says site, keeping the key as the path', async () => {
     const cases: [unknown, string, string | RegExp][] = [
       [{ id: 'NOT VALID', displayName: 'Bad Id' }, 'id', 'Site must be a site id'],

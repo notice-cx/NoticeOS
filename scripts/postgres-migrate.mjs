@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The Postgres migration runner, development profile only (bead ro-ujb9.76.3).
+// The Postgres migration runner, development profile only.
 //
 // Applies db/postgres/migrations/ to a throwaway cluster or a local database
 // marked for development (scripts/postgres-dev.mjs says exactly what it
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS noticeos_migrations.applied (
 );
 -- The application login reads which migrations are applied, and nothing
 -- else here: a start compares them with its code and stops when the
--- database is behind (scripts/database-address.mts, bead ro-ujb9.76.7.2).
+-- database is behind (scripts/database-address.mts).
 GRANT USAGE ON SCHEMA noticeos_migrations TO noticeos_app;
 GRANT SELECT ON noticeos_migrations.applied TO noticeos_app;`;
 
@@ -87,10 +87,10 @@ export function readMigrations(dir = MIGRATIONS_DIR) {
 }
 
 /**
- * The freeze marker (bead ro-ujb9.76.20): one `<sha256>  migrations/NNNN_name.sql`
+ * The freeze marker: one `<sha256>  migrations/NNNN_name.sql`
  * line per migration a kept development database has applied, and per
  * migration before a real database may apply it (scripts/postgres-apply.mjs
- * refuses one the marker does not list, bead ro-ujb9.76.34), exactly as
+ * refuses one the marker does not list), exactly as
  * `shasum -a 256 migrations/NNNN_name.sql` prints it from db/postgres/. Empty
  * or absent: nothing is frozen yet.
  */
@@ -270,7 +270,7 @@ COMMIT;
   return { where: status.where, workspaceId: id, created: verdict === 'created' };
 }
 
-const TEMPLATE = (name) => `-- ${name}.sql — <what this changes, and why> (bead <id>).
+const TEMPLATE = (name) => `-- ${name}.sql — <what this changes, and why>.
 --
 -- Plain SQL only: scripts/postgres-migrate.mjs runs every pending migration
 -- in one transaction as noticeos_owner. A recorded migration is never edited;

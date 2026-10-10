@@ -11,7 +11,7 @@ import {
   summarizeBeadsProject,
 } from './runner/task-snapshot.mjs';
 
-// scripts/runner/task-snapshot.mjs (bead ro-ujb9.22): the task-board
+// scripts/runner/task-snapshot.mjs: the task-board
 // snapshot. `bd` is answered here and the snapshot is filed at a recorded door;
 // nothing reaches a real hub or ingest.
 

@@ -1,29 +1,16 @@
-// Watch windows — pre-registered outcome checks, and the daily job that reads
-// them out.
+// Watch windows: pre-registered outcome checks, and the daily job that reads
+// them out. The comparison is chosen before the numbers exist: the metric, the
+// baseline window, the days it will be re-read and the ship/kill predicate are
+// written down at registration. This module owns the vocabulary those
+// registrations are validated against, the arithmetic, and the daily sweep.
 //
-// docs/03's whole subject is how not to lie to yourself about whether a change
-// worked. Its first defense is that the comparison is chosen BEFORE the numbers
-// exist. A watch window is that pre-registration made machine-checkable: the
-// metric, the pre-change baseline window, the days it will be re-read, and the
-// ship/kill predicate, all written down at registration time. This module owns
-// the vocabulary those registrations are validated against, the arithmetic, and
-// the daily sweep that records interim readings and closes due windows.
-//
-// Three honesty rules are load-bearing here and are pinned by tests:
-//   1. No thresholds → the window can only close 'inconclusive', with the
-//      numbers shown. The OS never invents a verdict it was not given.
-//   2. A scope reads only the retained daily GSC archive at that grain — the
-//      query report for a query, the page report for a page. An unsupported or
-//      malformed scope closes 'unmeasurable'; it never falls back to the site's
-//      number.
-//   3. Thin coverage closes 'unmeasurable', never 'inconclusive'. "We could not
-//      measure this" and "we measured it and it did nothing" are different
-//      facts and the ledger needs to keep them apart.
-//   4. A comparison never spans two provider resources (ro-ujb9.70). When the
-//      baseline and post days were read from different `property_ref`s — the
-//      asset was repointed at another GA4 property or Search Console site — the
-//      window closes 'unmeasurable'. Rotating the credential that reads the same
-//      resource is not a switch and evaluates normally.
+// Honesty rules, pinned by tests: no thresholds means the window can only
+// close 'inconclusive'; a scope reads only the retained daily GSC archive at
+// that grain and never falls back to the site's number; thin coverage closes
+// 'unmeasurable', never 'inconclusive'; and a comparison never spans two
+// provider resources (an asset repointed at another property closes
+// 'unmeasurable'; rotating the credential that reads the same resource is not
+// a switch).
 
 import {
   WATCH_QUERY_MAX_CHARS,
@@ -51,10 +38,8 @@ export type WatchOutcome = (typeof WATCH_OUTCOMES)[number];
 
 /**
  * The metrics a watch may name, and how a window of daily values collapses to
- * one number. Counts sum; rates are already per-day figures and are averaged —
- * summing a CTR would be arithmetic nonsense. This is the
- * `signal_observations` vocabulary the collectors actually write (docs/02); the
- * migration's CHECK constraint carries the same pairs.
+ * one number: counts sum, rates are averaged. The `signal_observations`
+ * vocabulary the collectors write; the migration's CHECK carries the same pairs.
  */
 export const WATCH_METRICS: Record<WatchIntegration, Record<string, 'sum' | 'mean'>> = {
   ga4: { sessions: 'sum', active_users: 'sum', page_views: 'sum', event_count: 'sum' },
@@ -66,9 +51,9 @@ export const WATCH_METRICS: Record<WatchIntegration, Record<string, 'sum' | 'mea
 export const WATCH_CLOSED_RULE_ID = 'watch-window-closed';
 
 /**
- * How much of each window must actually have observations before a verdict is
- * allowed. Provider lag routinely costs the newest day or two of a 28-day GSC
- * window, which should not void a check; a window that is mostly holes should.
+ * How much of each window must carry observations before a verdict is allowed.
+ * Provider lag routinely costs the newest day or two of a 28-day GSC window; a
+ * window that is mostly holes should void the check.
  */
 export const MIN_WINDOW_COVERAGE = 0.8;
 
@@ -90,17 +75,14 @@ export interface WatchWindowAggregate {
   days: number;
   /** Days the window spans, observed or not. */
   span_days: number;
-  /** The window's sum — reported only for count metrics; a summed CTR is not a
-   * number that means anything, so rate metrics carry null here. */
+  /** The window's sum; null for rate metrics, where a sum means nothing. */
   total: number | null;
-  /** The comparison figure for BOTH aggregations: mean daily value over the
-   * observed days. Two windows of unequal (but adequate) coverage therefore
-   * still compare like for like. */
+  /** The comparison figure for both aggregations: mean daily value over the
+   * observed days, so unequal but adequate coverage still compares like for like. */
   per_day: number;
-  /** The provider resources (`signal_runs.property_ref`) the counted days were
-   * read from, sorted. One entry is one measurement series; more than one means
-   * the window spans a property switch. Absent on a scoped archive read, and on
-   * readings stored before this field existed. */
+  /** The provider resources the counted days were read from, sorted. More than
+   * one means the window spans a property switch. Absent on a scoped archive
+   * read and on older readings. */
   properties?: string[];
 }
 
@@ -112,8 +94,7 @@ export interface WatchReading {
   baseline: WatchWindowAggregate | null;
   post: WatchWindowAggregate | null;
   delta_pct: number | null;
-  /** Days of the post window that fall on or before the registration date —
-   * non-zero on an interim check whose offset is shorter than the baseline. */
+  /** Days of the post window that fall on or before the registration date. */
   pre_change_days: number;
 }
 
@@ -145,9 +126,8 @@ export interface WatchWindowEvaluation {
   closed: { id: string; asset: string; outcome: WatchOutcome; note: string }[];
   /** Windows whose own evaluation threw. One bad row never costs the others. */
   failed: { id: string; error: string }[];
-  /** Ids still open after this run with their final check date already behind
-   * them: the bets the sweep was due to answer and did not. `failed` cannot see
-   * this on its own — a window skipped without throwing looks like a clean run. */
+  /** Ids still open after this run with their final check date behind them:
+   * the bets the sweep was due to answer and did not. */
   overdue: string[];
 }
 
@@ -176,17 +156,13 @@ interface ScopedArchive {
   rows: unknown[];
 }
 
-/** Keyed by object key, so one day read for a query costs nothing to re-read
- * for a page — and a sweep with several windows on one property reads each
- * archived day once. */
+/** Keyed by object key, so a sweep with several windows on one property reads
+ * each archived day once. */
 type ScopedArchiveCache = Map<string, Promise<ScopedArchive>>;
 
 /**
- * What a scoped window compares, resolved from the stored scope.
- *
- * `kind` doubles as the GSC report name to read, which is not a coincidence:
- * a selector the archive has no report for is a selector this module refuses to
- * invent an answer for.
+ * What a scoped window compares. `kind` doubles as the GSC report name to read:
+ * a selector the archive has no report for gets no invented answer.
  */
 export interface WatchScopeSelector {
   kind: 'query' | 'page';
@@ -211,19 +187,11 @@ function round(value: number, digits: number): number {
 }
 
 /**
- * Collapse one integration/metric series over a date range.
- *
- * `signal_observations` is append-only and a provider revision appends a NEW
- * row for the same (date, metric), so the latest run's value wins per date —
- * exactly the ordering `recordSignalSuccess` writes in.
- *
- * Each counted day also carries the provider resource its winning value was
- * measured on, so `decide` can refuse a comparison that spans two of them. The
- * aggregate itself is unchanged by that: it reports what was read, and the
- * verdict says whether it may be compared.
- *
- * Read on Postgres (bead ro-ujb9.76.5.3): every series of this site, provider
- * and metric, whatever its property or zone, as the D1 read took every run.
+ * Collapse one integration/metric series over a date range. A provider
+ * revision appends a new row for the same (date, metric), so the latest run's
+ * value wins per date. Each counted day also carries the provider resource its
+ * winning value was measured on, so `decide` can refuse a comparison that
+ * spans two of them.
  */
 export async function aggregateMetric(
   store: WorkspaceStore,
@@ -266,12 +234,9 @@ export async function aggregateMetric(
   };
 }
 
-/** Parse the only scope the evaluator can currently answer.
- *
- * Registrations now validate this exact shape. The defensive parser remains
- * because older rows and hand-edited local stores can predate that boundary;
- * those rows close unmeasurable rather than throwing or widening themselves.
- */
+/** Parse the only scope the evaluator can answer. Older rows and hand-edited
+ * stores can predate the registration-time validation; those close
+ * unmeasurable rather than throwing or widening themselves. */
 export function parseWatchScope(raw: string | null): WatchScopeInput | null {
   if (raw === null) return null;
   try {
@@ -279,8 +244,7 @@ export function parseWatchScope(raw: string | null): WatchScopeInput | null {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
     const record = value as Record<string, unknown>;
     const keys = Object.keys(record);
-    // Exactly one selector. A row carrying both narrowed twice and answers a
-    // question neither the archive nor the operator asked.
+    // Exactly one selector: a row carrying both narrowed twice.
     if (keys.length !== 1) return null;
     const key = keys[0];
     if (key !== 'query' && key !== 'page') return null;
@@ -387,7 +351,7 @@ function scopedMetricValue(
       : null;
   }
   // GSC suppresses anonymized/low-volume queries, and a page with no
-  // impressions that day simply has no row. Absence is unknown, not 0.
+  // impressions that day has no row. Absence is unknown, not 0.
   return null;
 }
 
@@ -397,13 +361,10 @@ function queryMatcher(query: string): (key: string) => boolean {
 }
 
 /**
- * Match a page the way an operator names one.
- *
- * GSC keys a page row with the absolute URL it crawled. A freeze entry names a
- * route (`/water-intake-calculator`), so a scope beginning with `/` compares
- * paths alone and matches across the hosts one domain property mixes — apex vs
- * www, http vs https. A scope given as an absolute URL keeps its host, for the
- * case where two hosts under one property really are different pages.
+ * Match a page the way an operator names one. GSC keys a page row with the
+ * absolute URL it crawled; a scope beginning with `/` compares paths alone and
+ * matches across the hosts one domain property mixes, while an absolute URL
+ * keeps its host.
  */
 function pageMatcher(page: string): (key: string) => boolean {
   const wanted = normalizePageRef(page);
@@ -414,9 +375,9 @@ function pageMatcher(page: string): (key: string) => boolean {
   };
 }
 
-/** `{host, path}` for either an absolute URL or a bare route. A host of null
- * means "any host in this property"; a key too malformed to parse is compared
- * as the literal string it is, so bad archive data can never match everything. */
+/** `{host, path}` for an absolute URL or a bare route. A null host means "any
+ * host in this property"; a key too malformed to parse is compared as the
+ * literal string, so bad archive data can never match everything. */
 function normalizePageRef(value: string): { host: string | null; path: string } {
   const trimmed = value.trim().split('#')[0]!;
   if (/^https?:\/\//i.test(trimmed)) {
@@ -430,8 +391,7 @@ function normalizePageRef(value: string): { host: string | null; path: string } 
   return { host: null, path: trimPath(trimmed) };
 }
 
-/** One trailing slash is a formatting choice, not a different page; the root is
- * the exception, where `/` IS the path. */
+/** One trailing slash is a formatting choice; the root is the exception. */
 function trimPath(path: string): string {
   return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
 }
@@ -478,9 +438,9 @@ function validDay(value: string): boolean {
 }
 
 /**
- * Read the exact dense daily query series the evaluator uses, for the Tower's
- * on-demand threshold calibration. This is deliberately an R2 read rather than
- * a second projection in D1: the provider-final archive remains canonical.
+ * The exact dense daily query series the evaluator uses, for the Tower's
+ * threshold calibration. An archive read rather than a second projection: the
+ * provider-final archive remains canonical.
  */
 export async function readWatchQueryHistory(
   env: IngestEnv,
@@ -537,9 +497,7 @@ export async function readWatchQueryHistory(
 
 /**
  * The UTC days in [firstDay, lastDay] on which the site recorded a change, in
- * order. D1 cut the day from its stored text; `at` is an instant now, and its
- * UTC day is the same ten characters every writer's `toISOString()` began
- * with. The bound is on the instant, so the site's (site, time) index seeks it.
+ * order. The bound is on the instant, so the (site, time) index seeks it.
  */
 async function readChangeDays(env: IngestEnv, asset: string, firstDay: string, lastDay: string): Promise<string[]> {
   const rows = await env.STORE.read((tx) =>
@@ -554,13 +512,9 @@ async function readChangeDays(env: IngestEnv, asset: string, firstDay: string, l
   return rows.map((row) => row.day);
 }
 
-/** Collapse one query's provider-final daily GSC rows over a date range.
- *
- * The manifest resolver selects the newest successful revision per day. Raw
- * objects remain the canonical store; this reader adds no second table and no
- * migration. Missing query rows stay missing so the normal 80% coverage rule
- * decides whether a verdict is supportable.
- */
+/** Collapse one query's provider-final daily GSC rows over a date range. The
+ * manifest resolver selects the newest successful revision per day. Missing
+ * query rows stay missing so the coverage rule decides. */
 export async function aggregateScopedMetric(
   env: IngestEnv,
   asset: string,
@@ -644,13 +598,9 @@ const quoted = (properties: readonly string[]): string =>
   properties.map((property) => `"${property}"`).join(' and ');
 
 /**
- * Why a baseline/post pair spans more than one provider resource, as the
- * properties themselves, or null when it does not. A scoped archive read
- * carries no `properties` and is not judged here.
- *
- * Figures from different properties are not one series and not like for like,
- * so the window closes unmeasurable and claims no comparison; the note is
- * which properties, in one line (bead `ro-ujb9.96.6.28`).
+ * Why a baseline/post pair spans more than one provider resource, or null when
+ * it does not. Figures from different properties are not one series, so the
+ * window closes unmeasurable and the note names the properties.
  */
 function propertySplit(baseline: WatchWindowAggregate, post: WatchWindowAggregate): string | null {
   const before = baseline.properties;
@@ -663,15 +613,10 @@ function propertySplit(baseline: WatchWindowAggregate, post: WatchWindowAggregat
 }
 
 /**
- * Decide a due FINAL check. Every branch that cannot support a claim says so
- * rather than defaulting to a comfortable one.
- *
- * The note is the evaluator's figures and nothing else (bead
- * `ro-ujb9.96.6.30`): the series, its scope and the offset are the window's
- * own columns, which a site's Activity tab already draws as the row's title,
- * so a `gsc/clicks at +28d:` prefix repeated them in the store's vocabulary.
- * The flag's statistics line still names them (`closeWindow`), because a
- * flag is read without its row.
+ * Decide a due final check. Every branch that cannot support a claim says so
+ * rather than defaulting to a comfortable one. The note is the evaluator's
+ * figures only: the series, scope and offset are the window's own columns,
+ * which the Activity tab already draws as the row's title.
  */
 function decide(reading: WatchReading, thresholds: WatchThresholds | null): Verdict {
   const { baseline, post, delta_pct: deltaPct } = reading;
@@ -712,7 +657,7 @@ function decide(reading: WatchReading, thresholds: WatchThresholds | null): Verd
   if (ship && kill) {
     return {
       outcome: 'inconclusive',
-      // Both registered predicates match, so neither is trusted.
+      // Both predicates match, so neither is trusted.
       note: `${numbers}; ship and kill thresholds both match`,
     };
   }
@@ -732,13 +677,11 @@ function kindFor(outcome: WatchOutcome): 'anomaly' | 'opportunity' {
 }
 
 /**
- * The daily watch sweep (03:30 UTC, after the nightly pulls have landed).
- *
- * For each open window it evaluates every offset that has come due and has not
- * been read yet, appending an interim reading for each and closing the window
- * on its final offset. Closing files a flag through the existing flags
- * machinery, so the result appears on the asset's alert surfaces with no new
- * UI. Windows are failure-isolated: one bad row never costs the others.
+ * The daily watch sweep. For each open window it evaluates every offset that
+ * has come due and has not been read yet, appending an interim reading for
+ * each and closing the window on its final offset. Closing files a flag, so
+ * the result appears on the asset's alert surfaces. Windows are
+ * failure-isolated.
  */
 export async function runWatchWindows(
   env: IngestEnv,
@@ -775,12 +718,9 @@ export async function runWatchWindows(
     .filter((window) => !answered.has(window.id) && pastFinalCheck(window, today))
     .map((window) => window.id);
 
-  // Every other nightly lane ends with a completion event; this one used to end
-  // with nothing, and `failed` was thrown away by the dispatch table on top of
-  // that. A window that threw every night therefore failed forever in silence —
-  // the only symptom was a property card advertising a bet whose check date had
-  // quietly slipped into the past (ro-5tqk). `overdue` is here because `errors`
-  // is not enough: the sweep can also fail by not throwing.
+  // `overdue` is here because `errors` is not enough: the sweep can also fail
+  // by not throwing, and the only symptom would be a check date quietly in the
+  // past.
   console.log(JSON.stringify(watchSweepEvent(result)));
 
   return result;
@@ -788,7 +728,7 @@ export async function runWatchWindows(
 
 /**
  * The completion event, built apart from the printing so the suite can pin its
- * shape: inside workerd a test cannot see the lane's own console.
+ * shape.
  */
 export function watchSweepEvent(result: WatchWindowEvaluation): WatchSweepEvent {
   return {
@@ -803,11 +743,9 @@ export function watchSweepEvent(result: WatchWindowEvaluation): WatchSweepEvent 
 }
 
 /**
- * True when the window's last scheduled check has already come due.
- *
- * Deliberately total: a row too malformed to date is unanswerable rather than
- * overdue, because the line that reports a failure must never be the line that
- * throws.
+ * True when the window's last scheduled check has come due. Total: a row too
+ * malformed to date is unanswerable rather than overdue, because the line that
+ * reports a failure must never be the line that throws.
  */
 function pastFinalCheck(window: WatchWindowRow, today: string): boolean {
   const offsets = parseOffsets(window.check_offsets_json);
@@ -881,11 +819,9 @@ async function evaluateWindow(
 
   for (const offset of due) {
     const checkDate = addDays(registeredDate, offset);
-    // The post window matches the baseline's length and ends on the check date,
-    // so the two are the same size by construction. On an interim offset
-    // shorter than the baseline it necessarily reaches back past the change;
-    // `pre_change_days` records exactly how far, which is why an interim
-    // reading is a reading and never a verdict.
+    // The post window matches the baseline's length and ends on the check date.
+    // On an interim offset shorter than the baseline it reaches back past the
+    // change; `pre_change_days` records how far.
     const postStart = addDays(checkDate, -(baselineDays - 1));
     const post = await aggregate(postStart, checkDate);
     const deltaPct =
@@ -922,26 +858,19 @@ async function evaluateWindow(
     });
     return;
   }
-  // The interim readings and the check's stamp are one transaction, which
-  // holds the window's row: a sweep that finds it closed by another adds
-  // nothing to it.
+  // The interim readings and the check's stamp are one transaction holding the
+  // window's row: a sweep that finds it closed by another adds nothing.
   await env.STORE.write(async (tx) => {
     if (await markChecked(tx, window.id, now)) await appendReadings(tx, window.id, fresh);
   });
 }
 
 /**
- * Close the window with its verdict and file the verdict as a flag. The flag
- * is how the outcome reaches the operator: `rule_id = watch-window-closed`
- * rides the existing alert surfaces, carries the numbers in its message, and
- * keeps the full baseline/post arithmetic in `rule_inputs` for audit (docs/02:
- * every fired flag records rule + inputs).
- *
- * ONE TRANSACTION, AS THE D1 BATCH WAS (bead ro-ujb9.76.5.7): the close, the
- * readings it took, and the flag. Any of them failing leaves none of them, so
- * the window stays open and the next sweep reads it again; a closed window
- * always has its flag, and a window has one. The close goes first and holds
- * the window's row: a sweep that finds it closed by another files nothing.
+ * Close the window with its verdict and file the verdict as a flag: the close,
+ * the readings it took, and the flag in one transaction, so any of them
+ * failing leaves none of them and the next sweep reads the window again. The
+ * close goes first and holds the window's row: a sweep that finds it closed by
+ * another files nothing.
  */
 async function closeWindow(
   env: IngestEnv,
@@ -951,8 +880,7 @@ async function closeWindow(
   fresh: readonly WatchReading[],
   now: string,
   verdict: Verdict,
-  /** The series, scope and offset the verdict is about, in the store's words:
-   * `gsc/clicks at +28d`. Only the flag's statistics line carries it. */
+  /** The series, scope and offset the verdict is about: `gsc/clicks at +28d`. */
   subject: string,
 ): Promise<void> {
   const finalReading = readings[readings.length - 1] ?? null;

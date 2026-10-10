@@ -1,18 +1,8 @@
-// POST /api/annotations — the timeline-event writer (docs/02 §Annotations).
-//
-// The `annotations` table has had three readers in the Tower (timeline, alert
-// correlation, freshness) and, until now, no writer outside the dev-seed
-// fixtures: every "did the last change move the signal?" surface was reading an
-// empty table. docs/03 opens by naming exactly this gap — v1's attribution was
-// "a deploy annotation and a hopeful look at the chart" — so the row this route
-// writes is the minimum an honest Attribute stage needs.
-//
-// Operator-authed, same shape as /api/revenue. Backdating is allowed and
-// expected: a batch that shipped three weeks ago is annotated at its ship time,
-// not at the time somebody remembered to record it. This route is one of two
-// lanes onto the same writer (../annotations.ts); the other is the
-// `createAnnotation()` RPC the Tower reaches over its Service Binding. What
-// differs between them is only how the caller proves it may write.
+// POST /api/annotations — the timeline-event writer. Operator-authed, same
+// shape as /api/revenue. Backdating is allowed and expected: a batch that
+// shipped three weeks ago is annotated at its ship time. One of two lanes onto
+// the same writer (../annotations.ts); the other is the `createAnnotation()`
+// RPC the Tower reaches over its Service Binding.
 
 import type { CreateAnnotationInput } from '@noticeos/contract';
 import { writeAnnotation } from '../annotations.js';
@@ -40,8 +30,7 @@ export async function handleAnnotations(
     return json({ error: 'bad_request', detail: 'body must be a JSON object' }, 400);
   }
 
-  // A claim, not a check: the body is caller-supplied JSON and `writeAnnotation`
-  // validates every field of it before touching D1.
+  // A claim, not a check: `writeAnnotation` validates every field of it.
   const result = await writeAnnotation(env, body as unknown as CreateAnnotationInput, nowMs);
 
   if (!result.ok) {

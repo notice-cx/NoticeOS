@@ -2,7 +2,7 @@ import { createBrowserRequestPolicy, WORKSPACE_SESSION_HEADER } from './browser-
 import { googleOAuthRequest } from './workspace-operations.mjs';
 import { agentActions, bearerToken } from './agent-access.mjs';
 
-/** Shared workspace admission (ro-ujb9.289.8.3.2).
+/** Shared workspace admission.
  * Server composition selects this entry and its fresh authority readers.
  * Request selectors, UUIDs, profile handles and identity facts are not authority.
  * Route mapping, identity protocols and operational capabilities live elsewhere.
@@ -50,7 +50,7 @@ export interface GoogleOAuthAdmissionAdapter {
   claim(request: Request, authorize: (facts: WorkspaceMembership) => void): Promise<void>;
 }
 /** A verified agent token's fresh facts in the workspace a call names
- * (identity agentAuthority, epic ro-cvl9): the person it acts for, the
+ * (identity agentAuthority): the person it acts for, the
  * client, the person's current role there and the scopes still consented. */
 export interface AgentAuthority {
   readonly principalId: string;

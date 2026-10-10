@@ -66,7 +66,7 @@ pass and it is the panel's own claim about itself:
   integration (the example abbreviates it to one source). A collection is in the
   panel only when every one of its families reaches its day; the weekly review
   is filed only then
-  ([the panel-review filer](../scripts/README.md#the-panel-review-filer-the-first-bead-writing-lane)).
+  ([the panel-review filer](../scripts/README.md)).
 - `fresh` is per integration against `maxAgeDays`, and the top-level `fresh` is
   true only when every source is. A property whose GSC is current and whose Bing
   stalled is a **partial** answer, and `stale` names which half.
@@ -87,9 +87,9 @@ pass and it is the panel's own claim about itself:
   a file an operator drops every few months into the panel's headline boolean
   would leave every panel permanently red — the standing-noise failure that gets
   a signal ignored. The refresh cadence these families DO have is owned by the
-  property's weekly panel-review bead: when a review finds them >~2 weeks old,
-  the operator export is one of that review's asks (owner ruling 2026-08-20;
-  the review bead names it).
+  property's weekly panel-review task: when a review finds them >~2 weeks old,
+  the operator export is one of that review's asks, and the review task names
+  it.
   `fresh` answers "are the collectors current?"; `uncollected[]`
   answers "how old is the hand-dropped file?", out loud, in the file you already
   opened.
@@ -122,9 +122,9 @@ three files that are not raw families:
 | `ga4-events.csv`, `-events-28d.csv`, `-page-events.csv` | Conversions and interactions. |
 | `ga4-js-errors.csv` | Client-side errors by `message_bucket`. Only where GA4 custom dimensions are registered. |
 | `dataforseo-ranked-keywords.csv`, `-backlinks-summary.csv`, `-backlinks-new-lost.csv`, `-llm-mentions-*.csv` | Weekly off-property intelligence: rankings, links, AI mentions. Launched properties only. |
-| `dataforseo-serp-panel.csv` | The tracked-query result-page panel (doc 08 §S1b). Configured properties only. **Two rows per term** since 2026-08-04 — one per `device` (`mobile`, `desktop`); never sum or average across them. `query_label` groups the rows by the **bet** each query measures, where the panel names one. |
+| `dataforseo-serp-panel.csv` | The tracked-query result-page panel (doc 08 §S1b). Configured properties only. **Two rows per term** — one per `device` (`mobile`, `desktop`); never sum or average across them. `query_label` groups the rows by the **bet** each query measures, where the panel names one. |
 | `index-coverage.csv` | **How many of our pages are indexed, and is that number moving?** Bing's own count, one row per measured day, plus the sitemap URL counts we submitted. **Derived** from families already archived — no collector, no quota. See the contract below: it is Bing's index, it is site-level, and it says nothing about any single URL. |
-| `clarity-url-3d.csv` | Behavior rankings from Microsoft Clarity. Configured projects only. On one site it is history: Clarity was removed from the site on 2026-09-07 and PostHog replaced it. |
+| `clarity-url-3d.csv` | Behavior rankings from Microsoft Clarity. Configured projects only; a site that moved to PostHog keeps it as history. |
 | `posthog-web-daily.csv` | **How many people used the site each day?** One row per `date`: `pageviews`, `people` (unique within that day), `sessions`. Trailing 28 days per read; a repeated day resolves to the newest read. PostHog projects only — see [the PostHog families](#the-posthog-families-product-data) below. |
 | `posthog-events.csv` | **Which actions happen, and by how many people?** One row per `event` over the read's window: `count`, `people`, `first_seen`, `last_seen`. Top 500 by count, trailing 14 days. |
 | `posthog-exceptions.csv` | **What breaks in the browser, and for how many people?** One row per exception `message` (200 characters at most): `count`, `people`, `sessions`, `max_per_session`, `has_source_file`, `top_path`, `top_browser`. Top 100 by count, trailing 14 days. |
@@ -134,10 +134,9 @@ three files that are not raw families:
 | `executive.json` | A **deterministic** rules-engine reading of the above — findings with source, evidence window, exact facts, confidence, and limitation. Not an LLM summary. |
 | `summary.json` | Row counts per family, the archive manifest behind them, and the collection caveats. |
 
-Not every property has every file. One site joined the DataForSEO lane on
-2026-08-05 after the operator confirmed it live, but still has no
-`clarity-url-3d.csv`; that file exists only where a Clarity project token is
-provisioned. **A family that is absent is absent, not zero** — check
+Not every property has every file. A site on the DataForSEO lane may still
+have no `clarity-url-3d.csv`; that file exists only where a Clarity project
+token is provisioned. **A family that is absent is absent, not zero** — check
 `summary.json` before concluding anything from a missing file.
 
 ## The `bing-ai` family: the one nobody collects
@@ -159,12 +158,12 @@ one command turns it into evidence.
 | **Its date** | `report_date` is the day the FILE was exported, for all three. Two of the exports carry no date column at all; the query and page totals are period figures whose period Bing does not state. Do not read `report_date` as a measurement day, and do not difference two `ai-queries` exports as if they covered disjoint periods. |
 | **Repeat exports** | Additive nowhere. A second export of the daily series re-sends every day it overlaps; the flattener resolves an overlapping day to the newest export, because a repeated Bing snapshot is a revision. Query and page exports append as a **dated series** — one set of rows per export date — so a query's rise over two exports is a real comparison of two snapshots, not of two periods. |
 | **What absence means** | **Nobody has dropped that export yet.** An empty or missing file is never "Bing's assistants cite nothing". |
-| **How you know how old it is** | `freshness.json` `uncollected[]`, one row per family, aged from that family's own newest `report_date` (`ro-b3t.2`, 2026-08-04). Before that these families had no collector to go stale loudly *and* no entry of their own, so the nightly `bing-webmaster` API collection vouched for them; the reader had to already know which families were exempt. They are still outside the top-level `fresh` — there is no cadence here to miss — so read `uncollected[]`, not just the headline. A family nobody has ever dropped has no row at all: absence is absence, never a stale claim about a file that does not exist. |
+| **How you know how old it is** | `freshness.json` `uncollected[]`, one row per family, aged from that family's own newest `report_date`; without a row of their own the nightly `bing-webmaster` API collection would vouch for them and the reader would have to already know which families are exempt. They are outside the top-level `fresh` — there is no cadence here to miss — so read `uncollected[]`, not just the headline. A family nobody has ever dropped has no row at all: absence is absence, never a stale claim about a file that does not exist. |
 | **Where the originals are** | Every dropped file is archived byte-identical (base64, inside the gzip JSON archive in private R2) alongside the parse, so any later reader can redo the read without asking for a download that no longer exists. |
 
 ## The PostHog families: product data
 
-*(2026-09-22, beads `ro-ghis.2`, `ro-ghis.3`.)* Search data says how people
+Search data says how people
 arrive; PostHog says **what they do once they are here, and where it breaks** —
 funnels, errors, rage clicks and real-visitor speed. It is collected per property
 (each has its own PostHog project, host and read-only key, connected on the
@@ -193,7 +192,7 @@ nightly Bing lane already bought.
 
 | | |
 |---|---|
-| **Provider** | **Bing Webmaster Tools**, and only Bing. Derived from the `crawl-stats` and `feeds` families this directory already carries — `GetCrawlStats` reports `InIndex`, Bing's count of this site's pages in its index, and `GetFeeds` reports each submitted sitemap's `UrlCount`. **Google has no Index Coverage API**; its per-URL Inspection endpoint is a separate, quota-budgeted lane that does not exist yet (`ro-2zk.4`). |
+| **Provider** | **Bing Webmaster Tools**, and only Bing. Derived from the `crawl-stats` and `feeds` families this directory already carries — `GetCrawlStats` reports `InIndex`, Bing's count of this site's pages in its index, and `GetFeeds` reports each submitted sitemap's `UrlCount`. **Google has no Index Coverage API**; its per-URL Inspection endpoint is a separate, quota-budgeted lane that does not exist yet. |
 | **Cost** | Zero. No request, no quota, no credential: it is a view over archives the `15 12 * * *` cron already wrote. |
 | **Grain** | Two, separated by `row_grain`. `site-day` — one row per day Bing measured: `pages_in_index`, `pages_crawled`, `crawl_errors`, `blocked_by_robots_txt`. `sitemap` — one row per submitted sitemap from the **newest collection only**: `urls_submitted`, `sitemap_status`, `sitemap_last_crawled`. |
 | **Refresh** | Daily, with the Bing lane. Bing re-sends the whole daily series every collection, so a repeated day is a **revision**: the newest collection wins and nothing is summed across runs. |
@@ -238,23 +237,22 @@ produces confident wrong answers.
 - **Provisional days are marked, not hidden.** `provisional=1` means the provider
   was still filling that day in when it was last collected. It is a real
   observation that will be revised upward. A later collection that reports the
-  same number still settles the day (epic `ro-cvl9`).
-- **A GA4 day is provisional until it has had two days** (bead `ro-wo0j`). GA4
+  same number still settles the day.
+- **A GA4 day is provisional until it has had two days.** GA4
   keeps attributing a day after it ends, and its API says nothing about when it
   has finished, so a GA4 day stays `provisional=1` until it has been collected on
   day D+2 — in `signal-trend-daily.csv` and in the three attribution files. The
-  newest GA4 day is therefore always provisional. On one site's 2026-09-21,
-  read at D+1, 3,380 sessions sat in "Unassigned" (101–340 on every other day)
-  and Organic Search read 1,096 against Search Console's 1,398 clicks. An
-  "Unassigned" or `(data not available)` share above ~20% on a GA4 day marked
-  `provisional=0` means this two-day rule is too short: file it in the OS's own task project.
-  `executive.json`'s rules read only the `provisional=0` days of those three
-  files (bead `ro-5e8.10`): an unsettled day is set aside rather than labelled,
+  newest GA4 day is therefore always provisional: read at D+1, a day can show
+  ten times its normal "Unassigned" sessions and Organic Search well under
+  Search Console's clicks. An "Unassigned" or `(data not available)` share
+  above ~20% on a GA4 day marked `provisional=0` means this two-day rule is
+  too short: file it in the OS's own task project. `executive.json`'s rules
+  read only the `provisional=0` days of those three files: an unsettled day is set aside rather than labelled,
   a card built beside one names it in a `Provisional days set aside` evidence
   row, and a file holding only unsettled days raises no card until they settle.
   So a `measurement-integrity` card about unattributed sessions is already about
   settled days, and it counts both halves of that signal: "Unassigned" /
-  `(not set)` and `(data not available)` (bead `ro-5e8.11`). GA4 writes
+  `(not set)` and `(data not available)`. GA4 writes
   `(data not available)` in the source/medium column, so it shows up in
   `ga4-traffic-sources.csv` rather than the channel file. Before reading the
   card as a tagging fault, check the per-day share in
@@ -285,11 +283,10 @@ produces confident wrong answers.
   column at all.
 - **PostHog sees only browsers that load it.** A browser or extension that
   blocks PostHog is invisible, so PostHog's people and page views run **below
-  GA4's**, and the gap is not a tracking bug (one site's bead `mp-hsx5` tracks it).
+  GA4's**, and the gap is not a tracking bug.
 - **PostHog drops known bots; GA4 does not.** PostHog's browser library filters
   known crawlers before they are counted, so a spike that shows in GA4 and not
-  in PostHog can be a crawler rather than people (one site's `mp-xbpk` is the first
-  case).
+  in PostHog can be a crawler rather than people.
 - **Signed-in events are a floor.** On one site, events from signed-in pages
   (`/my`) reach PostHog only after the account holder consents, so their counts
   and funnel steps are floors, never totals.
@@ -362,16 +359,16 @@ Missing a family you need? File it in the OS's own task project — do not add a
   weekly DataForSEO families behind a fail-closed spend gate; `30 4 * * *`
   archives Clarity.
 - **Somebody is asked to read it.** Every property whose weekly DataForSEO
-  collection lands gets one `panel-review` bead in its **own** tracker, filed by
+  collection lands gets one `panel-review` task in its **own** tracker, filed by
   the runner within the hour and due seven days after the collection day
   (`scripts/runner/panel-review.mjs` writes its asks). A
   property with a tracked-query panel is asked for the panel walk *and* the
   inventory pass; one without is asked for the inventory pass, which is the whole
-  of what it bought (`ro-478`). Only a property that collects nothing owes
+  of what it bought. Only a property that collects nothing owes
   nothing — a panel dir with no reader is the failure this lane exists to end.
   **One collection day is one review however many devices it swept**: the panel's
-  two devices are one family, one archive and one manifest row, so the phone did
-  not add a second bead — it added a second row per term to the walk.
+  two devices are one family, one archive and one manifest row, so the phone
+  adds a second row per term to the walk, not a second task.
 - **A property that launched today does not wait for Monday.**
   `pnpm signals:collect -- --asset <id> [--families serp-panel]` collects that
   one property now, through the ingest's operator-authed
@@ -387,8 +384,7 @@ Missing a family you need? File it in the OS's own task project — do not add a
   over the file, so re-running it answers `unchanged` instead of double-counting
   — "did that land?" is answered by doing it again. An unrecognized header is
   refused, loudly, naming the three exports it knows: guessed columns are how
-  silent corruption starts, and that is the whole reason this lane waited for a
-  real file (`ro-2dn`).
+  silent corruption starts, which is why the parser is pinned to real files.
 - **The refresh** — the part this doc is about — runs at 13:10 UTC daily
   (`scripts/os-up.mjs` `CONFIG.panelRefreshCron`), after both archive lanes have
   landed. It walks the roster in
@@ -414,7 +410,7 @@ Missing a family you need? File it in the OS's own task project — do not add a
 
 ## Who edits the roster: the Tower's Growth tab
 
-*(2026-09-05, bead `ro-x5gu.4`.)* Both files this doc points at are edited from
+Both files this doc points at are edited from
 one place in the Tower — the asset's own **Growth** tab
 (`/assets/<id>/growth`), in a *Tracked panels* section under the board that
 reads the panel back:
@@ -445,6 +441,6 @@ and names the guard that already exists (the portfolio's
   file in this directory remains **unknown**, never "not indexed". Google has no
   Index Coverage API; the surface that answers per-URL is its URL Inspection
   endpoint, which is metered per property (2000/day, 600/minute) and so needs a
-  page roster and a rotation policy before it can exist — bead `ro-2zk.4`.
-- **One site** is off the roster until its collectors go live
-  (`ro-2zk.2`), so that an empty dir never gets mistaken for a collapse.
+  page roster and a rotation policy before it can exist.
+- A site is off the roster until its collectors go live, so that an empty dir
+  never gets mistaken for a collapse.

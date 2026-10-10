@@ -1,5 +1,4 @@
-// THE CONFIG READ CACHE BELONGS TO ONE STORE AND ONE WORKSPACE (epic
-// `ro-syok`; on Postgres, bead ro-ujb9.76.4.1).
+// The config read cache belongs to one store and one workspace.
 //
 // One isolate serves many calls, each with a store of its own, so the cache
 // is keyed on where the store is and which workspace the call acts for. A

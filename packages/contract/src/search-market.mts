@@ -1,12 +1,8 @@
-// A SITE'S SEARCH MARKET — the location and language its DataForSEO reports
-// are asked in (beads ro-vu8d.16, ro-ujb9.207). ONE rule for three readers:
-// the collector that asks (workers/ingest/src/lane-mapping.ts), the findings
-// that describe the numbers it got back (scripts/signal-insights.mjs), and the
-// Tower that names the market (apps/tower/shared/site-markets.ts). Before this
-// file the findings said "US/English" whatever the site had saved.
+// A site's search market: the location and language its DataForSEO reports
+// are asked in, one rule for the collector, the findings and the Tower.
 //
-// Portable, and authored TypeScript: `pnpm config:generate` writes the `.mjs`
-// the plain-Node analyzer imports and the `.d.mts` beside it.
+// Authored TypeScript: `pnpm config:generate` writes the `.mjs` and `.d.mts`
+// beside it.
 
 export interface SearchMarket { locationCode: number; languageCode: string }
 

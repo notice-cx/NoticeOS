@@ -1,14 +1,8 @@
-// POST /api/job-runs — the scheduled-lane record's door (db/0022, bead ro-uwo.4).
-//
-// Operator-authed, same shape as /api/beads-snapshot: bearer → parse → hand the
-// untrusted body to the writer, which validates every field before touching D1.
-// The caller is `scripts/os-up.mjs`, the only process that fires the lanes and
-// therefore the only witness to one firing while the ingest was down.
-//
-// It answers 201 for a batch that stored nothing new, deliberately: the runner
-// treats non-2xx as "not shipped, keep it queued", and a duplicate IS shipped —
-// the store simply already had it. Making re-posts look like failures would keep
-// the queue growing forever after the first catch-up.
+// POST /api/job-runs — the scheduled-lane record's door. Operator-authed; the
+// body is handed to the writer, which validates every field. The caller is the
+// runner, the only witness to a firing while the ingest was down. It answers
+// 201 for a batch that stored nothing new, deliberately: the runner treats
+// non-2xx as "not shipped, keep it queued", and a duplicate is shipped.
 
 import { authenticateOperator } from '../auth.js';
 import { type JobRunsInput, readManualJobRuns, writeJobRuns } from '../job-runs.js';
@@ -54,11 +48,10 @@ export async function handleJobRuns(
 }
 
 /**
- * GET /api/job-runs?trigger=manual — the manual firings the record holds
- * (bead `ro-ujb9.96.7.19`), for the Workflows page's run history: the runner's
- * own file never sees a job step a person ran from the connect panel, so the
- * page reads those here. Operator-authed, like the write above; any other
- * query is refused rather than guessed at.
+ * GET /api/job-runs?trigger=manual — the manual firings the record holds, for
+ * the Workflows page's run history: the runner's own file never sees a job
+ * step a person ran from the connect panel. Operator-authed; any other query
+ * is refused rather than guessed at.
  */
 export async function handleManualJobRuns(request: Request, env: IngestEnv): Promise<Response> {
   if (!(await authenticateOperator(request, env.OPERATOR_TOKEN))) {

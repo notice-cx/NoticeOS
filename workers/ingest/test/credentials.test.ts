@@ -1,16 +1,9 @@
-// The credential store (bead `ro-vu8d.1`; on Postgres since ro-ujb9.76.4.4:
-// noticeos.integration_connections and connection_secrets).
-//
-// WHAT THIS FILE IS FOR. One rule holds the whole design up: a stored credential
+// The credential store. One rule holds the design up: a stored credential
 // leaves this Worker only as bytes a provider receives — never to the Tower,
-// never to a log, never into an error message. Most of what follows is that rule
-// asserted from a different angle each time, because it is the kind of rule that
-// is broken by an innocent-looking `console.log(fields)` six months from now.
-//
-// Against a REAL Postgres copy and REAL WebCrypto, on purpose. AES-GCM
-// round-trips, bytea coming back as bytes, `ON CONFLICT` on the provider key,
-// what the store keeps of a statement and of a refused row, and the
-// store-beats-env order are all facts about the runtime, not about a mock.
+// never to a log, never into an error message. Most of what follows is that
+// rule asserted from a different angle each time. Against a real Postgres copy
+// and real WebCrypto, because the round-trips, bytea, ON CONFLICT and the
+// store-beats-env order are facts about the runtime, not about a mock.
 
 import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -58,9 +51,8 @@ const FEED_URL = 'https://calendar.example.test/ical/op@example.test/private-SEK
  * secret ICS address — so it is hunted for in every verdict too. */
 const DISCORD_WEBHOOK =
   'https://discord.com/api/webhooks/1234567890/SEKRIT-discord-token-do-not-echo';
-/** One asset's Clarity data-export token — a per-asset credential, so the thing
- * hunted for is the VALUE while the asset ids beside it are deliberately
- * public (bead `ro-vu8d.9`). */
+/** One asset's Clarity data-export token — a per-asset credential, so the
+ * value is hunted for while the asset ids beside it are deliberately public. */
 const CLARITY_TOKEN = 'SEKRIT-clarity-a71c-do-not-echo';
 
 const NOW = Date.parse('2026-09-04T12:00:00.000Z');
@@ -133,11 +125,10 @@ describe('the bootstrap key', () => {
   it('refuses every crypto op without one, and the refusal is the fix', async () => {
     const state = credentialKeyState(withoutKey());
     expect(state.present).toBe(false);
-    // The Tower draws the code (bead ro-ujb9.96.6.19); the sentence is the
-    // command line's.
+    // The Tower draws the code; the sentence is the command line's.
     expect(state.blocker).toBe('key-missing');
     // The command line's line is the banner's state, the binding and the one
-    // command (bead ro-ujb9.96.6.25): where the key is set is doc 06's.
+    // command.
     expect(state.reason).toBe('No encryption key · CREDENTIALS_KEY · openssl rand -base64 32');
     expect(state.reason).toBe(credentialKeyLine('key-missing', 'CREDENTIALS_KEY'));
 
@@ -265,12 +256,11 @@ describe('store first, env second', () => {
     expect(resolved.source).toBe('none');
   });
 
-  it('reads the older single-asset binding as that asset’s key (bead `ro-vu8d.24`)', async () => {
-    // An install still on `CLARITY_PROJECT_API_TOKEN` collects perfectly well,
-    // and until this the card said Not connected over it — `summarize` judged
-    // the env fallback on DECLARED field names alone. The fold lives in
-    // `packages/contract` so the collector, the card and the importer read one
-    // rule; what is pinned here is that the resolver agrees.
+  it('reads the older single-asset binding as that asset’s key', async () => {
+    // An install still on `CLARITY_PROJECT_API_TOKEN` collects, and the card
+    // must not say Not connected over it. The fold lives in `packages/contract`
+    // so the collector, the card and the importer read one rule; what is pinned
+    // here is that the resolver agrees.
     const legacy = {
       ...withoutBinding('CLARITY_TOKENS'),
       CLARITY_PROJECT_API_TOKEN: 'single-project-token',
@@ -292,7 +282,7 @@ describe('store first, env second', () => {
     expect(summary.assetsHeld).toEqual(['meals.example']);
   });
 
-  it('serves the first Clarity site in the STORE’s register, whatever it is called (bead `ro-ujb9.118`)', async () => {
+  it('serves the first Clarity site in the STORE’s register, whatever it is called', async () => {
     // Which asset the older binding serves is the installation's answer —
     // `legacyBindingAsset` over its own register, store first — never a site
     // written into the catalog. A store whose first Clarity site is another
@@ -397,10 +387,10 @@ describe('summaries — names and metadata, never values', () => {
   });
 
   it('reports which ASSETS a per-asset credential covers, without the key and without a token', async () => {
-    // Bead `ro-vu8d.9`. Clarity is one row holding a map, so "which assets are
-    // covered" has to be answerable from the row's PUBLIC half — a card whose
-    // bootstrap key was rotated still has to be able to say what it is holding
-    // while it says "reconnect me". Ids are public; tokens never leave.
+    // Clarity is one row holding a map, so which assets are covered has to be
+    // answerable from the row's public half — a card whose bootstrap key was
+    // rotated still has to say what it is holding. Ids are public; tokens never
+    // leave.
     await putCredential(env, {
       provider: 'clarity',
       fields: {
@@ -500,8 +490,8 @@ describe('validation — the same rules whichever door the write came through', 
 
   it('holds a single url field to the same standard as one feed entry', () => {
     // The commonest Discord mistake is pasting the webhook ID rather than the
-    // whole address behind Copy Webhook URL, so it has to be refused BY FIELD
-    // rather than stored as a string nobody can post to (bead `ro-vu8d.18`).
+    // whole address, so it is refused by field rather than stored as a string
+    // nobody can post to.
     const discord = integrationProvider('discord')!;
     expect(validateCredentialFields(discord, { DISCORD_WEBHOOK_URL: DISCORD_WEBHOOK })).toEqual([]);
     const issues = validateCredentialFields(discord, { DISCORD_WEBHOOK_URL: '1234567890' });
@@ -539,8 +529,7 @@ describe('probes — one cheap real call, nothing persisted, no secret in the an
     });
 
     expect(probe.ok).toBe(true);
-    // A result the card draws, and the same result as one short line (bead
-    // ro-ujb9.96.6.19).
+    // A result the card draws, and the same result as one short line.
     expect(probe.result).toEqual({ outcome: 'answered', facts: { sites: 1 } });
     expect(probe.message).toBe('Answered · 1 site');
     expect(probe.checkedAt).toBe(new Date(NOW).toISOString());
@@ -598,11 +587,9 @@ describe('probes — one cheap real call, nothing persisted, no secret in the an
     expect(calls[0]).toBe('https://api.dataforseo.com/v3/appendix/user_data');
     expect(JSON.stringify(probe)).not.toContain(DFS_PASSWORD);
 
-    // AND IT KEEPS THE FIGURE, dated (bead `ro-qpas`). This is the one thing a
-    // probe persists, and it is a fact about the CREDENTIAL rather than about
-    // the provider's data: before this, the number that decides whether next
-    // Monday's sweep can run existed for one render of one card and was gone.
-    // The instant rides with it so the card can only ever say how old it is.
+    // And it keeps the figure, dated: the one thing a probe persists, a fact
+    // about the credential rather than the provider's data. The instant rides
+    // with it so the card can only ever say how old it is.
     const summary = (await credentialSummary(env, 'dataforseo'))!;
     expect(summary.metadata?.balance).toEqual({
       usd: '42.5',
@@ -617,7 +604,7 @@ describe('probes — one cheap real call, nothing persisted, no secret in the an
     expect(JSON.stringify(stamped)).not.toContain(DFS_PASSWORD);
   });
 
-  it('keeps the credit to the provider\'s own digits, from its answer to the store to the card (ro-ujb9.76.4.4)', async () => {
+  it('keeps the credit to the provider\'s own digits, from its answer to the store to the card', async () => {
     await putCredential(env, {
       provider: 'dataforseo',
       fields: { DATAFORSEO_LOGIN: 'op@example.test', DATAFORSEO_PASSWORD: DFS_PASSWORD },
@@ -754,11 +741,10 @@ describe('probes — one cheap real call, nothing persisted, no secret in the an
   });
 
   it('posts one labelled message to Discord and never echoes the webhook url', async () => {
-    // The ONE probe with a side effect (bead `ro-vu8d.18`). Discord offers a
-    // read of the webhook object, and it would prove the wrong thing: the
-    // register defines this data source as live when a notification ARRIVES,
-    // not when a url exists. So the test posts, the contract declares that cost,
-    // and the card prints it before the press.
+    // The one probe with a side effect. Discord offers a read of the webhook
+    // object, and it would prove the wrong thing: this data source is live when
+    // a notification arrives, not when a url exists. So the test posts, the
+    // contract declares that cost, and the card prints it before the press.
     await putCredential(env, {
       provider: 'discord',
       fields: { DISCORD_WEBHOOK_URL: DISCORD_WEBHOOK },
@@ -803,11 +789,10 @@ describe('probes — one cheap real call, nothing persisted, no secret in the an
   });
 
   it('answers for Clarity without calling Clarity, and stamps no verdict it did not earn', async () => {
-    // Bead `ro-vu8d.9`'s honest half. Clarity's export allows ten calls per
-    // project per DAY and has no free check, so the probe makes NO call — and,
-    // because it proved nothing, it must not touch `last_ok_at`, which is what
-    // the card renders as "this credential worked". Stamping it would also wipe
-    // the `last_error` a real 04:30 run had left there.
+    // Clarity's export allows ten calls per project per day and has no free
+    // check, so the probe makes no call — and, because it proved nothing, it
+    // must not touch `last_ok_at`, which the card renders as the credential
+    // having worked. Stamping it would also wipe the `last_error` a real run left.
     await putCredential(env, {
       provider: 'clarity',
       fields: {
@@ -844,9 +829,8 @@ describe('probes — one cheap real call, nothing persisted, no secret in the an
   });
 
   it('tests PostHog with one project read per mapped asset and never runs a query', async () => {
-    // Bead `ro-ghis.1`. The region and project come from the asset's Sources
-    // tab (the compiled register here: meals.example is us / 596607); an asset
-    // with a key and no project is named as not checked, not failed.
+    // The region and project come from the asset's Sources tab; an asset with a
+    // key and no project is named as not checked, not failed.
     const PH_KEY = 'phx_probe_test_key';
     await putCredential(env, {
       provider: 'posthog',
@@ -970,7 +954,7 @@ describe('what a collector records about the credential it ran on', () => {
   });
 });
 
-describe('when a credential stops working (bead `ro-vu8d.8`)', () => {
+describe('when a credential stops working', () => {
   const NEXT_MONTH = '2026-10-04T00:00:00.000Z';
 
   it('records a date the operator entered, without touching the ciphertext or the verdict', async () => {
@@ -1093,7 +1077,7 @@ describe('when a credential stops working (bead `ro-vu8d.8`)', () => {
   });
 });
 
-describe('rotating the bootstrap key (bead `ro-vu8d.11`)', () => {
+describe('rotating the bootstrap key', () => {
   /** A second 32-byte key, so a rotation has somewhere to go. Deliberately not
    * random per run: a failure has to be reproducible from the transcript. */
   const NEW_KEY = btoa(String.fromCharCode(...new Array(32).fill(0).map((_, i) => (i * 7 + 3) % 256)));
@@ -1312,7 +1296,7 @@ describe('rotating the bootstrap key (bead `ro-vu8d.11`)', () => {
   });
 });
 
-describe('on Postgres, a secret leaves in no statement, log line, answer or error (ro-ujb9.76.4.4)', () => {
+describe('on Postgres, a secret leaves in no statement, log line, answer or error', () => {
   const MEDIAVINE_PASSWORD = 'SEKRIT-mediavine-5c0e-do-not-echo';
   const SESSION = 'SEKRIT-mediavine-session-81d2-do-not-echo';
   const NEXT_KEY = btoa(String.fromCharCode(...new Array(32).fill(0).map((_, i) => (i * 13 + 1) % 256)));

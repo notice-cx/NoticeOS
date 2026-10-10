@@ -1,32 +1,13 @@
-// The PULL adapter (docs/02 §"Central signals", docs/06, docs/14-design.md § Operator flows baselining).
-//
-// NoticeOS runs local-first: prod assets that cannot reach the OS to *push*
-// their nightly pulse are instead PULLED. A nightly cron fetches each enabled
-// pull-mode asset's own self-report endpoint, turns the response into a contract
-// envelope, and writes it through the SAME path as an inbound POST /api/pulse
-// (validate → upsert → explode flags → central rules → resolve freshness), so a
-// pulled asset is held to the identical contract as a pushed one. When an asset
-// later starts pushing, flip its config/pull.json entry to `"enabled": false`
-// and the two lanes never collide (the pull just stops).
-//
-// Two wire formats are supported, selected per asset by `format`:
-//   - "prometheus": a Prometheus text scrape the adapter parses
-//     and MAPS into the envelope, computing avg7d from stored pulse history.
-//   - "envelope": the endpoint already speaks the contract and returns
-//     the envelope verbatim. No metric mapping and no history-derived avg7d —
-//     the source's own avg7d is authoritative. The adapter only validates it,
-//     guards that its `asset` matches the configured id (never a silent
-//     cross-write), and hands it to the shared path. Central rules still
-//     re-evaluate with the OS's config; envelope flags still explode as
-//     asset-declared — the format changes only how the body is obtained.
-//
-// Auth is a static bearer token per asset, read from env.ASSET_TOKENS — the ONE
-// per-asset map. The same entry the push lane CHECKS inbound pulses against is
-// what this lane PRESENTS on the way out, because an asset holds exactly one
-// secret (its own ASSET_TOKEN) gating both directions.
-// So a pulled endpoint is one gated on that static ASSET_TOKEN — a bearer a
-// cron can present — never a session-gated admin page, which a machine cron
-// cannot auth to (see workers/ingest/README §Pull mode).
+// The pull adapter. An asset that cannot reach the OS to push its nightly pulse
+// is pulled: a nightly cron fetches its self-report endpoint, turns the
+// response into a contract envelope, and writes it through the same path as an
+// inbound `POST /api/pulse`, so a pulled asset is held to the identical
+// contract. Two wire formats: "prometheus" (a text scrape the adapter maps into
+// the envelope, computing avg7d from stored history) and "envelope" (the
+// endpoint already speaks the contract; the adapter only validates it and
+// guards that its `asset` matches the configured id). Auth is the asset's one
+// static bearer token from env.ASSET_TOKENS, the same entry the push lane
+// checks inbound pulses against.
 
 import type { Metric, PulseEnvelope } from '@noticeos/contract';
 import { ingestPulseEnvelope, type WritePulseResult } from './db.js';
@@ -38,7 +19,7 @@ import pullConfigJson from '../../../config/pull.json';
 /** rule id stamped on the flag raised when an asset's nightly pull fails. */
 export const PULL_FAILED_RULE_ID = 'asset-pull-failed';
 
-/** How many recent stored pulses feed the computed avg7d baseline (docs/14-design.md § Operator flows). */
+/** How many recent stored pulses feed the computed avg7d baseline. */
 const AVG7D_WINDOW = 7;
 
 /** Fields common to every pull-mode asset config row (config/pull.json). */
@@ -78,11 +59,9 @@ export interface PromSample {
 }
 
 /**
- * Parse the exposition-format lines this endpoint emits, e.g.
- *   d1_row_count{table="profiles"} 4210
- *   d1_new_rows_count{table="profiles",window="24h"} 11
- * Comments/HELP/TYPE and unparseable lines are skipped. The endpoint's labels
- * are simple identifiers (no escaped quotes), so a compact matcher suffices.
+ * Parse the exposition-format lines this endpoint emits. Comments and
+ * unparseable lines are skipped; labels are simple identifiers (no escaped
+ * quotes), so a compact matcher suffices.
  */
 export function parsePrometheus(text: string): PromSample[] {
   const samples: PromSample[] = [];
@@ -106,10 +85,9 @@ export function parsePrometheus(text: string): PromSample[] {
 }
 
 /**
- * The all-time total for one source counter (`d1_row_count{table}`), or
- * undefined when the scrape carries no such sample. Deliberately non-throwing:
- * the counters lane needs the absence as a value it can turn into a
- * whole-property failure, not an exception mid-loop.
+ * The all-time total for one source counter, or undefined when the scrape
+ * carries no such sample. Non-throwing: the counters lane needs the absence as
+ * a value it can turn into a whole-property failure.
  */
 export function totalFor(samples: PromSample[], counter: string): number | undefined {
   return samples.find((s) => s.name === 'd1_row_count' && s.labels.table === counter)?.value;
@@ -128,15 +106,14 @@ function extractCounts(samples: PromSample[], counter: string): { last24h: numbe
   return { last24h, total };
 }
 
-// --- avg7d baseline from stored history (docs/14-design.md § Operator flows) -------------------------
+// --- avg7d baseline from stored history ------------------------------------
 
 /**
- * Per-metric avg7d computed from the last {@link AVG7D_WINDOW} stored pulses for
- * the asset (days strictly before today, so a same-day re-pull never skews it).
- * With no stored history a metric falls back to its current last24h — which
- * makes the central drop rule a no-op (observed == baseline) until a real
- * baseline accumulates, exactly the docs/14-design.md § Operator flows "arm the rules after baselining"
- * intent. The source's own point-in-time counts are never trusted as baselines.
+ * Per-metric avg7d from the last {@link AVG7D_WINDOW} stored pulses (days
+ * strictly before today, so a same-day re-pull never skews it). With no history
+ * a metric falls back to its current last24h, which makes the central drop rule
+ * a no-op until a real baseline accumulates. The source's own point-in-time
+ * counts are never trusted as baselines.
  */
 async function computeAvg7d(
   env: IngestEnv,
@@ -145,8 +122,7 @@ async function computeAvg7d(
   today: string,
   currentLast24h: Record<string, number>,
 ): Promise<Record<string, number>> {
-  // Each day's newest revision (`noticeos.current_pulses`, bead
-  // ro-ujb9.76.5.2): the one report D1 kept per day.
+  // Each day's newest revision.
   const priors = await env.STORE.read((tx) =>
     tx.query<{ envelope: string }>(
       `SELECT envelope::text AS envelope FROM noticeos.current_pulses
@@ -226,9 +202,8 @@ interface ProviderError {
 }
 
 /**
- * A pull failure that carries the provider's own error shape so the operator
- * sees the source's own words in the alert message and `rule_inputs` (doc 14
- * flow C spirit), not just an HTTP status.
+ * A pull failure that carries the provider's own error shape, so the operator
+ * sees the source's own words in the alert and `rule_inputs`.
  */
 class PullError extends Error {
   constructor(
@@ -321,9 +296,7 @@ function priorFailureCount(ruleInputs: string | null | undefined): number {
   }
 }
 
-/** Whether a failure's own record was kept (`noticeos.flag_evidence`). A
- * Postgres store always keeps it; `not-migrated` was a D1 store without
- * db/0040. */
+/** Whether a failure's own record was kept (`noticeos.flag_evidence`). */
 export type FlagEvidenceWrite = 'recorded';
 
 export interface PullFailureFlagWrite {
@@ -336,22 +309,13 @@ export interface PullFailureFlagWrite {
 }
 
 /**
- * Raise a warn `asset-pull-failed` flag on the asset — but only when no open one
- * already exists, so a persistent outage does not fire a flag every night.
- * When one IS open the failure becomes its NEWEST READING (message +
- * rule_inputs) rather than being dropped: a multi-night outage can change cause
- * between nights (401 after a 503, say), and an operator reading a flag frozen
- * at the first night's cause is chasing the wrong thing. `fired_at` stays the
- * first night, so the alert still dates the outage's start, and
- * `failureCount`/`lastFailedAt` in the inputs carry how long it has been going.
- * pulse_id is NULL (centrally computed, like ingest-freshness).
- *
- * EVERY NIGHT KEEPS ITS OWN RECORD (bead `ro-ujb9.220`): each failure, the
- * first included, appends its reading to `noticeos.flag_evidence` on the alert
- * it opened or joined, and the alert reads as its newest (`current_flags`,
- * bead ro-ujb9.76.5.2; D1 rewrote the flag row as well). N failed nights leave
- * N readings, and the Tower lists them on the site's Data sources tab and in
- * the alert's Evidence.
+ * Raise a warn `asset-pull-failed` flag on the asset, unless one is open: a
+ * persistent outage is one flag. When one is open the failure becomes its
+ * newest reading rather than being dropped, because a multi-night outage can
+ * change cause between nights; `fired_at` stays the first night and
+ * `failureCount`/`lastFailedAt` carry how long it has been going. Every night
+ * keeps its own record in `noticeos.flag_evidence`, and the alert reads as its
+ * newest.
  */
 async function firePullFailure(
   env: IngestEnv,
@@ -377,16 +341,13 @@ async function firePullFailure(
       lastFailedAt: failedAt,
       evaluatedAt: failedAt,
     };
-    // The message deliberately does NOT name the property — the flag row's
-    // `asset` column carries that fact, and the attention band renders it from
-    // there (doc 14 one-representation rule; a prefixed message would read
-    // "Example: example.com pull failed…").
+    // The message does not name the property: the flag row's `asset` column
+    // carries that fact, and the attention band renders it from there.
     const message = `pull failed: ${error}`;
     const serialized = JSON.stringify(inputs);
     const reading = { observedAt: failedAt, severity: 'warn', message, ruleInputs: serialized };
 
-    // This night's record lands on exactly the alert it opened or joined: a
-    // new firing, or every open one of this condition (D1 rewrote each).
+    // This night's record lands on exactly the alert it opened or joined.
     if (open === null) {
       const flagId = await raiseAlertUnlessOpen(tx, {
         asset,
@@ -432,9 +393,8 @@ export function tokenFor(assetTokensJson: string | undefined, asset: string): st
 
 /**
  * GET a property's self-report endpoint with its pull bearer. The one place the
- * outbound scrape is shaped, so every lane reading a property's own endpoint
- * (nightly pull, counters) presents the identical request — a property's worker
- * only ever has to authorize one caller shape.
+ * outbound scrape is shaped, so a property's worker only ever has to authorize
+ * one caller shape.
  */
 export function fetchScrape(
   fetchImpl: typeof fetch,
@@ -471,14 +431,11 @@ export interface PullAssetOutcome {
   /** number of open pull-failure flags resolved this run (success path). */
   resolved: number;
   /** On a failure that filed or refreshed the flag: whether that night's own
-   * record was kept (`flag_evidence`, db/0040), or the store predates it. */
+   * record was kept. */
   evidence?: FlagEvidenceWrite;
-  /**
-   * True when the fetch failed but the OS's own egress is what was down, so NO
-   * `asset-pull-failed` flag was filed. The pull still counts as failed — it did
-   * not happen — but the property is not the reason, and the run's single
-   * `os-egress-down` flag carries that fact instead (src/egress.ts).
-   */
+  /** The fetch failed but the OS's own egress is what was down, so no
+   * `asset-pull-failed` flag was filed; the run's single `os-egress-down` flag
+   * carries the fact instead. */
   egressDown?: boolean;
   error?: string;
   result?: WritePulseResult;
@@ -499,11 +456,9 @@ export interface PullOptions {
   /** Override the outbound fetcher (tests stub the self-report responses). */
   fetchImpl?: typeof fetch;
   nowMs?: number;
-  /** Override the run's egress gate (tests control the verdict TTL); every other
-   * caller gets a real one over the same fetcher. */
+  /** Override the run's egress gate (tests control the verdict TTL). */
   egress?: EgressGate;
-  /** Where this run's config came from, per file — resolved once per cron fire
-   * in dispatch.ts and reported on the completion line below (`ro-syok.7`). */
+  /** Where this run's config came from, per file; reported on the completion line. */
   configSources?: ConfigSourceMap;
 }
 
@@ -517,9 +472,9 @@ async function pullOne(
 ): Promise<PullAssetOutcome> {
   const at = iso(nowMs);
   let status: number | null = null;
-  // Whether a request was actually put on the wire. A missing token also leaves
-  // `status` null, and that failure is configuration, not connectivity — it must
-  // still flag while the house internet is out.
+  // Whether a request was put on the wire. A missing token also leaves
+  // `status` null, and that failure is configuration, not connectivity: it
+  // must still flag while the house internet is out.
   let attempted = false;
   try {
     const token = tokenFor(env.ASSET_TOKENS, entry.asset);
@@ -552,9 +507,8 @@ async function pullOne(
     const provider = err instanceof PullError ? err.provider : undefined;
     const error = err instanceof Error ? err.message : String(err);
     // A pull that came back with no status is the one failure that may not be
-    // the property's: on 2026-08-08 both pull-mode properties were flagged for
-    // an outage that was the OS's own uplink. Any status the endpoint returned —
-    // 401, 404, 503 — proves the request got there, and is never gated.
+    // the property's. Any status the endpoint returned proves the request got
+    // there, and is never gated.
     if (status === null && attempted && (await gate.isDown())) {
       gate.recordUnmeasured(entry.asset);
       return {
@@ -582,16 +536,15 @@ async function pullOne(
 }
 
 /**
- * Nightly pull cron (02:30 UTC, before the 03:00 asset-#0 self-pulse). Pulls
- * every enabled pull-mode asset independently: one asset's failure is caught,
- * flagged, and never aborts the others.
+ * Nightly pull cron. Pulls every enabled pull-mode asset independently: one
+ * asset's failure is caught, flagged, and never aborts the others.
  */
 export async function runPullAdapter(env: IngestEnv, opts: PullOptions = {}): Promise<PullAdapterResult> {
   const entries = (opts.entries ?? PULL_CONFIG).filter((e) => e.enabled);
   const fetchImpl = opts.fetchImpl ?? fetch;
   const nowMs = opts.nowMs ?? Date.now();
-  // One gate for the run, finalized below: two properties unreachable on the
-  // same dead uplink is one fact about this OS, not two about them.
+  // One gate for the run: two properties unreachable on the same dead uplink
+  // is one fact about this OS.
   const gate = opts.egress ?? new EgressGate(env, { lane: 'pull', fetchImpl, at: iso(nowMs) });
 
   const outcomes: PullAssetOutcome[] = [];
@@ -606,11 +559,7 @@ export async function runPullAdapter(env: IngestEnv, opts: PullOptions = {}): Pr
     outcomes,
     egress: await gate.finalize(),
   };
-  // ONE COMPLETION LINE, and the reason it exists is `configSource` (bead
-  // `ro-syok.7`): this lane's registry moved into the store, and a run that
-  // cannot say which of the two it read leaves an operator to infer it from
-  // behaviour. Counts and asset ids only — a pull URL carries no token, but the
-  // registry itself never reaches a log either way.
+  // Counts and asset ids only; the registry itself never reaches a log.
   console.log(
     JSON.stringify({
       event: 'pull_complete',

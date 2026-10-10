@@ -1,6 +1,6 @@
 // GET /api/provider-spend: the month's metered spend per site and lane, read
-// from the report runs on Postgres (bead ro-ujb9.76.5.4), which
-// `scripts/cost-import.mjs` books as an `api` cost row.
+// from the report runs, which `scripts/cost-import.mjs` books as an `api`
+// cost row.
 import { beforeEach, expect, it } from 'vitest';
 import { env } from 'cloudflare:test';
 import { archiveDumpFailure } from '../src/signal-dumps';

@@ -8,7 +8,7 @@ declaration against what GA4 actually counts as a **key event** and warns when
 the two disagree. The document records an intent that no provider can infer;
 the observations stay in the immutable archive.
 
-**Seed and export, not source of truth** (D22): `pnpm config:seed` loads this
+**Seed and export, not source of truth**: `pnpm config:seed` loads this
 installation's copy (else this generic default) into the store, the running OS
 reads and saves it there, and `pnpm config:export` writes it to
 `installation/`. Report analysis requires a valid saved document — an

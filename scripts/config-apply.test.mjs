@@ -13,7 +13,7 @@ import { DEFAULT_DOOR } from './ingest-door.mjs';
 // config:apply is the operator's changeset tool and it is a WRITER, run by hand
 // beside a live `os:up`. These tests exercise both halves of its store lane —
 // the expect guard's read and the apply's write — against a stubbed door, so the
-// lane is proven without ever touching the machine's real store (bead ro-bko).
+// lane is proven without ever touching the machine's real store.
 
 /**
  * The ingest's asset-state and annotation routes, as far as this script can
@@ -171,14 +171,13 @@ test('the apply writes one edit per op through the door', async () => {
   assert.ok(calls.every(({ url }) => url.startsWith('http://door.test/')));
 });
 
-// ── the stage move is an EVENT, and the terminal records it (bead `ro-mz39`) ──
+// ── the stage move is an EVENT, and the terminal records it ──
 //
 // `assets.status` says where an asset IS. Where it has BEEN lives on the
 // annotation timeline, and Restore reads the most recent move into `retired` to
-// decide which stage to bring an archived asset back to (bead `ro-3085`, commit
-// f2ce513). The Tower wrote that row; this tool moved the column and wrote
-// nothing, so an asset archived from the terminal came back to a labelled
-// default instead of the stage it left.
+// decide which stage to bring an archived asset back to. Both writers must
+// record the move, or an asset archived from the terminal comes back to a
+// labelled default instead of the stage it left.
 
 test('a stage moved through the door is recorded on the timeline beside it', async () => {
   const { fetchImpl, calls, annotations } = stubDoor();

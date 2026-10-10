@@ -1,6 +1,5 @@
-// GA4 event-parameter report for one asset — the manual companion to the daily
-// GA4 archive lane, for event params the archive does not export (yet; the
-// 2026-07-31 audit brief F5 tracks folding js_error params into the collector).
+// GA4 event-parameter report for one asset: the manual companion to the daily
+// GA4 archive lane, for event params the archive does not export.
 //
 //   pnpm signals:event-params -- --asset example.com
 //   pnpm signals:event-params -- --asset example.com --event js_error --dims message,source
@@ -12,8 +11,6 @@
 // as an event-scoped custom dimension in GA4 admin — values are "(not set)"
 // for events collected before the dimension was registered (registration is
 // forward-only), and a dimension can take up to 48h to start populating.
-//
-// Origin: a 2026-07-31 js_error triage on one site (message/source pull).
 
 import { readFileSync } from "node:fs";
 import crypto from "node:crypto";

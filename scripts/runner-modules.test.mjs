@@ -4,14 +4,14 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-// THE RUNNER'S MODULES (bead ro-ujb9.22). scripts/os-up.mjs is the one
+// THE RUNNER'S MODULES. scripts/os-up.mjs is the one
 // coordinator; what it coordinates lives in scripts/runner/. These rules keep
 // that split honest as modules are added:
 //
 //   - a module never imports the coordinator back, so a module runs alone and
 //     the import graph has one direction;
 //   - a module never spawns a process itself: commands go through
-//     scripts/run-command.mjs (bead ro-ujb9.185), and the one supervised child
+//     scripts/run-command.mjs, and the one supervised child
 //     stays in the coordinator;
 //   - every module has its own test file, beside the other root tests, because
 //     `pnpm test:scripts` runs scripts/*.test.mjs and nothing below it.

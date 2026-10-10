@@ -1,13 +1,7 @@
-// The annotation writer — one implementation behind two capabilities.
-//
-// `POST /api/annotations` (operator bearer, routes/annotations.ts) and the
-// `createAnnotation()` RPC method on the WorkerEntrypoint (the Tower's private
-// Service Binding, index.ts) are two ways to be ALLOWED to write, not two ways
-// to write. The rules — kind vocabulary, backdating, `(asset, at, kind, ref)`
-// identity, field caps — live here so the lanes cannot drift apart. The Tower
-// briefly carried its own copy of this SQL because it could not hold the
-// operator bearer (docs/10 build note); this module is what that copy collapsed
-// into.
+// The annotation writer: one implementation behind two capabilities.
+// `POST /api/annotations` (operator bearer) and the `createAnnotation()` RPC
+// (the Tower's Service Binding) are two ways to be allowed to write, not two
+// ways to write; the rules live here so the lanes cannot drift apart.
 
 import type {
   AnnotationKind,
@@ -28,8 +22,8 @@ import {
   requiredString,
 } from './routes/validate.js';
 
-/** The `annotations.kind` CHECK constraint (db/postgres/migrations/0001_baseline.sql),
- * typed against the contract so the two cannot disagree silently. */
+/** The `annotations.kind` CHECK constraint, typed against the contract so the
+ * two cannot disagree silently. */
 export const ANNOTATION_KINDS: readonly AnnotationKind[] = [
   'deploy',
   'model-change',
@@ -43,8 +37,7 @@ export const ANNOTATION_KINDS: readonly AnnotationKind[] = [
 export const ANNOTATION_REF_MAX = 256;
 export const ANNOTATION_NOTE_MAX = 1000;
 
-/** An annotation in the row's own words; its number is the id a reader
- * shows (bead ro-ujb9.76.5.7). */
+/** An annotation in the row's own words; its number is the id a reader shows. */
 const COLUMNS = `annotation_number AS id, asset_id AS asset, at, kind, ref, note, created_at`;
 
 /** An annotation as Postgres returns it: the number is an `int8`. */
@@ -92,19 +85,16 @@ export async function writeAnnotation(
     return { ok: false, error: 'validation', issues: issues.list };
   }
 
-  // An unknown asset is a clean error, not a raw FK failure (same posture as
-  // the revenue lane). The site list is on Postgres (bead ro-ujb9.76.4.2).
+  // An unknown asset is a clean error, not a raw FK failure.
   if (!(await assetKnown(env.STORE, asset))) {
     return { ok: false, error: 'unknown_asset', asset };
   }
 
-  // Idempotent re-post: identity is (asset, at, kind, ref) — `note` is prose
+  // Idempotent re-post: identity is (asset, at, kind, ref); `note` is prose
   // about the event, not part of what makes it the same event. `IS NOT
-  // DISTINCT FROM` is null-safe equality, so two ref-less deploys at the same
-  // instant still collapse to one row. The read and the insert are one
-  // transaction holding that identity, so two posts of one event at once are
-  // one row: D1 had that from running one statement at a time (bead
-  // ro-ujb9.76.5.7).
+  // DISTINCT FROM` is null-safe, so two ref-less deploys at the same instant
+  // still collapse to one row. The read and the insert are one transaction
+  // holding that identity, so two posts of one event at once are one row.
   return env.STORE.write(async (tx) => {
     await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
       `noticeos.annotation:${tx.workspaceId}:${JSON.stringify([asset, at, kind, ref])}`,

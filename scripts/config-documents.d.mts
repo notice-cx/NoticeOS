@@ -24,16 +24,10 @@ export { CONFIG_KNOBS, CONFIG_REGISTERS, DOCUMENT_STAMPS } from './config-regist
 export declare const ALLOWED_FILES: ReadonlySet<string>;
 export declare const STORE_COLUMNS: ReadonlySet<string>;
 /**
- * EVERY config file the store holds a document for (epic `ro-syok`).
- *
- * Derived, never listed by hand: the four wholesale-settable files, every file a
- * register names, and every file a knob names. A file this list does not carry
- * is a file no surface can edit, so putting it in the store would be storing
- * something nothing reads through the store.
- *
- * It is what `pnpm config:seed` loads, what `pnpm config:export` writes back,
- * and what the two Workers ask the store for before falling back to the copy
- * compiled into them.
+ * Every config file the store holds a document for: the wholesale-settable
+ * files, every file a register names, and every file a knob names. What
+ * `pnpm config:seed` loads, `pnpm config:export` writes back, and the Workers
+ * ask the store for before falling back to the compiled-in copy.
  */
 export declare const CONFIG_DOCUMENT_FILES: readonly string[];
 /** A config file's name as the Postgres store keys its document and its
@@ -48,62 +42,21 @@ export declare const ADDABLE_CONTAINERS: ReadonlyMap<string, {
     parent: string;
 }>;
 /**
- * THE KEYS A WHOLESALE-EDITABLE FILE MAY GAIN OR LOSE (epic `ro-lzmq`).
- *
- * `config/tower.json` may be SET at any pointer, but a pointer set never
- * CREATES a key — "we never create structure" is the oldest rule here. So the
- * Wall's saved layout could not be written the first time: a file nobody has
- * saved a layout in carries no layout there — `null`, or no `/wall` at all
- * (`readsAsUnsaved` below) — because the default layout must have exactly one
- * representation and that one is in the code.
- *
- * A register is the wrong shape for it. Registers are LISTS of rows keyed by an
- * asset; this is one document at one pointer. So it is declared here, exactly as
- * narrowly as it reads: this file, this pointer, nothing under it, nothing else.
- *
- * `/countdown` JOINS IT for the same reason (2026-09-05, bead `ro-fqag`). The
- * countdown is optional (bead `ro-py40`) and a clone that has none had no way to
- * get one from the product: `/settings` could edit the three fields and never
- * create them, so the only path to a first countdown was hand-editing the file —
- * the terminal step D18 retired for every other setting. It is added and removed
- * WHOLE, at this pointer, because the emoji, the words and the moment are one
- * landmark and a half-written countdown is worse than none.
- *
- * `/no_nightly_report` JOINS IT (2026-09-23, bead `ro-ujb9.96.8`): the list of
- * assets the operator declared as sending no nightly report. A fresh install
- * declares none, and the key stays absent until the first asset's Settings
- * switch writes it.
- *
- * WHAT a document must CONTAIN is decided per document. The Wall's layout is
- * checked by the contract's own validator (`./wall-layout.mjs`, bead
- * `ro-lzmq.3`), which every door runs; the countdown is checked by the form that
- * writes it and by `parseDashboardConfig` at build time, which is the two-step
- * it has always had; the no-report list by `noNightlyReportOpRefusal` in the
- * contract, which every door runs too.
+ * The keys a wholesale-editable file may gain or lose: one document at one
+ * exact pointer, nothing under it. A pointer set never creates a key, and the
+ * default (the Wall's layout, the countdown, the no-report list) has exactly
+ * one representation, in the code — so a file nobody has saved one in holds
+ * `null` or no key at all (`readsAsUnsaved`). Each is added and removed whole.
+ * What a document must contain is decided per document: `wallOpRefusal`,
+ * the countdown form plus `parseDashboardConfig`, `noNightlyReportOpRefusal`.
  */
 export declare const ADDABLE_DOCUMENTS: ReadonlyMap<string, readonly string[]>;
 /** Is this exact pointer one of the declared documents above? */
 export declare function declaredDocument(file: string, pointer: string): boolean;
 /**
- * KEYS THE PRODUCT RETIRED, which an installation's stored copy may still
- * carry (bead `ro-ujb9.96.6.20`). This licenses a DELETE and nothing else: no
- * insert, and no first write, so a retired paragraph can leave a store and
- * never come back through this pipeline.
- *
- * `config/integrations.json` once carried the file-level `honestyRule` and
- * `stateMeaning` paragraphs and, per catalog row, `liveMeans`,
- * `credentialNote` and `perProperty` (bead `ro-ujb9.96.6.1` stopped rendering
- * them). The row fields were optional register fields, so a delete was
- * licensed by `optionalField`; the file-level two never were, so an older
- * store had no way to drop them. Once the register stopped declaring the row
- * fields, neither half had a licence — this is it, one pattern per key.
- *
- * `config/signal-panels.json` (`purpose`, `refresh.costNote`) and
- * `config/entities.json` (`purpose`) described the document itself and no
- * screen drew them (bead `ro-ujb9.96.6.16`); each file's README says it now.
- *
- * `config/counters.json` `intervalMinutes` restated the counters job's schedule
- * and could disagree with it (bead `ro-ujb9.222`); nothing reads it now.
+ * Keys the product retired, which an installation's stored copy may still
+ * carry. Licenses a delete and nothing else — no insert, no first write — so
+ * a retired key can leave a store and never come back through this pipeline.
  */
 export declare const RETIRED_KEYS: ReadonlyMap<string, readonly RegExp[]>;
 /** Is this pointer a key the product retired from this file? */
@@ -117,90 +70,58 @@ export declare function parsePointer(pointer: string): string[];
  * store does not have. Distinct from a present `null`, and rendered `(absent)`. */
 export declare const MISSING: unique symbol;
 /**
- * DOES THIS OP EXPECT NOTHING TO BE THERE? — the wire spelling of MISSING
- * (bead `ro-j71v`).
- *
- * `expect` is a JSON value, and JSON cannot say "absent": an empty string is a
- * value somebody wrote down, and a key nobody has written yet is a different
- * fact. Conflating them is what refused every FIRST mapping save on an asset's
- * Sources tab as stale — each mapping field in `config/integrations.json` is
- * sparse, so the browser's `expect: ""` was compared against MISSING and lost,
- * and the operator was told somebody else had changed a value that had never
- * existed.
- *
- * So a `file-json-set` says which of the two it means: `expect` for a value,
- * `expectAbsent: true` for a key that is not there, never both. It is the same
- * word the mismatch list has always put on the wire coming BACK (the dev write
- * lane and `workers/ingest/src/config-store.ts` both serialize MISSING that
- * way); this is that word understood going out.
+ * Does this op expect nothing to be there? JSON cannot say "absent", so a
+ * `file-json-set` says which it means: `expect` for a value, `expectAbsent:
+ * true` for a key that is not there, never both. The same word the mismatch
+ * list puts on the wire coming back.
  */
 export declare function expectsAbsent(op: unknown): boolean;
 /** Resolve a pointer; returns MISSING if any segment is absent. */
 export declare function pointerGet(doc: unknown, pointer: string): JsonValue | typeof MISSING;
 /**
- * Set a pointer's target in-place; every parent must already exist (we never
- * create structure — a changeset only edits values that are already there).
- *
- * `create` is the ONE exception, and it is a single object key wide: the LAST
- * token may be a key the container does not have yet, which is what a first
- * write into a declared optional field needs (bead `ro-j71v`). Every parent is
- * still walked, not invented, and an array index is never created — an index
- * that is not a position in this list is a claim about a list that has moved,
- * which is `pointerInsert`'s question rather than this one's. The one other
- * key a set may create is one the built-in copy holds (`createParents`, bead
- * `ro-dk4u`).
+ * Set a pointer's target in place; every parent must already exist. `create`
+ * is the one exception, a single object key wide: the last token may be a key
+ * the container does not have yet (a first write into a declared optional
+ * field). An array index is never created; that is `pointerInsert`'s
+ * question. The one other key a set may create is one the built-in copy holds
+ * (`createParents`).
  */
 export declare function pointerSet(doc: unknown, pointer: string, value: JsonValue, { create }?: {
     create?: boolean;
 }): void;
 /**
- * Add a value at a pointer that resolves NOWHERE — a new object key, or `-` to
- * append to an array.
- *
- * It REFUSES TO OVERWRITE. An insert whose key is already taken is a bug in
- * whoever built the op (an asset id typed twice, a wizard re-submitted), and the
- * one thing this must never do is silently replace somebody's configuration with
- * a new asset's defaults. `resolveOps()` catches that first as a mismatch; this
- * is the second lock, on the write itself.
+ * Add a value at a pointer that resolves nowhere — a new object key, or `-`
+ * to append to an array. Refuses to overwrite: `resolveOps()` catches a taken
+ * key first as a mismatch; this is the second lock, on the write itself.
  */
 export declare function pointerInsert(doc: unknown, pointer: string, value: JsonValue): void;
 /**
- * Remove the value at a pointer. An object key is deleted; an array element is
- * SPLICED OUT rather than holed, because the array is a list of entries and a
- * `null` in the middle of it would be a new kind of entry nobody handles.
+ * Remove the value at a pointer. An array element is spliced out rather than
+ * holed: a `null` in the middle of a list would be a new kind of entry nobody
+ * handles.
  */
 export declare function pointerDelete(doc: unknown, pointer: string): void;
 export declare function deepEqual(a: unknown, b: unknown): boolean;
 export declare function validateSchemaAndSafety(input: unknown): void;
 /**
- * The first thing wrong with a whole config document, naming where, or null
- * (bead `ro-ujb9.222`).
- *
- * A Save is judged op by op: a row it adds against its register, a field or
- * knob it sets against its declaration. A document that arrives WHOLE — the
- * product default a Worker compiles in as its fallback — never passed through
- * an op, so this walks it with the same declarations: every register's rows
- * (`rowRefusal`, each row's key by `isRowToken`) and every knob's value
- * (`fieldRefusal`). A list at the top of the document must be there, in its
- * declared shape; a list inside one site's entry may be absent, which is "not
- * declared".
+ * The first thing wrong with a whole config document, naming where, or null.
+ * A document that arrives whole (a Worker's compiled-in default) never passed
+ * through an op, so this walks it with the same declarations a Save is judged
+ * by. A list at the top of the document must be there, in its declared
+ * shape; a list inside one site's entry may be absent ("not declared").
  */
 export declare function documentRefusal(file: string, doc: unknown): string | null;
 /**
- * `readDocument(file)` is the ONE thing a caller supplies: give back the parsed
- * JSON document that repo-relative path names, or throw. The terminal and the
- * dev write lane back it with `fs.readFile`; the Workers back it with a
- * `config_documents` row, falling back to the copy compiled into them.
+ * Resolve every op against current reality and collect all expect
+ * mismatches. Nothing is written here; a changeset with one mismatch applies
+ * none of its ops, in every entry point.
  *
- * Each document is read at most once and handed back in `documents`, because
- * `applyDocumentOps` mutates exactly those objects and the caller is the one who
- * knows where to put them afterwards.
- *
- * `readBuiltIn(file)` is the copy a door's readers fall back to — what the
- * Workers compiled in, the product's `config/` default on disk — and what a key
- * the saved document lacks is compared with (`shownValue`, bead `ro-dk4u`).
- * Every door passes it; without one, such a key resolves nowhere, as it did
- * before. A built-in copy that cannot be read is no built-in copy.
+ * `readDocument(file)` gives back the parsed document a repo-relative path
+ * names, or throws. Each document is read at most once and handed back in
+ * `documents`, which `applyDocumentOps` mutates. `readBuiltIn(file)` is the
+ * copy a door's readers fall back to, which a key the saved document lacks
+ * is compared with (`shownValue`); a built-in copy that cannot be read is no
+ * built-in copy.
  */
 export declare function resolveOps(cs: Changeset, store: StoreLane | null, { readDocument, readBuiltIn }: {
     readDocument: DocumentReader;
@@ -214,12 +135,7 @@ export declare function applyDocumentOps(resolved: Resolved[], documents: Map<st
     at?: string;
 }): string[];
 /**
- * How a config document is SERIALIZED, everywhere it is written.
- *
- * Stable 2-space JSON with a trailing newline — the shape `applyFileOps` has
- * always written, and now also the shape `pnpm config:export` writes and the
- * shape `body_json` holds. One function so an export and a save cannot produce
- * two byte-different spellings of the same document and make every export look
- * like a change.
+ * How a config document is serialized everywhere it is written, so an export
+ * and a save cannot produce two byte-different spellings of one document.
  */
 export declare function serializeDocument(doc: unknown): string;

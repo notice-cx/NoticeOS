@@ -1,38 +1,19 @@
-// os-runtime.mjs — where the live OS's CODE runs from, and where its STATE stays.
+// Where the live OS's code runs from, and where its state stays. The managed
+// service runs from a runtime copy of the code, a git worktree under
+// `<home>/.local/runtime/` that merges never touch and only `pnpm os:deploy`
+// moves, so a merge to main never hot-reloads production. Everything that is
+// not code stays in the home checkout: the local R2 archive (`.wrangler/`),
+// logs, heartbeat, schedules, backups and signal dumps (`.local/`), the
+// legacy secret source and its generated bindings, and the host-only task
+// inventory, whose relative paths mean "beside the home folder".
 //
-// WHY THIS EXISTS (bead ro-ujb9.113). Until it did, the managed service ran the
-// Tower's dev server and the ingest from the very checkout agents merge into.
-// Every merge to main hot-reloaded production: on 2026-09-23 the unattended
-// probe recorded 23 of 258 unhealthy checks in fifty minutes, clustered around
-// three merges, and a scheduled cron answered HTTP 500 mid-reload.
-//
-// So the service now runs from a RUNTIME COPY of the code — a git worktree
-// under `<home>/.local/runtime/` that merges never touch — and moves only when
-// `pnpm os:deploy` says so. Everything that is not code stays exactly where it
-// always was, in the home checkout (the folder the operator works in):
-//
-//   • the local R2 archive miniflare opens (`.wrangler/`),
-//   • logs, the heartbeat, schedules, backups, signal dumps (`.local/`),
-//   • the legacy secret source and the bindings generated from it
-//     (`workers/ingest/.dev.secrets.json`, `workers/ingest/.dev.vars`),
-//   • the host-only task inventory (the installation's `task-host.json`), whose relative
-//     checkout paths ("." and "../example.com") mean "beside the home folder".
-//
-// TWO MECHANISMS, BOTH NEEDED.
-//
-//   1. `NOTICEOS_HOME` (set by the launchd plist `pnpm os:install` writes; an
-//      installed plist from before the rename sets `REINDEX_OS_HOME`, read the
-//      same way, scripts/product-env.mts) names the home checkout. The runner and the Tower's local lanes resolve
-//      every state path, every task-inventory path and the config-save commit
-//      target from it.
-//   2. LINKS. Inside each runtime copy, `.wrangler`, `.local` and the two secret
-//      files are symbolic links to the home paths. Plenty of code finds its state
-//      relative to its OWN file (`scripts/workflow-history.mjs`, the signal
-//      scripts the runner spawns, the ingest door's bearer lookup) and wrangler
-//      reads `.dev.vars` from beside the Worker config it is given. A link makes
-//      all of it land on the one real file without copying a byte: nothing here
-//      ever opens a secret file, and the store is never copied, moved or
-//      re-created.
+// Two mechanisms, both needed: `NOTICEOS_HOME` (set by the launchd plist;
+// scripts/product-env.mts) names the home checkout for the runner and the
+// Tower's local lanes, and inside each runtime copy `.wrangler`, `.local` and
+// the two secret files are symbolic links to the home paths, because plenty
+// of code finds its state relative to its own file and wrangler reads
+// `.dev.vars` from beside the Worker config. Nothing here ever opens a secret
+// file, and the store is never copied, moved or re-created.
 //
 import { realpathSync } from 'node:fs';
 import fs from 'node:fs/promises';
@@ -42,19 +23,17 @@ import { TASK_HOST_FILE, readablePath } from './installation.mjs';
 import { stripJsonc } from './jsonc.mjs';
 import { PRODUCT_ENV, readProductEnv } from './product-env.mjs';
 
-/** The environment variable that names the home checkout (its legacy name,
- * `REINDEX_OS_HOME`, is still read: scripts/product-env.mts). */
+/** The environment variable that names the home checkout
+ * (scripts/product-env.mts also reads its legacy name). */
 export const HOME_ENV = PRODUCT_ENV.home.name;
 
 /** Where the runtime copies live, relative to the home checkout. */
 export const RUNTIME_DIR = path.join('.local', 'runtime');
 
 /**
- * Two copies, used alternately. A deploy prepares the idle one completely —
- * checkout, links, `pnpm install` — while the live one keeps serving untouched,
- * then points `current` at it and restarts once. So a failed install changes
- * nothing live, the service never sees half-installed code, and the previous
- * copy stays ready for `pnpm os:deploy -- --rollback`.
+ * Two copies, used alternately. A deploy prepares the idle one while the live
+ * one keeps serving, then points `current` at it and restarts once; the
+ * previous copy stays ready for `pnpm os:deploy -- --rollback`.
  */
 export const RUNTIME_SLOTS = Object.freeze(['runtime-a', 'runtime-b']);
 
@@ -100,10 +79,9 @@ export function resolveHomeRoot(codeRoot, env = process.env) {
 }
 
 /**
- * Is this module the script node was asked to run? Compared through realpath
- * because launchd runs the runner through the `current` link: node resolves the
- * link for `import.meta.url` but leaves `process.argv[1]` as typed, so a plain
- * string comparison says "no" and the runner would exit without starting.
+ * Is this module the script node was asked to run? Compared through realpath:
+ * launchd runs the runner through the `current` link, and node resolves the
+ * link for `import.meta.url` but leaves `process.argv[1]` as typed.
  */
 export function invokedDirectly(argv1, moduleUrl) {
   if (!argv1) return false;
@@ -137,11 +115,7 @@ export const SHARED_STATE = Object.freeze([
   Object.freeze({ path: path.join('workers', 'ingest', '.dev.vars'), what: 'the bindings generated from it' }),
 ]);
 
-/**
- * Every state path the runner and the deploy use, from the HOME checkout.
- * Called with the home root it is exactly the set of paths a runner started
- * from that checkout has always used.
- */
+/** Every state path the runner and the deploy use, from the home checkout. */
 export function statePaths(homeRoot) {
   const localDir = path.join(homeRoot, '.local');
   const logsDir = path.join(localDir, 'logs');
@@ -165,11 +139,11 @@ export function statePaths(homeRoot) {
 }
 
 /**
- * The environment the runner hands its Tower child, so the dev server opens the
- * home store (`OS_UP_PERSIST_STATE`, which apps/tower/vite.config.ts already
- * honors) and its local lanes read and commit in the home checkout
- * (`NOTICEOS_HOME`, apps/tower/vite/lane.ts). An explicit persist override
- * already in the environment is a test harness's, and is kept.
+ * The environment the runner hands its Tower child, so the dev server opens
+ * the home store (`OS_UP_PERSIST_STATE`, apps/tower/vite.config.ts) and its
+ * local lanes read and commit in the home checkout (`NOTICEOS_HOME`,
+ * apps/tower/vite/lane.ts). An explicit persist override already in the
+ * environment is a test harness's, and is kept.
  */
 export function runtimeChildEnv(homeRoot, env = process.env) {
   const override = typeof env?.OS_UP_PERSIST_STATE === 'string' ? env.OS_UP_PERSIST_STATE.trim() : '';
@@ -181,13 +155,9 @@ export function runtimeChildEnv(homeRoot, env = process.env) {
 
 /**
  * Make every SHARED_STATE path inside a runtime copy a link to the home path.
- *
- * Idempotent: a correct link is left alone, a missing one is created. It never
- * deletes or replaces anything: a real file or directory where a link belongs,
- * or a link pointing somewhere else, is reported as a conflict and left exactly
- * as found — that is data somebody made, and a runtime that quietly used it
- * would be reading a second store. It never opens a target, so a secret file is
- * referenced by path and never read.
+ * Idempotent, and it never deletes or replaces anything: a real file or
+ * directory where a link belongs, or a link pointing elsewhere, is reported
+ * as a conflict and left as found. It never opens a target.
  */
 export async function ensureSharedStateLinks({ codeRoot, homeRoot, fsp = fs } = {}) {
   const result = { created: [], linked: [], conflicts: [] };
@@ -237,9 +207,6 @@ export function linkConflictLines(conflicts, codeRoot) {
   );
 }
 
-// ─── JSONC ───────────────────────────────────────────────────────────────────
-// One copy, in scripts/jsonc.mts; re-exported for this module's importers.
-
 export { stripJsonc };
 
 /**
@@ -281,8 +248,8 @@ export function postgresConfigRefusal(text, label = 'Worker config') {
 
 /**
  * What the installed launchd plist runs: `runtime` (the runtime copy's
- * `current` link), `checkout` (the home checkout itself — every install before
- * this bead), `missing`, or `other`.
+ * `current` link), `checkout` (the home checkout itself), `missing`, or
+ * `other`.
  */
 export function plistRunsFrom(plistText, homeRoot) {
   if (plistText === null || plistText === undefined) return 'missing';

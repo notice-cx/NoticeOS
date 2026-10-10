@@ -17,7 +17,7 @@ import {
   runBd,
 } from './runner/task-hub.mjs';
 
-// scripts/runner/task-hub.mjs (bead ro-ujb9.22): the runner's side of the task
+// scripts/runner/task-hub.mjs: the runner's side of the task
 // hub and the readers every bead lane shares. Nothing here reaches a real hub;
 // the one `bd` run is /usr/bin/false standing in for a failing bd.
 

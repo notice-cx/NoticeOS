@@ -1,5 +1,4 @@
 ---
-reviewed: 2026-10-01
 status: accepted contract v1; local hosted composition implemented; remote activation unqualified
 ---
 
@@ -10,22 +9,18 @@ may belong to several workspaces. Assets, evidence, integration connections,
 tasks and workflow activity stay with their owning workspace in every request,
 background job and export. A deployment can serve one workspace or many.
 
-The owner approved this direction on 2026-10-01 after comparative research
-of hosted tenancy models, including
-invitation-only customer onboarding and an open, read-only public demo. D39 in
-the [decision register](../config/decisions.md) supersedes the old prohibition
-on hosted accounts. D27's shared Postgres schema and D32's Beads/Dolt authority
-remain. The [glossary](../CONTEXT.md) defines the product terms.
+Hosted tenancy follows comparative research of hosted tenancy models:
+invitation-only customer onboarding and an open, read-only public demo. The
+shared Postgres schema and the Beads/Dolt task authority remain. The
+[glossary](../CONTEXT.md) defines the product terms.
 
 This is the accepted implementation contract, not evidence of hosted safety.
-`ro-ujb9.289` carries implementation and verification; `ro-ujb9.256` carries the
-demo. Those hub records are the work register. Existing deployments keep their
-current access boundary until an explicitly approved activation.
+Existing deployments keep their current access boundary until an explicitly
+approved activation.
 
-## Research baseline and current source
+## Current source
 
-The 2026-10-01 source audit at `e2393a239024ac305385da6358b29c9e6bc54535`
-establishes the starting point:
+The source establishes the starting point:
 
 - The [Postgres schema](../db/postgres/migrations/0001_baseline.sql) already has
   workspace-leading keys and relationships, forced row security, and a
@@ -55,10 +50,6 @@ map those compositions to their modules and disposable tests. These are local
 implementation facts, not an activated public service or a qualified remote
 network, delivery or recovery configuration.
 
-The older 2026-09-09 audit (private historical evidence)
-proved persistence of 13 configuration documents at that time. Its D1 and
-global-key descriptions are historical, not the current ownership model.
-
 ## Identity, membership and roles
 
 A person has one NoticeOS identity and zero or more workspace memberships.
@@ -70,8 +61,7 @@ provider; NoticeOS owns workspace membership and action authorization. The
 component is selected through a bounded runtime and lifecycle proof, without
 requiring a paid identity vendor or inventing password/session cryptography.
 
-**Initial hosted sign-in uses an email one-time code** (owner-selected
-2026-10-01, `ro-ujb9.289.8.3.4.1`). Invited people prove control of their email;
+**Initial hosted sign-in uses an email one-time code.** Invited people prove control of their email;
 creating a new identity requires a valid invitation. Sign-in does not create a
 workspace or grant membership. Codes and sessions use the maintained component,
 with a replaceable mail delivery adapter and no mandatory identity vendor.
@@ -295,11 +285,11 @@ Standalone installations can read legacy archives through that same manifest.
 An old DataForSEO checkpoint is considered only when its namespaced counterpart
 is absent and the database proves the selected workspace is its sole workspace;
 invalid objects or failed reads never trigger that fallback. Hosted and demo
-profiles never adopt unscoped checkpoints (`ro-ujb9.289.9.4`).
+profiles never adopt unscoped checkpoints.
 
 ## Postgres, task execution and transport
 
-**D27 chooses a shared Postgres database and schema.** Retain workspace-leading
+**One shared Postgres database and schema.** Retain workspace-leading
 keys, forced row security, the non-owner/no-bypass application role and
 transaction-local context. Do not introduce per-customer schemas or databases
 as an alternative. Identity/control-plane storage needs an explicit separately
@@ -314,7 +304,7 @@ and an ordinary Worker bundle. It checks concurrent identical-query workspace
 reuse, rollback context reset, fresh signed-session and membership revocation,
 read-after-write, and conflicting advisory locks released on commit or rollback.
 This establishes local runtime compatibility, not a deployed endpoint, TLS,
-capacity or remote network qualification; `ro-ujb9.289.7` retains that boundary.
+capacity or remote network qualification.
 
 The current source requires advisory transaction locks, which
 [Hyperdrive does not support](https://developers.cloudflare.com/hyperdrive/reference/supported-databases-and-features/).
@@ -435,7 +425,7 @@ service-account binding names. Captured credentials and health observations carr
 the selected store's workspace and connection identities; another workspace or a
 replaced connection cannot adopt their results. Hosted health revisions include
 both identities. Standalone revisions retain their existing form so historical
-monitoring evidence remains usable (`ro-ujb9.289.9.3`).
+monitoring evidence remains usable.
 
 On logout or workspace switch, cancel outstanding operations, advance the
 client session generation, clear/remount scoped queries and drafts, and discard
@@ -452,9 +442,9 @@ completion marker; a new customer on the same browser never inherits them.
 
 ## Rollout, approval and compatibility
 
-The owner authorized local implementation of this design and tests on disposable
-synthetic installations. This is an explicit task authorization, not a promotion
-of auth or migrations into autonomous operations. Existing installations and
+Local implementation of this design and tests on disposable synthetic
+installations are authorized. This is an explicit task authorization, not a
+promotion of auth or migrations into autonomous operations. Existing installations and
 remote services keep their current behavior until a concrete release package
 has passed isolation proof and the owner approves its activation scope.
 

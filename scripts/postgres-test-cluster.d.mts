@@ -81,9 +81,9 @@ export declare function parsePortRange(text: string | undefined): [number, numbe
  * A throwaway cluster (`openThrowaway` in scripts/postgres-dev.mjs) in `dir`
  * that also listens on a free loopback port: inside
  * NOTICEOS_TEST_POSTGRES_PORTS when it names a range, else one the kernel
- * picks. Every test that starts a TCP Postgres starts it here (bead
- * ro-ujb9.76.42). A port found free can be taken by another test file's
- * server before this one binds it; then the next free port is tried.
+ * picks. Every test that starts a TCP Postgres starts it here. A port found
+ * free can be taken by another test file's server before this one binds it;
+ * then the next free port is tried.
  */
 export declare function openOnLoopbackPort(dir: string, tools: PostgresTools, env?: Record<string, string | undefined>): Promise<ReturnType<typeof openThrowaway>>;
 /**

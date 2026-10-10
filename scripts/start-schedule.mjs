@@ -1,5 +1,4 @@
-// start-schedule.mjs — the schedule of an installation `pnpm start` runs
-// (bead ro-ujb9.156, decision D30).
+// start-schedule.mjs — the schedule of an installation `pnpm start` runs.
 //
 // The managed service's runner (scripts/os-up.mjs) fires the ingest's crons at
 // its door and keeps their record under the home checkout. A started
@@ -12,7 +11,7 @@
 //
 // The ingest's crons, and of the runner's host lanes only the two a started
 // installation can set up itself — the task board refresh and the backup —
-// once it has (scripts/start-host-lanes.mjs, bead ro-ujb9.174). The rest — the
+// once it has (scripts/start-host-lanes.mjs). The rest — the
 // task hub's health, the task filers, spoke push state, the local signal
 // panels — need the host the managed service runs on. Its status says
 // `hostLanes: false` and lists only the jobs it runs, and the Tower then lists

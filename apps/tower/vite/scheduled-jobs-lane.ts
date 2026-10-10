@@ -24,15 +24,13 @@ export async function handleScheduledJobsRequest(
     const age = runtime ? now() - Date.parse(runtime.updatedAt) : NaN;
     return { status: 200, body: { overrides, runtime, runtimeFresh: Number.isFinite(age) && age >= 0 && age < 45_000 } };
   } catch {
-    // The code is the answer (bead `ro-ujb9.96.6.17`): /workflows states its
-    // own "could not be read" line beside a Retry button, so a sentence here
-    // telling the reader to try again restated the button.
+    // /workflows states its own "could not be read" line beside a Retry button.
     return { status: 503, body: { error: 'schedules_unavailable' } };
   }
 }
 
-/** The manual firings the store holds (bead `ro-ujb9.96.7.19`), through the
- * same operator-authed door the saved schedules are read through. */
+/** The manual firings the store holds, through the same operator-authed door
+ * the saved schedules are read through. */
 export async function readManualRuns(request: typeof configStoreRequest = configStoreRequest): Promise<unknown> {
   const result = await request('api/job-runs', {
     params: { trigger: 'manual' },

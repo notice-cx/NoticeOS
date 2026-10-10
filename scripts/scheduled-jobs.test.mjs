@@ -16,7 +16,7 @@ const paused = { ...changed, enabled: false };
 
 test('the catalog covers every ingest trigger and preserves local defaults', async () => {
   // The ingest writes no expression of its own: each crons.ts constant reads
-  // one ingest job's key from this catalog (bead ro-ujb9.217), and
+  // one ingest job's key from this catalog, and
   // workers/ingest/test/crons.test.ts pins wrangler.jsonc and the dispatch
   // table to the same jobs.
   const source = await readFile(new URL('../workers/ingest/src/crons.ts', import.meta.url), 'utf8');
@@ -33,8 +33,8 @@ test('every step a scheduled tick runs is a stage its workflow shows', async () 
   // A step the workflow definitions do not list runs, and spends, where the
   // operator cannot see it. The ingest's steps are its dispatch table
   // (dispatch.ts `JOB_LANES`), pinned to these definitions by
-  // workers/ingest/test/crons.test.ts, which can import it (bead ro-ujb9.217).
-  // The Tower's own steps of a tick (beads ro-ujb9.96.7.29, ro-ujb9.96.7.31)
+  // workers/ingest/test/crons.test.ts, which can import it.
+  // The Tower's own steps of a tick
   // are held to the same rule; tower-cron.ts names each one `step("<id>", …)`.
   const tower = await readFile(new URL('../apps/tower/worker/tower-cron.ts', import.meta.url), 'utf8');
   const towerSteps = [...tower.matchAll(/\bstep\("([a-z0-9-]+)"/g)].map((match) => match[1]);
@@ -43,7 +43,7 @@ test('every step a scheduled tick runs is a stage its workflow shows', async () 
   for (const id of towerSteps) assert.ok(hourly.stages.some((stage) => stage.id === id), `Tower step "${id}" has no stage on the hourly job`);
 });
 
-test('the daily archive tick re-collects what an offline DataForSEO run skipped, as its own stage (ro-aed0.6)', async () => {
+test('the daily archive tick re-collects what an offline DataForSEO run skipped, as its own stage', async () => {
   // Reusing the 12:15 daily expression rather than adding one: the weekly sweep
   // keeps its own tick, and the re-collection is a second, visible step on this one.
   const archives = WORKFLOW_DEFINITIONS.find((workflow) => workflow.id === 'signal-dumps');
@@ -65,7 +65,7 @@ test('schedule validation excludes unknown jobs, malformed calendars and executa
   }
 });
 
-test('a schedule reads as its longest wait between two runs (ro-ujb9.222)', () => {
+test('a schedule reads as its longest wait between two runs', () => {
   assert.equal(cronIntervalMinutes('*/15 * * * *'), 15);
   assert.equal(cronIntervalMinutes('10,30,50 * * * *'), 20);
   assert.equal(cronIntervalMinutes('5 * * * *'), 60);

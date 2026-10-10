@@ -1,22 +1,10 @@
-/** Cross-Worker contract for the two editable asset columns.
- *
- * `assets.status` and `assets.sense_only` are the only columns of the `assets`
- * table anything is allowed to edit after the row is seeded (db/README §assets).
- * The ingest Worker owns the table and the operator bearer that guards its HTTP
- * lane; the Control Tower is served unauthenticated on the trusted LAN, so it
- * must never hold that bearer — since D18 it writes these two columns through
- * the private INGEST Service Binding instead, where the binding itself is the
- * capability. Same posture as the annotation write: plain data crosses, never a
- * credential.
- *
- * The read half supports an early stale-page refusal. The write also carries
- * `expect`: the authoritative comparison and update hold the same store row
- * lock, so concurrent saves cannot both accept one observed value.
- *
- * Every field of the input is re-validated inside ingest
- * (workers/ingest/src/asset-state.ts, which is the runtime authority for the
- * enums below). These types describe the shape a caller intends, not a shape
- * ingest is willing to trust.
+/** Cross-Worker contract for the editable asset columns. The ingest Worker
+ * owns the `assets` table; the Tower writes these columns through the private
+ * ingest Service Binding, and plain data crosses, never a credential. The
+ * write carries `expect`: the comparison and the update hold the same row
+ * lock, so concurrent saves cannot both accept one observed value. Every
+ * field is re-validated inside ingest (workers/ingest/src/asset-state.ts, the
+ * runtime authority for the enums below).
  */
 
 import type { AssetStatus, StoreColumn } from './configuration.mjs';
@@ -24,12 +12,9 @@ export type { AssetStatus, StoreColumn } from './configuration.mjs';
 export { ASSET_STATUSES, STORE_COLUMNS, DISPLAY_NAME_MAX } from './configuration.mjs';
 
 /**
- * What the store currently holds for one asset's editable columns.
- *
- * An unknown asset comes back as `known: false` rather than an error, because
- * the question this read answers is "what is there now?" — and *nothing is
- * there* is an answer to it. The caller renders that as a 404 or as `(absent)`;
- * neither wants a thrown transport error instead of the fact.
+ * What the store currently holds for one asset's editable columns. An
+ * unknown asset comes back as `known: false` rather than an error: nothing is
+ * there is an answer.
  */
 export interface AssetStateRead {
   asset: string;
@@ -40,8 +25,8 @@ export interface AssetStateRead {
   updatedAt: string | null;
 }
 
-/** One column edit. ONE op per call: the all-or-nothing decision over a set of
- * ops belongs to whoever assembled the set, not to the writer. */
+/** One column edit. One op per call: the all-or-nothing decision over a set
+ * of ops belongs to whoever assembled the set. */
 export interface WriteAssetColumnInput {
   asset: string;
   column: StoreColumn;
@@ -53,7 +38,7 @@ export interface WriteAssetColumnInput {
 }
 
 /** One rejected field, in the `{path, code, message}` shape every ingest lane
- * reports — one validation vocabulary, whichever door the write arrived at. */
+ * reports. */
 export interface AssetColumnIssue {
   path: string;
   code: string;
@@ -61,13 +46,9 @@ export interface AssetColumnIssue {
 }
 
 /**
- * The outcome of one column write.
- *
- * A rejected value and an unknown asset are RESULTS, not thrown errors: both are
- * ordinary answers a caller renders. Only an infrastructure failure (a D1 error)
- * throws across the binding. `value` is read back from the UPDATE rather than
- * echoed: if the two ever disagreed, the operator should hear the row that
- * exists, not the one they asked for.
+ * The outcome of one column write. A rejected value and an unknown asset are
+ * results, not thrown errors; only an infrastructure failure throws. `value`
+ * is read back from the UPDATE rather than echoed.
  */
 export type AssetStateWriteResult =
   | {
@@ -82,27 +63,16 @@ export type AssetStateWriteResult =
   | { ok: false; error: 'validation'; issues: AssetColumnIssue[] };
 
 
-// ---------------------------------------------------------------------------
-// Creating and deleting an asset row (bead `ro-z349.1`).
-//
-// Until 2026-09-04 an asset was born as a seed MIGRATION and a handful of hand
-// edits, and there was no way back that was not another migration. The add-asset
-// wizard needs a create; a mistaken add needs a delete. Both are OPERATOR
-// actions over same-origin Tower routes proxied to the ingest binding — the same
-// class as the column write above, not a new capability: a row insert into
-// `assets` creates a join key, and a delete of an asset that holds nothing
-// removes one. Neither touches a row of provider evidence.
-//
-// The SCHEMA is still operator-only: nothing here writes a migration.
-// ---------------------------------------------------------------------------
+// Creating and deleting an asset row: operator actions over same-origin Tower
+// routes proxied to the ingest binding. A row insert creates a join key and a
+// delete of an asset that holds nothing removes one; neither touches a row of
+// provider evidence, and nothing here writes a migration.
 
 /**
- * A new asset row, as the wizard describes it.
- *
- * `status` and `senseOnly` are optional and default the way docs/14-design.md § Operator flows says a new
- * asset starts — `onboarding`, observing only. `is_os` is NOT here and never
- * will be: asset #0 is a fact about this repo, not something a route may mint a
- * second of.
+ * A new asset row, as the wizard describes it. `status` and `senseOnly`
+ * default to how a new asset starts: `onboarding`, observing only. `is_os` is
+ * not here: asset #0 is a fact about this repo, not something a route may
+ * mint a second of.
  */
 export interface CreateAssetInput {
   id: string;
@@ -126,27 +96,19 @@ export interface AssetRowSummary {
   updatedAt: string;
 }
 
-/** A duplicate is a RESULT, not a thrown error: "that asset already exists"
- * is an ordinary answer a wizard renders beside the id field. `asset_exists`
- * names the site that holds the id, or else the domain. */
+/** A duplicate is a result, not a thrown error. `asset_exists` names the site
+ * that holds the id, or else the domain. */
 export type CreateAssetResult =
   | { ok: true; asset: AssetRowSummary }
   | { ok: false; error: 'asset_exists'; asset: string; existingStatus: AssetStatus | null }
   | { ok: false; error: 'validation'; issues: AssetColumnIssue[] };
 
-// ---------------------------------------------------------------------------
-// The order of sites (bead `ro-ujb9.76.52`).
-//
-// Every list of sites follows each site's stored place (site-order.ts). The
-// operator sets the order by moving one site at a time; this is that one write.
-// ---------------------------------------------------------------------------
+// The order of sites: every list follows each site's stored place
+// (site-order.ts), and the operator sets it by moving one site at a time.
 
 /**
- * Move one site to the place another site holds.
- *
- * Named by the site, not by a number: a list the caller drew a moment ago may
- * have gained a site since, and "where Pacer is" still means what the operator
- * pointed at.
+ * Move one site to the place another site holds. Named by the site, not by a
+ * number: a list the caller drew a moment ago may have gained a site since.
  */
 export interface MoveAssetInput {
   /** The site that moves. */

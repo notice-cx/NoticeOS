@@ -24,11 +24,9 @@ runner mark from requests arriving through the public listener, so a supplied
 header cannot grant access to the scheduled lane. The ports and boundary are
 explained in [the current runtime contract](../../scripts/README.md#one-runtime).
 
-The 2026-08-03 cutover (`ro-mad`) originally removed competing runtimes over one
-D1 SQLite file. That is completed history: Postgres now holds the operational
-store, and `079193ec` retired the D1 migration tooling. A live D1 file or a
-machine-wide process count is no longer a health requirement. Shared local R2
-persistence and duplicate scheduled work are still reasons to keep one runtime.
+Postgres holds the operational store, so a live D1 file or a machine-wide
+process count is not a health requirement. Shared local R2 persistence and
+duplicate scheduled work are the reasons to keep one runtime.
 
 ## Read the supported diagnosis
 
@@ -53,7 +51,7 @@ both Worker endpoints; an answering port alone is insufficient. `stopped`,
 For recent output alone, use `pnpm os:logs -- --lines 200`; add `--follow` while
 collecting a reproduction. These diagnostic commands read only.
 
-File a bead with the relevant redacted lines and deployed commit. The
+File a task with the relevant redacted lines and deployed commit. The
 [agent recovery contract](../../scripts/README.md#agent-recovery-contract)
 owns the recovery rules; do not hunt process trees, inspect retired store files
 or kill an unknown process.
@@ -63,7 +61,7 @@ or kill an unknown process.
 | Symptom | What it indicates | Next step |
 |---|---|---|
 | `[ingest-door] cannot listen` or a duplicate-owner refusal | another runtime holds the configured door | read the doctor report; resolve the named unmanaged runtime under operator direction. `pnpm os:restart` targets only the managed service. |
-| `cron … fired → HTTP 403 runner_lane_loopback_only`, and **every** door request 403s | the door mark is not reaching the Worker; the guard must stamp and strip `req.rawHeaders`, which the Cloudflare plugin reads | file a bead with the log lines; `apps/tower/test/runner-door-e2e.test.ts` pins this path. Deploy a verified fix through [`pnpm os:deploy`](../../scripts/README.md#merging-is-not-deploying--pnpm-osdeploy); restarting keeps the same code. |
+| `cron … fired → HTTP 403 runner_lane_loopback_only`, and **every** door request 403s | the door mark is not reaching the Worker; the guard must stamp and strip `req.rawHeaders`, which the Cloudflare plugin reads | file a task with the log lines; `apps/tower/test/runner-door-e2e.test.ts` pins this path. Deploy a verified fix through [`pnpm os:deploy`](../../scripts/README.md#merging-is-not-deploying--pnpm-osdeploy); restarting keeps the same code. |
 | one door path 403s but others work | the failure is specific to that request path | retain the redacted request failure and logs; `apps/tower/test/runner-door.test.ts` pins the guard's behavior. |
 | `cron … fired → HTTP 500 {"error":"scheduled_failed"}` | the scheduled lane failed in its provider, credential or store work | read the recorded failure message and `os:doctor` lane evidence; do not repeat the lane as a health check. |
 | `/api/pulse` returns 401 that used to work | the ingest's bootstrap secret selection needs checking | follow [bootstrap-secret guidance](../06-operations.md#bootstrap-secrets-vs-integration-credentials); keep values out of the diagnostic handoff. |

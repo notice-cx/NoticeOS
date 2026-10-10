@@ -1,13 +1,12 @@
-// ONE READING OF THE PROVIDER ARCHIVE (bead ro-ujb9.67.1).
+// One reading of the provider archive.
 //
 // A signal archive is one provider answer as a collector stored it: an envelope
 // (`schemaVersion`, `asset`, `integration`, `report`, `reportDate`,
 // `collectedAt`, `dataState`, `providerRows`, `providerTruncated`) around the
 // provider's own pages. This module is the one place that says what an archive
-// means as rows, and which of several rows about one day is kept. The
-// analytical-file writer (scripts/signal-history.mjs) stores those rows;
-// scripts/signal-history-analyze.mjs reads a pinned generation for the panel
-// CSVs and rules, so a report and its history share one normalization.
+// means as rows, and which of several rows about one day is kept.
+// scripts/signal-history.mjs stores those rows; scripts/signal-history-analyze.mjs
+// reads a pinned generation for the panel CSVs and rules.
 //
 //   parseArchive(text, { asset, source })  the checked envelope, or a refusal
 //   archiveFamily(archive)                 its family, `<integration>-<report>`
@@ -21,142 +20,60 @@
 //   indexCoverageRows(families)            the one family derived from others,
 //                                          read from INDEX_COVERAGE_SOURCES
 //
-// READING ORDER IS PART OF THE RULES. Archives are read in path order — in the
-// downloads layout, `<integration>/<report>/<reportDate>.json`, that is
-// report-date order within a family — and rows in the order an archive holds
-// them. `resolveFamily` sorts a family by `report_date` (`compareReportDates`),
-// keeping that order among equal dates, and a revision rule keeps the LAST row
-// it meets for a day. So of two rows about one day the newer report's wins, and
-// of two with the same report date the one read later. A reader that gathers
-// rows another way must hand them over in this order, or it will resolve ties
-// differently.
+// Reading order is part of the rules. Archives are read in path order — in the
+// downloads layout, `<integration>/<report>/<reportDate>.json` — and rows in
+// the order an archive holds them. `resolveFamily` sorts a family by
+// `report_date` (`compareReportDates`), keeping that order among equal dates,
+// and a revision rule keeps the last row it meets for a day. A reader that
+// gathers rows another way must hand them over in this order, or it will
+// resolve ties differently.
 //
-// Every row of one archive carries that archive's report date. So a family that
-// does not resolve across report days reads the same one report day at a time:
-// its rows are each report day's rows, report days in `compareReportDates`
-// order. That is what lets the analytical-file writer rewrite one period of a
-// family without reading the rest of it.
+// Every row of one archive carries that archive's report date, so a family
+// that does not resolve across report days reads one report day at a time;
+// that is what lets the analytical-file writer rewrite one period of a family
+// without reading the rest of it.
 //
 // Nothing here reads a file, the clock or the settings: every input is an
 // argument, so one archive always reads the same way.
 //
-// Family by family, each named as the analyzer's CSV of it:
-
-// `dataforseo-serp-panel.csv` is one row per (tracked query, `device`) since
-// ro-o1n: the same term is read on a phone and on a desktop, because a phone
-// result page is not a narrower desktop one — an AI Overview can consume the
-// click on one surface and not the other, and that difference IS the finding.
-// Never sum or average across `device`; filter to one first. Rows archived
-// before 2026-08-04 read `desktop` because the collector could not have sent
-// anything else (see `serpPageDevice`).
+// Three-state columns. `dataforseo-serp-panel.csv` is one row per (tracked
+// query, `device`); never sum or average across `device`. Its `aio_present` /
+// `aio_cites_us` are `true | false | (empty)`: empty is unknown — the
+// asynchronous AI Overview did not load, or the provider could not answer —
+// and is never read as `false`, which is a positive observation. A tracked
+// query recorded as unknown is treated exactly like a query nobody tracked.
+// `best_rank` and `second_rank` empty mean "no result inside the tracked
+// depth", never "does not rank"; `sitelinks_us` empty means there was no result
+// of ours to carry them (see `serpItemSitelinks`). `query_label` appears only
+// when the archive carries it: an empty cell means the collection predates
+// that panel's labels, never "unclustered", and a rename in config changes the
+// collections that follow, never the ones archived.
 //
-// Two of its columns carry three states, and the third one is the point of the
-// family — per device, so a query can be walled on mobile and clear on desktop:
+// `ga4-js-errors.csv`: "no rows" is either a real zero or a family GA4 could
+// not be queried for (no custom dimension registered). The manifest separates
+// them — the second case is a `ga4_custom_dimension_unregistered` run that
+// archives nothing — so a missing or empty CSV reads as unknown unless the
+// manifest shows a successful run. `(not set)` is GA4's own token for an event
+// that carried no such parameter; `message_bucket` masks the volatile parts of
+// a message and preserves `(not set)` rather than folding it in.
 //
-//   aio_present / aio_cites_us = true | false | (empty)
+// `index-coverage.csv` is derived from the Bing crawl-stats and feeds families
+// (see `indexCoverageRows`): site-level, Bing's answer, silent about any
+// individual URL.
 //
-// Empty is UNKNOWN, and is never to be read as `false`. It means the tracked
-// query's asynchronous AI Overview did not load, or the provider could not
-// answer the query at all — so Google may well have served an overview we
-// cannot see. `false` is a positive observation: the result page parsed and
-// carried no overview (or a readable overview that did not cite this property).
-// A tracked query recorded as unknown must be treated exactly like a query
-// nobody tracked, because the decision it feeds — do not spend copy budget on a
-// query whose click is consumed inline — is only safe on evidence.
+// The `bing-webmaster-ai-*` families are an operator-downloaded export
+// (`pnpm bing-ai:import <file>`), so `report_date` is the export day; only
+// `ai-overview` carries a measured day, in `provider_date`. Overlapping exports
+// are revisions of a day, resolved to the newest. An absent family means
+// nobody has dropped that export yet — the lane has no cron to notice its own
+// silence.
 //
-// `best_rank` is bounded the same way: empty means "no result inside the tracked
-// depth this panel pays for", never "does not rank". `second_rank` carries the
-// same bound for the property's second slot, and `sitelinks_us` a third state
-// of its own: empty because there was no result of ours to carry them, never
-// `false` (see `serpItemSitelinks`).
-//
-// WHAT EARNS A COLUMN HERE, and what stays in the archive (`ro-463`). The panel
-// archives each result page verbatim, so every field below was already bought
-// and stored; flattening is a choice about what a RULE can act on, not about
-// what exists. A column earns its place when a rule or a decision surface can
-// read it without opening the archive:
-//
-//   * `best_rank`/`best_url`, `second_rank`/`second_url` — where the property
-//     stands, and whether it stands twice.
-//   * `aio_present`/`aio_cites_us` — whether the click is consumed inline, the
-//     fact the panel was bought for.
-//   * `sitelinks_us` — a brand query's sitelink block appearing or disappearing
-//     is a lifecycle event with no other observer in this store.
-//   * `serp_features`, `top3_domains`, `organic_results` — the shape of the page
-//     and who else is on it, which is what "did the neighborhood change" means.
-//
-// What deliberately stays archived: the AI Overview's full text and complete
-// citation list (variable-length prose; the decision needs "does it cite us",
-// and reading the rest is a research pass over the archive), every result's
-// title and snippet (copy work reads the LIVE page — a stale snippet in a CSV is
-// a rewrite of last week's SERP), the question text inside `people_also_ask`
-// and `related_searches` (a rule can act on the block's presence, which
-// `serp_features` carries; its contents are a reading task), and paid blocks
-// (this family pays for organic depth and says nothing about auctions). Each of
-// those is one `jq` away in the immutable archive, which is the right cost for
-// something no rule reads.
-//
-// `query_label` — the cluster a tracked query belongs to, the bet it measures —
-// appears only when the ARCHIVE carries it, because it is stored with the
-// observation rather than looked up. So an empty cell means the collection
-// predates that panel's labels (or that query has none), never "unclustered",
-// and renaming a cluster in config/serp-panel.json changes the collections that
-// follow it, never the ones already archived. The column is absent entirely from
-// a property that has never labelled a panel.
-//
-// `ga4-js-errors.csv` keeps the same discipline in a different shape. Two
-// unrelated facts both present as "no rows":
-//
-//   * the property threw no JavaScript errors in the window — a real zero, and
-//   * GA4 has no custom dimension registered for the `message`/`source` event
-//     parameters, so the family could not be queried at all.
-//
-// They are separated on the MANIFEST, not here: the second case is a
-// `ga4_custom_dimension_unregistered` run that archives nothing, so the family
-// is simply absent from this directory. A missing or empty `ga4-js-errors.csv`
-// therefore reads as UNKNOWN unless the manifest shows a successful run — never
-// as "no JavaScript errors". GA4 backfills nothing before registration either,
-// so dates before the operator registered the parameters stay unknown forever.
-//
-// Inside the CSV, a `message`/`source` of `(not set)` is GA4's own token for an
-// event that carried no such parameter — also an absence, not an empty string.
-// `message_bucket` masks the volatile parts of a message (URLs, ids, numbers)
-// so recurring errors group into countable buckets; it preserves `(not set)`
-// rather than folding those rows in with real messages.
-
-// `index-coverage.csv` is the one file here that no collector produced: it is
-// DERIVED from the Bing crawl-stats and feeds families, which already carry
-// Bing's own count of this site's indexed pages and the URL counts of the
-// sitemaps we submitted. It answers "how many of our pages are indexed" — which
-// `gsc-page.csv` cannot, because that lists pages that earned IMPRESSIONS, a
-// strict subset of the indexed set. It is Bing's answer, it is site-level, and
-// so it says nothing about whether any individual URL is indexed. See
-// `indexCoverageRows` for the two grains and why no ratio is computed.
-
-// The `bing-webmaster-ai-*` families are the one set of rows here that no cron
-// bought. They are an operator-downloaded Bing AI Performance export
-// (`pnpm bing-ai:import <file>`, bead ro-2dn), so `report_date` is the day the
-// FILE was exported rather than a day Bing measured — only `ai-overview`
-// carries a measured day, in `provider_date`. Two exports that overlap a day
-// are revisions of that day, resolved to the newest export before anything
-// reads them; the query and page families are period totals whose period the
-// export does not state. An absent family means nobody has dropped that export
-// yet, which is the strongest form of "absent is not zero" in this directory:
-// the lane has no cron to notice its own silence.
-
-// The `posthog-*` families (bead ro-ghis.2) are PRODUCT data — what people do
-// once they arrive — and every one of them is a window AGGREGATE, not a day:
-// PostHog answers one server-side query per family over a trailing window
-// (`window_start`–`window_end`, inclusive, in the PostHog project's own
-// timezone) and the collector archives the answer under the window's end. So
-// consecutive daily archives overlap almost completely, and a `people` figure is
-// PostHog's unique-person count over ITS row's window: it never adds across
+// The `posthog-*` families are window aggregates, not days: each row's
+// `people` is a unique-person count over its own window and never adds across
 // rows, days or report dates. Read one `report_date` at a time. The one daily
-// family, `posthog-web-daily`, is resolved newest-archive-wins per `date`,
-// because each run re-sends the whole trailing 28 days and a repeated day is a
-// revision (the rule `newestExportPerDay` already applies to Bing). An empty
-// family is PostHog answering with no rows for that window; a missing one is a
-// family nobody collected — never "no errors" or "no rage clicks".
+// family, `posthog-web-daily`, is resolved newest-archive-wins per `date`. An
+// empty family is PostHog answering with no rows; a missing one is a family
+// nobody collected.
 
 import {
   POSTHOG_FAMILIES as CONTRACT_POSTHOG_FAMILIES,
@@ -405,13 +322,10 @@ const BING_CRAWL_ISSUES = [
 
 /**
  * The Bing families that arrive as an operator-downloaded CSV rather than from
- * the API — Bing's AI Performance report, which exists only in the dashboard
- * and its Export button (docs/11 §"Bing AI Performance boundary", bead ro-2dn).
- *
- * They share the `bing-webmaster` integration because that is what they are:
- * the same account, the same verified site. The report name is what tells them
- * apart, and `workers/ingest/src/bing-ai-exports.ts` is the parser whose rows
- * these read — this side never sees the CSV, only the parse the archive kept.
+ * the API — Bing's AI Performance report, which exists only in the dashboard's
+ * Export button. They share the `bing-webmaster` integration (same account,
+ * same verified site); the report name tells them apart.
+ * `workers/ingest/src/bing-ai-exports.ts` is the parser whose rows these read.
  */
 const BING_AI_GRAINS = new Map([
   ['ai-overview', 'citation-day'],
@@ -459,14 +373,9 @@ function flattenBingAiExport(archive) {
 }
 
 /**
- * Resolve an overlapping day to the newest export.
- *
- * The daily AI-citation series is re-exported whole every time the operator
- * downloads it, so two exports a month apart both carry the days between them.
- * Those are REVISIONS of one day, never two days — the same rule Bing's
- * weekly query/page snapshots already follow — so keeping both would double
- * every overlapping day's citations. Newest export wins, because a later
- * download is Microsoft's later word on the same day.
+ * Resolve an overlapping day to the newest export. The daily series is
+ * re-exported whole each time, so two exports carry the days between them as
+ * revisions of one day; keeping both would double every overlapping day.
  */
 export function newestExportPerDay(rows) {
   const byDay = new Map();
@@ -483,11 +392,9 @@ export function newestExportPerDay(rows) {
 }
 
 /**
- * GA4's attribution families (bead ro-wo0j) — the ones whose newest day reads
- * wrong before GA4 has finished processing it. One site's 2026-09-21,
- * collected at D+1, carried 3,380 "Unassigned" sessions (101–340 on every other
- * September day) and channel rows that summed to 7,460 against the day's 4,822;
- * every day collected at D+2 or later read correctly.
+ * GA4's attribution families — the ones whose newest day reads wrong before
+ * GA4 has finished processing it (Unassigned high, channel rows summing past
+ * the day's total).
  */
 const GA4_ATTRIBUTION_REPORTS = new Set([
   'traffic-acquisition',
@@ -550,46 +457,28 @@ const FAMILY_RESOLVERS = new Map([
 const FLATTENED_INTEGRATIONS = ['ga4', 'gsc', 'bing-webmaster', 'dataforseo', 'clarity', 'posthog'];
 
 /**
- * `index-coverage.csv` — what a provider says it has INDEXED, as opposed to what
- * received impressions (`ro-2zk.1`).
+ * `index-coverage.csv` — what a provider says it has indexed, as opposed to
+ * what received impressions. `gsc-page.csv` and `bing-webmaster-pages.csv`
+ * list pages that earned impressions, a strict subset of the indexed set, so
+ * they cannot tell "we lost rankings" from "we lost the index".
  *
- * Nothing else in this directory answers "how many of our pages are indexed".
- * `gsc-page.csv` and `bing-webmaster-pages.csv` list pages that earned
- * impressions, which is a strict subset of the indexed set and silent about a
- * page that is indexed and invisible — so a property triaging a traffic drop
- * cannot tell "we lost rankings" from "we lost the index", two different
- * emergencies with two different fixes.
- *
- * DERIVED, NOT COLLECTED, and that is the whole design. Bing Webmaster's
- * `crawl-stats` family already carries `InIndex` — Bing's own count of this
- * site's pages in its index, one figure per measured day — and `feeds` already
- * carries each sitemap's `UrlCount`. Both are archived daily and nothing
- * promotes them. So this family costs no request, no quota and no new
- * credential: it is a view over bytes the Monday and nightly lanes already
- * bought. (Google has no Index Coverage API at all; its per-URL Inspection
- * endpoint is a separate quota-budgeted lane, deliberately not built here.)
- *
- * TWO GRAINS IN ONE FILE, because they are two different facts:
+ * Derived, not collected: Bing Webmaster's `crawl-stats` carries `InIndex` and
+ * `feeds` carries each sitemap's `UrlCount`, so this family costs no request.
+ * Two grains in one file, because they are two different facts:
  *
  *   row_grain = 'site-day'  — one row per day Bing measured: pages in index,
- *     pages crawled, crawl errors, robots-blocked. This is the series to read
- *     for "is the index growing or collapsing".
- *   row_grain = 'sitemap'   — one row per submitted sitemap, from the NEWEST
+ *     pages crawled, crawl errors, robots-blocked.
+ *   row_grain = 'sitemap'   — one row per submitted sitemap, from the newest
  *     collection only: how many URLs we told Bing about, when it last fetched
- *     the file, and whether it parsed. This is the denominator.
+ *     the file, and whether it parsed.
  *
- * No ratio is computed. The two grains carry different dates — the index count
- * is a measured day, the sitemap count is "as of the last collection" — and a
- * single "coverage %" would give a number that looks exact to a reader who
- * cannot see that it straddles them.
- *
- * IT IS BING'S ANSWER, NOT GOOGLE'S. A page absent here is UNKNOWN, never "not
- * indexed": Bing and Google index different things, this family is site-level so
- * it says nothing about any individual URL, and an absent file means the lane
- * did not collect (unverified site, failed family) rather than an empty index.
+ * No ratio is computed: the two grains carry different dates, and a single
+ * "coverage %" would look exact while straddling them. It is Bing's answer: a
+ * page absent here is unknown, never "not indexed", and an absent file means
+ * the lane did not collect rather than an empty index.
  *
  * `families` maps each family's name to its resolved rows (`resolveFamily`);
- * only the INDEX_COVERAGE_SOURCES are read, each row from one of them.
+ * only the INDEX_COVERAGE_SOURCES are read.
  */
 export const INDEX_COVERAGE_FAMILY = 'index-coverage';
 
@@ -610,10 +499,8 @@ export function indexCoverageRows(families) {
   });
 
   // Bing rebuilds this series every day, so one measured day appears in every
-  // collection since. Those are REVISIONS of that day — the same rule the AI
-  // overview export follows — and keeping them all would draw the index curve
-  // seven times over. A row Bing dated nothing cannot be placed on a day at all
-  // and is left out rather than piled onto an empty one.
+  // collection since; those are revisions of that day. A row Bing dated
+  // nothing cannot be placed on a day and is left out.
   const siteDays = newestExportPerDay(
     (families.get(CRAWL_STATS_FAMILY) ?? []).filter((row) =>
       string(row.provider_date),
@@ -728,20 +615,12 @@ function clarityFieldName(field) {
 }
 
 /**
- * The six PostHog families and the contract fields each row carries (the shared
- * archive contract, ro-ghis.1 ↔ ro-ghis.2). One CSV row per contract row, the
- * fields renamed to snake_case the way every other family here reads.
- *
- * The field list is EXPLICIT rather than discovered, for two reasons. A row the
- * collector sent without a field (a web-vitals segment with no INP measurement
- * arrives as `inpP75: null`) must still produce that column EMPTY — unknown —
- * rather than a file whose header depends on which rows happened to arrive. And
- * an empty family still gets its header (`posthogColumns`), so "PostHog answered
- * with nothing" and "nobody collected this family" stay two different files.
- *
- * It is the CONTRACT's list, not a copy (bead ro-ghis.4): the generated
- * `posthog-families.mjs` is the same definition the collector's zod row schemas
- * are checked against, so a field added there lands in this CSV the same day.
+ * The six PostHog families and the contract fields each row carries, renamed
+ * to snake_case. The field list is explicit rather than discovered: a row sent
+ * without a field must still produce that column empty, and an empty family
+ * still gets its header (`posthogColumns`), so "PostHog answered with nothing"
+ * and "nobody collected this family" stay two different files. The list is the
+ * contract's (`posthog-families.mjs`), not a copy.
  */
 export const POSTHOG_FAMILIES = new Map(
   CONTRACT_POSTHOG_FAMILIES.map((family) => [family, POSTHOG_FAMILY_ROWS[family]]),
@@ -867,19 +746,14 @@ function serpItemDomain(item) {
 }
 
 /**
- * Does OUR result carry sitelinks — and the third state that makes the column
- * safe (`ro-463`).
+ * Does our result carry sitelinks, in three states:
  *
  *   `true`  — our organic item carries a sitelink block.
- *   `false` — our organic item was read and carried none. An OBSERVATION: the
- *     sitelink block rides inside the item, so an item we could parse is an item
- *     whose sitelinks we could parse.
- *   `''`    — we hold NO result inside the tracked depth, so there was no result
- *     of ours for sitelinks to hang off. UNKNOWN, never "no sitelinks". The rule
- *     waiting on this column — sitelinks appearing or disappearing on a brand
- *     query (`ro-770`) — would otherwise read every week the property ranked
- *     outside depth 20 as the week its sitelinks vanished, which is an alert
- *     about the panel's depth wearing a ranking's clothes.
+ *   `false` — our organic item was read and carried none (an observation).
+ *   `''`    — we hold no result inside the tracked depth, so there was no
+ *     result of ours for sitelinks to hang off. Unknown, never "no sitelinks":
+ *     otherwise every week the property ranked outside the depth would read
+ *     as the week its sitelinks vanished.
  *
  * `links` is DataForSEO's own field for the block; an absent or empty one on a
  * parsed item is the documented shape of a result without sitelinks.
@@ -889,27 +763,17 @@ function serpItemSitelinks(item) {
 }
 
 /**
- * What ELSE is on the result page, in the provider's own item-type vocabulary
- * (`ro-463`) — `people_also_ask|video|images`, pipe-joined and sorted.
- *
- * Both halves of the response are read, for the reason `aiOverviewState` reads
- * both: `item_types` is the provider's declaration of what the page held, and
- * the items are what came back. A feature the provider NAMED but did not return
- * a block for was still on the page, and a block that arrived unnamed was still
- * on the page — either alone would undercount.
- *
- * `organic` is dropped: this family measures the organic list in columns of its
- * own (`organic_results`, `top3_domains`, `best_rank`), and a token present in
- * every row of every panel ever collected is not a feature, it is a constant.
- * The column shares its name with the ranked-keyword family's `serp_features`
- * because it shares that vocabulary, NOT because the two can be joined: those
- * rows are a weekly ranking inventory at keyword grain, these are result pages
- * at (query, device) grain, read at a different moment.
- *
- * Empty on a row that carries a result is an OBSERVATION — nothing but organic
- * results on that page. Empty on a billed-but-unanswered row is unknown, the
- * same way every other column on that row is, and `provider_status` is what
- * tells the two apart.
+ * What else is on the result page, in the provider's own item-type vocabulary
+ * — `people_also_ask|video|images`, pipe-joined and sorted. Both halves of the
+ * response are read, as `aiOverviewState` does: `item_types` is the provider's
+ * declaration and the items are what came back; either alone would
+ * undercount. `organic` is dropped — this family measures the organic list in
+ * its own columns, and a token present in every row is a constant, not a
+ * feature. The column shares its name with the ranked-keyword family's
+ * `serp_features` because it shares that vocabulary, not because the two can
+ * be joined. Empty on a row that carries a result is an observation; empty on
+ * a billed-but-unanswered row is unknown, and `provider_status` tells the two
+ * apart.
  */
 function serpPageFeatures(result) {
   const declared = array(result?.item_types).map(string);
@@ -971,23 +835,12 @@ function aiOverviewState(result, ourDomain) {
 }
 
 /**
- * The device this result page was read on.
- *
- * It is taken from the archived REQUEST — `device` is a documented field of the
- * live/advanced SERP task, so it rides inside the stored request body of every
- * page the collector has ever written and needs no manifest column to survive
- * (`ro-o1n`). The provider's own echo (`tasks[].data.device`) is the fallback
- * for an archive assembled some other way.
- *
- * A page carrying neither is backfilled as **desktop**, and that is a different
- * decision from the one taken for the panel's missing cluster labels. Device was
- * structurally true, not merely likely: from the family's first collection until
- * 2026-08-04 the collector had exactly one `device` literal in it, so no archive
- * in the store can be anything else. Leaving those rows empty would make every
- * pre-mobile week read as *unknown device*, which is the one thing it certainly
- * is not — and would break every device-vs-device comparison across the cutover
- * for no gain. A label, by contrast, was never sent, so inventing one would be
- * inventing evidence.
+ * The device this result page was read on, taken from the archived request
+ * (`device` is a documented field of the live/advanced SERP task), with the
+ * provider's own echo (`tasks[].data.device`) as the fallback. A page carrying
+ * neither is backfilled as desktop: a collector that could only ask for one
+ * device made the device structurally true — unlike a missing cluster label,
+ * which was never sent and stays empty.
  */
 function serpPageDevice(request, task) {
   return (
@@ -1011,11 +864,9 @@ function flattenSerpPanel(archive) {
     const response = record(page?.response);
     const task = record(array(response?.tasks)[0]);
     const result = record(array(task?.result)[0]);
-    // The cluster this query measured, as the COLLECTION recorded it. This tool
-    // never opens config/serp-panel.json, and that is the point: reading today's
-    // config over yesterday's archive would silently relabel history the day a
-    // cluster is renamed. A rename therefore applies from the next collection
-    // forward, and old rows keep the bet they were actually placed on.
+    // The cluster this query measured, as the collection recorded it. This
+    // never opens config: reading today's config over yesterday's archive would
+    // relabel history the day a cluster is renamed.
     const label = string(envelope?.label).trim();
     const base = {
       ...baseRow(archive),
@@ -1023,15 +874,10 @@ function flattenSerpPanel(archive) {
       provider_attempts: scalar(envelope?.attempts),
       row_grain: 'tracked-query-device',
       query: string(result?.keyword) || string(request?.keyword),
-      // The two archived dimensions, and the two OPPOSITE calls about a page
-      // that carries neither. `device` is backfilled `desktop` because it was
-      // structurally true — the collector had one literal in it until
-      // 2026-08-04, so no stored archive can be anything else. A label is left
-      // out entirely, because a label was never SENT: inventing one would
-      // invent evidence, and a panel that starts labelling must leave its
-      // earlier rows honestly empty rather than backfilled with a bet nobody
-      // had placed yet. A panel that never labelled anything flattens to
-      // exactly the columns it always had, plus `device`.
+      // The two archived dimensions and the opposite calls about a page that
+      // carries neither: `device` is backfilled `desktop` because it was
+      // structurally true; a label is left out because one was never sent, so
+      // a panel that starts labelling leaves its earlier rows empty.
       device: serpPageDevice(request, task),
       ...(label ? { query_label: label } : {}),
       tracked_depth: scalar(request?.depth),
@@ -1076,16 +922,12 @@ function flattenSerpPanel(archive) {
         // Empty means "no result inside the tracked depth", never "not ranking".
         best_rank: ours ? scalar(ours.rank_group) : '',
         best_url: ours ? scalar(ours.url) : '',
-        // Our SECOND slot on the same page, bounded exactly like the first
-        // (`ro-463`). Empty is "no second result of ours inside the tracked
-        // depth" — the page held one of ours, or none. It earns its column
-        // because it answers a question GSC cannot: two of the property's URLs
-        // sharing one result page is either a double listing worth defending or
-        // the cannibalization the impression-harvest playbook consolidates, and
-        // the flattened GSC families can only show impressions split across
-        // pages, never which page Google actually placed where. The URL travels
-        // with it for the same reason `best_url` travels with `best_rank`: a
-        // rank nobody can attribute to a page is a fact with no next step.
+        // Our second slot on the same page, bounded like the first: empty is
+        // "no second result of ours inside the tracked depth". Two of the
+        // property's URLs on one result page is a double listing or
+        // cannibalization, which the GSC families cannot show; the URL travels
+        // with it because a rank nobody can attribute to a page is a fact with
+        // no next step.
         second_rank: second ? scalar(second.rank_group) : '',
         second_url: second ? scalar(second.url) : '',
         aio_present: aio.present === null ? '' : aio.present,
@@ -1102,8 +944,7 @@ function flattenSerpPanel(archive) {
 
 function flattenDataForSeo(archive) {
   // The panel is the one family whose archive holds many result pages: one
-  // provider call per (tracked query, device) since ro-o1n, all under a single
-  // manifest row.
+  // provider call per (tracked query, device), all under a single manifest row.
   if (archive.report === 'serp-panel') return flattenSerpPanel(archive);
 
   const { response, result } = dataForSeoResult(archive);
@@ -1233,11 +1074,10 @@ function flattenDataForSeo(archive) {
           // The INTERSECTING keyword count, which equals `intersections` — kept
           // because it is what the provider says about the overlap itself.
           competitor_keywords: scalar(metrics?.count),
-          // The competitor's WHOLE organic footprint, which is the denominator
-          // that makes overlap share mean anything: facebook.com intersects us
-          // on 3,036 keywords out of 115,332,098 it ranks for. Read from
-          // `full_domain_metrics` rather than `metrics`, whose counts are all
-          // scoped to the intersection and therefore equal `intersections`.
+          // The competitor's whole organic footprint, the denominator that
+          // makes overlap share mean anything. Read from `full_domain_metrics`
+          // rather than `metrics`, whose counts are scoped to the intersection
+          // and therefore equal `intersections`.
           competitor_total_keywords: scalar(
             record(record(item?.full_domain_metrics)?.organic)?.count,
           ),

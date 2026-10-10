@@ -93,7 +93,7 @@ export const Annotation = z.object({
 });
 export type Annotation = z.infer<typeof Annotation>;
 
-// --- the persisted flag row (snake_case, mirrors db/migrations flags) -----
+// --- the persisted flag row (snake_case, mirrors the store's `flags`) -----
 export const FlagDisposition = z.enum([
   'ack',
   'snooze',
@@ -163,7 +163,7 @@ export function amountToMinorUnits(amount: number, currency = 'USD'): number {
 /**
  * The row's stable identity, namespaced by the source that issued it — the key
  * the store's unique index enforces and the handle a later reconciliation
- * points at (the 2026-07 audit's finding 1).
+ * points at.
  *
  * A source that issues its own record id supplies `external_id` and the row is
  * keyed by it. A hand-assembled monthly export usually issues nothing, so the
@@ -173,8 +173,7 @@ export function amountToMinorUnits(amount: number, currency = 'USD'): number {
  * the money.
  *
  * `auto/` marks the derived form so an operator reading the column can tell a
- * provider's id from ours. `db/migrations/0018_ledger_external_id.sql` backfills
- * history with the identical expression in SQL — the two must not drift.
+ * provider's id from ours.
  */
 export function deriveExternalId(row: {
   kind: string;
@@ -197,7 +196,7 @@ export function deriveExternalId(row: {
  * is namespaced by `kind`, `period` is `YYYY-MM`, `amount` coerces from CSV
  * strings.
  *
- * Two fields carry the idempotency contract (db/0018):
+ * Two fields carry the idempotency contract:
  *
  *   - `external_id` — the source's own record id for this row, optional. Absent,
  *     the row is keyed by its accounting grain (see `deriveExternalId`), which

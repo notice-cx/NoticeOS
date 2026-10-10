@@ -1,9 +1,9 @@
-// The database address (bead ro-ujb9.76.7.2): DATABASE_URL, the fourth
+// The database address: DATABASE_URL, the fourth
 // bootstrap secret, read from the secrets file, checked as the application
 // login, and handed to the dev server's environment as the POSTGRES binding's
 // local address — or one sentence that stops the start and never repeats any
 // part of the address. The migration record is read one way, by the start's
-// check and by `pnpm os:deploy` (bead ro-ujb9.76.7.1).
+// check and by `pnpm os:deploy`.
 
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';

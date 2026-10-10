@@ -8,17 +8,14 @@ import { TEST_SITES } from './invented-sites';
 
 const HOUR = 3_600_000;
 const NOW = Date.parse('2026-07-05T12:00:00.000Z');
-// db/0002 registers every seeded asset at 2026-07-05T00:00Z, so NOW sits 12h
-// after registration and LATER 60h after it — past the 48h age that used to
-// make a site that never reported an error (before D29's amendment).
+// Every seeded asset is registered at 2026-07-05T00:00Z, so NOW sits 12h after
+// registration and LATER 60h after it — past the 48h report age.
 const LATER = Date.parse('2026-07-07T12:00:00.000Z');
 
-/**
- * Every seeded asset, counted from the shared fixture rather than restated, so
- * registering the next one moves the number instead of reddening this file.
- * With no report stored, every one of them expects none (D29 amended,
- * `ro-ujb9.121`), so they are all outside the obligation.
- */
+/** Every seeded asset, counted from the shared fixture rather than restated,
+ * so registering the next one moves the number instead of reddening this file.
+ * With no report stored, every one of them expects none, so they are all
+ * outside the obligation. */
 const ALL_ASSETS = TEST_SITES.length;
 
 beforeEach(reset);
@@ -83,12 +80,10 @@ describe('hourly ingest-freshness cron', () => {
     expect(await openFreshness('meals.example')).toBe(1);
   });
 
-  // ro-uwo.1. 40h used to be the contradiction age: this cron fired an error at
-  // 36h while the Tower's SYSTEM card counted the same property fresh until 48h,
-  // so one payload carried both claims about one property. The cron now reads
-  // the contract's REPORT_MAX_AGE_HOURS, which is what the wall payload counts
-  // with (apps/tower/test/wall-payload.test.ts asserts the other half).
-  it('holds fire at 40h — the age the two surfaces used to disagree at', async () => {
+  // The cron reads the contract's REPORT_MAX_AGE_HOURS, which is what the wall
+  // payload counts with (apps/tower/test/wall-payload.test.ts asserts the other
+  // half), so one payload never carries two claims about one property.
+  it('holds fire at 40h, inside the shared threshold', async () => {
     const now = NOW;
     await insertPulse('meals.example', '2026-07-03', now - 40 * HOUR);
 
@@ -145,9 +140,8 @@ describe('hourly ingest-freshness cron', () => {
   });
 });
 
-// D29, amended 2026-09-23 (bead ro-ujb9.121). A site expects a nightly report
-// once it has sent one. Before, a site that had never sent one was an error 48h
-// after it was added — on a new installation, for a sender nobody had set up.
+// A site expects a nightly report once it has sent one; a site that has never
+// sent one owes none, however long ago it was added.
 describe('a site that has never sent a report owes none', () => {
   it('is outside the expected set and fires nothing, however long ago it was added', async () => {
     const result = await runFreshnessCheck(env, LATER);
@@ -181,7 +175,7 @@ describe('a site that has never sent a report owes none', () => {
     expect(await freshnessInputs('areas.example')).toMatchObject({ state: 'stale' });
   });
 
-  it('resolves a "never reported" flag fired under the old rule on the next run', async () => {
+  it('resolves an open flag on a site that has never reported, on the next run', async () => {
     await insertFlag({
       asset: 'pacer.example',
       firedAt: new Date(LATER).toISOString(),
@@ -207,9 +201,9 @@ describe('a site that has never sent a report owes none', () => {
   });
 });
 
-// ro-ujb9.96.8. The operator may declare that an asset sends no nightly report.
-// Declared through the SAME write the asset Settings switch performs, then read
-// store first by the cron.
+// The operator may declare that an asset sends no nightly report. Declared
+// through the same write the asset Settings switch performs, then read store
+// first by the cron.
 describe('assets declared as sending no nightly report', () => {
   const DECLARED = ['areas.example', 'pacer.example'];
 
@@ -301,12 +295,10 @@ describe('assets declared as sending no nightly report', () => {
   });
 });
 
-// ro-6le. The egress gate (src/egress.ts) stopped the 2026-08-08 uplink outage
-// from being reported as six properties' outage — but only for the checks that
-// ran that night. Two days later THIS rule came around and fired "no pulse in
-// 48h" on the same properties: the same wrong accusation through a second door,
-// because a pull-mode property cannot report when the OS cannot reach it (and a
-// push-mode one cannot reach the OS either).
+// The egress gate (src/egress.ts) speaks only for the checks that ran during an
+// outage; this rule comes around two days later and would fire "no pulse in
+// 48h" on the same properties — a pull-mode property cannot report when the OS
+// cannot reach it, and a push-mode one cannot reach the OS either.
 //
 // The semantics these pin: staleness does not count hours the OS itself was
 // dark, and it counts nothing the store does not evidence — the gate is lazy, so
@@ -317,10 +309,10 @@ describe('assets declared as sending no nightly report', () => {
 describe('staleness does not count hours the OS was dark', () => {
   const at = (hoursAgo: number): number => NOW - hoursAgo * HOUR;
 
-  /** A two-night outage, the shape of 2026-08-08: the 02:30 pull lane and the
-   * 04:00 hygiene sweep each probe and each come back down, two nights running,
-   * and the first lane run after recovery writes the up reading that closes it.
-   * Evidenced dark span: the 25h from the first down reading to the last. */
+  /** A two-night outage: the 02:30 pull lane and the 04:00 hygiene sweep each
+   * probe and each come back down, two nights running, and the first lane run
+   * after recovery writes the up reading that closes it. Evidenced dark span:
+   * the 25h from the first down reading to the last. */
   async function twoNightOutage(): Promise<void> {
     await insertEgressCheck(at(50), false);
     await insertEgressCheck(at(49), false);
@@ -339,9 +331,9 @@ describe('staleness does not count hours the OS was dark', () => {
     // inside the threshold. No accusation.
     expect(result.fired).toBe(0);
     expect(await openFreshness('meals.example')).toBe(0);
-    // Still counted stale, and counted as gated. The report IS late — what is
+    // Still counted stale, and counted as gated. The report is late — what is
     // withheld is the accusation, not the fact, and the Tower reads the same
-    // property stale off the same store (ro-uwo.1).
+    // property stale off the same store.
     expect(result.stale).toBe(1);
     expect(result.egressGated).toBe(1);
   });

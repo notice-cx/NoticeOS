@@ -1,4 +1,4 @@
-// The queue that carries a verdict back to the bead that is owed it (db/0024).
+// The queue that carries a verdict back to the task that is owed it.
 //
 // The end-to-end case runs the real sweep, because the thing worth pinning is
 // that closing a window ENQUEUES its verdict without the sweep knowing anything
@@ -52,7 +52,7 @@ async function observeClicks(baseline: number, post: number): Promise<void> {
   ) {
     dates.push(new Date(ms).toISOString().slice(0, 10));
   }
-  // On Postgres, where the collectors write them (bead ro-ujb9.76.5.3).
+  // On Postgres, where the collectors write them.
   await storeSignalRun(
     {
       id: runId,
@@ -81,7 +81,7 @@ async function closedWindow(
 ): Promise<string> {
   const id = overrides.id ?? crypto.randomUUID();
   const closed = (overrides.status ?? 'closed') === 'closed';
-  // On Postgres (bead ro-ujb9.76.5.7), written as the application writes.
+  // On Postgres, written as the application writes.
   await env.STORE.write((tx) =>
     tx.execute(
       `INSERT INTO noticeos.watch_windows

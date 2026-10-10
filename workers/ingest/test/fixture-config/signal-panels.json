@@ -14,43 +14,43 @@
     "root-os": {
       "enabled": false,
       "reason": "not-applicable",
-      "note": "The System has no organic-search or client-analytics surface to panel (config/integrations.json: gsc/ga4/bing-webmaster all not-applicable). The OS observes itself through its own nightly report.",
+      "note": "The OS has no organic-search or client-analytics surface to panel; it observes itself through its own nightly report.",
       "since": "2026-08-03"
     },
     "meals.example": {
       "enabled": true,
       "reason": "live-lanes",
-      "note": "GSC + GA4 + Bing live since 2026-07-29/30. Its Clarity export plus tracked-query SERP panel make its panel dir the widest in the portfolio.",
+      "note": "GSC, GA4 and Bing are collected centrally for this site.",
       "since": "2026-08-03"
     },
     "nosh.example": {
       "enabled": true,
       "reason": "live-lanes",
-      "note": "GSC + GA4 live since 2026-07-30, Bing since 2026-07-29.",
+      "note": "GSC, GA4 and Bing are collected centrally for this site.",
       "since": "2026-08-03"
     },
     "pacer.example": {
       "enabled": true,
       "reason": "live-lanes",
-      "note": "GSC + GA4 + Bing live since 2026-07-29/30. Stays rostered through the pullups.example redirect handoff (decisions.md D11) — watching the 301 land is exactly what the panel is for.",
+      "note": "GSC, GA4 and Bing are collected centrally for this site.",
       "since": "2026-08-03"
     },
     "pullups.example": {
       "enabled": false,
       "reason": "no-lane-yet",
-      "note": "New consolidated asset (decisions.md D11, 2026-08-02). Every collector is needs-setup until the GSC/GA4/Bing properties exist, so a refresh would write an empty panel dir — and an empty panel is indistinguishable from a collapsed one. Enable when the sources go live; tracked as ro-2zk.2.",
+      "note": "Every collector is needs-setup until the GSC/GA4/Bing properties exist; a refresh would write an empty panel dir, indistinguishable from a collapsed one. Enable when the sources go live.",
       "since": "2026-08-03"
     },
     "areas.example": {
       "enabled": true,
       "reason": "live-lanes",
-      "note": "GSC + GA4 + Bing live since 2026-07-29/30. A 15-term tracked-query SERP panel was seeded on 2026-08-05 from ac-541, ac-ens.10, and ro-2zk.5.",
+      "note": "GSC, GA4 and Bing are collected centrally for this site.",
       "since": "2026-08-03"
     },
     "fees.example": {
       "enabled": true,
       "reason": "live-lanes",
-      "note": "GSC + GA4 + Bing live since 2026-07-30. The operator confirmed the asset live on 2026-08-05; its 15-term tracked-query SERP panel watches visibility recovery and the shipped check-guide, EIN, verified-contact, and named-bank-change bets (ro-e66). NoticeOS remains sense-only for this YMYL asset.",
+      "note": "GSC, GA4 and Bing are collected centrally for this site.",
       "since": "2026-08-03"
     }
   }

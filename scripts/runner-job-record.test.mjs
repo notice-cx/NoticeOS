@@ -20,7 +20,7 @@ import {
   summarizeJobRuns,
 } from './runner/job-record.mjs';
 
-// scripts/runner/job-record.mjs (bead ro-ujb9.22): the runner's job-run
+// scripts/runner/job-record.mjs: the runner's job-run
 // record, bound to its own file, log and door. Every firing below goes to a
 // throwaway file, and shipping is driven with an injected state and door.
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// THE POSTGRES MIGRATIONS, APPLIED TO AN INSTALLATION'S OWN DATABASE
-// (bead ro-ujb9.76.34). Existing installations remain operator-only. The
-// explicit ro-nzy7 exception lets pnpm start reuse this command only for a
-// proven new/empty installation's frozen schema and one workspace (AGENTS.md).
+// The Postgres migrations, applied to an installation's own database.
+// Existing installations remain operator-only; `pnpm start` reuses this
+// command only for a proven new, empty installation's frozen schema and one
+// workspace (AGENTS.md).
 //
 //   pnpm postgres:migrate status    --database <name> [<connection>] [--json]
 //   pnpm postgres:migrate apply     --database <name> [<connection>] --confirm <name>
@@ -15,50 +15,28 @@
 //                 machine, on its local socket, logged in as noticeos_owner
 //                 with no password (a peer login)
 //
-// It needs psql alone, not the server binaries (bead ro-ujb9.76.39): the
-// database may run in a container or at a provider.
+// It needs psql alone, not the server binaries: the database may run in a
+// container or at a provider. It is the development runner
+// (scripts/postgres-migrate.mjs) pointed at a real database, calling the same
+// code: the advisory lock, one transaction for the whole run, a SHA-256
+// record per file, the refusals of a changed, missing or out-of-order
+// migration, and the bootstrap's lock. Because the database is real, it also
+// reads before it writes (`status`; `apply` and `bootstrap` print the same
+// plan first), names the target twice (`--database` and `--confirm`), refuses
+// a development database, runs only as noticeos_owner and never creates a
+// role or a database, and applies only migrations
+// db/postgres/frozen-migrations.sha256 lists (the freeze is a commit made
+// before the apply; db/postgres/README.md, "Changing the schema").
 //
-// It is the development runner (scripts/postgres-migrate.mjs, `pnpm
-// postgres:dev`) pointed at a real database, and it keeps that runner's
-// guarantees by calling the same code, not a copy: the advisory lock (a second
-// run is refused, not queued), one transaction for the whole run, a SHA-256
-// record per file, and the refusal of a recorded migration whose file changed
-// or is gone and of a pending one older than the newest applied; the
-// bootstrap's lock, so two bootstraps cannot both create a workspace. What it
-// adds, because the database is real:
+// Nothing but the command line decides where it connects: every psql child
+// runs with the development profile's clean environment. `--url-from` reads
+// exactly the variable it names; the URL may name only noticeos_owner, the
+// --database name and TLS settings; its password reaches psql only as
+// PGPASSWORD, and nothing this command prints repeats it.
 //
-//   - IT READS BEFORE IT WRITES. `status` reads in read-only transactions and
-//     prints what is applied, pending or changed. `apply` and `bootstrap`
-//     print the same plan first.
-//   - THE TARGET IS NAMED TWICE. `--database`, and for a write `--confirm`
-//     with the same name. Without it, or with another name, it prints the
-//     plan and changes nothing.
-//   - A DEVELOPMENT DATABASE IS REFUSED, and `pnpm postgres:dev` named: a name
-//     ending in _dev before connecting, a database marked
-//     noticeos.profile = 'development' before any write.
-//   - IT IS THE OWNER. The session must be noticeos_owner's own login. The
-//     roles and the database come first, from the Postgres service's first
-//     start (db/postgres/host/first-start.sh); this command never creates a
-//     role or a database.
-//   - ONLY FROZEN MIGRATIONS. A real database applies a migration only once
-//     db/postgres/frozen-migrations.sha256 lists it, so a file a real database
-//     holds can never be edited afterwards (scripts/postgres-model.test.mjs
-//     fails first); a frozen file that changed stops the run too. It never
-//     writes the list itself: the freeze is a commit, made before the apply
-//     (db/postgres/README.md, "Changing the schema").
-//
-// CONNECTING. Both ways are named on the command line, and nothing else
-// decides where it connects: every psql child runs with the development
-// profile's clean environment (scripts/postgres-dev.mjs, psqlEnvironment: no
-// PG* settings, no password or service file, no DATABASE_URL). `--url-from`
-// reads exactly the variable it names, never one it picks by itself; the URL
-// may name only noticeos_owner and the --database name, and TLS settings; its
-// password reaches psql only in that child's environment (PGPASSWORD), never
-// its command line, and nothing this command prints repeats it.
-//
-// Only the explicit operator command, the proven-empty first-start exception,
-// and tests may load this file. scripts/postgres-migrate.test.mjs guards that
-// boundary. A restart or deploy never applies schema.
+// Only the explicit operator command, the proven-empty first-start exception
+// and tests may load this file (scripts/postgres-migrate.test.mjs guards
+// that). A restart or deploy never applies schema.
 
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -120,18 +98,13 @@ export function readFrozenMarker(file = FROZEN_MIGRATIONS) {
 }
 
 /**
- * Check the target the command line names, BEFORE anything connects, and
+ * Check the target the command line names, before anything connects, and
  * return `{ database, parts, password, hidden, where, flags }`: the libpq
- * keywords psql will use (built from the checked parts alone), the password
- * (null on the socket) and every spelling of it no output may repeat, how
- * messages name the target, and the flags that name it again in a suggested
- * next command. Throws MigrationRefused; no message quotes the variable's value.
- *
- * The third argument is for the importer, which checks each of its two
- * logins here: the `login` the session must be (a URL naming another is
- * refused), what it is `usedBy`, the `application` name the server lists it
- * as, and where a development database is sent instead (`development`).
- * This command's own are the defaults.
+ * keywords psql will use, the password (null on the socket) and every
+ * spelling of it no output may repeat, how messages name the target, and the
+ * flags that name it again in a suggested next command. Throws
+ * MigrationRefused; no message quotes the variable's value. The third
+ * argument lets another command check its own login here.
  */
 export function checkTarget(
   { database, socket = null, port = null, urlFrom = null },

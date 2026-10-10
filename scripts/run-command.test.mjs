@@ -5,11 +5,11 @@ import { test } from 'node:test';
 import { TIMED_OUT_CODE, runCommand } from './run-command.mjs';
 import { lateWritingCommand } from './test-late-command.mjs';
 
-// The one helper every script runs a command through (bead ro-ujb9.185).
+// The one helper every script runs a command through.
 
-// Bead ro-ujb9.147: the applied-migration read once came back { ok: true,
-// names: [] } on a busy machine, because the helper resolved on the child's
-// 'exit', which can fire before its output has been read from the pipe. Here a
+// A helper that resolves on the child's 'exit' can return before the output
+// has been read from the pipe (an applied-migration read that comes back
+// { ok: true, names: [] } on a busy machine). Here a
 // child exits at once while a process it started still holds stdout and
 // writes later: only a helper that waits for the output to end sees both lines.
 test('a command is collected once its output has ended, not merely once it exited', async () => {
@@ -47,7 +47,7 @@ test('a command a signal ended reports 128 + the signal, never a plain 1', async
 });
 
 test('a command that cannot start resolves 127 with the spawn error, and never rejects', async () => {
-  const result = await runCommand(path.join(tmpdir(), 'no-such-command-ro-ujb9-185'), []);
+  const result = await runCommand(path.join(tmpdir(), 'no-such-command-noticeos'), []);
   assert.equal(result.code, 127);
   assert.equal(result.error?.code, 'ENOENT');
   assert.equal(result.timedOut, false);

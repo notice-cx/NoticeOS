@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { statePaths } from './os-runtime.mjs';
 
-// scripts/runner/operator-token.mjs (bead ro-ujb9.22): the bearer the runner
+// scripts/runner/operator-token.mjs: the bearer the runner
 // presents at its own door comes from HOME's secret files, whichever copy of
 // the code runs. Each case runs the module in a fresh process whose home is a
 // temporary folder holding an invented value, so nothing here reads the

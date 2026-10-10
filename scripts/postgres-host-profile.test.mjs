@@ -28,10 +28,9 @@ import { runCommand } from './run-command.mjs';
 import { prepareFreshPostgres, startPostgresPlan } from './start-postgres.mjs';
 import { startPlan } from './start.mjs';
 
-// THE INSTALLATION'S POSTGRES AS A COMPOSE SERVICE (bead ro-ujb9.76.12):
-// db/postgres/host/. What needs a container app is proven by
-// docs/artifacts/postgres-host/compose-proof-2026-09-29.mjs; this holds the
-// rest, in every `pnpm test:scripts`:
+// The installation's Postgres as a Compose service: db/postgres/host/. What
+// needs a container app is proven elsewhere; this holds the rest, in every
+// `pnpm test:scripts`:
 //
 //   - STATIC, always: compose.yaml publishes one port on 127.0.0.1 and no
 //     other address, runs the pinned multi-architecture PostgreSQL 18 with
@@ -47,7 +46,7 @@ import { startPlan } from './start.mjs';
 //   - LIVE, on a throwaway cluster: first-start.sh builds the roles, their
 //     logins, the database and query statistics as the image runs it, the
 //     profile's pg_hba.conf then decides who gets in, and `pnpm
-//     postgres:migrate` runs with psql alone (bead ro-ujb9.76.39) by the URL
+//     postgres:migrate` runs with psql alone by the URL
 //     `pnpm postgres:secrets` wrote, then DATABASE_URL reaches the one
 //     workspace through the Workers' store helper. No password is in the
 //     query statistics, their text file or the server's log.

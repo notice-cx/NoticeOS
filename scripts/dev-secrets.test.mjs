@@ -170,7 +170,7 @@ test('the database address is read from the secrets file but never becomes a Wor
 
 // ---------------------------------------------------------------------------
 // `pnpm dev:secrets:import` — the one-way door from these local files into the
-// credential store (epic `ro-vu8d`). The operator's existing secrets move
+// credential store. The operator's existing secrets move
 // without being retyped into a form; the bindings stay as the fallback.
 // ---------------------------------------------------------------------------
 
@@ -195,7 +195,7 @@ const PROVIDERS = [
   },
 ];
 
-/** Google as the contract now ships it (bead `ro-vu8d.3`): TWO ways in, and
+/** Google as the contract now ships it: TWO ways in, and
  * neither field `required`, because "required" cannot express *either a sign-in
  * or a service account*. */
 const GOOGLE_PROVIDER = {

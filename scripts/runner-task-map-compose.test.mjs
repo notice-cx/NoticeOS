@@ -15,7 +15,7 @@ test('task-map inventory uses a real fresh spoke and the bundled container clien
   const binary = process.env.NOTICEOS_TEST_TASK_MAP_BD;
   const image = process.env.NOTICEOS_TEST_TASK_MAP_IMAGE;
   assert.ok(binary && path.isAbsolute(binary));
-  assert.match(image ?? '', /^noticeos-local:ro-ujb9-9-2-[a-z0-9]+$/u);
+  assert.match(image ?? '', /^noticeos-local:compose-proof-[a-z0-9]+$/u);
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-task-map-compose-'));
   const home = path.join(base, 'state');
   fs.mkdirSync(home, { mode: 0o700 });

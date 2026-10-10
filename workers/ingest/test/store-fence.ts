@@ -1,10 +1,8 @@
-// THE STORE FENCE: A TEST THAT HAS ENDED CANNOT TOUCH THE STORE (bead ro-ujb9.168).
+// The store fence: a test that has ended cannot touch the store.
 //
 // Vitest gives up on a test at its time limit but cannot stop it: the test's
-// function keeps running. On a busy host two DataForSEO sweeps ran past the
-// limit and kept writing while the tests after them ran, and 26 tests that did
-// nothing wrong failed. With one runtime reused from file to file, such work
-// could also reach the next file's store.
+// function keeps running, and with one runtime reused from file to file its
+// work could reach the next file's store.
 //
 // So every test, and every file's own hooks, run inside an async context that
 // names them (`within`, called from test/clean-start.ts), and everything
@@ -16,8 +14,8 @@
 // store. test/isolation-probe.ts proves it.
 //
 // The fence also records which Postgres bindings a file reached, so the next
-// file's clean start makes again only the copies that can have changed
-// (issue #23): every file reaches `POSTGRES`, and only a few the second copy.
+// file's clean start makes again only the copies that can have changed: every
+// file reaches `POSTGRES`, and only a few the second copy.
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { WorkspaceStore } from '@noticeos/postgres';
 

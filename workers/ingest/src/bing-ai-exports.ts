@@ -1,62 +1,32 @@
-// Bing Webmaster Tools' AI Performance export — the format contract.
-//
-// WHY THIS IS AN IMPORT AND NOT A COLLECTOR. The AI Performance report (public
-// preview) is the only place Microsoft says which questions its assistants
-// answered with this property's pages. It exists in the dashboard and in a CSV
-// download button, and nowhere on the documented `IWebmasterApi` surface
-// (docs/11 §"Bing AI Performance boundary"), so there is no lane to poll and
-// scraping the dashboard is ruled out on principle. The operator downloads a
-// file; this module is what turns that file into evidence.
-//
-// PINNED TO THE FORMAT WE ACTUALLY OBSERVED, NOT TO A GUESS. Every column name,
-// the date spelling, the percent suffix and the digits-only counts below were
-// read off three real exports delivered 2026-08-04 (bead ro-2dn). A file whose
-// header row is not one of the three is REFUSED — never mapped by position,
-// never partially read. That refusal is the whole reason the bead waited for a
-// real file: a parser that guesses a column is how a silent corruption starts,
-// and the citation counts here are about to sit next to GSC clicks.
-//
-// WHAT AN ARCHIVE HOLDS. One dropped file becomes one archive: the original
-// bytes, base64 and byte-identical, PLUS the rows this parser made of them. The
-// bytes are the source of record — any later parser can redo the read without
-// asking the operator to download 2026 again — and the rows are what the panel
-// flattener consumes, so the CSV in the panel dir can never drift from a parse
-// nobody kept.
-//
-// THE EXPORT DATE IS THE REPORT DATE. Two of the three exports carry no date
-// column at all: they are period snapshots of "the report as of today", and
-// Bing's own filename is the only place their date lives. So the caller stamps
-// the export date (`scripts/bing-ai-import.mjs` reads it off the filename) and
-// the archive is keyed on it. Re-importing the same file replaces its archive;
-// a later export lands beside it as the next dated observation. The daily
-// overview series is imported the same way — one archive per export, carrying
-// the whole series — and the flattener resolves an overlapping day to the
-// newest export (scripts/signal-archive.mjs), because a repeated Bing
-// snapshot is a revision, never an increment.
+// Bing Webmaster Tools' AI Performance export: the format contract. The report
+// exists in the dashboard and a CSV download and nowhere on the documented API,
+// so the operator downloads a file and this module turns it into evidence.
+// Pinned to the format actually observed: a file whose header row is not one
+// of the three is refused, never mapped by position or partially read. One
+// dropped file becomes one archive holding the original bytes (base64,
+// byte-identical) plus the rows this parser made of them. The export date is
+// the report date: two of the three exports carry no date column, so the
+// caller stamps the date off the filename and the archive is keyed on it;
+// re-importing the same file replaces its archive, and a repeated snapshot is a
+// revision, never an increment.
 
 import { parseCsv } from './csv.js';
 import type { CollectedDump } from './signal-dumps.js';
 
-/** The store's integration id. These rows ARE Bing Webmaster Tools — the same
- * account, the same verified site — so they share the integration and are told
- * apart by report family. (`signal_dump_runs.integration` is a closed CHECK
- * list; a new value would need a migration to say something already true.) */
+/** These rows are Bing Webmaster Tools (same account, same verified site), so
+ * they share the integration and are told apart by report family. */
 export const BING_AI_INTEGRATION = 'bing-webmaster';
 
 /** No credential crosses this lane: a human signed in and clicked Export. */
 export const BING_AI_CREDENTIAL_REF = 'operator-export';
 
-/** Bumped when the parse below changes shape. Stored on every archive so a row
- * can always be traced to the reader that produced it. */
+/** Bumped when the parse below changes shape; stored on every archive. */
 export const BING_AI_PARSER_VERSION = 'bing-ai-export/1';
 
 /**
- * The largest file this lane accepts.
- *
- * The three observed exports are 3 KB, 11 KB and 55 KB; the ceiling is three
- * orders of magnitude above that so a much larger portfolio still fits, while
- * an accidental drop of the wrong file (a database backup, a video) is refused
- * at the door instead of being base64'd into R2.
+ * The largest file this lane accepts: three orders of magnitude above the
+ * observed exports, so an accidental drop of the wrong file is refused at the
+ * door instead of being base64'd into R2.
  */
 export const BING_AI_EXPORT_MAX_BYTES = 4 * 1024 * 1024;
 
@@ -89,9 +59,8 @@ export interface BingAiFormat {
 
 /**
  * Bing writes midnight local time onto a date-only series. The time is part of
- * the format, so it is matched rather than ignored: a future export carrying a
- * real time of day would mean the grain changed under us, and that must be a
- * loud refusal rather than a silently truncated hour.
+ * the format and matched rather than ignored: an export carrying a real time
+ * of day would mean the grain changed, which must be a loud refusal.
  */
 const OVERVIEW_DATE_RE = /^(\d{1,2})\/(\d{1,2})\/(\d{4}) 12:00:00 AM$/;
 const PERCENT_RE = /^(\d+(?:\.\d+)?)%$/;
@@ -113,8 +82,7 @@ export function bingAiDay(value: string): string {
   }
   const [, month, day, year] = match as unknown as [string, string, string, string];
   const iso = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-  // A calendar check, not a regex one: 2/30/2026 matches the shape and is not a
-  // day, and a series with a day that never happened is worse than a refusal.
+  // A calendar check, not a regex one: 2/30/2026 matches the shape and is not a day.
   const parsed = new Date(`${iso}T00:00:00.000Z`);
   if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== iso) {
     fail('bing_ai_export_bad_date', `"${value}" is not a real calendar date.`);
@@ -123,9 +91,8 @@ export function bingAiDay(value: string): string {
 }
 
 /**
- * A citation count. Digits only — the export has never written a thousands
- * separator, and `Number.parseInt('1,234')` is 1, which would land a 200x
- * understatement in the panel without a single error.
+ * A citation count. Digits only: `Number.parseInt('1,234')` is 1, which would
+ * land a 200x understatement without a single error.
  */
 export function bingAiCount(value: string, column: string): number {
   const text = value.trim();
@@ -164,17 +131,14 @@ function required(value: string | undefined, column: string): string {
   return text;
 }
 
-/** Optional descriptive text. Empty stays empty: Bing not labelling a query's
- * intent is an absence, and inventing one would be a claim. */
+/** Optional descriptive text. Empty stays empty: inventing a label would be a claim. */
 function optional(value: string | undefined): string {
   return (value ?? '').trim();
 }
 
 /**
- * The three exports of Bing's AI Performance report, as downloaded 2026-08-04.
- *
- * Adding a fourth means downloading a real one first. That is the rule this
- * whole lane exists to keep.
+ * The three exports of Bing's AI Performance report. Adding a fourth means
+ * downloading a real one first.
  */
 export const BING_AI_FORMATS: readonly BingAiFormat[] = [
   {
@@ -220,11 +184,9 @@ function describeFormats(): string {
 }
 
 /**
- * Which of the three exports this header IS — exactly, or not at all.
- *
- * No prefix match, no subset, no reordering. A header that has gained a column
- * is a report Microsoft changed, and the right answer is a refusal that names
- * what arrived so a human can decide, not a parse that quietly drops it.
+ * Which of the three exports this header is: exactly, or not at all. A header
+ * that has gained a column is a report Microsoft changed, and the right answer
+ * is a refusal that names what arrived.
  */
 export function detectBingAiFormat(header: readonly string[]): BingAiFormat {
   const match = BING_AI_FORMATS.find(
@@ -253,15 +215,12 @@ export interface BingAiExportParse {
 
 /** The UTF-8 BOM every one of these exports opens with. Stripped for parsing;
  * the archived bytes keep it. Built from its code point because an invisible
- * character in source is a thing nobody can review. */
+ * character in source cannot be reviewed. */
 const BOM = String.fromCharCode(0xfeff);
 
 /**
- * One export file's text, parsed.
- *
- * A ragged row is a refusal, not a padded row: the file is machine-written, so
- * a short line means something is wrong with the file or with this reader, and
- * either way the honest move is to stop.
+ * One export file's text, parsed. A ragged row is a refusal, not a padded row:
+ * the file is machine-written, so a short line means something is wrong.
  */
 export function parseBingAiExport(text: string): BingAiExportParse {
   const grid = parseCsv(text.startsWith(BOM) ? text.slice(BOM.length) : text).filter(
@@ -291,13 +250,11 @@ export function parseBingAiExport(text: string): BingAiExportParse {
 }
 
 /**
- * The filename's own claim about which export it is, checked against the header.
- *
- * Bing names the download `<site>_<ExportName>_<M_D_YYYY>.csv`. When that name
- * is present and disagrees with the header, somebody renamed or re-saved a
- * file, and the two facts about what this is no longer agree — which is exactly
- * the moment to stop, because the export date is read off that same filename.
- * A filename carrying no recognizable export name is fine: the header decides.
+ * The filename's own claim about which export it is, checked against the
+ * header. Bing names the download `<site>_<ExportName>_<M_D_YYYY>.csv`; when
+ * the name disagrees with the header somebody renamed or re-saved a file, and
+ * the export date is read off that same filename. A filename carrying no
+ * recognizable export name is fine: the header decides.
  */
 export function assertFilenameAgrees(file: string, format: BingAiFormat): void {
   const claimed = BING_AI_FORMATS.filter((candidate) => file.includes(candidate.exportName));
@@ -313,7 +270,7 @@ export function assertFilenameAgrees(file: string, format: BingAiFormat): void {
 
 function base64Encode(bytes: Uint8Array): string {
   // Chunked: spreading a multi-megabyte array into String.fromCharCode blows
-  // the argument limit, and this ceiling is 4 MiB.
+  // the argument limit.
   const CHUNK = 0x8000;
   let binary = '';
   for (let offset = 0; offset < bytes.length; offset += CHUNK) {
@@ -345,13 +302,9 @@ export interface BingAiDumpInput {
 }
 
 /**
- * The archive payload for one dropped export.
- *
- * Everything in here is a fact about the FILE, not about the moment it was
- * imported: the same file dropped twice produces byte-identical content, so the
- * archive's content hash matches and the second import is recorded `unchanged`
- * against the object the first one wrote. That is what makes "run it again if
- * you are not sure" safe.
+ * The archive payload for one dropped export. Everything in here is a fact
+ * about the file, not the moment it was imported, so the same file dropped
+ * twice produces byte-identical content and is recorded `unchanged`.
  */
 export function bingAiCollectedDump(input: BingAiDumpInput): CollectedDump {
   const { file, exportDate, bytes, fileSha256, parse } = input;
@@ -371,17 +324,15 @@ export function bingAiCollectedDump(input: BingAiDumpInput): CollectedDump {
           grain: parse.grain,
         },
         response: {
-          // The original, byte for byte, so any later reader can redo the parse
-          // without the operator downloading history that no longer exists.
+          // The original, byte for byte, so any later reader can redo the parse.
           csvBase64: base64Encode(bytes),
           rows: parse.rows,
         },
       },
     ],
     providerRows: parse.rows.length,
-    // Nothing paginates here: the file is whatever Bing's UI wrote. If the
-    // dashboard ever caps an export, that cap is invisible to us and would be a
-    // fact about the download, not something this lane can detect.
+    // Nothing paginates here: the file is whatever Bing's UI wrote, and a cap
+    // on the export would be invisible to this lane.
     providerTruncated: false,
   };
 }

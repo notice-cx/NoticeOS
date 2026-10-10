@@ -24,61 +24,40 @@ import {
   runBd,
 } from './task-hub.mjs';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Push-state filer — the second lane here that WRITES a bead, and the only one
-// that also CLOSES one.
+// Push-state filer — the second lane here that writes a bead, and the only
+// one that also closes one. A push bead's referent moves under it while the
+// bead sits still, so this lane maintains those beads from the live push
+// state: the title never pins a count (`pushStateTitle`), the commit list
+// lives in the description and says it is as of filing, and the bead closes
+// when the runner sees the push. Beads' own gates cannot express this: there
+// is no shell-condition gate, and no Actions run or pull request for a `gh`
+// gate to watch.
 //
-// Origin: myplate's mp-jxs, "Push the 5 unpushed local commits", stayed open for
-// two days after those five commits were pushed. Nothing closed it, and by then
-// the branch was five ahead AGAIN — different commits — so its title was true of
-// nothing. A push bead's referent moves under it while the bead sits still.
-// That is the whole failure mode, and it is why this lane maintains those beads
-// from the live push state instead of from what somebody saw once:
-//
-//   - the TITLE never pins a count (`pushStateTitle`), because a count is
-//     exactly the part that goes stale;
-//   - the commit list lives in the DESCRIPTION and says it is as of filing;
-//   - the bead closes when the runner sees the push, not when a human
-//     remembers the bead.
-//
-// Beads' own gates cannot express this: the gate vocabulary is
-// human/timer/gh:run/gh:pr/bead — there is no shell-condition gate — and the
-// portfolio deploys through Cloudflare Workers Builds, with no Actions run and
-// no pull request for a `gh` gate to watch. The runner is the only thing on this
-// machine that can ask git and write the hub, so it is the right home.
-//
-// UNKNOWN IS NOT A STATE. Every decision comes from a fetch this pass just made.
-// When that fetch fails — launchd's environment has no SSH agent, the network is
-// down, the remote is gone — the spoke is skipped entirely: nothing filed,
-// nothing closed. A bead filed against a remote we could not read, or closed
-// because we could not see the commits, would be the same lie in the other
-// direction. Skipped is not silent, though (bead ro-ujb9.188): each unread
-// spoke is a failed item of the pass's run record, with a reason code, so
-// System health names it every run while the log names it once.
-// ─────────────────────────────────────────────────────────────────────────────
+// Unknown is not a state. Every decision comes from a fetch this pass just
+// made; when that fetch fails the spoke is skipped entirely: nothing filed,
+// nothing closed. Each unread spoke is a failed item of the pass's run record,
+// with a reason code, so System health names it every run while the log names
+// it once.
 
 /** The label every push bead carries. The lane finds its own work by it, so a
- * bead a human filed by hand is adopted (and auto-closed) the moment it wears
- * this label — which is the migration path for the ones already in the hub. */
+ * bead a human filed by hand is adopted (and auto-closed) once it wears this
+ * label. */
 export const PUSH_STATE_LABEL = 'push-state';
-/** Filed FOR the operator: only he can push. `bd human list` is his inbox, so
- * the bead has to be readable as an ask rather than as a chore for an agent. */
+/** Filed for the operator: only they can push, and `bd human list` is their
+ * inbox. */
 export const PUSH_STATE_HUMAN_LABEL = 'human';
 /** Who the audit trail names. Deliberately not a person: nobody chose to file
  * this, a divergence that outlasted the threshold did. */
 export const PUSH_STATE_ACTOR = 'os-up-push-filer';
 /** Which property a push bead is about. Prefixed with the product's name
- * because these beads live in PROPERTY repos, whose trackers carry other
- * people's conventions too (`reindex_push_asset` before the rename). */
+ * because these beads live in property repos (`reindex_push_asset` is the
+ * older key). */
 export const PUSH_STATE_ASSET_KEY = TASK_METADATA.pushAsset.name;
-/** The branch pair every spoke is measured on. The portfolio is single-branch
- * by construction (the owner commits to main and a push IS the release), so
- * these are named once here rather than spelled into four argv builders. */
+/** The branch pair every spoke is measured on; the portfolio is single-branch
+ * by construction. */
 export const PUSH_STATE_REMOTE = 'origin';
 export const PUSH_STATE_BRANCH = 'main';
-/** How many commits the description lists before it stops. A spoke fifty ahead
- * has a different problem than a forgotten push, and fifty lines of subjects in
- * an inbox item is a wall nobody reads to the bottom of. */
+/** How many commits the description lists before it stops. */
 export const PUSH_STATE_COMMIT_LIMIT = 20;
 /** A hung `git fetch` must not stall the tick into the next one. Generous
  * because it is a network call over SSH; BatchMode below is what keeps it from
@@ -93,16 +72,12 @@ const PUSH_STATE_LOG_SEP = '\x1f';
 
 /**
  * Spawn one `git` invocation and collect it. Same contract as `runBd`: a
- * non-zero exit is DATA — "this spoke's push state is unreadable" — and never an
- * exception.
- *
- * The environment is the interesting part. Under launchd there is no terminal
- * and no SSH agent, and a `git fetch` that decides to ASK for something (a
- * passphrase, an unknown host key, a username) does not fail — it blocks until
- * the timeout, every hour, forever. `GIT_TERMINAL_PROMPT=0` and ssh's
- * `BatchMode=yes` turn every one of those questions into an immediate non-zero
- * exit, which this lane already knows how to skip on. An operator who has set
- * GIT_SSH_COMMAND themselves keeps theirs.
+ * non-zero exit is data — "this spoke's push state is unreadable" — never an
+ * exception. Under launchd there is no terminal and no SSH agent, and a
+ * `git fetch` that asks for something (a passphrase, an unknown host key)
+ * blocks until the timeout; `GIT_TERMINAL_PROMPT=0` and ssh's `BatchMode=yes`
+ * turn every such question into an immediate non-zero exit. An operator who
+ * has set GIT_SSH_COMMAND themselves keeps theirs.
  */
 async function runGit(argv, timeoutMs = PUSH_STATE_GIT_TIMEOUT_MS) {
   const result = await runCommand(gitBin(), argv, {
@@ -118,10 +93,9 @@ async function runGit(argv, timeoutMs = PUSH_STATE_GIT_TIMEOUT_MS) {
   return result;
 }
 
-/** The one command that has to reach the network. Fetching the BRANCH rather
- * than the remote wholesale keeps a spoke with fifty stale branches from paying
- * for all of them hourly; it still updates refs/remotes/origin/main, which is
- * the ref every read below is measured against. */
+/** The one command that has to reach the network. Fetching the branch rather
+ * than the remote wholesale still updates refs/remotes/origin/main, the ref
+ * every read below is measured against. */
 export function pushStateFetchArgs(repoDir) {
   return ['-C', repoDir, 'fetch', PUSH_STATE_REMOTE, PUSH_STATE_BRANCH];
 }
@@ -141,11 +115,8 @@ export function pushStateCountArgs(repoDir) {
 }
 
 /** The unpushed commits, newest first, as `<hash><US><epoch-seconds><US><subject>`.
- *
- * ONE read for two answers — the age that decides whether to file, and the list
- * that goes in the bead — so the two can never disagree about which commits they
- * describe. A separate `--format=%ct` call would be one subprocess more and one
- * more chance for the branch to move between them. */
+ * One read for two answers — the age that decides whether to file, and the
+ * list that goes in the bead — so the two never disagree. */
 export function pushStateLogArgs(repoDir) {
   return [
     '-C',
@@ -210,12 +181,10 @@ export function oldestUnpushedAt(commits) {
 }
 
 /**
- * Every push bead a spoke currently holds open, or null when we could not ask.
- *
- * The null/empty distinction is the same one the poller draws everywhere else,
- * and here it decides a WRITE: an empty list licenses filing, and a null must
- * not. Closed beads are excluded by the query and again here, because a push
- * bead legitimately RECURS — the closed one is history, not a duplicate.
+ * Every push bead a spoke currently holds open, or null when we could not
+ * ask. The null/empty distinction decides a write: an empty list licenses
+ * filing, a null must not. Closed beads are excluded by the query and again
+ * here, because a push bead legitimately recurs.
  */
 export function pushStateOpenBeads(rows) {
   if (!Array.isArray(rows)) return null;
@@ -229,10 +198,8 @@ export function pushStateOpenBeads(rows) {
   return beads;
 }
 
-/** What is open against this spoke. Closed is deliberately NOT asked for — the
- * opposite of the panel filer's query, and for the opposite reason: a panel day
- * is reviewed once ever, while a spoke goes unpushed again every week. A closed
- * push bead is a finished episode, not a claim on the current one. */
+/** What is open against this spoke. Closed is not asked for: a closed push
+ * bead is a finished episode, not a claim on the current one. */
 export function pushStateListArgs(repoDir) {
   return [
     '-C',
@@ -249,20 +216,16 @@ export function pushStateListArgs(repoDir) {
 }
 
 /**
- * The title. No count, no commit hash, no date — deliberately.
- *
- * mp-jxs was titled "Push the 5 unpushed local commits" and was read on a board
- * two days later, when the number was true of a different five commits. A title
- * is the one field nothing re-derives, so the only durable thing to put in it is
- * the ask itself. The count lives in the description, which says when it was
- * taken.
+ * The title. No count, no commit hash, no date: a title is the one field
+ * nothing re-derives, so the only durable thing to put in it is the ask
+ * itself. The count lives in the description, which says when it was taken.
  */
 export function pushStateTitle(asset) {
   return `Push the unpushed local commits on ${asset}`;
 }
 
-/** What the operator reads in his inbox: what is unpushed, the command that
- * pushes it, and the promise that he will never have to close this by hand. */
+/** What the operator reads in the inbox: what is unpushed, the command that
+ * pushes it, and the promise that nobody has to close this by hand. */
 export function pushStateDescription({
   asset,
   repoDir,
@@ -337,9 +300,8 @@ export function pushStateCreateArgs(repoDir, filing) {
   ];
 }
 
-/** The evidence, in the close reason itself. A push bead closed by a machine has
- * to say what the machine saw and when, or the next reader has no more reason to
- * believe the close than mp-jxs's reader had to believe the title. */
+/** The evidence, in the close reason itself: a push bead closed by a machine
+ * has to say what the machine saw and when. */
 export function pushStateCloseReason({ asset, repoDir, behind, checkedAt }) {
   return (
     `${PUSH_STATE_REMOTE}/${PUSH_STATE_BRANCH} now contains every local commit on ${asset}: ` +
@@ -356,31 +318,20 @@ export function pushStateCloseArgs(repoDir, beadId, reason) {
 }
 
 /**
- * Evaluate this spoke's gates.
- *
- * Nothing schedules this today, which quietly breaks the one gate type that
- * promises to resolve itself: a `timer` gate expires "automatically" only in the
- * sense that some later `bd gate check` notices, and until now that meant the
- * next time a human happened to type one. It rides this lane because this is the
- * lane that already walks every spoke on an hourly tick; it shares nothing else
- * with the push logic, and its failures are reported separately.
+ * Evaluate this spoke's gates. A `timer` gate expires only when some later
+ * `bd gate check` notices, so it rides this lane, which already walks every
+ * spoke hourly; its failures are reported separately.
  */
 export function beadsGateCheckArgs(repoDir) {
   return ['-C', repoDir, 'gate', 'check'];
 }
 
 /**
- * What to do about one spoke, from facts alone.
- *
- * Pure, and the ONLY place the file/close/skip choice is made — the caller just
- * gathers and executes. Every branch that cannot prove its case returns `skip`,
- * because both mistakes this lane can make are worse than doing nothing: a bead
- * filed against a remote we could not read tells the operator to push work that
- * is already live, and a bead closed on an unread state tells him work shipped
- * when it is still sitting on this Mac.
- *
- * `openPushBeads` is null when the spoke could not be asked and an array when it
- * could — the same measurement/silence distinction the poller draws everywhere.
+ * What to do about one spoke, from facts alone. Pure, and the only place the
+ * file/close/skip choice is made. Every branch that cannot prove its case
+ * returns `skip`: filing against an unread remote and closing on an unread
+ * state are both worse than doing nothing. `openPushBeads` is null when the
+ * spoke could not be asked and an array when it could.
  */
 export function pushStateDecision(
   { fetchOk, ahead, oldestUnpushedEpochMs, openPushBeads, nowEpochMs },
@@ -403,9 +354,7 @@ export function pushStateDecision(
       reason: 'everything local is on the remote',
     };
   }
-  // Ahead, and already asked about. Re-filing over an open bead is what turns a
-  // label into noise, and unlike the panel filer's date-keyed dedupe there is no
-  // second identity to file under: one spoke, one open push bead, ever.
+  // Ahead, and already asked about: one spoke, one open push bead, ever.
   if (openPushBeads.length > 0) {
     return { action: 'none', reason: 'a push bead is already open on this spoke' };
   }
@@ -424,13 +373,10 @@ export function pushStateDecision(
 }
 
 /**
- * Whether a spoke's degraded state is NEWS.
- *
- * The per-spoke twin of `beadsSkipDecision`, and it exists because this lane
- * walks SEVEN repos every hour: without it, one sibling repo the operator has
- * archived would write 168 identical WARN lines a week and bury everything else
- * in the log. Same rule as the lane-level one — a new reason logs, a repeated
- * reason is silent — with `null` meaning recovered, which is itself worth a line.
+ * Whether a spoke's degraded state is news — the per-spoke twin of
+ * `beadsSkipDecision`, so an archived sibling repo does not write an identical
+ * WARN line every hour. A new reason logs, a repeated reason is silent, and
+ * `null` means recovered, which is itself worth a line.
  */
 export function pushStateSpokeDecision(seen, asset, reason) {
   const held = seen.get(asset) ?? null;
@@ -441,12 +387,10 @@ export function pushStateSpokeDecision(seen, asset, reason) {
 }
 
 /**
- * WHY A SPOKE'S PUSH STATE IS UNREAD, as a code the run record carries (bead
- * ro-ujb9.188). The run's output projection (scripts/workflow-output.mts
- * REASONS) names each code in words and System health shows it, so a spoke the
- * lane cannot read is on the screen every run, not in one log line that falls
- * silent after it. git's own text never leaves the log: it can name a host,
- * a path or an account.
+ * Why a spoke's push state is unread, as a code the run record carries. The
+ * run's output projection (scripts/workflow-output.mts REASONS) names each
+ * code in words and System health shows it. git's own text never leaves the
+ * log: it can name a host, a path or an account.
  */
 export function pushStateUnreadReason(stderr) {
   const text = String(stderr ?? '');
@@ -474,15 +418,10 @@ const pushStateFilerState = { skipping: null, degraded: new Map(), gates: new Ma
 
 /**
  * One pass over every spoke: reconcile its push bead, then evaluate its gates.
- *
- * Takes no `runtime`; saved project membership is read through the ingest door
- * before querying git and the hub. An unavailable configuration read skips the
- * pass instead of acting on projects removed from the saved map.
- *
- * Every dependency that touches the world is injectable, for the same reason as
- * the other lanes': what this does when something is missing IS the behavior,
- * and none of it is reachable from a test that has to fetch a real remote and
- * write a real tracker.
+ * Saved project membership is read through the ingest door before querying
+ * git and the hub; an unavailable configuration read skips the pass instead
+ * of acting on projects removed from the saved map. Every dependency that
+ * touches the world is injectable.
  */
 export async function runPushStateFiler(deps = {}) {
   const {

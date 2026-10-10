@@ -1,62 +1,14 @@
-// The config write lane — how a Save in the Tower becomes a config commit.
+// The config write lane: dev-server middleware that applies a Save to the
+// store first, then keeps the checkout in step by writing the returned
+// documents to their files, archiving the changeset and committing (never
+// pushing). Validation, the safety allowlist, the expect guard and the archive
+// come from scripts/config-apply-core.mjs, the module `pnpm config:apply` runs.
 //
-// WHY THIS EXISTS. Config is version-controlled files (docs/06), and a Worker has
-// no filesystem, so until 2026-09-04 the Tower could not write config at all: an
-// edit was staged into a browser-local cart, exported as a changeset, and applied
-// by the operator running `pnpm config:apply` in a terminal. D18 retired that —
-// a setting saves the normal way, with an Undo toast — and this is the half that
-// makes it possible. The only deployment that exists is the local `os:up` dev
-// server, a NODE process with the repo checked out beside it (vite.config.ts:
-// "this dev server IS production"), so a middleware in that process can do
-// everything the CLI did.
-//
-// AND IT DOES EXACTLY WHAT THE CLI DID. Validation, the safety allowlist, the
-// expect guard, the read-modify-write and the archive all come from
-// scripts/config-apply-core.mjs — the same module `pnpm config:apply` runs. Two
-// implementations of "what may the Tower edit" would be two answers; there is
-// one, and apps/tower/test/config-write-lane.test.ts runs both entry points over
-// identical temp repos and compares what each left behind.
-//
-// WHAT GUARDS IT. There is no authentication on the Tower and there must not be
-// (docs/10: single operator, LAN-served, no credential a LAN request could
-// borrow). So the boundary is the same one the write routes in the Worker use —
-// SAME ORIGIN: a request whose Origin/Referer host is not this server's Host is
-// refused, which is what stops a page on another site from steering the
-// operator's browser into a config write. Plus the allowlists, which mean even
-// an accepted request can only SET a value in four named files at named
-// pointers, or ADD/REMOVE one asset-keyed entry in one named container per
-// per-asset register (ro-z349.1). Both live in the shared core.
-//
-// AND IT IS COMPILED OUT OF EVERY BUILD BY CONSTRUCTION. `apply: "serve"` means
-// this plugin does not run for `vite build`, so a deployed Tower has no write
-// lane here — its Worker answers `/api/config` itself.
-//
-// NEVER PUSHES. It commits, on the current branch, the files it changed plus the
-// archive. Where those commits go is the operator's business, as it always was.
-//
-// ── SINCE 2026-09-05 IT IS A THIN CLIENT OF THE STORE (epic `ro-syok`) ────────
-//
-// db/0029 gives the store a document per config file, so `PUT /api/config` works
-// in every deployment now — the Tower Worker applies it over the private INGEST
-// binding. This lane stays for the one thing a Worker still cannot do: keep the
-// CHECKOUT in step. A Save goes to the store first, through the same validating
-// door `pnpm config:seed` uses; then this writes the returned documents to their
-// files, archives the changeset and commits, exactly as before. The file is the
-// export (docs/06), and a repo that quietly drifted from the store would make
-// every later diff a lie.
-//
-// A CONFIGURED STORE IS AUTHORITATIVE. A missing table, an unseeded document,
-// an outage and an ambiguous response all refuse the save. None proves that
-// this installation has never used stored config, so none permits writing a
-// fallback copy that recovered Workers would silently ignore (ro-ujb9.19).
-//
-// THE STORE CLIENT IS INJECTED, AND THERE IS NO DEFAULT. `handleConfigRequest`
-// with no `store` runs the file pipeline and speaks to nothing — which is what
-// every test in apps/tower/test/config-write-lane.test.ts does, and it is
-// deliberate: a default door address would mean a test run in any checkout
-// writing to whatever OS happens to be listening on this machine. Only
-// `configWriteLane()` — the plugin, constructed once by vite.config.ts inside
-// the operator's own `os:up` — wires the real door.
+// A configured store is authoritative: a missing table, an unseeded document,
+// an outage and an ambiguous response all refuse the save, and no fallback
+// file is ever written. The store client is injected with no default, so a
+// test run in any checkout can never write to whatever OS is listening on
+// this machine; only the plugin wires the real door.
 
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -89,17 +41,14 @@ import {
   type LaneRequest,
 } from "./lane";
 
-// The boundary is shared with the task lane (vite/lane.ts): same-origin, the
-// JSON check, the capped body read, the repo root, and the middleware shell.
-// Re-exported because this module was the first to own them and callers (and
-// tests) still name them here.
+// Re-exported from vite/lane.ts because callers and tests name them here.
 export { DEFAULT_REPO_ROOT, crossOrigin };
 export type { LaneReply, LaneRequest };
 
 /** The one path this lane answers on. */
 export const CONFIG_PATH = "/api/config";
 
-/** What the store answered a write with — the ingest's own body, verbatim. */
+/** What the store answered a write with: the ingest's own body, verbatim. */
 export interface ConfigStoreReply {
   status: number;
   body: {
@@ -111,11 +60,7 @@ export interface ConfigStoreReply {
   };
 }
 
-/**
- * The store, as this lane reaches it. Injected and defaulting to ABSENT: a
- * default door address would mean any test run in any checkout writing to
- * whatever OS is listening on this machine.
- */
+/** The store, as this lane reaches it. Injected; absent means no door is opened. */
 export interface ConfigStoreLane {
   /** Whether the store can take a write, for the GET. */
   state(): Promise<{ ready: boolean; reason: string | null; unseeded: string[] }>;
@@ -128,15 +73,15 @@ export interface ConfigStoreLane {
 }
 
 export interface ConfigWriteLaneOptions {
-  /** The checkout the lane edits and commits. Tests pass a temp repo. */
+  /** The checkout the lane edits and commits. */
   repoRoot?: string;
-  /** One line per apply. The plugin passes Vite's logger. */
+  /** One line per apply. */
   log?: (line: string) => void;
   /** The clock behind `createdAt` and the default slug. */
   now?: () => Date;
-  /** Runs one command in `repoRoot`. Injectable so a test can watch, or refuse. */
+  /** Runs one command in `repoRoot`. */
   run?: (command: string, args: string[], cwd: string) => { ok: boolean; output: string };
-  /** Where a Save lands first. Absent ⇒ the file pipeline, and no door is opened. */
+  /** Where a Save lands first. Absent: the file pipeline, and no door is opened. */
   store?: ConfigStoreLane | null;
 }
 
@@ -165,20 +110,13 @@ function resolveOptions(options: ConfigWriteLaneOptions = {}): Resolved {
   };
 }
 
-/**
- * The real store, over the loopback ingest door — the same door
- * `pnpm config:seed` and `pnpm config:export` use, with the same operator bearer
- * its routes require.
- *
- * Constructed ONLY by the plugin below, which exists only inside a running
- * `os:up`. An unreachable door disables saves; it never selects file mode.
- */
-/** The two states a paused save is in, as the Tower shows them (bead
- * `ro-ujb9.96.6.4`): a state, not a paragraph. No fallback file is ever
- * written while the store is unavailable. */
+/** The two states a paused save is in, as the Tower shows them. */
 export const STORE_UNREACHABLE = "Config store unreachable — saves paused";
 export const STORE_NOT_READY = "Config store not ready — saves paused";
 
+/** The real store, over the loopback ingest door `pnpm config:seed` and
+ * `pnpm config:export` use. An unreachable door disables saves; it never
+ * selects file mode. */
 export function doorConfigStore(): ConfigStoreLane {
   const swallow = async (route: string, init: Record<string, unknown>) => {
     try {
@@ -215,7 +153,7 @@ export function doorConfigStore(): ConfigStoreLane {
   };
 }
 
-/** A lost response may follow a committed write. Never claim either success or
+/** A lost response may follow a committed write: claim neither success nor
  * rollback, and never make a second write to a different source of truth. */
 function storeUnknownReply(): ConfigStoreReply {
   return {
@@ -223,23 +161,19 @@ function storeUnknownReply(): ConfigStoreReply {
     body: {
       ok: false,
       error: "store_unavailable",
-      // Never a claim of success or rollback, and no fallback file was touched.
       detail: "Save not confirmed — refresh before trying again",
     },
   };
 }
 
-/** The mismatch list the browser renders: what it expected, what is there now.
- * MISSING is not JSON, so an absent pointer says so in a field of its own. */
+/** The mismatch list the browser renders. MISSING is not JSON, so an absent
+ * pointer says so in a field of its own. */
 function serializeMismatch(m: Mismatch): Record<string, unknown> {
   const where =
     m.op.kind === "store-asset-set"
       ? { asset: m.op.asset, column: m.op.column }
       : { file: m.op.file, pointer: m.op.pointer };
-  // An insert expects ABSENCE, which is not a JSON value. Saying `expect: null`
-  // and stopping would claim the caller expected a null; the extra flag is what
-  // lets the browser render "this asset is already configured here" rather than
-  // "the value changed".
+  // An insert expects absence; `expect: null` alone would claim it expected a null.
   const expectAbsent = m.expect === MISSING;
   return {
     ...where,
@@ -251,17 +185,9 @@ function serializeMismatch(m: Mismatch): Record<string, unknown> {
 }
 
 /**
- * One request to the lane.
- *
- * GET  → `{writable: true}`. The Worker answers the same question with `false`
- *        and a reason, so a deployed build's fields render disabled instead of
- *        offering a Save that cannot work.
- * PUT  → validate → resolve against the files → apply → archive → commit.
- *
- * Store ops are refused here by name rather than silently ignored: they are a
- * real part of the changeset vocabulary, they are just not this lane's — the
- * Worker writes those two columns over its ingest Service Binding, in both
- * deployments, so a browser that sent one has aimed at the wrong route.
+ * GET answers whether a Save can work; PUT validates, applies, archives and
+ * commits. Store ops are refused by name rather than silently ignored: the
+ * Worker writes those columns over its ingest Service Binding.
  */
 export async function handleConfigRequest(
   request: LaneRequest,
@@ -323,11 +249,9 @@ export async function handleConfigRequest(
     };
   }
 
-  // The document is minted here and nowhere else, so what is archived is exactly
-  // what was applied. The cast is the boundary between the two vocabularies: the
-  // UI's `EditableFile` union and the core's plain string, which is checked
-  // against the allowlist a line later — the request body was never any narrower
-  // than `unknown`, whatever the UI's types say.
+  // Minted here and nowhere else, so what is archived is exactly what was
+  // applied. The cast crosses from the UI's `EditableFile` union to the core's
+  // plain string, which the allowlist checks a line later.
   const at = opts.now();
   const changeset = buildChangeset(ops as ChangesetOp[], {
     slug: slug ?? defaultSlug(at),
@@ -343,10 +267,8 @@ export async function handleConfigRequest(
     throw err;
   }
 
-  // THE STORE FIRST. It runs this same validated changeset against the stored
-  // documents, refuses on a stale value or a stale version, and records a
-  // `config_changes` row — everything this lane used to be the only one doing.
-  // What is left for the lane afterwards is the checkout.
+  // The store first: it refuses a stale value or version and records a
+  // `config_changes` row. What is left for the lane afterwards is the checkout.
   if (opts.store !== null) {
     const reply = await opts.store.apply({
       ops: changeset.ops,
@@ -356,8 +278,8 @@ export async function handleConfigRequest(
     if (reply.status >= 200 && reply.status < 300 && reply.body?.ok === true) {
       return exportAfterStoreWrite(changeset, reply, opts);
     }
-    // Pass a confirmed refusal through. A malformed or contradictory response
-    // is unknown, not a successful save and not permission to use the file.
+    // A confirmed refusal passes through; a malformed or contradictory
+    // response is unknown, not permission to use the file.
     const refusal = reply.status >= 400 && reply.body?.ok !== true && typeof reply.body?.error === "string"
       ? reply
       : storeUnknownReply();
@@ -366,9 +288,7 @@ export async function handleConfigRequest(
   }
 
   try {
-    // Nothing is written until every op still matches what is on disk. One stale
-    // op refuses the whole set, exactly as the CLI does — the operator gets the
-    // current value rather than a half-applied edit.
+    // One stale op refuses the whole set; nothing is half-applied.
     const { resolved, mismatches, fileCache } = await resolve(changeset, null, {
       repoRoot: opts.repoRoot,
     });
@@ -381,8 +301,7 @@ export async function handleConfigRequest(
 
     const changedFiles = await applyFileOps(resolved, fileCache, {
       repoRoot: opts.repoRoot,
-      // The changeset's own timestamp, so a stamp the write refreshes (bead
-      // `ro-auav`) names the same day the archive and the commit do.
+      // So a stamp the write refreshes names the same day the archive does.
       at: changeset.createdAt,
     });
     const archive = await archiveChangeset(changeset, { repoRoot: opts.repoRoot });
@@ -400,20 +319,11 @@ export async function handleConfigRequest(
 }
 
 /**
- * The checkout half, after the store took the write.
- *
- * THE FILE IS THE EXPORT (docs/06, epic `ro-syok`). The store is the source of
- * truth once seeded, and the repo keeps the audit history it always had — so
- * each document the store just wrote is written to its file in the same bytes
- * `pnpm config:export` would write, the changeset is archived, and one commit
- * carries both. An operator running `git log config/` after a Save sees exactly
- * what they saw before this epic.
- *
- * A FAILURE HERE IS NOT A FAILED SAVE. The value moved; only the checkout did
- * not. It is logged and the response still reports success with a null commit,
- * for the same reason `commitChange` returns null rather than throwing:
- * pretending the save failed would be a lie, and the operator's next action —
- * `pnpm config:export` — is different from retrying the Save.
+ * The checkout half, after the store took the write: each document is written
+ * in the bytes `pnpm config:export` would write, and one commit carries them
+ * with the archive. A failure here is not a failed save: the value moved, only
+ * the checkout did not, so the response still reports success with a null
+ * commit and the operator's next action is `pnpm config:export`.
  */
 async function exportAfterStoreWrite(
   changeset: CoreChangeset,
@@ -424,8 +334,7 @@ async function exportAfterStoreWrite(
   const written: string[] = [];
   try {
     for (const doc of documents) {
-      // The installation's own copy (scripts/installation.mts), never the
-      // product default in config/ (bead ro-ujb9.125).
+      // The installation's own copy, never the product default in config/.
       written.push(await writeDocumentFile(doc.file, doc.body, { repoRoot: opts.repoRoot }));
     }
     const archive = await archiveChangeset(changeset, { repoRoot: opts.repoRoot });
@@ -450,19 +359,11 @@ async function exportAfterStoreWrite(
 }
 
 /**
- * Commit the changed files and the archive, and nothing else.
- *
- * The pathspec on the commit is not tidiness: this runs in the operator's own
- * checkout, which may have unrelated work staged, and a config Save must never
- * become a commit of whatever else was in the index. Returns the new commit's
- * short sha, or `null` when the commit did not happen — a failure to record
- * history is worth saying out loud, but the file is already written and
- * pretending the save failed would be a lie.
- *
- * ONLY IN A CHECKOUT. An installation whose home is a plain folder — the one
- * `pnpm start` makes (bead ro-ujb9.126) — keeps its history in the store's
- * `config_changes` and its exports in that folder, and nothing here runs git:
- * from inside a folder in somebody's checkout, git would find THAT repository.
+ * Commit the changed files and the archive, and nothing else: the operator's
+ * checkout may have unrelated work staged. Returns the short sha, or `null`
+ * when the commit did not happen (the file is already written). Only in a
+ * checkout: from a plain installation folder, git would find whatever
+ * repository encloses it.
  */
 function commitChange(slug: string, paths: string[], opts: Resolved): string | null {
   if (!existsSync(path.join(opts.repoRoot, ".git"))) return null;
@@ -494,11 +395,8 @@ export function configWriteMiddleware(
   });
 }
 
-/**
- * The plugin. Dev only, `enforce: "pre"` — it has to answer `/api/config` before
- * the Cloudflare plugin dispatches that path into the Worker, which is where the
- * deployed (read-only) answer lives.
- */
+/** `enforce: "pre"`: it must answer before the Cloudflare plugin dispatches
+ * the path into the Worker. */
 export function configWriteLane(options: ConfigWriteLaneOptions = {}): Plugin {
   return {
     name: "noticeos:config-write-lane",
@@ -510,9 +408,7 @@ export function configWriteLane(options: ConfigWriteLaneOptions = {}): Plugin {
         configWriteMiddleware({
           ...options,
           log: options.log ?? ((line) => logger.info(`  [config] ${line}`)),
-          // The one place the real door is wired. Inside `os:up` this process
-          // IS the operator's OS, so the loopback door is the store; anywhere
-          // else — a test, a bare `vite` — there is no default to hit.
+          // The one place the real door is wired.
           store: options.store === undefined ? doorConfigStore() : options.store,
         }),
       );

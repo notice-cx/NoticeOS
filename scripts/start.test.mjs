@@ -1,15 +1,14 @@
-// `pnpm start` (bead ro-ujb9.126): a new installation in a folder of its own,
-// which never reaches the managed service's store, installation folder, secrets,
-// logs or ports.
+// `pnpm start`: a new installation in a folder of its own, which never reaches
+// the managed service's store, installation folder, secrets, logs or ports.
 //
-// The first tests pin the plan — every path it writes, every variable its Tower
-// is told, every refusal — without starting anything. The last one is the
+// The first tests pin the plan (every path it writes, every variable its Tower
+// is told, every refusal) without starting anything. The last one is the
 // proof: it boots the real command on a new folder with a tripwire loaded into
 // every Node process it starts (itself, pnpm, wrangler, vite) that refuses any
 // read or write of the checkout's `installation/`, `.wrangler/` or `.local/`,
 // any secrets file outside the new folder, and any connection to the managed
-// service's ports — then drives the Tower's lanes, lets its schedule fire
-// (bead ro-ujb9.156) and checks the checkout is unchanged.
+// service's ports, then drives the Tower's lanes, lets its schedule fire and
+// checks the checkout is unchanged.
 
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
@@ -214,8 +213,7 @@ test('startup has no migration flag; existing Postgres changes use the operator 
 
 // ─── The database address, taken once from the Compose profile ──────────────
 //
-// The operator's decision of 2026-09-29 (bead ro-ujb9.76.7.3): a new
-// installation's first `pnpm start` takes DATABASE_URL from the one line
+// A new installation's first `pnpm start` takes DATABASE_URL from the one line
 // `pnpm postgres:secrets` wrote, so no password is copied by hand. Each address
 // here carries a planted, recognizable password, and no answer may repeat it.
 
@@ -418,13 +416,13 @@ test('the tripwire refuses the checkout’s installation folder, its runner stat
 });
 
 /**
- * Where the start under test takes its two ports (bead ro-cbj7): below every
- * OS's ephemeral range (Linux from 32768, macOS from 49152). The OS hands
- * ephemeral ports out in sequence to anything that binds port 0 or opens a
- * connection, so a pair taken from that range could go to another process
- * before the start binds it, and on macOS a busy host often left the counter
- * where every port it offered was too high to have a neighbour. Down here only
- * a process asking for that exact port can take one.
+ * Where the start under test takes its two ports: below every OS's ephemeral
+ * range (Linux from 32768, macOS from 49152). The OS hands ephemeral ports out
+ * in sequence to anything that binds port 0 or opens a connection, so a pair
+ * taken from that range could go to another process before the start binds
+ * it, and on macOS a busy host can leave the counter where every port it
+ * offers is too high to have a neighbour. Down here only a process asking for
+ * that exact port can take one.
  */
 const PAIR_RANGE = Object.freeze({ from: 20_000, to: 32_000 });
 
@@ -463,10 +461,10 @@ async function get(url, { timeoutMs = 180_000 } = {}) {
 }
 
 /**
- * A throwaway Postgres for one real start (epic ro-ujb9.76), and in it a copy
- * of the store whose application login has a planted password
- * (scripts/test-planted-address.mjs). Null, naming why, where no Postgres can
- * start here; NOTICEOS_REQUIRE_POSTGRES=1 (CI) makes that a failure instead.
+ * A throwaway Postgres for one real start, and in it a copy of the store whose
+ * application login has a planted password (scripts/test-planted-address.mjs).
+ * Null, naming why, where no Postgres can start here; NOTICEOS_REQUIRE_POSTGRES=1
+ * (CI) makes that a failure instead.
  */
 async function startStore(t) {
   let cluster;
@@ -548,7 +546,7 @@ test('a real start makes its own store and Tower on the Postgres its folder name
   assert.deepEqual(Object.keys(JSON.parse(readFileSync(plan.secrets, 'utf8'))).sort(), ['CREDENTIALS_KEY', 'OPERATOR_TOKEN']);
 
   // `pnpm postgres:secrets` writes the application's address as one line; the
-  // next start takes it by itself, with no hand copy (bead ro-ujb9.76.7.3).
+  // next start takes it by itself, with no hand copy.
   writeFileSync(composeFile, `${postgres.url}\n`, { mode: 0o600 });
 
   const second = runStart(t, { home, port, tripwire, composeSecrets });
@@ -601,9 +599,9 @@ test('a real start makes its own store and Tower on the Postgres its folder name
   assert.equal(wall.status, 200);
   assert.deepEqual(JSON.parse(wall.text).assets, [], 'a new installation has no sites');
 
-  // Its schedule (bead ro-ujb9.156): the ingest's crons, fired at this start's
-  // door the moment it came up — each lane's latest missed obligation, once —
-  // and shown on its Workflows.
+  // Its schedule: the ingest's crons, fired at this start's door the moment it
+  // came up (each lane's latest missed obligation, once) and shown on its
+  // Workflows.
   const crons = workerCrons(readFileSync(path.join(REPO_ROOT, 'workers', 'ingest', 'wrangler.jsonc'), 'utf8'));
   const jobs = startedJobs(crons);
   let workflows = null;
@@ -624,7 +622,7 @@ test('a real start makes its own store and Tower on the Postgres its folder name
     // ingest.
     assert.equal(latest.steps?.[0]?.id, 'config', `${job.label} reached the ingest: ${JSON.stringify(latest)}`);
     // …and nothing fails on a new installation: a source nobody connected is
-    // skipped, so System health has nothing to call a failure (bead ro-ujb9.172).
+    // skipped, so System health has nothing to call a failure.
     assert.notEqual(latest.state, 'failed', `${job.label} failed on a new installation: ${JSON.stringify(latest.steps)}`);
   }
 
@@ -693,7 +691,7 @@ test('a real start makes its own store and Tower on the Postgres its folder name
   assert.deepEqual(filesHolding(postgres.password, [path.dirname(home)], { except: [plan.secrets, composeFile] }), []);
   assert.ok(existsSync(plan.devVars) && existsSync(path.join(path.dirname(home), 'wrangler-logs')), 'the scan covered the generated bindings and wrangler’s log');
   // …with the tripwire loaded in the command and the dev server that ran
-  // the Tower and its lanes. Startup no longer launches a D1 migration process.
+  // the Tower and its lanes.
   assert.match(output, new RegExp(`^${ARMED} start\\.mjs$`, 'm'));
   assert.match(log, new RegExp(`^${ARMED} vite\\.js$`, 'm'));
   assert.equal(existsSync(path.join(home, '.wrangler', 'state', 'v3', 'd1')), false, 'the running installation never opens D1');
@@ -966,7 +964,7 @@ test('development startup refuses an already held runtime port without writing i
 
 test('two developer commands seed a real Tower on its own new database, then stop and restart without adopting Compose', { timeout: 240_000 }, async (t) => {
   // The commands start Postgres in their own process, where its absence is
-  // only an exit code: decide here, as the in-process tests do (issue #11).
+  // only an exit code: decide here, as the in-process tests do.
   if (!findPostgres() && !postgresRequired()) return t.skip('no Postgres server binaries (initdb, pg_ctl, psql) on this machine');
   const base = tempDir(t, 'development-live-');
   const home = path.join(base, 'runtime');

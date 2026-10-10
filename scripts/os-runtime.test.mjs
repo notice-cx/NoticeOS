@@ -19,8 +19,8 @@ import {
   statePaths,
 } from './os-runtime.mjs';
 
-// Where the live OS's code runs from vs where its state stays (bead
-// ro-ujb9.113). Temp directories only.
+// Where the live OS's code runs from vs where its state stays. Temp
+// directories only.
 
 const dirs = [];
 after(() => {

@@ -74,13 +74,9 @@ async function post(body: unknown, token: string | undefined = OPERATOR_TOKEN) {
 }
 
 // Two consecutive poller ticks, dated off the real clock rather than written
-// down as literals. The insert path prunes anything older than
-// BEADS_SNAPSHOT_RETENTION_DAYS, so a hardcoded '2026-08-01' fixture stopped
-// meaning what it said the moment the window slid past it: from 2026-08-08 on,
-// the first post's row was deleted by the second post's own prune and "a changed
-// board still inserts its own row" counted one row where it asserts two (ro-dse).
-// Kept an hour back and a minute apart — inside the window on any future date,
-// still ordered, still in the past, which is all these cases ever needed.
+// down as literals: the insert path prunes anything older than
+// BEADS_SNAPSHOT_RETENTION_DAYS, so a hardcoded date fixture stops meaning what
+// it says once the window slides past it. Kept an hour back and a minute apart.
 const FIRST_TICK = new Date(Date.now() - 3_600_000).toISOString();
 const SECOND_TICK = new Date(Date.parse(FIRST_TICK) + 60_000).toISOString();
 
@@ -138,12 +134,11 @@ describe('POST /api/beads-snapshot — writes', () => {
     expect(await snapshots()).toBe(1);
   });
 
-  it('an unchanged board touches the latest row instead of duplicating it (ro-3xa)', async () => {
-    // 93.6% of the central store's bytes were byte-identical copies of this
-    // payload, written once a minute through every quiet hour. The store keeps
+  it('an unchanged board touches the latest row instead of duplicating it', async () => {
+    // A quiet hub files byte-identical boards once a minute. The store keeps
     // one row per distinct board state and moves captured_at forward, so the
     // Tower's freshness read and the retention prune both stay honest while a
-    // week of quiet costs one row, not ten thousand.
+    // week of quiet costs one row.
     await post({ capturedAt: FIRST_TICK, projects: [project()] });
     const second = await post({ capturedAt: SECOND_TICK, projects: [project()] });
     expect(second.status).toBe(201); // the poller treats non-201 as failure
@@ -186,11 +181,7 @@ describe('POST /api/beads-snapshot — writes', () => {
 
   // Two snapshots a second apart are two observations of a changing hub, not
   // the same event twice — so unlike the annotation lane there is no idempotent
-  // re-post collapsing them.
-  // This lane USED to append identical consecutive snapshots on the theory the
-  // history was cheap; at one row a minute it became 93.6% of the central
-  // store's bytes (ro-3xa), so identical boards now touch instead — the two
-  // tests above pin that contract.
+  // re-post collapsing them; identical boards touch instead (the two tests above).
 
   it('defaults capturedAt to now when it is omitted', async () => {
     const before = Date.now();
@@ -241,12 +232,10 @@ describe('POST /api/beads-snapshot — writes', () => {
     expect(await snapshots()).toBe(1);
   });
 
-  // THE ONE-GENERATION-SKEW REGRESSION (2026-08-01). `counts.highPriority`
-  // shipped as required, the Worker hot-reloaded the moment the file was saved,
-  // and the still-running poller — a plain node process, static until the
-  // operator restarts it — kept sending the old shape. Every snapshot 422'd and
-  // the /work board aged out while the hub was perfectly healthy. A validator
-  // that rejects what its own producer is currently sending IS the outage.
+  // One-generation skew: the Worker hot-reloads the moment a file is saved,
+  // while the poller — a plain node process — keeps sending the old shape until
+  // the operator restarts it. A validator that rejects what its own producer is
+  // currently sending is the outage.
   it('accepts a poller one generation behind, with no highPriority at all', async () => {
     const res = await post({
       projects: [
@@ -485,11 +474,10 @@ describe('POST /api/beads-snapshot — validation', () => {
   });
 });
 
-// Recorded verbatim from `scripts/os-up.mjs`'s poller running against the real
-// Dolt hub on 2026-08-01 (bd 1.1.2): one populated project and one whose repo
-// was missing. The producer and this route are in different packages and cannot
-// import each other, so this fixture is the seam — if the poller's output shape
-// drifts, this stops passing rather than the board quietly emptying.
+// Recorded verbatim from the poller in `scripts/os-up.mjs` running against a
+// real Dolt hub: one populated project and one whose repo was missing. The
+// producer and this route are in different packages and cannot import each
+// other, so this fixture is the seam.
 const RECORDED_POLLER_BODY = {
   capturedAt: '2026-08-01T16:53:14.126Z',
   projects: [
@@ -763,9 +751,8 @@ describe('POST /api/beads-snapshot — the poller contract', () => {
   });
 });
 
-// The SERP-panel triage state (doc 08 §S1b). Three-valued on the wire, and the
-// two absences mean different things — a card that cannot tell "we never asked"
-// from "nothing to triage" is the silence this whole lane exists to break.
+// The SERP-panel triage state. Three-valued on the wire, and the two absences
+// mean different things.
 describe('POST /api/beads-snapshot — panel review', () => {
   const REVIEW = {
     beadId: 'nom-4q2',
@@ -865,9 +852,9 @@ describe('POST /api/beads-snapshot — panel review', () => {
   });
 });
 
-// Work filed from a Tower handoff, joined back to the finding that raised it
-// (bead ro-248). The key is the finding's own — byte-exact, because that is what
-// the surface matches on.
+// Work filed from a Tower handoff, joined back to the finding that raised it.
+// The key is the finding's own — byte-exact, because that is what the surface
+// matches on.
 describe('POST /api/beads-snapshot — handoff beads', () => {
   const HANDOFF = {
     kind: 'finding',
@@ -930,10 +917,8 @@ describe('POST /api/beads-snapshot — handoff beads', () => {
     expect('handoffs' in stored).toBe(false);
   });
 
-  // All FOUR surfaces the emitter writes (ro-05hb). This list was two while the
-  // poller already sent `page`, so every snapshot from a property carrying one
-  // page bead 422'd — and the whole portfolio's board went stale to avoid
-  // rendering one marker.
+  // All four surfaces the emitter writes: a surface missing from this list
+  // 422s every snapshot from a property carrying one of its beads.
   it('stores every surface that can file work, page and alert included', async () => {
     const stored = await storedProject({
       projects: [
@@ -951,11 +936,9 @@ describe('POST /api/beads-snapshot — handoff beads', () => {
     ]);
   });
 
-  // THE BEHAVIOUR BEING REPLACED (ro-05hb). This case used to be a 422 that cost
-  // the project its whole list — which is how a kind a later Tower invents took
-  // the board down for every OTHER finding on every OTHER property. The emitter
-  // ships independently of this Worker, so an unfamiliar kind is the ordinary
-  // sound of a newer surface arriving, and it may only cost its own marker.
+  // The emitter ships independently of this Worker, so an unfamiliar kind is
+  // the ordinary sound of a newer surface arriving, and it may only cost its
+  // own marker — never the project's whole list.
   it('drops a row whose kind it has never heard of and stores the rest', async () => {
     const stored = await storedProject({
       projects: [
@@ -1085,8 +1068,8 @@ describe('POST /api/beads-snapshot — bounded history', () => {
     await seedSnapshot(new Date(Date.now() - 1 * dayMs).toISOString());
     expect(await snapshots()).toBe(3);
 
-    // A DISTINCT board, so this exercises the insert path — the seeds are all
-    // `{projects: []}` and an identical post would touch instead (ro-3xa).
+    // A distinct board, so this exercises the insert path — the seeds are all
+    // `{projects: []}` and an identical post would touch instead.
     const res = await post({ projects: [project()] });
     expect(res.status).toBe(201);
     expect(((await res.json()) as SnapshotBody).pruned).toBe(2);
@@ -1121,9 +1104,8 @@ describe('POST /api/beads-snapshot — bounded history', () => {
   });
 });
 
-// The cache kept every distinct board for seven days: 495 rows and 39.2 MB on
-// 2026-09-24, growing 6.2 MB a day, while only the newest row and two lists of
-// the last day's rows were ever read (bead `ro-ujb9.76.16`).
+// Only the newest row and two lists of the last day's rows are ever read, so
+// that is all a replaced photograph keeps.
 describe('POST /api/beads-snapshot — keeps only what is read', () => {
   const HOUR_MS = 3_600_000;
   const FILED = { kind: 'finding', key: 'item-openers', beadId: 'mp-1w2', status: 'open', closedAt: null };
@@ -1236,10 +1218,9 @@ describe('POST /api/beads-snapshot — keeps only what is read', () => {
   });
 });
 
-// Newly filed work (bead `ro-trai.7`): the poller sends each bead's filing time
-// and a short newest-filed list, so the Wall feed can say "New task". Both are
-// optional under the one-generation-skew rule — a runner that predates them
-// keeps filing snapshots, and its photographs stay exactly what they were.
+// Newly filed work: the poller sends each bead's filing time and a short
+// newest-filed list, so the Wall feed can say "New task". Both are optional
+// under the one-generation-skew rule.
 describe('POST /api/beads-snapshot — newly filed work', () => {
   async function storedProject(body: unknown): Promise<Record<string, unknown>> {
     const res = await post(body);

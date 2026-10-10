@@ -13,12 +13,8 @@ export async function call(request: Request): Promise<Response> {
   return SELF.fetch(request);
 }
 
-/**
- * Clear the mutable tables between tests (the seeded `assets` rows stay). This
- * pool version has no per-test storage isolation, so each test resets its own
- * slate: the raw reports in R2, the stored credentials, and the Postgres
- * tables below. No D1 table holds a test's rows any more.
- */
+/** Clear the mutable tables between tests (the seeded `assets` rows stay):
+ * the raw reports in R2, the stored credentials, and the Postgres tables below. */
 export async function reset(): Promise<void> {
   await clearRawSignals(env.RAW_SIGNALS);
   await forgetCredentials();
@@ -83,9 +79,8 @@ export async function emptyTablesHoldingRows(tables: readonly string[]): Promise
   if (found?.holding) await emptyTables([...tables]);
 }
 
-/** Each monitored target's stored latest attempt (on Postgres, bead
- * ro-ujb9.76.5.6), as the health read gets it, in the order the targets were
- * named. */
+/** Each monitored target's stored latest attempt, as the health read gets it,
+ * in the order the targets were named. */
 export async function storedHealthStates(): Promise<StoredHealthRow[]> {
   const rows = await env.STORE.read((tx) => tx.query<StoredHealthRow>(`${HEALTH_STATE_SELECT} ORDER BY t.target_seq`));
   return rows.map(storedHealthRow);
@@ -142,8 +137,8 @@ export async function storedCount(sql: string, params: readonly SqlValue[] = [])
 /** A ledger entry booked by hand — by an import, a restore, a fixture — in
  * the ledger's own terms: a 'YYYY-MM' month, integer cents. */
 export interface HandEntry {
-  /** The identity to book it under (OVERRIDING SYSTEM VALUE), as a D1 test
-   * named an id; left out, the store hands out the next. */
+  /** The identity to book it under (OVERRIDING SYSTEM VALUE); left out, the
+   * store hands out the next. */
   entryId?: number;
   kind: 'revenue' | 'cost';
   asset: string;
@@ -317,13 +312,9 @@ export async function setConnection(
   if (changed !== 1) throw new Error(`${provider} has no stored connection to set`);
 }
 
-/**
- * Run `sql` as the owner of this runtime's Postgres copy (or, with `other`,
- * its second copy; vitest.config.ts): the Postgres counterpart of a D1 test
- * running any statement on its store, for rows the application role may never
- * change or remove — settings and their changes are kept for good in the
- * product.
- */
+/** Run `sql` as the owner of this runtime's Postgres copy (or, with `other`,
+ * its second copy; vitest.config.ts), for rows the application role may never
+ * change or remove. */
 export async function asOwner(sql: string, { other = false }: { other?: boolean } = {}): Promise<void> {
   noteReached(other ? 'env.POSTGRES_OTHER' : 'env.POSTGRES');
   const ran = await env.TEST_POSTGRES.fetch('http://test-postgres/owner', { method: 'POST', body: JSON.stringify({ sql, other }) });
@@ -366,16 +357,11 @@ export function stubFetch(routes: Record<string, () => Response>): typeof fetch 
  * never resolved (src/egress.ts). */
 export const WORKERD_TRANSPORT_ERROR = 'internal error; reference = 0d9f4a2c';
 
-/**
- * A lane's fetch fake with the house uplink cut (bead ro-aed0).
- *
- * Every request fails at the transport level, the way 2026-08-08 looked from
- * inside the OS — the egress beacons included — unless `through(url)` lets it
- * reach the lane's own fake, which is how a test says "the uplink died after
- * this call". `beaconUp` lets the reference sites answer: the OS can reach the
- * world and only the provider is dark, which is the case the gate must never
- * make quieter.
- */
+/** A lane's fetch fake with the house uplink cut: every request fails at the
+ * transport level, egress beacons included, unless `through(url)` lets it reach
+ * the lane's own fake (the uplink died after this call). `beaconUp` lets the
+ * reference sites answer: only the provider is dark, which the gate must never
+ * make quieter. */
 export function cutUplink(
   fetchImpl: typeof fetch,
   opts: { beaconUp?: boolean; through?: (url: string) => boolean } = {},
@@ -405,7 +391,7 @@ export async function openEgressFlags(): Promise<number> {
   ]);
 }
 
-// --- Reports and alerts, on Postgres (bead ro-ujb9.76.5.2) --------------------
+// --- Reports and alerts, on Postgres ------------------------------------------
 
 /** The rows of one statement on this runtime's Postgres copy, read as the
  * application reads them. */
@@ -413,14 +399,12 @@ export async function pgRows<T extends Record<string, unknown>>(sql: string, par
   return env.STORE.read((tx) => tx.query<T>(sql, params));
 }
 
-/** A statement's first row on this runtime's Postgres copy, or null: where a
- * test read D1's `.first()`. */
+/** A statement's first row on this runtime's Postgres copy, or null. */
 export async function pgFirst<T extends Record<string, unknown>>(sql: string, params: SqlValue[] = []): Promise<T | null> {
   return (await pgRows<T>(sql, params))[0] ?? null;
 }
 
-/** A statement's rows on this runtime's Postgres copy as D1's `.all()`
- * answered them (`results`), so a test's reads of them stay as they were. */
+/** A statement's rows on this runtime's Postgres copy, as `results`. */
 export async function pgAll<T extends Record<string, unknown>>(sql: string, params: SqlValue[] = []): Promise<{ results: T[] }> {
   return { results: await pgRows<T>(sql, params) };
 }
@@ -437,8 +421,8 @@ export async function pgExecute(sql: string, params: SqlValue[] = []): Promise<n
   return env.STORE.write((tx) => tx.execute(sql, params));
 }
 
-/** One annotation, stored as the application stores it (on Postgres, bead
- * ro-ujb9.76.5.7): its workspace number back, the id a reader shows. */
+/** One annotation, stored as the application stores it: its workspace number
+ * back, the id a reader shows. */
 export async function insertAnnotation(row: {
   asset: string;
   at: string;
@@ -549,8 +533,8 @@ export async function insertPulse(report: {
   return row!.pulse_id;
 }
 
-/** An alert row in the terms the D1 tests read it: its workspace number as
- * `id`, JSON text for its inputs, instants as JavaScript writes them. */
+/** An alert row as the tests read it: its workspace number as `id`, JSON text
+ * for its inputs, instants as JavaScript writes them. */
 export interface FlagRow {
   id: number;
   asset: string;
@@ -612,7 +596,7 @@ export function promBody(tables: Record<string, TableCounts>): string {
   return lines.join('\n');
 }
 
-/** A collection run as a test writes it, in the D1 row's own terms. */
+/** A collection run as a test writes it. */
 export interface TestSignalRun {
   id: string;
   asset: string;
@@ -643,12 +627,9 @@ export interface TestSignalValue {
   value: number;
 }
 
-/**
- * Collection runs and the values each changed, on Postgres where the
- * collectors write them (bead ro-ujb9.76.5.3), in one transaction through the
- * application role, in the order given: each value under the series its run
- * measured (site, provider, property, zone and metric), named on first use.
- */
+/** Collection runs and the values each changed, on Postgres where the
+ * collectors write them, in one transaction through the application role, in
+ * the order given: each value under the series its run measured. */
 export async function storeSignalRuns(runs: { run: TestSignalRun; values?: TestSignalValue[] }[]): Promise<void> {
   await env.STORE.write(async (tx) => {
     for (const { run, values = [] } of runs) {
@@ -697,17 +678,13 @@ export async function storeSignalRun(run: TestSignalRun, values: TestSignalValue
 }
 
 // --- Provider reports, paid lookups and insight snapshots, on Postgres ---------
-// (bead ro-ujb9.76.5.4)
 
-/** An instant as JavaScript writes it (`toISOString`), in SQL: the form D1's
- * text held, so a test's string comparisons read as they did. */
+/** An instant as JavaScript writes it (`toISOString`), in SQL. */
 const JS_INSTANT = (column: string) => `to_char(${column} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
 
-/** The report runs in the D1 row's own terms, for a test to read where it read
- * the D1 manifest (`SELECT … FROM ${ARCHIVE_RUNS} WHERE …`): a run's object
- * key, hash and size beside it, instants as JavaScript writes them, the
- * truncation flag 0/1, an unknown price 0, and `run_seq`, the order runs were
- * written. */
+/** The report runs as a test reads them: a run's object key, hash and size
+ * beside it, instants as JavaScript writes them, the truncation flag 0/1, an
+ * unknown price 0, and `run_seq`, the order runs were written. */
 export const ARCHIVE_RUNS = `(SELECT r.run_seq, r.run_id AS id, r.asset_id AS asset, r.integration, r.report,
         r.credential_ref, r.property_ref, r.report_date::text AS report_date,
         ${JS_INSTANT('r.requested_at')} AS requested_at, ${JS_INSTANT('r.finished_at')} AS finished_at,
@@ -718,21 +695,21 @@ export const ARCHIVE_RUNS = `(SELECT r.run_seq, r.run_id AS id, r.asset_id AS as
    FROM noticeos.archive_runs r
    LEFT JOIN noticeos.archive_objects o ON o.workspace_id = r.workspace_id AND o.object_seq = r.object_seq) AS archive`;
 
-/** The paid lookups in the D1 row's own terms: a lookup's number as `id`, an
+/** The paid lookups as a test reads them: a lookup's number as `id`, an
  * unknown price 0, instants as JavaScript writes them. */
 export const RESEARCH_LOG = `(SELECT research_number::int AS id, asset_id AS asset, provider, endpoint, params_sha256,
         question, COALESCE(cost_usd, 0)::float8 AS cost_usd, cost_state, object_key, actor,
         ${JS_INSTANT('bought_at')} AS bought_at
    FROM noticeos.research_log) AS research`;
 
-/** The insight snapshots in the D1 row's own terms: the payload as the text it
+/** The insight snapshots as a test reads them: the payload as the text it
  * was stored as, instants as JavaScript writes them. */
 export const INSIGHT_SNAPSHOTS = `(SELECT snapshot_id AS id, asset_id AS asset, ${JS_INSTANT('generated_at')} AS generated_at,
         window_start::text AS window_start, window_end::text AS window_end, source_archive_count,
         content_sha256, payload::text AS payload, ${JS_INSTANT('created_at')} AS created_at
    FROM noticeos.asset_insight_snapshots) AS snapshots`;
 
-/** A provider report run as a test writes it, in the D1 row's own terms. */
+/** A provider report run as a test writes it. */
 export interface TestArchiveRun {
   id: string;
   asset: string;
@@ -820,7 +797,7 @@ export async function storeArchiveRun(run: TestArchiveRun): Promise<void> {
   await storeArchiveRuns([run]);
 }
 
-/** An insight snapshot as a test writes it, in the D1 row's own terms. */
+/** An insight snapshot as a test writes it. */
 export interface TestInsightSnapshot {
   id: string;
   asset: string;

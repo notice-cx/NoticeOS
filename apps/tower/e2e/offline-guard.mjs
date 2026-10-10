@@ -109,17 +109,11 @@ export async function startOfflineProxy(origin) {
   return boundary;
 }
 
-// A BROWSER TEST NEVER LEAVES ITS FIXTURE, NOT EVEN BY A REDIRECT
-// (bead ro-o3hv).
-//
-// The journeys and the flow gate promise "no real network": every request to
-// another origin is aborted before it leaves. But Playwright hands a route
-// handler only the FIRST request of a redirect chain. When the fixture answers
-// a navigation with a 302 to another host (Continue with Google's start answers
-// 302 to accounts.google.com), the browser follows it without any handler
-// seeing the second request, and the test reaches the real internet while
-// claiming it cannot. google-consent.mjs closes that for one route; this closes
-// it for every route, in both runners, in one place:
+// A browser test never leaves its fixture, not even by a redirect. Playwright
+// hands a route handler only the first request of a redirect chain, so a
+// fixture answering a navigation with a 302 to another host would take the
+// browser to the real internet unseen. google-consent.mjs closes that for one
+// route; this closes it for every route, in both runners:
 //
 //   - strict mode fetches every method without following redirects; one
 //     that answers a redirect to another origin is refused before the browser
@@ -128,8 +122,8 @@ export async function startOfflineProxy(origin) {
 //     before connecting, retaining native redirect and WebSocket semantics;
 //   - `check()` names the first recorded URL; the runner fails the test on it.
 //
-// Requests to other origins that are not redirect hops are aborted silently,
-// as before: they never left, so they are not a failure.
+// Requests to other origins that are not redirect hops are aborted silently:
+// they never left, so they are not a failure.
 
 /** Is `url` on `origin`? Browser-internal schemes never leave the machine. */
 function onOrigin(url, origin) {

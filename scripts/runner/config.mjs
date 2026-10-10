@@ -20,7 +20,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Where this runner's CODE is: the home checkout for a foreground `pnpm os:up`,
 // a runtime copy under `.local/runtime/` for the managed service.
 export const REPO_ROOT = path.resolve(__dirname, '..', '..');
-// Where its STATE is, always: the home checkout (bead ro-ujb9.113). The store,
+// Where its STATE is, always: the home checkout. The store,
 // `.local/`, the secret files, the task inventory and the relative checkout
 // paths in it are all resolved from here, so a runner started from a runtime
 // copy reads and writes exactly what a runner started from home always has.
@@ -58,8 +58,8 @@ export function runnerPaths(codeRoot, env = process.env) {
  * How a bead this runner files into a SITE's tracker names the OS's own
  * checkout, so every path in it is qualified — none of those files are the
  * reader's. The home checkout's folder name (the site repositories sit beside
- * it), never a name written into the runner (bead ro-ujb9.120). A runtime copy
- * resolves home, so it never names its own `runtime-a` slot.
+ * it), never a name written into the runner. A runtime copy resolves home, so
+ * it never names its own `runtime-a` slot.
  */
 export function osCheckoutName(homeRoot) {
   return path.basename(homeRoot);
@@ -67,14 +67,11 @@ export function osCheckoutName(homeRoot) {
 export const OS_CHECKOUT = osCheckoutName(HOME_ROOT);
 
 export const CONFIG = {
-  // The ingest's address. It is no longer a process of its own — it runs inside
-  // the tower's workerd runtime — so this is the "ingest door": a second
-  // listener the tower's vite dev server binds to LOOPBACK ONLY
-  // (apps/tower/vite/runner-door.ts), serving the ingest's routes and its cron
-  // fires. The port is unchanged on purpose: `os:cron`, scripts/pulse-relay.mjs and
-  // every curl in workers/ingest/README.md still read the same, and the
-  // single-instance guard below still asks the same question of the same socket.
-  // Avoid 8787 — something on this machine squats it.
+  // The ingest's address: the "ingest door", a second listener the tower's
+  // vite dev server binds to loopback only (apps/tower/vite/runner-door.ts),
+  // serving the ingest's routes and its cron fires. `os:cron`,
+  // scripts/pulse-relay.mjs and the single-instance guard below all read it.
+  // Not 8787, which other tools commonly take.
   ingestHost: '127.0.0.1',
   ingestPort: 8791,
   towerLanHost: '0.0.0.0',
@@ -91,71 +88,52 @@ export const CONFIG = {
   // cadence costs one line when the hub goes down and one when it comes back.
   beadsHubCheckCron: '*/15 * * * *',
   // How often the hub is photographed into the central store for the Tower's
-  // work board (db/0017). Every minute: the board is a coordination surface an
-  // operator glances at between tasks, so a minute-old answer is current and a
+  // work board. Every minute: a minute-old answer is current and a
   // ten-minute-old one is a lie about what an agent is doing right now.
   beadsPollCron: '* * * * *',
   // How often the runner asks whether a weekly DataForSEO collection has landed
   // with no review bead against it. Hourly, off the top of the hour so it does
-  // not share a tick with the wrangler crons: the collection arrives once a week,
-  // so this only has to be faster than "somebody notices", and each pass is one
-  // HTTP read plus one `bd list` per property that collected anything.
+  // not share a tick with the wrangler crons.
   panelFilerCron: '25 * * * *',
   // How often every spoke's push state is reconciled against its remote, and
   // its gates evaluated. Hourly at :40 — off :00/:15/:30/:45 (the ingest crons
   // and the hub check) and off :25 (the panel filer), so no tick ever carries
-  // two lanes' worth of subprocesses.
-  //
-  // Hourly is the cadence the BEAD needs, not the one git needs: the operator
-  // pushes outside sessions, so the window in which a push bead names work that
-  // is already live is what this number sets. An hour of that is a stale row on
-  // a board; a day of it is what taught mp-jxs's reader to distrust the label.
+  // two lanes' worth of subprocesses. Hourly is the cadence the bead needs:
+  // the window in which a push bead names work that is already live is what
+  // this number sets.
   pushStateCron: '40 * * * *',
-  // How often closed bets are carried to the beads that own their readings
-  // (db/0024). Hourly at :50 — off :00/:15/:30/:45 (ingest crons and the hub
-  // check), off :25 (panel filer) and off :40 (push state), so no tick carries
-  // two lanes' worth of subprocesses. Verdicts only appear when the 03:30 sweep
-  // closes something, so this only has to be faster than the operator's next
-  // glance at the bead — and it stays silent on the 23 ticks a day with nothing
-  // to carry.
+  // How often closed bets are carried to the beads that own their readings.
+  // Hourly at :50 — off every other lane's tick. Verdicts only appear when the
+  // 03:30 sweep closes something, so it stays silent on ticks with nothing to
+  // carry.
   watchReadbackCron: '50 * * * *',
-  // How often each project's DECLARED task database is reconciled against what
-  // the hub actually holds (bead `ro-237o`). Hourly at :05 — off every other
-  // lane's tick, and the cheapest pass here: one `SHOW DATABASES` for the whole
-  // portfolio, then a `bd list` only when something has drifted.
-  //
-  // Hourly rather than nightly because the value is edited on /settings and by
-  // hand, and until this lane existed the ONLY thing that read it was the 04:00
-  // backup — so a typo was invisible until a restore, which is the worst
-  // possible moment to learn it.
+  // How often each project's declared task database is reconciled against what
+  // the hub actually holds. Hourly at :05 — off every other lane's tick, and
+  // the cheapest pass here: one `SHOW DATABASES` for the whole portfolio, then
+  // a `bd list` only when something has drifted. Hourly rather than nightly
+  // because the value is edited on /settings and by hand, and otherwise only
+  // the nightly backup reads it.
   beadsMapCheckCron: '5 * * * *',
   // How long unpushed commits may sit before the runner files a bead about
-  // them. NOT a definition of "too long to leave work unpushed" — it is the
-  // gap between "the operator is mid-session" and "the operator moved on and
-  // forgot". Filing at the first tick would file a bead against every commit
-  // anybody makes, which is how a label becomes noise.
+  // them: the gap between "the operator is mid-session" and "the operator
+  // moved on and forgot". Filing at the first tick would file against every
+  // commit anybody makes.
   pushStaleHours: 24,
   // How often every rostered property's local signal panels are rebuilt
-  // (config/signal-panels.json, docs/20-signal-panels.md). 13:10 UTC: after both
-  // archive crons have landed — the daily GA4/GSC/BWT lane at 12:15 and the
-  // weekly DataForSEO lane at 12:45 — and off the top of the hour so it does not
-  // share a tick with the hourly freshness check.
-  //
-  // DAILY, not weekly, because a pass costs NOTHING: it makes zero provider
-  // calls, materializing archives those two crons already bought. So the cadence
-  // is chosen for the freshness bar a property agent reads against
-  // (config/signal-panels.json `freshnessMaxAgeDays`), not for the monthly data
-  // cap, which it cannot move.
+  // (config/signal-panels.json). 13:10 UTC: after both archive crons have
+  // landed — the daily GA4/GSC/BWT lane at 12:15 and the weekly DataForSEO
+  // lane at 12:45 — and off the top of the hour. Daily, because a pass makes
+  // zero provider calls; the cadence is chosen for the freshness bar a
+  // property agent reads against (`freshnessMaxAgeDays`).
   panelRefreshCron: '10 13 * * *',
   // Nightly Postgres host backup. UTC (matches the crons). Hosts can override this
   // legacy age policy with daily/weekly retention in host-backup.json.
   backupCron: '0 4 * * *',
   backupRetentionDays: 30,
-  // The off-machine copy of each night's FINISHED backup dir (D10 as amended;
-  // ro-t34) goes to the folder THIS host names in its installation's
-  // host-backup.json (config/host-backup.README.md) — a folder a sync client
-  // carries offsite. It is a host setting, read at each backup, never a path
-  // written here (bead ro-ujb9.120).
+  // The off-machine copy of each night's finished backup dir goes to the
+  // folder this host names in its installation's host-backup.json
+  // (config/host-backup.README.md) — a folder a sync client carries offsite. A
+  // host setting, read at each backup, never a path written here.
   // Supervision: if a child dies within RAPID_WINDOW_MS of starting it counts
   // as a rapid failure; after MAX_RAPID_RESTARTS of those in a row we give up
   // on that child. A run longer than the window resets the counter.
@@ -175,9 +153,9 @@ export const BACKUPS_DIR = STATE.backupsDir;
 // Code: the cron list ships with the code it schedules.
 export const INGEST_WRANGLER = path.join(REPO_ROOT, 'workers', 'ingest', 'wrangler.jsonc');
 // The task hub's data directory. The `brew services` dolt server owns its
-// CONTENTS (the installation's dolt-server.yaml points at this path); we only guarantee the
-// directory exists, so a fresh clone doesn't leave the service crash-looping on
-// a missing data_dir. Under .local/ (gitignored) — tasks are runtime state.
+// contents (the installation's dolt-server.yaml points at this path); we only
+// guarantee the directory exists, so a fresh clone does not leave the service
+// crash-looping on a missing data_dir. Under .local/ (gitignored).
 export const BEADS_DOLT_DIR = STATE.beadsDoltDir;
 // The secret files, always home's: a runtime copy links to them, but the sync
 // below WRITES .dev.vars, and an atomic write through a link would replace the

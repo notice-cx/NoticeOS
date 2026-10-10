@@ -6,20 +6,19 @@ import { fileURLToPath } from 'node:url';
 
 // The root is intentionally not a pnpm workspace. That keeps the recursive
 // workspace commands valid when there are zero workspaces, but it also means
-// `pnpm -r test` cannot discover this directory. CI once skipped every operator
-// script test while still presenting one green test step (bead ro-osp). This
-// contract makes dropping the explicit root-suite step fail the very suite the
-// step is responsible for running.
+// `pnpm -r test` cannot discover this directory, and CI can skip every operator
+// script test while still presenting one green test step. This contract makes
+// dropping the explicit root-suite step fail the very suite the step is
+// responsible for running.
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORKFLOW = path.join(REPO_ROOT, '.github', 'workflows', 'ci.yml');
 const MANIFEST = path.join(REPO_ROOT, 'package.json');
 
-// The step that gives the suites a Postgres server (bead ro-ujb9.76.15).
-// Without one, scripts/postgres-model.test.mjs and postgres-migrate.test.mjs
-// would skip, and CI would pass without ever running the D27 workspace-
-// isolation proof; so would the Workers' suites on the store they are moving
-// to (epic ro-ujb9.76: workers/ingest/test/postgres-store.test.ts,
+// The step that gives the suites a Postgres server. Without one,
+// scripts/postgres-model.test.mjs and postgres-migrate.test.mjs would skip,
+// and CI would pass without ever running the workspace-isolation proof; so
+// would the Workers' suites on the store (workers/ingest/test/postgres-store.test.ts,
 // apps/tower/test/postgres-store.test.ts and runner-door-e2e.test.ts).
 const POSTGRES_STEP =
   '(test -x /usr/lib/postgresql/18/bin/initdb && test -x /usr/lib/postgresql/17/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-17 postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"';
@@ -44,7 +43,7 @@ function jobBlock(workflow, name) {
 // Each gate in one job, in order (issue #2): the Tower's unit suite, the other
 // workspaces' (the two filters split `pnpm -r` between them, so every
 // workspace is typechecked and tested once), the root script suite (the root
-// is not a workspace, so no `pnpm -r` reaches it, bead ro-osp), the build with
+// is not a workspace, so no `pnpm -r` reaches it), the build with
 // the browser journeys, and the journey harness with the UX flow gate. Every
 // job that starts Postgres puts the server binaries on PATH first.
 const INSTALL = 'pnpm install --frozen-lockfile';
@@ -56,7 +55,7 @@ const JOBS = {
   browser: [INSTALL, POSTGRES_STEP, 'pnpm -r build', BROWSER_INSTALL, 'pnpm --filter @noticeos/tower run test:journeys'],
   'flow-gate': [INSTALL, POSTGRES_STEP, BROWSER_INSTALL, 'pnpm --filter @noticeos/tower run test:journey-harness',
     'pnpm --filter @noticeos/tower run test:ux-flows'],
-  // The opt-in real task store suites get their pinned inputs first (epic ro-cvl9).
+  // The opt-in real task store suites get their pinned inputs first.
   'task-store': [INSTALL, 'node scripts/task-store-test-tools.mjs --out "$RUNNER_TEMP/task-store" >> "$GITHUB_ENV"', 'pnpm test:task-store'],
 };
 /** The jobs a documentation-only pull request skips (scripts/ci-scope.mjs). */
@@ -149,8 +148,8 @@ test('CI runs the isolated user journeys and the flow walker and keeps their evi
     assert.match(job, /uses: actions\/upload-artifact@/u);
     assert.match(job, /if: always\(\)/u);
     for (const folder of evidence) assert.match(job, new RegExp(`apps/tower/e2e/${folder}/`, 'u'), `${name} keeps ${folder}`);
-    // The journeys' workers and the flow gate's lanes on the runner (bead
-    // ro-ujb9.167): unset, a small runner would run them all on one.
+    // The journeys' workers and the flow gate's lanes on the runner: unset, a
+    // small runner would run them all on one.
     assert.match(job, new RegExp(`- run: pnpm --filter @noticeos/tower run ${step}\\n\\s+env:\\n(?:\\s+#.*\\n)*\\s+JOURNEY_WORKERS: \\d+\\n`, 'u'),
       `${name} sets JOURNEY_WORKERS`);
   }
@@ -186,10 +185,9 @@ test('the Postgres suites run with NOTICEOS_REQUIRE_POSTGRES=1, the unit suites 
   }
 });
 
-// The journey harness stubs the ingest door's typed RPC. When that contract
-// changed, only the journey step noticed, after every other gate was green
-// (bead ro-ujb9.78). Type-checking the browser-journey code inside the Tower's
-// own typecheck puts contract drift in the first CI gate.
+// The journey harness stubs the ingest door's typed RPC. Type-checking the
+// browser-journey code inside the Tower's own typecheck puts contract drift in
+// the first CI gate rather than in the journey step.
 test('the Tower typecheck gate also type-checks the browser-journey harness', () => {
   const tower = JSON.parse(readFileSync(path.join(REPO_ROOT, 'apps', 'tower', 'package.json'), 'utf8'));
   const steps = String(tower.scripts?.typecheck ?? '').split('&&').map((step) => step.trim());
@@ -200,9 +198,9 @@ test('the Tower typecheck gate also type-checks the browser-journey harness', ()
 
 test('the CI root-suite command still targets every operator-script test', () => {
   const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'));
-  // The preload arms the config guard in each test file's process (bead
-  // ro-ujb9.97, scripts/test-config-isolation.mjs); the global setup gives the
-  // run one folder for its Worker bundles (issue #10).
+  // The preload arms the config guard in each test file's process
+  // (scripts/test-config-isolation.mjs); the global setup gives the run one
+  // folder for its Worker bundles.
   assert.equal(
     manifest.scripts?.['test:scripts'],
     'node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/script-tests-global.mjs --test scripts/*.test.mjs',

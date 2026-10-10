@@ -8,33 +8,20 @@ import { CONFIG, REPO_ROOT } from './config.mjs';
 import { lsofBin } from './host-tools.mjs';
 import { log } from './log.mjs';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DOOR OWNERSHIP — is the ingest we are about to fire at the one OUR child bound?
-//
-// runnerArmDecision closes every doubling window but one: two runners started
-// inside the same second both probe a FREE port, both proceed, and only one of
-// them can win the bind. The loser is supposed to die — the door plugin calls
-// process.exit(1) on EADDRINUSE (apps/tower/vite/runner-door.ts) and vite's
-// --strictPort refuses a taken 5173 — but `child.ready` is a LIVENESS fact, not
-// an ownership one. It flips when vite prints its banner, which happens BEFORE
-// the door binds, and it flips again on the 15s grace timer that exists so a
-// banner-format change cannot mute the crons forever. So a runner that owns
-// nothing can consider its ingest ready and fire every cron at somebody else's
-// runtime — every schedule twice, on a metered lane. That is the "ticks are
-// provably inert" half of ro-u33's acceptance, left open as ro-1b0.1.
-//
-// So a tick proves it: ask who is LISTENING on the door port and fire only when
-// one of them is in our child's process group. We spawn the child detached, so
-// its pid IS its process-group id and vite/workerd inherit that group — the same
+// Door ownership — is the ingest we are about to fire at the one our child
+// bound? runnerArmDecision closes every doubling window but one: two runners
+// started inside the same second both probe a free port, both proceed, and
+// only one can win the bind. The loser is supposed to die, but `child.ready`
+// is a liveness fact, not an ownership one: it flips when vite prints its
+// banner, before the door binds, and again on the grace timer. So a tick
+// proves it: ask who is listening on the door port and fire only when one of
+// them is in our child's process group. The child is spawned detached, so its
+// pid is its process-group id and vite/workerd inherit that group — the same
 // fact killChild relies on when it signals -pid.
 //
-// This gate is on the cron fires and nowhere else, deliberately. The fires are
-// what cost money (a duplicate DataForSEO Monday, 2026-07-31); the other lanes
-// that talk to the door are idempotent by construction — the beads poll
-// photographs the hub, and the two filers dedupe against the spoke before they
-// write — so a loser reaching the winner's door there wastes a request and
-// changes nothing.
-// ─────────────────────────────────────────────────────────────────────────────
+// This gate is on the cron fires and nowhere else: the fires are what cost
+// money on a metered lane; the other lanes that talk to the door are
+// idempotent by construction.
 
 /** Ask for the pid AND the process-group id of every listener on `port`, in
  * lsof's machine-readable field format. `-F pg` is what removes a second
@@ -113,20 +100,16 @@ export function isDescendantOf(pid, ancestor, parents) {
 /**
  * Does the door belong to this runner's child?
  *
- * TWO ways to be ours, because one of them is an assumption. The child is
- * spawned detached, so its pid is its process-group id and everything it starts
- * inherits that group — that is the cheap check, and it is the same fact
- * killChild relies on. But a package manager that ever put its child in a
- * session of its own would turn that assumption into "the door is not ours",
- * which would stand every cron down forever: a silent, total outage caused by
- * the guard rather than by the race. So a proven-foreign group is re-checked
- * against the process TREE (`parents`, supplied only for that second look)
- * before anything stands down.
+ * Two ways to be ours, because one of them is an assumption. The child is
+ * spawned detached, so its pid is its process-group id — the cheap check. A
+ * package manager that ever put its child in a session of its own would turn
+ * that assumption into "the door is not ours" and stand every cron down
+ * forever, so a proven-foreign group is re-checked against the process tree
+ * (`parents`, supplied only for that second look) before anything stands down.
  *
- * `owns` is deliberately three-valued. `false` is a proven negative — somebody
- * else's process tree holds the port, or nothing does — and it stands a tick
- * down. `null` means we could not find out (no lsof, a timeout), and a runner
- * that cannot check must keep firing: silently stopping every cron because a
+ * `owns` is three-valued. `false` is a proven negative and stands a tick down.
+ * `null` means we could not find out (no lsof, a timeout), and a runner that
+ * cannot check must keep firing: silently stopping every cron because a
  * diagnostic tool moved would be a worse failure than the one this guards.
  */
 export function doorOwnershipDecision({ owners, group, parents = null }, config) {
@@ -212,7 +195,7 @@ export async function runtimeDoorOwnership(child) {
 /**
  * Whether this tick fires, as a decision with its own log line.
  *
- * `outcome` is what the job-run record keeps (ro-ic5): every tick leaves
+ * `outcome` is what the job-run record keeps: every tick leaves
  * evidence of what it did, so a lane that stopped firing is legible from the
  * record instead of inferred from silence.
  */
@@ -237,7 +220,7 @@ export function cronFireDecision({ running, ready, ownership }, expr) {
       text:
         `cron "${expr}" due but STANDING DOWN: ${reason}. This runner lost the bind race, so firing ` +
         `would run the schedule on a runtime it does not own — the double-fire the port guard exists ` +
-        `to prevent (ro-u33), on a metered lane. Nothing was fired: whoever owns that door has its ` +
+        `to prevent, on a metered lane. Nothing was fired: whoever owns that door has its ` +
         `own scheduler and this tick is already covered. Stop the extra runner ` +
         `(lsof -nP -iTCP:${CONFIG.ingestPort} -sTCP:LISTEN).`,
     };

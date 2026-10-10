@@ -1,6 +1,6 @@
-// First-run Postgres for pnpm start and explicit synthetic demo setup. The owner approved this
-// narrow exception on gate ro-nzy7: frozen schema and one workspace, only in
-// a proven new/empty installation and its own new local Compose project.
+// First-run Postgres for pnpm start and explicit synthetic demo setup: frozen
+// schema and one workspace, only in a proven new/empty installation and its
+// own new local Compose project.
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';

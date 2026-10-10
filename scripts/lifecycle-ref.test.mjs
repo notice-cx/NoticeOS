@@ -11,15 +11,14 @@ import {
   lifecycleMoveRef,
 } from './config-apply-core.mjs';
 
-// THE DRIFT GUARD BEHIND `lifecycle:<from>><to>` (bead `ro-mz39`).
+// The drift guard behind `lifecycle:<from>><to>`.
 //
 // A stage move is recorded on the annotation timeline, and Restore reads the
 // most recent recorded move into `retired` to decide which stage to bring an
-// archived asset back to (bead `ro-3085`, commit f2ce513). TWO writers move
-// `assets.status`: the Tower's Settings tab, and `pnpm config:apply` in the
-// operator's terminal. They must write the SAME string — a CLI that spelled the
-// ref differently would archive an asset and leave Restore reading nothing,
-// which is the exact silence ro-3085 was filed to end.
+// archived asset back to. TWO writers move `assets.status`: the Tower's
+// Settings tab, and `pnpm config:apply` in the operator's terminal. They must
+// write the SAME string: a CLI that spelled the ref differently would archive
+// an asset and leave Restore reading nothing.
 //
 // The string is therefore stated twice: `apps/tower/shared/asset-detail.ts` for
 // the Tower, `scripts/config-apply-core.mjs` for the terminal. It is not
@@ -38,7 +37,7 @@ import {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SHARED = 'apps/tower/shared/asset-detail.ts';
 // The store that refuses a kind it does not know: the Postgres baseline, where
-// annotations live (bead ro-ujb9.76.5.7).
+// annotations live.
 const MIGRATION = 'db/postgres/migrations/0001_baseline.sql';
 
 function source(relative) {

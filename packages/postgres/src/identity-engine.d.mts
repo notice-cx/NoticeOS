@@ -99,7 +99,7 @@ export declare const IDENTITY_NAMES: {
         };
     };
 };
-/** Agent sign-in's maintained tables (epic ro-cvl9; migration 0014): signing
+/** Agent sign-in's maintained tables: signing
  * keys, OAuth clients, the protected resources, tokens and consents. */
 export declare const AGENT_NAMES: {
     readonly jwks: {

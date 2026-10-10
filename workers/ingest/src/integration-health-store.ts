@@ -4,15 +4,15 @@ import { javascriptInstant, type Transaction, type WorkspaceStore } from '@notic
 export type HealthCode = IntegrationFailureKind | 'rate-limit-daily' | 'rate-limit-hourly';
 export function healthFailure(code: unknown): { failure: IntegrationFailureKind; code: HealthCode } {
   const value = typeof code === 'string' ? code : '';
-  // `clarity_daily_cap_reached`: Clarity's ten calls a day (bead ro-ujb9.96.6.31).
+  // `clarity_daily_cap_reached`: Clarity's ten calls a day.
   if (value === 'rate-limit-daily' || /daily-(tokens|requests)|daily_cap/.test(value)) return { failure: 'rate-limit', code: 'rate-limit-daily' };
   if (value === 'rate-limit-hourly' || /hourly-tokens/.test(value)) return { failure: 'rate-limit', code: 'rate-limit-hourly' };
   if (/429|quota|rate.limit/.test(value)) return { failure: 'rate-limit', code: 'rate-limit' };
-  // `clarity_token_rejected` is Clarity's 401/403 (bead ro-ujb9.96.6.31).
+  // `clarity_token_rejected` is Clarity's 401/403.
   if (/401|403|auth|credential|grant|access|permission|token_rejected/.test(value)) return { failure: 'access', code: 'access' };
   if (/budget|balance|credit/.test(value)) return { failure: 'budget', code: 'budget' };
   // `local_store_failed`: the provider answered and this machine could not keep
-  // it (bead ro-aed0.10) — NoticeOS's fault, never the provider's.
+  // it; NoticeOS's fault, never the provider's.
   if (/cache_unavailable|coordination|monitoring|local_store/.test(value)) return { failure: 'monitoring', code: 'monitoring' };
   if (/timeout|network|request_failed|unreachable/.test(value)) return { failure: 'network', code: 'network' };
   if (/incomplete|partial|missing_date/.test(value)) return { failure: 'incomplete-report', code: 'incomplete-report' };
@@ -25,8 +25,7 @@ export function healthFailure(code: unknown): { failure: IntegrationFailureKind;
  * What went wrong in a failed collection, in the words a site's own row uses
  * (`integrationFailureMessage` over `healthFailure`): one entry per kind, in
  * the order first met, without the closing period. A provider card's verdict
- * is these, then its counted values, joined by ` · ` — never the ingest's codes
- * (beads ro-ujb9.96.6.27, ro-ujb9.96.6.31).
+ * is these, then its counted values, joined by ` · `, never the ingest's codes.
  */
 export function failureWords(codes: readonly unknown[]): string[] {
   return [...new Set(codes.map((code) => (integrationFailureMessage(healthFailure(code)) ?? 'Failed').replace(/\.$/, '')))];
@@ -83,8 +82,8 @@ async function targetSeq(tx: Transaction, scope: IntegrationHealthScope): Promis
 /** Event and current-state mutations form one transaction. An earlier-started
  * success can improve last-success evidence, but cannot clear a newer failure.
  * Report content and provider error prose are not accepted by this API.
- * Observations of one target are taken one at a time, as D1's single writer
- * took them, so each reads the state the one before it left. */
+ * Observations of one target are taken one at a time, so each reads the state
+ * the one before it left. */
 export async function recordIntegrationObservation(store: WorkspaceStore, input: RecordedObservation): Promise<void> {
   if (!Object.entries(INTEGRATION_MONITORS).some(([provider, items]) => provider === input.scope.provider && items.some((item) => item.id === input.scope.capability)) || !Object.hasOwn(EVIDENCE, input.evidenceSource)) throw new Error('Unknown monitoring capability');
   if (Object.values(input.scope).some((part) => typeof part !== 'string' || part.length > 1024) || input.scope.workspace !== await store.workspaceId() || !input.scope.connection || !input.attemptId || input.attemptId.length > 256 || input.evidenceId.length > 256) throw new Error('Invalid monitoring identity');

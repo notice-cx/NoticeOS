@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import * as osUp from './os-up.mjs';
 import { bdBin, gitBin, lsofBin, probeTcp, resolveBin } from './runner/host-tools.mjs';
 
-// scripts/runner/host-tools.mjs (bead ro-ujb9.22): finding bd, git and lsof
+// scripts/runner/host-tools.mjs: finding bd, git and lsof
 // under launchd's bare PATH, and the TCP probe.
 
 /** A port in this suite's own range, so a parallel run elsewhere never collides. */

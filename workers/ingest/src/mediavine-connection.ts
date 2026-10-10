@@ -12,8 +12,7 @@ export function mediavineMessage(error: unknown): string {
  * whole account, kept between leases, since it also carries the cooldown, the
  * sign-in block and the cached site list. */
 export const MEDIAVINE_LEASE = 'mediavine';
-/** A lease given back: it ended at the epoch, as D1's `expires_at = 0` did, so
- * a taker on any clock finds it free. */
+/** A lease given back ended at the epoch, so a taker on any clock finds it free. */
 const RELEASED = new Date(0);
 /**
  * One lease covers login, refresh, reports, probes and credential changes
@@ -55,7 +54,7 @@ export async function withMediavineLease<T>(env: IngestEnv, work: (assertLease: 
         [error.message, MEDIAVINE_LEASE, owner]));
     }
     if (error instanceof MediavineError && error.retryAt !== null) {
-      // GREATEST passes over a NULL: no cooldown yet is D1's 0.
+      // GREATEST passes over a NULL cooldown.
       await env.STORE.write((tx) => tx.execute(
         'UPDATE noticeos.integration_leases SET cooldown_until = GREATEST(cooldown_until, $1::timestamptz) WHERE lease_key = $2 AND owner = $3',
         [new Date(error.retryAt ?? now + 3_600_000), MEDIAVINE_LEASE, owner]));
@@ -92,10 +91,9 @@ export async function mediavineClient(env: IngestEnv, options: MediavineOptions 
 }
 /**
  * The sites the stored login can read, from the 15-minute cache or one call.
- * `evidence: false` is the connect panel's listing (bead `ro-ujb9.96.7.6`): a
- * listing is not a test, so it stamps no verdict and records no observation —
- * opening the panel twice never moves a status. A failed call still cools the
- * connection down, as every Mediavine call does.
+ * `evidence: false` is the connect panel's listing: a listing is not a test,
+ * so it stamps no verdict and records no observation. A failed call still
+ * cools the connection down, as every Mediavine call does.
  */
 export async function discoverMediavineSites(env: IngestEnv, options: MediavineOptions & { evidence?: boolean } = {}, capability: 'mediavine-discovery' | 'mediavine-test' = 'mediavine-discovery'): Promise<MediavineResult<Site[]> & { checkedAt: string; monitoringAvailable?: boolean; kind?: MediavineError['kind'] | 'network' }> {
   const now = options.nowMs ?? Date.now();

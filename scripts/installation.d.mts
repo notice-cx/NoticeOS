@@ -11,12 +11,12 @@ export declare const CHANGESETS_DIR: string;
 /** The host's task repository links (host-only, never in the store). */
 export declare const TASK_HOST_FILE: string;
 /** Where this host copies each night's finished backup off the machine
- * (host-only, never in the store; bead ro-ujb9.120). */
+ * (host-only, never in the store). */
 export declare const HOST_BACKUP_FILE: string;
 /** The names this installation's database and bucket were made under, when
  * they are not the checked-in Worker configs' (host-only, never in the store;
- * bead ro-ujb9.77.8; read by scripts/resource-names.mts readResourceNames). A
- * new installation has none. */
+ * read by scripts/resource-names.mts readResourceNames). A new installation
+ * has none. */
 export declare const RESOURCE_NAMES_FILE: string;
 export interface InstallationOptions {
     /** The checkout: the home checkout for the live runner and its lanes. */

@@ -48,7 +48,7 @@ test('restricted Dolt grants support tenant task work and expose raw executor li
   env.NOTICEOS_DOLT_PORT = String(profile.port);
   env.NOTICEOS_DOLT_SECRETS = profile.secretsDir;
   const compose = doltComposeArgs(profile);
-  const summary = { version: 1, bead: 'ro-ujb9.289.10.1', base, profile, binary, binarySha, imageId, freeBefore: free.bavail * free.bsize,
+  const summary = { version: 1, base, profile, binary, binarySha, imageId, freeBefore: free.bavail * free.bsize,
     expectedPeakAdditionalBytes: 128 * 1024 ** 2, stages: [], attempts: [], ordinary: [], sources: {} };
   for (const file of ['db/dolt/host/compose.yaml', 'db/dolt/host/start.sh', 'scripts/dolt-host.mjs', 'scripts/task-client.mjs', 'scripts/host-beads.mjs']) {
     summary.sources[file] = createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex');

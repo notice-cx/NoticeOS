@@ -1,4 +1,4 @@
-// A unit-test worker that dies names the file it was running (bead ro-ujb9.179).
+// A unit-test worker that dies names the file it was running.
 //
 // When a Vitest fork exits mid-file — out of memory, a native crash, a test that
 // kills its own process — Vitest reports "[vitest-pool]: Worker forks emitted

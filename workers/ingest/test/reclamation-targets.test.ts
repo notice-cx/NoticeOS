@@ -1,13 +1,12 @@
-// POST /api/reclamation-targets — a campaign's target list, stored on
-// Postgres (bead ro-ujb9.76.5.8). The request is the one
-// scripts/reclamation-import.mjs builds from its test's fixture list
+// POST /api/reclamation-targets — a campaign's target list. The request is the
+// one scripts/reclamation-import.mjs builds from its test's fixture list
 // (scripts/reclamation-import.test.mjs asserts the same file), posted here into
 // this file's throwaway copy of the store.
 //
 // GET /api/reclamation-targets?asset=&open=1 — the site's open targets, read
-// back for `pnpm reclamation:open-targets` (bead ro-ujb9.76.5.9). Its answer
-// is the one scripts/reclamation-open-targets.test.mjs turns into the rule's
-// file (the same fixture).
+// back for `pnpm reclamation:open-targets`. Its answer is the one
+// scripts/reclamation-open-targets.test.mjs turns into the rule's file (the
+// same fixture).
 
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';

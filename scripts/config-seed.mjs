@@ -1,36 +1,17 @@
 #!/usr/bin/env node
-// config-seed.mjs — load the config documents into the store (epic `ro-syok`,
-// db/0029).
+// Load the config documents into the store.
 //
-// WHICH FILES (bead ro-ujb9.125). Each document is read from this installation's
-// folder (`installation/`, or `NOTICEOS_INSTALLATION_DIR`) when it holds a
-// copy, else from the product's generic default in `config/`. So a fresh clone
-// seeds an empty installation: no assets, no task projects, UTC.
-//
-// WHAT THE FILES ARE NOW. docs/06 chose file config for auditability and
-// reproducibility, and both survive: the files are the SEED and the EXPORT, and
-// the store is what a running OS reads and writes. This command is the seed half
-// — it loads each config file into `noticeos.config_documents` where no document exists
-// yet, and it is the moment the store starts winning on an install.
-//
-// IT NEVER OVERWRITES. A file already in the store is reported as skipped, with
-// the version it is at. That rule is the whole safety of running this twice, and
-// of running it after months of Saves: the checkout may be BEHIND the store, and
-// a seed that silently won would undo every setting the operator changed in the
-// product. `pnpm config:export` is the direction that puts the store back into
-// the files.
+// Each document is read from this installation's folder when it holds a copy,
+// else from the product's generic default in `config/`. The files are the
+// seed and the export; the store is what a running OS reads and writes. It
+// never overwrites: a document already in the store is reported as skipped at
+// its version, because the checkout may be behind the store. A forced re-seed
+// needs a reason, which lands in `noticeos.config_changes`.
 //
 //   pnpm config:seed
 //   pnpm config:seed --file config/tower.json         # just one
 //   pnpm config:seed --force config/tower.json --reason "restored from backup"
 //   flags: --door <url>  --dry-run
-//
-// A forced re-seed needs a reason. Overwriting somebody's saved settings from a
-// file is a deliberate act, and the reason lands in `noticeos.config_changes` beside the
-// versions either side of it.
-//
-// Plain Node ESM — no TypeScript, no build step, no dependencies. House style of
-// creds-rotate-key.mjs: a tiny arg parser, plain logging, one job.
 
 import { CONFIG_DOCUMENT_FILES } from './config-documents.mjs';
 import { readDocumentFile } from './config-apply-core.mjs';
@@ -83,13 +64,9 @@ export function parseArgs(argv) {
   return opts;
 }
 
-/**
- * Read the documents this run would send, off the checkout.
- *
- * A file that is not there is left out rather than sent as null: an install that
- * does not carry a register is an ordinary state, and the store's own list is
- * what says which documents it ended up with.
- */
+/** Read the documents this run would send. A file that is not there is left
+ * out rather than sent as null: an install that does not carry a register is
+ * an ordinary state. */
 export async function readSeedDocuments(files, { repoRoot } = {}) {
   const documents = {};
   const absent = [];
@@ -101,8 +78,7 @@ export async function readSeedDocuments(files, { repoRoot } = {}) {
   return { documents, absent };
 }
 
-/** The lines this command prints, as data — so the suite asserts the report
- * rather than a transcript. */
+/** The lines this command prints, as data. */
 export function seedReport(body, { absent = [] } = {}) {
   if (body?.error === 'store_unavailable') {
     return [c.red('✘ nothing was seeded'), `  ${body.detail}`];
@@ -149,8 +125,7 @@ export async function runSeed({
   return { status, body, absent };
 }
 
-/** What the store already holds — the `--dry-run` answer, and the same read the
- * runner's startup line makes. */
+/** What the store already holds: the `--dry-run` answer. */
 export async function readSeedState({ door = DEFAULT_DOOR, token, fetchImpl = fetch } = {}) {
   const { body } = await configStoreRequest(CONFIG_DOCUMENTS_PATH, { door, token, fetchImpl });
   return body;

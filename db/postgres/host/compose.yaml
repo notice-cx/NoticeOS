@@ -1,6 +1,5 @@
-# NoticeOS: the installation's own Postgres, as a Compose service
-# (bead ro-ujb9.76.12; the operator's choice on ro-ujb9.76.32, 2026-09-29).
-# The steps, one command each, are README.md beside this file.
+# NoticeOS: the installation's own Postgres, as a Compose service. The steps,
+# one command each, are README.md beside this file.
 #
 # Plain Compose Specification and the official multi-architecture image, so
 # the same file runs on macOS (arm64) and Linux (x64) under any container app
@@ -12,11 +11,9 @@
 #   NOTICEOS_POSTGRES_SECRETS  the folder `pnpm postgres:secrets` wrote (./secrets)
 #
 # The project is named, so its volume is always noticeos_postgres-data,
-# whatever folder or checkout the file is run from. The runner, the Tower
-# and the task hub join this project later (ro-ujb9.9) as services beside
-# this one, reaching it as postgres:5432 on the project's network; nothing
-# here is renamed then, and the loopback port can close once nothing outside
-# the project uses it.
+# whatever folder or checkout the file is run from. Other services join this
+# project beside this one, reaching it as postgres:5432 on the project's
+# network.
 
 name: noticeos
 
@@ -50,8 +47,8 @@ services:
       # password nobody keeps: the superuser logs in only on the container's
       # own socket (pg_hba.conf).
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres
-      # Text compares by code point, as D1 does, built into Postgres rather
-      # than taken from the operating system; data pages carry checksums.
+      # Text compares by code point, built into Postgres rather than taken
+      # from the operating system; data pages carry checksums.
       POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale-provider=builtin --locale=C.UTF-8 --data-checksums
     secrets:
       - postgres

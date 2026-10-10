@@ -1,7 +1,7 @@
 // Stored project membership is separate from the host's permission to open a
 // checkout. This adapter is Node-only and is never part of a deployed Worker.
 //
-// Authored TypeScript (bead ro-ujb9.61): `pnpm config:generate` writes the
+// Authored TypeScript: `pnpm config:generate` writes the
 // `.mjs` the local runner and backups import and the `.d.mts` the Tower's Vite
 // task lane reads.
 
@@ -33,8 +33,8 @@ export interface TaskProjectReadOptions {
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /** The host's task repository links for the checkout at `repoRoot`: this
- * installation's `task-host.json`, else the product's empty default
- * (bead ro-ujb9.125). The home checkout for the live runner and its lanes. */
+ * installation's `task-host.json`, else the product's empty default. The home
+ * checkout for the live runner and its lanes. */
 export function taskHostFile(repoRoot: string = REPO_ROOT): string {
   return readablePath(HOST_FILE, { root: repoRoot });
 }
@@ -76,11 +76,10 @@ export function resolveTaskProjects(stored: unknown, host: unknown): TaskProject
       asset: row.asset, prefix: row.prefix,
       database: typeof row.database === 'string' ? row.database : null,
       repo: available ? linked!.repo as string : '',
-      // The STATE, not an instruction (bead `ro-ujb9.96.6.17`): the Tasks
-      // board shows it on the project, and the lane answers a task action with
-      // it beside the `project_not_linked` code. Linking a checkout is the
-      // host-only task inventory (config/task-host.README.md), which no Tower
-      // control reaches, so "complete its local setup" pointed nowhere.
+      // The state, not an instruction: the Tasks board shows it on the
+      // project, and the lane answers a task action with it beside the
+      // `project_not_linked` code. Linking a checkout is the host-only task
+      // inventory (config/task-host.README.md), which no Tower control reaches.
       ...(!available ? { unavailableReason: `${row.asset} has no checkout linked on this host` } : {}),
     };
   });
@@ -89,7 +88,7 @@ export function resolveTaskProjects(stored: unknown, host: unknown): TaskProject
 /**
  * The host's repository links. `absentLinksNone`: no inventory file at all
  * links nothing — a folder `pnpm start` made is not a checkout and has neither
- * its own copy nor the product's default (bead ro-ujb9.174), so its task
+ * its own copy nor the product's default, so its task
  * screens say a project has no checkout linked instead of failing on a missing
  * file. Without it a missing file throws: the managed host's backup must not
  * read a lost inventory as an empty one.

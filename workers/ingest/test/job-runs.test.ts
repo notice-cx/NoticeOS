@@ -94,7 +94,7 @@ describe('POST /api/job-runs — the runner mirrors its record into the store', 
     expect(Date.parse(row!.finished_at) - Date.parse(row!.started_at)).toBe(12_000);
     expect(row!.outcome).toBe('ran');
     // The runner fires on the tick and keeps no second timestamp that would
-    // always equal the first (db/0022) — absent stays absent.
+    // always equal the first — absent stays absent.
     expect(row!.scheduled_at).toBeNull();
     expect(row!.detail).toBeNull();
   });
@@ -237,7 +237,7 @@ describe('cronRunSuccessValue — the three states asset #0 can honestly report'
 
   it('is 0 when one lane’s latest firing failed, however old and however healthy the rest', () => {
     // A failed lane stays failed until a later firing of that lane says
-    // otherwise — this is the bead's acceptance criterion.
+    // otherwise.
     expect(
       cronRunSuccessValue(
         [

@@ -1,11 +1,8 @@
 #!/usr/bin/env node
-// THE CONFIG REGISTERS' DOCUMENTATION, GENERATED FROM THEIR DECLARATION.
+// The config registers' documentation, generated from their declaration.
 //
 // scripts/config-registers.mts declares every list-shaped config register and
-// every scalar knob the Tower may edit: file, container, key rule, each
-// field's type, rule and hint, the surface that edits it, and the README that
-// owns it. The README used to restate those facts in a hand-kept table that
-// could disagree with the declaration. Now each owning README carries a block
+// every scalar knob the Tower may edit. Each owning README carries a block
 // between two markers that this script writes, and `pnpm config:docs --check`
 // (run by scripts/config-docs.test.mjs) fails when a block is stale.
 //

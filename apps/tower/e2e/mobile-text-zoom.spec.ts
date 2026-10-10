@@ -83,8 +83,8 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
             await expect(action).toBeInViewport();
           }
           if (state === 'populated' && name === 'sites') {
-            // The answer names the sites that need you, each a way in (D45);
-            // a row still draws its › on the stacked card.
+            // The answer names the sites that need you, each a way in; a row
+            // still draws its › on the stacked card.
             const row = main.locator('[data-asset-row]').first();
             expect(await row.evaluate(el => getComputedStyle(el, '::after').content)).toBe('""');
             const named = answer.locator('a[data-sites-answer-site]').first();
@@ -92,7 +92,7 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
             await expect(page).toHaveURL(/\/assets\/[^/]+/);
           }
           if (state === 'populated' && name === 'tasks') {
-            // The answer leads (D45); its first row still expands in place.
+            // The answer leads; its first row still expands in place.
             const first = main.locator('[data-inbox-row], [data-task-row]').first();
             const expand = first.locator('button[aria-expanded]');
             await expand.click();

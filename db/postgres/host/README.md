@@ -1,19 +1,15 @@
 # The installation's Postgres, as a Compose service
 
-*Written 2026-09-29 for beads `ro-ujb9.76.12` and `ro-ujb9.76.39`, after the
-operator chose Compose on `ro-ujb9.76.32`. Every step below was run on throwaway
-data with the container
-app already on the office Mac, and passed
-on PostgreSQL 17 ([the historical proof](#how-it-is-proved)). The PostgreSQL
-18.6 fresh-volume and restore proofs are listed below. The manual steps below are operator-directed;
-a new, empty installation uses the approved automatic path next.*
+*The manual steps below are operator-directed; a new, empty installation
+uses the approved automatic path.*
 
 What it builds: PostgreSQL 18.6 in a container, its data on a named volume,
 reachable from this machine only (a port on 127.0.0.1); the three NoticeOS
 roles ([`../roles.sql`](../roles.sql)) with their logins; an empty `noticeos`
-database that sorts text the way D1 does; query statistics on. It stops
+database that sorts text by code point (the builtin `C.UTF-8` locale); query
+statistics on. It stops
 before the schema: the migrations go in with the operator-only
-`pnpm postgres:migrate` ([The schema](#the-schema-the-switch-overs-step-not-this-profiles)),
+`pnpm postgres:migrate` ([The schema](#the-schema-the-operators-step-not-this-profiles)),
 or the approved first-run path for a new, empty installation.
 
 ## A new installation
@@ -27,8 +23,7 @@ frozen schema and bootstraps one workspace before opening the Tower. These are
 the secret-generation, Compose-start, migration and bootstrap steps below,
 performed through the same helpers; no manual command sequence is needed.
 
-This is the owner's narrow fresh-install exception (`ro-ujb9.8.1`,
-2026-09-30). Existing folders, data, secrets, explicit database/profile settings
+This is the narrow fresh-install exception. Existing folders, data, secrets, explicit database/profile settings
 and the managed service keep the operator-directed path. A failed setup leaves
 its own resources in place for explicit recovery; it never deletes or
 automatically migrates them on retry. The exact checks are documented in
@@ -64,8 +59,8 @@ or the query statistics; the proof looked in each.
 - **Nothing listens on port 5432:** `lsof -nP -iTCP:5432 -sTCP:LISTEN` prints
   nothing. If something does, put `NOTICEOS_POSTGRES_PORT=5433` in
   `db/postgres/host/.env` and add `--port 5433` to step 1.
-- **psql 15 or later on this Mac:** `psql --version`. The client alone is
-  enough (`brew install libpq`); no server is installed on the Mac.
+- **psql 15 or later on this machine:** `psql --version`. The client alone
+  is enough (`brew install libpq` on macOS); no server is installed here.
 - You are in the repository's root folder.
 
 ## The steps
@@ -79,7 +74,7 @@ pnpm postgres:secrets
 
 **2. The first start.** Makes the data volume, then the roles, their logins,
 the empty `noticeos` database and query statistics; returns once the server
-answers. 6 seconds on the office Mac (up to 34 while it was busy).
+answers.
 
 ```sh
 docker compose -f db/postgres/host/compose.yaml up --detach --wait
@@ -92,14 +87,14 @@ docker compose -f db/postgres/host/compose.yaml up --detach --wait
 docker compose -f db/postgres/host/compose.yaml ps
 # Version, sort order, statistics, time zone, data checksums   → 18.6 …|b|C.UTF-8|pg_stat_statements|UTC|on
 docker compose -f db/postgres/host/compose.yaml exec postgres psql -U postgres -d noticeos -Atc "SELECT current_setting('server_version'), datlocprovider, datlocale, current_setting('shared_preload_libraries'), current_setting('TimeZone'), current_setting('data_checksums') FROM pg_database WHERE datname = current_database()"
-# The owner logs in from this Mac, with psql alone             → … PostgreSQL 18.6 …, as noticeos_owner; 1 pending
+# The owner logs in from this machine, with psql alone         → … PostgreSQL 18.6 …, as noticeos_owner; 1 pending
 NOTICEOS_OWNER_URL="$(cat db/postgres/host/secrets/owner.url)" pnpm postgres:migrate status --database noticeos --url-from NOTICEOS_OWNER_URL
 ```
 
 The `$(cat …)` form hands the password to the command in its environment:
 it is not on the command line, in the shell's history or on the screen.
 
-## The schema (the switch-over's step, not this profile's)
+## The schema (the operator's step, not this profile's)
 
 What each command does and refuses is in
 [Applying it to an installation's own database](../README.md#applying-it-to-an-installations-own-database).
@@ -112,17 +107,13 @@ never as the superuser.
 NOTICEOS_OWNER_URL="$(cat db/postgres/host/secrets/owner.url)" pnpm postgres:migrate status --database noticeos --url-from NOTICEOS_OWNER_URL
 # c. Apply, in one transaction; the database's name is typed twice
 NOTICEOS_OWNER_URL="$(cat db/postgres/host/secrets/owner.url)" pnpm postgres:migrate apply --database noticeos --url-from NOTICEOS_OWNER_URL --confirm noticeos
-# d. The one workspace, once (your installation's import fills it; a new one starts empty)
+# d. The one workspace, once
 NOTICEOS_OWNER_URL="$(cat db/postgres/host/secrets/owner.url)" pnpm postgres:migrate bootstrap --database noticeos --url-from NOTICEOS_OWNER_URL --confirm noticeos --slug main --name "My sites"
-# e. The day of the switch only: the final backup, in one transaction; the name typed twice again
-NOTICEOS_OWNER_URL="$(cat db/postgres/host/secrets/owner.url)" NOTICEOS_MAINT_URL="$(cat db/postgres/host/secrets/maint.url)" pnpm postgres:import --backup <backup set folder> --database noticeos --url-from NOTICEOS_OWNER_URL --maint-url-from NOTICEOS_MAINT_URL --confirm noticeos --report <report folder> --history <history folder>
-# f. The report's own figures agree, the held rows in the history files → complete: …
-pnpm postgres:import check <report folder>/report.json
 ```
 
-**g. The day of the switch: the application's address.** The one line of
+**e. The application's address.** The one line of
 `db/postgres/host/secrets/database.url` is the application login's address,
-kept as the bootstrap secret `DATABASE_URL` from the switch on
+kept as the bootstrap secret `DATABASE_URL`
 ([doc 06](../../../docs/06-operations.md#bootstrap-secrets-vs-integration-credentials)). Copy it into this installation's secrets file,
 `workers/ingest/.dev.secrets.json`, as the value of `DATABASE_URL`: by hand,
 in an editor, never in a shell line or a chat.
@@ -134,9 +125,6 @@ operator-prepared profile (a folder named with `NOTICEOS_POSTGRES_SECRETS`
 is read the same way compose.yaml reads it). It says which file it took it
 from and never prints the address. The managed service never copies it:
 this installation's address is the operator's copy above.
-
-At the pilot's size (232,313 rows in the D1 backup) step e took 23 seconds
-on a busy Mac (14 on a quieter run).
 
 ## Backup and restore
 
@@ -189,13 +177,11 @@ holds neither. Replacing any live store requires explicit operator approval.
 
 - **After the Mac restarts**, the container app starts at sign-in and brings
   the service back (`restart: unless-stopped`). A server that crashes is
-  brought back the same way, in about 2 seconds. Waiting for it at the
-  runner's start is `ro-ujb9.76.7`.
+  brought back the same way, in about 2 seconds.
 - **A minor update within PostgreSQL 18** (about every three months) is a commit that changes the
   `image:` line of `compose.yaml` (tag and digest). Then:
   `docker compose -f db/postgres/host/compose.yaml up --detach --wait`. The
-  data stays; the database was unavailable for about a second (6 seconds
-  in an earlier run).
+  data stays; the database is unavailable for a few seconds.
 - **A major update requires an approved backup and restore into a new volume.**
   This profile uses PostgreSQL 18's `/var/lib/postgresql` volume, with data
   under `18/docker`. An existing PostgreSQL 17 volume cannot start on 18:
@@ -214,7 +200,7 @@ then delete `db/postgres/host/secrets/` and begin again at step 1.
 `pnpm postgres:secrets` never replaces a secret file, because the service's
 logins were made from it.
 
-### When the runner, the Tower and the task hub join (`ro-ujb9.9`)
+### When the runner, the Tower and the task hub join
 
 They become services of this same Compose project (`noticeos`), beside
 `postgres`, and reach it as `postgres:5432` on the project's own network.
@@ -234,17 +220,6 @@ once nothing outside the project uses it.
   runs in the required CI root suite with explicit PostgreSQL 17 binaries.
   It compares every operational row and sequence, the constraints, workspace
   isolation, ledger immutability and subsequent workspace numbering.
-- **Historical PostgreSQL 17 Docker proof:** `compose-proof-2026-09-29.mjs` (private historical evidence),
-  results in `compose-proof-2026-09-29.json` (private historical evidence).
-  Throwaway Compose projects on the office Mac (OrbStack, Docker Engine 29.4,
-  Compose 5.1), synthetic data at the pilot's size, psql 18.6 alone on the
-  host: the binding, the logins and what is refused, `pnpm postgres:migrate`
-  and `pnpm postgres:import`, the Workers' login through
-  [`packages/postgres`](../../../packages/postgres/README.md), a backup while
-  the application writes (it holds exactly its snapshot), the restore
-  (every table's rows, digest and totals equal), a killed server coming back,
-  and the update from 17.10. Not proven there: restarting the container app
-  itself (it would restart the operator's other containers), and Linux x64.
 - **Without Docker, in `pnpm test:scripts`:** [`scripts/postgres-host-profile.test.mjs`](../../../scripts/postgres-host-profile.test.mjs)
   holds the files' guarantees and runs `first-start.sh` and `pg_hba.conf` on
   a throwaway cluster; [`scripts/postgres-secrets.test.mjs`](../../../scripts/postgres-secrets.test.mjs)

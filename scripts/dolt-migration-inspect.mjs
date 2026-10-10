@@ -1,4 +1,4 @@
-// Explicit metadata custody for an existing-hub migration (ro-ujb9.9.1).
+// Explicit metadata custody for an existing-hub migration.
 // No service, subprocess, network, credential lookup or installation fallback.
 import * as fs from 'node:fs';
 import path from 'node:path';

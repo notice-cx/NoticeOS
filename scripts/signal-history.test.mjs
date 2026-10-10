@@ -37,11 +37,10 @@ import {
   readGeneration,
 } from './signal-history.mjs';
 
-// Bead ro-ujb9.67.2: the provider history published as Parquet, one complete
-// generation at a time, incrementally, read back with DuckDB — the engine D25
-// chose to read it. Bead ro-ujb9.67.4: how long a generation is kept, and the
-// files removed once no kept generation names them. Synthetic archives only
-// (scripts/signal-archive-fixture.mjs).
+// The provider history published as Parquet, one complete generation at a
+// time, incrementally, read back with DuckDB; how long a generation is kept,
+// and the files removed once no kept generation names them. Synthetic archives
+// only (scripts/signal-archive-fixture.mjs).
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const EXPECTED_ANALYSIS = path.join(REPO_ROOT, 'scripts', 'fixture-archive-analysis');

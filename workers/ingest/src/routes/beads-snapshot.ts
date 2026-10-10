@@ -1,16 +1,8 @@
-// POST /api/beads-snapshot — the task-hub photograph writer (db/0017).
-//
-// Operator-authed, same shape as /api/annotations: bearer → parse → hand the
-// untrusted body to the writer, which validates every field before touching the
-// store.
-// The caller is the poller in `scripts/os-up.mjs`, which is the only thing on
-// the machine that can reach the Dolt hub; this route is how what it saw
-// crosses into the central store.
-//
-// Unlike the annotation lane there is no idempotent re-post: two snapshots a
-// second apart are two different observations of a changing hub, not the same
-// event recorded twice, so every POST appends a row and the write prunes the
-// tail instead.
+// POST /api/beads-snapshot — the task-hub photograph writer. Operator-authed;
+// the body is handed to the writer, which validates every field. The caller is
+// the runner's poller, the only thing on the machine that can reach the hub.
+// No idempotent re-post: two snapshots a second apart are two observations of
+// a changing hub, so every POST appends a row and the write prunes the tail.
 
 import { authenticateOperator } from '../auth.js';
 import { type BeadsSnapshotInput, writeBeadsSnapshot } from '../beads-snapshots.js';

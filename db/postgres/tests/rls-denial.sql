@@ -1,4 +1,4 @@
--- Cross-workspace denial proof (D27, bead ro-ujb9.76.2).
+-- Cross-workspace denial proof.
 --
 -- Preconditions: the migrations applied as noticeos_owner, then fixture.sql loaded
 -- for workspace A (0000000a-…, site a.example) and workspace B (0000000b-…,

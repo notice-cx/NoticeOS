@@ -200,9 +200,9 @@ test('launch-agent generation resolves every path and keeps stdout duplication d
   assert.match(output, /\/dev\/null/u);
 });
 
-// The real template (bead ro-ujb9.113): launchd runs the runtime copy through
-// its `current` link, so a deploy moves the service without rewriting the plist,
-// and names the home checkout so the runner keeps home's state.
+// The real template: launchd runs the runtime copy through its `current` link,
+// so a deploy moves the service without rewriting the plist, and names the
+// home checkout so the runner keeps home's state.
 test('the installed service runs the runtime copy and is told where home is', () => {
   const template = readFileSync(path.join(REPO_ROOT, 'scripts', 'launchd', 'local-service.plist'), 'utf8');
   const home = '/Users/operator/dev/reindex-os';
@@ -281,10 +281,9 @@ test('install refuses until a runtime copy exists, and names the step that makes
   assert.equal(installRuntimeRefusal({ live: { problem: 'current is a real directory' } }), 'current is a real directory');
 });
 
-// --- stop / start (bead ro-8x1) ------------------------------------------------
+// --- stop / start ------------------------------------------------------------
 //
-// "Stop for maintenance" and "remove from launchd" were one word until these
-// verbs existed, so the migration drill was uninstall → migrate → install. The
+// "Stop for maintenance" and "remove from launchd" are different verbs. The
 // decision logic is pure and tested here; no test spawns launchctl.
 
 test('stop refuses when no plist is installed, and names the verb that installs one', () => {
@@ -428,7 +427,7 @@ test('an occupied door after stop identifies its listener without guessing a pro
   assert.match(resolveStopResult({ bootout: { code: 0 }, doorHeld: true }).message, lsof);
 });
 
-// --- enable-before-bootstrap, in every domain (beads ro-xlht, ro-7fbf) ----------
+// --- enable-before-bootstrap, in every domain ----------------------------------
 //
 // A label anyone once `launchctl disable`d refuses the bootstrap, so an enable
 // ordered after a successful bootstrap never runs in the one case it exists for.
@@ -462,7 +461,7 @@ function fakeLaunchd({ disabled = [] } = {}) {
   return { launchctl, calls, overrides };
 }
 
-test('a disable armed in the user domain no longer blocks start: every domain is enabled first (ro-7fbf)', async () => {
+test('a disable armed in the user domain no longer blocks start: every domain is enabled first', async () => {
   for (const armed of [GUI_TARGET, USER_TARGET, GUI_TARGET + ' ' + USER_TARGET]) {
     const launchd = fakeLaunchd({ disabled: armed.split(' ') });
     const { enable, launchctl } = await powerUp('bootstrap', launchd.launchctl);
@@ -493,8 +492,8 @@ test('install and start reach launchctl enable/bootstrap only through powerUp', 
     const start = source.indexOf(`async function ${name}(`);
     return source.slice(start, source.indexOf('\n}\n', start));
   };
-  // install loads through replaceService (bead ro-ujb9.116), which is tested
-  // below with a fake launchd; start loads directly.
+  // install loads through replaceService, which is tested below with a fake
+  // launchd; start loads directly.
   assert.match(body('installService'), /await replaceService\(/u, 'installService no longer loads through replaceService');
   for (const verb of ['installService', 'replaceService', 'startService']) {
     if (verb !== 'installService') assert.match(body(verb), /await powerUp\(/u, `${verb} no longer powers up through powerUp`);
@@ -522,8 +521,8 @@ test('an enable on a label launchd has never loaded still counts as enabled', ()
 
 test('the disabled-label hint needs print-disabled to show the label disabled — a bare I/O error is no evidence', () => {
   // "Bootstrap failed: 5: Input/output error" is what launchd says for a disabled
-  // label, an unloadable plist and a label still leaving the domain alike; on
-  // 2026-09-23 a hint built on it blamed a label that was enabled (ro-ujb9.116).
+  // label, an unloadable plist and a label still leaving the domain alike, so a
+  // hint built on it would blame a label that is enabled.
   const enable = { code: 0, stderr: '' };
   assert.equal(disabledLabelHint({ enable, disabledIn: null }), null, 'print-disabled could not be read');
   assert.equal(disabledLabelHint({ enable, disabledIn: [] }), null, 'print-disabled shows it enabled');
@@ -567,7 +566,7 @@ test('start keeps its own failure line, with the hint underneath only when the l
   assert.equal(enabled.message, 'launchctl bootstrap failed: Bootstrap failed: 5: Input/output error');
 });
 
-// --- install: out of the domain before back in (bead ro-ujb9.116) ----------------
+// --- install: out of the domain before back in ----------------------------------
 //
 // A fake launchd whose bootout returns at once while the label stays in the
 // domain for `lingerPolls` more `print`s — as a KeepAlive service with Vite and
@@ -746,7 +745,7 @@ test('the sanctioned maintenance sequence reads the same in both docs', () => {
   }
 });
 
-// --- one restart + health wait, shared by os:restart and os:deploy (ro-ujb9.113) ---
+// --- one restart + health wait, shared by os:restart and os:deploy -------------
 //
 // A deploy restarts through the same function os:restart does, so it waits the
 // same way and fails the same way: classified status plus the recent redacted
@@ -830,14 +829,14 @@ test('os:restart and os:deploy restart through the one shared restart-and-wait',
     return source.slice(start, source.indexOf('\n}\n', start));
   };
   assert.match(body('restartService'), /await restartAndWait\(/u);
-  // The deploy's restart and its automatic rollback's (ro-ujb9.114) both come here.
+  // The deploy's restart and its automatic rollback's both come here.
   assert.match(body('deployService'), /restart: \(\{ timeoutMs, action = 'deploy' \}\) => restartAndWait\(\{ action, timeoutMs \}\)/u);
   for (const name of ['restartService', 'deployService']) {
     assert.doesNotMatch(body(name), /\['kill'|\['kickstart'/u, `${name} restarts launchd on its own`);
   }
 });
 
-// --- which code runs, in one line (ro-ujb9.113) ------------------------------
+// --- which code runs, in one line ---------------------------------------------
 
 test('status says in one line which commit the OS runs and whether main is ahead', () => {
   const commit = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
@@ -907,9 +906,9 @@ test('the running runner’s own report is what status reads first', async () =>
   assert.ok(asked.includes(`${runtimeLayout(home).current} rev-parse HEAD`));
 });
 
-// Bead ro-ujb9.185: every command os:status and os:deploy run (git,
-// launchctl, pnpm install) goes through scripts/run-command.mjs, so an answer
-// still in the pipe when the command exits is read in full, never cut short.
+// Every command os:status and os:deploy run (git, launchctl, pnpm install)
+// goes through scripts/run-command.mjs, so an answer still in the pipe when
+// the command exits is read in full, never cut short.
 test('status reads a git answer that is still arriving after git exited', async () => {
   const home = mkdtempSync(path.join(tmpdir(), 'os-control-late-'));
   const late = lateWritingCommand('git', { early: 'b'.repeat(20), late: `${'b'.repeat(20)}\n` });

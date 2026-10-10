@@ -1,21 +1,20 @@
-// BEFORE EVERY TEST FILE, IN THE RUNTIME THAT FILE RUNS IN (bead ro-ujb9.168).
+// Before every test file, in the runtime that file runs in.
 //
 // The suite reuses one Workers runtime per Vitest worker from file to file
-// (vitest.config.ts, `isolate: false`): starting a runtime for every file took
+// (vitest.config.ts, `isolate: false`): starting a runtime for every file takes
 // longer than the tests. This is what still gives each file a start of its own:
 //  - no module-level state carries over: every module that keeps some
 //    registers how to forget it (src/isolate-state.ts) — config-store's read
 //    cache, the DataForSEO lane, the GA4 token cache — and all of it is
 //    forgotten once the file's sites are seeded. Modules are not evaluated
-//    again: that took most of the suite's time (issue #5), and
-//    scripts/ingest-isolate-state.test.mjs refuses unregistered state.
-//    (`vi.mock` would carry over; this suite has none.)
+//    again, and scripts/ingest-isolate-state.test.mjs refuses unregistered
+//    state. (`vi.mock` would carry over; this suite has none.)
 //  - no global stub or fake clock left by the file before is still in place;
 //  - the raw-signal bucket and Cache API are emptied (`reset()`), and this
 //    runtime's Postgres copy is made again from the run's template — its
-//    second copy too, when the file before reached it (issue #23). Complete
-//    synthetic sites are inserted directly in fixture order. Nothing rolls
-//    back between tests inside a file.
+//    second copy too, when the file before reached it. Complete synthetic
+//    sites are inserted directly in fixture order. Nothing rolls back between
+//    tests inside a file.
 //  - every test, and the file's own hooks, get a store of their own on that
 //    copy as `env.STORE`, the way each call into the Worker gets one
 //    (src/call-store.ts), closed when they end;
@@ -38,7 +37,7 @@ fenceStore(env);
 let nativeTimeout = AbortSignal.timeout;
 let timeoutSignals!: ReturnType<typeof createTestTimeoutSignals>;
 // A failed file setup names the operation, preserving the original cause;
-// there is no retry that could hide a shared-runtime failure (ro-jc8y).
+// there is no retry that could hide a shared-runtime failure.
 let starting = 'settling work left by the previous test file';
 try {
   // A call left on its way lands before the store is emptied, never after.
@@ -54,8 +53,8 @@ try {
   starting = 'resetting R2 and the Cache API';
   await reset();
   // Pinned workerd resets only actor databases still in its map. An idle or
-  // aborted bucket can retain durable rows outside that map (ro-irl4).
-  // Explicit supported R2 operations also clear those rows, or fail setup.
+  // aborted bucket can retain durable rows outside that map, so explicit R2
+  // operations also clear those rows, or fail setup.
   await clearRawSignals(env.RAW_SIGNALS);
   starting = 'resetting this runtime\'s Postgres test copy';
   const other = takeReached().has('env.POSTGRES_OTHER');
@@ -70,17 +69,13 @@ try {
   throw new Error(`ingest test file setup failed while ${starting}`, { cause: error });
 }
 
-/**
- * The runtime's own timers, whatever the file before did to them (bead
- * ro-ujb9.76.64). `vi.useRealTimers()` undoes a fake clock that is still
- * installed, but not one whose method was put back on the global after the
- * clock was gone: a spy on a faked `setTimeout` (`vi.spyOn(globalThis,
- * 'setTimeout')` under `vi.useFakeTimers()`), restored after
- * `vi.useRealTimers()`, leaves the dead clock's `setTimeout` in place, and
- * every timer the next file sets never fires. The runtime's first file keeps
- * the real ones on the global, where module re-evaluation cannot reach, and
- * every file after starts with them.
- */
+/** The runtime's own timers, whatever the file before did to them.
+ * `vi.useRealTimers()` undoes a fake clock that is still installed, but not
+ * one whose method was put back on the global after the clock was gone: a spy
+ * on a faked `setTimeout`, restored after `vi.useRealTimers()`, leaves the dead
+ * clock's `setTimeout` in place, and every timer the next file sets never
+ * fires. The runtime's first file keeps the real ones on the global, where
+ * module re-evaluation cannot reach, and every file after starts with them. */
 function restorePristineTimers(): Pick<typeof globalThis, 'setTimeout' | 'clearTimeout' | 'setInterval' | 'clearInterval'> {
   const PRISTINE = Symbol.for('noticeos.ingest.pristine-timers');
   type Timers = Pick<typeof globalThis, 'setTimeout' | 'clearTimeout' | 'setInterval' | 'clearInterval'>;

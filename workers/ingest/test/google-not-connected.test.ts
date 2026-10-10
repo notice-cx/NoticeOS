@@ -1,9 +1,9 @@
-// GOOGLE NOT CONNECTED IS NO WORK, NOT A FAILURE (bead `ro-ujb9.172`).
+// Google not connected is no work, not a failure.
 //
 // A new installation (empty store, nothing on Integrations) fires every lane
-// on its schedule. The two Google-backed lanes used to throw `config_missing`
-// on every run, so System health read "Needs attention" for a source nobody
-// set up. They now read skipped, like every other provider not connected —
+// on its schedule. The two Google-backed lanes must not throw `config_missing`
+// on every run and make System health read "Needs attention" for a source
+// nobody set up: they read skipped, like every other provider not connected —
 // while a Google row that is stored but cannot be opened still fails loudly.
 
 import { env } from 'cloudflare:test';

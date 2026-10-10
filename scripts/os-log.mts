@@ -1,10 +1,6 @@
 // Shared secret scrubbing for every local-runner log write, every control
-// command read and the ingest Worker's failed-step line (bead ro-ujb9.173).
-// Keeping one implementation prevents the diagnostic path from drifting away
-// from the persistent-log path.
-//
-// Authored TypeScript, portable (no `node:` import), so the Worker can import
-// it too: `pnpm config:generate` writes the `.mjs` and the `.d.mts` beside it.
+// command read and the ingest Worker's failed-step line. Portable (no `node:`
+// import), so the Worker can import it too.
 
 /** Redact common credential shapes without knowing or loading any secret. */
 export function redactLogText(value: unknown): string {
@@ -23,7 +19,7 @@ export function redactLogText(value: unknown): string {
     '[REDACTED PRIVATE MATERIAL]',
   );
   // The password inside a connection URL (scheme://user:password@host), such
-  // as the database address DATABASE_URL holds (bead ro-ujb9.76.7.2).
+  // as the database address DATABASE_URL holds.
   text = text.replace(/\b([a-z][a-z0-9+.-]*:\/\/[^\s:/?#@]*:)[^\s/?#@]+@/giu, '$1[REDACTED]@');
   return text;
 }

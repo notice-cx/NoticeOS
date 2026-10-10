@@ -36,9 +36,7 @@ describe('expectsReports — the obligation comes from the lifecycle', () => {
   });
 });
 
-// ro-uwo.1: the ingest cron used to fire its error at 36h while the Tower
-// counted stale at 48h, so a 40h-old report was an open error and a "fresh"
-// tally in one payload. One constant now, and one crossover age.
+// One constant for the ingest cron and the Tower, and one crossover age.
 describe('REPORT_MAX_AGE_HOURS — one staleness age for both surfaces', () => {
   it('is the nightly cadence times the miss the operator tolerates', () => {
     expect(REPORT_CADENCE_HOURS).toBe(24);
@@ -66,7 +64,7 @@ describe('reportingState — four states, never a boolean', () => {
     expect(reportingState('live', at(50), NOW, MAX_AGE_HOURS)).toBe('stale');
   });
 
-  it('reads a site that has never sent a report as not-expected, whatever its stage (ro-ujb9.121)', () => {
+  it('reads a site that has never sent a report as not-expected, whatever its stage', () => {
     expect(reportingState('onboarding', null, NOW, MAX_AGE_HOURS)).toBe('not-expected');
     expect(reportingState('live', undefined, NOW, MAX_AGE_HOURS)).toBe('not-expected');
   });
@@ -140,7 +138,7 @@ describe('worstReportingState — what one glyph should say', () => {
   });
 });
 
-describe('a declared "no nightly report" (ro-ujb9.96.8)', () => {
+describe('a declared "no nightly report"', () => {
   it('owes no report, whatever the lifecycle says', () => {
     expect(owesNightlyReport('live', false, at(3))).toBe(true);
     expect(owesNightlyReport('live', true, at(3))).toBe(false);
@@ -182,7 +180,7 @@ describe('a declared "no nightly report" (ro-ujb9.96.8)', () => {
   });
 });
 
-describe('expectsNightlyReport — a site expects a report once it has sent one (D29 amended, ro-ujb9.121)', () => {
+describe('expectsNightlyReport — a site expects a report once it has sent one', () => {
   it('expects none from a brand-new site, so nothing warns about a sender nobody set up', () => {
     expect(expectsNightlyReport(false, null)).toBe(false);
     expect(expectsNightlyReport(false, undefined)).toBe(false);
@@ -207,13 +205,12 @@ describe('expectsNightlyReport — a site expects a report once it has sent one 
   });
 });
 
-// THIS installation, reshaped with example names: the sites that send a
-// report, one whose sender stopped, the OS's own report, and the four declared
-// as sending none, which never sent one. The amendment must change nothing for
-// any of them — only for a site that has never sent a report and was never
-// declared, which this installation does not have.
-describe('the amendment leaves an installation shaped like this one unchanged (ro-ujb9.121)', () => {
-  /** The rule as it stood before D29's 2026-09-23 amendment, frozen here as the
+// A portfolio of sites that send a report, one whose sender stopped, the OS's
+// own report, and sites declared as sending none that never sent one. The
+// "has sent one" condition changes nothing for any of them; it differs only
+// for a site that has never sent a report and was never declared.
+describe('the "has sent one" condition leaves every other site unchanged', () => {
+  /** The rule without the "has sent one" condition, frozen here as the
    * reference: owed whenever the stage reports and nothing was declared. */
   function previousRule(status: string, latest: string | null, declared: boolean): ReportingState | 'never-reported' {
     if (!expectsReports(status) || declared) return 'not-expected';

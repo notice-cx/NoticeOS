@@ -22,17 +22,13 @@ import { ASSET_TOKENS, CREDENTIALS_KEY, OPERATOR_TOKEN } from './test/fixtures';
 const WRANGLER_CONFIG = fileURLToPath(new URL('./wrangler.jsonc', import.meta.url));
 
 /**
- * THE WORKER RUNS ON THE BINDINGS THIS FILE DECLARES, AND NO OTHERS (bead
- * ro-ujb9.182). The pool builds the Worker's env from the wrangler config it is
- * given, and wrangler adds the `.dev.vars` beside that config: in a checkout
- * that runs the OS, the installation's real secrets. Neither the pool (its
- * `wrangler` option is a config path and an environment) nor wrangler has an
- * option that turns that read off, so the pool gets wrangler.jsonc copied into
- * a new, empty folder, with the `.env` and process reads switched off too
- * (scripts/worker-config-folder.mts). Before this, a real Clarity token merged
- * into test/site-tokens.test.ts's expected map and the assertion diff printed
- * it. test/test-env.test.ts proves the env holds exactly the names this file
- * declares.
+ * The Worker runs on the bindings this file declares, and no others. The pool
+ * builds the Worker's env from the wrangler config it is given, and wrangler
+ * adds the `.dev.vars` beside that config (in a checkout that runs the OS, the
+ * installation's real secrets) with no option to turn that read off, so the
+ * pool gets wrangler.jsonc copied into a new, empty folder with the `.env` and
+ * process reads switched off (scripts/worker-config-folder.mts).
+ * test/test-env.test.ts proves the env holds exactly the names declared here.
  */
 const INGEST_CONFIG = path.join('workers', 'ingest', 'wrangler.jsonc');
 const workerConfigs = secretFreeWorkerConfigs({ configs: [INGEST_CONFIG] });
@@ -40,19 +36,10 @@ process.once('exit', workerConfigs.remove);
 stopLocalSecretReads(process.env);
 
 /**
- * A process-local signing key keeps collector tests realistic without ever
- * loading the operator's .dev.vars credential into workerd.
- *
- * TWO properties, on purpose (ro-93l). With one, "collected every configured
- * property" and "collected the first one" are the same number, and a loop that
- * `break`s where it should `continue` — or a candidate list read as `[0]` —
- * passes every Google assertion in the suite. The Bing lane has always fanned
- * out across the seeded portfolio and would catch that class of regression; the
- * GA4/GSC lanes are the heavier half of the archive and could not.
- *
- * They share ONE service account, which is also the shape in production: the
- * credential map is account-centric so one key serves several properties, and a
- * per-property second account would have tested a different thing.
+ * A process-local signing key keeps collector tests realistic without loading
+ * the operator's credential into workerd. Two properties, so "collected every
+ * configured property" and "collected the first one" are different numbers.
+ * They share one service account, which is also the shape in production.
  */
 function testGoogleAccounts(): string {
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -80,11 +67,10 @@ function testGoogleAccounts(): string {
 }
 
 /**
- * wrangler.jsonc, read HERE, in the Node config context, because workerd has
- * no `node:fs`: test/crons.test.ts pins its `triggers.crons` against the
- * exported cron constants, and test/test-env.test.ts needs the bindings it
- * declares. A malformed config throws and fails the run — a parity test that
- * cannot read the config must not pass.
+ * wrangler.jsonc, read here in the Node config context because workerd has no
+ * `node:fs`: test/crons.test.ts pins its `triggers.crons` and
+ * test/test-env.test.ts needs the bindings it declares. A malformed config
+ * fails the run; a parity test that cannot read the config must not pass.
  */
 const wranglerConfig = JSON.parse(stripJsonc(readFileSync(WRANGLER_CONFIG, 'utf8'))) as Record<string, unknown> & {
   triggers?: { crons?: string[] };
@@ -92,23 +78,17 @@ const wranglerConfig = JSON.parse(stripJsonc(readFileSync(WRANGLER_CONFIG, 'utf8
 };
 
 /**
- * POSTGRES TEST COPIES (epic ro-ujb9.76). One throwaway cluster per
- * run (scripts/postgres-test-cluster.mts), started when the first Workers
- * runtime is built. Each runtime — one per Vitest worker — gets its own copy
- * of the store as its `POSTGRES` Hyperdrive binding, the binding a deployed
- * Worker reads, a second copy as `POSTGRES_OTHER` (a second store, for the
- * config cache's ownership proof), and `TEST_POSTGRES`: POST /reset has the
- * first copy made again before every file (test/clean-start.ts), and the
- * second only with `{ other: true }`, after a file that reached it (issue
- * #23): a few files do. POST /owner runs a fixture statement as the owner in
- * either copy (test/helpers.ts).
+ * Postgres test copies: one throwaway cluster per run, started when the first
+ * Workers runtime is built. Each runtime gets its own copy of the store as
+ * `POSTGRES`, a second copy as `POSTGRES_OTHER` (for the config cache's
+ * ownership proof), and `TEST_POSTGRES`: POST /reset remakes the first copy
+ * before every file (test/clean-start.ts), and the second only with
+ * `{ other: true }`; POST /owner runs a fixture statement as the owner.
  *
- * REQUIRED. Since the config store moved (bead ro-ujb9.76.4.1) nearly every
- * file reads it, so a run where no Postgres can start fails, naming why,
- * instead of skipping. wrangler.jsonc declares the binding; wrangler insists
- * on a local connection string for it before this file's own, per runtime,
- * replaces it, so the variable wrangler reads names an address nothing
- * listens on: no run can reach any database but its own copy.
+ * Required: nearly every file reads the config store, so a run where no
+ * Postgres can start fails, naming why. wrangler insists on a local connection
+ * string for the binding before this file's own replaces it, so the variable
+ * wrangler reads names an address nothing listens on.
  */
 process.env[LOCAL_CONNECTION_VARIABLE] = UNREACHABLE_STORE_URL;
 let postgres: Promise<TestCluster> | null = null;
@@ -172,13 +152,11 @@ export default defineConfig({
   // node-postgres, as this pool must load it (scripts/postgres-test-cluster.mts says why).
   resolve: { alias: workersPoolDriverAliases() },
   plugins: [
-    // The suite never reads the checkout's own config/ (bead ro-ujb9.92). The
-    // copies this Worker compiles in as its fallback (config-store.ts,
-    // lane-mapping.ts, db.ts, …) and the contract's compiled clock are answered
-    // with test/fixture-config/'s frozen documents, so an operator saving a
-    // setting — `pnpm config:export` writes it back into config/ — cannot change
-    // a result. A test importing a config file is refused, bar the
-    // seed-validation tests listed in scripts/test-config-isolation.mjs.
+    // The suite never reads the checkout's own config/: the copies this Worker
+    // compiles in as its fallback are answered with test/fixture-config/'s
+    // frozen documents, so an operator saving a setting cannot change a result.
+    // A test importing a config file is refused, bar the seed-validation tests
+    // listed in scripts/test-config-isolation.mjs.
     fixtureConfigPlugin({
       fixtureDir: fileURLToPath(new URL('./test/fixture-config', import.meta.url)),
       testDir: fileURLToPath(new URL('./test', import.meta.url)),
@@ -194,22 +172,15 @@ export default defineConfig({
         OPERATOR_TOKEN,
         GOOGLE_SIGNAL_ACCOUNTS: testGoogleAccounts(),
         BING_WEBMASTER_API_KEY: 'test-bing-key',
-        // EXPLICITLY EMPTY, and it is a safety rule rather than a fixture
-        // (bead `ro-vu8d.23`). The notifier posts to whatever webhook it
-        // resolves, so a suite that fired the notify lane with the operator's
-        // webhook would deliver test alerts into the operator's real channel.
-        // No local secret reaches this Worker any more (bead ro-ujb9.182, the
-        // folder above); the empty binding stays so that, should one ever
-        // again, this value still wins over it. It reads as "not configured"
-        // everywhere, so the only webhook any test can reach is one it
-        // injected itself.
+        // Explicitly empty, as a safety rule: the notifier posts to whatever
+        // webhook it resolves, and this value wins over any local secret, so the
+        // only webhook any test can reach is one it injected itself.
         DISCORD_WEBHOOK_URL: '',
         DATAFORSEO_LOGIN: 'test-dataforseo-login',
         DATAFORSEO_PASSWORD: 'test-dataforseo-password',
-        // The throwaway key from test/fixtures.ts, so the credential-store
-        // suite can seal and open real AES-GCM rows. An installation's own
-        // CREDENTIALS_KEY must never load into workerd — same rule as the
-        // Google signing key above.
+        // The throwaway key from test/fixtures.ts, so the credential-store suite
+        // can seal and open real AES-GCM rows. An installation's own key must
+        // never load into workerd.
         CREDENTIALS_KEY,
       };
       return {
@@ -245,27 +216,24 @@ export default defineConfig({
         },
       };
     }),
-    // A worker that dies names the file it was running (bead ro-ujb9.179).
+    // A worker that dies names the file it was running.
     unitTestAttribution(),
   ],
   test: {
-    // One Workers runtime per Vitest worker, reused from file to file (bead
-    // ro-ujb9.168): starting one for every file was most of the suite's time.
-    // Every file still starts clean — test/clean-start.ts runs before each one,
-    // and test/isolation-probe.ts proves it.
+    // One Workers runtime per Vitest worker, reused from file to file: starting
+    // one for every file was most of the suite's time. Every file still starts
+    // clean (test/clean-start.ts; test/isolation-probe.ts proves it).
     isolate: false,
     // Half the cores, beside the Tower suite (scripts/unit-test-workers.mts).
     maxWorkers: unitTestWorkers(),
     setupFiles: ['./test/clean-start.ts'],
-    // A collector test drives a whole sweep — hundreds of store calls — and on
-    // a busy host one took 8–16 s against Vitest's 5 s default, with the old
-    // runtime-per-file setup as with this one. A limit here catches a test that
-    // hangs; it is not a speed check.
+    // A collector test drives a whole sweep, hundreds of store calls, which on
+    // a busy host outruns Vitest's 5 s default. A limit here catches a hang; it
+    // is not a speed check.
     testTimeout: 30_000,
     hookTimeout: 30_000,
-    // The collectors log every sweep as JSON: a passing run printed hundreds
-    // of those blocks, pushing the failures CI must show out of its log. A
-    // failing test still prints its own output.
+    // The collectors log every sweep as JSON, which would push the failures CI
+    // must show out of its log. A failing test still prints its own output.
     silent: 'passed-only',
   },
 });

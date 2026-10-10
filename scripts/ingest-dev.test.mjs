@@ -61,8 +61,7 @@ test('the refusal is about the port, whatever door it is aimed at', () => {
 // The question is NOT "can I bind my own port". Standalone `wrangler dev` binds
 // 8787 and the door is 8791; the shared thing is local R2 metadata, and the process
 // holding it answers on the door. A self-port check would pass happily while
-// os:up served the store — which is the accident this file exists to prevent
-// (bead ro-nyz says so in as many words).
+// os:up served the store, which is the accident this file exists to prevent.
 test('the door it probes is the ingest door, not its own dev port', async (t) => {
   silence(t);
   const asked = [];
@@ -110,7 +109,7 @@ test('a wrangler failure is the exit code, not a silent success', async (t) => {
 
 // The refusal only holds if the manifest entry actually routes through here.
 // scripts/no-second-runtime.test.mjs enforces the general rule; this pins the
-// one line that motivated it, by name — and that it is no longer a wrangler line.
+// ingest's own dev entry by name, and that it is not a bare wrangler line.
 test('the ingest dev entry point routes through this script', () => {
   const repoRoot = path.resolve(SCRIPTS_DIR, '..');
   const ingest = JSON.parse(

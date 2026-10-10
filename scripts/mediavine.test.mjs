@@ -28,7 +28,7 @@ test('CLI refuses ambiguous dates and reports server backoff without retrying', 
   assert.throws(() => parseArgs(['sites', '--url', 'https://user:password@example.test']), /without credentials/);
   await assert.rejects(run(parseArgs(['sync', '--asset', 'example.test']), async () => Response.json({ ok: false, message: 'Wait 15 minutes.' }, { status: 422 })), /Wait 15 minutes/);
 });
-test('CLI lists the account\'s sites through the connect panel\'s own read (bead ro-ujb9.96.7.6)', async () => {
+test('CLI lists the account\'s sites through the connect panel\'s own read', async () => {
   const site = { lane: 'ad-network', ref: 'mv-1', label: 'example.test', host: 'example.test', mapping: { mediavineSiteId: 'mv-1' }, ready: true };
   const sites = await run(parseArgs(['sites']), async (url, init) => {
     assert.equal(url.pathname, '/api/integrations/mediavine/sites');

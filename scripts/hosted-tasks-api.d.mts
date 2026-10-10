@@ -22,7 +22,7 @@ export interface HostedTasksApiOptions {
     /** Retry-safe writes; absent, a request carrying Idempotency-Key answers 503. */
     readonly receipts?: TaskReceipts;
 }
-/** A write's optional retry key (epic ro-cvl9); see docs/23 for its semantics. */
+/** A write's optional retry key; see docs/23 for its semantics. */
 export declare const IDEMPOTENCY_HEADER = "idempotency-key";
 /** The HTTP answer to a write outcome; the MCP adapter answers the same three. */
 export declare function writeResponse(outcome: HostedTaskWriteOutcome): Response;

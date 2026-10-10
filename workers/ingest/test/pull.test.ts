@@ -27,7 +27,7 @@ const MEALS_ENTRY: PullAssetConfig = {
   },
 };
 
-// Nosh (node #2) speaks the contract directly: GET /api/admin/overview returns the
+// nosh.example speaks the contract directly: GET /api/admin/overview returns the
 // envelope verbatim, so the pull entry carries no metric mapping.
 const NOM_ENVELOPE_ENTRY: PullAssetConfig = {
   asset: 'nosh.example',
@@ -42,10 +42,10 @@ interface EnvMetric {
   total: number;
 }
 
-/** The exact contract envelope Nosh's overview endpoint emits; overrides swap a metric. */
+/** The exact contract envelope nosh.example's overview endpoint emits; overrides swap a metric. */
 function nomBody(overrides: Record<string, EnvMetric> = {}): Record<string, unknown> {
   const metrics: Record<string, EnvMetric> = {
-    // avg7d remains part of Nosh's wire contract, but the central rule deliberately
+    // avg7d remains part of the wire contract, but the central rule deliberately
     // ignores it in favor of matching weekdays assembled from stored history.
     affiliateClicks: { last24h: 0, avg7d: 12.5, total: 3400 },
     receiptsHosted: { last24h: 5, avg7d: 4.2, total: 900 },
@@ -62,7 +62,7 @@ function nomBody(overrides: Record<string, EnvMetric> = {}): Record<string, unkn
   };
 }
 
-/** A body where every configured Meal Planner counter is present; `signupsH24` varies. */
+/** A body where every configured meals.example counter is present; `signupsH24` varies. */
 function mealsBody(signupsH24: number): string {
   return promBody({
     profiles: { total: 5000, h24: signupsH24, d7: signupsH24 * 7 },
@@ -260,9 +260,8 @@ describe('pull adapter — failure handling', () => {
     expect(JSON.parse(flag!.rule_inputs!)).toMatchObject({ url: MEALS_URL, status: 500 });
   });
 
-  // Observed on Nosh: five consecutive failed nights showed one flag still
-  // reading the FIRST night's cause, so the operator was debugging a stale
-  // problem. The flag stays single, but it must speak for tonight.
+  // A persistent outage keeps one flag, but it must speak for tonight, not
+  // the first night's cause.
   it("rewrites the open flag with the current night's cause", async () => {
     const night2 = NOW + 24 * 3_600_000;
     const unconfigured = 'Overview unavailable: set CF_ACCOUNT_ID and CF_ANALYTICS_API_TOKEN.';
@@ -337,9 +336,8 @@ describe('pull adapter — failure handling', () => {
     expect(JSON.parse(flag!.rule_inputs).failureCount).toBe(1);
   });
 
-  // ro-ujb9.220: the rewrite above keeps the flag speaking for tonight, and
-  // lost every earlier night's cause. Each failed night now keeps its own
-  // record on the flag it opened or refreshed.
+  // The rewrite above keeps the flag speaking for tonight; each failed night
+  // also keeps its own record on the flag it opened or refreshed.
   it("keeps every failed night's own record: N failures leave N readings, each with that night's cause", async () => {
     const nights = [NOW, NOW + 24 * 3_600_000, NOW + 48 * 3_600_000];
     const responses = [
@@ -444,9 +442,9 @@ describe('pull adapter — failure handling', () => {
 });
 
 describe('pull adapter — the OS is what is down', () => {
-  /** Routing the reference site is "the OS's own connection is fine"; leaving it
-   * out is the 2026-08-08 uplink failure, when this lane flagged both pull-mode
-   * properties for an outage that was the OS's. */
+  /** Routing the reference site is the OS's own connection being fine; leaving
+   * it out is a dead uplink, which must not flag both pull-mode properties for
+   * an outage that was the OS's. */
   const BEACON_UP = { [EGRESS_BEACONS[0]]: () => new Response('h=1', { status: 200 }) };
 
   async function openEgressFlags(): Promise<number> {
@@ -576,15 +574,15 @@ describe('pull adapter — isolation', () => {
     });
 
     expect(result).toMatchObject({ attempted: 2, succeeded: 1, failed: 1 });
-    // nom failed and got flagged
+    // nosh.example failed and got flagged
     expect(await openPullFailures('nosh.example')).toBe(1);
-    // meals still succeeded despite nom failing first
+    // meals.example still succeeded despite nosh.example failing first
     expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'meals.example'`)).toBe(1);
     expect(await openPullFailures('meals.example')).toBe(0);
   });
 });
 
-describe('pull adapter — envelope format (Nosh)', () => {
+describe('pull adapter — envelope format', () => {
   it('writes the pulse verbatim, runs the central rules, and preserves the source avg7d', async () => {
     await seedEnvelopeWeekdays('nosh.example', {
       affiliateClicks: { last24h: 12, avg7d: 100, total: 3300 },
@@ -657,8 +655,7 @@ describe('pull adapter — envelope format (Nosh)', () => {
 
     const flag = await pullFailureFlag('nosh.example');
     // the alert message carries the status, the provider's error name, and its
-    // message — but NOT the property name (the flag's asset column owns that
-    // fact; doc 14 one-representation rule).
+    // message — but not the property name (the flag's asset column owns that fact).
     expect(flag?.message).toBe(`pull failed: 503 unconfigured — ${message}`);
     const inputs = JSON.parse(flag!.rule_inputs);
     expect(inputs).toMatchObject({ status: 503, providerError: 'unconfigured', providerMessage: message });

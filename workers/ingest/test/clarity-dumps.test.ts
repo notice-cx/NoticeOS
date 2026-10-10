@@ -130,11 +130,10 @@ describe('Microsoft Clarity export lane', () => {
   });
 
   it('runs on the credential entered in the product, and leaves its verdict on the card', async () => {
-    // Bead `ro-vu8d.9`: Clarity is the first per-asset credential, and the one
-    // whose card has NO probe of its own — its export allows ten calls a day,
-    // so a Test button that called Clarity would spend one. This run is
-    // therefore the only thing that can ever prove those tokens work, which is
-    // why it stamps the credential.
+    // Clarity is a per-asset credential whose card has no probe of its own —
+    // its export allows ten calls a day, so a Test button that called Clarity
+    // would spend one. This run is therefore the only thing that can ever prove
+    // those tokens work, which is why it stamps the credential.
     await putCredential(env, {
       provider: 'clarity',
       fields: { CLARITY_TOKENS: JSON.stringify({ 'meals.example': TOKEN }) },
@@ -155,7 +154,7 @@ describe('Microsoft Clarity export lane', () => {
     expect(stamped?.lastError).toBeNull();
   });
 
-  it('tells the card what failed and for which site, in the site row’s words (ro-ujb9.96.6.31)', async () => {
+  it('tells the card what failed and for which site, in the site row’s words', async () => {
     await putCredential(env, {
       provider: 'clarity',
       fields: { CLARITY_TOKENS: JSON.stringify({ 'meals.example': TOKEN }) },
@@ -206,10 +205,10 @@ describe('Microsoft Clarity export lane', () => {
   });
 
   it('names the older single-asset binding on the manifest row it answered for', async () => {
-    // Bead `ro-vu8d.24`: the single-project binding is folded into the asset map
-    // by `resolveCredential`, so this lane reads ONE map — but the manifest must
-    // still record which slot actually held the token, or "is this asset still
-    // on the old binding" stops being a fact you can read.
+    // The single-project binding is folded into the asset map by
+    // `resolveCredential`, so this lane reads one map — but the manifest must
+    // still record which slot actually held the token, or whether this asset is
+    // still on the old binding stops being a fact you can read.
     const { fetchImpl, calls } = clarityFetch();
     const result = await runClarityDumps(env, {
       nowMs: NOW,
