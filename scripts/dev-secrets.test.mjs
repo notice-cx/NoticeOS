@@ -23,14 +23,14 @@ test('nested JSON values become the string bindings Workers receive', () => {
       GOOGLE_SIGNAL_ACCOUNTS: {
         portfolio: {
           service_account_b64: 'encoded-key',
-          properties: { 'nosh.example': { ga4_property_id: '123' } },
+          properties: { 'northwind.example': { ga4_property_id: '123' } },
         },
       },
     }),
     {
       OPERATOR_TOKEN: 'secret',
       GOOGLE_SIGNAL_ACCOUNTS:
-        '{"portfolio":{"service_account_b64":"encoded-key","properties":{"nosh.example":{"ga4_property_id":"123"}}}}',
+        '{"portfolio":{"service_account_b64":"encoded-key","properties":{"northwind.example":{"ga4_property_id":"123"}}}}',
     },
   );
 });
@@ -42,11 +42,11 @@ test('Google service-account payloads compile into bounded per-account bindings'
       GOOGLE_SIGNAL_ACCOUNTS: {
         'studio-signals': {
           service_account_b64: 'studio-key',
-          properties: { 'meals.example': { ga4_property_id: '123' } },
+          properties: { 'meadow.example': { ga4_property_id: '123' } },
         },
         'example-signals': {
           service_account_b64: 'example-key',
-          properties: { 'fees.example': { gsc_site_url: 'sc-domain:fees.example' } },
+          properties: { 'ferns.example': { gsc_site_url: 'sc-domain:ferns.example' } },
         },
       },
     }),
@@ -54,11 +54,11 @@ test('Google service-account payloads compile into bounded per-account bindings'
       OPERATOR_TOKEN: 'secret',
       GOOGLE_SIGNAL_ACCOUNTS: JSON.stringify({
         'studio-signals': {
-          properties: { 'meals.example': { ga4_property_id: '123' } },
+          properties: { 'meadow.example': { ga4_property_id: '123' } },
           service_account_binding: 'GOOGLE_SERVICE_ACCOUNT_STUDIO_SIGNALS',
         },
         'example-signals': {
-          properties: { 'fees.example': { gsc_site_url: 'sc-domain:fees.example' } },
+          properties: { 'ferns.example': { gsc_site_url: 'sc-domain:ferns.example' } },
           service_account_binding: 'GOOGLE_SERVICE_ACCOUNT_EXAMPLE_SIGNALS',
         },
       }),
@@ -101,7 +101,7 @@ test('migration structures legacy JSON maps and generated dotenv round-trips', a
     [
       '# comment',
       'OPERATOR_TOKEN=contains=equals',
-      'ASSET_TOKENS={"nosh.example":"nom-token"}',
+      'ASSET_TOKENS={"northwind.example":"nw-token"}',
       'QUOTED_TOKEN="hash#and\\nnewline"',
       '',
     ].join('\n'),
@@ -111,14 +111,14 @@ test('migration structures legacy JSON maps and generated dotenv round-trips', a
   assert.deepEqual(migrated.keys, ['OPERATOR_TOKEN', 'ASSET_TOKENS', 'QUOTED_TOKEN']);
   assert.deepEqual(JSON.parse(await fs.readFile(secretsFile, 'utf8')), {
     OPERATOR_TOKEN: 'contains=equals',
-    ASSET_TOKENS: { 'nosh.example': 'nom-token' },
+    ASSET_TOKENS: { 'northwind.example': 'nw-token' },
     QUOTED_TOKEN: 'hash#and\nnewline',
   });
 
   const generated = parseDevVars(await fs.readFile(varsFile, 'utf8'));
   assert.deepEqual(generated, {
     OPERATOR_TOKEN: 'contains=equals',
-    ASSET_TOKENS: '{"nosh.example":"nom-token"}',
+    ASSET_TOKENS: '{"northwind.example":"nw-token"}',
     QUOTED_TOKEN: 'hash#and\nnewline',
   });
 });

@@ -47,7 +47,7 @@ describe("resolvePointer (RFC 6901)", () => {
 describe("buildChangeset serializer", () => {
   const ops: ChangesetOp[] = [
     { kind: "file-json-set", file: "config/constants.json", pointer: "/flag_defaults/alpha", expect: 0.01, value: 0.02 },
-    { kind: "store-asset-set", asset: "nosh.example", column: "sense_only", expect: 1, value: 0 },
+    { kind: "store-asset-set", asset: "northwind.example", column: "sense_only", expect: 1, value: 0 },
   ];
 
   it("wraps ops in a version-1 document with the given slug + createdAt", () => {
@@ -68,19 +68,19 @@ describe("buildChangeset serializer", () => {
   // `validateSchemaAndSafety` wants kebab-case, so a slug interpolating them
   // would be refused.
   it("changesetSlug is kebab-case, and readable", () => {
-    expect(changesetSlug("meals.example", "ga4", "propertyId")).toBe(
-      "meals-example-ga4-property-id",
+    expect(changesetSlug("meadow.example", "ga4", "propertyId")).toBe(
+      "meadow-example-ga4-property-id",
     );
-    expect(changesetSlug("nosh.example", "dataforseo", "locationCode")).toBe(
-      "nosh-example-dataforseo-location-code",
+    expect(changesetSlug("northwind.example", "dataforseo", "locationCode")).toBe(
+      "northwind-example-dataforseo-location-code",
     );
     // A slug is an archive filename and a commit subject, so it may never be
     // empty — parts with nothing alphanumeric in them answer the lane's default.
     expect(changesetSlug("...", "—")).toBe("config-change");
     for (const parts of [
-      ["meals.example", "ga4", "propertyId"],
-      ["pacer.example", "gsc", "siteUrl"],
-      ["fees.example", "bing-webmaster", "status"],
+      ["meadow.example", "ga4", "propertyId"],
+      ["pebble.example", "gsc", "siteUrl"],
+      ["ferns.example", "bing-webmaster", "status"],
       ["...", "—"],
     ]) {
       expect(changesetSlug(...parts)).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);

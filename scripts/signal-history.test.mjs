@@ -911,7 +911,7 @@ test('it refuses what would mix or misplace a history', async (t) => {
   await assert.rejects(publishSignalHistory({ asset: 'Not A Site', input, output }), /site id/);
   await assert.rejects(publishSignalHistory({ asset: FIXTURE_ASSET, input: path.join(root, 'nowhere'), output }), /not a folder/);
   await publish(input, output);
-  await assert.rejects(publishSignalHistory({ asset: 'other.example', input, output }), /holds meals\.example's history/);
+  await assert.rejects(publishSignalHistory({ asset: 'other.example', input, output }), /holds meadow\.example's history/);
   assert.throws(() => parseArgs(['--asset', 'example.com', '--in', 'a']), /--in and --out are both required/);
   assert.throws(() => parseArgs(['--asset', 'example.com', '--in', 'a', '--out', 'b', '--bogus', 'x']), /Unknown option: --bogus/);
   assert.throws(() => parseArgs(['--asset', 'example.com', '--in']), /--in needs a value/);

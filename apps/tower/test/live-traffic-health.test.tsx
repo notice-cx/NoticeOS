@@ -5,8 +5,8 @@ import { liveTrafficCardIssue, liveTrafficFailure } from '@shared/live-traffic-h
 // The one live-traffic issue a Wall site row names (`LiveUsers`).
 const AT = '2026-09-11T00:00:00Z';
 const NOW = Date.parse(AT);
-const good = (asset = 'plate.example'): Extract<Ga4RealtimeAsset, { status: 'success' }> => ({ asset, status: 'success', activeUsers5m: 0, activeUsers30m: 0, hourlyActiveUsers: [], observedAt: AT, timeZone: 'America/Los_Angeles', errorCode: null });
-const failed = (asset = 'plate.example', errorCode = 'ga4_realtime_http_429'): Extract<Ga4RealtimeAsset, { status: 'error' }> => ({ asset, status: 'error', activeUsers5m: null, activeUsers30m: null, hourlyActiveUsers: null, observedAt: AT, errorCode });
+const good = (asset = 'plume.example'): Extract<Ga4RealtimeAsset, { status: 'success' }> => ({ asset, status: 'success', activeUsers5m: 0, activeUsers30m: 0, hourlyActiveUsers: [], observedAt: AT, timeZone: 'America/Los_Angeles', errorCode: null });
+const failed = (asset = 'plume.example', errorCode = 'ga4_realtime_http_429'): Extract<Ga4RealtimeAsset, { status: 'error' }> => ({ asset, status: 'error', activeUsers5m: null, activeUsers30m: null, hourlyActiveUsers: null, observedAt: AT, errorCode });
 
 describe("a site row's live-traffic issue", () => {
   it('names a fresh reading as no issue at all, a fresh observed zero included', () => {
@@ -23,7 +23,7 @@ describe("a site row's live-traffic issue", () => {
   });
 
   it('shows a shared cold read as checking, not a Google outage', () => {
-    expect(liveTrafficCardIssue(failed('plate.example', 'ga4_read_in_progress'), false, NOW)).toBe('Checking traffic');
+    expect(liveTrafficCardIssue(failed('plume.example', 'ga4_read_in_progress'), false, NOW)).toBe('Checking traffic');
   });
 
   it('calls a stale reading out of date, and a slow multi-property poll not', () => {

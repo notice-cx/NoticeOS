@@ -61,8 +61,8 @@ function stubFetch(
 }
 
 const DOMAINS = [
-  { domain: "fees.example", asset: "fees.example", kind: "registration", paidUsd: 36.32, paidOn: "2026-06-28" },
-  { domain: "nosh.example", asset: "nosh.example", kind: "registration", paidUsd: 109.69, paidOn: "2026-06-19" },
+  { domain: "ferns.example", asset: "ferns.example", kind: "registration", paidUsd: 36.32, paidOn: "2026-06-28" },
+  { domain: "northwind.example", asset: "northwind.example", kind: "registration", paidUsd: 109.69, paidOn: "2026-06-19" },
 ];
 
 function renderDomains(overrides: Partial<Parameters<typeof CollectionEditor>[0]> = {}) {
@@ -106,7 +106,7 @@ describe("CollectionEditor", () => {
     renderDomains();
     const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
     expect(headers.slice(0, 5)).toEqual(["Domain", "Site", "Order", "Paid (USD)", "Paid on"]);
-    expect(screen.getAllByDisplayValue("fees.example")).not.toHaveLength(0);
+    expect(screen.getAllByDisplayValue("ferns.example")).not.toHaveLength(0);
     expect(screen.getByDisplayValue("109.69")).toBeInTheDocument();
   });
 
@@ -114,7 +114,7 @@ describe("CollectionEditor", () => {
     const calls = stubFetch();
     renderDomains({ slug: "correct-a-price" });
 
-    const { control, save } = cellOf("fees.example", "Paid (USD)");
+    const { control, save } = cellOf("ferns.example", "Paid (USD)");
     fireEvent.change(control, { target: { value: "40" } });
     fireEvent.click(save);
 
@@ -130,7 +130,7 @@ describe("CollectionEditor", () => {
 
     // The Undo is the same write with the values swapped, so it is refused in
     // turn if somebody else moved the row in between.
-    fireEvent.click(await within(row("fees.example")).findByRole("button", { name: "Undo" }));
+    fireEvent.click(await within(row("ferns.example")).findByRole("button", { name: "Undo" }));
     expect(toasts.success).not.toHaveBeenCalled();
     await waitFor(() => expect(calls).toHaveLength(2));
     expect(onlyOp(calls, 1)).toMatchObject({ expect: 40, value: 36.32 });
@@ -140,7 +140,7 @@ describe("CollectionEditor", () => {
     const calls = stubFetch();
     renderDomains();
 
-    const { control, save } = cellOf("fees.example", "Paid (USD)");
+    const { control, save } = cellOf("ferns.example", "Paid (USD)");
     fireEvent.change(control, { target: { value: "-5" } });
     fireEvent.click(save);
 
@@ -156,7 +156,7 @@ describe("CollectionEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     const form = document.querySelector("[data-collection-add]") as HTMLElement;
     fireEvent.change(within(form).getByLabelText("Domain"), { target: { value: "teller.example" } });
-    fireEvent.change(within(form).getByLabelText("Site"), { target: { value: "fees.example" } });
+    fireEvent.change(within(form).getByLabelText("Site"), { target: { value: "ferns.example" } });
     fireEvent.change(within(form).getByLabelText("Order"), { target: { value: "registration" } });
     fireEvent.change(within(form).getByLabelText("Paid (USD)"), { target: { value: "6.69" } });
     fireEvent.change(within(form).getByLabelText("Paid on"), { target: { value: "2026-06-28" } });
@@ -165,7 +165,7 @@ describe("CollectionEditor", () => {
     await waitFor(() => expect(calls).toHaveLength(1));
     const added = {
       domain: "teller.example",
-      asset: "fees.example",
+      asset: "ferns.example",
       kind: "registration",
       paidUsd: 6.69,
       paidOn: "2026-06-28",
@@ -202,8 +202,8 @@ describe("CollectionEditor", () => {
     expect(calls).toHaveLength(0);
 
     // A key already in the list is the refusal a pointer cannot make.
-    fireEvent.change(within(form).getByLabelText("Domain"), { target: { value: "nosh.example" } });
-    fireEvent.change(within(form).getByLabelText("Site"), { target: { value: "nosh.example" } });
+    fireEvent.change(within(form).getByLabelText("Domain"), { target: { value: "northwind.example" } });
+    fireEvent.change(within(form).getByLabelText("Site"), { target: { value: "northwind.example" } });
     fireEvent.change(within(form).getByLabelText("Order"), { target: { value: "renewal" } });
     fireEvent.change(within(form).getByLabelText("Paid (USD)"), { target: { value: "12" } });
     fireEvent.change(within(form).getByLabelText("Paid on"), { target: { value: "2026-09-01" } });
@@ -221,7 +221,7 @@ describe("CollectionEditor", () => {
     const form = document.querySelector("[data-collection-add]") as HTMLElement;
     const typed: Record<string, string> = {
       Domain: "teller.example",
-      Site: "fees.example",
+      Site: "ferns.example",
       Order: "registration",
       "Paid (USD)": "-5",
       "Paid on": "2026-06-28",
@@ -243,9 +243,9 @@ describe("CollectionEditor", () => {
     expect(form.querySelector('[aria-invalid="true"]')).toBeNull();
     expect(form.querySelector(".border-error")).toBeNull();
 
-    fireEvent.change(within(form).getByLabelText("Domain"), { target: { value: "nosh.example" } });
+    fireEvent.change(within(form).getByLabelText("Domain"), { target: { value: "northwind.example" } });
     fireEvent.click(within(form).getByRole("button", { name: "Add" }));
-    expect(await within(form).findByRole("alert")).toHaveTextContent('Domain "nosh.example" is already in this list');
+    expect(await within(form).findByRole("alert")).toHaveTextContent('Domain "northwind.example" is already in this list');
     expect([...form.querySelectorAll('[aria-invalid="true"]')]).toEqual([within(form).getByLabelText("Domain")]);
     expect(calls).toHaveLength(0);
   });
@@ -257,14 +257,14 @@ describe("CollectionEditor", () => {
     stubFetch();
     renderDomains();
 
-    const fixed = within(row("fees.example")).getByText("fees.example");
+    const fixed = within(row("ferns.example")).getByText("ferns.example");
     expect(fixed.closest("[data-collection-fixed='domain']")).not.toBeNull();
-    expect(within(row("fees.example")).queryByLabelText("Domain")).toBeNull();
+    expect(within(row("ferns.example")).queryByLabelText("Domain")).toBeNull();
     expect(
       document.querySelector("[data-collection-fixed='domain']"),
     ).toHaveAttribute("title", "Fixed once added");
 
-    expect(within(row("fees.example")).getByLabelText("Paid (USD)")).toBeInTheDocument();
+    expect(within(row("ferns.example")).getByLabelText("Paid (USD)")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     const form = document.querySelector("[data-collection-add]") as HTMLElement;
@@ -293,11 +293,11 @@ describe("CollectionEditor", () => {
     const calls = stubFetch();
     renderDomains();
 
-    fireEvent.click(within(row("nosh.example")).getByRole("button", { name: "Remove nosh.example…" }));
+    fireEvent.click(within(row("northwind.example")).getByRole("button", { name: "Remove northwind.example…" }));
     // Nothing has been written yet: the confirm is the one place this
     // component asks first, because a removal has no inverse in place.
     expect(calls).toHaveLength(0);
-    fireEvent.click(within(row("nosh.example")).getByRole("button", { name: "Remove nosh.example" }));
+    fireEvent.click(within(row("northwind.example")).getByRole("button", { name: "Remove northwind.example" }));
 
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(onlyOp(calls)).toEqual({
@@ -325,8 +325,8 @@ describe("CollectionEditor", () => {
     const calls = stubFetch();
     renderDomains();
 
-    fireEvent.click(within(row("fees.example")).getByRole("button", { name: "Remove fees.example…" }));
-    fireEvent.click(within(row("fees.example")).getByRole("button", { name: "Remove fees.example" }));
+    fireEvent.click(within(row("ferns.example")).getByRole("button", { name: "Remove ferns.example…" }));
+    fireEvent.click(within(row("ferns.example")).getByRole("button", { name: "Remove ferns.example" }));
     await waitFor(() => expect(calls).toHaveLength(1));
 
     await waitFor(() => expect(toasts.success).toHaveBeenCalled());
@@ -344,9 +344,9 @@ describe("CollectionEditor", () => {
   it("keeps the row when the confirm is declined", () => {
     const calls = stubFetch();
     renderDomains();
-    fireEvent.click(within(row("nosh.example")).getByRole("button", { name: "Remove nosh.example…" }));
-    fireEvent.click(within(row("nosh.example")).getByRole("button", { name: "Keep nosh.example" }));
-    expect(within(row("nosh.example")).getByRole("button", { name: "Remove nosh.example…" })).toBeInTheDocument();
+    fireEvent.click(within(row("northwind.example")).getByRole("button", { name: "Remove northwind.example…" }));
+    fireEvent.click(within(row("northwind.example")).getByRole("button", { name: "Keep northwind.example" }));
+    expect(within(row("northwind.example")).getByRole("button", { name: "Remove northwind.example…" })).toBeInTheDocument();
     expect(calls).toHaveLength(0);
   });
 
@@ -354,12 +354,12 @@ describe("CollectionEditor", () => {
     const calls = stubFetch({ status: 409, body: { error: "expect_mismatch" } });
     renderDomains();
 
-    const { control, save } = cellOf("fees.example", "Paid (USD)");
+    const { control, save } = cellOf("ferns.example", "Paid (USD)");
     fireEvent.change(control, { target: { value: "40" } });
     fireEvent.click(save);
 
     await waitFor(() => expect(calls).toHaveLength(1));
-    expect(await within(row("fees.example")).findByRole("alert")).toHaveTextContent(
+    expect(await within(row("ferns.example")).findByRole("alert")).toHaveTextContent(
       "Changed elsewhere — reload to see the current value",
     );
     expect(toasts.error).not.toHaveBeenCalled();
@@ -377,12 +377,12 @@ describe("CollectionEditor", () => {
     const MANY = [
       ...Array.from({ length: 8 }, (_, n) => ({
         domain: `d${n}.test`,
-        asset: `nosh.example`,
+        asset: `northwind.example`,
         kind: "renewal",
         paidUsd: 20 + n,
         paidOn: "2026-06-01",
       })),
-      { domain: "zzz.test", asset: "fees.example", kind: "registration", paidUsd: 9, paidOn: "2026-07-04" },
+      { domain: "zzz.test", asset: "ferns.example", kind: "registration", paidUsd: 9, paidOn: "2026-07-04" },
     ];
 
     function renderMany(overrides: Partial<Parameters<typeof CollectionEditor>[0]> = {}) {
@@ -404,7 +404,7 @@ describe("CollectionEditor", () => {
 
       const filter = screen.getByLabelText("Filter domain orders");
       expect(screen.getByText("9 rows")).toBeInTheDocument();
-      fireEvent.change(filter, { target: { value: "fees.example" } });
+      fireEvent.change(filter, { target: { value: "ferns.example" } });
 
       expect(document.querySelectorAll("[data-collection-row]")).toHaveLength(1);
       expect(row("zzz.test")).toBeInTheDocument();
@@ -425,7 +425,7 @@ describe("CollectionEditor", () => {
 
       // Narrow to the last row in the file, which is then the only one drawn.
       fireEvent.change(screen.getByLabelText("Filter domain orders"), {
-        target: { value: "fees.example" },
+        target: { value: "ferns.example" },
       });
       const { control, save } = cellOf("zzz.test", "Paid (USD)");
       fireEvent.change(control, { target: { value: "12" } });
@@ -480,7 +480,7 @@ describe("CollectionEditor", () => {
       expect(first.hasAttribute("data-stack-fold")).toBe(true);
       const summary = first.querySelector("[data-collection-summary='d0.test']") as HTMLElement;
       expect(summary.textContent).toContain("d0.test");
-      expect(summary.textContent).toContain("nosh.example");
+      expect(summary.textContent).toContain("northwind.example");
       const toggle = within(summary).getByRole("button");
       expect(toggle).toHaveAttribute("aria-expanded", "false");
       expect(toggle.className).toContain("min-h-11");
@@ -498,7 +498,7 @@ describe("CollectionEditor", () => {
     it("does not fold a register short enough to read whole", () => {
       stubFetch();
       renderDomains();
-      expect(row("fees.example").hasAttribute("data-stack-fold")).toBe(false);
+      expect(row("ferns.example").hasAttribute("data-stack-fold")).toBe(false);
       expect(document.querySelector("[data-collection-summary]")).toBeNull();
     });
 
@@ -542,7 +542,7 @@ describe("CollectionEditor", () => {
       withClient(
         <CollectionEditor
           register="value-events"
-          params={{ asset: "meals.example" }}
+          params={{ asset: "meadow.example" }}
           rows={undefined}
           loading
         />,
@@ -558,7 +558,7 @@ describe("CollectionEditor", () => {
       withClient(
         <CollectionEditor
           register="value-events"
-          params={{ asset: "meals.example" }}
+          params={{ asset: "meadow.example" }}
           rows={null}
         />,
       ),
@@ -572,7 +572,7 @@ describe("CollectionEditor", () => {
     const editor = (loading: boolean) => (
       <CollectionEditor
         register="value-events"
-        params={{ asset: "meals.example" }}
+        params={{ asset: "meadow.example" }}
         rows={loading ? undefined : ["sign_up"]}
         loading={loading}
       />
@@ -627,7 +627,7 @@ describe("CollectionEditor", () => {
       withClient(
         <CollectionEditor
           register="value-events"
-          params={{ asset: "meals.example" }}
+          params={{ asset: "meadow.example" }}
           rows={["sign_up", "auth_complete"]}
         />,
       ),
@@ -641,7 +641,7 @@ describe("CollectionEditor", () => {
     expect(onlyOp(calls)).toEqual({
       kind: "file-json-set",
       file: "config/value-events.json",
-      pointer: "/assets/meals.example/valueEvents/0",
+      pointer: "/assets/meadow.example/valueEvents/0",
       expect: "sign_up",
       value: "plan_save_click",
     });
@@ -653,12 +653,12 @@ describe("CollectionEditor", () => {
       withClient(
         <CollectionEditor
           register="signal-panels"
-          rows={{ "meals.example": { enabled: true, reason: "live-lanes" } }}
+          rows={{ "meadow.example": { enabled: true, reason: "live-lanes" } }}
         />,
       ),
     );
 
-    const { control, save } = cellOf("meals.example", "Daily refresh");
+    const { control, save } = cellOf("meadow.example", "Daily refresh");
     fireEvent.change(control, { target: { value: "false" } });
     fireEvent.click(save);
 
@@ -666,7 +666,7 @@ describe("CollectionEditor", () => {
     expect(onlyOp(calls)).toEqual({
       kind: "file-json-set",
       file: "config/signal-panels.json",
-      pointer: "/assets/meals.example/enabled",
+      pointer: "/assets/meadow.example/enabled",
       expect: true,
       value: false,
     });
@@ -678,7 +678,7 @@ describe("CollectionEditor", () => {
       withClient(
         <CollectionEditor
           register="value-events"
-          params={{ asset: "areas.example" }}
+          params={{ asset: "acorn.example" }}
           rows={null}
         />,
       ),
@@ -696,7 +696,7 @@ describe("CollectionEditor", () => {
     expect(onlyOp(calls)).toEqual({
       kind: "file-json-insert",
       file: "config/value-events.json",
-      pointer: "/assets/areas.example",
+      pointer: "/assets/acorn.example",
       value: { valueEvents: ["calculation_complete"] },
     });
 
@@ -707,7 +707,7 @@ describe("CollectionEditor", () => {
     expect(onlyOp(calls, 1)).toEqual({
       kind: "file-json-delete",
       file: "config/value-events.json",
-      pointer: "/assets/areas.example",
+      pointer: "/assets/acorn.example",
       expect: { valueEvents: ["calculation_complete"] },
     });
   });
@@ -718,7 +718,7 @@ describe("CollectionEditor", () => {
       withClient(
         <CollectionEditor
           register="value-events"
-          params={{ asset: "areas.example" }}
+          params={{ asset: "acorn.example" }}
           rows={[]}
         />,
       ),
@@ -735,7 +735,7 @@ describe("CollectionEditor", () => {
     expect(onlyOp(calls)).toEqual({
       kind: "file-json-insert",
       file: "config/value-events.json",
-      pointer: "/assets/areas.example/valueEvents/-",
+      pointer: "/assets/acorn.example/valueEvents/-",
       value: "sign_up",
     });
   });
@@ -752,7 +752,7 @@ describe("CollectionEditor", () => {
       withClient(
         <CollectionEditor
           register="serp-panel-queries"
-          params={{ asset: "nosh.example" }}
+          params={{ asset: "northwind.example" }}
           rows={rows}
           {...overrides}
         />,
@@ -775,49 +775,49 @@ describe("CollectionEditor", () => {
     const calls = stubFetch();
     renderPanel(undefined);
 
-    fillPanelForm("big mac calories", "Item head");
+    fillPanelForm("anvil specs", "Item head");
 
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(onlyOp(calls)).toEqual({
       kind: "file-json-insert",
       file: "config/serp-panel.json",
-      pointer: "/assets/nosh.example",
-      value: { queries: [{ query: "big mac calories", label: "Item head" }] },
+      pointer: "/assets/northwind.example",
+      value: { queries: [{ query: "anvil specs", label: "Item head" }] },
     });
   });
 
   it("appends an unlabelled term as the bare string the file already holds", async () => {
     const calls = stubFetch();
-    renderPanel(["big mac calories"]);
+    renderPanel(["anvil specs"]);
 
-    fillPanelForm("mcchicken calories");
+    fillPanelForm("magnet specs");
 
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(onlyOp(calls)).toEqual({
       kind: "file-json-insert",
       file: "config/serp-panel.json",
-      pointer: "/assets/nosh.example/queries/-",
-      value: "mcchicken calories",
+      pointer: "/assets/northwind.example/queries/-",
+      value: "magnet specs",
     });
   });
 
   it("removes the whole panel when the LAST term goes, rather than leaving an empty list", async () => {
     const calls = stubFetch();
-    renderPanel(["big mac calories"]);
+    renderPanel(["anvil specs"]);
 
     fireEvent.click(
-      within(row("big mac calories")).getByRole("button", { name: "Remove big mac calories…" }),
+      within(row("anvil specs")).getByRole("button", { name: "Remove anvil specs…" }),
     );
     fireEvent.click(
-      within(row("big mac calories")).getByRole("button", { name: "Remove big mac calories" }),
+      within(row("anvil specs")).getByRole("button", { name: "Remove anvil specs" }),
     );
 
     await waitFor(() => expect(calls).toHaveLength(1));
-    const entry = { queries: ["big mac calories"] };
+    const entry = { queries: ["anvil specs"] };
     expect(onlyOp(calls)).toEqual({
       kind: "file-json-delete",
       file: "config/serp-panel.json",
-      pointer: "/assets/nosh.example",
+      pointer: "/assets/northwind.example",
       expect: entry,
     });
 
@@ -828,28 +828,28 @@ describe("CollectionEditor", () => {
     expect(onlyOp(calls, 1)).toEqual({
       kind: "file-json-insert",
       file: "config/serp-panel.json",
-      pointer: "/assets/nosh.example",
+      pointer: "/assets/northwind.example",
       value: entry,
     });
   });
 
   it("keeps a removal inside the list while other terms remain", async () => {
     const calls = stubFetch();
-    renderPanel(["big mac calories", "mcchicken calories"]);
+    renderPanel(["anvil specs", "magnet specs"]);
 
     fireEvent.click(
-      within(row("mcchicken calories")).getByRole("button", { name: "Remove mcchicken calories…" }),
+      within(row("magnet specs")).getByRole("button", { name: "Remove magnet specs…" }),
     );
     fireEvent.click(
-      within(row("mcchicken calories")).getByRole("button", { name: "Remove mcchicken calories" }),
+      within(row("magnet specs")).getByRole("button", { name: "Remove magnet specs" }),
     );
 
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(onlyOp(calls)).toEqual({
       kind: "file-json-delete",
       file: "config/serp-panel.json",
-      pointer: "/assets/nosh.example/queries/1",
-      expect: "mcchicken calories",
+      pointer: "/assets/northwind.example/queries/1",
+      expect: "magnet specs",
     });
   });
 
@@ -861,7 +861,7 @@ describe("CollectionEditor", () => {
       withClient(
         <CollectionEditor
           register="value-events"
-          params={{ asset: "areas.example" }}
+          params={{ asset: "acorn.example" }}
           rows={["sign_up"]}
         />,
       ),
@@ -874,16 +874,16 @@ describe("CollectionEditor", () => {
     expect(onlyOp(calls)).toEqual({
       kind: "file-json-delete",
       file: "config/value-events.json",
-      pointer: "/assets/areas.example/valueEvents/0",
+      pointer: "/assets/acorn.example/valueEvents/0",
       expect: "sign_up",
     });
   });
 
   it("rewrites the whole term when it gains its cluster label — the row changes shape", async () => {
     const calls = stubFetch();
-    renderPanel(["big mac calories"]);
+    renderPanel(["anvil specs"]);
 
-    const { control, save } = cellOf("big mac calories", "Bet");
+    const { control, save } = cellOf("anvil specs", "Bet");
     fireEvent.change(control, { target: { value: "Item head" } });
     fireEvent.click(save);
 
@@ -891,9 +891,9 @@ describe("CollectionEditor", () => {
     expect(onlyOp(calls)).toEqual({
       kind: "file-json-set",
       file: "config/serp-panel.json",
-      pointer: "/assets/nosh.example/queries/0",
-      expect: "big mac calories",
-      value: { query: "big mac calories", label: "Item head" },
+      pointer: "/assets/northwind.example/queries/0",
+      expect: "anvil specs",
+      value: { query: "anvil specs", label: "Item head" },
     });
   });
 
@@ -911,11 +911,11 @@ describe("CollectionEditor", () => {
 
   it("refuses an add the LIST has no room for, and says that instead of naming a field", async () => {
     const calls = stubFetch();
-    renderPanel(["big mac calories"], {
+    renderPanel(["anvil specs"], {
       refuseAdd: (rows) => (rows.length >= 1 ? "this panel is full — drop one first" : null),
     });
 
-    const form = fillPanelForm("mcchicken calories");
+    const form = fillPanelForm("magnet specs");
     expect(await within(form).findByRole("alert")).toHaveTextContent("this panel is full");
     expect(form.querySelector('[aria-invalid="true"]')).toBeNull();
     expect(form.querySelector(".border-error")).toBeNull();
@@ -928,20 +928,20 @@ describe("CollectionEditor", () => {
       withClient(
         <CollectionEditor
           register="signal-panels"
-          params={{ asset: "nosh.example" }}
-          rows={{ "nosh.example": { enabled: true, reason: "live-lanes" } }}
+          params={{ asset: "northwind.example" }}
+          rows={{ "northwind.example": { enabled: true, reason: "live-lanes" } }}
           oneRow
         />,
       ),
     );
-    expect(screen.queryByRole("button", { name: "Remove nosh.example…" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove northwind.example…" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
     // What this surface refuses is membership, not the decision the row records.
     expect(screen.getByLabelText("Daily refresh")).toBeInTheDocument();
 
     rerender(
       withClient(
-        <CollectionEditor register="signal-panels" params={{ asset: "nosh.example" }} rows={{}} oneRow />,
+        <CollectionEditor register="signal-panels" params={{ asset: "northwind.example" }} rows={{}} oneRow />,
       ),
     );
     expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
@@ -951,7 +951,7 @@ describe("CollectionEditor", () => {
     const calls = stubFetch();
     render(
       withClient(
-        <CollectionEditor register="signal-panels" params={{ asset: "nosh.example" }} rows={{}} oneRow />,
+        <CollectionEditor register="signal-panels" params={{ asset: "northwind.example" }} rows={{}} oneRow />,
       ),
     );
 
@@ -969,7 +969,7 @@ describe("CollectionEditor", () => {
     expect(onlyOp(calls)).toEqual({
       kind: "file-json-insert",
       file: "config/signal-panels.json",
-      pointer: "/assets/nosh.example",
+      pointer: "/assets/northwind.example",
       value: { enabled: false, reason: "no-lane-yet", task: "ro-2zk.2" },
     });
   });
@@ -980,7 +980,7 @@ describe("CollectionEditor", () => {
       withClient(
         <CollectionEditor
           register="value-events"
-          params={{ asset: "meals.example" }}
+          params={{ asset: "meadow.example" }}
           rows={["sign_up"]}
           statesReadOnly={false}
         />,
@@ -1006,7 +1006,7 @@ describe("CollectionEditor", () => {
         <CollectionEditor
           register="task-hub-spokes" addFields={["asset", "prefix", "database"]}
           rows={[{ asset: "root-os", prefix: "ro", database: "ro", repo: "." }]}
-          fieldOptions={{ asset: ["nosh.example", "fees.example"] }}
+          fieldOptions={{ asset: ["northwind.example", "ferns.example"] }}
         />,
       ),
     );
@@ -1015,8 +1015,8 @@ describe("CollectionEditor", () => {
     const form = document.querySelector("[data-collection-add]") as HTMLElement;
     const list = form.querySelector("datalist") as HTMLDataListElement;
     expect([...list.querySelectorAll("option")].map((o) => o.getAttribute("value"))).toEqual([
-      "nosh.example",
-      "fees.example",
+      "northwind.example",
+      "ferns.example",
     ]);
     expect(within(form).getByLabelText("Site")).toHaveAttribute("list", list.id);
 
@@ -1025,7 +1025,7 @@ describe("CollectionEditor", () => {
     fireEvent.click(within(form).getByRole("button", { name: "Add" }));
 
     expect(await within(form).findByRole("alert")).toHaveTextContent(
-      'asset "nope.example" is not one of nosh.example, fees.example',
+      'asset "nope.example" is not one of northwind.example, ferns.example',
     );
     expect(calls).toHaveLength(0);
   });
@@ -1039,8 +1039,8 @@ describe("CollectionEditor", () => {
       withClient(
         <CollectionEditor
           register="serp-panel-queries"
-          params={{ asset: "meals.example" }}
-          rows={[{ query: "big mac calories", label: "Item head" }]}
+          params={{ asset: "meadow.example" }}
+          rows={[{ query: "anvil specs", label: "Item head" }]}
           fieldOptions={{ label: ["Item head"] }}
         />,
       ),
@@ -1055,7 +1055,7 @@ describe("CollectionEditor", () => {
     expect(within(form).getByLabelText("Bet")).toHaveAttribute("list", list.id);
 
     // A case variant of one already in use is refused, in the collector's own words.
-    fireEvent.change(within(form).getByLabelText("Query"), { target: { value: "mcmuffin calories" } });
+    fireEvent.change(within(form).getByLabelText("Query"), { target: { value: "spring specs" } });
     fireEvent.change(within(form).getByLabelText("Bet"), { target: { value: "item head" } });
     fireEvent.click(within(form).getByRole("button", { name: "Add" }));
     expect(await within(form).findByRole("alert")).toHaveTextContent("spells one cluster two ways");
@@ -1065,7 +1065,7 @@ describe("CollectionEditor", () => {
     fireEvent.click(within(form).getByRole("button", { name: "Add" }));
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(onlyOp(calls)).toMatchObject({
-      value: { query: "mcmuffin calories", label: "Breakfast head" },
+      value: { query: "spring specs", label: "Breakfast head" },
     });
   });
 
@@ -1084,8 +1084,8 @@ describe("CollectionEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     const form = document.querySelector("[data-collection-add]") as HTMLElement;
     expect(form.querySelector("datalist")).toBeNull();
-    fireEvent.change(within(form).getByLabelText("Site"), { target: { value: "nosh.example" } });
-    fireEvent.change(within(form).getByLabelText("Task prefix"), { target: { value: "nom" } });
+    fireEvent.change(within(form).getByLabelText("Site"), { target: { value: "northwind.example" } });
+    fireEvent.change(within(form).getByLabelText("Task prefix"), { target: { value: "nw" } });
     fireEvent.click(within(form).getByRole("button", { name: "Add" }));
 
     await waitFor(() => expect(calls).toHaveLength(1));
@@ -1097,9 +1097,9 @@ describe("CollectionEditor", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     const form = document.querySelector("[data-collection-add]") as HTMLElement;
-    fireEvent.change(within(form).getByLabelText("Site"), { target: { value: "nosh.example" } });
-    fireEvent.change(within(form).getByLabelText("Task prefix"), { target: { value: "nom" } });
-    expect(within(form).getByLabelText("Database")).toHaveValue("nom");
+    fireEvent.change(within(form).getByLabelText("Site"), { target: { value: "northwind.example" } });
+    fireEvent.change(within(form).getByLabelText("Task prefix"), { target: { value: "nw" } });
+    expect(within(form).getByLabelText("Database")).toHaveValue("nw");
 
     // Typed into directly, it stops following the prefix.
     fireEvent.change(within(form).getByLabelText("Database"), { target: { value: "nomnow" } });
@@ -1109,7 +1109,7 @@ describe("CollectionEditor", () => {
     fireEvent.click(within(form).getByRole("button", { name: "Add" }));
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(onlyOp(calls)).toMatchObject({
-      value: { asset: "nosh.example", prefix: "nn", database: "nomnow" },
+      value: { asset: "northwind.example", prefix: "nn", database: "nomnow" },
     });
   });
 
@@ -1121,7 +1121,7 @@ describe("CollectionEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     const form = document.querySelector("[data-collection-add]") as HTMLElement;
     fireEvent.change(within(form).getByLabelText("Domain"), { target: { value: "teller.example" } });
-    fireEvent.change(within(form).getByLabelText("Site"), { target: { value: "fees.example" } });
+    fireEvent.change(within(form).getByLabelText("Site"), { target: { value: "ferns.example" } });
     fireEvent.change(within(form).getByLabelText("Order"), { target: { value: "registration" } });
     fireEvent.change(within(form).getByLabelText("Paid (USD)"), { target: { value: "6.69" } });
     fireEvent.change(within(form).getByLabelText("Paid on"), { target: { value: "2026-06-28" } });
@@ -1141,7 +1141,7 @@ describe("CollectionEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     const form = document.querySelector("[data-collection-add]") as HTMLElement;
     fireEvent.change(within(form).getByLabelText("Domain"), { target: { value: "teller.example" } });
-    fireEvent.change(within(form).getByLabelText("Site"), { target: { value: "fees.example" } });
+    fireEvent.change(within(form).getByLabelText("Site"), { target: { value: "ferns.example" } });
     fireEvent.change(within(form).getByLabelText("Order"), { target: { value: "registration" } });
     fireEvent.change(within(form).getByLabelText("Paid (USD)"), { target: { value: "6.69" } });
     fireEvent.change(within(form).getByLabelText("Paid on"), { target: { value: "2026-06-28" } });
@@ -1156,7 +1156,7 @@ describe("CollectionEditor", () => {
     renderDomains({
       rowGlyph: (r) => <span data-row-glyph={r.key} />,
     });
-    expect(row("fees.example").querySelector("[data-row-glyph='fees.example']")).not.toBeNull();
+    expect(row("ferns.example").querySelector("[data-row-glyph='ferns.example']")).not.toBeNull();
   });
 
   it("writes wherever it is told to, so the gallery never touches the repo", async () => {
@@ -1164,7 +1164,7 @@ describe("CollectionEditor", () => {
     const wrote = vi.fn(async () => {});
     renderDomains({ onSave: wrote });
 
-    const { control, save } = cellOf("fees.example", "Paid (USD)");
+    const { control, save } = cellOf("ferns.example", "Paid (USD)");
     fireEvent.change(control, { target: { value: "40" } });
     fireEvent.click(save);
 
@@ -1221,8 +1221,8 @@ describe("CollectionEditor", () => {
  * `collectionOps`' own inverse. */
 describe("CollectionEditor — confirm inline", () => {
   const SPOKES = [
-    { asset: "meals.example", prefix: "mp", database: "mp" },
-    { asset: "nosh.example", prefix: "nom", database: "nom" },
+    { asset: "meadow.example", prefix: "md", database: "md" },
+    { asset: "northwind.example", prefix: "nw", database: "nw" },
   ];
 
   function renderSpokes() {
@@ -1242,7 +1242,7 @@ describe("CollectionEditor — confirm inline", () => {
   it("has no Save button in any cell", () => {
     stubFetch();
     renderSpokes();
-    for (const key of ["meals.example", "nosh.example"]) {
+    for (const key of ["meadow.example", "northwind.example"]) {
       expect(within(row(key)).queryByRole("button", { name: "Save" })).toBeNull();
     }
   });
@@ -1251,7 +1251,7 @@ describe("CollectionEditor — confirm inline", () => {
     const calls = stubFetch();
     renderSpokes();
 
-    const database = within(row("nosh.example")).getByLabelText("Database");
+    const database = within(row("northwind.example")).getByLabelText("Database");
     fireEvent.change(database, { target: { value: "nom_tasks" } });
     fireEvent.blur(database);
 
@@ -1261,11 +1261,11 @@ describe("CollectionEditor — confirm inline", () => {
       kind: "file-json-set",
       file: "config/beads.json",
       pointer: "/spokes/1/database",
-      expect: "nom",
+      expect: "nw",
       value: "nom_tasks",
     });
     const saved = await waitFor(() => {
-      const found = row("nosh.example").querySelector('[data-save-state="saved"]');
+      const found = row("northwind.example").querySelector('[data-save-state="saved"]');
       expect(found).not.toBeNull();
       return found as HTMLElement;
     });
@@ -1277,11 +1277,11 @@ describe("CollectionEditor — confirm inline", () => {
     const calls = stubFetch();
     renderSpokes();
 
-    const prefix = within(row("meals.example")).getByLabelText("Task prefix");
+    const prefix = within(row("meadow.example")).getByLabelText("Task prefix");
     fireEvent.change(prefix, { target: { value: "mpf" } });
     fireEvent.keyDown(prefix, { key: "Enter" });
     await waitFor(() => expect(calls).toHaveLength(1));
-    await waitFor(() => expect(row("meals.example").querySelector('[data-save-state="saved"]')).not.toBeNull());
+    await waitFor(() => expect(row("meadow.example").querySelector('[data-save-state="saved"]')).not.toBeNull());
     fireEvent.blur(prefix);
 
     expect(calls).toHaveLength(1);
@@ -1292,10 +1292,10 @@ describe("CollectionEditor — confirm inline", () => {
     const calls = stubFetch();
     renderSpokes();
 
-    const database = within(row("nosh.example")).getByLabelText("Database");
+    const database = within(row("northwind.example")).getByLabelText("Database");
     fireEvent.change(database, { target: { value: "nom_tasks" } });
     fireEvent.blur(database);
-    fireEvent.click(await within(row("nosh.example")).findByRole("button", { name: "Undo" }));
+    fireEvent.click(await within(row("northwind.example")).findByRole("button", { name: "Undo" }));
 
     await waitFor(() => expect(calls).toHaveLength(2));
     expect(onlyOp(calls, 1)).toEqual({
@@ -1303,16 +1303,16 @@ describe("CollectionEditor — confirm inline", () => {
       file: "config/beads.json",
       pointer: "/spokes/1/database",
       expect: "nom_tasks",
-      value: "nom",
+      value: "nw",
     });
-    await waitFor(() => expect(database).toHaveValue("nom"));
+    await waitFor(() => expect(database).toHaveValue("nw"));
   });
 
   it("never sends a value the declaration refuses, and says why under the cell", () => {
     const calls = stubFetch();
     renderSpokes();
 
-    const prefix = within(row("nosh.example")).getByLabelText("Task prefix");
+    const prefix = within(row("northwind.example")).getByLabelText("Task prefix");
     fireEvent.change(prefix, { target: { value: "NOT VALID" } });
     fireEvent.blur(prefix);
 
@@ -1324,11 +1324,11 @@ describe("CollectionEditor — confirm inline", () => {
     stubFetch({ status: 409, body: { error: "expect_mismatch", mismatches: [] } });
     renderSpokes();
 
-    const database = within(row("nosh.example")).getByLabelText("Database");
+    const database = within(row("northwind.example")).getByLabelText("Database");
     fireEvent.change(database, { target: { value: "nom_tasks" } });
     fireEvent.blur(database);
 
-    const refused = await within(row("nosh.example")).findByRole("alert");
+    const refused = await within(row("northwind.example")).findByRole("alert");
     expect(refused).toHaveTextContent("Not saved");
     expect(refused).toHaveTextContent("Changed elsewhere — reload to see the current value");
     expect(database).toHaveValue("nom_tasks");

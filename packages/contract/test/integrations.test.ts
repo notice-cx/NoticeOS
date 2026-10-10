@@ -336,17 +336,17 @@ describe('INTEGRATION_PROVIDERS', () => {
         ...summary('clarity'),
         source: 'store',
         fields: ['CLARITY_TOKENS'],
-        assetsHeld: ['meals.example', 'stray.example'],
+        assetsHeld: ['meadow.example', 'stray.example'],
       },
       assets: [
-        { id: 'meals.example', lanes: ['clarity'] },
-        { id: 'nosh.example', lanes: ['clarity'] },
+        { id: 'meadow.example', lanes: ['clarity'] },
+        { id: 'northwind.example', lanes: ['clarity'] },
       ],
     });
     expect(rows).toEqual([
-      { id: 'meals.example', lanes: ['clarity'], held: true },
+      { id: 'meadow.example', lanes: ['clarity'], held: true },
       // Declared and waiting on a token — the most actionable row on the card.
-      { id: 'nosh.example', lanes: ['clarity'], held: false },
+      { id: 'northwind.example', lanes: ['clarity'], held: false },
       // A key stored for an asset nothing maps: named, never dropped, because
       // it is either a typo or a data source somebody forgot to declare.
       { id: 'stray.example', lanes: [], held: true },
@@ -359,10 +359,10 @@ describe('INTEGRATION_PROVIDERS', () => {
     // distinction the credential does not make.
     const rows = credentialAssetRows({
       provider: integrationProvider('bing-webmaster')!,
-      credential: { ...summary('bing-webmaster'), assetsHeld: ['meals.example'] },
-      assets: [{ id: 'meals.example', lanes: ['bing-webmaster'] }],
+      credential: { ...summary('bing-webmaster'), assetsHeld: ['meadow.example'] },
+      assets: [{ id: 'meadow.example', lanes: ['bing-webmaster'] }],
     });
-    expect(rows).toEqual([{ id: 'meals.example', lanes: ['bing-webmaster'], held: false }]);
+    expect(rows).toEqual([{ id: 'meadow.example', lanes: ['bing-webmaster'], held: false }]);
   });
 
 

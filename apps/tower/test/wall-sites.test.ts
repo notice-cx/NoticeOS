@@ -9,7 +9,7 @@ import { FOUR_WEEKS, currentHourlyReading, latestFinishedUsers, focusTiles, four
 import { WALL_FIXTURE_NOW, wallFixturePayload, wallFixtureRealtime } from "../e2e/wall-fixture";
 
 const NOW = Date.parse(WALL_FIXTURE_NOW);
-const plate = () => wallFixturePayload().assets[0]!;
+const plume = () => wallFixturePayload().assets[0]!;
 const snapshot = () => wallFixtureRealtime().assets[0]!;
 
 const projection = (points: RevenueProjection["points"]): RevenueProjection => ({
@@ -43,7 +43,7 @@ describe("each day's money", () => {
 
 describe("the visitors and money tile", () => {
   const site = (provisionalFrom: string): AssetCard => ({
-    ...plate(),
+    ...plume(),
     activeUsers: {
       series: [{ t: "2026-09-01", v: 500 }, { t: "2026-09-02", v: 1_000 }, { t: "2026-09-03", v: 300 }],
       provisionalFrom, collectedAt: WALL_FIXTURE_NOW, timeZoneChanges: [],
@@ -73,7 +73,7 @@ describe("the visitors and money tile", () => {
 
   it("is absent for a site with neither visitors nor money this month", () => {
     const bare: AssetCard = {
-      ...plate(),
+      ...plume(),
       activeUsers: { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] },
       revenueProjection: undefined,
       dailyRevenue: undefined,
@@ -90,27 +90,27 @@ describe("the visitors and money tile", () => {
 
 describe("the today tile", () => {
   it("states today's distinct users only while the daily series' newest day is today", () => {
-    expect(todayTile(plate(), snapshot(), NOW)!.todayUsers).toBe(plate().activeUsers.series.at(-1)!.v);
+    expect(todayTile(plume(), snapshot(), NOW)!.todayUsers).toBe(plume().activeUsers.series.at(-1)!.v);
     const yesterdayOnly: AssetCard = {
-      ...plate(),
-      activeUsers: { ...plate().activeUsers, series: plate().activeUsers.series.slice(0, -1) },
+      ...plume(),
+      activeUsers: { ...plume().activeUsers, series: plume().activeUsers.series.slice(0, -1) },
     };
     expect(todayTile(yesterdayOnly, snapshot(), NOW)!.todayUsers).toBeNull();
   });
 
   it("is absent without a successful snapshot carrying hours", () => {
-    expect(todayTile(plate(), undefined, NOW)).toBeNull();
+    expect(todayTile(plume(), undefined, NOW)).toBeNull();
     const snap = snapshot();
     if (snap.status !== "success") throw new Error("fixture snapshot is a success");
-    expect(todayTile(plate(), { ...snap, hourlyActiveUsers: null }, NOW)).toBeNull();
+    expect(todayTile(plume(), { ...snap, hourlyActiveUsers: null }, NOW)).toBeNull();
   });
 });
 
 describe("the search tile", () => {
   it("is absent for a site with no search source, and four weeks of finished days otherwise", () => {
-    expect(searchTile(plate())).toBeNull();
-    const users = plate().activeUsers;
-    const tile = searchTile({ ...plate(), searchClicks: users })!;
+    expect(searchTile(plume())).toBeNull();
+    const users = plume().activeUsers;
+    const tile = searchTile({ ...plume(), searchClicks: users })!;
     // Four weeks through the newest finished day, the day still being counted
     // left out, over the four weeks before (the site rows' `fourWeeks`).
     expect(tile.weeks.days).toHaveLength(FOUR_WEEKS);
@@ -120,7 +120,7 @@ describe("the search tile", () => {
   });
 
   it("is one of three independent answers", () => {
-    const tiles = focusTiles(plate(), snapshot(), NOW);
+    const tiles = focusTiles(plume(), snapshot(), NOW);
     expect([tiles.today !== null, tiles.visitors !== null, tiles.search !== null]).toEqual([true, true, false]);
   });
 });
@@ -222,7 +222,7 @@ describe("dated site traffic", () => {
     if (read.status !== "success") throw new Error("expected hourly fixture");
     const previous = { ...read, hourlyObservedAt: "2026-09-21T12:00:00Z", observedAt: WALL_FIXTURE_NOW };
     expect(currentHourlyReading(previous, NOW)).toBeNull();
-    expect(todayTile(plate(), previous, NOW)).toBeNull();
+    expect(todayTile(plume(), previous, NOW)).toBeNull();
     const midnight = { ...read, timeZone: "America/Los_Angeles", hourlyObservedAt: "2026-09-22T06:00:00Z" };
     expect(currentHourlyReading(midnight, Date.parse("2026-09-22T06:30:00Z"))).toBe(midnight);
     expect(currentHourlyReading(midnight, Date.parse("2026-09-22T07:30:00Z"))).toBeNull();

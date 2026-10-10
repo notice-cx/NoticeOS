@@ -304,8 +304,8 @@ describe("the Undo window", () => {
     vi.useFakeTimers();
     const send = vi.fn(async () => undefined);
     const onSent = vi.fn();
-    scheduleAnswer({ id: "mp-1", send, onSent });
-    expect(answerHides("mp-1", null)).toBe(true);
+    scheduleAnswer({ id: "md-1", send, onSent });
+    expect(answerHides("md-1", null)).toBe(true);
     await vi.advanceTimersByTimeAsync(UNDO_WINDOW_MS - 1);
     expect(send).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
@@ -318,22 +318,22 @@ describe("the Undo window", () => {
     vi.useFakeTimers();
     const send = vi.fn(async () => undefined);
     const onUndo = vi.fn();
-    scheduleAnswer({ id: "mp-1", send, onUndo });
-    expect(undoAnswer("mp-1")).toBe(true);
+    scheduleAnswer({ id: "md-1", send, onUndo });
+    expect(undoAnswer("md-1")).toBe(true);
     expect(onUndo).toHaveBeenCalledOnce();
-    expect(answerHides("mp-1", null)).toBe(false);
+    expect(answerHides("md-1", null)).toBe(false);
     await vi.advanceTimersByTimeAsync(UNDO_WINDOW_MS * 2);
     expect(send).not.toHaveBeenCalled();
     // Too late once sent.
-    scheduleAnswer({ id: "mp-2", send });
+    scheduleAnswer({ id: "md-2", send });
     await vi.advanceTimersByTimeAsync(UNDO_WINDOW_MS);
-    expect(undoAnswer("mp-2")).toBe(false);
+    expect(undoAnswer("md-2")).toBe(false);
   });
 
   it("sends everything still waiting, with keepalive, when the page is leaving", async () => {
     const send = vi.fn(async () => undefined);
-    scheduleAnswer({ id: "mp-1", send });
-    scheduleAnswer({ id: "mp-2", send });
+    scheduleAnswer({ id: "md-1", send });
+    scheduleAnswer({ id: "md-2", send });
     window.dispatchEvent(new Event("pagehide"));
     await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
     expect(send).toHaveBeenNthCalledWith(1, true);
@@ -342,32 +342,32 @@ describe("the Undo window", () => {
 
   it("brings the row back when the lane refuses", async () => {
     const onFailed = vi.fn();
-    scheduleAnswer({ id: "mp-1", send: async () => { throw new Error("bd: no such issue mp-1"); }, onFailed });
+    scheduleAnswer({ id: "md-1", send: async () => { throw new Error("bd: no such issue md-1"); }, onFailed });
     flushAnswers();
     await vi.waitFor(() => expect(onFailed).toHaveBeenCalledOnce());
-    expect(answerHides("mp-1", null)).toBe(false);
+    expect(answerHides("md-1", null)).toBe(false);
   });
 
   it("keeps a sent answer's row out until a read taken after it", async () => {
-    scheduleAnswer({ id: "mp-1", send: async () => undefined });
+    scheduleAnswer({ id: "md-1", send: async () => undefined });
     flushAnswers();
-    await vi.waitFor(() => expect(answerHides("mp-1", new Date(Date.now() - 60_000).toISOString())).toBe(true));
-    expect(answerHides("mp-1", new Date(Date.now() + 60_000).toISOString())).toBe(false);
+    await vi.waitFor(() => expect(answerHides("md-1", new Date(Date.now() - 60_000).toISOString())).toBe(true));
+    expect(answerHides("md-1", new Date(Date.now() + 60_000).toISOString())).toBe(false);
   });
 });
 
 describe("each answer is one call on the lane the inbox always used", () => {
   it("approve → gate resolve, answer → human respond, dismiss → human dismiss", async () => {
-    await sendInboxAnswer({ kind: "approve", id: "mp-gate", title: "Approve" });
-    await sendInboxAnswer({ kind: "answer", id: "mp-ask", title: "Ask", text: "Yes" });
-    await sendInboxAnswer({ kind: "dismiss", id: "mp-ask2", title: "Ask" });
-    expect(api.resolveGate).toHaveBeenCalledWith("mp-gate");
-    expect(api.respondToTask).toHaveBeenCalledWith("mp-ask", "Yes");
-    expect(api.dismissTask).toHaveBeenCalledWith("mp-ask2");
+    await sendInboxAnswer({ kind: "approve", id: "md-gate", title: "Approve" });
+    await sendInboxAnswer({ kind: "answer", id: "md-ask", title: "Ask", text: "Yes" });
+    await sendInboxAnswer({ kind: "dismiss", id: "md-ask2", title: "Ask" });
+    expect(api.resolveGate).toHaveBeenCalledWith("md-gate");
+    expect(api.respondToTask).toHaveBeenCalledWith("md-ask", "Yes");
+    expect(api.dismissTask).toHaveBeenCalledWith("md-ask2");
   });
 
   it("asks the browser to finish the call only when the page is leaving", async () => {
-    await sendInboxAnswer({ kind: "answer", id: "mp-ask", title: "Ask", text: "Yes" }, true);
-    expect(api.respondToTask).toHaveBeenCalledWith("mp-ask", "Yes", { keepalive: true });
+    await sendInboxAnswer({ kind: "answer", id: "md-ask", title: "Ask", text: "Yes" }, true);
+    expect(api.respondToTask).toHaveBeenCalledWith("md-ask", "Yes", { keepalive: true });
   });
 });

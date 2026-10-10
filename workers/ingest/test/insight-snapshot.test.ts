@@ -27,7 +27,7 @@ interface SnapshotBody {
 function snapshot(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     schemaVersion: 1,
-    asset: 'meals.example',
+    asset: 'meadow.example',
     generatedAt: '2026-07-29T12:00:00.000Z',
     windowStart: '2026-07-25',
     windowEnd: '2026-07-28',
@@ -95,8 +95,8 @@ describe('POST /api/insight-snapshot — what it stores', () => {
 
     const expectedSha = await sha256Hex(payload);
     expect(body.contentSha256).toBe(expectedSha);
-    expect(body.id).toBe(insightSnapshotId('meals.example', expectedSha));
-    expect(body.id).toMatch(/^insight:meals\.example:[a-f0-9]{24}$/);
+    expect(body.id).toBe(insightSnapshotId('meadow.example', expectedSha));
+    expect(body.id).toMatch(/^insight:meadow\.example:[a-f0-9]{24}$/);
 
     const [row] = await pgRows(
       `SELECT id, asset, generated_at, window_start, window_end,
@@ -105,7 +105,7 @@ describe('POST /api/insight-snapshot — what it stores', () => {
     );
     expect(row).toMatchObject({
       id: body.id,
-      asset: 'meals.example',
+      asset: 'meadow.example',
       generated_at: '2026-07-29T12:00:00.000Z',
       window_start: '2026-07-25',
       window_end: '2026-07-28',

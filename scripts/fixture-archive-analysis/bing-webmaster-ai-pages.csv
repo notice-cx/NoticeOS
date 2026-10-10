@@ -1,2 +1,2 @@
 asset,report_date,collected_at,data_state,provider_truncated,citations,page,row_grain
-meals.example,2026-09-01,2026-09-01T13:00:00.000Z,provider-snapshot,false,294996,https://meals.example/guides/protein,cited-page
+meadow.example,2026-09-01,2026-09-01T13:00:00.000Z,provider-snapshot,false,294996,https://meadow.example/guides/protein,cited-page

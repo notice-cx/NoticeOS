@@ -46,8 +46,8 @@ vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 function alert(overrides: Partial<AttentionItem> = {}): AttentionItem {
   return {
     id: 1,
-    asset: "meals.example",
-    assetDisplayName: "Meal Planner",
+    asset: "meadow.example",
+    assetDisplayName: "Meadow Board",
     severity: "warn",
     kind: "anomaly",
     message: "Signups well below normal",
@@ -87,7 +87,7 @@ function settledRow(id: number, resolvedAt: string): AlertHistoryRow {
       liveness: { state: "historical" },
       occurrences: 1,
     },
-    asset: { id: "meals.example", domain: "meals.example", displayName: "Meal Planner" },
+    asset: { id: "meadow.example", domain: "meadow.example", displayName: "Meadow Board" },
   };
 }
 
@@ -124,8 +124,8 @@ function payload(attention: AttentionItem[], snoozed: SnoozedItem[] = []): WallP
       countdown: { emoji: "🌁", label: "SF", targetAt: "2026-09-01T07:00:00.000Z" },
     },
     assets: [
-      assetCard("meals.example", "Meal Planner"),
-      assetCard("areas.example", "Areas"),
+      assetCard("meadow.example", "Meadow Board"),
+      assetCard("acorn.example", "Areas"),
     ],
     attention,
     snoozed,
@@ -216,15 +216,15 @@ function openRow(name: RegExp | string): HTMLElement {
 describe("/alerts — the portfolio's open exceptions", () => {
   it('links filed open and closed tasks inside the alert without changing its severity', () => {
     renderAlerts([alert({ handoffBeads: [
-      { kind: 'alert', key: '1', beadId: 'mp-repair', status: 'open', closedAt: null },
-      { kind: 'alert', key: '1', beadId: 'mp-review', status: 'closed', closedAt: '2026-07-31T12:00:00.000Z' },
+      { kind: 'alert', key: '1', beadId: 'md-repair', status: 'open', closedAt: null },
+      { kind: 'alert', key: '1', beadId: 'md-review', status: 'closed', closedAt: '2026-07-31T12:00:00.000Z' },
     ] })]);
     const row = openRow(/Signups well below normal/);
-    const open = within(row).getByRole('link', { name: 'Filed as work, still open, task mp-repair' });
-    expect(open).toHaveAttribute('href', '/tasks/mp-repair');
+    const open = within(row).getByRole('link', { name: 'Filed as work, still open, task md-repair' });
+    expect(open).toHaveAttribute('href', '/tasks/md-repair');
     expect(open.closest('button')).toBeNull();
-    const closed = within(row).getByRole('link', { name: 'Task recorded closed; outcome not verified, task mp-review' });
-    expect(closed).toHaveAttribute('href', '/tasks/mp-review');
+    const closed = within(row).getByRole('link', { name: 'Task recorded closed; outcome not verified, task md-review' });
+    expect(closed).toHaveAttribute('href', '/tasks/md-review');
     expect(row.querySelector('[data-handoff-bead="closed"]')).not.toHaveClass('text-healthy');
     expect(within(row).getByRole('button', { name: 'Resolve alert' })).toBeInTheDocument();
   });
@@ -240,7 +240,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
       alert(),
       alert({
         id: 2,
-        asset: "areas.example",
+        asset: "acorn.example",
         assetDisplayName: "Areas",
         severity: "error",
         message: "Clicks fell off a cliff",
@@ -258,9 +258,9 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(within(row).getByRole("button", { name: "Snooze alert" })).toBeInTheDocument();
     expect(within(row).getByRole("button", { name: "Resolve alert" })).toBeInTheDocument();
     expect(within(row).getByRole("button", { name: /^File task for/ })).toBeInTheDocument();
-    expect(within(row).getByRole("link", { name: "Open Meal Planner" })).toHaveAttribute(
+    expect(within(row).getByRole("link", { name: "Open Meadow Board" })).toHaveAttribute(
       "href",
-      "/assets/meals.example",
+      "/assets/meadow.example",
     );
     expect(screen.getAllByRole("button", { name: "Mark alert read" })).toHaveLength(1);
   });
@@ -269,9 +269,9 @@ describe("/alerts — the portfolio's open exceptions", () => {
     const { container } = renderAlerts(
       [
         alert(),
-        alert({ id: 2, asset: "areas.example", assetDisplayName: "Areas", severity: "error", message: "Clicks fell off a cliff" }),
+        alert({ id: 2, asset: "acorn.example", assetDisplayName: "Areas", severity: "error", message: "Clicks fell off a cliff" }),
       ],
-      "/alerts?asset=areas.example",
+      "/alerts?asset=acorn.example",
     );
 
     expect(screen.getByText("Clicks fell off a cliff")).toBeInTheDocument();
@@ -279,7 +279,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
     // The strip stays portfolio-wide; the panel says what a filter left on screen.
     expect(answer(container)).toBe("2 open alerts, 1 error");
     expect(screen.getByText("1 of 2 open")).toBeInTheDocument();
-    expect(screen.getByLabelText("Site")).toHaveValue("areas.example");
+    expect(screen.getByLabelText("Site")).toHaveValue("acorn.example");
   });
 
   it("narrows by severity and kind from the same query string", () => {
@@ -323,11 +323,11 @@ describe("/alerts — the portfolio's open exceptions", () => {
   it("narrows the page when the operator picks a filter", () => {
     renderAlerts([
       alert(),
-      alert({ id: 2, asset: "areas.example", assetDisplayName: "Areas", message: "Clicks fell off a cliff" }),
+      alert({ id: 2, asset: "acorn.example", assetDisplayName: "Areas", message: "Clicks fell off a cliff" }),
     ]);
 
     fireEvent.change(screen.getByLabelText("Site"), {
-      target: { value: "areas.example" },
+      target: { value: "acorn.example" },
     });
 
     expect(screen.getByText("Clicks fell off a cliff")).toBeInTheDocument();
@@ -340,21 +340,21 @@ describe("/alerts — the portfolio's open exceptions", () => {
     renderAlerts([
       alert({
         id: 7,
-        asset: "fees.example",
-        assetDisplayName: "Fee Codes",
+        asset: "ferns.example",
+        assetDisplayName: "Fern Index",
         severity: "error",
         ruleId: "ingest-freshness",
         ruleInputs: { rule: "ingest-freshness", state: "never-reported" },
         occurrences: 2,
         members: [
-          { id: 7, asset: "fees.example", assetDisplayName: "Fee Codes", firedAt: "2026-07-05T09:00:00.000Z" },
-          { id: 8, asset: "areas.example", assetDisplayName: "Areas", firedAt: "2026-07-06T09:00:00.000Z" },
+          { id: 7, asset: "ferns.example", assetDisplayName: "Fern Index", firedAt: "2026-07-05T09:00:00.000Z" },
+          { id: 8, asset: "acorn.example", assetDisplayName: "Areas", firedAt: "2026-07-06T09:00:00.000Z" },
         ],
       }),
     ]);
 
     fireEvent.change(screen.getByLabelText("Site"), {
-      target: { value: "areas.example" },
+      target: { value: "acorn.example" },
     });
 
     expect(screen.getByText("Two sites have no nightly reports")).toBeInTheDocument();
@@ -364,7 +364,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
   /** The sidebar and the command palette open a site with no number yet on
    * its Data sources; these links must agree. */
   it("opens a site where the nav does, and builds every site link with the id encoded", () => {
-    const firstNumberYet = { ...assetCard("meals.example", "Meal Planner"), pulseReceivedAt: null };
+    const firstNumberYet = { ...assetCard("meadow.example", "Meadow Board"), pulseReceivedAt: null };
     state.data = {
       ...payload([
         alert({
@@ -374,18 +374,18 @@ describe("/alerts — the portfolio's open exceptions", () => {
         }),
         alert({
           id: 7,
-          asset: "areas.example",
+          asset: "acorn.example",
           assetDisplayName: "Areas",
           ruleId: "ingest-freshness",
           ruleInputs: { rule: "ingest-freshness", state: "never-reported" },
           occurrences: 2,
           members: [
-            { id: 7, asset: "areas.example", assetDisplayName: "Areas", firedAt: "2026-07-05T09:00:00.000Z" },
-            { id: 8, asset: "meals.example", assetDisplayName: "Meal Planner", firedAt: "2026-07-06T09:00:00.000Z" },
+            { id: 7, asset: "acorn.example", assetDisplayName: "Areas", firedAt: "2026-07-05T09:00:00.000Z" },
+            { id: 8, asset: "meadow.example", assetDisplayName: "Meadow Board", firedAt: "2026-07-06T09:00:00.000Z" },
           ],
         }),
       ]),
-      assets: [firstNumberYet, assetCard("areas.example", "Areas")],
+      assets: [firstNumberYet, assetCard("acorn.example", "Areas")],
     };
     render(
       <QueryClientProvider client={new QueryClient()}>
@@ -396,21 +396,21 @@ describe("/alerts — the portfolio's open exceptions", () => {
     );
 
     const row = openRow(/Signups well below normal/);
-    expect(within(row).getByRole("link", { name: "Open Meal Planner" }))
-      .toHaveAttribute("href", "/assets/meals.example/sources");
+    expect(within(row).getByRole("link", { name: "Open Meadow Board" }))
+      .toHaveAttribute("href", "/assets/meadow.example/sources");
     expect(within(row).getByRole("link", { name: /config|deploy|before/i }))
-      .toHaveAttribute("href", "/assets/meals.example#timeline");
+      .toHaveAttribute("href", "/assets/meadow.example#timeline");
 
-    // Areas has reported, so its Overview; Meal Planner has not, so its Data sources.
+    // Areas has reported, so its Overview; Meadow Board has not, so its Data sources.
     const grouped = openRow(/Two sites have no nightly reports/);
     expect(within(grouped).getByRole("link", { name: "Areas" }))
-      .toHaveAttribute("href", "/assets/areas.example");
-    expect(within(grouped).getByRole("link", { name: "Meal Planner" }))
-      .toHaveAttribute("href", "/assets/meals.example/sources");
+      .toHaveAttribute("href", "/assets/acorn.example");
+    expect(within(grouped).getByRole("link", { name: "Meadow Board" }))
+      .toHaveAttribute("href", "/assets/meadow.example/sources");
   });
 
   it("never calls a filtered blank an all-clear", () => {
-    renderAlerts([alert()], "/alerts?asset=areas.example");
+    renderAlerts([alert()], "/alerts?asset=acorn.example");
 
     expect(
       screen.getByText("No open alerts match these filters"),
@@ -497,15 +497,15 @@ describe("/alerts — the portfolio's open exceptions", () => {
       occurrences: 2,
       verification: { ...confirmed, state: "unverified", lastConfirmedAt: null, reason: "mixed-states" },
       members: [
-        { id: 7, asset: "fees.example", assetDisplayName: "Fee Codes", firedAt: "2026-07-05T09:00:00.000Z", verification: confirmed },
-        { id: 8, asset: "areas.example", assetDisplayName: "Areas", firedAt: "2026-07-06T09:00:00.000Z" },
+        { id: 7, asset: "ferns.example", assetDisplayName: "Fern Index", firedAt: "2026-07-05T09:00:00.000Z", verification: confirmed },
+        { id: 8, asset: "acorn.example", assetDisplayName: "Areas", firedAt: "2026-07-06T09:00:00.000Z" },
       ],
     })]);
     const row = screen.getByText("Two sites have no nightly reports").closest("li")!;
     expect(row).toHaveTextContent("Last known");
     fireEvent.click(within(row).getByRole("button", { expanded: false }));
-    expect(row.querySelector('[data-attention-group-member="fees.example"]')).toHaveTextContent("Confirmed 3h ago");
-    expect(row.querySelector('[data-attention-group-member="areas.example"]')).toHaveTextContent("Last known");
+    expect(row.querySelector('[data-attention-group-member="ferns.example"]')).toHaveTextContent("Confirmed 3h ago");
+    expect(row.querySelector('[data-attention-group-member="acorn.example"]')).toHaveTextContent("Last known");
     expect(row.querySelector("button button")).toBeNull();
   });
 
@@ -529,9 +529,9 @@ describe("/alerts — the portfolio's open exceptions", () => {
     it("stays portfolio-wide while a filter narrows the list, and ends an unfiltered list", () => {
       const both = [
         alert({ id: 1, severity: "error" }),
-        alert({ id: 2, severity: "warn", asset: "areas.example", assetDisplayName: "Areas" }),
+        alert({ id: 2, severity: "warn", asset: "acorn.example", assetDisplayName: "Areas" }),
       ];
-      const filtered = renderAlerts(both, "/alerts?asset=meals.example");
+      const filtered = renderAlerts(both, "/alerts?asset=meadow.example");
       // A filtered list is not a finished one.
       expect(answer(filtered.container)).toBe("2 open alerts, 1 error");
       expect(screen.getByText("1 of 2 open")).toBeInTheDocument();
@@ -599,7 +599,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
 
     const select = screen.getByLabelText("Site");
     const options = within(select).getAllByRole("option").map((o) => o.textContent);
-    expect(options).toEqual(["Every site", "Meal Planner", "Areas"]);
+    expect(options).toEqual(["Every site", "Meadow Board", "Areas"]);
   });
 
   it("offers no site filter with one site to pick, unless a link already narrows", () => {
@@ -620,8 +620,8 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(screen.queryByText("Every site")).toBeNull();
     plain.unmount();
 
-    oneSite("/alerts?asset=meals.example");
-    expect(screen.getByLabelText("Site")).toHaveValue("meals.example");
+    oneSite("/alerts?asset=meadow.example");
+    expect(screen.getByLabelText("Site")).toHaveValue("meadow.example");
   });
 
   /** A snooze that produced no visible row would be a mute with a friendlier
@@ -641,7 +641,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
 
       expect(section.textContent).toContain("Snoozed");
       expect(section.textContent).toContain("1 parked");
-      expect(section.textContent).toContain("Meal Planner");
+      expect(section.textContent).toContain("Meadow Board");
       expect(section.textContent).toContain("Signups well below normal");
       expect(section.querySelector('[data-snooze-state="active"]')).not.toBeNull();
       expect(section.textContent).toContain("Aug 4, 2026");

@@ -23,7 +23,7 @@ const INTEGRATIONS: IntegrationsConfig = {
     { id: "ad-network", label: "Ad network reporting", docRef: "docs/11-integrations.md#the-catalog", credential: "shared" },
   ],
   assets: {
-    "meals.example": {
+    "meadow.example": {
       gsc: { status: "live", note: "synthetic", since: "2026-09-01" },
       "ad-network": { status: "needs-setup", note: "synthetic", since: "2026-09-01" },
     },
@@ -36,14 +36,14 @@ function deps(overrides: Partial<McpDeps> = {}): McpDeps {
     monthlyCaps: { dataUsd: 25 },
     flagDefaults: { alpha: 0.01, min_baseline_per_day: 3, low_volume_window_hours: 72 },
     operatorRateUsdPerMin: 2,
-    counters: { assets: { "meals.example": { cards: [{ metric: "signups", counter: "profiles", label: "Accounts" }] } } },
+    counters: { assets: { "meadow.example": { cards: [{ metric: "signups", counter: "profiles", label: "Accounts" }] } } },
     integrations: INTEGRATIONS,
-    pullConfig: [{ asset: "meals.example", url: "https://meals.example/api/internal/metrics", enabled: true, format: "prometheus", metrics: { signups: { counter: "profiles" } } }],
+    pullConfig: [{ asset: "meadow.example", url: "https://meadow.example/api/internal/metrics", enabled: true, format: "prometheus", metrics: { signups: { counter: "profiles" } } }],
     dashboard: { widgets: [] } as unknown as DashboardConfig,
-    serpPanel: { assets: { "meals.example": { queries: ["meals"] } } },
-    signalPanels: { assets: { "meals.example": { enabled: true, reason: "live-lanes", note: "Synthetic.", since: "2026-09-01" } } },
-    valueEvents: { assets: { "meals.example": { valueEvents: ["sign_up"] } } },
-    ga4EventParams: { assets: { "meals.example": { eventParams: ["source"] } } },
+    serpPanel: { assets: { "meadow.example": { queries: ["meadow"] } } },
+    signalPanels: { assets: { "meadow.example": { enabled: true, reason: "live-lanes", note: "Synthetic.", since: "2026-09-01" } } },
+    valueEvents: { assets: { "meadow.example": { valueEvents: ["sign_up"] } } },
+    ga4EventParams: { assets: { "meadow.example": { eventParams: ["source"] } } },
     osTimeZone: "America/Los_Angeles",
     ingest,
     ...overrides,
@@ -205,14 +205,14 @@ describe("the MCP surface — tools", () => {
   });
 
   it("returns a property's whole read model, decision lanes included", async () => {
-    const expected = await buildAssetDetailPayload(ctx.call, "meals.example", deps());
+    const expected = await buildAssetDetailPayload(ctx.call, "meadow.example", deps());
     const { body } = await call("tools/call", {
       name: "property_report",
-      arguments: { asset: "meals.example" },
+      arguments: { asset: "meadow.example" },
     });
     const result = (body.result as { structuredContent: Record<string, unknown> })
       .structuredContent;
-    expect((result.asset as { id: string }).id).toBe("meals.example");
+    expect((result.asset as { id: string }).id).toBe("meadow.example");
     expect(result).toHaveProperty("ledger");
     expect(result).toHaveProperty("flags");
     expect(result).toHaveProperty("performance");
@@ -263,11 +263,11 @@ describe("the MCP surface — the research log", () => {
 
   it("names the age, the spender and the archive key on a hit", async () => {
     ingest.researchLookup.mockResolvedValue({
-      asset: "meals.example",
+      asset: "meadow.example",
       endpoint: "dataforseo_labs/google/keyword_overview/live",
       question: "keyword overview, 1 term",
       costUsd: 0.02,
-      objectKey: "raw/dataforseo/meals.example/2026-09-06/x.json.gz",
+      objectKey: "raw/dataforseo/meadow.example/2026-09-06/x.json.gz",
       actor: "claude-opus-5",
       boughtAt: "2026-09-06T10:00:00.000Z",
       ageDays: 9,
@@ -344,7 +344,7 @@ describe("the MCP surface is read-only", () => {
         arguments:
           name === "research_lookup"
             ? { endpoint: "x/live", params: {} }
-            : { asset: "meals.example" },
+            : { asset: "meadow.example" },
       });
     }
     expect(await countRows()).toBe(before);

@@ -13,9 +13,9 @@ import {
 
 describe("validateUrl (pull.json scrape endpoint)", () => {
   it("accepts http/https URLs, trimming whitespace", () => {
-    expect(validateUrl("  https://meals.example/metrics ")).toEqual({
+    expect(validateUrl("  https://meadow.example/metrics ")).toEqual({
       ok: true,
-      value: "https://meals.example/metrics",
+      value: "https://meadow.example/metrics",
     });
   });
 

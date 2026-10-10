@@ -155,7 +155,7 @@ function stubIngest(replies: {
 const CONFIG: IntegrationsConfig = {
   catalog: [],
   assets: {
-    "meals.example": {
+    "meadow.example": {
       gsc: { status: "live", note: "", since: "2026-08-01" },
       ga4: { status: "needs-setup", note: "", since: "2026-08-01" },
       "bing-webmaster": { status: "live", note: "", since: "2026-08-01" },
@@ -201,12 +201,12 @@ describe("GET /api/integrations/providers", () => {
     expect(bing.provider.fields[0].name).toBe("BING_WEBMASTER_API_KEY");
     expect(bing.provider.fields[0].kind).toBe("password");
     expect(bing.credential.fields).toEqual(["BING_WEBMASTER_API_KEY"]);
-    expect(bing.assets).toEqual([{ id: "meals.example", lanes: ["bing-webmaster"] }]);
+    expect(bing.assets).toEqual([{ id: "meadow.example", lanes: ["bing-webmaster"] }]);
 
     // Google's two lanes are one credential, and the System's not-applicable
     // cell is not a dependency.
     expect(payload.providers[0].assets).toEqual([
-      { id: "meals.example", lanes: ["ga4", "gsc"] },
+      { id: "meadow.example", lanes: ["ga4", "gsc"] },
     ]);
   });
 
@@ -222,7 +222,7 @@ describe("GET /api/integrations/providers", () => {
       NOW,
       async (meter) => {
         asked.push(meter);
-        return { window: "asset-day", day: "2026-09-04", assets: [{ asset: "meals.example", spent: 3 }] };
+        return { window: "asset-day", day: "2026-09-04", assets: [{ asset: "meadow.example", spent: 3 }] };
       },
     );
     const payload = await response.json();
@@ -232,7 +232,7 @@ describe("GET /api/integrations/providers", () => {
     expect(payload.providers[0].meter).toEqual({
       window: "asset-day",
       day: "2026-09-04",
-      assets: [{ asset: "meals.example", spent: 3 }],
+      assets: [{ asset: "meadow.example", spent: 3 }],
     });
   });
 
@@ -830,13 +830,13 @@ describe("assetsUsingProvider", () => {
   it("skips lanes the register says never apply to that asset", () => {
     // A lane that never applied to an asset breaks nothing there.
     expect(assetsUsingProvider(CONFIG, ["gsc"])).toEqual([
-      { id: "meals.example", lanes: ["gsc"] },
+      { id: "meadow.example", lanes: ["gsc"] },
     ]);
   });
 
   it("counts a needs-setup cell — it is the row most waiting on this credential", () => {
     expect(assetsUsingProvider(CONFIG, ["ga4"])).toEqual([
-      { id: "meals.example", lanes: ["ga4"] },
+      { id: "meadow.example", lanes: ["ga4"] },
     ]);
   });
 

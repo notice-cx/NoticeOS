@@ -20,12 +20,12 @@ const signalPanels = {
 
 const pullConfig: PullConfigEntry[] = [
   {
-    asset: "meals.example",
-    url: "https://meals.example/api/internal/metrics",
+    asset: "meadow.example",
+    url: "https://meadow.example/api/internal/metrics",
     enabled: true,
     format: "prometheus",
   },
-  { asset: "nosh.example", url: "https://nosh.example/api/admin/overview", enabled: false, format: "envelope" },
+  { asset: "northwind.example", url: "https://northwind.example/api/admin/overview", enabled: false, format: "envelope" },
 ];
 
 const integrations: IntegrationsConfig = {
@@ -69,12 +69,12 @@ function deps(overrides: Partial<SettingsDeps> = {}): SettingsDeps {
     integrations,
     dashboard,
     entities: [
-      { slug: "example-ventures", name: "Example Ventures LLC", assets: ["meals.example"] },
+      { slug: "example-ventures", name: "Example Ventures LLC", assets: ["meadow.example"] },
     ],
     beads: {
       spokes: [
         { asset: "root-os", prefix: "ro", database: "ro", repo: "." },
-        { asset: "meals.example", prefix: "mp", database: "mp", repo: "../meals.example" },
+        { asset: "meadow.example", prefix: "md", database: "md", repo: "../meadow.example" },
       ],
       hub: { host: "127.0.0.1", port: 3308, user: "root", dataDir: ".local/beads-dolt" },
     },
@@ -157,8 +157,8 @@ describe("buildSettingsPayload", () => {
     ]);
     expect(collection.pullOwner).toBe(PULL_OWNER);
     expect(collection.pullAssets).toEqual([
-      { asset: "meals.example", url: "https://meals.example/api/internal/metrics", enabled: true },
-      { asset: "nosh.example", url: "https://nosh.example/api/admin/overview", enabled: false },
+      { asset: "meadow.example", url: "https://meadow.example/api/internal/metrics", enabled: true },
+      { asset: "northwind.example", url: "https://northwind.example/api/admin/overview", enabled: false },
     ]);
   });
 
@@ -172,7 +172,7 @@ describe("buildSettingsPayload", () => {
     const payload = buildSettingsPayload(
       deps({
         pullConfig: [
-          { asset: "areas.example", url: "https://areas.example/pulse", format: "envelope" } as PullConfigEntry,
+          { asset: "acorn.example", url: "https://acorn.example/pulse", format: "envelope" } as PullConfigEntry,
         ],
       }),
     );
@@ -197,7 +197,7 @@ describe("buildSettingsPayload", () => {
     expect(taskHub.owner).toBe(BEADS_OWNER);
     expect(taskHub.spokes).toEqual([
       { asset: "root-os", prefix: "ro", database: "ro", repo: "." },
-      { asset: "meals.example", prefix: "mp", database: "mp", repo: "../meals.example" },
+      { asset: "meadow.example", prefix: "md", database: "md", repo: "../meadow.example" },
     ]);
     // Read-only, and only so the onboarding command an operator copies after
     // an Add carries the real host and port rather than a typed copy.

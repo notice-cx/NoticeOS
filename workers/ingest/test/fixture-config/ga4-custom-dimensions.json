@@ -1,9 +1,9 @@
 {
   "assets": {
-    "meals.example": {
+    "meadow.example": {
       "eventParams": ["message", "source"]
     },
-    "nosh.example": {
+    "northwind.example": {
       "eventParams": ["message", "source"]
     }
   }

@@ -9,7 +9,7 @@ import { REMOTE_REFUSED, parseArgs, publishExecutiveSnapshot } from './signal-in
 
 const SNAPSHOT = {
   schemaVersion: 1,
-  asset: 'meals.example',
+  asset: 'meadow.example',
   generatedAt: '2026-07-29T12:00:00.000Z',
   windowStart: '2026-07-25',
   windowEnd: '2026-07-28',
@@ -37,8 +37,8 @@ function stubDoor({ created = true, status = created ? 201 : 200 } = {}) {
       json: async () => ({
         created,
         duplicate: !created,
-        id: `insight:meals.example:${contentSha256.slice(0, 24)}`,
-        asset: 'meals.example',
+        id: `insight:meadow.example:${contentSha256.slice(0, 24)}`,
+        asset: 'meadow.example',
         contentSha256,
         generatedAt: JSON.parse(init.body).generatedAt,
       }),
@@ -48,9 +48,9 @@ function stubDoor({ created = true, status = created ? 201 : 200 } = {}) {
 }
 
 test('parseArgs: local by default, aimed at the loopback door', () => {
-  const options = parseArgs(['--asset', 'meals.example']);
+  const options = parseArgs(['--asset', 'meadow.example']);
   assert.equal(options.door, DEFAULT_DOOR);
-  assert.match(options.file, /reports\/meals\.example\/executive\.json$/);
+  assert.match(options.file, /reports\/meadow\.example\/executive\.json$/);
 });
 
 test('parseArgs: rejects a malformed asset', () => {
@@ -62,7 +62,7 @@ test('publishes the reviewed snapshot through the operator-authed door', async (
   const { post, calls } = stubDoor();
 
   const result = await publishExecutiveSnapshot({
-    asset: 'meals.example',
+    asset: 'meadow.example',
     file,
     door: 'http://door.test',
     post,
@@ -71,7 +71,7 @@ test('publishes the reviewed snapshot through the operator-authed door', async (
 
   assert.equal(result.itemCount, 0);
   assert.equal(result.created, true);
-  assert.match(result.id, /^insight:meals\.example:[a-f0-9]{24}$/);
+  assert.match(result.id, /^insight:meadow\.example:[a-f0-9]{24}$/);
 
   assert.equal(calls.length, 1);
   const [{ url, init }] = calls;
@@ -94,7 +94,7 @@ test('a re-publish of an unchanged file reports that nothing changed', async () 
   const { dir, file } = await scratch();
   const { post } = stubDoor({ created: false });
   const result = await publishExecutiveSnapshot({
-    asset: 'meals.example',
+    asset: 'meadow.example',
     file,
     door: 'http://door.test',
     post,
@@ -109,10 +109,10 @@ test('a rejected write fails loudly and carries the store’s reason', async () 
   const post = async () => ({
     ok: false,
     status: 422,
-    text: async () => '{"error":"unknown_asset","detail":"meals.example"}',
+    text: async () => '{"error":"unknown_asset","detail":"meadow.example"}',
   });
   await assert.rejects(
-    publishExecutiveSnapshot({ asset: 'meals.example', file, post, token: 'op' }),
+    publishExecutiveSnapshot({ asset: 'meadow.example', file, post, token: 'op' }),
     /HTTP 422.*unknown_asset/s,
   );
   await fs.rm(dir, { recursive: true, force: true });
@@ -124,7 +124,7 @@ test('a door that does not answer names os:up', async () => {
     throw new Error('fetch failed');
   };
   await assert.rejects(
-    publishExecutiveSnapshot({ asset: 'meals.example', file, post, token: 'op' }),
+    publishExecutiveSnapshot({ asset: 'meadow.example', file, post, token: 'op' }),
     /os:up/,
   );
   await fs.rm(dir, { recursive: true, force: true });
@@ -136,7 +136,7 @@ test('a door that does not answer names os:up', async () => {
 test('a malformed or foreign snapshot never reaches the store', async () => {
   for (const broken of [
     { ...SNAPSHOT, schemaVersion: 2 },
-    { ...SNAPSHOT, asset: 'nosh.example' },
+    { ...SNAPSHOT, asset: 'northwind.example' },
     { ...SNAPSHOT, sourceArchiveCount: -1 },
     { ...SNAPSHOT, items: 'none' },
     { ...SNAPSHOT, methodology: undefined },
@@ -146,7 +146,7 @@ test('a malformed or foreign snapshot never reaches the store', async () => {
     const { dir, file } = await scratch(broken);
     await assert.rejects(
       publishExecutiveSnapshot({
-        asset: 'meals.example',
+        asset: 'meadow.example',
         file,
         post: () => {
           throw new Error('nothing should have been sent');
@@ -172,7 +172,7 @@ test('does not claim publication from an empty or mismatched success acknowledge
   for (const replace of [
     () => ({}),
     (body) => ({ ...body, id: 'another-snapshot' }),
-    (body) => ({ ...body, asset: 'nosh.example' }),
+    (body) => ({ ...body, asset: 'northwind.example' }),
     (body) => ({ ...body, contentSha256: '0'.repeat(64) }),
     (body) => ({ ...body, created: undefined }),
     (body) => ({ ...body, generatedAt: '2026-01-01T00:00:00.000Z' }),
@@ -191,5 +191,5 @@ test('does not claim publication from an empty or mismatched success acknowledge
 // The snapshots are in the installation's own store,
 // reached only through its ingest: --remote writes nothing and says so.
 test('--remote is refused before anything is published', () => {
-  assert.throws(() => parseArgs(['--asset', 'meals.example', '--remote']), (error) => error.message === REMOTE_REFUSED);
+  assert.throws(() => parseArgs(['--asset', 'meadow.example', '--remote']), (error) => error.message === REMOTE_REFUSED);
 });

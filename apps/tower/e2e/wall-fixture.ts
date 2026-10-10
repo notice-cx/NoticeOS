@@ -87,7 +87,7 @@ const projection = (projected: number, earned: number): NonNullable<AssetCard["r
 });
 
 const ASSETS: AssetCard[] = [
-  card("plate.example", "Plate Planner", {
+  card("plume.example", "Plume Studio", {
     counters: {
       heading: "All-time totals", cadenceHours: 0.25, defaultMetrics: ["accounts", "leads"],
       cards: [
@@ -101,7 +101,7 @@ const ASSETS: AssetCard[] = [
     revenueProjection: projection(131_000, 92_400), dataSources: sources({ posthog: "live", uptime: "live" }),
     work: work(176, 14, 4, 9, 58, [3, 11, 98, 47, 17]),
   }),
-  card("menus.example", "Menu Finder", {
+  card("mosaic.example", "Mosaic Finder", {
     counters: {
       heading: "Current catalog", cadenceHours: 0.25, defaultMetrics: ["itemsRated", "restaurants"],
       cards: [
@@ -113,13 +113,13 @@ const ASSETS: AssetCard[] = [
     dailyRevenue: { date: "2026-09-21", amountMinor: 1_207, reportedThrough: "2026-09-21", timeZone: TZ },
     revenueProjection: projection(38_500, 26_100), work: work(64, 5, 2, 3, 19, [1, 4, 33, 18, 8]),
   }),
-  card("fitness.example", "Fitness Test", { activeUsers: trend(210, 7), work: work(12, 2, 1, 0, 4, [0, 2, 6, 3, 1]) }),
-  card("areas.example", "Area Lookup", { activeUsers: trend(95, 2), work: work(9, 0, 1, 0, 2, [0, 0, 5, 3, 1]) }),
-  card("rates.example", "Rate Codes", {
+  card("lantern.example", "Lantern Works", { activeUsers: trend(210, 7), work: work(12, 2, 1, 0, 4, [0, 2, 6, 3, 1]) }),
+  card("acorn.example", "Acorn Atlas", { activeUsers: trend(95, 2), work: work(9, 0, 1, 0, 2, [0, 0, 5, 3, 1]) }),
+  card("ripple.example", "Ripple Index", {
     senseOnly: true, activeUsers: trend(38, 5), dataSources: sources({ "bing-webmaster": "needs-setup" }),
     work: work(6, 1, 0, 0, 1, [0, 1, 3, 2, 0]),
   }),
-  card("standards.example", "Standards", {
+  card("summit.example", "Summit", {
     status: "onboarding", pulseReceivedAt: null, firstReportAt: null, reportDays: 0,
     dataSources: sources({ "nightly-report": "needs-setup", gsc: "needs-setup", "bing-webmaster": "needs-setup", ga4: "needs-setup", dataforseo: "needs-setup" }),
     work: work(14, 4, 2, 1, 5, [1, 3, 6, 3, 1]),
@@ -143,7 +143,7 @@ const SYSTEM = {
 } as SystemBand;
 
 const ATTENTION = [{
-  id: 9001, asset: "plate.example", assetDisplayName: "Plate Planner", severity: "warn", kind: "anomaly",
+  id: 9001, asset: "plume.example", assetDisplayName: "Plume Studio", severity: "warn", kind: "anomaly",
   message: "19 in last24h (avg7d 58.2, P(<=19)~=0.0000)", firedAt: iso(2 * HOUR), metric: "plansSaved",
   ruleId: "flow-poisson-low", ruleInputs: { metric: "plansSaved", observed: 19, baselinePerDay: 58.2, alpha: 0.01, pLowerTail: 0.0000041 },
   correlatedChanges: [], occurrences: 1, firstFiredAt: iso(2 * HOUR),
@@ -245,8 +245,8 @@ function minuteRows(scale: number): Ga4MinuteRow[] {
  * at the third site's hours scaled down, or the fourth site down since noon
  * (`fire`). */
 export function wallFixtureRealtime(staleMinutes = 20, variant: WallFixtureVariant = "six"): Ga4RealtimePayload {
-  const scales: Record<string, number> = { "plate.example": 150, "menus.example": 64, "fitness.example": 22, "areas.example": 10, "rates.example": 5 };
-  const readAt = (asset: string) => NOW - (asset === "plate.example" ? staleMinutes * MINUTE : 12_000);
+  const scales: Record<string, number> = { "plume.example": 150, "mosaic.example": 64, "lantern.example": 22, "acorn.example": 10, "ripple.example": 5 };
+  const readAt = (asset: string) => NOW - (asset === "plume.example" ? staleMinutes * MINUTE : 12_000);
   const base: Ga4RealtimePayload = {
     generatedAt: iso(12_000), monitoringAvailable: true,
     assets: Object.entries(scales).map(([asset, scale]) => ({

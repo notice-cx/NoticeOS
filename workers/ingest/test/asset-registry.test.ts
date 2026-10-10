@@ -14,7 +14,7 @@ import { addSites, inSiteOrder, storeSites } from './sites';
 
 describe('the site list is read on Postgres', () => {
   it('knows stored sites and every stored id', async () => {
-    expect(await assetKnown(env.STORE, 'nosh.example')).toBe(true);
+    expect(await assetKnown(env.STORE, 'northwind.example')).toBe(true);
     expect(await assetKnown(env.STORE, 'never-added.example')).toBe(false);
     expect([...(await knownAssetIds(env.STORE))].sort()).toEqual((await storeSites()).map((site) => site.id));
   });
@@ -30,9 +30,9 @@ describe('the site list is read on Postgres', () => {
       await dataForSeoCandidates(env.STORE),
       await posthogCandidates(env.STORE),
     ]) {
-      expect(candidates.map((candidate) => candidate.asset)).toContain('meals.example');
+      expect(candidates.map((candidate) => candidate.asset)).toContain('meadow.example');
     }
-    expect(await dataForSeoCandidates(env.STORE, 'meals.example')).toEqual([{ asset: 'meals.example', domain: 'meals.example' }]);
+    expect(await dataForSeoCandidates(env.STORE, 'meadow.example')).toEqual([{ asset: 'meadow.example', domain: 'meadow.example' }]);
   });
 
   it('lists sites by their stored place: the order they were added in, whatever their instants and ids', async () => {

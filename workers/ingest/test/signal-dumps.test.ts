@@ -33,7 +33,7 @@ const BING_WEEKLY_ATTEMPTS = BING_PROPERTIES * BING_WEEKLY_FAMILIES;
  * Two, so that collecting every configured property and collecting the first
  * one are different numbers: a loop that breaks where it should continue, or
  * a candidate list read as `[0]`, fails here. */
-const GOOGLE_PROPERTIES = ['meals.example', 'nosh.example'] as const;
+const GOOGLE_PROPERTIES = ['meadow.example', 'northwind.example'] as const;
 /** Ten GSC families and nine GA4 families, both properties buying the same set —
  * `js-errors` included, since config/ga4-custom-dimensions.json registers the
  * event parameters for both. */
@@ -87,12 +87,12 @@ function providerDumpFetch({
       if (method === 'GetUserSites') {
         return Response.json({
           d: [
-            { Url: 'https://meals.example/', IsVerified: true },
-            { Url: 'https://nosh.example/', IsVerified: true },
-            { Url: 'https://pacer.example/', IsVerified: true },
-            { Url: 'https://pullups.example/', IsVerified: true },
-            { Url: 'https://areas.example/', IsVerified: true },
-            { Url: 'https://fees.example/', IsVerified: true },
+            { Url: 'https://meadow.example/', IsVerified: true },
+            { Url: 'https://northwind.example/', IsVerified: true },
+            { Url: 'https://pebble.example/', IsVerified: true },
+            { Url: 'https://puffin.example/', IsVerified: true },
+            { Url: 'https://acorn.example/', IsVerified: true },
+            { Url: 'https://ferns.example/', IsVerified: true },
           ],
         });
       }
@@ -122,7 +122,7 @@ function providerDumpFetch({
         return Response.json({
           d: [{
             Date: date,
-            Query: 'https://meals.example/meal-plan',
+            Query: 'https://meadow.example/meal-plan',
             Clicks: 9,
             Impressions: 190,
             AvgClickPosition: 4,
@@ -148,7 +148,7 @@ function providerDumpFetch({
       if (method === 'GetCrawlIssues') {
         return Response.json({
           d: [{
-            Url: 'https://meals.example/old-page',
+            Url: 'https://meadow.example/old-page',
             HttpCode: 404,
             Issues: 4,
             InLinks: 3,
@@ -158,7 +158,7 @@ function providerDumpFetch({
       if (method === 'GetFeeds') {
         return Response.json({
           d: [{
-            Url: 'https://meals.example/sitemap.xml',
+            Url: 'https://meadow.example/sitemap.xml',
             Type: 'Sitemap',
             Status: 'Success',
             UrlCount: 95,
@@ -350,7 +350,7 @@ describe('analysis-grade signal dumps', () => {
     }>(`SELECT data_state AS "dataState", provider_rows AS "providerRows",
               object_key AS "objectKey"
          FROM ${ARCHIVE_RUNS}
-        WHERE asset = 'meals.example'
+        WHERE asset = 'meadow.example'
           AND integration = 'bing-webmaster'
           AND report = 'crawl-issues'`);
     expect(bingManifest).toMatchObject({
@@ -375,7 +375,7 @@ describe('analysis-grade signal dumps', () => {
     });
     expect(bingArchived.pages[0]?.request).toEqual({
       method: 'GetCrawlIssues',
-      siteUrl: 'https://meals.example/',
+      siteUrl: 'https://meadow.example/',
     });
     expect(bingArchivedText).not.toContain('test-bing-key');
 
@@ -557,7 +557,7 @@ describe('analysis-grade signal dumps', () => {
       }>(`SELECT report_date AS "reportDate", status, object_key AS "objectKey",
                 content_sha256 AS "contentSha256"
            FROM ${ARCHIVE_RUNS}
-          WHERE asset = 'meals.example' AND integration = 'bing-webmaster'
+          WHERE asset = 'meadow.example' AND integration = 'bing-webmaster'
             AND report = 'crawl-issues'
           ORDER BY report_date`)
     ).results;
@@ -666,7 +666,7 @@ describe('analysis-grade signal dumps', () => {
       expect(
         result.outcomes.find((outcome) => outcome.report === 'js-errors'),
       ).toMatchObject({
-        asset: 'meals.example',
+        asset: 'meadow.example',
         integration: 'ga4',
         reportDate: '2026-07-28',
         status: 'success',
@@ -796,7 +796,7 @@ describe('analysis-grade signal dumps', () => {
         // `source` is missing, so the request would fail on that field. Asking
         // anyway would turn a known gap into a daily error row.
         ga4CustomDimensions: {
-          assets: { 'meals.example': { eventParams: ['message'] } },
+          assets: { 'meadow.example': { eventParams: ['message'] } },
         },
       });
 
@@ -1091,12 +1091,12 @@ describe('analysis-grade signal dumps', () => {
 
   describe('when the OS is what is down', () => {
     const ALL_PROPERTIES = [
-      'meals.example',
-      'nosh.example',
-      'pacer.example',
-      'pullups.example',
-      'areas.example',
-      'fees.example',
+      'meadow.example',
+      'northwind.example',
+      'pebble.example',
+      'puffin.example',
+      'acorn.example',
+      'ferns.example',
     ];
 
     async function residue(): Promise<{
@@ -1289,8 +1289,8 @@ describe('analysis-grade signal dumps', () => {
 
     it('does not let failed attempts alone arm the probe', async () => {
       await storeArchiveRun({
-        id: 'probe-error-fixture', asset: 'meals.example', integration: 'gsc', report: 'discover-page',
-        credential_ref: 'test-signals', property_ref: 'sc-domain:meals.example', report_date: '2026-07-27',
+        id: 'probe-error-fixture', asset: 'meadow.example', integration: 'gsc', report: 'discover-page',
+        credential_ref: 'test-signals', property_ref: 'sc-domain:meadow.example', report_date: '2026-07-27',
         requested_at: '2026-07-28T12:15:00.000Z', finished_at: '2026-07-28T12:15:01.000Z',
         status: 'error', data_state: 'provider-final', error_code: 'gsc_dump_http_403', error_message: 'denied',
       });
@@ -1313,8 +1313,8 @@ describe('analysis-grade signal dumps', () => {
     /** A scheduled run ten days on: its own window is 2026-09-23 alone. */
     const LATER = Date.parse('2026-09-24T12:15:00.000Z');
     const GOOGLE_REF: Record<string, Record<string, string>> = {
-      'meals.example': { ga4: '123456', gsc: 'sc-domain:meals.example' },
-      'nosh.example': { ga4: '654321', gsc: 'sc-domain:nosh.example' },
+      'meadow.example': { ga4: '123456', gsc: 'sc-domain:meadow.example' },
+      'northwind.example': { ga4: '654321', gsc: 'sc-domain:northwind.example' },
     };
 
     /** One manifest row, written the way the lane writes an error. */
@@ -1360,9 +1360,9 @@ describe('analysis-grade signal dumps', () => {
     it('asks a network-failed date again on the next run, and it reads collected afterwards', async () => {
       // The three shapes the outage left: a family's oldest window date, a GSC
       // day that timed out, and the rolling family asked for its newest date only.
-      await failedDump('meals.example', 'ga4', 'pages-screens', '2026-09-10', 'request_failed');
-      await failedDump('nosh.example', 'gsc', 'page-query', '2026-09-10', 'request_timeout');
-      await failedDump('meals.example', 'ga4', 'events-28d', '2026-09-13', 'request_failed');
+      await failedDump('meadow.example', 'ga4', 'pages-screens', '2026-09-10', 'request_failed');
+      await failedDump('northwind.example', 'gsc', 'page-query', '2026-09-10', 'request_timeout');
+      await failedDump('meadow.example', 'ga4', 'events-28d', '2026-09-13', 'request_failed');
 
       const fixture = providerDumpFetch();
       const result = await runSignalDumps(env, { nowMs: LATER, fetchImpl: fixture.fetchImpl, revisionDays: 1 });
@@ -1370,9 +1370,9 @@ describe('analysis-grade signal dumps', () => {
       expect(result.retried).toBe(3);
       expect(result.attempted).toBe(EXPECTED_ATTEMPTS + 3);
       expect(result.failed).toBe(0);
-      expect(await latest('meals.example', 'ga4', 'pages-screens', '2026-09-10')).toMatchObject({ status: 'success' });
-      expect(await latest('nosh.example', 'gsc', 'page-query', '2026-09-10')).toMatchObject({ status: 'success' });
-      expect(await latest('meals.example', 'ga4', 'events-28d', '2026-09-13')).toMatchObject({ status: 'success' });
+      expect(await latest('meadow.example', 'ga4', 'pages-screens', '2026-09-10')).toMatchObject({ status: 'success' });
+      expect(await latest('northwind.example', 'gsc', 'page-query', '2026-09-10')).toMatchObject({ status: 'success' });
+      expect(await latest('meadow.example', 'ga4', 'events-28d', '2026-09-13')).toMatchObject({ status: 'success' });
       // The exact question the dark night owed: that date, not today's.
       const rolling = askedFor(fixture, '2026-09-13');
       expect(rolling).toHaveLength(1);
@@ -1388,27 +1388,27 @@ describe('analysis-grade signal dumps', () => {
     });
 
     it('never re-asks a date the provider answered with a refusal', async () => {
-      await failedDump('meals.example', 'gsc', 'page-query', '2026-09-10', 'gsc_dump_http_403');
-      await failedDump('meals.example', 'ga4', 'pages-screens', '2026-09-10', 'ga4_quota_exhausted');
+      await failedDump('meadow.example', 'gsc', 'page-query', '2026-09-10', 'gsc_dump_http_403');
+      await failedDump('meadow.example', 'ga4', 'pages-screens', '2026-09-10', 'ga4_quota_exhausted');
       // Network first, then the provider's own answer: the LATEST attempt decides.
-      await failedDump('nosh.example', 'ga4', 'events', '2026-09-10', 'request_failed', '2026-09-14T12:15:00.000Z');
-      await failedDump('nosh.example', 'ga4', 'events', '2026-09-10', 'ga4_dump_http_400', '2026-09-15T12:15:00.000Z');
+      await failedDump('northwind.example', 'ga4', 'events', '2026-09-10', 'request_failed', '2026-09-14T12:15:00.000Z');
+      await failedDump('northwind.example', 'ga4', 'events', '2026-09-10', 'ga4_dump_http_400', '2026-09-15T12:15:00.000Z');
 
       const fixture = providerDumpFetch();
       const result = await runSignalDumps(env, { nowMs: LATER, fetchImpl: fixture.fetchImpl, revisionDays: 1 });
 
       expect(result.retried).toBe(0);
       expect(askedFor(fixture, '2026-09-10')).toHaveLength(0);
-      expect(await latest('meals.example', 'gsc', 'page-query', '2026-09-10')).toMatchObject({ errorCode: 'gsc_dump_http_403' });
+      expect(await latest('meadow.example', 'gsc', 'page-query', '2026-09-10')).toMatchObject({ errorCode: 'gsc_dump_http_403' });
     });
 
     it('names a date this machine failed to save as its own fault, and never asks Google again for it', async () => {
-      // Google answered pages-screens for meals.example; the file store refused it.
+      // Google answered pages-screens for meadow.example; the file store refused it.
       const refusing = new Proxy(env.RAW_SIGNALS, {
         get(target, prop) {
           if (prop === 'put') {
             return (key: string, ...rest: unknown[]) =>
-              key.includes('/ga4/meals.example/pages-screens/')
+              key.includes('/ga4/meadow.example/pages-screens/')
                 ? Promise.reject(new Error('R2 put failed: we encountered an internal error'))
                 : (target.put as (...args: unknown[]) => Promise<unknown>)(key, ...rest);
           }
@@ -1422,7 +1422,7 @@ describe('analysis-grade signal dumps', () => {
         revisionDays: 1,
       });
       expect(first.failed).toBe(1);
-      expect(await latest('meals.example', 'ga4', 'pages-screens', '2026-09-23')).toMatchObject({
+      expect(await latest('meadow.example', 'ga4', 'pages-screens', '2026-09-23')).toMatchObject({
         status: 'error',
         errorCode: LOCAL_STORE_FAILED,
       });
@@ -1438,7 +1438,7 @@ describe('analysis-grade signal dumps', () => {
     it('never re-asks a date newer than the run could call complete', async () => {
       // A manual run before 12:15 UTC calls 2026-09-22 its newest completed
       // date; 2026-09-23 may still be open on the US west coast.
-      await failedDump('meals.example', 'ga4', 'pages-screens', '2026-09-23', 'request_failed', '2026-09-24T12:15:00.000Z');
+      await failedDump('meadow.example', 'ga4', 'pages-screens', '2026-09-23', 'request_failed', '2026-09-24T12:15:00.000Z');
 
       const fixture = providerDumpFetch();
       const result = await runSignalDumps(env, {
@@ -1453,7 +1453,7 @@ describe('analysis-grade signal dumps', () => {
 
     it('asks no more than its bound per run — oldest first, the rest on the next runs', async () => {
       for (const date of ['2026-09-05', '2026-09-06', '2026-09-07', '2026-09-08', '2026-09-09']) {
-        await failedDump('meals.example', 'ga4', 'pages-screens', date, 'request_failed');
+        await failedDump('meadow.example', 'ga4', 'pages-screens', date, 'request_failed');
       }
 
       const asked: string[][] = [];
@@ -1481,8 +1481,8 @@ describe('analysis-grade signal dumps', () => {
     });
 
     it('asks nothing while the outage is still on, and leaves every date owed', async () => {
-      await failedDump('meals.example', 'ga4', 'pages-screens', '2026-09-10', 'request_failed');
-      await failedDump('nosh.example', 'gsc', 'page-query', '2026-09-10', 'request_failed');
+      await failedDump('meadow.example', 'ga4', 'pages-screens', '2026-09-10', 'request_failed');
+      await failedDump('northwind.example', 'gsc', 'page-query', '2026-09-10', 'request_failed');
 
       const dark = await runSignalDumps(env, {
         nowMs: LATER,
@@ -1514,13 +1514,13 @@ describe('analysis-grade signal dumps', () => {
         revisionDays: 1,
       });
       expect(back.retried).toBe(2);
-      expect(await latest('meals.example', 'ga4', 'pages-screens', '2026-09-10')).toMatchObject({ status: 'success' });
-      expect(await latest('nosh.example', 'gsc', 'page-query', '2026-09-10')).toMatchObject({ status: 'success' });
+      expect(await latest('meadow.example', 'ga4', 'pages-screens', '2026-09-10')).toMatchObject({ status: 'success' });
+      expect(await latest('northwind.example', 'gsc', 'page-query', '2026-09-10')).toMatchObject({ status: 'success' });
     });
 
     it('stops after one ask when the provider still drops the connection', async () => {
       for (const date of ['2026-09-08', '2026-09-09', '2026-09-10']) {
-        await failedDump('meals.example', 'ga4', 'pages-screens', date, 'request_failed');
+        await failedDump('meadow.example', 'ga4', 'pages-screens', date, 'request_failed');
       }
       // The world answers, Google's data endpoints do not.
       const result = await runSignalDumps(env, {
@@ -1533,7 +1533,7 @@ describe('analysis-grade signal dumps', () => {
       });
       expect(result.retried).toBe(1);
       // Recorded as the provider's network failure, so it is still owed.
-      expect(await latest('meals.example', 'ga4', 'pages-screens', '2026-09-08')).toMatchObject({
+      expect(await latest('meadow.example', 'ga4', 'pages-screens', '2026-09-08')).toMatchObject({
         status: 'error',
         errorCode: 'request_failed',
       });
@@ -1608,7 +1608,7 @@ describe('an archive larger than the store keeps', () => {
     const oversized = 'x'.repeat(32 * 1024 * 1024 + 1);
     await expect(archiveCollectedDump(env, {
       provider: 'google',
-      target: { asset: 'meals.example', integration: 'gsc', credentialRef: 'fixture', propertyRef: 'sc-domain:meals.example' },
+      target: { asset: 'meadow.example', integration: 'gsc', credentialRef: 'fixture', propertyRef: 'sc-domain:meadow.example' },
       report: 'query',
       reportDate: '2026-07-28',
       requestedAt: new Date(NOW).toISOString(),
@@ -1617,6 +1617,6 @@ describe('an archive larger than the store keeps', () => {
     })).rejects.toMatchObject({ code: 'archive_too_large' });
 
     expect((await env.RAW_SIGNALS.list()).objects).toHaveLength(before);
-    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE asset = 'meals.example'`)).toBe(0);
+    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE asset = 'meadow.example'`)).toBe(0);
   });
 });

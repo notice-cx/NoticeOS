@@ -24,8 +24,8 @@ export function workCounts(overrides: Record<string, number> = {}) {
  * as an older poller's snapshot omits the key. */
 export function workProject(overrides: Record<string, unknown> = {}) {
   return {
-    asset: "meals.example",
-    prefix: "mp",
+    asset: "meadow.example",
+    prefix: "md",
     ok: true,
     error: null,
     counts: workCounts(),
@@ -37,10 +37,10 @@ export function workProject(overrides: Record<string, unknown> = {}) {
   };
 }
 
-/** An open review task on meals's panel, due a week after the landing. */
+/** An open review task on meadow's panel, due a week after the landing. */
 export function panelReviewBead(overrides: Record<string, unknown> = {}) {
   return {
-    beadId: "mp-4a2",
+    beadId: "md-4a2",
     panelDate: "2026-07-01",
     dueAt: "2026-07-08T06:00:00.000Z",
     status: "open",

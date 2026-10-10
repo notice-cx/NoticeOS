@@ -127,9 +127,9 @@ async function asset(raw: TestStore, id: string, name: string): Promise<void> {
 /** The money the cases read: the same in every case and only ever read, so
  * booked once into this file's copy. */
 const LEDGER = [
-  { kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", minor: 30000 },
-  { kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 44094 },
-  { kind: "cost", asset: "meals.example", period: "2026-08", family: "api", minor: 305 },
+  { kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", minor: 30000 },
+  { kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 44094 },
+  { kind: "cost", asset: "meadow.example", period: "2026-08", family: "api", minor: 305 },
 ] as const;
 async function bookLedgerOnce(): Promise<void> {
   if (!pg) return;
@@ -213,7 +213,7 @@ beforeEach(async () => {
   ingestCalls.length = 0;
   ctx = await createTestStore();
   pg = ctx;
-  await asset(ctx, "meals.example", "Meal Planner");
+  await asset(ctx, "meadow.example", "Meadow Board");
   await bookLedgerOnce();
 
   env = { NOTICEOS_WORKSPACE_PROFILE: 'standalone', INGEST: refusingIngest(), ...(pg ? { POSTGRES: { connectionString: pg.url } } : {}) };
@@ -419,10 +419,10 @@ describe("the Worker's fetch switch", () => {
 
   describe("the asset drill-down", () => {
     it("answers 200 for an asset the store has", async () => {
-      const { status, body } = await call(get("/api/assets/meals.example"));
+      const { status, body } = await call(get("/api/assets/meadow.example"));
 
       expect(status).toBe(200);
-      expect((body.asset as { id: string }).id).toBe("meals.example");
+      expect((body.asset as { id: string }).id).toBe("meadow.example");
     });
 
     it("answers 404 asset_not_found for one it does not, naming the id", async () => {
@@ -442,7 +442,7 @@ describe("the Worker's fetch switch", () => {
     it("answers 404 not_found for a slash in the id", async () => {
       // Asset ids contain dots, never slashes, so the whole path remainder is
       // the id, and a remainder with a slash in it is a sub-path nothing claimed.
-      const { status, body } = await call(get("/api/assets/meals.example/nonsense"));
+      const { status, body } = await call(get("/api/assets/meadow.example/nonsense"));
 
       expect(status).toBe(404);
       expect(body).toEqual({ error: "not_found" });
@@ -450,18 +450,18 @@ describe("the Worker's fetch switch", () => {
 
     // `?view=` names the tab being drawn.
     it("answers one tab's view, named, without the sections it does not draw", async () => {
-      const { status, body } = await call(get("/api/assets/meals.example?view=alerts"));
+      const { status, body } = await call(get("/api/assets/meadow.example?view=alerts"));
 
       expect(status).toBe(200);
       expect(body.view).toBe("alerts");
-      expect((body.asset as { id: string }).id).toBe("meals.example");
+      expect((body.asset as { id: string }).id).toBe("meadow.example");
       expect(body).toHaveProperty("flags");
       expect(body).not.toHaveProperty("performance");
       expect(body).not.toHaveProperty("ledger");
     });
 
     it("answers the whole page, unnamed, with no view", async () => {
-      const { body } = await call(get("/api/assets/meals.example"));
+      const { body } = await call(get("/api/assets/meadow.example"));
 
       expect(body).not.toHaveProperty("view");
       expect(body).toHaveProperty("performance");
@@ -469,7 +469,7 @@ describe("the Worker's fetch switch", () => {
     });
 
     it("refuses a view no tab has, 400, rather than guessing one", async () => {
-      const { status, body } = await call(get("/api/assets/meals.example?view=everything"));
+      const { status, body } = await call(get("/api/assets/meadow.example?view=everything"));
 
       expect(status).toBe(400);
       expect(body).toEqual({ error: "unknown_view", view: "everything" });
@@ -534,7 +534,7 @@ describe("the Worker's fetch switch", () => {
     let id: number;
     beforeEach(async () => {
       id = await storeAlert(pg!.call, {
-        asset: "meals.example",
+        asset: "meadow.example",
         firedAt: "2026-08-14T09:00:00.000Z",
         severity: "warn",
         kind: "anomaly",
@@ -582,7 +582,7 @@ describe("the Worker's fetch switch", () => {
     it("refuses a cross-origin PATCH /api/assets/:id 403 before the binding", async () => {
       const { status, body } = await call(
         crossOrigin(
-          "/api/assets/meals.example",
+          "/api/assets/meadow.example",
           "PATCH",
           JSON.stringify({ column: "status", expect: "live", value: "retired" }),
         ),
@@ -591,7 +591,7 @@ describe("the Worker's fetch switch", () => {
       expect(status).toBe(403);
       expect(body).toEqual({ error: "forbidden" });
       expect(ingestCalls).toEqual([]);
-      expect(await readSite(ctx.call, "meals.example")).toMatchObject({ status: "live" });
+      expect(await readSite(ctx.call, "meadow.example")).toMatchObject({ status: "live" });
     });
 
     it("refuses a cross-origin POST /api/assets 403 before the binding", async () => {
@@ -612,7 +612,7 @@ describe("the Worker's fetch switch", () => {
     // A site is archived, never deleted. The verb is refused rather than read
     // as the GET beside it.
     it("refuses DELETE /api/assets/:id 405, reading and removing nothing", async () => {
-      const response = await worker.fetch(sameOrigin("/api/assets/meals.example", "DELETE"), env, CALL_CONTEXT);
+      const response = await worker.fetch(sameOrigin("/api/assets/meadow.example", "DELETE"), env, CALL_CONTEXT);
 
       expect(response.status).toBe(405);
       expect(response.headers.get("allow")).toBe("GET, PATCH");

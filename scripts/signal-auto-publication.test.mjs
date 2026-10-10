@@ -13,7 +13,7 @@ const refreshAsset = (asset, options, deps) => realRefreshAsset(asset, options,
   deps.analyze === analyzeSignalHistory ? deps : fixtureRefreshDeps(deps));
 const refreshPanels = (options, deps) => realRefreshPanels(options, fixtureRefreshDeps(deps));
 
-const ASSET = 'nosh.example';
+const ASSET = 'northwind.example';
 const NOW = '2026-09-06T12:00:00.000Z';
 const ROW = { integration: 'gsc', report: 'query', reportDate: '2026-09-04', objectKey: 'fixture-archive', providerRows: 1 };
 const snapshot = (over = {}) => ({
@@ -194,7 +194,7 @@ test('a local output-write failure after analysis prevents publication', async (
 
 test('publication failure is a failed asset pass, does not stop other enabled assets, and retries safely', async (t) => {
   const f = await fixture(t);
-  const roster = { assets: { [ASSET]: { enabled: true }, 'fees.example': { enabled: true }, 'disabled.example': { enabled: false } } };
+  const roster = { assets: { [ASSET]: { enabled: true }, 'ferns.example': { enabled: true }, 'disabled.example': { enabled: false } } };
   const published = [];
   let fail = true;
   const deps = { ...f.deps,
@@ -212,11 +212,11 @@ test('publication failure is a failed asset pass, does not stop other enabled as
   const options = { ...f.options, asset: null, all: false, windowDays: null };
   const first = await refreshPanels(options, deps);
   assert.deepEqual(first.failures, [{ asset: ASSET, message: 'Recommendation publication not confirmed: store unavailable' }]);
-  assert.deepEqual(published, ['fees.example']);
+  assert.deepEqual(published, ['ferns.example']);
   fail = false;
   const retry = await refreshPanels(options, deps);
   assert.deepEqual(retry.failures, []);
-  assert.deepEqual(retry.results.map((row) => [row.asset, row.publication.created]), [[ASSET, true], ['fees.example', false]]);
+  assert.deepEqual(retry.results.map((row) => [row.asset, row.publication.created]), [[ASSET, true], ['ferns.example', false]]);
   assert.ok(!published.includes('disabled.example'));
 });
 

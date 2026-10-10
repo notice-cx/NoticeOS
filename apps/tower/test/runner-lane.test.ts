@@ -155,9 +155,9 @@ describe("proxying the ingest's own routes", () => {
         return new Response("[]");
       }),
     });
-    const { request, url } = doorRequest(`${RUNNER_INGEST_PREFIX}/api/serp-panel-landings?asset=nosh.example`);
+    const { request, url } = doorRequest(`${RUNNER_INGEST_PREFIX}/api/serp-panel-landings?asset=northwind.example`);
     await handleRunnerRequest(request, url, ingest);
-    expect(new URL(seen[0]!.url).search).toBe("?asset=nosh.example");
+    expect(new URL(seen[0]!.url).search).toBe("?asset=northwind.example");
   });
 
   it("answers 404 for a runner path that names no lane", async () => {

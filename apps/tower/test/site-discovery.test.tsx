@@ -106,11 +106,11 @@ describe("matching an account's sites to the portfolio", () => {
       ] },
       assets: [
         asset("journey.example", { cells: { dataforseo: { status: "needs-setup", mapping: { locationCode: 2826 } } } }),
-        asset("fees.example", { status: "pre-launch", cells: { dataforseo: { status: "needs-setup", mapping: {} } } }),
+        asset("ferns.example", { status: "pre-launch", cells: { dataforseo: { status: "needs-setup", mapping: {} } } }),
       ],
       spend: null,
     });
-    expect(plan.rows.map((row) => [row.asset.id, row.checked, row.excluded])).toEqual([["journey.example", true, null], ["fees.example", false, "pre-launch"]]);
+    expect(plan.rows.map((row) => [row.asset.id, row.checked, row.excluded])).toEqual([["journey.example", true, null], ["ferns.example", false, "pre-launch"]]);
     expect(marketLabel({ locationCode: 2826, languageCode: "en" })).toBe("United Kingdom · English");
     expect(plan.others).toEqual([]);
   });
@@ -474,7 +474,7 @@ describe("PostHog's projects in the panel", () => {
   });
   const cell = (over: Record<string, unknown> = {}) => ({ posthog: { status: "needs-setup", mapping: {}, ...over } });
   const payload = (assets: SitesAsset[]): SitesPayload => ({
-    discovery: { ok: true, provider: "posthog", kind: "account", checkedAt: AT, sites: [project(596607, "journey.example", [SIGNUP]), project(12, null)] },
+    discovery: { ok: true, provider: "posthog", kind: "account", checkedAt: AT, sites: [project(424242, "journey.example", [SIGNUP]), project(12, null)] },
     assets,
     spend: null,
   });
@@ -485,7 +485,7 @@ describe("PostHog's projects in the panel", () => {
     expect(assets).toEqual(["journey.example"]);
     expect(ops).toEqual([
       laneFieldOp("journey.example", "posthog", "host", null, "us"),
-      laneFieldOp("journey.example", "posthog", "projectId", null, "596607"),
+      laneFieldOp("journey.example", "posthog", "projectId", null, "424242"),
       laneFieldOp("journey.example", "posthog", "funnels", null, [SIGNUP] as never),
     ]);
   });
@@ -508,7 +508,7 @@ describe("PostHog's projects in the panel", () => {
       </MemoryRouter>,
     );
     const row = document.querySelector('[data-site-row="journey.example"]') as HTMLElement;
-    expect(row.querySelector("[data-site-detail]")?.textContent).toBe("journey.example · 596607");
+    expect(row.querySelector("[data-site-detail]")?.textContent).toBe("journey.example · 424242");
     expect(within(row).getByText("1 funnel")).toBeTruthy();
     expect(within(row).getByRole("checkbox")).toHaveProperty("checked", true);
     expect(document.querySelector('[data-other-site="us:12"]')?.textContent).toContain("Staging");
@@ -532,13 +532,13 @@ describe("Google's two kinds of site on one row", () => {
 
   it("matches the GA4 property and the Search Console site by the host each answers for, and writes both in one press", () => {
     const plan = planSites(payload(
-      [ga4("313598867", "journey.example"), gsc("sc-domain:journey.example", "journey.example"), ga4("402211876", "another.example")],
+      [ga4("123456789", "journey.example"), gsc("sc-domain:journey.example", "journey.example"), ga4("987654321", "another.example")],
       [asset("journey.example", { cells: cells() })],
     ));
     const { ops, assets } = startPlan(plan, initialSelection(plan));
     expect(assets).toEqual(["journey.example"]);
     expect(ops).toEqual([
-      laneFieldOp("journey.example", "ga4", "propertyId", null, "313598867"),
+      laneFieldOp("journey.example", "ga4", "propertyId", null, "123456789"),
       laneFieldOp("journey.example", "gsc", "siteUrl", null, "sc-domain:journey.example"),
     ]);
   });
@@ -549,7 +549,7 @@ describe("Google's two kinds of site on one row", () => {
         <SitePicker
           provider={GOOGLE}
           payload={payload(
-            [ga4("313598867", "journey.example"), gsc("sc-domain:journey.example", "journey.example"), ga4("402211876", "another.example")],
+            [ga4("123456789", "journey.example"), gsc("sc-domain:journey.example", "journey.example"), ga4("987654321", "another.example")],
             [asset("journey.example", { cells: cells() }), asset("second.example", { cells: cells() })],
           )}
           onStart={async () => null}
@@ -559,9 +559,9 @@ describe("Google's two kinds of site on one row", () => {
     );
     const row = document.querySelector('[data-site-row="journey.example"]') as HTMLElement;
     expect(row.getAttribute("data-site-state")).toBe("matched matched");
-    expect(row.querySelector("[data-site-detail]")?.textContent).toBe("GA4 313598867 · sc-domain:journey.example");
+    expect(row.querySelector("[data-site-detail]")?.textContent).toBe("GA4 123456789 · sc-domain:journey.example");
     const second = document.querySelector('[data-site-row="second.example"]') as HTMLElement;
     expect(within(second).getByRole("combobox", { name: "GA4 property for Second" })).toBeTruthy();
-    expect(document.querySelector('[data-other-site="402211876"]')?.textContent).toContain("another.example");
+    expect(document.querySelector('[data-other-site="987654321"]')?.textContent).toContain("another.example");
   });
 });

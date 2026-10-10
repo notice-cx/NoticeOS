@@ -56,13 +56,13 @@ async function seedArchive(
   overrides: Partial<SeedArchiveRow> = {},
 ): Promise<{ objectKey: string }> {
   const row: SeedArchiveRow = {
-    asset: 'nosh.example',
+    asset: 'northwind.example',
     integration: 'gsc',
     report: 'query',
     reportDate: today(1),
     finishedAt: `${today(1)}T12:15:00.000Z`,
     status: 'success',
-    objectKey: `signals/nosh.example/${crypto.randomUUID()}.json.gz`,
+    objectKey: `signals/northwind.example/${crypto.randomUUID()}.json.gz`,
     contentSha256: 'a'.repeat(64),
     providerRows: 31,
     providerTruncated: 0,
@@ -93,7 +93,7 @@ async function seedObservations(input: {
   windowEnd?: string;
   rows: { date: string; metric: string; value: number }[];
 }): Promise<void> {
-  const asset = input.asset ?? 'nosh.example';
+  const asset = input.asset ?? 'northwind.example';
   const integration = input.integration ?? 'gsc';
   const finishedAt = input.finishedAt ?? `${today(0)}T00:15:00.000Z`;
   const status = input.status ?? 'success';
@@ -133,7 +133,7 @@ function sourceRequest(query: string, token?: string): Request {
 }
 
 async function source(
-  query = '?asset=nosh.example',
+  query = '?asset=northwind.example',
   token: string | undefined = OPERATOR_TOKEN,
 ): Promise<SourceBody> {
   const res = await call(sourceRequest(query, token));
@@ -143,11 +143,11 @@ async function source(
 
 describe('GET /api/panel-source — auth and arguments', () => {
   it('rejects a request without the operator token (401)', async () => {
-    expect((await call(sourceRequest('?asset=nosh.example'))).status).toBe(401);
+    expect((await call(sourceRequest('?asset=northwind.example'))).status).toBe(401);
   });
 
   it('rejects a wrong operator token (401)', async () => {
-    expect((await call(sourceRequest('?asset=nosh.example', 'nope'))).status).toBe(401);
+    expect((await call(sourceRequest('?asset=northwind.example', 'nope'))).status).toBe(401);
   });
 
   it('refuses a missing or malformed asset (400)', async () => {
@@ -167,7 +167,7 @@ describe('GET /api/panel-source — auth and arguments', () => {
   });
 
   it('reports the window it actually used', async () => {
-    const body = await source('?asset=nosh.example&windowDays=7');
+    const body = await source('?asset=northwind.example&windowDays=7');
     expect(body.windowDays).toBe(7);
     expect(body.from).toBe(panelSourceCutoff(Date.now(), 7));
   });
@@ -195,17 +195,17 @@ describe('GET /api/panel-source — the archive manifest', () => {
   // one day on disk would double-count it in every flattened CSV.
   it('keeps only the newest revision of a report day', async () => {
     await seedArchive({
-      objectKey: 'signals/nosh.example/old.json.gz',
+      objectKey: 'signals/northwind.example/old.json.gz',
       finishedAt: `${today(1)}T12:15:00.000Z`,
       providerRows: 10,
     });
     await seedArchive({
-      objectKey: 'signals/nosh.example/new.json.gz',
+      objectKey: 'signals/northwind.example/new.json.gz',
       finishedAt: `${today(1)}T18:15:00.000Z`,
       providerRows: 12,
     });
     const body = await source();
-    expect(body.manifest.map((row) => row.objectKey)).toEqual(['signals/nosh.example/new.json.gz']);
+    expect(body.manifest.map((row) => row.objectKey)).toEqual(['signals/northwind.example/new.json.gz']);
   });
 
   // An `unchanged` re-fetch means the bytes already stored are current, and the
@@ -221,13 +221,13 @@ describe('GET /api/panel-source — the archive manifest', () => {
   });
 
   it('ignores another property’s archive', async () => {
-    await seedArchive({ asset: 'meals.example' });
+    await seedArchive({ asset: 'meadow.example' });
     expect((await source()).manifest).toEqual([]);
   });
 
   it('drops a report day older than the window', async () => {
     await seedArchive({ reportDate: today(90), finishedAt: `${today(90)}T12:15:00.000Z` });
-    expect((await source('?asset=nosh.example&windowDays=7')).manifest).toEqual([]);
+    expect((await source('?asset=northwind.example&windowDays=7')).manifest).toEqual([]);
   });
 });
 
@@ -330,18 +330,18 @@ describe('GET /api/panel-source — the daily trend', () => {
 
   it('does not let another provider resource confirm a day', async () => {
     await seedObservations({
-      propertyRef: 'sc-domain:nosh.example',
+      propertyRef: 'sc-domain:northwind.example',
       finishedAt: `${today(2)}T00:15:00.000Z`,
       provisionalFrom: today(1),
       rows: [{ date: today(1), metric: 'clicks', value: 20 }],
     });
     await seedObservations({
-      propertyRef: 'https://nosh.example/',
+      propertyRef: 'https://northwind.example/',
       finishedAt: `${today(1)}T00:15:00.000Z`,
       rows: [{ date: today(1), metric: 'clicks', value: 21 }],
     });
     await seedObservations({
-      propertyRef: 'sc-domain:nosh.example',
+      propertyRef: 'sc-domain:northwind.example',
       finishedAt: `${today(0)}T00:15:00.000Z`,
       windowStart: today(0),
       windowEnd: today(0),
@@ -368,13 +368,13 @@ describe('GET /api/panel-source — the daily trend', () => {
 
   it('ignores a failed run and another property’s series', async () => {
     await seedObservations({ status: 'error', rows: [{ date: today(1), metric: 'clicks', value: 99 }] });
-    await seedObservations({ asset: 'meals.example', rows: [{ date: today(1), metric: 'clicks', value: 77 }] });
+    await seedObservations({ asset: 'meadow.example', rows: [{ date: today(1), metric: 'clicks', value: 77 }] });
     expect((await source()).trend).toEqual([]);
   });
 
   it('drops a date older than the window', async () => {
     await seedObservations({ rows: [{ date: today(90), metric: 'clicks', value: 1 }] });
-    expect((await source('?asset=nosh.example&windowDays=7')).trend).toEqual([]);
+    expect((await source('?asset=northwind.example&windowDays=7')).trend).toEqual([]);
   });
 
   // Repointing the asset at another Search Console site starts a different
@@ -382,7 +382,7 @@ describe('GET /api/panel-source — the daily trend', () => {
   // not be spliced in front of the new site's.
   it('reads only the current provider resource after a property switch', async () => {
     await seedObservations({
-      propertyRef: 'sc-domain:nosh.example',
+      propertyRef: 'sc-domain:northwind.example',
       finishedAt: `${today(1)}T00:15:00.000Z`,
       rows: [
         { date: today(3), metric: 'clicks', value: 7 },
@@ -390,7 +390,7 @@ describe('GET /api/panel-source — the daily trend', () => {
       ],
     });
     await seedObservations({
-      propertyRef: 'https://nosh.example/',
+      propertyRef: 'https://northwind.example/',
       finishedAt: `${today(0)}T00:15:00.000Z`,
       rows: [{ date: today(2), metric: 'clicks', value: 5 }],
     });
@@ -431,14 +431,14 @@ describe('GET /api/signal-archives — the hand downloader’s manifest', () => 
     });
   }
 
-  async function archives(query = '?asset=nosh.example'): Promise<ArchivesBody> {
+  async function archives(query = '?asset=northwind.example'): Promise<ArchivesBody> {
     const res = await call(archivesRequest(query, OPERATOR_TOKEN));
     expect(res.status).toBe(200);
     return (await res.json()) as ArchivesBody;
   }
 
   it('rejects a request without the operator token (401)', async () => {
-    expect((await call(archivesRequest('?asset=nosh.example'))).status).toBe(401);
+    expect((await call(archivesRequest('?asset=northwind.example'))).status).toBe(401);
   });
 
   it('refuses a missing or malformed asset (400)', async () => {
@@ -450,10 +450,10 @@ describe('GET /api/signal-archives — the hand downloader’s manifest', () => 
   // asked for and left to notice.
   it('refuses a malformed filter rather than ignoring it (400)', async () => {
     for (const query of [
-      '?asset=nosh.example&from=last-week',
-      '?asset=nosh.example&to=2026-8-1',
-      '?asset=nosh.example&integration=GA4',
-      '?asset=nosh.example&report=page_query',
+      '?asset=northwind.example&from=last-week',
+      '?asset=northwind.example&to=2026-8-1',
+      '?asset=northwind.example&integration=GA4',
+      '?asset=northwind.example&report=page_query',
     ]) {
       const res = await call(archivesRequest(query, OPERATOR_TOKEN));
       expect(res.status).toBe(400);
@@ -475,7 +475,7 @@ describe('GET /api/signal-archives — the hand downloader’s manifest', () => 
     await seedArchive({ reportDate: '2026-07-01', finishedAt: '2026-07-02T12:15:00.000Z' });
     await seedArchive({ reportDate: '2026-07-15', finishedAt: '2026-07-16T12:15:00.000Z' });
     await seedArchive({ reportDate: '2026-08-01', finishedAt: '2026-08-02T12:15:00.000Z' });
-    const body = await archives('?asset=nosh.example&from=2026-07-10&to=2026-07-31');
+    const body = await archives('?asset=northwind.example&from=2026-07-10&to=2026-07-31');
     expect(body.manifest.map((row) => row.reportDate)).toEqual(['2026-07-15']);
     expect(body.filters.from).toBe('2026-07-10');
   });
@@ -485,10 +485,10 @@ describe('GET /api/signal-archives — the hand downloader’s manifest', () => 
     await seedArchive({ integration: 'gsc', report: 'page-query' });
     await seedArchive({ integration: 'ga4', report: 'events' });
     expect(
-      (await archives('?asset=nosh.example&integration=gsc')).manifest.map((row) => row.report).sort(),
+      (await archives('?asset=northwind.example&integration=gsc')).manifest.map((row) => row.report).sort(),
     ).toEqual(['page-query', 'query']);
     expect(
-      (await archives('?asset=nosh.example&integration=gsc&report=query')).manifest.map(
+      (await archives('?asset=northwind.example&integration=gsc&report=query')).manifest.map(
         (row) => row.report,
       ),
     ).toEqual(['query']);
@@ -497,22 +497,22 @@ describe('GET /api/signal-archives — the hand downloader’s manifest', () => 
   // Same resolver as the panel refresh reads through: two revisions of one day
   // on disk would double-count it in every flattened CSV.
   it('keeps only the newest revision of a report day', async () => {
-    await seedArchive({ objectKey: 'signals/nosh.example/old.json.gz', finishedAt: `${today(1)}T12:15:00.000Z` });
-    await seedArchive({ objectKey: 'signals/nosh.example/new.json.gz', finishedAt: `${today(1)}T18:15:00.000Z` });
+    await seedArchive({ objectKey: 'signals/northwind.example/old.json.gz', finishedAt: `${today(1)}T12:15:00.000Z` });
+    await seedArchive({ objectKey: 'signals/northwind.example/new.json.gz', finishedAt: `${today(1)}T18:15:00.000Z` });
     expect((await archives()).manifest.map((row) => row.objectKey)).toEqual([
-      'signals/nosh.example/new.json.gz',
+      'signals/northwind.example/new.json.gz',
     ]);
   });
 
   it('ignores a failed collection and another property’s archive', async () => {
     await seedArchive({ status: 'error' });
-    await seedArchive({ asset: 'meals.example' });
+    await seedArchive({ asset: 'meadow.example' });
     expect((await archives()).manifest).toEqual([]);
   });
 });
 
 describe('GET /api/panel-object', () => {
-  const archive = { schemaVersion: 1, asset: 'nosh.example', pages: [{ rows: [1, 2, 3] }] };
+  const archive = { schemaVersion: 1, asset: 'northwind.example', pages: [{ rows: [1, 2, 3] }] };
 
   async function putArchive(key: string): Promise<void> {
     const bytes = new TextEncoder().encode(JSON.stringify(archive));

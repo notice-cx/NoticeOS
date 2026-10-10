@@ -112,8 +112,8 @@ function matrix(
     undeclared: [],
     derivedLanes,
     assets: [
-      { id: "meals.example", displayName: "Meal Planner", isOs: false },
-      { id: "nosh.example", displayName: "Nosh", isOs: false },
+      { id: "meadow.example", displayName: "Meadow Board", isOs: false },
+      { id: "northwind.example", displayName: "Northwind", isOs: false },
     ],
     cells,
     summary: summarize(Object.values(cells).flat()),
@@ -124,8 +124,8 @@ function matrix(
       capUsd: 25,
       unattributedUsd: 0, unattributedUnknownPrices: 0,
       byAsset: [
-        { asset: "meals.example", spentUsd: 6.2, unknownPrices: 0 },
-        { asset: "nosh.example", spentUsd: 2.2, unknownPrices: 0 },
+        { asset: "meadow.example", spentUsd: 6.2, unknownPrices: 0 },
+        { asset: "northwind.example", spentUsd: 2.2, unknownPrices: 0 },
       ],
     },
   };
@@ -134,7 +134,7 @@ function matrix(
 /** The page over a matrix that is only about the daily history; every other
  * slice is the standing fixture's. */
 function renderHealth(over: Partial<IntegrationsMatrix>) {
-  return renderRoute({ ...matrix({ "meals.example": [] }), ...over });
+  return renderRoute({ ...matrix({ "meadow.example": [] }), ...over });
 }
 
 function renderRoute(
@@ -184,14 +184,14 @@ describe("the Health page is layered", () => {
         scope: "portfolio",
       },
       cells: {
-        "meals.example": {
-          assetId: "meals.example",
+        "meadow.example": {
+          assetId: "meadow.example",
           laneId: "egress",
           effective: "not-applicable",
           evidence: [],
         },
-        "nosh.example": {
-          assetId: "nosh.example",
+        "northwind.example": {
+          assetId: "northwind.example",
           laneId: "egress",
           effective: "not-applicable",
           evidence: [],
@@ -205,14 +205,14 @@ describe("the Health page is layered", () => {
         scope: "both",
       },
       cells: {
-        "meals.example": {
-          assetId: "meals.example",
+        "meadow.example": {
+          assetId: "meadow.example",
           laneId: "nightly-report",
           effective: "live",
           evidence: [],
         },
-        "nosh.example": {
-          assetId: "nosh.example",
+        "northwind.example": {
+          assetId: "northwind.example",
           laneId: "nightly-report",
           effective: "live",
           evidence: [],
@@ -222,7 +222,7 @@ describe("the Health page is layered", () => {
   ];
 
   it("names the page Health — the top row is no longer a data source", () => {
-    const { getByRole } = renderRoute(matrix({ "meals.example": [], "nosh.example": [] }));
+    const { getByRole } = renderRoute(matrix({ "meadow.example": [], "northwind.example": [] }));
     expect(getByRole("heading", { level: 1 }).textContent).toBe("System health");
   });
 
@@ -230,13 +230,13 @@ describe("the Health page is layered", () => {
     renderRoute(
       matrix(
         {
-          "meals.example": [
-            cell("meals.example", "gsc", "live"),
-            cell("meals.example", "clarity", "needs-setup"),
+          "meadow.example": [
+            cell("meadow.example", "gsc", "live"),
+            cell("meadow.example", "clarity", "needs-setup"),
           ],
-          "nosh.example": [
-            cell("nosh.example", "gsc", "live"),
-            cell("nosh.example", "clarity", "needs-setup"),
+          "northwind.example": [
+            cell("northwind.example", "gsc", "live"),
+            cell("northwind.example", "clarity", "needs-setup"),
           ],
         },
         derived,
@@ -267,13 +267,13 @@ describe("the Health page is layered", () => {
 
 describe("/health — the page leads with what to unblock next", () => {
   const blocked = matrix({
-    "meals.example": [
-      cell("meals.example", "gsc", "needs-setup"),
-      cell("meals.example", "clarity", "needs-setup"),
+    "meadow.example": [
+      cell("meadow.example", "gsc", "needs-setup"),
+      cell("meadow.example", "clarity", "needs-setup"),
     ],
-    "nosh.example": [
-      cell("nosh.example", "gsc", "needs-setup"),
-      cell("nosh.example", "clarity", "degraded"),
+    "northwind.example": [
+      cell("northwind.example", "gsc", "needs-setup"),
+      cell("northwind.example", "clarity", "degraded"),
     ],
   });
 
@@ -293,15 +293,15 @@ describe("/health — the page leads with what to unblock next", () => {
 
   const wiring = matrix(
     {
-      "meals.example": [
-        cell("meals.example", "gsc", "needs-setup"),
-        cell("meals.example", "clarity", "degraded"),
-        cell("meals.example", "uptime", "needs-setup"),
+      "meadow.example": [
+        cell("meadow.example", "gsc", "needs-setup"),
+        cell("meadow.example", "clarity", "degraded"),
+        cell("meadow.example", "uptime", "needs-setup"),
       ],
-      "nosh.example": [
-        cell("nosh.example", "gsc", "needs-setup"),
-        cell("nosh.example", "clarity", "needs-setup"),
-        cell("nosh.example", "uptime", "needs-setup"),
+      "northwind.example": [
+        cell("northwind.example", "gsc", "needs-setup"),
+        cell("northwind.example", "clarity", "needs-setup"),
+        cell("northwind.example", "uptime", "needs-setup"),
       ],
     },
     [],
@@ -318,15 +318,15 @@ describe("/health — the page leads with what to unblock next", () => {
     // A provider's source belongs to the Connections panel alone.
     expect(queryByText("Connect Google Search Console once")).toBeNull();
     expect(queryByText(/Microsoft Clarity/, { selector: "section[aria-label='Other sources'] *" })).toBeNull();
-    expect(queryByText("Finish setup on Meal Planner")).toBeNull();
+    expect(queryByText("Finish setup on Meadow Board")).toBeNull();
     openPanel("audit");
     expect(container.querySelector("table")?.textContent).not.toContain("Uptime");
   });
 
   const inUse = matrix(
     {
-      "meals.example": [cell("meals.example", "gsc", "live"), cell("meals.example", "clarity", "live"), cell("meals.example", "uptime", "degraded")],
-      "nosh.example": [cell("nosh.example", "gsc", "live"), cell("nosh.example", "clarity", "live"), cell("nosh.example", "uptime", "needs-setup")],
+      "meadow.example": [cell("meadow.example", "gsc", "live"), cell("meadow.example", "clarity", "live"), cell("meadow.example", "uptime", "degraded")],
+      "northwind.example": [cell("northwind.example", "gsc", "live"), cell("northwind.example", "clarity", "live"), cell("northwind.example", "uptime", "needs-setup")],
     },
     [],
     [lane("uptime", "Uptime monitoring", "shared")],
@@ -341,8 +341,8 @@ describe("/health — the page leads with what to unblock next", () => {
     // The grid's own status word leads the row; for uptime, what is down: the site.
     expect(row.textContent).toContain("Site down");
     expect(row.textContent).not.toContain("degradation");
-    expect(row.textContent).toContain("Meal Planner");
-    expect(row.textContent).not.toContain("Nosh");
+    expect(row.textContent).toContain("Meadow Board");
+    expect(row.textContent).not.toContain("Northwind");
     fireEvent.click(row.querySelector("button")!);
     expect(row.querySelector('a[href="/integrations"]')).not.toBeNull();
     expect(row.textContent).not.toContain("One portfolio account covers every site.");
@@ -356,20 +356,20 @@ describe("/health — the page leads with what to unblock next", () => {
     const { container } = renderRoute({
       ...inUse,
       undeclared: [
-        { laneId: "clarity", label: "Microsoft Clarity", assets: ["nosh.example"] },
-        { laneId: "posthog", label: "PostHog", assets: ["meals.example", "nosh.example"] },
+        { laneId: "clarity", label: "Microsoft Clarity", assets: ["northwind.example"] },
+        { laneId: "posthog", label: "PostHog", assets: ["meadow.example", "northwind.example"] },
       ],
     });
     const list = container.querySelector<HTMLElement>("section[aria-label='Other sources']")!;
     const rows = [...list.querySelectorAll("li")].filter((row) => row.textContent?.includes("Set source status"));
     expect(rows).toHaveLength(2);
-    const [nosh, meals] = rows;
-    expect(nosh!.textContent).toContain("Set source status on Nosh");
-    expect(nosh!.textContent).toContain("Microsoft Clarity · PostHog");
-    expect(meals!.textContent).toContain("Set source status on Meal Planner");
-    expect(meals!.textContent).toContain("PostHog");
-    fireEvent.click(nosh!.querySelector("button")!);
-    expect(nosh!.querySelector('a[href="/assets/nosh.example/sources"]')).not.toBeNull();
+    const [northwind, meadow] = rows;
+    expect(northwind!.textContent).toContain("Set source status on Northwind");
+    expect(northwind!.textContent).toContain("Microsoft Clarity · PostHog");
+    expect(meadow!.textContent).toContain("Set source status on Meadow Board");
+    expect(meadow!.textContent).toContain("PostHog");
+    fireEvent.click(northwind!.querySelector("button")!);
+    expect(northwind!.querySelector('a[href="/assets/northwind.example/sources"]')).not.toBeNull();
   });
 
   it("names no site when every site has a status for every source", () => {
@@ -383,14 +383,14 @@ describe("/health — the page leads with what to unblock next", () => {
     const nightly: DerivedLaneRow = {
       catalog: { ...lane("nightly-report", "Daily site report", "per-property", "property"), derived: true, scope: "both" },
       cells: {
-        "meals.example": {
-          assetId: "meals.example", laneId: "nightly-report", effective: "degraded",
+        "meadow.example": {
+          assetId: "meadow.example", laneId: "nightly-report", effective: "degraded",
           evidence: [{ polarity: "against", source: "Last nightly report accepted", detail: "due every 24h", at: late }],
         },
-        "nosh.example": { assetId: "nosh.example", laneId: "nightly-report", effective: "not-applicable", evidence: [] },
+        "northwind.example": { assetId: "northwind.example", laneId: "nightly-report", effective: "not-applicable", evidence: [] },
       },
     };
-    const { container } = renderRoute(matrix({ "meals.example": [], "nosh.example": [] }, [nightly]));
+    const { container } = renderRoute(matrix({ "meadow.example": [], "northwind.example": [] }, [nightly]));
     const list = container.querySelector<HTMLElement>("section[aria-label='Other sources']")!;
     expect([...list.querySelectorAll("li")].map((row) => row.textContent)).toEqual([
       expect.stringContaining("Nightly report overdue"),
@@ -432,8 +432,8 @@ describe("/health — the page leads with what to unblock next", () => {
     const { container } = renderRoute(
       matrix(
         {
-          "meals.example": [cell("meals.example", "gsc", "live")],
-          "nosh.example": [cell("nosh.example", "gsc", "live")],
+          "meadow.example": [cell("meadow.example", "gsc", "live")],
+          "northwind.example": [cell("northwind.example", "gsc", "live")],
         },
         [
           {
@@ -442,8 +442,8 @@ describe("/health — the page leads with what to unblock next", () => {
               derived: true,
             },
             cells: {
-              "meals.example": {
-                assetId: "meals.example",
+              "meadow.example": {
+                assetId: "meadow.example",
                 laneId: "ga4",
                 effective: "live",
                 evidence: [
@@ -490,19 +490,19 @@ describe("/health — the page leads with what to unblock next", () => {
 
     const audit = openPanel("audit");
     expect(audit.textContent).toContain("Google Search Console");
-    expect(audit.textContent).toContain("Meal Planner");
+    expect(audit.textContent).toContain("Meadow Board");
   });
 
   it("answers a clear portfolio in one line instead of a grid to read", () => {
     const { getByText } = renderRoute(
       matrix({
-        "meals.example": [
-          cell("meals.example", "gsc", "live"),
-          cell("meals.example", "clarity", "not-applicable"),
+        "meadow.example": [
+          cell("meadow.example", "gsc", "live"),
+          cell("meadow.example", "clarity", "not-applicable"),
         ],
-        "nosh.example": [
-          cell("nosh.example", "gsc", "live"),
-          cell("nosh.example", "clarity", "skipped"),
+        "northwind.example": [
+          cell("northwind.example", "gsc", "live"),
+          cell("northwind.example", "clarity", "skipped"),
         ],
       }),
     );
@@ -514,8 +514,8 @@ describe("/health — the page leads with what to unblock next", () => {
 describe("which credentials are still on the environment file", () => {
   const healthy = () =>
     matrix({
-      "meals.example": [cell("meals.example", "gsc", "live")],
-      "nosh.example": [cell("nosh.example", "gsc", "live")],
+      "meadow.example": [cell("meadow.example", "gsc", "live")],
+      "northwind.example": [cell("northwind.example", "gsc", "live")],
     });
 
   /** A `StatusBanner`: one line, above the hero, rendering nothing at all

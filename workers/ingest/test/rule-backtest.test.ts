@@ -19,8 +19,8 @@ import type { RuleBacktest, RuleBacktestInput, RuleConfig } from '@noticeos/cont
 import IngestWorker from '../src/index.js';
 import { insertFlag, pgCount, reset } from './helpers.js';
 
-const ASSET = 'meals.example';
-const QUIET_ASSET = 'nosh.example';
+const ASSET = 'meadow.example';
+const QUIET_ASSET = 'northwind.example';
 const METRIC = 'signups';
 const RULE = 'flow-poisson-low';
 /** The replay's last day — a fixed date, so the fixture never drifts under it. */

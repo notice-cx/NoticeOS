@@ -56,7 +56,7 @@ async function observeClicks(baseline: number, post: number): Promise<void> {
   await storeSignalRun(
     {
       id: runId,
-      asset: 'meals.example',
+      asset: 'meadow.example',
       integration: 'gsc',
       credential_ref: 'test-account',
       property_ref: 'test-property',
@@ -88,7 +88,7 @@ async function closedWindow(
          (workspace_id, window_id, asset_id, ref_kind, ref, metric_integration, metric, scope, registered_at,
           baseline_start, baseline_end, check_offsets, thresholds,
           status, outcome, closed_at, note, outcome_note, readback_bead, readback_posted_at)
-       VALUES ($1::uuid, $2, 'meals.example', 'manual', 'F14', 'gsc', 'position', $3::jsonb,
+       VALUES ($1::uuid, $2, 'meadow.example', 'manual', 'F14', 'gsc', 'position', $3::jsonb,
                '2026-07-01T12:00:00.000Z', '2026-06-24', '2026-06-30', '{7}', NULL,
                $4, $5, $6::timestamptz, 'F14 — water-intake depth + snippet',
                'gsc/position for page /water-intake-calculator at +7d: 8.5/day vs baseline 7.8/day (+9%)',
@@ -100,7 +100,7 @@ async function closedWindow(
         overrides.status ?? 'closed',
         closed ? (overrides.outcome ?? 'kill_confirmed') : null,
         closed ? '2026-08-21T03:30:00.000Z' : null,
-        overrides.bead === undefined ? 'mp-f0g.35' : overrides.bead,
+        overrides.bead === undefined ? 'md-w1n.2' : overrides.bead,
         overrides.posted ?? null,
       ],
     ),
@@ -116,7 +116,7 @@ describe('GET /api/watch-readbacks — what has not reached its bead', () => {
   it('enqueues a verdict when the sweep closes a window that named a bead', async () => {
     await observeClicks(10, 13);
     const registration = await writeWatchWindow(env, {
-      asset: 'meals.example',
+      asset: 'meadow.example',
       ref_kind: 'manual',
       ref: 'F14',
       metric_integration: 'gsc',
@@ -127,7 +127,7 @@ describe('GET /api/watch-readbacks — what has not reached its bead', () => {
       check_offsets: [7],
       thresholds: { ship: { direction: 'up', min_delta_pct: 10 } },
       note: 'F14 — water-intake depth + snippet',
-      readback_bead: 'mp-f0g.35',
+      readback_bead: 'md-w1n.2',
     });
     expect(registration.ok).toBe(true);
 
@@ -139,13 +139,13 @@ describe('GET /api/watch-readbacks — what has not reached its bead', () => {
 
     const queue = await pending();
     expect(queue).toHaveLength(1);
-    expect(queue[0]).toMatchObject({ bead: 'mp-f0g.35', asset: 'meals.example', outcome: 'ship_confirmed' });
+    expect(queue[0]).toMatchObject({ bead: 'md-w1n.2', asset: 'meadow.example', outcome: 'ship_confirmed' });
     // The comment carries the bet, the reading and where the same numbers live.
-    expect(queue[0]?.comment).toContain('Watch window ship_confirmed — meals.example');
+    expect(queue[0]?.comment).toContain('Watch window ship_confirmed — meadow.example');
     expect(queue[0]?.comment).toContain('F14 — water-intake depth + snippet');
     expect(queue[0]?.comment).toContain('gsc/clicks, property-wide');
     expect(queue[0]?.comment).toContain('+30%');
-    expect(queue[0]?.comment).toContain('A flag carrying the same numbers is on the meals.example card');
+    expect(queue[0]?.comment).toContain('A flag carrying the same numbers is on the meadow.example card');
   });
 
   it('names the scope a scoped bet was answered on', async () => {

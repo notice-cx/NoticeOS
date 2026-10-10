@@ -1,13 +1,13 @@
 asset,report_date,collected_at,data_state,provider_truncated,engagedSessions,provisional,sessionDefaultChannelGroup,sessions
-meals.example,2026-09-18,2026-09-19T12:15:00.000Z,revision-window,false,1210,0,Organic Search,1840
-meals.example,2026-09-18,2026-09-19T12:15:00.000Z,revision-window,false,300,0,Direct,660
-meals.example,2026-09-18,2026-09-19T12:15:00.000Z,revision-window,false,3,0,Unassigned,120
-meals.example,2026-09-19,2026-09-21T01:30:00+09:00,revision-window,false,1210,0,Organic Search,1840
-meals.example,2026-09-19,2026-09-21T01:30:00+09:00,revision-window,false,300,0,Direct,660
-meals.example,2026-09-19,2026-09-21T01:30:00+09:00,revision-window,false,3,0,Unassigned,131
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,revision-window,false,1210,1,Organic Search,1840
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,revision-window,false,300,1,Direct,660
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,revision-window,false,3,1,Unassigned,3380
-meals.example,latest,not recorded,revision-window,false,1210,,Organic Search,1840
-meals.example,latest,not recorded,revision-window,false,300,,Direct,660
-meals.example,latest,not recorded,revision-window,false,3,,Unassigned,99
+meadow.example,2026-09-18,2026-09-19T12:15:00.000Z,revision-window,false,1210,0,Organic Search,1840
+meadow.example,2026-09-18,2026-09-19T12:15:00.000Z,revision-window,false,300,0,Direct,660
+meadow.example,2026-09-18,2026-09-19T12:15:00.000Z,revision-window,false,3,0,Unassigned,120
+meadow.example,2026-09-19,2026-09-21T01:30:00+09:00,revision-window,false,1210,0,Organic Search,1840
+meadow.example,2026-09-19,2026-09-21T01:30:00+09:00,revision-window,false,300,0,Direct,660
+meadow.example,2026-09-19,2026-09-21T01:30:00+09:00,revision-window,false,3,0,Unassigned,131
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,revision-window,false,1210,1,Organic Search,1840
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,revision-window,false,300,1,Direct,660
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,revision-window,false,3,1,Unassigned,3380
+meadow.example,latest,not recorded,revision-window,false,1210,,Organic Search,1840
+meadow.example,latest,not recorded,revision-window,false,300,,Direct,660
+meadow.example,latest,not recorded,revision-window,false,3,,Unassigned,99

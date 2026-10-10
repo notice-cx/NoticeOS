@@ -192,8 +192,8 @@ test('an empty store marked for development takes every invented row, in the Pos
   // Two invented sites, in the fixture's order: the store handed out their places.
   const sites = await read(url, 'SELECT asset_id, list_position::int AS place, is_os, sense_only, created_at FROM noticeos.assets ORDER BY list_position');
   assert.deepEqual(sites.map((s) => [s.asset_id, s.place, s.is_os, s.sense_only, javascriptInstant(s.created_at)]), [
-    ['meals.example', 1, false, false, '2026-07-05T00:00:00.000Z'],
-    ['nosh.example', 2, false, false, '2026-07-05T00:00:00.000Z'],
+    ['meadow.example', 1, false, false, '2026-07-05T00:00:00.000Z'],
+    ['northwind.example', 2, false, false, '2026-07-05T00:00:00.000Z'],
   ]);
 
   // Reports: each night's number is the store's, in the fixture's order; the
@@ -201,8 +201,8 @@ test('an empty store marked for development takes every invented row, in the Pos
   const reports = await read(url, `SELECT asset_id, pulse_date, day_number::int AS n, generated_at, received_at, envelope::text AS envelope
                                       FROM noticeos.current_pulses ORDER BY day_number`);
   assert.deepEqual(reports.map((r) => [r.asset_id, r.pulse_date, r.n]), FIXTURE.pulses.map((p, i) => [p.asset_id, p.pulse_date, i + 1]));
-  const lastNight = reports.find((r) => r.asset_id === 'meals.example' && r.pulse_date === '2026-07-05');
-  const fixtureNight = FIXTURE.pulses.find((p) => p.asset_id === 'meals.example' && p.pulse_date === '2026-07-05');
+  const lastNight = reports.find((r) => r.asset_id === 'meadow.example' && r.pulse_date === '2026-07-05');
+  const fixtureNight = FIXTURE.pulses.find((p) => p.asset_id === 'meadow.example' && p.pulse_date === '2026-07-05');
   assert.equal(lastNight.envelope, JSON.stringify(fixtureNight.envelope));
   assert.equal(javascriptInstant(lastNight.received_at), '2026-07-05T02:06:00.000Z');
 
@@ -238,8 +238,8 @@ test('an empty store marked for development takes every invented row, in the Pos
   // The fast lane's current readings, and the change notes by their numbers.
   const readings = await read(url, 'SELECT asset_id, metric, value, observed_at FROM noticeos.counter_readings ORDER BY metric COLLATE "C"');
   assert.deepEqual(readings.map((r) => [r.asset_id, r.metric, r.value, javascriptInstant(r.observed_at)]), [
-    ['meals.example', 'leads', 257n, '2026-07-05T09:15:00.000Z'],
-    ['meals.example', 'signups', 4239n, '2026-07-05T09:15:00.000Z'],
+    ['meadow.example', 'leads', 257n, '2026-07-05T09:15:00.000Z'],
+    ['meadow.example', 'signups', 4239n, '2026-07-05T09:15:00.000Z'],
   ]);
   const notes = await read(url, 'SELECT annotation_number::int AS n, asset_id, kind, note FROM noticeos.annotations ORDER BY annotation_number');
   assert.deepEqual(notes.map((a) => [a.n, a.asset_id, a.kind, a.note]), FIXTURE.annotations.map((a, i) => [i + 1, a.asset_id, a.kind, a.note]));
@@ -255,8 +255,8 @@ test('a second run is refused, naming what the store holds, and writes nothing',
   assert.deepEqual(lines, [
     '[seed] refusing to seed: this store already holds data.',
     ...HISTORY_TABLES.map((table) => `[seed]   noticeos.${table}: ${FIXTURE[table].length} row(s)`),
-    '[seed]   noticeos.assets: the site meals.example, on an id or domain the fixture uses',
-    '[seed]   noticeos.assets: the site nosh.example, on an id or domain the fixture uses',
+    '[seed]   noticeos.assets: the site meadow.example, on an id or domain the fixture uses',
+    '[seed]   noticeos.assets: the site northwind.example, on an id or domain the fixture uses',
     '[seed] These rows are invented; once mixed in with real ones, nothing in the store can tell them apart.',
     '[seed] Seed only a new installation: pnpm start -- --dir <an empty folder>, on a new database marked for development.',
     '[seed] Nothing was written.',
@@ -294,11 +294,11 @@ test('the empty-store refusal counts each Postgres table the fixture fills', asy
 test('a store that already holds a site on one of the fixture’s ids or domains is refused', async (t) => {
   if (unavailable) return t.skip(`no Postgres here: ${unavailable}`);
   const { url } = await copy(t);
-  await write(url, [["INSERT INTO noticeos.assets (workspace_id, asset_id, domain, display_name, status) VALUES ($1::uuid, 'my-meals', 'meals.example', 'Mine', 'live')", ['$ws']]]);
+  await write(url, [["INSERT INTO noticeos.assets (workspace_id, asset_id, domain, display_name, status) VALUES ($1::uuid, 'my-meadow', 'meadow.example', 'Mine', 'live')", ['$ws']]]);
   const home = startFolder(t, { DATABASE_URL: url });
   const { code, lines } = await printed(t, () => seedLocal({ dir: home }));
   assert.equal(code, 1);
-  assert.deepEqual(lines.slice(0, 2), ['[seed] refusing to seed: this store already holds data.', '[seed]   noticeos.assets: the site my-meals, on an id or domain the fixture uses']);
+  assert.deepEqual(lines.slice(0, 2), ['[seed] refusing to seed: this store already holds data.', '[seed]   noticeos.assets: the site my-meadow, on an id or domain the fixture uses']);
   assert.deepEqual(await counts(url), { ...EMPTY, assets: 1 });
 });
 
@@ -460,12 +460,12 @@ test('after the seed, a real Tower shows the invented rows: the sites and their 
   // checks find no invented domain), so the seeded ones are counted at least.
   const wall = await getJson(`${tower}/api/wall`);
   assert.equal(wall.status, 200);
-  assert.deepEqual(wall.body.assets.map((asset) => asset.id), ['meals.example', 'nosh.example']);
-  assert.ok(wall.body.assets[1].openError >= 1, 'nosh.example’s items drop');
-  assert.ok(wall.body.assets[0].openWarn >= 1, 'meals.example’s plansSaved alert');
+  assert.deepEqual(wall.body.assets.map((asset) => asset.id), ['meadow.example', 'northwind.example']);
+  assert.ok(wall.body.assets[1].openError >= 1, 'northwind.example’s items drop');
+  assert.ok(wall.body.assets[0].openWarn >= 1, 'meadow.example’s plansSaved alert');
 
-  // One report: meals.example's last night, its series and its alert.
-  const site = await getJson(`${tower}/api/assets/meals.example`);
+  // One report: meadow.example's last night, its series and its alert.
+  const site = await getJson(`${tower}/api/assets/meadow.example`);
   assert.equal(site.status, 200);
   assert.equal(site.body.asset.firstReportAt, '2026-06-22T02:06:00.000Z');
   const signups = site.body.metrics.find((metric) => metric.name === 'signups');
@@ -482,5 +482,5 @@ test('after the seed, a real Tower shows the invented rows: the sites and their 
     '2026-05': { currency: 'USD', revenue: 683.85, cost: 0, net: 683.85 },
     '2026-06': { currency: 'USD', revenue: 783.7, cost: 22.1, net: 761.6 },
   });
-  assert.deepEqual(may.body.properties.map((p) => [p.asset, p.figure.revenue]), [['meals.example', 641.85], ['nosh.example', 42]]);
+  assert.deepEqual(may.body.properties.map((p) => [p.asset, p.figure.revenue]), [['meadow.example', 641.85], ['northwind.example', 42]]);
 });

@@ -53,15 +53,15 @@ describe("the site rows", () => {
 
   it("states live users, today's pace and four weeks without repeating the revenue widget", () => {
     const container = draw(wallFixturePayload().assets);
-    const menus = row(container, "menus.example");
-    expect(menus.querySelector("[data-live]")?.getAttribute("data-live")).toBe("fresh");
-    const live = menus.querySelector("[data-live-count]")!;
+    const mosaic = row(container, "mosaic.example");
+    expect(mosaic.querySelector("[data-live]")?.getAttribute("data-live")).toBe("fresh");
+    const live = mosaic.querySelector("[data-live-count]")!;
     expect(live.getAttribute("data-value")).toBe("21");
     expect(live.textContent).toBe("21");
     expect(live.getAttribute("aria-label")).toBe("Live users: 21");
     expect(live.className).toContain("text-foreground");
-    expect(menus.querySelector("[data-split-flap-counter]")).toBeNull();
-    const today = menus.querySelector("[data-site-today]")!;
+    expect(mosaic.querySelector("[data-split-flap-counter]")).toBeNull();
+    const today = mosaic.querySelector("[data-site-today]")!;
     expect(today.querySelector("[data-today]")?.getAttribute("stroke-dasharray")).toBeNull();
     expect(today.querySelector("[data-last-week]")?.getAttribute("stroke-dasharray")).toMatch(/^[\d.]+ [\d.]+$/);
     expect(today.querySelector("[data-last-week]")?.getAttribute("data-chart-line")).toBe("ghost");
@@ -70,10 +70,10 @@ describe("the site rows", () => {
     expect(today.querySelector('[aria-label*="6.9% ahead; completed hours"]')).not.toBeNull();
     // Ahead of last week is on pace.
     expect(today.querySelector("[data-tone]")?.getAttribute("data-tone")).toBe("pace-on");
-    const weeks = menus.querySelector("[data-site-trend]")!;
+    const weeks = mosaic.querySelector("[data-site-trend]")!;
     expect(weeks.querySelector("[data-trend-line]")?.getAttribute("stroke-dasharray")).toBeNull();
     expect(weeks.querySelector("[data-prior-weeks]")?.getAttribute("data-chart-line")).toBe("ghost");
-    expect(menus.querySelector("[data-site-week]")?.textContent).toBe("12%vs prior 4 wk");
+    expect(mosaic.querySelector("[data-site-week]")?.textContent).toBe("12%vs prior 4 wk");
     expect([...weeks.querySelectorAll("[data-site-weeks-axis] span")].map((end) => end.textContent)).toEqual(["Aug 25", "Sep 21"]);
     expect(container.querySelector("[data-site-money]")).toBeNull();
   });
@@ -81,17 +81,17 @@ describe("the site rows", () => {
   it("restores configured totals and lets each asset select different metrics or none", () => {
     const assets = wallFixturePayload().assets;
     const initial = draw(assets);
-    const plate = row(initial, "plate.example");
-    expect(plate.querySelector('[data-site-total="accounts"]')?.textContent).toBe("Accounts6,267");
-    expect(plate.querySelector('[data-site-total="leads"]')?.textContent).toBe("Leads1,316");
-    expect(plate.querySelector('[data-site-total="plansSaved"]')).toBeNull();
-    expect(row(initial, "rates.example").querySelector("[data-site-totals]")).toBeNull();
-    const changed = draw(assets, { pulseMetrics: { "plate.example": ["plansSaved"], "menus.example": [] } });
-    expect(row(changed, "plate.example").querySelector('[data-site-total="plansSaved"]')?.textContent).toContain("41,280");
-    expect(row(changed, "plate.example").querySelector('[data-site-total="accounts"]')).toBeNull();
-    expect(row(changed, "menus.example").querySelector('[data-site-totals]')).toBeNull();
+    const plume = row(initial, "plume.example");
+    expect(plume.querySelector('[data-site-total="accounts"]')?.textContent).toBe("Accounts6,267");
+    expect(plume.querySelector('[data-site-total="leads"]')?.textContent).toBe("Leads1,316");
+    expect(plume.querySelector('[data-site-total="plansSaved"]')).toBeNull();
+    expect(row(initial, "ripple.example").querySelector("[data-site-totals]")).toBeNull();
+    const changed = draw(assets, { pulseMetrics: { "plume.example": ["plansSaved"], "mosaic.example": [] } });
+    expect(row(changed, "plume.example").querySelector('[data-site-total="plansSaved"]')?.textContent).toContain("41,280");
+    expect(row(changed, "plume.example").querySelector('[data-site-total="accounts"]')).toBeNull();
+    expect(row(changed, "mosaic.example").querySelector('[data-site-totals]')).toBeNull();
     const focus = draw(assets.slice(0, 1));
-    expect(focus.querySelector('[data-site-totals="plate.example"]')).not.toBeNull();
+    expect(focus.querySelector('[data-site-totals="plume.example"]')).not.toBeNull();
   });
 
   it("shows a measured zero and a stale reading, but never invents a missing total", () => {
@@ -141,28 +141,28 @@ describe("the site rows", () => {
     const shaped: Ga4RealtimePayload = {
       ...realtime,
       assets: realtime.assets.map((asset) =>
-        asset.asset === "menus.example" ? atShare("menus.example", 0.75) : asset.asset === "plate.example" ? atShare("plate.example", 0.3) : asset,
+        asset.asset === "mosaic.example" ? atShare("mosaic.example", 0.75) : asset.asset === "plume.example" ? atShare("plume.example", 0.3) : asset,
       ),
     };
     const container = draw(wallFixturePayload().assets, { realtime: shaped });
     const steps = (id: string) =>
       [...row(container, id).querySelectorAll("[data-site-today] [data-tone]")].map((element) => element.getAttribute("data-tone"));
-    expect(steps("menus.example")).toEqual(["pace-behind", "pace-behind"]);
-    expect(steps("plate.example")).toEqual(["pace-far-behind", "pace-far-behind"]);
+    expect(steps("mosaic.example")).toEqual(["pace-behind", "pace-behind"]);
+    expect(steps("plume.example")).toEqual(["pace-far-behind", "pace-far-behind"]);
     // A site too small for a verdict (under 100 of last week's users in the
     // hours so far) draws no step and no percent.
-    expect(steps("areas.example")).toEqual(["neutral"]);
-    expect(row(container, "areas.example").querySelector("[data-site-today]")?.textContent).toBe("to 12 PM");
-    const chart = row(container, "menus.example").querySelector("[data-site-today] [data-site-chart]")!;
+    expect(steps("acorn.example")).toEqual(["neutral"]);
+    expect(row(container, "acorn.example").querySelector("[data-site-today]")?.textContent).toBe("to 12 PM");
+    const chart = row(container, "mosaic.example").querySelector("[data-site-today] [data-site-chart]")!;
     expect(chart.className).toContain("data-[tone=pace-behind]:text-pace-behind");
     expect(chart.querySelector("[data-today]")?.getAttribute("class")).toContain("stroke-current");
     expect(chart.querySelector("[data-chart-area]")).not.toBeNull();
     expect(chart.querySelector("[data-filling-hour]")).not.toBeNull();
-    const chip = row(container, "menus.example").querySelector("[data-site-today] span[aria-label]")!;
+    const chip = row(container, "mosaic.example").querySelector("[data-site-today] span[aria-label]")!;
     expect(chip.querySelector("svg")).not.toBeNull();
     expect(chip.textContent).toMatch(/^\d+%$/);
     expect(chip.getAttribute("aria-label")).toMatch(/% behind; completed hours today vs last Tue$/);
-    const only = wallFixturePayload().assets.find((asset) => asset.id === "menus.example")!;
+    const only = wallFixturePayload().assets.find((asset) => asset.id === "mosaic.example")!;
     const tile = draw([only], { realtime: shaped }).querySelector('[data-focus-tile="today"]')!;
     expect([...tile.querySelectorAll("[data-tone]")].map((element) => element.getAttribute("data-tone"))).toEqual([
       "pace-behind",
@@ -176,11 +176,11 @@ describe("the site rows", () => {
     const issues = wallIssues({ assets, attention: [], connections: NO_READS, nowMs: NOW });
     const at = (value: number): Ga4RealtimePayload => ({
       ...realtime,
-      assets: realtime.assets.map((asset) => (asset.asset === "menus.example" && asset.status === "success" ? { ...asset, activeUsers30m: value } : asset)),
+      assets: realtime.assets.map((asset) => (asset.asset === "mosaic.example" && asset.status === "success" ? { ...asset, activeUsers30m: value } : asset)),
     });
     const { container, rerender } = render(<SiteRows assets={assets} issues={issues} ga4Realtime={at(21)} nowMs={NOW} />);
     rerender(<SiteRows assets={assets} issues={issues} ga4Realtime={at(121)} nowMs={NOW} />);
-    const live = () => row(container, "menus.example").querySelector("[data-live-count]")!;
+    const live = () => row(container, "mosaic.example").querySelector("[data-live-count]")!;
     expect(live().getAttribute("aria-label")).toBe("Live users: 121");
     expect(live().getAttribute("data-value")).toBe("121");
     expect(Number(live().textContent)).toBeLessThan(121);
@@ -189,14 +189,14 @@ describe("the site rows", () => {
 
   it("dims a live reading older than three minutes beside a clock", () => {
     const container = draw(wallFixturePayload().assets);
-    const plate = row(container, "plate.example").querySelector("[data-live]")!;
-    expect(plate.getAttribute("data-live")).toBe("stale");
-    expect(plate.querySelector("[data-live-count]")?.className).toContain("text-muted-foreground");
-    expect(plate.querySelector('svg[role="img"]')?.getAttribute("aria-label")).toBe("Reading out of date");
+    const plume = row(container, "plume.example").querySelector("[data-live]")!;
+    expect(plume.getAttribute("data-live")).toBe("stale");
+    expect(plume.querySelector("[data-live-count]")?.className).toContain("text-muted-foreground");
+    expect(plume.querySelector('svg[role="img"]')?.getAttribute("aria-label")).toBe("Reading out of date");
   });
 
   it("renders a failed first read as a dash, never a zero", () => {
-    const live = row(draw(wallFixturePayload().assets, { realtime: failedFor("menus.example") }), "menus.example").querySelector("[data-live]")!;
+    const live = row(draw(wallFixturePayload().assets, { realtime: failedFor("mosaic.example") }), "mosaic.example").querySelector("[data-live]")!;
     expect(live.getAttribute("data-live")).toBe("none");
     expect(live.textContent).toBe("—");
   });
@@ -224,24 +224,24 @@ describe("the minute pulse", () => {
   const bars = (cell: Element, kind: "recent" | "earlier") => [...cell.querySelectorAll(`[data-minute-bar="${kind}"]`)];
 
   it("labels the figure as the last 30 minutes and draws each of them, the newest five bright beside their count", () => {
-    const menus = row(draw(wallFixturePayload().assets), "menus.example").querySelector('[data-live="fresh"]')!;
+    const mosaic = row(draw(wallFixturePayload().assets), "mosaic.example").querySelector('[data-live="fresh"]')!;
     // The table's heading says "30 min" once; the cell's own words appear
     // only where there is no heading (hidden by the region's width, which
     // jsdom does not lay out).
-    expect(words(menus)).toBe("21 · 30 min7 · 5 min");
-    expect(menus.querySelector("[data-live-unit]")?.className).toContain("sites:hidden");
-    expect(pulse(menus).getAttribute("data-minute-pulse")).toBe("live");
-    expect(pulse(menus).getAttribute("class")).toContain("text-traffic");
-    expect(bars(menus, "recent")).toHaveLength(5);
-    expect(bars(menus, "earlier")).toHaveLength(25);
-    const snapshot = wallFixtureRealtime().assets.find((asset) => asset.asset === "menus.example");
+    expect(words(mosaic)).toBe("21 · 30 min7 · 5 min");
+    expect(mosaic.querySelector("[data-live-unit]")?.className).toContain("sites:hidden");
+    expect(pulse(mosaic).getAttribute("data-minute-pulse")).toBe("live");
+    expect(pulse(mosaic).getAttribute("class")).toContain("text-traffic");
+    expect(bars(mosaic, "recent")).toHaveLength(5);
+    expect(bars(mosaic, "earlier")).toHaveLength(25);
+    const snapshot = wallFixtureRealtime().assets.find((asset) => asset.asset === "mosaic.example");
     if (snapshot?.status !== "success") throw new Error("expected a reading");
-    expect([...bars(menus, "earlier"), ...bars(menus, "recent")].map((bar) => Number(bar.getAttribute("data-value")))).toEqual(
+    expect([...bars(mosaic, "earlier"), ...bars(mosaic, "recent")].map((bar) => Number(bar.getAttribute("data-value")))).toEqual(
       snapshot.activeUsersByMinute,
     );
-    expect(bars(menus, "recent").every((bar) => bar.getAttribute("stroke-opacity") === "1")).toBe(true);
-    expect(bars(menus, "earlier").every((bar) => Number(bar.getAttribute("stroke-opacity")) < 1)).toBe(true);
-    expect(menus.querySelector("[data-live-recent-count]")?.getAttribute("data-value")).toBe("7");
+    expect(bars(mosaic, "recent").every((bar) => bar.getAttribute("stroke-opacity") === "1")).toBe(true);
+    expect(bars(mosaic, "earlier").every((bar) => Number(bar.getAttribute("stroke-opacity")) < 1)).toBe(true);
+    expect(mosaic.querySelector("[data-live-recent-count]")?.getAttribute("data-value")).toBe("7");
   });
 
   it("draws a quiet minute as a tick on the floor and an unread one as nothing", () => {
@@ -249,15 +249,15 @@ describe("the minute pulse", () => {
     const shaped: Ga4RealtimePayload = {
       ...realtime,
       assets: realtime.assets.map((asset) =>
-        asset.asset === "menus.example" && asset.status === "success"
+        asset.asset === "mosaic.example" && asset.status === "success"
           ? { ...asset, activeUsersByMinute: [...Array.from({ length: 27 }, (_, minute) => (minute % 3 === 0 ? 0 : 4)), 6, null, null] }
           : asset,
       ),
     };
-    const menus = row(draw(wallFixturePayload().assets, { realtime: shaped }), "menus.example");
-    expect(pulse(menus).getAttribute("data-unread-minutes")).toBe("2");
-    expect(menus.querySelectorAll("[data-minute-bar]")).toHaveLength(28);
-    const heights = [...menus.querySelectorAll("[data-minute-bar]")].map((bar) => {
+    const mosaic = row(draw(wallFixturePayload().assets, { realtime: shaped }), "mosaic.example");
+    expect(pulse(mosaic).getAttribute("data-unread-minutes")).toBe("2");
+    expect(mosaic.querySelectorAll("[data-minute-bar]")).toHaveLength(28);
+    const heights = [...mosaic.querySelectorAll("[data-minute-bar]")].map((bar) => {
       const [, y] = /V([\d.]+)$/.exec(bar.getAttribute("d")!)!;
       return 14 - Number(y);
     });
@@ -267,17 +267,17 @@ describe("the minute pulse", () => {
   });
 
   it("dims a stale reading's pulse with its age, the minutes since it unread", () => {
-    const plate = row(draw(wallFixturePayload().assets), "plate.example").querySelector("[data-live]")!;
-    expect(plate.getAttribute("data-live")).toBe("stale");
-    expect(pulse(plate).getAttribute("data-minute-pulse")).toBe("dimmed");
-    expect(pulse(plate).getAttribute("class")).toContain("text-muted-foreground");
+    const plume = row(draw(wallFixturePayload().assets), "plume.example").querySelector("[data-live]")!;
+    expect(plume.getAttribute("data-live")).toBe("stale");
+    expect(pulse(plume).getAttribute("data-minute-pulse")).toBe("dimmed");
+    expect(pulse(plume).getAttribute("class")).toContain("text-muted-foreground");
     // Read twenty minutes before now and served in the minute before this one:
     // the nineteen minutes since were never read, so the bright end is empty.
-    expect(pulse(plate).getAttribute("data-unread-minutes")).toBe("19");
-    expect(bars(plate, "recent")).toHaveLength(0);
+    expect(pulse(plume).getAttribute("data-unread-minutes")).toBe("19");
+    expect(bars(plume, "recent")).toHaveLength(0);
     // An old reading's last five minutes are not the last five minutes.
-    expect(plate.querySelector("[data-live-age]")?.textContent).toBe("20m");
-    expect(plate.querySelector("[data-live-recent-count]")).toBeNull();
+    expect(plume.querySelector("[data-live-age]")?.textContent).toBe("20m");
+    expect(plume.querySelector("[data-live-recent-count]")).toBeNull();
   });
 
   it("keeps the last pulse, dimmed with its age, when a later read fails — never zeros", () => {
@@ -286,26 +286,26 @@ describe("the minute pulse", () => {
     const good = wallFixtureRealtime();
     const { container, rerender } = render(<SiteRows assets={assets} issues={issues} ga4Realtime={good} nowMs={NOW} />);
     const later = NOW + 4 * 60_000;
-    rerender(<SiteRows assets={assets} issues={issues} ga4Realtime={failedFor("menus.example", good)} nowMs={later} />);
-    const menus = row(container, "menus.example").querySelector("[data-live]")!;
-    expect(menus.getAttribute("data-live")).toBe("failed");
-    expect(menus.querySelector("[data-live-count]")?.getAttribute("data-value")).toBe("21");
-    expect(pulse(menus).getAttribute("data-minute-pulse")).toBe("dimmed");
-    expect(menus.querySelectorAll("[data-minute-bar]")).toHaveLength(30);
-    expect(menus.querySelector("[data-live-age]")?.textContent).toBe("4m");
-    expect(menus.querySelector('[data-live-age] svg[role="img"]')?.getAttribute("aria-label")).toBe("Google rate limit");
+    rerender(<SiteRows assets={assets} issues={issues} ga4Realtime={failedFor("mosaic.example", good)} nowMs={later} />);
+    const mosaic = row(container, "mosaic.example").querySelector("[data-live]")!;
+    expect(mosaic.getAttribute("data-live")).toBe("failed");
+    expect(mosaic.querySelector("[data-live-count]")?.getAttribute("data-value")).toBe("21");
+    expect(pulse(mosaic).getAttribute("data-minute-pulse")).toBe("dimmed");
+    expect(mosaic.querySelectorAll("[data-minute-bar]")).toHaveLength(30);
+    expect(mosaic.querySelector("[data-live-age]")?.textContent).toBe("4m");
+    expect(mosaic.querySelector('[data-live-age] svg[role="img"]')?.getAttribute("aria-label")).toBe("Google rate limit");
     rerender(<SiteRows assets={assets} issues={issues} ga4Realtime={good} nowMs={NOW} />);
-    expect(row(container, "menus.example").querySelector("[data-live]")?.getAttribute("data-live")).toBe("fresh");
+    expect(row(container, "mosaic.example").querySelector("[data-live]")?.getAttribute("data-live")).toBe("fresh");
   });
 
   it("draws a dash for a site without GA4, whatever the payload holds", () => {
     const assets = wallFixturePayload().assets.map((asset) =>
-      asset.id === "menus.example" ? { ...asset, dataSources: asset.dataSources.filter((source) => source.id !== "ga4") } : asset,
+      asset.id === "mosaic.example" ? { ...asset, dataSources: asset.dataSources.filter((source) => source.id !== "ga4") } : asset,
     );
-    const menus = row(draw(assets), "menus.example").querySelector("[data-live]")!;
-    expect(menus.getAttribute("data-live")).toBe("none");
-    expect(menus.textContent).toBe("—");
-    expect(menus.querySelector("[data-minute-pulse]")).toBeNull();
+    const mosaic = row(draw(assets), "mosaic.example").querySelector("[data-live]")!;
+    expect(mosaic.getAttribute("data-live")).toBe("none");
+    expect(mosaic.textContent).toBe("—");
+    expect(mosaic.querySelector("[data-minute-pulse]")).toBeNull();
   });
 
   it("stands without a pulse when the minutes were refused: the figures stay", () => {
@@ -314,19 +314,19 @@ describe("the minute pulse", () => {
       ...realtime,
       assets: realtime.assets.map((asset) => (asset.status === "success" ? { ...asset, activeUsersByMinute: null } : asset)),
     };
-    const menus = row(draw(wallFixturePayload().assets, { realtime: refused }), "menus.example").querySelector("[data-live]")!;
-    expect(menus.getAttribute("data-live")).toBe("fresh");
-    expect(menus.querySelector("[data-minute-pulse]")).toBeNull();
-    expect(words(menus)).toBe("21 · 30 min7 · 5 min");
+    const mosaic = row(draw(wallFixturePayload().assets, { realtime: refused }), "mosaic.example").querySelector("[data-live]")!;
+    expect(mosaic.getAttribute("data-live")).toBe("fresh");
+    expect(mosaic.querySelector("[data-minute-pulse]")).toBeNull();
+    expect(words(mosaic)).toBe("21 · 30 min7 · 5 min");
   });
 
   it("is drawn at each tier's size: compact rows, roomier rows and the one-site tile", () => {
     const assets = wallFixturePayload().assets;
     const width = (container: HTMLElement, id: string) => Number(row(container, id).querySelector("[data-minute-pulse]")?.getAttribute("width"));
-    expect(width(draw(assets), "menus.example")).toBe(119);
-    expect(width(draw(assets.slice(0, 3)), "menus.example")).toBe(119);
-    expect(Number(row(draw(assets.slice(0, 3)), "menus.example").querySelector("[data-minute-pulse]")?.getAttribute("height"))).toBe(28);
-    const tile = draw([assets.find((asset) => asset.id === "menus.example")!]).querySelector('[data-focus-tile="today"]')!;
+    expect(width(draw(assets), "mosaic.example")).toBe(119);
+    expect(width(draw(assets.slice(0, 3)), "mosaic.example")).toBe(119);
+    expect(Number(row(draw(assets.slice(0, 3)), "mosaic.example").querySelector("[data-minute-pulse]")?.getAttribute("height"))).toBe(28);
+    const tile = draw([assets.find((asset) => asset.id === "mosaic.example")!]).querySelector('[data-focus-tile="today"]')!;
     expect(Number(tile.querySelector("[data-minute-pulse]")?.getAttribute("width"))).toBe(238);
     expect(words(tile.querySelector('[data-focus-figure="live"]')!)).toBe("21 · 30 min7 · 5 min");
     expect(tile.querySelector("[data-live-unit]")?.className).not.toContain("sites:hidden");
@@ -336,23 +336,23 @@ describe("the minute pulse", () => {
 describe("the site rows", () => {
   it("takes the trend colour away from a change whose span crosses a reporting-timezone change", () => {
     const data = wallFixturePayload();
-    const menus = data.assets.find((asset) => asset.id === "menus.example")!;
+    const mosaic = data.assets.find((asset) => asset.id === "mosaic.example")!;
     const moved: AssetCard = {
-      ...menus,
+      ...mosaic,
       activeUsers: {
-        ...menus.activeUsers,
+        ...mosaic.activeUsers,
         timeZoneChanges: [{ effectiveOn: "2026-09-15", from: "America/Los_Angeles", to: "America/New_York" }],
       },
     };
-    const others = data.assets.filter((asset) => asset.id !== "menus.example");
-    const clean = row(draw([menus, ...others]), "menus.example").querySelector("[data-site-trend] [data-tone]")!;
-    const spanned = row(draw([moved, ...others]), "menus.example").querySelector("[data-site-trend] [data-tone]")!;
+    const others = data.assets.filter((asset) => asset.id !== "mosaic.example");
+    const clean = row(draw([mosaic, ...others]), "mosaic.example").querySelector("[data-site-trend] [data-tone]")!;
+    const spanned = row(draw([moved, ...others]), "mosaic.example").querySelector("[data-site-trend] [data-tone]")!;
     expect(clean.getAttribute("data-tone")).toBe("positive");
     expect(spanned.getAttribute("data-tone")).toBe("neutral");
     expect(spanned.textContent).toBe(clean.textContent);
     const alone = (asset: AssetCard) =>
       draw([asset]).querySelector('[data-focus-tile="visitors"] [data-site-week] [data-tone]')!.getAttribute("data-tone");
-    expect([alone(menus), alone(moved)]).toEqual(["negative", "neutral"]);
+    expect([alone(mosaic), alone(moved)]).toEqual(["negative", "neutral"]);
   });
 });
 
@@ -360,7 +360,7 @@ describe("a site's signal-bar health indicator", () => {
   it("shows distinct levels for healthy, warning and unknown sites beside their names", () => {
     const data = wallFixturePayload();
     const container = draw(data.assets, { attention: data.attention });
-    for (const [id, state, bars] of [["menus.example", "healthy", 4], ["plate.example", "warn", 2], ["standards.example", "unknown", 0]] as const) {
+    for (const [id, state, bars] of [["mosaic.example", "healthy", 4], ["plume.example", "warn", 2], ["summit.example", "unknown", 0]] as const) {
       const health = row(container, id).querySelector('[data-site-name] [data-site-health]')!;
       expect(health.getAttribute("data-site-health")).toBe(state);
       expect(health.querySelectorAll('.opacity-100')).toHaveLength(bars);
@@ -376,7 +376,7 @@ describe("a site's signal-bar health indicator", () => {
       ...plansLow!, id: 9102, severity: "error" as const, ruleId: "hygiene-home-unreachable", metric: "home",
       ruleInputs: { http_status: 503 }, firstFiredAt: new Date(NOW - 20 * 60_000).toISOString(),
     };
-    const mark = row(draw(data.assets, { attention: [plansLow!, down] }), "plate.example").querySelector("[data-site-health]")!;
+    const mark = row(draw(data.assets, { attention: [plansLow!, down] }), "plume.example").querySelector("[data-site-health]")!;
     expect(mark.getAttribute("data-site-health")).toBe("error");
     expect(mark.getAttribute("aria-label")).toBe("Site health: Home page down; 1 more issue");
     expect(mark.querySelectorAll('.opacity-100')).toHaveLength(1);
@@ -385,25 +385,25 @@ describe("a site's signal-bar health indicator", () => {
   it("never marks a site that declared it sends no nightly report for a missing one", () => {
     const data = wallFixturePayload();
     const assets = data.assets.map((asset) =>
-      asset.id === "rates.example" ? { ...asset, noNightlyReport: true, pulseReceivedAt: new Date(NOW - 9 * 24 * HOUR).toISOString() } : asset,
+      asset.id === "ripple.example" ? { ...asset, noNightlyReport: true, pulseReceivedAt: new Date(NOW - 9 * 24 * HOUR).toISOString() } : asset,
     );
     const stale = {
-      ...data.attention[0]!, id: 9103, asset: "rates.example", assetDisplayName: "Rate Codes", ruleId: "ingest-freshness",
+      ...data.attention[0]!, id: 9103, asset: "ripple.example", assetDisplayName: "Ripple Index", ruleId: "ingest-freshness",
       metric: "pulse", ruleInputs: { state: "stale", ageHours: 216, thresholdHours: 48 },
     };
-    expect(row(draw(assets, { attention: [stale] }), "rates.example").querySelector("[data-site-health]")?.getAttribute("data-site-health")).toBe("healthy");
+    expect(row(draw(assets, { attention: [stale] }), "ripple.example").querySelector("[data-site-health]")?.getAttribute("data-site-health")).toBe("healthy");
   });
 });
 
 describe("rows without data yet", () => {
   it("are one quiet line, the same whether or not the site declared it sends no report", () => {
     const container = draw(wallFixturePayload().assets);
-    const waiting = row(container, "standards.example");
+    const waiting = row(container, "summit.example");
     expect(waiting.getAttribute("data-site-state")).toBe("waiting");
     // A site that has never sent a report expects none.
-    expect(waiting.textContent).toBe("StandardsNo data yet");
-    const declared = { ...wallFixturePayload().assets.find((asset) => asset.id === "standards.example")!, noNightlyReport: true };
-    expect(row(draw([declared]), "standards.example").textContent).toBe("StandardsNo data yet");
+    expect(waiting.textContent).toBe("SummitNo data yet");
+    const declared = { ...wallFixturePayload().assets.find((asset) => asset.id === "summit.example")!, noNightlyReport: true };
+    expect(row(draw([declared]), "summit.example").textContent).toBe("SummitNo data yet");
   });
 });
 
@@ -448,13 +448,13 @@ describe("the density tiers", () => {
     const container = draw(assets, { pulseMetrics: Object.fromEntries(assets.map(asset => [asset.id, []])) });
     const rows = [...container.querySelectorAll("[data-site-row]")];
     expect(rows.map((r) => r.getAttribute("data-site-density"))).toEqual(["comfortable", "comfortable", "comfortable"]);
-    const menus = row(container, "menus.example");
-    expect(menus.querySelector("[data-live-count]")?.getAttribute("data-value")).toBe("21");
-    expect(menus.querySelector("[data-site-today]")?.textContent).toBe("6.9%to 12 PM");
-    expect(menus.querySelector("[data-site-money]")).toBeNull();
-    expect(menus.querySelector('[data-site-today] [data-site-chart="filling"] [data-today]')).not.toBeNull();
-    expect(menus.querySelector('[data-site-trend] [data-site-chart="filling"] [data-trend-line]')).not.toBeNull();
-    expect(menus.querySelector("[data-live-count]")?.className).toContain("text-[length:var(--text-wall-site-live)]");
+    const mosaic = row(container, "mosaic.example");
+    expect(mosaic.querySelector("[data-live-count]")?.getAttribute("data-value")).toBe("21");
+    expect(mosaic.querySelector("[data-site-today]")?.textContent).toBe("6.9%to 12 PM");
+    expect(mosaic.querySelector("[data-site-money]")).toBeNull();
+    expect(mosaic.querySelector('[data-site-today] [data-site-chart="filling"] [data-today]')).not.toBeNull();
+    expect(mosaic.querySelector('[data-site-trend] [data-site-chart="filling"] [data-trend-line]')).not.toBeNull();
+    expect(mosaic.querySelector("[data-live-count]")?.className).toContain("text-[length:var(--text-wall-site-live)]");
 
     const table = container.querySelector('[role="table"]') as HTMLElement;
     expect(table.style.getPropertyValue("--site-rows")).toBe("3");
@@ -463,20 +463,20 @@ describe("the density tiers", () => {
 
   it("overlays today's pace and keeps the four-week comparison outside its plot", () => {
     const container = draw(wallFixturePayload().assets.slice(0, 3));
-    const menus = row(container, "menus.example");
-    expect(menus.querySelector('[data-site-today] [data-site-chart="row"] [data-today]')).not.toBeNull();
-    expect(menus.querySelector('[data-site-trend] [data-site-chart="row"] [data-trend-line]')).not.toBeNull();
-    expect(menus.querySelector('[data-site-today] [data-site-comparison]')?.textContent).toBe("6.9%");
-    expect(menus.querySelector('[data-site-trend] [data-site-comparison]')?.textContent).toBe("12%vs prior 4 wk");
-    expect(menus.querySelector('[data-site-total="itemsRated"]')?.textContent).toContain("13,904");
-    expect(menus.querySelector('[data-site-today]')?.textContent).toBe("6.9%to 12 PM");
-    expect(menus.querySelector('[data-live-count]')?.className).toContain("text-[length:var(--text-wall-site-live)]");
+    const mosaic = row(container, "mosaic.example");
+    expect(mosaic.querySelector('[data-site-today] [data-site-chart="row"] [data-today]')).not.toBeNull();
+    expect(mosaic.querySelector('[data-site-trend] [data-site-chart="row"] [data-trend-line]')).not.toBeNull();
+    expect(mosaic.querySelector('[data-site-today] [data-site-comparison]')?.textContent).toBe("6.9%");
+    expect(mosaic.querySelector('[data-site-trend] [data-site-comparison]')?.textContent).toBe("12%vs prior 4 wk");
+    expect(mosaic.querySelector('[data-site-total="itemsRated"]')?.textContent).toContain("13,904");
+    expect(mosaic.querySelector('[data-site-today]')?.textContent).toBe("6.9%to 12 PM");
+    expect(mosaic.querySelector('[data-live-count]')?.className).toContain("text-[length:var(--text-wall-site-live)]");
   });
 
   it("keeps multiple compact totals inside the name cell with every label", () => {
-    const container = draw(wallFixturePayload().assets, { pulseMetrics: { "menus.example": ["itemsRated", "restaurants"] } });
-    const menus = row(container, "menus.example"), totals = menus.querySelector('[data-site-totals]')!;
-    expect(totals.closest('[role="cell"]')).toBe(menus.querySelector('[data-site-name]'));
+    const container = draw(wallFixturePayload().assets, { pulseMetrics: { "mosaic.example": ["itemsRated", "restaurants"] } });
+    const mosaic = row(container, "mosaic.example"), totals = mosaic.querySelector('[data-site-totals]')!;
+    expect(totals.closest('[role="cell"]')).toBe(mosaic.querySelector('[data-site-name]'));
     expect(totals.querySelector('[role="cell"]')).toBeNull();
     expect(totals.textContent).not.toContain("Current catalog");
     expect(totals.querySelector('[data-site-total="itemsRated"]')?.textContent).toContain("13,904");
@@ -487,14 +487,14 @@ describe("the density tiers", () => {
 
   it("lets compact rows grow their charts and type with the available room", () => {
     const container = draw(wallFixturePayload().assets);
-    const menus = row(container, "menus.example");
-    expect(menus.querySelector('[data-site-chart="row"]')?.className).toContain("flex-1");
-    expect(menus.querySelector('[data-site-trend] [data-site-chart="row"]')?.className).toContain("text-traffic");
-    expect(menus.querySelector("[data-site-trend] [data-trend-line]")).not.toBeNull();
+    const mosaic = row(container, "mosaic.example");
+    expect(mosaic.querySelector('[data-site-chart="row"]')?.className).toContain("flex-1");
+    expect(mosaic.querySelector('[data-site-trend] [data-site-chart="row"]')?.className).toContain("text-traffic");
+    expect(mosaic.querySelector("[data-site-trend] [data-trend-line]")).not.toBeNull();
     // A step under the TV's stat size since the minute pulse sits under it:
     // the row keeps its 56 px floor and the column its width.
-    expect(menus.querySelector("[data-live-count]")?.className).toContain("text-[length:var(--text-wall-site-live)]");
-    expect(menus.querySelector("[data-live-count]")?.className).not.toContain("text-wall-hero-sm");
+    expect(mosaic.querySelector("[data-live-count]")?.className).toContain("text-[length:var(--text-wall-site-live)]");
+    expect(mosaic.querySelector("[data-live-count]")?.className).not.toContain("text-wall-hero-sm");
 
     expect((container.querySelector('[role="table"]') as HTMLElement).style.getPropertyValue("--site-rows")).toBe("6");
   });
@@ -510,8 +510,8 @@ describe("one site, in depth", () => {
     const only = withSearch(data.assets[0]!);
     const container = draw([only], { attention: data.attention });
     expect(container.querySelector("[data-site-header]")).toBeNull();
-    const header = row(container, "plate.example");
-    expect(header.querySelector("[data-site-label]")?.textContent).toBe("Plate Planner");
+    const header = row(container, "plume.example");
+    expect(header.querySelector("[data-site-label]")?.textContent).toBe("Plume Studio");
     expect(header.querySelector("[data-site-health]")?.getAttribute("aria-label")).toBe("Site health: Plans saved low");
     expect(tiles(container)).toEqual(["today", "visitors", "search"]);
 
@@ -551,10 +551,10 @@ describe("one site, in depth", () => {
   });
 
   it("is the site's own row when there is nothing to show in depth yet", () => {
-    const waiting = wallFixturePayload().assets.find((asset) => asset.id === "standards.example")!;
+    const waiting = wallFixturePayload().assets.find((asset) => asset.id === "summit.example")!;
     const container = draw([waiting]);
     expect(container.querySelector("[data-focus-tile]")).toBeNull();
-    expect(row(container, "standards.example").textContent).toBe("StandardsNo data yet");
+    expect(row(container, "summit.example").textContent).toBe("SummitNo data yet");
   });
 });
 
@@ -591,7 +591,7 @@ describe("the site region's own breakpoints", () => {
 describe("saved site traffic without a current-day reading", () => {
   it.each(["absent", "failed", "previous-day"])("shows dated GA4 history when hourly observations are %s", mode => {
     const assets = structuredClone(wallFixturePayload().assets);
-    const asset = assets.find(site => site.id === "menus.example")!;
+    const asset = assets.find(site => site.id === "mosaic.example")!;
     asset.activeUsers = { series: [{ t: "2026-09-18", v: 17 }, { t: "2026-09-20", v: 0 }, { t: "2026-09-22", v: 50 }], provisionalFrom: "2026-09-22", collectedAt: "2026-09-21T06:00:00Z", timeZoneChanges: [] };
     const realtime = mode === "failed" ? failedFor(asset.id) : wallFixtureRealtime();
     const changed = { ...realtime, assets: mode === "absent" ? realtime.assets.filter(one => one.asset !== asset.id) : realtime.assets.map(one => one.asset === asset.id && one.status === "success" ? { ...one, hourlyObservedAt: "2026-09-21T12:00:00Z" } : one) };
@@ -606,7 +606,7 @@ describe("saved site traffic without a current-day reading", () => {
     expect(site.querySelector('[data-today]')).toBeNull();
     expect([...container.querySelectorAll('[role="columnheader"]')].map(cell => cell.textContent)).toContain("Today / latest day");
     if (mode !== "previous-day") expect(site.querySelector('[data-live]')?.textContent).toBe("—");
-    expect(row(container, "plate.example").querySelector('[data-today]')).not.toBeNull();
+    expect(row(container, "plume.example").querySelector('[data-today]')).not.toBeNull();
   });
 
   it("leaves the day unknown if there is no completed dated observation", () => {

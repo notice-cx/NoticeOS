@@ -137,7 +137,7 @@ export const CONFIG_REGISTERS = {
                 // Digits only. The Data API addresses a property as `properties/<id>`,
                 // and pasting that whole string is the mistake this pattern catches.
                 pattern: '^[1-9][0-9]{4,14}$',
-                describe: 'digits only, e.g. 313598867',
+                describe: 'digits only, e.g. 123456789',
             },
             {
                 name: 'siteUrl',
@@ -185,7 +185,7 @@ export const CONFIG_REGISTERS = {
                 required: false,
                 maxLength: 12,
                 pattern: POSTHOG_PROJECT_ID_SOURCE,
-                describe: "the number in the project's URL (us.posthog.com/project/596607), digits only",
+                describe: "the number in the project's URL (us.posthog.com/project/424242), digits only",
             },
             {
                 name: 'funnels',

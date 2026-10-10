@@ -10,9 +10,9 @@ import { seedSnapshot, workProject } from "./panel-fixtures";
 const CAPTURED = "2026-09-05T12:00:00.000Z";
 const NOW = new Date("2026-09-05T12:00:30.000Z");
 const waiting = [
-  { id: "mp-g1", title: "Approve the launch", status: "open", priority: 3, issueType: "gate" },
-  { id: "mp-h1", title: "Choose the next page", status: "open", priority: 1, issueType: "task" },
-  { id: "mp-h2", title: "Choose a later project", status: "open", priority: 3, issueType: "task" },
+  { id: "md-g1", title: "Approve the launch", status: "open", priority: 3, issueType: "gate" },
+  { id: "md-h1", title: "Choose the next page", status: "open", priority: 1, issueType: "task" },
+  { id: "md-h2", title: "Choose a later project", status: "open", priority: 3, issueType: "task" },
 ];
 
 let ctx: TestStore;
@@ -49,8 +49,8 @@ describe("partial operator snapshots from the task poller", () => {
   it("adds a known partial head to complete projects without pretending it is the full total", async () => {
     await seedSnapshot(ctx, CAPTURED, [
       workProject({ waiting }),
-      workProject({ asset: "nosh.example", counts: { waiting: 10 }, waitingUrgent: 4 }),
-      workProject({ asset: "fees.example", ok: false, waiting }),
+      workProject({ asset: "northwind.example", counts: { waiting: 10 }, waitingUrgent: 4 }),
+      workProject({ asset: "ferns.example", ok: false, waiting }),
     ]);
     const posture = beadsNeedsYou(await loadLatestBeadsSnapshot(ctx.call));
     expect(posture).toMatchObject({ waiting: 13, urgent: 6, measuredProjects: 1, urgentMeasuredProjects: 1, projectCount: 3 });

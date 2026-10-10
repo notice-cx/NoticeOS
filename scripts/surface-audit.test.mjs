@@ -288,7 +288,7 @@ test('ownerChipOffenders: the declared chip, today s OwnerChip title, and a bare
   });
   const offenders = ownerChipOffenders(
     nodes.filter((node) => node.tag !== 'section'),
-    { route: '/assets/meals.example' },
+    { route: '/assets/meadow.example' },
   );
   assert.equal(offenders.length, 3);
   assert.deepEqual(
@@ -305,16 +305,16 @@ test('ownerChipOffenders: a chip and the path it draws inside itself are one off
     attrs: { title: 'Owned by config/serp-panel.json — click to copy.' },
     children: [{ tag: 'span', attrs: { class: 'truncate' }, text: 'config/serp-panel.json' }],
   });
-  const offenders = ownerChipOffenders(nodes, { route: '/assets/meals.example/growth' });
+  const offenders = ownerChipOffenders(nodes, { route: '/assets/meadow.example/growth' });
   assert.equal(offenders.length, 1);
   assert.equal(offenders[0].rule, 'owner-chip');
 });
 
 test('ownerChipOffenders: Settings and an asset Sources tab are the two surfaces doc 14 exempts', () => {
   assert.equal(isConfigSurfaceRoute('/settings'), true);
-  assert.equal(isConfigSurfaceRoute('/assets/meals.example/sources'), true);
-  assert.equal(isConfigSurfaceRoute('/assets/meals.example/settings'), true);
-  assert.equal(isConfigSurfaceRoute('/assets/meals.example/growth'), false);
+  assert.equal(isConfigSurfaceRoute('/assets/meadow.example/sources'), true);
+  assert.equal(isConfigSurfaceRoute('/assets/meadow.example/settings'), true);
+  assert.equal(isConfigSurfaceRoute('/assets/meadow.example/growth'), false);
   assert.equal(isConfigSurfaceRoute('/'), false);
 
   const nodes = dom({
@@ -346,7 +346,7 @@ test('CONFIG_PATH_RE: a config file in copy, not every slash and dot', () => {
   assert.ok(CONFIG_PATH_RE.test('config/tower.json'));
   assert.ok(CONFIG_PATH_RE.test('Edit config/serp-panel.json to change this'));
   assert.ok(CONFIG_PATH_RE.test('config/changesets/2026-09-05.json'));
-  assert.equal(CONFIG_PATH_RE.test('meals.example/recipes'), false);
+  assert.equal(CONFIG_PATH_RE.test('meadow.example/recipes'), false);
   assert.equal(CONFIG_PATH_RE.test('reconfigure/tower.json'), false);
 });
 
@@ -623,7 +623,7 @@ test('routeVerdict: each rule reads the viewport it is written against', () => {
   });
   const verdict = routeVerdict(
     {
-      route: '/assets/meals.example/growth',
+      route: '/assets/meadow.example/growth',
       desk: {
         pageHeight: 10139,
         hero: { found: true, source: '[data-surface-hero]', bottom: 820 },
@@ -720,7 +720,7 @@ test('summarize: the run is green only when every route is', () => {
 });
 
 test('readEmpty: a reading with no controls and no text is a skeleton, not a surface', () => {
-  // The live failure this exists for: /assets/meals.example measured 844px with
+  // The live failure this exists for: /assets/meadow.example measured 844px with
   // zero controls at 390 on one run while the identical route measured 6,417px
   // with eighteen. Recording that would have made the baseline a lie.
   assert.equal(readEmpty({ counts: { controls: 0, paragraphs: 0 } }), true);

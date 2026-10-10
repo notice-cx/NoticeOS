@@ -36,16 +36,16 @@ describe("truthful connection state", () => {
 
 describe("navigation context", () => {
   it.each([7, 90])("keeps the %i-day view across every asset tab", (days) => {
-    expect(tabPath("meals.example", "growth", `?range=${days}&status=closed&project=other`)).toBe(`/assets/meals.example/growth?range=${days}`);
-    expect(tabPath("meals.example", "sources", `?range=${days}`)).toBe(`/assets/meals.example/sources?range=${days}`);
-    expect(tabPath("meals.example", "overview", `?range=${days}`)).toBe(`/assets/meals.example?range=${days}`);
+    expect(tabPath("meadow.example", "growth", `?range=${days}&status=closed&project=other`)).toBe(`/assets/meadow.example/growth?range=${days}`);
+    expect(tabPath("meadow.example", "sources", `?range=${days}`)).toBe(`/assets/meadow.example/sources?range=${days}`);
+    expect(tabPath("meadow.example", "overview", `?range=${days}`)).toBe(`/assets/meadow.example?range=${days}`);
   });
   it("normalizes default and invalid ranges", () => {
-    expect(tabPath("meals.example", "overview", "?range=28")).toBe("/assets/meals.example");
-    expect(tabPath("meals.example", "overview", "?range=999")).toBe("/assets/meals.example");
+    expect(tabPath("meadow.example", "overview", "?range=28")).toBe("/assets/meadow.example");
+    expect(tabPath("meadow.example", "overview", "?range=999")).toBe("/assets/meadow.example");
   });
   it("accepts internal return destinations and rejects external or malformed ones", () => {
-    expect(taskReturnPath({ returnTo: "/assets/meals.example?range=90" })).toBe("/assets/meals.example?range=90");
+    expect(taskReturnPath({ returnTo: "/assets/meadow.example?range=90" })).toBe("/assets/meadow.example?range=90");
     expect(taskReturnPath({ returnTo: "/?range=7" })).toBe("/?range=7");
     for (const returnTo of ["https://example.com", "//example.com", "javascript:alert(1)", "/unrelated", null]) {
       expect(taskReturnPath({ returnTo })).toBe("/tasks");
@@ -56,13 +56,13 @@ describe("navigation context", () => {
       const location = useLocation();
       return <output>{JSON.stringify({ path: location.pathname, state: location.state })}</output>;
     }
-    render(<MemoryRouter><ul><ListRow title="Investigate traffic drop" to="/tasks/ro-123" returnTo="/assets/meals.example?range=90" value={0}>Unused preview</ListRow></ul><LocationProbe /></MemoryRouter>);
+    render(<MemoryRouter><ul><ListRow title="Investigate traffic drop" to="/tasks/ro-123" returnTo="/assets/meadow.example?range=90" value={0}>Unused preview</ListRow></ul><LocationProbe /></MemoryRouter>);
     const link = screen.getByRole("link", { name: /Investigate traffic drop/ });
     expect(link).not.toHaveAttribute("aria-expanded");
     expect(screen.getByText("0")).toBeInTheDocument();
     fireEvent.click(link);
     expect(screen.getByRole("status")).toHaveTextContent('"path":"/tasks/ro-123"');
-    expect(screen.getByRole("status")).toHaveTextContent('"returnTo":"/assets/meals.example?range=90"');
+    expect(screen.getByRole("status")).toHaveTextContent('"returnTo":"/assets/meadow.example?range=90"');
     expect(screen.queryByText("Unused preview")).toBeNull();
   });
 });

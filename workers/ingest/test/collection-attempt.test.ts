@@ -6,7 +6,7 @@ import { recordSignalSuccess } from '../src/signal-store.js';
 import type { HealthConnection } from '../src/integration-health-context.js';
 
 beforeEach(reset);
-const target = { asset: 'meals.example', integration: 'ga4' as const, credentialRef: 'fixture-account', propertyRef: 'fixture-property' };
+const target = { asset: 'meadow.example', integration: 'ga4' as const, credentialRef: 'fixture-account', propertyRef: 'fixture-property' };
 const window = { start: '2026-09-10', end: '2026-09-11' };
 const result = { observations: [], providerRows: 0, dataState: 'final' as const, provisionalFrom: null };
 

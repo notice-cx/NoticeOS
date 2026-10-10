@@ -79,7 +79,7 @@ describe('flowLowVolumeAnomaly (multi-day window)', () => {
 
 describe('evaluatePulse (per-metric regime routing)', () => {
   const envelope: PulseEnvelope = {
-    asset: 'meals.example',
+    asset: 'meadow.example',
     generatedAt: '2026-07-05T03:00:00.000Z',
     capabilities: ['signups', 'plansSaved', 'leads'],
     metrics: {

@@ -266,9 +266,9 @@ it('retires a current-state network failure once a later attempt was answered 鈥
   const hour = (h: number) => new Date(NOW - (10 - h) * 3_600_000).toISOString();
   const collected = { pages: [{ request: {}, response: { d: [] } }], providerRows: 0, providerTruncated: false };
   const bing = beginCollection(env.STORE, await healthConnection(env, 'bing-webmaster'));
-  const site = { asset: 'meals.example', integration: 'bing-webmaster' as const, credentialRef: 'env:BING_WEBMASTER_API_KEY', propertyRef: 'https://meals.example/' };
+  const site = { asset: 'meadow.example', integration: 'bing-webmaster' as const, credentialRef: 'env:BING_WEBMASTER_API_KEY', propertyRef: 'https://meadow.example/' };
   // Filed under the bare domain: that night's site-list call never came back.
-  const standIn = { ...site, propertyRef: 'meals.example' };
+  const standIn = { ...site, propertyRef: 'meadow.example' };
   await archiveDumpFailure(env.STORE, { monitoring: bing, target: standIn, report: 'rank-traffic', reportDate: '2026-09-13', requestedAt: hour(1), dataState: 'provider-snapshot', error: new SignalError('request_failed', 'no answer') });
   await archiveDumpFailure(env.STORE, { monitoring: bing, target: site, report: 'crawl-stats', reportDate: '2026-09-13', requestedAt: hour(1), dataState: 'provider-snapshot', error: new SignalError('bwt_http_400', 'refused') });
   for (const report of ['rank-traffic', 'crawl-stats']) {
@@ -286,10 +286,10 @@ it('retires a current-state network failure once a later attempt was answered 鈥
   const result = await readIntegrationHealth(env, Date.now() + 1000);
   const item = (detail: string) => result.items.find(i => i.detail === detail);
   // Bing can only answer "now": the later snapshot is the answer to that night.
-  expect(item('rank-traffic 路 2026-09-13 路 meals.example')).toBeUndefined();
-  expect(item('rank-traffic 路 2026-09-14 路 https://meals.example/')).toMatchObject({ failure: null, report: 'rank-traffic', reportDate: '2026-09-14' });
+  expect(item('rank-traffic 路 2026-09-13 路 meadow.example')).toBeUndefined();
+  expect(item('rank-traffic 路 2026-09-14 路 https://meadow.example/')).toMatchObject({ failure: null, report: 'rank-traffic', reportDate: '2026-09-14' });
   // A refusal stays the provider's story until its own date succeeds.
-  expect(item('crawl-stats 路 2026-09-13 路 https://meals.example/')).toMatchObject({ state: 'failing', failure: 'provider' });
+  expect(item('crawl-stats 路 2026-09-13 路 https://meadow.example/')).toMatchObject({ state: 'failing', failure: 'provider' });
   // A dated archive is asked again instead, so its failure stays until it is.
   expect(result.items.find(i => i.asset === ga4.asset && i.detail === `${report} 路 2026-01-01`)).toMatchObject({ state: 'failing', failure: 'network' });
 });
@@ -297,26 +297,26 @@ it('retires a current-state network failure once a later attempt was answered 鈥
 // report runs, one statement over both: this site has daily runs alone.
 it('finds a Bing site by the property its daily runs were saved under, when its archive has none', async () => {
   const bing = beginCollection(env.STORE, await healthConnection(env, 'bing-webmaster'));
-  const site = { asset: 'meals.example', integration: 'bing-webmaster' as const, credentialRef: 'env:BING_WEBMASTER_API_KEY', propertyRef: 'https://meals.example/' };
+  const site = { asset: 'meadow.example', integration: 'bing-webmaster' as const, credentialRef: 'env:BING_WEBMASTER_API_KEY', propertyRef: 'https://meadow.example/' };
   await recordSignalSuccess(env, site, { start: '2026-09-13', end: '2026-09-13' }, new Date(NOW - 1000).toISOString(),
     { observations: [], providerRows: 0, dataState: 'final', provisionalFrom: null }, bing);
   const result = await readIntegrationHealth(env, Date.now() + 1000);
-  expect(result.items.filter(i => i.asset === 'meals.example' && i.capability === 'bing-daily').map(i => i.detail))
-    .toEqual(['https://meals.example/']);
+  expect(result.items.filter(i => i.asset === 'meadow.example' && i.capability === 'bing-daily').map(i => i.detail))
+    .toEqual(['https://meadow.example/']);
 });
 it('lists a Bing site\'s saved properties once each, in text order, from both kinds of run', async () => {
   const bing = beginCollection(env.STORE, await healthConnection(env, 'bing-webmaster'));
-  const site = { asset: 'meals.example', integration: 'bing-webmaster' as const, credentialRef: 'env:BING_WEBMASTER_API_KEY', propertyRef: 'https://meals.example/' };
+  const site = { asset: 'meadow.example', integration: 'bing-webmaster' as const, credentialRef: 'env:BING_WEBMASTER_API_KEY', propertyRef: 'https://meadow.example/' };
   const collected = { pages: [{ request: {}, response: { d: [] } }], providerRows: 0, providerTruncated: false };
-  await storeSignalRun({ id: 'daily-www', asset: 'meals.example', integration: 'bing-webmaster', property_ref: 'https://www.meals.example/', finished_at: new Date(NOW - 3000).toISOString() });
-  await storeSignalRun({ id: 'daily-bare', asset: 'meals.example', integration: 'bing-webmaster', property_ref: 'https://meals.example/', finished_at: new Date(NOW - 2000).toISOString() });
+  await storeSignalRun({ id: 'daily-www', asset: 'meadow.example', integration: 'bing-webmaster', property_ref: 'https://www.meadow.example/', finished_at: new Date(NOW - 3000).toISOString() });
+  await storeSignalRun({ id: 'daily-bare', asset: 'meadow.example', integration: 'bing-webmaster', property_ref: 'https://meadow.example/', finished_at: new Date(NOW - 2000).toISOString() });
   await archiveCollectedDump(env, { monitoring: bing, provider: 'microsoft', target: site, report: 'rank-traffic', reportDate: '2026-09-14', requestedAt: new Date(NOW - 1000).toISOString(), dataState: 'provider-snapshot', collected });
   const result = await readIntegrationHealth(env, Date.now() + 1000);
-  expect(result.items.filter(i => i.asset === 'meals.example' && i.capability === 'bing-daily').map(i => i.detail))
-    .toEqual(['https://meals.example/', 'https://www.meals.example/']);
+  expect(result.items.filter(i => i.asset === 'meadow.example' && i.capability === 'bing-daily').map(i => i.detail))
+    .toEqual(['https://meadow.example/', 'https://www.meadow.example/']);
 });
 it('shows no PostHog network failure once the next healthy run has asked the lost window again', async () => {
-  await putCredential(env, { provider: 'posthog', fields: { POSTHOG_KEYS: JSON.stringify({ 'meals.example': 'phx_health_read_fixture' }) } });
+  await putCredential(env, { provider: 'posthog', fields: { POSTHOG_KEYS: JSON.stringify({ 'meadow.example': 'phx_health_read_fixture' }) } });
   // Connected long before the dark night.
   await setConnection('posthog', { updated_at: '2026-09-01T00:00:00.000Z' });
   const register = (await getConfigDocument(env, 'config/integrations.json')).body as LaneRegister;
@@ -326,7 +326,7 @@ it('shows no PostHog network failure once the next healthy run has asked the los
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     if ((EGRESS_BEACONS as readonly string[]).includes(url)) return new Response('h=1');
     if (!up) throw new Error(WORKERD_TRANSPORT_ERROR);
-    return init?.method === 'GET' ? Response.json({ id: 596607, timezone: 'America/New_York' }) : Response.json({ results: [] });
+    return init?.method === 'GET' ? Response.json({ id: 424242, timezone: 'America/New_York' }) : Response.json({ results: [] });
   }) as typeof fetch;
   const network = (payload: Awaited<ReturnType<typeof readIntegrationHealth>>) =>
     payload.items.filter(i => i.provider === 'posthog' && i.failure === 'network');

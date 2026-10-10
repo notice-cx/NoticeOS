@@ -49,19 +49,19 @@ const HOUR = 3_600_000;
 const DAY = 86_400_000;
 const CONSTANTS = { dataUsd: 25 };
 
-// config/counters.json's two shapes: a fast-lane asset (meals, with a scrape
-// source) and a fallback-only one (nosh, no source). pacer declares nothing.
+// config/counters.json's two shapes: a fast-lane asset (meadow, with a scrape
+// source) and a fallback-only one (northwind, no source). pebble declares nothing.
 const COUNTERS: CountersConfig = {
   assets: {
-    "meals.example": {
-      source: { kind: "prometheus", url: "https://meals.example/api/internal/metrics", enabled: true },
+    "meadow.example": {
+      source: { kind: "prometheus", url: "https://meadow.example/api/internal/metrics", enabled: true },
       cards: [
         { metric: "signups", counter: "profiles", label: "Accounts" },
         { metric: "plansSaved", counter: "saved", label: "Plans saved" },
         { metric: "leads", counter: "leads", label: "Leads" },
       ],
     },
-    "nosh.example": {
+    "northwind.example": {
       heading: "Current catalog",
       cards: [{ metric: "items", label: "Items" }],
     },
@@ -88,7 +88,7 @@ const INTEGRATIONS: IntegrationsConfig = {
     },
   ],
   assets: {
-    "meals.example": {
+    "meadow.example": {
       gsc: { status: "live", note: "collector live", since: "2026-07-05" },
       ga4: { status: "live", note: "collector live", since: "2026-07-05" },
       "bing-webmaster": { status: "live", note: "collector live", since: "2026-07-05" },
@@ -97,7 +97,7 @@ const INTEGRATIONS: IntegrationsConfig = {
 };
 // A minority of assets buy a tracked panel. Membership picks the marker's
 // words only; it does not gate the marker.
-const SERP_PANEL = { assets: { "meals.example": { queries: ["meals"] } } };
+const SERP_PANEL = { assets: { "meadow.example": { queries: ["meadow"] } } };
 const PANEL_ASSETS = new Set(Object.keys(SERP_PANEL.assets));
 
 /** UTC, because the month-boundary cases below say "half an hour into August"
@@ -142,7 +142,7 @@ const DETAIL_DEPS: AssetDetailDeps = {
 };
 
 const OS_RECEIVED = new Date(NOW_MS - 3 * HOUR).toISOString();
-const MEALS_RECEIVED = new Date(NOW_MS - 4 * HOUR).toISOString();
+const MEADOW_RECEIVED = new Date(NOW_MS - 4 * HOUR).toISOString();
 const NOM_RECEIVED = new Date(NOW_MS - 3 * DAY).toISOString();
 
 /** A site in both of the test's stores (test/sites.ts). */
@@ -215,11 +215,11 @@ async function insertLedger(ctx: TestStore, row: LedgerRow) {
 /** The populated store's ledger: id=1 estimate superseded by id=2 reconciled,
  * so id=1 must drop out. Written by the tests that read money. */
 async function seedLedger(ctx: TestStore) {
-  await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 100, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
-  await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 150, booking_state: "reconciled", supersedes_id: 1, recorded_at: "2026-07-04T00:00:00.000Z" });
-  await insertLedger(ctx, { id: 3, kind: "cost", asset: "meals.example", period: "2026-07", family: "inference", amount: 20, booking_state: "reconciled", recorded_at: "2026-07-04T00:00:00.000Z" });
-  await insertLedger(ctx, { id: 4, kind: "revenue", asset: "nosh.example", period: "2026-07", family: "affiliate", amount: 30, booking_state: "estimated", recorded_at: "2026-07-03T00:00:00.000Z" });
-  await insertLedger(ctx, { id: 5, kind: "revenue", asset: "meals.example", period: "2026-06", family: "ads", amount: 90, booking_state: "reconciled", recorded_at: "2026-06-30T00:00:00.000Z" });
+  await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 100, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
+  await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 150, booking_state: "reconciled", supersedes_id: 1, recorded_at: "2026-07-04T00:00:00.000Z" });
+  await insertLedger(ctx, { id: 3, kind: "cost", asset: "meadow.example", period: "2026-07", family: "inference", amount: 20, booking_state: "reconciled", recorded_at: "2026-07-04T00:00:00.000Z" });
+  await insertLedger(ctx, { id: 4, kind: "revenue", asset: "northwind.example", period: "2026-07", family: "affiliate", amount: 30, booking_state: "estimated", recorded_at: "2026-07-03T00:00:00.000Z" });
+  await insertLedger(ctx, { id: 5, kind: "revenue", asset: "meadow.example", period: "2026-06", family: "ads", amount: 90, booking_state: "reconciled", recorded_at: "2026-06-30T00:00:00.000Z" });
 }
 
 /** A counters-lane reading in the test's copy of its sites: the site's row
@@ -240,13 +240,13 @@ async function insertCounterReading(
   );
 }
 
-/** meals' counter readings (the 15-min fast lane), minutes old. plansSaved is
+/** meadow' counter readings (the 15-min fast lane), minutes old. plansSaved is
  * deliberately below its nightly total: magnitude must not decide which lane
- * wins. `leads` has no reading and no pulse metric. nosh gets none, so its
+ * wins. `leads` has no reading and no pulse metric. northwind gets none, so its
  * totals fall back to its nightly report. */
 async function insertMealsReadings(ctx: TestStore) {
-  await insertCounterReading(ctx, "meals.example", "signups", 4310, new Date(NOW_MS - 5 * 60_000).toISOString());
-  await insertCounterReading(ctx, "meals.example", "plansSaved", 1900, new Date(NOW_MS - 5 * 60_000).toISOString());
+  await insertCounterReading(ctx, "meadow.example", "signups", 4310, new Date(NOW_MS - 5 * 60_000).toISOString());
+  await insertCounterReading(ctx, "meadow.example", "plansSaved", 1900, new Date(NOW_MS - 5 * 60_000).toISOString());
 }
 
 /** One lane's daily values under that lane's one run: the run on the lane's
@@ -266,7 +266,7 @@ async function insertSignalSnapshot(
     | "position",
   values: number[],
   startDate = "2026-07-03",
-  asset = "meals.example",
+  asset = "meadow.example",
 ) {
   const runId = `${asset}-${integration}-run`;
   const startMs = Date.parse(`${startDate}T00:00:00.000Z`);
@@ -293,7 +293,7 @@ async function insertSignalSnapshot(
   }, written);
 }
 
-/** meals' collected metrics: GA4 users, Search Console and Bing clicks and
+/** meadow' collected metrics: GA4 users, Search Console and Bing clicks and
  * impressions. Written by the tests that read them. */
 async function insertMealsSignals(ctx: TestStore) {
   await insertSignalSnapshot(ctx, "ga4", "active_users", [101, 116, 48]);
@@ -386,12 +386,12 @@ async function seed(raw: TestStore, hasOs = true) {
   // Insertion order is the fixed card order. The OS row's stored name is one
   // no payload shows.
   await insertAsset(raw, "root-os", "ReindexOS", "live", 0, hasOs ? 1 : 0);
-  await insertAsset(raw, "meals.example", "Meal Planner", "onboarding", 0, 0);
-  await insertAsset(raw, "nosh.example", "Nosh", "onboarding", 0, 0);
-  await insertAsset(raw, "pacer.example", "Pacer Test", "onboarding", 1, 0);
+  await insertAsset(raw, "meadow.example", "Meadow Board", "onboarding", 0, 0);
+  await insertAsset(raw, "northwind.example", "Northwind", "onboarding", 0, 0);
+  await insertAsset(raw, "pebble.example", "Pebble Works", "onboarding", 1, 0);
 
-  // Annotations: meals deployed 14h before its alert fired (correlates), and
-  // again a week earlier (outside the window). Nosh's config change lands
+  // Annotations: meadow deployed 14h before its alert fired (correlates), and
+  // again a week earlier (outside the window). Northwind's config change lands
   // after its alert. The test that reads them files them.
 }
 
@@ -405,36 +405,36 @@ async function seedReportsAndAlerts(ctx: TestStore, { withoutOsReport = false }:
       queueDepth: { last24h: 14 },
     }),
   ];
-  // meals declares its capabilities: signups leads, so the activity panel
+  // meadow declares its capabilities: signups leads, so the activity panel
   // charts signups even though plansSaved is the busier metric.
-  const mealsCaps = ["signups", "plansSaved"];
+  const meadowCaps = ["signups", "plansSaved"];
   reports.push(
     report(
-      "meals.example",
+      "meadow.example",
       "2026-07-03",
       new Date(NOW_MS - 2 * DAY).toISOString(),
       { signups: { last24h: 10, avg7d: 9 }, plansSaved: { last24h: 240, avg7d: 250 } },
-      mealsCaps,
+      meadowCaps,
     ),
     report(
-      "meals.example",
+      "meadow.example",
       "2026-07-04",
       new Date(NOW_MS - 28 * HOUR).toISOString(),
       { signups: { last24h: 12, avg7d: 10 }, plansSaved: { last24h: 265, avg7d: 252 } },
-      mealsCaps,
+      meadowCaps,
     ),
     report(
-      "meals.example",
+      "meadow.example",
       "2026-07-05",
-      MEALS_RECEIVED,
+      MEADOW_RECEIVED,
       {
         signups: { last24h: 15, avg7d: 11, total: 4233 },
         plansSaved: { last24h: 230, avg7d: 248, total: 1907 },
       },
-      mealsCaps,
+      meadowCaps,
     ),
-    // nosh declares nothing, so the fallback picks its busiest metric by avg7d.
-    report("nosh.example", "2026-07-02", NOM_RECEIVED, {
+    // northwind declares nothing, so the fallback picks its busiest metric by avg7d.
+    report("northwind.example", "2026-07-02", NOM_RECEIVED, {
       items: { last24h: 500, avg7d: 40, total: 12954 },
       receiptVisits: { last24h: 12, avg7d: 55 },
     }),
@@ -442,13 +442,13 @@ async function seedReportsAndAlerts(ctx: TestStore, { withoutOsReport = false }:
   const store = ctx.call;
   await storeReports(store, reports);
 
-  // Flags: two open (error on meals, warn on nosh); two closed (resolved + acked).
+  // Flags: two open (error on meadow, warn on northwind); two closed (resolved + acked).
   // The open pair carries the rule_inputs its rule really writes.
   await storeAlerts(store, [
-    alertRow({ asset: "meals.example", fired_at: "2026-07-05T09:00:00.000Z", severity: "error", kind: "anomaly", rule_id: "ingest-freshness", metric: "pulse", message: "no pulse in 41h (> 36h threshold)", rule_inputs: { rule: "ingest-freshness", lastReceivedAt: "2026-07-03T16:00:00.000Z", thresholdHours: 36, ageHours: 41 } }),
-    alertRow({ asset: "nosh.example", fired_at: "2026-07-05T10:00:00.000Z", severity: "warn", kind: "anomaly", rule_id: "flow-poisson-low", metric: "receiptVisits", message: "12 in last24h (avg7d 55.0, P(<=12)~=0.0000)", rule_inputs: { metric: "receiptVisits", observed: 12, baselinePerDay: 55, alpha: 0.01, pLowerTail: 0.0000004 } }),
-    alertRow({ asset: "nosh.example", fired_at: "2026-07-01T10:00:00.000Z", severity: "warn", kind: "anomaly", rule_id: "poisson-drop", resolved_at: "2026-07-02T10:00:00.000Z" }),
-    alertRow({ asset: "meals.example", fired_at: "2026-07-04T10:00:00.000Z", severity: "error", kind: "anomaly", rule_id: "poisson-drop", disposition: "ack" }),
+    alertRow({ asset: "meadow.example", fired_at: "2026-07-05T09:00:00.000Z", severity: "error", kind: "anomaly", rule_id: "ingest-freshness", metric: "pulse", message: "no pulse in 41h (> 36h threshold)", rule_inputs: { rule: "ingest-freshness", lastReceivedAt: "2026-07-03T16:00:00.000Z", thresholdHours: 36, ageHours: 41 } }),
+    alertRow({ asset: "northwind.example", fired_at: "2026-07-05T10:00:00.000Z", severity: "warn", kind: "anomaly", rule_id: "flow-poisson-low", metric: "receiptVisits", message: "12 in last24h (avg7d 55.0, P(<=12)~=0.0000)", rule_inputs: { metric: "receiptVisits", observed: 12, baselinePerDay: 55, alpha: 0.01, pLowerTail: 0.0000004 } }),
+    alertRow({ asset: "northwind.example", fired_at: "2026-07-01T10:00:00.000Z", severity: "warn", kind: "anomaly", rule_id: "poisson-drop", resolved_at: "2026-07-02T10:00:00.000Z" }),
+    alertRow({ asset: "meadow.example", fired_at: "2026-07-04T10:00:00.000Z", severity: "error", kind: "anomaly", rule_id: "poisson-drop", disposition: "ack" }),
   ]);
 }
 
@@ -463,7 +463,7 @@ describe("buildWallPayload — populated store", () => {
     await seedLedger(ctx);
     const p = await buildWallPayload(ctx.call, OPTIONS);
     // Current July rows: 150 reconciled revenue (superseding the 100 estimate),
-    // 20 reconciled cost, and nosh's 30 estimated revenue.
+    // 20 reconciled cost, and northwind's 30 estimated revenue.
     expect(p.portfolio.booked).toEqual({ currency: 'USD', revenue: 150, cost: 20, net: 130 });
     expect(p.portfolio.forecast).toEqual({ currency: 'USD', revenue: 30, cost: 0, net: 30 });
     // The mixed total (160) appears nowhere.
@@ -486,12 +486,12 @@ describe("buildWallPayload — populated store", () => {
     // either side of which covers a full month. The cents are a float trap:
     // these rows add to 866.4000000000001 and 1809.6499999999999 in dollars,
     // and 1809.65 − 866.40 is 943.2500000000001.
-    await insertLedger(ctx, { id: 40, kind: "revenue", asset: "nosh.example", period: "2026-05", family: "ads", amount: 445.1, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 41, kind: "revenue", asset: "nosh.example", period: "2026-05", family: "affiliate", amount: 421.3, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 42, kind: "revenue", asset: "nosh.example", period: "2026-06", family: "ads", amount: 574.15, booking_state: "reconciled", recorded_at: "2026-06-30T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 43, kind: "revenue", asset: "nosh.example", period: "2026-06", family: "ads", amount: 271.2, booking_state: "reconciled", recorded_at: "2026-06-30T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 44, kind: "revenue", asset: "nosh.example", period: "2026-06", family: "affiliate", amount: 417.1, booking_state: "reconciled", recorded_at: "2026-06-30T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 45, kind: "revenue", asset: "nosh.example", period: "2026-06", family: "affiliate", amount: 457.2, booking_state: "reconciled", recorded_at: "2026-06-30T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 40, kind: "revenue", asset: "northwind.example", period: "2026-05", family: "ads", amount: 445.1, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 41, kind: "revenue", asset: "northwind.example", period: "2026-05", family: "affiliate", amount: 421.3, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 42, kind: "revenue", asset: "northwind.example", period: "2026-06", family: "ads", amount: 574.15, booking_state: "reconciled", recorded_at: "2026-06-30T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 43, kind: "revenue", asset: "northwind.example", period: "2026-06", family: "ads", amount: 271.2, booking_state: "reconciled", recorded_at: "2026-06-30T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 44, kind: "revenue", asset: "northwind.example", period: "2026-06", family: "affiliate", amount: 417.1, booking_state: "reconciled", recorded_at: "2026-06-30T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 45, kind: "revenue", asset: "northwind.example", period: "2026-06", family: "affiliate", amount: 457.2, booking_state: "reconciled", recorded_at: "2026-06-30T00:00:00.000Z" });
 
     const p = await buildWallPayload(ctx.call, OPTIONS);
     expect(p.portfolio.period).toBe("2026-07");
@@ -548,8 +548,8 @@ describe("buildWallPayload — populated store", () => {
     await seedLedger(ctx);
     // June reconciled to exactly nothing: the change is real money and stays
     // stated; the percent against zero is null, not an Infinity.
-    await insertLedger(ctx, { id: 44, kind: "cost", asset: "nosh.example", period: "2026-06", family: "inference", amount: 90, booking_state: "reconciled", recorded_at: "2026-06-30T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 45, kind: "revenue", asset: "nosh.example", period: "2026-05", family: "ads", amount: 20, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 44, kind: "cost", asset: "northwind.example", period: "2026-06", family: "inference", amount: 90, booking_state: "reconciled", recorded_at: "2026-06-30T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 45, kind: "revenue", asset: "northwind.example", period: "2026-05", family: "ads", amount: 20, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
 
     const p = await buildWallPayload(ctx.call, OPTIONS);
     expect(p.portfolio.bookedDelta).toEqual({ currency: 'USD',
@@ -559,8 +559,8 @@ describe("buildWallPayload — populated store", () => {
       priorPeriod: "2026-05",
     });
 
-    await insertLedger(ctx, { id: 46, kind: "cost", asset: "nosh.example", period: "2026-05", family: "inference", amount: 20, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 47, kind: "revenue", asset: "nosh.example", period: "2026-06", family: "ads", amount: 12.5, booking_state: "reconciled", recorded_at: "2026-06-30T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 46, kind: "cost", asset: "northwind.example", period: "2026-05", family: "inference", amount: 20, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 47, kind: "revenue", asset: "northwind.example", period: "2026-06", family: "ads", amount: 12.5, booking_state: "reconciled", recorded_at: "2026-06-30T00:00:00.000Z" });
     const q = await buildWallPayload(ctx.call, OPTIONS);
     expect(q.portfolio.bookedDelta).toEqual({ currency: 'USD',
       value: 12.5,
@@ -573,9 +573,9 @@ describe("buildWallPayload — populated store", () => {
   it("PORTFOLIO: one reconciled row cannot unlock a total made of estimates", async () => {
     await seedLedger(ctx);
     // One reconciled row of $150 among $2,400 of estimates.
-    await insertLedger(ctx, { id: 10, kind: "revenue", asset: "meals.example", period: "2026-07", family: "affiliate", amount: 800, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 11, kind: "revenue", asset: "nosh.example", period: "2026-07", family: "subs", amount: 900, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 12, kind: "revenue", asset: "pacer.example", period: "2026-07", family: "ads", amount: 700, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 10, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "affiliate", amount: 800, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 11, kind: "revenue", asset: "northwind.example", period: "2026-07", family: "subs", amount: 900, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 12, kind: "revenue", asset: "pebble.example", period: "2026-07", family: "ads", amount: 700, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
 
     const p = await buildWallPayload(ctx.call, OPTIONS);
     expect(p.portfolio.booked).toEqual({ currency: 'USD', revenue: 150, cost: 20, net: 130 });
@@ -586,7 +586,7 @@ describe("buildWallPayload — populated store", () => {
   it("PORTFOLIO: sums exact cents, so the headline is provable", async () => {
     // Four figures whose float sum is 758.1999999999999.
     for (const [id, amount] of [[20, 512.4], [21, 168.2], [22, 55.5], [23, 22.1]] as const) {
-      await insertLedger(ctx, { id, kind: "revenue", asset: "nosh.example", period: "2026-08", family: "ads", amount, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
+      await insertLedger(ctx, { id, kind: "revenue", asset: "northwind.example", period: "2026-08", family: "ads", amount, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
     }
     const p = await buildWallPayload(ctx.call, { ...OPTIONS, now: new Date("2026-08-05T12:00:00.000Z") });
     expect(p.portfolio.booked.revenue!).toBe(758.2);
@@ -608,18 +608,18 @@ describe("buildWallPayload — populated store", () => {
       [35, "cost", "inference", 421.3],
     ] as const;
     for (const [id, kind, family, amount] of rows) {
-      await insertLedger(ctx, { id, kind, asset: "nosh.example", period: "2026-08", family, amount, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
+      await insertLedger(ctx, { id, kind, asset: "northwind.example", period: "2026-08", family, amount, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
     }
     // Plus estimates on the same asset and month: 812.45 − 96.15 = 716.30,
     // which is 716.3000000000001 once either side has left integer cents.
-    await insertLedger(ctx, { id: 36, kind: "revenue", asset: "nosh.example", period: "2026-08", family: "subs", amount: 812.45, booking_state: "estimated", recorded_at: "2026-08-01T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 37, kind: "cost", asset: "nosh.example", period: "2026-08", family: "infra", amount: 96.15, booking_state: "estimated", recorded_at: "2026-08-01T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 36, kind: "revenue", asset: "northwind.example", period: "2026-08", family: "subs", amount: 812.45, booking_state: "estimated", recorded_at: "2026-08-01T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 37, kind: "cost", asset: "northwind.example", period: "2026-08", family: "infra", amount: 96.15, booking_state: "estimated", recorded_at: "2026-08-01T00:00:00.000Z" });
 
     const now = new Date("2026-08-05T12:00:00.000Z");
     const wall = await buildWallPayload(ctx.call, { ...OPTIONS, now });
-    const detail = await buildAssetDetailPayload(ctx.call, "nosh.example", { ...DETAIL_DEPS, now });
+    const detail = await buildAssetDetailPayload(ctx.call, "northwind.example", { ...DETAIL_DEPS, now });
     const august = detail!.ledger.periods.find((p) => p.period === "2026-08")!;
-    const card = wall.assets.find((a) => a.id === "nosh.example")!;
+    const card = wall.assets.find((a) => a.id === "northwind.example")!;
 
     expect(wall.portfolio.booked).toEqual({ currency: 'USD', revenue: 1809.65, cost: 866.4, net: 943.25 });
     expect(wall.portfolio.forecast).toEqual({ currency: 'USD', revenue: 812.45, cost: 96.15, net: 716.3 });
@@ -637,8 +637,8 @@ describe("buildWallPayload — populated store", () => {
   it("PORTFOLIO: a superseded row cannot set the ledger's age", async () => {
     // A late-recorded estimate, corrected by a row recorded earlier (a
     // backfilled reconciliation): the lane's age must not come from it.
-    await insertLedger(ctx, { id: 6, kind: "revenue", asset: "nosh.example", period: "2026-07", family: "ads", amount: 80, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 7, kind: "revenue", asset: "nosh.example", period: "2026-07", family: "ads", amount: 64, booking_state: "reconciled", supersedes_id: 6, recorded_at: "2026-07-04T12:00:00.000Z" });
+    await insertLedger(ctx, { id: 6, kind: "revenue", asset: "northwind.example", period: "2026-07", family: "ads", amount: 80, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 7, kind: "revenue", asset: "northwind.example", period: "2026-07", family: "ads", amount: 64, booking_state: "reconciled", supersedes_id: 6, recorded_at: "2026-07-04T12:00:00.000Z" });
 
     const p = await buildWallPayload(ctx.call, OPTIONS);
     expect(p.ledgerRecordedAt).toBe("2026-07-04T12:00:00.000Z");
@@ -661,7 +661,7 @@ describe("buildWallPayload — populated store", () => {
     // The metered data cap alone.
     expect(p.system.dailyCapUsd).toBeCloseTo(25 / 31, 6); // July has 31 days
     expect(p.system.scheduledLanes).toEqual([]);
-    // meals + root-os fresh; nosh (3d old) is stale; pacer has never sent a
+    // meadow + root-os fresh; northwind (3d old) is stale; pebble has never sent a
     // report, so it expects none.
     expect(p.system.ingest).toEqual({
       fresh: 2, stale: 1, notExpected: 1, expected: 3,
@@ -685,10 +685,10 @@ describe("buildWallPayload — populated store", () => {
 
   it("SYSTEM: sums TODAY's metered spend out of the store, not the report", async () => {
     await seedReportsAndAlerts(ctx);
-    await insertMeteredCall("dfs-today-1", "meals.example", "2026-07-05T02:15:00.000Z", 0.4);
-    await insertMeteredCall("dfs-today-2", "nosh.example", "2026-07-05T11:00:00.000Z", 0.15);
-    await insertMeteredCall("dfs-yesterday", "meals.example", "2026-07-04T23:59:00.000Z", 9);
-    await insertMeteredCall("dfs-june", "nosh.example", "2026-06-30T12:00:00.000Z", 4);
+    await insertMeteredCall("dfs-today-1", "meadow.example", "2026-07-05T02:15:00.000Z", 0.4);
+    await insertMeteredCall("dfs-today-2", "northwind.example", "2026-07-05T11:00:00.000Z", 0.15);
+    await insertMeteredCall("dfs-yesterday", "meadow.example", "2026-07-04T23:59:00.000Z", 9);
+    await insertMeteredCall("dfs-june", "northwind.example", "2026-06-30T12:00:00.000Z", 4);
 
     const p = await buildWallPayload(ctx.call, OPTIONS);
     expect(p.system.spendTodayUsd).toBeCloseTo(0.55, 10);
@@ -701,9 +701,9 @@ describe("buildWallPayload — populated store", () => {
   // share of the cap, and the collector's gate counts it.
   it("SYSTEM: today's pace counts the ad-hoc research, not only the collection", async () => {
     await seedReportsAndAlerts(ctx);
-    await insertMeteredCall("dfs-today", "meals.example", "2026-07-05T02:15:00.000Z", 0.4);
+    await insertMeteredCall("dfs-today", "meadow.example", "2026-07-05T02:15:00.000Z", 0.4);
     await writeResearch(ctx.call, [{
-      asset: "nosh.example", endpoint: "dataforseo_labs/google/keyword_overview/live", params_sha256: "a".repeat(64),
+      asset: "northwind.example", endpoint: "dataforseo_labs/google/keyword_overview/live", params_sha256: "a".repeat(64),
       question: "keyword overview, 1 term, US/en", cost_usd: 0.24, actor: "claude-opus-5", bought_at: "2026-07-05T09:00:00.000Z",
     }]);
 
@@ -713,7 +713,7 @@ describe("buildWallPayload — populated store", () => {
 
   it("SYSTEM: keeps today's spend when asset #0 sent no report at all", async () => {
     await seedReportsAndAlerts(ctx, { withoutOsReport: true });
-    await insertMeteredCall("dfs-quiet", "meals.example", "2026-07-05T06:00:00.000Z", 1.25);
+    await insertMeteredCall("dfs-quiet", "meadow.example", "2026-07-05T06:00:00.000Z", 1.25);
 
     const p = await buildWallPayload(ctx.call, OPTIONS);
     expect(p.system.hasPulse).toBe(false);
@@ -756,7 +756,7 @@ describe("buildWallPayload — populated store", () => {
 
     const wall = await buildWallPayload(ctx.call, OPTIONS);
     const systemPage = await buildAssetDetailPayload(ctx.call, "root-os", DETAIL_DEPS);
-    const ordinaryPage = await buildAssetDetailPayload(ctx.call, "meals.example", DETAIL_DEPS);
+    const ordinaryPage = await buildAssetDetailPayload(ctx.call, "meadow.example", DETAIL_DEPS);
     expect(wall.system.scheduledLanes).toEqual([
       {
         job: "backup",
@@ -787,7 +787,7 @@ describe("buildWallPayload — populated store", () => {
   // is outside the fraction.
   it("SYSTEM: a site that never sent a report is outside the fraction, so every sender current is all fresh", async () => {
     await seedReportsAndAlerts(ctx);
-    await insertPulse(ctx, "nosh.example", "2026-07-05", new Date(NOW_MS - 2 * HOUR).toISOString(), {
+    await insertPulse(ctx, "northwind.example", "2026-07-05", new Date(NOW_MS - 2 * HOUR).toISOString(), {
       items: { last24h: 520, avg7d: 45, total: 13000 },
     });
 
@@ -796,7 +796,7 @@ describe("buildWallPayload — populated store", () => {
       fresh: 3, stale: 0, notExpected: 1, expected: 3,
     });
     expect(isAllFresh(p.system.ingest)).toBe(true);
-    await insertPulse(ctx, "pacer.example", "2026-07-05", new Date(NOW_MS - HOUR).toISOString(), {
+    await insertPulse(ctx, "pebble.example", "2026-07-05", new Date(NOW_MS - HOUR).toISOString(), {
       visits: { last24h: 40, avg7d: 38, total: 900 },
     });
     expect((await buildWallPayload(ctx.call, OPTIONS)).system.ingest).toMatchObject({ fresh: 4, expected: 4, notExpected: 0 });
@@ -808,7 +808,7 @@ describe("buildWallPayload — populated store", () => {
   describe("SYSTEM: one staleness clock, shared with the ingest cron", () => {
     it("counts a 40h-old report fresh", async () => {
       await seedReportsAndAlerts(ctx);
-      await insertPulse(ctx, "nosh.example", "2026-07-03", new Date(NOW_MS - 40 * HOUR).toISOString(), {
+      await insertPulse(ctx, "northwind.example", "2026-07-03", new Date(NOW_MS - 40 * HOUR).toISOString(), {
         items: { last24h: 500, avg7d: 40, total: 12954 },
       });
 
@@ -821,12 +821,12 @@ describe("buildWallPayload — populated store", () => {
 
       await seedReportsAndAlerts(ctx);
       const atAge = async (hours: number) => {
-        // Replace nosh's newest report outright: a second report for the same
-        // day is that day's newest revision, and nosh's other report, of the
+        // Replace northwind's newest report outright: a second report for the same
+        // day is that day's newest revision, and northwind's other report, of the
         // 2nd, is older than both ages.
         await insertPulse(
           ctx,
-          "nosh.example",
+          "northwind.example",
           "2026-07-03",
           new Date(NOW_MS - hours * HOUR).toISOString(),
           { items: { last24h: 500, avg7d: 40, total: 12954 } },
@@ -859,7 +859,7 @@ describe("buildWallPayload — populated store", () => {
   it("SYSTEM: pre-launch and retired assets sit outside the expected set", async () => {
 
     await seedReportsAndAlerts(ctx);
-    await insertAsset(ctx, "fees.example", "Fee Codes", "pre-launch", 1, 0);
+    await insertAsset(ctx, "ferns.example", "Fern Index", "pre-launch", 1, 0);
     await insertAsset(ctx, "old.example", "Retired Thing", "retired", 1, 0);
 
     const p = await buildWallPayload(ctx.call, OPTIONS);
@@ -872,23 +872,23 @@ describe("buildWallPayload — populated store", () => {
   // a site declared as sending none stays No report.
   it("SYSTEM + ASSETS: declaring the silent sites keeps every sender in the fraction", async () => {
     await seedReportsAndAlerts(ctx);
-    const p = await buildWallPayload(ctx.call, { ...OPTIONS, noNightlyReport: ["pacer.example"] });
+    const p = await buildWallPayload(ctx.call, { ...OPTIONS, noNightlyReport: ["pebble.example"] });
     expect(p.system.ingest).toEqual({ fresh: 2, stale: 1, notExpected: 1, expected: 3 });
     const card = (id: string) => p.assets.find((asset) => asset.id === id)!;
-    expect(card("nosh.example").dataSources.find((source) => source.id === "nightly-report")?.state).toBe("degraded");
-    expect(card("meals.example").dataSources.find((source) => source.id === "nightly-report")?.state).toBe("live");
-    expect(card("pacer.example").noNightlyReport).toBe(true);
-    expect(card("pacer.example").dataSources.find((source) => source.id === "nightly-report")?.state).toBe("skipped");
+    expect(card("northwind.example").dataSources.find((source) => source.id === "nightly-report")?.state).toBe("degraded");
+    expect(card("meadow.example").dataSources.find((source) => source.id === "nightly-report")?.state).toBe("live");
+    expect(card("pebble.example").noNightlyReport).toBe(true);
+    expect(card("pebble.example").dataSources.find((source) => source.id === "nightly-report")?.state).toBe("skipped");
   });
 
   // The ingest half is workers/ingest/test/freshness.test.ts "assets declared
   // as sending no nightly report"; both sides ask the contract's
   // `owesNightlyReport`.
   describe("an asset declared as sending no nightly report", () => {
-    const DECLARED = { ...OPTIONS, noNightlyReport: ["pacer.example"] };
+    const DECLARED = { ...OPTIONS, noNightlyReport: ["pebble.example"] };
     const neverReported = () =>
       insertFlag(ctx, {
-        asset: "pacer.example",
+        asset: "pebble.example",
         fired_at: "2026-07-05T08:00:00.000Z",
         severity: "error",
         kind: "anomaly",
@@ -901,7 +901,7 @@ describe("buildWallPayload — populated store", () => {
     it("SYSTEM: sits outside the denominator, so all-fresh is reachable again", async () => {
 
       await seedReportsAndAlerts(ctx);
-      await insertPulse(ctx, "nosh.example", "2026-07-05", new Date(NOW_MS - 2 * HOUR).toISOString(), {
+      await insertPulse(ctx, "northwind.example", "2026-07-05", new Date(NOW_MS - 2 * HOUR).toISOString(), {
         items: { last24h: 520, avg7d: 45, total: 13000 },
       });
       const p = await buildWallPayload(ctx.call, DECLARED);
@@ -914,26 +914,26 @@ describe("buildWallPayload — populated store", () => {
       await seedReportsAndAlerts(ctx);
       await neverReported();
       const before = await buildWallPayload(ctx.call, OPTIONS);
-      expect(before.attention.some((item) => item.asset === "pacer.example")).toBe(true);
+      expect(before.attention.some((item) => item.asset === "pebble.example")).toBe(true);
 
       const p = await buildWallPayload(ctx.call, DECLARED);
-      expect(p.attention.some((item) => item.asset === "pacer.example")).toBe(false);
-      const card = p.assets.find((asset) => asset.id === "pacer.example")!;
+      expect(p.attention.some((item) => item.asset === "pebble.example")).toBe(false);
+      const card = p.assets.find((asset) => asset.id === "pebble.example")!;
       expect(card.noNightlyReport).toBe(true);
       expect(card.openError).toBe(0);
       expect(card.worstSeverity).toBeNull();
       expect(card.dataSources.find((source) => source.id === "nightly-report")?.state).toBe("skipped");
-      expect(p.assets.find((asset) => asset.id === "nosh.example")!.noNightlyReport).toBe(false);
+      expect(p.assets.find((asset) => asset.id === "northwind.example")!.noNightlyReport).toBe(false);
     });
 
     it("shows a report it sends anyway, and still does not count it", async () => {
 
       await seedReportsAndAlerts(ctx);
-      await insertPulse(ctx, "pacer.example", "2026-07-05", new Date(NOW_MS - 3 * HOUR).toISOString(), {
+      await insertPulse(ctx, "pebble.example", "2026-07-05", new Date(NOW_MS - 3 * HOUR).toISOString(), {
         visits: { last24h: 40, avg7d: 38, total: 900 },
       });
       const p = await buildWallPayload(ctx.call, DECLARED);
-      const card = p.assets.find((asset) => asset.id === "pacer.example")!;
+      const card = p.assets.find((asset) => asset.id === "pebble.example")!;
       expect(card.pulseReceivedAt).not.toBeNull();
       expect(card.dataSources.find((source) => source.id === "nightly-report")?.state).toBe("live");
       expect(p.system.ingest.notExpected).toBe(1);
@@ -943,18 +943,18 @@ describe("buildWallPayload — populated store", () => {
 
       await seedReportsAndAlerts(ctx);
       await neverReported();
-      const page = await buildAssetDetailPayload(ctx.call, "pacer.example", {
+      const page = await buildAssetDetailPayload(ctx.call, "pebble.example", {
         ...DETAIL_DEPS,
-        noNightlyReport: ["pacer.example"],
+        noNightlyReport: ["pebble.example"],
       });
       expect(page?.asset.noNightlyReport).toBe(true);
       expect(page?.asset.openError).toBe(0);
       expect(page?.wiring.ingestFreshness).toBeNull();
-      expect(page?.wiring.noReportDeclarations).toEqual(["pacer.example"]);
+      expect(page?.wiring.noReportDeclarations).toEqual(["pebble.example"]);
       expect(page?.flags.open.some((flag) => flag.ruleId === "ingest-freshness")).toBe(false);
       expect(page?.integrations.sources.find((source) => source.id === "nightly-report")?.state).toBe("skipped");
 
-      const undeclared = await buildAssetDetailPayload(ctx.call, "pacer.example", DETAIL_DEPS);
+      const undeclared = await buildAssetDetailPayload(ctx.call, "pebble.example", DETAIL_DEPS);
       expect(undeclared?.asset.noNightlyReport).toBe(false);
       expect(undeclared?.wiring.noReportDeclarations).toBeNull();
     });
@@ -971,21 +971,21 @@ describe("buildWallPayload — populated store", () => {
     await insertMealsSignals(ctx);
     const p = await buildWallPayload(ctx.call, OPTIONS);
     expect(p.assets.map((a) => a.id)).toEqual([
-      "meals.example",
-      "nosh.example",
-      "pacer.example",
+      "meadow.example",
+      "northwind.example",
+      "pebble.example",
     ]);
 
-    const meals = p.assets[0]!;
-    expect(meals.worstSeverity).toBe("error");
-    expect(meals.openError).toBe(1);
-    expect(meals.openWarn).toBe(0);
-    expect(meals.booked).toEqual({ currency: 'USD', revenue: 150, cost: 20, net: 130 });
-    expect(meals.forecast).toEqual({ currency: 'USD', revenue: 0, cost: 0, net: 0 });
-    expect(meals.pulseReceivedAt).toBe(MEALS_RECEIVED);
-    expect(meals.firstReportAt).toBe("2026-07-03T12:00:00.000Z");
-    expect(meals.reportDays).toBe(2);
-    expect(meals.dataSources.map(({ id, label, state }) => ({ id, label, state }))).toEqual([
+    const meadow = p.assets[0]!;
+    expect(meadow.worstSeverity).toBe("error");
+    expect(meadow.openError).toBe(1);
+    expect(meadow.openWarn).toBe(0);
+    expect(meadow.booked).toEqual({ currency: 'USD', revenue: 150, cost: 20, net: 130 });
+    expect(meadow.forecast).toEqual({ currency: 'USD', revenue: 0, cost: 0, net: 0 });
+    expect(meadow.pulseReceivedAt).toBe(MEADOW_RECEIVED);
+    expect(meadow.firstReportAt).toBe("2026-07-03T12:00:00.000Z");
+    expect(meadow.reportDays).toBe(2);
+    expect(meadow.dataSources.map(({ id, label, state }) => ({ id, label, state }))).toEqual([
       { id: "nightly-report", label: "Nightly report", state: "live" },
       { id: "gsc", label: "Google Search Console", state: "live" },
       { id: "ga4", label: "Google Analytics 4", state: "live" },
@@ -1027,24 +1027,24 @@ describe("buildWallPayload — populated store", () => {
   it("ASSETS: an open watch is the asset page's, and the Wall computes none of it", async () => {
     await insertOpenWatch(ctx, {
       id: "watch-oldest",
-      asset: "meals.example",
+      asset: "meadow.example",
       registeredAt: "2026-07-01T18:00:00.000Z",
       note: "Homepage answer-card experiment",
       readings: [7],
     });
     await insertOpenWatch(ctx, {
       id: "watch-newer",
-      asset: "meals.example",
+      asset: "meadow.example",
       registeredAt: "2026-07-02T18:00:00.000Z",
       note: "Meal-plan title experiment",
     });
 
     const wall = await buildWallPayload(ctx.call, OPTIONS);
-    const meals = wall.assets.find((asset) => asset.id === "meals.example")!;
-    expect(JSON.stringify(meals)).not.toContain("watch-oldest");
-    expect(Object.keys(meals)).not.toContain("activeWatch");
+    const meadow = wall.assets.find((asset) => asset.id === "meadow.example")!;
+    expect(JSON.stringify(meadow)).not.toContain("watch-oldest");
+    expect(Object.keys(meadow)).not.toContain("activeWatch");
 
-    const detail = await buildAssetDetailPayload(ctx.call, "meals.example", DETAIL_DEPS);
+    const detail = await buildAssetDetailPayload(ctx.call, "meadow.example", DETAIL_DEPS);
     expect(detail?.watches.open[0]).toMatchObject({
       id: "watch-oldest",
       nextCheckDate: "2026-07-15",
@@ -1055,8 +1055,8 @@ describe("buildWallPayload — populated store", () => {
 
   it("SIGNALS: reconstructs active-user bars with provisional tails", async () => {
     await insertMealsSignals(ctx);
-    const meals = (await buildWallPayload(ctx.call, OPTIONS)).assets[0]!;
-    expect(meals.activeUsers).toEqual({
+    const meadow = (await buildWallPayload(ctx.call, OPTIONS)).assets[0]!;
+    expect(meadow.activeUsers).toEqual({
       contextSeries: [],
       series: [
         { t: "2026-07-03", v: 101 },
@@ -1069,7 +1069,7 @@ describe("buildWallPayload — populated store", () => {
     });
     // Search history belongs to the asset page; the card carries no field for
     // it, but the loader still returns it for the page's own call.
-    const detailTrends = (await loadSignalTrends(ctx.call)).get("meals.example")!;
+    const detailTrends = (await loadSignalTrends(ctx.call)).get("meadow.example")!;
     expect(detailTrends.webSearchClicks.google.series).toEqual([
       { t: "2026-07-03", v: 12 },
       { t: "2026-07-04", v: 17 },
@@ -1094,7 +1094,7 @@ describe("buildWallPayload — populated store", () => {
       { t: "2026-07-03", v: 140 },
       { t: "2026-07-04", v: 190 },
     ]);
-    expect(meals.dataSources.find((source) => source.id === "ga4")).toMatchObject({
+    expect(meadow.dataSources.find((source) => source.id === "ga4")).toMatchObject({
       state: "live",
       observedAt: "2026-07-05T11:55:00.000Z",
     });
@@ -1106,7 +1106,7 @@ describe("buildWallPayload — populated store", () => {
     // to read either half of the search lane.
     const wall = (
       await loadSignalTrends(ctx.call, 28, { includeWebSearch: false })
-    ).get("meals.example")!;
+    ).get("meadow.example")!;
     expect(wall.activeUsers.series).toHaveLength(3);
     expect(wall.webSearchClicks.google.series).toEqual([]);
     expect(wall.webSearchClicks.bing.series).toEqual([]);
@@ -1126,7 +1126,7 @@ describe("buildWallPayload — populated store", () => {
 
     const wall = (
       await loadSignalTrends(ctx.call, 28, { includeWebSearch: false })
-    ).get("meals.example")!;
+    ).get("meadow.example")!;
     expect(wall.sessions.series).toEqual([]);
     expect(wall.pageViews.series).toEqual([]);
     expect(wall.events.series).toEqual([]);
@@ -1135,7 +1135,7 @@ describe("buildWallPayload — populated store", () => {
 
     const detail = (
       await loadSignalTrends(ctx.call, 90, { includeSecondarySeries: true })
-    ).get("meals.example")!;
+    ).get("meadow.example")!;
     expect(detail.sessions.series).toEqual([
       { t: "2026-07-03", v: 130 },
       { t: "2026-07-04", v: 141 },
@@ -1162,7 +1162,7 @@ describe("buildWallPayload — populated store", () => {
     await insertSignalSnapshot(ctx, "gsc", "ctr", [0.041, 0.052, 0.038]);
     await insertAnnotation(
       ctx,
-      "meals.example",
+      "meadow.example",
       "2026-07-04T00:00:00.000Z",
       "config",
       "reporting-time-zone-changed:ga4:America/Los_Angeles->America/New_York",
@@ -1172,7 +1172,7 @@ describe("buildWallPayload — populated store", () => {
     // "this series' changes" cannot accidentally agree.
     await insertAnnotation(
       ctx,
-      "meals.example",
+      "meadow.example",
       "2026-07-05T00:00:00.000Z",
       "config",
       "reporting-time-zone-changed:bing-webmaster:UTC->America/New_York",
@@ -1181,7 +1181,7 @@ describe("buildWallPayload — populated store", () => {
 
     const trends = (
       await loadSignalTrends(ctx.call, 90, { includeSecondarySeries: true })
-    ).get("meals.example")!;
+    ).get("meadow.example")!;
     const ga4Change = [
       {
         effectiveOn: "2026-07-04",
@@ -1244,8 +1244,8 @@ describe("buildWallPayload — populated store", () => {
     // The narrowed read's risk is divergence, so the two call shapes are held
     // to exact equality.
     const ctx2 = await createTestStore();
-    await insertAsset(ctx2, "meals.example", "Meal Planner", "live", 0, 0);
-    await insertAsset(ctx2, "nosh.example", "Nosh", "live", 0, 0);
+    await insertAsset(ctx2, "meadow.example", "Meadow Board", "live", 0, 0);
+    await insertAsset(ctx2, "northwind.example", "Northwind", "live", 0, 0);
     await insertSignalSnapshot(ctx2, "ga4", "active_users", [101, 116, 48]);
     await insertSignalSnapshot(ctx2, "gsc", "clicks", [12, 17, 5]);
     await insertSignalSnapshot(ctx2, "gsc", "ctr", [0.041, 0.052, 0.038]);
@@ -1256,29 +1256,29 @@ describe("buildWallPayload — populated store", () => {
       "active_users",
       [7, 9, 11],
       "2026-07-03",
-      "nosh.example",
+      "northwind.example",
     );
 
     const options = { includeSecondarySeries: true, nowMs: NOW_MS };
     const portfolio = await loadSignalTrends(ctx2.call, 90, options);
     const single = await loadSignalTrends(ctx2.call, 90, {
       ...options,
-      asset: "meals.example",
+      asset: "meadow.example",
     });
 
-    expect(single.get("meals.example")).toEqual(portfolio.get("meals.example"));
-    expect(single.get("meals.example")!.activeUsers.series).toEqual([
+    expect(single.get("meadow.example")).toEqual(portfolio.get("meadow.example"));
+    expect(single.get("meadow.example")!.activeUsers.series).toEqual([
       { t: "2026-07-03", v: 101 },
       { t: "2026-07-04", v: 116 },
       { t: "2026-07-05", v: 48 },
     ]);
-    expect(portfolio.has("nosh.example")).toBe(true);
-    expect([...single.keys()]).toEqual(["meals.example"]);
+    expect(portfolio.has("northwind.example")).toBe(true);
+    expect([...single.keys()]).toEqual(["meadow.example"]);
   });
 
   it("SIGNALS: compact Wall asset charts stay capped at four complete weeks", async () => {
     const ctx2 = await createTestStore();
-    await insertAsset(ctx2, "meals.example", "Meal Planner", "live", 0, 0);
+    await insertAsset(ctx2, "meadow.example", "Meadow Board", "live", 0, 0);
     await insertSignalSnapshot(
       ctx2,
       "ga4",
@@ -1304,9 +1304,9 @@ describe("buildWallPayload — populated store", () => {
     await seedLedger(ctx);
     const p = await buildWallPayload(ctx.call, OPTIONS);
 
-    const meals = p.assets[0]!;
-    expect(meals.booked.net!).toBe(130);
-    expect(meals.netPeriod).toBe("2026-07");
+    const meadow = p.assets[0]!;
+    expect(meadow.booked.net!).toBe(130);
+    expect(meadow.netPeriod).toBe("2026-07");
 
     const nom = p.assets[1]!;
     expect(nom.forecast.net!).toBe(30);
@@ -1320,26 +1320,26 @@ describe("buildWallPayload — populated store", () => {
     await seedLedger(ctx);
     // The mixed asset: one reconciled pair already in the seed (150 revenue,
     // 20 cost) plus three estimates nobody has confirmed.
-    await insertLedger(ctx, { id: 20, kind: "revenue", asset: "meals.example", period: "2026-07", family: "affiliate", amount: 600, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 21, kind: "revenue", asset: "meals.example", period: "2026-07", family: "subs", amount: 340, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 22, kind: "cost", asset: "meals.example", period: "2026-07", family: "infra", amount: 40, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 20, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "affiliate", amount: 600, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 21, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "subs", amount: 340, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 22, kind: "cost", asset: "meadow.example", period: "2026-07", family: "infra", amount: 40, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
 
     const p = await buildWallPayload(ctx.call, OPTIONS);
-    const meals = p.assets[0]!;
-    expect(meals.booked).toEqual({ currency: 'USD', revenue: 150, cost: 20, net: 130 });
-    expect(meals.forecast).toEqual({ currency: 'USD', revenue: 940, cost: 40, net: 900 });
-    const mixed = meals.booked.net! + meals.forecast.net!;
+    const meadow = p.assets[0]!;
+    expect(meadow.booked).toEqual({ currency: 'USD', revenue: 150, cost: 20, net: 130 });
+    expect(meadow.forecast).toEqual({ currency: 'USD', revenue: 940, cost: 40, net: 900 });
+    const mixed = meadow.booked.net! + meadow.forecast.net!;
     expect(mixed).toBe(1030);
-    expect(Object.values(meals.booked)).not.toContain(mixed);
-    expect(Object.values(meals.forecast)).not.toContain(mixed);
+    expect(Object.values(meadow.booked)).not.toContain(mixed);
+    expect(Object.values(meadow.forecast)).not.toContain(mixed);
   });
 
   it("NET: every card's booked money adds up to the headline above it", async () => {
     await seedLedger(ctx);
     // Mixed rows on two assets, so this is not a one-row coincidence.
-    await insertLedger(ctx, { id: 20, kind: "revenue", asset: "meals.example", period: "2026-07", family: "affiliate", amount: 600, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 21, kind: "revenue", asset: "nosh.example", period: "2026-07", family: "subs", amount: 12.34, booking_state: "reconciled", recorded_at: "2026-07-05T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 22, kind: "cost", asset: "pacer.example", period: "2026-07", family: "infra", amount: 5.67, booking_state: "reconciled", recorded_at: "2026-07-05T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 20, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "affiliate", amount: 600, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 21, kind: "revenue", asset: "northwind.example", period: "2026-07", family: "subs", amount: 12.34, booking_state: "reconciled", recorded_at: "2026-07-05T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 22, kind: "cost", asset: "pebble.example", period: "2026-07", family: "infra", amount: 5.67, booking_state: "reconciled", recorded_at: "2026-07-05T00:00:00.000Z" });
 
     const p = await buildWallPayload(ctx.call, OPTIONS);
     const sum = (pick: (card: (typeof p.assets)[number]) => number) =>
@@ -1357,7 +1357,7 @@ describe("buildWallPayload — populated store", () => {
   it("NET: a row against asset #0 is named, so the cards still reconcile", async () => {
     // The headline sums every asset and the ASSETS band excludes the OS, so
     // this row is inside the figure and on no card.
-    await insertLedger(ctx, { id: 30, kind: "revenue", asset: "nosh.example", period: "2026-07", family: "subs", amount: 12.34, booking_state: "reconciled", recorded_at: "2026-07-05T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 30, kind: "revenue", asset: "northwind.example", period: "2026-07", family: "subs", amount: 12.34, booking_state: "reconciled", recorded_at: "2026-07-05T00:00:00.000Z" });
     await insertLedger(ctx, { id: 31, kind: "cost", asset: "root-os", period: "2026-07", family: "infra", amount: 41.5, booking_state: "reconciled", recorded_at: "2026-07-05T00:00:00.000Z" });
     await insertLedger(ctx, { id: 32, kind: "cost", asset: "root-os", period: "2026-07", family: "infra", amount: 12, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
 
@@ -1389,7 +1389,7 @@ describe("buildWallPayload — populated store", () => {
 
   it("NET: an asset with only estimates books nothing, and says so in its own field", async () => {
     await seedLedger(ctx);
-    // nosh's July is one estimated row. `booked` is three zeroes rather than a
+    // northwind's July is one estimated row. `booked` is three zeroes rather than a
     // null, so the card has a shape to render.
     const nom = (await buildWallPayload(ctx.call, OPTIONS)).assets[1]!;
     expect(nom.booked).toEqual({ currency: 'USD', revenue: 0, cost: 0, net: 0 });
@@ -1400,19 +1400,19 @@ describe("buildWallPayload — populated store", () => {
 
   it("NET: a fully reconciled asset carries no forecast at all", async () => {
     await seedLedger(ctx);
-    const meals = (await buildWallPayload(ctx.call, OPTIONS)).assets[0]!;
-    expect(figureHasMoney(meals.booked)).toBe(true);
-    expect(figureHasMoney(meals.forecast)).toBe(false);
-    expect(cardHasMoney(meals)).toBe(true);
+    const meadow = (await buildWallPayload(ctx.call, OPTIONS)).assets[0]!;
+    expect(figureHasMoney(meadow.booked)).toBe(true);
+    expect(figureHasMoney(meadow.forecast)).toBe(false);
+    expect(cardHasMoney(meadow)).toBe(true);
   });
 
   it("NET: a card's net is subtracted in cents, not in dollars", async () => {
     // 1809.65 − 866.40 is 943.2500000000001 once either side has left integer
     // cents. One asset, so the card and the headline are the same money read twice.
     const ctx2 = await createTestStore();
-    await insertAsset(ctx2, "meals.example", "Meal Planner", "live", 0, 0);
-    await insertLedger(ctx2, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 1809.65, booking_state: "reconciled", recorded_at: "2026-07-04T00:00:00.000Z" });
-    await insertLedger(ctx2, { id: 2, kind: "cost", asset: "meals.example", period: "2026-07", family: "infra", amount: 866.4, booking_state: "reconciled", recorded_at: "2026-07-04T00:00:00.000Z" });
+    await insertAsset(ctx2, "meadow.example", "Meadow Board", "live", 0, 0);
+    await insertLedger(ctx2, { id: 1, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 1809.65, booking_state: "reconciled", recorded_at: "2026-07-04T00:00:00.000Z" });
+    await insertLedger(ctx2, { id: 2, kind: "cost", asset: "meadow.example", period: "2026-07", family: "infra", amount: 866.4, booking_state: "reconciled", recorded_at: "2026-07-04T00:00:00.000Z" });
 
     const p = await buildWallPayload(ctx2.call, OPTIONS);
     expect(p.assets[0]!.booked.net!).toBe(943.25);
@@ -1422,7 +1422,7 @@ describe("buildWallPayload — populated store", () => {
   it("NET: a card's money is exact cents, like the headline it rolls into", async () => {
     // Float dollars sum these four to 758.1999999999999.
     for (const [id, amount] of [[20, 512.4], [21, 168.2], [22, 55.5], [23, 22.1]] as const) {
-      await insertLedger(ctx, { id, kind: "revenue", asset: "nosh.example", period: "2026-08", family: "ads", amount, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
+      await insertLedger(ctx, { id, kind: "revenue", asset: "northwind.example", period: "2026-08", family: "ads", amount, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
     }
     const p = await buildWallPayload(ctx.call, { ...OPTIONS, now: new Date("2026-08-05T12:00:00.000Z") });
     expect(p.assets[1]!.booked.revenue!).toBe(758.2);
@@ -1432,14 +1432,14 @@ describe("buildWallPayload — populated store", () => {
   it("NET: the current monthly value is independent of history volume", async () => {
     // 18 months of ledger: the card carries only the current accounting fact.
     const ctx2 = await createTestStore();
-    await insertAsset(ctx2, "meals.example", "Meal Planner", "live", 0, 0);
+    await insertAsset(ctx2, "meadow.example", "Meadow Board", "live", 0, 0);
     for (let i = 0; i < 18; i += 1) {
       const month = i + 1;
       const period = `${2025 + Math.floor(month / 12)}-${String((month % 12) + 1).padStart(2, "0")}`;
       await insertLedger(ctx2, {
         id: i + 1,
         kind: "revenue",
-        asset: "meals.example",
+        asset: "meadow.example",
         period,
         family: "ads",
         amount: 10 + i,
@@ -1461,57 +1461,57 @@ describe("buildWallPayload — populated store", () => {
   it("COUNTERS: the Wall restores the same labelled totals as Overview", async () => {
     await seedReportsAndAlerts(ctx);
     const p = await buildWallPayload(ctx.call, OPTIONS);
-    for (const id of ["meals.example", "nosh.example"]) {
+    for (const id of ["meadow.example", "northwind.example"]) {
       const detail = await siteTotals(ctx, id);
       expect(p.assets.find((card) => card.id === id)!.counters).toEqual({
         ...detail, defaultMetrics: detail.cards.map((card) => card.metric),
       });
     }
-    expect((await siteTotals(ctx, "nosh.example")).heading).toBe("Current catalog");
-    expect((await siteTotals(ctx, "meals.example")).heading).toBe("All-time totals");
+    expect((await siteTotals(ctx, "northwind.example")).heading).toBe("Current catalog");
+    expect((await siteTotals(ctx, "meadow.example")).heading).toBe("All-time totals");
   });
 
   it("COUNTERS: Wall values preserve zero, missing and stale single-lane totals", async () => {
     await seedReportsAndAlerts(ctx);
     const staleAt = new Date(NOW_MS - 7 * DAY).toISOString();
-    await insertCounterReading(ctx, "meals.example", "signups", 9000, staleAt);
-    await insertCounterReading(ctx, "meals.example", "plansSaved", 0, NOW.toISOString());
-    await insertCounterReading(ctx, "meals.example", "oldCatalog", 14, staleAt);
+    await insertCounterReading(ctx, "meadow.example", "signups", 9000, staleAt);
+    await insertCounterReading(ctx, "meadow.example", "plansSaved", 0, NOW.toISOString());
+    await insertCounterReading(ctx, "meadow.example", "oldCatalog", 14, staleAt);
     const wall = await buildWallPayload(ctx.call, { ...OPTIONS, schedules: { counters: { enabled: true, cron: "0 * * * *" } } });
-    const totals = wall.assets.find((card) => card.id === "meals.example")!.counters!;
+    const totals = wall.assets.find((card) => card.id === "meadow.example")!.counters!;
     expect(totals.cadenceHours).toBe(1);
     expect(totals.defaultMetrics).toEqual(["signups", "plansSaved", "leads"]);
     expect(totals.cards).toEqual([
-      { metric: "signups", label: "Accounts", value: 4233, observedAt: MEALS_RECEIVED, source: "nightly" },
+      { metric: "signups", label: "Accounts", value: 4233, observedAt: MEADOW_RECEIVED, source: "nightly" },
       { metric: "plansSaved", label: "Plans saved", value: 0, observedAt: NOW.toISOString(), source: "counters" },
       { metric: "leads", label: "Leads", value: null, observedAt: null, source: null },
       { metric: "oldCatalog", label: "Old catalog", value: 14, observedAt: staleAt, source: "counters" },
     ]);
     expect(isAmber(NOW_MS, staleAt, totals.cadenceHours)).toBe(true);
-    expect((await buildWallPayload(ctx.call, OPTIONS)).assets.find((card) => card.id === "pacer.example")!.counters)
+    expect((await buildWallPayload(ctx.call, OPTIONS)).assets.find((card) => card.id === "pebble.example")!.counters)
       .toMatchObject({ cards: [], defaultMetrics: [] });
   });
 
   it("COUNTERS: discovery reads the newest report revision, not a late backfill or historical metric", async () => {
-    await insertPulse(ctx, "pacer.example", "2026-07-04", NOW.toISOString(), {
+    await insertPulse(ctx, "pebble.example", "2026-07-04", NOW.toISOString(), {
       historicalOnly: { last24h: 10, total: 999 },
     });
-    await insertPulse(ctx, "pacer.example", "2026-07-05", MEALS_RECEIVED, {
+    await insertPulse(ctx, "pebble.example", "2026-07-05", MEADOW_RECEIVED, {
       signups: { last24h: 1, total: 12 }, oldRevisionOnly: { last24h: 1, total: 8 },
     });
-    await insertPulse(ctx, "pacer.example", "2026-07-05", MEALS_RECEIVED, {
+    await insertPulse(ctx, "pebble.example", "2026-07-05", MEADOW_RECEIVED, {
       signups: { last24h: 2, total: 0 }, plansSaved: { last24h: 10, total: 77 },
       dailyOnly: { last24h: 90 },
     });
-    await insertCounterReading(ctx, "pacer.example", "leads", 21, NOW.toISOString());
+    await insertCounterReading(ctx, "pebble.example", "leads", 21, NOW.toISOString());
     const statements: string[] = [];
     const wall = await buildWallPayload(recordingStore(ctx.call, statements), OPTIONS);
-    const totals = wall.assets.find((card) => card.id === "pacer.example")!.counters!;
+    const totals = wall.assets.find((card) => card.id === "pebble.example")!.counters!;
     expect(totals.defaultMetrics).toEqual([]);
     expect(totals.cards).toEqual([
       { metric: "leads", label: "Leads", value: 21, observedAt: NOW.toISOString(), source: "counters" },
-      { metric: "plansSaved", label: "Plans saved", value: 77, observedAt: MEALS_RECEIVED, source: "nightly" },
-      { metric: "signups", label: "Signups", value: 0, observedAt: MEALS_RECEIVED, source: "nightly" },
+      { metric: "plansSaved", label: "Plans saved", value: 77, observedAt: MEADOW_RECEIVED, source: "nightly" },
+      { metric: "signups", label: "Signups", value: 0, observedAt: MEADOW_RECEIVED, source: "nightly" },
     ]);
     expect(statements.filter((sql) => sql === LATEST_COUNTER_TOTALS_SQL)).toHaveLength(1);
     expect(statements.filter((sql) => sql.includes("FROM noticeos.counter_readings"))).toHaveLength(1);
@@ -1521,7 +1521,7 @@ describe("buildWallPayload — populated store", () => {
 
     await seedReportsAndAlerts(ctx);
     await insertMealsReadings(ctx);
-    const users = (await siteTotals(ctx, "meals.example")).cards.find((c) => c.metric === "signups")!;
+    const users = (await siteTotals(ctx, "meadow.example")).cards.find((c) => c.metric === "signups")!;
     expect(users.label).toBe("Accounts");
     expect(users.value).toBe(4310);
     expect(users.observedAt).toBe(new Date(NOW_MS - 5 * 60_000).toISOString());
@@ -1534,7 +1534,7 @@ describe("buildWallPayload — populated store", () => {
     // plansSaved: reading 1900 vs last night's total 1907. Freshness decides
     // which lane owns the number, never magnitude.
     await insertMealsReadings(ctx);
-    const plans = (await siteTotals(ctx, "meals.example")).cards.find((c) => c.metric === "plansSaved")!;
+    const plans = (await siteTotals(ctx, "meadow.example")).cards.find((c) => c.metric === "plansSaved")!;
     expect(plans.value).toBe(1900);
     expect(plans.source).toBe("counters");
   });
@@ -1542,30 +1542,30 @@ describe("buildWallPayload — populated store", () => {
   it("COUNTERS: a STALE reading loses to a newer nightly total — freshest lane, not presence", async () => {
     // The fast lane stopped a week ago; last night's report is the newer fact.
     const ctx2 = await createTestStore();
-    await insertAsset(ctx2, "meals.example", "Meal Planner", "live", 0, 0);
-    await insertPulse(ctx2, "meals.example", "2026-07-05", MEALS_RECEIVED, {
+    await insertAsset(ctx2, "meadow.example", "Meadow Board", "live", 0, 0);
+    await insertPulse(ctx2, "meadow.example", "2026-07-05", MEADOW_RECEIVED, {
       signups: { last24h: 15, avg7d: 11, total: 4400 },
     });
     await insertCounterReading(
       ctx2,
-      "meals.example",
+      "meadow.example",
       "signups",
       4310,
       new Date(NOW_MS - 7 * DAY).toISOString(),
     );
 
-    const users = (await siteTotals(ctx2, "meals.example")).cards.find((c) => c.metric === "signups")!;
+    const users = (await siteTotals(ctx2, "meadow.example")).cards.find((c) => c.metric === "signups")!;
     expect(users.value).toBe(4400);
-    expect(users.observedAt).toBe(MEALS_RECEIVED);
+    expect(users.observedAt).toBe(MEADOW_RECEIVED);
     expect(users.source).toBe("nightly");
   });
 
   it("COUNTERS: with no reading, a total falls back to the latest nightly report", async () => {
 
     await seedReportsAndAlerts(ctx);
-    // Nosh has no scrape source, so its totals exist purely on this fallback
+    // Northwind has no scrape source, so its totals exist purely on this fallback
     // and their age is the report's received_at.
-    const nom = await siteTotals(ctx, "nosh.example");
+    const nom = await siteTotals(ctx, "northwind.example");
     expect(nom.cards).toEqual([{
       metric: "items",
       label: "Items",
@@ -1579,7 +1579,7 @@ describe("buildWallPayload — populated store", () => {
 
     await seedReportsAndAlerts(ctx);
     await insertMealsReadings(ctx);
-    const leads = (await siteTotals(ctx, "meals.example")).cards.find((c) => c.metric === "leads")!;
+    const leads = (await siteTotals(ctx, "meadow.example")).cards.find((c) => c.metric === "leads")!;
     expect(leads.value).toBeNull();
     expect(leads.observedAt).toBeNull();
     expect(leads.source).toBeNull();
@@ -1589,7 +1589,7 @@ describe("buildWallPayload — populated store", () => {
 
     await seedReportsAndAlerts(ctx);
     await insertMealsReadings(ctx);
-    expect((await siteTotals(ctx, "meals.example")).cards.map((c) => c.metric)).toEqual([
+    expect((await siteTotals(ctx, "meadow.example")).cards.map((c) => c.metric)).toEqual([
       "signups",
       "plansSaved",
       "leads",
@@ -1597,10 +1597,10 @@ describe("buildWallPayload — populated store", () => {
   });
 
   it("COUNTERS: none for an asset that declares none (the site grows no row)", async () => {
-    expect((await buildAssetDetailPayload(ctx.call, "pacer.example", DETAIL_DEPS))!.counters).toBeNull();
-    const stubbed = await buildAssetDetailPayload(ctx.call, "nosh.example", {
+    expect((await buildAssetDetailPayload(ctx.call, "pebble.example", DETAIL_DEPS))!.counters).toBeNull();
+    const stubbed = await buildAssetDetailPayload(ctx.call, "northwind.example", {
       ...DETAIL_DEPS,
-      counters: { assets: { "nosh.example": { cards: [] } } },
+      counters: { assets: { "northwind.example": { cards: [] } } },
     });
     expect(stubbed!.counters).toBeNull();
   });
@@ -1610,8 +1610,8 @@ describe("buildWallPayload — populated store", () => {
     await seedReportsAndAlerts(ctx);
     const p = await buildWallPayload(ctx.call, OPTIONS);
     expect(p.attention).toHaveLength(2);
-    expect(p.attention[0]).toMatchObject({ asset: "meals.example", severity: "error", kind: "anomaly" });
-    expect(p.attention[1]).toMatchObject({ asset: "nosh.example", severity: "warn", kind: "anomaly" });
+    expect(p.attention[0]).toMatchObject({ asset: "meadow.example", severity: "error", kind: "anomaly" });
+    expect(p.attention[1]).toMatchObject({ asset: "northwind.example", severity: "warn", kind: "anomaly" });
   });
 
   it("ATTENTION: a declared recurring rule is ONE row carrying its firing count", async () => {
@@ -1619,7 +1619,7 @@ describe("buildWallPayload — populated store", () => {
     const nightly = ["2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04"];
     for (const day of nightly) {
       await insertFlag(ctx, {
-        asset: "nosh.example",
+        asset: "northwind.example",
         fired_at: `${day}T02:00:00.000Z`,
         severity: "warn",
         kind: "anomaly",
@@ -1633,7 +1633,7 @@ describe("buildWallPayload — populated store", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      asset: "nosh.example",
+      asset: "northwind.example",
       occurrences: 4,
       // The newest reading represents the group; the age comes from the onset.
       firedAt: "2026-07-04T02:00:00.000Z",
@@ -1650,7 +1650,7 @@ describe("buildWallPayload — populated store", () => {
     await seedReportsAndAlerts(ctx);
     for (const id of ["aaa", "bbb"]) {
       await insertFlag(ctx, {
-        asset: "meals.example",
+        asset: "meadow.example",
         fired_at: "2026-07-04T02:00:00.000Z",
         severity: "warn",
         kind: "anomaly",
@@ -1688,7 +1688,7 @@ describe("buildWallPayload — populated store", () => {
     );
     for (const firedAt of nights) {
       await insertFlag(ctx, {
-        asset: "nosh.example",
+        asset: "northwind.example",
         fired_at: firedAt,
         severity: "warn",
         kind: "anomaly",
@@ -1699,14 +1699,14 @@ describe("buildWallPayload — populated store", () => {
     }
     // A valid, fresh report still covers and declares this metric.
     const envelope = PulseEnvelope.parse({
-      asset: "nosh.example",
+      asset: "northwind.example",
       generatedAt: "2026-07-05T02:00:00.000Z",
       capabilities: ["apiRequests"],
       metrics: { apiRequests: { last24h: 0, avg7d: 11, total: 100 } },
       flags: [{ severity: "warn", kind: "anomaly", metric: "apiRequests", msg: "below baseline" }],
     });
     await storeReport(ctx.call, {
-      asset: "nosh.example",
+      asset: "northwind.example",
       date: "2026-07-05",
       generatedAt: envelope.generatedAt,
       receivedAt: new Date(NOW_MS - 6 * HOUR).toISOString(),
@@ -1715,7 +1715,7 @@ describe("buildWallPayload — populated store", () => {
     });
 
     const wall = await buildWallPayload(ctx.call, OPTIONS);
-    const page = (await buildAssetDetailPayload(ctx.call, "nosh.example", DETAIL_DEPS))!;
+    const page = (await buildAssetDetailPayload(ctx.call, "northwind.example", DETAIL_DEPS))!;
 
     const band = wall.attention.filter((row) => row.ruleId === "asset-declared");
     const signals = page.flags.open.filter((row) => row.ruleId === "asset-declared");
@@ -1738,7 +1738,7 @@ describe("buildWallPayload — populated store", () => {
 
     // Warning badges count the two conditions; the full seventeen firings
     // remain available as occurrence counts.
-    const card = wall.assets.find((asset) => asset.id === "nosh.example")!;
+    const card = wall.assets.find((asset) => asset.id === "northwind.example")!;
     expect(page.flags.openWarn).toBe(card.openWarn);
     expect(page.flags.openError).toBe(card.openError);
     expect(card.openWarn).toBe(2); // one declared condition + one central warn
@@ -1750,7 +1750,7 @@ describe("buildWallPayload — populated store", () => {
     await seedReportsAndAlerts(ctx);
     for (const id of ["aaa", "bbb"]) {
       await insertFlag(ctx, {
-        asset: "meals.example",
+        asset: "meadow.example",
         fired_at: "2026-07-04T02:00:00.000Z",
         severity: "warn",
         kind: "anomaly",
@@ -1760,7 +1760,7 @@ describe("buildWallPayload — populated store", () => {
         rule_inputs: { watchWindowId: id },
       });
     }
-    const page = (await buildAssetDetailPayload(ctx.call, "meals.example", DETAIL_DEPS))!;
+    const page = (await buildAssetDetailPayload(ctx.call, "meadow.example", DETAIL_DEPS))!;
     const rows = [...page.flags.open, ...page.flags.notCurrent].filter(
       (row) => row.ruleId === "watch-window-closed",
     );
@@ -1771,14 +1771,14 @@ describe("buildWallPayload — populated store", () => {
 
   it("ATTENTION: historical silence flags remain ordinary asset alerts with their own identities", async () => {
     await seedReportsAndAlerts(ctx);
-    await insertAsset(ctx, "fees.example", "Fee Codes", "onboarding", 1, 0);
-    await insertAsset(ctx, "pullups.example", "Pull-up Standards", "onboarding", 1, 0);
-    await insertAsset(ctx, "areas.info", "Area Lookup", "onboarding", 1, 0);
+    await insertAsset(ctx, "ferns.example", "Fern Index", "onboarding", 1, 0);
+    await insertAsset(ctx, "puffin.example", "Puffin Post", "onboarding", 1, 0);
+    await insertAsset(ctx, "acorn.example.net", "Acorn Atlas", "onboarding", 1, 0);
     const silent: [string, string][] = [
-      ["fees.example", "2026-06-08T04:00:00.000Z"],
-      ["pullups.example", "2026-06-09T04:00:00.000Z"],
-      ["areas.info", "2026-06-10T04:00:00.000Z"],
-      ["pacer.example", "2026-06-11T04:00:00.000Z"],
+      ["ferns.example", "2026-06-08T04:00:00.000Z"],
+      ["puffin.example", "2026-06-09T04:00:00.000Z"],
+      ["acorn.example.net", "2026-06-10T04:00:00.000Z"],
+      ["pebble.example", "2026-06-11T04:00:00.000Z"],
     ];
     for (const [asset, firedAt] of silent) {
       await insertFlag(ctx, {
@@ -1813,8 +1813,8 @@ describe("buildWallPayload — populated store", () => {
   it("ATTENTION: the OTHER ingest-freshness failure — a lane that broke — is left alone", async () => {
 
     await seedReportsAndAlerts(ctx);
-    await insertAsset(ctx, "fees.example", "Fee Codes", "onboarding", 1, 0);
-    for (const asset of ["fees.example", "pacer.example"]) {
+    await insertAsset(ctx, "ferns.example", "Fern Index", "onboarding", 1, 0);
+    for (const asset of ["ferns.example", "pebble.example"]) {
       await insertFlag(ctx, {
         asset,
         fired_at: "2026-06-10T04:00:00.000Z",
@@ -1831,7 +1831,7 @@ describe("buildWallPayload — populated store", () => {
     const freshness = p.attention.filter((a) => a.ruleId === "ingest-freshness");
 
     expect(freshness).toHaveLength(3);
-    const stale = freshness.find((a) => a.asset === "meals.example")!;
+    const stale = freshness.find((a) => a.asset === "meadow.example")!;
     expect(stale.members).toBeUndefined();
     expect(stale.occurrences).toBe(1);
   });
@@ -1840,7 +1840,7 @@ describe("buildWallPayload — populated store", () => {
 
     await seedReportsAndAlerts(ctx);
     await insertFlag(ctx, {
-      asset: "pacer.example",
+      asset: "pebble.example",
       fired_at: "2026-06-11T04:00:00.000Z",
       severity: "error",
       kind: "anomaly",
@@ -1857,7 +1857,7 @@ describe("buildWallPayload — populated store", () => {
 
     expect(lone.members).toBeUndefined();
     expect(lone.occurrences).toBe(1);
-    expect(lone.asset).toBe("pacer.example");
+    expect(lone.asset).toBe("pebble.example");
   });
 
   it("ATTENTION: ships the rule's id and parsed inputs, so the client can translate", async () => {
@@ -1865,7 +1865,7 @@ describe("buildWallPayload — populated store", () => {
     await seedReportsAndAlerts(ctx);
     const p = await buildWallPayload(ctx.call, OPTIONS);
 
-    const nom = p.attention.find((a) => a.asset === "nosh.example")!;
+    const nom = p.attention.find((a) => a.asset === "northwind.example")!;
     expect(nom.ruleId).toBe("flow-poisson-low");
     expect(nom.ruleInputs).toMatchObject({ observed: 12, baselinePerDay: 55 });
     // The rule's own words ride along verbatim: the audit trail and the
@@ -1877,7 +1877,7 @@ describe("buildWallPayload — populated store", () => {
 
     await seedReportsAndAlerts(ctx);
     await insertFlag(ctx, {
-      asset: "nosh.example",
+      asset: "northwind.example",
       fired_at: "2026-07-05T08:00:00.000Z",
       severity: "warn",
       kind: "anomaly",
@@ -1893,18 +1893,18 @@ describe("buildWallPayload — populated store", () => {
   it("ATTENTION: correlates only changes inside the window BEFORE each alert", async () => {
 
     await seedReportsAndAlerts(ctx);
-    await insertAnnotation(ctx, "meals.example", "2026-07-04T19:00:00.000Z", "deploy", "a1b2c3d", "ship product cards");
-    await insertAnnotation(ctx, "meals.example", "2026-06-28T12:00:00.000Z", "deploy", "0ldc0de", "older deploy");
-    await insertAnnotation(ctx, "nosh.example", "2026-07-05T18:00:00.000Z", "config", "config@9f2c", "threshold tuned after the alert");
+    await insertAnnotation(ctx, "meadow.example", "2026-07-04T19:00:00.000Z", "deploy", "a1b2c3d", "ship product cards");
+    await insertAnnotation(ctx, "meadow.example", "2026-06-28T12:00:00.000Z", "deploy", "0ldc0de", "older deploy");
+    await insertAnnotation(ctx, "northwind.example", "2026-07-05T18:00:00.000Z", "config", "config@9f2c", "threshold tuned after the alert");
     const p = await buildWallPayload(ctx.call, OPTIONS);
 
-    // meals's alert fired 2026-07-05T09:00Z; the 07-04T19:00 deploy is 14h
+    // meadow's alert fired 2026-07-05T09:00Z; the 07-04T19:00 deploy is 14h
     // before it, the 06-28 deploy far outside the 48h window.
-    const meals = p.attention.find((a) => a.asset === "meals.example")!;
-    expect(meals.correlatedChanges.map((c) => c.ref)).toEqual(["a1b2c3d"]);
+    const meadow = p.attention.find((a) => a.asset === "meadow.example")!;
+    expect(meadow.correlatedChanges.map((c) => c.ref)).toEqual(["a1b2c3d"]);
 
-    // Nosh's only annotation is 8h after its alert.
-    const nom = p.attention.find((a) => a.asset === "nosh.example")!;
+    // Northwind's only annotation is 8h after its alert.
+    const nom = p.attention.find((a) => a.asset === "northwind.example")!;
     expect(nom.correlatedChanges).toEqual([]);
   });
 
@@ -2030,13 +2030,13 @@ describe("Wall counter catalog", () => {
 describe("buildWallPayload — report coverage", () => {
   it("both payloads count only actual report dates in the last 28 completed UTC days", async () => {
     const ctx = await createTestStore();
-    await insertAsset(ctx, "meals.example", "Meal Planner", "onboarding", 1, 0);
+    await insertAsset(ctx, "meadow.example", "Meadow Board", "onboarding", 1, 0);
     for (const date of ["2026-01-01", "2026-06-06", "2026-06-07", "2026-06-20", "2026-07-04", "2026-07-05", "2026-07-06"]) {
-      await insertPulse(ctx, "meals.example", date, `${date}T02:00:00.000Z`, {});
+      await insertPulse(ctx, "meadow.example", date, `${date}T02:00:00.000Z`, {});
     }
-    await insertPulse(ctx, "meals.example", "2026-06-20", "2026-07-05T03:00:00.000Z", { visits: { last24h: 2 } });
+    await insertPulse(ctx, "meadow.example", "2026-06-20", "2026-07-05T03:00:00.000Z", { visits: { last24h: 2 } });
     const wall = await buildWallPayload(ctx.call, OPTIONS);
-    const detail = (await buildAssetDetailPayload(ctx.call, "meals.example", DETAIL_DEPS))!;
+    const detail = (await buildAssetDetailPayload(ctx.call, "meadow.example", DETAIL_DEPS))!;
     expect(wall.assets[0]?.reportDays).toBe(3);
     expect(detail.asset.reportDays).toBe(3);
     expect(detail.asset.firstReportAt).toBe("2026-01-01T02:00:00.000Z");
@@ -2044,23 +2044,23 @@ describe("buildWallPayload — report coverage", () => {
 
   it("reports complete coverage only when all 28 recent dates exist", async () => {
     const ctx = await createTestStore();
-    await insertAsset(ctx, "meals.example", "Meal Planner", "onboarding", 1, 0);
+    await insertAsset(ctx, "meadow.example", "Meadow Board", "onboarding", 1, 0);
     for (let back = 1; back <= 28; back += 1) {
       const date = new Date(NOW_MS - back * DAY).toISOString().slice(0, 10);
-      await insertPulse(ctx, "meals.example", date, `${date}T02:00:00.000Z`, {});
+      await insertPulse(ctx, "meadow.example", date, `${date}T02:00:00.000Z`, {});
     }
     const wall = await buildWallPayload(ctx.call, OPTIONS);
-    const detail = (await buildAssetDetailPayload(ctx.call, "meals.example", DETAIL_DEPS))!;
+    const detail = (await buildAssetDetailPayload(ctx.call, "meadow.example", DETAIL_DEPS))!;
     expect(wall.assets[0]?.reportDays).toBe(28);
     expect(detail.asset.reportDays).toBe(28);
   });
 
   it("an old report alone leaves recent coverage at zero", async () => {
     const ctx = await createTestStore();
-    await insertAsset(ctx, "meals.example", "Meal Planner", "onboarding", 1, 0);
-    await insertPulse(ctx, "meals.example", "2026-01-01", "2026-01-02T02:00:00.000Z", {});
+    await insertAsset(ctx, "meadow.example", "Meadow Board", "onboarding", 1, 0);
+    await insertPulse(ctx, "meadow.example", "2026-01-01", "2026-01-02T02:00:00.000Z", {});
     const wall = await buildWallPayload(ctx.call, OPTIONS);
-    const detail = (await buildAssetDetailPayload(ctx.call, "meals.example", DETAIL_DEPS))!;
+    const detail = (await buildAssetDetailPayload(ctx.call, "meadow.example", DETAIL_DEPS))!;
     expect(wall.assets[0]?.reportDays).toBe(0);
     expect(detail.asset.reportDays).toBe(0);
   });
@@ -2079,44 +2079,44 @@ const dayBefore = (days: number) => new Date(NOW_MS - days * DAY).toISOString().
 
 /**
  * Four assets whose histories hit every edge the bounded read must keep:
- *  - meals: 45 reports with gaps; a backfill of an old date that arrived last
+ *  - meadow: 45 reports with gaps; a backfill of an old date that arrived last
  *    and a report for today (outside the completed-day window), so last
  *    arrival is not the newest date and first arrival is not the oldest;
- *  - nosh: a few reports, sitting on both edges of the 28-day window;
- *  - pacer: exactly 30;
- *  - fees.example: never reported (no row, no map entry, zero coverage).
+ *  - northwind: a few reports, sitting on both edges of the 28-day window;
+ *  - pebble: exactly 30;
+ *  - ferns.example: never reported (no row, no map entry, zero coverage).
  */
 async function seedPulseEdges(ctx: TestStore) {
   const raw = ctx;
   await insertAsset(raw, "root-os", "NoticeOS", "live", 0, 1);
-  await insertAsset(raw, "meals.example", "Meal Planner", "live", 0, 0);
-  await insertAsset(raw, "nosh.example", "Nosh", "live", 0, 0);
-  await insertAsset(raw, "pacer.example", "Pacer Test", "live", 1, 0);
-  await insertAsset(raw, "fees.example", "Fee Codes", "onboarding", 1, 0);
+  await insertAsset(raw, "meadow.example", "Meadow Board", "live", 0, 0);
+  await insertAsset(raw, "northwind.example", "Northwind", "live", 0, 0);
+  await insertAsset(raw, "pebble.example", "Pebble Works", "live", 1, 0);
+  await insertAsset(raw, "ferns.example", "Fern Index", "onboarding", 1, 0);
 
   await insertPulse(ctx, "root-os", dayBefore(1), new Date(NOW_MS - 8 * HOUR).toISOString(), { agentsRunning: { last24h: 2 } });
   let back = 0;
   for (let i = 0; i < 45; i += 1) {
     back += i % 4 === 3 ? 3 : 1; // a gap after every third report
-    await insertPulse(ctx, "meals.example", dayBefore(back), `${dayBefore(back - 1)}T02:30:00.000Z`,
+    await insertPulse(ctx, "meadow.example", dayBefore(back), `${dayBefore(back - 1)}T02:30:00.000Z`,
       { signups: { last24h: i, avg7d: 10 } }, ["signups"]);
   }
   // Today's report: newest date, but outside the completed-day window.
-  await insertPulse(ctx, "meals.example", dayBefore(0), new Date(NOW_MS - 2 * HOUR).toISOString(),
+  await insertPulse(ctx, "meadow.example", dayBefore(0), new Date(NOW_MS - 2 * HOUR).toISOString(),
     { signups: { last24h: 99, avg7d: 10 } }, ["signups"]);
   // A backfill of a night the window had skipped, delivered LAST of all.
-  await insertPulse(ctx, "meals.example", dayBefore(4), new Date(NOW_MS - 1 * HOUR).toISOString(),
+  await insertPulse(ctx, "meadow.example", dayBefore(4), new Date(NOW_MS - 1 * HOUR).toISOString(),
     { signups: { last24h: 7, avg7d: 10 } }, ["signups"]);
   // An old night delivered FIRST of all, long before its own date's neighbours.
-  await insertPulse(ctx, "meals.example", dayBefore(400), "2025-01-01T00:00:00.000Z",
+  await insertPulse(ctx, "meadow.example", dayBefore(400), "2025-01-01T00:00:00.000Z",
     { signups: { last24h: 1, avg7d: 10 } }, ["signups"]);
 
   // Both edges of "the last 28 completed days": 28 days back is in, 29 is out.
   for (const days of [29, 28, 12, 1]) {
-    await insertPulse(ctx, "nosh.example", dayBefore(days), `${dayBefore(days - 1)}T03:00:00.000Z`, { items: { last24h: days, avg7d: 40 } });
+    await insertPulse(ctx, "northwind.example", dayBefore(days), `${dayBefore(days - 1)}T03:00:00.000Z`, { items: { last24h: days, avg7d: 40 } });
   }
   for (let days = 30; days >= 1; days -= 1) {
-    await insertPulse(ctx, "pacer.example", dayBefore(days), `${dayBefore(days - 1)}T04:00:00.000Z`, { visits: { last24h: days, avg7d: 5 } });
+    await insertPulse(ctx, "pebble.example", dayBefore(days), `${dayBefore(days - 1)}T04:00:00.000Z`, { visits: { last24h: days, avg7d: 5 } });
   }
 }
 
@@ -2135,14 +2135,14 @@ describe("buildWallPayload — the pulse read stays bounded as history grows", (
     );
     // Last arrival is the backfill, first is the early delivery, and today's
     // report is not a completed day.
-    expect(bounded.get("meals.example")?.latest).toBe(new Date(NOW_MS - 1 * HOUR).toISOString());
-    expect(bounded.get("meals.example")?.first).toBe("2025-01-01T00:00:00.000Z");
-    expect(bounded.get("nosh.example")?.reportDays).toBe(3);
-    expect(bounded.get("pacer.example")?.reportDays).toBe(28);
-    expect(bounded.has("fees.example")).toBe(false);
-    const one = await readPulseCoverage(store, nowIso, "meals.example");
-    expect([...one]).toEqual([["meals.example", bounded.get("meals.example")]]);
-    expect((await readPulseCoverage(store, nowIso, "fees.example")).size).toBe(0);
+    expect(bounded.get("meadow.example")?.latest).toBe(new Date(NOW_MS - 1 * HOUR).toISOString());
+    expect(bounded.get("meadow.example")?.first).toBe("2025-01-01T00:00:00.000Z");
+    expect(bounded.get("northwind.example")?.reportDays).toBe(3);
+    expect(bounded.get("pebble.example")?.reportDays).toBe(28);
+    expect(bounded.has("ferns.example")).toBe(false);
+    const one = await readPulseCoverage(store, nowIso, "meadow.example");
+    expect([...one]).toEqual([["meadow.example", bounded.get("meadow.example")]]);
+    expect((await readPulseCoverage(store, nowIso, "ferns.example")).size).toBe(0);
   });
 
   it("both payloads state those facts, and a never-reported asset stays unreported and unexpected", async () => {
@@ -2150,19 +2150,19 @@ describe("buildWallPayload — the pulse read stays bounded as history grows", (
     await seedPulseEdges(ctx);
     const wall = await buildWallPayload(ctx.call, OPTIONS);
     const card = (id: string) => wall.assets.find((asset) => asset.id === id)!;
-    expect(card("meals.example").pulseReceivedAt).toBe(new Date(NOW_MS - 1 * HOUR).toISOString());
-    expect(card("meals.example").firstReportAt).toBe("2025-01-01T00:00:00.000Z");
-    expect(card("nosh.example").reportDays).toBe(3);
-    expect(card("fees.example")).toMatchObject({ pulseReceivedAt: null, firstReportAt: null, reportDays: 0 });
+    expect(card("meadow.example").pulseReceivedAt).toBe(new Date(NOW_MS - 1 * HOUR).toISOString());
+    expect(card("meadow.example").firstReportAt).toBe("2025-01-01T00:00:00.000Z");
+    expect(card("northwind.example").reportDays).toBe(3);
+    expect(card("ferns.example")).toMatchObject({ pulseReceivedAt: null, firstReportAt: null, reportDays: 0 });
     // Counted over the asset rows: the site that never sent a report expects
     // none, so it is outside the denominator.
     expect(wall.system.ingest).not.toHaveProperty("neverReported");
     expect(wall.system.ingest.expected).toBe(4);
 
-    const detail = (await buildAssetDetailPayload(ctx.call, "meals.example", DETAIL_DEPS))!;
-    expect(detail.asset.firstReportAt).toBe(card("meals.example").firstReportAt);
-    expect(detail.asset.reportDays).toBe(card("meals.example").reportDays);
-    const silent = (await buildAssetDetailPayload(ctx.call, "fees.example", DETAIL_DEPS))!;
+    const detail = (await buildAssetDetailPayload(ctx.call, "meadow.example", DETAIL_DEPS))!;
+    expect(detail.asset.firstReportAt).toBe(card("meadow.example").firstReportAt);
+    expect(detail.asset.reportDays).toBe(card("meadow.example").reportDays);
+    const silent = (await buildAssetDetailPayload(ctx.call, "ferns.example", DETAIL_DEPS))!;
     expect(silent.asset).toMatchObject({ firstReportAt: null, reportDays: 0 });
   });
 
@@ -2171,14 +2171,14 @@ describe("buildWallPayload — the pulse read stays bounded as history grows", (
     const long = await createTestStore();
     for (const ctx of [recent, long]) await seedPulseEdges(ctx);
     for (let days = 500; days <= 1600; days += 1) {
-      await insertPulse(long, "pacer.example", dayBefore(days), `${dayBefore(days - 1)}T04:00:00.000Z`, { visits: { last24h: 1, avg7d: 5 } });
+      await insertPulse(long, "pebble.example", dayBefore(days), `${dayBefore(days - 1)}T04:00:00.000Z`, { visits: { last24h: 1, avg7d: 5 } });
     }
     const a = await buildWallPayload(recent.call, OPTIONS);
     const b = await buildWallPayload(long.call, OPTIONS);
     const pick = (p: typeof a) => p.assets.map(({ id, pulseReceivedAt, reportDays }) =>
       ({ id, pulseReceivedAt, reportDays }));
     expect(pick(b)).toEqual(pick(a));
-    expect(b.assets.find((asset) => asset.id === "pacer.example")!.firstReportAt)
+    expect(b.assets.find((asset) => asset.id === "pebble.example")!.firstReportAt)
       .toBe(`${dayBefore(1599)}T04:00:00.000Z`);
   });
 
@@ -2220,17 +2220,17 @@ describe("buildWallPayload — the card's work slice", () => {
     (await buildWallPayload(ctx.call, OPTIONS)).assets.find((a) => a.id === asset)!;
 
   it('joins alert work by project, kind and every firing in the condition using one snapshot read', async () => {
-    const base = { asset: 'meals.example', severity: 'warn', kind: 'anomaly', ruleId: 'asset-declared', metric: 'signups' };
+    const base = { asset: 'meadow.example', severity: 'warn', kind: 'anomaly', ruleId: 'asset-declared', metric: 'signups' };
     const [earlier, latest] = await storeAlerts(ctx.call, [
       { ...base, firedAt: '2026-07-05T10:00:00.000Z' },
       { ...base, firedAt: '2026-07-05T11:00:00.000Z' },
     ]);
     const unrelated = await storeAlert(ctx.call, { ...base, metric: 'leads', firedAt: '2026-07-05T11:00:00.000Z' });
-    const handoff = { kind: 'alert', key: String(earlier), beadId: 'mp-repair', status: 'open', closedAt: null };
-    const closed = { ...handoff, key: String(latest), beadId: 'mp-review', status: 'closed', closedAt: '2026-07-05T11:30:00.000Z' };
+    const handoff = { kind: 'alert', key: String(earlier), beadId: 'md-repair', status: 'open', closedAt: null };
+    const closed = { ...handoff, key: String(latest), beadId: 'md-review', status: 'closed', closedAt: '2026-07-05T11:30:00.000Z' };
     await seedSnapshot(ctx, '2026-07-05T11:59:30.000Z', [
-      workProject({ handoffs: [handoff, closed, { ...handoff, kind: 'query', beadId: 'mp-wrongkind' }] }),
-      workProject({ asset: 'nosh.example', handoffs: [{ ...handoff, beadId: 'nom-wrongsite' }] }),
+      workProject({ handoffs: [handoff, closed, { ...handoff, kind: 'query', beadId: 'md-wrongkind' }] }),
+      workProject({ asset: 'northwind.example', handoffs: [{ ...handoff, beadId: 'nw-wrongsite' }] }),
     ]);
     const statements: string[] = [];
     const wall = await buildWallPayload(recordingStore(ctx.call, statements), OPTIONS);
@@ -2240,9 +2240,9 @@ describe("buildWallPayload — the card's work slice", () => {
   });
 
   it('does not revive an older alert handoff when the latest project read is missing or failed', async () => {
-    const id = await storeAlert(ctx.call, { asset: 'meals.example', severity: 'warn', kind: 'anomaly',
+    const id = await storeAlert(ctx.call, { asset: 'meadow.example', severity: 'warn', kind: 'anomaly',
       ruleId: 'asset-declared', metric: 'signups', firedAt: '2026-07-05T11:00:00.000Z' });
-    const handoff = { kind: 'alert', key: String(id), beadId: 'mp-old', status: 'open', closedAt: null };
+    const handoff = { kind: 'alert', key: String(id), beadId: 'md-old', status: 'open', closedAt: null };
     await seedSnapshot(ctx, '2026-07-05T11:30:00.000Z', [workProject({ handoffs: [handoff] })]);
     await seedSnapshot(ctx, '2026-07-05T11:59:30.000Z', [workProject({ ok: false, handoffs: [handoff] })]);
     expect((await buildWallPayload(ctx.call, OPTIONS)).attention.find((item) => item.id === id)?.handoffBeads).toBeUndefined();
@@ -2270,7 +2270,7 @@ describe("buildWallPayload — the card's work slice", () => {
     const wall = await buildWallPayload(ctx.call, OPTIONS);
     expect(Object.keys(wall.system)).not.toContain("work");
     expect(wall.assets.some((asset) => asset.id === "root-os")).toBe(false);
-    expect(wall.assets.find((asset) => asset.id === "meals.example")?.work).toMatchObject({
+    expect(wall.assets.find((asset) => asset.id === "meadow.example")?.work).toMatchObject({
       open: 12,
       capturedAt: "2026-07-05T11:59:30.000Z",
     });
@@ -2279,10 +2279,10 @@ describe("buildWallPayload — the card's work slice", () => {
   it("joins the newest snapshot onto each asset by asset id", async () => {
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject(),
-      workProject({ asset: "nosh.example", prefix: "nom", counts: workCounts({ open: 1, highPriority: 0, closedRecent: 0 }) }),
+      workProject({ asset: "northwind.example", prefix: "nw", counts: workCounts({ open: 1, highPriority: 0, closedRecent: 0 }) }),
     ]);
 
-    expect((await cardFor("meals.example")).work).toEqual({
+    expect((await cardFor("meadow.example")).work).toEqual({
       open: 12,
       highPriority: 3,
       inProgress: 2,
@@ -2291,8 +2291,8 @@ describe("buildWallPayload — the card's work slice", () => {
       priorities: [1, 2, 8, 3, 1],
       capturedAt: "2026-07-05T11:59:30.000Z",
     });
-    expect((await cardFor("nosh.example")).work).toMatchObject({ open: 1, highPriority: 0 });
-    expect((await cardFor("pacer.example")).work).toBeNull();
+    expect((await cardFor("northwind.example")).work).toMatchObject({ open: 1, highPriority: 0 });
+    expect((await cardFor("pebble.example")).work).toBeNull();
   });
 
   it("carries the counts verbatim, never re-derived from the truncated lists", async () => {
@@ -2302,13 +2302,13 @@ describe("buildWallPayload — the card's work slice", () => {
       workProject({
         counts: workCounts({ open: 31, ready: 31, highPriority: 7 }),
         ready: [
-          { id: "mp-1", title: "One", status: "open", priority: 0, issueType: "task" },
-          { id: "mp-2", title: "Two", status: "open", priority: 1, issueType: "task" },
+          { id: "md-1", title: "One", status: "open", priority: 0, issueType: "task" },
+          { id: "md-2", title: "Two", status: "open", priority: 1, issueType: "task" },
         ],
       }),
     ]);
 
-    expect((await cardFor("meals.example")).work).toMatchObject({
+    expect((await cardFor("meadow.example")).work).toMatchObject({
       open: 31,
       highPriority: 7,
     });
@@ -2320,7 +2320,7 @@ describe("buildWallPayload — the card's work slice", () => {
     ]);
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [workProject()]);
 
-    expect((await cardFor("meals.example")).work).toMatchObject({
+    expect((await cardFor("meadow.example")).work).toMatchObject({
       open: 12,
       capturedAt: "2026-07-05T11:59:30.000Z" });
   });
@@ -2333,7 +2333,7 @@ describe("buildWallPayload — the card's work slice", () => {
         counts: workCounts({ open: 0, highPriority: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0 }) }),
     ]);
 
-    expect((await cardFor("meals.example")).work).toBeNull();
+    expect((await cardFor("meadow.example")).work).toBeNull();
   });
 
   it("keeps the counts a one-generation-behind poller DID send, and calls the rest unknown", async () => {
@@ -2344,7 +2344,7 @@ describe("buildWallPayload — the card's work slice", () => {
       workProject({ counts: olderCounts }),
     ]);
 
-    expect((await cardFor("meals.example")).work).toEqual({
+    expect((await cardFor("meadow.example")).work).toEqual({
       open: 12,
       highPriority: null,
       inProgress: 2,
@@ -2355,7 +2355,7 @@ describe("buildWallPayload — the card's work slice", () => {
   });
 
   it("says nothing rather than zero when no snapshot has ever been filed", async () => {
-    expect((await cardFor("meals.example")).work).toBeNull();
+    expect((await cardFor("meadow.example")).work).toBeNull();
   });
 
   it("keeps a zeroed queue distinct from an absent one", async () => {
@@ -2364,7 +2364,7 @@ describe("buildWallPayload — the card's work slice", () => {
         counts: workCounts({ open: 0, highPriority: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0 }) }),
     ]);
 
-    expect((await cardFor("meals.example")).work).toMatchObject({
+    expect((await cardFor("meadow.example")).work).toMatchObject({
       open: 0,
       highPriority: 0,
       closedRecent: 0,
@@ -2375,8 +2375,8 @@ describe("buildWallPayload — the card's work slice", () => {
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ counts: workCounts({ waiting: 4 }), waitingUrgent: 3 }),
       workProject({
-        asset: "nosh.example",
-        prefix: "nom",
+        asset: "northwind.example",
+        prefix: "nw",
         counts: workCounts({ waiting: 7 }),
         waitingUrgent: 5,
       }),
@@ -2395,10 +2395,10 @@ describe("buildWallPayload — the card's work slice", () => {
   it("keeps a partial human count as a known lower bound instead of zeroing unreadable projects", async () => {
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ counts: workCounts({ waiting: 3 }), waitingUrgent: 2 }),
-      workProject({ asset: "nosh.example", prefix: "nom" }),
+      workProject({ asset: "northwind.example", prefix: "nw" }),
       workProject({
-        asset: "fees.example",
-        prefix: "fin",
+        asset: "ferns.example",
+        prefix: "fn",
         ok: false,
         error: "bd ready exited 1",
         counts: workCounts({ waiting: 9 }),
@@ -2425,7 +2425,7 @@ describe("buildWallPayload — the card's work slice", () => {
 
   it("keeps a connected source's partial read a lower bound, never all-clear", async () => {
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
-      workProject({ asset: "fees.example", prefix: "fin", ok: false, error: "bd ready exited 1" }),
+      workProject({ asset: "ferns.example", prefix: "fn", ok: false, error: "bd ready exited 1" }),
     ]);
     expect((await buildWallPayload(ctx.call, OPTIONS)).operator).toEqual({
       waiting: 0,
@@ -2443,7 +2443,7 @@ describe("panelReviewState — four states over one clock", () => {
   const DUE = "2026-07-08T06:00:00.000Z";
   const dueMs = Date.parse(DUE);
   const open: PanelReview = {
-    beadId: "mp-4a2",
+    beadId: "md-4a2",
     panelDate: PANEL_DAY,
     dueAt: DUE,
     status: "open",
@@ -2523,7 +2523,7 @@ describe("buildWallPayload — the card's panel-review slice", () => {
   it("carries the review bead and the panel day it has to be about", async () => {
     await insertDataForSeoCollection(
       ctx,
-      "meals.example",
+      "meadow.example",
       "2026-07-01",
       "2026-07-01T06:00:00.000Z",
       { panel: true },
@@ -2532,9 +2532,9 @@ describe("buildWallPayload — the card's panel-review slice", () => {
       workProject({ panelReview: review() }),
     ]);
 
-    const card = await cardFor("meals.example");
+    const card = await cardFor("meadow.example");
     expect(card.panelReview).toEqual({
-      beadId: "mp-4a2",
+      beadId: "md-4a2",
       panelDate: "2026-07-01",
       dueAt: "2026-07-08T06:00:00.000Z",
       status: "open",
@@ -2546,93 +2546,93 @@ describe("buildWallPayload — the card's panel-review slice", () => {
   });
 
   it("marks an asset with no config/serp-panel.json entry as panel-less, not as review-less", async () => {
-    // nosh.example is absent from this fixture's panel file but lands a weekly
+    // northwind.example is absent from this fixture's panel file but lands a weekly
     // collection, so it owes the read; config only picks the marker's noun.
     await insertDataForSeoCollection(
       ctx,
-      "nosh.example",
+      "northwind.example",
       "2026-07-01",
       "2026-07-01T06:00:00.000Z",
       { panel: false },
     );
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
-      workProject({ asset: "nosh.example", prefix: "nom", panelReview: review({ beadId: "nom-f1c" }) }),
+      workProject({ asset: "northwind.example", prefix: "nw", panelReview: review({ beadId: "nw-f1c" }) }),
     ]);
 
-    const card = await cardFor("nosh.example");
+    const card = await cardFor("northwind.example");
     expect(card.panelReview?.panel).toBe(false);
-    expect(card.panelReview?.beadId).toBe("nom-f1c");
+    expect(card.panelReview?.beadId).toBe("nw-f1c");
     expect(panelReviewState(card.panelReview, card.latestPanelDate, NOW_MS)).toBe("pending");
   });
 
   it("reads the newest complete collection day and ignores a newer partial day", async () => {
     await insertDataForSeoCollection(
       ctx,
-      "meals.example",
+      "meadow.example",
       "2026-06-24",
       "2026-06-24T06:00:00.000Z",
       { panel: true },
     );
     await insertDataForSeoCollection(
       ctx,
-      "meals.example",
+      "meadow.example",
       "2026-07-01",
       "2026-07-01T06:00:00.000Z",
       { panel: true },
     );
-    await insertPanelRun(ctx, "meals.example", "2026-07-01", "2026-07-01T07:00:00.000Z", "unchanged");
+    await insertPanelRun(ctx, "meadow.example", "2026-07-01", "2026-07-01T07:00:00.000Z", "unchanged");
     // Five of six is a torn sweep, not a reviewable landing.
     await insertDataForSeoCollection(
       ctx,
-      "meals.example",
+      "meadow.example",
       "2026-07-04",
       "2026-07-04T06:00:00.000Z",
       { panel: true, omit: ["serp-panel"] },
     );
-    await insertPanelRun(ctx, "meals.example", "2026-07-05", "2026-07-05T06:00:00.000Z", "error");
+    await insertPanelRun(ctx, "meadow.example", "2026-07-05", "2026-07-05T06:00:00.000Z", "error");
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ panelReview: review() }),
     ]);
 
-    expect((await cardFor("meals.example")).latestPanelDate).toBe("2026-07-01");
+    expect((await cardFor("meadow.example")).latestPanelDate).toBe("2026-07-01");
 
     await insertPanelRun(
       ctx,
-      "meals.example",
+      "meadow.example",
       "2026-07-04",
       "2026-07-04T06:20:00.000Z",
       "success",
       "serp-panel",
     );
-    expect((await cardFor("meals.example")).latestPanelDate).toBe("2026-07-04");
+    expect((await cardFor("meadow.example")).latestPanelDate).toBe("2026-07-04");
   });
 
   it("is not fooled by a backfill of an older panel written later", async () => {
     // report_date first, finished_at only as tiebreak: re-archiving June's
     // panel today writes the latest finished_at in the table, and a
     // MAX(finished_at) read would promote June over July.
-    await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
-    await insertDataForSeoCollection(ctx, "meals.example", "2026-06-24", "2026-07-05T09:00:00.000Z", { panel: true });
+    await insertDataForSeoCollection(ctx, "meadow.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
+    await insertDataForSeoCollection(ctx, "meadow.example", "2026-06-24", "2026-07-05T09:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({
         panelReview: review({ status: "closed", closedAt: "2026-07-03T09:00:00.000Z" }) }),
     ]);
 
-    const card = await cardFor("meals.example");
+    const card = await cardFor("meadow.example");
     expect(card.latestPanelDate).toBe("2026-07-01");
     expect(panelReviewState(card.panelReview, card.latestPanelDate, NOW_MS)).toBe("reviewed");
   });
 
   it("shows the review of an asset that buys a collection but no panel", async () => {
-    // nosh is absent from the panel config; the collection is what the review
+    // northwind is absent from the panel config; the collection is what the review
     // is about, so the collection is what the marker follows.
-    await insertDataForSeoCollection(ctx, "nosh.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: false });
+    await insertDataForSeoCollection(ctx, "northwind.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: false });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
-      workProject({ asset: "nosh.example", prefix: "nom", panelReview: review({ beadId: "nom-f1c" }) }),
+      workProject({ asset: "northwind.example", prefix: "nw", panelReview: review({ beadId: "nw-f1c" }) }),
     ]);
 
-    const card = await cardFor("nosh.example");
-    expect(card.panelReview!.beadId).toBe("nom-f1c");
+    const card = await cardFor("northwind.example");
+    expect(card.panelReview!.beadId).toBe("nw-f1c");
     expect(card.latestPanelDate).toBe("2026-07-01");
     expect(panelReviewState(card.panelReview, card.latestPanelDate, NOW_MS)).toBe("pending");
   });
@@ -2644,16 +2644,16 @@ describe("buildWallPayload — the card's panel-review slice", () => {
     const stopped = new Date(
       NOW_MS - (PANEL_LANDING_WINDOW_DAYS + 1) * DAY,
     ).toISOString();
-    await insertDataForSeoCollection(ctx, "nosh.example", stopped.slice(0, 10), stopped, { panel: false });
+    await insertDataForSeoCollection(ctx, "northwind.example", stopped.slice(0, 10), stopped, { panel: false });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({
-        asset: "nosh.example",
-        prefix: "nom",
-        panelReview: review({ beadId: "nom-f1c", status: "closed", closedAt: "2026-06-20T09:00:00.000Z" }),
+        asset: "northwind.example",
+        prefix: "nw",
+        panelReview: review({ beadId: "nw-f1c", status: "closed", closedAt: "2026-06-20T09:00:00.000Z" }),
       }),
     ]);
 
-    const card = await cardFor("nosh.example");
+    const card = await cardFor("northwind.example");
     expect(card.panelReview).toBeNull();
     expect(card.latestPanelDate).toBeNull();
     expect(panelReviewState(card.panelReview, card.latestPanelDate, NOW_MS)).toBe("none");
@@ -2662,24 +2662,24 @@ describe("buildWallPayload — the card's panel-review slice", () => {
   it("answers for ONE asset by narrowing the same read, not by filtering the map", async () => {
     // The narrowed read's risk is divergence, so the two call shapes are held
     // to exact equality over a store where narrowing has something to drop.
-    await insertDataForSeoCollection(ctx, "meals.example", "2026-06-24", "2026-06-24T06:00:00.000Z", { panel: true });
-    await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
+    await insertDataForSeoCollection(ctx, "meadow.example", "2026-06-24", "2026-06-24T06:00:00.000Z", { panel: true });
+    await insertDataForSeoCollection(ctx, "meadow.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     // The backfill trap, inside the narrowed read too.
-    await insertDataForSeoCollection(ctx, "meals.example", "2026-06-17", "2026-07-05T09:00:00.000Z", { panel: true });
-    await insertDataForSeoCollection(ctx, "nosh.example", "2026-07-04", "2026-07-04T06:00:00.000Z", { panel: false });
+    await insertDataForSeoCollection(ctx, "meadow.example", "2026-06-17", "2026-07-05T09:00:00.000Z", { panel: true });
+    await insertDataForSeoCollection(ctx, "northwind.example", "2026-07-04", "2026-07-04T06:00:00.000Z", { panel: false });
 
     const portfolio = await loadLatestPanelLandings(ctx.call, NOW_MS, PANEL_ASSETS);
     const single = await loadLatestPanelLandings(
       ctx.call,
       NOW_MS,
       PANEL_ASSETS,
-      "meals.example",
+      "meadow.example",
     );
 
-    expect(single.get("meals.example")).toBe(portfolio.get("meals.example"));
-    expect(single.get("meals.example")).toBe("2026-07-01");
-    expect(portfolio.has("nosh.example")).toBe(true);
-    expect([...single.keys()]).toEqual(["meals.example"]);
+    expect(single.get("meadow.example")).toBe(portfolio.get("meadow.example"));
+    expect(single.get("meadow.example")).toBe("2026-07-01");
+    expect(portfolio.has("northwind.example")).toBe(true);
+    expect([...single.keys()]).toEqual(["meadow.example"]);
   });
 
   it("renders markers for exactly the landings the runner's filer files on", async () => {
@@ -2700,10 +2700,10 @@ describe("buildWallPayload — the card's panel-review slice", () => {
 
   it("degrades a snapshot written before the field existed to absence", async () => {
     // An older writer's payload omits the key; it must not throw or invent.
-    await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
+    await insertDataForSeoCollection(ctx, "meadow.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [workProject()]);
 
-    const card = await cardFor("meals.example");
+    const card = await cardFor("meadow.example");
     expect(card.panelReview).toBeNull();
     // The landing is still readable; it is the review that is unknown.
     expect(card.latestPanelDate).toBe("2026-07-01");
@@ -2715,38 +2715,38 @@ describe("buildWallPayload — the card's panel-review slice", () => {
     // measurements and the reader must not be the place that loses one.
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ panelReview: null }),
-      workProject({ asset: "nosh.example", prefix: "nom" }),
+      workProject({ asset: "northwind.example", prefix: "nw" }),
     ]);
 
     const snapshot = (await loadLatestBeadsSnapshot(ctx.call))!;
     const [measured, notLooked] = snapshot.projects;
     expect(measured!.panelReview).toBeNull();
     expect(notLooked!.panelReview).toBeUndefined();
-    expect((await cardFor("meals.example")).panelReview).toBeNull();
+    expect((await cardFor("meadow.example")).panelReview).toBeNull();
   });
 
   it("drops a review whose row cannot name a bead or a status", async () => {
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ panelReview: { panelDate: "2026-07-01", status: "open" } }),
     ]);
-    expect((await cardFor("meals.example")).panelReview).toBeNull();
+    expect((await cardFor("meadow.example")).panelReview).toBeNull();
 
     ctx = await createTestStore();
     await seed(ctx);
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ panelReview: review({ status: "triaged" }) }),
     ]);
-    expect((await cardFor("meals.example")).panelReview).toBeNull();
+    expect((await cardFor("meadow.example")).panelReview).toBeNull();
   });
 
   it("keeps a closed review, with the panel day that decides whether it counts", async () => {
-    await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
+    await insertDataForSeoCollection(ctx, "meadow.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({
         panelReview: review({ status: "closed", closedAt: "2026-07-03T09:00:00.000Z" }) }),
     ]);
 
-    const card = await cardFor("meals.example");
+    const card = await cardFor("meadow.example");
     expect(card.panelReview).toMatchObject({
       status: "closed",
       closedAt: "2026-07-03T09:00:00.000Z",
@@ -2756,17 +2756,17 @@ describe("buildWallPayload — the card's panel-review slice", () => {
 
   it("says nothing for a repo the poller could not read", async () => {
     // A repo the `bd` read could not open told it nothing about a review task.
-    await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
+    await insertDataForSeoCollection(ctx, "meadow.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ ok: false, error: "no beads project found", panelReview: review() }),
     ]);
 
-    expect((await cardFor("meals.example")).panelReview).toBeNull();
+    expect((await cardFor("meadow.example")).panelReview).toBeNull();
   });
 
   it("leaves a configured asset with no landing yet holding no state", async () => {
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [workProject()]);
-    const card = await cardFor("meals.example");
+    const card = await cardFor("meadow.example");
     expect(card.latestPanelDate).toBeNull();
     expect(card.panelReview).toBeNull();
   });
@@ -2774,15 +2774,15 @@ describe("buildWallPayload — the card's panel-review slice", () => {
   it("states the same obligation on the page the card links to", async () => {
     // The badge that sent the operator and the obligation they find on arrival
     // have to be one fact: both payloads, one store, the same readers and rule.
-    await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
-    await insertDataForSeoCollection(ctx, "nosh.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: false });
+    await insertDataForSeoCollection(ctx, "meadow.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
+    await insertDataForSeoCollection(ctx, "northwind.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: false });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ panelReview: review({ dueAt: "2026-07-04T06:00:00.000Z" }) }),
-      workProject({ asset: "nosh.example", prefix: "nom", panelReview: review({ beadId: "nom-f1c" }) }),
+      workProject({ asset: "northwind.example", prefix: "nw", panelReview: review({ beadId: "nw-f1c" }) }),
     ]);
 
     const wall = await buildWallPayload(ctx.call, OPTIONS);
-    for (const asset of ["meals.example", "nosh.example"]) {
+    for (const asset of ["meadow.example", "northwind.example"]) {
       const card = wall.assets.find((a) => a.id === asset)!;
       const page = (await buildAssetDetailPayload(ctx.call, asset, DETAIL_DEPS))!;
       expect(page.panelReview).toEqual(card.panelReview);
@@ -2792,8 +2792,8 @@ describe("buildWallPayload — the card's panel-review slice", () => {
       );
     }
     // A real state on the asset that owes a review, not two matching nulls.
-    const meals = wall.assets.find((a) => a.id === "meals.example")!;
-    expect(panelReviewState(meals.panelReview, meals.latestPanelDate, NOW_MS)).toBe("overdue");
+    const meadow = wall.assets.find((a) => a.id === "meadow.example")!;
+    expect(panelReviewState(meadow.panelReview, meadow.latestPanelDate, NOW_MS)).toBe("overdue");
   });
 });
 
@@ -2825,7 +2825,7 @@ describe("buildWallPayload — a portfolio with assets but no ledger", () => {
   /** The real first day: assets registered, not a cent recorded either way. */
   async function storeWithNoLedger(): Promise<TestStore> {
     const ctx = await createTestStore();
-    await insertAsset(ctx, "meals.example", "Meal Planner", "live", 0, 0);
+    await insertAsset(ctx, "meadow.example", "Meadow Board", "live", 0, 0);
     await insertAsset(ctx, "root-os", "NoticeOS", "live", 0, 1);
     return ctx;
   }
@@ -2843,7 +2843,7 @@ describe("buildWallPayload — a portfolio with assets but no ledger", () => {
 
   it("the FIRST row brings the band back, even an estimate nobody reconciled", async () => {
     const ctx = await storeWithNoLedger();
-    await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 45, booking_state: "estimated", recorded_at: "2026-07-04T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 45, booking_state: "estimated", recorded_at: "2026-07-04T00:00:00.000Z" });
 
     const p = await buildWallPayload(ctx.call, OPTIONS);
     expect(p.portfolio.firstRun).toBe(true);
@@ -2857,7 +2857,7 @@ describe("buildWallPayload — a portfolio with assets but no ledger", () => {
     // $0 revenue somebody actually confirmed: firstRun is false, so the booked
     // headline is a fact the band must not hide.
     const ctx = await storeWithNoLedger();
-    await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 0, booking_state: "reconciled", recorded_at: "2026-07-04T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 0, booking_state: "reconciled", recorded_at: "2026-07-04T00:00:00.000Z" });
 
     const p = await buildWallPayload(ctx.call, OPTIONS);
     expect(p.portfolio.firstRun).toBe(false);
@@ -2877,13 +2877,13 @@ describe("buildWallPayload — the current month has no ledger row yet", () => {
   /** Two properties and an OS, with July and August booked and September bare. */
   async function storeEndingInAugust(): Promise<TestStore> {
     const ctx = await createTestStore();
-    await insertAsset(ctx, "meals.example", "Meal Planner", "live", 0, 0);
-    await insertAsset(ctx, "nosh.example", "Nosh", "live", 0, 0);
+    await insertAsset(ctx, "meadow.example", "Meadow Board", "live", 0, 0);
+    await insertAsset(ctx, "northwind.example", "Northwind", "live", 0, 0);
     await insertAsset(ctx, "root-os", "NoticeOS", "live", 0, 1);
-    await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 300, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", amount: 412.5, booking_state: "reconciled", recorded_at: "2026-09-01T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 3, kind: "cost", asset: "meals.example", period: "2026-08", family: "infra", amount: 66.4, booking_state: "reconciled", recorded_at: "2026-09-01T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 4, kind: "revenue", asset: "nosh.example", period: "2026-08", family: "subs", amount: 120, booking_state: "estimated", recorded_at: "2026-09-01T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 300, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", amount: 412.5, booking_state: "reconciled", recorded_at: "2026-09-01T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 3, kind: "cost", asset: "meadow.example", period: "2026-08", family: "infra", amount: 66.4, booking_state: "reconciled", recorded_at: "2026-09-01T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 4, kind: "revenue", asset: "northwind.example", period: "2026-08", family: "subs", amount: 120, booking_state: "estimated", recorded_at: "2026-09-01T00:00:00.000Z" });
     return ctx;
   }
 
@@ -2921,8 +2921,8 @@ describe("buildWallPayload — the current month has no ledger row yet", () => {
     // A fallback that waited for revenue would blank the card on exactly the
     // months the OS only spent.
     const ctx = await createTestStore();
-    await insertAsset(ctx, "meals.example", "Meal Planner", "live", 0, 0);
-    await insertLedger(ctx, { id: 1, kind: "cost", asset: "meals.example", period: "2026-08", family: "infra", amount: 88.25, booking_state: "reconciled", recorded_at: "2026-09-01T00:00:00.000Z" });
+    await insertAsset(ctx, "meadow.example", "Meadow Board", "live", 0, 0);
+    await insertLedger(ctx, { id: 1, kind: "cost", asset: "meadow.example", period: "2026-08", family: "infra", amount: 88.25, booking_state: "reconciled", recorded_at: "2026-09-01T00:00:00.000Z" });
 
     const p = await buildWallPayload(ctx.call, SEPT_OPTIONS);
     expect(p.portfolio.period).toBe("2026-08");
@@ -2934,7 +2934,7 @@ describe("buildWallPayload — the current month has no ledger row yet", () => {
 
   it("the moment September books a row, September is the month again", async () => {
     const ctx = await storeEndingInAugust();
-    await insertLedger(ctx, { id: 9, kind: "revenue", asset: "nosh.example", period: "2026-09", family: "subs", amount: 15, booking_state: "estimated", recorded_at: "2026-09-04T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 9, kind: "revenue", asset: "northwind.example", period: "2026-09", family: "subs", amount: 15, booking_state: "estimated", recorded_at: "2026-09-04T00:00:00.000Z" });
 
     const p = await buildWallPayload(ctx.call, SEPT_OPTIONS);
     expect(p.portfolio.period).toBe("2026-09");
@@ -2949,11 +2949,11 @@ describe("buildWallPayload — the current month has no ledger row yet", () => {
     // an August estimate (`ledger_correction_matches_target`), so August keeps
     // its row.
     const ctx = await createTestStore();
-    await insertAsset(ctx, "meals.example", "Meal Planner", "live", 0, 0);
-    await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 300, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", amount: 50, booking_state: "estimated", recorded_at: "2026-09-01T00:00:00.000Z" });
+    await insertAsset(ctx, "meadow.example", "Meadow Board", "live", 0, 0);
+    await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 300, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", amount: 50, booking_state: "estimated", recorded_at: "2026-09-01T00:00:00.000Z" });
     await expect(
-      insertLedger(ctx, { id: 3, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 310, booking_state: "reconciled", supersedes_id: 2, recorded_at: "2026-09-02T00:00:00.000Z" }),
+      insertLedger(ctx, { id: 3, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 310, booking_state: "reconciled", supersedes_id: 2, recorded_at: "2026-09-02T00:00:00.000Z" }),
     ).rejects.toThrow(/same site, month, kind, family and currency/);
 
     const p = await buildWallPayload(ctx.call, SEPT_OPTIONS);
@@ -2977,7 +2977,7 @@ describe("buildWallPayload — the current month has no ledger row yet", () => {
   it("no ledger row anywhere is still an empty card, on the current month", async () => {
     // The fallback has nothing to fall back to, so the band renders nothing.
     const ctx = await createTestStore();
-    await insertAsset(ctx, "meals.example", "Meal Planner", "live", 0, 0);
+    await insertAsset(ctx, "meadow.example", "Meadow Board", "live", 0, 0);
 
     const p = await buildWallPayload(ctx.call, SEPT_OPTIONS);
     expect(p.portfolio.period).toBe("2026-09");
@@ -2993,7 +2993,7 @@ describe("the OS's own row is called NoticeOS on the Wall, whatever it stores", 
   it("names the OS's alerts and parked alerts by the product, and every site by its own name", async () => {
     const ctx = await createTestStore();
     await insertAsset(ctx, "os-row", "ReindexOS", "live", 0, 1);
-    await insertAsset(ctx, "meals.example", "Meal Planner", "live", 0, 0);
+    await insertAsset(ctx, "meadow.example", "Meadow Board", "live", 0, 0);
     const alert = (asset: string, metric: string, snooze: string | null) =>
       insertFlag(ctx, {
         asset,
@@ -3008,12 +3008,12 @@ describe("the OS's own row is called NoticeOS on the Wall, whatever it stores", 
       });
     await alert("os-row", "agentsRunning", null);
     await alert("os-row", "queueDepth", "2026-07-09T12:00:00.000Z");
-    await alert("meals.example", "signups", null);
+    await alert("meadow.example", "signups", null);
 
     const p = await buildWallPayload(ctx.call, OPTIONS);
 
     expect(p.attention.map((row) => [row.asset, row.assetDisplayName]).sort()).toEqual([
-      ["meals.example", "Meal Planner"],
+      ["meadow.example", "Meadow Board"],
       ["os-row", "NoticeOS"],
     ]);
     expect(p.snoozed.map((row) => [row.asset, row.assetDisplayName])).toEqual([["os-row", "NoticeOS"]]);
@@ -3030,9 +3030,9 @@ describe("the OS's own row is called NoticeOS on the Wall, whatever it stores", 
 describe("a snoozed condition leaves the whole Wall, then comes back", () => {
   async function storeWithSnooze(until: string): Promise<TestStore> {
     const ctx = await createTestStore();
-    await insertAsset(ctx, "meals.example", "Meal Planner", "live", 0, 0);
+    await insertAsset(ctx, "meadow.example", "Meadow Board", "live", 0, 0);
     await insertFlag(ctx, {
-      asset: "meals.example",
+      asset: "meadow.example",
       fired_at: "2026-07-04T02:00:00.000Z",
       severity: "error",
       kind: "anomaly",
@@ -3050,7 +3050,7 @@ describe("a snoozed condition leaves the whole Wall, then comes back", () => {
     const p = await buildWallPayload(ctx.call, OPTIONS);
 
     expect(p.attention).toEqual([]);
-    const card = p.assets.find((a) => a.id === "meals.example")!;
+    const card = p.assets.find((a) => a.id === "meadow.example")!;
     expect(card.openError).toBe(0);
     // A snoozed condition that still set `worstOpenSeverity` would keep the
     // asset red on a TV nobody can act from.
@@ -3058,8 +3058,8 @@ describe("a snoozed condition leaves the whole Wall, then comes back", () => {
 
     expect(p.snoozed).toHaveLength(1);
     expect(p.snoozed[0]).toMatchObject({
-      asset: "meals.example",
-      assetDisplayName: "Meal Planner",
+      asset: "meadow.example",
+      assetDisplayName: "Meadow Board",
       severity: "error",
       ruleId: "flow-poisson-low",
       snoozeUntil: "2026-07-09T12:00:00.000Z",
@@ -3090,7 +3090,7 @@ describe("a snoozed condition leaves the whole Wall, then comes back", () => {
       ruleId: "flow-poisson-low",
       severity: "error",
     });
-    const card = p.assets.find((a) => a.id === "meals.example")!;
+    const card = p.assets.find((a) => a.id === "meadow.example")!;
     expect(card.openError).toBe(1);
     expect(card.worstSeverity).toBe("error");
     expect(p.snoozed).toEqual([]);
@@ -3098,9 +3098,9 @@ describe("a snoozed condition leaves the whole Wall, then comes back", () => {
 
   it("lists an info-severity snooze, which the open attention scope still excludes", async () => {
     const ctx = await createTestStore();
-    await insertAsset(ctx, "meals.example", "Meal Planner", "live", 0, 0);
+    await insertAsset(ctx, "meadow.example", "Meadow Board", "live", 0, 0);
     await insertFlag(ctx, {
-      asset: "meals.example",
+      asset: "meadow.example",
       fired_at: "2026-07-04T02:00:00.000Z",
       severity: "info",
       kind: "milestone",
@@ -3114,7 +3114,7 @@ describe("a snoozed condition leaves the whole Wall, then comes back", () => {
     const p = await buildWallPayload(ctx.call, OPTIONS);
     expect(p.snoozed).toHaveLength(1);
     expect(p.snoozed[0]).toMatchObject({
-      asset: "meals.example",
+      asset: "meadow.example",
       severity: "info",
       kind: "milestone",
       snoozeUntil: "2026-07-09T12:00:00.000Z",
@@ -3123,7 +3123,7 @@ describe("a snoozed condition leaves the whole Wall, then comes back", () => {
     // The attention scope did not widen with it: an info row was never
     // something the portfolio owed an answer about.
     expect(p.attention).toEqual([]);
-    const card = p.assets.find((a) => a.id === "meals.example")!;
+    const card = p.assets.find((a) => a.id === "meadow.example")!;
     expect(card.openError).toBe(0);
     expect(card.openWarn).toBe(0);
     expect(card.worstSeverity).toBeNull();
@@ -3131,10 +3131,10 @@ describe("a snoozed condition leaves the whole Wall, then comes back", () => {
 
   it("parks a recurring condition as ONE row, dated by its last firing", async () => {
     const ctx = await createTestStore();
-    await insertAsset(ctx, "meals.example", "Meal Planner", "live", 0, 0);
+    await insertAsset(ctx, "meadow.example", "Meadow Board", "live", 0, 0);
     for (const [index, day] of ["01", "02", "03"].entries()) {
       await insertFlag(ctx, {
-        asset: "meals.example",
+        asset: "meadow.example",
         fired_at: `2026-07-${day}T02:00:00.000Z`,
         severity: "warn",
         kind: "anomaly",
@@ -3164,8 +3164,8 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
   let ctx: TestStore;
   beforeEach(async () => {
     ctx = await createTestStore();
-    await insertAsset(ctx, "meals.example", "Meal Planner", "live", 0, 0);
-    await insertAsset(ctx, "nosh.example", "Nosh", "live", 0, 0);
+    await insertAsset(ctx, "meadow.example", "Meadow Board", "live", 0, 0);
+    await insertAsset(ctx, "northwind.example", "Northwind", "live", 0, 0);
     await insertAsset(ctx, "root-os", "NoticeOS", "live", 0, 1);
   });
 
@@ -3178,7 +3178,7 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
     await insertSignalSnapshot(ctx, "gsc", "clicks", [10, 20, 30]);
     await insertSignalSnapshot(ctx, "bing-webmaster", "clicks", [1, 2, 3]);
 
-    const card = await cardOf("meals.example");
+    const card = await cardOf("meadow.example");
     expect(card.searchClicks.series).toEqual([
       { t: "2026-07-03", v: 11 },
       { t: "2026-07-04", v: 22 },
@@ -3192,7 +3192,7 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
     await insertSignalSnapshot(ctx, "gsc", "clicks", [10, 20, 30]);
     await insertSignalSnapshot(ctx, "bing-webmaster", "clicks", [1, 2], "2026-07-03");
 
-    const card = await cardOf("meals.example");
+    const card = await cardOf("meadow.example");
     expect(card.searchClicks.series.at(-1)).toEqual({ t: "2026-07-05", v: 30 });
   });
 
@@ -3201,7 +3201,7 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
     await insertSignalSnapshot(ctx, "gsc", "clicks", [10, 20, 30]);
     await insertSignalSnapshot(ctx, "bing-webmaster", "clicks", [1, 2, 3]);
 
-    const card = await cardOf("meals.example");
+    const card = await cardOf("meadow.example");
     expect(card.searchClicks.provisionalFrom).toBe("2026-07-05");
   });
 
@@ -3209,7 +3209,7 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
   it("leaves search clicks empty for an asset with no webmaster provider", async () => {
     await insertSignalSnapshot(ctx, "gsc", "clicks", [10, 20, 30]);
 
-    const card = await cardOf("nosh.example");
+    const card = await cardOf("northwind.example");
     expect(card.searchClicks.series).toEqual([]);
     expect(card.searchClicks.provisionalFrom).toBeNull();
   });
@@ -3217,14 +3217,14 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
   /** `netByMonth` comes off the same grouping /financials' by-asset table is
    * built from, so the Wall, /assets and the accounting page cannot disagree. */
   it("carries each asset's net month by month, direct costs only", async () => {
-    await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-05", family: "ads", amount: 100, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 2, kind: "cost", asset: "meals.example", period: "2026-05", family: "api", amount: 5, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 3, kind: "revenue", asset: "meals.example", period: "2026-06", family: "ads", amount: 200, booking_state: "estimated", recorded_at: "2026-06-30T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 4, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 300, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meadow.example", period: "2026-05", family: "ads", amount: 100, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 2, kind: "cost", asset: "meadow.example", period: "2026-05", family: "api", amount: 5, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 3, kind: "revenue", asset: "meadow.example", period: "2026-06", family: "ads", amount: 200, booking_state: "estimated", recorded_at: "2026-06-30T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 4, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 300, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
     // Portfolio overhead books to asset #0 and reaches no asset's net.
     await insertLedger(ctx, { id: 5, kind: "cost", asset: "root-os", period: "2026-07", family: "inference", amount: 200, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
 
-    const card = await cardOf("meals.example");
+    const card = await cardOf("meadow.example");
     expect(card.netByMonth).toEqual([
       { t: "2026-05", v: 95 },
       { t: "2026-06", v: 200 },
@@ -3237,9 +3237,9 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
   });
 
   it("names the open month as the provisional boundary", async () => {
-    await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 300, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 300, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
 
-    const card = await cardOf("meals.example");
+    const card = await cardOf("meadow.example");
     // July is the clock's month, not the ledger's newest: those differ the
     // moment a month goes by without a row.
     expect(card.netByMonthProvisionalFrom).toBe("2026-07");
@@ -3249,11 +3249,11 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
    * May next to July; a zero would draw a trough the ledger never recorded.
    * The axis is present and the value is null. */
   it("puts a null on the axis for a month the asset has no row in", async () => {
-    await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-05", family: "ads", amount: 100, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 300, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 3, kind: "revenue", asset: "nosh.example", period: "2026-06", family: "ads", amount: 10, booking_state: "estimated", recorded_at: "2026-06-30T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meadow.example", period: "2026-05", family: "ads", amount: 100, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 300, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 3, kind: "revenue", asset: "northwind.example", period: "2026-06", family: "ads", amount: 10, booking_state: "estimated", recorded_at: "2026-06-30T00:00:00.000Z" });
 
-    const card = await cardOf("meals.example");
+    const card = await cardOf("meadow.example");
     expect(card.netByMonth).toEqual([
       { t: "2026-05", v: 100 },
       { t: "2026-06", v: null },
@@ -3261,28 +3261,28 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
     ]);
   });
 
-  /** Nosh's first row is June, so it has no May; prefixing one would invent a
+  /** Northwind's first row is June, so it has no May; prefixing one would invent a
    * month it did not exist in. */
   it("starts each asset's axis at its own first row", async () => {
-    await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-05", family: "ads", amount: 100, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 300, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 3, kind: "revenue", asset: "nosh.example", period: "2026-07", family: "ads", amount: 10, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meadow.example", period: "2026-05", family: "ads", amount: 100, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 300, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 3, kind: "revenue", asset: "northwind.example", period: "2026-07", family: "ads", amount: 10, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
 
-    expect((await cardOf("nosh.example")).netByMonth).toEqual([{ t: "2026-07", v: 10 }]);
+    expect((await cardOf("northwind.example")).netByMonth).toEqual([{ t: "2026-07", v: 10 }]);
   });
 
   /** Counting a superseded row and its replacement would double the month the
    * day it reconciles. */
   it("excludes a superseded row from the monthly net", async () => {
-    await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 100, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 150, booking_state: "reconciled", supersedes_id: 1, recorded_at: "2026-07-04T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 100, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 150, booking_state: "reconciled", supersedes_id: 1, recorded_at: "2026-07-04T00:00:00.000Z" });
 
-    const card = await cardOf("meals.example");
+    const card = await cardOf("meadow.example");
     expect(card.netByMonth).toEqual([{ t: "2026-07", v: 150 }]);
   });
 
   it("carries no month and no boundary when the ledger is empty", async () => {
-    const card = await cardOf("meals.example");
+    const card = await cardOf("meadow.example");
     expect(card.netByMonth).toEqual([]);
     expect(card.netByMonthProvisionalFrom).toBeNull();
   });
@@ -3294,7 +3294,7 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
     const values = Array.from({ length: 95 }, (_, index) => index + 1);
     await insertSignalSnapshot(ctx, "ga4", "active_users", values, "2026-04-02");
 
-    const card = await cardOf("meals.example");
+    const card = await cardOf("meadow.example");
     expect(card.activeUsers.series).toHaveLength(28);
     expect(card.activeUsers.contextSeries).toHaveLength(62);
     expect([
@@ -3342,7 +3342,7 @@ describe("an open fetch failure carries the nights behind it", () => {
     { at: "2026-07-05T02:30:00.000Z", error: "401 unauthorized", status: 401, count: 2 },
   ];
   const inputs = (night: (typeof NIGHTS)[number]) => JSON.stringify({
-    rule: "asset-pull-failed", url: "https://nosh.example/api/admin/overview", status: night.status,
+    rule: "asset-pull-failed", url: "https://northwind.example/api/admin/overview", status: night.status,
     error: night.error, failureCount: night.count, lastFailedAt: night.at, evaluatedAt: night.at,
   });
 
@@ -3351,7 +3351,7 @@ describe("an open fetch failure carries the nights behind it", () => {
     const latest = NIGHTS.at(-1)!;
     const store = ctx.call;
     const id = await storeAlert(store, {
-      asset: "nosh.example", firedAt: NIGHTS[0]!.at, severity: "warn", kind: "anomaly", metric: null,
+      asset: "northwind.example", firedAt: NIGHTS[0]!.at, severity: "warn", kind: "anomaly", metric: null,
       message: `pull failed: ${latest.error}`, ruleId: "asset-pull-failed", ruleInputs: inputs(latest),
       disposition: snoozeUntil ? "snooze" : null, dispositionAt: snoozeUntil ? NIGHTS[1]!.at : null,
       dispositionNote: snoozeUntil ? "parked" : null, snoozeUntil,

@@ -13,20 +13,20 @@ const ROW = {
   report: 'query',
   reportDate: '2026-08-01',
   finishedAt: '2026-08-02T12:15:00.000Z',
-  objectKey: 'signals/nosh.example/aaa.json.gz',
+  objectKey: 'signals/northwind.example/aaa.json.gz',
   contentSha256: 'a'.repeat(64),
   providerRows: 31,
   providerTruncated: 0,
 };
 
-const ARCHIVE = { schemaVersion: 1, rows: [{ query: 'nom', clicks: 3 }] };
+const ARCHIVE = { schemaVersion: 1, rows: [{ query: 'nw', clicks: 3 }] };
 
 async function scratch() {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'signal-download-'));
   return {
     dir,
     options: {
-      asset: 'nosh.example',
+      asset: 'northwind.example',
       from: null,
       to: null,
       integration: null,
@@ -44,7 +44,7 @@ function stubDoor({ manifest = [ROW], objects = { [ROW.objectKey]: ARCHIVE } } =
     calls.push({ url, headers: init?.headers ?? {} });
     const parsed = new URL(url);
     if (parsed.pathname === '/api/signal-archives') {
-      return { ok: true, status: 200, json: async () => ({ asset: 'nosh.example', manifest }) };
+      return { ok: true, status: 200, json: async () => ({ asset: 'northwind.example', manifest }) };
     }
     if (parsed.pathname === '/api/panel-object') {
       const key = parsed.searchParams.get('key');
@@ -59,14 +59,14 @@ function stubDoor({ manifest = [ROW], objects = { [ROW.objectKey]: ARCHIVE } } =
 }
 
 test('parseArgs: local by default, aimed at the loopback door', () => {
-  const options = parseArgs(['--asset', 'meals.example']);
+  const options = parseArgs(['--asset', 'meadow.example']);
   assert.equal(options.door, DEFAULT_DOOR);
-  assert.equal(options.asset, 'meals.example');
+  assert.equal(options.asset, 'meadow.example');
 });
 
 test('parseArgs: the documented filters still parse', () => {
   const options = parseArgs([
-    '--asset', 'meals.example',
+    '--asset', 'meadow.example',
     '--from', '2026-07-01',
     '--to', '2026-07-31',
     '--integration', 'gsc',
@@ -80,9 +80,9 @@ test('parseArgs: the documented filters still parse', () => {
 
 test('parseArgs: rejects a malformed asset, integration, report and date', () => {
   assert.throws(() => parseArgs(['--asset', 'NOT VALID']), /property id/);
-  assert.throws(() => parseArgs(['--asset', 'nosh.example', '--integration', 'ga5']), /--integration must/);
-  assert.throws(() => parseArgs(['--asset', 'nosh.example', '--report', 'page_query']), /--report must/);
-  assert.throws(() => parseArgs(['--asset', 'nosh.example', '--from', '07-01-2026']), /YYYY-MM-DD/);
+  assert.throws(() => parseArgs(['--asset', 'northwind.example', '--integration', 'ga5']), /--integration must/);
+  assert.throws(() => parseArgs(['--asset', 'northwind.example', '--report', 'page_query']), /--report must/);
+  assert.throws(() => parseArgs(['--asset', 'northwind.example', '--from', '07-01-2026']), /YYYY-MM-DD/);
 });
 
 test('writes the archive and the manifest where the docs say', async () => {
@@ -91,18 +91,18 @@ test('writes the archive and the manifest where the docs say', async () => {
 
   const result = await downloadSignalDumps(options, { get, token: 'op' });
 
-  const destination = path.join(options.out, 'nosh.example', 'gsc', 'query', '2026-08-01.json');
+  const destination = path.join(options.out, 'northwind.example', 'gsc', 'query', '2026-08-01.json');
   assert.deepEqual(result.files, [destination]);
   assert.deepEqual(JSON.parse(await fs.readFile(destination, 'utf8')), ARCHIVE);
 
   const manifest = JSON.parse(
-    await fs.readFile(path.join(options.out, 'nosh.example', 'manifest.json'), 'utf8'),
+    await fs.readFile(path.join(options.out, 'northwind.example', 'manifest.json'), 'utf8'),
   );
   assert.equal(manifest.source, 'local');
-  assert.equal(manifest.asset, 'nosh.example');
+  assert.equal(manifest.asset, 'northwind.example');
   // The row has to name its property: manifest.json is read by anything that
   // opens the panel dir, and the route answers per-asset without repeating it.
-  assert.equal(manifest.objects[0].asset, 'nosh.example');
+  assert.equal(manifest.objects[0].asset, 'northwind.example');
   assert.equal(manifest.objects[0].objectKey, ROW.objectKey);
 
   // Every call is an operator-authed door read. No wrangler, no second runtime.
@@ -125,7 +125,7 @@ test('an operator’s filters travel to the route, and none are invented', async
   );
 
   const query = new URL(calls[0].url).searchParams;
-  assert.equal(query.get('asset'), 'nosh.example');
+  assert.equal(query.get('asset'), 'northwind.example');
   assert.equal(query.get('from'), '2026-07-01');
   assert.equal(query.get('to'), '2026-07-31');
   assert.equal(query.get('integration'), 'gsc');
@@ -142,7 +142,7 @@ test('writes the same trailing-newline JSON the panel refresh writes', async () 
   const { get } = stubDoor();
   await downloadSignalDumps(options, { get, token: 'op' });
   const raw = await fs.readFile(
-    path.join(options.out, 'nosh.example', 'gsc', 'query', '2026-08-01.json'),
+    path.join(options.out, 'northwind.example', 'gsc', 'query', '2026-08-01.json'),
     'utf8',
   );
   assert.ok(raw.endsWith('\n'));
@@ -160,7 +160,7 @@ test('refuses to write an archive that is not JSON', async () => {
   };
   await assert.rejects(downloadSignalDumps(options, { get, token: 'op' }));
   await assert.rejects(
-    fs.access(path.join(options.out, 'nosh.example', 'gsc', 'query', '2026-08-01.json')),
+    fs.access(path.join(options.out, 'northwind.example', 'gsc', 'query', '2026-08-01.json')),
   );
   await fs.rm(dir, { recursive: true, force: true });
 });
@@ -200,14 +200,14 @@ test('a filtered download keeps the report days an earlier download recorded, so
     reportDate: '2026-09-21',
     // The unchanged D+2 re-collection: it confirms the D+1 bytes without a new object.
     finishedAt: '2026-09-23T12:16:02.000Z',
-    objectKey: 'signals/nosh.example/ga4.json.gz',
+    objectKey: 'signals/northwind.example/ga4.json.gz',
     contentSha256: 'c'.repeat(64),
     providerRows: 1,
     providerTruncated: 0,
   };
   const ga4Archive = {
     schemaVersion: 1,
-    asset: 'nosh.example',
+    asset: 'northwind.example',
     integration: 'ga4',
     report: 'traffic-acquisition',
     reportDate: '2026-09-21',
@@ -231,15 +231,15 @@ test('a filtered download keeps the report days an earlier download recorded, so
     if (parsed.pathname === '/api/signal-archives') {
       const integration = parsed.searchParams.get('integration');
       const manifest = everything.filter((row) => integration === null || row.integration === integration);
-      return { ok: true, status: 200, json: async () => ({ asset: 'nosh.example', manifest }) };
+      return { ok: true, status: 200, json: async () => ({ asset: 'northwind.example', manifest }) };
     }
     return { ok: true, status: 200, text: async () => JSON.stringify(objects[parsed.searchParams.get('key')]) };
   };
   const ga4Day = reportDayKey(ga4Row);
   const settledFlag = async () => {
-    const confirmations = manifestConfirmations(await readDownloadsManifest(path.join(options.out, 'nosh.example')));
-    const text = await fs.readFile(path.join(options.out, 'nosh.example', 'ga4', 'traffic-acquisition', '2026-09-21.json'), 'utf8');
-    return { confirmations, provisional: archiveRows(parseArchive(text, { asset: 'nosh.example', source: 'test' }), confirmations)[0].provisional };
+    const confirmations = manifestConfirmations(await readDownloadsManifest(path.join(options.out, 'northwind.example')));
+    const text = await fs.readFile(path.join(options.out, 'northwind.example', 'ga4', 'traffic-acquisition', '2026-09-21.json'), 'utf8');
+    return { confirmations, provisional: archiveRows(parseArchive(text, { asset: 'northwind.example', source: 'test' }), confirmations)[0].provisional };
   };
 
   await downloadSignalDumps(options, { get, token: 'op' });
@@ -248,7 +248,7 @@ test('a filtered download keeps the report days an earlier download recorded, so
   const filtered = await downloadSignalDumps({ ...options, integration: 'gsc' }, { get, token: 'op' });
   assert.deepEqual(filtered.rows.map((row) => row.integration), ['gsc']);
 
-  const manifest = await readDownloadsManifest(path.join(options.out, 'nosh.example'));
+  const manifest = await readDownloadsManifest(path.join(options.out, 'northwind.example'));
   const kept = manifest.objects.find((row) => reportDayKey(row) === ga4Day);
   assert.equal(kept?.finishedAt, ga4Row.finishedAt);
   assert.equal(manifest.filters.integration, 'gsc');
@@ -263,12 +263,12 @@ test('nothing matched writes nothing at all', async () => {
   const { get } = stubDoor({ manifest: [] });
   const result = await downloadSignalDumps(options, { get, token: 'op' });
   assert.deepEqual(result, { rows: [], files: [] });
-  await assert.rejects(fs.access(path.join(options.out, 'nosh.example', 'manifest.json')));
+  await assert.rejects(fs.access(path.join(options.out, 'northwind.example', 'manifest.json')));
   await fs.rm(dir, { recursive: true, force: true });
 });
 
 // The report runs are in the installation's own store,
 // reached only through its ingest: --remote reads nothing and says so.
 test('--remote is refused before anything is read', () => {
-  assert.throws(() => parseArgs(['--asset', 'meals.example', '--remote']), (error) => error.message === REMOTE_REFUSED);
+  assert.throws(() => parseArgs(['--asset', 'meadow.example', '--remote']), (error) => error.message === REMOTE_REFUSED);
 });

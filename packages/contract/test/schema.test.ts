@@ -9,7 +9,7 @@ import {
 } from '../src/schema.js';
 
 const validEnvelope = {
-  asset: 'meals.example',
+  asset: 'meadow.example',
   generatedAt: '2026-07-05T03:00:00.000Z',
   capabilities: ['signups', 'plansSaved', 'foodLog'],
   metrics: {
@@ -27,14 +27,14 @@ describe('PulseEnvelope', () => {
     const parsed = PulseEnvelope.safeParse(validEnvelope);
     expect(parsed.success).toBe(true);
     if (parsed.success) {
-      expect(parsed.data.asset).toBe('meals.example');
+      expect(parsed.data.asset).toBe('meadow.example');
       expect(parsed.data.metrics.plansSaved?.avg7d).toBe(6.2);
     }
   });
 
   it('accepts the minimal shape (no optional negativeByPage/flags)', () => {
     const parsed = PulseEnvelope.safeParse({
-      asset: 'nosh.example',
+      asset: 'northwind.example',
       generatedAt: '2026-07-05T03:00:00Z',
       capabilities: ['items'],
       metrics: { items: { last24h: 5, avg7d: 4.0, total: 900 } },
@@ -90,7 +90,7 @@ describe('InTransitFlag milestone-is-info invariant', () => {
 describe('Annotation', () => {
   it('parses a deploy annotation', () => {
     const parsed = Annotation.safeParse({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       at: '2026-07-04T12:00:00Z',
       kind: 'deploy',
       ref: 'abc1234',
@@ -111,7 +111,7 @@ describe('LedgerInputRow (CHECK-constraint mirror)', () => {
     expect(
       LedgerInputRow.safeParse({
         kind: 'revenue',
-        asset: 'meals.example',
+        asset: 'meadow.example',
         period: '2026-06',
         family: 'ads',
         amount: '412.50',
@@ -135,7 +135,7 @@ describe('LedgerInputRow (CHECK-constraint mirror)', () => {
   it('coerces a CSV string amount to a number', () => {
     const parsed = LedgerInputRow.safeParse({
       kind: 'revenue',
-      asset: 'nosh.example',
+      asset: 'northwind.example',
       period: '2026-06',
       family: 'affiliate',
       amount: '37.00',
@@ -233,7 +233,7 @@ describe('amountToMinorUnits (money is exact or it is not money)', () => {
 describe('deriveExternalId (the idempotency key)', () => {
   const row = {
     kind: 'revenue',
-    asset: 'meals.example',
+    asset: 'meadow.example',
     period: '2026-06',
     family: 'ads',
     booking_state: 'estimated',
@@ -252,7 +252,7 @@ describe('deriveExternalId (the idempotency key)', () => {
 
   it('falls back to the accounting grain, so a re-uploaded export keys the same', () => {
     expect(deriveExternalId(row)).toBe(
-      'raptive-report:auto/revenue/meals.example/2026-06/ads/estimated',
+      'raptive-report:auto/revenue/meadow.example/2026-06/ads/estimated',
     );
     expect(deriveExternalId({ ...row })).toBe(deriveExternalId(row));
   });
@@ -280,7 +280,7 @@ describe('deriveExternalId (the idempotency key)', () => {
 describe('LedgerInputRow — the idempotency fields', () => {
   const base = {
     kind: 'revenue' as const,
-    asset: 'meals.example',
+    asset: 'meadow.example',
     period: '2026-06',
     family: 'ads',
     source: 'raptive-report',
@@ -294,7 +294,7 @@ describe('LedgerInputRow — the idempotency fields', () => {
     expect(parsed.data.amount).toBe(168.2);
     expect(parsed.data.amount_minor).toBe(16820);
     expect(parsed.data.stable_id).toBe(
-      'raptive-report:auto/revenue/meals.example/2026-06/ads/estimated',
+      'raptive-report:auto/revenue/meadow.example/2026-06/ads/estimated',
     );
   });
 
@@ -307,7 +307,7 @@ describe('LedgerInputRow — the idempotency fields', () => {
       LedgerInputRow.safeParse({
         ...base,
         amount: 1,
-        supersedes_external_id: 'raptive-report:auto/revenue/meals.example/2026-06/ads/estimated',
+        supersedes_external_id: 'raptive-report:auto/revenue/meadow.example/2026-06/ads/estimated',
       }).success,
     ).toBe(false);
     expect(
@@ -315,7 +315,7 @@ describe('LedgerInputRow — the idempotency fields', () => {
         ...base,
         amount: 1,
         booking_state: 'reconciled',
-        supersedes_external_id: 'raptive-report:auto/revenue/meals.example/2026-06/ads/estimated',
+        supersedes_external_id: 'raptive-report:auto/revenue/meadow.example/2026-06/ads/estimated',
       }).success,
     ).toBe(true);
   });
@@ -323,7 +323,7 @@ describe('LedgerInputRow — the idempotency fields', () => {
 
 
 describe('LedgerInputRow — structured coverage', () => {
-  const row = { kind: 'revenue', asset: 'meals.example', period: '2026-06', family: 'ads', amount: 9, booking_state: 'estimated' };
+  const row = { kind: 'revenue', asset: 'meadow.example', period: '2026-06', family: 'ads', amount: 9, booking_state: 'estimated' };
 
   it('retains optional unknown dates and literal CSV completeness without changing the stable key', () => {
     const legacy = LedgerInputRow.parse(row);
@@ -348,7 +348,7 @@ describe('LedgerInputRow — structured coverage', () => {
 
 
 describe('LedgerInputRow — stated currency', () => {
-  const row = { kind: 'revenue', asset: 'meals.example', period: '2026-06', family: 'ads', amount: '12.345', booking_state: 'estimated' };
+  const row = { kind: 'revenue', asset: 'meadow.example', period: '2026-06', family: 'ads', amount: '12.345', booking_state: 'estimated' };
   it('keeps old USD exports and uses each stated currency precision', () => {
     expect(LedgerInputRow.parse(row)).toMatchObject({ currency: 'USD', amount_minor: 1235 });
     expect(LedgerInputRow.parse({ ...row, currency: 'EUR' })).toMatchObject({ currency: 'EUR', amount_minor: 1235 });

@@ -72,7 +72,7 @@ function renderAt(tab: AssetTab, client = testClient()) {
     client,
     ...render(
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={[`/assets/meals.example${tab === "overview" ? "" : `/${tab}`}`]}>
+        <MemoryRouter initialEntries={[`/assets/meadow.example${tab === "overview" ? "" : `/${tab}`}`]}>
           <Routes>
             <Route path="/assets/:id/:tab?" element={<AssetDetailRoute />} />
           </Routes>
@@ -157,7 +157,7 @@ describe("the asset page reads one view per tab", () => {
     fireEvent.click(tab("Money"));
     await waitFor(() => expect(showing()).toBe("asset-tab-financials"));
     expect(loadingFrame()).toHaveAttribute("data-route-loading", "panel");
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Meal Planner");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Meadow Board");
     expect(tab("Alerts")).toBeInTheDocument();
 
     await waitFor(() => expect(stub.held.has("financials")).toBe(true));
@@ -174,7 +174,7 @@ describe("the asset page reads one view per tab", () => {
     fireEvent.click(tab("Money"));
     expect(await within(panel()).findByText("Couldn't load this site")).toBeInTheDocument();
     expect(within(panel()).getByRole("button", { name: /try again/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Meal Planner");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Meadow Board");
   });
 
   it("cancels the read of a tab the operator has already left", async () => {
@@ -202,10 +202,10 @@ describe("the asset page reads one view per tab", () => {
 
     const observed = client
       .getQueryCache()
-      .findAll({ queryKey: ["asset-detail", "meals.example"] })
+      .findAll({ queryKey: ["asset-detail", "meadow.example"] })
       .filter((query) => query.getObserversCount() > 0)
       .map((query) => query.queryKey);
-    expect(observed).toEqual([["asset-detail", "meals.example", "settings"]]);
+    expect(observed).toEqual([["asset-detail", "meadow.example", "settings"]]);
   });
 
   it("starts a tab's read when a pointer rests on it", async () => {
@@ -236,7 +236,7 @@ describe("useAssetDetail — one poll, one tab, one asset", () => {
     try {
       const stub = storeStub();
       const client = new QueryClient();
-      const { rerender } = renderHook(({ view }: { view: AssetDetailView }) => useAssetDetail("meals.example", view), {
+      const { rerender } = renderHook(({ view }: { view: AssetDetailView }) => useAssetDetail("meadow.example", view), {
         wrapper: wrapper(client),
         initialProps: { view: "overview" as AssetDetailView },
       });
@@ -260,19 +260,19 @@ describe("useAssetDetail — one poll, one tab, one asset", () => {
     const client = new QueryClient();
     const { result, rerender } = renderHook(({ id }: { id: string }) => useAssetDetail(id, "alerts"), {
       wrapper: wrapper(client),
-      initialProps: { id: "meals.example" },
+      initialProps: { id: "meadow.example" },
     });
-    await waitFor(() => expect(result.current.data?.asset.id).toBe("meals.example"));
+    await waitFor(() => expect(result.current.data?.asset.id).toBe("meadow.example"));
 
-    rerender({ id: "nosh.example" });
-    await waitFor(() => expect(stub.requests().some((r) => r.startsWith("/api/assets/nosh.example"))).toBe(true));
+    rerender({ id: "northwind.example" });
+    await waitFor(() => expect(stub.requests().some((r) => r.startsWith("/api/assets/northwind.example"))).toBe(true));
     expect(result.current.data).toBeUndefined();
   });
 
   it("holds the same asset's previous tab while the next tab's read arrives", async () => {
     const stub = storeStub({ hold: ["financials"] });
     const client = new QueryClient();
-    const { result, rerender } = renderHook(({ view }: { view: AssetDetailView }) => useAssetDetail("meals.example", view), {
+    const { result, rerender } = renderHook(({ view }: { view: AssetDetailView }) => useAssetDetail("meadow.example", view), {
       wrapper: wrapper(client),
       initialProps: { view: "alerts" as AssetDetailView },
     });
@@ -287,7 +287,7 @@ describe("useAssetDetail — one poll, one tab, one asset", () => {
   it("keeps holding the previous tab when the next tab's read fails", async () => {
     storeStub({ fail: ["financials"] });
     const client = new QueryClient({ defaultOptions: { queries: { retryDelay: 0 } } });
-    const { result, rerender } = renderHook(({ view }: { view: AssetDetailView }) => useAssetDetail("meals.example", view), {
+    const { result, rerender } = renderHook(({ view }: { view: AssetDetailView }) => useAssetDetail("meadow.example", view), {
       wrapper: wrapper(client),
       initialProps: { view: "alerts" as AssetDetailView },
     });

@@ -68,6 +68,9 @@ export type { ProviderOAuthPanel } from "@/components/provider-card/GoogleSignIn
  * button and the command cannot disagree. */
 export const SECRETS_IMPORT_COMMAND = "pnpm dev:secrets:import";
 
+/** Where a provider's `docRef` resolves: the public source repository. */
+const SOURCE_REPOSITORY = "https://github.com/notice-cx/NoticeOS";
+
 /**
  * The Import half of the Legacy env explainer. A prop rather than a hook call,
  * so the card can be rendered in any state in the gallery and in tests.
@@ -215,7 +218,7 @@ export function ProviderCard({
             </InfoTooltip>
           </span>
           <a
-            href={`https://github.com/reindex-os/reindex-os/blob/main/${provider.docRef}`}
+            href={`${SOURCE_REPOSITORY}/blob/main/${provider.docRef}`}
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1 underline-offset-4 hover:text-foreground hover:underline"

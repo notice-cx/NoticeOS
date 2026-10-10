@@ -1,3 +1,3 @@
 asset,report_date,collected_at,data_state,provider_truncated,eventCount,eventName,totalUsers,unifiedPagePathScreen
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,revision-window,false,400,calculation_complete,250,/planner
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,revision-window,false,50,plan_save_click,38,/planner
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,revision-window,false,400,calculation_complete,250,/planner
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,revision-window,false,50,plan_save_click,38,/planner

@@ -322,10 +322,10 @@ describe("ingest-freshness — the report that never arrived", () => {
   // Four assets that have never reported are one fact about the portfolio,
   // not four sentences to read.
   const members = [
-    { assetDisplayName: "Fee Codes" },
-    { assetDisplayName: "Pull-up Standards" },
-    { assetDisplayName: "Area Lookup" },
-    { assetDisplayName: "Pacer Test" },
+    { assetDisplayName: "Fern Index" },
+    { assetDisplayName: "Puffin Post" },
+    { assetDisplayName: "Acorn Atlas" },
+    { assetDisplayName: "Pebble Works" },
   ];
 
   it("states a cross-asset group once, with the count spelled out", () => {
@@ -353,12 +353,12 @@ describe("ingest-freshness — the report that never arrived", () => {
     // beside a plural headline would attribute it to all four.
     expect(a.evidence.find((e) => e.source === "Registered, never reported")).toBeUndefined();
     expect(a.evidence.find((e) => e.source === "Sites with no nightly reports")?.detail).toBe(
-      "Fee Codes, Pull-up Standards, Area Lookup, Pacer Test",
+      "Fern Index, Puffin Post, Acorn Atlas, Pebble Works",
     );
   });
 
   it("keeps the singular sentence for a group of one — no plural over one asset", () => {
-    const a = translateAlert({ ...neverReported, members: [{ assetDisplayName: "Fee Codes" }] });
+    const a = translateAlert({ ...neverReported, members: [{ assetDisplayName: "Fern Index" }] });
     expect(a.headline).toBe("No nightly report has EVER arrived");
   });
 });
@@ -375,7 +375,7 @@ describe("asset-pull-failed — the fetch the OS could not make", () => {
       ...base,
       ruleInputs: {
         rule: "asset-pull-failed",
-        url: "https://nosh.example/api/os/report",
+        url: "https://northwind.example/api/os/report",
         status: 401,
         error: "401 unauthorized — token expired",
         providerError: "unauthorized",
@@ -387,7 +387,7 @@ describe("asset-pull-failed — the fetch the OS could not make", () => {
     expect(a.headline).toBe("Nightly report fetch failing 5 nights — latest: 401 unauthorized");
     expect(a.hint).toBe("the fetch credentials may have expired");
     expect(a.evidence.find((e) => e.source === "Failed fetches")?.detail).toBe("5 since the first");
-    expect(a.evidence.find((e) => e.source === "Endpoint")?.detail).toBe("https://nosh.example/api/os/report");
+    expect(a.evidence.find((e) => e.source === "Endpoint")?.detail).toBe("https://northwind.example/api/os/report");
   });
 
   it("reads as a single failure on the first night", () => {
@@ -396,7 +396,7 @@ describe("asset-pull-failed — the fetch the OS could not make", () => {
       message: "pull failed: non-200 response (503)",
       ruleInputs: {
         rule: "asset-pull-failed",
-        url: "https://nosh.example/api/os/report",
+        url: "https://northwind.example/api/os/report",
         status: 503,
         error: "non-200 response (503)",
         failureCount: 1,
@@ -414,7 +414,7 @@ describe("asset-pull-failed — the fetch the OS could not make", () => {
       message: "pull failed: fetch failed",
       ruleInputs: {
         rule: "asset-pull-failed",
-        url: "https://nosh.example/api/os/report",
+        url: "https://northwind.example/api/os/report",
         status: null,
         error: "fetch failed",
         failureCount: 2,
@@ -441,7 +441,7 @@ describe("asset-pull-failed — the fetch the OS could not make", () => {
       readings,
       ruleInputs: {
         rule: "asset-pull-failed",
-        url: "https://nosh.example/api/os/report",
+        url: "https://northwind.example/api/os/report",
         status: 401,
         error: "401 unauthorized — token expired",
         providerError: "unauthorized",
@@ -466,7 +466,7 @@ describe("asset-pull-failed — the fetch the OS could not make", () => {
 });
 
 describe("asset-declared — the asset's own words", () => {
-  it("translates Nosh's bounded poisson signature and keeps every number as evidence", () => {
+  it("translates Northwind's bounded poisson signature and keeps every number as evidence", () => {
     const a = translateAlert({
       ruleId: "asset-declared",
       metric: "apiRequests",
@@ -540,13 +540,13 @@ describe("hygiene failures — the check result, not its collector vocabulary", 
     const a = translateAlert({
       ruleId: "hygiene-home-unreachable",
       metric: "html-depth",
-      message: "home page did not serve: https://nosh.example/ answered HTTP 403",
+      message: "home page did not serve: https://northwind.example/ answered HTTP 403",
       ruleInputs: {
         rule: "hygiene-home-unreachable",
         check: "html-depth",
         occurrences: 2,
         lastObservedAt: "2026-08-05T04:00:00.040Z",
-        url: "https://nosh.example/",
+        url: "https://northwind.example/",
         http_status: 403,
         error: "non-200 response (403)",
       },
@@ -555,7 +555,7 @@ describe("hygiene failures — the check result, not its collector vocabulary", 
     expect(a.hint).toBe("the site may be blocking the checker");
     expect(a.headline).not.toMatch(/html depth|https?:/i);
     expect(a.evidence.find((row) => row.source === "URL checked")?.detail).toBe(
-      "https://nosh.example/",
+      "https://northwind.example/",
     );
     expect(a.evidence.find((row) => row.source === "Checks in a row")?.detail).toBe("2");
   });
@@ -565,19 +565,19 @@ describe("hygiene failures — the check result, not its collector vocabulary", 
       ruleId: "hygiene-sitemap",
       metric: "sitemap",
       message:
-        "sitemap unreachable at https://pullups.example/sitemap.xml (non-200 response (404))",
+        "sitemap unreachable at https://puffin.example/sitemap.xml (non-200 response (404))",
       ruleInputs: {
         rule: "hygiene-sitemap",
         check: "sitemap",
         occurrences: 4,
-        url: "https://pullups.example/sitemap.xml",
+        url: "https://puffin.example/sitemap.xml",
         http_status: 404,
         error: "non-200 response (404)",
       },
     });
     expect(a.headline).toBe("Sitemap check failed — HTTP 404");
     expect(a.hint).toBe("the sitemap may be missing or moved");
-    expect(a.headline).not.toContain("pullups.example");
+    expect(a.headline).not.toContain("puffin.example");
   });
 
   // A success status quoted beside the word FAILED reads as a contradiction:
@@ -587,12 +587,12 @@ describe("hygiene failures — the check result, not its collector vocabulary", 
       ruleId: "hygiene-sitemap",
       metric: "sitemap",
       message:
-        "sitemap at https://nosh.example/sitemap.xml is not parseable XML (no <urlset>/<sitemapindex> root)",
+        "sitemap at https://northwind.example/sitemap.xml is not parseable XML (no <urlset>/<sitemapindex> root)",
       ruleInputs: {
         rule: "hygiene-sitemap",
         check: "sitemap",
         reason: "unparseable",
-        url: "https://nosh.example/sitemap.xml",
+        url: "https://northwind.example/sitemap.xml",
         http_status: 200,
         content_type: "text/html; charset=utf-8",
         bytes: 41_233,
@@ -611,7 +611,7 @@ describe("hygiene failures — the check result, not its collector vocabulary", 
       ruleInputs: {
         rule: "hygiene-sitemap",
         reason: "count-collapse",
-        url: "https://nosh.example/sitemap.xml",
+        url: "https://northwind.example/sitemap.xml",
         http_status: 200,
         urls: 12,
         previous_urls: 4200,
@@ -627,16 +627,16 @@ describe("hygiene failures — the check result, not its collector vocabulary", 
       ruleInputs: {
         rule: "hygiene-sitemap",
         reason: "child-unreachable",
-        url: "https://nosh.example/sitemap.xml",
+        url: "https://northwind.example/sitemap.xml",
         http_status: 200,
-        children_failed: ["https://nosh.example/sitemap-1.xml", "https://nosh.example/sitemap-2.xml"],
+        children_failed: ["https://northwind.example/sitemap-1.xml", "https://northwind.example/sitemap-2.xml"],
       },
     });
     expect(children.headline).toBe("Sitemap index has 2 child sitemaps the OS could not read");
     expect(children.headline).not.toContain("HTTP 200");
     // The unreadable children are a value, not the stored sentence.
     expect(children.evidence).toContainEqual(
-      expect.objectContaining({ source: "First unreadable", detail: "https://nosh.example/sitemap-1.xml · +1 more" }),
+      expect.objectContaining({ source: "First unreadable", detail: "https://northwind.example/sitemap-1.xml · +1 more" }),
     );
   });
 });
@@ -764,7 +764,7 @@ describe("os-egress-down — the outage that is the OS's own", () => {
           error: "internal error; reference = 4b71e0aa",
         },
       ],
-      unmeasuredAssets: ["meals.example", "nosh.example", "fees.example"],
+      unmeasuredAssets: ["meadow.example", "northwind.example", "ferns.example"],
       failureCount: 2,
       lastFailedAt: "2026-08-09T04:00:00.000Z",
       evaluatedAt: "2026-08-09T04:00:00.000Z",
@@ -796,7 +796,7 @@ describe("os-egress-down — the outage that is the OS's own", () => {
       "2 since the first",
     );
     const skipped = a.evidence.find((e) => e.source === "Not checked tonight")!;
-    expect(skipped.detail).toBe("meals.example, nosh.example, fees.example");
+    expect(skipped.detail).toBe("meadow.example, northwind.example, ferns.example");
   });
 
   it("drops the duration row on the first observation", () => {
@@ -821,7 +821,7 @@ describe("os-egress-down — the outage that is the OS's own", () => {
       message: "OS connection back — 2 properties not yet re-checked",
       ruleInputs: {
         ...outage.ruleInputs,
-        unmeasuredAssets: ["nosh.example", "fees.example"],
+        unmeasuredAssets: ["northwind.example", "ferns.example"],
         connectionBackAt: "2026-08-09T12:15:00.000Z",
       },
     });
@@ -833,7 +833,7 @@ describe("os-egress-down — the outage that is the OS's own", () => {
       at: "2026-08-09T12:15:00.000Z",
     });
     expect(a.evidence.find((e) => e.source === "Not checked tonight")!.detail).toContain(
-      "nosh.example, fees.example",
+      "northwind.example, ferns.example",
     );
   });
 
@@ -843,9 +843,9 @@ describe("os-egress-down — the outage that is the OS's own", () => {
       message: "OS connection back — 2 properties not yet re-checked",
       ruleInputs: {
         ...outage.ruleInputs,
-        unmeasuredAssets: ["nosh.example", "fees.example"],
+        unmeasuredAssets: ["northwind.example", "ferns.example"],
         connectionBackAt: "2026-08-09T12:15:00.000Z",
-        lanes: { "google-signals": { unmeasured: ["nosh.example"] }, dataforseo: { unmeasured: ["fees.example"] } },
+        lanes: { "google-signals": { unmeasured: ["northwind.example"] }, dataforseo: { unmeasured: ["ferns.example"] } },
       },
     });
     expect(a.evidence.find((e) => e.source === "Connection answered again")!.detail).toBe(
@@ -862,7 +862,7 @@ describe("watch-window-closed — a verdict becomes a clear next decision", () =
     ruleInputs: {
       outcome: "kill_confirmed",
       refKind: "bead",
-      ref: "mp-123",
+      ref: "md-123",
       integration: "gsc",
       metric: "clicks",
       registeredAt: "2026-07-01T03:30:00.000Z",
@@ -880,7 +880,7 @@ describe("watch-window-closed — a verdict becomes a clear next decision", () =
       {
         polarity: "supporting",
         source: "Watched change",
-        detail: "bead mp-123",
+        detail: "bead md-123",
         at: "2026-07-01T03:30:00.000Z",
       },
       {

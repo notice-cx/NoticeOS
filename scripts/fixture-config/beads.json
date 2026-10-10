@@ -13,40 +13,40 @@
       "repo": "."
     },
     {
-      "asset": "meals.example",
-      "prefix": "mp",
-      "database": "mp",
-      "repo": "../meals.example"
+      "asset": "meadow.example",
+      "prefix": "md",
+      "database": "md",
+      "repo": "../meadow.example"
     },
     {
-      "asset": "nosh.example",
-      "prefix": "nom",
-      "database": "nom",
-      "repo": "../nom"
+      "asset": "northwind.example",
+      "prefix": "nw",
+      "database": "nw",
+      "repo": "../nw"
     },
     {
-      "asset": "pacer.example",
-      "prefix": "pft",
-      "database": "pft",
-      "repo": "../pacer.example"
+      "asset": "pebble.example",
+      "prefix": "pb",
+      "database": "pb",
+      "repo": "../pebble.example"
     },
     {
-      "asset": "pullups.example",
-      "prefix": "pts",
-      "database": "pts",
-      "repo": "../pullups.example"
+      "asset": "puffin.example",
+      "prefix": "pf",
+      "database": "pf",
+      "repo": "../puffin.example"
     },
     {
-      "asset": "areas.example",
+      "asset": "acorn.example",
       "prefix": "ac",
       "database": "ac",
-      "repo": "../areas.example"
+      "repo": "../acorn.example"
     },
     {
-      "asset": "fees.example",
-      "prefix": "fin",
-      "database": "fin",
-      "repo": "../fees.example"
+      "asset": "ferns.example",
+      "prefix": "fn",
+      "database": "fn",
+      "repo": "../ferns.example"
     }
   ]
 }

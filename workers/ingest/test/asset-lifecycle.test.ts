@@ -84,15 +84,15 @@ describe('createAsset — what a wizard may bring into being', () => {
   });
 
   it('refuses a duplicate id without touching the row that exists', async () => {
-    const before = await stored('meals.example');
+    const before = await stored('meadow.example');
     const result = await createAsset(
       env,
-      { id: 'meals.example', displayName: 'Something Else', status: 'retired' },
+      { id: 'meadow.example', displayName: 'Something Else', status: 'retired' },
       NOW,
     );
 
-    expect(result).toEqual({ ok: false, error: 'asset_exists', asset: 'meals.example', existingStatus: before!.status });
-    expect(await stored('meals.example')).toEqual(before);
+    expect(result).toEqual({ ok: false, error: 'asset_exists', asset: 'meadow.example', existingStatus: before!.status });
+    expect(await stored('meadow.example')).toEqual(before);
   });
 
   // One site per domain (0001_baseline.sql `assets_one_per_domain`): a second
@@ -205,11 +205,11 @@ describe('a failed site transaction', () => {
     await expect(createAsset(withStore(refusingSiteStatements), { id: NEW_ID, displayName: 'Brand New' }, NOW)).rejects.toThrow();
     expect(await stored(NEW_ID)).toBeNull();
 
-    const before = await stored('meals.example');
+    const before = await stored('meadow.example');
     await expect(
-      writeAssetColumn(withStore(refusingSiteStatements), { asset: 'meals.example', column: 'status', value: 'live' }, NOW),
+      writeAssetColumn(withStore(refusingSiteStatements), { asset: 'meadow.example', column: 'status', value: 'live' }, NOW),
     ).rejects.toThrow();
-    expect(await stored('meals.example')).toEqual(before);
+    expect(await stored('meadow.example')).toEqual(before);
   });
 
   it('a failed transaction leaves no new site and a later retry can create it', async () => {

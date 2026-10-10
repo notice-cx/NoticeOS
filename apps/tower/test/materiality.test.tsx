@@ -106,8 +106,8 @@ const system: SystemData = {
  * owns the fact, while SYSTEM keeps its posture and drops the count. */
 const neverReportedAttention: AttentionItem = {
   id: 21,
-  asset: "fees.example",
-  assetDisplayName: "Fee Codes",
+  asset: "ferns.example",
+  assetDisplayName: "Fern Index",
   severity: "error",
   kind: "anomaly",
   message: "no pulse ever received",
@@ -119,15 +119,15 @@ const neverReportedAttention: AttentionItem = {
   occurrences: 2,
   firstFiredAt: RECENT,
   members: [
-    { id: 21, asset: "fees.example", assetDisplayName: "Fee Codes", firedAt: RECENT },
-    { id: 22, asset: "areas.info", assetDisplayName: "Area Lookup", firedAt: RECENT },
+    { id: 21, asset: "ferns.example", assetDisplayName: "Fern Index", firedAt: RECENT },
+    { id: 22, asset: "acorn.example.net", assetDisplayName: "Acorn Atlas", firedAt: RECENT },
   ],
 };
 
 const rollbackAttention: AttentionItem = {
   id: 7,
-  asset: "meals.example",
-  assetDisplayName: "Meal Planner",
+  asset: "meadow.example",
+  assetDisplayName: "Meadow Board",
   severity: "error",
   kind: "anomaly",
   message: "watch window closed with a decline",

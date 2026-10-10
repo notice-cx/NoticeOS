@@ -4,7 +4,7 @@
   "targets": [
     {
       "domain": "county.example.edu",
-      "referringPage": "https://county.example.edu/food/meals",
+      "referringPage": "https://county.example.edu/food/meadow",
       "replaceWith": "https://asset.example/food-groups",
       "status": "clicked"
     },

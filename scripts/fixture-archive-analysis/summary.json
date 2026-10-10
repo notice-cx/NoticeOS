@@ -3,7 +3,7 @@
   "configuration": {
     "valueEventsVersion": 1
   },
-  "asset": "meals.example",
+  "asset": "meadow.example",
   "input": "<input>",
   "archiveCount": 105,
   "datasets": [

@@ -70,7 +70,7 @@ test('source-shaped maps allow domain asset ids and preserve raw plus repository
   assert.equal(result.hub.dataDir, '.local/beads-dolt');
   assert.equal(result.hub.dataDirResolved, data);
   assert.equal(result.projects.length, map.spokes.length);
-  assert.equal(result.projects[1].asset, 'meals.example');
+  assert.equal(result.projects[1].asset, 'meadow.example');
   assert.equal(result.server.user, undefined);
   assert.deepEqual(result.server.pathResolution.data_dir, { resolved: data, basis: 'absolute' });
   assert.deepEqual(f.reads, result.reads);

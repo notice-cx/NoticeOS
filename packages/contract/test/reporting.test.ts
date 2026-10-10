@@ -165,17 +165,17 @@ describe('a declared "no nightly report"', () => {
   });
 
   it('releases only the freshness flag of a declared asset', () => {
-    const declared = new Set(['areas.example']);
-    expect(releasedFreshnessFlag({ ruleId: 'ingest-freshness', asset: 'areas.example' }, declared)).toBe(true);
-    expect(releasedFreshnessFlag({ ruleId: 'ingest-freshness', asset: 'nosh.example' }, declared)).toBe(false);
-    expect(releasedFreshnessFlag({ ruleId: 'asset-pull-failed', asset: 'areas.example' }, declared)).toBe(false);
+    const declared = new Set(['acorn.example']);
+    expect(releasedFreshnessFlag({ ruleId: 'ingest-freshness', asset: 'acorn.example' }, declared)).toBe(true);
+    expect(releasedFreshnessFlag({ ruleId: 'ingest-freshness', asset: 'northwind.example' }, declared)).toBe(false);
+    expect(releasedFreshnessFlag({ ruleId: 'asset-pull-failed', asset: 'acorn.example' }, declared)).toBe(false);
   });
 
   it('reads the list out of a saved constants document, absent as null', () => {
     expect(noNightlyReportAssets({ flag_defaults: {} })).toBeNull();
     expect(noNightlyReportAssets({ no_nightly_report: [] })).toEqual([]);
-    expect(noNightlyReportAssets({ no_nightly_report: ['fees.example', 7, 'Bad Id'] })).toEqual(['fees.example']);
-    expect(noNightlyReportAssets({ no_nightly_report: 'fees.example' })).toEqual([]);
+    expect(noNightlyReportAssets({ no_nightly_report: ['ferns.example', 7, 'Bad Id'] })).toEqual(['ferns.example']);
+    expect(noNightlyReportAssets({ no_nightly_report: 'ferns.example' })).toEqual([]);
     expect(noNightlyReportAssets(null)).toBeNull();
   });
 });
@@ -225,7 +225,7 @@ describe('the "has sent one" condition leaves every other site unchanged', () =>
     { id: 'stopped.example.com', status: 'live', latest: at(24 * 9), declared: false },
     { id: 'os.example.com', status: 'live', latest: at(1), declared: false },
     { id: 'quiz.example.com', status: 'live', latest: null, declared: true },
-    { id: 'standards.example.com', status: 'onboarding', latest: null, declared: true },
+    { id: 'summit.example.com', status: 'onboarding', latest: null, declared: true },
     { id: 'codes.example.com', status: 'live', latest: null, declared: true },
     { id: 'lookup.example.com', status: 'live', latest: null, declared: true },
   ];

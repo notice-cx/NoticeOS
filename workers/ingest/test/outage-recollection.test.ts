@@ -20,9 +20,9 @@ import { runPosthogDumps } from '../src/posthog-dumps.js';
 import { runSignalDumps } from '../src/signal-dumps.js';
 import { ARCHIVE_RUNS, emptyTables, pgAll, reset, setConnection, WORKERD_TRANSPORT_ERROR } from './helpers.js';
 
-/** Bing verifies every property but pullups.example — a standing provider
+/** Bing verifies every property but puffin.example — a standing provider
  * refusal, which this fix must leave visible. */
-const BING_VERIFIED = ['meals.example', 'nosh.example', 'pacer.example', 'areas.example', 'fees.example'];
+const BING_VERIFIED = ['meadow.example', 'northwind.example', 'pebble.example', 'acorn.example', 'ferns.example'];
 
 /** Every provider the archive lanes call, as one fake. `providersDown` is the
  * outage: the reference sites answer, no provider does. */
@@ -48,13 +48,13 @@ function world(providersDown = false): typeof fetch {
       return Response.json({ rows: [{ dimensionValues: [{ value: 'v' }], metricValues: [{ value: '1' }] }], rowCount: 1 });
     }
     if (parsed.hostname === 'www.clarity.ms') {
-      return Response.json([{ metricName: 'Traffic', information: [{ totalSessionCount: '4', Url: 'https://meals.example/' }] }]);
+      return Response.json([{ metricName: 'Traffic', information: [{ totalSessionCount: '4', Url: 'https://meadow.example/' }] }]);
     }
     if (parsed.hostname === 'us.posthog.com') {
       // The project read, then every family's query: nothing counted yet.
       return parsed.pathname.endsWith('/query/')
         ? Response.json({ results: [] })
-        : Response.json({ id: 596607, timezone: 'America/New_York' });
+        : Response.json({ id: 424242, timezone: 'America/New_York' });
     }
     throw new Error(`unexpected fetch: ${url}`);
   }) as typeof fetch;
@@ -76,11 +76,11 @@ beforeEach(async () => {
   });
   await putCredential(env, {
     provider: 'clarity',
-    fields: { CLARITY_TOKENS: JSON.stringify({ 'meals.example': 'clarity-project-token' }) },
+    fields: { CLARITY_TOKENS: JSON.stringify({ 'meadow.example': 'clarity-project-token' }) },
   });
   await putCredential(env, {
     provider: 'posthog',
-    fields: { POSTHOG_KEYS: JSON.stringify({ 'meals.example': 'phx_outage_replay_fixture' }) },
+    fields: { POSTHOG_KEYS: JSON.stringify({ 'meadow.example': 'phx_outage_replay_fixture' }) },
   });
   // Connected long before the outage, as they were.
   for (const provider of ['clarity', 'posthog']) await setConnection(provider, { updated_at: '2026-09-01T00:00:00.000Z' });
@@ -130,7 +130,7 @@ it('re-collects an outage night and leaves no network failure on Google, Bing, C
   ]);
   // …while a refusal is still the provider's story, on the page.
   expect(
-    stuck.items.filter((item) => item.provider === 'bing-webmaster' && item.asset === 'pullups.example' && item.failure === 'provider').length,
+    stuck.items.filter((item) => item.provider === 'bing-webmaster' && item.asset === 'puffin.example' && item.failure === 'provider').length,
   ).toBeGreaterThan(0);
   // PostHog: every family's window ending 09-13, the one the dark run owned.
   expect(networkItems(stuck, 'posthog').map((item) => item.detail).sort()).toEqual(

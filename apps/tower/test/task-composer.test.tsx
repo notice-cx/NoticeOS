@@ -28,7 +28,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
     createTask: async (input: NewTask) => {
       lane.calls.push(input);
       if (lane.fail) throw new Error(lane.fail);
-      return { id: "mp-9zz", project: input.project };
+      return { id: "md-9zz", project: input.project };
     },
   };
 });
@@ -61,7 +61,7 @@ import { resetTaskSourceMock, taskSourceMock } from "./task-source-mock";
 vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 
 const SPOKES: TaskHubSpoke[] = [
-  { asset: "meals.example", prefix: "mp", database: "mp", repo: "../meals.example" },
+  { asset: "meadow.example", prefix: "md", database: "md", repo: "../meadow.example" },
   { asset: "root-os", prefix: "ro", database: "ro", repo: "." },
 ];
 
@@ -85,7 +85,7 @@ function renderComposer(prefill: TaskComposerPrefill | null = null) {
   const onFiled = vi.fn();
   const result = render(
     <QueryClientProvider client={new QueryClient()}>
-      <MemoryRouter initialEntries={["/assets/meals.example"]}>
+      <MemoryRouter initialEntries={["/assets/meadow.example"]}>
         <Where />
         <TaskComposer
           open
@@ -106,19 +106,19 @@ const fileTask = () => screen.getByRole("button", { name: "File task" });
 describe('hosted composer fields', () => {
   it('retains linked labels/metadata and ordinary fields in a selected hosted project', async () => {
     lane.capability = { live: true, writable: true, reason: null, projectSelection: true, operations: ['create', 'update', 'comment', 'close'] };
-    const metadata = { noticeos_source: 'noticeos-handoff', noticeos_kind: 'finding', noticeos_asset: 'meals.example', noticeos_key: 'observed' };
-    renderComposer({ project: 'meals.example', title: 'Linked finding', labels: ['noticeos'], acceptance: 'Observed result', metadata });
+    const metadata = { noticeos_source: 'noticeos-handoff', noticeos_kind: 'finding', noticeos_asset: 'meadow.example', noticeos_key: 'observed' };
+    renderComposer({ project: 'meadow.example', title: 'Linked finding', labels: ['noticeos'], acceptance: 'Observed result', metadata });
     await waitFor(() => expect(fileTask()).toBeEnabled());
     expect(screen.queryByText('Unavailable in this workspace.')).toBeNull();
-    fireEvent.change(field('Parent epic'), { target: { value: 'mp-parent' } });
+    fireEvent.change(field('Parent epic'), { target: { value: 'md-parent' } });
     fireEvent.click(fileTask());
     await waitFor(() => expect(lane.calls).toHaveLength(1));
-    expect(lane.calls[0]).toMatchObject({ project: 'meals.example', title: 'Linked finding', parent: 'mp-parent',
+    expect(lane.calls[0]).toMatchObject({ project: 'meadow.example', title: 'Linked finding', parent: 'md-parent',
       labels: ['noticeos'], acceptance: 'Observed result', metadata });
   });
   it('does not dispatch linked content through read-only hosted permission', async () => {
     lane.capability = { live: true, writable: false, reason: null, projectSelection: true, operations: ['create'] };
-    renderComposer({ project: 'meals.example', title: 'Linked finding', labels: ['noticeos'], metadata: { noticeos_kind: 'finding' } });
+    renderComposer({ project: 'meadow.example', title: 'Linked finding', labels: ['noticeos'], metadata: { noticeos_kind: 'finding' } });
     await screen.findByText('Tasks are read-only in this workspace.');
     expect(fileTask()).toBeDisabled(); expect(lane.calls).toEqual([]);
   });
@@ -149,7 +149,7 @@ function parseCommand(markdown: string) {
 }
 
 describe("the composer's prefill IS the copied bd create", () => {
-  const asset = { id: "meals.example", displayName: "Meal Planner", domain: "meals.example" };
+  const asset = { id: "meadow.example", displayName: "Meadow Board", domain: "meadow.example" };
 
   const cases = [
     {
@@ -175,8 +175,8 @@ describe("the composer's prefill IS the copied bd create", () => {
       name: "an alert row",
       handoff: alertTaskHandoff({
         id: 412,
-        asset: "meals.example",
-        assetDisplayName: "Meal Planner",
+        asset: "meadow.example",
+        assetDisplayName: "Meadow Board",
         severity: "warn",
         kind: "anomaly",
         message: "22 in last24h (avg7d 39.3, P(<=22)~=0.0020)",
@@ -192,7 +192,7 @@ describe("the composer's prefill IS the copied bd create", () => {
     {
       name: "a query whose text would be a shell injection if it were not quoted",
       handoff: {
-        asset: "meals.example",
+        asset: "meadow.example",
         kind: "query" as const,
         key: "it's `rm -rf /` $(whoami)",
         rule: "recover",
@@ -229,7 +229,7 @@ describe("the composer's prefill IS the copied bd create", () => {
   }
 
   it("preserves the complete review context in the copied command and submitted draft after shortening the summary", async () => {
-    const applicabilityReview = `${RECOMMENDATION_RECHECK} Analysis saved 2026-08-05T12:00:00.000Z. ${"This source's collection is not proof that the advice is current. ".repeat(8)}Exact linked task mp-review was recorded closed, not shipped or resolved.`;
+    const applicabilityReview = `${RECOMMENDATION_RECHECK} Analysis saved 2026-08-05T12:00:00.000Z. ${"This source's collection is not proof that the advice is current. ".repeat(8)}Exact linked task md-review was recorded closed, not shipped or resolved.`;
     const handoff = { ...cases[0]!.handoff, title: "Review saved advice ".repeat(20), summary: "Long saved summary. ".repeat(50), applicabilityReview };
     const copied = parseCommand(taskHandoffSection(handoff).join("\n"));
     const prefill = taskHandoffPrefill(handoff)!;
@@ -253,7 +253,7 @@ describe("the composer's prefill IS the copied bd create", () => {
     expect(prefill.metadata.noticeos_rule).toBe("metric-drop");
     expect(prefill.labels).toEqual([
       "noticeos-handoff",
-      "asset:meals.example",
+      "asset:meadow.example",
       "rule:metric-drop",
       "key:412",
     ]);
@@ -268,12 +268,12 @@ describe("the composer's prefill IS the copied bd create", () => {
 
 describe("TaskComposer", () => {
   const prefill = taskHandoffPrefill({
-    asset: "meals.example",
+    asset: "meadow.example",
     kind: "finding",
     key: "search-opportunity",
     rule: "search-opportunity",
     title: "Expand pages already earning search demand",
-    summary: "From the NoticeOS finding for meals.example (Recommendation): expand them.",
+    summary: "From the NoticeOS finding for meadow.example (Recommendation): expand them.",
     priority: 2,
   })!;
 
@@ -281,7 +281,7 @@ describe("TaskComposer", () => {
     renderComposer(prefill);
 
     expect(field("Title").value).toBe("Expand pages already earning search demand");
-    expect(field("Project").value).toBe("meals.example");
+    expect(field("Project").value).toBe("meadow.example");
     // The board's own words, never a P-number.
     expect(field("Priority").value).toBe("2");
     expect(screen.getByRole("option", { name: "normal" })).toBeInTheDocument();
@@ -303,7 +303,7 @@ describe("TaskComposer", () => {
   // A prefill carrying the legacy handoff grammar (reindex_*) still says what it
   // links to.
   it("reads the kind of a handoff written under the old grammar", () => {
-    renderComposer({ project: "meals.example", title: "Old handoff", metadata: { reindex_kind: "query", reindex_key: "meal plan" } });
+    renderComposer({ project: "meadow.example", title: "Old handoff", metadata: { reindex_kind: "query", reindex_key: "meal plan" } });
     expect(document.querySelector('[data-composer-linked="query"]')).not.toBeNull();
     expect(screen.getByText(/Linked to a query decision/)).toBeInTheDocument();
   });
@@ -314,7 +314,7 @@ describe("TaskComposer", () => {
 
     await waitFor(() => expect(lane.calls).toHaveLength(1));
     expect(lane.calls[0]).toEqual({
-      project: "meals.example",
+      project: "meadow.example",
       title: "Expand pages already earning search demand",
       type: "task",
       priority: 2,
@@ -323,14 +323,14 @@ describe("TaskComposer", () => {
       metadata: prefill.metadata,
     });
 
-    expect(toasts.success).toHaveBeenCalledWith("Filed mp-9zz", expect.anything());
-    expect(onFiled).toHaveBeenCalledWith({ id: "mp-9zz", project: "meals.example" });
+    expect(toasts.success).toHaveBeenCalledWith("Filed md-9zz", expect.anything());
+    expect(onFiled).toHaveBeenCalledWith({ id: "md-9zz", project: "meadow.example" });
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
   it("opens the task's own page from the toast", async () => {
     renderComposer(prefill);
-    expect(screen.getByTestId("where").textContent).toBe("/assets/meals.example");
+    expect(screen.getByTestId("where").textContent).toBe("/assets/meadow.example");
     fireEvent.click(fileTask());
     await waitFor(() => expect(toasts.success).toHaveBeenCalled());
 
@@ -341,7 +341,7 @@ describe("TaskComposer", () => {
     expect(options.action.label).toBe("Open");
     options.action.onClick();
     await waitFor(() =>
-      expect(screen.getByTestId("where").textContent).toBe("/tasks/mp-9zz"),
+      expect(screen.getByTestId("where").textContent).toBe("/tasks/md-9zz"),
     );
   });
 
@@ -351,7 +351,7 @@ describe("TaskComposer", () => {
     fireEvent.change(field("Title"), { target: { value: "Rewrite the recipes hub" } });
     fireEvent.change(field("Type"), { target: { value: "chore" } });
     fireEvent.change(field("Priority"), { target: { value: "0" } });
-    fireEvent.change(field("Parent epic"), { target: { value: "mp-1w2" } });
+    fireEvent.change(field("Parent epic"), { target: { value: "md-1w2" } });
     fireEvent.change(screen.getByLabelText("Done when"), {
       target: { value: "The hub ranks for its own name." },
     });
@@ -364,7 +364,7 @@ describe("TaskComposer", () => {
       title: "Rewrite the recipes hub",
       type: "chore",
       priority: 0,
-      parent: "mp-1w2",
+      parent: "md-1w2",
       acceptance: "The hub ranks for its own name.",
       labels: [...prefill.labels, "content"],
     });
@@ -446,17 +446,17 @@ describe("TaskComposer", () => {
     fireEvent.click(fileTask());
 
     expect(
-      await screen.findByText("An epic in meals.example starts with `mp-`."),
+      await screen.findByText("An epic in meadow.example starts with `md-`."),
     ).toBeInTheDocument();
     expect(lane.calls).toHaveLength(0);
   });
 
   it("shows bd's own refusal rather than a wording invented here", async () => {
-    lane.fail = "bd: unknown parent mp-nope";
+    lane.fail = "bd: unknown parent md-nope";
     const { onClose } = renderComposer(prefill);
     fireEvent.click(fileTask());
 
-    expect(await screen.findByText("bd: unknown parent mp-nope")).toBeInTheDocument();
+    expect(await screen.findByText("bd: unknown parent md-nope")).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
   });
 });
@@ -504,7 +504,7 @@ describe("FileTaskButton", () => {
   });
 
   it("names what it is filing, so a table of them does not read as one button", () => {
-    render1({ prefill: null, subject: "/recipes", onFile: async () => ({ id: "mp-1", project: "meals.example" }) });
+    render1({ prefill: null, subject: "/recipes", onFile: async () => ({ id: "md-1", project: "meadow.example" }) });
     expect(
       screen.getByRole("button", { name: "File task for /recipes" }),
     ).toBeInTheDocument();

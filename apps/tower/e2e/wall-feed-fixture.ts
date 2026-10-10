@@ -152,7 +152,7 @@ export async function seedWallFeedTasks(store: WorkspaceStore, nowIso: string): 
     projects: [
       project(first, [["t-cards", "Recipe cards load faster", 6], ["t-pantry", "Pantry list keeps its order", 305]]),
       project(fourth, [["t-time", "Lookup page shows the local time", 52], ["t-map", "Map loads on phones", 312]]),
-      project(second, [["t-zones", "Delivery zones show on the map", 318]], [["t-menu", "Menu import skips closed restaurants", 19]]),
+      project(second, [["t-zones", "Delivery zones show on the map", 318]], [["t-catalog", "Catalog import skips closed stores", 19]]),
     ],
   });
   await store.write((tx) =>

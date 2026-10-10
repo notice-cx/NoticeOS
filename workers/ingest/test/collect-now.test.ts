@@ -25,7 +25,7 @@ import { OPERATOR_TOKEN } from './fixtures.js';
 import { ARCHIVE_RUNS, call, emptyTables, pgCount, reset, storedCount, storedHealthStates } from './helpers.js';
 
 const NOW = Date.parse('2026-09-23T15:00:00.000Z');
-const MAPPED = 'https://www.meals.example/';
+const MAPPED = 'https://www.meadow.example/';
 
 /** A Bing that lists every seeded property (and one it never verified) and
  * answers a day of traffic for whatever site it is asked about. */
@@ -37,8 +37,8 @@ function bing(): { fetchImpl: typeof fetch; asked: string[]; calls: string[] } {
     calls.push(url.pathname);
     if (url.pathname.endsWith('/GetUserSites')) {
       return Response.json({ d: [
-        { Url: 'https://meals.example/', IsVerified: true },
-        { Url: 'https://nosh.example/', IsVerified: true },
+        { Url: 'https://meadow.example/', IsVerified: true },
+        { Url: 'https://northwind.example/', IsVerified: true },
         { Url: 'https://unverified.example/', IsVerified: false },
       ] });
     }
@@ -62,13 +62,13 @@ function dataForSeo(): { fetchImpl: typeof fetch; calls: string[] } {
   return { fetchImpl, calls };
 }
 
-/** The stored documents a Save on the Sources tab would leave: meals.example's
+/** The stored documents a Save on the Sources tab would leave: meadow.example's
  * Bing site mapped, and — optionally — a paused job. */
 async function seed({ paused = null as string | null } = {}) {
   const integrations = structuredClone(integrationsJson) as unknown as {
     assets: Record<string, Record<string, Record<string, unknown>>>;
   };
-  integrations.assets['meals.example']!['bing-webmaster']!.siteUrl = MAPPED;
+  integrations.assets['meadow.example']!['bing-webmaster']!.siteUrl = MAPPED;
   const constants = structuredClone(constantsJson) as Record<string, unknown>;
   if (paused) constants.schedules = { [paused]: { enabled: false, cron: '30 2 * * *' } };
   const seeded = await seedConfigDocuments(env, {
@@ -94,43 +94,43 @@ describe('collect now runs the job step for the confirmed sites', () => {
   it('collects Bing for the named asset only, asking for the site its stored mapping names', async () => {
     await seed();
     const provider = bing();
-    const result = await runCollectNow(env, { provider: 'bing-webmaster', assets: ['meals.example'] }, { fetchImpl: provider.fetchImpl, nowMs: NOW });
+    const result = await runCollectNow(env, { provider: 'bing-webmaster', assets: ['meadow.example'] }, { fetchImpl: provider.fetchImpl, nowMs: NOW });
 
-    expect(result).toMatchObject({ ok: true, provider: 'bing-webmaster', job: 'pull', sites: [{ asset: 'meals.example', outcome: 'collected', code: null }] });
+    expect(result).toMatchObject({ ok: true, provider: 'bing-webmaster', job: 'pull', sites: [{ asset: 'meadow.example', outcome: 'collected', code: null }] });
     expect(provider.asked).toEqual([MAPPED]);
     expect(await storedCount(`SELECT count(*)::int AS n FROM noticeos.signal_runs WHERE integration = 'bing-webmaster' AND status = 'success'`)).toBe(1);
-    expect(await storedCount(`SELECT count(*)::int AS n FROM noticeos.signal_runs WHERE asset_id = 'nosh.example'`)).toBe(0);
+    expect(await storedCount(`SELECT count(*)::int AS n FROM noticeos.signal_runs WHERE asset_id = 'northwind.example'`)).toBe(0);
     // …and the monitoring result the connection model reads Working from.
-    expect((await storedHealthStates()).filter((row) => row.provider === 'bing-webmaster' && row.asset === 'meals.example' && row.outcome === 'success')).toHaveLength(1);
+    expect((await storedHealthStates()).filter((row) => row.provider === 'bing-webmaster' && row.asset === 'meadow.example' && row.outcome === 'success')).toHaveLength(1);
   });
 
   it('refuses before any provider call while the job is paused on its schedule', async () => {
     await seed({ paused: 'pull' });
     const provider = bing();
-    const result = await runCollectNow(env, { provider: 'bing-webmaster', assets: ['meals.example'] }, { fetchImpl: provider.fetchImpl, nowMs: NOW });
+    const result = await runCollectNow(env, { provider: 'bing-webmaster', assets: ['meadow.example'] }, { fetchImpl: provider.fetchImpl, nowMs: NOW });
     expect(result).toEqual({ ok: false, provider: 'bing-webmaster', error: 'paused', job: 'pull' });
     expect(provider.calls).toEqual([]);
     expect(await storedCount(`SELECT count(*)::int AS n FROM noticeos.signal_runs`)).toBe(0);
   });
 
   it('refuses a provider no job step collects, and a press that names no site', async () => {
-    expect(await runCollectNow(env, { provider: 'calendar', assets: ['meals.example'] })).toEqual({ ok: false, provider: 'calendar', error: 'not-supported' });
+    expect(await runCollectNow(env, { provider: 'calendar', assets: ['meadow.example'] })).toEqual({ ok: false, provider: 'calendar', error: 'not-supported' });
     expect(await runCollectNow(env, { provider: 'bing-webmaster', assets: [] })).toEqual({ ok: false, provider: 'bing-webmaster', error: 'no-sites', job: 'pull' });
   });
 
   it('collects one asset of DataForSEO through the weekly lane, and never one the lane would not collect', async () => {
     const provider = dataForSeo();
-    const result = await runCollectNow(env, { provider: 'dataforseo', assets: ['nosh.example', 'fees.example'] }, { fetchImpl: provider.fetchImpl, nowMs: NOW });
+    const result = await runCollectNow(env, { provider: 'dataforseo', assets: ['northwind.example', 'ferns.example'] }, { fetchImpl: provider.fetchImpl, nowMs: NOW });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.job).toBe('dataforseo');
-    // fees.example is pre-launch: outside the collector's own membership rule.
-    expect(result.sites.map((site) => site.asset)).toEqual(['nosh.example']);
+    // ferns.example is pre-launch: outside the collector's own membership rule.
+    expect(result.sites.map((site) => site.asset)).toEqual(['northwind.example']);
     expect(result.sites[0]).toMatchObject({ outcome: 'collected', code: null });
     expect(result.sites[0]!.reports).toBeGreaterThan(0);
     expect(result.sites[0]!.costUsd).toBeGreaterThan(0);
-    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'dataforseo' AND asset = 'fees.example'`)).toBe(0);
-    const onlyPreLaunch = await runCollectNow(env, { provider: 'dataforseo', assets: ['fees.example'] }, { fetchImpl: provider.fetchImpl, nowMs: NOW });
+    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'dataforseo' AND asset = 'ferns.example'`)).toBe(0);
+    const onlyPreLaunch = await runCollectNow(env, { provider: 'dataforseo', assets: ['ferns.example'] }, { fetchImpl: provider.fetchImpl, nowMs: NOW });
     expect(onlyPreLaunch).toEqual({ ok: false, provider: 'dataforseo', error: 'no-sites', job: 'dataforseo' });
   });
 
@@ -141,7 +141,7 @@ describe('collect now runs the job step for the confirmed sites', () => {
   it('records the press once in its job\'s run history, marked manual, and nowhere a scheduled firing is read', async () => {
     await seed();
     const provider = bing();
-    const result = await runCollectNow(env, { provider: 'bing-webmaster', assets: ['meals.example'] }, { fetchImpl: provider.fetchImpl, nowMs: NOW });
+    const result = await runCollectNow(env, { provider: 'bing-webmaster', assets: ['meadow.example'] }, { fetchImpl: provider.fetchImpl, nowMs: NOW });
     expect(result.ok).toBe(true);
 
     const job = jobRunName(collectNowStep('bing-webmaster')!.job);
@@ -163,7 +163,7 @@ describe('collect now runs the job step for the confirmed sites', () => {
   it('records nothing for a press that ran nothing', async () => {
     await seed({ paused: 'pull' });
     const provider = bing();
-    await runCollectNow(env, { provider: 'bing-webmaster', assets: ['meals.example'] }, { fetchImpl: provider.fetchImpl, nowMs: NOW });
+    await runCollectNow(env, { provider: 'bing-webmaster', assets: ['meadow.example'] }, { fetchImpl: provider.fetchImpl, nowMs: NOW });
     expect(await storedCount(`SELECT count(*)::int AS n FROM noticeos.job_runs`)).toBe(0);
   });
 
@@ -185,7 +185,7 @@ describe('collect now runs the job step for the confirmed sites', () => {
     });
     await holding;
     const press = dataForSeo();
-    const result = await runCollectNow(env, { provider: 'dataforseo', assets: ['nosh.example'] }, { fetchImpl: press.fetchImpl, nowMs: NOW });
+    const result = await runCollectNow(env, { provider: 'dataforseo', assets: ['northwind.example'] }, { fetchImpl: press.fetchImpl, nowMs: NOW });
     expect(result).toEqual({ ok: false, provider: 'dataforseo', error: 'in-flight', job: 'dataforseo' });
     expect(press.calls).toEqual([]);
     release();
@@ -205,8 +205,8 @@ describe('discoverSites lists what the connected account holds', () => {
     expect(found).toMatchObject({ ok: true, kind: 'account', checkedAt: new Date(NOW).toISOString() });
     if (!found.ok) return;
     expect(found.sites).toEqual([
-      { lane: 'bing-webmaster', ref: 'https://meals.example/', label: 'https://meals.example/', host: 'meals.example', mapping: { siteUrl: 'https://meals.example/' }, ready: true },
-      { lane: 'bing-webmaster', ref: 'https://nosh.example/', label: 'https://nosh.example/', host: 'nosh.example', mapping: { siteUrl: 'https://nosh.example/' }, ready: true },
+      { lane: 'bing-webmaster', ref: 'https://meadow.example/', label: 'https://meadow.example/', host: 'meadow.example', mapping: { siteUrl: 'https://meadow.example/' }, ready: true },
+      { lane: 'bing-webmaster', ref: 'https://northwind.example/', label: 'https://northwind.example/', host: 'northwind.example', mapping: { siteUrl: 'https://northwind.example/' }, ready: true },
       { lane: 'bing-webmaster', ref: 'https://unverified.example/', label: 'https://unverified.example/', host: 'unverified.example', mapping: { siteUrl: 'https://unverified.example/' }, ready: false },
     ]);
     // A listing is not evidence: nothing about the credential or health moved.
@@ -225,8 +225,8 @@ describe('discoverSites lists what the connected account holds', () => {
     if (!found.ok) return;
     expect(found.kind).toBe('portfolio');
     const assets = found.sites.map((site) => site.asset);
-    expect(assets).toContain('nosh.example');
-    expect(assets).not.toContain('fees.example');
+    expect(assets).toContain('northwind.example');
+    expect(assets).not.toContain('ferns.example');
     expect(assets).not.toContain('root-os');
   });
 
@@ -235,11 +235,11 @@ describe('discoverSites lists what the connected account holds', () => {
   });
 
   it('matches by the same host rule the Bing collector has always used', () => {
-    for (const value of ['https://www.Meals.example/path?x=1', 'http://nosh.example', 'nosh.example', 'https://sub.example.com:8443/', 'www.example.org']) {
+    for (const value of ['https://www.Meadow.example/path?x=1', 'http://northwind.example', 'northwind.example', 'https://sub.example.com:8443/', 'www.example.org']) {
       expect(siteHost(value)).toBe(normalizeBingHost(value));
     }
-    expect(siteHost('sc-domain:meals.example')).toBe('meals.example');
+    expect(siteHost('sc-domain:meadow.example')).toBe('meadow.example');
     expect(siteHost('')).toBeNull();
-    expect(bingSites(['https://nosh.example/', 'https://nosh.example/'])).toHaveLength(1);
+    expect(bingSites(['https://northwind.example/', 'https://northwind.example/'])).toHaveLength(1);
   });
 });

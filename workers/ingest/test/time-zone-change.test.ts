@@ -43,45 +43,45 @@ async function run(
 
 describe('previousTimeZone', () => {
   it('is null before any run, so a first collection can never be a change', async () => {
-    expect(await previousTimeZone(env.STORE, 'meals.example', 'ga4', 'prop')).toBeNull();
+    expect(await previousTimeZone(env.STORE, 'meadow.example', 'ga4', 'prop')).toBeNull();
   });
 
   // Repointing the asset at another GA4 property starts a different series.
   // The old property's zone is not the new one's history.
   it('answers only for the same provider resource', async () => {
-    await run('meals.example', 'ga4', '2026-08-29T03:00:00.000Z', PT, 'success', 'old-prop');
-    expect(await previousTimeZone(env.STORE, 'meals.example', 'ga4', 'new-prop')).toBeNull();
-    expect(await previousTimeZone(env.STORE, 'meals.example', 'ga4', 'old-prop')).toBe(PT);
+    await run('meadow.example', 'ga4', '2026-08-29T03:00:00.000Z', PT, 'success', 'old-prop');
+    expect(await previousTimeZone(env.STORE, 'meadow.example', 'ga4', 'new-prop')).toBeNull();
+    expect(await previousTimeZone(env.STORE, 'meadow.example', 'ga4', 'old-prop')).toBe(PT);
   });
 
   it('reads the newest successful run for that property and provider', async () => {
-    await run('meals.example', 'ga4', '2026-08-29T03:00:00.000Z', PT);
-    await run('meals.example', 'ga4', '2026-08-30T03:00:00.000Z', ET);
+    await run('meadow.example', 'ga4', '2026-08-29T03:00:00.000Z', PT);
+    await run('meadow.example', 'ga4', '2026-08-30T03:00:00.000Z', ET);
     // A different provider on the same property is a different day-definition
     // and must not answer for GA4 — Search Console's boundary is fixed by
     // Google and moves independently of the property's own setting.
-    await run('meals.example', 'gsc', '2026-08-31T03:00:00.000Z', PT);
-    expect(await previousTimeZone(env.STORE, 'meals.example', 'ga4', 'prop')).toBe(ET);
+    await run('meadow.example', 'gsc', '2026-08-31T03:00:00.000Z', PT);
+    expect(await previousTimeZone(env.STORE, 'meadow.example', 'ga4', 'prop')).toBe(ET);
   });
 
   it('ignores failed runs, which observed nothing to define a day with', async () => {
-    await run('meals.example', 'ga4', '2026-08-29T03:00:00.000Z', PT);
-    await run('meals.example', 'ga4', '2026-08-30T03:00:00.000Z', ET, 'error');
-    expect(await previousTimeZone(env.STORE, 'meals.example', 'ga4', 'prop')).toBe(PT);
+    await run('meadow.example', 'ga4', '2026-08-29T03:00:00.000Z', PT);
+    await run('meadow.example', 'ga4', '2026-08-30T03:00:00.000Z', ET, 'error');
+    expect(await previousTimeZone(env.STORE, 'meadow.example', 'ga4', 'prop')).toBe(PT);
   });
 
   // Runs that finished in the same instant answer in the order they were
   // written.
   it('of two runs that finished in the same instant, answers with the one written first', async () => {
-    await run('meals.example', 'ga4', '2026-08-30T03:00:00.000Z', PT);
-    await run('meals.example', 'ga4', '2026-08-30T03:00:00.000Z', ET);
-    expect(await previousTimeZone(env.STORE, 'meals.example', 'ga4', 'prop')).toBe(PT);
+    await run('meadow.example', 'ga4', '2026-08-30T03:00:00.000Z', PT);
+    await run('meadow.example', 'ga4', '2026-08-30T03:00:00.000Z', ET);
+    expect(await previousTimeZone(env.STORE, 'meadow.example', 'ga4', 'prop')).toBe(PT);
   });
 });
 
 describe('recordTimeZoneChange', () => {
   const CHANGE = {
-    asset: 'meals.example',
+    asset: 'meadow.example',
     integration: 'ga4',
     from: PT,
     to: ET,
@@ -91,7 +91,7 @@ describe('recordTimeZoneChange', () => {
   it('files the change on the timeline, dated to the day the units diverged', async () => {
     expect(await recordTimeZoneChange(env, CHANGE)).toEqual({ filed: true });
     const [row] = await pgRows<{ at: string; kind: string; ref: string; note: string }>(
-      `SELECT at, kind, ref, note FROM noticeos.annotations WHERE asset_id = 'meals.example'`,
+      `SELECT at, kind, ref, note FROM noticeos.annotations WHERE asset_id = 'meadow.example'`,
     );
     // Dated to the provider day, not to the moment the OS noticed — a window
     // asking "do I span this" needs the day the data changed shape.
@@ -125,7 +125,7 @@ describe('recordTimeZoneChange', () => {
 describe('timeZoneChangesFor', () => {
   it('reads back a filed change, keyed by property', async () => {
     await recordTimeZoneChange(env, {
-      asset: 'meals.example',
+      asset: 'meadow.example',
       integration: 'ga4',
       from: PT,
       to: ET,
@@ -133,9 +133,9 @@ describe('timeZoneChangesFor', () => {
     });
 
     const changes = await timeZoneChangesFor(env.STORE, 'ga4');
-    expect(changes.get('meals.example')).toEqual([
+    expect(changes.get('meadow.example')).toEqual([
       {
-        asset: 'meals.example',
+        asset: 'meadow.example',
         integration: 'ga4',
         from: PT,
         to: ET,
@@ -146,7 +146,7 @@ describe('timeZoneChangesFor', () => {
 
   it('is empty for a provider that has never moved a boundary', async () => {
     await recordTimeZoneChange(env, {
-      asset: 'meals.example',
+      asset: 'meadow.example',
       integration: 'ga4',
       from: PT,
       to: ET,

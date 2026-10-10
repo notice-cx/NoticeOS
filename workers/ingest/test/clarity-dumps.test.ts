@@ -10,7 +10,7 @@ const TOKEN = 'clarity-project-token';
 /** The provider's real response shape: several metric blocks over one dimension
  * split, each with its own field set. */
 function clarityBody(urlRows = 2) {
-  const urls = Array.from({ length: urlRows }, (_, i) => `https://meals.example/p${i}`);
+  const urls = Array.from({ length: urlRows }, (_, i) => `https://meadow.example/p${i}`);
   return [
     {
       metricName: 'DeadClickCount',
@@ -71,7 +71,7 @@ describe('Microsoft Clarity export lane', () => {
     const result = await runClarityDumps(env, {
       nowMs: NOW,
       fetchImpl,
-      rawTokens: JSON.stringify({ 'meals.example': TOKEN }),
+      rawTokens: JSON.stringify({ 'meadow.example': TOKEN }),
     });
 
     // One property configured; every other launched property is skipped
@@ -136,7 +136,7 @@ describe('Microsoft Clarity export lane', () => {
     // those tokens work, which is why it stamps the credential.
     await putCredential(env, {
       provider: 'clarity',
-      fields: { CLARITY_TOKENS: JSON.stringify({ 'meals.example': TOKEN }) },
+      fields: { CLARITY_TOKENS: JSON.stringify({ 'meadow.example': TOKEN }) },
     });
     const { fetchImpl, calls } = clarityFetch();
     // No `rawTokens`: the resolver has to find the map in the store on its own.
@@ -157,7 +157,7 @@ describe('Microsoft Clarity export lane', () => {
   it('tells the card what failed and for which site, in the site row’s words', async () => {
     await putCredential(env, {
       provider: 'clarity',
-      fields: { CLARITY_TOKENS: JSON.stringify({ 'meals.example': TOKEN }) },
+      fields: { CLARITY_TOKENS: JSON.stringify({ 'meadow.example': TOKEN }) },
     });
     const { fetchImpl } = clarityFetch(() =>
       Response.json({ message: 'Unauthorized' }, { status: 401 }),
@@ -169,7 +169,7 @@ describe('Microsoft Clarity export lane', () => {
     expect(stamped?.lastOkAt).toBeNull();
     // The card says what the site's own row says, then the site: no code, and
     // never the token.
-    expect(stamped?.lastError).toBe('Access was refused · meals.example');
+    expect(stamped?.lastError).toBe('Access was refused · meadow.example');
     expect(stamped?.lastError).not.toContain(TOKEN);
   });
 
@@ -213,8 +213,8 @@ describe('Microsoft Clarity export lane', () => {
     const result = await runClarityDumps(env, {
       nowMs: NOW,
       fetchImpl,
-      rawTokens: JSON.stringify({ 'meals.example': 'single-project-token' }),
-      legacySlots: { 'meals.example': 'CLARITY_PROJECT_API_TOKEN' },
+      rawTokens: JSON.stringify({ 'meadow.example': 'single-project-token' }),
+      legacySlots: { 'meadow.example': 'CLARITY_PROJECT_API_TOKEN' },
     });
 
     expect(result).toMatchObject({ attempted: 1, succeeded: 1 });
@@ -230,7 +230,7 @@ describe('Microsoft Clarity export lane', () => {
     const tokenResult = await runClarityDumps(env, {
       nowMs: NOW,
       fetchImpl: rejected.fetchImpl,
-      rawTokens: JSON.stringify({ 'meals.example': TOKEN }),
+      rawTokens: JSON.stringify({ 'meadow.example': TOKEN }),
     });
     expect(tokenResult.outcomes[0]).toMatchObject({
       status: 'error',
@@ -245,7 +245,7 @@ describe('Microsoft Clarity export lane', () => {
     const capResult = await runClarityDumps(env, {
       nowMs: NOW,
       fetchImpl: capped.fetchImpl,
-      rawTokens: JSON.stringify({ 'meals.example': TOKEN }),
+      rawTokens: JSON.stringify({ 'meadow.example': TOKEN }),
     });
     // The two need different operator actions, so they must not share a code.
     expect(capResult.outcomes[0]).toMatchObject({
@@ -259,7 +259,7 @@ describe('Microsoft Clarity export lane', () => {
     const result = await runClarityDumps(env, {
       nowMs: NOW,
       fetchImpl,
-      rawTokens: JSON.stringify({ 'meals.example': TOKEN }),
+      rawTokens: JSON.stringify({ 'meadow.example': TOKEN }),
     });
 
     expect(result).toMatchObject({ attempted: 1, succeeded: 0, failed: 1 });
@@ -274,7 +274,7 @@ describe('Microsoft Clarity export lane', () => {
     const result = await runClarityDumps(env, {
       nowMs: NOW,
       fetchImpl,
-      rawTokens: JSON.stringify({ 'meals.example': TOKEN }),
+      rawTokens: JSON.stringify({ 'meadow.example': TOKEN }),
     });
 
     // There is no pagination past 1,000 rows, so the count is a floor.

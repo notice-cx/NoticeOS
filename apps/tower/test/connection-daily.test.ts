@@ -41,7 +41,7 @@ function cell(
   evidence: { at: string | null }[] = [],
 ): IntegrationCell {
   return {
-    assetId: "meals.example",
+    assetId: "meadow.example",
     laneId: "gsc",
     effective,
     evidence: evidence.map((one) => ({
@@ -78,18 +78,18 @@ function matrix(overrides: Partial<IntegrationsMatrix> = {}): IntegrationsMatrix
       {
         catalog: { ...catalogRow, id: "nightly-report", derived: true },
         cells: {
-          "meals.example": cell("live", [{ at: "2026-09-05T02:00:00.000Z" }]),
-          "nosh.example": cell("degraded"),
+          "meadow.example": cell("live", [{ at: "2026-09-05T02:00:00.000Z" }]),
+          "northwind.example": cell("degraded"),
         },
       },
     ],
     assets: [
-      { id: "meals.example", displayName: "Meal Planner", isOs: false },
-      { id: "nosh.example", displayName: "Nosh", isOs: false },
+      { id: "meadow.example", displayName: "Meadow Board", isOs: false },
+      { id: "northwind.example", displayName: "Northwind", isOs: false },
     ],
     cells: {
-      "meals.example": [cell("live", [{ at: "2026-09-04T06:00:00.000Z" }])],
-      "nosh.example": [cell("needs-setup")],
+      "meadow.example": [cell("live", [{ at: "2026-09-04T06:00:00.000Z" }])],
+      "northwind.example": [cell("needs-setup")],
     },
     summary: {
       counts: { live: 2, degraded: 1, "needs-setup": 1, skipped: 0, "not-applicable": 0 },
@@ -151,7 +151,7 @@ needsPostgres("recording a day of the integrations matrix", () => {
     const later = new Date("2026-09-05T21:00:00.000Z");
     await recordConnectionDay(
       await store(),
-      matrix({ cells: { "meals.example": [cell("degraded")], "nosh.example": [cell("degraded")] } }),
+      matrix({ cells: { "meadow.example": [cell("degraded")], "northwind.example": [cell("degraded")] } }),
       later,
     );
 
@@ -164,7 +164,7 @@ needsPostgres("recording a day of the integrations matrix", () => {
     await recordConnectionDay(await store(), matrix(), new Date("2026-09-05T21:00:00.000Z"));
     await recordConnectionDay(
       await store(),
-      matrix({ cells: { "meals.example": [cell("degraded")], "nosh.example": [cell("degraded")] } }),
+      matrix({ cells: { "meadow.example": [cell("degraded")], "northwind.example": [cell("degraded")] } }),
       NOW,
     );
 
@@ -196,7 +196,7 @@ needsPostgres("recording a day of the integrations matrix", () => {
     await recordConnectionDay(
       await store(),
       matrix({ catalog: [{ ...matrix().catalog[0]!, id: "a-lower" }, { ...matrix().catalog[0]!, id: "Z-upper" }],
-        cells: { "meals.example": [cell("live"), cell("live")], "nosh.example": [cell("live"), cell("live")],
+        cells: { "meadow.example": [cell("live"), cell("live")], "northwind.example": [cell("live"), cell("live")],
         },
       }),
       NOW,
@@ -234,7 +234,7 @@ needsPostgres("the freshness series", () => {
   it("leaves out a lane-day that carried no dated evidence", async () => {
     await recordConnectionDay(
       await store(),
-      matrix({ cells: { "meals.example": [cell("needs-setup")], "nosh.example": [cell("needs-setup")] } }),
+      matrix({ cells: { "meadow.example": [cell("needs-setup")], "northwind.example": [cell("needs-setup")] } }),
       NOW,
     );
     const history = (await loadConnectionHistory(await store()))!;
@@ -247,8 +247,8 @@ needsPostgres("the freshness series", () => {
       await store(),
       matrix({
         cells: {
-          "meals.example": [cell("live", [{ at: "2026-09-06T00:00:00.000Z" }])],
-          "nosh.example": [cell("live")],
+          "meadow.example": [cell("live", [{ at: "2026-09-06T00:00:00.000Z" }])],
+          "northwind.example": [cell("live")],
         },
       }),
       NOW,

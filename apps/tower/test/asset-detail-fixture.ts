@@ -85,7 +85,7 @@ const gscLane = {
     derived: false,
   },
   cell: {
-    assetId: "meals.example",
+    assetId: "meadow.example",
     laneId: "gsc",
     declared: "needs-setup" as const,
     effective: "needs-setup" as const,
@@ -107,9 +107,9 @@ export function everyTabPayload(): AssetDetailPayload {
     generatedAt: "2026-07-05T12:00:00.000Z",
     osTimeZone: "America/Los_Angeles",
     asset: {
-      id: "meals.example",
-      displayName: "Meal Planner",
-      domain: "meals.example",
+      id: "meadow.example",
+      displayName: "Meadow Board",
+      domain: "meadow.example",
       status: "live",
       senseOnly: false,
       isOs: false,
@@ -211,7 +211,7 @@ export function everyTabPayload(): AssetDetailPayload {
     },
     executive: {
       schemaVersion: 1,
-      asset: "meals.example",
+      asset: "meadow.example",
       generatedAt: "2026-07-05T11:30:00.000Z",
       windowStart: "2026-07-01",
       windowEnd: "2026-07-04",
@@ -295,7 +295,7 @@ export function everyTabPayload(): AssetDetailPayload {
         daysPerWindow: 2,
         pages: [
           {
-            page: "https://meals.example/meal-plan",
+            page: "https://meadow.example/meal-plan",
             path: "/meal-plan",
             currentClicks: 61,
             previousClicks: 40,
@@ -357,7 +357,7 @@ export function everyTabPayload(): AssetDetailPayload {
         },
         referringDomains: [
           {
-            domain: "healthline.com",
+            domain: "rival-guide.example",
             rank: 640,
             backlinks: 12,
             spamScore: 3,
@@ -383,7 +383,7 @@ export function everyTabPayload(): AssetDetailPayload {
         ],
         competitors: [
           {
-            domain: "myfooddata.com",
+            domain: "datapoint.example",
             intersections: 658,
             competitorKeywords: 296392,
             overlapShare: 0.0022,
@@ -401,7 +401,7 @@ export function everyTabPayload(): AssetDetailPayload {
             device: "desktop",
             label: null,
             bestRank: 12,
-            bestUrl: "https://meals.example/meal-plan",
+            bestUrl: "https://meadow.example/meal-plan",
             aioPresent: true,
             aioCitesUs: false,
             composition: null,
@@ -411,7 +411,7 @@ export function everyTabPayload(): AssetDetailPayload {
             device: "mobile",
             label: null,
             bestRank: 14,
-            bestUrl: "https://meals.example/meal-plan",
+            bestUrl: "https://meadow.example/meal-plan",
             aioPresent: true,
             aioCitesUs: false,
             composition: null,

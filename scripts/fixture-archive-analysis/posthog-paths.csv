@@ -1,2 +1,2 @@
 asset,report_date,collected_at,data_state,provider_truncated,from_path,people,project_time_zone,row_grain,row_limit,to_path,window_end,window_start
-meals.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,/,300,America/Los_Angeles,row,100,/planner,2026-09-21,2026-09-15
+meadow.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,/,300,America/Los_Angeles,row,100,/planner,2026-09-21,2026-09-15

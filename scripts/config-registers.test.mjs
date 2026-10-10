@@ -199,31 +199,31 @@ test('a pointer resolves to the register that owns it, and to its row and field'
   assert.deepEqual(m.rest, ['3', 'paidUsd']);
 
   // A per-asset container hands back the asset it matched.
-  const per = matchRegister('config/value-events.json', '/assets/meals.example/valueEvents/2');
+  const per = matchRegister('config/value-events.json', '/assets/meadow.example/valueEvents/2');
   assert.equal(per.key, 'value-events');
-  assert.deepEqual(per.params, { asset: 'meals.example' });
+  assert.deepEqual(per.params, { asset: 'meadow.example' });
   assert.deepEqual(per.rest, ['2']);
 
   // The longer container wins where both could match — a pointer inside an
   // asset's LIST is the list's, never the holder's.
   assert.equal(
-    matchRegister('config/value-events.json', '/assets/meals.example/valueEvents').key,
+    matchRegister('config/value-events.json', '/assets/meadow.example/valueEvents').key,
     'value-events',
   );
   // And the asset's own entry — which is what a first declaration has to create
   // before there is a list at all — is the holder's.
-  const holder = matchRegister('config/value-events.json', '/assets/nosh.example');
+  const holder = matchRegister('config/value-events.json', '/assets/northwind.example');
   assert.equal(holder.key, 'value-events-assets');
-  assert.deepEqual(holder.rest, ['nosh.example']);
+  assert.deepEqual(holder.rest, ['northwind.example']);
 
   // One file, two containers.
   // `config/integrations.json` holds three registers, and the longest container
   // wins at every depth: the whole asset entry belongs to the holder, one lane
   // inside it to `asset-lane`, and the catalog to its own.
-  assert.equal(matchRegister('config/integrations.json', '/assets/meals.example').key, 'asset-lane');
-  const laneField = matchRegister('config/integrations.json', '/assets/meals.example/ga4/propertyId');
+  assert.equal(matchRegister('config/integrations.json', '/assets/meadow.example').key, 'asset-lane');
+  const laneField = matchRegister('config/integrations.json', '/assets/meadow.example/ga4/propertyId');
   assert.equal(laneField.key, 'asset-lane');
-  assert.deepEqual(laneField.params, { asset: 'meals.example' });
+  assert.deepEqual(laneField.params, { asset: 'meadow.example' });
   assert.deepEqual(laneField.rest, ['ga4', 'propertyId']);
   assert.equal(matchRegister('config/integrations.json', '/assets').key, 'asset-integrations');
   assert.equal(matchRegister('config/integrations.json', '/catalog/0/label').key, 'data-source-catalog');
@@ -246,17 +246,17 @@ test('pattern refusals give a readable correction instead of regular-expression 
   }
   assert.equal(
     fieldRefusal(fieldOf(CONFIG_REGISTERS['asset-lane'], 'propertyId'), 'G-123'),
-    'GA4 property id: digits only, e.g. 313598867',
+    'GA4 property id: digits only, e.g. 123456789',
   );
 });
 
 test('resolveContainer fills the asset in, and refuses to guess one', () => {
   const register = CONFIG_REGISTERS['serp-panel-queries'];
-  assert.equal(resolveContainer(register, { asset: 'nosh.example' }), '/assets/nosh.example/queries');
+  assert.equal(resolveContainer(register, { asset: 'northwind.example' }), '/assets/northwind.example/queries');
   assert.throws(() => resolveContainer(register, {}), /needs a site id/);
   assert.equal(resolveContainer(CONFIG_REGISTERS['domain-costs'], {}), '/domains');
-  assert.ok(containerRegExp(register).test('/assets/nosh.example/queries/4'));
-  assert.ok(!containerRegExp(register).test('/assets/nosh.example/other'));
+  assert.ok(containerRegExp(register).test('/assets/northwind.example/queries/4'));
+  assert.ok(!containerRegExp(register).test('/assets/northwind.example/other'));
 });
 
 test('a field refusal names the field by its label and the rule it broke', () => {
@@ -292,7 +292,7 @@ test('a field refusal names the field by its label and the rule it broke', () =>
 // sentence through `rowRefusal` and `duplicateKey`.
 test('a row refusal names the field it is about, or none for the whole row', () => {
   const costs = CONFIG_REGISTERS['recurring-costs'];
-  const row = { id: 'chatgpt', label: 'ChatGPT Team', asset: 'plate.example', family: 'inference', amountUsdPerMonth: -5, from: '2026-09' };
+  const row = { id: 'chatgpt', label: 'ChatGPT Team', asset: 'plume.example', family: 'inference', amountUsdPerMonth: -5, from: '2026-09' };
   assert.deepEqual(rowIssue(costs, row), { field: 'amountUsdPerMonth', message: 'USD / month must be at least 0' });
   assert.equal(rowRefusal(costs, row), 'USD / month must be at least 0');
   assert.equal(rowIssue(costs, { ...row, amountUsdPerMonth: 20 }), null);
@@ -389,8 +389,8 @@ test('a scalar register takes the bare value as well as its one-field object', (
 
   // A tracked query is a string OR an object carrying its cluster, in any mix.
   const queries = CONFIG_REGISTERS['serp-panel-queries'];
-  assert.equal(rowRefusal(queries, 'big mac calories'), null);
-  assert.equal(rowRefusal(queries, { query: 'big mac calories', label: 'Item head' }), null);
+  assert.equal(rowRefusal(queries, 'anvil specs'), null);
+  assert.equal(rowRefusal(queries, { query: 'anvil specs', label: 'Item head' }), null);
   assert.match(rowRefusal(queries, { query: 'x', cluster: 'y' }), /cluster is not a field here/);
 });
 
@@ -448,18 +448,18 @@ test('every register file is in the Tower\'s RegisterFile union', () => {
 // below. One function, one sentence, both ends.
 test('a candidate set refuses an id nobody has, and an empty one refuses nothing', () => {
   const field = fieldOf(CONFIG_REGISTERS['recurring-costs'], 'asset');
-  const known = ['root-os', 'meals.example', 'nosh.example'];
+  const known = ['root-os', 'meadow.example', 'northwind.example'];
 
-  assert.equal(candidateRefusal(field, known, 'nosh.example'), null);
+  assert.equal(candidateRefusal(field, known, 'northwind.example'), null);
   assert.equal(
-    candidateRefusal(field, known, 'meals.fod'),
-    'asset "meals.fod" is not one of root-os, meals.example, nosh.example',
+    candidateRefusal(field, known, 'meadow.exmple'),
+    'asset "meadow.exmple" is not one of root-os, meadow.example, northwind.example',
   );
 
   // "Nobody answered" is not "nothing is allowed": a page whose source has not
   // loaded and a repo with no roster file both refuse nothing.
-  assert.equal(candidateRefusal(field, [], 'meals.fod'), null);
-  assert.equal(candidateRefusal(field, undefined, 'meals.fod'), null);
+  assert.equal(candidateRefusal(field, [], 'meadow.exmple'), null);
+  assert.equal(candidateRefusal(field, undefined, 'meadow.exmple'), null);
   // A blank field is `fieldRefusal`'s business, not this one's.
   assert.equal(candidateRefusal(field, known, ''), null);
   assert.equal(candidateRefusal(field, known, null), null);
@@ -487,7 +487,7 @@ test('an open-domain field offers its list as a picker and refuses nothing', () 
   // The closed domain beside it is unchanged: an asset either exists or is a typo.
   const asset = fieldOf(CONFIG_REGISTERS['recurring-costs'], 'asset');
   assert.equal(asset.candidates, undefined, 'closed is the default, and stays unstated');
-  assert.match(candidateRefusal(asset, ['nosh.example'], 'nom.nwo'), /is not one of nosh\.example/);
+  assert.match(candidateRefusal(asset, ['northwind.example'], 'nom.nwo'), /is not one of northwind\.example/);
 
   // Every declared field says one of the two things, or nothing at all.
   for (const [key, register] of registerEntries()) {
@@ -511,9 +511,9 @@ test('a cluster label that only differs in case or spacing is refused', () => {
   assert.equal(queries.clusterField, 'label', 'the cluster key is declared');
   const label = fieldOf(queries, 'label');
   const rows = [
-    'big mac calories',
-    { query: 'whopper calories', label: 'Item head' },
-    { query: 'mcchicken calories', label: 'Item head' },
+    'anvil specs',
+    { query: 'rocket skates specs', label: 'Item head' },
+    { query: 'magnet specs', label: 'Item head' },
   ];
 
   // Row 2 relabelled into a spelling variant.
@@ -532,7 +532,7 @@ test('a cluster label that only differs in case or spacing is refused', () => {
   assert.equal(clusterSpellingRefusal(queries, rows, '2', label, 'Chain compare'), null);
   // A row's own spelling never clashes with itself, so recasing a cluster only
   // one row uses is allowed — the collector refuses two spellings COEXISTING.
-  const alone = [{ query: 'whopper calories', label: 'Item head' }];
+  const alone = [{ query: 'rocket skates specs', label: 'Item head' }];
   assert.equal(clusterSpellingRefusal(queries, alone, '0', label, 'Item Head'), null);
   // …and the Add form, where every row belongs to somebody else, still clashes.
   assert.notEqual(clusterSpellingRefusal(queries, alone, null, label, 'Item Head'), null);
@@ -704,8 +704,8 @@ test('PostHog maps a region and project, and judges a funnels list whole', () =>
   const funnels = fieldOf(lane, 'funnels');
   assert.equal(fieldRefusal(host, 'us'), null);
   assert.match(fieldRefusal(host, 'apac'), /must be one of us \| eu/);
-  assert.equal(fieldRefusal(projectId, '596607'), null);
-  assert.match(fieldRefusal(projectId, 'p596607'), /digits only/);
+  assert.equal(fieldRefusal(projectId, '424242'), null);
+  assert.match(fieldRefusal(projectId, 'p424242'), /digits only/);
   assert.equal(fieldRefusal(funnels, undefined), null);
   const calculator = {
     id: 'calculator',
@@ -717,7 +717,7 @@ test('PostHog maps a region and project, and judges a funnels list whole', () =>
   assert.match(fieldRefusal(funnels, 'calculator'), /must be a list of funnels/);
   // The row as a whole: an asset's PostHog cell with every field it may hold.
   assert.equal(
-    rowRefusal(lane, { status: 'needs-setup', note: 'x', since: '2026-09-22', host: 'us', projectId: '596607', funnels: [calculator] }),
+    rowRefusal(lane, { status: 'needs-setup', note: 'x', since: '2026-09-22', host: 'us', projectId: '424242', funnels: [calculator] }),
     null,
   );
 });

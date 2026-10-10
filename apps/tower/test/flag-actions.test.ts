@@ -19,7 +19,7 @@ let testDb: TestStore;
 
 beforeEach(async () => {
   testDb = await createTestStore();
-  await addSites(testDb, [{ id: "meals.example", domain: null, displayName: "Meal Planner", status: "live", senseOnly: 0, createdAt: NOW }]);
+  await addSites(testDb, [{ id: "meadow.example", domain: null, displayName: "Meadow Board", status: "live", senseOnly: 0, createdAt: NOW }]);
 });
 
 /** The test's alerts, holding its sites. */
@@ -30,7 +30,7 @@ async function store(): Promise<WorkspaceStore> {
 /** One open alert: its number, which the actions take. */
 async function insertOpenFlag(): Promise<number> {
   return storeAlert(await store(), {
-    asset: "meals.example",
+    asset: "meadow.example",
     firedAt: "2026-07-29T20:00:00.000Z",
     severity: "warn",
     kind: "anomaly",
@@ -53,7 +53,7 @@ describe("flag actions", () => {
     const id = await insertOpenFlag();
     expect(await applyFlagAction(await store(), id, "acknowledge", NOW)).toEqual({
       id,
-      asset: "meals.example",
+      asset: "meadow.example",
       action: "acknowledge",
       changedAt: NOW,
       // Only a snooze carries a return date; the other three say so explicitly.
@@ -94,7 +94,7 @@ describe("flag actions act on the condition, not the firing", () => {
     metric: string | null,
     firedAt: string,
     inputs = "{}",
-    asset = "meals.example",
+    asset = "meadow.example",
   ): Promise<number> {
     return storeAlert(await store(), {
       asset,
@@ -133,10 +133,10 @@ describe("flag actions act on the condition, not the firing", () => {
   });
 
   it("does not reach across assets or across metrics", async () => {
-    await addSites(testDb, [{ id: "nosh.example", domain: null, displayName: "Nosh", status: "live", senseOnly: 0, createdAt: NOW }]);
+    await addSites(testDb, [{ id: "northwind.example", domain: null, displayName: "Northwind", status: "live", senseOnly: 0, createdAt: NOW }]);
     const clicked = await insertFlag("asset-declared", "apiRequests", "2026-08-20T02:00:00.000Z");
     const otherMetric = await insertFlag("asset-declared", "signups", "2026-08-20T02:00:00.000Z");
-    const otherAsset = await insertFlag("asset-declared", "apiRequests", "2026-08-20T02:00:00.000Z", "{}", "nosh.example");
+    const otherAsset = await insertFlag("asset-declared", "apiRequests", "2026-08-20T02:00:00.000Z", "{}", "northwind.example");
 
     await applyFlagAction(await store(), clicked, "resolve", NOW);
     expect(await openIds()).toEqual([otherMetric, otherAsset]);
@@ -177,7 +177,7 @@ describe("snooze parks a condition until a date and gives it back", () => {
       await applyFlagAction(await store(), id, "snooze", NOW, IN_THREE_DAYS),
     ).toEqual({
       id,
-      asset: "meals.example",
+      asset: "meadow.example",
       action: "snooze",
       changedAt: NOW,
       snoozeUntil: IN_THREE_DAYS,
@@ -237,7 +237,7 @@ describe("snooze parks a condition until a date and gives it back", () => {
     const ids: number[] = [];
     for (const day of ["04", "10", "20", "31"]) {
       ids.push(await storeAlert(await store(), {
-        asset: "meals.example",
+        asset: "meadow.example",
         firedAt: `2026-07-${day}T02:00:00.000Z`,
         severity: "warn",
         kind: "anomaly",
@@ -283,7 +283,7 @@ describe("tuning a rule records the tune on the alert it was tuned from", () => 
       await applyFlagAction(await store(), id, "tune", NOW, null, TUNED),
     ).toEqual({
       id,
-      asset: "meals.example",
+      asset: "meadow.example",
       action: "tune",
       changedAt: NOW,
       snoozeUntil: null,
@@ -361,7 +361,7 @@ describe("tuning a rule records the tune on the alert it was tuned from", () => 
     const ids: number[] = [];
     for (const day of ["04", "10", "20"]) {
       ids.push(await storeAlert(await store(), {
-        asset: "meals.example",
+        asset: "meadow.example",
         firedAt: `2026-07-${day}T02:00:00.000Z`,
         severity: "warn",
         kind: "anomaly",
@@ -448,7 +448,7 @@ describe("a decision landing on a tuned alert keeps the tune", () => {
   it("does not stamp an untuned sibling in the same recurring condition", async () => {
     const declared = async (firedAt: string): Promise<number> =>
       storeAlert(await store(), {
-        asset: "meals.example",
+        asset: "meadow.example",
         firedAt,
         severity: "warn",
         kind: "anomaly",

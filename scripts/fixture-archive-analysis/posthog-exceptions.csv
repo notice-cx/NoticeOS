@@ -1,4 +1,4 @@
 asset,report_date,collected_at,data_state,provider_truncated,count,has_source_file,max_per_session,message,people,project_time_zone,row_grain,row_limit,sessions,top_browser,top_path,type,window_end,window_start
-meals.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,140,true,3,Cannot read properties of null (reading 'plan'),90,America/Los_Angeles,exception-message,100,110,Safari,/planner,TypeError,2026-09-21,2026-09-15
-meals.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,60,false,1,Script error.,55,America/Los_Angeles,exception-message,100,58,Chrome,/,Error,2026-09-21,2026-09-15
-meals.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,12,,2,Invalid time value,9,America/Los_Angeles,exception-message,100,10,,/recipes/soup,RangeError,2026-09-21,2026-09-15
+meadow.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,140,true,3,Cannot read properties of null (reading 'plan'),90,America/Los_Angeles,exception-message,100,110,Safari,/planner,TypeError,2026-09-21,2026-09-15
+meadow.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,60,false,1,Script error.,55,America/Los_Angeles,exception-message,100,58,Chrome,/,Error,2026-09-21,2026-09-15
+meadow.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,12,,2,Invalid time value,9,America/Los_Angeles,exception-message,100,10,,/recipes/soup,RangeError,2026-09-21,2026-09-15

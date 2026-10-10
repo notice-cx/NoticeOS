@@ -49,18 +49,18 @@ describe('the runner cron RPC', () => {
   });
 
   it('runs the lane the expression names, exactly as the scheduled handler would', async () => {
-    await insertStalePulse('meals.example');
+    await insertStalePulse('meadow.example');
     await worker().runScheduled(FRESHNESS_CRON);
     expect(await openFreshnessFlags()).toBeGreaterThan(0);
   });
 
   it('is the same event as a real cron, not a parallel implementation', async () => {
-    await insertStalePulse('meals.example');
+    await insertStalePulse('meadow.example');
     await worker().scheduled({ cron: FRESHNESS_CRON } as ScheduledController);
     const viaScheduled = await openFreshnessFlags();
 
     await reset();
-    await insertStalePulse('meals.example');
+    await insertStalePulse('meadow.example');
     await worker().runScheduled(FRESHNESS_CRON);
     const viaRpc = await openFreshnessFlags();
 

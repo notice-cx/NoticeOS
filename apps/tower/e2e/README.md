@@ -78,7 +78,7 @@ funnel one at a time, and fails naming the row if the page grows wider than the
 viewport or a doc reference is clipped; a synthetic Google property list with
 long names stands in for the connected account.
 Four route-split journeys open `/`, `/wall`,
-`/work`, `/integrations` and `/assets/plate.example` and require each to fetch only
+`/work`, `/integrations` and `/assets/plume.example` and require each to fetch only
 its own screen module plus the desk shell (the TV fetches no shell); list every
 module `/wall` fetches and fail if rule tuning (`RuleTune`, `KnobEditor`), the
 config registers, `TaskComposer`, `useTasks`, or the desk `Timeline` and its

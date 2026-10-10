@@ -1,7 +1,7 @@
 [
   {
-    "asset": "meals.example",
-    "url": "https://meals.example/api/internal/metrics",
+    "asset": "meadow.example",
+    "url": "https://meadow.example/api/internal/metrics",
     "enabled": true,
     "format": "prometheus",
     "metrics": {
@@ -23,8 +23,8 @@
     }
   },
   {
-    "asset": "nosh.example",
-    "url": "https://nosh.example/api/admin/overview",
+    "asset": "northwind.example",
+    "url": "https://northwind.example/api/admin/overview",
     "enabled": true,
     "format": "envelope"
   }

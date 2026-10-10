@@ -903,7 +903,7 @@ describe("SectionLabel", () => {
       <SectionLabel
         title="Search"
         caption="Google and Bing added, one line each"
-        action={{ to: "/assets/meals.example/search", label: "Queries and pages →" }}
+        action={{ to: "/assets/meadow.example/search", label: "Queries and pages →" }}
       />,
     );
 
@@ -915,7 +915,7 @@ describe("SectionLabel", () => {
     expect(screen.getByText("Google and Bing added, one line each")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Queries and pages →" })).toHaveAttribute(
       "href",
-      "/assets/meals.example/search",
+      "/assets/meadow.example/search",
     );
   });
 
@@ -1188,7 +1188,7 @@ describe("the audit contract", () => {
         <SectionLabel
           title="Audience"
           caption="Google Analytics, daily"
-          action={{ label: "Growth →", to: "/assets/meals.example/growth" }}
+          action={{ label: "Growth →", to: "/assets/meadow.example/growth" }}
         />
         <KpiStrip columns={2}>
           <Kpi label="Active users" value="1,234" spark={RISING} onSelect={() => undefined} />

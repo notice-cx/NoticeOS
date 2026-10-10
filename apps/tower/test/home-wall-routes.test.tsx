@@ -47,8 +47,8 @@ const payload = vi.hoisted(
     // widget to render on both routes.
     assets: [
       { netByMonthCurrency: 'USD',
-        id: "meals.example",
-        displayName: "Meal Planner",
+        id: "meadow.example",
+        displayName: "Meadow Board",
         status: "live",
         senseOnly: false,
         worstSeverity: null,
@@ -298,7 +298,7 @@ function googleAnswers(items: { capability: string; state: "healthy" | "failing"
   reads.health = {
     generatedAt: "2026-07-29T12:05:00.000Z", available: true, events: [],
     items: items.map(({ capability, state }, index) => ({
-      id: `item-${index}`, provider: "google", capability, label: capability, asset: "meals.example", detail: null, report: null, reportDate: null, state,
+      id: `item-${index}`, provider: "google", capability, label: capability, asset: "meadow.example", detail: null, report: null, reportDate: null, state,
       lastAttemptAt: at, lastSuccessAt: state === "healthy" ? at : null, nextAttemptAt: null,
       failure: state === "failing" ? "access" : null, code: state === "failing" ? "access" : null,
       action: "Review the property connection.", coverage: "monitored",
@@ -313,7 +313,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
   const nightly: CardDataSource = { id: "nightly-report", label: "Nightly report", state: "live", observedAt: "2026-07-29T11:00:00Z", verification: { kind: "collection-success", laneId: "nightly-report" } };
   const statusOn = (container: HTMLElement, label: string) =>
     [...container.querySelectorAll('[role="img"]')].find((mark) => mark.getAttribute("aria-label")?.startsWith(`${label}: `))?.getAttribute("aria-label");
-  const siteHealthOn = (container: HTMLElement) => container.querySelector('[data-status-for="asset:meals.example"][data-site-health]');
+  const siteHealthOn = (container: HTMLElement) => container.querySelector('[data-status-for="asset:meadow.example"][data-site-health]');
   const needsOn = (container: HTMLElement) => container.querySelector("[data-wall-needs]")!;
 
   it.each([
@@ -397,8 +397,8 @@ function rowTone(row: Element): string | undefined {
 function alert(overrides: Partial<AttentionItem> = {}): AttentionItem {
   return {
     id: 1,
-    asset: "meals.example",
-    assetDisplayName: "Meal Planner",
+    asset: "meadow.example",
+    assetDisplayName: "Meadow Board",
     severity: "warn",
     kind: "anomaly",
     message: "Signups well below normal",
@@ -415,7 +415,7 @@ function alert(overrides: Partial<AttentionItem> = {}): AttentionItem {
 
 function waiting(overrides: Partial<WorkItem> = {}): WorkItem {
   return {
-    id: "mp-1w2",
+    id: "md-1w2",
     title: "Decide the recipe schema",
     status: "open",
     priority: 2,
@@ -548,7 +548,7 @@ describe("Home — a fresh install", () => {
 
     expect(container.querySelector("[data-first-run]")).toBeNull();
     expect(container.querySelector("[data-home-brief]")).not.toBeNull();
-    expect(container.querySelector('[data-one-site-lead="meals.example"]')).not.toBeNull();
+    expect(container.querySelector('[data-one-site-lead="meadow.example"]')).not.toBeNull();
     expect(container.querySelectorAll("[data-asset-row]")).toHaveLength(0);
   });
 
@@ -760,15 +760,15 @@ describe("Home — one site leads with its own numbers", () => {
     detail.data = viewOf(everyTabPayload(), "overview");
     const { container } = renderHome();
 
-    expect(detail.asked).toContain("meals.example:overview");
+    expect(detail.asked).toContain("meadow.example:overview");
     const hero = container.querySelector<HTMLElement>("[data-surface-hero]")!;
     expect(hero).toHaveAttribute("data-home-brief");
-    const lead = container.querySelector<HTMLElement>('[data-one-site-lead="meals.example"]')!;
+    const lead = container.querySelector<HTMLElement>('[data-one-site-lead="meadow.example"]')!;
     expect(hero.compareDocumentPosition(lead) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     const traffic = within(lead).getByRole("region", { name: "Traffic · last 28 days" });
     expect(traffic.querySelectorAll("[data-kpi]")).toHaveLength(4);
     expect(traffic.querySelector("[data-hero-chart]")).toHaveTextContent("Active users · daily");
-    expect(within(lead).getByRole("link", { name: "Meal Planner →" })).toHaveAttribute("href", "/assets/meals.example");
+    expect(within(lead).getByRole("link", { name: "Meadow Board →" })).toHaveAttribute("href", "/assets/meadow.example");
 
     expect(container.querySelector("table")).toBeNull();
     expect(container.querySelector("[data-sites-strip]")).toBeNull();
@@ -787,18 +787,18 @@ describe("Home — one site leads with its own numbers", () => {
       days: [{ date: "2026-07-27", amountMinor: 400 }, { date: "2026-07-28", amountMinor: 600 }] };
     detail.data = viewOf(body, "overview");
     const { container } = renderHome();
-    const lead = container.querySelector<HTMLElement>('[data-one-site-lead="meals.example"]')!;
+    const lead = container.querySelector<HTMLElement>('[data-one-site-lead="meadow.example"]')!;
     const revenue = within(lead).getByRole("region", { name: "Daily revenue" });
     expect(revenue).toHaveTextContent("$10.00");
-    expect(within(revenue).getByRole("link", { name: "Meal Planner →" })).toHaveAttribute("href", "/assets/meals.example");
+    expect(within(revenue).getByRole("link", { name: "Meadow Board →" })).toHaveAttribute("href", "/assets/meadow.example");
     expect(within(lead).queryByRole("region", { name: "Traffic · last 28 days" })).toBeNull();
   });
 
   it("holds the site's place, with its state and its link, until its numbers arrive", () => {
     const { container } = renderHome();
-    const lead = container.querySelector<HTMLElement>('[data-one-site-lead="meals.example"]')!;
+    const lead = container.querySelector<HTMLElement>('[data-one-site-lead="meadow.example"]')!;
     expect(lead.querySelector("[data-kpi]")).toBeNull();
-    expect(within(lead).getByRole("link", { name: "Meal Planner →" })).toBeInTheDocument();
+    expect(within(lead).getByRole("link", { name: "Meadow Board →" })).toBeInTheDocument();
     expect(container.querySelector("table")).toBeNull();
   });
 
@@ -902,8 +902,8 @@ describe("Home — the Morning Brief", () => {
     expect(cards[4]).toHaveTextContent("Alert 6");
     expect(screen.queryByText(/Alert 2/)).toBeNull();
     expect(hero.querySelector('[data-highlight="money"]')).toBeNull();
-    expect(cards[0]!.querySelector("[data-highlight-action]")).toHaveAttribute("href", "/assets/meals.example");
-    expect(cards[0]).toHaveTextContent("Alert · Meal Planner");
+    expect(cards[0]!.querySelector("[data-highlight-action]")).toHaveAttribute("href", "/assets/meadow.example");
+    expect(cards[0]).toHaveTextContent("Alert · Meadow Board");
     expect(cards[0]).toHaveTextContent("since");
   });
 
@@ -926,14 +926,14 @@ describe("Home — the Morning Brief", () => {
   it("shows sites that have never reported as ONE card, pointing at Alerts", () => {
     payload.attention = [
       alert({
-        id: 31, asset: "fees.example", assetDisplayName: "Fee Codes", severity: "error",
+        id: 31, asset: "ferns.example", assetDisplayName: "Fern Index", severity: "error",
         ruleId: "ingest-freshness", ruleInputs: { rule: "ingest-freshness", state: "never-reported" },
         occurrences: 4, firstFiredAt: "2026-07-05T09:00:00.000Z",
         members: [
-          { id: 31, asset: "fees.example", assetDisplayName: "Fee Codes", firedAt: "2026-07-05T09:00:00.000Z" },
-          { id: 32, asset: "pullups.example", assetDisplayName: "Pull-up Standards", firedAt: "2026-07-06T09:00:00.000Z" },
-          { id: 33, asset: "areas.info", assetDisplayName: "Area Lookup", firedAt: "2026-07-07T09:00:00.000Z" },
-          { id: 34, asset: "pacer.example", assetDisplayName: "Pacer Test", firedAt: "2026-07-08T09:00:00.000Z" },
+          { id: 31, asset: "ferns.example", assetDisplayName: "Fern Index", firedAt: "2026-07-05T09:00:00.000Z" },
+          { id: 32, asset: "puffin.example", assetDisplayName: "Puffin Post", firedAt: "2026-07-06T09:00:00.000Z" },
+          { id: 33, asset: "acorn.example.net", assetDisplayName: "Acorn Atlas", firedAt: "2026-07-07T09:00:00.000Z" },
+          { id: 34, asset: "pebble.example", assetDisplayName: "Pebble Works", firedAt: "2026-07-08T09:00:00.000Z" },
         ],
       }),
     ];
@@ -971,10 +971,10 @@ describe("Home — the Morning Brief", () => {
 
     const { container } = renderHome();
     const cells = [...container.querySelectorAll<HTMLElement>("[data-site-cell]")];
-    expect(cells.map((cell) => cell.getAttribute("data-site-cell"))).toEqual(["meals.example", "second.example"]);
-    expect(cells[0]!.querySelector('[data-status-for="asset:meals.example"]')).toHaveTextContent("Off track");
+    expect(cells.map((cell) => cell.getAttribute("data-site-cell"))).toEqual(["meadow.example", "second.example"]);
+    expect(cells[0]!.querySelector('[data-status-for="asset:meadow.example"]')).toHaveTextContent("Off track");
     expect(cells[1]!.querySelector('[data-status-for="asset:second.example"]')).toHaveTextContent("On track");
-    expect(within(cells[0]!).getByRole("link", { name: /Meal Planner/ })).toHaveAttribute("href", "/assets/meals.example");
+    expect(within(cells[0]!).getByRole("link", { name: /Meadow Board/ })).toHaveAttribute("href", "/assets/meadow.example");
     expect(cells[0]).toHaveTextContent("nothing reported yesterday");
     expect(container.textContent).not.toContain("Automation enabled");
     expect(container.textContent).not.toContain("12 open");
@@ -984,7 +984,7 @@ describe("Home — the Morning Brief", () => {
 describe("Home — Decide", () => {
   it("puts an open gate above a higher-priority ask, with its verb on the row", () => {
     workState.data = workPayload([
-      project("Meal Planner", [waiting({ id: "mp-9k1", priority: 0, title: "Top-priority ask" })]),
+      project("Meadow Board", [waiting({ id: "md-9k1", priority: 0, title: "Top-priority ask" })]),
       project("NoticeOS", [waiting({ id: "ro-3z7", priority: 3, issueType: "gate", title: "Approve the spend cap" })]),
     ]);
 
@@ -1008,20 +1008,20 @@ describe("Home — Decide", () => {
   });
 
   it("tells an empty inbox apart from an inbox it has never seen", () => {
-    workState.data = workPayload([project("Meal Planner", [])]);
+    workState.data = workPayload([project("Meadow Board", [])]);
     const clear = renderHome();
     expect(screen.getByText("Nothing to decide.")).toBeInTheDocument();
     clear.unmount();
 
-    workState.data = workPayload([project("Meal Planner", [])], null);
+    workState.data = workPayload([project("Meadow Board", [])], null);
     renderHome();
     expect(screen.getByText("No tasks read yet.")).toBeInTheDocument();
     expect(screen.queryByText("Nothing to decide.")).toBeNull();
   });
 
   it("shows three rows, names the rest as the way out, and discloses them in place", () => {
-    const capped = project("Meal Planner", Array.from({ length: 10 }, (_, index) =>
-      waiting({ id: `mp-${index}`, title: `Request ${index + 1}` }),
+    const capped = project("Meadow Board", Array.from({ length: 10 }, (_, index) =>
+      waiting({ id: `md-${index}`, title: `Request ${index + 1}` }),
     ));
     capped.counts.waiting = 24;
     workState.data = workPayload([capped]);
@@ -1035,7 +1035,7 @@ describe("Home — Decide", () => {
   });
 
   it("names the wait beside each row, and nothing about the read itself", () => {
-    workState.data = workPayload([project("Meal Planner", [waiting({ updatedAt: "2026-07-01T12:05:00.000Z" })])]);
+    workState.data = workPayload([project("Meadow Board", [waiting({ updatedAt: "2026-07-01T12:05:00.000Z" })])]);
     renderHome();
     const panel = panelFor("Decide");
     expect(panel).not.toHaveTextContent("Task status read");
@@ -1049,7 +1049,7 @@ describe("Home — Decide", () => {
   it.each(["failed project", "unmeasured inbox", "no projects", "stale snapshot", "failed refresh"])(
     "does not claim a clear inbox after a %s",
     (failure) => {
-      const emptyProject = project("Meal Planner", []);
+      const emptyProject = project("Meadow Board", []);
       if (failure === "failed project") emptyProject.ok = false;
       if (failure === "unmeasured inbox") emptyProject.counts.waiting = null;
       workState.data = workPayload(failure === "no projects" ? [] : [emptyProject],
@@ -1065,7 +1065,7 @@ describe("Home — Decide", () => {
   );
 
   it("states known totals as a lower bound when one project is unreadable", () => {
-    const known = project("Meal Planner", [waiting()]);
+    const known = project("Meadow Board", [waiting()]);
     known.counts.waiting = 12;
     const failed = project("NoticeOS", []);
     failed.ok = false;
@@ -1078,7 +1078,7 @@ describe("Home — Decide", () => {
   });
 
   it("keeps an authoritative nonzero queue visible even when no rows were captured", () => {
-    const emptyPreview = project("Meal Planner", []);
+    const emptyPreview = project("Meadow Board", []);
     emptyPreview.counts.waiting = 12;
     workState.data = workPayload([emptyPreview]);
     renderHome();
@@ -1093,7 +1093,7 @@ describe("Home — Decide", () => {
     const view = renderHome();
     expect(panelFor("Decide")).toHaveTextContent("Could not read your tasks.");
     workState.isError = false;
-    workState.data = workPayload([project("Meal Planner", [])]);
+    workState.data = workPayload([project("Meadow Board", [])]);
     view.rerender(homeTree());
     expect(panelFor("Decide")).toHaveTextContent("Nothing to decide.");
     expect(panelFor("Decide")).not.toHaveTextContent("Could not read");
@@ -1102,10 +1102,10 @@ describe("Home — Decide", () => {
   it("gives every row the Tasks board's ask face — warn at every priority, a gate's △", () => {
     workState.data = workPayload([
       project("NoticeOS", [waiting({ id: "ro-3z7", priority: 3, issueType: "gate", title: "Approve the cap" })]),
-      project("Meal Planner", [
-        waiting({ id: "mp-9k1", priority: 0, title: "Top-priority ask" }),
-        waiting({ id: "mp-2b4", priority: 1, title: "High-priority ask" }),
-        waiting({ id: "mp-7c3", priority: 2, title: "Default-priority ask" }),
+      project("Meadow Board", [
+        waiting({ id: "md-9k1", priority: 0, title: "Top-priority ask" }),
+        waiting({ id: "md-2b4", priority: 1, title: "High-priority ask" }),
+        waiting({ id: "md-7c3", priority: 2, title: "Default-priority ask" }),
       ]),
     ]);
 

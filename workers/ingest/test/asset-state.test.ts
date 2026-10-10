@@ -5,8 +5,8 @@ import { changeSites, storeSites, siteInStore } from './sites';
 
 // These tests edit seeded sites and restore their fixture state after each test.
 const SEEDED = {
-  'meals.example': { status: 'onboarding', sense_only: 0, display_name: 'Meal Planner' },
-  'fees.example': { status: 'pre-launch', sense_only: 1, display_name: 'Fee Codes' },
+  'meadow.example': { status: 'onboarding', sense_only: 0, display_name: 'Meadow Board' },
+  'ferns.example': { status: 'pre-launch', sense_only: 1, display_name: 'Fern Index' },
 } as const;
 const SEEDED_AT = '2026-07-05T00:00:00.000Z';
 
@@ -67,17 +67,17 @@ async function stored(asset: string) {
 
 describe('GET /api/asset-state — the expect guard reads through the runtime', () => {
   it('rejects a read with no operator token (401)', async () => {
-    expect((await read('meals.example', null)).status).toBe(401);
-    expect((await read('meals.example', 'nope')).status).toBe(401);
+    expect((await read('meadow.example', null)).status).toBe(401);
+    expect((await read('meadow.example', 'nope')).status).toBe(401);
   });
 
   it('answers every sanctioned column and nothing else', async () => {
-    const { status, body } = await read('meals.example');
+    const { status, body } = await read('meadow.example');
     expect(status).toBe(200);
     expect(body).toEqual({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       known: true,
-      columns: { status: 'onboarding', sense_only: 0, display_name: 'Meal Planner' },
+      columns: { status: 'onboarding', sense_only: 0, display_name: 'Meadow Board' },
       updatedAt: SEEDED_AT,
     });
   });
@@ -105,31 +105,31 @@ describe('GET /api/asset-state — the expect guard reads through the runtime', 
 describe('asset column writes compare their expected value atomically', () => {
   it('allows only one of two concurrent edits based on the same stored value', async () => {
     const results = await Promise.all([
-      edit({ asset: 'meals.example', column: 'display_name', value: 'First saved name', expect: 'Meal Planner' }),
-      edit({ asset: 'meals.example', column: 'display_name', value: 'Second saved name', expect: 'Meal Planner' }),
+      edit({ asset: 'meadow.example', column: 'display_name', value: 'First saved name', expect: 'Meadow Board' }),
+      edit({ asset: 'meadow.example', column: 'display_name', value: 'Second saved name', expect: 'Meadow Board' }),
     ]);
     expect(results.map(result => result.status).sort()).toEqual([200, 409]);
     const winner = results.find(result => result.status === 200)!;
     const conflict = results.find(result => result.status === 409)!;
     expect(conflict.body).toMatchObject({ error: 'expect_mismatch', column: 'display_name', current: winner.body.value });
-    expect((await stored('meals.example'))?.display_name).toBe(winner.body.value);
+    expect((await stored('meadow.example'))?.display_name).toBe(winner.body.value);
   });
 });
 
 describe('POST /api/asset-state — the door', () => {
   // This route must not be an unauthenticated store edit.
   it('rejects an edit with no operator token (401)', async () => {
-    const { status, body } = await edit({ asset: 'meals.example', column: 'status', value: 'live' }, null);
+    const { status, body } = await edit({ asset: 'meadow.example', column: 'status', value: 'live' }, null);
     expect(status).toBe(401);
     expect(body.error).toBe('unauthorized');
-    expect(await stored('meals.example')).toMatchObject({ status: 'onboarding' });
+    expect(await stored('meadow.example')).toMatchObject({ status: 'onboarding' });
   });
 
   it('rejects a wrong operator token (401)', async () => {
     expect(
-      (await edit({ asset: 'meals.example', column: 'status', value: 'live' }, 'nope')).status,
+      (await edit({ asset: 'meadow.example', column: 'status', value: 'live' }, 'nope')).status,
     ).toBe(401);
-    expect(await stored('meals.example')).toMatchObject({ status: 'onboarding' });
+    expect(await stored('meadow.example')).toMatchObject({ status: 'onboarding' });
   });
 
   it('refuses a body that is not a JSON object (400/422)', async () => {
@@ -143,12 +143,12 @@ describe('POST /api/asset-state — what it will edit', () => {
   // column is identity or entity metadata.
   it('refuses a column db/README does not sanction (422)', async () => {
     for (const column of ['domain', 'is_os', 'id', 'created_at', 'updated_at']) {
-      const { status, body } = await edit({ asset: 'meals.example', column, value: 'x' });
+      const { status, body } = await edit({ asset: 'meadow.example', column, value: 'x' });
       expect(status).toBe(422);
       expect(body.error).toBe('validation');
       expect((body.issues ?? []).map((issue) => issue.path)).toContain('column');
     }
-    expect(await stored('meals.example')).toMatchObject({
+    expect(await stored('meadow.example')).toMatchObject({
       status: 'onboarding',
       sense_only: 0,
       updated_at: SEEDED_AT,
@@ -157,24 +157,24 @@ describe('POST /api/asset-state — what it will edit', () => {
 
   it('refuses a status outside the lifecycle enum (422)', async () => {
     const { status, body } = await edit({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       column: 'status',
       value: 'shipping',
     });
     expect(status).toBe(422);
     expect((body.issues ?? []).map((issue) => issue.path)).toContain('value');
-    expect(await stored('meals.example')).toMatchObject({ status: 'onboarding' });
+    expect(await stored('meadow.example')).toMatchObject({ status: 'onboarding' });
   });
 
   it('refuses a sense_only that is not 0 or 1 (422)', async () => {
     for (const value of [2, -1, true, '1', null, 0.5]) {
-      const { status, body } = await edit({ asset: 'meals.example', column: 'sense_only', value });
+      const { status, body } = await edit({ asset: 'meadow.example', column: 'sense_only', value });
       expect(status).toBe(422);
       expect((body.issues ?? []).map((issue) => issue.path)).toContain('value');
       // Named as the Settings tab names it, never "value".
       expect(body.issues?.[0]?.message).toMatch(/^Automation /);
     }
-    expect(await stored('meals.example')).toMatchObject({ sense_only: 0 });
+    expect(await stored('meadow.example')).toMatchObject({ sense_only: 0 });
   });
 
   it('refuses a missing or malformed asset (422)', async () => {
@@ -213,19 +213,19 @@ describe('POST /api/asset-state — what it will edit', () => {
 describe('POST /api/asset-state — what it stores', () => {
   it('moves the lifecycle and stamps updated_at from the runtime clock', async () => {
     const { status, body } = await edit({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       column: 'status',
       value: 'baselining',
     });
     expect(status).toBe(200);
     expect(body).toMatchObject({
       updated: true,
-      asset: 'meals.example',
+      asset: 'meadow.example',
       column: 'status',
       value: 'baselining',
     });
 
-    const row = await stored('meals.example');
+    const row = await stored('meadow.example');
     expect(row).toMatchObject({ status: 'baselining', sense_only: 0 });
     expect(row?.updated_at).toBe(body.updatedAt);
     expect(row?.updated_at).not.toBe(SEEDED_AT);
@@ -233,33 +233,33 @@ describe('POST /api/asset-state — what it stores', () => {
 
   it('flips the posture flag and leaves the lifecycle alone', async () => {
     const { status, body } = await edit({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       column: 'sense_only',
       value: 1,
     });
     expect(status).toBe(200);
     expect(body.value).toBe(1);
-    expect(await stored('meals.example')).toMatchObject({ status: 'onboarding', sense_only: 1 });
+    expect(await stored('meadow.example')).toMatchObject({ status: 'onboarding', sense_only: 1 });
   });
 
   it('edits only the asset it was given', async () => {
-    await edit({ asset: 'fees.example', column: 'status', value: 'onboarding' });
-    expect(await stored('fees.example')).toMatchObject({ status: 'onboarding' });
-    expect(await stored('meals.example')).toMatchObject({ status: 'onboarding', sense_only: 0 });
-    expect((await stored('nosh.example'))?.updated_at).toBe(SEEDED_AT);
+    await edit({ asset: 'ferns.example', column: 'status', value: 'onboarding' });
+    expect(await stored('ferns.example')).toMatchObject({ status: 'onboarding' });
+    expect(await stored('meadow.example')).toMatchObject({ status: 'onboarding', sense_only: 0 });
+    expect((await stored('northwind.example'))?.updated_at).toBe(SEEDED_AT);
   });
 
   it('renames the stored site', async () => {
-    const { status, body } = await edit({ asset: 'meals.example', column: 'display_name', value: 'Meal Planner Pro' });
+    const { status, body } = await edit({ asset: 'meadow.example', column: 'display_name', value: 'Meadow Board Pro' });
     expect(status).toBe(200);
-    expect(body.value).toBe('Meal Planner Pro');
-    expect(await stored('meals.example')).toMatchObject({ display_name: 'Meal Planner Pro', updated_at: body.updatedAt });
+    expect(body.value).toBe('Meadow Board Pro');
+    expect(await stored('meadow.example')).toMatchObject({ display_name: 'Meadow Board Pro', updated_at: body.updatedAt });
   });
 });
 
 describe('the site list is read on Postgres', () => {
   it('reads the current stored value for the expect guard', async () => {
-    await changeSites(['meals.example'], { displayName: 'Stored Name' });
-    expect((await read('meals.example')).body.columns?.display_name).toBe('Stored Name');
+    await changeSites(['meadow.example'], { displayName: 'Stored Name' });
+    expect((await read('meadow.example')).body.columns?.display_name).toBe('Stored Name');
   });
 });

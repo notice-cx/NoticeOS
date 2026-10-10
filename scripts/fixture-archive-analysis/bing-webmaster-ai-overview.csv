@@ -1,6 +1,6 @@
 asset,report_date,collected_at,data_state,provider_truncated,citations,cited_pages,provider_date,row_grain
-meals.example,2026-09-01,2026-09-01T13:00:00.000Z,provider-snapshot,false,7,2,,citation-day
-meals.example,2026-08-04,2026-08-04T13:00:00.000Z,provider-snapshot,false,9000,40,2026-07-10,citation-day
-meals.example,2026-09-01,2026-09-01T13:00:00.000Z,provider-snapshot,false,9250,43,2026-07-11,citation-day
-meals.example,2026-09-01,2026-09-01T13:00:00.000Z,provider-snapshot,false,11050,52,2026-08-30,citation-day
-meals.example,2026-09-01,2026-09-01T13:00:00.000Z,provider-snapshot,false,10120,51,2026-08-31,citation-day
+meadow.example,2026-09-01,2026-09-01T13:00:00.000Z,provider-snapshot,false,7,2,,citation-day
+meadow.example,2026-08-04,2026-08-04T13:00:00.000Z,provider-snapshot,false,9000,40,2026-07-10,citation-day
+meadow.example,2026-09-01,2026-09-01T13:00:00.000Z,provider-snapshot,false,9250,43,2026-07-11,citation-day
+meadow.example,2026-09-01,2026-09-01T13:00:00.000Z,provider-snapshot,false,11050,52,2026-08-30,citation-day
+meadow.example,2026-09-01,2026-09-01T13:00:00.000Z,provider-snapshot,false,10120,51,2026-08-31,citation-day

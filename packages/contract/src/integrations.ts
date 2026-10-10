@@ -1342,7 +1342,7 @@ export interface ProbeResult {
    * token, the prepaid credit, the region, the Google identity used. */
   facts?: ProbeFacts;
   /** The parts that failed, by the operator's own names (`Search Console`,
-   * `GA4 313598867`, a feed's label, a site id). */
+   * `GA4 123456789`, a feed's label, a site id). */
   failing?: string[];
   /** The parts nothing was asked about (a PostHog site with no project picked). */
   unchecked?: string[];

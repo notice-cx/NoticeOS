@@ -397,7 +397,7 @@ cron is what reads it back out.
     "ship": { "direction": "up",   "min_delta_pct": 10 },
     "kill": { "direction": "down", "min_delta_pct": 10 }
   },
-  "scope": { "query": "my plate" },  // optional; exact GSC query grain only
+  "scope": { "query": "my plume" },  // optional; exact GSC query grain only
   "note": "July title batch"
 }
 ```
@@ -568,7 +568,7 @@ one.
 
 ```jsonc
 "panelReview": {
-  "beadId": "nom-4q2",
+  "beadId": "nw-4q2",
   "panelDate": "2026-08-02",          // the collection's report_date
   "dueAt": "2026-08-09T00:00:00.000Z",
   "status": "open",                   // open | closed — never bd's vocabulary

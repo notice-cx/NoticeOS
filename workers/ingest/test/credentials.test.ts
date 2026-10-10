@@ -272,17 +272,17 @@ describe('store first, env second', () => {
     const resolved = await resolveCredential(legacy, 'clarity');
     expect(resolved.source).toBe('env');
     expect(JSON.parse(resolved.fields.CLARITY_TOKENS!)).toEqual({
-      'meals.example': 'single-project-token',
+      'meadow.example': 'single-project-token',
     });
     // The slot that actually held it, so the manifest row stays honest.
-    expect(resolved.legacySlots).toEqual({ 'meals.example': 'CLARITY_PROJECT_API_TOKEN' });
+    expect(resolved.legacySlots).toEqual({ 'meadow.example': 'CLARITY_PROJECT_API_TOKEN' });
 
     const summary = (await listCredentialSummaries(legacy)).summaries.find(
       (entry) => entry.provider === 'clarity',
     )!;
     expect(summary.source).toBe('env');
     expect(summary.missingFields).toEqual([]);
-    expect(summary.assetsHeld).toEqual(['meals.example']);
+    expect(summary.assetsHeld).toEqual(['meadow.example']);
   });
 
   it('serves the first Clarity site in the STORE’s register, whatever it is called', async () => {
@@ -398,8 +398,8 @@ describe('summaries — names and metadata, never values', () => {
       provider: 'clarity',
       fields: {
         CLARITY_TOKENS: JSON.stringify({
-          'nosh.example': `${CLARITY_TOKEN}-2`,
-          'meals.example': CLARITY_TOKEN,
+          'northwind.example': `${CLARITY_TOKEN}-2`,
+          'meadow.example': CLARITY_TOKEN,
         }),
       },
     });
@@ -407,11 +407,11 @@ describe('summaries — names and metadata, never values', () => {
     const stored = await row('clarity');
     expect(blobText(stored!.ciphertext)).not.toContain(CLARITY_TOKEN);
     // In the clear beside the ciphertext, sorted so the card is stable.
-    expect(stored!.asset_ids).toEqual(['meals.example', 'nosh.example']);
+    expect(stored!.asset_ids).toEqual(['meadow.example', 'northwind.example']);
 
     const withoutTheKey = await listCredentialSummaries(withoutKey());
     const clarity = withoutTheKey.summaries.find((s) => s.provider === 'clarity')!;
-    expect(clarity.assetsHeld).toEqual(['meals.example', 'nosh.example']);
+    expect(clarity.assetsHeld).toEqual(['meadow.example', 'northwind.example']);
     expect(JSON.stringify(clarity)).not.toContain(CLARITY_TOKEN);
 
     // A shared provider has no per-asset dimension to report, ever.
@@ -426,12 +426,12 @@ describe('summaries — names and metadata, never values', () => {
     // must not read as covering NOTHING until it moves into the store.
     const onEnv = {
       ...env,
-      CLARITY_TOKENS: JSON.stringify({ 'meals.example': CLARITY_TOKEN }),
+      CLARITY_TOKENS: JSON.stringify({ 'meadow.example': CLARITY_TOKEN }),
     } as unknown as IngestEnv;
     const state = await listCredentialSummaries(onEnv);
     const clarity = state.summaries.find((summary) => summary.provider === 'clarity')!;
     expect(clarity.source).toBe('env');
-    expect(clarity.assetsHeld).toEqual(['meals.example']);
+    expect(clarity.assetsHeld).toEqual(['meadow.example']);
     expect(JSON.stringify(clarity)).not.toContain(CLARITY_TOKEN);
   });
 });
@@ -527,7 +527,7 @@ describe('probes — one cheap real call, nothing persisted, no secret in the an
       nowMs: NOW,
       fetchImpl: (async (input: RequestInfo | URL) => {
         calls.push(String(input));
-        return Response.json({ d: [{ Url: 'https://meals.example/', IsVerified: true }] });
+        return Response.json({ d: [{ Url: 'https://meadow.example/', IsVerified: true }] });
       }) as typeof fetch,
     });
 
@@ -698,8 +698,8 @@ describe('probes — one cheap real call, nothing persisted, no secret in the an
         if (url === 'https://www.googleapis.com/webmasters/v3/sites') {
           return Response.json({
             siteEntry: [
-              { siteUrl: 'sc-domain:meals.example' },
-              { siteUrl: 'sc-domain:nosh.example' },
+              { siteUrl: 'sc-domain:meadow.example' },
+              { siteUrl: 'sc-domain:northwind.example' },
             ],
           });
         }
@@ -800,14 +800,14 @@ describe('probes — one cheap real call, nothing persisted, no secret in the an
       provider: 'clarity',
       fields: {
         CLARITY_TOKENS: JSON.stringify({
-          'meals.example': CLARITY_TOKEN,
-          'nosh.example': `${CLARITY_TOKEN}-2`,
+          'meadow.example': CLARITY_TOKEN,
+          'northwind.example': `${CLARITY_TOKEN}-2`,
         }),
       },
     });
     await recordCredentialOutcome(env, 'clarity', {
       ok: false,
-      error: 'Access was refused · nosh.example',
+      error: 'Access was refused · northwind.example',
       at: new Date(NOW - 3_600_000).toISOString(),
     });
 
@@ -828,7 +828,7 @@ describe('probes — one cheap real call, nothing persisted, no secret in the an
     expect(stored!.last_ok_at).toBeNull();
     // The collector's verdict survives the press, because the press proved
     // nothing that could replace it.
-    expect(stored!.last_error).toBe('Access was refused · nosh.example');
+    expect(stored!.last_error).toBe('Access was refused · northwind.example');
   });
 
   it('tests PostHog with one project read per mapped asset and never runs a query', async () => {
@@ -837,7 +837,7 @@ describe('probes — one cheap real call, nothing persisted, no secret in the an
     const PH_KEY = 'phx_probe_test_key';
     await putCredential(env, {
       provider: 'posthog',
-      fields: { POSTHOG_KEYS: JSON.stringify({ 'meals.example': PH_KEY, 'nosh.example': `${PH_KEY}-2` }) },
+      fields: { POSTHOG_KEYS: JSON.stringify({ 'meadow.example': PH_KEY, 'northwind.example': `${PH_KEY}-2` }) },
     });
     const calls: { url: string; method: string; authorization: string | null }[] = [];
     const probe = await probeCredential(env, 'posthog', {
@@ -845,15 +845,15 @@ describe('probes — one cheap real call, nothing persisted, no secret in the an
       fetchImpl: (async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
         calls.push({ url, method: init?.method ?? 'GET', authorization: new Headers(init?.headers).get('authorization') });
-        return Response.json({ id: 596607, timezone: 'America/New_York' });
+        return Response.json({ id: 424242, timezone: 'America/New_York' });
       }) as typeof fetch,
     });
     expect(calls).toEqual([
-      { url: 'https://us.posthog.com/api/projects/596607/', method: 'GET', authorization: `Bearer ${PH_KEY}` },
+      { url: 'https://us.posthog.com/api/projects/424242/', method: 'GET', authorization: `Bearer ${PH_KEY}` },
     ]);
     expect(probe.ok).toBe(true);
     // The site with no project picked is not checked, and mapping it is the press.
-    expect(probe.result).toEqual({ outcome: 'answered', facts: { sites: 1 }, unchecked: ['nosh.example'], fix: { kind: 'map', sites: ['nosh.example'] } });
+    expect(probe.result).toEqual({ outcome: 'answered', facts: { sites: 1 }, unchecked: ['northwind.example'], fix: { kind: 'map', sites: ['northwind.example'] } });
     expect(JSON.stringify(probe)).not.toContain(PH_KEY);
     // A free read that answered is a verdict the card may show.
     expect((await row('posthog'))!.last_ok_at).toBe(new Date(NOW).toISOString());
@@ -863,7 +863,7 @@ describe('probes — one cheap real call, nothing persisted, no secret in the an
       fetchImpl: (async () => Response.json({ detail: 'Invalid key' }, { status: 401 })) as typeof fetch,
     });
     expect(refused.ok).toBe(false);
-    expect(refused.result).toMatchObject({ outcome: 'refused', status: 401, failing: ['meals.example'], fix: { kind: 'replace' } });
+    expect(refused.result).toMatchObject({ outcome: 'refused', status: 401, failing: ['meadow.example'], fix: { kind: 'replace' } });
     expect(JSON.stringify(refused)).not.toContain(PH_KEY);
   });
 
@@ -899,7 +899,7 @@ describe('what a collector records about the credential it ran on', () => {
         fetchImpl: (async (input: RequestInfo | URL) => {
           const url = String(input);
           if (url.includes('GetUserSites')) {
-            return Response.json({ d: [{ Url: 'https://meals.example/', IsVerified: true }] });
+            return Response.json({ d: [{ Url: 'https://meadow.example/', IsVerified: true }] });
           }
           return Response.json({
             d: [
@@ -941,7 +941,7 @@ describe('what a collector records about the credential it ran on', () => {
       nowMs: NOW,
       fetchImpl: (async (input: RequestInfo | URL) => {
         if (String(input).includes('GetUserSites')) {
-          return Response.json({ d: [{ Url: 'https://meals.example/', IsVerified: true }] });
+          return Response.json({ d: [{ Url: 'https://meadow.example/', IsVerified: true }] });
         }
         return Response.json({ d: [] });
       }) as typeof fetch,

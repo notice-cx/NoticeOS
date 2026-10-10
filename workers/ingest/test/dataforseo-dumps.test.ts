@@ -61,7 +61,7 @@ const panelKeyword = (entry: SerpPanelQuery): string =>
 const panelLabel = (entry: SerpPanelQuery): string | undefined =>
   typeof entry === 'string' ? undefined : entry.label;
 
-const PANEL_QUERIES = panelEntries('meals.example').map(panelKeyword);
+const PANEL_QUERIES = panelEntries('meadow.example').map(panelKeyword);
 /** Every panel call a property buys: one per tracked query per device,
  * derived from the shipped device list. The cluster label is never
  * transmitted and costs nothing. */
@@ -85,12 +85,12 @@ const LAUNCHED_ASSETS = 6;
  * `keyword-ideas` seeds from the tracked panel, so a property without one is
  * not due it. */
 const LAUNCHED = [
-  'areas.example',
-  'fees.example',
-  'meals.example',
-  'nosh.example',
-  'pacer.example',
-  'pullups.example',
+  'acorn.example',
+  'ferns.example',
+  'meadow.example',
+  'northwind.example',
+  'pebble.example',
+  'puffin.example',
 ] as const;
 /** Every single-call (non-panel) family attempt a first sweep makes, derived
  * per property from the shipped registry. On a first sweep every family is
@@ -264,15 +264,15 @@ function providerFetch({
                         {
                           type: 'ai_overview',
                           asynchronous_ai_overview: true,
-                          references: [{ domain: 'meals.gov' }],
+                          references: [{ domain: 'registry.example' }],
                         },
                       ]
                     : []),
                   {
                     type: 'organic',
                     rank_group: 2,
-                    domain: 'meals.example',
-                    url: 'https://meals.example/',
+                    domain: 'meadow.example',
+                    url: 'https://meadow.example/',
                   },
                 ],
               },
@@ -299,7 +299,7 @@ function providerFetch({
                     type: 'organic',
                     rank_group: 7,
                     rank_absolute: 9,
-                    url: 'https://meals.example/meal-plan',
+                    url: 'https://meadow.example/meal-plan',
                     etv: 240,
                     estimated_paid_traffic_cost: 340.8,
                   },
@@ -361,7 +361,7 @@ function providerFetch({
 
 beforeEach(async () => {
   await reset();
-  await changeSites(['fees.example'], { status: 'live' });
+  await changeSites(['ferns.example'], { status: 'live' });
 });
 
 describe('DataForSEO weekly archives', () => {
@@ -437,7 +437,7 @@ describe('DataForSEO weekly archives', () => {
 
     const manifest = await pgFirst<{ objectKey: string }>(`SELECT object_key AS "objectKey"
          FROM ${ARCHIVE_RUNS}
-        WHERE asset = 'meals.example'
+        WHERE asset = 'meadow.example'
           AND integration = 'dataforseo'
           AND report = 'ranked-keywords'`);
     const object = await env.RAW_SIGNALS.get(manifest!.objectKey);
@@ -568,7 +568,7 @@ describe('DataForSEO weekly archives', () => {
       fetchImpl,
       login: 'operator-login',
       password: 'operator-password',
-      scope: { asset: 'meals.example', families: ['keyword-ideas'] },
+      scope: { asset: 'meadow.example', families: ['keyword-ideas'] },
     });
     const ideas = calls.find((call) =>
       call.url.endsWith('/dataforseo_labs/google/keyword_ideas/live'),
@@ -578,7 +578,7 @@ describe('DataForSEO weekly archives', () => {
       location_code: 2840,
       language_code: 'en',
       limit: 100,
-      tag: 'meals.example:keyword-ideas',
+      tag: 'meadow.example:keyword-ideas',
     });
   });
 
@@ -586,13 +586,13 @@ describe('DataForSEO weekly archives', () => {
    * rather than ideas grown from a guess — and asking for them by name is a
    * refusal, not a silent $0.00 success. */
   it('does not owe keyword ideas to a property with no tracked panel', () => {
-    expect(dataForSeoFamiliesFor('pacer.example')).not.toContain(
+    expect(dataForSeoFamiliesFor('pebble.example')).not.toContain(
       'keyword-ideas',
     );
-    expect(dataForSeoFamiliesFor('pacer.example')).toContain(
+    expect(dataForSeoFamiliesFor('pebble.example')).toContain(
       'serp-competitors',
     );
-    expect(dataForSeoFamiliesFor('meals.example')).toContain('keyword-ideas');
+    expect(dataForSeoFamiliesFor('meadow.example')).toContain('keyword-ideas');
   });
 
   it('fills only the missing families after a partial prior sweep', async () => {
@@ -602,7 +602,7 @@ describe('DataForSEO weekly archives', () => {
       fetchImpl,
       login: 'operator-login',
       password: 'operator-password',
-      scope: { asset: 'meals.example', families: ['backlinks-summary'] },
+      scope: { asset: 'meadow.example', families: ['backlinks-summary'] },
     });
     expect(calls).toHaveLength(1);
 
@@ -621,7 +621,7 @@ describe('DataForSEO weekly archives', () => {
       calls.filter(
         (call) =>
           call.url.endsWith('/backlinks/summary/live') &&
-          call.task.tag === 'meals.example:backlinks-summary',
+          call.task.tag === 'meadow.example:backlinks-summary',
       ),
     ).toHaveLength(1);
   });
@@ -641,7 +641,7 @@ describe('DataForSEO weekly archives', () => {
       fetchImpl,
       login: 'operator-login',
       password: 'operator-password',
-      scope: { asset: 'meals.example', families: ['llm-mentions-google'] },
+      scope: { asset: 'meadow.example', families: ['llm-mentions-google'] },
     });
     expect(repair).toMatchObject({
       attempted: 1,
@@ -720,13 +720,13 @@ describe('DataForSEO weekly archives', () => {
       expect(complete?.costUsd).toBe(0);
       expect(complete?.skippedFresh).toHaveLength(EXPECTED_ATTEMPTS);
       expect(complete?.skippedFresh).toContainEqual({
-        asset: 'meals.example',
+        asset: 'meadow.example',
         report: 'backlinks-summary',
         latestReportDate: '2026-07-27',
         nextDueDate: '2026-08-03',
       });
       expect(complete?.skippedFresh).toContainEqual({
-        asset: 'meals.example',
+        asset: 'meadow.example',
         report: 'llm-mentions-google',
         latestReportDate: '2026-07-27',
         nextDueDate: '2026-08-03',
@@ -744,7 +744,7 @@ describe('DataForSEO weekly archives', () => {
       login: 'operator-login',
       password: 'operator-password',
       scope: {
-        asset: 'meals.example',
+        asset: 'meadow.example',
         families: ['backlinks-new-lost'],
       },
     });
@@ -763,7 +763,7 @@ describe('DataForSEO weekly archives', () => {
     expect(
       await pgFirst<{ reportDate: string }>(`SELECT report_date AS "reportDate"
            FROM ${ARCHIVE_RUNS}
-          WHERE asset = 'meals.example'
+          WHERE asset = 'meadow.example'
             AND report = 'backlinks-new-lost'`),
     ).toEqual({ reportDate: '2026-08-05' });
   });
@@ -1215,7 +1215,7 @@ describe('DataForSEO weekly archives', () => {
       const result = await runDataForSeoDumps(env, {
         nowMs: NOW,
         fetchImpl: live.fetchImpl,
-        scope: { asset: 'meals.example', families: ['backlinks-summary'] },
+        scope: { asset: 'meadow.example', families: ['backlinks-summary'] },
         login: 'operator-login',
         password: 'operator-password',
         retryBackoffMs: FAST_RETRY,
@@ -1248,7 +1248,7 @@ describe('DataForSEO weekly archives', () => {
       const result = await runDataForSeoDumps(env, {
         nowMs: NOW,
         fetchImpl: midPanel,
-        scope: { asset: 'meals.example', families: ['serp-panel'] },
+        scope: { asset: 'meadow.example', families: ['serp-panel'] },
         login: 'operator-login',
         password: 'operator-password',
         retryBackoffMs: FAST_RETRY,
@@ -1481,7 +1481,7 @@ describe('DataForSEO weekly archives', () => {
           login: 'operator-login',
           password: 'operator-password',
           retryBackoffMs: FAST_RETRY,
-          scope: { asset: 'nosh.example', families: ['backlinks-summary'] },
+          scope: { asset: 'northwind.example', families: ['backlinks-summary'] },
         });
 
         expect(Date.now() - startedAt).toBeGreaterThanOrEqual(1_000);
@@ -1603,7 +1603,7 @@ describe('DataForSEO weekly archives', () => {
     await recordResearch(
       env.STORE,
       {
-        asset: 'meals.example',
+        asset: 'meadow.example',
         provider: 'dataforseo',
         endpoint: 'dataforseo_labs/google/keyword_overview/live',
         params: { keywords: ['dri calculator'], location_code: 2840 },
@@ -1656,7 +1656,7 @@ describe('tracked-query SERP panel', () => {
   it.each(['current', 'legacy', 'invalid', 'failed-read'] as const)(
     'resumes paid pages after interruption with %s checkpoints', async (mode) => {
     const panel = {
-      assets: { 'meals.example': { queries: ['my plate', 'meals meal plan'] } },
+      assets: { 'meadow.example': { queries: ['my plume', 'meadow meal plan'] } },
     };
     const firstProvider = providerFetch();
     let attempted = 0;
@@ -1676,12 +1676,12 @@ describe('tracked-query SERP panel', () => {
       password: 'operator-password',
       retryBackoffMs: [],
       serpPanelConfig: panel,
-      scope: { asset: 'meals.example', families: ['serp-panel'] },
+      scope: { asset: 'meadow.example', families: ['serp-panel'] },
     });
     expect(interrupted).toMatchObject({ attempted: 1, failed: 1, costUsd: 0.008 });
     const workspacePrefix = `workspaces/${await env.STORE.workspaceId()}/`;
     const saved = (await env.RAW_SIGNALS.list({
-      prefix: `${workspacePrefix}${DATAFORSEO_CHECKPOINT_PREFIX}/meals.example/2026-07-27/serp-panel/`,
+      prefix: `${workspacePrefix}${DATAFORSEO_CHECKPOINT_PREFIX}/meadow.example/2026-07-27/serp-panel/`,
     })).objects;
     expect(saved).toHaveLength(2);
     // A pre-upgrade paid page has the same request identity but no namespace.
@@ -1705,7 +1705,7 @@ describe('tracked-query SERP panel', () => {
       password: 'operator-password',
       retryBackoffMs: [],
       serpPanelConfig: panel,
-      scope: { asset: 'meals.example', families: ['serp-panel'] },
+      scope: { asset: 'meadow.example', families: ['serp-panel'] },
     });
       readKeys = get.mock.calls.map(([key]) => key as string);
     } finally { get.mockRestore(); }
@@ -1725,10 +1725,10 @@ describe('tracked-query SERP panel', () => {
     const newCalls = mode === 'invalid' ? 4 : 2;
     expect(secondProvider.calls).toHaveLength(newCalls);
     expect(resumed!).toMatchObject({ attempted: 1, succeeded: 1, costUsd: newCalls * 0.004 });
-    expect(await archivedPanelPages('meals.example')).toHaveLength(4);
+    expect(await archivedPanelPages('meadow.example')).toHaveLength(4);
     const spend = await pgFirst<{ costUsd: number }>(`SELECT SUM(provider_cost_usd) AS "costUsd"
          FROM ${ARCHIVE_RUNS}
-        WHERE asset = 'meals.example' AND integration = 'dataforseo'
+        WHERE asset = 'meadow.example' AND integration = 'dataforseo'
           AND report = 'serp-panel' AND report_date = '2026-07-27'`);
     expect(spend?.costUsd).toBeCloseTo(0.008 + newCalls * 0.004);
   });
@@ -1738,7 +1738,7 @@ describe('tracked-query SERP panel', () => {
    * slow; `panelError` below proves a refusal reaches the sweep's outcome. */
   function panelRefusal(queries: SerpPanelQuery[]): string | null {
     try {
-      trackedQueries({ assets: { 'meals.example': { queries } } }, 'meals.example');
+      trackedQueries({ assets: { 'meadow.example': { queries } } }, 'meadow.example');
       return null;
     } catch (error) {
       if (error instanceof SignalError) return error.code;
@@ -1758,7 +1758,7 @@ describe('tracked-query SERP panel', () => {
       fetchImpl,
       login: 'operator-login',
       password: 'operator-password',
-      serpPanelConfig: { assets: { 'meals.example': { queries } } },
+      serpPanelConfig: { assets: { 'meadow.example': { queries } } },
     });
     return result.outcomes.find((outcome) => outcome.report === 'serp-panel')
       ?.errorCode;
@@ -1814,10 +1814,10 @@ describe('tracked-query SERP panel', () => {
         ORDER BY asset`);
     // One manifest row per property per run, not one per query.
     expect(manifest.results).toHaveLength(PANEL_ASSETS.length);
-    const meals = manifest.results.find(
-      (row) => row.asset === 'meals.example',
+    const meadow = manifest.results.find(
+      (row) => row.asset === 'meadow.example',
     );
-    expect(meals).toMatchObject({
+    expect(meadow).toMatchObject({
       reportDate: '2026-07-27',
       status: 'success',
       requestCount: panelCallCount(PANEL_QUERIES),
@@ -1827,13 +1827,13 @@ describe('tracked-query SERP panel', () => {
     // Both devices are billed and both land on the one manifest row, so the
     // Tower's month-to-date spend meter reads the real weekly bill without
     // knowing the panel gained a dimension.
-    expect(meals!.costUsd).toBeCloseTo(panelCallCount(PANEL_QUERIES) * 0.004);
+    expect(meadow!.costUsd).toBeCloseTo(panelCallCount(PANEL_QUERIES) * 0.004);
     // Each property is billed for its own terms, never the portfolio's.
     expect(
       manifest.results.reduce((sum, row) => sum + row.requestCount, 0),
     ).toBe(PANEL_CALLS);
 
-    const object = await env.RAW_SIGNALS.get(meals!.objectKey);
+    const object = await env.RAW_SIGNALS.get(meadow!.objectKey);
     const archived = JSON.parse(
       await new Response(
         object!.body.pipeThrough(new DecompressionStream('gzip')),
@@ -1856,13 +1856,13 @@ describe('tracked-query SERP panel', () => {
       fetchImpl,
       login: 'operator-login',
       password: 'operator-password',
-      serpPanelConfig: { assets: { 'meals.example': { queries: ['my plate'] } } },
+      serpPanelConfig: { assets: { 'meadow.example': { queries: ['my plume'] } } },
     });
 
     const row = await pgFirst<{ objectKey: string; requestCount: number }>(`SELECT object_key AS "objectKey", request_count AS "requestCount"
          FROM ${ARCHIVE_RUNS}
         WHERE integration = 'dataforseo' AND report = 'serp-panel'
-          AND asset = 'meals.example'`);
+          AND asset = 'meadow.example'`);
     expect(row?.requestCount).toBe(SERP_PANEL_DEVICES.length);
 
     const object = await env.RAW_SIGNALS.get(row!.objectKey);
@@ -1873,7 +1873,7 @@ describe('tracked-query SERP panel', () => {
     ) as { pages: { request: { body: { keyword: string; device: string } } }[] };
     expect(
       archived.pages.map((page) => [page.request.body.keyword, page.request.body.device]),
-    ).toEqual(SERP_PANEL_DEVICES.map((device) => ['my plate', device]));
+    ).toEqual(SERP_PANEL_DEVICES.map((device) => ['my plume', device]));
   });
 
   /** The label is stored with the observation and nowhere else: the flattened
@@ -1901,11 +1901,11 @@ describe('tracked-query SERP panel', () => {
 
     // Every page says which bet it was, one page per device, both carrying the
     // same label: a cluster is a property of the term, not of the surface.
-    const nom = await archivedPanelPages('nosh.example');
+    const nom = await archivedPanelPages('northwind.example');
     expect(
       nom.map((page) => [page.request.body.keyword, page.request.label]),
     ).toEqual(
-      panelEntries('nosh.example').flatMap((entry) =>
+      panelEntries('northwind.example').flatMap((entry) =>
         SERP_PANEL_DEVICES.map(() => [panelKeyword(entry), panelLabel(entry)]),
       ),
     );
@@ -1915,16 +1915,16 @@ describe('tracked-query SERP panel', () => {
         'Item head',
         'Guide anomaly',
         'Category head',
-        'GLP-1',
+        'Fuel grades',
         'Stats hub',
-        'Restaurant hubs',
+        'Product hubs',
       ]),
     );
 
     // An unlabelled panel archives the envelope it always archived — no `label`
     // key at all, rather than one holding an empty string. That is what lets an
     // older archive flatten to exactly the columns it had before labels existed.
-    for (const page of await archivedPanelPages('meals.example')) {
+    for (const page of await archivedPanelPages('meadow.example')) {
       expect(Object.keys(page.request)).toEqual(['path', 'body', 'attempts']);
     }
   });
@@ -1932,20 +1932,20 @@ describe('tracked-query SERP panel', () => {
   it('rejects a mis-spelled cluster rather than quietly grouping by it', () => {
     // Labelling is optional per QUERY as well as per property: a panel may mix
     // the two shapes, and that must stay valid.
-    expect(panelRefusal([{ query: 'my plate', label: 'Brand' }, 'meals calculator'])).toBeNull();
+    expect(panelRefusal([{ query: 'my plume', label: 'Brand' }, 'meadow calculator'])).toBeNull();
     // An entry that is neither shape names the file rather than collecting a
     // panel that means something else.
     expect(panelRefusal([42 as unknown as SerpPanelQuery])).toBe('config_invalid');
     // A blank label is not "no label" — omitting the field is.
-    expect(panelRefusal([{ query: 'my plate', label: '  ' }])).toBe('config_invalid');
-    expect(panelRefusal([{ query: 'my plate', label: 'x'.repeat(61) }])).toBe('config_invalid');
+    expect(panelRefusal([{ query: 'my plume', label: '  ' }])).toBe('config_invalid');
+    expect(panelRefusal([{ query: 'my plume', label: 'x'.repeat(61) }])).toBe('config_invalid');
     // Grouping is an exact-string match on the archived label, so one cluster
     // spelled two ways is two bets in the readout and one in the operator's
     // head — the duplicate-query rule, applied to the group name.
     expect(
       panelRefusal([
-        { query: 'my plate', label: 'Item head' },
-        { query: 'big mac calories', label: 'item head' },
+        { query: 'my plume', label: 'Item head' },
+        { query: 'anvil specs', label: 'item head' },
       ]),
     ).toBe('config_invalid');
   });
@@ -1977,12 +1977,12 @@ describe('tracked-query SERP panel', () => {
       fetchImpl: firstProvider.fetchImpl,
       login: 'operator-login',
       password: 'operator-password',
-      scope: { asset: 'meals.example', families: ['serp-panel'] },
+      scope: { asset: 'meadow.example', families: ['serp-panel'] },
     });
 
     const panel = result.outcomes.find(
       (outcome) =>
-        outcome.report === 'serp-panel' && outcome.asset === 'meals.example',
+        outcome.report === 'serp-panel' && outcome.asset === 'meadow.example',
     );
     expect(panel?.status).toBe('success');
     const attempts = await pgAll<{
@@ -1994,7 +1994,7 @@ describe('tracked-query SERP panel', () => {
     }>(`SELECT status, error_code AS "errorCode", error_message AS "errorMessage",
               provider_cost_usd AS "costUsd", cost_state AS "costState"
          FROM ${ARCHIVE_RUNS}
-        WHERE asset = 'meals.example' AND integration = 'dataforseo'
+        WHERE asset = 'meadow.example' AND integration = 'dataforseo'
           AND report = 'serp-panel' AND report_date = '2026-07-27'
         ORDER BY run_seq`);
     expect(attempts.results).toHaveLength(2);
@@ -2012,7 +2012,7 @@ describe('tracked-query SERP panel', () => {
     expect(
       (
         await env.RAW_SIGNALS.list({
-          prefix: `workspaces/${await env.STORE.workspaceId()}/${DATAFORSEO_CHECKPOINT_PREFIX}/meals.example/2026-07-27/serp-panel/`,
+          prefix: `workspaces/${await env.STORE.workspaceId()}/${DATAFORSEO_CHECKPOINT_PREFIX}/meadow.example/2026-07-27/serp-panel/`,
         })
       ).objects,
     ).toHaveLength(panelCallCount(PANEL_QUERIES));
@@ -2023,16 +2023,16 @@ describe('tracked-query SERP panel', () => {
       fetchImpl: repairProvider.fetchImpl,
       login: 'operator-login',
       password: 'operator-password',
-      scope: { asset: 'meals.example', families: ['serp-panel'] },
+      scope: { asset: 'meadow.example', families: ['serp-panel'] },
     });
     // The two devices for the failed query are the only calls bought again.
     expect(repairProvider.calls).toHaveLength(SERP_PANEL_DEVICES.length);
     expect(repair).toMatchObject({ attempted: 1, succeeded: 1, failed: 0 });
-    expect(await archivedPanelPages('meals.example')).toHaveLength(
+    expect(await archivedPanelPages('meadow.example')).toHaveLength(
       panelCallCount(PANEL_QUERIES),
     );
     const latest = await pgFirst<{ status: string }>(`SELECT status FROM ${ARCHIVE_RUNS}
-        WHERE asset = 'meals.example' AND integration = 'dataforseo'
+        WHERE asset = 'meadow.example' AND integration = 'dataforseo'
           AND report = 'serp-panel' AND report_date = '2026-07-27'
         ORDER BY finished_at DESC, id DESC LIMIT 1`);
     expect(latest?.status).toBe('success');
@@ -2072,9 +2072,9 @@ describe('tracked-query SERP panel', () => {
       password: 'operator-password',
       retryBackoffMs: [0, 0],
       serpPanelConfig: {
-        assets: { 'meals.example': { queries: ['my plate'] } },
+        assets: { 'meadow.example': { queries: ['my plume'] } },
       },
-      scope: { asset: 'meals.example', families: ['serp-panel'] },
+      scope: { asset: 'meadow.example', families: ['serp-panel'] },
     });
 
     expect(attempts).toBe(2);
@@ -2117,17 +2117,17 @@ describe('tracked-query SERP panel', () => {
       retryBackoffMs: [0, 0],
       serpPanelConfig: {
         assets: {
-          'meals.example': { queries: ['broken query', 'observed query'] },
+          'meadow.example': { queries: ['broken query', 'observed query'] },
         },
       },
-      scope: { asset: 'meals.example', families: ['serp-panel'] },
+      scope: { asset: 'meadow.example', families: ['serp-panel'] },
     });
 
     expect(result).toMatchObject({ attempted: 1, succeeded: 1, failed: 0 });
     expect(result.outcomes[0]).toMatchObject({ retries: 2 });
     const marker = await pgFirst<{ errorMessage: string }>(`SELECT error_message AS "errorMessage"
          FROM ${ARCHIVE_RUNS}
-        WHERE asset = 'meals.example' AND integration = 'dataforseo'
+        WHERE asset = 'meadow.example' AND integration = 'dataforseo'
           AND report = 'serp-panel' AND status = 'error'
         ORDER BY run_seq DESC LIMIT 1`);
     expect(marker?.errorMessage).toBe(
@@ -2194,7 +2194,7 @@ describe('tracked-query SERP panel', () => {
     // reserve buys at two devices and $0.004 a call.
     const overCapPanel = {
       assets: {
-        'meals.example': {
+        'meadow.example': {
           queries: Array.from(
             { length: PANEL_CEILING + 1 },
             (_, index) => `query ${index}`,
@@ -2213,7 +2213,7 @@ describe('tracked-query SERP panel', () => {
     expect(
       result.outcomes.find((outcome) => outcome.report === 'serp-panel'),
     ).toMatchObject({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       status: 'error',
       errorCode: 'config_invalid',
     });
@@ -2256,15 +2256,15 @@ describe('tracked-query SERP panel', () => {
 
   it('rejects an empty or duplicated panel rather than quietly repairing it', async () => {
     expect(panelRefusal([])).toBe('config_invalid');
-    expect(panelRefusal(['my plate', 'My Plate'])).toBe('config_invalid');
-    expect(panelRefusal(['my plate', '  '])).toBe('config_invalid');
+    expect(panelRefusal(['my plume', 'My Plume'])).toBe('config_invalid');
+    expect(panelRefusal(['my plume', '  '])).toBe('config_invalid');
     // The object form is held to the same two rules as the shorthand.
-    expect(panelRefusal([{ query: 'my plate' }, { query: 'My Plate', label: 'Brand' }])).toBe('config_invalid');
+    expect(panelRefusal([{ query: 'my plume' }, { query: 'My Plume', label: 'Brand' }])).toBe('config_invalid');
     expect(panelRefusal([{ query: '  ' }])).toBe('config_invalid');
     // And a refused panel is the sweep's own outcome for that property, not a
     // repair it quietly made.
     const { fetchImpl, calls } = providerFetch();
-    expect(await panelError(['my plate', 'My Plate'], fetchImpl)).toBe('config_invalid');
+    expect(await panelError(['my plume', 'My Plume'], fetchImpl)).toBe('config_invalid');
     expect(calls.filter((call) => call.url.endsWith(SERP_PATH))).toEqual([]);
   });
 });
@@ -2273,7 +2273,7 @@ describe('tracked-query SERP panel', () => {
  * else, so what lands is what the Monday lane would have landed for that
  * property. */
 describe('a scoped run — the same run, narrowed', () => {
-  const NOM_QUERIES = panelEntries('nosh.example');
+  const NOM_QUERIES = panelEntries('northwind.example');
 
   /** Every column a downstream reader joins, filters or renders on. `id` is a
    * UUID and `finished_at` is the wall clock at write; everything else must be
@@ -2307,7 +2307,7 @@ describe('a scoped run — the same run, narrowed', () => {
       login: 'operator-login',
       password: 'operator-password',
     });
-    const weekly = await manifestRow('nosh.example', 'serp-panel');
+    const weekly = await manifestRow('northwind.example', 'serp-panel');
     const weeklyArchive = await archivedText(weekly!.object_key as string);
 
     await reset();
@@ -2316,11 +2316,11 @@ describe('a scoped run — the same run, narrowed', () => {
       fetchImpl,
       login: 'operator-login',
       password: 'operator-password',
-      scope: { asset: 'nosh.example', families: ['serp-panel'] },
+      scope: { asset: 'northwind.example', families: ['serp-panel'] },
     });
 
     expect(result).toMatchObject({ attempted: 1, succeeded: 1, failed: 0 });
-    expect(await manifestRow('nosh.example', 'serp-panel')).toEqual(weekly);
+    expect(await manifestRow('northwind.example', 'serp-panel')).toEqual(weekly);
     // Down to the archived bytes: same object key, same content hash, same body.
     expect(await archivedText(weekly!.object_key as string)).toBe(weeklyArchive);
   });
@@ -2332,25 +2332,25 @@ describe('a scoped run — the same run, narrowed', () => {
       fetchImpl,
       login: 'operator-login',
       password: 'operator-password',
-      scope: { asset: 'nosh.example' },
+      scope: { asset: 'northwind.example' },
     });
 
-    // Everything nosh.example is due, and nothing else at all.
+    // Everything northwind.example is due, and nothing else at all.
     expect(result.outcomes.map((outcome) => outcome.report)).toEqual(
-      dataForSeoFamiliesFor('nosh.example'),
+      dataForSeoFamiliesFor('northwind.example'),
     );
-    expect(calls.every((call) => String(call.task.tag ?? '').startsWith('nosh.example:'))).toBe(
+    expect(calls.every((call) => String(call.task.tag ?? '').startsWith('northwind.example:'))).toBe(
       true,
     );
     expect(
       (
         await pgAll<{ asset: string }>(`SELECT DISTINCT asset FROM ${ARCHIVE_RUNS} WHERE integration = 'dataforseo'`)
       ).results,
-    ).toEqual([{ asset: 'nosh.example' }]);
+    ).toEqual([{ asset: 'northwind.example' }]);
     // Every single-call family this property is due, at the stub's $0.011,
     // plus the panel's per-call price. Derived, so a family added to the
     // registry shows up here as spend rather than as a red test.
-    const singleCall = dataForSeoFamiliesFor('nosh.example').filter(
+    const singleCall = dataForSeoFamiliesFor('northwind.example').filter(
       (family) => family !== 'serp-panel',
     ).length;
     expect(result.costUsd).toBeCloseTo(
@@ -2365,14 +2365,14 @@ describe('a scoped run — the same run, narrowed', () => {
       fetchImpl,
       login: 'operator-login',
       password: 'operator-password',
-      scope: { asset: 'nosh.example' },
+      scope: { asset: 'northwind.example' },
     });
 
     // Breadth-first survives the narrowing: an interruption during the panel
     // cannot take the cheap families with it.
     const firstPanelCall = calls.findIndex((call) => call.url.endsWith(SERP_PATH));
     expect(firstPanelCall).toBe(
-      dataForSeoFamiliesFor('nosh.example').filter((f) => f !== 'serp-panel').length,
+      dataForSeoFamiliesFor('northwind.example').filter((f) => f !== 'serp-panel').length,
     );
     expect(calls.slice(firstPanelCall).every((call) => call.url.endsWith(SERP_PATH))).toBe(
       true,
@@ -2386,15 +2386,15 @@ describe('a scoped run — the same run, narrowed', () => {
       fetchImpl,
       login: 'operator-login',
       password: 'operator-password',
-      scope: { asset: 'meals.example', families: ['serp-competitors'] },
+      scope: { asset: 'meadow.example', families: ['serp-competitors'] },
     });
 
     expect(result).toMatchObject({ attempted: 1, succeeded: 1, failed: 0 });
     const asked = calls.filter((call) => call.url.endsWith('/competitors_domain/live'));
     expect(asked).toHaveLength(1);
     expect(asked[0]!.task).toMatchObject({
-      target: 'meals.example',
-      filters: [['intersections', '>', 0], 'and', ['domain', '<>', 'meals.example']],
+      target: 'meadow.example',
+      filters: [['intersections', '>', 0], 'and', ['domain', '<>', 'meadow.example']],
     });
   });
 
@@ -2411,7 +2411,7 @@ describe('a scoped run — the same run, narrowed', () => {
       fetchImpl,
       login: 'operator-login',
       password: 'operator-password',
-      scope: { asset: 'pacer.example', families: ['serp-panel'] },
+      scope: { asset: 'pebble.example', families: ['serp-panel'] },
     });
 
     expect(result).toMatchObject({ attempted: 0, succeeded: 0, failed: 0, costUsd: 0 });
@@ -2423,10 +2423,10 @@ describe('a scoped run — the same run, narrowed', () => {
 
   it('cannot reach a property the weekly lane would not collect', async () => {
     const { fetchImpl, calls } = providerFetch();
-    // Lifecycle is a mutable store fact; put fees.example back before launch to
+    // Lifecycle is a mutable store fact; put ferns.example back before launch to
     // prove the gate still excludes it.
-    await changeSites(['fees.example'], { status: 'pre-launch' });
-    for (const asset of ['fees.example', 'root-os', 'not-a-property']) {
+    await changeSites(['ferns.example'], { status: 'pre-launch' });
+    for (const asset of ['ferns.example', 'root-os', 'not-a-property']) {
       const result = await runDataForSeoDumps(env, {
         nowMs: NOW,
         fetchImpl,
@@ -2451,7 +2451,7 @@ describe('a scoped run — the same run, narrowed', () => {
       login: 'operator-login',
       password: 'operator-password',
       scope: {
-        asset: 'nosh.example',
+        asset: 'northwind.example',
         families: ['backlinks-referring-domains', 'backlinks-anchors'],
       },
     });
@@ -2460,24 +2460,24 @@ describe('a scoped run — the same run, narrowed', () => {
       call.url.endsWith('/backlinks/referring_domains/live'),
     );
     expect(domains?.task).toMatchObject({
-      target: 'nosh.example',
+      target: 'northwind.example',
       include_subdomains: true,
       backlinks_status_type: 'live',
       limit: 100,
       order_by: ['rank,desc'],
-      tag: 'nosh.example:backlinks-referring-domains',
+      tag: 'northwind.example:backlinks-referring-domains',
     });
 
     const anchors = calls.find((call) =>
       call.url.endsWith('/backlinks/anchors/live'),
     );
     expect(anchors?.task).toMatchObject({
-      target: 'nosh.example',
+      target: 'northwind.example',
       include_subdomains: true,
       backlinks_status_type: 'live',
       limit: 100,
       order_by: ['referring_domains,desc'],
-      tag: 'nosh.example:backlinks-anchors',
+      tag: 'northwind.example:backlinks-anchors',
     });
 
     // One call each, and nothing else bought on the way past.
@@ -2505,17 +2505,17 @@ describe('a scoped run — the same run, narrowed', () => {
     // What a week owes and what may be requested are different questions: the
     // requestable set is a superset by exactly the periodic families this
     // property is due.
-    const weekly = dataForSeoReportsFor('nosh.example', new Set(PANEL_ASSETS));
-    const requestable = dataForSeoFamiliesFor('nosh.example');
+    const weekly = dataForSeoReportsFor('northwind.example', new Set(PANEL_ASSETS));
+    const requestable = dataForSeoFamiliesFor('northwind.example');
     expect(weekly.every((family) => requestable.includes(family))).toBe(true);
     expect(
       requestable
         .filter((family) => !(weekly as string[]).includes(family))
         .sort(),
     ).toEqual([...DATAFORSEO_PERIODIC_REPORTS].sort());
-    expect(dataForSeoFamiliesFor('pacer.example')).not.toContain('serp-panel');
-    expect(dataForSeoFamiliesFor('areas.example')).toContain('serp-panel');
-    expect(dataForSeoFamiliesFor('nosh.example')).toContain('serp-panel');
+    expect(dataForSeoFamiliesFor('pebble.example')).not.toContain('serp-panel');
+    expect(dataForSeoFamiliesFor('acorn.example')).toContain('serp-panel');
+    expect(dataForSeoFamiliesFor('northwind.example')).toContain('serp-panel');
   });
 });
 
@@ -2533,7 +2533,7 @@ describe('DataForSEO account credit', () => {
    * which is the only path that stamps a credential. */
   const DFS_PASSWORD = 'SEKRIT-dataforseo-sweep-do-not-echo';
   /** One property, one family: the smallest sweep that still buys something. */
-  const ONE_FAMILY = { asset: 'meals.example', families: ['backlinks-summary'] };
+  const ONE_FAMILY = { asset: 'meadow.example', families: ['backlinks-summary'] };
 
   async function storeCredential(): Promise<void> {
     await putCredential(env, {
@@ -2827,7 +2827,7 @@ describe('the daily re-collection of what an offline Monday skipped', () => {
       at: new Date(NOW).toISOString(),
     });
     await hygiene.isDown();
-    hygiene.recordUnmeasured('meals.example');
+    hygiene.recordUnmeasured('meadow.example');
     await hygiene.finalize();
 
     const log = vi.spyOn(console, 'log');

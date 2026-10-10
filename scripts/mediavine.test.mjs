@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { parseArgs, run } from './mediavine.mjs';
 
 test('CLI reads saved status without requesting a provider refresh', async () => {
-  const result = await run(parseArgs(['status', '--asset', 'meals.example']), async (url, init) => {
+  const result = await run(parseArgs(['status', '--asset', 'meadow.example']), async (url, init) => {
     assert.equal(url.pathname, '/api/integrations/mediavine/status');
-    assert.equal(url.searchParams.get('asset'), 'meals.example');
+    assert.equal(url.searchParams.get('asset'), 'meadow.example');
     assert.equal(init.method, 'GET');
     assert.equal(init.body, undefined);
     return Response.json({ ok: true, value: { reportedThrough: '2026-09-08' } });
@@ -14,11 +14,11 @@ test('CLI reads saved status without requesting a provider refresh', async () =>
 });
 test('CLI backfill calls the same NoticeOS collector exactly once', async () => {
   let calls = 0;
-  await run(parseArgs(['sync', '--asset', 'meals.example', '--start', '2026-09-01', '--end', '2026-09-08']), async (url, init) => {
+  await run(parseArgs(['sync', '--asset', 'meadow.example', '--start', '2026-09-01', '--end', '2026-09-08']), async (url, init) => {
     calls++;
     assert.equal(url.hostname, '127.0.0.1');
     assert.equal(init.headers.origin, url.origin);
-    assert.deepEqual(JSON.parse(init.body), { asset: 'meals.example', start: '2026-09-01', end: '2026-09-08' });
+    assert.deepEqual(JSON.parse(init.body), { asset: 'meadow.example', start: '2026-09-01', end: '2026-09-08' });
     return Response.json({ ok: true, value: {} });
   });
   assert.equal(calls, 1);

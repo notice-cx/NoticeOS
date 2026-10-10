@@ -1061,7 +1061,7 @@ test('two developer commands seed a real Tower on its own new database, then sto
     const response = await fetch(`${plan.url}api/wall`, { signal: AbortSignal.timeout(30_000) });
     const wall = await response.json();
     assert.equal(response.status, 200);
-    assert.deepEqual(wall.assets.map(asset => asset.id), ['meals.example', 'nosh.example']);
+    assert.deepEqual(wall.assets.map(asset => asset.id), ['meadow.example', 'northwind.example']);
     const money = await fetch(`${plan.url}api/financials?period=2026-05`, { signal: AbortSignal.timeout(30_000) });
     assert.equal(money.status, 200);
     assert.ok((await money.json()).properties.length === 2);

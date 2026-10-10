@@ -75,12 +75,12 @@ const REGISTERS = {
   integrations: {
     version: 1,
     catalog: [{ id: "gsc", label: "Google Search Console" }],
-    assets: { "meals.example": { gsc: { status: "live" } } },
+    assets: { "meadow.example": { gsc: { status: "live" } } },
   },
-  counters: { assets: { "meals.example": { cards: [] } } },
+  counters: { assets: { "meadow.example": { cards: [] } } },
   pull: [
-    { asset: "meals.example", url: "https://meals.example/m", enabled: true },
-    { asset: "nosh.example", url: "https://nosh.example/o", enabled: true },
+    { asset: "meadow.example", url: "https://meadow.example/m", enabled: true },
+    { asset: "northwind.example", url: "https://northwind.example/o", enabled: true },
   ],
   // Both panel registers carry file-level metadata beside their `/assets` map,
   // which is what the one-container rule keeps an asset write away from.
@@ -88,7 +88,7 @@ const REGISTERS = {
     version: 1,
     refresh: { windowDays: 35, freshnessMaxAgeDays: 7, providerCostUsdPerPass: 0 },
     assets: {
-      "meals.example": {
+      "meadow.example": {
         enabled: true,
         reason: "live-lanes",
         note: "GSC + GA4 live.",
@@ -96,7 +96,7 @@ const REGISTERS = {
       },
     },
   },
-  serpPanel: { assets: { "meals.example": { queries: ["meals", "meals calculator"] } } },
+  serpPanel: { assets: { "meadow.example": { queries: ["meadow", "meadow calculator"] } } },
   // An asset's membership is a string on another row, so a delete reaches it
   // with a guarded set rather than by removing anything.
   entities: {
@@ -106,7 +106,7 @@ const REGISTERS = {
       {
         slug: "example-ventures",
         name: "Example Ventures LLC",
-        assets: ["meals.example", "fees.example"],
+        assets: ["meadow.example", "ferns.example"],
       },
     ],
   },
@@ -319,7 +319,7 @@ describe("the config write lane", () => {
       put({
         ops: [
           alphaOp(0.01, 0.05),
-          { kind: "store-asset-set", asset: "nosh.example", column: "status", expect: "live", value: "retired" },
+          { kind: "store-asset-set", asset: "northwind.example", column: "status", expect: "live", value: "retired" },
         ],
       }),
       { repoRoot: root },
@@ -554,8 +554,8 @@ describe("adding and removing an asset's config entries", () => {
           {
             kind: "file-json-delete",
             file: "config/integrations.json",
-            pointer: "/assets/meals.example",
-            expect: REGISTERS.integrations.assets["meals.example"],
+            pointer: "/assets/meadow.example",
+            expect: REGISTERS.integrations.assets["meadow.example"],
           },
           {
             kind: "file-json-delete",
@@ -564,7 +564,7 @@ describe("adding and removing an asset's config entries", () => {
             expect: REGISTERS.pull[0],
           },
         ],
-        slug: "remove-meals",
+        slug: "remove-meadow",
       }),
       { repoRoot: root },
     );
@@ -586,17 +586,17 @@ describe("adding and removing an asset's config entries", () => {
           {
             kind: "file-json-delete",
             file: "config/signal-panels.json",
-            pointer: "/assets/meals.example",
-            expect: REGISTERS.signalPanels.assets["meals.example"],
+            pointer: "/assets/meadow.example",
+            expect: REGISTERS.signalPanels.assets["meadow.example"],
           },
           {
             kind: "file-json-delete",
             file: "config/serp-panel.json",
-            pointer: "/assets/meals.example",
-            expect: REGISTERS.serpPanel.assets["meals.example"],
+            pointer: "/assets/meadow.example",
+            expect: REGISTERS.serpPanel.assets["meadow.example"],
           },
         ],
-        slug: "remove-meals-panels",
+        slug: "remove-meadow-panels",
       }),
       { repoRoot: root, now: () => new Date("2026-09-04T12:00:00.000Z") },
     );
@@ -604,7 +604,7 @@ describe("adding and removing an asset's config entries", () => {
     expect(reply.status).toBe(200);
     expect(reply.body).toMatchObject({
       applied: 2,
-      archive: "installation/changesets/0001_remove-meals-panels.json",
+      archive: "installation/changesets/0001_remove-meadow-panels.json",
     });
     expect(await readJson(root, "config/signal-panels.json")).toEqual({
       ...REGISTERS.signalPanels,
@@ -612,7 +612,7 @@ describe("adding and removing an asset's config entries", () => {
     });
     expect(await readJson(root, "config/serp-panel.json")).toEqual({ assets: {} });
     expect(git(root, "show", "--name-only", "--pretty=", "HEAD").split("\n").sort()).toEqual([
-      "installation/changesets/0001_remove-meals-panels.json",
+      "installation/changesets/0001_remove-meadow-panels.json",
       "installation/serp-panel.json",
       "installation/signal-panels.json",
     ]);
@@ -629,18 +629,18 @@ describe("adding and removing an asset's config entries", () => {
           {
             kind: "file-json-delete",
             file: "config/integrations.json",
-            pointer: "/assets/meals.example",
-            expect: REGISTERS.integrations.assets["meals.example"],
+            pointer: "/assets/meadow.example",
+            expect: REGISTERS.integrations.assets["meadow.example"],
           },
           {
             kind: "file-json-set",
             file: "config/entities.json",
             pointer: "/entities/1/assets",
-            expect: ["meals.example", "fees.example"],
-            value: ["fees.example"],
+            expect: ["meadow.example", "ferns.example"],
+            value: ["ferns.example"],
           },
         ],
-        slug: "delete-asset-meals-example",
+        slug: "delete-asset-meadow-example",
       }),
       { repoRoot: root },
     );
@@ -655,7 +655,7 @@ describe("adding and removing an asset's config entries", () => {
         {
           slug: "example-ventures",
           name: "Example Ventures LLC",
-          assets: ["fees.example"],
+          assets: ["ferns.example"],
         },
       ],
     });
@@ -671,11 +671,11 @@ describe("adding and removing an asset's config entries", () => {
             kind: "file-json-set",
             file: "config/entities.json",
             pointer: "/entities/1/assets",
-            expect: ["meals.example"],
+            expect: ["meadow.example"],
             value: [],
           },
         ],
-        slug: "delete-asset-meals-example",
+        slug: "delete-asset-meadow-example",
       }),
       { repoRoot: root },
     );
@@ -693,8 +693,8 @@ describe("adding and removing an asset's config entries", () => {
           {
             kind: "file-json-delete",
             file: "config/serp-panel.json",
-            pointer: "/assets/meals.example",
-            expect: { queries: ["meals"] },
+            pointer: "/assets/meadow.example",
+            expect: { queries: ["meadow"] },
           },
         ],
       }),
@@ -705,8 +705,8 @@ describe("adding and removing an asset's config entries", () => {
     expect(reply.body.mismatches).toMatchObject([
       {
         file: "config/serp-panel.json",
-        pointer: "/assets/meals.example",
-        current: REGISTERS.serpPanel.assets["meals.example"],
+        pointer: "/assets/meadow.example",
+        current: REGISTERS.serpPanel.assets["meadow.example"],
       },
     ]);
     expect(await readJson(root, "config/serp-panel.json")).toEqual(REGISTERS.serpPanel);
@@ -718,7 +718,7 @@ describe("adding and removing an asset's config entries", () => {
     for (const [file, pointer] of [
       // What a refresh pass costs is not an asset, and no register names it.
       ["config/signal-panels.json", "/refresh"],
-      ["config/serp-panel.json", "/assets/meals.example/queries"],
+      ["config/serp-panel.json", "/assets/meadow.example/queries"],
     ] as const) {
       const reply = await handleConfigRequest(
         put({ ops: [{ kind: "file-json-delete", file, pointer, expect: null }] }),
@@ -737,7 +737,7 @@ describe("adding and removing an asset's config entries", () => {
           {
             kind: "file-json-delete",
             file: "config/serp-panel.json",
-            pointer: "/assets/meals.example/queries/0",
+            pointer: "/assets/meadow.example/queries/0",
             expect: null,
           },
         ],
@@ -761,7 +761,7 @@ describe("adding and removing an asset's config entries", () => {
           {
             kind: "file-json-insert",
             file: "config/integrations.json",
-            pointer: "/assets/meals.example",
+            pointer: "/assets/meadow.example",
             value: { uptime: { status: "needs-setup" } },
           },
         ],
@@ -773,10 +773,10 @@ describe("adding and removing an asset's config entries", () => {
     expect(reply.body.mismatches).toEqual([
       {
         file: "config/integrations.json",
-        pointer: "/assets/meals.example",
+        pointer: "/assets/meadow.example",
         expect: null,
         expectAbsent: true,
-        current: REGISTERS.integrations.assets["meals.example"],
+        current: REGISTERS.integrations.assets["meadow.example"],
         absent: false,
       },
     ]);
@@ -797,7 +797,7 @@ describe("adding and removing an asset's config entries", () => {
     const insideAnEntry = await refuse({
       kind: "file-json-insert",
       file: "config/integrations.json",
-      pointer: "/assets/meals.example/gsc",
+      pointer: "/assets/meadow.example/gsc",
       value: { status: "live" },
     });
     expect(insideAnEntry.status).toBe(422);
@@ -805,7 +805,7 @@ describe("adding and removing an asset's config entries", () => {
     const blankNote = await refuse({
       kind: "file-json-insert",
       file: "config/integrations.json",
-      pointer: "/assets/meals.example/gsc",
+      pointer: "/assets/meadow.example/gsc",
       value: { status: "live", note: "", since: "2026-09-24" },
     });
     expect(blankNote.status).toBe(422);
@@ -852,8 +852,8 @@ describe("adding and removing an asset's config entries", () => {
         {
           kind: "file-json-delete",
           file: "config/integrations.json",
-          pointer: "/assets/meals.example",
-          expect: REGISTERS.integrations.assets["meals.example"],
+          pointer: "/assets/meadow.example",
+          expect: REGISTERS.integrations.assets["meadow.example"],
         },
       ],
     };
@@ -893,9 +893,9 @@ describe("a first write into a declared optional field", () => {
   const siteOp = (guard: Record<string, unknown>) => ({
     kind: "file-json-set",
     file: "config/integrations.json",
-    pointer: "/assets/meals.example/gsc/siteUrl",
+    pointer: "/assets/meadow.example/gsc/siteUrl",
     ...guard,
-    value: "sc-domain:meals.example",
+    value: "sc-domain:meadow.example",
   });
 
   it("writes the key the row did not have, and leaves the rest of the row alone", async () => {
@@ -907,7 +907,7 @@ describe("a first write into a declared optional field", () => {
     expect(reply.status).toBe(200);
     expect(await readJson(root, "config/integrations.json")).toMatchObject({
       assets: {
-        "meals.example": { gsc: { status: "live", siteUrl: "sc-domain:meals.example" } },
+        "meadow.example": { gsc: { status: "live", siteUrl: "sc-domain:meadow.example" } },
       },
     });
   });
@@ -923,7 +923,7 @@ describe("a first write into a declared optional field", () => {
     expect(reply.body.mismatches).toEqual([
       {
         file: "config/integrations.json",
-        pointer: "/assets/meals.example/gsc/siteUrl",
+        pointer: "/assets/meadow.example/gsc/siteUrl",
         expect: "",
         current: null,
         absent: true,
@@ -946,10 +946,10 @@ describe("a first write into a declared optional field", () => {
     expect(second.body.mismatches).toEqual([
       {
         file: "config/integrations.json",
-        pointer: "/assets/meals.example/gsc/siteUrl",
+        pointer: "/assets/meadow.example/gsc/siteUrl",
         expect: null,
         expectAbsent: true,
-        current: "sc-domain:meals.example",
+        current: "sc-domain:meadow.example",
         absent: false,
       },
     ]);
@@ -960,10 +960,10 @@ describe("a first write into a declared optional field", () => {
     const before = await readJson(root, "config/integrations.json");
     for (const pointer of [
       // A lane that is not in the file: the row is `file-json-insert`'s job.
-      "/assets/meals.example/clarity",
+      "/assets/meadow.example/clarity",
       // A required field: a row missing one is broken, not new.
-      "/assets/meals.example/gsc/status",
-      "/assets/meals.example/gsc/nested/siteUrl",
+      "/assets/meadow.example/gsc/status",
+      "/assets/meadow.example/gsc/nested/siteUrl",
     ]) {
       const reply = await handleConfigRequest(
         put({
@@ -1022,18 +1022,18 @@ describe("a first write into a declared optional field", () => {
 // rather than as "take this away", so removal is its own op. It is also what
 // makes the first save undoable.
 describe("taking a declared optional field back off", () => {
-  const siteUrl = "sc-domain:meals.example";
+  const siteUrl = "sc-domain:meadow.example";
   const write = {
     kind: "file-json-set",
     file: "config/integrations.json",
-    pointer: "/assets/meals.example/gsc/siteUrl",
+    pointer: "/assets/meadow.example/gsc/siteUrl",
     expectAbsent: true,
     value: siteUrl,
   };
   const unset = (expect_: unknown) => ({
     kind: "file-json-delete",
     file: "config/integrations.json",
-    pointer: "/assets/meals.example/gsc/siteUrl",
+    pointer: "/assets/meadow.example/gsc/siteUrl",
     expect: expect_,
   });
 
@@ -1063,7 +1063,7 @@ describe("taking a declared optional field back off", () => {
     expect(reply.body.mismatches).toEqual([
       {
         file: "config/integrations.json",
-        pointer: "/assets/meals.example/gsc/siteUrl",
+        pointer: "/assets/meadow.example/gsc/siteUrl",
         expect: "https://elsewhere.test/",
         current: siteUrl,
         absent: false,
@@ -1076,8 +1076,8 @@ describe("taking a declared optional field back off", () => {
     const before = await readJson(root, "config/integrations.json");
     for (const pointer of [
       // A required field: a row missing one is broken, not unmapped.
-      "/assets/meals.example/gsc/status",
-      "/assets/meals.example/gsc/nested/siteUrl",
+      "/assets/meadow.example/gsc/status",
+      "/assets/meadow.example/gsc/nested/siteUrl",
     ]) {
       const reply = await handleConfigRequest(
         put({
@@ -1139,11 +1139,11 @@ describe("taking a declared optional field back off", () => {
 // scripts/config-registers.mjs; the lane holds no list of its own.
 const DOMAIN_COSTS = {
   domains: [
-    { domain: "fees.example", asset: "fees.example", kind: "registration", paidUsd: 36.32, paidOn: "2026-06-28" },
-    { domain: "nosh.example", asset: "nosh.example", kind: "registration", paidUsd: 109.69, paidOn: "2026-06-19" },
+    { domain: "ferns.example", asset: "ferns.example", kind: "registration", paidUsd: 36.32, paidOn: "2026-06-28" },
+    { domain: "northwind.example", asset: "northwind.example", kind: "registration", paidUsd: 109.69, paidOn: "2026-06-19" },
   ],
 };
-const VALUE_EVENTS = { assets: { "meals.example": { valueEvents: ["sign_up"] } } };
+const VALUE_EVENTS = { assets: { "meadow.example": { valueEvents: ["sign_up"] } } };
 
 async function tempRepoWithCollections(): Promise<string> {
   const root = await tempRepo();
@@ -1167,7 +1167,7 @@ describe("a declared collection register", () => {
     const root = await tempRepoWithCollections();
     const added = {
       domain: "teller.example",
-      asset: "fees.example",
+      asset: "ferns.example",
       kind: "registration",
       paidUsd: 6.69,
       paidOn: "2026-06-28",
@@ -1270,7 +1270,7 @@ describe("a declared collection register", () => {
           {
             kind: "file-json-insert",
             file: "config/value-events.json",
-            pointer: "/assets/meals.example/valueEvents/-",
+            pointer: "/assets/meadow.example/valueEvents/-",
             value: "plan_save_click",
           },
         ],
@@ -1280,7 +1280,7 @@ describe("a declared collection register", () => {
     );
     expect(ok.status).toBe(200);
     expect(await readJson(root, "config/value-events.json")).toEqual({
-      assets: { "meals.example": { valueEvents: ["sign_up", "plan_save_click"] } },
+      assets: { "meadow.example": { valueEvents: ["sign_up", "plan_save_click"] } },
     });
 
     // A pointer never creates structure, so the refusal is about the pointer,
@@ -1291,7 +1291,7 @@ describe("a declared collection register", () => {
           {
             kind: "file-json-insert",
             file: "config/value-events.json",
-            pointer: "/assets/nosh.example/valueEvents/-",
+            pointer: "/assets/northwind.example/valueEvents/-",
             value: "sign_up",
           },
         ],
@@ -1317,7 +1317,7 @@ describe("a declared collection register", () => {
           pointer: "/domains/-",
           value: {
             domain: "bankcodes.example",
-            asset: "fees.example",
+            asset: "ferns.example",
             kind: "renewal",
             paidUsd: 11.11,
             paidOn: "2026-09-01",
@@ -1326,7 +1326,7 @@ describe("a declared collection register", () => {
         {
           kind: "file-json-set",
           file: "config/value-events.json",
-          pointer: "/assets/meals.example/valueEvents/0",
+          pointer: "/assets/meadow.example/valueEvents/0",
           expect: "sign_up",
           value: "auth_complete",
         },

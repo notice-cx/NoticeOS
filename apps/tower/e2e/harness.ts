@@ -446,8 +446,8 @@ export const JOURNEY_GOOGLE_ACCOUNT = "founder@journey.example";
 const JOURNEY_GOOGLE_ACCESS = "journey-google-access";
 const JOURNEY_GOOGLE_REFRESH = "journey-google-refresh";
 const JOURNEY_GA4_PROPERTIES = [
-  { id: "313598867", name: "Journey Example — web", uri: JOURNEY_SITE },
-  { id: "402211876", name: "Another site — web", uri: "https://another.example/" },
+  { id: "123456789", name: "Journey Example — web", uri: JOURNEY_SITE },
+  { id: "987654321", name: "Another site — web", uri: "https://another.example/" },
 ];
 const JOURNEY_GSC_SITES = [
   { siteUrl: `sc-domain:${JOURNEY_ASSET}`, permissionLevel: "siteOwner" },
@@ -480,7 +480,7 @@ export const JOURNEY_MEDIAVINE_SITE = { id: "journey-mediavine-site", title: "Jo
  * query-based, one filter-based) and a trend that is not a funnel; and a
  * staging project no site claims. */
 export const JOURNEY_POSTHOG_PROJECTS = [
-  { id: 596607, name: "Journey Example", appUrls: [JOURNEY_SITE], insights: [
+  { id: 424242, name: "Journey Example", appUrls: [JOURNEY_SITE], insights: [
     { id: 1, short_id: "sgn1", name: "Signup", query: { kind: "InsightVizNode", source: { kind: "FunnelsQuery",
       series: [{ kind: "EventsNode", event: "$pageview" }, { kind: "EventsNode", event: "signed_up" }] } } },
     { id: 2, short_id: "chk2", name: "Checkout", filters: { insight: "FUNNELS", events: [
@@ -488,7 +488,7 @@ export const JOURNEY_POSTHOG_PROJECTS = [
       { id: "checkout_started", order: 1 }, { id: "purchase", order: 2 }] } },
     { id: 3, short_id: "trd3", name: "Weekly visitors", query: { kind: "InsightVizNode", source: { kind: "TrendsQuery", series: [] } } },
   ] },
-  { id: 596608, name: "Staging", appUrls: [], insights: [] },
+  { id: 424243, name: "Staging", appUrls: [], insights: [] },
 ];
 
 /** The synthetic Bing account: the journey's own site, verified, and a
@@ -1010,7 +1010,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       }
       const regressed = await run(env, { assets, fetchImpl: journeySite("regressed"), nowMs: nowMs - 3_600_000 });
       await lane(ingestCode.recordGa4Quota, "recordGa4Quota")(env, { asset: JOURNEY_ASSET, lane: "google-signals",
-        propertyRef: "properties/313598867", at: new Date(nowMs - 3_600_000).toISOString(),
+        propertyRef: "properties/123456789", at: new Date(nowMs - 3_600_000).toISOString(),
         quota: { tokensPerDay: { consumed: 190_000, remaining: 10_000 }, tokensPerHour: null } });
       return Response.json(regressed);
     }

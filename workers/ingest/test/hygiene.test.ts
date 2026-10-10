@@ -35,11 +35,11 @@ import { changeSites } from './sites';
 
 beforeEach(reset);
 
-const DOMAIN = 'meals.example';
+const DOMAIN = 'meadow.example';
 const HOME = `https://${DOMAIN}/`;
 const ROBOTS = `https://${DOMAIN}/robots.txt`;
 const SITEMAP = `https://${DOMAIN}/sitemap.xml`;
-const ASSETS: HygieneAsset[] = [{ asset: 'meals.example', domain: DOMAIN }];
+const ASSETS: HygieneAsset[] = [{ asset: 'meadow.example', domain: DOMAIN }];
 
 /** 04:00 UTC — the cron's own slot. */
 const NOW = Date.parse('2026-07-20T04:00:00.000Z');
@@ -210,7 +210,7 @@ async function seedReading(
   await env.STORE.write((tx) =>
     tx.execute(
       `INSERT INTO noticeos.hygiene_checks (workspace_id, asset_id, check_id, observed_at, observed_on, status, value_num, detail)
-       VALUES ($1, 'meals.example', $2, $3::timestamptz, $4::date, $5, $6, $7::json)`,
+       VALUES ($1, 'meadow.example', $2, $3::timestamptz, $4::date, $5, $6, $7::json)`,
       [tx.workspaceId, check, `${day}T04:00:00.000Z`, day, readingStatus, value, JSON.stringify(detail)],
     ),
   );
@@ -246,7 +246,7 @@ async function readingFor(check: string, day = TODAY): Promise<ReadingRow | null
   const [row] = await env.STORE.read((tx) =>
     tx.query<ReadingRow>(
       `SELECT status, value_num, detail::text AS detail_json FROM noticeos.hygiene_checks
-        WHERE asset_id = 'meals.example' AND check_id = $1 AND observed_on = $2::date`,
+        WHERE asset_id = 'meadow.example' AND check_id = $1 AND observed_on = $2::date`,
       [check, day],
     ),
   );
@@ -267,7 +267,7 @@ interface FlagRow {
   resolved_at: string | null;
 }
 
-async function flagFor(ruleId: string, asset = 'meals.example'): Promise<FlagRow | null> {
+async function flagFor(ruleId: string, asset = 'meadow.example'): Promise<FlagRow | null> {
   const [row] = await flagRows(`asset_id = $1 AND rule_id = $2`, [asset, ruleId]);
   return row
     ? {
@@ -318,7 +318,7 @@ describe('countVisibleWords', () => {
   it('reads a JS-only shell as the near-empty page a crawler receives', () => {
     // A real app that renders client-side.
     const shell =
-      '<html><head><title>Meal Planner</title></head><body><div id="root"></div>' +
+      '<html><head><title>Meadow Board</title></head><body><div id="root"></div>' +
       '<script>const app = { boot() { renderEverything(); } };</script></body></html>';
     expect(countVisibleWords(shell)).toBe(0);
   });
@@ -790,10 +790,10 @@ describe('uptime: the hourly home-page check', () => {
   });
 
   it('waits once for every site whose first GET failed, not once a site', async () => {
-    const other: HygieneAsset = { asset: 'nosh.example', domain: 'nosh.example' };
+    const other: HygieneAsset = { asset: 'northwind.example', domain: 'northwind.example' };
     const { fetchImpl, calls } = stubOrigin({
       [HOME]: () => status(503),
-      'https://nosh.example/': () => status(503),
+      'https://northwind.example/': () => status(503),
     });
     const realTimeout = globalThis.setTimeout;
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
@@ -832,7 +832,7 @@ describe('uptime: the hourly home-page check', () => {
 
   it('files a site-down alert at error, not warn', async () => {
     await insertFlag({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       firedAt: new Date(NOW - DAY_MS).toISOString(),
       severity: 'warn',
       kind: 'anomaly',
@@ -989,7 +989,7 @@ describe('hygiene: OS egress outage', () => {
   });
 
   it('judges the properties measured before the uplink died and gates only the rest', async () => {
-    const nom: HygieneAsset = { asset: 'nosh.example', domain: 'nosh.example' };
+    const nom: HygieneAsset = { asset: 'northwind.example', domain: 'northwind.example' };
     /** Serves `routes` for the first `until` requests, then nothing ever again —
      * an outage that starts partway through the sweep, beacons included. */
     function dying(until: number, routes: Record<string, () => Response>): typeof fetch {
@@ -1004,12 +1004,12 @@ describe('hygiene: OS egress outage', () => {
       }) as typeof fetch;
     }
 
-    // nosh.example spends exactly three requests (robots, sitemap, home) — its empty
+    // northwind.example spends exactly three requests (robots, sitemap, home) — its empty
     // sitemap leaves no pages to sample — and the uplink dies right after.
     const fetchImpl = dying(3, {
-      'https://nosh.example/robots.txt': () => plain('User-agent: *\nAllow: /\n'),
-      'https://nosh.example/sitemap.xml': () => xml(urlset(0)),
-      'https://nosh.example/': () => html(page(600)),
+      'https://northwind.example/robots.txt': () => plain('User-agent: *\nAllow: /\n'),
+      'https://northwind.example/sitemap.xml': () => xml(urlset(0)),
+      'https://northwind.example/': () => html(page(600)),
     });
 
     const result = await runHygieneChecks(env, { assets: [nom, ASSETS[0]!], fetchImpl, nowMs: NOW });
@@ -1018,7 +1018,7 @@ describe('hygiene: OS egress outage', () => {
     const nomRows = await env.STORE.read((tx) =>
       tx.query<{ status: string; n: number }>(
         `SELECT status, count(*)::int AS n FROM noticeos.hygiene_checks
-          WHERE asset_id = 'nosh.example' GROUP BY status ORDER BY status COLLATE "C"`,
+          WHERE asset_id = 'northwind.example' GROUP BY status ORDER BY status COLLATE "C"`,
       ),
     );
     // … three of them 'ok', and page-structure 'unreachable' rather than 'ok':
@@ -1030,7 +1030,7 @@ describe('hygiene: OS egress outage', () => {
       { status: 'unreachable', n: 1 },
     ]);
     // … and the one read after it is unmeasured, not accused.
-    expect(result.egress).toMatchObject({ up: false, unmeasuredAssets: ['meals.example'] });
+    expect(result.egress).toMatchObject({ up: false, unmeasuredAssets: ['meadow.example'] });
     expect(result.fired).toBe(0);
     expect(detailOf(await readingFor('html-depth'))).toMatchObject({ egress_down: true });
   });
@@ -1487,17 +1487,17 @@ describe('hygiene sweep', () => {
   });
 
   it('keeps one property total failure from stopping the sweep', async () => {
-    const good: HygieneAsset = { asset: 'nosh.example', domain: 'nosh.example' };
+    const good: HygieneAsset = { asset: 'northwind.example', domain: 'northwind.example' };
     const { fetchImpl } = stubOrigin({
-      // meals.example is routed nowhere at all: every request throws.
-      'https://nosh.example/': () => html(page(600)),
-      'https://nosh.example/robots.txt': () => plain('User-agent: *\nAllow: /\n'),
-      'https://nosh.example/sitemap.xml': () => xml(urlset(80, 'nosh.example')),
+      // meadow.example is routed nowhere at all: every request throws.
+      'https://northwind.example/': () => html(page(600)),
+      'https://northwind.example/robots.txt': () => plain('User-agent: *\nAllow: /\n'),
+      'https://northwind.example/sitemap.xml': () => xml(urlset(80, 'northwind.example')),
       // The sampled pages are routed too, so this property is genuinely healthy
       // on all four checks. Left unrouted, page-structure would read nothing and
       // report 'unreachable' — correct, but it would make this test about the
       // fixture's gap rather than about the sweep surviving a dead origin.
-      ...pageRoutes(80, 'nosh.example'),
+      ...pageRoutes(80, 'northwind.example'),
     });
 
     const result = await runHygieneChecks(env, {
@@ -1512,7 +1512,7 @@ describe('hygiene sweep', () => {
     expect(result.failed).toEqual([]);
     expect(await readingFor('html-depth')).toMatchObject({ status: 'unreachable' });
 
-    expect(await readingCount(`asset_id = 'nosh.example' AND status = 'ok'`)).toBe(HYGIENE_CHECKS.length);
+    expect(await readingCount(`asset_id = 'northwind.example' AND status = 'ok'`)).toBe(HYGIENE_CHECKS.length);
   });
 
   it('keeps one reading per check per day when the sweep re-runs', async () => {
@@ -1524,30 +1524,30 @@ describe('hygiene sweep', () => {
       nowMs: NOW + 3_600_000,
     });
 
-    expect(await readingCount(`asset_id = 'meals.example'`)).toBe(HYGIENE_CHECKS.length);
+    expect(await readingCount(`asset_id = 'meadow.example'`)).toBe(HYGIENE_CHECKS.length);
     // The re-run replaces the day's reading rather than adding a second one.
     expect(await readingFor('sitemap')).toMatchObject({ value_num: 121 });
   });
 
   it('sweeps every domain-bearing property except asset #0 and retired ones', async () => {
-    await changeSites(['areas.example'], { status: 'retired' });
+    await changeSites(['acorn.example'], { status: 'retired' });
     try {
       const { fetchImpl, calls } = stubOrigin({});
       const result = await runHygieneChecks(env, { fetchImpl, nowMs: NOW });
 
       const swept = [...new Set(result.outcomes.map((outcome) => outcome.asset))].sort();
-      // pullups.example is swept alongside pacer.example: the old domain stays
+      // puffin.example is swept alongside pebble.example: the old domain stays
       // live to watch the redirect handoff, so both are domain-bearing.
       expect(swept).toEqual([
-        'fees.example',
-        'meals.example',
-        'nosh.example',
-        'pacer.example',
-        'pullups.example',
+        'ferns.example',
+        'meadow.example',
+        'northwind.example',
+        'pebble.example',
+        'puffin.example',
       ]);
       expect(calls.some((call) => call.url.includes('os.example'))).toBe(false);
     } finally {
-      await changeSites(['areas.example'], { status: 'onboarding' });
+      await changeSites(['acorn.example'], { status: 'onboarding' });
     }
   });
 });

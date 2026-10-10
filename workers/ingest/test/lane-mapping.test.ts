@@ -45,13 +45,13 @@ const ACCOUNTS = JSON.stringify({
       }),
     ),
     properties: {
-      'meals.example': {
+      'meadow.example': {
         ga4_property_id: '123456',
-        gsc_site_url: 'sc-domain:meals.example',
+        gsc_site_url: 'sc-domain:meadow.example',
       },
-      'nosh.example': {
+      'northwind.example': {
         ga4_property_id: '654321',
-        gsc_site_url: 'sc-domain:nosh.example',
+        gsc_site_url: 'sc-domain:northwind.example',
       },
     },
   },
@@ -61,10 +61,10 @@ const ACCOUNTS = JSON.stringify({
  * what makes "unmapped keeps today's behaviour" testable in the same run. */
 const REGISTER: LaneRegister = {
   assets: {
-    'meals.example': {
+    'meadow.example': {
       ga4: { propertyId: '999999' },
-      gsc: { siteUrl: 'sc-domain:register.meals.example' },
-      'bing-webmaster': { siteUrl: 'https://www.meals.example/' },
+      gsc: { siteUrl: 'sc-domain:register.meadow.example' },
+      'bing-webmaster': { siteUrl: 'https://www.meadow.example/' },
       dataforseo: { locationCode: 2826, languageCode: 'en' },
     },
   },
@@ -84,15 +84,15 @@ beforeEach(async () => {
 
 describe('the resolver', () => {
   it('reads one asset and lane out of the register', () => {
-    expect(laneMapping('meals.example', 'ga4', REGISTER).propertyId).toBe('999999');
-    expect(laneMapping('meals.example', 'dataforseo', REGISTER)).toMatchObject({
+    expect(laneMapping('meadow.example', 'ga4', REGISTER).propertyId).toBe('999999');
+    expect(laneMapping('meadow.example', 'dataforseo', REGISTER)).toMatchObject({
       locationCode: 2826,
       languageCode: 'en',
     });
     // An asset with no entry, and a lane the asset does not carry, are the same
     // answer: nothing is mapped.
-    expect(laneMapping('nosh.example', 'ga4', REGISTER).propertyId).toBeNull();
-    expect(laneMapping('meals.example', 'gsc', REGISTER).propertyId).toBeNull();
+    expect(laneMapping('northwind.example', 'ga4', REGISTER).propertyId).toBeNull();
+    expect(laneMapping('meadow.example', 'gsc', REGISTER).propertyId).toBeNull();
   });
 
   it('treats an emptied field and a wrong type as "not mapped"', () => {
@@ -100,43 +100,43 @@ describe('the resolver', () => {
     // must not reach a provider as a property id.
     const odd: LaneRegister = {
       assets: {
-        'nosh.example': { ga4: { propertyId: '' }, dataforseo: { locationCode: 28.5 } },
+        'northwind.example': { ga4: { propertyId: '' }, dataforseo: { locationCode: 28.5 } },
       },
     };
-    expect(laneMapping('nosh.example', 'ga4', odd).propertyId).toBeNull();
-    expect(laneMapping('nosh.example', 'dataforseo', odd).locationCode).toBeNull();
+    expect(laneMapping('northwind.example', 'ga4', odd).propertyId).toBeNull();
+    expect(laneMapping('northwind.example', 'dataforseo', odd).locationCode).toBeNull();
   });
 
   it('prefers the register and falls back to the lane’s old source', () => {
     expect(
-      resolveLaneRef('meals.example', 'ga4', { value: '123456', source: 'credential' }, REGISTER),
+      resolveLaneRef('meadow.example', 'ga4', { value: '123456', source: 'credential' }, REGISTER),
     ).toEqual({ value: '999999', source: 'register' });
     expect(
-      resolveLaneRef('nosh.example', 'ga4', { value: '654321', source: 'credential' }, REGISTER),
+      resolveLaneRef('northwind.example', 'ga4', { value: '654321', source: 'credential' }, REGISTER),
     ).toEqual({ value: '654321', source: 'credential' });
     // Neither side has an answer: the lane reports "nothing points this asset at
     // a property", which is what each caller already knows how to say.
     expect(
-      resolveLaneRef('nosh.example', 'ga4', { value: null, source: 'credential' }, REGISTER),
+      resolveLaneRef('northwind.example', 'ga4', { value: null, source: 'credential' }, REGISTER),
     ).toBeNull();
   });
 
   it('answers the DataForSEO scope per field, baseline behind each', () => {
-    expect(resolveDataForSeoScope('meals.example', REGISTER)).toEqual({
+    expect(resolveDataForSeoScope('meadow.example', REGISTER)).toEqual({
       locationCode: 2826,
       languageCode: 'en',
       source: 'register',
     });
-    expect(resolveDataForSeoScope('nosh.example', REGISTER)).toEqual({
+    expect(resolveDataForSeoScope('northwind.example', REGISTER)).toEqual({
       locationCode: DATAFORSEO_BASELINE_LOCATION_CODE,
       languageCode: DATAFORSEO_BASELINE_LANGUAGE_CODE,
       source: 'baseline',
     });
     // A market stated without a language is an answer, not half a config.
     const marketOnly: LaneRegister = {
-      assets: { 'nosh.example': { dataforseo: { locationCode: 2276 } } },
+      assets: { 'northwind.example': { dataforseo: { locationCode: 2276 } } },
     };
-    expect(resolveDataForSeoScope('nosh.example', marketOnly)).toEqual({
+    expect(resolveDataForSeoScope('northwind.example', marketOnly)).toEqual({
       locationCode: 2276,
       languageCode: DATAFORSEO_BASELINE_LANGUAGE_CODE,
       source: 'register',
@@ -190,11 +190,11 @@ describe('the Google lanes', () => {
     expect(urls.some((url) => url.includes('/properties/999999:runReport'))).toBe(true);
     expect(urls.some((url) => url.includes('/properties/123456:runReport'))).toBe(false);
     expect(
-      urls.some((url) => url.includes(encodeURIComponent('sc-domain:register.meals.example'))),
+      urls.some((url) => url.includes(encodeURIComponent('sc-domain:register.meadow.example'))),
     ).toBe(true);
     // The unmapped one: exactly what it asked for with no register.
     expect(urls.some((url) => url.includes('/properties/654321:runReport'))).toBe(true);
-    expect(urls.some((url) => url.includes(encodeURIComponent('sc-domain:nosh.example')))).toBe(true);
+    expect(urls.some((url) => url.includes(encodeURIComponent('sc-domain:northwind.example')))).toBe(true);
 
     // And each attempt RECORDS which mapping it ran on.
     const sources = Object.fromEntries(
@@ -204,10 +204,10 @@ describe('the Google lanes', () => {
       ]),
     );
     expect(sources).toEqual({
-      'meals.example ga4': 'register',
-      'meals.example gsc': 'register',
-      'nosh.example ga4': 'credential',
-      'nosh.example gsc': 'credential',
+      'meadow.example ga4': 'register',
+      'meadow.example gsc': 'register',
+      'northwind.example ga4': 'credential',
+      'northwind.example gsc': 'credential',
     });
   });
 
@@ -235,7 +235,7 @@ describe('the Google lanes', () => {
     );
     expect(targets.map((target) => `${target.integration}:${target.propertyRef}`)).toEqual([
       'ga4:999999',
-      'gsc:sc-domain:register.meals.example',
+      'gsc:sc-domain:register.meadow.example',
     ]);
     for (const target of targets) {
       expect(target.auth.kind).toBe('oauth');
@@ -245,7 +245,7 @@ describe('the Google lanes', () => {
       expect(target.credentialRef).toBe('store:google-oauth');
     }
     expect(registerMappedAssets('ga4', REGISTER)).toEqual([
-      { asset: 'meals.example', ref: '999999' },
+      { asset: 'meadow.example', ref: '999999' },
     ]);
   });
 
@@ -253,7 +253,7 @@ describe('the Google lanes', () => {
     const targets = googleTargets({ accounts: ACCOUNTS, oauth: GRANT }, 'env', undefined, REGISTER);
     expect(targets).toHaveLength(4);
     expect(
-      targets.filter((t) => t.asset === 'meals.example' && t.integration === 'ga4'),
+      targets.filter((t) => t.asset === 'meadow.example' && t.integration === 'ga4'),
     ).toHaveLength(1);
   });
 
@@ -263,19 +263,19 @@ describe('the Google lanes', () => {
    * and discarded cannot look the same. */
   const FULLY_MAPPED: LaneRegister = {
     assets: {
-      'meals.example': {
+      'meadow.example': {
         ga4: { propertyId: '999999' },
-        gsc: { siteUrl: 'sc-domain:register.meals.example' },
+        gsc: { siteUrl: 'sc-domain:register.meadow.example' },
       },
-      'nosh.example': {
+      'northwind.example': {
         ga4: { propertyId: '888888' },
-        gsc: { siteUrl: 'sc-domain:register.nosh.example' },
+        gsc: { siteUrl: 'sc-domain:register.northwind.example' },
       },
     },
   };
 
   it('asks per lane whether the credential’s own map is still anyone’s answer', () => {
-    const named = ['meals.example', 'nosh.example'];
+    const named = ['meadow.example', 'northwind.example'];
     expect(credentialPropertyMapNeeded(named, 'ga4', FULLY_MAPPED)).toBe(false);
     expect(credentialPropertyMapNeeded(named, 'gsc', FULLY_MAPPED)).toBe(false);
     // One asset mapped on one lane retires nothing: the OTHER asset, and the
@@ -284,7 +284,7 @@ describe('the Google lanes', () => {
     expect(credentialPropertyMapNeeded(named, 'gsc', REGISTER)).toBe(true);
     // An asset the credential does not name cannot hold the map open — the
     // question is only ever asked of the assets it is responsible for.
-    expect(credentialPropertyMapNeeded(['meals.example'], 'ga4', REGISTER)).toBe(false);
+    expect(credentialPropertyMapNeeded(['meadow.example'], 'ga4', REGISTER)).toBe(false);
     expect(credentialPropertyMapNeeded([], 'ga4', { assets: {} })).toBe(false);
   });
 
@@ -296,7 +296,7 @@ describe('the Google lanes', () => {
    * contents, so it cannot derive this itself. */
   it('keeps the map open for an asset the register has no entry for at all', () => {
     const orphaned = credentialPropertyMapUse(
-      ['meals.example', 'nosh.example', 'areas.example'],
+      ['meadow.example', 'northwind.example', 'acorn.example'],
       ['ga4', 'gsc'],
       FULLY_MAPPED,
     );
@@ -305,36 +305,36 @@ describe('the Google lanes', () => {
     expect(orphaned).toEqual({
       needed: true,
       answersFor: [
-        { asset: 'areas.example', id: 'ga4', label: 'ga4' },
-        { asset: 'areas.example', id: 'gsc', label: 'gsc' },
+        { asset: 'acorn.example', id: 'ga4', label: 'ga4' },
+        { asset: 'acorn.example', id: 'gsc', label: 'gsc' },
       ],
     });
     // And the collector reads the same rule, so the two cannot drift.
     expect(
-      credentialPropertyMapNeeded(['meals.example', 'nosh.example', 'areas.example'], 'ga4', FULLY_MAPPED),
+      credentialPropertyMapNeeded(['meadow.example', 'northwind.example', 'acorn.example'], 'ga4', FULLY_MAPPED),
     ).toBe(true);
   });
 
   it('spells each data source the way the catalog does', () => {
     const labelled: LaneRegister = {
       ...FULLY_MAPPED,
-      assets: { 'nosh.example': { gsc: { siteUrl: 'sc-domain:register.nosh.example' } } },
+      assets: { 'northwind.example': { gsc: { siteUrl: 'sc-domain:register.northwind.example' } } },
       catalog: [
         { id: 'ga4', label: 'Google Analytics 4 (GA4 Data API)' },
         { id: 'gsc', label: 'Google Search Console (GSC API)' },
       ],
     };
-    expect(credentialPropertyMapUse(['nosh.example'], ['ga4', 'gsc'], labelled)).toEqual({
+    expect(credentialPropertyMapUse(['northwind.example'], ['ga4', 'gsc'], labelled)).toEqual({
       needed: true,
       answersFor: [
-        { asset: 'nosh.example', id: 'ga4', label: 'Google Analytics 4 (GA4 Data API)' },
+        { asset: 'northwind.example', id: 'ga4', label: 'Google Analytics 4 (GA4 Data API)' },
       ],
     });
   });
 
   it('answers null where there is no property map to talk about', () => {
     // A provider that never held one.
-    expect(credentialPropertyMapUse(['nosh.example'], ['bing-webmaster'], FULLY_MAPPED)).toBeNull();
+    expect(credentialPropertyMapUse(['northwind.example'], ['bing-webmaster'], FULLY_MAPPED)).toBeNull();
     // And a credential the OS cannot read a blob out of — a sign-in with no
     // account map, or one that does not parse. Saying nothing beats guessing.
     expect(credentialPropertyMapUse(null, ['ga4', 'gsc'], FULLY_MAPPED)).toBeNull();
@@ -342,9 +342,9 @@ describe('the Google lanes', () => {
 
   it('reports the answer to the card from the credential the collector reads', async () => {
     // The ingest answers, so the card and the run cannot hold two opinions.
-    // The suite's own GOOGLE_SIGNAL_ACCOUNTS binding names meals.example and
-    // nosh.example.
-    expect((await credentialNamedAssets(env))?.sort()).toEqual(['meals.example', 'nosh.example']);
+    // The suite's own GOOGLE_SIGNAL_ACCOUNTS binding names meadow.example and
+    // northwind.example.
+    expect((await credentialNamedAssets(env))?.sort()).toEqual(['meadow.example', 'northwind.example']);
 
     const state = await withCredentialPropertyMaps(
       env,
@@ -373,8 +373,8 @@ describe('the Google lanes', () => {
     expect(targets.map((target) => `${target.integration}:${target.propertyRef}`).sort()).toEqual([
       'ga4:888888',
       'ga4:999999',
-      'gsc:sc-domain:register.meals.example',
-      'gsc:sc-domain:register.nosh.example',
+      'gsc:sc-domain:register.meadow.example',
+      'gsc:sc-domain:register.northwind.example',
     ]);
     // Nothing collected twice, and the ROUTING half of the blob still answers:
     // every target is authenticated by the account entry that named its asset.
@@ -389,8 +389,8 @@ describe('the Google lanes', () => {
     // is done stops reading the credential; the half that is not is untouched.
     const ga4Only: LaneRegister = {
       assets: {
-        'meals.example': { ga4: { propertyId: '999999' } },
-        'nosh.example': { ga4: { propertyId: '888888' } },
+        'meadow.example': { ga4: { propertyId: '999999' } },
+        'northwind.example': { ga4: { propertyId: '888888' } },
       },
     };
     const targets = googleTargets({ accounts: ACCOUNTS, oauth: null }, 'env', undefined, ga4Only);
@@ -398,14 +398,14 @@ describe('the Google lanes', () => {
       targets.map((target) => [`${target.asset} ${target.integration}`, target.mappingSource]),
     );
     expect(source).toEqual({
-      'meals.example ga4': 'register',
-      'meals.example gsc': 'credential',
-      'nosh.example ga4': 'register',
-      'nosh.example gsc': 'credential',
+      'meadow.example ga4': 'register',
+      'meadow.example gsc': 'credential',
+      'northwind.example ga4': 'register',
+      'northwind.example gsc': 'credential',
     });
     expect(
       targets.filter((target) => target.integration === 'gsc').map((target) => target.propertyRef),
-    ).toEqual(['sc-domain:meals.example', 'sc-domain:nosh.example']);
+    ).toEqual(['sc-domain:meadow.example', 'sc-domain:northwind.example']);
   });
 
   it('records register only on a real run once nothing needs the credential map', async () => {
@@ -432,12 +432,12 @@ describe('the Google lanes', () => {
 describe('the Bing lane', () => {
   /** Bing lists every seeded property as verified, spelled its own way. */
   const SITES = [
-    'https://meals.example/',
-    'https://nosh.example/',
-    'https://pacer.example/',
-    'https://pullups.example/',
-    'https://areas.example/',
-    'https://fees.example/',
+    'https://meadow.example/',
+    'https://northwind.example/',
+    'https://pebble.example/',
+    'https://puffin.example/',
+    'https://acorn.example/',
+    'https://ferns.example/',
   ];
 
   function bingFetch(): { fetchImpl: typeof fetch; sites: string[] } {
@@ -464,13 +464,13 @@ describe('the Bing lane', () => {
     });
     // The register's spelling wins — which is the whole point for Bing, whose
     // account can hold two sites that share a host.
-    expect(sites).toContain('https://www.meals.example/');
-    expect(sites).not.toContain('https://meals.example/');
-    expect(sites).toContain('https://nosh.example/');
+    expect(sites).toContain('https://www.meadow.example/');
+    expect(sites).not.toContain('https://meadow.example/');
+    expect(sites).toContain('https://northwind.example/');
 
-    const meals = result.outcomes.find((outcome) => outcome.asset === 'meals.example');
-    const nom = result.outcomes.find((outcome) => outcome.asset === 'nosh.example');
-    expect(meals?.mappingSource).toBe('register');
+    const meadow = result.outcomes.find((outcome) => outcome.asset === 'meadow.example');
+    const nom = result.outcomes.find((outcome) => outcome.asset === 'northwind.example');
+    expect(meadow?.mappingSource).toBe('register');
     expect(nom?.mappingSource).toBe('domain-match');
   });
 });
@@ -518,7 +518,7 @@ describe('the DataForSEO lane', () => {
       fetchImpl,
       login: 'operator-login',
       password: 'operator-password',
-      scope: { asset: 'meals.example' },
+      scope: { asset: 'meadow.example' },
       laneRegister: REGISTER,
     });
     const markets = scoped(tasks);
@@ -539,7 +539,7 @@ describe('the DataForSEO lane', () => {
       fetchImpl,
       login: 'operator-login',
       password: 'operator-password',
-      scope: { asset: 'nosh.example' },
+      scope: { asset: 'northwind.example' },
       laneRegister: REGISTER,
     });
     const markets = scoped(tasks);

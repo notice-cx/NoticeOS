@@ -58,7 +58,7 @@ const rows = () => storedCount('SELECT count(*)::int AS n FROM noticeos.ledger_e
 const EST = 'raptive-report:est-may';
 const estimate = {
   kind: 'revenue',
-  asset: 'meals.example',
+  asset: 'meadow.example',
   period: '2026-05',
   family: 'ads',
   amount: 100,
@@ -111,7 +111,7 @@ describe('POST /api/revenue on the store', () => {
   it('refuses a correction for another asset and period', async () => {
     await upload(env.STORE, [estimate]);
     const { status, body } = await upload(env.STORE, [
-      correction('fix-1', 200, EST, { asset: 'nosh.example', period: '2026-06' }),
+      correction('fix-1', 200, EST, { asset: 'northwind.example', period: '2026-06' }),
     ]);
     expect(status).toBe(422);
     expect(body.results?.[0]).toMatchObject({ ok: false, error: 'supersedes_mismatch' });

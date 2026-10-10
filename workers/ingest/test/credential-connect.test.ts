@@ -29,8 +29,8 @@ function bing(calls: string[] = [], known = BING_SECRET): typeof fetch {
       return Response.json({ ErrorCode: 3, Message: 'ERROR!!! InvalidApiKey' }, { status: 400 });
     }
     return Response.json({ d: [
-      { Url: 'https://meals.example/', IsVerified: true },
-      { Url: 'https://nosh.example/', IsVerified: true },
+      { Url: 'https://meadow.example/', IsVerified: true },
+      { Url: 'https://northwind.example/', IsVerified: true },
       { Url: 'https://unverified.example/', IsVerified: false },
     ] });
   }) as typeof fetch;

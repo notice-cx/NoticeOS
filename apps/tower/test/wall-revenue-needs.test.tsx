@@ -29,10 +29,10 @@ describe("the revenue widget", () => {
     expect(section).toHaveClass("xl:h-72", "2xl:h-wall-band");
     expect(within(section as HTMLElement).getByRole("heading").textContent).toBe("September revenue · estimated");
     expect(section.querySelector("[data-revenue-figure]")?.textContent).toBe("$1,185");
-    // Plate Planner $1,310 + Menu Finder $385, the two ready projections.
+    // Plume Studio $1,310 + Mosaic Finder $385, the two ready projections.
     expect(section.querySelector("[data-revenue-pace]")?.textContent).toContain("on pace for $1,695");
-    // Yesterday in place of the month's daily average: Plate Planner $43.18
-    // + Menu Finder $12.07, both reports in.
+    // Yesterday in place of the month's daily average: Plume Studio $43.18
+    // + Mosaic Finder $12.07, both reports in.
     expect(section.querySelector("[data-revenue-pace]")?.textContent).toContain("Sep 21 · Pacific $55.25 est. · 9 days left");
     expect(section.textContent).not.toContain("a day");
     expect(section.querySelector("[data-revenue-yesterday]")?.getAttribute("data-revenue-yesterday")).toBe("all");
@@ -326,7 +326,7 @@ describe("the revenue widget before the month has a pace or a ledger row", () =>
     expect(section).not.toHaveClass("2xl:h-wall-band");
     expect(section.textContent).not.toContain("No revenue source");
     expect(within(section as HTMLElement).getByRole("heading").textContent).toBe("September revenue · estimated");
-    // Plate Planner $924 + Menu Finder $261 reported so far.
+    // Plume Studio $924 + Mosaic Finder $261 reported so far.
     expect(section.querySelector("[data-revenue-figure]")?.textContent).toBe("$1,185");
     expect(section.querySelector("[data-revenue-waiting]")?.textContent).toBe("Learning from traffic and revenue · 12/21 days.");
     expect(section.querySelector("[data-revenue-yesterday]")?.textContent).toBe("Sep 21 · Pacific $55.25 est.");
@@ -396,7 +396,7 @@ describe("Needs you", () => {
     const rows = container.querySelectorAll("[data-needs-row]");
     expect(rows).toHaveLength(1);
     expect(rows[0]!.getAttribute("data-needs-row")).toBe("warn");
-    expect(rows[0]!.textContent).toContain("Plate Planner");
+    expect(rows[0]!.textContent).toContain("Plume Studio");
     expect(rows[0]!.querySelector("[data-needs-line]")?.textContent).toMatch(/^Plans saved well below normal/);
     expect(rows[0]!.querySelector("[data-needs-age]")?.textContent).toBe("2h");
     expect(container.querySelector("[data-needs-meta]")?.textContent).toBe("1 of 1 · 1 urgent task");
@@ -406,15 +406,15 @@ describe("Needs you", () => {
     const data = wallFixturePayload();
     const fire = [
       ...data.attention,
-      { ...data.attention[0]!, id: 7001, severity: "error" as const, ruleId: "hygiene-home-unreachable", metric: "home", ruleInputs: { http_status: 503 }, asset: "areas.example", assetDisplayName: "Area Lookup", firstFiredAt: new Date(NOW - 25 * 60_000).toISOString() },
-      { ...data.attention[0]!, id: 7002, asset: "menus.example", assetDisplayName: "Menu Finder", firstFiredAt: new Date(NOW - 60 * 60_000).toISOString() },
-      { ...data.attention[0]!, id: 7003, asset: "rates.example", assetDisplayName: "Rate Codes", firstFiredAt: new Date(NOW - 30 * 60_000).toISOString() },
+      { ...data.attention[0]!, id: 7001, severity: "error" as const, ruleId: "hygiene-home-unreachable", metric: "home", ruleInputs: { http_status: 503 }, asset: "acorn.example", assetDisplayName: "Acorn Atlas", firstFiredAt: new Date(NOW - 25 * 60_000).toISOString() },
+      { ...data.attention[0]!, id: 7002, asset: "mosaic.example", assetDisplayName: "Mosaic Finder", firstFiredAt: new Date(NOW - 60 * 60_000).toISOString() },
+      { ...data.attention[0]!, id: 7003, asset: "ripple.example", assetDisplayName: "Ripple Index", firstFiredAt: new Date(NOW - 30 * 60_000).toISOString() },
     ];
     const { container } = render(
       <NeedsYou issues={wallIssues({ assets: data.assets, attention: fire, connections: NO_READS, nowMs: NOW })} operator={data.operator} nowMs={NOW} />,
     );
     const sites = [...container.querySelectorAll("[data-needs-row]")].map((row) => row.querySelector("span")?.textContent);
-    expect(sites).toEqual(["Area Lookup", "Rate Codes", "Menu Finder"]);
+    expect(sites).toEqual(["Acorn Atlas", "Ripple Index", "Mosaic Finder"]);
     expect(container.querySelector("[data-needs-meta]")?.textContent).toBe("3 of 4 · 1 urgent task");
     expect(container.querySelector("[data-attention-progress]")).toBeNull();
   });

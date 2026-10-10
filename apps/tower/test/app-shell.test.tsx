@@ -75,10 +75,10 @@ const NOTHING_YET = { netByMonthCurrency: 'USD',
 } satisfies Partial<AssetCard>;
 
 const ASSETS: AssetCard[] = [
-  asset("meals.example", "Meal Planner"),
-  asset("nosh.example", "Nosh", { worstSeverity: "warn", openWarn: 1 }),
-  asset("areas.example", "Area Lookup", { status: "baselining" }),
-  asset("fees.example", "Fee Codes", { worstSeverity: "info" }),
+  asset("meadow.example", "Meadow Board"),
+  asset("northwind.example", "Northwind", { worstSeverity: "warn", openWarn: 1 }),
+  asset("acorn.example", "Acorn Atlas", { status: "baselining" }),
+  asset("ferns.example", "Fern Index", { worstSeverity: "info" }),
 ];
 
 beforeEach(() => {
@@ -169,7 +169,7 @@ describe("the sidebar is the desk's only navigation", () => {
   });
 
   it("lights Sites on a site page, because a site page IS a site", () => {
-    renderSidebar("/assets/meals.example");
+    renderSidebar("/assets/meadow.example");
 
     expect(screen.getByRole("link", { name: "Sites" })).toHaveAttribute(
       "aria-current",
@@ -208,11 +208,11 @@ describe("the sidebar lists the sites under Sites", () => {
   it("draws one row per asset, pointing at its page", () => {
     renderSidebar("/");
 
-    expect(assetNames()).toEqual(["meals.example", "nosh.example", "areas.example", "fees.example"]);
+    expect(assetNames()).toEqual(["meadow.example", "northwind.example", "acorn.example", "ferns.example"]);
     const row = assetRows()[0]!;
-    expect(row).toHaveAttribute("href", "/assets/meals.example");
-    expect(within(row).getByText("Meal Planner")).toBeInTheDocument();
-    expect(row.querySelector("[data-property-favicon='meals.example']")).not.toBeNull();
+    expect(row).toHaveAttribute("href", "/assets/meadow.example");
+    expect(within(row).getByText("Meadow Board")).toBeInTheDocument();
+    expect(row.querySelector("[data-property-favicon='meadow.example']")).not.toBeNull();
   });
 
   // A titled element with no text joins the accessible name of whatever it
@@ -230,8 +230,8 @@ describe("the sidebar lists the sites under Sites", () => {
   it("names an asset row by the asset, not by its favicon", () => {
     renderSidebar("/");
 
-    const row = screen.getByRole("link", { name: "Meal Planner" });
-    expect(row).toHaveAttribute("href", "/assets/meals.example");
+    const row = screen.getByRole("link", { name: "Meadow Board" });
+    expect(row).toHaveAttribute("href", "/assets/meadow.example");
     expect(screen.queryByTitle(/favicon/i)).toBeNull();
   });
 
@@ -259,16 +259,16 @@ describe("the sidebar lists the sites under Sites", () => {
   it("sinks retired assets to the foot and marks them switched off", () => {
     state.assets = [
       asset("gone.example", "Gone", { status: "retired" }),
-      asset("meals.example", "Meal Planner"),
+      asset("meadow.example", "Meadow Board"),
     ];
     renderSidebar("/");
 
-    expect(assetNames()).toEqual(["meals.example", "gone.example"]);
+    expect(assetNames()).toEqual(["meadow.example", "gone.example"]);
     expect(within(assetRows()[1]!).getByRole("img", { name: "Retired" })).toBeInTheDocument();
   });
 
   it("lights the row on any tab of that asset, and Sites with it", () => {
-    renderSidebar("/assets/nosh.example/signals");
+    renderSidebar("/assets/northwind.example/signals");
 
     expect(assetRows()[1]).toHaveAttribute("aria-current", "page");
     expect(assetRows()[0]).not.toHaveAttribute("aria-current");
@@ -282,15 +282,15 @@ describe("the sidebar lists the sites under Sites", () => {
   // Before its first number a site's Overview has nothing to show, and its
   // next action is on Data sources.
   it("opens a site with no number yet on its Data sources, and one that has reported on its Overview", () => {
-    state.assets = [asset("new.example", "New Site", NOTHING_YET), asset("meals.example", "Meal Planner")];
+    state.assets = [asset("new.example", "New Site", NOTHING_YET), asset("meadow.example", "Meadow Board")];
     renderSidebar("/");
 
     expect(assetRows()[0]).toHaveAttribute("href", "/assets/new.example/sources");
-    expect(assetRows()[1]).toHaveAttribute("href", "/assets/meals.example");
+    expect(assetRows()[1]).toHaveAttribute("href", "/assets/meadow.example");
   });
 
   it("still lights a new site's row on its Overview, which is not where the row opens", () => {
-    state.assets = [asset("new.example", "New Site", NOTHING_YET), asset("meals.example", "Meal Planner")];
+    state.assets = [asset("new.example", "New Site", NOTHING_YET), asset("meadow.example", "Meadow Board")];
     renderSidebar("/assets/new.example");
 
     expect(assetRows()[0]).toHaveAttribute("aria-current", "page");
@@ -298,8 +298,8 @@ describe("the sidebar lists the sites under Sites", () => {
   });
 
   it("does not light a site whose id merely starts with the current one's", () => {
-    state.assets = [asset("meals.example", "Meal Planner"), asset("meals.example.org", "Meal Planner Org")];
-    renderSidebar("/assets/meals.example/growth");
+    state.assets = [asset("meadow.example", "Meadow Board"), asset("meadow.example.org", "Meadow Board Org")];
+    renderSidebar("/assets/meadow.example/growth");
 
     expect(assetRows()[0]).toHaveAttribute("aria-current", "page");
     expect(assetRows()[1]).not.toHaveAttribute("aria-current");
@@ -528,7 +528,7 @@ describe("/properties is the older spelling of /assets", () => {
   // either way can 404.
   it("redirects an asset page and keeps the deep link's hash", () => {
     render(
-      <MemoryRouter initialEntries={["/properties/meals.example#timeline"]}>
+      <MemoryRouter initialEntries={["/properties/meadow.example#timeline"]}>
         <Routes>
           <Route path="/properties/:id" element={<PropertyRedirect />} />
           <Route path="/assets/:id" element={<CurrentPath />} />
@@ -538,7 +538,7 @@ describe("/properties is the older spelling of /assets", () => {
     );
 
     // An alert's change chip lands on #timeline and a matrix cell on #integrations.
-    expect(screen.getByTestId("path")).toHaveTextContent("/assets/meals.example#timeline");
+    expect(screen.getByTestId("path")).toHaveTextContent("/assets/meadow.example#timeline");
   });
 
   it("redirects the index too", () => {
@@ -699,8 +699,8 @@ describe("the nav fetches a page's code before it is clicked", () => {
 
     fireEvent.pointerEnter(nav.getByRole("link", { name: "Sites" }));
     expect(onPrefetch).toHaveBeenLastCalledWith("/assets");
-    fireEvent.pointerEnter(nav.getByRole("link", { name: "Meal Planner" }));
-    expect(onPrefetch).toHaveBeenLastCalledWith("/assets/meals.example");
+    fireEvent.pointerEnter(nav.getByRole("link", { name: "Meadow Board" }));
+    expect(onPrefetch).toHaveBeenLastCalledWith("/assets/meadow.example");
     fireEvent.pointerEnter(nav.getByRole("link", { name: "Add a site" }));
     expect(onPrefetch).toHaveBeenLastCalledWith("/assets/new");
     fireEvent.pointerEnter(nav.getByRole("link", { name: "TV dashboard" }));

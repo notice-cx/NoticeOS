@@ -79,8 +79,8 @@ let test: TestStore;
 
 beforeEach(async () => {
   test = await createTestStore();
-  await insertAsset(test, "meals.example", "meals.example", "Meal Planner");
-  await insertAsset(test, "nosh.example", "nosh.example", "Nosh");
+  await insertAsset(test, "meadow.example", "meadow.example", "Meadow Board");
+  await insertAsset(test, "northwind.example", "northwind.example", "Northwind");
   // The OS row with a stored name no payload shows.
   await insertAsset(test, "root-os", null, "ReindexOS", 1);
 });
@@ -96,15 +96,15 @@ const query = (over: Partial<Parameters<typeof buildAlertHistoryPayload>[1]> = {
 
 describe("the settled-alert read", () => {
   it("carries only alerts that were resolved or acknowledged", async () => {
-    await insertFlag(test, { asset: "meals.example", firedAt: at(9), resolvedAt: at(7) });
+    await insertFlag(test, { asset: "meadow.example", firedAt: at(9), resolvedAt: at(7) });
     await insertFlag(test, {
-      asset: "meals.example",
+      asset: "meadow.example",
       firedAt: at(8),
       disposition: "ack",
       dispositionAt: at(6),
     });
     // Still open, and still open with a snooze: neither belongs in history.
-    await insertFlag(test, { asset: "meals.example", firedAt: at(2) });
+    await insertFlag(test, { asset: "meadow.example", firedAt: at(2) });
 
     const payload = await buildAlertHistoryPayload(test.call, query(), { now: NOW });
 
@@ -117,13 +117,13 @@ describe("the settled-alert read", () => {
     // The row that fired first closed last. Ordering by fired_at would invert
     // this list, and "what settled most recently" is the question the page asks.
     const old = await insertFlag(test, {
-      asset: "meals.example",
+      asset: "meadow.example",
       firedAt: at(40),
       resolvedAt: at(1),
       message: "fired long ago, closed yesterday",
     });
     const recent = await insertFlag(test, {
-      asset: "nosh.example",
+      asset: "northwind.example",
       firedAt: at(3),
       resolvedAt: at(2),
       message: "fired recently, closed the day before",
@@ -136,7 +136,7 @@ describe("the settled-alert read", () => {
 
   it("falls back to the disposition time, then the firing, when nothing resolved it", async () => {
     const acked = await insertFlag(test, {
-      asset: "nosh.example",
+      asset: "northwind.example",
       firedAt: at(30),
       disposition: "ack",
       dispositionAt: at(1),
@@ -145,7 +145,7 @@ describe("the settled-alert read", () => {
     // rather than dropping out of the list. Deliberately not `tune`: a tuned
     // alert is still open (`worker/flag-scope.ts`).
     const undated = await insertFlag(test, {
-      asset: "nosh.example",
+      asset: "northwind.example",
       firedAt: at(5),
       disposition: "incident",
       dispositionAt: null,
@@ -157,30 +157,30 @@ describe("the settled-alert read", () => {
   });
 
   it("names the asset each row belongs to, with its domain", async () => {
-    await insertFlag(test, { asset: "nosh.example", firedAt: at(4), resolvedAt: at(3) });
+    await insertFlag(test, { asset: "northwind.example", firedAt: at(4), resolvedAt: at(3) });
     await insertFlag(test, { asset: "root-os", firedAt: at(6), resolvedAt: at(5) });
 
     const payload = await buildAlertHistoryPayload(test.call, query(), { now: NOW });
 
     expect(payload.rows.map((row) => row.asset)).toEqual([
-      { id: "nosh.example", domain: "nosh.example", displayName: "Nosh" },
+      { id: "northwind.example", domain: "northwind.example", displayName: "Northwind" },
       { id: "root-os", domain: null, displayName: "NoticeOS" },
     ]);
     expect(JSON.stringify(payload)).not.toContain("ReindexOS");
   });
 
   it("filters by asset and by severity, and the total follows the filter", async () => {
-    await insertFlag(test, { asset: "meals.example", firedAt: at(9), resolvedAt: at(8), severity: "error" });
-    await insertFlag(test, { asset: "meals.example", firedAt: at(7), resolvedAt: at(6), severity: "warn" });
-    await insertFlag(test, { asset: "nosh.example", firedAt: at(5), resolvedAt: at(4), severity: "error" });
+    await insertFlag(test, { asset: "meadow.example", firedAt: at(9), resolvedAt: at(8), severity: "error" });
+    await insertFlag(test, { asset: "meadow.example", firedAt: at(7), resolvedAt: at(6), severity: "warn" });
+    await insertFlag(test, { asset: "northwind.example", firedAt: at(5), resolvedAt: at(4), severity: "error" });
 
     const byAsset = await buildAlertHistoryPayload(
       test.call,
-      query({ asset: "meals.example" }),
+      query({ asset: "meadow.example" }),
       { now: NOW },
     );
     expect(byAsset.total).toBe(2);
-    expect(byAsset.rows.every((row) => row.asset.id === "meals.example")).toBe(true);
+    expect(byAsset.rows.every((row) => row.asset.id === "meadow.example")).toBe(true);
 
     const bySeverity = await buildAlertHistoryPayload(
       test.call,
@@ -192,7 +192,7 @@ describe("the settled-alert read", () => {
 
     const both = await buildAlertHistoryPayload(
       test.call,
-      query({ asset: "meals.example", severity: "error" }),
+      query({ asset: "meadow.example", severity: "error" }),
       { now: NOW },
     );
     expect(both.total).toBe(1);
@@ -201,7 +201,7 @@ describe("the settled-alert read", () => {
 
   it("carries INFO rows, which the open attention list never can", async () => {
     await insertFlag(test, {
-      asset: "nosh.example",
+      asset: "northwind.example",
       firedAt: at(20),
       severity: "info",
       kind: "milestone",
@@ -225,7 +225,7 @@ describe("the settled-alert read", () => {
       // contents are unambiguous.
       for (let i = 0; i < 7; i += 1) {
         await insertFlag(test, {
-          asset: "meals.example",
+          asset: "meadow.example",
           firedAt: at(20 + i),
           resolvedAt: at(1 + i),
           message: `row ${i}`,
@@ -293,10 +293,10 @@ describe("the settled-alert read", () => {
   it("attaches the timeline changes that sit in the 48h before a row fired", async () => {
     const fired = at(5);
     await storeChanges(test.call, [
-      { asset: "meals.example", at: at(5.5), kind: "deploy", ref: "abc1234", note: "shipped the new search page" },
-      { asset: "nosh.example", at: at(5.5), kind: "deploy", ref: "def5678", note: "someone else shipped" },
+      { asset: "meadow.example", at: at(5.5), kind: "deploy", ref: "abc1234", note: "shipped the new search page" },
+      { asset: "northwind.example", at: at(5.5), kind: "deploy", ref: "def5678", note: "someone else shipped" },
     ]);
-    await insertFlag(test, { asset: "meals.example", firedAt: fired, resolvedAt: at(4) });
+    await insertFlag(test, { asset: "meadow.example", firedAt: fired, resolvedAt: at(4) });
 
     const payload = await buildAlertHistoryPayload(test.call, query(), { now: NOW });
 
@@ -305,7 +305,7 @@ describe("the settled-alert read", () => {
   });
 
   it("states every row as historical and standing for itself", async () => {
-    await insertFlag(test, { asset: "meals.example", firedAt: at(9), resolvedAt: at(8) });
+    await insertFlag(test, { asset: "meadow.example", firedAt: at(9), resolvedAt: at(8) });
 
     const payload = await buildAlertHistoryPayload(test.call, query(), { now: NOW });
 
@@ -414,7 +414,7 @@ describe("the route", () => {
     );
 
   it("answers a GET with the payload", async () => {
-    await insertFlag(test, { asset: "nosh.example", firedAt: at(4), resolvedAt: at(3) });
+    await insertFlag(test, { asset: "northwind.example", firedAt: at(4), resolvedAt: at(3) });
 
     const res = await request();
     expect(res.status).toBe(200);
@@ -423,12 +423,12 @@ describe("the route", () => {
   });
 
   it("reads its filters off the query string", async () => {
-    await insertFlag(test, { asset: "meals.example", firedAt: at(9), resolvedAt: at(8) });
-    await insertFlag(test, { asset: "nosh.example", firedAt: at(4), resolvedAt: at(3) });
+    await insertFlag(test, { asset: "meadow.example", firedAt: at(9), resolvedAt: at(8) });
+    await insertFlag(test, { asset: "northwind.example", firedAt: at(4), resolvedAt: at(3) });
 
-    const res = await request("?asset=nosh.example");
+    const res = await request("?asset=northwind.example");
     const body = (await res.json()) as { rows: { asset: { id: string } }[] };
-    expect(body.rows.map((row) => row.asset.id)).toEqual(["nosh.example"]);
+    expect(body.rows.map((row) => row.asset.id)).toEqual(["northwind.example"]);
   });
 
   it("refuses anything but a read", async () => {
@@ -440,8 +440,8 @@ describe("the route", () => {
     // The same answer /api/financials gives a malformed `?period=`: a
     // corrupted link comes back with the size of the archive it was trying to
     // page into.
-    await insertFlag(test, { asset: "nosh.example", firedAt: at(4), resolvedAt: at(3) });
-    await insertFlag(test, { asset: "meals.example", firedAt: at(9), resolvedAt: at(8) });
+    await insertFlag(test, { asset: "northwind.example", firedAt: at(4), resolvedAt: at(3) });
+    await insertFlag(test, { asset: "meadow.example", firedAt: at(9), resolvedAt: at(8) });
 
     const res = await request("?offset=nonsense");
     expect(res.status).toBe(400);
@@ -456,10 +456,10 @@ describe("the route", () => {
   });
 
   it("counts the FILTERED archive in the refusal, not the whole store", async () => {
-    await insertFlag(test, { asset: "nosh.example", firedAt: at(4), resolvedAt: at(3) });
-    await insertFlag(test, { asset: "meals.example", firedAt: at(9), resolvedAt: at(8) });
+    await insertFlag(test, { asset: "northwind.example", firedAt: at(4), resolvedAt: at(3) });
+    await insertFlag(test, { asset: "meadow.example", firedAt: at(9), resolvedAt: at(8) });
 
-    const res = await request("?asset=nosh.example&offset=-1");
+    const res = await request("?asset=northwind.example&offset=-1");
     const body = (await res.json()) as { total: number };
     expect(body.total).toBe(1);
   });
@@ -476,7 +476,7 @@ describe("a snoozed alert is in exactly one list", () => {
 
   it("leaves an ACTIVE snooze out — it is parked, not settled", async () => {
     await insertFlag(test, {
-      asset: "meals.example",
+      asset: "meadow.example",
       firedAt: at(9),
       disposition: "snooze",
       dispositionAt: at(2),
@@ -491,7 +491,7 @@ describe("a snoozed alert is in exactly one list", () => {
 
   it("leaves it out after the date passes too — it is OPEN again", async () => {
     await insertFlag(test, {
-      asset: "meals.example",
+      asset: "meadow.example",
       firedAt: at(9),
       disposition: "snooze",
       dispositionAt: at(5),
@@ -506,7 +506,7 @@ describe("a snoozed alert is in exactly one list", () => {
 
   it("keeps a snoozed row that was then acknowledged, because ack does not expire", async () => {
     const acked = await insertFlag(test, {
-      asset: "nosh.example",
+      asset: "northwind.example",
       firedAt: at(9),
       disposition: "ack",
       dispositionAt: at(1),
@@ -518,17 +518,17 @@ describe("a snoozed alert is in exactly one list", () => {
   });
 
   it("keeps resolved, incident and hypothesis rows, and a snooze later resolved", async () => {
-    const resolved = await insertFlag(test, { asset: "meals.example", firedAt: at(9), resolvedAt: at(8) });
+    const resolved = await insertFlag(test, { asset: "meadow.example", firedAt: at(9), resolvedAt: at(8) });
     const incident = await insertFlag(test, {
-      asset: "meals.example", firedAt: at(8), disposition: "incident", dispositionAt: at(7),
+      asset: "meadow.example", firedAt: at(8), disposition: "incident", dispositionAt: at(7),
     });
     const hypothesis = await insertFlag(test, {
-      asset: "meals.example", firedAt: at(7), disposition: "hypothesis", dispositionAt: at(6),
+      asset: "meadow.example", firedAt: at(7), disposition: "hypothesis", dispositionAt: at(6),
     });
     // Parked, then fixed before its date: resolving is a decision that does
     // not expire.
     const parkedThenFixed = await insertFlag(test, {
-      asset: "nosh.example", firedAt: at(6), disposition: "snooze", dispositionAt: at(5),
+      asset: "northwind.example", firedAt: at(6), disposition: "snooze", dispositionAt: at(5),
       snoozeUntil: new Date(NOW.getTime() + 4 * DAY).toISOString(), resolvedAt: at(4),
     });
 
@@ -539,7 +539,7 @@ describe("a snoozed alert is in exactly one list", () => {
 
   it("keeps a snooze with no date: nothing would ever bring it back", async () => {
     const undated = await insertFlag(test, {
-      asset: "meals.example", firedAt: at(9), disposition: "snooze", dispositionAt: at(8), snoozeUntil: null,
+      asset: "meadow.example", firedAt: at(9), disposition: "snooze", dispositionAt: at(8), snoozeUntil: null,
     });
     const nowIso = NOW.toISOString();
     const ids = async (where: string, binds: string[]) =>
@@ -552,9 +552,9 @@ describe("a snoozed alert is in exactly one list", () => {
 
   it("leaves a tuned alert out until it is settled another way", async () => {
     // Tuning the rule is not answering the firing: open.
-    await insertFlag(test, { asset: "meals.example", firedAt: at(9), disposition: "tune", dispositionAt: at(8) });
+    await insertFlag(test, { asset: "meadow.example", firedAt: at(9), disposition: "tune", dispositionAt: at(8) });
     const tunedThenResolved = await insertFlag(test, {
-      asset: "meals.example", firedAt: at(8), disposition: "tune", dispositionAt: at(7), resolvedAt: at(6),
+      asset: "meadow.example", firedAt: at(8), disposition: "tune", dispositionAt: at(7), resolvedAt: at(6),
     });
 
     expect(await settledIds(NOW)).toEqual([tunedThenResolved]);
@@ -567,7 +567,7 @@ describe("a snoozed alert is in exactly one list", () => {
       for (const snoozeUntil of [null, at(1), later]) {
         for (const resolvedAt of [null, at(2)]) {
           shapes.push({
-            asset: "meals.example", firedAt: at(10), disposition,
+            asset: "meadow.example", firedAt: at(10), disposition,
             dispositionAt: disposition ? at(3) : null, snoozeUntil, resolvedAt,
           });
         }
@@ -608,11 +608,11 @@ describe("a settled outage reads back night by night", () => {
 
   it("carries each stored reading on its alert, newest first, and none on an alert without", async () => {
     const outage = await insertFlag(test, {
-      asset: "nosh.example", firedAt: at(5), ruleId: "asset-pull-failed", resolvedAt: at(3),
+      asset: "northwind.example", firedAt: at(5), ruleId: "asset-pull-failed", resolvedAt: at(3),
     });
     await insertReading(test, outage, at(5), "503 unconfigured");
     await insertReading(test, outage, at(4), "401 unauthorized");
-    const other = await insertFlag(test, { asset: "meals.example", firedAt: at(6), resolvedAt: at(2) });
+    const other = await insertFlag(test, { asset: "meadow.example", firedAt: at(6), resolvedAt: at(2) });
 
     const payload = await buildAlertHistoryPayload(test.call, query(), { now: NOW });
     const byId = new Map(payload.rows.map((row) => [row.flag.id, row.flag]));

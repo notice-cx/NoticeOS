@@ -17,37 +17,37 @@
       "note": "The OS has no organic-search or client-analytics surface to panel; it observes itself through its own nightly report.",
       "since": "2026-08-03"
     },
-    "meals.example": {
+    "meadow.example": {
       "enabled": true,
       "reason": "live-lanes",
       "note": "GSC, GA4 and Bing are collected centrally for this site.",
       "since": "2026-08-03"
     },
-    "nosh.example": {
+    "northwind.example": {
       "enabled": true,
       "reason": "live-lanes",
       "note": "GSC, GA4 and Bing are collected centrally for this site.",
       "since": "2026-08-03"
     },
-    "pacer.example": {
+    "pebble.example": {
       "enabled": true,
       "reason": "live-lanes",
       "note": "GSC, GA4 and Bing are collected centrally for this site.",
       "since": "2026-08-03"
     },
-    "pullups.example": {
+    "puffin.example": {
       "enabled": false,
       "reason": "no-lane-yet",
       "note": "Every collector is needs-setup until the GSC/GA4/Bing properties exist; a refresh would write an empty panel dir, indistinguishable from a collapsed one. Enable when the sources go live.",
       "since": "2026-08-03"
     },
-    "areas.example": {
+    "acorn.example": {
       "enabled": true,
       "reason": "live-lanes",
       "note": "GSC, GA4 and Bing are collected centrally for this site.",
       "since": "2026-08-03"
     },
-    "fees.example": {
+    "ferns.example": {
       "enabled": true,
       "reason": "live-lanes",
       "note": "GSC, GA4 and Bing are collected centrally for this site.",

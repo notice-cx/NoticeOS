@@ -61,7 +61,7 @@ interface LandingsBody {
 /** One manifest row, exactly as the weekly collector writes it. */
 async function seedRun(overrides: Record<string, unknown> = {}): Promise<void> {
   const row = {
-    asset: 'nosh.example',
+    asset: 'northwind.example',
     integration: 'dataforseo',
     report: 'serp-panel',
     reportDate: THIS_WEEK,
@@ -147,12 +147,12 @@ describe('GET /api/serp-panel-landings — auth', () => {
 
 describe('GET /api/serp-panel-landings — what landed', () => {
   it('reports a complete panel collection', async () => {
-    await seedCollection('nosh.example', THIS_WEEK);
+    await seedCollection('northwind.example', THIS_WEEK);
     const body = await get();
     expect(body.windowDays).toBe(SERP_PANEL_LANDING_WINDOW_DAYS);
     expect(body.landings).toEqual([
       {
-        asset: 'nosh.example',
+        asset: 'northwind.example',
         panelDate: THIS_WEEK,
         landedAt: `${THIS_WEEK}T12:47:31.000Z`,
         status: 'success',
@@ -161,7 +161,7 @@ describe('GET /api/serp-panel-landings — what landed', () => {
         families: 6,
         // The families due that day, by name: what the filer checks the
         // published panel for.
-        reports: dataForSeoReportsFor('nosh.example', PANEL_ASSETS, THIS_WEEK),
+        reports: dataForSeoReportsFor('northwind.example', PANEL_ASSETS, THIS_WEEK),
       },
     ]);
   });
@@ -175,9 +175,9 @@ describe('GET /api/serp-panel-landings — what landed', () => {
   // review — (property, collection day) — is re-derivable every pass. That is
   // where idempotence comes from; there is no cursor to lose.
   it('reports one row per property, the newest collection only', async () => {
-    await seedCollection('nosh.example', WEEK_BEFORE);
-    await seedCollection('nosh.example', THIS_WEEK);
-    await seedCollection('nosh.example', LAST_WEEK);
+    await seedCollection('northwind.example', WEEK_BEFORE);
+    await seedCollection('northwind.example', THIS_WEEK);
+    await seedCollection('northwind.example', LAST_WEEK);
     const body = await get();
     expect(body.landings.map((l) => l.panelDate)).toEqual([THIS_WEEK]);
   });
@@ -185,10 +185,10 @@ describe('GET /api/serp-panel-landings — what landed', () => {
   // A later write about an EARLIER collection — a backfill, a re-archive — must
   // not promote it over a newer one.
   it('ranks by the collection day before the write time', async () => {
-    await seedCollection('nosh.example', THIS_WEEK);
-    await seedCollection('nosh.example', LAST_WEEK);
+    await seedCollection('northwind.example', THIS_WEEK);
+    await seedCollection('northwind.example', LAST_WEEK);
     await seedRun({
-      asset: 'nosh.example',
+      asset: 'northwind.example',
       report: 'ranked-keywords',
       reportDate: LAST_WEEK,
       // Written the day AFTER this week's collection: the newest WRITE about
@@ -200,19 +200,19 @@ describe('GET /api/serp-panel-landings — what landed', () => {
   });
 
   it('keeps each property’s newest collection, not the portfolio’s', async () => {
-    await seedCollection('nosh.example', THIS_WEEK);
-    await seedCollection('meals.example', LAST_WEEK);
+    await seedCollection('northwind.example', THIS_WEEK);
+    await seedCollection('meadow.example', LAST_WEEK);
     const body = await get();
     expect(body.landings.map((l) => [l.asset, l.panelDate])).toEqual([
-      ['meals.example', LAST_WEEK],
-      ['nosh.example', THIS_WEEK],
+      ['meadow.example', LAST_WEEK],
+      ['northwind.example', THIS_WEEK],
     ]);
   });
 
   // A same-day re-fetch whose bytes matched writes `unchanged`. The archive
   // still holds that day's collection, so it is a landing.
   it('counts an unchanged re-fetch as a landing', async () => {
-    await seedCollection('nosh.example', THIS_WEEK, { status: 'unchanged' });
+    await seedCollection('northwind.example', THIS_WEEK, { status: 'unchanged' });
     const body = await get();
     expect(body.landings.map((l) => l.status)).toEqual(['unchanged']);
   });
@@ -220,7 +220,7 @@ describe('GET /api/serp-panel-landings — what landed', () => {
   // Nothing landed, so there is nothing to triage. Filing "review the
   // collection" against an empty archive would be the OS inventing work.
   it('ignores a collection that failed', async () => {
-    await seedCollection('nosh.example', THIS_WEEK, { status: 'error' });
+    await seedCollection('northwind.example', THIS_WEEK, { status: 'error' });
     const body = await get();
     expect(body.landings).toEqual([]);
   });
@@ -238,18 +238,18 @@ describe('GET /api/serp-panel-landings — what landed', () => {
  * families every Monday, and somebody must be asked to read what they bought. */
 describe('GET /api/serp-panel-landings — the collection, panel or no panel', () => {
   it('lands a collection for a property that has no panel at all', async () => {
-    await seedCollection('pacer.example', THIS_WEEK);
+    await seedCollection('pebble.example', THIS_WEEK);
     const body = await get();
     expect(body.landings).toEqual([
       {
-        asset: 'pacer.example',
+        asset: 'pebble.example',
         panelDate: THIS_WEEK,
         landedAt: `${THIS_WEEK}T12:45:00.000Z`,
         status: 'success',
         panel: false,
         queries: null,
         families: 5,
-        reports: dataForSeoReportsFor('pacer.example', PANEL_ASSETS, THIS_WEEK),
+        reports: dataForSeoReportsFor('pebble.example', PANEL_ASSETS, THIS_WEEK),
       },
     ]);
   });
@@ -258,7 +258,7 @@ describe('GET /api/serp-panel-landings — the collection, panel or no panel', (
   // panel and its five broad families share one `report_date`, so the day this
   // reports is the day the panel-only query reported.
   it('reports one landing for a panel property, on the panel’s own day', async () => {
-    await seedCollection('nosh.example', THIS_WEEK, { panelQueries: 6 });
+    await seedCollection('northwind.example', THIS_WEEK, { panelQueries: 6 });
     const body = await get();
     expect(body.landings).toHaveLength(1);
     expect(body.landings[0]).toMatchObject({
@@ -272,37 +272,37 @@ describe('GET /api/serp-panel-landings — the collection, panel or no panel', (
   // A property with nothing in the archive owes nothing. The whole read is
   // "what was bought", so silence stays silence.
   it('lands nothing for a property that bought nothing', async () => {
-    await seedCollection('nosh.example', THIS_WEEK);
+    await seedCollection('northwind.example', THIS_WEEK);
     const body = await get();
-    expect(body.landings.map((l) => l.asset)).toEqual(['nosh.example']);
+    expect(body.landings.map((l) => l.asset)).toEqual(['northwind.example']);
   });
 
   // `queries` sizes the PANEL walk. A broad family's one call is not a tracked
   // query, and reporting it would tell the reviewer to walk a panel of one.
   it('never reports a broad family’s request count as a panel size', async () => {
-    await seedCollection('pacer.example', THIS_WEEK);
+    await seedCollection('pebble.example', THIS_WEEK);
     const body = await get();
     expect(body.landings.map((l) => l.queries)).toEqual([null]);
   });
 
   // One family re-fetched unchanged is still a collection that changed.
   it('calls the day unchanged only when every family was', async () => {
-    await seedCollection('nosh.example', THIS_WEEK, {
+    await seedCollection('northwind.example', THIS_WEEK, {
       status: 'unchanged',
       statusByReport: { 'backlinks-summary': 'success' },
     });
-    await seedCollection('areas.example', THIS_WEEK, {
+    await seedCollection('acorn.example', THIS_WEEK, {
       status: 'unchanged',
     });
     const body = await get();
     expect(body.landings.map((l) => [l.asset, l.status])).toEqual([
-      ['areas.example', 'unchanged'],
-      ['nosh.example', 'success'],
+      ['acorn.example', 'unchanged'],
+      ['northwind.example', 'success'],
     ]);
   });
 
   it('does not expose a four-of-six interrupted panel sweep', async () => {
-    await seedCollection('nosh.example', THIS_WEEK, {
+    await seedCollection('northwind.example', THIS_WEEK, {
       omit: ['llm-mentions-chatgpt', 'serp-panel'],
     });
     const body = await get();
@@ -310,8 +310,8 @@ describe('GET /api/serp-panel-landings — the collection, panel or no panel', (
   });
 
   it('keeps the prior complete identity when the newest day has a failed family', async () => {
-    await seedCollection('nosh.example', LAST_WEEK);
-    await seedCollection('nosh.example', THIS_WEEK, {
+    await seedCollection('northwind.example', LAST_WEEK);
+    await seedCollection('northwind.example', THIS_WEEK, {
       statusByReport: { 'backlinks-new-lost': 'error' },
     });
     const body = await get();
@@ -321,24 +321,24 @@ describe('GET /api/serp-panel-landings — the collection, panel or no panel', (
   });
 
   it('promotes a partial day only after its missing families land', async () => {
-    await seedCollection('nosh.example', THIS_WEEK, {
+    await seedCollection('northwind.example', THIS_WEEK, {
       omit: ['backlinks-new-lost', 'serp-panel'],
     });
     expect((await get()).landings).toEqual([]);
 
     await seedRun({
-      asset: 'nosh.example',
+      asset: 'northwind.example',
       report: 'backlinks-new-lost',
       reportDate: THIS_WEEK,
     });
     await seedRun({
-      asset: 'nosh.example',
+      asset: 'northwind.example',
       report: 'serp-panel',
       reportDate: THIS_WEEK,
       queries: 6,
     });
     expect((await get()).landings).toMatchObject([
-      { asset: 'nosh.example', panelDate: THIS_WEEK, panel: true, families: 6 },
+      { asset: 'northwind.example', panelDate: THIS_WEEK, panel: true, families: 6 },
     ]);
   });
 
@@ -346,10 +346,10 @@ describe('GET /api/serp-panel-landings — the collection, panel or no panel', (
   // `--families serp-panel` repair — must not masquerade as the week's whole
   // collection and supersede a review filed from coherent evidence.
   it('does not let a scoped one-family repair supersede a complete collection', async () => {
-    await seedCollection('nosh.example', LAST_WEEK);
+    await seedCollection('northwind.example', LAST_WEEK);
     // The Wednesday after that Monday sweep — a day carrying the panel alone.
     const repairDay = dayBefore(8);
-    await seedRun({ asset: 'nosh.example', report: 'serp-panel', reportDate: repairDay, queries: 6 });
+    await seedRun({ asset: 'northwind.example', report: 'serp-panel', reportDate: repairDay, queries: 6 });
     const body = await get();
     expect(body.landings.map((l) => [l.panelDate, l.families])).toEqual([
       [LAST_WEEK, 6],
@@ -366,7 +366,7 @@ describe('GET /api/serp-panel-landings — the window', () => {
   // A collector that stopped a month ago is a different problem, and handing
   // somebody a triage task about a result page that old would be the wrong ask.
   it('drops a panel older than the window', async () => {
-    await seedCollection('nosh.example', dayBefore(SERP_PANEL_LANDING_WINDOW_DAYS + 3));
+    await seedCollection('northwind.example', dayBefore(SERP_PANEL_LANDING_WINDOW_DAYS + 3));
     const body = await get();
     expect(body.landings).toEqual([]);
   });
@@ -375,7 +375,7 @@ describe('GET /api/serp-panel-landings — the window', () => {
   // landed, and the next pass still sees it.
   it('keeps a panel the runner was asleep for', async () => {
     const recent = dayBefore(9);
-    await seedCollection('nosh.example', recent);
+    await seedCollection('northwind.example', recent);
     const body = await get();
     expect(body.landings.map((l) => l.panelDate)).toEqual([recent]);
   });

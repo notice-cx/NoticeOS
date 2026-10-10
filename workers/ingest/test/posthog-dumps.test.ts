@@ -48,11 +48,11 @@ const CALCULATOR: PosthogFunnel = {
   steps: [{ event: '$pageview', path: '/calculator' }, { event: 'form_start' }, { event: 'calculation_complete' }],
 };
 
-function register(settings: Record<string, unknown> = { host: 'us', projectId: '596607', funnels: [CALCULATOR] }): LaneRegister {
-  return { assets: { 'meals.example': { posthog: settings } } };
+function register(settings: Record<string, unknown> = { host: 'us', projectId: '424242', funnels: [CALCULATOR] }): LaneRegister {
+  return { assets: { 'meadow.example': { posthog: settings } } };
 }
 
-const KEYS = JSON.stringify({ 'meals.example': KEY });
+const KEYS = JSON.stringify({ 'meadow.example': KEY });
 
 // ---------------------------------------------------------------------------
 // Recorded response fixtures, shaped as PostHog's query endpoint answers:
@@ -134,7 +134,7 @@ function familyOf(name: unknown): string | null {
 
 const answerAll: Responder = (call) =>
   call.method === 'GET'
-    ? Response.json({ id: 596607, name: 'Meal Planner', timezone: 'America/New_York' })
+    ? Response.json({ id: 424242, name: 'Meadow Board', timezone: 'America/New_York' })
     : Response.json(posthogBody(call.family!), {
         headers: { 'x-posthog-query-budget-remaining-bytes': '9000000000', 'x-posthog-query-bytes-read': '1000' },
       });
@@ -190,15 +190,15 @@ async function manifests(): Promise<ManifestRow[]> {
 beforeEach(reset);
 
 describe('PostHog product analytics archive', () => {
-  it('archives all six families for meals.example with the contract body', async () => {
+  it('archives all six families for meadow.example with the contract body', async () => {
     const { fetchImpl, calls } = posthogFetch();
     const result = await runPosthogDumps(env, { nowMs: NOW, fetchImpl, rawKeys: KEYS, laneRegister: register() });
 
     expect(result).toMatchObject({ attempted: 6, succeeded: 6, failed: 0, budgetStopped: false, budgetRemainingBytes: 9000000000, bytesRead: 6000 });
     // One project read, then the six families strictly one after another.
     expect(calls.map((call) => `${call.method} ${call.url}`)).toEqual([
-      `GET ${ORIGIN}/api/projects/596607/`,
-      ...Array.from({ length: 6 }, () => `POST ${ORIGIN}/api/projects/596607/query/`),
+      `GET ${ORIGIN}/api/projects/424242/`,
+      ...Array.from({ length: 6 }, () => `POST ${ORIGIN}/api/projects/424242/query/`),
     ]);
     expect(calls.map((call) => call.family)).toEqual([null, 'web-daily', 'events', 'exceptions', 'rageclicks', 'web-vitals', 'funnels']);
     expect(calls.every((call) => call.authorization === `Bearer ${KEY}`)).toBe(true);
@@ -214,8 +214,8 @@ describe('PostHog product analytics archive', () => {
     ]);
     const workspaceId = await env.STORE.workspaceId();
     for (const row of rows) {
-      expect(row).toMatchObject({ credentialRef: 'POSTHOG_KEYS', propertyRef: 'us:596607', dataState: 'provider-snapshot', providerTruncated: 0 });
-      expect(row.objectKey).toMatch(new RegExp(`^workspaces/${workspaceId}/raw/posthog/posthog/meals\\.example/${row.report}/2026-09-22/`));
+      expect(row).toMatchObject({ credentialRef: 'POSTHOG_KEYS', propertyRef: 'us:424242', dataState: 'provider-snapshot', providerTruncated: 0 });
+      expect(row.objectKey).toMatch(new RegExp(`^workspaces/${workspaceId}/raw/posthog/posthog/meadow\\.example/${row.report}/2026-09-22/`));
     }
 
     // Each archive is the standard envelope with ONE page whose response is the
@@ -224,7 +224,7 @@ describe('PostHog product analytics archive', () => {
     for (const row of rows) {
       const { envelope, text } = await archivedBody(row.objectKey!);
       expect(text).not.toContain(KEY);
-      expect(envelope).toMatchObject({ schemaVersion: 1, provider: 'posthog', integration: 'posthog', report: row.report, asset: 'meals.example', reportDate: '2026-09-22' });
+      expect(envelope).toMatchObject({ schemaVersion: 1, provider: 'posthog', integration: 'posthog', report: row.report, asset: 'meadow.example', reportDate: '2026-09-22' });
       const pages = envelope.pages as { request: Record<string, unknown>; response: Record<string, unknown> }[];
       expect(pages).toHaveLength(1);
       expect(posthogArchiveBodySchema.safeParse(pages[0]!.response).success).toBe(true);
@@ -261,7 +261,7 @@ describe('PostHog product analytics archive', () => {
     const { fetchImpl, calls } = posthogFetch();
     const result = await runPosthogDumps(env, {
       nowMs: NOW, fetchImpl, rawKeys: KEYS, laneRegister: register(),
-      scope: { asset: 'meals.example', window: { start: '2026-09-08', end: '2026-09-22' } },
+      scope: { asset: 'meadow.example', window: { start: '2026-09-08', end: '2026-09-22' } },
     });
     expect(result).toMatchObject({ attempted: 6, succeeded: 6 });
     for (const call of calls.filter((c) => c.method === 'POST')) {
@@ -350,16 +350,16 @@ describe('PostHog product analytics archive', () => {
     const { fetchImpl, calls } = posthogFetch();
     const none = await runPosthogDumps(env, { nowMs: NOW, fetchImpl, rawKeys: '', laneRegister: { assets: {} } });
     expect(none).toMatchObject({ attempted: 0 });
-    expect(none.skipped.find((s) => s.asset === 'meals.example')?.reason).toBe('not-configured');
+    expect(none.skipped.find((s) => s.asset === 'meadow.example')?.reason).toBe('not-configured');
 
     const mappedNoKey = await runPosthogDumps(env, { nowMs: NOW, fetchImpl, rawKeys: '', laneRegister: register() });
-    expect(mappedNoKey.skipped.find((s) => s.asset === 'meals.example')?.reason).toBe('no-key');
+    expect(mappedNoKey.skipped.find((s) => s.asset === 'meadow.example')?.reason).toBe('no-key');
 
     const keyNoMapping = await runPosthogDumps(env, { nowMs: NOW, fetchImpl, rawKeys: KEYS, laneRegister: register({ host: 'us' }) });
-    expect(keyNoMapping.skipped.find((s) => s.asset === 'meals.example')).toMatchObject({ reason: 'mapping-missing', detail: expect.stringContaining('projectId') });
+    expect(keyNoMapping.skipped.find((s) => s.asset === 'meadow.example')).toMatchObject({ reason: 'mapping-missing', detail: expect.stringContaining('projectId') });
 
-    const badHost = await runPosthogDumps(env, { nowMs: NOW, fetchImpl, rawKeys: KEYS, laneRegister: register({ host: 'apac', projectId: '596607' }) });
-    expect(badHost.skipped.find((s) => s.asset === 'meals.example')?.reason).toBe('mapping-invalid');
+    const badHost = await runPosthogDumps(env, { nowMs: NOW, fetchImpl, rawKeys: KEYS, laneRegister: register({ host: 'apac', projectId: '424242' }) });
+    expect(badHost.skipped.find((s) => s.asset === 'meadow.example')?.reason).toBe('mapping-invalid');
 
     expect(calls).toHaveLength(0);
     expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'posthog'`)).toBe(0);
@@ -367,10 +367,10 @@ describe('PostHog product analytics archive', () => {
 
   it('skips the funnels family with a reason when none are declared', async () => {
     const { fetchImpl, calls } = posthogFetch();
-    const result = await runPosthogDumps(env, { nowMs: NOW, fetchImpl, rawKeys: KEYS, laneRegister: register({ host: 'us', projectId: '596607' }) });
+    const result = await runPosthogDumps(env, { nowMs: NOW, fetchImpl, rawKeys: KEYS, laneRegister: register({ host: 'us', projectId: '424242' }) });
     expect(result).toMatchObject({ attempted: 5, succeeded: 5 });
     expect(calls.some((call) => call.family === 'funnels')).toBe(false);
-    expect(result.skipped).toContainEqual(expect.objectContaining({ asset: 'meals.example', family: 'funnels', reason: 'no-funnels' }));
+    expect(result.skipped).toContainEqual(expect.objectContaining({ asset: 'meadow.example', family: 'funnels', reason: 'no-funnels' }));
   });
 
   it('degrades a revoked key to failed-access attempts, never a crash', async () => {
@@ -450,7 +450,7 @@ describe('PostHog product analytics archive', () => {
 const clock = () => NOW;
 
 /** The asset's lease as the store holds it, its end in epoch milliseconds. */
-async function leaseRow(asset = 'meals.example'): Promise<{ owner: string; expiresAt: number } | null> {
+async function leaseRow(asset = 'meadow.example'): Promise<{ owner: string; expiresAt: number } | null> {
   const [row] = await env.STORE.read((tx) =>
     tx.query<{ owner: string; expires_at: string }>('SELECT owner, expires_at FROM noticeos.integration_leases WHERE lease_key = $1', [
       posthogLeaseKey(asset),
@@ -512,7 +512,7 @@ describe('PostHog — one run per asset at a time', () => {
     const firstRun = runPosthogDumps(env, { nowMs: NOW, clock, fetchImpl: first.fetchImpl, rawKeys: KEYS, laneRegister: register() });
     await first.started;
     const second = posthogFetch();
-    const refused = await runPosthogDumps(env, { nowMs: NOW, clock, fetchImpl: second.fetchImpl, rawKeys: KEYS, laneRegister: register(), scope: { asset: 'meals.example' } });
+    const refused = await runPosthogDumps(env, { nowMs: NOW, clock, fetchImpl: second.fetchImpl, rawKeys: KEYS, laneRegister: register(), scope: { asset: 'meadow.example' } });
     expect(refused).toMatchObject({ attempted: 0, succeeded: 0, failed: 0 });
     expect(second.calls).toHaveLength(0);
     first.open();
@@ -521,38 +521,38 @@ describe('PostHog — one run per asset at a time', () => {
   });
 
   it('skips, with its reason, an asset another run holds, and still collects the others', async () => {
-    // An on-demand run took meals.example ten minutes ago.
-    await holdLease('meals.example', 'on-demand-run', NOW + POSTHOG_LEASE_MS - 600_000);
+    // An on-demand run took meadow.example ten minutes ago.
+    await holdLease('meadow.example', 'on-demand-run', NOW + POSTHOG_LEASE_MS - 600_000);
     const { fetchImpl, calls } = posthogFetch();
-    const keys = JSON.stringify({ 'meals.example': KEY, 'nosh.example': 'phx_nom_key' });
+    const keys = JSON.stringify({ 'meadow.example': KEY, 'northwind.example': 'phx_nom_key' });
     const both: LaneRegister = {
       assets: {
-        'meals.example': { posthog: { host: 'us', projectId: '596607', funnels: [CALCULATOR] } },
-        'nosh.example': { posthog: { host: 'us', projectId: '700001' } },
+        'meadow.example': { posthog: { host: 'us', projectId: '424242', funnels: [CALCULATOR] } },
+        'northwind.example': { posthog: { host: 'us', projectId: '700001' } },
       },
     };
     // The daily run: no scope, every asset.
     const result = await runPosthogDumps(env, { nowMs: NOW, clock, fetchImpl, rawKeys: keys, laneRegister: both });
 
-    expect(result.skipped.find((skip) => skip.asset === 'meals.example')).toEqual({
-      asset: 'meals.example',
+    expect(result.skipped.find((skip) => skip.asset === 'meadow.example')).toEqual({
+      asset: 'meadow.example',
       family: null,
       reason: 'in-flight',
-      detail: 'Already running for meals.example · started 600s ago · nothing asked · free at 2026-09-23T12:50:00.000Z',
+      detail: 'Already running for meadow.example · started 600s ago · nothing asked · free at 2026-09-23T12:50:00.000Z',
       inFlight: { startedAt: '2026-09-23T12:20:00.000Z', runningSeconds: 600, leaseExpiresAt: '2026-09-23T12:50:00.000Z' },
     });
-    // Nothing was asked about meals.example's project; nosh.example's was read.
-    expect(calls.some((call) => call.url.includes('/596607/'))).toBe(false);
+    // Nothing was asked about meadow.example's project; northwind.example's was read.
+    expect(calls.some((call) => call.url.includes('/424242/'))).toBe(false);
     expect(calls.filter((call) => call.url.includes('/700001/'))).toHaveLength(6);
     expect(result).toMatchObject({ attempted: 5, succeeded: 5 });
     expect(new Set((await manifests()).map((row) => row.propertyRef))).toEqual(new Set(['us:700001']));
-    // The holder's lease is untouched; nosh.example's was given back.
+    // The holder's lease is untouched; northwind.example's was given back.
     expect(await leaseRow()).toEqual({ owner: 'on-demand-run', expiresAt: NOW + POSTHOG_LEASE_MS - 600_000 });
-    expect(await leaseRow('nosh.example')).toBeNull();
+    expect(await leaseRow('northwind.example')).toBeNull();
   });
 
   it('takes over a lease a crashed run left behind once it has expired', async () => {
-    await holdLease('meals.example', 'crashed-run', NOW);
+    await holdLease('meadow.example', 'crashed-run', NOW);
     const { fetchImpl } = posthogFetch();
     const result = await runPosthogDumps(env, { nowMs: NOW, clock, fetchImpl, rawKeys: KEYS, laneRegister: register() });
     expect(result).toMatchObject({ attempted: 6, succeeded: 6 });
@@ -560,8 +560,8 @@ describe('PostHog — one run per asset at a time', () => {
     expect(await leaseRow()).toBeNull();
 
     // One millisecond short of expiry, the same lease still holds.
-    await holdLease('meals.example', 'live-run', NOW + 1);
-    expect(await claimPosthogLease(env.STORE, 'meals.example', NOW)).toMatchObject({ owner: null, heldBy: { leaseExpiresAt: new Date(NOW + 1).toISOString() } });
+    await holdLease('meadow.example', 'live-run', NOW + 1);
+    expect(await claimPosthogLease(env.STORE, 'meadow.example', NOW)).toMatchObject({ owner: null, heldBy: { leaseExpiresAt: new Date(NOW + 1).toISOString() } });
   });
 
   it('releases the lease after provider failures and after a 429 budget stop', async () => {
@@ -599,7 +599,7 @@ describe('PostHog — one run per asset at a time', () => {
     await posthog.started;
     // This run outlived its lease and a successor took the asset.
     await env.STORE.write((tx) =>
-      tx.execute("UPDATE noticeos.integration_leases SET owner = 'successor' WHERE lease_key = $1", [posthogLeaseKey('meals.example')]),
+      tx.execute("UPDATE noticeos.integration_leases SET owner = 'successor' WHERE lease_key = $1", [posthogLeaseKey('meadow.example')]),
     );
     posthog.open();
     await run;
@@ -768,10 +768,10 @@ describe('PostHog — an offline night and the windows it cost', () => {
     reportDate: string,
     code: string,
     requestedAt = '2026-09-21T12:30:00.000Z',
-    propertyRef = 'us:596607',
+    propertyRef = 'us:424242',
   ): Promise<void> {
     await storeArchiveRun({
-      id: crypto.randomUUID(), asset: 'meals.example', integration: 'posthog', report, credential_ref: 'POSTHOG_KEYS',
+      id: crypto.randomUUID(), asset: 'meadow.example', integration: 'posthog', report, credential_ref: 'POSTHOG_KEYS',
       property_ref: propertyRef, report_date: reportDate, finished_at: requestedAt, status: 'error',
       error_code: code, error_message: 'fixture',
     });
@@ -801,15 +801,15 @@ describe('PostHog — an offline night and the windows it cost', () => {
     ).toEqual({ lastOkAt: null, lastError: null });
     // One flag, whose PostHog entry names every window down to its end, so the
     // offline alert counts it and stays open until a run asks for them.
-    expect(result.egress).toMatchObject({ up: false, fired: 1, unmeasuredAssets: ['meals.example'] });
+    expect(result.egress).toMatchObject({ up: false, fired: 1, unmeasuredAssets: ['meadow.example'] });
     expect(await openEgressFlags()).toBe(1);
-    expect(await owedOnFlag()).toEqual({ 'meals.example': FAMILIES.map((family) => `posthog:${family}:2026-09-22`) });
+    expect(await owedOnFlag()).toEqual({ 'meadow.example': FAMILIES.map((family) => `posthog:${family}:2026-09-22`) });
   });
 
   it('asks nothing more of PostHog when the uplink dies after the project read', async () => {
     const posthog = posthogFetch();
     const sent: string[] = [];
-    const dying = cutUplink(posthog.fetchImpl, { through: (url) => url === `${ORIGIN}/api/projects/596607/` });
+    const dying = cutUplink(posthog.fetchImpl, { through: (url) => url === `${ORIGIN}/api/projects/424242/` });
     const fetchImpl = ((input: RequestInfo | URL, init?: RequestInit) => {
       sent.push(String(input instanceof Request ? input.url : input));
       return dying(input, init);
@@ -968,7 +968,7 @@ describe('PostHog — an offline night and the windows it cost', () => {
     // for them.
     expect(await latest('events', '2026-09-22')).toMatchObject({ errorCode: 'posthog_query_budget_exceeded' });
     expect(await owedOnFlag()).toEqual({
-      'meals.example': ['exceptions', 'rageclicks', 'web-vitals', 'funnels'].map((family) => `posthog:${family}:2026-09-22`),
+      'meadow.example': ['exceptions', 'rageclicks', 'web-vitals', 'funnels'].map((family) => `posthog:${family}:2026-09-22`),
     });
 
     // The next day: the four the alert names, the refused window once more,
@@ -1108,11 +1108,11 @@ describe('PostHog — an offline night and the windows it cost', () => {
   });
 
   it('asks the next day every window a 429 stopped the run before asking, on every asset it never reached', async () => {
-    const keys = JSON.stringify({ 'meals.example': KEY, 'nosh.example': 'phx_nom_key' });
+    const keys = JSON.stringify({ 'meadow.example': KEY, 'northwind.example': 'phx_nom_key' });
     const assets: LaneRegister = {
       assets: {
-        'meals.example': { posthog: { host: 'us', projectId: '596607', funnels: [CALCULATOR] } },
-        'nosh.example': { posthog: { host: 'us', projectId: '700001' } },
+        'meadow.example': { posthog: { host: 'us', projectId: '424242', funnels: [CALCULATOR] } },
+        'northwind.example': { posthog: { host: 'us', projectId: '700001' } },
       },
     };
     const NOM_FAMILIES = FAMILIES.filter((family) => family !== 'funnels');
@@ -1120,25 +1120,25 @@ describe('PostHog — an offline night and the windows it cost', () => {
     // Both assets were collected the day before.
     await runPosthogDumps(env, { nowMs: NOW - 86_400_000, fetchImpl: posthogFetch().fetchImpl, rawKeys: keys, laneRegister: assets });
 
-    // PostHog's budget runs out at meals.example's exceptions: the rest of
-    // meals.example and all of nosh.example are skipped, with no row.
+    // PostHog's budget runs out at meadow.example's exceptions: the rest of
+    // meadow.example and all of northwind.example are skipped, with no row.
     const stopped = await runPosthogDumps(env, {
       nowMs: NOW,
-      fetchImpl: posthogFetch((call) => (call.url.includes('/596607/') && call.family === 'exceptions' ? budgetSpent() : answerAll(call))).fetchImpl,
+      fetchImpl: posthogFetch((call) => (call.url.includes('/424242/') && call.family === 'exceptions' ? budgetSpent() : answerAll(call))).fetchImpl,
       rawKeys: keys,
       laneRegister: assets,
     });
     expect(stopped).toMatchObject({ budgetStopped: true, attempted: 3, failed: 1 });
     expect(stopped.skipped.filter((skip) => skip.reason === 'budget-exhausted').map((skip) => `${skip.asset} ${skip.family}`)).toEqual([
-      ...['rageclicks', 'web-vitals', 'funnels'].map((family) => `meals.example ${family}`),
-      ...NOM_FAMILIES.map((family) => `nosh.example ${family}`),
+      ...['rageclicks', 'web-vitals', 'funnels'].map((family) => `meadow.example ${family}`),
+      ...NOM_FAMILIES.map((family) => `northwind.example ${family}`),
     ]);
 
     const posthog = posthogFetch();
     const next = await runPosthogDumps(env, { nowMs: NEXT_DAY, fetchImpl: posthog.fetchImpl, rawKeys: keys, laneRegister: assets });
     // The refused window once more, and every window the stop never asked.
     expect(next.retried).toBe(4 + NOM_FAMILIES.length);
-    expect(project('596607')(posthog.calls).filter((ask) => ask.endsWith('2026-09-22'))).toEqual(
+    expect(project('424242')(posthog.calls).filter((ask) => ask.endsWith('2026-09-22'))).toEqual(
       ['exceptions', 'rageclicks', 'web-vitals', 'funnels'].map((family) => `${family} 2026-09-22`),
     );
     expect(project('700001')(posthog.calls).filter((ask) => ask.endsWith('2026-09-22'))).toEqual(
@@ -1147,8 +1147,8 @@ describe('PostHog — an offline night and the windows it cost', () => {
     const collected = await pgAll<{ window: string }>(`SELECT asset || ' ' || report AS window FROM ${ARCHIVE_RUNS}
         WHERE integration = 'posthog' AND report_date = '2026-09-22' AND status = 'success' ORDER BY asset, report`);
     expect(collected.results.map((row) => row.window)).toEqual([
-      ...[...FAMILIES].sort().map((family) => `meals.example ${family}`),
-      ...[...NOM_FAMILIES].sort().map((family) => `nosh.example ${family}`),
+      ...[...FAMILIES].sort().map((family) => `meadow.example ${family}`),
+      ...[...NOM_FAMILIES].sort().map((family) => `northwind.example ${family}`),
     ]);
 
     // Nothing is owed after that.
@@ -1161,7 +1161,7 @@ describe('PostHog — an offline night and the windows it cost', () => {
     const posthog = posthogFetch();
     const result = await runPosthogDumps(env, {
       nowMs: NEXT_DAY, fetchImpl: posthog.fetchImpl, rawKeys: KEYS, laneRegister: register(),
-      scope: { asset: 'meals.example', window: { start: '2026-09-08', end: '2026-09-22' } },
+      scope: { asset: 'meadow.example', window: { start: '2026-09-08', end: '2026-09-22' } },
     });
     expect(result.retried).toBe(0);
     expect(new Set(asked(posthog.calls))).toEqual(new Set(FAMILIES.map((family) => `${family} 2026-09-22`)));

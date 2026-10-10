@@ -1,5 +1,5 @@
 asset,report_date,collected_at,data_state,provider_truncated,clicks,ctr,device,impressions,position,row_grain
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,16,0.11347517730496454,DESKTOP,141,3.4,device
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,12,0.07792207792207792,MOBILE,154,5.1,device
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,8,0.04790419161676647,TABLET,167,6.8,device
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,16,0.11347517730496454,,141,3.4,property-total
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,16,0.11347517730496454,DESKTOP,141,3.4,device
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,12,0.07792207792207792,MOBILE,154,5.1,device
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,8,0.04790419161676647,TABLET,167,6.8,device
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,16,0.11347517730496454,,141,3.4,property-total

@@ -1,3 +1,3 @@
 asset,report_date,collected_at,data_state,provider_truncated,cls_p75,device,fcp_p75,inp_p75,lcp_p75,measurements,os,path,project_time_zone,row_grain,row_limit,window_end,window_start
-meals.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,0.02,Mobile,1400,,3100,820,iOS,/planner,America/Los_Angeles,page-device-os,100,2026-09-21,2026-09-15
-meals.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,0.01,Desktop,900,90,1900,610,Mac OS X,/planner,America/Los_Angeles,page-device-os,100,2026-09-21,2026-09-15
+meadow.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,0.02,Mobile,1400,,3100,820,iOS,/planner,America/Los_Angeles,page-device-os,100,2026-09-21,2026-09-15
+meadow.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,0.01,Desktop,900,90,1900,610,Mac OS X,/planner,America/Los_Angeles,page-device-os,100,2026-09-21,2026-09-15

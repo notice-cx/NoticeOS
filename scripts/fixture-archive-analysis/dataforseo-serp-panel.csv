@@ -1,8 +1,8 @@
 asset,report_date,collected_at,data_state,provider_truncated,aio_cites_us,aio_present,best_rank,best_url,device,organic_results,provider_attempts,provider_cost_usd,provider_status,query,query_label,row_grain,second_rank,second_url,serp_features,sitelinks_us,top3_domains,tracked_depth
-meals.example,2026-09-07,2026-09-08T12:45:00.000Z,provider-snapshot,true,false,false,2,https://meals.example/,desktop,2,1,0.004,,meal planner,,tracked-query-device,,,,false,recipes.example|meals.example,20
-meals.example,2026-09-07,2026-09-08T12:45:00.000Z,provider-snapshot,true,false,false,9,https://meals.example/planner,desktop,1,1,0.004,,weekly meal plan,,tracked-query-device,,,,false,meals.example,20
-meals.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,true,true,true,2,https://meals.example/,mobile,4,1,0.004,,meal planner,Head terms,tracked-query-device,5,https://meals.example/planner,ai_overview,false,reference.example|meals.example|recipes.example,20
-meals.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,true,false,false,3,https://meals.example/,desktop,1,1,0.004,,meal planner,Head terms,tracked-query-device,,,,true,meals.example,20
-meals.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,true,false,true,,,mobile,1,1,0.004,,weekly meal plan,Head terms,tracked-query-device,,,ai_overview|people_also_ask,,reference.example,20
-meals.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,true,,,,,desktop,1,1,0.004,,meal prep ideas,,tracked-query-device,,,ai_overview,,recipes.example,20
-meals.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,true,,,,,mobile,,3,0.004,Invalid Field: keyword.,crème brûlée calories,,tracked-query-device,,,,,,20
+meadow.example,2026-09-07,2026-09-08T12:45:00.000Z,provider-snapshot,true,false,false,2,https://meadow.example/,desktop,2,1,0.004,,meal planner,,tracked-query-device,,,,false,recipes.example|meadow.example,20
+meadow.example,2026-09-07,2026-09-08T12:45:00.000Z,provider-snapshot,true,false,false,9,https://meadow.example/planner,desktop,1,1,0.004,,weekly meal plan,,tracked-query-device,,,,false,meadow.example,20
+meadow.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,true,true,true,2,https://meadow.example/,mobile,4,1,0.004,,meal planner,Head terms,tracked-query-device,5,https://meadow.example/planner,ai_overview,false,reference.example|meadow.example|recipes.example,20
+meadow.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,true,false,false,3,https://meadow.example/,desktop,1,1,0.004,,meal planner,Head terms,tracked-query-device,,,,true,meadow.example,20
+meadow.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,true,false,true,,,mobile,1,1,0.004,,weekly meal plan,Head terms,tracked-query-device,,,ai_overview|people_also_ask,,reference.example,20
+meadow.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,true,,,,,desktop,1,1,0.004,,meal prep ideas,,tracked-query-device,,,ai_overview,,recipes.example,20
+meadow.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,true,,,,,mobile,,3,0.004,Invalid Field: keyword.,crème brûlée calories,,tracked-query-device,,,,,,20

@@ -28,7 +28,7 @@ const api = vi.hoisted(() => ({
   respondToTask: vi.fn(async () => undefined),
   dismissTask: vi.fn(async () => undefined),
   resolveGate: vi.fn(async () => undefined),
-  createTask: vi.fn(async () => ({ id: "mp-new", project: "meals.example" })),
+  createTask: vi.fn(async () => ({ id: "md-new", project: "meadow.example" })),
 }));
 
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), dismiss: vi.fn() }));
@@ -76,7 +76,7 @@ vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 
 function item(overrides: Partial<WorkItem> = {}): WorkItem {
   return {
-    id: "mp-1w2",
+    id: "md-1w2",
     title: "Fix the recipe schema",
     status: "open",
     priority: 2,
@@ -92,9 +92,9 @@ function item(overrides: Partial<WorkItem> = {}): WorkItem {
 
 function project(overrides: Partial<WorkProject> = {}): WorkProject {
   return {
-    asset: "meals.example",
-    prefix: "mp",
-    name: "Meal Planner",
+    asset: "meadow.example",
+    prefix: "md",
+    name: "Meadow Board",
     ok: true,
     error: null,
     counts: {
@@ -111,9 +111,9 @@ function project(overrides: Partial<WorkProject> = {}): WorkProject {
     epics: null,
     deferred: [],
     waiting: [],
-    ready: [item(), item({ id: "mp-88x", title: "Rewrite the FAQ", priority: 0 })],
+    ready: [item(), item({ id: "md-88x", title: "Rewrite the FAQ", priority: 0 })],
     inProgress: [
-      item({ id: "mp-33j", title: "Ship the sitemap fix", status: "in_progress", assignee: "agent-x" }),
+      item({ id: "md-33j", title: "Ship the sitemap fix", status: "in_progress", assignee: "agent-x" }),
     ],
     recentlyClosed: [],
     history: emptyWorkHistory(),
@@ -173,12 +173,12 @@ function liveTask(overrides: Partial<LiveTask> = {}): LiveTask {
 function board(
   tasks: LiveTask[],
   epics: LiveTasksPayload["epics"] = null,
-  asset = "meals.example",
+  asset = "meadow.example",
 ): LiveTasksPayload {
   return {
     project: asset,
-    prefix: "mp",
-    repo: "../meals.example",
+    prefix: "md",
+    repo: "../meadow.example",
     readAt: "2026-08-01T11:59:30.000Z",
     tasks,
     epics,
@@ -261,10 +261,10 @@ function open(container: HTMLElement, id: string): HTMLElement {
 
 it('shows the selected workspace member name in an expanded board row without changing its assignee ID', () => {
   const principal = '11111111-1111-4111-8111-111111111111';
-  const value = board([liveTask({ id: 'mp-1w2', assignee: principal, status: 'in_progress' })]);
+  const value = board([liveTask({ id: 'md-1w2', assignee: principal, status: 'in_progress' })]);
   value.actors = [{ principalId: principal, displayName: 'Current operator' }];
-  const { container } = renderBoard({ live: true, boards: { 'meals.example': value } });
-  const detail = open(container, 'mp-1w2');
+  const { container } = renderBoard({ live: true, boards: { 'meadow.example': value } });
+  const detail = open(container, 'md-1w2');
   expect(screen.getByRole('option', { name: 'Current operator · 1' })).toHaveValue(principal);
   expect(within(detail).getByText('Claimed by Current operator')).toBeInTheDocument();
   expect(within(detail).queryByText(principal)).not.toBeInTheDocument();
@@ -404,7 +404,7 @@ describe("/tasks — the board is one table", () => {
     });
 
     expect(container.querySelectorAll("table")).toHaveLength(1);
-    expect(row(container, "mp-1w2")).toBeInTheDocument();
+    expect(row(container, "md-1w2")).toBeInTheDocument();
     expect(row(container, "ro-9zz")).toBeInTheDocument();
     expect(within(row(container, "ro-9zz")).getByText("NoticeOS")).toBeInTheDocument();
   });
@@ -414,8 +414,8 @@ describe("/tasks — the board is one table", () => {
     const ids = [...container.querySelectorAll("tr[data-task-row]")].map((node) =>
       node.getAttribute("data-task-row"),
     );
-    // mp-88x is P0; the rest are P2 and sort by last activity.
-    expect(ids[0]).toBe("mp-88x");
+    // md-88x is P0; the rest are P2 and sort by last activity.
+    expect(ids[0]).toBe("md-88x");
   });
 
   it("sinks parked work below live work and closed work below that", () => {
@@ -424,10 +424,10 @@ describe("/tasks — the board is one table", () => {
         projects: [
           project({
             deferred: [
-              item({ id: "mp-park", title: "Wait for the season", status: "deferred", priority: 0 }),
+              item({ id: "md-park", title: "Wait for the season", status: "deferred", priority: 0 }),
             ],
             recentlyClosed: [
-              item({ id: "mp-done", title: "Shipped the redirect", status: "closed", priority: 0 }),
+              item({ id: "md-done", title: "Shipped the redirect", status: "closed", priority: 0 }),
             ],
           }),
         ],
@@ -437,8 +437,8 @@ describe("/tasks — the board is one table", () => {
     const ids = [...container.querySelectorAll("tr[data-task-row]")].map((node) =>
       node.getAttribute("data-task-row"),
     );
-    expect(ids.indexOf("mp-park")).toBeGreaterThan(ids.indexOf("mp-1w2"));
-    expect(ids.indexOf("mp-done")).toBe(ids.length - 1);
+    expect(ids.indexOf("md-park")).toBeGreaterThan(ids.indexOf("md-1w2"));
+    expect(ids.indexOf("md-done")).toBe(ids.length - 1);
   });
 
   it("draws closed, in progress and an unknown status from the task page's own status face", () => {
@@ -446,14 +446,14 @@ describe("/tasks — the board is one table", () => {
       data: payload({
         projects: [
           project({
-            ready: [item({ id: "mp-odd", status: "triaged" })],
-            recentlyClosed: [item({ id: "mp-done", title: "Shipped the redirect", status: "closed" })],
+            ready: [item({ id: "md-odd", status: "triaged" })],
+            recentlyClosed: [item({ id: "md-done", title: "Shipped the redirect", status: "closed" })],
           }),
         ],
       }),
     });
 
-    for (const [id, stored] of [["mp-done", "closed"], ["mp-33j", "in_progress"], ["mp-odd", "triaged"]] as const) {
+    for (const [id, stored] of [["md-done", "closed"], ["md-33j", "in_progress"], ["md-odd", "triaged"]] as const) {
       const face = statusFace(stored);
       const word = within(row(container, id)).getAllByText(face.label)[0]!;
       expect(word, id).toHaveAttribute("data-task-status", face.key);
@@ -462,7 +462,7 @@ describe("/tasks — the board is one table", () => {
       expect(glyph, id).not.toBeNull();
       expect(glyph.getAttribute("class"), id).toContain(STATE_TONE[face.tone].text);
     }
-    const closed = row(container, "mp-done");
+    const closed = row(container, "md-done");
     expect(closed.innerHTML).not.toContain("healthy");
     expect(closed.querySelector("[data-task-rest-mark]")).toHaveAttribute("data-task-rest-mark", "closed");
     expect(statusFace("closed").tone).toBe("na");
@@ -474,20 +474,20 @@ describe("/tasks — the board is one table", () => {
   it("renders a state this build has never seen, without inventing one for it", () => {
     const { container } = renderBoard({
       data: payload({
-        projects: [project({ ready: [item({ id: "mp-odd", status: "triaged" })], inProgress: [] })],
+        projects: [project({ ready: [item({ id: "md-odd", status: "triaged" })], inProgress: [] })],
       }),
     });
 
     // Twice per row: the desk's State column and the summary line a stacked
     // phone row shows in its place.
-    const words = within(row(container, "mp-odd")).getAllByText("triaged");
+    const words = within(row(container, "md-odd")).getAllByText("triaged");
     expect(words).toHaveLength(2);
     for (const word of words) expect(word.getAttribute("data-task-status")).toBe("unknown");
   });
 
   it("pages 25 rows at a time and says how many are left", () => {
     const many = Array.from({ length: 60 }, (_, index) =>
-      item({ id: `mp-${index}`, title: `Task ${index}` }),
+      item({ id: `md-${index}`, title: `Task ${index}` }),
     );
     const { container } = renderBoard({
       data: payload({ projects: [project({ ready: many, inProgress: [] })] }),
@@ -507,7 +507,7 @@ describe("/tasks — the board is one table", () => {
 
   it("starts a narrowed board at its own first page", () => {
     const many = Array.from({ length: 60 }, (_, index) =>
-      item({ id: `mp-${index}`, title: `Task ${index}`, status: index < 30 ? "open" : "blocked" }),
+      item({ id: `md-${index}`, title: `Task ${index}`, status: index < 30 ? "open" : "blocked" }),
     );
     const { container } = renderBoard({
       data: payload({ projects: [project({ ready: many, inProgress: [] })] }),
@@ -530,7 +530,7 @@ describe("/tasks — the board is one table", () => {
           project({
             epics: [
               {
-                id: "mp-epic",
+                id: "md-epic",
                 title: "Recipe schema overhaul",
                 status: "open",
                 priority: 1,
@@ -540,14 +540,14 @@ describe("/tasks — the board is one table", () => {
                 priorities: [0, 1, 4, 0, 0],
               },
             ],
-            ready: [item({ id: "mp-1w2", parent: "mp-epic" })],
+            ready: [item({ id: "md-1w2", parent: "md-epic" })],
             inProgress: [],
           }),
         ],
       }),
     });
 
-    const detail = open(container, "mp-1w2");
+    const detail = open(container, "md-1w2");
     expect(detail.textContent).toContain("Part of Recipe schema overhaul");
     expect(detail.querySelector('[data-task-action="claim"]')).not.toBeNull();
   });
@@ -567,10 +567,10 @@ describe("/tasks — the filters are the URL", () => {
           deferred: 1,
           waiting: 0,
         },
-        ready: [item(), item({ id: "mp-88x", title: "Rewrite the FAQ", priority: 0 })],
-        inProgress: [item({ id: "mp-33j", title: "Ship the sitemap fix", status: "in_progress", assignee: "agent-x" })],
-        deferred: [item({ id: "mp-zzz", title: "Wait for the season", status: "deferred" })],
-        recentlyClosed: [item({ id: "mp-old", title: "Shipped the redirect", status: "closed" })],
+        ready: [item(), item({ id: "md-88x", title: "Rewrite the FAQ", priority: 0 })],
+        inProgress: [item({ id: "md-33j", title: "Ship the sitemap fix", status: "in_progress", assignee: "agent-x" })],
+        deferred: [item({ id: "md-zzz", title: "Wait for the season", status: "deferred" })],
+        recentlyClosed: [item({ id: "md-old", title: "Shipped the redirect", status: "closed" })],
       }),
     ],
   });
@@ -578,7 +578,7 @@ describe("/tasks — the filters are the URL", () => {
   const twoProjects = payload({
     projects: [
       ...many.projects,
-      project({ asset: "nosh.example", prefix: "nom", name: "Nosh", ready: [], inProgress: [],
+      project({ asset: "northwind.example", prefix: "nw", name: "Northwind", ready: [], inProgress: [],
       }),
     ],
   });
@@ -640,18 +640,18 @@ describe("/tasks — the filters are the URL", () => {
       target: { value: "in-progress" },
     });
     expect(screen.getByTestId("search").textContent).toBe("?status=in-progress");
-    expect(container.querySelector('tr[data-task-row="mp-33j"]')).not.toBeNull();
-    expect(container.querySelector('tr[data-task-row="mp-1w2"]')).toBeNull();
+    expect(container.querySelector('tr[data-task-row="md-33j"]')).not.toBeNull();
+    expect(container.querySelector('tr[data-task-row="md-1w2"]')).toBeNull();
   });
 
   it("reads the whole filter vocabulary back out of the URL", () => {
     const { container } = renderBoard({
       data: many,
-      entry: "/tasks?project=meals.example&status=open&priority=top&assignee=agent-x&label=ux",
+      entry: "/tasks?project=meadow.example&status=open&priority=top&assignee=agent-x&label=ux",
     });
 
     expect(container.querySelector<HTMLSelectElement>("#tasks-project")!.value).toBe(
-      "meals.example",
+      "meadow.example",
     );
     expect(container.querySelector<HTMLSelectElement>("#tasks-status")!.value).toBe("open");
     expect(container.querySelector<HTMLSelectElement>("#tasks-priority")!.value).toBe("top");
@@ -664,15 +664,15 @@ describe("/tasks — the filters are the URL", () => {
       data: payload({
         projects: [
           project(),
-          project({ asset: "nosh.example", prefix: "nom", name: "Nosh", ready: [], inProgress: [] }),
+          project({ asset: "northwind.example", prefix: "nw", name: "Northwind", ready: [], inProgress: [] }),
         ],
       }),
     });
 
     fireEvent.change(container.querySelector<HTMLSelectElement>("#tasks-project")!, {
-      target: { value: "nosh.example" },
+      target: { value: "northwind.example" },
     });
-    expect(screen.getByTestId("search").textContent).toBe("?project=nosh.example");
+    expect(screen.getByTestId("search").textContent).toBe("?project=northwind.example");
 
     fireEvent.change(container.querySelector<HTMLSelectElement>("#tasks-project")!, {
       target: { value: "all" },
@@ -691,16 +691,16 @@ describe("/tasks — the filters are the URL", () => {
     const { container } = renderBoard({
       live: true,
       boards: {
-        "meals.example": board([
-          liveTask({ id: "mp-1w2", labels: ["ux"] }),
-          liveTask({ id: "mp-88x", title: "Rewrite the FAQ", labels: ["copy"] }),
+        "meadow.example": board([
+          liveTask({ id: "md-1w2", labels: ["ux"] }),
+          liveTask({ id: "md-88x", title: "Rewrite the FAQ", labels: ["copy"] }),
         ]),
       },
       entry: "/tasks?label=ux",
     });
 
-    expect(container.querySelector('tr[data-task-row="mp-1w2"]')).not.toBeNull();
-    expect(container.querySelector('tr[data-task-row="mp-88x"]')).toBeNull();
+    expect(container.querySelector('tr[data-task-row="md-1w2"]')).not.toBeNull();
+    expect(container.querySelector('tr[data-task-row="md-88x"]')).toBeNull();
   });
 
   it("offers no label filter on the photograph, whose rows carry no labels", () => {
@@ -735,8 +735,8 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
           waiting: 2,
         },
         waiting: [
-          item({ id: "mp-gate", title: "Gate: human — approve the spend", issueType: "gate", priority: 2 }),
-          item({ id: "mp-9k1", title: "Decide the Korea trip", priority: 1 }),
+          item({ id: "md-gate", title: "Gate: human — approve the spend", issueType: "gate", priority: 2 }),
+          item({ id: "md-9k1", title: "Decide the Korea trip", priority: 1 }),
         ],
       }),
     ],
@@ -748,8 +748,8 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
     const titles = [...inbox.querySelectorAll("li")].map((node) => node.textContent ?? "");
     expect(titles[0]).toContain("approve the spend");
     expect(titles[1]).toContain("Decide the Korea trip");
-    expect(titles[1]).toContain("Meal Planner");
-    expect(titles[1]).not.toContain("mp-9k1");
+    expect(titles[1]).toContain("Meadow Board");
+    expect(titles[1]).not.toContain("md-9k1");
     expect(titles[0]).toContain("needs your approval");
   });
 
@@ -761,16 +761,16 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
         projects: [
           project({
             waiting: [
-              item({ id: "mp-gate", title: "Gate: human — approve the spend", issueType: "gate", priority: 0 }),
-              item({ id: "mp-top", title: "Pick the launch date", priority: 0 }),
-              item({ id: "mp-9k1", title: "Decide the Korea trip", priority: 1 }),
-              item({ id: "mp-low", title: "Name the newsletter", priority: 3 }),
+              item({ id: "md-gate", title: "Gate: human — approve the spend", issueType: "gate", priority: 0 }),
+              item({ id: "md-top", title: "Pick the launch date", priority: 0 }),
+              item({ id: "md-9k1", title: "Decide the Korea trip", priority: 1 }),
+              item({ id: "md-low", title: "Name the newsletter", priority: 3 }),
             ],
           }),
         ],
       }),
     });
-    for (const id of ["mp-gate", "mp-top", "mp-9k1", "mp-low"]) {
+    for (const id of ["md-gate", "md-top", "md-9k1", "md-low"]) {
       const ring = container.querySelector(`[data-inbox-row="${id}"] span[aria-hidden]`)!;
       expect(ring.className, id).toContain("text-warn");
       expect(ring.className, id).not.toContain("text-error");
@@ -779,10 +779,10 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
 
   it("ranks the board's rows and the Urgent count by ink, never by an attention hue", () => {
     const { container } = renderBoard();
-    const top = container.querySelector('[data-task-row="mp-88x"] [data-priority-mark]')!;
+    const top = container.querySelector('[data-task-row="md-88x"] [data-priority-mark]')!;
     expect(top.getAttribute("data-priority-mark")).toBe("top");
     expect(top.className).toContain("bg-foreground");
-    expect(container.querySelector('[data-task-row="mp-1w2"] [data-priority-mark]')).toHaveAttribute(
+    expect(container.querySelector('[data-task-row="md-1w2"] [data-priority-mark]')).toHaveAttribute(
       "data-priority-mark",
       "normal",
     );
@@ -809,22 +809,22 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
     const inbox = within(container.querySelector("[data-waiting-list]") as HTMLElement);
     expect(inbox.getByRole("button", { name: /approve the spend/ })).toBeTruthy();
 
-    const gateTask = liveTask({ id: "mp-gate", title: "Approve the spend", issueType: "gate", awaitType: "human" });
+    const gateTask = liveTask({ id: "md-gate", title: "Approve the spend", issueType: "gate", awaitType: "human" });
     const otherTasks = [
-      liveTask({ id: "mp-timer", title: "Wait for tomorrow", issueType: "gate", awaitType: "timer" }),
-      liveTask({ id: "mp-9k1", title: "Decide the Korea trip", labels: ["human"], ready: true }),
+      liveTask({ id: "md-timer", title: "Wait for tomorrow", issueType: "gate", awaitType: "timer" }),
+      liveTask({ id: "md-9k1", title: "Decide the Korea trip", labels: ["human"], ready: true }),
     ];
-    state.boards = { "meals.example": board([gateTask, ...otherTasks]) };
+    state.boards = { "meadow.example": board([gateTask, ...otherTasks]) };
     fireEvent.change(container.querySelector("#tasks-status")!, { target: { value: "open" } });
     expect(inbox.getByText("2 asks")).toBeTruthy();
     expect(inbox.queryByText("Wait for tomorrow")).toBeNull();
-    expect(container.querySelector('[data-task-row="mp-timer"]')).toBeNull();
-    const gate = within(container.querySelector('[data-inbox-row="mp-gate"]') as HTMLElement);
+    expect(container.querySelector('[data-task-row="md-timer"]')).toBeNull();
+    const gate = within(container.querySelector('[data-inbox-row="md-gate"]') as HTMLElement);
     expect(gate.getByRole("button", { name: "Approve" })).toBeTruthy();
     expect(gate.queryByRole("button", { name: "Answer" })).toBeNull();
     expect(api.resolveGate).not.toHaveBeenCalled();
 
-    state.boards = { "meals.example": board([
+    state.boards = { "meadow.example": board([
       { ...gateTask, status: "closed", closedAt: "2026-08-01T11:59:45.000Z" }, ...otherTasks,
     ]) };
     fireEvent.change(container.querySelector("#tasks-status")!, { target: { value: "all" },
@@ -836,15 +836,15 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
 
   it("puts each decision on its row, and keeps the evidence behind the press that opens it", () => {
     const { container } = renderBoard({ data: withInbox, live: true, boards: {
-      "meals.example": board([
-        liveTask({ id: "mp-gate", title: "Gate: human — approve the spend", issueType: "gate", awaitType: "human",
+      "meadow.example": board([
+        liveTask({ id: "md-gate", title: "Gate: human — approve the spend", issueType: "gate", awaitType: "human",
           description: "Spend $40 on the launch ads." }),
-        liveTask({ id: "mp-9k1", title: "Decide the Korea trip", priority: 1, labels: ["human"], ready: true }),
+        liveTask({ id: "md-9k1", title: "Decide the Korea trip", priority: 1, labels: ["human"], ready: true }),
       ]),
     } });
     // One press per decision, without opening the row.
-    const gate = within(container.querySelector('[data-inbox-row="mp-gate"]') as HTMLElement);
-    const ask = within(container.querySelector('[data-inbox-row="mp-9k1"]') as HTMLElement);
+    const gate = within(container.querySelector('[data-inbox-row="md-gate"]') as HTMLElement);
+    const ask = within(container.querySelector('[data-inbox-row="md-9k1"]') as HTMLElement);
     expect(gate.getByRole("button", { name: "Approve" })).toBeEnabled();
     expect(ask.getByRole("button", { name: "Answer" })).toBeEnabled();
     expect(ask.getByRole("button", { name: "Dismiss" })).toBeEnabled();
@@ -858,22 +858,22 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
 
   it("lists a waiting task once: in Waiting on you, not again in All tasks", () => {
     const { container } = renderBoard({ data: withInbox, live: true, boards: {
-      "meals.example": board([
-        liveTask({ id: "mp-gate", title: "Gate: human — approve the spend", issueType: "gate", awaitType: "human" }),
-        liveTask({ id: "mp-9k1", title: "Decide the Korea trip", priority: 1, labels: ["human"], ready: true }),
-        liveTask({ id: "mp-1w2", title: "Fix the recipe schema" }),
+      "meadow.example": board([
+        liveTask({ id: "md-gate", title: "Gate: human — approve the spend", issueType: "gate", awaitType: "human" }),
+        liveTask({ id: "md-9k1", title: "Decide the Korea trip", priority: 1, labels: ["human"], ready: true }),
+        liveTask({ id: "md-1w2", title: "Fix the recipe schema" }),
       ]),
     } });
-    expect(container.querySelector('[data-inbox-row="mp-9k1"]')).not.toBeNull();
-    expect(container.querySelector('tr[data-task-row="mp-9k1"]')).toBeNull();
-    expect(container.querySelector('tr[data-task-row="mp-gate"]')).toBeNull();
-    expect(container.querySelector('tr[data-task-row="mp-1w2"]')).not.toBeNull();
+    expect(container.querySelector('[data-inbox-row="md-9k1"]')).not.toBeNull();
+    expect(container.querySelector('tr[data-task-row="md-9k1"]')).toBeNull();
+    expect(container.querySelector('tr[data-task-row="md-gate"]')).toBeNull();
+    expect(container.querySelector('tr[data-task-row="md-1w2"]')).not.toBeNull();
   });
 
   it("says nothing else is queued when every task is waiting on you", () => {
     renderBoard({ data: withInbox, live: true, boards: {
-      "meals.example": board([
-        liveTask({ id: "mp-9k1", title: "Decide the Korea trip", priority: 1, labels: ["human"], ready: true }),
+      "meadow.example": board([
+        liveTask({ id: "md-9k1", title: "Decide the Korea trip", priority: 1, labels: ["human"], ready: true }),
       ]),
     } });
     expect(screen.getByText("Nothing else is queued.")).toBeInTheDocument();
@@ -882,7 +882,7 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
 
   it("holds five rows and discloses the rest in place", () => {
     const asks = Array.from({ length: 9 }, (_, index) =>
-      item({ id: `mp-ask-${index}`, title: `Ask ${index}` }),
+      item({ id: `md-ask-${index}`, title: `Ask ${index}` }),
     );
     const { container } = renderBoard({
       data: payload({
@@ -911,18 +911,18 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
   });
 
   const liveInbox = () => ({
-    "meals.example": board([
-      liveTask({ id: "mp-gate", title: "Gate: human — approve the spend", issueType: "gate", awaitType: "human" }),
-      liveTask({ id: "mp-9k1", title: "Decide the Korea trip", priority: 1, labels: ["human"], ready: true }),
+    "meadow.example": board([
+      liveTask({ id: "md-gate", title: "Gate: human — approve the spend", issueType: "gate", awaitType: "human" }),
+      liveTask({ id: "md-9k1", title: "Decide the Korea trip", priority: 1, labels: ["human"], ready: true }),
     ]),
   });
 
   it("answers an ask with the operator's own words: Answer, type, Enter — and never an empty one", async () => {
     const { container } = renderBoard({ data: withInbox, live: true, boards: liveInbox() });
-    const ask = within(container.querySelector('[data-inbox-row="mp-9k1"]') as HTMLElement);
+    const ask = within(container.querySelector('[data-inbox-row="md-9k1"]') as HTMLElement);
 
     fireEvent.click(ask.getByRole("button", { name: "Answer" }));
-    const box = screen.getByLabelText("Your answer to mp-9k1");
+    const box = screen.getByLabelText("Your answer to md-9k1");
     expect(box).toHaveFocus();
     expect(ask.getByRole("button", { name: "Send" })).toBeDisabled();
     fireEvent.keyDown(box, { key: "Enter" });
@@ -933,7 +933,7 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
 
     // The row leaves at once, the toast names the task and carries Undo, and
     // the lane is called when the window closes (here: flushed).
-    expect(container.querySelector('[data-inbox-row="mp-9k1"]')).toBeNull();
+    expect(container.querySelector('[data-inbox-row="md-9k1"]')).toBeNull();
     expect(toasts.success).toHaveBeenCalledWith("Answered", expect.objectContaining({
       description: "Decide the Korea trip",
       action: expect.objectContaining({ label: "Undo" }),
@@ -941,61 +941,61 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
     expect(api.respondToTask).not.toHaveBeenCalled();
     act(() => flushAnswers());
     await waitFor(() => expect(api.respondToTask).toHaveBeenCalledOnce());
-    expect(api.respondToTask).toHaveBeenCalledWith("mp-9k1", "Book it for October.");
+    expect(api.respondToTask).toHaveBeenCalledWith("md-9k1", "Book it for October.");
   });
 
   it("approves a gate in one press on its row — a wait is released, not answered", async () => {
     const { container } = renderBoard({ data: withInbox, live: true, boards: liveInbox() });
-    const gate = within(container.querySelector('[data-inbox-row="mp-gate"]') as HTMLElement);
+    const gate = within(container.querySelector('[data-inbox-row="md-gate"]') as HTMLElement);
 
     fireEvent.click(gate.getByRole("button", { name: "Approve" }));
-    expect(container.querySelector('[data-inbox-row="mp-gate"]')).toBeNull();
+    expect(container.querySelector('[data-inbox-row="md-gate"]')).toBeNull();
     expect(toasts.success).toHaveBeenCalledWith("Approved", expect.anything());
     act(() => flushAnswers());
     await waitFor(() => expect(api.resolveGate).toHaveBeenCalledOnce());
-    expect(api.resolveGate).toHaveBeenCalledWith("mp-gate");
+    expect(api.resolveGate).toHaveBeenCalledWith("md-gate");
     expect(api.respondToTask).not.toHaveBeenCalled();
   });
 
   it("takes a dismissal back inside its window, and sends nothing", async () => {
     const { container } = renderBoard({ data: withInbox, live: true, boards: liveInbox() });
-    const ask = within(container.querySelector('[data-inbox-row="mp-9k1"]') as HTMLElement);
+    const ask = within(container.querySelector('[data-inbox-row="md-9k1"]') as HTMLElement);
 
     fireEvent.click(ask.getByRole("button", { name: "Dismiss" }));
-    expect(container.querySelector('[data-inbox-row="mp-9k1"]')).toBeNull();
+    expect(container.querySelector('[data-inbox-row="md-9k1"]')).toBeNull();
     expect(within(container.querySelector("[data-waiting-list]") as HTMLElement).getByText("1 ask")).toBeTruthy();
 
     const undo = vi.mocked(toasts.success).mock.calls.at(-1)![1] as { action: { onClick: () => void } };
     act(() => undo.action.onClick());
-    expect(container.querySelector('[data-inbox-row="mp-9k1"]')).not.toBeNull();
+    expect(container.querySelector('[data-inbox-row="md-9k1"]')).not.toBeNull();
     act(() => flushAnswers());
     expect(api.dismissTask).not.toHaveBeenCalled();
 
-    fireEvent.click(within(container.querySelector('[data-inbox-row="mp-9k1"]') as HTMLElement).getByRole("button", { name: "Dismiss" }));
+    fireEvent.click(within(container.querySelector('[data-inbox-row="md-9k1"]') as HTMLElement).getByRole("button", { name: "Dismiss" }));
     act(() => flushAnswers());
-    await waitFor(() => expect(api.dismissTask).toHaveBeenCalledWith("mp-9k1"));
+    await waitFor(() => expect(api.dismissTask).toHaveBeenCalledWith("md-9k1"));
   });
 
   it("takes the newest answer back with ⌘Z while no field has focus", () => {
     const { container } = renderBoard({ data: withInbox, live: true, boards: liveInbox() });
-    fireEvent.click(within(container.querySelector('[data-inbox-row="mp-gate"]') as HTMLElement).getByRole("button", { name: "Approve" }));
-    expect(container.querySelector('[data-inbox-row="mp-gate"]')).toBeNull();
+    fireEvent.click(within(container.querySelector('[data-inbox-row="md-gate"]') as HTMLElement).getByRole("button", { name: "Approve" }));
+    expect(container.querySelector('[data-inbox-row="md-gate"]')).toBeNull();
     fireEvent.keyDown(window, { key: "z", metaKey: true });
-    expect(container.querySelector('[data-inbox-row="mp-gate"]')).not.toBeNull();
+    expect(container.querySelector('[data-inbox-row="md-gate"]')).not.toBeNull();
     act(() => flushAnswers());
     expect(api.resolveGate).not.toHaveBeenCalled();
   });
 
   it("hands back the local read's own words when bd refuses, and the row returns", async () => {
-    api.dismissTask.mockRejectedValueOnce(new Error("bd: no such issue mp-9k1"));
+    api.dismissTask.mockRejectedValueOnce(new Error("bd: no such issue md-9k1"));
     const { container } = renderBoard({ data: withInbox, live: true, boards: liveInbox() });
-    fireEvent.click(within(container.querySelector('[data-inbox-row="mp-9k1"]') as HTMLElement).getByRole("button", { name: "Dismiss" }));
+    fireEvent.click(within(container.querySelector('[data-inbox-row="md-9k1"]') as HTMLElement).getByRole("button", { name: "Dismiss" }));
     act(() => flushAnswers());
 
     await waitFor(() =>
-      expect(toasts.error).toHaveBeenCalledWith("bd: no such issue mp-9k1"),
+      expect(toasts.error).toHaveBeenCalledWith("bd: no such issue md-9k1"),
     );
-    expect(container.querySelector('[data-inbox-row="mp-9k1"]')).not.toBeNull();
+    expect(container.querySelector('[data-inbox-row="md-9k1"]')).not.toBeNull();
   });
 
   it("says nothing is waiting once, in the answer, rather than drawing an empty panel", () => {
@@ -1009,50 +1009,50 @@ describe("/tasks — claim, close and defer in place", () => {
   it("claims atomically, the way the local read spells it", async () => {
     const { container } = renderBoard({
       live: true,
-      boards: { "meals.example": board([liveTask()]) },
+      boards: { "meadow.example": board([liveTask()]) },
     });
 
-    fireEvent.click(open(container, "mp-1w2").querySelector<HTMLElement>('[data-task-action="claim"]')!);
+    fireEvent.click(open(container, "md-1w2").querySelector<HTMLElement>('[data-task-action="claim"]')!);
     await waitFor(() => expect(api.updateTask).toHaveBeenCalledOnce());
-    expect(api.updateTask).toHaveBeenCalledWith("mp-1w2", { claim: true });
-    expect(toasts.success).toHaveBeenCalledWith("Claimed mp-1w2");
+    expect(api.updateTask).toHaveBeenCalledWith("md-1w2", { claim: true });
+    expect(toasts.success).toHaveBeenCalledWith("Claimed md-1w2");
   });
 
   it("will not close a task without the evidence that closes it", async () => {
     const { container } = renderBoard({
       live: true,
-      boards: { "meals.example": board([liveTask()]) },
+      boards: { "meadow.example": board([liveTask()]) },
     });
 
-    const detail = open(container, "mp-1w2");
+    const detail = open(container, "md-1w2");
     fireEvent.click(detail.querySelector<HTMLElement>('[data-task-action="close"]')!);
     const confirm = container.querySelector<HTMLButtonElement>('[data-task-confirm="close"]')!;
     expect(confirm.disabled).toBe(true);
 
-    fireEvent.change(screen.getByLabelText("Why mp-1w2 is closed"), {
+    fireEvent.change(screen.getByLabelText("Why md-1w2 is closed"), {
       target: { value: "shipped in 6b08798" },
     });
     fireEvent.click(confirm);
 
     await waitFor(() => expect(api.closeTask).toHaveBeenCalledOnce());
-    expect(api.closeTask).toHaveBeenCalledWith("mp-1w2", "shipped in 6b08798");
+    expect(api.closeTask).toHaveBeenCalledWith("md-1w2", "shipped in 6b08798");
   });
 
   it("parks a task until a date it is given", async () => {
     const { container } = renderBoard({
       live: true,
-      boards: { "meals.example": board([liveTask()]) },
+      boards: { "meadow.example": board([liveTask()]) },
     });
 
-    const detail = open(container, "mp-1w2");
+    const detail = open(container, "md-1w2");
     fireEvent.click(detail.querySelector<HTMLElement>('[data-task-action="defer"]')!);
-    fireEvent.change(screen.getByLabelText("Park mp-1w2 until"), {
+    fireEvent.change(screen.getByLabelText("Park md-1w2 until"), {
       target: { value: "2026-09-30" },
     });
     fireEvent.click(container.querySelector<HTMLElement>('[data-task-confirm="defer"]')!);
 
     await waitFor(() => expect(api.updateTask).toHaveBeenCalledOnce());
-    expect(api.updateTask).toHaveBeenCalledWith("mp-1w2", { defer: "2026-09-30" });
+    expect(api.updateTask).toHaveBeenCalledWith("md-1w2", { defer: "2026-09-30" });
   });
 
   it("offers no verbs on a closed row — momentum asks nothing of anyone", () => {
@@ -1062,24 +1062,24 @@ describe("/tasks — claim, close and defer in place", () => {
           project({
             ready: [],
             inProgress: [],
-            recentlyClosed: [item({ id: "mp-old", title: "Shipped the redirect", status: "closed" })],
+            recentlyClosed: [item({ id: "md-old", title: "Shipped the redirect", status: "closed" })],
           }),
         ],
       }),
     });
 
-    const detail = open(container, "mp-old");
+    const detail = open(container, "md-old");
     expect(detail.querySelector('[data-task-action="claim"]')).toBeNull();
-    expect(detail.querySelector('[data-task-open="mp-old"]')).not.toBeNull();
+    expect(detail.querySelector('[data-task-open="md-old"]')).not.toBeNull();
   });
 
   it("links every row at its own task page, from the row and from inside it", () => {
     const { container } = renderBoard();
-    const link = within(row(container, "mp-1w2")).getByRole("link", { name: "mp-1w2" });
-    expect(link.getAttribute("href")).toBe("/tasks/mp-1w2");
+    const link = within(row(container, "md-1w2")).getByRole("link", { name: "md-1w2" });
+    expect(link.getAttribute("href")).toBe("/tasks/md-1w2");
     expect(
-      open(container, "mp-1w2").querySelector('[data-task-open="mp-1w2"]')!.getAttribute("href"),
-    ).toBe("/tasks/mp-1w2");
+      open(container, "md-1w2").querySelector('[data-task-open="md-1w2"]')!.getAttribute("href"),
+    ).toBe("/tasks/md-1w2");
   });
 
   it.each([
@@ -1089,16 +1089,16 @@ describe("/tasks — claim, close and defer in place", () => {
     { scope: "asset", link: "open" },
   ])("preserves $scope board filters through the $link task link", ({ scope, link }) => {
     const entry = scope === "asset"
-      ? "/assets/meals.example/tasks?range=90&status=open"
-      : "/tasks?status=open&project=meals.example";
+      ? "/assets/meadow.example/tasks?range=90&status=open"
+      : "/tasks?status=open&project=meadow.example";
     const { container } = scope === "asset"
-      ? renderScoped("meals.example", { entry })
+      ? renderScoped("meadow.example", { entry })
       : renderBoard({ entry });
     const target = link === "id"
-      ? within(row(container, "mp-1w2")).getByRole("link", { name: "mp-1w2" })
-      : within(open(container, "mp-1w2")).getByRole("link", { name: "Open task" });
+      ? within(row(container, "md-1w2")).getByRole("link", { name: "md-1w2" })
+      : within(open(container, "md-1w2")).getByRole("link", { name: "Open task" });
     fireEvent.click(target);
-    expect(screen.getByTestId("task-destination")).toHaveTextContent("/tasks/mp-1w2");
+    expect(screen.getByTestId("task-destination")).toHaveTextContent("/tasks/md-1w2");
     expect(screen.getByTestId("task-destination")).toHaveAttribute("data-return-to", entry);
   });
 });
@@ -1106,7 +1106,7 @@ describe("/tasks — claim, close and defer in place", () => {
 describe("/tasks — live where the local read is, the photograph where it is not", () => {
   it("uses every recent closed task for the KPI, filter and paged history", () => {
     const closed = Array.from({ length: 60 }, (_, index) => liveTask({
-      id: `mp-closed${index}`,
+      id: `md-closed${index}`,
       title: `Completed task ${index}`,
       status: "closed",
       priority: 0,
@@ -1115,7 +1115,7 @@ describe("/tasks — live where the local read is, the photograph where it is no
     const { container } = renderBoard({
       live: true,
       entry: "/tasks?status=closed",
-      boards: { "meals.example": { ...board([liveTask(), ...closed]), closedSince: "2026-07-25" } },
+      boards: { "meadow.example": { ...board([liveTask(), ...closed]), closedSince: "2026-07-25" } },
       data: payload({ projects: [project({ recentlyClosed: closed.slice(0, 5) })] }),
     });
     expect(fig(container, "closed")).toHaveTextContent("60");
@@ -1133,13 +1133,13 @@ describe("/tasks — live where the local read is, the photograph where it is no
     const { container } = renderBoard({
       live: true,
       entry: "/tasks?status=closed",
-      errors: failed ? { "meals.example": "database unavailable" } : {},
-      data: payload({ projects: [project({ recentlyClosed: [item({ id: "mp-done", status: "closed" })] })] }),
+      errors: failed ? { "meadow.example": "database unavailable" } : {},
+      data: payload({ projects: [project({ recentlyClosed: [item({ id: "md-done", status: "closed" })] })] }),
     });
     // Still arriving: a spinner beside the age. Failed: one banner naming the
     // project, with a Retry. Either way the week's total is a dash.
     if (failed) {
-      expect(container.querySelector("[data-lane-error]")!.textContent).toContain("Meal Planner");
+      expect(container.querySelector("[data-lane-error]")!.textContent).toContain("Meadow Board");
       expect(screen.getByRole("button", { name: /Retry/ })).toBeInTheDocument();
       expect(container.querySelector("[data-task-history-status]")).toBeNull();
     } else {
@@ -1156,26 +1156,26 @@ describe("/tasks — live where the local read is, the photograph where it is no
       data: payload({
         projects: [
           project(),
-          project({ asset: "nosh.example", prefix: "nom", name: "Nosh", ready: [], inProgress: [] }),
+          project({ asset: "northwind.example", prefix: "nw", name: "Northwind", ready: [], inProgress: [] }),
         ],
       }),
     });
 
-    expect(state.acrossCalls.at(-1)).toEqual(["meals.example", "nosh.example"]);
+    expect(state.acrossCalls.at(-1)).toEqual(["meadow.example", "northwind.example"]);
   });
 
   it("renders the live rows, including the states the photograph never sent", () => {
     const { container } = renderBoard({
       live: true,
       boards: {
-        "meals.example": board([
-          liveTask({ id: "mp-blk", title: "Waiting on the schema", status: "blocked" }),
-          liveTask({ id: "mp-1w2" }),
+        "meadow.example": board([
+          liveTask({ id: "md-blk", title: "Waiting on the schema", status: "blocked" }),
+          liveTask({ id: "md-1w2" }),
         ]),
       },
     });
 
-    const state = within(row(container, "mp-blk")).getAllByText("Blocked")[0]!;
+    const state = within(row(container, "md-blk")).getAllByText("Blocked")[0]!;
     expect(state).toBeInTheDocument();
     expect(state.previousElementSibling?.getAttribute("aria-label")).toBe("State — Blocked");
     expect(container.querySelectorAll("tr[data-task-row]")).toHaveLength(2);
@@ -1184,17 +1184,17 @@ describe("/tasks — live where the local read is, the photograph where it is no
   it("keeps the photograph's rows and says so when one project's live read fails", () => {
     const { container } = renderBoard({
       live: true,
-      errors: { "meals.example": "bd: could not open the repository" },
+      errors: { "meadow.example": "bd: could not open the repository" },
     });
 
-    expect(container.querySelector("[data-lane-error]")!.textContent).toContain("Meal Planner");
-    expect(row(container, "mp-1w2")).toBeInTheDocument();
+    expect(container.querySelector("[data-lane-error]")!.textContent).toContain("Meadow Board");
+    expect(row(container, "md-1w2")).toBeInTheDocument();
   });
 
   it("names a project neither read could reach, once, above the board", () => {
     const { container } = renderBoard({
       data: payload({
-        projects: [project({ ok: false, error: "no repository at ../meals.example" })],
+        projects: [project({ ok: false, error: "no repository at ../meadow.example" })],
       }),
     });
     expect(screen.getByText(/1 project could not be read/)).toBeInTheDocument();
@@ -1215,21 +1215,21 @@ describe("/tasks — the read-only fallback", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent(READ_ONLY_TASKS_HINT);
     fireEvent.keyDown(window, { key: "Escape" });
     expect(
-      open(container, "mp-1w2").querySelector<HTMLButtonElement>('[data-task-action="claim"]')!
+      open(container, "md-1w2").querySelector<HTMLButtonElement>('[data-task-action="claim"]')!
         .disabled,
     ).toBe(true);
   });
 
   it("still shows the board — the fallback is a degradation, not a dead end", () => {
     const { container } = renderBoard();
-    expect(row(container, "mp-1w2")).toBeInTheDocument();
+    expect(row(container, "md-1w2")).toBeInTheDocument();
     expect(container.querySelector("[data-tasks-answer]")).not.toBeNull();
   });
 });
 
 describe("/tasks — filing one", () => {
   it("is the page's one primary action, and opens the composer in place", () => {
-    renderBoard({ live: true, boards: { "meals.example": board([liveTask()]) }, entry: "/tasks?status=open" });
+    renderBoard({ live: true, boards: { "meadow.example": board([liveTask()]) }, entry: "/tasks?status=open" });
 
     fireEvent.click(screen.getByRole("button", { name: "New task" }));
     // The page does not change under the composer; the filters stay.
@@ -1243,7 +1243,7 @@ describe("/tasks — filing one", () => {
   it("offers exactly the projects the board's own filter offers", () => {
     renderBoard({
       live: true,
-      boards: { "meals.example": board([liveTask()]) },
+      boards: { "meadow.example": board([liveTask()]) },
       entry: "/tasks?new=1",
     });
 
@@ -1259,18 +1259,18 @@ describe("/tasks — filing one", () => {
   it("inherits the project filter, so a narrowed board does not ask again", () => {
     renderBoard({
       live: true,
-      boards: { "meals.example": board([liveTask()]) },
-      entry: "/tasks?project=meals.example&new=1",
+      boards: { "meadow.example": board([liveTask()]) },
+      entry: "/tasks?project=meadow.example&new=1",
     });
 
     const composer = within(screen.getByRole("dialog"));
-    expect((composer.getByLabelText("Project") as HTMLSelectElement).value).toBe("meals.example");
+    expect((composer.getByLabelText("Project") as HTMLSelectElement).value).toBe("meadow.example");
   });
 
   it("keeps the filters when the composer is closed", () => {
     renderBoard({
       live: true,
-      boards: { "meals.example": board([liveTask()]) },
+      boards: { "meadow.example": board([liveTask()]) },
       entry: "/tasks?status=open&new=1",
     });
 
@@ -1282,8 +1282,8 @@ describe("/tasks — filing one", () => {
   it("files through the local read and names the id it minted", async () => {
     renderBoard({
       live: true,
-      boards: { "meals.example": board([liveTask()]) },
-      entry: "/tasks?project=meals.example&new=1",
+      boards: { "meadow.example": board([liveTask()]) },
+      entry: "/tasks?project=meadow.example&new=1",
     });
 
     fireEvent.change(screen.getByLabelText("Title"), {
@@ -1294,12 +1294,12 @@ describe("/tasks — filing one", () => {
     await waitFor(() => expect(api.createTask).toHaveBeenCalledOnce());
     expect(api.createTask).toHaveBeenCalledWith(
       expect.objectContaining({
-        project: "meals.example",
+        project: "meadow.example",
         title: "Rewrite the recipes hub",
         type: "task",
       }),
     );
-    expect(toasts.success).toHaveBeenCalledWith("Filed mp-new", expect.anything());
+    expect(toasts.success).toHaveBeenCalledWith("Filed md-new", expect.anything());
   });
 });
 
@@ -1440,7 +1440,7 @@ describe("the asset page's Tasks tab", () => {
   });
 
   it("pins the project and drops every control the page already answers", () => {
-    const { container } = renderScoped("meals.example", { data: two });
+    const { container } = renderScoped("meadow.example", { data: two });
 
     expect(container.textContent).not.toContain("Somebody else's queue");
     expect(container.querySelector("#tasks-project")).toBeNull();
@@ -1457,23 +1457,23 @@ describe("the asset page's Tasks tab", () => {
   });
 
   it("keeps every other filter working, and the URL is still the state", () => {
-    const { container } = renderScoped("meals.example", { data: two });
+    const { container } = renderScoped("meadow.example", { data: two });
 
     fireEvent.change(container.querySelector<HTMLSelectElement>("#tasks-status")!, {
       target: { value: "in-progress" },
     });
     // A pinned project never occupies the query string: it is the page, not a control.
     expect(screen.getByTestId("search").textContent).toBe("?status=in-progress");
-    expect(container.querySelector('tr[data-task-row="mp-33j"]')).not.toBeNull();
-    expect(container.querySelector('tr[data-task-row="mp-1w2"]')).toBeNull();
+    expect(container.querySelector('tr[data-task-row="md-33j"]')).not.toBeNull();
+    expect(container.querySelector('tr[data-task-row="md-1w2"]')).toBeNull();
   });
 
   it("does not name the project on an inbox row either", () => {
-    const { container } = renderScoped("meals.example", {
+    const { container } = renderScoped("meadow.example", {
       data: payload({
         projects: [
           project({
-            waiting: [item({ id: "mp-9k1", title: "Decide the Korea trip", issueType: "gate" })],
+            waiting: [item({ id: "md-9k1", title: "Decide the Korea trip", issueType: "gate" })],
           }),
         ],
       }),
@@ -1481,25 +1481,25 @@ describe("the asset page's Tasks tab", () => {
 
     const inbox = container.querySelector("[data-waiting-list]")!;
     expect(inbox.textContent).toContain("Decide the Korea trip");
-    expect(inbox.textContent).not.toContain("Meal Planner");
+    expect(inbox.textContent).not.toContain("Meadow Board");
   });
 
   it("offers New task here, and the composer opens pinned to this project", () => {
-    const { container } = renderScoped("meals.example", { live: true, data: two });
+    const { container } = renderScoped("meadow.example", { live: true, data: two });
 
     const button = container.querySelector("[data-new-task]")!;
-    expect(button.getAttribute("data-new-task-project")).toBe("meals.example");
+    expect(button.getAttribute("data-new-task-project")).toBe("meadow.example");
     fireEvent.click(screen.getByRole("button", { name: "New task" }));
     expect(screen.getByTestId("search").textContent).toBe("");
 
     const composer = within(screen.getByRole("dialog", { name: "File a task" }));
     const select = composer.getByLabelText("Project") as HTMLSelectElement;
-    expect(select.value).toBe("meals.example");
-    expect([...select.options].map((option) => option.value)).toEqual(["", "meals.example"]);
+    expect(select.value).toBe("meadow.example");
+    expect([...select.options].map((option) => option.value)).toEqual(["", "meadow.example"]);
   });
 
   it("says how to wire a project for an asset the task database has never heard of", () => {
-    const { container } = renderScoped("areas.example", { data: two });
+    const { container } = renderScoped("acorn.example", { data: two });
 
     expect(screen.getByText("No task project for this site")).toBeInTheDocument();
     expect(container.querySelector("[data-tasks-unwired]")).not.toBeNull();
@@ -1512,25 +1512,25 @@ describe("the asset page's Tasks tab", () => {
 
 describe("/tasks — per-project source and action guarantees", () => {
   it("keeps failed-project sample actions disabled while successful projects remain actionable", () => {
-    const nom = project({ asset: "nosh.example", prefix: "nom", name: "Nosh", ready: [item({ id: "nom-sample", title: "Saved Nosh task" })], inProgress: [] });
-    const { container } = renderBoard({ live: true, data: payload({ projects: [project(), nom] }), boards: { "meals.example": board([liveTask()]) }, errors: { "nosh.example": "Cannot read Nosh" } });
-    const saved = open(container, "nom-sample");
+    const nom = project({ asset: "northwind.example", prefix: "nw", name: "Northwind", ready: [item({ id: "nw-sample", title: "Saved Northwind task" })], inProgress: [] });
+    const { container } = renderBoard({ live: true, data: payload({ projects: [project(), nom] }), boards: { "meadow.example": board([liveTask()]) }, errors: { "northwind.example": "Cannot read Northwind" } });
+    const saved = open(container, "nw-sample");
     expect(within(saved).getByRole("button", { name: "Claim" })).toBeDisabled();
     expect(within(saved).getByRole("button", { name: "Close…" })).toBeDisabled();
     expect(within(saved).getByRole("button", { name: "Defer…" })).toBeDisabled();
-    const current = open(container, "mp-1w2");
+    const current = open(container, "md-1w2");
     expect(within(current).getByRole("button", { name: "Claim" })).toBeEnabled();
-    expect(container.querySelector("[data-lane-error]")).toHaveTextContent("Nosh");
+    expect(container.querySelector("[data-lane-error]")).toHaveTextContent("Northwind");
     expect(fig(container, "closed")).toHaveTextContent("—");
   });
 
   it.each(["failed refresh", "read-only capability"])("disables an already-open confirmation after %s", (transition) => {
-    const { container } = renderBoard({ live: true, boards: { "meals.example": board([liveTask()]) } });
-    const detail = open(container, "mp-1w2");
+    const { container } = renderBoard({ live: true, boards: { "meadow.example": board([liveTask()]) } });
+    const detail = open(container, "md-1w2");
     fireEvent.click(within(detail).getByRole("button", { name: "Close…" }));
-    fireEvent.change(screen.getByLabelText("Why mp-1w2 is closed"), { target: { value: "Verified result" } });
+    fireEvent.change(screen.getByLabelText("Why md-1w2 is closed"), { target: { value: "Verified result" } });
     expect(screen.getByRole("button", { name: "Close task" })).toBeEnabled();
-    if (transition === "failed refresh") state.errors = { "meals.example": "Read failed" };
+    if (transition === "failed refresh") state.errors = { "meadow.example": "Read failed" };
     else state.capabilities = { live: false, reason: READ_ONLY_DEPLOYMENT };
     fireEvent.change(container.querySelector("#tasks-status")!, { target: { value: "open" } });
     expect(screen.getByRole("button", { name: "Close task" })).toBeDisabled();
@@ -1539,12 +1539,12 @@ describe("/tasks — per-project source and action guarantees", () => {
   });
 
   it("does not allow a saved human ask to be answered while its local read is pending", () => {
-    const ask = item({ id: "mp-ask", title: "Choose launch date" });
+    const ask = item({ id: "md-ask", title: "Choose launch date" });
     const { container } = renderBoard({ live: true, data: payload({ projects: [project({ waiting: [ask] })] }) });
     fireEvent.click(within(container.querySelector("[data-waiting-list]") as HTMLElement).getByRole("button", { name: /Choose launch date/ }));
     // No verbs on a row the live read has not confirmed: the saved sample is
     // not something an answer can be sent against.
-    const row = within(container.querySelector('[data-inbox-row="mp-ask"]') as HTMLElement);
+    const row = within(container.querySelector('[data-inbox-row="md-ask"]') as HTMLElement);
     expect(row.queryByRole("button", { name: "Answer" })).toBeNull();
     expect(row.queryByRole("button", { name: "Dismiss" })).toBeNull();
   });
@@ -1552,13 +1552,13 @@ describe("/tasks — per-project source and action guarantees", () => {
 
 
 it("shows unavailable project totals as unknown and never declares an empty queue", () => {
-  const { container } = renderBoard({ live: true, data: payload({ projects: [project({ ok: false, error: "Snapshot failed" })] }), errors: { "meals.example": "Local read failed" } });
+  const { container } = renderBoard({ live: true, data: payload({ projects: [project({ ok: false, error: "Snapshot failed" })] }), errors: { "meadow.example": "Local read failed" } });
   for (const mark of ["urgent", "blocked", "closed"] as const) {
     expect(fig(container, mark)).toHaveTextContent("—");
     expect(fig(container, mark)).not.toHaveTextContent("0+");
   }
   expect(answerLine(container)).toBe("Couldn't read what waits on you");
-  expect(container.querySelector("[data-lane-error]")).toHaveTextContent("Meal Planner");
+  expect(container.querySelector("[data-lane-error]")).toHaveTextContent("Meadow Board");
   expect(screen.getByText("Waiting work is unknown for unread projects.")).toBeInTheDocument();
   expect(screen.getByText("Task availability is unknown for unread projects.")).toBeInTheDocument();
   expect(screen.queryByText("Nothing is waiting on you.")).not.toBeInTheDocument();
@@ -1566,12 +1566,12 @@ it("shows unavailable project totals as unknown and never declares an empty queu
 });
 
 it("labels observed counts as partial when another project's totals are unavailable", () => {
-  const { container } = renderBoard({ live: true, data: payload({ projects: [project(), project({ asset: "nosh.example", prefix: "nom", name: "Nosh", ok: false, error: "No snapshot" })] }), boards: { "meals.example": board([liveTask()]) }, errors: { "nosh.example": "Cannot read Nosh" } });
+  const { container } = renderBoard({ live: true, data: payload({ projects: [project(), project({ asset: "northwind.example", prefix: "nw", name: "Northwind", ok: false, error: "No snapshot" })] }), boards: { "meadow.example": board([liveTask()]) }, errors: { "northwind.example": "Cannot read Northwind" } });
   const blocked = fig(container, "blocked");
   expect(blocked).toHaveTextContent("0+");
   expect(blocked).not.toHaveTextContent("observed");
-  expect(container.querySelector("[data-lane-error]")).toHaveTextContent("Nosh");
-  expect(row(container, "mp-1w2")).toBeInTheDocument();
+  expect(container.querySelector("[data-lane-error]")).toHaveTextContent("Northwind");
+  expect(row(container, "md-1w2")).toBeInTheDocument();
 });
 
 
@@ -1590,15 +1590,15 @@ describe("Task reasons support focus and tap", () => {
 
   it("exposes a project's refused read and the expanded task's parent meaning", () => {
     const first = renderBoard({ data: payload({ projects: [project({ ok: false, error: "Task refresh unavailable" })] }) });
-    fireEvent.focus(screen.getByRole("button", { name: "Meal Planner: task read failed" }));
+    fireEvent.focus(screen.getByRole("button", { name: "Meadow Board: task read failed" }));
     expect(screen.getByRole("tooltip")).toHaveTextContent("Task refresh unavailable");
     first.unmount();
     const { container } = renderBoard({ data: payload({ projects: [project({
-      epics: [{ id: "mp-epic", title: "Recipe schema overhaul", status: "open", priority: 1,
+      epics: [{ id: "md-epic", title: "Recipe schema overhaul", status: "open", priority: 1,
         total: 1, closed: 0, counts: { open: 1, inProgress: 0, blocked: 0, deferred: 0 }, priorities: [0, 1, 0, 0, 0] }],
-      ready: [item({ parent: "mp-epic" })],
+      ready: [item({ parent: "md-epic" })],
     })] }) });
-    fireEvent.click(within(row(container, "mp-1w2")).getByRole("button", { expanded: false }));
+    fireEvent.click(within(row(container, "md-1w2")).getByRole("button", { expanded: false }));
     fireEvent.click(screen.getByRole("button", { name: "Parent epic" }));
     expect(screen.getByRole("tooltip")).toHaveTextContent("The epic this task hangs off");
   });

@@ -1,2 +1,2 @@
 asset,report_date,collected_at,data_state,provider_truncated,avg_position,competitor_domain,competitor_etv,competitor_keywords,competitor_pos_1,competitor_pos_2_3,competitor_total_keywords,intersections,provider_cost_usd,row_grain,sum_position
-meals.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,false,6.2,recipes.example,3400,120,5,11,91000,120,0.03,serp-competitor,744
+meadow.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,false,6.2,recipes.example,3400,120,5,11,91000,120,0.03,serp-competitor,744

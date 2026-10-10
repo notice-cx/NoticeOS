@@ -42,8 +42,8 @@ function writable(ok: boolean, reason: string | null = null) {
 function makeOp(held: PosthogFunnel[] | null) {
   return (value: PosthogFunnel[]): SettingOp =>
     held === null
-      ? { kind: "file-json-set", file: "config/integrations.json", pointer: "/assets/meals.example/posthog/funnels", expectAbsent: true, value: value as unknown as JsonValue }
-      : { kind: "file-json-set", file: "config/integrations.json", pointer: "/assets/meals.example/posthog/funnels", expect: held as unknown as JsonValue, value: value as unknown as JsonValue };
+      ? { kind: "file-json-set", file: "config/integrations.json", pointer: "/assets/meadow.example/posthog/funnels", expectAbsent: true, value: value as unknown as JsonValue }
+      : { kind: "file-json-set", file: "config/integrations.json", pointer: "/assets/meadow.example/posthog/funnels", expect: held as unknown as JsonValue, value: value as unknown as JsonValue };
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -79,7 +79,7 @@ describe("FunnelListEditor", () => {
     expect(onSave.mock.calls[0]![0]).toEqual({
       kind: "file-json-set",
       file: "config/integrations.json",
-      pointer: "/assets/meals.example/posthog/funnels",
+      pointer: "/assets/meadow.example/posthog/funnels",
       expect: [CALCULATOR],
       value: [{ id: "calculator", name: "Calculator", steps: [{ event: "form_start" }, { event: "plan_save" }, { event: "calculation_complete" }] }],
     });

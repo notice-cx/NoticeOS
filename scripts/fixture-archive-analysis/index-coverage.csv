@@ -1,8 +1,8 @@
 asset,report_date,collected_at,data_state,provider_truncated,blocked_by_robots_txt,crawl_errors,pages_crawled,pages_in_index,provider,provider_date,row_grain,sitemap_last_crawled,sitemap_status,sitemap_type,sitemap_url,urls_submitted
-meals.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-snapshot,false,0,3,400,2600,bing-webmaster,2026-09-16,site-day,,,,,
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,0,3,402,2615,bing-webmaster,2026-09-17,site-day,,,,,
-meals.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,0,3,405,2622,bing-webmaster,2026-09-18,site-day,,,,,
-meals.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,0,3,381,2641,bing-webmaster,2026-09-19,site-day,,,,,
-meals.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,0,3,377,2655,bing-webmaster,2026-09-20,site-day,,,,,
-meals.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,,,,,bing-webmaster,,sitemap,2026-09-21T03:30:00.000Z,Success,Sitemap,https://meals.example/sitemap.xml,2970
-meals.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,,,,,bing-webmaster,,sitemap,,Success,Sitemap,https://meals.example/news-sitemap.xml,40
+meadow.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-snapshot,false,0,3,400,2600,bing-webmaster,2026-09-16,site-day,,,,,
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,0,3,402,2615,bing-webmaster,2026-09-17,site-day,,,,,
+meadow.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,0,3,405,2622,bing-webmaster,2026-09-18,site-day,,,,,
+meadow.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,0,3,381,2641,bing-webmaster,2026-09-19,site-day,,,,,
+meadow.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,0,3,377,2655,bing-webmaster,2026-09-20,site-day,,,,,
+meadow.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,,,,,bing-webmaster,,sitemap,2026-09-21T03:30:00.000Z,Success,Sitemap,https://meadow.example/sitemap.xml,2970
+meadow.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,,,,,bing-webmaster,,sitemap,,Success,Sitemap,https://meadow.example/news-sitemap.xml,40

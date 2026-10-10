@@ -12,11 +12,11 @@ const metric: PulseMetric = {
   series: observed.map((v, index) => ({ t: dates[index]!, v })),
 };
 const props = {
-  assetId: "meals.example", metrics: [metric], reportDate: "2026-09-05",
+  assetId: "meadow.example", metrics: [metric], reportDate: "2026-09-05",
   receivedAt: "2026-09-05T02:30:03.980Z", nowMs: Date.parse("2026-09-06T00:18:58Z"),
 };
 function renderProduct(over: Partial<typeof props> = {}, range = 28) {
-  return render(<MemoryRouter initialEntries={[`/assets/meals.example?range=${range}`]}><ProductUse {...props} {...over} /></MemoryRouter>);
+  return render(<MemoryRouter initialEntries={[`/assets/meadow.example?range=${range}`]}><ProductUse {...props} {...over} /></MemoryRouter>);
 }
 
 describe("product report clarity", () => {
@@ -75,7 +75,7 @@ describe("product report clarity", () => {
   it("keeps report scope independent of traffic range and preserves the navigation range", () => {
     renderProduct({}, 7);
     expect(screen.getByText(/Prior 7 reports:/)).toHaveTextContent("122 / day");
-    expect(screen.getByRole("link", { name: "Growth →" })).toHaveAttribute("href", "/assets/meals.example/growth?range=7");
+    expect(screen.getByRole("link", { name: "Growth →" })).toHaveAttribute("href", "/assets/meadow.example/growth?range=7");
   });
 
   it("never treats missing metrics as zeros", () => {

@@ -148,13 +148,13 @@ describe('the DataForSEO collector runs one collection at a time', () => {
       ...CREDENTIALS,
       nowMs: NOW,
       fetchImpl: holder.fetchImpl,
-      scope: { asset: 'nosh.example', families: ['serp-panel'] },
+      scope: { asset: 'northwind.example', families: ['serp-panel'] },
     });
     await holder.started;
 
     const challenger = provider();
     const { status, body } = await collect(
-      { asset: 'nosh.example' },
+      { asset: 'northwind.example' },
       { nowMs: NOW, fetchImpl: challenger.fetchImpl },
     );
 
@@ -164,10 +164,10 @@ describe('the DataForSEO collector runs one collection at a time', () => {
     expect(body.inFlight).toMatchObject({
       startedAt: '2026-08-04T09:12:00.000Z',
       runningSeconds: 0,
-      scope: { asset: 'nosh.example', families: ['serp-panel'] },
+      scope: { asset: 'northwind.example', families: ['serp-panel'] },
     });
     expect(body.detail).toContain('2026-08-04T09:12:00.000Z');
-    expect(body.detail).toContain('nosh.example (serp-panel)');
+    expect(body.detail).toContain('northwind.example (serp-panel)');
     // A refused run is not a failed one, and the sentence has to say so inside
     // the 400 characters `signals:collect` prints of a non-2xx body.
     expect(body.detail).toContain('Nothing was billed for this call');
@@ -190,10 +190,10 @@ describe('the DataForSEO collector runs one collection at a time', () => {
       ...CREDENTIALS,
       nowMs: NOW,
       fetchImpl: holder.fetchImpl,
-      scope: { asset: 'nosh.example', families: ['ranked-keywords'] },
+      scope: { asset: 'northwind.example', families: ['ranked-keywords'] },
     });
     await holder.started;
-    expect((await collect({ asset: 'nosh.example' }, { nowMs: NOW, fetchImpl: provider().fetchImpl })).status).toBe(409);
+    expect((await collect({ asset: 'northwind.example' }, { nowMs: NOW, fetchImpl: provider().fetchImpl })).status).toBe(409);
 
     holder.open();
     const held = await running;
@@ -202,7 +202,7 @@ describe('the DataForSEO collector runs one collection at a time', () => {
 
     const next = provider();
     const { status, body } = await collect(
-      { asset: 'nosh.example', families: ['backlinks-summary'] },
+      { asset: 'northwind.example', families: ['backlinks-summary'] },
       { nowMs: NOW, fetchImpl: next.fetchImpl },
     );
     expect(status).toBe(200);
@@ -222,7 +222,7 @@ describe('the DataForSEO collector runs one collection at a time', () => {
     const running = runDataForSeoDumps(env, {
       ...CREDENTIALS,
       fetchImpl: holder.fetchImpl,
-      scope: { asset: 'nosh.example', families: ['serp-panel'] },
+      scope: { asset: 'northwind.example', families: ['serp-panel'] },
     });
     await holder.started;
     const heldCalls = holder.calls.length;
@@ -256,7 +256,7 @@ describe('the DataForSEO collector runs one collection at a time', () => {
 
     const challenger = provider();
     const { status, body } = await collect(
-      { asset: 'nosh.example', families: ['serp-panel'] },
+      { asset: 'northwind.example', families: ['serp-panel'] },
       { nowMs: NOW, fetchImpl: challenger.fetchImpl },
     );
 
@@ -282,12 +282,12 @@ describe('the DataForSEO collector runs one collection at a time', () => {
       ...CREDENTIALS,
       nowMs: NOW,
       fetchImpl: abandoned.fetchImpl,
-      scope: { asset: 'nosh.example', families: ['serp-panel'] },
+      scope: { asset: 'northwind.example', families: ['serp-panel'] },
     });
     await abandoned.started;
 
     const refused = await collect(
-      { asset: 'nosh.example', families: ['ranked-keywords'] },
+      { asset: 'northwind.example', families: ['ranked-keywords'] },
       { nowMs: NOW, fetchImpl: provider().fetchImpl },
     );
     expect(refused.status).toBe(409);
@@ -301,7 +301,7 @@ describe('the DataForSEO collector runs one collection at a time', () => {
       ...CREDENTIALS,
       nowMs: freesAt,
       fetchImpl: successor.fetchImpl,
-      scope: { asset: 'nosh.example', families: ['ranked-keywords'] },
+      scope: { asset: 'northwind.example', families: ['ranked-keywords'] },
     });
     await successor.started;
 
@@ -313,13 +313,13 @@ describe('the DataForSEO collector runs one collection at a time', () => {
     expect(staleResult.refused).toBeUndefined();
 
     const third = await collect(
-      { asset: 'nosh.example', families: ['backlinks-summary'] },
+      { asset: 'northwind.example', families: ['backlinks-summary'] },
       { nowMs: freesAt, fetchImpl: provider().fetchImpl },
     );
     expect(third.status).toBe(409);
     expect(third.body.inFlight).toMatchObject({
       startedAt: new Date(freesAt).toISOString(),
-      scope: { asset: 'nosh.example', families: ['ranked-keywords'] },
+      scope: { asset: 'northwind.example', families: ['ranked-keywords'] },
     });
 
     successor.open();

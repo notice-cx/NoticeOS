@@ -15,7 +15,7 @@ const REQUEST_FIXTURE = JSON.parse(
  * commas and doubled quotes, an unreachable contact left blank, and the
  * do-not-pitch pseudo-row as the last line. */
 const FIXTURE_CSV = `tier,segment,domain,referring_page,links_to_dead,replace_with,contact,notes
-1,extension,county.example.edu,https://county.example.edu/food/meals,dead.example.gov/,https://asset.example/food-groups,county@example.edu,"VERIFIED both links, anchor ""Visit DeadSite.gov online"""
+1,extension,county.example.edu,https://county.example.edu/food/meadow,dead.example.gov/,https://asset.example/food-groups,county@example.edu,"VERIFIED both links, anchor ""Visit DeadSite.gov online"""
 1,library,guides.example.edu,https://guides.example.edu/nutrition,dead.example.gov/,https://asset.example/,,No published address; use the reference-desk form
 2,editorial,news.example.com,https://news.example.com/articles/protein,dead.example.gov/protein,https://asset.example/food-groups,,DR92 — reach via the editorial feedback form
 SKIP,federal,one.example.gov / two.example.gov / three.example.gov,n/a,n/a,n/a,n/a,"Do NOT pitch — federal hosts repoint to an official successor, never an independent site"
@@ -193,7 +193,7 @@ test('--dry-run and --door are read; --out is gone with the SQL file', () => {
 });
 
 test('a list carrying the same page twice is rejected before it reaches the store', () => {
-  const duplicated = `${FIXTURE_CSV}1,extension,county.example.edu,https://county.example.edu/food/meals,dead.example.gov/,https://asset.example/food-groups,county@example.edu,duplicate
+  const duplicated = `${FIXTURE_CSV}1,extension,county.example.edu,https://county.example.edu/food/meadow,dead.example.gov/,https://asset.example/food-groups,county@example.edu,duplicate
 `;
   assert.throws(() => build({ csvText: duplicated }), /duplicate \(domain, referring page\)/);
 });

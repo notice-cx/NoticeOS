@@ -31,9 +31,9 @@ function posthogArchive(family, { reportDate = '2026-09-22', window, rows, trunc
     provider: 'posthog',
     integration: 'posthog',
     report: family,
-    asset: 'meals.example',
-    credentialRef: 'posthog-meals.example',
-    propertyRef: '596607',
+    asset: 'meadow.example',
+    credentialRef: 'posthog-meadow.example',
+    propertyRef: '424242',
     reportDate,
     collectedAt: COLLECTED_AT,
     dataState: 'provider-snapshot',
@@ -41,13 +41,13 @@ function posthogArchive(family, { reportDate = '2026-09-22', window, rows, trunc
     providerTruncated: truncated,
     pages: [
       {
-        request: { host: 'us', projectId: '596607', family, window, rowLimit, query: 'SELECT …' },
+        request: { host: 'us', projectId: '424242', family, window, rowLimit, query: 'SELECT …' },
         response: {
           provider: 'posthog',
           family,
-          asset: 'meals.example',
+          asset: 'meadow.example',
           host: 'us',
-          projectId: '596607',
+          projectId: '424242',
           projectTimeZone: 'America/New_York',
           window,
           collectedAt: COLLECTED_AT,
@@ -191,7 +191,7 @@ async function withPanel(archives, run) {
     }
     const summary = await analyzeArchiveFixture({
       readValueEvents: fixtureValueEvents,
-      asset: 'meals.example',
+      asset: 'meadow.example',
       input,
       output,
     });
@@ -231,10 +231,10 @@ function csvRows(csv) {
 }
 
 test('the download tool can be narrowed to PostHog archives', () => {
-  const options = parseDownloadArgs(['--asset', 'meals.example', '--integration', 'posthog', '--report', 'web-vitals']);
+  const options = parseDownloadArgs(['--asset', 'meadow.example', '--integration', 'posthog', '--report', 'web-vitals']);
   assert.equal(options.integration, 'posthog');
   assert.equal(options.report, 'web-vitals');
-  assert.throws(() => parseDownloadArgs(['--asset', 'meals.example', '--integration', 'hotjar']), /posthog/);
+  assert.throws(() => parseDownloadArgs(['--asset', 'meadow.example', '--integration', 'hotjar']), /posthog/);
 });
 
 test('flattens all six PostHog families to posthog-<family>.csv, one row per contract row', async () => {
@@ -612,7 +612,7 @@ test('a bare contract body at the archive top level flattens the same way', asyn
         schemaVersion: 1,
         integration: 'posthog',
         report: 'events',
-        asset: 'meals.example',
+        asset: 'meadow.example',
         reportDate: '2026-09-22',
         collectedAt: COLLECTED_AT,
         dataState: 'provider-snapshot',
@@ -630,7 +630,7 @@ test('a bare contract body at the archive top level flattens the same way', asyn
 
 test('freshness.json lists PostHog as a collected source with its newest report date', () => {
   const freshness = freshnessReport({
-    asset: 'meals.example',
+    asset: 'meadow.example',
     refreshedAt: '2026-09-23T13:10:00.000Z',
     maxAgeDays: 7,
     manifest: [
@@ -658,7 +658,7 @@ test('freshness.json lists PostHog as a collected source with its newest report 
   assert.deepEqual(freshness.uncollected, [], 'PostHog is collected by a cron, not dropped by hand');
 
   const stalled = freshnessReport({
-    asset: 'meals.example',
+    asset: 'meadow.example',
     refreshedAt: '2026-10-10T13:10:00.000Z',
     maxAgeDays: 7,
     manifest: [

@@ -80,7 +80,7 @@ const alphaOp = (value: JsonValue): SettingOp => ({
 
 const senseOp = (value: JsonValue): SettingOp => ({
   kind: "store-asset-set",
-  asset: "nosh.example",
+  asset: "northwind.example",
   column: "sense_only",
   expect: 1,
   value,
@@ -106,7 +106,7 @@ function renderSenseToggle() {
     withClient(
       <KnobEditor
         label="Automation"
-        assetId="nosh.example"
+        assetId="northwind.example"
         current={1}
         format={(v) => (v === 1 ? "Monitor only" : "Automation enabled")}
         makeOp={senseOp}
@@ -238,7 +238,7 @@ describe("KnobEditor — a setting saves where it stands", () => {
 
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0]).toMatchObject({
-      url: "/api/assets/nosh.example",
+      url: "/api/assets/northwind.example",
       method: "PATCH",
       body: { column: "sense_only", value: 0, expect: 1 },
     });
@@ -318,7 +318,7 @@ describe("KnobEditor — a setting saves where it stands", () => {
             type: "select",
             options: [
               { value: "", label: "Pick one…" },
-              { value: "313598867", label: "Journey Example — production web stream (all traffic) — Journey Example Holdings International (313598867)" },
+              { value: "123456789", label: "Journey Example — production web stream (all traffic) — Journey Example Holdings International (123456789)" },
             ],
           }}
         />,

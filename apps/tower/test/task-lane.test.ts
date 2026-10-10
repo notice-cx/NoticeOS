@@ -799,7 +799,7 @@ describe("the pieces underneath", () => {
 
   it("takes the prefix off an id, including a child task's", () => {
     expect(prefixOf("ro-l1ed.1")).toBe("ro");
-    expect(prefixOf("pft-abc")).toBe("pft");
+    expect(prefixOf("pb-abc")).toBe("pb");
     expect(prefixOf("nonsense")).toBe("");
   });
 

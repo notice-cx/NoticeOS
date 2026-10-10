@@ -131,7 +131,7 @@ test('retained Clarity generations preserve empty newest revision provenance wit
   const write = async (name, fields, information) => fs.writeFile(path.join(input, `${name}.json`), JSON.stringify({ ...envelope, ...fields,
     providerRows: information.length, pages: [{ request: { numOfDays: 3, dimension1: 'URL' },
       response: [{ metricName: 'ScriptErrorCount', information }] }] }));
-  const page = [{ Url: 'https://meals.example/planner', sessionsCount: '114', subTotal: '19' }];
+  const page = [{ Url: 'https://meadow.example/planner', sessionsCount: '114', subTotal: '19' }];
   await write('old-day', { reportDate: '2026-09-20', collectedAt: '2026-09-20T04:30:00.000Z' }, page);
   await write('current', { collectedAt: '2026-09-21T04:30:00.000Z' }, page);
   await publishSignalHistory({ asset: FIXTURE_ASSET, input, output: ws.history });
@@ -254,7 +254,7 @@ test('a file changed or missing since its generation was published, or a generat
   await fs.writeFile(path.join(ws.history, 'generations', '00000002.json'), `${JSON.stringify(other)}\n`);
   await assert.rejects(analyze(ws), /^Error: Generation 2 was written by other archive rules \(derivation another-rule; this checkout's is [0-9a-f]{16}\)\. Run pnpm signals:history/);
   await assert.rejects(analyze(ws, { generation: 3 }), /has no generation 3\.$/);
-  await assert.rejects(analyze(ws, { asset: 'other.example' }), /holds meals\.example's history, not other\.example's\.$/);
+  await assert.rejects(analyze(ws, { asset: 'other.example' }), /holds meadow\.example's history, not other\.example's\.$/);
   assert.deepEqual(await published(ws), before);
   // The generation the other rules did not write still reads.
   assert.equal((await analyze(ws, { generation: 1 })).report.generation, 1);

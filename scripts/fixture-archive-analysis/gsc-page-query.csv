@@ -1,13 +1,13 @@
 asset,report_date,collected_at,data_state,provider_truncated,clicks,ctr,impressions,page,position,query,row_grain
-meals.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-final,false,12,0.1,120,https://meals.example/planner,2.5,meal planner,page+query
-meals.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-final,false,8,0.06015037593984962,133,https://meals.example/planner,4.2,weekly meal plan,page+query
-meals.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-final,false,4,0.0273972602739726,146,https://meals.example/guides/protein,5.9,weekly meal plan,page+query
-meals.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-final,false,17,0.1069182389937107,159,https://meals.example/recipes/soup,7.6,"high protein, ""easy"" dinners",page+query
-meals.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-final,false,13,0.0755813953488372,172,https://meals.example/,9.3,"""how many cups in a quart""",page+query
-meals.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-final,false,1,,9,https://meals.example/,,,page+query
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,true,19,0.14960629921259844,127,https://meals.example/planner,2.8,meal planner,page+query
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,true,15,0.10714285714285714,140,https://meals.example/planner,4.5,weekly meal plan,page+query
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,true,11,0.0718954248366013,153,https://meals.example/guides/protein,6.2,weekly meal plan,page+query
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,true,7,0.04216867469879518,166,https://meals.example/recipes/soup,7.9,"high protein, ""easy"" dinners",page+query
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,true,3,0.01675977653631285,179,https://meals.example/,9.6,"""how many cups in a quart""",page+query
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,true,1,,9,https://meals.example/,,,page+query
+meadow.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-final,false,12,0.1,120,https://meadow.example/planner,2.5,meal planner,page+query
+meadow.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-final,false,8,0.06015037593984962,133,https://meadow.example/planner,4.2,weekly meal plan,page+query
+meadow.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-final,false,4,0.0273972602739726,146,https://meadow.example/guides/protein,5.9,weekly meal plan,page+query
+meadow.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-final,false,17,0.1069182389937107,159,https://meadow.example/recipes/soup,7.6,"high protein, ""easy"" dinners",page+query
+meadow.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-final,false,13,0.0755813953488372,172,https://meadow.example/,9.3,"""how many cups in a quart""",page+query
+meadow.example,2026-09-19,2026-09-20T12:15:00.000Z,provider-final,false,1,,9,https://meadow.example/,,,page+query
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,true,19,0.14960629921259844,127,https://meadow.example/planner,2.8,meal planner,page+query
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,true,15,0.10714285714285714,140,https://meadow.example/planner,4.5,weekly meal plan,page+query
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,true,11,0.0718954248366013,153,https://meadow.example/guides/protein,6.2,weekly meal plan,page+query
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,true,7,0.04216867469879518,166,https://meadow.example/recipes/soup,7.9,"high protein, ""easy"" dinners",page+query
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,true,3,0.01675977653631285,179,https://meadow.example/,9.6,"""how many cups in a quart""",page+query
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-final,true,1,,9,https://meadow.example/,,,page+query

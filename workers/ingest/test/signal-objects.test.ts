@@ -10,7 +10,7 @@ import { asOwner, emptyTables, reset, storeArchiveRun } from './helpers.js';
 beforeEach(reset);
 const INPUT = {
   provider: 'google' as const,
-  target: { asset: 'meals.example', integration: 'gsc' as const, credentialRef: 'fixture', propertyRef: 'sc-domain:meals.example' },
+  target: { asset: 'meadow.example', integration: 'gsc' as const, credentialRef: 'fixture', propertyRef: 'sc-domain:meadow.example' },
   report: 'query', reportDate: '2026-09-01', requestedAt: '2026-09-02T12:15:00.000Z',
   dataState: 'provider-final' as const,
   collected: { pages: [{ request: {}, response: { rows: [{ clicks: 7 }] } }], providerRows: 1, providerTruncated: false },
@@ -22,7 +22,7 @@ async function secondWorkspace(work: (target: IngestEnv) => Promise<void>): Prom
   await asOwner(`INSERT INTO noticeos.workspaces (workspace_id, slug, display_name)
     VALUES ('${workspaceId}', 'objects-fixture', 'Objects fixture');
     INSERT INTO noticeos.assets (workspace_id, asset_id, domain, display_name, status, list_position)
-    VALUES ('${workspaceId}', 'meals.example', 'meals.example', 'Meals', 'live', 1);`);
+    VALUES ('${workspaceId}', 'meadow.example', 'meadow.example', 'Meadow', 'live', 1);`);
   const store = openWorkspaceStore(env.POSTGRES.connectionString, { workspaceId });
   try { await work({ ...env, STORE: store }); }
   finally {
@@ -48,8 +48,8 @@ describe('workspace-owned signal objects', () => {
       const b = await archiveCollectedDump(second, INPUT);
       expect(a.objectKey).not.toBe(b.objectKey);
       expect(a.objectKey).toMatch(/^workspaces\/[0-9a-f-]+\/raw\/google\/gsc\//);
-      expect((await readPanelManifest(first, 'meals.example')).map((row) => row.objectKey)).toEqual([a.objectKey]);
-      expect((await readPanelManifest(second, 'meals.example')).map((row) => row.objectKey)).toEqual([b.objectKey]);
+      expect((await readPanelManifest(first, 'meadow.example')).map((row) => row.objectKey)).toEqual([a.objectKey]);
+      expect((await readPanelManifest(second, 'meadow.example')).map((row) => row.objectKey)).toEqual([b.objectKey]);
       expect(await readPanelObject(first, a.objectKey!)).toBe(await readPanelObject(second, b.objectKey!));
       const get = vi.spyOn(env.RAW_SIGNALS, 'get');
       try {
@@ -65,15 +65,15 @@ describe('workspace-owned signal objects', () => {
   it('requires manifest membership even for a valid own prefix; forged foreign rows cannot enable reads', async () => {
     const target = { ...env, NOTICEOS_WORKSPACE_PROFILE: 'hosted' };
     const scope = await signalObjectScope(target);
-    const foreign = `workspaces/${crypto.randomUUID()}/raw/google/gsc/meals.example/query/test.json.gz`;
+    const foreign = `workspaces/${crypto.randomUUID()}/raw/google/gsc/meadow.example/query/test.json.gz`;
     await storeArchiveRun({
-      id: crypto.randomUUID(), asset: 'meals.example', integration: 'gsc', report: 'query',
-      credential_ref: 'fixture', property_ref: 'sc-domain:meals.example', report_date: INPUT.reportDate,
+      id: crypto.randomUUID(), asset: 'meadow.example', integration: 'gsc', report: 'query',
+      credential_ref: 'fixture', property_ref: 'sc-domain:meadow.example', report_date: INPUT.reportDate,
       finished_at: INPUT.requestedAt, status: 'success', data_state: 'provider-final', provider_rows: 1,
       request_count: 1, provider_truncated: false, object_key: foreign,
       content_sha256: 'a'.repeat(64), object_bytes: 1,
     });
-    expect(await readPanelManifest(target, 'meals.example')).toEqual([]);
+    expect(await readPanelManifest(target, 'meadow.example')).toEqual([]);
     const get = vi.spyOn(env.RAW_SIGNALS, 'get');
     try {
       expect(await readPanelObject(target, foreign)).toBeNull();
@@ -83,7 +83,7 @@ describe('workspace-owned signal objects', () => {
   });
 
   it('keeps legacy archive evidence readable only through explicit standalone and its RLS owner', async () => {
-    const key = 'signals/meals.example/legacy.json.gz';
+    const key = 'signals/meadow.example/legacy.json.gz';
     await manifestObject(env.STORE, key);
     const gz = new Blob([JSON.stringify({ historical: 7 })]).stream().pipeThrough(new CompressionStream('gzip'));
     await env.RAW_SIGNALS.put(key, await new Response(gz).arrayBuffer());
@@ -118,7 +118,7 @@ describe('workspace-owned signal objects', () => {
 
   it('proves the sole standalone checkpoint owner, without reading transport for hosted/demo or foreign keys', async () => {
     const standalone = await signalObjectScope(env);
-    const relative = 'checkpoints/dataforseo/meals.example/2026-09-01/serp-panel/test.json';
+    const relative = 'checkpoints/dataforseo/meadow.example/2026-09-01/serp-panel/test.json';
     expect(await standalone.legacyCheckpoint(standalone.key(relative))).toBe(relative);
     for (const profile of ['hosted', 'demo']) {
       const POSTGRES = { get connectionString(): string { throw new Error('No standalone probe permitted'); } };
@@ -132,7 +132,7 @@ describe('workspace-owned signal objects', () => {
   it('does not adopt legacy checkpoints when the selected database has zero workspaces', async () => {
     await asOwner('TRUNCATE noticeos.workspaces CASCADE;', { other: true });
     const scope = await signalObjectScope({ ...env, POSTGRES: env.POSTGRES_OTHER });
-    expect(await scope.legacyCheckpoint(scope.key('checkpoints/dataforseo/meals.example/test.json'))).toBeNull();
+    expect(await scope.legacyCheckpoint(scope.key('checkpoints/dataforseo/meadow.example/test.json'))).toBeNull();
   });
 
   it('refuses missing profiles and unavailable or malformed ownership before bucket access', async () => {

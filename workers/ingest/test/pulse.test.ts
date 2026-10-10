@@ -4,7 +4,7 @@ import { ASSET_TOKENS } from './fixtures.js';
 import { rollUpAlertDay } from '../src/alert-daily.js';
 import { call, insertAnnotation, insertFlag, pgCount, pgRows, reset } from './helpers.js';
 
-const MEALS = 'meals.example';
+const MEADOW = 'meadow.example';
 
 beforeEach(reset);
 
@@ -21,7 +21,7 @@ function pulseRequest(body: unknown, token?: string): Request {
 
 function validEnvelope(generatedAt = '2026-07-05T03:00:00.000Z') {
   return {
-    asset: MEALS,
+    asset: MEADOW,
     generatedAt,
     capabilities: ['signups', 'plansSaved'],
     metrics: {
@@ -38,7 +38,7 @@ async function seedSeasonalHistory(): Promise<void> {
     envelope.metrics.signups.last24h = 10;
     envelope.metrics.plansSaved.last24h = 6;
     envelope.flags = [];
-    const res = await call(pulseRequest(envelope, ASSET_TOKENS[MEALS]));
+    const res = await call(pulseRequest(envelope, ASSET_TOKENS[MEADOW]));
     expect(res.status).toBe(201);
   }
 }
@@ -56,20 +56,20 @@ describe('POST /api/pulse — auth', () => {
 
   it('rejects a token for a different/unknown asset (401)', async () => {
     const body = { ...validEnvelope(), asset: 'ghost.site' };
-    const res = await call(pulseRequest(body, ASSET_TOKENS[MEALS]));
+    const res = await call(pulseRequest(body, ASSET_TOKENS[MEADOW]));
     expect(res.status).toBe(401);
   });
 
   it('rejects a body with no asset id (401)', async () => {
-    const res = await call(pulseRequest({ generatedAt: '2026-07-05T03:00:00Z' }, ASSET_TOKENS[MEALS]));
+    const res = await call(pulseRequest({ generatedAt: '2026-07-05T03:00:00Z' }, ASSET_TOKENS[MEADOW]));
     expect(res.status).toBe(401);
   });
 });
 
 describe('POST /api/pulse — validation', () => {
   it('returns 422 with issues for an authenticated but invalid envelope', async () => {
-    const bad = { asset: MEALS, generatedAt: '2026-07-05T03:00:00Z' }; // no capabilities/metrics
-    const res = await call(pulseRequest(bad, ASSET_TOKENS[MEALS]));
+    const bad = { asset: MEADOW, generatedAt: '2026-07-05T03:00:00Z' }; // no capabilities/metrics
+    const res = await call(pulseRequest(bad, ASSET_TOKENS[MEADOW]));
     expect(res.status).toBe(422);
     const body = (await res.json()) as { error: string; issues: unknown[] };
     expect(body.error).toBe('unprocessable_entity');
@@ -78,28 +78,28 @@ describe('POST /api/pulse — validation', () => {
   });
 
   it('returns 400 for a non-JSON body', async () => {
-    const res = await call(pulseRequest('{not json', ASSET_TOKENS[MEALS]));
+    const res = await call(pulseRequest('{not json', ASSET_TOKENS[MEADOW]));
     expect(res.status).toBe(400);
   });
 });
 
 describe('POST /api/pulse — write + flag explosion + central rules', () => {
   it('stays quiet until four matching weekdays establish a central baseline', async () => {
-    const res = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEALS]));
+    const res = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEADOW]));
     expect(res.status).toBe(201);
     const body = (await res.json()) as { centralFlags: number };
     expect(body.centralFlags).toBe(0);
     expect(
       await pgCount(
         `SELECT count(*) AS n FROM noticeos.current_flags WHERE asset_id = $1 AND rule_id = 'flow-poisson-low'`,
-        [MEALS],
+        [MEADOW],
       ),
     ).toBe(0);
   });
 
   it('writes the pulse, explodes its flag, and fires against matching weekdays', async () => {
     await seedSeasonalHistory();
-    const res = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEALS]));
+    const res = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEADOW]));
     expect(res.status).toBe(201);
     const body = (await res.json()) as {
       ok: boolean;
@@ -112,12 +112,12 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
     expect(body.envelopeFlags).toBe(1);
     expect(body.centralFlags).toBe(1);
 
-    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = $1`, [MEALS])).toBe(5);
+    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = $1`, [MEADOW])).toBe(5);
 
     // asset-declared milestone flag exploded verbatim
     const [declared] = await pgRows<{ severity: string; kind: string; metric: string }>(
       `SELECT severity, kind, metric FROM noticeos.current_flags WHERE asset_id = $1 AND rule_id = 'asset-declared'`,
-      [MEALS],
+      [MEADOW],
     );
     expect(declared).toMatchObject({ severity: 'info', kind: 'milestone', metric: 'signups' });
 
@@ -133,7 +133,7 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
       `SELECT severity, kind, metric, rule_id, rule_inputs::text AS rule_inputs, pulse_day_number::int AS pulse_id
          FROM noticeos.current_flags
         WHERE asset_id = $1 AND rule_id = 'flow-poisson-low'`,
-      [MEALS],
+      [MEADOW],
     );
     expect(central).toMatchObject({ severity: 'warn', kind: 'anomaly', metric: 'plansSaved' });
     expect(central?.pulse_id).toBeTypeOf('number');
@@ -164,20 +164,20 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
     // The collector's own record of the change, dated to the day the two
     // day-definitions diverged — which is one of the four comparison dates.
     await insertAnnotation({
-      asset: MEALS,
+      asset: MEADOW,
       at: '2026-06-28T00:00:00.000Z',
       kind: 'config',
       ref: 'reporting-time-zone-changed:ga4:America/Los_Angeles->America/New_York',
       note: 'GA4 reporting timezone changed.',
     });
 
-    const res = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEALS]));
+    const res = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEADOW]));
     expect(res.status).toBe(201);
     expect(((await res.json()) as { centralFlags: number }).centralFlags).toBe(1);
 
     const [central] = await pgRows<{ rule_inputs: string }>(
       `SELECT rule_inputs::text AS rule_inputs FROM noticeos.current_flags WHERE asset_id = $1 AND rule_id = 'flow-poisson-low'`,
-      [MEALS],
+      [MEADOW],
     );
     const inputs = JSON.parse(central!.rule_inputs) as {
       baselinePerDay: number;
@@ -198,22 +198,22 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
 
   it('same-day re-push replaces the row and re-derives flags without duplicating', async () => {
     await seedSeasonalHistory();
-    const first = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEALS]));
+    const first = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEADOW]));
     expect(first.status).toBe(201);
-    const second = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEALS]));
+    const second = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEADOW]));
     expect(second.status).toBe(201);
 
-    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = $1`, [MEALS])).toBe(5);
+    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = $1`, [MEADOW])).toBe(5);
     // still exactly one of each derived flag, not two
     expect(
       await pgCount(`SELECT count(*) AS n FROM noticeos.current_flags WHERE asset_id = $1 AND rule_id = 'asset-declared'`, [
-        MEALS,
+        MEADOW,
       ]),
     ).toBe(1);
     expect(
       await pgCount(
         `SELECT count(*) AS n FROM noticeos.current_flags WHERE asset_id = $1 AND rule_id = 'flow-poisson-low'`,
-        [MEALS],
+        [MEADOW],
       ),
     ).toBe(1);
   });
@@ -222,30 +222,30 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
   // reads them.
   it('same-day re-push leaves its replaced alerts out of the nightly open count', async () => {
     await seedSeasonalHistory();
-    expect((await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEALS]))).status).toBe(201);
+    expect((await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEADOW]))).status).toBe(201);
     const onePush = await pgCount(
       `SELECT count(*) AS n FROM noticeos.current_flags WHERE asset_id = $1 AND resolved_at IS NULL`,
-      [MEALS],
+      [MEADOW],
     );
     expect(onePush).toBeGreaterThan(0);
-    expect((await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEALS]))).status).toBe(201);
+    expect((await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEADOW]))).status).toBe(201);
 
     expect(
       await pgCount(`SELECT count(*) AS n FROM noticeos.flags WHERE asset_id = $1 AND replaced_by_pulse_id IS NOT NULL`, [
-        MEALS,
+        MEADOW,
       ]),
     ).toBe(onePush);
     await rollUpAlertDay(env, Date.now());
     const [day] = await pgRows<{ open: number }>(
       `SELECT open FROM noticeos.alert_daily_counts WHERE asset_id = $1`,
-      [MEALS],
+      [MEADOW],
     );
     expect(day?.open).toBe(onePush);
   });
 
   it('same-day re-push preserves a dispositioned event and does not reopen it', async () => {
     await seedSeasonalHistory();
-    const first = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEALS]));
+    const first = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEADOW]));
     expect(first.status).toBe(201);
     expect(((await first.json()) as { centralFlags: number }).centralFlags).toBe(1);
     const [central] = await env.STORE.write((tx) =>
@@ -256,11 +256,11 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
                 disposition_note = 'Marked read by operator'
           WHERE asset_id = $1 AND rule_id = 'flow-poisson-low'
           RETURNING flag_number::int AS id`,
-        [MEALS],
+        [MEADOW],
       ),
     );
 
-    const repush = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEALS]));
+    const repush = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEADOW]));
     expect(repush.status).toBe(201);
     expect(((await repush.json()) as { centralFlags: number }).centralFlags).toBe(0);
     expect(
@@ -276,7 +276,7 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
         `SELECT count(*) AS n FROM noticeos.current_flags
           WHERE asset_id = $1 AND rule_id = 'flow-poisson-low'
             AND disposition IS NULL AND resolved_at IS NULL`,
-        [MEALS],
+        [MEADOW],
       ),
     ).toBe(0);
   });
@@ -303,7 +303,7 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
       envelope.metrics.signups.last24h = 10;
       envelope.metrics.plansSaved.last24h = plansSaved;
       envelope.flags = [];
-      const res = await call(pulseRequest(envelope, ASSET_TOKENS[MEALS]));
+      const res = await call(pulseRequest(envelope, ASSET_TOKENS[MEADOW]));
       expect(res.status).toBe(201);
       return ((await res.json()) as { centralFlags: number }).centralFlags;
     }
@@ -327,7 +327,7 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
                   snooze_until = $2::timestamptz
             WHERE asset_id = $1 AND rule_id = 'flow-poisson-low'
             RETURNING flag_number::int AS id`,
-          [MEALS, until],
+          [MEADOW, until],
         ),
       );
       return row!.id;
@@ -338,7 +338,7 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
         `SELECT count(*) AS n FROM noticeos.current_flags
           WHERE asset_id = $1 AND rule_id = 'flow-poisson-low'
             AND disposition IS NULL AND resolved_at IS NULL`,
-        [MEALS],
+        [MEADOW],
       );
 
     it('inserts nothing for the NEXT pulse while the snooze is running', async () => {
@@ -391,7 +391,7 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
         tx.query<{ id: number }>(
           `UPDATE noticeos.flags SET disposition = 'ack', disposition_at = '2026-07-05T04:00:00.000Z'
             WHERE asset_id = $1 AND rule_id = 'flow-poisson-low' RETURNING flag_number::int AS id`,
-          [MEALS],
+          [MEADOW],
         ),
       );
 
@@ -414,21 +414,21 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
       envelope.metrics.signups.last24h = 20;
       envelope.metrics.plansSaved.last24h = 20;
       envelope.flags = [];
-      expect((await call(pulseRequest(envelope, ASSET_TOKENS[MEALS]))).status).toBe(201);
+      expect((await call(pulseRequest(envelope, ASSET_TOKENS[MEADOW]))).status).toBe(201);
     }
 
     const saturday = validEnvelope('2026-07-04T03:00:00.000Z');
     saturday.metrics.signups = { last24h: 18, avg7d: 80, total: 4210 };
     saturday.metrics.plansSaved = { last24h: 18, avg7d: 80, total: 1880 };
     saturday.flags = [];
-    const res = await call(pulseRequest(saturday, ASSET_TOKENS[MEALS]));
+    const res = await call(pulseRequest(saturday, ASSET_TOKENS[MEADOW]));
     expect(res.status).toBe(201);
     expect(((await res.json()) as { centralFlags: number }).centralFlags).toBe(0);
   });
 
   it('resolves an older flow anomaly when a new reading arrives', async () => {
     await insertFlag({
-      asset: MEALS,
+      asset: MEADOW,
       firedAt: '2026-07-04T03:00:00.000Z',
       severity: 'warn',
       kind: 'anomaly',
@@ -438,14 +438,14 @@ describe('POST /api/pulse — write + flag explosion + central rules', () => {
       ruleInputs: '{}',
     });
 
-    const res = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEALS]));
+    const res = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEADOW]));
     expect(res.status).toBe(201);
     expect(((await res.json()) as { resolvedAnomalies: number }).resolvedAnomalies).toBe(1);
     expect(
       await pgCount(
         `SELECT count(*) AS n FROM noticeos.current_flags
           WHERE asset_id = $1 AND rule_id = 'flow-poisson-low' AND resolved_at IS NULL`,
-        [MEALS],
+        [MEADOW],
       ),
     ).toBe(0);
   });

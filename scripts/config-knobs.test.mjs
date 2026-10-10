@@ -231,7 +231,7 @@ test('a knob does not open the rest of its file', () => {
   assert.throws(
     () =>
       validateSchemaAndSafety(
-        setChangeset('config/counters.json', '/assets/meals.example/heading', 'a', 'b'),
+        setChangeset('config/counters.json', '/assets/meadow.example/heading', 'a', 'b'),
       ),
     /is not editable/,
   );
@@ -239,7 +239,7 @@ test('a knob does not open the rest of its file', () => {
   // beside a register must not have taken anything away from it.
   assert.doesNotThrow(() =>
     validateSchemaAndSafety(
-      setChangeset('config/signal-panels.json', '/assets/meals.example/enabled', true, false),
+      setChangeset('config/signal-panels.json', '/assets/meadow.example/enabled', true, false),
     ),
   );
 });

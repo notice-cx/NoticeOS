@@ -1,9 +1,9 @@
 asset,report_date,collected_at,data_state,provider_truncated,average_scroll_depth,distinct_user_count,metric,pages_views,row_grain,sessions_count,sessions_with_metric_percentage,sub_total,total_bot_session_count,total_session_count,url
-meals.example,2026-09-20,2026-09-20T04:30:00.000Z,provider-snapshot,false,,,ScriptErrorCount,14,metric-url,114,11.4,19,,,https://meals.example/planner
-meals.example,2026-09-20,2026-09-20T04:30:00.000Z,provider-snapshot,false,,,ScriptErrorCount,3,metric-url,12,2.5,4,,,https://meals.example/recipes/soup
-meals.example,2026-09-20,2026-09-20T04:30:00.000Z,provider-snapshot,false,67.78,,ScrollDepth,,metric-url,,,,,,https://meals.example/planner
-meals.example,2026-09-20,2026-09-20T04:30:00.000Z,provider-snapshot,false,,245,Traffic,,metric-url,,,,1,0,
-meals.example,2026-09-21,2026-09-21T04:30:00.000Z,provider-snapshot,false,,,ScriptErrorCount,14,metric-url,115,11.4,19,,,https://meals.example/planner
-meals.example,2026-09-21,2026-09-21T04:30:00.000Z,provider-snapshot,false,,,ScriptErrorCount,3,metric-url,12,2.5,4,,,https://meals.example/recipes/soup
-meals.example,2026-09-21,2026-09-21T04:30:00.000Z,provider-snapshot,false,67.78,,ScrollDepth,,metric-url,,,,,,https://meals.example/planner
-meals.example,2026-09-21,2026-09-21T04:30:00.000Z,provider-snapshot,false,,245,Traffic,,metric-url,,,,1,0,
+meadow.example,2026-09-20,2026-09-20T04:30:00.000Z,provider-snapshot,false,,,ScriptErrorCount,14,metric-url,114,11.4,19,,,https://meadow.example/planner
+meadow.example,2026-09-20,2026-09-20T04:30:00.000Z,provider-snapshot,false,,,ScriptErrorCount,3,metric-url,12,2.5,4,,,https://meadow.example/recipes/soup
+meadow.example,2026-09-20,2026-09-20T04:30:00.000Z,provider-snapshot,false,67.78,,ScrollDepth,,metric-url,,,,,,https://meadow.example/planner
+meadow.example,2026-09-20,2026-09-20T04:30:00.000Z,provider-snapshot,false,,245,Traffic,,metric-url,,,,1,0,
+meadow.example,2026-09-21,2026-09-21T04:30:00.000Z,provider-snapshot,false,,,ScriptErrorCount,14,metric-url,115,11.4,19,,,https://meadow.example/planner
+meadow.example,2026-09-21,2026-09-21T04:30:00.000Z,provider-snapshot,false,,,ScriptErrorCount,3,metric-url,12,2.5,4,,,https://meadow.example/recipes/soup
+meadow.example,2026-09-21,2026-09-21T04:30:00.000Z,provider-snapshot,false,67.78,,ScrollDepth,,metric-url,,,,,,https://meadow.example/planner
+meadow.example,2026-09-21,2026-09-21T04:30:00.000Z,provider-snapshot,false,,245,Traffic,,metric-url,,,,1,0,

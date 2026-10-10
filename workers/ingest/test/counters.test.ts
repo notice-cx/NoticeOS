@@ -12,10 +12,10 @@ const NOW = Date.parse('2026-07-05T09:15:00.000Z');
 const LATER = NOW + 15 * 60_000;
 const iso = (ms: number): string => new Date(ms).toISOString();
 
-const MEALS_URL = 'https://meals.example/api/internal/metrics';
-const NOM_URL = 'https://nosh.example/api/internal/metrics';
+const MEADOW_URL = 'https://meadow.example/api/internal/metrics';
+const NOM_URL = 'https://northwind.example/api/internal/metrics';
 
-const MEALS_CARDS = [
+const MEADOW_CARDS = [
   { metric: 'signups', counter: 'profiles', label: 'Users' },
   { metric: 'leads', counter: 'leads', label: 'Leads' },
 ];
@@ -23,15 +23,15 @@ const MEALS_CARDS = [
 /** The shipped shape: one fast-lane property with two cards. */
 const CONFIG: CountersConfig = {
   assets: {
-    'meals.example': {
-      source: { kind: 'prometheus', url: MEALS_URL, enabled: true },
-      cards: MEALS_CARDS,
+    'meadow.example': {
+      source: { kind: 'prometheus', url: MEADOW_URL, enabled: true },
+      cards: MEADOW_CARDS,
     },
   },
 };
 
-/** meals.example's scrape body — the two configured counters plus unrelated tables. */
-function mealsBody(profiles: number, leads: number): string {
+/** meadow.example's scrape body — the two configured counters plus unrelated tables. */
+function meadowBody(profiles: number, leads: number): string {
   return promBody({
     profiles: { total: profiles, h24: 12, d7: 80 },
     leads: { total: leads, h24: 3, d7: 20 },
@@ -68,14 +68,14 @@ describe('counters lane — a successful read', () => {
     const result = await runCountersScrape(env, {
       config: CONFIG,
       nowMs: NOW,
-      fetchImpl: stubFetch({ [MEALS_URL]: () => new Response(mealsBody(5000, 620), { status: 200 }) }),
+      fetchImpl: stubFetch({ [MEADOW_URL]: () => new Response(meadowBody(5000, 620), { status: 200 }) }),
     });
 
     expect(result).toMatchObject({ attempted: 1, succeeded: 1, failed: 0 });
-    expect(result.outcomes[0]).toMatchObject({ asset: 'meals.example', ok: true, written: 2 });
+    expect(result.outcomes[0]).toMatchObject({ asset: 'meadow.example', ok: true, written: 2 });
 
     // the ENVELOPE metric name is the key, not the source counter ("profiles")
-    expect(await readings('meals.example')).toEqual([
+    expect(await readings('meadow.example')).toEqual([
       { metric: 'leads', value: 620, observed_at: iso(NOW) },
       { metric: 'signups', value: 5000, observed_at: iso(NOW) },
     ]);
@@ -85,16 +85,16 @@ describe('counters lane — a successful read', () => {
     await runCountersScrape(env, {
       config: CONFIG,
       nowMs: NOW,
-      fetchImpl: stubFetch({ [MEALS_URL]: () => new Response(mealsBody(5000, 620), { status: 200 }) }),
+      fetchImpl: stubFetch({ [MEADOW_URL]: () => new Response(meadowBody(5000, 620), { status: 200 }) }),
     });
     await runCountersScrape(env, {
       config: CONFIG,
       nowMs: LATER,
-      fetchImpl: stubFetch({ [MEALS_URL]: () => new Response(mealsBody(5007, 621), { status: 200 }) }),
+      fetchImpl: stubFetch({ [MEADOW_URL]: () => new Response(meadowBody(5007, 621), { status: 200 }) }),
     });
 
     // current state, not history: the second read REPLACED the first
-    expect(await readings('meals.example')).toEqual([
+    expect(await readings('meadow.example')).toEqual([
       { metric: 'leads', value: 621, observed_at: iso(LATER) },
       { metric: 'signups', value: 5007, observed_at: iso(LATER) },
     ]);
@@ -107,7 +107,7 @@ describe('counters lane — a successful read', () => {
     await runCountersScrape(env, {
       config: CONFIG,
       nowMs: NOW,
-      fetchImpl: stubFetch({ [MEALS_URL]: () => new Response(mealsBody(5000, 620), { status: 200 }) }),
+      fetchImpl: stubFetch({ [MEADOW_URL]: () => new Response(meadowBody(5000, 620), { status: 200 }) }),
     });
 
     expect(await pgCount(`SELECT count(*) AS n FROM noticeos.pulses`)).toBe(0);
@@ -123,20 +123,20 @@ describe('counters lane — failure leaves the prior reading alone', () => {
     await runCountersScrape(env, {
       config: CONFIG,
       nowMs: NOW,
-      fetchImpl: stubFetch({ [MEALS_URL]: () => new Response(mealsBody(5000, 620), { status: 200 }) }),
+      fetchImpl: stubFetch({ [MEADOW_URL]: () => new Response(meadowBody(5000, 620), { status: 200 }) }),
     });
 
     const result = await runCountersScrape(env, {
       config: CONFIG,
       nowMs: LATER,
-      fetchImpl: stubFetch({ [MEALS_URL]: () => new Response('nope', { status: 500 }) }),
+      fetchImpl: stubFetch({ [MEADOW_URL]: () => new Response('nope', { status: 500 }) }),
     });
 
     expect(result).toMatchObject({ attempted: 1, succeeded: 0, failed: 1 });
     expect(result.outcomes[0]).toMatchObject({ ok: false, status: 500, written: 0, error: 'non-200 response (500)' });
     // the FIRST run's values and the FIRST run's clock — a stale number must
     // never wear a fresh timestamp
-    expect(await readings('meals.example')).toEqual([
+    expect(await readings('meadow.example')).toEqual([
       { metric: 'leads', value: 620, observed_at: iso(NOW) },
       { metric: 'signups', value: 5000, observed_at: iso(NOW) },
     ]);
@@ -148,8 +148,8 @@ describe('counters lane — failure leaves the prior reading alone', () => {
     const twoAssets: CountersConfig = {
       assets: {
         // the failing property first, so a thrown failure would abort the other
-        'meals.example': CONFIG.assets['meals.example']!,
-        'nosh.example': {
+        'meadow.example': CONFIG.assets['meadow.example']!,
+        'northwind.example': {
           source: { kind: 'prometheus', url: NOM_URL, enabled: true },
           cards: [{ metric: 'receiptsHosted', counter: 'receipts', label: 'Receipts' }],
         },
@@ -162,7 +162,7 @@ describe('counters lane — failure leaves the prior reading alone', () => {
       fetchImpl: stubFetch({
         // `profiles` is readable, `leads` is absent — the readable card must NOT
         // be written on its own (no half-refreshed card set under one badge).
-        [MEALS_URL]: () =>
+        [MEADOW_URL]: () =>
           new Response(promBody({ profiles: { total: 5000, h24: 12, d7: 80 } }), { status: 200 }),
         [NOM_URL]: () =>
           new Response(promBody({ receipts: { total: 13084, h24: 41, d7: 300 } }), { status: 200 }),
@@ -170,11 +170,11 @@ describe('counters lane — failure leaves the prior reading alone', () => {
     });
 
     expect(result).toMatchObject({ attempted: 2, succeeded: 1, failed: 1 });
-    expect(result.outcomes[0]).toMatchObject({ asset: 'meals.example', ok: false, written: 0 });
+    expect(result.outcomes[0]).toMatchObject({ asset: 'meadow.example', ok: false, written: 0 });
     expect(result.outcomes[0]?.error).toContain('no d1_row_count for table "leads"');
 
-    expect(await readings('meals.example')).toEqual([]);
-    expect(await readings('nosh.example')).toEqual([
+    expect(await readings('meadow.example')).toEqual([]);
+    expect(await readings('northwind.example')).toEqual([
       { metric: 'receiptsHosted', value: 13084, observed_at: iso(NOW) },
     ]);
   });
@@ -184,7 +184,7 @@ describe('counters lane — failure leaves the prior reading alone', () => {
       config: CONFIG,
       nowMs: NOW,
       fetchImpl: stubFetch({
-        [MEALS_URL]: () =>
+        [MEADOW_URL]: () =>
           new Response(promBody({ profiles: { total: 5000.5, h24: 12, d7: 80 }, leads: { total: 620, h24: 3, d7: 20 } }), {
             status: 200,
           }),
@@ -193,14 +193,14 @@ describe('counters lane — failure leaves the prior reading alone', () => {
 
     expect(result).toMatchObject({ succeeded: 0, failed: 1 });
     expect(result.outcomes[0]?.error).toContain('not a row count');
-    expect(await readings('meals.example')).toEqual([]);
+    expect(await readings('meadow.example')).toEqual([]);
   });
 
   it('names a card that has no source counter, writing nothing', async () => {
     const result = await runCountersScrape(env, {
       config: {
         assets: {
-          'meals.example': {
+          'meadow.example': {
             source: { kind: 'prometheus', url: MEALS_URL, enabled: true },
             cards: [MEALS_CARDS[0]!, { metric: 'leads', label: 'Leads' }],
           },
@@ -212,16 +212,16 @@ describe('counters lane — failure leaves the prior reading alone', () => {
 
     expect(result).toMatchObject({ attempted: 1, succeeded: 0, failed: 1 });
     expect(result.outcomes[0]).toMatchObject({ ok: false, status: 200, written: 0, error: 'card "leads" has no source counter' });
-    expect(await readings('meals.example')).toEqual([]);
+    expect(await readings('meadow.example')).toEqual([]);
   });
 
   it('reports a missing pull token as a clean outcome error, writing nothing', async () => {
-    // areas.example is a seeded asset with no ASSET_TOKENS entry.
+    // acorn.example is a seeded asset with no ASSET_TOKENS entry.
     const result = await runCountersScrape(env, {
       config: {
         assets: {
-          'areas.example': {
-            source: { kind: 'prometheus', url: 'https://areas.example/api/internal/metrics', enabled: true },
+          'acorn.example': {
+            source: { kind: 'prometheus', url: 'https://acorn.example/api/internal/metrics', enabled: true },
             cards: [{ metric: 'signups', counter: 'profiles', label: 'Users' }],
           },
         },
@@ -234,7 +234,7 @@ describe('counters lane — failure leaves the prior reading alone', () => {
     expect(result).toMatchObject({ attempted: 1, succeeded: 0, failed: 1 });
     expect(result.outcomes[0]).toMatchObject({ ok: false, status: null, written: 0 });
     expect(result.outcomes[0]?.error).toContain('no pull token');
-    expect(await readings('areas.example')).toEqual([]);
+    expect(await readings('acorn.example')).toEqual([]);
   });
 });
 
@@ -244,11 +244,11 @@ describe('counters lane — what it skips', () => {
       config: {
         assets: {
           // no source: these cards ride the nightly report instead
-          'nosh.example': { cards: [{ metric: 'receiptsHosted', label: 'Receipts' }] },
+          'northwind.example': { cards: [{ metric: 'receiptsHosted', label: 'Receipts' }] },
           // paused: the cards stand, fed by the nightly report again
-          'meals.example': {
-            source: { kind: 'prometheus', url: MEALS_URL, enabled: false },
-            cards: MEALS_CARDS,
+          'meadow.example': {
+            source: { kind: 'prometheus', url: MEADOW_URL, enabled: false },
+            cards: MEADOW_CARDS,
           },
         },
       },

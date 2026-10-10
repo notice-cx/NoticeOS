@@ -18,7 +18,7 @@ const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 /** The properties vitest.config.ts maps onto the test service account. Two,
  * so collecting every property and collecting the first one are different
  * numbers: a break-instead-of-continue regression is visible here. */
-const GOOGLE_PROPERTIES = ['meals.example', 'nosh.example'] as const;
+const GOOGLE_PROPERTIES = ['meadow.example', 'northwind.example'] as const;
 /** One GA4 lane and one GSC lane per property. */
 const GOOGLE_ATTEMPTS = GOOGLE_PROPERTIES.length * 2;
 /** Daily observations one property's GA4 lane writes on a first collection. */
@@ -142,9 +142,9 @@ describe('Google signal collector', () => {
         'portfolio-signals': {
           service_account_binding: 'GOOGLE_SERVICE_ACCOUNT_PORTFOLIO_SIGNALS',
           properties: {
-            'fees.example': {
+            'ferns.example': {
               ga4_property_id: '789',
-              gsc_site_url: 'sc-domain:fees.example',
+              gsc_site_url: 'sc-domain:ferns.example',
             },
           },
         },
@@ -161,15 +161,15 @@ describe('Google signal collector', () => {
     }))).toEqual([
       {
         account: 'portfolio-signals',
-        asset: 'fees.example',
+        asset: 'ferns.example',
         integration: 'ga4',
         propertyRef: '789',
       },
       {
         account: 'portfolio-signals',
-        asset: 'fees.example',
+        asset: 'ferns.example',
         integration: 'gsc',
-        propertyRef: 'sc-domain:fees.example',
+        propertyRef: 'sc-domain:ferns.example',
       },
     ]);
   });
@@ -200,10 +200,10 @@ describe('Google signal collector', () => {
       ),
     );
     expect(collected).toEqual([
-      { asset: 'meals.example', integration: 'ga4', propertyRef: '123456' },
-      { asset: 'meals.example', integration: 'gsc', propertyRef: 'sc-domain:meals.example' },
-      { asset: 'nosh.example', integration: 'ga4', propertyRef: '654321' },
-      { asset: 'nosh.example', integration: 'gsc', propertyRef: 'sc-domain:nosh.example' },
+      { asset: 'meadow.example', integration: 'ga4', propertyRef: '123456' },
+      { asset: 'meadow.example', integration: 'gsc', propertyRef: 'sc-domain:meadow.example' },
+      { asset: 'northwind.example', integration: 'ga4', propertyRef: '654321' },
+      { asset: 'northwind.example', integration: 'gsc', propertyRef: 'sc-domain:northwind.example' },
     ]);
 
     const [ga4] = await env.STORE.read((tx) =>
@@ -221,7 +221,7 @@ describe('Google signal collector', () => {
                 window_start AS "windowStart", window_end AS "windowEnd",
                 data_state AS "dataState", provisional_from AS "provisionalFrom",
                 provider_rows AS "providerRows", observation_count AS "observationCount"
-           FROM noticeos.signal_runs WHERE integration = 'ga4' AND asset_id = 'meals.example'`,
+           FROM noticeos.signal_runs WHERE integration = 'ga4' AND asset_id = 'meadow.example'`,
       ),
     );
     expect(ga4).toEqual({
@@ -238,7 +238,7 @@ describe('Google signal collector', () => {
     const [gsc] = await env.STORE.read((tx) =>
       tx.query<{ dataState: string; provisionalFrom: string | null }>(
         `SELECT data_state AS "dataState", provisional_from AS "provisionalFrom"
-           FROM noticeos.signal_runs WHERE integration = 'gsc' AND asset_id = 'meals.example'`,
+           FROM noticeos.signal_runs WHERE integration = 'gsc' AND asset_id = 'meadow.example'`,
       ),
     );
     expect(gsc).toEqual({
@@ -256,10 +256,10 @@ describe('Google signal collector', () => {
       ),
     );
     expect(activeUsers).toEqual([
-      { asset: 'meals.example', date: '2026-07-26', value: 14 },
-      { asset: 'meals.example', date: '2026-07-27', value: 16 },
-      { asset: 'nosh.example', date: '2026-07-26', value: 14 },
-      { asset: 'nosh.example', date: '2026-07-27', value: 16 },
+      { asset: 'meadow.example', date: '2026-07-26', value: 14 },
+      { asset: 'meadow.example', date: '2026-07-27', value: 16 },
+      { asset: 'northwind.example', date: '2026-07-26', value: 14 },
+      { asset: 'northwind.example', date: '2026-07-27', value: 16 },
     ]);
 
     await runGoogleSignals(env, { nowMs: NOW, fetchImpl });
@@ -276,7 +276,7 @@ describe('Google signal collector', () => {
     const { fetchImpl } = googleFetch();
     await runGoogleSignals(env, { nowMs: NOW, fetchImpl });
 
-    const trend = await readPanelTrend(env, 'meals.example', '2026-07-26');
+    const trend = await readPanelTrend(env, 'meadow.example', '2026-07-26');
     const provisional = (date: string): number[] =>
       trend
         .filter((row) => row.integration === 'ga4' && row.date === date)
@@ -298,7 +298,7 @@ describe('Google signal collector', () => {
     const [gsc] = await env.STORE.read((tx) =>
       tx.query<{ dataState: string; provisionalFrom: string | null }>(
         `SELECT data_state AS "dataState", provisional_from AS "provisionalFrom"
-           FROM noticeos.signal_runs WHERE integration = 'gsc' AND asset_id = 'meals.example'`,
+           FROM noticeos.signal_runs WHERE integration = 'gsc' AND asset_id = 'meadow.example'`,
       ),
     );
     expect(gsc).toEqual({
@@ -583,7 +583,7 @@ describe('authenticating a pull', () => {
   const ACCOUNTS = JSON.stringify({
     'test-signals': {
       properties: {
-        'meals.example': { ga4_property_id: '123456', gsc_site_url: 'sc-domain:meals.example' },
+        'meadow.example': { ga4_property_id: '123456', gsc_site_url: 'sc-domain:meadow.example' },
       },
     },
   });
@@ -622,7 +622,7 @@ describe('authenticating a pull', () => {
       JSON.stringify({
         'test-signals': {
           service_account_b64: encoded,
-          properties: { 'meals.example': { ga4_property_id: '123456' } },
+          properties: { 'meadow.example': { ga4_property_id: '123456' } },
         },
       }),
       undefined,
@@ -699,9 +699,9 @@ describe('GA4 fallback reporting timezone', () => {
             }),
           ),
           properties: {
-            'meals.example': {
+            'meadow.example': {
               ga4_property_id: '123456',
-              gsc_site_url: 'sc-domain:meals.example',
+              gsc_site_url: 'sc-domain:meadow.example',
               ...(timeZone === undefined ? {} : { time_zone: timeZone }),
             },
           },
@@ -748,7 +748,7 @@ describe('GA4 fallback reporting timezone', () => {
     expect(assumedTimeZoneEvent(targets())).toEqual({
       event: 'ga4_time_zone_assumed',
       timeZone: OS_TIME_ZONE,
-      assets: ['meals.example'],
+      assets: ['meadow.example'],
     });
   });
 
@@ -758,7 +758,7 @@ describe('GA4 fallback reporting timezone', () => {
       JSON.stringify({
         'test-signals': {
           service_account_b64: btoa(JSON.stringify({ client_email: 'signals@example.test', private_key: 'test-private-key' })),
-          properties: { 'meals.example': { ga4_property_id: '123456', gsc_site_url: 'sc-domain:meals.example' } },
+          properties: { 'meadow.example': { ga4_property_id: '123456', gsc_site_url: 'sc-domain:meadow.example' } },
         },
       }),
       undefined, 'env', null, undefined, 'Pacific/Kiritimati',
@@ -767,7 +767,7 @@ describe('GA4 fallback reporting timezone', () => {
     expect(assumedTimeZoneEvent(saved)).toEqual({
       event: 'ga4_time_zone_assumed',
       timeZone: 'Pacific/Kiritimati',
-      assets: ['meals.example'],
+      assets: ['meadow.example'],
     });
 
     const { fetchImpl, calls } = googleFetch();
@@ -785,11 +785,11 @@ describe('GA4 reporting-timezone change detection', () => {
   const PT = 'America/Los_Angeles';
   const ET = 'America/New_York';
 
-  /** An earlier successful meals.example GA4 run on `propertyRef`, in `timeZone`. */
+  /** An earlier successful meadow.example GA4 run on `propertyRef`, in `timeZone`. */
   async function priorGa4Run(propertyRef: string, timeZone: string): Promise<void> {
     await storeSignalRun({
       id: crypto.randomUUID(),
-      asset: 'meals.example',
+      asset: 'meadow.example',
       integration: 'ga4',
       credential_ref: 'test-signals',
       property_ref: propertyRef,
@@ -811,15 +811,15 @@ describe('GA4 reporting-timezone change detection', () => {
   }
 
   it('files a change when the same property reports a new zone', async () => {
-    // '123456' is the property vitest.config.ts maps meals.example's GA4 onto.
+    // '123456' is the property vitest.config.ts maps meadow.example's GA4 onto.
     await priorGa4Run('123456', PT);
     const { fetchImpl } = googleFetch({ ga4TimeZone: ET });
     await runGoogleSignals(env, { nowMs: NOW, fetchImpl });
 
-    // nosh.example has no earlier run, so its first zone is a baseline, not a change.
+    // northwind.example has no earlier run, so its first zone is a baseline, not a change.
     expect(await timeZoneAnnotations()).toEqual([
       {
-        asset: 'meals.example',
+        asset: 'meadow.example',
         day: dateInTimeZone(NOW, OS_TIME_ZONE),
         kind: 'config',
         ref: `reporting-time-zone-changed:ga4:${PT}->${ET}`,
@@ -837,7 +837,7 @@ describe('GA4 reporting-timezone change detection', () => {
     const [current] = await env.STORE.read((tx) =>
       tx.query<{ timeZone: string }>(
         `SELECT time_zone AS "timeZone" FROM noticeos.signal_runs
-          WHERE asset_id = 'meals.example' AND integration = 'ga4' AND property_ref = '123456'`,
+          WHERE asset_id = 'meadow.example' AND integration = 'ga4' AND property_ref = '123456'`,
       ),
     );
     expect(current?.timeZone).toBe(ET);

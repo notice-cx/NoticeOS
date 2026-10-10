@@ -1,4 +1,4 @@
 asset,report_date,collected_at,data_state,provider_truncated,last_crawled,status,submitted,type,url,url_count
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,2026-09-19T00:00:00.000Z,Success,2026-07-11T18:59:13.525Z,Sitemap,https://meals.example/sitemap.xml,2900
-meals.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,2026-09-21T03:30:00.000Z,Success,2026-07-11T18:59:13.525Z,Sitemap,https://meals.example/sitemap.xml,2970
-meals.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,,Success,,Sitemap,https://meals.example/news-sitemap.xml,40
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,2026-09-19T00:00:00.000Z,Success,2026-07-11T18:59:13.525Z,Sitemap,https://meadow.example/sitemap.xml,2900
+meadow.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,2026-09-21T03:30:00.000Z,Success,2026-07-11T18:59:13.525Z,Sitemap,https://meadow.example/sitemap.xml,2970
+meadow.example,2026-09-21,2026-09-22T12:15:00.000Z,provider-snapshot,false,,Success,,Sitemap,https://meadow.example/news-sitemap.xml,40

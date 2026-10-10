@@ -23,8 +23,8 @@ describe('bearer comparison when there is no secret to compare against', () => {
   it('compares a registered asset the same way', async () => {
     const compare = vi.spyOn(crypto.subtle, 'timingSafeEqual');
 
-    expect(await authenticateAsset(withBearer(ASSET_TOKENS['meals.example']!), TOKENS, 'meals.example')).toBe(true);
-    expect(await authenticateAsset(withBearer('guess'), TOKENS, 'meals.example')).toBe(false);
+    expect(await authenticateAsset(withBearer(ASSET_TOKENS['meadow.example']!), TOKENS, 'meadow.example')).toBe(true);
+    expect(await authenticateAsset(withBearer('guess'), TOKENS, 'meadow.example')).toBe(false);
     expect(compare).toHaveBeenCalledTimes(2);
   });
 

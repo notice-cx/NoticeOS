@@ -22,15 +22,15 @@ const OS_TIME_ZONE = "America/Los_Angeles";
 
 const DOMAINS: DomainOrder[] = [
   {
-    domain: "nosh.example",
-    asset: "nosh.example",
+    domain: "northwind.example",
+    asset: "northwind.example",
     kind: "registration",
     paidUsd: 109.69,
     paidOn: "2026-01-09",
   },
   {
-    domain: "meals.example",
-    asset: "meals.example",
+    domain: "meadow.example",
+    asset: "meadow.example",
     kind: "registration",
     paidUsd: 4.63,
     paidOn: "2026-03-18",
@@ -75,15 +75,15 @@ async function ledger(row: {
 
 beforeEach(async () => {
   ctx = await createTestStore();
-  await asset(ctx, "meals.example", "Meal Planner");
-  await asset(ctx, "nosh.example", "Nosh");
+  await asset(ctx, "meadow.example", "Meadow Board");
+  await asset(ctx, "northwind.example", "Northwind");
   // The OS row with a stored name no payload shows.
   await asset(ctx, "root-os", "ReindexOS", 1);
 });
 
 describe("buildFinancialsPayload", () => {
   it('aligns selected-month daily reporting and current-month state to the reporting calendar', async () => {
-    await ledger({ kind: 'revenue', asset: 'meals.example', period: '2026-09', family: 'ads', minor: 100 });
+    await ledger({ kind: 'revenue', asset: 'meadow.example', period: '2026-09', family: 'ads', minor: 100 });
     const result = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: new Date('2026-10-01T01:00:00Z'), domainOrders: [], period: '2026-09' });
     expect(result.periodIsCurrent).toBe(true);
     expect(result.dailyRevenue).toMatchObject({ from: '2026-09-01', to: '2026-09-29', days: [] });
@@ -95,10 +95,10 @@ describe("buildFinancialsPayload", () => {
   });
 
   it("splits each month by booking state and never adds the two into net", async () => {
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 44094 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 44094 });
     await ledger({
       kind: "revenue",
-      asset: "meals.example",
+      asset: "meadow.example",
       period: "2026-08",
       family: "ads",
       minor: 1000,
@@ -117,16 +117,16 @@ describe("buildFinancialsPayload", () => {
   /** Asset nets carry direct costs only, overhead is its own line, and the
    * reader subtracts once. No allocation key appears anywhere. */
   it("keeps overhead out of every asset and reconciles the two tiers", async () => {
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 44094 });
-    await ledger({ kind: "cost", asset: "meals.example", period: "2026-08", family: "api", minor: 305 });
-    await ledger({ kind: "cost", asset: "nosh.example", period: "2026-08", family: "api", minor: 245 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 44094 });
+    await ledger({ kind: "cost", asset: "meadow.example", period: "2026-08", family: "api", minor: 305 });
+    await ledger({ kind: "cost", asset: "northwind.example", period: "2026-08", family: "api", minor: 245 });
     await ledger({ kind: "cost", asset: "root-os", period: "2026-08", family: "inference", minor: 20000 });
 
     const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: NOW, domainOrders: [] });
     const owned = payload.properties.filter((p) => !p.isOs);
 
-    expect(owned.map((p) => p.asset)).toEqual(["meals.example", "nosh.example"]);
-    expect(owned.find((p) => p.asset === "meals.example")!.figure.net!).toBeCloseTo(437.89);
+    expect(owned.map((p) => p.asset)).toEqual(["meadow.example", "northwind.example"]);
+    expect(owned.find((p) => p.asset === "meadow.example")!.figure.net!).toBeCloseTo(437.89);
     expect(owned.every((p) => p.figure.cost! < 100)).toBe(true);
     expect(payload.overhead.net!).toBeCloseTo(-200);
 
@@ -139,9 +139,9 @@ describe("buildFinancialsPayload", () => {
   /** The page composes the same ledger the Wall does, so their portfolio
    * totals must agree to the cent. */
   it("agrees with the Wall's portfolio figure to the cent", async () => {
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 44094 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 44094 });
     await ledger({ kind: "cost", asset: "root-os", period: "2026-08", family: "inference", minor: 20000 });
-    await ledger({ kind: "cost", asset: "nosh.example", period: "2026-08", family: "infra", minor: 914 });
+    await ledger({ kind: "cost", asset: "northwind.example", period: "2026-08", family: "infra", minor: 914 });
 
     const financials = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: NOW, domainOrders: [] });
     const wall = await buildWallPayload(ctx.call, {
@@ -161,9 +161,9 @@ describe("buildFinancialsPayload", () => {
 
   it("classifies each cost line by how it was learned, not just its family", async () => {
     await ledger({ kind: "cost", asset: "root-os", period: "2026-08", family: "inference", minor: 20000, source: "recurring:claude-code" });
-    await ledger({ kind: "cost", asset: "meals.example", period: "2026-08", family: "api", minor: 305, source: "metered:dataforseo" });
-    await ledger({ kind: "cost", asset: "meals.example", period: "2026-08", family: "infra", minor: 215, source: "domains" });
-    await ledger({ kind: "cost", asset: "meals.example", period: "2026-08", family: "inference", minor: 310, source: null });
+    await ledger({ kind: "cost", asset: "meadow.example", period: "2026-08", family: "api", minor: 305, source: "metered:dataforseo" });
+    await ledger({ kind: "cost", asset: "meadow.example", period: "2026-08", family: "infra", minor: 215, source: "domains" });
+    await ledger({ kind: "cost", asset: "meadow.example", period: "2026-08", family: "inference", minor: 310, source: null });
 
     const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: NOW, domainOrders: [] });
     const byProvenance = Object.fromEntries(
@@ -177,19 +177,19 @@ describe("buildFinancialsPayload", () => {
   });
 
   it("spreads a domain order across the twelve months it covers", async () => {
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 100 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 100 });
     const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: NOW, domainOrders: DOMAINS });
 
-    const nom = payload.domains.find((d) => d.domain === "nosh.example")!;
+    const nom = payload.domains.find((d) => d.domain === "northwind.example")!;
     expect(nom.perMonth).toBeCloseTo(9.14);
     expect(nom.firstPeriod).toBe("2026-01");
     expect(nom.lastPeriod).toBe("2026-12");
 
-    const meals = payload.domains.find((d) => d.domain === "meals.example")!;
-    expect(meals.firstPeriod).toBe("2026-03");
-    expect(meals.lastPeriod).toBe("2027-02");
+    const meadow = payload.domains.find((d) => d.domain === "meadow.example")!;
+    expect(meadow.firstPeriod).toBe("2026-03");
+    expect(meadow.lastPeriod).toBe("2027-02");
 
-    expect(payload.domains[0]!.domain).toBe("nosh.example");
+    expect(payload.domains[0]!.domain).toBe("northwind.example");
   });
 
   /** The collection editor on /financials addresses an array row by its index
@@ -211,7 +211,7 @@ describe("buildFinancialsPayload", () => {
     // Cheapest first in the file, so the sorted view below cannot agree with
     // file order by accident.
     const ORDERS: DomainOrder[] = [DOMAINS[1]!, DOMAINS[0]!];
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 100 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 100 });
 
     const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE,
       now: NOW,
@@ -221,13 +221,13 @@ describe("buildFinancialsPayload", () => {
 
     expect(payload.recurringCosts).toEqual(RECURRING);
     expect(payload.domainOrders).toEqual(ORDERS);
-    expect(payload.domainOrders.map((o) => o.domain)).toEqual(["meals.example", "nosh.example"]);
-    expect(payload.domains.map((d) => d.domain)).toEqual(["nosh.example", "meals.example"]);
+    expect(payload.domainOrders.map((o) => o.domain)).toEqual(["meadow.example", "northwind.example"]);
+    expect(payload.domains.map((d) => d.domain)).toEqual(["northwind.example", "meadow.example"]);
     expect(payload.domainOrders[0]).not.toHaveProperty("perMonth");
   });
 
   it("treats an absent recurring-cost register as an empty list", async () => {
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 100 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 100 });
     const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: NOW, domainOrders: [] });
     expect(payload.recurringCosts).toEqual([]);
     expect(payload.domainOrders).toEqual([]);
@@ -236,23 +236,23 @@ describe("buildFinancialsPayload", () => {
   /** A sum of no revenue rows and a sum of a $0.00 row are both 0, so whether
    * anything reported at all travels as a flag the row draws as a dash. */
   it("says which assets reported any revenue in the month, apart from the amount", async () => {
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 44094 });
-    await ledger({ kind: "revenue", asset: "nosh.example", period: "2026-08", family: "ads", minor: 0 });
-    await ledger({ kind: "cost", asset: "nosh.example", period: "2026-08", family: "infra", minor: 914 });
-    await asset(ctx, "areas.example", "areas.example");
-    await ledger({ kind: "cost", asset: "areas.example", period: "2026-08", family: "infra", minor: 92 });
-    await ledger({ kind: "revenue", asset: "areas.example", period: "2026-07", family: "ads", minor: 50 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 44094 });
+    await ledger({ kind: "revenue", asset: "northwind.example", period: "2026-08", family: "ads", minor: 0 });
+    await ledger({ kind: "cost", asset: "northwind.example", period: "2026-08", family: "infra", minor: 914 });
+    await asset(ctx, "acorn.example", "acorn.example");
+    await ledger({ kind: "cost", asset: "acorn.example", period: "2026-08", family: "infra", minor: 92 });
+    await ledger({ kind: "revenue", asset: "acorn.example", period: "2026-07", family: "ads", minor: 50 });
 
     const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: NOW, domainOrders: DOMAINS });
     const reported = Object.fromEntries(payload.properties.map((p) => [p.asset, p.revenueReported]));
-    expect(reported).toEqual({ "meals.example": true, "nosh.example": true, "areas.example": false });
-    expect(payload.properties.find((p) => p.asset === "nosh.example")!.figure.revenue!).toBe(0);
+    expect(reported).toEqual({ "meadow.example": true, "northwind.example": true, "acorn.example": false });
+    expect(payload.properties.find((p) => p.asset === "northwind.example")!.figure.revenue!).toBe(0);
     expect(payload).not.toHaveProperty("gaps");
   });
 
   it("ignores a superseded estimate", async () => {
-    await ledger({ id: 1, kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 44094 });
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 45000, state: "reconciled",
+    await ledger({ id: 1, kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 44094 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 45000, state: "reconciled",
       supersedes: 1, recordedAt: "2026-08-20T00:00:00.000Z" });
 
     const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: NOW, domainOrders: [] });
@@ -270,9 +270,9 @@ describe("buildFinancialsPayload — the period it describes", () => {
   const SEPTEMBER = new Date("2026-09-04T12:00:00.000Z");
 
   async function seedThreeMonths(): Promise<void> {
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-06", family: "ads", minor: 10000 });
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", minor: 20000 });
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 44094 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-06", family: "ads", minor: 10000 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", minor: 20000 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 44094 });
     await ledger({
       kind: "cost",
       asset: "root-os",
@@ -290,14 +290,14 @@ describe("buildFinancialsPayload — the period it describes", () => {
     expect(payload.period).toBe("2026-08");
     expect(payload.periodIsCurrent).toBe(false);
     expect(
-      payload.properties.find((p) => p.asset === "meals.example")!.figure.revenue!,
+      payload.properties.find((p) => p.asset === "meadow.example")!.figure.revenue!,
     ).toBeCloseTo(440.94);
     expect(payload.costLines).not.toHaveLength(0);
   });
 
   it("stays on the current month the moment it holds one row", async () => {
     await seedThreeMonths();
-    await ledger({ kind: "cost", asset: "nosh.example", period: "2026-09", family: "infra", minor: 914 });
+    await ledger({ kind: "cost", asset: "northwind.example", period: "2026-09", family: "infra", minor: 914 });
     const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: SEPTEMBER, domainOrders: [] });
 
     expect(payload.period).toBe("2026-09");
@@ -324,7 +324,7 @@ describe("buildFinancialsPayload — the period it describes", () => {
     expect(payload.period).toBe("2026-07");
     expect(payload.periodIsCurrent).toBe(false);
     expect(
-      payload.properties.find((p) => p.asset === "meals.example")!.figure.revenue!,
+      payload.properties.find((p) => p.asset === "meadow.example")!.figure.revenue!,
     ).toBeCloseTo(200);
     expect(payload.months).toHaveLength(3);
   });
@@ -358,10 +358,10 @@ describe("buildFinancialsPayload — the period it describes", () => {
   // The store refuses a correction in another month
   // (`ledger_correction_matches_target`), so no month is ever emptied.
   it("never holds a correction in another month, so no month is left with only a superseded row", async () => {
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 44094 });
-    await ledger({ id: 7, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", minor: 100 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 44094 });
+    await ledger({ id: 7, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", minor: 100 });
     await expect(
-      ledger({ kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 100, state: "reconciled", supersedes: 7 }),
+      ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 100, state: "reconciled", supersedes: 7 }),
     ).rejects.toThrow(/same site, month, kind, family and currency/);
 
     const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: SEPTEMBER, domainOrders: [] });
@@ -387,49 +387,49 @@ describe("buildFinancialsPayload — each asset's own months", () => {
   const SEPTEMBER = new Date("2026-09-04T12:00:00.000Z");
 
   it("carries every month the asset has a row in, ascending, revenue minus direct cost", async () => {
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-06", family: "ads", minor: 10000 });
-    await ledger({ kind: "cost", asset: "meals.example", period: "2026-06", family: "api", minor: 500 });
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", minor: 20000 });
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 44094 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-06", family: "ads", minor: 10000 });
+    await ledger({ kind: "cost", asset: "meadow.example", period: "2026-06", family: "api", minor: 500 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", minor: 20000 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 44094 });
 
     const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: SEPTEMBER, domainOrders: [] });
-    const meals = payload.properties.find((p) => p.asset === "meals.example")!;
+    const meadow = payload.properties.find((p) => p.asset === "meadow.example")!;
 
-    expect(meals.months.map((month) => month.period)).toEqual(["2026-06", "2026-07", "2026-08"]);
-    expect(meals.months.map((month) => month.figure?.net ?? null)).toEqual([95, 200, 440.94]);
-    expect(meals.months[0]!.figure).toEqual({ currency: 'USD', revenue: 100, cost: 5, net: 95 });
+    expect(meadow.months.map((month) => month.period)).toEqual(["2026-06", "2026-07", "2026-08"]);
+    expect(meadow.months.map((month) => month.figure?.net ?? null)).toEqual([95, 200, 440.94]);
+    expect(meadow.months[0]!.figure).toEqual({ currency: 'USD', revenue: 100, cost: 5, net: 95 });
   });
 
   /** The figure the row prints and the point its line ends on are the same
    * grouping asked for the same month. */
   it("makes the selected month's point the row's own figure", async () => {
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", minor: 20000 });
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 44094 });
-    await ledger({ kind: "cost", asset: "meals.example", period: "2026-08", family: "api", minor: 305 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", minor: 20000 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 44094 });
+    await ledger({ kind: "cost", asset: "meadow.example", period: "2026-08", family: "api", minor: 305 });
 
     const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE,
       now: SEPTEMBER,
       domainOrders: [],
       period: "2026-07",
     });
-    const meals = payload.properties.find((p) => p.asset === "meals.example")!;
+    const meadow = payload.properties.find((p) => p.asset === "meadow.example")!;
 
-    expect(meals.months.find((month) => month.period === "2026-07")!.figure).toEqual(
-      meals.figure,
+    expect(meadow.months.find((month) => month.period === "2026-07")!.figure).toEqual(
+      meadow.figure,
     );
-    expect(meals.months.map((month) => month.period)).toEqual(["2026-07", "2026-08"]);
+    expect(meadow.months.map((month) => month.period)).toEqual(["2026-07", "2026-08"]);
   });
 
   /** A month the asset booked nothing in is present so a sparkline spaces the
    * months correctly, and null so nothing reads a figure where there is none. */
   it("fills a skipped month with a null rather than a figure or nothing", async () => {
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-06", family: "ads", minor: 10000 });
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 44094 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-06", family: "ads", minor: 10000 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 44094 });
 
     const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: SEPTEMBER, domainOrders: [] });
-    const meals = payload.properties.find((p) => p.asset === "meals.example")!;
+    const meadow = payload.properties.find((p) => p.asset === "meadow.example")!;
 
-    expect(meals.months).toEqual([
+    expect(meadow.months).toEqual([
       { period: "2026-06", figure: { currency: 'USD', revenue: 100, cost: 0, net: 100 } },
       { period: "2026-07", figure: null },
       { period: "2026-08", figure: { currency: 'USD', revenue: 440.94, cost: 0, net: 440.94 } },
@@ -440,16 +440,16 @@ describe("buildFinancialsPayload — each asset's own months", () => {
    * merely spans the selected month with a hole in it is not a row of a table
    * describing that month. */
   it("starts each asset's axis at its own first row, and lists no asset whose selected month is a hole", async () => {
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-06", family: "ads", minor: 10000 });
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 44094 });
-    await ledger({ kind: "cost", asset: "nosh.example", period: "2026-08", family: "infra", minor: 914 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-06", family: "ads", minor: 10000 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 44094 });
+    await ledger({ kind: "cost", asset: "northwind.example", period: "2026-08", family: "infra", minor: 914 });
 
     const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: SEPTEMBER, domainOrders: [] });
-    expect(payload.properties.find((p) => p.asset === "nosh.example")!.months).toEqual([
+    expect(payload.properties.find((p) => p.asset === "northwind.example")!.months).toEqual([
       { period: "2026-08", figure: { currency: 'USD', revenue: 0, cost: 9.14, net: -9.14 } },
     ]);
 
-    // July is a hole for Meal Planner and nosh.example has no July at all.
+    // July is a hole for Meadow Board and northwind.example has no July at all.
     const july = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE,
       now: SEPTEMBER,
       domainOrders: [],
@@ -463,39 +463,39 @@ describe("buildFinancialsPayload — each asset's own months", () => {
 
   /** A manufactured run of zeroes would draw a cliff the ledger never recorded. */
   it("gives an asset no point for a month it has no row in", async () => {
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-06", family: "ads", minor: 10000 });
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", minor: 20000 });
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 44094 });
-    await ledger({ kind: "cost", asset: "nosh.example", period: "2026-08", family: "infra", minor: 914 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-06", family: "ads", minor: 10000 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", minor: 20000 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 44094 });
+    await ledger({ kind: "cost", asset: "northwind.example", period: "2026-08", family: "infra", minor: 914 });
 
     const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: SEPTEMBER, domainOrders: [] });
-    const nom = payload.properties.find((p) => p.asset === "nosh.example")!;
+    const nom = payload.properties.find((p) => p.asset === "northwind.example")!;
 
     expect(nom.months.map((month) => month.period)).toEqual(["2026-08"]);
     expect(payload.periods).toHaveLength(3);
   });
 
   it("yields a one-point series from a single-month ledger", async () => {
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 44094 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 44094 });
 
     const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: SEPTEMBER, domainOrders: [] });
-    const meals = payload.properties.find((p) => p.asset === "meals.example")!;
+    const meadow = payload.properties.find((p) => p.asset === "meadow.example")!;
 
-    expect(meals.months).toEqual([
+    expect(meadow.months).toEqual([
       { period: "2026-08", figure: { currency: 'USD', revenue: 440.94, cost: 0, net: 440.94 } },
     ]);
   });
 
   it("excludes a superseded row from the series", async () => {
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", minor: 20000 });
-    await ledger({ id: 1, kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 44094 });
-    await ledger({ kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 45000, state: "reconciled",
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", minor: 20000 });
+    await ledger({ id: 1, kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 44094 });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 45000, state: "reconciled",
       supersedes: 1, recordedAt: "2026-08-20T00:00:00.000Z" });
 
     const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: SEPTEMBER, domainOrders: [] });
-    const meals = payload.properties.find((p) => p.asset === "meals.example")!;
+    const meadow = payload.properties.find((p) => p.asset === "meadow.example")!;
 
-    expect(meals.months.map((month) => month.figure?.net ?? null)).toEqual([200, 450]);
+    expect(meadow.months.map((month) => month.figure?.net ?? null)).toEqual([200, 450]);
   });
 
   /** Asset #0 is a row of this grouping too, the overhead line, so nothing

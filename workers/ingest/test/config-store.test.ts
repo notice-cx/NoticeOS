@@ -70,7 +70,7 @@ async function seedIntegrations(): Promise<void> {
         'config/integrations.json': {
           catalog: [{ id: 'ga4', label: 'Google Analytics 4' }],
           assets: {
-            'meals.example': {
+            'meadow.example': {
               ga4: { status: 'live', note: 'Collector proved it.', since: '2026-07-29' },
             },
           },
@@ -247,7 +247,7 @@ describe('writing', () => {
             kind: 'file-json-insert',
             file: 'config/beads.json',
             pointer: '/spokes/-',
-            value: { asset: 'meals.example', prefix: 'meals', database: 'meals' },
+            value: { asset: 'meadow.example', prefix: 'meadow', database: 'meadow' },
           },
         ],
         actor: ACTOR,
@@ -527,7 +527,7 @@ describe('writing', () => {
           {
             kind: 'file-json-set',
             file: 'config/signal-panels.json',
-            pointer: '/assets/meals.example/enabled',
+            pointer: '/assets/meadow.example/enabled',
             expect: true,
             value: false,
           },
@@ -539,7 +539,7 @@ describe('writing', () => {
     expect(result).toMatchObject({ ok: true });
     const read = await getConfigDocument(env, 'config/signal-panels.json');
     expect((read.body as { assets: Record<string, { enabled: boolean; since: string }> }).assets[
-      'meals.example'
+      'meadow.example'
     ]).toMatchObject({ enabled: false, since: '2026-09-05' });
   });
 
@@ -585,9 +585,9 @@ describe('writing', () => {
           {
             kind: 'file-json-set',
             file: 'config/integrations.json',
-            pointer: '/assets/meals.example/ga4/propertyId',
+            pointer: '/assets/meadow.example/ga4/propertyId',
             expectAbsent: true,
-            value: '313598867',
+            value: '123456789',
           },
         ],
         actor: ACTOR,
@@ -598,9 +598,9 @@ describe('writing', () => {
     expect(result).toMatchObject({ ok: true, applied: 1 });
     const read = await getConfigDocument(env, 'config/integrations.json');
     const ga4 = (read.body as { assets: Record<string, { ga4: Record<string, unknown> }> }).assets[
-      'meals.example'
+      'meadow.example'
     ]!.ga4;
-    expect(ga4).toMatchObject({ status: 'live', propertyId: '313598867' });
+    expect(ga4).toMatchObject({ status: 'live', propertyId: '123456789' });
   });
 
   it('refuses an empty string as the guard for a key that is not there', async () => {
@@ -612,9 +612,9 @@ describe('writing', () => {
           {
             kind: 'file-json-set',
             file: 'config/integrations.json',
-            pointer: '/assets/meals.example/ga4/propertyId',
+            pointer: '/assets/meadow.example/ga4/propertyId',
             expect: '',
-            value: '313598867',
+            value: '123456789',
           },
         ],
         actor: ACTOR,
@@ -636,9 +636,9 @@ describe('writing', () => {
           {
             kind: 'file-json-set',
             file: 'config/integrations.json',
-            pointer: '/assets/meals.example/ga4/propertyId',
+            pointer: '/assets/meadow.example/ga4/propertyId',
             expectAbsent: true,
-            value: '313598867',
+            value: '123456789',
           },
         ],
         actor: ACTOR,
@@ -654,7 +654,7 @@ describe('writing', () => {
           {
             kind: 'file-json-set',
             file: 'config/integrations.json',
-            pointer: '/assets/meals.example/ga4/propertyId',
+            pointer: '/assets/meadow.example/ga4/propertyId',
             expectAbsent: true,
             value: '444555666',
           },
@@ -667,7 +667,7 @@ describe('writing', () => {
     if (second.ok === false && second.error === 'expect_mismatch') {
       expect(second.mismatches[0]).toMatchObject({
         expectAbsent: true,
-        current: '313598867',
+        current: '123456789',
         absent: false,
       });
     }
@@ -685,9 +685,9 @@ describe('writing', () => {
           {
             kind: 'file-json-set',
             file: 'config/integrations.json',
-            pointer: '/assets/meals.example/ga4/propertyId',
+            pointer: '/assets/meadow.example/ga4/propertyId',
             expectAbsent: true,
-            value: '313598867',
+            value: '123456789',
           },
         ],
         actor: ACTOR,
@@ -703,8 +703,8 @@ describe('writing', () => {
           {
             kind: 'file-json-delete',
             file: 'config/integrations.json',
-            pointer: '/assets/meals.example/ga4/propertyId',
-            expect: '313598867',
+            pointer: '/assets/meadow.example/ga4/propertyId',
+            expect: '123456789',
           },
         ],
         actor: ACTOR,
@@ -719,7 +719,7 @@ describe('writing', () => {
     // reads as "fall back to the credential's own property map".
     expect(
       (read.body as { assets: Record<string, { ga4: Record<string, unknown> }> }).assets[
-        'meals.example'
+        'meadow.example'
       ]!.ga4,
     ).toEqual({ status: 'live', note: 'Collector proved it.', since: '2026-07-29' });
   });
@@ -733,7 +733,7 @@ describe('writing', () => {
           {
             kind: 'file-json-set',
             file: 'config/integrations.json',
-            pointer: '/assets/meals.example/ga4/propertyId',
+            pointer: '/assets/meadow.example/ga4/propertyId',
             expectAbsent: true,
             value: '444555666',
           },
@@ -749,8 +749,8 @@ describe('writing', () => {
           {
             kind: 'file-json-delete',
             file: 'config/integrations.json',
-            pointer: '/assets/meals.example/ga4/propertyId',
-            expect: '313598867',
+            pointer: '/assets/meadow.example/ga4/propertyId',
+            expect: '123456789',
           },
         ],
         actor: ACTOR,
@@ -759,7 +759,7 @@ describe('writing', () => {
     );
     expect(result).toMatchObject({ ok: false, error: 'expect_mismatch' });
     if (result.ok === false && result.error === 'expect_mismatch') {
-      expect(result.mismatches[0]).toMatchObject({ expect: '313598867', current: '444555666' });
+      expect(result.mismatches[0]).toMatchObject({ expect: '123456789', current: '444555666' });
     }
   });
 
@@ -767,8 +767,8 @@ describe('writing', () => {
     await seedIntegrations();
     const before = (await getConfigDocument(env, 'config/integrations.json')).body;
     for (const pointer of [
-      '/assets/meals.example/ga4/status',
-      '/assets/meals.example/ga4/nested/propertyId',
+      '/assets/meadow.example/ga4/status',
+      '/assets/meadow.example/ga4/nested/propertyId',
     ]) {
       const result = await applyConfigOps(
         env,
@@ -789,9 +789,9 @@ describe('writing', () => {
     await seedIntegrations();
     const before = (await getConfigDocument(env, 'config/integrations.json')).body;
     for (const pointer of [
-      '/assets/meals.example/clarity',
-      '/assets/meals.example/ga4/status',
-      '/assets/meals.example/ga4/nested/propertyId',
+      '/assets/meadow.example/clarity',
+      '/assets/meadow.example/ga4/status',
+      '/assets/meadow.example/ga4/nested/propertyId',
     ]) {
       const result = await applyConfigOps(
         env,
@@ -844,7 +844,7 @@ describe('writing', () => {
           {
             kind: 'file-json-set',
             file: 'config/counters.json',
-            pointer: '/assets/meals.example/cards/0/label',
+            pointer: '/assets/meadow.example/cards/0/label',
             expect: 'anything',
             value: 'anything else',
           },
@@ -861,7 +861,7 @@ describe('writing', () => {
       env,
       {
         ops: [
-          { kind: 'store-asset-set', asset: 'meals.example', column: 'status', expect: 'live', value: 'retired' },
+          { kind: 'store-asset-set', asset: 'meadow.example', column: 'status', expect: 'live', value: 'retired' },
         ],
         actor: ACTOR,
       },
@@ -948,9 +948,9 @@ describe('what the collectors read once it is seeded', () => {
       env,
       {
         documents: {
-          'config/counters.json': { assets: { 'meals.example': { heading: 'Stored', cards: [] } } },
-          'config/pull.json': [{ asset: 'meals.example', enabled: false, mode: 'prometheus' }],
-          'config/integrations.json': { catalog: [], assets: { 'meals.example': {} } },
+          'config/counters.json': { assets: { 'meadow.example': { heading: 'Stored', cards: [] } } },
+          'config/pull.json': [{ asset: 'meadow.example', enabled: false, mode: 'prometheus' }],
+          'config/integrations.json': { catalog: [], assets: { 'meadow.example': {} } },
         },
         actor: 'config:seed',
       },
@@ -958,10 +958,10 @@ describe('what the collectors read once it is seeded', () => {
     );
     forgetConfigCache();
     const { documents, sources } = await readCollectorConfigs(env);
-    expect(documents['config/counters.json']).toMatchObject({ assets: { 'meals.example': { heading: 'Stored' } } });
+    expect(documents['config/counters.json']).toMatchObject({ assets: { 'meadow.example': { heading: 'Stored' } } });
     expect(documents['config/pull.json']).toHaveLength(1);
     expect(documents['config/integrations.json']).toMatchObject({
-      assets: { 'meals.example': {} },
+      assets: { 'meadow.example': {} },
     });
     expect(sources).toMatchObject({
       'config/counters.json': 'store',

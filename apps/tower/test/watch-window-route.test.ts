@@ -36,13 +36,13 @@ import {
 // Vitest here runs without workerd.
 
 const REQUEST_URL = new URL(
-  "https://tower.local/api/assets/meals.example/watch-windows",
+  "https://tower.local/api/assets/meadow.example/watch-windows",
 );
 
 function row(overrides: Partial<WatchWindowRow> = {}): WatchWindowRow {
   return {
     id: "8f0d2d2a-0000-4000-8000-000000000000",
-    asset: "meals.example",
+    asset: "meadow.example",
     ref_kind: "annotation",
     ref: "41",
     metric_integration: "gsc",
@@ -103,7 +103,7 @@ function post(body: unknown, init: RequestInit = {}): Request {
 function handle(
   request: Request,
   ingest: WatchWindowWriter,
-  asset = "meals.example",
+  asset = "meadow.example",
 ) {
   return handleWatchWindowRequest(request, REQUEST_URL, ingest, asset);
 }
@@ -148,7 +148,7 @@ describe("POST /api/assets/:id/watch-windows", () => {
     );
 
     // The asset comes from the path, never from the body.
-    expect(calls[0]?.asset).toBe("meals.example");
+    expect(calls[0]?.asset).toBe("meadow.example");
     expect(calls[0]).toMatchObject({
       ref_kind: "annotation",
       ref: "41",
@@ -161,7 +161,7 @@ describe("POST /api/assets/:id/watch-windows", () => {
     expect(response.status).toBe(201);
     expect(await response.json()).toEqual({
       ok: true,
-      asset: "meals.example",
+      asset: "meadow.example",
       id: "8f0d2d2a-0000-4000-8000-000000000000",
     });
   });
@@ -290,8 +290,8 @@ describe("the composer's prefill", () => {
 
   it("carries an exact query selector only when the surface supplied one", () => {
     expect(
-      watchDraftBody(draft({ scope: { query: "chipotle calories" } })),
-    ).toMatchObject({ scope: { query: "chipotle calories" } });
+      watchDraftBody(draft({ scope: { query: "tornado kit specs" } })),
+    ).toMatchObject({ scope: { query: "tornado kit specs" } });
   });
 
   it("flips the predicate for a metric where better means smaller", () => {
@@ -531,7 +531,7 @@ describe("threshold calibration", () => {
   it("never lends site-wide calibration to a query-scoped threshold", () => {
     const siteCalibration = watchCalibration(history(alternating(7, 100, 110, 12)), 7)!;
     expect(
-      watchCalibrationBasis(siteCalibration, { query: "chipotle calories" }),
+      watchCalibrationBasis(siteCalibration, { query: "tornado kit specs" }),
     ).toEqual({ kind: "none", gap: "no-query-archive" });
   });
 
@@ -539,7 +539,7 @@ describe("threshold calibration", () => {
     const sparse: WatchQueryHistory = {
       integration: "gsc",
       metric: "clicks",
-      query: "chipotle calories",
+      query: "tornado kit specs",
       firstDay: "2026-01-01",
       values: [3, null, 4],
       archiveFirstDay: "2026-01-01",
@@ -549,7 +549,7 @@ describe("threshold calibration", () => {
       recordedChanges: { firstDay: "2026-01-01", lastDay: "2026-01-03", days: [], complete: true },
     };
     expect(
-      watchCalibrationBasis(watchCalibration(sparse, 7), { query: "chipotle calories" }, sparse),
+      watchCalibrationBasis(watchCalibration(sparse, 7), { query: "tornado kit specs" }, sparse),
     ).toEqual({ kind: "none", gap: "query-sparse" });
   });
 
@@ -564,7 +564,7 @@ describe("threshold calibration", () => {
     const queryHistory: WatchQueryHistory = {
       integration: "gsc",
       metric: "clicks",
-      query: "chipotle calories",
+      query: "tornado kit specs",
       firstDay: "2026-01-01",
       values: Array.from({ length: 84 }, () => 20),
       archiveFirstDay: "2026-01-01",
@@ -581,7 +581,7 @@ describe("threshold calibration", () => {
     const query = watchCalibration(queryHistory, 7)!;
     expect(site.suggestedPct).toBeGreaterThan(query.suggestedPct);
 
-    const basis = watchCalibrationBasis(query, { query: "chipotle calories" }, queryHistory);
+    const basis = watchCalibrationBasis(query, { query: "tornado kit specs" }, queryHistory);
     expect(series.metric).toBe("clicks");
     expect(basis).toEqual({ kind: "query", calibration: query, history: queryHistory });
     expect(query.typicalPct).toBe(0);
@@ -612,15 +612,15 @@ describe("threshold calibration", () => {
   it("states when a query is measured directly and when a provider widens it", () => {
     const clicks = WATCH_SERIES.find((s) => s.metric === "clicks")!;
     const seed = {
-      subject: "“chipotle calories” — ranking opportunity",
+      subject: "“tornado kit specs” — ranking opportunity",
       series: clicks,
-      query: "chipotle calories",
+      query: "tornado kit specs",
       beadId: null,
     };
-    expect(watchScopeState(seed, clicks)).toEqual({ kind: "query", query: "chipotle calories" });
+    expect(watchScopeState(seed, clicks)).toEqual({ kind: "query", query: "tornado kit specs" });
 
     const analytics = WATCH_SERIES.find((s) => s.integration === "ga4")!;
-    expect(watchScopeState(seed, analytics)).toEqual({ kind: "widened", query: "chipotle calories" });
+    expect(watchScopeState(seed, analytics)).toEqual({ kind: "widened", query: "tornado kit specs" });
     // Nothing was narrowed, so nothing is flagged.
     expect(
       watchScopeState({

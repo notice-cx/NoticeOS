@@ -63,13 +63,13 @@ async function readEnvelope(): Promise<OsEnvelope> {
 
 describe('nightly asset-#0 self-pulse', () => {
   it('reports pulses, ledger rows, and open flags in the standard envelope shape', async () => {
-    await insertPulse('meals.example', '2026-07-05');
-    await insertPulse('nosh.example', '2026-07-05');
-    await insertLedger('meals.example', 'ads');
-    await insertLedger('nosh.example', 'affiliate');
-    await insertOpenFlag('meals.example', 'error');
-    await insertOpenFlag('meals.example', 'warn');
-    await insertOpenFlag('nosh.example', 'warn');
+    await insertPulse('meadow.example', '2026-07-05');
+    await insertPulse('northwind.example', '2026-07-05');
+    await insertLedger('meadow.example', 'ads');
+    await insertLedger('northwind.example', 'affiliate');
+    await insertOpenFlag('meadow.example', 'error');
+    await insertOpenFlag('meadow.example', 'warn');
+    await insertOpenFlag('northwind.example', 'warn');
 
     await insertJobRun('backup', 'ran', minutesAgo(30));
 

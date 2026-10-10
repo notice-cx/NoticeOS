@@ -112,18 +112,18 @@ describe('System Health status evidence', () => {
       } });
     };
     it('names each unread site and why, and opens that run', () => {
-      pushRun([{ asset: 'nosh.example', reason: 'remote-sign-in-refused' }, { asset: 'fees.example', reason: 'remote-sign-in-refused' }]);
+      pushRun([{ asset: 'northwind.example', reason: 'remote-sign-in-refused' }, { asset: 'ferns.example', reason: 'remote-sign-in-refused' }]);
       mount();
       const row = screen.getByRole('link', { name: /Unpublished commit checks/ });
-      expect(row).toHaveTextContent('Unknown · nosh.example, fees.example');
+      expect(row).toHaveTextContent('Unknown · northwind.example, ferns.example');
       expect(row).toHaveTextContent('Remote sign-in refused');
       expect(row).toHaveAttribute('href', '/workflows/push-state?run=push-state%402026-09-09T11%3A40%3A00.000Z');
     });
     it('counts sites past two and lists each reason once', () => {
       pushRun([
-        { asset: 'nosh.example', reason: 'remote-sign-in-refused' },
-        { asset: 'fees.example', reason: 'remote-unreachable' },
-        { asset: 'meals.example', reason: 'remote-sign-in-refused' },
+        { asset: 'northwind.example', reason: 'remote-sign-in-refused' },
+        { asset: 'ferns.example', reason: 'remote-unreachable' },
+        { asset: 'meadow.example', reason: 'remote-sign-in-refused' },
       ]);
       mount();
       const row = screen.getByRole('link', { name: /Unpublished commit checks/ });
@@ -136,7 +136,7 @@ describe('System Health status evidence', () => {
       expect(screen.queryByRole('link', { name: /Unpublished commit checks/ })).toBeNull();
       cleanup();
       mock.data!.workflows = mock.data!.workflows.filter((summary) => summary.id !== 'push-state');
-      pushRun([{ asset: 'nosh.example', reason: 'remote-unreachable' }]);
+      pushRun([{ asset: 'northwind.example', reason: 'remote-unreachable' }]);
       mock.data!.historyAvailable = false;
       mount();
       expect(screen.queryByRole('link', { name: /Unpublished commit checks/ })).toBeNull();
@@ -155,7 +155,7 @@ describe('System Health status evidence', () => {
   });
   it('reports live traffic failure even when every background job and daily data source succeeds', () => {
     mock.data!.workflows = WORKFLOW_DEFINITIONS.map((definition) => ({ id: definition.id, active: null, history: [], runs: [], latest: { id: `${definition.id}@latest`, workflowId: definition.id, definitionVersion: 1, startedAt: '2026-09-09T11:59:00Z', finishedAt: '2026-09-09T11:59:10Z', state: 'succeeded', steps: null } }));
-    mount(true, { current: true, available: true, items: [], providers: [], attention: 1, failing: 1, unconfirmed: 0, working: 1, idle: 0, affectedAssets: ['meals.example'] });
+    mount(true, { current: true, available: true, items: [], providers: [], attention: 1, failing: 1, unconfirmed: 0, working: 1, idle: 0, affectedAssets: ['meadow.example'] });
     expect(screen.getByRole('heading', { name: 'Needs attention' })).toBeVisible();
     expect(screen.getAllByText('1 connection needs attention')).toHaveLength(2);
     expect(screen.queryByRole('heading', { name: 'Checks are reporting normally' })).toBeNull();

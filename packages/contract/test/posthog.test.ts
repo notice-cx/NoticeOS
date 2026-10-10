@@ -18,9 +18,9 @@ function body(family: string, rows: unknown[], extra: Record<string, unknown> = 
   return {
     provider: 'posthog',
     family,
-    asset: 'meals.example',
+    asset: 'meadow.example',
     host: 'us',
-    projectId: '596607',
+    projectId: '424242',
     projectTimeZone: 'America/New_York',
     window: { start: '2026-09-09', end: '2026-09-22' },
     collectedAt: '2026-09-23T12:30:04.120Z',
@@ -128,9 +128,9 @@ describe('PostHog per-asset settings', () => {
   };
 
   it('reads host, project and funnels', () => {
-    expect(readPosthogAssetSettings({ host: 'us', projectId: '596607', funnels: [calculator] })).toEqual({
+    expect(readPosthogAssetSettings({ host: 'us', projectId: '424242', funnels: [calculator] })).toEqual({
       ok: true,
-      settings: { host: 'us', projectId: '596607', funnels: [calculator] },
+      settings: { host: 'us', projectId: '424242', funnels: [calculator] },
     });
     // No funnels saved is a valid state: the funnels family is skipped.
     expect(readPosthogAssetSettings({ host: 'eu', projectId: '1' })).toMatchObject({ ok: true, settings: { funnels: [] } });

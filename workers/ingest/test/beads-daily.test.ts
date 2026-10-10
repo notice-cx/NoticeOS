@@ -47,8 +47,8 @@ function closedIssue(id: string, closedAt: string) {
 
 function project(overrides: Record<string, unknown> = {}) {
   return {
-    asset: 'meals.example',
-    prefix: 'mp',
+    asset: 'meadow.example',
+    prefix: 'md',
     ok: true,
     error: null,
     counts: {
@@ -146,7 +146,7 @@ describe('the daily rollup — one row per project per day', () => {
     expect(((await res.json()) as { historyDays: number | null }).historyDays).toBe(1);
     expect(await rows()).toEqual([
       {
-        asset: 'meals.example',
+        asset: 'meadow.example',
         day: dayOf(at),
         captured_at: at,
         waiting: 1,
@@ -202,8 +202,8 @@ describe('the daily rollup — one row per project per day', () => {
       projects: [
         project(),
         {
-          asset: 'nosh.example',
-          prefix: 'nom',
+          asset: 'northwind.example',
+          prefix: 'nw',
           ok: false,
           error: 'bd active exited 1: no such directory',
           counts: { open: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0 },
@@ -215,7 +215,7 @@ describe('the daily rollup — one row per project per day', () => {
     });
 
     // A failed read is the absence of an answer, not an answer of zero.
-    expect((await rows()).map((row) => row.asset)).toEqual(['meals.example']);
+    expect((await rows()).map((row) => row.asset)).toEqual(['meadow.example']);
   });
 
   it('stores an unmeasured count as unknown rather than as none', async () => {
@@ -236,7 +236,7 @@ describe('the daily rollup — what closed that day', () => {
     const at = (hour: string) => tick(0, `T${hour}:00:00.000Z`);
     // Nine beads close over the day. Every capture can carry at most five, so
     // any single capture bucketed by day would report five at most.
-    const closes = Array.from({ length: 9 }, (_unused, index) => `mp-c${index}`);
+    const closes = Array.from({ length: 9 }, (_unused, index) => `md-c${index}`);
     for (let index = 0; index < closes.length; index++) {
       const hour = String(9 + index).padStart(2, '0');
       // The photograph the poller sends: the five most recent closes.
@@ -268,15 +268,15 @@ describe('the daily rollup — what closed that day', () => {
         project({
           counts: { ...project().counts, closedRecent: 3 },
           recentlyClosed: [
-            closedIssue('mp-a', captureDay),
-            closedIssue('mp-b', captureDay),
-            closedIssue('mp-c', previousDay),
+            closedIssue('md-a', captureDay),
+            closedIssue('md-b', captureDay),
+            closedIssue('md-c', previousDay),
           ],
         }),
       ],
     });
 
-    expect(JSON.parse((await rows())[0]!.closed_ids!)).toEqual(['mp-a', 'mp-b']);
+    expect(JSON.parse((await rows())[0]!.closed_ids!)).toEqual(['md-a', 'md-b']);
   });
 
   it('records a day whose closings were never observable as unknown', () => {
@@ -287,7 +287,7 @@ describe('the daily rollup — what closed that day', () => {
     const day = '2026-09-01';
     const capped = project({
       recentlyClosed: Array.from({ length: BEADS_CLOSED_LIMIT }, (_unused, index) =>
-        closedIssue(`mp-${index}`, `${day}T0${index}:00:00.000Z`),
+        closedIssue(`md-${index}`, `${day}T0${index}:00:00.000Z`),
       ),
     }) as unknown as Parameters<typeof closedOn>[0];
 
@@ -299,18 +299,18 @@ describe('the daily rollup — what closed that day', () => {
     const day = '2026-09-01';
     const withOlder = project({
       recentlyClosed: [
-        closedIssue('mp-0', `${day}T01:00:00.000Z`),
-        closedIssue('mp-1', `${day}T02:00:00.000Z`),
-        closedIssue('mp-2', `${day}T03:00:00.000Z`),
-        closedIssue('mp-3', `${day}T04:00:00.000Z`),
-        closedIssue('mp-old', '2026-08-31T23:00:00.000Z'),
+        closedIssue('md-0', `${day}T01:00:00.000Z`),
+        closedIssue('md-1', `${day}T02:00:00.000Z`),
+        closedIssue('md-2', `${day}T03:00:00.000Z`),
+        closedIssue('md-3', `${day}T04:00:00.000Z`),
+        closedIssue('md-old', '2026-08-31T23:00:00.000Z'),
       ],
     }) as unknown as Parameters<typeof closedOn>[0];
 
     // The cap was never reached by THIS day's closings, so the four are all of
     // them.
     expect(closedOn(withOlder, day)).toEqual({
-      ids: ['mp-0', 'mp-1', 'mp-2', 'mp-3'],
+      ids: ['md-0', 'md-1', 'md-2', 'md-3'],
       complete: true,
     });
   });
@@ -318,13 +318,13 @@ describe('the daily rollup — what closed that day', () => {
   it('keeps "unknown" for the rest of a day rather than restarting the count', () => {
     // A floor pretending to be a measurement is the more comfortable of the two
     // lies, so the null is sticky.
-    expect(mergeClosedIds(null, { ids: ['mp-late'], complete: true }, false)).toBeNull();
+    expect(mergeClosedIds(null, { ids: ['md-late'], complete: true }, false)).toBeNull();
   });
 
   it('unions rather than replaces once the day is under way', () => {
     expect(
-      JSON.parse(mergeClosedIds('["mp-a"]', { ids: ['mp-a', 'mp-b'], complete: true }, false)!),
-    ).toEqual(['mp-a', 'mp-b']);
+      JSON.parse(mergeClosedIds('["md-a"]', { ids: ['md-a', 'md-b'], complete: true }, false)!),
+    ).toEqual(['md-a', 'md-b']);
   });
 });
 
@@ -342,7 +342,7 @@ describe('the daily rollup — first run and retention', () => {
               JSON.stringify({
                 projects: [
                   {
-                    asset: 'meals.example',
+                    asset: 'meadow.example',
                     ok: true,
                     counts: { open: hour === '20' ? 7 : 2, inProgress: 1, blocked: 0, waiting: 1 },
                     recentlyClosed: [],
@@ -384,7 +384,7 @@ describe('the daily rollup — first run and retention', () => {
       tx.execute(
         `INSERT INTO noticeos.task_daily_counts (workspace_id, project, day, captured_at, open, in_progress, blocked, closed_ids)
          VALUES ($1::uuid, $2, $3::date, $4::timestamptz, 1, 0, 0, '[]')`,
-        [tx.workspaceId, 'meals.example', '2020-01-01', '2020-01-01T00:00:00.000Z'],
+        [tx.workspaceId, 'meadow.example', '2020-01-01', '2020-01-01T00:00:00.000Z'],
       ),
     );
 
@@ -422,9 +422,9 @@ DROP FUNCTION noticeos.refuse_task_day();`);
         capturedAt: at,
         projects: [project({ counts: { ...project().counts, closedRecent: 1 }, recentlyClosed: [closedIssue(id, at)] })],
       });
-      const [a, b] = await Promise.all([post(board('mp-a')), post(board('mp-b'))]);
+      const [a, b] = await Promise.all([post(board('md-a')), post(board('md-b'))]);
       expect([a.status, b.status]).toEqual([201, 201]);
-      expect(JSON.parse((await rows())[0]!.closed_ids!).sort()).toEqual(['mp-a', 'mp-b']);
+      expect(JSON.parse((await rows())[0]!.closed_ids!).sort()).toEqual(['md-a', 'md-b']);
       const whole = await storedCount(
         `SELECT count(*)::int AS n FROM noticeos.task_snapshots WHERE payload -> 'projects' -> 0 ? 'ready'`,
       );

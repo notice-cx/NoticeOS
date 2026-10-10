@@ -1,8 +1,8 @@
 asset,report_date,collected_at,data_state,provider_truncated,clicks,impressions,provider_date
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,24,726,2026-09-14
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,22,733,2026-09-15
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,20,740,2026-09-16
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,27,747,2026-09-17
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,25,754,2026-09-18
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,23,761,2026-09-19
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,21,768,2026-09-20
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,24,726,2026-09-14
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,22,733,2026-09-15
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,20,740,2026-09-16
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,27,747,2026-09-17
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,25,754,2026-09-18
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,23,761,2026-09-19
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,provider-snapshot,false,21,768,2026-09-20

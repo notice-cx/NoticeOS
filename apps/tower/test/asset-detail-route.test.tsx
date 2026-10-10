@@ -55,7 +55,7 @@ function googleAnswers(items: { capability: string; state: string }[]) {
     metadata: null, keyVersion: 1, createdAt: at, updatedAt: at, lastUsedAt: at, lastOkAt: at, lastError: null,
   }]]);
   connections.items = items.map(({ capability, state }, index) => ({
-    id: `item-${index}`, provider: "google", capability, label: capability, asset: "meals.example", detail: null, state,
+    id: `item-${index}`, provider: "google", capability, label: capability, asset: "meadow.example", detail: null, state,
     lastAttemptAt: at, lastSuccessAt: state === "healthy" ? at : null, nextAttemptAt: null,
     failure: state === "failing" ? "access" : null, code: null, action: "Review the property connection.", coverage: "monitored",
   }));
@@ -210,9 +210,9 @@ function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
     generatedAt: "2026-07-05T12:00:00.000Z",
     osTimeZone: "America/Los_Angeles",
     asset: {
-      id: "meals.example",
-      displayName: "Meal Planner",
-      domain: "meals.example",
+      id: "meadow.example",
+      displayName: "Meadow Board",
+      domain: "meadow.example",
       status: "live",
       senseOnly: false,
       isOs: false,
@@ -305,7 +305,7 @@ function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
     },
     executive: {
       schemaVersion: 1,
-      asset: "meals.example",
+      asset: "meadow.example",
       generatedAt: "2026-07-05T11:30:00.000Z",
       windowStart: "2026-07-01",
       windowEnd: "2026-07-04",
@@ -543,10 +543,10 @@ const productUseSnapshot: ProductUseSnapshot = {
 
 function nomPayload(): AssetDetailPayload {
   const data = payload();
-  data.asset = { ...data.asset, id: "nosh.example", displayName: "Nosh", domain: "nosh.example" };
+  data.asset = { ...data.asset, id: "northwind.example", displayName: "Northwind", domain: "northwind.example" };
   data.executive = {
     ...data.executive!,
-    asset: "nosh.example",
+    asset: "northwind.example",
     productUse: productUseSnapshot,
   };
   return data;
@@ -563,7 +563,7 @@ describe("AssetDetailRoute — Alerts speak the same language as the portfolio b
     ruleId: "asset-pull-failed",
     ruleInputs: {
       rule: "asset-pull-failed",
-      url: "https://meals.example/api/os/report",
+      url: "https://meadow.example/api/os/report",
       status: 401,
       error: "401 unauthorized — token expired",
       providerError: "unauthorized",
@@ -592,32 +592,32 @@ describe("AssetDetailRoute — Alerts speak the same language as the portfolio b
 
   it("names the page heading by the asset, not by its favicon", async () => {
     stubFetch(200, payload());
-    const { findByText } = renderRoute("meals.example");
+    const { findByText } = renderRoute("meadow.example");
     await findByText("What matters");
 
     const heading = screen.getByRole("heading", { level: 1 });
-    expect(heading).toHaveAccessibleName(/^Meal Planner/);
+    expect(heading).toHaveAccessibleName(/^Meadow Board/);
     expect(heading).not.toHaveAccessibleName(/favicon/i);
     expect(screen.queryByTitle(/favicon/i)).toBeNull();
   });
 
   it("leads each alert with what happened and what to do, not the rule's evidence", async () => {
     stubFetch(200, payload({ flags: { open: [pullFailure], notCurrent: [], snoozed: [], history: [], openError: 0, openWarn: 1 } }));
-    const { container, findByText } = renderRoute("meals.example", "", "alerts");
+    const { container, findByText } = renderRoute("meadow.example", "", "alerts");
 
     await findByText("Nightly report fetch failing 5 nights — latest: 401 unauthorized");
     expect(container.textContent).toContain("the fetch credentials may have expired");
-    expect(container.textContent).not.toContain("https://meals.example/api/os/report");
+    expect(container.textContent).not.toContain("https://meadow.example/api/os/report");
     openAlert("Nightly report fetch failing");
     expect(container.textContent).toContain("config change 14h before");
-    expect(container.textContent).not.toContain("https://meals.example/api/os/report");
+    expect(container.textContent).not.toContain("https://meadow.example/api/os/report");
     fireEvent.click(screen.getByRole("button", { name: /^Why this fired/ }));
-    expect(screen.getByRole("dialog")).toHaveTextContent("https://meals.example/api/os/report");
+    expect(screen.getByRole("dialog")).toHaveTextContent("https://meadow.example/api/os/report");
   });
 
   it("keeps the rule id in evidence instead of spending first-screen weight on it", async () => {
     stubFetch(200, payload({ flags: { open: [pullFailure], notCurrent: [], snoozed: [], history: [], openError: 0, openWarn: 1 } }));
-    const { container, findByText } = renderRoute("meals.example", "", "alerts");
+    const { container, findByText } = renderRoute("meadow.example", "", "alerts");
 
     await findByText("Nightly report fetch failing 5 nights — latest: 401 unauthorized");
     expect(container.textContent).not.toContain("asset-pull-failed");
@@ -629,7 +629,7 @@ describe("AssetDetailRoute — Alerts speak the same language as the portfolio b
 
   it("does not turn a stored live flag without verification evidence into a confirmed current condition", async () => {
     stubFetch(200, payload({ flags: { open: [pullFailure], notCurrent: [], snoozed: [], history: [], openError: 0, openWarn: 1 } }));
-    const { findByText } = renderRoute("meals.example", "", "alerts");
+    const { findByText } = renderRoute("meadow.example", "", "alerts");
     const title = await findByText("Nightly report fetch failing 5 nights — latest: 401 unauthorized");
     const row = title.closest("li")!;
     expect(row).toHaveTextContent("Last known");
@@ -654,8 +654,8 @@ describe("AssetDetailRoute — Alerts speak the same language as the portfolio b
       },
       correlatedChanges: [],
     };
-    stubFetch(200, payload({ asset: { ...payload().asset, id: "nosh.example" }, flags: { open: [declaredDrop], notCurrent: [], snoozed: [], history: [], openError: 0, openWarn: 1 } }));
-    const { container, findByText } = renderRoute("nosh.example", "", "alerts");
+    stubFetch(200, payload({ asset: { ...payload().asset, id: "northwind.example" }, flags: { open: [declaredDrop], notCurrent: [], snoozed: [], history: [], openError: 0, openWarn: 1 } }));
+    const { container, findByText } = renderRoute("northwind.example", "", "alerts");
 
     await findByText("Api requests well below normal — 51 vs ~86/day");
     expect(container.textContent).not.toMatch(
@@ -687,9 +687,9 @@ describe("AssetDetailRoute — Alerts speak the same language as the portfolio b
     };
     stubFetch(
       200,
-      payload({ asset: { ...payload().asset, id: "nosh.example" }, flags: { open: [recurring], notCurrent: [], snoozed: [], history: [], openError: 0, openWarn: 16 } }),
+      payload({ asset: { ...payload().asset, id: "northwind.example" }, flags: { open: [recurring], notCurrent: [], snoozed: [], history: [], openError: 0, openWarn: 16 } }),
     );
-    const { container, findByText, getByRole } = renderRoute("nosh.example", "", "alerts");
+    const { container, findByText, getByRole } = renderRoute("northwind.example", "", "alerts");
 
     await findByText(/16× in 26d/u);
     expect(container.textContent).toContain("16× in 26d");
@@ -724,7 +724,7 @@ describe("AssetDetailRoute — Alerts speak the same language as the portfolio b
     stubFetch(200, payload({
       flags: { open: [], notCurrent: [], snoozed: [parked], history: [resolved], openError: 0, openWarn: 0 },
     }));
-    const { findByRole } = renderRoute("meals.example", "", "alerts");
+    const { findByRole } = renderRoute("meadow.example", "", "alerts");
 
     const snoozed = await findByRole("region", { name: "Snoozed" });
     expect(snoozed).toHaveTextContent("1 parked");
@@ -776,7 +776,7 @@ describe("AssetDetailRoute — material state on the current screens", () => {
     const data = payload({ scheduledLanes: [] });
     data.asset.isOs = true;
     stubFetch(200, data);
-    const { container, findByText } = renderRoute("meals.example", "", "sources");
+    const { container, findByText } = renderRoute("meadow.example", "", "sources");
     await findByText("Scheduled automation");
     const panel = materialAsset(container, "scheduled-lane-health");
     expect(panel.querySelector("[data-scheduled-empty]")).toHaveAttribute("data-lane-posture", "unknown");
@@ -796,7 +796,7 @@ describe("AssetDetailRoute — material state on the current screens", () => {
       timeZoneChanges: [],
     };
     stubFetch(200, data);
-    const { container, findByText } = renderPath("/assets/meals.example?range=7");
+    const { container, findByText } = renderPath("/assets/meadow.example?range=7");
     await findByText("Avg. daily users");
     const users = container.querySelector('[data-kpi="Avg. daily users"]');
     expect(users).toHaveTextContent("120");
@@ -809,7 +809,7 @@ describe("AssetDetailRoute — material state on the current screens", () => {
     data.freshness.pulseReceivedAt = null;
     data.performance.activeUsers = { ...emptyTrend(), series: [{ t: "2026-07-14", v: 12 }] };
     stubFetch(200, data);
-    const { container, findByText } = renderPath("/assets/meals.example?range=7");
+    const { container, findByText } = renderPath("/assets/meadow.example?range=7");
     await findByText("Avg. daily users");
     const report = materialAsset(container, "signal-freshness");
     expect(report).toHaveTextContent("No report");
@@ -824,8 +824,8 @@ describe("AssetDetailRoute — material state on the current screens", () => {
     data.asset.isOs = true;
     data.freshness.pulseReceivedAt = new Date(Date.now() - 60 * 3_600_000).toISOString();
     stubFetch(200, data);
-    const { container, findByRole } = renderRoute("meals.example");
-    await findByRole("heading", { name: /Meal Planner/ });
+    const { container, findByRole } = renderRoute("meadow.example");
+    await findByRole("heading", { name: /Meadow Board/ });
     for (const condition of ["signal-freshness", "os-runner-health"] as const) {
       const report = materialAsset(container, condition);
       expect(report).toHaveTextContent("stale");
@@ -837,23 +837,23 @@ describe("AssetDetailRoute — material state on the current screens", () => {
   it("puts the human action and honest preview counts on Overview with links to the task and Tasks", async () => {
     const data = payload({ operator: {
       capturedAt: new Date().toISOString(), waiting: 6, urgent: 2,
-      items: [{ id: "mp-gate", title: "Approve the nutrition-source change", status: "open", priority: 2,
+      items: [{ id: "md-gate", title: "Approve the nutrition-source change", status: "open", priority: 2,
         issueType: "gate", assignee: null, updatedAt: new Date().toISOString(), closedAt: null, parent: null, deferUntil: null }],
     } });
     stubFetch(200, data);
-    const { container, findByText } = renderRoute("meals.example");
+    const { container, findByText } = renderRoute("meadow.example");
     await findByText("Needs you");
     const preview = materialAsset(container, "human-gates");
     expect(preview).toHaveTextContent("2 urgent · 6 waiting · 1 shown");
     expect(preview).toHaveTextContent("Approve the nutrition-source change");
     expect(preview).toHaveTextContent("△");
-    expect(within(preview).getByRole("link", { name: /Approve the nutrition-source change/ })).toHaveAttribute("href", "/tasks/mp-gate");
-    expect(within(preview).getByRole("link", { name: /All tasks/ })).toHaveAttribute("href", "/assets/meals.example/tasks");
+    expect(within(preview).getByRole("link", { name: /Approve the nutrition-source change/ })).toHaveAttribute("href", "/tasks/md-gate");
+    expect(within(preview).getByRole("link", { name: /All tasks/ })).toHaveAttribute("href", "/assets/meadow.example/tasks");
   });
 
   it("keeps an unread task count unknown instead of certifying an empty inbox", async () => {
     stubFetch(200, payload({ operator: { capturedAt: null, waiting: null, urgent: null, items: [] } }));
-    const { container, findByText } = renderRoute("meals.example");
+    const { container, findByText } = renderRoute("meadow.example");
     await findByText("Needs you");
     const preview = materialAsset(container, "human-gates");
     expect(preview).toHaveTextContent("Count unavailable");
@@ -873,7 +873,7 @@ describe("AssetDetailRoute — material state on the current screens", () => {
       outcomeNote: null, closedAt: null, note: "Homepage answer-card experiment",
     }];
     stubFetch(200, data);
-    const { container, findByText } = renderRoute("meals.example", "", "activity");
+    const { container, findByText } = renderRoute("meadow.example", "", "activity");
     await findByText("Timeline");
     const timeline = materialAsset(container, "active-changes");
     expect(timeline).toHaveTextContent("1 logged");
@@ -896,7 +896,7 @@ describe("AssetDetailRoute — material state on the current screens", () => {
       resolvedAt: null, liveness: { state: "live" }, occurrences: 1, firstFiredAt: "2026-08-04T23:58:00.000Z",
     }];
     stubFetch(200, data);
-    const { container, findByRole } = renderRoute("meals.example", "", "alerts");
+    const { container, findByRole } = renderRoute("meadow.example", "", "alerts");
     await findByRole("region", { name: "Open" });
     const queue = materialAsset(container, "open-flags");
     const row = materialAsset(container, "rollback-failure");
@@ -913,7 +913,7 @@ describe("AssetDetailRoute — executive page identity", () => {
   it("Daily metrics carries only flow columns — totals live on the asset card", async () => {
     // A total is stated once, on the asset card; a `Total` column here fails.
     stubFetch(200, payload());
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     const title = await findByText("Daily metrics");
     const section = title.closest(CARD);
@@ -936,7 +936,7 @@ describe("AssetDetailRoute — executive page identity", () => {
       ],
     }];
     stubFetch(200, data);
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
     const section = (await findByText("Daily metrics")).closest(CARD)!;
     expect(section).toHaveTextContent("Latest report · 24h Sep 5");
     expect(section).toHaveTextContent("120.0 · 2 reports");
@@ -959,7 +959,7 @@ describe("AssetDetailRoute — executive page identity", () => {
 
   it("leads with the numbers and what matters, and leaves the analysis to Growth", async () => {
     stubFetch(200, payload());
-    const { container, findByText } = renderRoute("meals.example");
+    const { container, findByText } = renderRoute("meadow.example");
 
     const findings = await findByText("What matters");
     const strip = container.querySelector("[data-kpi-strip]")!;
@@ -986,7 +986,7 @@ describe("AssetDetailRoute — executive page identity", () => {
 
   it("keeps the Growth tab's four charts on Growth and its decisions on Search", async () => {
     stubFetch(200, payload());
-    const { container, findByText } = renderRoute("meals.example", "", "growth");
+    const { container, findByText } = renderRoute("meadow.example", "", "growth");
 
     await findByText("Audience");
     expect(container.textContent).toContain("Active users");
@@ -1002,7 +1002,7 @@ describe("AssetDetailRoute — executive page identity", () => {
   it("stands the state block down on every tab", async () => {
     stubFetch(200, payload());
     for (const tab of ASSET_TABS) {
-      const view = renderRoute("meals.example", "", tab === "overview" ? "" : tab);
+      const view = renderRoute("meadow.example", "", tab === "overview" ? "" : tab);
       await waitFor(() => expect(screen.getByRole("tablist")).toBeInTheDocument());
       expect(view.container.querySelector("#alerts-title")).toBeNull();
       view.unmount();
@@ -1011,7 +1011,7 @@ describe("AssetDetailRoute — executive page identity", () => {
 
   it("puts the query decisions on Search, collapsed to their movers", async () => {
     stubFetch(200, payload());
-    const { container, findByText } = renderRoute("meals.example", "", "search");
+    const { container, findByText } = renderRoute("meadow.example", "", "search");
 
     await findByText("Query decisions");
     expect(container.textContent).toContain("Current review set · 1");
@@ -1045,7 +1045,7 @@ describe("AssetDetailRoute — executive page identity", () => {
       olderCount: 0,
     };
     stubFetch(200, few);
-    const one = renderRoute("meals.example", "", "growth");
+    const one = renderRoute("meadow.example", "", "growth");
     await one.findByText("Audience");
     const activeUsers = one.container.querySelector<HTMLElement>('[data-growth-chart="Active users"]')!;
     const marker = within(activeUsers).getByRole("button", { name: "Event on Jul 4, 2026: July title batch" });
@@ -1068,7 +1068,7 @@ describe("AssetDetailRoute — executive page identity", () => {
       olderCount: 0,
     };
     stubFetch(200, many);
-    const lots = renderRoute("meals.example", "", "growth");
+    const lots = renderRoute("meadow.example", "", "growth");
     await lots.findByText("Audience");
     const marked = lots.container.querySelector<HTMLElement>('[data-growth-chart="Active users"]')!;
     expect(within(marked).getAllByRole("button", { name: /Event on .*: Batch/ })).toHaveLength(5);
@@ -1078,7 +1078,7 @@ describe("AssetDetailRoute — executive page identity", () => {
 
   it("gives a collapsed decision row one tone encoding, not two", async () => {
     stubFetch(200, payload());
-    const { container, findByText } = renderRoute("meals.example", "", "search");
+    const { container, findByText } = renderRoute("meadow.example", "", "search");
 
     await findByText("Query decisions");
     const row = container.querySelector<HTMLDetailsElement>(
@@ -1089,9 +1089,9 @@ describe("AssetDetailRoute — executive page identity", () => {
     expect(row.querySelector("svg")).not.toBeNull();
   });
 
-  it("shows Nosh product use as one strip without inventing missing shares", async () => {
+  it("shows Northwind product use as one strip without inventing missing shares", async () => {
     stubFetch(200, nomPayload());
-    const { container, findByText } = renderRoute("nosh.example", "", "growth");
+    const { container, findByText } = renderRoute("northwind.example", "", "growth");
 
     await findByText("Audience");
     const strip = container.querySelector("#product-use")!;
@@ -1112,7 +1112,7 @@ describe("AssetDetailRoute — executive page identity", () => {
 
   it("keeps the product-use snapshot's fixed window when the traffic range changes", async () => {
     stubFetch(200, nomPayload());
-    const view = renderRoute("nosh.example", "", "growth");
+    const view = renderRoute("northwind.example", "", "growth");
     await view.findByText("Audience");
     const productUse = view.container.querySelector<HTMLElement>("#product-use")!;
     expect(within(productUse).getByRole("heading", { name: "Product use · last 28 days" })).toBeInTheDocument();
@@ -1120,7 +1120,7 @@ describe("AssetDetailRoute — executive page identity", () => {
     const snapshot = productUse.textContent;
 
     fireEvent.click(view.getByRole("button", { name: "7d" }));
-    await waitFor(() => expect(view.getByTestId("path")).toHaveTextContent("/assets/nosh.example/growth?range=7"));
+    await waitFor(() => expect(view.getByTestId("path")).toHaveTextContent("/assets/northwind.example/growth?range=7"));
     expect(productUse.textContent).toBe(snapshot);
     expect(productUse).toHaveTextContent("233");
     expect(productUse).toHaveTextContent("85");
@@ -1130,7 +1130,7 @@ describe("AssetDetailRoute — executive page identity", () => {
     const data = payload();
     data.executive = { ...data.executive!, product: parseProductSnapshot(posthogProductJson) };
     stubFetch(200, data);
-    const view = renderRoute("meals.example", "", "growth");
+    const view = renderRoute("meadow.example", "", "growth");
     await view.findByText("Audience");
     const product = view.container.querySelector<HTMLElement>("[data-product-journey]")!;
     expect(within(product).getByRole("heading", { name: "Product" })).toBeInTheDocument();
@@ -1142,13 +1142,13 @@ describe("AssetDetailRoute — executive page identity", () => {
     const before = product.textContent;
 
     fireEvent.click(view.getByRole("button", { name: "7d" }));
-    await waitFor(() => expect(view.getByTestId("path")).toHaveTextContent("/assets/meals.example/growth?range=7"));
+    await waitFor(() => expect(view.getByTestId("path")).toHaveTextContent("/assets/meadow.example/growth?range=7"));
     expect(product.textContent).toBe(before);
   });
 
   it("puts each tab in the URL and mounts only the active tab's sections", async () => {
     stubFetch(200, payload());
-    const { container, findByText } = renderRoute("meals.example");
+    const { container, findByText } = renderRoute("meadow.example");
 
     await findByText("What matters");
     const bar = container.querySelector('[role="tablist"]')!;
@@ -1166,15 +1166,15 @@ describe("AssetDetailRoute — executive page identity", () => {
       "Settings",
     ]);
     expect(tabs.map((t) => t.getAttribute("href"))).toEqual([
-      "/assets/meals.example",
-      "/assets/meals.example/growth",
-      "/assets/meals.example/financials",
-      "/assets/meals.example/search",
-      "/assets/meals.example/alerts",
-      "/assets/meals.example/tasks",
-      "/assets/meals.example/activity",
-      "/assets/meals.example/sources",
-      "/assets/meals.example/settings",
+      "/assets/meadow.example",
+      "/assets/meadow.example/growth",
+      "/assets/meadow.example/financials",
+      "/assets/meadow.example/search",
+      "/assets/meadow.example/alerts",
+      "/assets/meadow.example/tasks",
+      "/assets/meadow.example/activity",
+      "/assets/meadow.example/sources",
+      "/assets/meadow.example/settings",
     ]);
     expect(tabs.map((t) => t.getAttribute("aria-selected"))).toEqual([
       "true",
@@ -1214,17 +1214,17 @@ describe("AssetDetailRoute — executive page identity", () => {
 
   it("keeps the chosen range between tabs and only shows it where it changes the data", async () => {
     stubFetch(200, payload());
-    const view = renderPath("/assets/meals.example?range=7");
+    const view = renderPath("/assets/meadow.example?range=7");
     await view.findByRole("tab", { name: "Overview" });
     expect(view.getByText("Traffic period")).toBeVisible();
     expect(within(view.getByRole("group", { name: "Traffic period" })).getByRole("button", { name: "7d" })).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(view.getByRole("tab", { name: "Growth" }));
-    await waitFor(() => expect(view.getByTestId("path")).toHaveTextContent("/assets/meals.example/growth?range=7"));
+    await waitFor(() => expect(view.getByTestId("path")).toHaveTextContent("/assets/meadow.example/growth?range=7"));
     const growthRange = view.getByRole("group", { name: "Traffic period" });
     expect(within(growthRange).getByRole("button", { name: "7d" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(within(growthRange).getByRole("button", { name: "90d" }));
-    await waitFor(() => expect(view.getByTestId("path")).toHaveTextContent("/assets/meals.example/growth?range=90"));
+    await waitFor(() => expect(view.getByTestId("path")).toHaveTextContent("/assets/meadow.example/growth?range=90"));
 
     for (const [name, path] of [
       ["Search", "search"],
@@ -1235,19 +1235,19 @@ describe("AssetDetailRoute — executive page identity", () => {
       ["Settings", "settings"],
     ]) {
       fireEvent.click(view.getByRole("tab", { name }));
-      await waitFor(() => expect(view.getByTestId("path")).toHaveTextContent(`/assets/meals.example/${path}?range=90`));
+      await waitFor(() => expect(view.getByTestId("path")).toHaveTextContent(`/assets/meadow.example/${path}?range=90`));
       expect(view.queryByRole("group", { name: "Traffic period" })).toBeNull();
       expect(view.queryByText("Traffic period")).toBeNull();
     }
 
     fireEvent.click(view.getByRole("tab", { name: "Overview" }));
-    await waitFor(() => expect(view.getByTestId("path")).toHaveTextContent("/assets/meals.example?range=90"));
+    await waitFor(() => expect(view.getByTestId("path")).toHaveTextContent("/assets/meadow.example?range=90"));
     expect(within(view.getByRole("group", { name: "Traffic period" })).getByRole("button", { name: "90d" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("moves focus along the tab bar with the arrow keys, Home and End", async () => {
     stubFetch(200, payload());
-    const { container, findByText } = renderRoute("meals.example");
+    const { container, findByText } = renderRoute("meadow.example");
 
     await findByText("What matters");
     const bar = container.querySelector<HTMLElement>('[role="tablist"]')!;
@@ -1314,7 +1314,7 @@ describe("AssetDetailRoute — executive page identity", () => {
     };
     googleAnswers([{ capability: "gsc-daily", state: "healthy" }, { capability: "ga4-daily", state: "failing" }]);
     stubFetch(200, data);
-    const { container, findByText } = renderRoute("meals.example");
+    const { container, findByText } = renderRoute("meadow.example");
 
     await findByText("What matters");
     const tabs = [...container.querySelectorAll('[role="tab"]')];
@@ -1348,8 +1348,8 @@ describe("AssetDetailRoute — executive page identity", () => {
       },
     };
     stubFetch(200, data);
-    const view = renderRoute("meals.example", "", "sources");
-    const heading = await view.findByRole("heading", { name: /Meal Planner/u, level: 1 });
+    const view = renderRoute("meadow.example", "", "sources");
+    const heading = await view.findByRole("heading", { name: /Meadow Board/u, level: 1 });
     expect(headerStatuses(heading)).toEqual(["Google Analytics: Unknown"]);
     const unknown = heading.closest("header")!.querySelector('[data-connection="unknown"]');
     expect(unknown?.querySelector('[data-state-mark="unknown"]')).not.toBeNull();
@@ -1368,8 +1368,8 @@ describe("AssetDetailRoute — executive page identity", () => {
       sources: [{ id: "ga4", label: "Google Analytics", state: "live", observedAt: new Date(Date.now() - 60_000).toISOString(), verification: { kind: "collection-success", laneId: "ga4" } }],
     };
     stubFetch(200, data);
-    const view = renderRoute("meals.example", "", "sources");
-    const heading = await view.findByRole("heading", { name: /Meal Planner/u, level: 1 });
+    const view = renderRoute("meadow.example", "", "sources");
+    const heading = await view.findByRole("heading", { name: /Meadow Board/u, level: 1 });
     expect(headerStatuses(heading)).toEqual(["Google Analytics: Working"]);
     expect(within(heading).queryByText("Onboarding")).toBeNull();
   });
@@ -1383,8 +1383,8 @@ describe("AssetDetailRoute — executive page identity", () => {
       verification: { kind: "collection-success", laneId: "bing-webmaster" },
     }] };
     stubFetch(200, data);
-    const view = renderRoute("meals.example", "", "growth");
-    const heading = await view.findByRole("heading", { name: /Meal Planner/u, level: 1 });
+    const view = renderRoute("meadow.example", "", "growth");
+    const heading = await view.findByRole("heading", { name: /Meadow Board/u, level: 1 });
     const header = heading.closest("header")!;
     expect(headerStatuses(heading)).toEqual(["Bing Webmaster Tools: Unknown"]);
     expect(within(header).queryByText("Reported", { exact: true })).toBeNull();
@@ -1400,8 +1400,8 @@ describe("AssetDetailRoute — executive page identity", () => {
     const data = payload();
     data.freshness.pulseReceivedAt = null;
     stubFetch(200, data);
-    const view = renderRoute("meals.example", "", "growth");
-    const heading = await view.findByRole("heading", { name: /Meal Planner/u, level: 1 });
+    const view = renderRoute("meadow.example", "", "growth");
+    const heading = await view.findByRole("heading", { name: /Meadow Board/u, level: 1 });
     const header = heading.closest("header")!;
     expect(header.querySelector("[data-nightly-report-age]")).toBeNull();
     expect(header.querySelector("[data-age-state]")).toBeNull();
@@ -1419,8 +1419,8 @@ describe("AssetDetailRoute — executive page identity", () => {
       verification: kind === "legacy-date" ? undefined : { kind: "collection-success", laneId: kind === "wrong-source" ? "gsc" : "nightly-report" },
     }] };
     stubFetch(200, data);
-    const view = renderRoute("meals.example", "", "sources");
-    const heading = await view.findByRole("heading", { name: /Meal Planner/u, level: 1 });
+    const view = renderRoute("meadow.example", "", "sources");
+    const heading = await view.findByRole("heading", { name: /Meadow Board/u, level: 1 });
     expect(headerStatuses(heading)).toEqual(["Nightly report: Not checked"]);
     expect(view.getByRole("tab", { name: "Data sources" }).getAttribute("title") ?? "").not.toContain("working");
   });
@@ -1435,7 +1435,7 @@ describe("AssetDetailRoute — executive page identity", () => {
     };
     data.executive = { ...data.executive!, searchQueries: null };
     stubFetch(200, data);
-    const { container } = renderRoute("meals.example", "", "search");
+    const { container } = renderRoute("meadow.example", "", "search");
 
     await waitFor(() => expect(container.querySelector("#search-evidence")).not.toBeNull());
     expect(container.querySelector("#query-visibility")).toBeNull();
@@ -1447,7 +1447,7 @@ describe("AssetDetailRoute — executive page identity", () => {
 
   it("shows the movers lane proving its grounding check ran, even at zero", async () => {
     stubFetch(200, payload());
-    const { container, findAllByText } = renderRoute("meals.example", "", "search");
+    const { container, findAllByText } = renderRoute("meadow.example", "", "search");
 
     await findAllByText("Query decisions");
     const lane = container.querySelector('[data-lane-evidence="google"]');
@@ -1458,7 +1458,7 @@ describe("AssetDetailRoute — executive page identity", () => {
 
   it("marks findings to the top and records the decision in the OS", async () => {
     const fetchMock = stubFetch(200, payload());
-    const { container, findByText } = renderRoute("meals.example");
+    const { container, findByText } = renderRoute("meadow.example");
 
     await findByText("What matters");
     const disclosure = container.querySelector<HTMLElement>("[data-all-findings]")!;
@@ -1473,7 +1473,7 @@ describe("AssetDetailRoute — executive page identity", () => {
       expect(call).toBeDefined();
       return call!;
     });
-    expect(String(write[0])).toBe("/api/assets/meals.example/decisions");
+    expect(String(write[0])).toBe("/api/assets/meadow.example/decisions");
     expect(write[1]?.method).toBe("POST");
     expect(JSON.parse(String(write[1]?.body))).toEqual({
       kind: "finding",
@@ -1481,7 +1481,7 @@ describe("AssetDetailRoute — executive page identity", () => {
       status: "marked",
     });
     expect(
-      window.localStorage.getItem("noticeos:property-findings:meals.example"),
+      window.localStorage.getItem("noticeos:property-findings:meadow.example"),
     ).toBeNull();
 
     fireEvent.click(list.getByRole("button", { name: "Dismiss" }));
@@ -1517,7 +1517,7 @@ describe("AssetDetailRoute — recommendation applicability", () => {
     const data = reviewedPayload();
     data.executive!.items[0]!.evidence = [{ label: "Current organic rank", value: "#16" }, ...data.executive!.items[0]!.evidence];
     stubFetch(200, data);
-    const view = renderRoute("meals.example");
+    const view = renderRoute("meadow.example");
     const panel = await view.findByRole("region", { name: "What matters" });
     const row = within(panel).getByText("Move “weekly meal plan” into the top results").closest("li")!;
     expect(row).toHaveTextContent("Original analysis: high confidence");
@@ -1544,7 +1544,7 @@ describe("AssetDetailRoute — recommendation applicability", () => {
 
   it("puts File task on every What matters row, and only once", async () => {
     stubFetch(200, reviewedPayload());
-    const view = renderRoute("meals.example");
+    const view = renderRoute("meadow.example");
     const panel = await view.findByRole("region", { name: "What matters" });
     const rows = [...panel.querySelectorAll<HTMLElement>("li[data-finding-row]")];
     expect(rows.length).toBeGreaterThan(0);
@@ -1558,9 +1558,9 @@ describe("AssetDetailRoute — recommendation applicability", () => {
 
   it("keeps a finding after linked closure and names the review, not a resolved outcome", async () => {
     const data = reviewedPayload();
-    data.handoffBeads = [{ kind: "finding", key: data.executive!.items[0]!.key, beadId: "mp-fixture", status: "closed", closedAt: "2026-08-06T12:00:00Z" }];
+    data.handoffBeads = [{ kind: "finding", key: data.executive!.items[0]!.key, beadId: "md-fixture", status: "closed", closedAt: "2026-08-06T12:00:00Z" }];
     stubFetch(200, data);
-    const view = renderRoute("meals.example");
+    const view = renderRoute("meadow.example");
     const panel = await view.findByRole("region", { name: "What matters" });
     expect(panel).toHaveTextContent("Review after linked work");
     const disclosure = view.container.querySelector<HTMLElement>("[data-all-findings]")!;
@@ -1571,7 +1571,7 @@ describe("AssetDetailRoute — recommendation applicability", () => {
     fireEvent.click(within(insight).getByRole("button", { name: "About this recommendation's applicability" }));
     const task = view.getByRole("tooltip").querySelector<HTMLElement>("[data-fact='task']")!;
     expect(task).toHaveAttribute("data-task-status", "closed");
-    expect(task).toHaveTextContent("mp-fixture");
+    expect(task).toHaveTextContent("md-fixture");
     expect(task).toHaveTextContent("since analysis");
   });
 
@@ -1580,7 +1580,7 @@ describe("AssetDetailRoute — recommendation applicability", () => {
     data.executive!.searchPages = {
       provider: "google", currentStart: "2026-06-29", currentEnd: "2026-07-05", previousStart: "2026-06-22", previousEnd: "2026-06-28", daysPerWindow: 7,
       source: "gsc/page", evidence: [], caveat: "Only reported pages are represented.",
-      pages: [{ page: "https://meals.example/meal-plan", path: "/meal-plan", currentClicks: 5, previousClicks: 40, clickDelta: -35, clickDeltaPercent: -87.5,
+      pages: [{ page: "https://meadow.example/meal-plan", path: "/meal-plan", currentClicks: 5, previousClicks: 40, clickDelta: -35, clickDeltaPercent: -87.5,
         currentImpressions: 1000, previousImpressions: 1000, impressionDelta: 0, impressionDeltaPercent: 0, currentCtr: 0.005, previousCtr: 0.04,
         currentPosition: 7, previousPosition: 7, positionImprovement: 0, leadingQuery: null }],
     };
@@ -1589,7 +1589,7 @@ describe("AssetDetailRoute — recommendation applicability", () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     try {
-      const view = renderRoute("meals.example", "", "search");
+      const view = renderRoute("meadow.example", "", "search");
       await view.findByRole("heading", { name: "Query decisions" });
       const query = view.container.querySelector<HTMLElement>("[data-decision-collapsed]")!;
       const page = view.container.querySelector<HTMLElement>("[data-page-decision-collapsed]")!;
@@ -1621,12 +1621,12 @@ describe("AssetDetailRoute — recommendation applicability", () => {
     data.executive!.searchPages = {
       provider: "google", currentStart: "2026-06-29", currentEnd: "2026-07-05", previousStart: "2026-06-22", previousEnd: "2026-06-28", daysPerWindow: 7,
       source: "gsc/page", evidence: [], caveat: "Only reported pages are represented.",
-      pages: [{ page: "https://meals.example/meal-plan", path: "/meal-plan", currentClicks: 5, previousClicks: 40, clickDelta: -35, clickDeltaPercent: -87.5,
+      pages: [{ page: "https://meadow.example/meal-plan", path: "/meal-plan", currentClicks: 5, previousClicks: 40, clickDelta: -35, clickDeltaPercent: -87.5,
         currentImpressions: 1000, previousImpressions: 1000, impressionDelta: 0, impressionDeltaPercent: 0, currentCtr: 0.005, previousCtr: 0.04,
         currentPosition: 7, previousPosition: 7, positionImprovement: 0, leadingQuery: null }],
     };
     stubFetch(200, data);
-    const view = renderRoute("meals.example", "", "search");
+    const view = renderRoute("meadow.example", "", "search");
     await view.findByRole("heading", { name: "Query decisions" });
     expect(view.container.querySelector("[data-analysis-evidence]")).toHaveTextContent(/^Analysis .+ ago$/);
     expect(view.container.querySelector("[data-query-decisions-validity]")).toHaveTextContent("Newer source reports");
@@ -1667,7 +1667,7 @@ describe("AssetDetailRoute — the setup checklist", () => {
 
   it("does not render at all for a live asset", async () => {
     stubFetch(200, payload());
-    const { container, findAllByText } = renderRoute("meals.example", "", "sources");
+    const { container, findAllByText } = renderRoute("meadow.example", "", "sources");
 
     await findAllByText("Data sources");
     expect(container.querySelector("[data-setup-checklist]")).toBeNull();
@@ -1677,7 +1677,7 @@ describe("AssetDetailRoute — the setup checklist", () => {
 
   it("leads Sources with four counted items and an unavailable nonactionable pause check", async () => {
     stubFetch(200, settingUp());
-    const { container, findByText } = renderRoute("meals.example", "", "sources");
+    const { container, findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText(/^Data setup ·/);
     const items = [...container.querySelectorAll("[data-setup-item]")].map(
@@ -1708,7 +1708,7 @@ describe("AssetDetailRoute — the setup checklist", () => {
 
   it("sends each item to where it is actually done", async () => {
     stubFetch(200, settingUp());
-    const { container, findByText } = renderRoute("meals.example", "", "sources");
+    const { container, findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText(/^Data setup ·/);
     const href = (id: string) =>
@@ -1716,8 +1716,8 @@ describe("AssetDetailRoute — the setup checklist", () => {
         .querySelector(`[data-setup-item="${id}"] a`)
         ?.getAttribute("href");
 
-    expect(href("identity")).toBe("/assets/meals.example/settings");
-    expect(href("sources")).toBe("/assets/meals.example/sources");
+    expect(href("identity")).toBe("/assets/meadow.example/settings");
+    expect(href("sources")).toBe("/assets/meadow.example/sources");
     expect(href("first-report")).toBe("/health");
     expect(href("baseline")).toBe("/health");
   });
@@ -1725,7 +1725,7 @@ describe("AssetDetailRoute — the setup checklist", () => {
   it("counts the sources without repeating each one's status, which its Data sources row carries", async () => {
     googleAnswers([{ capability: "gsc-daily", state: "healthy" }]);
     stubFetch(200, settingUp());
-    const { container, findByText } = renderRoute("meals.example", "", "sources");
+    const { container, findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText(/^Data setup ·/);
     expect(container.querySelector("[data-setup-source]")).toBeNull();
@@ -1751,15 +1751,15 @@ describe("AssetDetailRoute — the setup checklist", () => {
         cell: {
           assetId: data.asset.id, laneId: "gsc", declared: "live", effective: state,
           evidence: [], note: state === "degraded" ? "The latest collection failed." : "Site mapping is configured.",
-          ref: "sc-domain:meals.example", since: "2026-07-06",
+          ref: "sc-domain:meadow.example", since: "2026-07-06",
         },
-        mapping: [{ name: "siteUrl", value: "sc-domain:meals.example" }],
+        mapping: [{ name: "siteUrl", value: "sc-domain:meadow.example" }],
         mappingSource: "register",
       }],
     };
     stubFetch(200, data);
-    const view = renderRoute("meals.example", "", "sources");
-    const heading = await view.findByRole("heading", { name: /Meal Planner/u, level: 1 });
+    const view = renderRoute("meadow.example", "", "sources");
+    const heading = await view.findByRole("heading", { name: /Meadow Board/u, level: 1 });
     const word = attempt === "healthy" ? "Working" : "Failing";
     expect(headerStatuses(heading)).toEqual([`Google Search Console: ${word}`]);
     const sources = view.container.querySelector<HTMLElement>("#integrations")!;
@@ -1780,12 +1780,12 @@ describe("AssetDetailRoute — the setup checklist", () => {
   it("is reachable by its own anchor, which lands on the Overview's banner", async () => {
     const scrolled = captureScrollTargets();
     stubFetch(200, settingUp());
-    const { container, findByText } = renderRoute("meals.example", "#setup");
+    const { container, findByText } = renderRoute("meadow.example", "#setup");
 
     await findByText(/to do:/);
     expect(container.querySelector('#setup [role="status"]')).not.toBeNull();
     expect(
-      container.querySelector('a[href="/assets/meals.example/sources"]'),
+      container.querySelector('a[href="/assets/meadow.example/sources"]'),
     ).not.toBeNull();
     await waitFor(() => expect(scrolled).toEqual(["setup"]));
   });
@@ -1809,7 +1809,7 @@ describe("AssetDetailRoute — inbound deep links", () => {
     if (hash === RESTORE_HASH) data.asset.status = "retired";
     if (hash === "#setup") data.asset.status = "onboarding";
     stubFetch(200, data);
-    const { container } = renderRoute("nosh.example", hash);
+    const { container } = renderRoute("northwind.example", hash);
     const target = hash === "#details" ? "integrations" : hash.slice(1);
     await waitFor(() => expect(scrolled).toEqual([target]));
     const section = container.querySelector(`[id="${target}"]`);
@@ -1828,7 +1828,7 @@ describe("AssetDetailRoute — inbound deep links", () => {
   it("brings the query-decision section into view, on the Search tab", async () => {
     const scrolled = captureScrollTargets();
     stubFetch(200, payload());
-    const { container, findAllByText } = renderRoute("meals.example", "#query-visibility");
+    const { container, findAllByText } = renderRoute("meadow.example", "#query-visibility");
 
     await findAllByText("Query decisions");
     await waitFor(() => expect(scrolled).toEqual(["query-visibility"]));
@@ -1838,7 +1838,7 @@ describe("AssetDetailRoute — inbound deep links", () => {
   it("brings the page-decision section into view, on the Search tab", async () => {
     const scrolled = captureScrollTargets();
     stubFetch(200, payload());
-    const { container, findAllByText } = renderRoute("meals.example", "#page-decisions");
+    const { container, findAllByText } = renderRoute("meadow.example", "#page-decisions");
 
     await findAllByText("Page decisions");
     await waitFor(() => expect(scrolled).toEqual(["page-decisions"]));
@@ -1848,7 +1848,7 @@ describe("AssetDetailRoute — inbound deep links", () => {
   it("brings the tracked panel's own settings into view, on Settings", async () => {
     const scrolled = captureScrollTargets();
     stubFetch(200, payload());
-    const { container, findByText } = renderRoute("meals.example", "#tracked-panels");
+    const { container, findByText } = renderRoute("meadow.example", "#tracked-panels");
 
     await findByText("Tracked search terms");
     await waitFor(() => expect(scrolled).toEqual(["tracked-panels"]));
@@ -1858,7 +1858,7 @@ describe("AssetDetailRoute — inbound deep links", () => {
   it("brings the product-use section into view, on the Growth tab", async () => {
     const scrolled = captureScrollTargets();
     stubFetch(200, nomPayload());
-    const { container, findAllByText } = renderRoute("nosh.example", "#product-use");
+    const { container, findAllByText } = renderRoute("northwind.example", "#product-use");
 
     await findAllByText(/Product use/);
     await waitFor(() => expect(scrolled).toEqual(["product-use"]));
@@ -1868,7 +1868,7 @@ describe("AssetDetailRoute — inbound deep links", () => {
   it("selects Sources for the data-source anchors the matrix links at", async () => {
     const scrolled = captureScrollTargets();
     stubFetch(200, payload());
-    const { container, findByRole } = renderRoute("meals.example", "#integrations");
+    const { container, findByRole } = renderRoute("meadow.example", "#integrations");
 
     await findByRole("tab", { name: "Data sources" });
     await waitFor(() => expect(scrolled).toEqual(["integrations"]));
@@ -1878,7 +1878,7 @@ describe("AssetDetailRoute — inbound deep links", () => {
   it("selects Activity for the timeline anchor an alert's change chip links at", async () => {
     const scrolled = captureScrollTargets();
     stubFetch(200, payload());
-    const { container, findByText } = renderRoute("meals.example", "#timeline");
+    const { container, findByText } = renderRoute("meadow.example", "#timeline");
 
     await findByText("Timeline");
     await waitFor(() => expect(scrolled).toEqual(["timeline"]));
@@ -1888,7 +1888,7 @@ describe("AssetDetailRoute — inbound deep links", () => {
   it.each(["#pnl", "#ledger"])("opens asset Money for %s", async (hash) => {
     const scrolled = captureScrollTargets();
     stubFetch(200, payload());
-    const { container, findByText } = renderRoute("meals.example", hash);
+    const { container, findByText } = renderRoute("meadow.example", hash);
     await findByText("Monthly accounting");
     await waitFor(() => expect(scrolled).toEqual([hash.slice(1)]));
     expect(selectedTab(container)).toBe("Money");
@@ -1897,7 +1897,7 @@ describe("AssetDetailRoute — inbound deep links", () => {
   it("selects Settings for the configuration anchor", async () => {
     const scrolled = captureScrollTargets();
     stubFetch(200, payload());
-    const { container, findByText } = renderRoute("meals.example", "#configuration");
+    const { container, findByText } = renderRoute("meadow.example", "#configuration");
 
     await findByText("Alert rules in force");
     await waitFor(() => expect(scrolled).toEqual(["configuration"]));
@@ -1907,7 +1907,7 @@ describe("AssetDetailRoute — inbound deep links", () => {
   it("leaves a hash this page does not own alone", async () => {
     const scrolled = captureScrollTargets();
     stubFetch(200, payload());
-    const { container, findAllByText } = renderRoute("meals.example", "#not-this-page");
+    const { container, findAllByText } = renderRoute("meadow.example", "#not-this-page");
 
     await findAllByText("What matters");
     expect(scrolled).toEqual([]);
@@ -1919,11 +1919,11 @@ describe("AssetDetailRoute — a tab segment nobody built", () => {
   it("lands on Overview AND corrects the URL to say so", async () => {
     stubFetch(200, payload());
     const { container, findAllByText, getByTestId } = renderPath(
-      "/assets/meals.example/nonsense",
+      "/assets/meadow.example/nonsense",
     );
 
     await findAllByText("What matters");
-    expect(getByTestId("path").textContent).toBe("/assets/meals.example");
+    expect(getByTestId("path").textContent).toBe("/assets/meadow.example");
     expect(
       container.querySelector('[role="tab"][aria-selected="true"]')?.textContent,
     ).toBe("Overview");
@@ -1932,22 +1932,22 @@ describe("AssetDetailRoute — a tab segment nobody built", () => {
   it("keeps the query string while it corrects the segment", async () => {
     stubFetch(200, payload());
     const { findAllByText, getByTestId } = renderPath(
-      "/assets/meals.example/nonsense?from=wall",
+      "/assets/meadow.example/nonsense?from=wall",
     );
 
     await findAllByText("What matters");
-    expect(getByTestId("path").textContent).toBe("/assets/meals.example?from=wall");
+    expect(getByTestId("path").textContent).toBe("/assets/meadow.example?from=wall");
   });
 
   it("lets a hash that names a real tab outrank the correction", async () => {
     stubFetch(200, payload());
     const { container, findByRole, getByTestId } = renderPath(
-      "/assets/meals.example/nonsense#integrations",
+      "/assets/meadow.example/nonsense#integrations",
     );
 
     await findByRole("tab", { name: "Data sources" });
     expect(getByTestId("path").textContent).toBe(
-      "/assets/meals.example/sources#integrations",
+      "/assets/meadow.example/sources#integrations",
     );
     expect(
       container.querySelector('[role="tab"][aria-selected="true"]')?.textContent,
@@ -1969,7 +1969,7 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
       derived: false,
     },
     cell: {
-      assetId: "meals.example",
+      assetId: "meadow.example",
       laneId: "gsc",
       declared: "needs-setup" as const,
       effective: "needs-setup" as const,
@@ -1997,10 +1997,10 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
   it("gives a not-set-up source one action, Connect, and no setup pointer or checklist", async () => {
     stubFetch(200, withLane());
     nothingConnected();
-    const { findByText, getByRole, container } = renderRoute("meals.example", "", "sources");
+    const { findByText, getByRole, container } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Search Console");
-    expect(getByRole("link", { name: /Connect Google/u })).toHaveAttribute("href", "/integrations?connect=google&asset=meals.example");
+    expect(getByRole("link", { name: /Connect Google/u })).toHaveAttribute("href", "/integrations?connect=google&asset=meadow.example");
     openLane("Google Search Console");
     expect(container.querySelector("[data-lane-doc-ref]")).toBeNull();
     expect(container.querySelector("[data-lane-step]")).toBeNull();
@@ -2020,7 +2020,7 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     data.integrations = { ...data.integrations, lanes: [cj] };
     stubFetch(200, data);
     nothingConnected();
-    const view = renderRoute("meals.example", "", "sources");
+    const view = renderRoute("meadow.example", "", "sources");
     await view.findByText("CJ affiliate revenue");
     const row = [...view.container.querySelectorAll("#integrations li")].find((li) => li.textContent?.includes("CJ affiliate revenue"))!;
     expect(row.querySelector("[data-source-connect]")).toBeNull();
@@ -2049,7 +2049,7 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     data.integrations = { ...data.integrations, lanes: [uptime] };
     stubFetch(200, data);
     nothingConnected();
-    const view = renderRoute("meals.example", "", "sources");
+    const view = renderRoute("meadow.example", "", "sources");
     await view.findByText("Uptime monitoring");
     const row = [...view.container.querySelectorAll<HTMLElement>("#integrations li")].find((li) => li.textContent?.includes("Uptime monitoring"))!;
     expect(row.querySelector("[data-connection]")).toHaveAttribute("data-connection", kind);
@@ -2077,7 +2077,7 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     data.integrations = { ...data.integrations, lanes: [nightly, cj] };
     stubFetch(200, data);
     nothingConnected();
-    const view = renderRoute("meals.example", "", "sources");
+    const view = renderRoute("meadow.example", "", "sources");
     const more = await view.findByRole("region", { name: "More sources" });
     expect(more.closest("details")).toBeNull();
     expect(within(more).getByText("CJ affiliate revenue")).toBeVisible();
@@ -2113,13 +2113,13 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
       }));
     vi.stubGlobal("fetch", fetchMock);
     nothingConnected();
-    const view = renderRoute("meals.example", "", "sources");
+    const view = renderRoute("meadow.example", "", "sources");
 
     const connect = await view.findByRole("button", { name: "Connect Bing Webmaster Tools" });
     fireEvent.click(connect);
     const panel = await view.findByRole("dialog", { name: "Bing Webmaster Tools" });
     expect(within(panel).getByLabelText("API key")).toBeInTheDocument();
-    expect(view.getByTestId("path").textContent).toBe("/assets/meals.example/sources");
+    expect(view.getByTestId("path").textContent).toBe("/assets/meadow.example/sources");
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/connect"))).toBe(false);
   });
 
@@ -2150,7 +2150,7 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
         status: 200, headers: { "content-type": "application/json" },
       })));
     nothingConnected();
-    const view = renderRoute("meals.example", "", "sources");
+    const view = renderRoute("meadow.example", "", "sources");
 
     const connect = await view.findByRole("button", { name: "Connect Bing Webmaster Tools" });
     expect(view.container.querySelector("[data-connect-blocked]")).toBeNull();
@@ -2181,7 +2181,7 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
       state: "failing", failure: "network", lastAttemptAt: "2026-09-14T12:15:00.000Z", lastSuccessAt: null };
     const today = { ...(connections.items![0] as Record<string, unknown>), id: "today", capability: "gsc-archive", detail: "query · 2026-09-21", report: "query", reportDate: "2026-09-21" };
     connections.items = [...connections.items!, outage, today];
-    const view = renderRoute("meals.example", "", "sources");
+    const view = renderRoute("meadow.example", "", "sources");
     await view.findByText("Google Search Console");
     const row = view.container.querySelector("#integrations li")!;
     expect(row.querySelector("[data-connection]")).toHaveAttribute("data-connection", "working");
@@ -2195,7 +2195,7 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     data.integrations = { ...data.integrations, lanes: [live] };
     stubFetch(200, data);
     googleAnswers([{ capability: "gsc-daily", state: "failing" }]);
-    const view = renderRoute("meals.example", "", "sources");
+    const view = renderRoute("meadow.example", "", "sources");
     await view.findByText("Google Search Console");
     const row = view.container.querySelector("#integrations li")!;
     expect(row.querySelector("[data-connection]")).toHaveAttribute("data-connection", "failing");
@@ -2218,7 +2218,7 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
       ],
     };
     stubFetch(200, data);
-    const { container, findByText } = renderRoute("meals.example", "", "sources");
+    const { container, findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Search Console");
     expect(container.textContent).not.toContain("Setup steps:");
@@ -2226,7 +2226,7 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
 
   it("links to the connected-account page for adding a data source", async () => {
     stubFetch(200, payload());
-    const { findByRole } = renderRoute("meals.example", "", "sources");
+    const { findByRole } = renderRoute("meadow.example", "", "sources");
 
     expect(
       await findByRole("link", { name: /^All integrations/u }),
@@ -2248,7 +2248,7 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
       derived: false,
     },
     cell: {
-      assetId: "meals.example",
+      assetId: "meadow.example",
       laneId: "ga4",
       declared: "live" as const,
       effective: "live" as const,
@@ -2331,7 +2331,7 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
         [ga4Lane, gscLane],
       ),
     );
-    const { findByText, container } = renderRoute("meals.example", "", "sources");
+    const { findByText, container } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
@@ -2350,7 +2350,7 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
 
   it("declares the first value event by filing the asset's entry, and undoes it whole", async () => {
     const puts = stubEditing(withGa4({ valueEvents: null, eventParams: null }));
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
@@ -2370,7 +2370,7 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
     expect(onlyOp(puts)).toEqual({
       kind: "file-json-insert",
       file: "config/value-events.json",
-      pointer: "/assets/meals.example",
+      pointer: "/assets/meadow.example",
       value: { valueEvents: ["calculation_complete"] },
     });
 
@@ -2381,14 +2381,14 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
     expect(onlyOp(puts, 1)).toEqual({
       kind: "file-json-delete",
       file: "config/value-events.json",
-      pointer: "/assets/meals.example",
+      pointer: "/assets/meadow.example",
       expect: { valueEvents: ["calculation_complete"] },
     });
   });
 
   it("appends into an entry that exists and declares nothing", async () => {
     const puts = stubEditing(withGa4({ valueEvents: [], eventParams: null }));
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
@@ -2405,7 +2405,7 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
     expect(onlyOp(puts)).toEqual({
       kind: "file-json-insert",
       file: "config/value-events.json",
-      pointer: "/assets/meals.example/valueEvents/-",
+      pointer: "/assets/meadow.example/valueEvents/-",
       value: "sign_up",
     });
   });
@@ -2414,7 +2414,7 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
     const puts = stubEditing(
       withGa4({ valueEvents: null, eventParams: ["message", "source"] }),
     );
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
@@ -2429,7 +2429,7 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
     expect(onlyOp(puts)).toEqual({
       kind: "file-json-set",
       file: "config/ga4-custom-dimensions.json",
-      pointer: "/assets/meals.example/eventParams/0",
+      pointer: "/assets/meadow.example/eventParams/0",
       expect: "message",
       value: "error_message",
     });
@@ -2439,7 +2439,7 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
     const puts = stubEditing(
       withGa4({ valueEvents: ["calculation_complete", "sign_up"], eventParams: null }),
     );
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
@@ -2451,7 +2451,7 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
     expect(onlyOp(puts)).toEqual({
       kind: "file-json-delete",
       file: "config/value-events.json",
-      pointer: "/assets/meals.example/valueEvents/1",
+      pointer: "/assets/meadow.example/valueEvents/1",
       expect: "sign_up",
     });
 
@@ -2462,14 +2462,14 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
     expect(onlyOp(puts, 1)).toEqual({
       kind: "file-json-insert",
       file: "config/value-events.json",
-      pointer: "/assets/meals.example/valueEvents/1",
+      pointer: "/assets/meadow.example/valueEvents/1",
       value: "sign_up",
     });
   });
 
   it("refuses a name GA4 could never emit, and says which field broke which rule", async () => {
     const puts = stubEditing(withGa4({ valueEvents: ["sign_up"], eventParams: null }));
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
@@ -2492,7 +2492,7 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
       writable: false,
       reason: "Config is files; this build has none.",
     });
-    const { findByText, container } = renderRoute("meals.example", "", "sources");
+    const { findByText, container } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
@@ -2526,7 +2526,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
   ) {
     const mapping = [{ name: "propertyId", value: over.propertyId ?? null }];
     const cell = {
-      assetId: "meals.example",
+      assetId: "meadow.example",
       laneId: "ga4",
       declared: (over.declared ?? "needs-setup") as "needs-setup",
       effective: (over.effective ?? "needs-setup") as "needs-setup",
@@ -2571,9 +2571,9 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     account: "ops@example.test",
     auth: "oauth",
     properties: [
-      { lane: "ga4", ref: "313598867", label: "Meal Planner", detail: "Example Ventures" },
-      { lane: "ga4", ref: "444555666", label: "Nosh", detail: null },
-      { lane: "gsc", ref: "sc-domain:meals.example", label: "meals.example", detail: "owner" },
+      { lane: "ga4", ref: "123456789", label: "Meadow Board", detail: "Example Ventures" },
+      { lane: "ga4", ref: "444555666", label: "Northwind", detail: null },
+      { lane: "gsc", ref: "sc-domain:meadow.example", label: "meadow.example", detail: "owner" },
     ],
   };
 
@@ -2630,11 +2630,11 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
   it("picks a DataForSEO market by name and saves both codes in one press", async () => {
     const mapping = [{ name: "locationCode", value: null }, { name: "languageCode", value: null }];
-    const cell = { assetId: "meals.example", laneId: "dataforseo", declared: "needs-setup" as const, effective: "needs-setup" as const,
+    const cell = { assetId: "meadow.example", laneId: "dataforseo", declared: "needs-setup" as const, effective: "needs-setup" as const,
       evidence: [], note: "", ref: null, since: "2026-07-06" };
     const dfsCatalog = { ...catalog, id: "dataforseo", label: "DataForSEO", provider: "dataforseo" };
     const puts = stubEditing({ catalog: dfsCatalog, cell, mapping, mappingSource: "fallback" as const } as unknown as ReturnType<typeof ga4Lane>);
-    const { findByText, container } = renderRoute("meals.example", "", "sources");
+    const { findByText, container } = renderRoute("meadow.example", "", "sources");
     await findByText("DataForSEO");
     openLane("DataForSEO");
     const block = container.querySelector('[data-lane-mapping="dataforseo"]') as HTMLElement;
@@ -2646,20 +2646,20 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     await waitFor(() => expect(puts).toHaveLength(1));
     const ops = (puts[0] as unknown as { ops: { pointer: string; value: unknown }[] }).ops;
     expect(ops.map((op) => [op.pointer, op.value])).toEqual([
-      ["/assets/meals.example/dataforseo/locationCode", 2826],
-      ["/assets/meals.example/dataforseo/languageCode", "en"],
+      ["/assets/meadow.example/dataforseo/locationCode", 2826],
+      ["/assets/meadow.example/dataforseo/languageCode", "en"],
     ]);
   });
 
   const SIGNUP = { id: "signup", name: "Signup", steps: [{ event: "$pageview" }, { event: "signed_up" }] };
   const CHECKOUT = { id: "checkout", name: "Checkout", steps: [{ event: "$pageview", path: "/pricing" }, { event: "purchase" }] };
   function posthogLane() {
-    const cell = { assetId: "meals.example", laneId: "posthog", declared: "needs-setup" as const, effective: "live" as const,
+    const cell = { assetId: "meadow.example", laneId: "posthog", declared: "needs-setup" as const, effective: "live" as const,
       evidence: [], note: "", ref: null, since: "2026-07-06" };
     return {
       catalog: { ...catalog, id: "posthog", label: "PostHog", provider: "posthog" },
       cell,
-      mapping: [{ name: "host", value: "us" }, { name: "projectId", value: "596607" }],
+      mapping: [{ name: "host", value: "us" }, { name: "projectId", value: "424242" }],
       mappingLists: [{ name: "funnels", value: [SIGNUP] }],
       mappingSource: "register" as const,
     } as unknown as ReturnType<typeof ga4Lane>;
@@ -2669,19 +2669,19 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
   });
   const ACCOUNT = {
     discovery: { ok: true, provider: "posthog", kind: "account", checkedAt: "2026-09-23T00:00:00.000Z",
-      sites: [project(596607, "Meal Planner", [SIGNUP, CHECKOUT]), project(12, "Staging", [], "eu")] },
+      sites: [project(424242, "Meadow Board", [SIGNUP, CHECKOUT]), project(12, "Staging", [], "eu")] },
     assets: [], spend: null,
   };
 
   it("picks a PostHog site's project by name and number, and adds a funnel by picking one of the project's saved funnels", async () => {
     const puts = stubEditing(posthogLane(), NOT_CONNECTED, {}, null, null, false, ACCOUNT);
-    const { findByText, container } = renderRoute("meals.example", "", "sources");
+    const { findByText, container } = renderRoute("meadow.example", "", "sources");
     await findByText("PostHog");
     openLane("PostHog");
     const block = container.querySelector('[data-lane-mapping="posthog"]') as HTMLElement;
     fireEvent.click(block.closest("details")!.querySelector("summary")!);
     const select = await within(block).findByLabelText("PostHog project") as HTMLSelectElement;
-    await waitFor(() => expect(select.selectedOptions[0]!.textContent).toBe("Meal Planner · 596607 · US"));
+    await waitFor(() => expect(select.selectedOptions[0]!.textContent).toBe("Meadow Board · 424242 · US"));
     expect(block.querySelectorAll("input")).toHaveLength(0);
     expect(within(block).queryByLabelText("PostHog project id")).toBeNull();
     const pick = within(block).getByLabelText("Add funnel") as HTMLSelectElement;
@@ -2689,20 +2689,20 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     fireEvent.change(pick, { target: { value: "checkout" } });
     await waitFor(() => expect(puts).toHaveLength(1));
     const funnelsOp = (puts[0] as unknown as { ops: { pointer: string; expect?: unknown; value: unknown }[] }).ops;
-    expect(funnelsOp).toEqual([expect.objectContaining({ pointer: "/assets/meals.example/posthog/funnels", expect: [SIGNUP], value: [SIGNUP, CHECKOUT] })]);
+    expect(funnelsOp).toEqual([expect.objectContaining({ pointer: "/assets/meadow.example/posthog/funnels", expect: [SIGNUP], value: [SIGNUP, CHECKOUT] })]);
     expect(await within(block).findByRole("button", { name: "Undo" })).toBeTruthy();
     fireEvent.change(select, { target: { value: "eu:12" } });
     await waitFor(() => expect(puts).toHaveLength(2));
     const projectOps = (puts[1] as unknown as { ops: { pointer: string; value: unknown }[] }).ops;
     expect(projectOps.map((op) => [op.pointer, op.value])).toEqual([
-      ["/assets/meals.example/posthog/host", "eu"],
-      ["/assets/meals.example/posthog/projectId", "12"],
+      ["/assets/meadow.example/posthog/host", "eu"],
+      ["/assets/meadow.example/posthog/projectId", "12"],
     ]);
   });
 
   it("removes a PostHog funnel with its own press, saved at once", async () => {
     const puts = stubEditing(posthogLane(), NOT_CONNECTED, {}, null, null, false, ACCOUNT);
-    const { findByText, container } = renderRoute("meals.example", "", "sources");
+    const { findByText, container } = renderRoute("meadow.example", "", "sources");
     await findByText("PostHog");
     openLane("PostHog");
     const block = container.querySelector('[data-lane-mapping="posthog"]') as HTMLElement;
@@ -2710,12 +2710,12 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     fireEvent.click(await within(block).findByRole("button", { name: "Remove funnel Signup" }));
     await waitFor(() => expect(puts).toHaveLength(1));
     const ops = (puts[0] as unknown as { ops: { pointer: string; value: unknown }[] }).ops;
-    expect(ops.map((op) => [op.pointer, op.value])).toEqual([["/assets/meals.example/posthog/funnels", []]]);
+    expect(ops.map((op) => [op.pointer, op.value])).toEqual([["/assets/meadow.example/posthog/funnels", []]]);
   });
 
   it("types the PostHog project and funnels only when the account cannot be read", async () => {
     stubEditing(posthogLane(), NOT_CONNECTED, {}, null, null, false, null);
-    const { findByText, container } = renderRoute("meals.example", "", "sources");
+    const { findByText, container } = renderRoute("meadow.example", "", "sources");
     await findByText("PostHog");
     openLane("PostHog");
     const block = container.querySelector('[data-lane-mapping="posthog"]') as HTMLElement;
@@ -2744,7 +2744,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     return {
       catalog: [{ id: "ga4", label: "Google Analytics 4" }],
       assets: {
-        "meals.example": {
+        "meadow.example": {
           ga4: { status: "live", note: "Collector proved it.", since: "2026-07-29" },
         },
       },
@@ -2788,13 +2788,13 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     const puts = stubEditing(ga4Lane(), NOT_CONNECTED, {}, (body) =>
       applyThroughPipeline(file, body),
     );
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
     const block = mappingBlock();
     fireEvent.change(within(block).getByLabelText(/GA4 property id/u), {
-      target: { value: "313598867" },
+      target: { value: "123456789" },
     });
     fireEvent.click(within(block).getByRole("button", { name: "Save" }));
 
@@ -2804,19 +2804,19 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
       {
         kind: "file-json-set",
         file: "config/integrations.json",
-        pointer: "/assets/meals.example/ga4/propertyId",
+        pointer: "/assets/meadow.example/ga4/propertyId",
         expectAbsent: true,
-        value: "313598867",
+        value: "123456789",
       },
     ]);
 
     const undo = await within(block).findByRole("button", { name: "Undo" });
     expect(toasts.error).not.toHaveBeenCalled();
-    expect(file.assets["meals.example"].ga4).toEqual({
+    expect(file.assets["meadow.example"].ga4).toEqual({
       status: "live",
       note: "Collector proved it.",
       since: "2026-07-29",
-      propertyId: "313598867",
+      propertyId: "123456789",
     });
     fireEvent.click(undo);
     await waitFor(() => expect(puts).toHaveLength(2));
@@ -2824,13 +2824,13 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
       {
         kind: "file-json-delete",
         file: "config/integrations.json",
-        pointer: "/assets/meals.example/ga4/propertyId",
-        expect: "313598867",
+        pointer: "/assets/meadow.example/ga4/propertyId",
+        expect: "123456789",
       },
     ]);
     // The key is gone rather than blank, which the collector reads as "fall
     // back to the Google credential".
-    expect(file.assets["meals.example"].ga4).toEqual({
+    expect(file.assets["meadow.example"].ga4).toEqual({
       status: "live",
       note: "Collector proved it.",
       since: "2026-07-29",
@@ -2841,20 +2841,20 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     const file = {
       catalog: [{ id: "ga4", label: "Google Analytics 4" }],
       assets: {
-        "meals.example": {
+        "meadow.example": {
           ga4: {
             status: "live",
             note: "Collector proved it.",
             since: "2026-07-29",
-            propertyId: "313598867",
+            propertyId: "123456789",
           } as Record<string, unknown>,
         },
       },
     };
-    const puts = stubEditing(ga4Lane({ propertyId: "313598867" }), NOT_CONNECTED, {}, (body) =>
+    const puts = stubEditing(ga4Lane({ propertyId: "123456789" }), NOT_CONNECTED, {}, (body) =>
       applyThroughPipeline(file, body),
     );
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
@@ -2866,13 +2866,13 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
       {
         kind: "file-json-delete",
         file: "config/integrations.json",
-        pointer: "/assets/meals.example/ga4/propertyId",
-        expect: "313598867",
+        pointer: "/assets/meadow.example/ga4/propertyId",
+        expect: "123456789",
       },
     ]);
     await waitFor(() => expect(toasts.success).toHaveBeenCalled());
     expect(toasts.error).not.toHaveBeenCalled();
-    expect(file.assets["meals.example"].ga4).toEqual({
+    expect(file.assets["meadow.example"].ga4).toEqual({
       status: "live",
       note: "Collector proved it.",
       since: "2026-07-29",
@@ -2885,17 +2885,17 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
       {
         kind: "file-json-set",
         file: "config/integrations.json",
-        pointer: "/assets/meals.example/ga4/propertyId",
+        pointer: "/assets/meadow.example/ga4/propertyId",
         expectAbsent: true,
-        value: "313598867",
+        value: "123456789",
       },
     ]);
-    expect(file.assets["meals.example"].ga4.propertyId).toBe("313598867");
+    expect(file.assets["meadow.example"].ga4.propertyId).toBe("123456789");
   });
 
   it("offers nothing to remove on a field nothing has written", async () => {
     stubEditing(ga4Lane());
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
@@ -2906,13 +2906,13 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
   it("saves a property id over one that is already there, and offers the way back", async () => {
     const puts = stubEditing(ga4Lane({ propertyId: "111222333" }));
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
     const block = mappingBlock();
     fireEvent.change(within(block).getByLabelText(/GA4 property id/u), {
-      target: { value: "313598867" },
+      target: { value: "123456789" },
     });
     fireEvent.click(within(block).getByRole("button", { name: "Save" }));
 
@@ -2921,15 +2921,15 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
       {
         kind: "file-json-set",
         file: "config/integrations.json",
-        pointer: "/assets/meals.example/ga4/propertyId",
+        pointer: "/assets/meadow.example/ga4/propertyId",
         expect: "111222333",
-        value: "313598867",
+        value: "123456789",
       },
     ]);
 
     fireEvent.click(await within(block).findByRole("button", { name: "Undo" }));
     await waitFor(() => expect(puts).toHaveLength(2));
-    expect(puts[1]?.ops[0]).toMatchObject({ expect: "313598867", value: "111222333" });
+    expect(puts[1]?.ops[0]).toMatchObject({ expect: "123456789", value: "111222333" });
   });
 
   function picker(): HTMLElement {
@@ -2940,17 +2940,17 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
   it("picks a GA4 property from the connected account, writing the box's own op", async () => {
     const puts = stubEditing(ga4Lane(), TWO_PROPERTIES);
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
     await waitFor(() => expect(picker().dataset.lanePickerState).toBe("ready"));
     const block = picker();
-    expect(block.textContent).toContain("Meal Planner — Example Ventures (313598867)");
-    expect(block.textContent).not.toContain("sc-domain:meals.example");
+    expect(block.textContent).toContain("Meadow Board — Example Ventures (123456789)");
+    expect(block.textContent).not.toContain("sc-domain:meadow.example");
 
     fireEvent.change(within(block).getByRole("combobox"), {
-      target: { value: "313598867" },
+      target: { value: "123456789" },
     });
     fireEvent.click(within(block).getAllByRole("button", { name: "Save" })[0]!);
 
@@ -2959,9 +2959,9 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
       {
         kind: "file-json-set",
         file: "config/integrations.json",
-        pointer: "/assets/meals.example/ga4/propertyId",
+        pointer: "/assets/meadow.example/ga4/propertyId",
         expectAbsent: true,
-        value: "313598867",
+        value: "123456789",
       },
     ]);
     await waitFor(() =>
@@ -2971,7 +2971,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
   it("keeps a property the account cannot see, and a box to type another", async () => {
     stubEditing(ga4Lane({ propertyId: "111222333" }), TWO_PROPERTIES);
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
@@ -2982,7 +2982,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
   it("degrades to the text box when the account cannot be read", async () => {
     stubEditing(ga4Lane(), null);
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
@@ -2994,7 +2994,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
   it("says the account is not connected rather than showing an empty list", async () => {
     stubEditing(ga4Lane());
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
@@ -3004,25 +3004,25 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
   it("refuses a property id the declaration would not accept, and names the field", async () => {
     const puts = stubEditing(ga4Lane());
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
     const block = mappingBlock();
     fireEvent.change(within(block).getByLabelText(/GA4 property id/u), {
-      target: { value: "properties/313598867" },
+      target: { value: "properties/123456789" },
     });
     fireEvent.click(within(block).getByRole("button", { name: "Save" }));
 
     expect(
-      await within(block).findByText("GA4 property id: digits only, e.g. 313598867"),
+      await within(block).findByText("GA4 property id: digits only, e.g. 123456789"),
     ).toBeInTheDocument();
     expect(puts).toHaveLength(0);
   });
 
   it("shows what reads the mapping, which differs per asset, and when a save gets there", async () => {
     stubEditing(ga4Lane());
-    const first = renderRoute("meals.example", "", "sources");
+    const first = renderRoute("meadow.example", "", "sources");
 
     await first.findByText("Google Analytics");
     openLane("Google Analytics");
@@ -3033,10 +3033,10 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     expect(first.container.textContent).not.toContain("falls back to");
     first.unmount();
 
-    stubEditing(ga4Lane({ propertyId: "313598867" }), NOT_CONNECTED, {
+    stubEditing(ga4Lane({ propertyId: "123456789" }), NOT_CONNECTED, {
       "config/integrations.json": "store",
     });
-    const second = renderRoute("meals.example", "", "sources");
+    const second = renderRoute("meadow.example", "", "sources");
 
     await second.findByText("Google Analytics");
     openLane("Google Analytics");
@@ -3064,7 +3064,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
   it("declines a source in two presses: Not using, then a reason chip, in one changeset", async () => {
     const puts = stubEditing(ga4Lane({ note: "No GA4 property for this site" }));
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
@@ -3087,14 +3087,14 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
       {
         kind: "file-json-set",
         file: "config/integrations.json",
-        pointer: "/assets/meals.example/ga4/note",
+        pointer: "/assets/meadow.example/ga4/note",
         expect: "No GA4 property for this site",
         value: "REASON: Not relevant for this site",
       },
       {
         kind: "file-json-set",
         file: "config/integrations.json",
-        pointer: "/assets/meals.example/ga4/status",
+        pointer: "/assets/meadow.example/ga4/status",
         expect: "needs-setup",
         value: "skipped",
       },
@@ -3108,14 +3108,14 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
       {
         kind: "file-json-set",
         file: "config/integrations.json",
-        pointer: "/assets/meals.example/ga4/note",
+        pointer: "/assets/meadow.example/ga4/note",
         expect: "REASON: Not relevant for this site",
         value: "No GA4 property for this site",
       },
       {
         kind: "file-json-set",
         file: "config/integrations.json",
-        pointer: "/assets/meals.example/ga4/status",
+        pointer: "/assets/meadow.example/ga4/status",
         expect: "skipped",
         value: "needs-setup",
       },
@@ -3124,7 +3124,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
   it("declines a new site's source as a first write, and undoes it back to no note at all", async () => {
     const puts = stubEditing(ga4Lane({ note: null }));
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
@@ -3135,14 +3135,14 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
       {
         kind: "file-json-set",
         file: "config/integrations.json",
-        pointer: "/assets/meals.example/ga4/note",
+        pointer: "/assets/meadow.example/ga4/note",
         expectAbsent: true,
         value: "REASON: Replaced by another tool",
       },
       {
         kind: "file-json-set",
         file: "config/integrations.json",
-        pointer: "/assets/meals.example/ga4/status",
+        pointer: "/assets/meadow.example/ga4/status",
         expect: "needs-setup",
         value: "skipped",
       },
@@ -3155,13 +3155,13 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
       {
         kind: "file-json-delete",
         file: "config/integrations.json",
-        pointer: "/assets/meals.example/ga4/note",
+        pointer: "/assets/meadow.example/ga4/note",
         expect: "REASON: Replaced by another tool",
       },
       {
         kind: "file-json-set",
         file: "config/integrations.json",
-        pointer: "/assets/meals.example/ga4/status",
+        pointer: "/assets/meadow.example/ga4/status",
         expect: "skipped",
         value: "needs-setup",
       },
@@ -3172,14 +3172,14 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     // A blank note cannot be written back, so that half of the Undo is not
     // offered.
     const puts = stubEditing(ga4Lane({ note: "" }));
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
     fireEvent.click(screen.getByRole("button", { name: "Not using" }));
     fireEvent.click(within(declineChips()).getByRole("button", { name: "Replaced by another tool" }));
     await waitFor(() => expect(puts).toHaveLength(1));
-    expect(puts[0]?.ops[0]).toMatchObject({ pointer: "/assets/meals.example/ga4/note", expect: "", value: "REASON: Replaced by another tool" });
+    expect(puts[0]?.ops[0]).toMatchObject({ pointer: "/assets/meadow.example/ga4/note", expect: "", value: "REASON: Replaced by another tool" });
 
     await waitFor(() => expect(toasts.success).toHaveBeenCalled());
     await pressUndo();
@@ -3188,7 +3188,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
       {
         kind: "file-json-set",
         file: "config/integrations.json",
-        pointer: "/assets/meals.example/ga4/status",
+        pointer: "/assets/meadow.example/ga4/status",
         expect: "skipped",
         value: "needs-setup",
       },
@@ -3197,7 +3197,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
   it("takes the operator's own words and writes the prefix for them", async () => {
     const puts = stubEditing(ga4Lane({ note: "REASON: an older decision" }));
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
@@ -3210,14 +3210,14 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
     await waitFor(() => expect(puts).toHaveLength(1));
     expect(puts[0]?.ops.map((op) => [op.pointer, (op as { value: unknown }).value])).toEqual([
-      ["/assets/meals.example/ga4/note", "REASON: Moved to Plausible"],
-      ["/assets/meals.example/ga4/status", "skipped"],
+      ["/assets/meadow.example/ga4/note", "REASON: Moved to Plausible"],
+      ["/assets/meadow.example/ga4/status", "skipped"],
     ]);
   });
 
   it("closes the chips without writing anything", async () => {
     const puts = stubEditing(ga4Lane());
-    const { findByText } = renderRoute("meals.example", "", "sources");
+    const { findByText } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
@@ -3232,7 +3232,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     const puts = stubEditing(
       ga4Lane({ declared: "skipped", effective: "skipped", note: "REASON: Replaced by another tool" }),
     );
-    const { findByText, container } = renderRoute("meals.example", "", "sources");
+    const { findByText, container } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     expect(container.querySelector("[data-lane-reason]")?.textContent).toBe("Replaced by another tool");
@@ -3246,7 +3246,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
       {
         kind: "file-json-set",
         file: "config/integrations.json",
-        pointer: "/assets/meals.example/ga4/status",
+        pointer: "/assets/meadow.example/ga4/status",
         expect: "skipped",
         value: "needs-setup",
       },
@@ -3255,14 +3255,14 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
   it("does not read an old decline reason as what blocks a source in use again", async () => {
     stubEditing(ga4Lane({ note: "REASON: Replaced by another tool" }));
-    const first = renderRoute("meals.example", "", "sources");
+    const first = renderRoute("meadow.example", "", "sources");
     await first.findByText("Google Analytics");
     openLane("Google Analytics");
     expect(first.container.querySelector("[data-lane-note]")).toBeNull();
     first.unmount();
 
     stubEditing(ga4Lane({ note: "Viewer grant pending on the GA4 property" }));
-    const second = renderRoute("meals.example", "", "sources");
+    const second = renderRoute("meadow.example", "", "sources");
     await second.findByText("Google Analytics");
     openLane("Google Analytics");
     expect(second.container.querySelector("[data-lane-note]")?.textContent).toBe("Viewer grant pending on the GA4 property");
@@ -3278,7 +3278,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
       true,
     );
     googleAnswers([{ capability: "ga4-daily", state: "healthy" }]);
-    const { findByText, container } = renderRoute("meals.example", "", "sources");
+    const { findByText, container } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
@@ -3289,8 +3289,8 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
   });
 
   it("opens a source's settings on its mapping alone, never a checklist restating its status", async () => {
-    stubEditing(ga4Lane({ propertyId: "313598867", effective: "live", declared: "live" }));
-    const { findByText, container } = renderRoute("meals.example", "", "sources");
+    stubEditing(ga4Lane({ propertyId: "123456789", effective: "live", declared: "live" }));
+    const { findByText, container } = renderRoute("meadow.example", "", "sources");
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
@@ -3320,7 +3320,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     };
     data.performance = { ...data.performance, sessions: trend, pageViews: trend };
     stubFetch(200, data);
-    const { container, findByText } = renderPath("/assets/meals.example/growth?range=7");
+    const { container, findByText } = renderPath("/assets/meadow.example/growth?range=7");
     await findByText("Also collected");
     const head = container.querySelector('[data-growth-chart="Sessions"] [data-growth-delta]')!;
     const supporting = container.querySelector('[data-collected-delta="page-views"]')!;
@@ -3369,7 +3369,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     };
     stubFetch(200, data);
     const { container, findByText } = renderPath(
-      "/assets/meals.example/growth?range=7",
+      "/assets/meadow.example/growth?range=7",
     );
 
     await findByText("Also collected");
@@ -3412,7 +3412,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
       },
     };
     stubFetch(200, data);
-    const { container, findByText } = renderRoute("meals.example", "", "growth");
+    const { container, findByText } = renderRoute("meadow.example", "", "growth");
 
     await findByText("Also collected");
     const sessions = container.querySelector('[data-growth-chart="Sessions"]')!;
@@ -3473,7 +3473,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     };
     stubFetch(200, data);
     const { container, findByText } = renderPath(
-      "/assets/meals.example/growth?range=7",
+      "/assets/meadow.example/growth?range=7",
     );
 
     await findByText("Also collected");
@@ -3529,7 +3529,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     };
     stubFetch(200, data);
     const { container, findAllByText } = renderPath(
-      "/assets/meals.example/growth?range=7",
+      "/assets/meadow.example/growth?range=7",
     );
 
     await findAllByText("Clicks");
@@ -3578,7 +3578,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     };
     stubFetch(200, data);
     const { container, findAllByText } = renderPath(
-      "/assets/meals.example/growth?range=7",
+      "/assets/meadow.example/growth?range=7",
     );
 
     await findAllByText("Clicks");
@@ -3610,7 +3610,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
       sitemap: { check: "sitemap", readings: [], latest: null },
       bots: [],
     } }));
-    const { findAllByText, queryByText } = renderRoute("meals.example", "", "sources");
+    const { findAllByText, queryByText } = renderRoute("meadow.example", "", "sources");
     await findAllByText("Data sources");
     expect(queryByText("Site health")).toBeNull();
   });
@@ -3625,7 +3625,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
           ...base.wiring,
           mode: "pull",
           pull: {
-            index: 0, url: "https://meals.example/api/internal/metrics", enabled: true, format: "envelope",
+            index: 0, url: "https://meadow.example/api/internal/metrics", enabled: true, format: "envelope",
             metricMap: null, auth: "Site token", authOwner: "workers/ingest/.dev.vars",
           },
           push: null,
@@ -3642,7 +3642,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         failure("2026-07-04T02:30:00.000Z", true, { status: 503, providerError: "unconfigured", error: "503 unconfigured — set CF_ACCOUNT_ID" }),
         failure("2026-06-20T02:30:00.000Z", false, { status: 404, error: "non-200 response (404)" }),
       ] }));
-      const { container, findByText } = renderRoute("meals.example", "", "sources");
+      const { container, findByText } = renderRoute("meadow.example", "", "sources");
       await findByText("Failed fetches");
       const rows = [...container.querySelectorAll<HTMLElement>("[data-fetch-failure]")];
       expect(rows.map((row) => row.dataset.fetchFailure)).toEqual(["ongoing", "ongoing", "past"]);
@@ -3656,14 +3656,14 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
 
     it("says No record yet when none is recorded", async () => {
       stubFetch(200, fetched({ fetchFailures: [] }));
-      const view = renderRoute("meals.example", "", "sources");
+      const view = renderRoute("meadow.example", "", "sources");
       await view.findByText("Failed fetches");
       expect(view.getByText("No record yet")).toBeInTheDocument();
     });
 
     it("draws nothing for a site that sends its own report", async () => {
       stubFetch(200, payload({ fetchFailures: [] }));
-      const { findAllByText, queryByText } = renderRoute("meals.example", "", "sources");
+      const { findAllByText, queryByText } = renderRoute("meadow.example", "", "sources");
       await findAllByText("Data sources");
       expect(queryByText("Failed fetches")).toBeNull();
     });
@@ -3684,7 +3684,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
       sitemap: { check: "sitemap", readings: [], latest: null },
       bots: [],
     } }));
-    const { container, findByText } = renderRoute("meals.example", "", "sources");
+    const { container, findByText } = renderRoute("meadow.example", "", "sources");
     await findByText("Site health");
     const card = container.querySelector<HTMLElement>('[data-hygiene-check="html-depth"]')!;
     const chart = within(card).queryByRole("img");
@@ -3790,7 +3790,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         },
       }),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "sources");
+    const { container, findByText } = renderRoute("meadow.example", "", "sources");
     await findByText("Site health");
 
     expect(container.textContent).toContain("88");
@@ -3844,7 +3844,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         },
       }),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "sources");
+    const { container, findByText } = renderRoute("meadow.example", "", "sources");
     await findByText("Site health");
 
     const fresh = container.querySelector('[data-hygiene-check="html-depth"]');
@@ -3860,7 +3860,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
 
   it("renders no site-health section before the guard's first night", async () => {
     stubFetch(200, payload({ hygiene: null }));
-    const { container, findByText, queryByRole } = renderRoute("meals.example", "", "sources");
+    const { container, findByText, queryByRole } = renderRoute("meadow.example", "", "sources");
     await findByText("Daily metrics");
     expect(queryByRole("region", { name: "Site health" })).toBeNull();
     expect(container.querySelector("[data-hygiene-check]")).toBeNull();
@@ -3913,7 +3913,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         },
       }),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "activity");
+    const { container, findByText } = renderRoute("meadow.example", "", "activity");
 
     await findByText("Bets");
     expect(container.textContent).toContain("Google clicks");
@@ -3969,7 +3969,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         },
       }),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "activity");
+    const { container, findByText } = renderRoute("meadow.example", "", "activity");
 
     await findByText("Bets");
     expect(container.querySelector("[data-watch-scope-subject]")?.textContent).toBe(
@@ -3988,8 +3988,8 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         handoffBeads: [
           {
             kind: "query",
-            key: "chipotle calories",
-            beadId: "mp-1w2",
+            key: "tornado kit specs",
+            beadId: "md-1w2",
             status: "closed",
             closedAt: "2026-08-01T00:00:00.000Z",
           },
@@ -4002,7 +4002,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
               metric: "clicks",
               scope: null,
               refKind: "manual",
-              ref: "mp-1w2",
+              ref: "md-1w2",
               registeredAt: "2026-07-30T09:00:00.000Z",
               nextCheckDate: "2026-08-06",
               readings: 1,
@@ -4019,13 +4019,13 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         },
       }),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "activity");
+    const { container, findByText } = renderRoute("meadow.example", "", "activity");
     await findByText("Bets");
 
     openRow("Google clicks");
     const row = container.querySelector('[data-watch-id="watch-for-mp-1w2"]');
     const badge = row?.querySelector('[data-handoff-bead="closed"]');
-    expect(badge?.textContent).toContain("mp-1w2");
+    expect(badge?.textContent).toContain("md-1w2");
     expect(badge?.getAttribute("title")).toContain("not proof of shipment or outcome");
     expect(row?.querySelector("[data-watch-ref-unresolved]")).toBeNull();
     expect(row?.textContent).not.toMatch(
@@ -4035,7 +4035,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
 
   it("says no change is logged once, in the answer, instead of an age badge", async () => {
     stubFetch(200, payload());
-    const { container, findByText } = renderRoute("meals.example", "", "activity");
+    const { container, findByText } = renderRoute("meadow.example", "", "activity");
     await findByText("Timeline");
 
     expect(container.querySelector('[data-activity-answer="none"] h2')).toHaveTextContent("No changes logged yet");
@@ -4047,7 +4047,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
       200,
       payload({ freshness: { ...payload().freshness, annotationAt: "not-a-date" } }),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "activity");
+    const { container, findByText } = renderRoute("meadow.example", "", "activity");
     await findByText("Timeline");
 
     expect(container.querySelector('[data-activity-answer="unreadable"] h2')).toHaveTextContent("Last change date unreadable");
@@ -4055,7 +4055,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
 
   it("says nothing about watches when none are registered — there is no way to add one here", async () => {
     stubFetch(200, payload());
-    const { container, findByText } = renderRoute("meals.example", "", "activity");
+    const { container, findByText } = renderRoute("meadow.example", "", "activity");
 
     await findByText("Timeline");
     expect(container.textContent).not.toContain("Bets");
@@ -4082,12 +4082,12 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
               status: "replied",
               statusAt: "2026-07-14",
             },
-            { id: 2, domain: "school-meals.example", status: "queued", statusAt: null },
+            { id: 2, domain: "school-meadow.example", status: "queued", statusAt: null },
           ],
         },
       }),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "activity");
+    const { container, findByText } = renderRoute("meadow.example", "", "activity");
 
     await findByText("Link outreach");
     for (const stage of ["33", "to pitch", "6", "sent", "5", "opened", "4", "clicked", "1", "replied"]) {
@@ -4098,7 +4098,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     expect(container.textContent).toContain("59 targets in all");
     expect(container.textContent).toContain("city.extension.example");
     expect(container.textContent).toContain("Jul 14, 2026");
-    expect(container.textContent).toContain("school-meals.example");
+    expect(container.textContent).toContain("school-meadow.example");
     const outreach = screen.getByRole("region", { name: "Link outreach" });
     expect(within(outreach).queryAllByRole("button")).toHaveLength(0);
     expect(within(outreach).queryAllByRole("link")).toHaveLength(0);
@@ -4109,7 +4109,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     // A mixed month whose blended net would be $644.20: that number must
     // appear nowhere.
     stubFetch(200, payload({ ledger: MIXED_LEDGER }));
-    const { findAllByText, findByText } = renderRoute("meals.example", "", "financials");
+    const { findAllByText, findByText } = renderRoute("meadow.example", "", "financials");
 
     const section = (await findByText("Monthly accounting")).closest(CARD)!;
     // The month names the strip's cell and a row in the entries table below
@@ -4145,7 +4145,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         },
       }),
     );
-    const { findAllByText, findByText } = renderRoute("meals.example", "", "financials");
+    const { findAllByText, findByText } = renderRoute("meadow.example", "", "financials");
 
     await findByText("Monthly accounting");
     const tile = (await findAllByText("June 2026"))
@@ -4160,7 +4160,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
       200,
       payload({
         panelReview: {
-          beadId: "mp-4a2",
+          beadId: "md-4a2",
           panelDate: "2026-07-01",
           dueAt: "2026-07-04T06:00:00.000Z",
           status: "open",
@@ -4170,19 +4170,19 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         latestPanelDate: "2026-07-01",
       }),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "activity");
+    const { container, findByText } = renderRoute("meadow.example", "", "activity");
 
     await findByText("Timeline");
     const line = container.querySelector("[data-panel-review-line]")!;
     expect(line.getAttribute("data-panel-review-line")).toBe("overdue");
     expect(line.textContent).toContain("Jul 1, 2026");
     expect(line.textContent).toContain("Jul 4, 2026");
-    expect(line.textContent).toContain("mp-4a2");
+    expect(line.textContent).toContain("md-4a2");
   });
 
   it("says nothing about a panel review for an asset with no panel", async () => {
     stubFetch(200, payload());
-    const { container, findByText } = renderRoute("meals.example", "", "activity");
+    const { container, findByText } = renderRoute("meadow.example", "", "activity");
 
     await findByText("Timeline");
     expect(container.querySelector("[data-panel-review-line]")).toBeNull();
@@ -4200,7 +4200,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         },
         executive: null,
         panelReview: {
-          beadId: "mp-4a2",
+          beadId: "md-4a2",
           panelDate: "2026-07-01",
           // The page reads the real clock (`useNow`), so a still-open
           // deadline must be stated relative to it.
@@ -4212,7 +4212,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         latestPanelDate: "2026-07-01",
       }),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "activity");
+    const { container, findByText } = renderRoute("meadow.example", "", "activity");
 
     await findByText("Timeline");
     expect(
@@ -4222,7 +4222,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
 
   it("says nothing about link outreach for an asset running no campaign", async () => {
     stubFetch(200, payload());
-    const { container, findByText, queryByRole } = renderRoute("meals.example", "", "activity");
+    const { container, findByText, queryByRole } = renderRoute("meadow.example", "", "activity");
 
     await findByText("Timeline");
     expect(queryByRole("region", { name: "Link outreach" })).toBeNull();
@@ -4234,7 +4234,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     const clock = vi.spyOn(Date, "now").mockReturnValue(now);
     try {
       const fetchMock = stubFetch(200, payload());
-      const { findByRole, findByLabelText, queryByText } = renderRoute("meals.example", "", "activity");
+      const { findByRole, findByLabelText, queryByText } = renderRoute("meadow.example", "", "activity");
       await openComposer(findByRole, "event");
       fireEvent.change(await findByLabelText("Description"), {
         target: { value: "Published the updated guide" },
@@ -4265,7 +4265,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
 
   it("records a backdated timeline event through the asset's own write lane", async () => {
     const fetchMock = stubFetch(200, payload());
-    const { findByRole, findByLabelText } = renderRoute("meals.example", "", "activity");
+    const { findByRole, findByLabelText } = renderRoute("meadow.example", "", "activity");
 
     await openComposer(findByRole, "event");
     fireEvent.change(await findByLabelText("What happened"), {
@@ -4284,7 +4284,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         ([, init]) => (init as RequestInit | undefined)?.method === "POST",
       );
       expect(write).toBeDefined();
-      expect(String(write![0])).toBe("/api/assets/meals.example/annotations");
+      expect(String(write![0])).toBe("/api/assets/meadow.example/annotations");
       const body = JSON.parse(String((write![1] as RequestInit).body)) as {
         kind: string;
         at: string;
@@ -4299,7 +4299,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
 
   it("will not submit an event with nothing written on it", async () => {
     stubFetch(200, payload());
-    const { findByRole } = renderRoute("meals.example", "", "activity");
+    const { findByRole } = renderRoute("meadow.example", "", "activity");
 
     await openComposer(findByRole, "event");
     expect(await findByRole("button", { name: "Record" })).toBeDisabled();
@@ -4335,7 +4335,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
       ([, init]) => (init as RequestInit | undefined)?.method === "POST",
     );
     expect(write).toBeDefined();
-    expect(String(write![0])).toBe("/api/assets/meals.example/watch-windows");
+    expect(String(write![0])).toBe("/api/assets/meadow.example/watch-windows");
     return JSON.parse(String((write![1] as RequestInit).body)) as Record<
       string,
       unknown
@@ -4361,7 +4361,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
 
   it("registers the documented shape from one click, prefilled from the change", async () => {
     const fetchMock = stubFetch(200, withChange());
-    const { findByRole } = renderRoute("meals.example", "", "activity");
+    const { findByRole } = renderRoute("meadow.example", "", "activity");
 
     await openComposer(findByRole, "watch");
     fireEvent.click(await findByRole("button", { name: "Register" }));
@@ -4389,7 +4389,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
 
   it("draws the plan before it is registered: win, loss, checks and verdict", async () => {
     stubFetch(200, withChange());
-    const { container, findByRole } = renderRoute("meals.example", "", "activity");
+    const { container, findByRole } = renderRoute("meadow.example", "", "activity");
 
     await openComposer(findByRole, "watch");
     const plan = container.querySelector<HTMLElement>("[data-watch-summary]")!;
@@ -4404,7 +4404,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
 
   it("refuses a baseline overlapping the registration in the UI, not only at the route", async () => {
     const fetchMock = stubFetch(200, withChange());
-    const { container, findByRole, findByLabelText } = renderRoute("meals.example", "", "activity");
+    const { container, findByRole, findByLabelText } = renderRoute("meadow.example", "", "activity");
 
     await openComposer(findByRole, "watch");
     fireEvent.change(await findByLabelText("Baseline to"), {
@@ -4433,7 +4433,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
 
   it("refuses an asset-wide average in the UI, not only at the route", async () => {
     const fetchMock = stubFetch(200, withChange());
-    const { container, findByRole, findByLabelText } = renderRoute("meals.example", "", "activity");
+    const { container, findByRole, findByLabelText } = renderRoute("meadow.example", "", "activity");
 
     await openComposer(findByRole, "watch");
     const picker = await findByLabelText("Which number");
@@ -4463,7 +4463,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
 
   it("names what it is watching when there is no timeline event to point at", async () => {
     const fetchMock = stubFetch(200, payload());
-    const { findByRole, findByLabelText } = renderRoute("meals.example", "", "activity");
+    const { findByRole, findByLabelText } = renderRoute("meadow.example", "", "activity");
 
     await openComposer(findByRole, "watch");
     expect(await findByRole("button", { name: "Register" })).toBeDisabled();
@@ -4509,7 +4509,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
 
   it("prefills the threshold from this asset's own series, not the README's example", async () => {
     const fetchMock = stubFetch(200, withFlatClicks());
-    const { findByRole } = renderRoute("meals.example", "", "activity");
+    const { findByRole } = renderRoute("meadow.example", "", "activity");
 
     await openComposer(findByRole, "watch");
     fireEvent.click(await findByRole("button", { name: "Register" }));
@@ -4524,7 +4524,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
 
   it("says where the number came from, with the span and the floor behind it", async () => {
     stubFetch(200, withFlatClicks());
-    const { container, findByRole } = renderRoute("meals.example", "", "activity");
+    const { container, findByRole } = renderRoute("meadow.example", "", "activity");
 
     await openComposer(findByRole, "watch");
     const line = container.querySelector<HTMLElement>("[data-watch-calibration]")!;
@@ -4563,7 +4563,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
         ],
       },
     });
-    const { container, findByRole, findByLabelText } = renderRoute("meals.example", "", "activity");
+    const { container, findByRole, findByLabelText } = renderRoute("meadow.example", "", "activity");
 
     await openComposer(findByRole, "watch");
     fireEvent.change(await findByLabelText("Smallest move that counts %"), {
@@ -4592,7 +4592,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
         ],
       },
     });
-    const { container, findByRole } = renderRoute("meals.example", "", "activity");
+    const { container, findByRole } = renderRoute("meadow.example", "", "activity");
 
     await openComposer(findByRole, "watch");
     const line = container.querySelector("[data-watch-calibration]");
@@ -4603,7 +4603,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
 
   it("admits when it is showing the example instead of this asset's number", async () => {
     stubFetch(200, withChange());
-    const { container, findByRole } = renderRoute("meals.example", "", "activity");
+    const { container, findByRole } = renderRoute("meadow.example", "", "activity");
 
     await openComposer(findByRole, "watch");
     const line = container.querySelector("[data-watch-calibration]");
@@ -4619,7 +4619,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     return payload({
       executive: {
         schemaVersion: 1,
-        asset: "meals.example",
+        asset: "meadow.example",
         generatedAt: new Date().toISOString(),
         windowStart: "2026-06-01",
         windowEnd: "2026-06-30",
@@ -4650,8 +4650,8 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
             caveat: "Modelled demand.",
             queries: [
               {
-                query: "chipotle calories",
-                page: "/chipotle",
+                query: "tornado kit specs",
+                page: "/tornado-kit",
                 organicPosition: 14,
                 previousOrganicPosition: null,
                 positionImprovement: null,
@@ -4683,7 +4683,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     return {
       integration: "gsc",
       metric: "position",
-      query: "chipotle calories",
+      query: "tornado kit specs",
       firstDay: day(Date.now() - (values.length - 1) * DAY_MS),
       values,
       archiveFirstDay: day(Date.now() - (archiveDays - 1) * DAY_MS),
@@ -4701,10 +4701,10 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
 
   it("opens the same composer from a query row, on that row's own metric", async () => {
     const fetchMock = stubFetch(200, withQueryRow());
-    const { container, findByRole } = renderRoute("meals.example", "", "search");
+    const { container, findByRole } = renderRoute("meadow.example", "", "search");
 
     fireEvent.click(
-      await findByRole("button", { name: /watch the outcome for chipotle calories/i }),
+      await findByRole("button", { name: /watch the outcome for tornado kit specs/i }),
     );
     expect(
       container.querySelectorAll("[aria-label='Register an outcome check']"),
@@ -4719,13 +4719,13 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
         metric_integration: "gsc",
         metric: "position",
         ref_kind: "manual",
-        scope: { query: "chipotle calories" },
+        scope: { query: "tornado kit specs" },
         thresholds: {
           ship: { direction: "down", min_delta_pct: 10 },
           kill: { direction: "up", min_delta_pct: 10 },
         },
       });
-      expect(String(postedBody(fetchMock).ref)).toContain("chipotle calories");
+      expect(String(postedBody(fetchMock).ref)).toContain("tornado kit specs");
     });
   });
 
@@ -4740,14 +4740,14 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
       9,
     );
     const fetchMock = stubFetchWithQueryHistory(withQueryRow(), history);
-    const { container, findByRole } = renderRoute("meals.example", "", "search");
+    const { container, findByRole } = renderRoute("meadow.example", "", "search");
 
     fireEvent.click(
-      await findByRole("button", { name: /watch the outcome for chipotle calories/i }),
+      await findByRole("button", { name: /watch the outcome for tornado kit specs/i }),
     );
     const scope = container.querySelector("[data-watch-scope]");
     expect(scope?.getAttribute("data-watch-scope")).toBe("query");
-    expect(scope?.textContent).toBe("Only “chipotle calories”");
+    expect(scope?.textContent).toBe("Only “tornado kit specs”");
     await waitFor(() => {
       const calibration = container.querySelector("[data-watch-calibration]");
       expect(calibration?.getAttribute("data-watch-calibration-state")).toBe(
@@ -4761,17 +4761,17 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     fireEvent.click(await findByRole("button", { name: "Register" }));
     await waitFor(() => {
       expect(postedBody(fetchMock)).toMatchObject({
-        scope: { query: "chipotle calories" },
+        scope: { query: "tornado kit specs" },
       });
     });
   });
 
   it("offers the way back when a provider widens a query check to the whole site", async () => {
     const fetchMock = stubFetch(200, withQueryRow());
-    const { container, findByRole, findByLabelText } = renderRoute("meals.example", "", "search");
+    const { container, findByRole, findByLabelText } = renderRoute("meadow.example", "", "search");
 
     fireEvent.click(
-      await findByRole("button", { name: /watch the outcome for chipotle calories/i }),
+      await findByRole("button", { name: /watch the outcome for tornado kit specs/i }),
     );
     fireEvent.change(await findByLabelText("Which number"), {
       target: { value: "ga4:sessions" },
@@ -4779,14 +4779,14 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     const scope = container.querySelector("[data-watch-scope]");
     expect(scope?.getAttribute("data-watch-scope")).toBe("widened");
     expect(scope?.textContent).toContain("Whole site");
-    fireEvent.click(await findByRole("button", { name: "Follow “chipotle calories”" }));
+    fireEvent.click(await findByRole("button", { name: "Follow “tornado kit specs”" }));
     expect(container.querySelector("[data-watch-scope]")?.getAttribute("data-watch-scope")).toBe("query");
     fireEvent.click(await findByRole("button", { name: "Register" }));
     await waitFor(() => {
       expect(postedBody(fetchMock)).toMatchObject({
         metric_integration: "gsc",
         metric: "position",
-        scope: { query: "chipotle calories" },
+        scope: { query: "tornado kit specs" },
       });
     });
   });
@@ -4824,10 +4824,10 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     const siteFloor = watchCalibration(noisySite.watches.history[0]!, 28)!;
     expect(siteFloor.suggestedPct).toBeGreaterThan(1);
     const fetchMock = stubFetchWithQueryHistory(noisySite, queryHistory);
-    const { container, findByRole } = renderRoute("meals.example", "", "search");
+    const { container, findByRole } = renderRoute("meadow.example", "", "search");
 
     fireEvent.click(
-      await findByRole("button", { name: /watch the outcome for chipotle calories/i }),
+      await findByRole("button", { name: /watch the outcome for tornado kit specs/i }),
     );
     await waitFor(() => {
       const calibration = container.querySelector("[data-watch-calibration]");
@@ -4851,7 +4851,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
 
   it("opens the composer from a finding, on the metric its own sources name", async () => {
     const fetchMock = stubFetch(200, withQueryRow());
-    const { container, findByRole, findByText } = renderRoute("meals.example");
+    const { container, findByRole, findByText } = renderRoute("meadow.example");
 
     fireEvent.click(await findByText(/All findings/));
     fireEvent.click(
@@ -4880,8 +4880,8 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
       handoffBeads: [
         {
           kind: "query" as const,
-          key: "chipotle calories",
-          beadId: "mp-1w2",
+          key: "tornado kit specs",
+          beadId: "md-1w2",
           status: "open" as const,
           closedAt: null,
         },
@@ -4891,45 +4891,45 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
 
   it("registers a check whose ref is the task the row was filed as", async () => {
     const fetchMock = stubFetch(200, withFiledQueryRow());
-    const { findByRole } = renderRoute("meals.example", "", "search");
+    const { findByRole } = renderRoute("meadow.example", "", "search");
 
     fireEvent.click(
-      await findByRole("button", { name: /watch the outcome for chipotle calories/i }),
+      await findByRole("button", { name: /watch the outcome for tornado kit specs/i }),
     );
     fireEvent.click(await findByRole("button", { name: "Register" }));
 
     await waitFor(() => {
       expect(postedBody(fetchMock)).toMatchObject({
         ref_kind: "manual",
-        ref: "mp-1w2",
+        ref: "md-1w2",
       });
-      expect(String(postedBody(fetchMock).note)).toContain("chipotle calories");
+      expect(String(postedBody(fetchMock).note)).toContain("tornado kit specs");
     });
   });
 
   it("records a timeline event against the task that caused it", async () => {
     const fetchMock = stubFetch(200, withFiledQueryRow());
-    const { container, findByRole, findByLabelText } = renderRoute("meals.example", "", "activity");
+    const { container, findByRole, findByLabelText } = renderRoute("meadow.example", "", "activity");
 
     await openComposer(findByRole, "event");
     fireEvent.change(await findByLabelText("Description"), {
-      target: { value: "rewrote the chipotle opener" },
+      target: { value: "rewrote the tornado kit opener" },
     });
     const chooser = container.querySelector<HTMLSelectElement>(
       "[data-annotation-task]",
     )!;
     expect(chooser.value).toBe("");
-    fireEvent.change(chooser, { target: { value: "mp-1w2" } });
+    fireEvent.change(chooser, { target: { value: "md-1w2" } });
     fireEvent.click(await findByRole("button", { name: "Record" }));
 
     await waitFor(() => {
       const write = fetchMock.mock.calls.find(
         ([, init]) => (init as RequestInit | undefined)?.method === "POST",
       );
-      expect(String(write![0])).toBe("/api/assets/meals.example/annotations");
+      expect(String(write![0])).toBe("/api/assets/meadow.example/annotations");
       expect(
         JSON.parse(String((write![1] as RequestInit).body)),
-      ).toMatchObject({ kind: "deploy", ref: "mp-1w2" });
+      ).toMatchObject({ kind: "deploy", ref: "md-1w2" });
     });
   });
 
@@ -4937,7 +4937,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     // `ref` is part of the store's identity (asset, at, kind, ref), so an empty
     // string is a value and would make two unrelated deploys collide.
     const fetchMock = stubFetch(200, withFiledQueryRow());
-    const { findByRole, findByLabelText } = renderRoute("meals.example", "", "activity");
+    const { findByRole, findByLabelText } = renderRoute("meadow.example", "", "activity");
 
     await openComposer(findByRole, "event");
     fireEvent.change(await findByLabelText("Description"), {
@@ -4966,26 +4966,26 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
             id: 41,
             at: new Date(changeMs).toISOString(),
             kind: "deploy",
-            ref: "mp-1w2",
-            note: "rewrote the chipotle opener",
+            ref: "md-1w2",
+            note: "rewrote the tornado kit opener",
           },
         ],
         olderCount: 0,
       },
     });
-    const { container, findByText } = renderRoute("meals.example", "", "activity");
+    const { container, findByText } = renderRoute("meadow.example", "", "activity");
 
     await findByText("Timeline");
-    openRow("rewrote the chipotle opener");
-    const badge = container.querySelector('[title*="mp-1w2"]');
-    expect(badge?.textContent).toContain("mp-1w2");
+    openRow("rewrote the tornado kit opener");
+    const badge = container.querySelector('[title*="md-1w2"]');
+    expect(badge?.textContent).toContain("md-1w2");
     expect(badge?.getAttribute("title")).toContain("not proof of shipment or outcome");
     expect(container.textContent).not.toMatch(/it worked|confirmed|resolved/i);
   });
 
   it("re-derives when the operator changes which number is watched", async () => {
     const fetchMock = stubFetch(200, withFlatClicks());
-    const { container, findByRole, findByLabelText } = renderRoute("meals.example", "", "activity");
+    const { container, findByRole, findByLabelText } = renderRoute("meadow.example", "", "activity");
 
     await openComposer(findByRole, "watch");
     fireEvent.change(await findByLabelText("Smallest move that counts %"), {
@@ -5026,7 +5026,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
   it("moves the lifecycle stage through the store lane, with an Undo to come back", async () => {
     toasts.success.mockReset();
     const fetchMock = stubFetch(200, payload());
-    const { findByLabelText } = renderRoute("meals.example", "", "settings");
+    const { findByLabelText } = renderRoute("meadow.example", "", "settings");
 
     const stage = await findByLabelText("Change lifecycle stage");
     fireEvent.change(stage, { target: { value: "baselining" } });
@@ -5038,7 +5038,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
 
     await waitFor(() => {
       expect(patchBody(fetchMock)).toEqual({
-        url: "/api/assets/meals.example",
+        url: "/api/assets/meadow.example",
         body: { column: "status", value: "baselining", expect: "live" },
       });
     });
@@ -5054,14 +5054,14 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
   it("names what archiving stops before it writes anything", async () => {
     const fetchMock = stubFetch(200, payload());
     const { container, findByRole, getByRole } = renderRoute(
-      "meals.example",
+      "meadow.example",
       "",
       "settings",
     );
 
     fireEvent.click(await findByRole("button", { name: "Archive site…" }));
     const confirm = container.querySelector("[data-archive-confirm]")!;
-    expect(confirm.textContent).toContain("Archiving Meal Planner stops:");
+    expect(confirm.textContent).toContain("Archiving Meadow Board stops:");
     expect(confirm.textContent).toContain("Data collection");
     expect(confirm.textContent).toContain("Alerts");
     expect(confirm.textContent).toContain("Its card on Home and the TV dashboard");
@@ -5070,7 +5070,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     fireEvent.click(getByRole("button", { name: "Archive site" }));
     await waitFor(() => {
       expect(patchBody(fetchMock)).toEqual({
-        url: "/api/assets/meals.example",
+        url: "/api/assets/meadow.example",
         body: { column: "status", value: "retired", expect: "live" },
       });
     });
@@ -5080,7 +5080,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     const data = payload();
     data.asset = { ...data.asset, status: "retired" };
     const fetchMock = stubFetch(200, data);
-    const { findByRole, queryByRole } = renderRoute("meals.example", "", "settings");
+    const { findByRole, queryByRole } = renderRoute("meadow.example", "", "settings");
 
     const restore = await findByRole("button", { name: "Restore" });
     expect(queryByRole("button", { name: "Archive site…" })).toBeNull();
@@ -5088,7 +5088,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     fireEvent.click(restore);
     await waitFor(() => {
       expect(patchBody(fetchMock)).toEqual({
-        url: "/api/assets/meals.example",
+        url: "/api/assets/meadow.example",
         body: { column: "status", value: "live", expect: "retired" },
       });
     });
@@ -5122,7 +5122,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
   it("records the stage an archive moved the asset out of", async () => {
     const fetchMock = stubFetch(200, payload());
     const { container, findByRole, getByRole } = renderRoute(
-      "meals.example",
+      "meadow.example",
       "",
       "settings",
     );
@@ -5133,7 +5133,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
 
     await waitFor(() => {
       expect(annotationBody(fetchMock)).toEqual({
-        url: "/api/assets/meals.example/annotations",
+        url: "/api/assets/meadow.example/annotations",
         body: { kind: "config", ref: "lifecycle:live>retired" },
       });
     });
@@ -5141,7 +5141,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
 
   it("records a stage picked from Change stage… too, not only an archive", async () => {
     const fetchMock = stubFetch(200, payload());
-    const { findByLabelText } = renderRoute("meals.example", "", "settings");
+    const { findByLabelText } = renderRoute("meadow.example", "", "settings");
 
     const stage = await findByLabelText("Change lifecycle stage");
     fireEvent.change(stage, { target: { value: "baselining" } });
@@ -5153,7 +5153,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
 
     await waitFor(() => {
       expect(annotationBody(fetchMock)).toEqual({
-        url: "/api/assets/meals.example/annotations",
+        url: "/api/assets/meadow.example/annotations",
         body: { kind: "config", ref: "lifecycle:live>baselining" },
       });
     });
@@ -5162,7 +5162,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
   it("restores to the stage the timeline recorded, and says where that came from", async () => {
     const fetchMock = stubFetch(200, archivedFrom("baselining"));
     const { container, findByRole, queryByRole } = renderRoute(
-      "meals.example",
+      "meadow.example",
       "",
       "settings",
     );
@@ -5176,7 +5176,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     fireEvent.click(restore);
     await waitFor(() => {
       expect(patchBody(fetchMock)).toEqual({
-        url: "/api/assets/meals.example",
+        url: "/api/assets/meadow.example",
         body: { column: "status", value: "baselining", expect: "retired" },
       });
     });
@@ -5194,7 +5194,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
       olderCount: 0,
     };
     stubFetch(200, data);
-    const { findByRole } = renderRoute("meals.example", "", "settings");
+    const { findByRole } = renderRoute("meadow.example", "", "settings");
 
     await findByRole("button", { name: "Restore to Onboarding" });
   });
@@ -5203,7 +5203,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     const data = payload();
     data.asset = { ...data.asset, status: "retired" };
     const fetchMock = stubFetch(200, data);
-    const { container, findByRole } = renderRoute("meals.example", "", "settings");
+    const { container, findByRole } = renderRoute("meadow.example", "", "settings");
 
     const restore = await findByRole("button", { name: "Restore" });
     const picker = container.querySelector<HTMLSelectElement>("[data-restore-stage]")!;
@@ -5215,7 +5215,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     fireEvent.click(restore);
     await waitFor(() => {
       expect(patchBody(fetchMock)).toEqual({
-        url: "/api/assets/meals.example",
+        url: "/api/assets/meadow.example",
         body: { column: "status", value: "baselining", expect: "retired" },
       });
     });
@@ -5229,7 +5229,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
       olderCount: 0,
     };
     stubFetch(200, data);
-    const { container, findByRole } = renderRoute("meals.example", "", "settings");
+    const { container, findByRole } = renderRoute("meadow.example", "", "settings");
 
     await findByRole("button", { name: "Restore" });
     expect(container.querySelector("[data-restore-default]")).not.toBeNull();
@@ -5257,7 +5257,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
         },
       }),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "settings");
+    const { container, findByText } = renderRoute("meadow.example", "", "settings");
 
     await findByText("Alert rules in force");
     expect(container.textContent).toContain("False-positive rate");
@@ -5276,10 +5276,10 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
   it("renames the asset in place, and the way back sits beside the field", async () => {
     toasts.success.mockReset();
     const fetchMock = stubFetch(200, payload());
-    const { findByLabelText } = renderRoute("meals.example", "", "settings");
+    const { findByLabelText } = renderRoute("meadow.example", "", "settings");
 
     const field = await findByLabelText("Display name");
-    fireEvent.change(field, { target: { value: "Meal Planner Food" } });
+    fireEvent.change(field, { target: { value: "Meadow Board Food" } });
     fireEvent.click(
       [...field.parentElement!.querySelectorAll("button")].find(
         (b) => b.textContent === "Save",
@@ -5288,11 +5288,11 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
 
     await waitFor(() => {
       expect(patchBody(fetchMock)).toEqual({
-        url: "/api/assets/meals.example",
+        url: "/api/assets/meadow.example",
         body: {
           column: "display_name",
-          value: "Meal Planner Food",
-          expect: "Meal Planner",
+          value: "Meadow Board Food",
+          expect: "Meadow Board",
         },
       });
     });
@@ -5308,21 +5308,21 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
       );
       expect(JSON.parse(String((patches[1]![1] as RequestInit).body))).toEqual({
         column: "display_name",
-        value: "Meal Planner",
-        expect: "Meal Planner Food",
+        value: "Meadow Board",
+        expect: "Meadow Board Food",
       });
     });
   });
 
   it("marks the domain and the asset id as fixed, as a state rather than a sentence", async () => {
     stubFetch(200, payload());
-    const { container, findByText } = renderRoute("meals.example", "", "settings");
+    const { container, findByText } = renderRoute("meadow.example", "", "settings");
 
     await findByText("Identity");
     const fixed = [...container.querySelectorAll("[data-fixed-value]")];
     expect(fixed.map((node) => node.textContent)).toEqual([
-      "meals.exampleFixed once added",
-      "meals.exampleFixed once added",
+      "meadow.exampleFixed once added",
+      "meadow.exampleFixed once added",
     ]);
     for (const node of fixed) expect(node.querySelector("input, select, button")).toBeNull();
     expect(container.textContent).not.toContain("not a rename");
@@ -5348,18 +5348,18 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
 describe("AssetDetailRoute — failed detail read", () => {
   it("renders a failure state with the status, not an endless Loading…", async () => {
     stubFetch(500, { error: "asset_detail_failed" });
-    const { container, findByRole } = renderRoute("nosh.example");
+    const { container, findByRole } = renderRoute("northwind.example");
 
     await findByRole("button", { name: /try again/i });
     expect(container.textContent).toContain("Couldn't load this site");
-    expect(container.textContent).toContain("nosh.example");
+    expect(container.textContent).toContain("northwind.example");
     expect(container.textContent).toContain("HTTP 500");
     expect(container.textContent).not.toContain("Loading…");
   });
 
   it("retries the read when the operator asks", async () => {
     const fetchMock = stubFetch(500, { error: "asset_detail_failed" });
-    const { findByRole } = renderRoute("nosh.example");
+    const { findByRole } = renderRoute("northwind.example");
 
     const retry = await findByRole("button", { name: /try again/i });
     const attempts = fetchMock.mock.calls.length; // the hook's own retry already ran
@@ -5377,7 +5377,7 @@ describe("AssetDetailRoute — failed detail read", () => {
 
   it("shows Loading… while the read is still in flight", () => {
     vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
-    const { container } = renderRoute("nosh.example");
+    const { container } = renderRoute("northwind.example");
     expect(container.textContent).toContain("Loading…");
   });
 });
@@ -5403,7 +5403,7 @@ function stubFetchWithWork(detail: unknown, work: unknown) {
 
 function workItem(over: Record<string, unknown> = {}) {
   return {
-    id: "mp-1w2",
+    id: "md-1w2",
     title: "Fix the recipe schema",
     status: "open",
     priority: 2,
@@ -5419,9 +5419,9 @@ function workItem(over: Record<string, unknown> = {}) {
 
 function workProject(over: Record<string, unknown> = {}) {
   return {
-    asset: "meals.example",
-    prefix: "mp",
-    name: "Meal Planner",
+    asset: "meadow.example",
+    prefix: "md",
+    name: "Meadow Board",
     ok: true,
     error: null,
     counts: {
@@ -5464,41 +5464,41 @@ describe("AssetDetailRoute — Tasks tab", () => {
       workPayload([
         workProject(),
         workProject({
-          asset: "nosh.example",
-          prefix: "nom",
-          name: "Nosh",
-          ready: [workItem({ id: "nom-77a", title: "Somebody else's queue" })],
+          asset: "northwind.example",
+          prefix: "nw",
+          name: "Northwind",
+          ready: [workItem({ id: "nw-77a", title: "Somebody else's queue" })],
         }),
       ]),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "tasks");
+    const { container, findByText } = renderRoute("meadow.example", "", "tasks");
 
     await findByText("Fix the recipe schema");
     expect(container.textContent).not.toContain("Somebody else's queue");
     expect(container.querySelector("#tasks-project")).toBeNull();
     expect(
-      container.querySelector('[data-tasks-board="meals.example"]'),
+      container.querySelector('[data-tasks-board="meadow.example"]'),
     ).not.toBeNull();
     expect(
       [...container.querySelectorAll("th")].map((node) => node.textContent),
     ).not.toContain("Project");
-    expect(container.querySelector('tr[data-task-row="mp-1w2"]')!.textContent).toContain(
-      "mp-1w2",
+    expect(container.querySelector('tr[data-task-row="md-1w2"]')!.textContent).toContain(
+      "md-1w2",
     );
   });
 
   it("files a new task into this project, with the index's own ?new=1", async () => {
     stubFetchWithWork(payload(), workPayload([workProject()]));
-    const { container, findByText } = renderRoute("meals.example", "", "tasks");
+    const { container, findByText } = renderRoute("meadow.example", "", "tasks");
 
     await findByText("Fix the recipe schema");
     const button = container.querySelector("[data-new-task]")!;
-    expect(button.getAttribute("data-new-task-project")).toBe("meals.example");
+    expect(button.getAttribute("data-new-task-project")).toBe("meadow.example");
   });
 
   it("carries the open count and the inbox glyph on the tab itself", async () => {
     stubFetchWithWork(payload(), workPayload([workProject()]));
-    const { container, findByText } = renderRoute("meals.example");
+    const { container, findByText } = renderRoute("meadow.example");
 
     await findByText("What matters");
     await waitFor(() => {
@@ -5513,7 +5513,7 @@ describe("AssetDetailRoute — Tasks tab", () => {
 
   it("says how to wire a project rather than showing an empty queue", async () => {
     stubFetchWithWork(payload(), workPayload([]));
-    const { container, findByText } = renderRoute("meals.example", "", "tasks");
+    const { container, findByText } = renderRoute("meadow.example", "", "tasks");
 
     await findByText("No task project for this site");
     expect(container.querySelector("[data-tasks-unwired]")).not.toBeNull();
@@ -5572,7 +5572,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
 
   /** Two tracked terms, one bare and one carrying its bet — both shapes the
    * file allows, in the mix it allows them in. */
-  const PANEL = ["big mac calories", { query: "whopper calories", label: "Item head" }];
+  const PANEL = ["anvil specs", { query: "rocket skates specs", label: "Item head" }];
   const ROSTER = {
     enabled: true,
     reason: "live-lanes",
@@ -5601,11 +5601,11 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     const data = payload({ panelConfig: { trackedQueries: null, roster: null } });
     data.integrations = { ...data.integrations, lanes: [] };
     stubFetch(200, data);
-    const { container, findByText } = renderRoute("meals.example", "", "settings");
+    const { container, findByText } = renderRoute("meadow.example", "", "settings");
 
     await findByText("Tracked search terms");
     const settings = container.querySelector<HTMLElement>("#tracked-panels")!;
-    expect(settings.querySelector("[data-tracked-terms-needs-search]")).toHaveAttribute("href", "/assets/meals.example/sources");
+    expect(settings.querySelector("[data-tracked-terms-needs-search]")).toHaveAttribute("href", "/assets/meadow.example/sources");
     expect(settings.querySelector("[data-panel-spend]")).toBeNull();
     expect(settings.textContent).not.toContain("Panel refresh");
   });
@@ -5614,7 +5614,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     stubPanelLanes(
       payload({ panelConfig: { trackedQueries: PANEL, roster: ROSTER }, portfolio: CAPPED }),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "settings");
+    const { container, findByText } = renderRoute("meadow.example", "", "settings");
 
     await findByText("Tracked search terms");
     // 2 terms x 2 devices x $0.004 = $0.02.
@@ -5639,7 +5639,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     const fetchMock = stubPanelLanes(
       payload({ panelConfig: { trackedQueries: PANEL, roster: ROSTER } }),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "settings");
+    const { container, findByText } = renderRoute("meadow.example", "", "settings");
 
     await findByText("Tracked search terms");
     const editor = container.querySelector(
@@ -5648,7 +5648,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     fireEvent.click(within(editor).getByRole("button", { name: "Add" }));
     const form = editor.querySelector("[data-collection-add]") as HTMLElement;
     fireEvent.change(within(form).getByLabelText("Query"), {
-      target: { value: "mcchicken calories" },
+      target: { value: "magnet specs" },
     });
     fireEvent.click(within(form).getByRole("button", { name: "Add" }));
 
@@ -5657,8 +5657,8 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
         {
           kind: "file-json-insert",
           file: "config/serp-panel.json",
-          pointer: "/assets/meals.example/queries/-",
-          value: "mcchicken calories",
+          pointer: "/assets/meadow.example/queries/-",
+          value: "magnet specs",
         },
       ]),
     );
@@ -5671,21 +5671,21 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
       payload({
         panelConfig: {
           trackedQueries: [
-            { query: "whopper calories", label: "Item head" },
-            { query: "mcchicken calories", label: "Item head" },
+            { query: "rocket skates specs", label: "Item head" },
+            { query: "magnet specs", label: "Item head" },
           ],
           roster: ROSTER,
         },
       }),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "settings");
+    const { container, findByText } = renderRoute("meadow.example", "", "settings");
 
     await findByText("Tracked search terms");
     const editor = container.querySelector(
       '[data-collection-editor="serp-panel-queries"]',
     ) as HTMLElement;
     const row = editor.querySelector(
-      '[data-collection-row="mcchicken calories"]',
+      '[data-collection-row="magnet specs"]',
     ) as HTMLElement;
     const control = within(row).getByLabelText("Bet");
     fireEvent.change(control, { target: { value: "Item Head" } });
@@ -5704,22 +5704,22 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
       payload({
         panelConfig: {
           trackedQueries: [
-            { query: "whopper calories", label: "Item head" },
-            { query: "big mac calories", label: "Item head" },
-            "mcchicken calories",
+            { query: "rocket skates specs", label: "Item head" },
+            { query: "anvil specs", label: "Item head" },
+            "magnet specs",
           ],
           roster: ROSTER,
         },
       }),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "settings");
+    const { container, findByText } = renderRoute("meadow.example", "", "settings");
 
     await findByText("Tracked search terms");
     const editor = container.querySelector(
       '[data-collection-editor="serp-panel-queries"]',
     ) as HTMLElement;
     const row = editor.querySelector(
-      '[data-collection-row="mcchicken calories"]',
+      '[data-collection-row="magnet specs"]',
     ) as HTMLElement;
     const control = within(row).getByLabelText("Bet");
     const list = row.querySelector("datalist") as HTMLDataListElement;
@@ -5734,7 +5734,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     );
     await waitFor(() => expect(sentOps(fetchMock)).not.toBeUndefined());
     expect(sentOps(fetchMock)).toMatchObject([
-      { value: { query: "mcchicken calories", label: "Chain calories" } },
+      { value: { query: "magnet specs", label: "Chain calories" } },
     ]);
   });
 
@@ -5743,18 +5743,18 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
       payload({
         panelConfig: {
           trackedQueries: [
-            { query: "whopper calories", label: "Item head" },
-            "mcchicken calories",
+            { query: "rocket skates specs", label: "Item head" },
+            "magnet specs",
           ],
           roster: ROSTER,
         },
       }),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "settings");
+    const { container, findByText } = renderRoute("meadow.example", "", "settings");
 
     await findByText("Tracked search terms");
     const row = container.querySelector(
-      '[data-collection-row="mcchicken calories"]',
+      '[data-collection-row="magnet specs"]',
     ) as HTMLElement;
     const control = within(row).getByLabelText("Bet");
     fireEvent.change(control, { target: { value: "Item head" } });
@@ -5767,9 +5767,9 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
         {
           kind: "file-json-set",
           file: "config/serp-panel.json",
-          pointer: "/assets/meals.example/queries/1",
-          expect: "mcchicken calories",
-          value: { query: "mcchicken calories", label: "Item head" },
+          pointer: "/assets/meadow.example/queries/1",
+          expect: "magnet specs",
+          value: { query: "magnet specs", label: "Item head" },
         },
       ]),
     );
@@ -5777,7 +5777,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
 
   it("starts a panel for an asset the add-asset wizard deliberately gave none", async () => {
     const fetchMock = stubPanelLanes(payload({ panelConfig: { trackedQueries: null, roster: ROSTER } }));
-    const { container, findByText } = renderRoute("meals.example", "", "settings");
+    const { container, findByText } = renderRoute("meadow.example", "", "settings");
 
     await findByText("Tracked search terms");
     const editor = container.querySelector(
@@ -5788,7 +5788,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     fireEvent.click(within(editor).getByRole("button", { name: "Add" }));
     const form = editor.querySelector("[data-collection-add]") as HTMLElement;
     fireEvent.change(within(form).getByLabelText("Query"), {
-      target: { value: "big mac calories" },
+      target: { value: "anvil specs" },
     });
     fireEvent.click(within(form).getByRole("button", { name: "Add" }));
 
@@ -5797,8 +5797,8 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
         {
           kind: "file-json-insert",
           file: "config/serp-panel.json",
-          pointer: "/assets/meals.example",
-          value: { queries: ["big mac calories"] },
+          pointer: "/assets/meadow.example",
+          value: { queries: ["anvil specs"] },
         },
       ]),
     );
@@ -5808,14 +5808,14 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     const fetchMock = stubPanelLanes(
       payload({ panelConfig: { trackedQueries: PANEL, roster: ROSTER } }),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "settings");
+    const { container, findByText } = renderRoute("meadow.example", "", "settings");
 
     await findByText("Tracked search terms");
     const editor = container.querySelector(
       '[data-collection-editor="signal-panels"]',
     ) as HTMLElement;
     expect(
-      within(editor).queryByRole("button", { name: "Remove meals.example…" }),
+      within(editor).queryByRole("button", { name: "Remove meadow.example…" }),
     ).not.toBeInTheDocument();
 
     const control = within(editor).getByLabelText("Daily refresh");
@@ -5827,7 +5827,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
         {
           kind: "file-json-set",
           file: "config/signal-panels.json",
-          pointer: "/assets/meals.example/enabled",
+          pointer: "/assets/meadow.example/enabled",
           expect: true,
           value: false,
         },
@@ -5851,7 +5851,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
         derived: false,
       },
       cell: {
-        assetId: "meals.example",
+        assetId: "meadow.example",
         laneId: id,
         declared: declared as "live" | "needs-setup" | "skipped",
         effective: declared as "live" | "needs-setup" | "skipped",
@@ -5897,7 +5897,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
         { ...ROSTER, enabled: false, reason: "no-lane-yet", note: "GSC not wired." },
       ),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "settings");
+    const { container, findByText } = renderRoute("meadow.example", "", "settings");
 
     await findByText("Tracked search terms");
     const { editor } = saveRoster(container, "true");
@@ -5916,7 +5916,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
         { ...ROSTER, enabled: false, reason: "no-lane-yet", note: "Waiting on GSC." },
       ),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "settings");
+    const { container, findByText } = renderRoute("meadow.example", "", "settings");
 
     await findByText("Tracked search terms");
     saveRoster(container, "true");
@@ -5926,7 +5926,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
         {
           kind: "file-json-set",
           file: "config/signal-panels.json",
-          pointer: "/assets/meals.example/enabled",
+          pointer: "/assets/meadow.example/enabled",
           expect: false,
           value: true,
         },
@@ -5938,7 +5938,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     const fetchMock = stubPanelLanes(
       withLanes({ gsc: "needs-setup", ga4: "needs-setup" }, ROSTER),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "settings");
+    const { container, findByText } = renderRoute("meadow.example", "", "settings");
 
     await findByText("Tracked search terms");
     saveRoster(container, "false");
@@ -5948,7 +5948,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
         {
           kind: "file-json-set",
           file: "config/signal-panels.json",
-          pointer: "/assets/meals.example/enabled",
+          pointer: "/assets/meadow.example/enabled",
           expect: true,
           value: false,
         },
@@ -5958,7 +5958,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
 
   it("a deployment with no filesystem shows the panel and says why it cannot be changed", async () => {
     stubPanelLanes(payload({ panelConfig: { trackedQueries: PANEL, roster: ROSTER } }), false);
-    const { container, findByText } = renderRoute("meals.example", "", "settings");
+    const { container, findByText } = renderRoute("meadow.example", "", "settings");
 
     await findByText("Tracked search terms");
     await waitFor(() =>
@@ -5968,7 +5968,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
       '[data-collection-editor="serp-panel-queries"]',
     ) as HTMLElement;
     expect(within(editor).queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
-    expect(editor.textContent).toContain("big mac calories");
+    expect(editor.textContent).toContain("anvil specs");
   });
 });
 
@@ -6011,14 +6011,14 @@ describe("AssetDetailRoute — the Overview and Growth agree about a number", ()
   it("prints the same search clicks on the strip and on the chart pair", async () => {
     // Google 910 + Bing 91 = 1,001 over the seven days both providers reported.
     stubFetch(200, twoProviders());
-    const overview = renderPath("/assets/meals.example?range=7");
+    const overview = renderPath("/assets/meadow.example?range=7");
     await overview.findByText("What matters");
     expect(figure(overview.container, '[data-kpi="Search clicks"]')).toContain(
       "1,001",
     );
     overview.unmount();
 
-    const growth = renderPath("/assets/meals.example/growth?range=7");
+    const growth = renderPath("/assets/meadow.example/growth?range=7");
     await growth.findByText("Audience");
     expect(figure(growth.container, '[data-growth-chart="Clicks"]')).toContain(
       "1,001",
@@ -6030,12 +6030,12 @@ describe("AssetDetailRoute — the Overview and Growth agree about a number", ()
 
   it("prints the same impressions, in the same compact form, on both", async () => {
     stubFetch(200, twoProviders());
-    const overview = renderPath("/assets/meals.example?range=7");
+    const overview = renderPath("/assets/meadow.example?range=7");
     await overview.findByText("What matters");
     const strip = figure(overview.container, '[data-kpi="Impressions"]');
     overview.unmount();
 
-    const growth = renderPath("/assets/meals.example/growth?range=7");
+    const growth = renderPath("/assets/meadow.example/growth?range=7");
     await growth.findByText("Audience");
     const pair = figure(growth.container, '[data-growth-chart="Impressions"]');
 
@@ -6061,12 +6061,12 @@ describe("AssetDetailRoute — the Overview and Growth agree about a number", ()
     };
     stubFetch(200, data);
 
-    const overview = renderPath("/assets/meals.example?range=7");
+    const overview = renderPath("/assets/meadow.example?range=7");
     await overview.findByText("What matters");
     expect(figure(overview.container, '[data-kpi="Search clicks"]')).toContain("—");
     overview.unmount();
 
-    const growth = renderPath("/assets/meals.example/growth?range=7");
+    const growth = renderPath("/assets/meadow.example/growth?range=7");
     await growth.findByText("Audience");
     expect(figure(growth.container, '[data-growth-chart="Clicks"]')).toContain("—");
   });
@@ -6131,7 +6131,7 @@ describe("AssetDetailRoute — the Search tab's search context", () => {
 
   it("leads the search context with the dollar value, above every count", async () => {
     stubFetch(200, withIntelligence());
-    const { container, findByText } = renderRoute("meals.example", "", "search");
+    const { container, findByText } = renderRoute("meadow.example", "", "search");
 
     await findByText("Search context");
     const rankings = cells(container, 0);
@@ -6147,7 +6147,7 @@ describe("AssetDetailRoute — the Search tab's search context", () => {
 
   it("gives the top-20 count and the link movement cells of their own", async () => {
     stubFetch(200, withIntelligence());
-    const { container, findByText } = renderRoute("meals.example", "", "search");
+    const { container, findByText } = renderRoute("meadow.example", "", "search");
 
     await findByText("Search context");
     const rankings = cells(container, 0);
@@ -6169,7 +6169,7 @@ describe("AssetDetailRoute — the Search tab's search context", () => {
 
   it("says the link report is unavailable rather than printing zeros", async () => {
     stubFetch(200, withIntelligence({ backlinks: null }));
-    const { container, findByText } = renderRoute("meals.example", "", "search");
+    const { container, findByText } = renderRoute("meadow.example", "", "search");
 
     await findByText("Search context");
     const links = cells(container, 1);
@@ -6195,7 +6195,7 @@ describe("AssetDetailRoute — the Search tab's search context", () => {
         },
       }),
     );
-    const { container, findByText } = renderRoute("meals.example", "", "search");
+    const { container, findByText } = renderRoute("meadow.example", "", "search");
 
     await findByText("Search context");
     const all = [
@@ -6216,7 +6216,7 @@ describe("AssetDetailRoute — the Search tab's search context", () => {
 
 describe("the Settings tab — the owning entity", () => {
   const ENTITIES = [
-    { slug: "example-ventures", name: "Example Ventures LLC", form: "LLC", assets: ["meals.example"] },
+    { slug: "example-ventures", name: "Example Ventures LLC", form: "LLC", assets: ["meadow.example"] },
     { slug: "second-co", name: "Second Co" },
   ];
 
@@ -6256,7 +6256,7 @@ describe("the Settings tab — the owning entity", () => {
 
   it("shows the entity that owns this asset, chosen from the ones declared", async () => {
     stubWithEntities();
-    renderRoute("meals.example", "", "settings");
+    renderRoute("meadow.example", "", "settings");
 
     const picker = (await screen.findByLabelText("Owning entity")) as HTMLSelectElement;
     expect(picker.value).toBe("example-ventures");
@@ -6269,7 +6269,7 @@ describe("the Settings tab — the owning entity", () => {
 
   it("moves the asset in one changeset: off the old list, onto the new one", async () => {
     const fetchMock = stubWithEntities();
-    renderRoute("meals.example", "", "settings");
+    renderRoute("meadow.example", "", "settings");
 
     const picker = await screen.findByLabelText("Owning entity");
     fireEvent.change(picker, { target: { value: "second-co" } });
@@ -6284,7 +6284,7 @@ describe("the Settings tab — the owning entity", () => {
           kind: "file-json-set",
           file: "config/entities.json",
           pointer: "/entities/0/assets",
-          expect: ["meals.example"],
+          expect: ["meadow.example"],
           value: [],
         },
         {
@@ -6292,7 +6292,7 @@ describe("the Settings tab — the owning entity", () => {
           file: "config/entities.json",
           pointer: "/entities/1/assets",
           expectAbsent: true,
-          value: ["meals.example"],
+          value: ["meadow.example"],
         },
       ]),
     );
@@ -6300,7 +6300,7 @@ describe("the Settings tab — the owning entity", () => {
 
   it("offers no picker before any entity is declared; its value is the link that declares one", async () => {
     stubWithEntities([]);
-    const { container } = renderRoute("meals.example", "", "settings");
+    const { container } = renderRoute("meadow.example", "", "settings");
 
     await screen.findByText("Identity");
     const declare = await screen.findByRole("link", { name: "Add an owner" });
@@ -6337,7 +6337,7 @@ describe("Growth headline and chart date scopes", () => {
 
   it.each([7, 28, 90])("distinguishes completed totals and raw chart context over %i days with gaps and delayed providers", async (range) => {
     stubFetch(200, delayedProviders());
-    const view = renderPath(`/assets/meals.example/growth?range=${range}`);
+    const view = renderPath(`/assets/meadow.example/growth?range=${range}`);
     await view.findByText("Audience");
     const chart = view.container.querySelector<HTMLElement>('[data-growth-chart="Clicks"]')!;
     const scope = chart.querySelector<HTMLElement>("[data-growth-headline-period]")!;
@@ -6378,7 +6378,7 @@ describe("Growth headline and chart date scopes", () => {
 
   it("updates both visible date scopes when the traffic range changes", async () => {
     stubFetch(200, delayedProviders());
-    const view = renderPath("/assets/meals.example/growth?range=28");
+    const view = renderPath("/assets/meadow.example/growth?range=28");
     await view.findByText("Audience");
     for (const range of [7, 90, 28]) {
       fireEvent.click(within(view.getByRole("group", { name: "Traffic period" })).getByRole("button", { name: `${range}d` }));
@@ -6393,7 +6393,7 @@ describe("Growth headline and chart date scopes", () => {
     const data = delayedProviders();
     data.performance.webSearchClicks.google.provisionalFrom = null;
     stubFetch(200, data);
-    const view = renderPath("/assets/meals.example/growth?range=7");
+    const view = renderPath("/assets/meadow.example/growth?range=7");
     await view.findByText("Audience");
     const chart = view.container.querySelector<HTMLElement>('[data-growth-chart="Clicks"]')!;
     expect(chart.querySelector("[data-growth-headline-period]")).toHaveTextContent("Aug 30–Sep 5, 2026");
@@ -6405,7 +6405,7 @@ describe("Growth headline and chart date scopes", () => {
     data.performance.webSearchClicks.google.series = [{ t: day(0), v: 999 }];
     data.performance.webSearchClicks.bing.series = [];
     stubFetch(200, data);
-    const view = renderPath("/assets/meals.example/growth?range=7");
+    const view = renderPath("/assets/meadow.example/growth?range=7");
     await view.findByText("Audience");
     const chart = view.container.querySelector<HTMLElement>('[data-growth-chart="Clicks"]')!;
     expect(within(chart).getByLabelText("Not enough completed reports")).toHaveTextContent("—");
@@ -6423,7 +6423,7 @@ describe("Growth headline and chart date scopes", () => {
     ];
     data.performance.webSearchClicks.bing.series = [];
     stubFetch(200, data);
-    const view = renderPath("/assets/meals.example/growth?range=7");
+    const view = renderPath("/assets/meadow.example/growth?range=7");
     await view.findByText("Audience");
     const chart = view.container.querySelector<HTMLElement>('[data-growth-chart="Clicks"]')!;
     expect(within(chart).getByLabelText("Not enough completed reports")).toHaveTextContent("—");
@@ -6437,7 +6437,7 @@ describe("Growth headline and chart date scopes", () => {
     data.performance.webSearchClicks.google.series = [];
     data.performance.webSearchClicks.bing.series = [];
     stubFetch(200, data);
-    const view = renderPath("/assets/meals.example/growth?range=7");
+    const view = renderPath("/assets/meadow.example/growth?range=7");
     await view.findByText("Audience");
     const chart = view.container.querySelector<HTMLElement>('[data-growth-chart="Clicks"]')!;
     expect(chart).toHaveTextContent("No completed reports");
@@ -6464,7 +6464,7 @@ describe("Growth chart calculation-only history", () => {
       bing: { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] },
     };
     stubFetch(200, data);
-    const view = renderPath(`/assets/meals.example/growth?range=${range}`);
+    const view = renderPath(`/assets/meadow.example/growth?range=${range}`);
     await view.findByText("Audience");
     const chart = view.container.querySelector<HTMLElement>('[data-growth-chart="Clicks"]')!;
     expect(chart).toHaveTextContent(`${(80 * range).toLocaleString("en-US")} from search`);
@@ -6500,7 +6500,7 @@ describe("Growth provider annotations on the current chart", () => {
     };
     data.annotations.items = [];
     stubFetch(200, data);
-    const view = renderPath("/assets/meals.example/growth?range=28");
+    const view = renderPath("/assets/meadow.example/growth?range=28");
     await view.findByText("Audience");
     return view.container.querySelector<HTMLElement>('[data-growth-chart="Clicks"]')!;
   }
@@ -6598,7 +6598,7 @@ describe("the Search tab before any tracked term", () => {
     connections.credentials = new Map();
     connections.items = [];
     stubFetch(200, untracked(true));
-    const { container } = renderRoute("meals.example", "", "search");
+    const { container } = renderRoute("meadow.example", "", "search");
     await waitFor(() => expect(container.querySelector('[data-search-start="numbers"]')).not.toBeNull());
     const start = container.querySelector<HTMLElement>('[data-search-start="numbers"]')!;
     expect(start.querySelector('[data-growth-chart="Clicks"]')).toHaveTextContent("560 from search");
@@ -6606,7 +6606,7 @@ describe("the Search tab before any tracked term", () => {
     const next = start.querySelector<HTMLElement>("[data-search-next]")!;
     expect(next).toHaveTextContent("Tracked terms");
     expect(within(next).getByRole("link", { name: "Connect DataForSEO" }))
-      .toHaveAttribute("href", "/integrations?connect=dataforseo&asset=meals.example");
+      .toHaveAttribute("href", "/integrations?connect=dataforseo&asset=meadow.example");
     expect(within(next).getAllByRole("link")).toHaveLength(1);
     expect(container.textContent).not.toContain("Not rechecked");
   });
@@ -6615,12 +6615,12 @@ describe("the Search tab before any tracked term", () => {
     connections.credentials = new Map();
     connections.items = [];
     stubFetch(200, untracked(false));
-    const { container } = renderRoute("meals.example", "", "search");
+    const { container } = renderRoute("meadow.example", "", "search");
     await waitFor(() => expect(container.querySelector('[data-search-start="none"]')).not.toBeNull());
     const start = container.querySelector<HTMLElement>('[data-search-start="none"]')!;
     expect(start).toHaveTextContent("No search numbers yet");
     const connect = within(start).getByRole("link", { name: "Connect Bing Webmaster Tools" });
-    expect(connect).toHaveAttribute("href", "/integrations?connect=bing-webmaster&asset=meals.example");
+    expect(connect).toHaveAttribute("href", "/integrations?connect=bing-webmaster&asset=meadow.example");
     expect(actions(start)).toEqual([connect]);
     expect(container.querySelector("[data-hero-chart]")).toBeNull();
   });

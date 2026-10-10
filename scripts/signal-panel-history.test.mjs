@@ -11,7 +11,7 @@ import { panelReportPath, panelReportRelativePath } from './signal-panel-paths.m
 import { freshnessReport, refreshAsset, trendCsv } from './signal-panels-refresh.mjs';
 import { runPanelRefresh } from './runner/panel-refresh.mjs';
 
-const ASSET = 'meals.example';
+const ASSET = 'meadow.example';
 const NOW = '2026-09-22T06:00:00.000Z';
 const DAY = '2026-09-20';
 const SOURCE_ROW = { integration: 'gsc', report: 'query', reportDate: DAY,

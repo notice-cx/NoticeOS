@@ -31,13 +31,13 @@ describe("GA4 realtime browser contract", () => {
   });
 
   it.each([{ rateLimit: 123 }, { rateLimit: 'made-up' }, { hourlyErrorCode: {} }])('rejects malformed diagnostic fields: %j', async (fields) => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ generatedAt: '2026-09-11T00:00:00Z', assets: [{ asset: 'meals.example', status: 'success', activeUsers5m: 7, activeUsers30m: 26, hourlyActiveUsers, observedAt: '2026-09-11T00:00:00Z', errorCode: null, ...fields }] })));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ generatedAt: '2026-09-11T00:00:00Z', assets: [{ asset: 'meadow.example', status: 'success', activeUsers5m: 7, activeUsers30m: 26, hourlyActiveUsers, observedAt: '2026-09-11T00:00:00Z', errorCode: null, ...fields }] })));
     await expect(fetchGa4Realtime()).rejects.toThrow('invalid payload');
   });
   it.each([true, false])('requires an explicit hourly failure when live counts work but the chart is missing (%s)', async (hasReason) => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({
       generatedAt: '2026-09-11T00:00:00Z', assets: [{
-        asset: 'meals.example', status: 'success', activeUsers5m: 7, activeUsers30m: 26,
+        asset: 'meadow.example', status: 'success', activeUsers5m: 7, activeUsers30m: 26,
         hourlyActiveUsers: null, observedAt: '2026-09-11T00:00:00Z', errorCode: null,
         ...(hasReason ? { hourlyErrorCode: 'ga4_intraday_http_429' } : {}),
       }],
@@ -80,7 +80,7 @@ describe("GA4 realtime browser contract", () => {
           generatedAt: "2026-07-29T12:00:00.000Z",
           assets: [
             {
-              asset: "meals.example",
+              asset: "meadow.example",
               status: "success",
               activeUsers5m: 7,
               activeUsers30m: 26,
@@ -89,7 +89,7 @@ describe("GA4 realtime browser contract", () => {
               errorCode: null,
             },
             {
-              asset: "nosh.example",
+              asset: "northwind.example",
               status: "error",
               activeUsers5m: null,
               activeUsers30m: null,
@@ -104,8 +104,8 @@ describe("GA4 realtime browser contract", () => {
 
     await expect(fetchGa4Realtime()).resolves.toMatchObject({
       assets: [
-        { asset: "meals.example", activeUsers5m: 7, activeUsers30m: 26 },
-        { asset: "nosh.example", status: "error" },
+        { asset: "meadow.example", activeUsers5m: 7, activeUsers30m: 26 },
+        { asset: "northwind.example", status: "error" },
       ],
     });
   });
@@ -118,7 +118,7 @@ describe("GA4 realtime browser contract", () => {
           generatedAt: "2026-07-29T12:00:00.000Z",
           assets: [
             {
-              asset: "meals.example",
+              asset: "meadow.example",
               status: "error",
               activeUsers5m: 0,
               activeUsers30m: 0,
@@ -142,7 +142,7 @@ describe("GA4 realtime browser contract", () => {
           generatedAt: "2026-07-29T12:00:00.000Z",
           assets: [
             {
-              asset: "meals.example",
+              asset: "meadow.example",
               status: "error",
               activeUsers5m: null,
               activeUsers30m: null,
