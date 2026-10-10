@@ -23,10 +23,8 @@ bad work, and a confident report doesn't imply good work.
    carries a machine-checkable pointer (commit hash, gate command, artifact
    path, URL). **Prose-only completion is rejected at intake** — "I did X"
    without a pointer doesn't parse. Gaslighting isn't punished; it's
-   structurally worthless. For changes touching a user-facing surface,
-   before/after screenshots (desktop + mobile) are mandatory claim
-   artifacts, rendered in review ([doc 16](16-replacing-the-chat-workflow.md)
-   § P).
+   structurally worthless. Screenshots as review artifacts are not built
+   ([doc 16](16-replacing-the-chat-workflow.md#what-is-not-built)).
 3. **Independent, change-scoped verification.** The verifier selects checks
    for changed logic and affected critical paths; a builder's own passing
    transcript is inadmissible. One focused independent run supplies completion

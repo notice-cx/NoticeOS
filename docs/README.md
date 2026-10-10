@@ -23,7 +23,7 @@ design library: why the product works the way it does. Build the site with
 | [11 — Integrations & economics](11-integrations.md) | Every data source: what it costs, its quotas, how it fails |
 | [13 — Opportunity scouting](13-opportunity-scouting.md) | The outer loop: scout lanes, the news radar, the playbook |
 | [14 — Design](14-design.md) | The Tower's stack, tokens, principles, surfaces, the Wall, operator flows, lexicon and components |
-| [16 — Replacing the chat workflow](16-replacing-the-chat-workflow.md) | Ask, investigations, commissions, idea capture |
+| [16 — Replacing the chat workflow](16-replacing-the-chat-workflow.md) | Which parts of an operator's week the Tower carries (File task, New task, the palette) and which are not built |
 | [20 — Signal panels](20-signal-panels.md) | The read contract a site's own repository uses |
 | [22 — Workflows](22-workflows-research-and-design.md) | Workflow operations, execution visibility, later LLM steps |
 | [23 — Configuration ownership](23-configuration-ownership.md) | Where each setting lives, and what accounts would need |
