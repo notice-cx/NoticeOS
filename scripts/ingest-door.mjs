@@ -211,18 +211,11 @@ export async function operatorToken() {
   return token.trim();
 }
 
-/**
- * One door request, with the failure an operator can act on: a door that
- * answers nothing usually means the OS is not running, and a non-2xx carries
- * the body, because the ingest's 400/401/422 bodies name the actual problem.
- */
-export async function doorRequest(get, url, { token, ...init } = {}) {
-  let response;
+/** `get(url, init)`, or the failure an operator can act on when the door
+ * answers nothing, which usually means the OS is not running. */
+export async function doorFetch(get, url, init) {
   try {
-    response = await get(url, {
-      ...init,
-      headers: { authorization: `Bearer ${token}`, ...(init.headers ?? {}) },
-    });
+    return await get(url, init);
   } catch (error) {
     throw new Error(
       `the ingest door did not answer at ${new URL(url).origin} ` +
@@ -230,6 +223,17 @@ export async function doorRequest(get, url, { token, ...init } = {}) {
         'Is `pnpm os:up` running?',
     );
   }
+}
+
+/**
+ * One door request, through `doorFetch`. A non-2xx carries the body, because
+ * the ingest's 400/401/422 bodies name the actual problem.
+ */
+export async function doorRequest(get, url, { token, ...init } = {}) {
+  const response = await doorFetch(get, url, {
+    ...init,
+    headers: { authorization: `Bearer ${token}`, ...(init.headers ?? {}) },
+  });
   if (!response.ok) {
     const detail =
       typeof response.text === 'function' ? await response.text().catch(() => '') : '';

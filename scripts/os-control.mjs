@@ -35,6 +35,7 @@ import {
 import { runCommand } from './run-command.mjs';
 import { runnerRecordedMigrations } from './runner/database.mjs';
 import { inspectDependencies } from './os-readiness.mjs';
+import { readJsonFile } from './json-file.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // The checkout whose state this controls. Always the folder these commands are
@@ -180,14 +181,6 @@ async function probe(url, timeoutMs = 2_000) {
   }
 }
 
-async function readJson(file) {
-  try {
-    return JSON.parse(await fs.readFile(file, 'utf8'));
-  } catch {
-    return null;
-  }
-}
-
 async function serviceSnapshot() {
   if (process.platform !== 'darwin') {
     return { loaded: false, state: null, pid: null, runs: null, lastExitCode: null, unsupported: true };
@@ -202,7 +195,7 @@ async function serviceSnapshot() {
 export async function inspectRunner(nowMs = Date.now(), {
   readService = serviceSnapshot,
   probeHttp = probe,
-  readHeartbeat = () => readJson(RUNNER_STATE_FILE),
+  readHeartbeat = () => readJsonFile(RUNNER_STATE_FILE, null),
   readDependencies = () => inspectDependencies({ dolt: { plistFile: INSTALLED_PLIST } }),
 } = {}) {
   const [service, ingest, tower, heartbeat, dependencies] = await Promise.all([

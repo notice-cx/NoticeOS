@@ -900,7 +900,7 @@ export function matchKnob(file, pointer) {
     return null;
 }
 /** Escape a literal for embedding in a RegExp source. */
-function escapeRegExp(text) {
+export function escapeRegExp(text) {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 /** The container pointer with `{asset}` filled in. Throws when a per-asset
@@ -1014,8 +1014,8 @@ export function legalRowPointer(register, kind) {
 // ── field validation, the one place a row's shape is decided ────────────────
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH_RE = /^\d{4}-(?:0[1-9]|1[0-2])$/;
-/** A calendar date that exists (2026-02-30 parses and is not a date). */
-function realDate(value) {
+/** A `YYYY-MM-DD` calendar date that exists (2026-02-30 parses and is not a date). */
+export function isCalendarDate(value) {
     if (!DATE_RE.test(value))
         return false;
     const d = new Date(`${value}T00:00:00Z`);
@@ -1057,7 +1057,7 @@ export function fieldRefusal(field, value) {
             if (field.type === 'enum' && !field.values.includes(value)) {
                 return `${label} must be one of ${field.values.join(' | ')}`;
             }
-            if (field.type === 'date' && !realDate(value))
+            if (field.type === 'date' && !isCalendarDate(value))
                 return `${label} must be a date, YYYY-MM-DD`;
             if (field.type === 'month' && !MONTH_RE.test(value))
                 return `${label} must be a month, YYYY-MM`;

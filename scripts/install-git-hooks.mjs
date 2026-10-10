@@ -18,9 +18,9 @@
 // inside whichever work tree is committing.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, realpathSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { invokedDirectly } from './os-runtime.mjs';
 
 export const HOOKS_DIR = '.githooks';
 
@@ -56,15 +56,7 @@ export function installGitHooks({ cwd = process.cwd(), env = process.env, log = 
   return { installed: true, reason: 'installed' };
 }
 
-function invokedDirectly() {
-  try {
-    return Boolean(process.argv[1]) && realpathSync(path.resolve(process.argv[1])) === realpathSync(fileURLToPath(import.meta.url));
-  } catch {
-    return false;
-  }
-}
-
-if (invokedDirectly()) {
+if (invokedDirectly(process.argv[1], import.meta.url)) {
   try {
     installGitHooks();
   } catch (error) {

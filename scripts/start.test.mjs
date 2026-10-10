@@ -29,7 +29,8 @@ import { ADDRESS_FILE, DEFAULT_PORT as POSTGRES_PORT, SECRETS_DIR_VARIABLE, comp
 import { findPostgres } from './postgres-dev.mjs';
 import { postgresRequired, startTestCluster, unavailableReason } from './postgres-test-cluster.mjs';
 import { answersHolding, filesHolding, plantedDatabase, processTree, saveClockThroughTower, storedClock, storedJobs } from './test-planted-address.mjs';
-import { statePaths, stripJsonc, workerCrons } from './os-runtime.mjs';
+import { stripJsonc } from './jsonc.mjs';
+import { statePaths, workerCrons } from './os-runtime.mjs';
 import { CONFIG } from './runner/config.mjs';
 import { runCommand } from './run-command.mjs';
 import { schedulePaths, startedJobs } from './start-schedule.mjs';

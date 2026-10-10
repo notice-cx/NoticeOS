@@ -25,6 +25,7 @@ import { publishExecutiveSnapshot } from './signal-insights-publish.mjs';
 import { DEFAULT_DOOR, doorUrl, operatorToken } from './ingest-door.mjs';
 import { readConfigSnapshot } from './config-store-client.mjs';
 import { BING_AI_INTEGRATION, BING_AI_REPORTS } from '../packages/contract/src/signal-families.mjs';
+import { readJsonFile } from './json-file.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ROSTER_DOCUMENT = 'config/signal-panels.json';
@@ -338,14 +339,6 @@ export function freshnessReport(input) {
     uncollected,
     staleUncollected: uncollected.filter((source) => !source.fresh).map((source) => source.key),
   };
-}
-
-async function readJsonFile(file, fallback) {
-  try {
-    return JSON.parse(await fs.readFile(file, 'utf8'));
-  } catch {
-    return fallback;
-  }
 }
 
 async function fileExists(file) {

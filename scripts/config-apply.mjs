@@ -27,6 +27,7 @@ import {
 import { LIFECYCLE_ANNOTATION_KIND, lifecycleMoveRef } from '../packages/contract/src/configuration.mjs';
 import { DEFAULT_DOOR, doorRequest, doorUrl, operatorToken } from './ingest-door.mjs';
 import { CONFIG_APPLY_PATH, configStoreRequest, readConfigSnapshot } from './config-store-client.mjs';
+import { ansi as c } from './ansi.mjs';
 
 // CONFIG_APPLY_REPO_ROOT points a run at a throwaway copy
 // (apps/tower/test/config-write-lane.test.ts runs both entry points over
@@ -36,24 +37,6 @@ const REPO_ROOT = process.env.CONFIG_APPLY_REPO_ROOT
   : DEFAULT_REPO_ROOT;
 
 export { MISSING, resolve, validateSchemaAndSafety };
-
-const c = process.stdout.isTTY
-  ? {
-      dim: (s) => `\x1b[2m${s}\x1b[0m`,
-      bold: (s) => `\x1b[1m${s}\x1b[0m`,
-      red: (s) => `\x1b[31m${s}\x1b[0m`,
-      green: (s) => `\x1b[32m${s}\x1b[0m`,
-      yellow: (s) => `\x1b[33m${s}\x1b[0m`,
-      cyan: (s) => `\x1b[36m${s}\x1b[0m`,
-    }
-  : {
-      dim: (s) => s,
-      bold: (s) => s,
-      red: (s) => s,
-      green: (s) => s,
-      yellow: (s) => s,
-      cyan: (s) => s,
-    };
 
 function out(line = '') {
   process.stdout.write(line + '\n');

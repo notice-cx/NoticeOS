@@ -21,18 +21,10 @@ import {
   DEFAULT_DOOR,
   configStoreRequest,
 } from './config-store-client.mjs';
+import { ansi as c } from './ansi.mjs';
 
 /** Who a seeded document says wrote it. */
 export const SEED_ACTOR = 'config:seed';
-
-const c = process.stdout.isTTY
-  ? {
-      dim: (s) => `\x1b[2m${s}\x1b[0m`,
-      red: (s) => `\x1b[31m${s}\x1b[0m`,
-      green: (s) => `\x1b[32m${s}\x1b[0m`,
-      yellow: (s) => `\x1b[33m${s}\x1b[0m`,
-    }
-  : { dim: (s) => s, red: (s) => s, green: (s) => s, yellow: (s) => s };
 
 function out(line = '') {
   process.stdout.write(line + '\n');

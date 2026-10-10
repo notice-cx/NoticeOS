@@ -15,6 +15,7 @@
 //   pnpm creds:rotate-key --ingest http://127.0.0.1:8791
 
 import { readDevSecretBindings } from './dev-secrets.mjs';
+import { ansi as c } from './ansi.mjs';
 
 /** Where `pnpm os:up` puts the loopback-only ingest door
  * (scripts/runner/config.mjs CONFIG.ingestPort). */
@@ -30,16 +31,6 @@ export const ROTATION_RUNBOOK = Object.freeze([
   '3. pnpm os:restart, then pnpm creds:rotate-key again.',
   '   workers/ingest/README.md § Rotating CREDENTIALS_KEY has the rest.',
 ]);
-
-const c = process.stdout.isTTY
-  ? {
-      dim: (s) => `\x1b[2m${s}\x1b[0m`,
-      bold: (s) => `\x1b[1m${s}\x1b[0m`,
-      red: (s) => `\x1b[31m${s}\x1b[0m`,
-      green: (s) => `\x1b[32m${s}\x1b[0m`,
-      yellow: (s) => `\x1b[33m${s}\x1b[0m`,
-    }
-  : { dim: (s) => s, bold: (s) => s, red: (s) => s, green: (s) => s, yellow: (s) => s };
 
 function out(line = '') {
   process.stdout.write(line + '\n');

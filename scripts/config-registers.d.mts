@@ -301,6 +301,8 @@ export declare function knobsForFile(file: string): [ConfigKnobKey, ConfigKnob][
 /** The knob a pointer is, or null. Exact match only: `/refresh/windowDays`
  * is settable, `/refresh` is not. */
 export declare function matchKnob(file: string, pointer: string): KnobMatch | null;
+/** Escape a literal for embedding in a RegExp source. */
+export declare function escapeRegExp(text: string): string;
 /** The container pointer with `{asset}` filled in. Throws when a per-asset
  * register is asked for a container without one. */
 export declare function resolveContainer(register: ConfigRegister, params?: {
@@ -343,6 +345,8 @@ export declare function positionedInsert(register: ConfigRegister): boolean;
 /** How a refusal spells where an entry may be added / removed. Quoting follows
  * the shape: an array append is a literal token and reads as one. */
 export declare function legalRowPointer(register: ConfigRegister, kind: string): string;
+/** A `YYYY-MM-DD` calendar date that exists (2026-02-30 parses and is not a date). */
+export declare function isCalendarDate(value: string): boolean;
 /**
  * Check one value against one field declaration: `null` when it is fine, or
  * the rule it broke as a sentence naming the field by its label — the same
