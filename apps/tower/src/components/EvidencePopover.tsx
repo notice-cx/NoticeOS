@@ -14,42 +14,18 @@ export interface EvidencePopoverProps {
   /** The panel's heading. Defaults to the integrations register's question,
    * "Why this state"; an alert asks a different one ("Why this fired"). */
   question?: string;
-  /**
-   * Visible words beside the glyph — "Evidence" on an opened alert row, where
-   * the numbers are one press away and a bare 14px mark would be the only
-   * control on the line nobody can name. Omitted, the trigger is the glyph
-   * alone, which is what a dense matrix cell has room for.
-   */
+  /** Visible words beside the glyph, e.g. "Evidence" on an opened alert row.
+   * Omitted, the trigger is the glyph alone, for dense matrix cells. */
   triggerLabel?: string;
   className?: string;
 }
 
 /**
- * The evidence affordance on a lane with store health data (doc 11 "observed
- * evidence"): a small glyph that opens a plain-language
- * panel (doc 14 principle 9). Portalled to the body so it is never clipped by the
- * matrix's horizontal scroll. The glyph's color follows the dominant polarity —
- * amber when evidence reports failure/staleness, slate when it shows success or
- * a needs-setup lane already delivering through a manual path.
- *
- * It is also where an ALERT keeps its statistics: `question` re-words the panel
- * for "why this fired", so the numbers behind an anomaly rule live one click
- * from the headline instead of in it. Alert evidence is all `supporting`,
- * which keeps the glyph the neutral info mark — the severity dot beside the
- * headline is already saying how bad this is (doc 14 one-representation).
- *
- * NO EXPLAINER UNDER THE HEADING (bead `ro-ujb9.96.6.7`). It used to open with
- * a line about where evidence comes from — "read-only and never rewritten" —
- * which is true of every popover on the desk and told the reader nothing about
- * this one. The heading asks the question and the rows answer it.
- *
- * ON THE DESK'S POPOVER PRIMITIVE (bead `ro-ujb9.219`). This was a hand-rolled
- * portal: opening left keyboard focus on the trigger with a dialog Tab could
- * not reach, closing never gave focus back, and a capture-phase scroll listener
- * closed it on any scroll — so a phone that scrolled to read a long note lost
- * it. `Popover` (Radix, `components/ui/popover.tsx`) moves focus into the
- * panel, returns it to the trigger on Escape or a press outside, and keeps the
- * panel on its trigger while the page scrolls.
+ * The evidence affordance: a small glyph that opens a plain-language panel.
+ * The glyph is amber when any evidence is against, else the info mark. An
+ * alert passes `question` ("Why this fired") and keeps its statistics here,
+ * one press from the headline; its evidence is all supporting, since the
+ * severity dot already says how bad it is.
  */
 export function EvidencePopover({
   evidence,

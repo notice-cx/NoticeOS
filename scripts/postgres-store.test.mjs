@@ -23,10 +23,10 @@ import {
 import { PROOF_WORKSPACES, PostgresUnavailable, createWorkspace, openDevelopmentUrl, openThrowaway } from './postgres-dev.mjs';
 import { applyMigrations, bootstrapWorkspace } from './postgres-migrate.mjs';
 
-// THE WORKERS AND THE SCRIPTS REACH POSTGRES THROUGH ONE TRANSACTION HELPER
-// (bead ro-ujb9.76.18): packages/postgres/src/store.mts. THE STORE NAMES THE
-// WORKSPACE A SELF-HOSTED INSTALLATION ACTS FOR (bead ro-ujb9.76.22):
-// store.onlyWorkspace(), through noticeos.only_workspace().
+// The Workers and the scripts reach Postgres through one transaction helper,
+// packages/postgres/src/store.mts, and the store names the workspace a
+// self-hosted installation acts for: store.onlyWorkspace(), through
+// noticeos.only_workspace().
 //
 //   - STATIC, always: what the helper refuses before sending (a transaction
 //     without a workspace, a statement that would take the transaction or its

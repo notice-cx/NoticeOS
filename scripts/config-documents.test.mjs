@@ -150,11 +150,10 @@ test('a pointer nothing holds resolves MISSING rather than throwing', async () =
   assert.equal(mismatches[0].current, MISSING);
 });
 
-// A GUARD THAT CAN SAY "NOTHING IS THERE" (bead `ro-j71v`). `expect` is a JSON
-// value, so an absent key had no honest spelling — the Sources tab sent `""` for
-// one and every first mapping on every asset came back stale. These are the
-// rule: the word is understood, it creates exactly one declared optional key,
-// and it is still a guard.
+// A guard that can say "nothing is there". `expect` is a JSON value, so an
+// absent key needs its own spelling, or a first mapping on every asset comes
+// back stale. These are the rule: the word is understood, it creates exactly
+// one declared optional key, and it is still a guard.
 const LANE_FILE = 'config/integrations.json';
 const LANE_DOC = {
   assets: { 'meals.example': { ga4: { status: 'live', note: 'proved', since: '2026-07-29' } } },
@@ -246,13 +245,12 @@ test('expectAbsent creates that one key and refuses every other shape', async ()
   );
 });
 
-// THE OTHER HALF OF THAT GUARD (bead `ro-pkpz`). A first write puts a key there
-// that was not there; nothing could take it away again, so a mapping was a
-// one-way door and a first save carried no Undo. A `file-json-delete` is now
-// licensed at the same pointer `expectAbsent` is — one declared OPTIONAL field
-// of a row that already exists — and these are the four things that has to be
-// true of: it removes exactly that key, it is still a guard, it refuses
-// everything a first write refuses, and the two ops are each other's inverse.
+// The other half of that guard. A first write puts a key there that was not
+// there, and a first save needs an Undo. A `file-json-delete` is licensed at
+// the same pointer `expectAbsent` is (one declared OPTIONAL field of a row that
+// already exists), and these are the four things that has to be true of: it
+// removes exactly that key, it is still a guard, it refuses everything a first
+// write refuses, and the two ops are each other's inverse.
 const unset = (pointer, expect) => ({
   kind: 'file-json-delete',
   file: LANE_FILE,
@@ -365,10 +363,9 @@ test('the first write and the delete are one another exactly', async () => {
   assert.deepEqual(second.documents.get(LANE_FILE), before);
 });
 
-// THE PROSE THE PRODUCT RETIRED (bead `ro-ujb9.96.6.20`). An installation seeded
-// before 2026-09-23 still stores the data-source catalog's paragraphs; nothing
-// declares them any more, so a delete is licensed by `RETIRED_KEYS` and by
-// nothing else — and only a delete.
+// The prose the product retired. An older installation still stores the
+// data-source catalog's paragraphs; nothing declares them any more, so a delete
+// is licensed by `RETIRED_KEYS` and by nothing else, and only a delete.
 const LEGACY_DOC = {
   honestyRule: 'A data source is live only when the OS can consume it.',
   stateMeaning: { live: 'The OS can consume this data source now.' },
@@ -435,9 +432,9 @@ test('a retired paragraph can only leave: no insert, no first write, and still a
   assert.equal(mismatches.length, 1);
 });
 
-// The roster's and the entity register's own descriptions (bead
-// `ro-ujb9.96.6.16`): documentation no screen drew, now in each README. An
-// older store drops them by the same guarded delete, and they cannot come back.
+// The roster's and the entity register's own descriptions: documentation no
+// screen drew, now in each README. An older store drops them by the same
+// guarded delete, and they cannot come back.
 test('the roster and entity descriptions leave a stored document and cannot return', async () => {
   const PANELS = 'config/signal-panels.json';
   const ENTITIES = 'config/entities.json';
@@ -477,7 +474,7 @@ test('the roster and entity descriptions leave a stored document and cannot retu
   }
 });
 
-// THE NO-NIGHTLY-REPORT DECLARATION (bead `ro-ujb9.96.8`). One list of asset
+// The no-nightly-report declaration. One list of asset
 // ids in the saved constants, absent until the first asset declares. The asset
 // Settings switch writes it as ONE setting: a first write creates the key, a set
 // replaces the list, and the Undo of the first write is the delete — all three
@@ -554,11 +551,10 @@ test('the no-report list is written whole, and only as a list of asset ids', () 
   );
 });
 
-// A DECLARED DOCUMENT NOBODY HAS SAVED (bead `ro-nuz9`). The product ships
+// A declared document nobody has saved. The product ships
 // `config/tower.json` with `"wall": null`; a store seeded without the key and
-// the journey fixture hold no `/wall` at all. The TV layout editor guarded its
-// first Save with `expect: null`, so on a store without the key the first Save
-// was refused as "Changed elsewhere". One rule for every declared document:
+// the journey fixture hold no `/wall` at all. The TV layout editor guards its
+// first Save with `expect: null`. One rule for every declared document:
 // either spelling of "not saved yet" in the store matches either spelling of
 // it in the guard, and the write lands.
 const TOWER = 'config/tower.json';
@@ -642,10 +638,8 @@ test('a saved declared document is still guarded: "not saved yet" is stale once 
   assert.equal(mismatches[0].current, null);
 });
 
-// A KEY THE SAVED DOCUMENT LACKS (bead `ro-dk4u`). Every reader answers it
-// from the built-in copy, so Settings shows the built-in value and guards its
-// Save with it. The lane compared that guard with the stored document, where
-// the key resolved nowhere, and refused the Save as "Changed elsewhere". Now a
+// A key the saved document lacks. Every reader answers it from the built-in
+// copy, so Settings shows the built-in value and guards its Save with it. A
 // set there is compared with the built-in copy's value, creates the key, and
 // is guarded by the saved value from then on.
 const BUILT_IN_CONSTANTS = {
@@ -789,7 +783,7 @@ test('serializeDocument is the one spelling a document is written in', () => {
 });
 
 // The Postgres store keys a document and its changes by the file's name
-// (db/postgres/model.json, config_documents.file; bead ro-ujb9.76.4.1). The
+// (db/postgres/model.json, config_documents.file). The
 // mapping names two import exceptions: a key outside [a-z0-9-], and two files
 // that reduce to one key. Neither can happen to a file the store may hold.
 test('every storable file has its own document key in the store, and the key names the file again', () => {

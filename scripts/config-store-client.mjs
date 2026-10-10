@@ -1,14 +1,8 @@
-// config-store-client.mjs — how a terminal reaches the config store.
-//
-// Operational data lives in Postgres (D25). These commands use the running
-// ingest's config routes, preserving their validation, version guards and
-// audit trail. They reach its loopback-only door with the required operator
-// bearer; this client neither opens the database nor starts another Worker.
-// `scripts/no-second-runtime.test.mjs` enforces that transport boundary.
-//
-// The two commands share this file rather than each carrying a copy: the door
-// address, the bearer, and the sentence a caller hears when the OS is down are
-// one fact each.
+// How a terminal reaches the config store: the running ingest's config
+// routes, through its loopback-only door with the operator bearer, so their
+// validation, version guards and audit trail hold. This client neither opens
+// the database nor starts another Worker
+// (`scripts/no-second-runtime.test.mjs`).
 
 import { DEFAULT_DOOR, doorUrl, operatorToken } from './ingest-door.mjs';
 
@@ -20,13 +14,10 @@ export const CONFIG_SEED_PATH = 'api/config-documents/seed';
 export const CONFIG_APPLY_PATH = 'api/config-documents/apply';
 
 /**
- * One request to the door, with the failure an operator can act on.
- *
- * A door that answers nothing at all is the common case and arrives as a
- * transport error: nine times in ten the OS is simply not running, and "start
- * os:up" is the whole fix. Every other answer comes back WITH ITS BODY, because
- * the store's own 409/422/503 bodies name the actual problem and this script has
- * nothing to add to them.
+ * One request to the door, with the failure an operator can act on: a door
+ * that answers nothing usually means the OS is not running, and every other
+ * answer comes back with its body, because the store's own 409/422/503 bodies
+ * name the actual problem.
  */
 export async function configStoreRequest(
   route,

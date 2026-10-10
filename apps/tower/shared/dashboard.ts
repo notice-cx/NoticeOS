@@ -11,30 +11,20 @@ export interface CountdownConfig {
 
 /** Store-backed Wall display configuration surfaced through /api/wall. */
 export interface DashboardConfig {
-  /**
-   * OPTIONAL (bead ro-py40). A countdown is one operator's trip, move or
-   * launch — a fresh install has none, and used to be unable to build until
-   * somebody invented one. Absent, the Wall draws no countdown card; Settings
-   * offers Set a countdown. Home never renders this landmark.
-   */
+  /** Optional: absent, the Wall draws no countdown card and Settings offers
+   * Set a countdown. Home never renders this landmark. */
   countdown?: CountdownConfig;
   /**
-   * OPTIONAL (epic `ro-lzmq`). The Wall's composition as a saved document plus
-   * the versions it replaced — `config/tower.json` at `/wall`, read by
-   * `parseWallConfig`. Absent exactly as the countdown is absent: an install
-   * that never opens the editor has no `/wall` block at all, and the Wall draws
-   * `DEFAULT_WALL_LAYOUT`. The default is named ONCE, in `EMPTY_WALL_CONFIG`,
-   * so nothing here restates it.
+   * Optional: the Wall's composition as a saved document plus the versions it
+   * replaced (`config/tower.json` at `/wall`, read by `parseWallConfig`).
+   * Absent, the Wall draws `DEFAULT_WALL_LAYOUT`.
    */
   wall?: WallConfig;
   /**
-   * READ-SIDE ONLY (bead `ro-trai.45`): the parts of the stored
-   * `config/tower.json` the Tower could not read. Each part is read on its own
-   * (`readDashboardConfig`), so a broken countdown leaves a good layout
-   * standing and the other way round; the part refused is drawn as though
-   * nothing were saved — the default layout, no countdown — and named here, so
-   * the editor can say so and guard its Save on what the store really holds.
-   * Absent when every part read.
+   * Read side only: the parts of the stored `config/tower.json` the Tower
+   * could not read. A refused part is drawn as though nothing were saved and
+   * named here, so the editor can say so and guard its Save on what the store
+   * really holds. Absent when every part read.
    */
   refused?: DashboardRefusals;
 }
@@ -68,51 +58,26 @@ export function isCountdownEmoji(value: string): boolean {
 }
 
 /**
- * Validate config/tower.json while Vite is assembling the Worker. A malformed
- * display config should fail the build instead of shipping an unusable Wall.
- *
- * ABSENT IS FINE; WRONG IS NOT. A file with no `countdown` at all is a valid
- * configuration — the display simply has no countdown — so a fresh clone builds
- * without inventing an event (bead ro-py40). A `countdown` that IS present must
- * still be complete and well formed, because a half-written one is a mistake
- * somebody wants to hear about at build time rather than on the wall TV.
- *
- * `/wall` (epic `ro-lzmq`) is read on the same terms, through the layout
- * contract's own `parseWallConfig`: a file with no saved layout builds and the
- * Wall draws its default, and a saved layout the Wall could not draw fails the
- * build with the validator's own sentence rather than reaching the TV as a hole.
- *
- * THE BUILD'S RULE ONLY. A SAVED document is read part by part by
- * `readDashboardConfig` below, which names a refused part instead of throwing:
- * a Worker that is already running has no build to fail.
+ * Validate config/tower.json while Vite is assembling the Worker, so a
+ * malformed display config fails the build instead of reaching the Wall.
+ * Absent parts are fine; a present part must be complete and well formed.
+ * A saved document at runtime goes through `readDashboardConfig` instead,
+ * which names a refused part rather than throwing.
  */
 export function parseDashboardConfig(value: unknown): DashboardConfig {
   const config = readDashboardConfig(value);
-  // The layout first, then the countdown: the order the file was always
-  // checked in, so a file broken in both places names the same part it did.
+  // Layout before countdown, so a file broken in both names the layout.
   const refusal = config.refused?.wall ?? config.refused?.countdown;
   if (refusal) throw new Error(refusal.reason);
   return config;
 }
 
 /**
- * Read a SAVED `config/tower.json` one part at a time (bead `ro-trai.45`).
- *
- * The layout and the countdown are two settings that happen to share a file,
- * saved by two different forms. Read as one, a countdown with an empty emoji
- * threw the whole document away and the TV drew the default layout over a
- * valid saved one; and the editor, handed that default, guarded its next Save
- * on it while the store held something else, so the Save was refused as
- * "Changed elsewhere".
- *
- * So each part is read on its own. A part that reads is used; a part that
- * does not is left out — the Wall draws its default, Home and the strip no
- * countdown — and named in `refused` with the value as stored and the reason.
- * A refused layout keeps the versions saved with it that still read, so the
- * editor can list them for Revert.
- *
- * Throws only when the document is not an object at all: then there is no
- * part to read, and the caller falls back as it always has.
+ * Read a saved `config/tower.json` one part at a time: the layout and the
+ * countdown are saved by different forms, so one broken part must not discard
+ * the other. A part that does not read is left out and named in `refused`; a
+ * refused layout keeps the saved versions that still read, for Revert.
+ * Throws only when the document is not an object at all.
  */
 export function readDashboardConfig(value: unknown): DashboardConfig {
   if (!isRecord(value)) {

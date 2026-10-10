@@ -3,9 +3,9 @@ export declare const REPO_ROOT: string;
 /** The checkout's configuration directory: the product's defaults, which a
  * change to the product may change under a test. */
 export declare const OWNER_CONFIG_DIR: string;
-/** This installation's own folder (bead ro-ujb9.125): the operator's saved
- * documents, change history and host files. Guarded exactly like `config/`,
- * and named `installation/…` in a `files` entry wherever it really is. */
+/** This installation's own folder: the operator's saved documents, change
+ * history and host files. Guarded exactly like `config/`, and named
+ * `installation/…` in a `files` entry wherever it really is. */
 export declare const OWNER_INSTALLATION_DIR: string;
 export interface SeedValidationTest {
     readonly files: readonly string[];
@@ -62,7 +62,7 @@ export declare function installOwnerConfigReadGuard({ testDir, allowed }: {
  * else null — the node --test runner itself, or a script run on its own. */
 export declare function scriptTestFile(target: unknown): string | null;
 /**
- * The root script suite's guard (bead ro-ujb9.97). node --test runs each
+ * The root script suite's guard. node --test runs each
  * `scripts/*.test.mjs` in a process of its own (`process.argv[1]`), and the
  * script under test runs in that same process, so every read of the checkout's
  * config there is on that test's behalf — whoever's frame asked. Refused with

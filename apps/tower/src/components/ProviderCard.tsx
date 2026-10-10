@@ -64,41 +64,31 @@ import { messageOf } from "@/components/provider-card/errors";
 
 export type { ProviderOAuthPanel } from "@/components/provider-card/GoogleSignIn";
 
-/** The command that moves the operator's existing `.dev.secrets.json` into the
- * store in one go, so nobody retypes a service-account JSON they already have.
- * Since `ro-vu8d.7` it is the FALLBACK: where the OS is running the same move is
- * a button, and this is what a deployed build shows instead — one constant, so
- * the button and the fallback cannot disagree about what the other way is. */
+/** The fallback where the import lane does not run: one constant, so the
+ * button and the command cannot disagree. */
 export const SECRETS_IMPORT_COMMAND = "pnpm dev:secrets:import";
 
 /**
- * The Import half of the Legacy env explainer (bead `ro-vu8d.7`).
- *
- * A PROP rather than a hook call inside the card, for the same reason the Google
- * sign-in panel is: this component renders in the gallery and in tests, where
- * there is no dev server to ask, and a card that fetches on its own could not be
- * shown in a state on purpose. The route asks once and hands the answer down.
- *
- * `importable: false` is also what an unanswered question looks like — the card
+ * The Import half of the Legacy env explainer. A prop rather than a hook call,
+ * so the card can be rendered in any state in the gallery and in tests.
+ * `importable: false` is also what an unanswered question looks like; the card
  * then shows the command, which is true everywhere.
  */
 export interface ProviderEnvImport {
   importable: boolean;
-  /** Why not, when the deployment cannot, as the code the card draws. Null
-   * while the answer is unknown. */
+  /** Why not, as the code the card draws. Null while the answer is unknown. */
   reason: EnvImportBlock | null;
-  /** Runs the import for the WHOLE secrets file and refreshes the page's read.
+  /** Runs the import for the whole secrets file and refreshes the page's read.
    * Rejects with a sentence the card shows beside the button. */
   onImport: () => Promise<void>;
 }
 
-/** One asset this credential serves, with the identity the favicon needs. The
- * payload carries ids only; the page resolves them against the asset directory
- * and passes what it found. */
+/** One asset this credential serves. The payload carries ids only; the page
+ * resolves them against the asset directory. */
 export interface ProviderCardAsset {
   id: string;
   displayName: string;
-  /** null when the directory does not know this id — the link still works. */
+  /** null when the directory does not know this id; the link still works. */
   domain: string | null;
 }
 
@@ -107,69 +97,45 @@ export interface ProviderCardProps {
   /** Resolved identities for `status.assets`, in the payload's order. */
   assets: ProviderCardAsset[];
   nowMs: number;
-  /** False when this deployment cannot store a credential at all — no
-   * `credentials` table, or no `CREDENTIALS_KEY`. Connect is disabled and the
-   * card says nothing more: the page's banner states why, once, with the
-   * command that clears it (beads `ro-ujb9.96.6.19`, `ro-ujb9.204`).
-   * Disconnect stays live, because forgetting a credential nobody can read any
-   * more is exactly when you need to. */
+  /** False when this deployment cannot store a credential at all. Connect is
+   * disabled and the page's banner states why; Disconnect stays live, because
+   * forgetting a credential nobody can read any more is exactly when you need to. */
   canConnect?: boolean;
-  /** Presentation capability: stored reads remain available, operations do not. */
+  /** Stored reads remain available, operations do not. */
   readOnly?: boolean;
   onConnect: (fields: Record<string, string>) => Promise<void>;
   onTest: () => Promise<CredentialProbe>;
   onDisconnect: () => Promise<void>;
-  /**
-   * Record when this credential stops working, or `null` for *it does not*
-   * (bead `ro-vu8d.8`). Absent on a card whose provider declares
-   * `expiry.known === "never"` — there is nothing there to date, and the card
-   * says so in the provider's own sentence instead.
-   */
+  /** Record when this credential stops working, or `null` for "it does not".
+   * Absent on a provider declaring `expiry.known === "never"`. */
   onSetExpiry?: (expiresAt: string | null) => Promise<void>;
   /** Google only. See `ProviderOAuthPanel`. */
   oauth?: ProviderOAuthPanel;
-  /** Legacy env cards only. See `ProviderEnvImport`. Absent means the card was
-   * not told, and it shows the command. */
+  /** Legacy env cards only. Absent means the card shows the command. */
   envImport?: ProviderEnvImport;
-  /** Focused integration setup; the default keeps the complete reference card.
-   * A guided card shows no status of its own: its page's header carries the
-   * connection's one status (bead `ro-ujb9.96.7.3`). */
+  /** Focused integration setup. A guided card shows no status of its own; its
+   * page's header carries the connection's one status. */
   guided?: boolean;
-  /** The connection's one status (`@shared/connection-status`). Without it the
-   * card reads what the credential alone proves, never ahead of it. */
+  /** The connection's one status. Without it the card reads what the
+   * credential alone proves, never ahead of it. */
   connection?: ConnectionStatus;
-  /**
-   * Replace the secret somewhere that asks the provider before keeping it —
-   * the connect panel, for a provider that connects there (bead
-   * `ro-ujb9.96.7.10`). Absent: Replace opens this card's own form.
-   */
+  /** Replace the secret somewhere that asks the provider before keeping it.
+   * Absent: Replace opens this card's own form. */
   onReplace?: () => void;
   className?: string;
 }
 
-/** What a scope means, in the operator's words rather than the schema's. */
 const SCOPE_NOTE: Record<string, string> = {
   shared: "One account covers every site.",
   "per-asset": "Entered once per site.",
 };
 
 /**
- * One provider: what state its credential is in, which assets it serves, and
- * the three things an operator can do to it — connect, test, disconnect (bead
- * `ro-vu8d.2`, doc 14 flow C).
- *
- * NOTHING IS EVER ECHOED BACK. The API returns field names and timestamps only,
- * so after a save the card shows *set*, never the value — and Reconnect opens
- * empty inputs rather than pre-filled ones, because a pre-filled password field
- * is a claim that the browser knows the password.
- *
- * DISCONNECT IS THE ONE CONFIRM HERE. D18's rule is undo over confirm, and
- * Connect follows it. Disconnect cannot: there is nothing to undo back TO — the
- * plaintext is gone the moment the row is deleted — and it silently stops every
- * lane the credential powers, which is the case doc 14 principle 5 sends to
- * principle 1 instead. So it names the sites that stop and asks once
- * (`ConnectionActions`, bead `ro-ujb9.96.7.10`) — beside Replace, at the top of
- * the card, on every step: the connection's actions live on the connection.
+ * One provider: its credential's state, the assets it serves, and connect,
+ * test and disconnect. Nothing is ever echoed back: the API returns field names
+ * and timestamps only, so the card shows "set", never the value, and Reconnect
+ * opens empty inputs. Disconnect is the one confirm, because there is nothing
+ * to undo back to once the row is deleted.
  */
 export function ProviderCard({
   status,
@@ -193,24 +159,15 @@ export function ProviderCard({
   const shown = connection ?? connectionStatus(provider.id, credential, []);
   const connected = state !== "not-connected";
   const expiry = credentialExpiry(credential.metadata, nowMs);
-  // WHICH ASSETS THIS CREDENTIAL SERVES — derived ONCE, in the contract, and
-  // read by both the list below and the per-asset form (bead `ro-vu8d.9`). The
-  // catalog says who declares this provider and the store says who has a key;
-  // pairing them up twice is how a card ends up claiming coverage the form
-  // disagrees with.
+  // Derived once, in the contract, and read by both the list and the per-asset form.
   const rows = credentialAssetRows(status);
   const identities = new Map(assets.map((asset) => [asset.id, asset]));
-  // The last figure DataForSEO reported about its own prepaid account, aged
-  // here rather than in the meter block so one derivation serves the card
-  // (bead `ro-qpas`). Null means nothing has been seen yet, which is a sentence
-  // the card prints rather than a line it hides.
+  // Null means nothing has been seen yet, which the card says rather than hides.
   const balance = credentialBalance(credential.metadata, nowMs);
 
   const [step, setStep] = useState<
     "connect" | "assets" | "verify" | "settings"
   >(connected && state !== "legacy-env" ? "verify" : "connect");
-  // The steps are their names: the pressed step in the nav IS the heading of
-  // what follows, so no subtitle restates it (bead `ro-ujb9.96.6.1`).
   const setupSteps = [
     { id: "connect", label: "Connect" },
     { id: "assets", label: "Choose sites" },
@@ -239,14 +196,8 @@ export function ProviderCard({
                 <ConnectionFacts status={shown} subject={`integration:${provider.id}`} />
               </>
             )}
-            {/* A DATED QUALIFIER BESIDE the state, never a fifth state (bead
-                `ro-vu8d.8`). The chip on the left answers *does this work now*;
-                this one answers *until when*. They are two facts, so under doc
-                14's one-representation rule they get two renderings — and
-                folding them into one would mean either a Connected card that
-                cannot mention Friday or an "Expiring" state that cannot say the
-                credential is working today. Once it actually stops, the left
-                chip already turns Failing off the collector's own evidence. */}
+            {/* A dated qualifier beside the state, never a fifth state: the
+                left chip answers "does this work now", this one "until when". */}
             {connected && expiry.state !== "unstated" ? (
               <ExpiryChip expiry={expiry} subject={`integration:${provider.id}`} />
             ) : null}
@@ -276,10 +227,6 @@ export function ProviderCard({
       </CardHeader>
 
       <CardContent className="flex flex-col gap-4">
-        {/* THE CONNECTION'S OWN ACTIONS, above every step (bead
-            `ro-ujb9.96.7.10`): replacing its secret and removing it are things
-            done TO the connection, so they sit where it is, not behind a
-            Settings step. */}
         {connected && !readOnly ? (
           <ConnectionActions
             name={providerName(provider)}
@@ -404,9 +351,6 @@ export function ProviderCard({
           />
         ) : null}
 
-        {/* WHAT IS LEFT OF THE BUDGET (beads `ro-vu8d.25`, `ro-qpas`) — today's
-            calls, or this month's dollars — only where the provider declares a
-            meter and only once there is a credential that could spend it. */}
         {visible("settings") && connected && provider.meter && status.meter ? (
           <MeterNote
             meter={provider.meter}
@@ -417,9 +361,6 @@ export function ProviderCard({
           />
         ) : null}
 
-        {/* Only once there IS a credential: the section is about what this one
-            still has to carry, and a card that has nothing stored is answering
-            an earlier question (bead `ro-90mr`). */}
         {visible("assets") && connected && credential.propertyMap ? (
           <PropertyMapNote map={credential.propertyMap} />
         ) : null}
@@ -432,13 +373,8 @@ export function ProviderCard({
             </details> : googleConnection
         ) : null}
 
-        {/* WHAT THIS CREDENTIAL IS FOR, and it is now TRUE (bead `ro-vu8d.23`).
-            The catalog row promised a digest, approvals and kill-switch
-            confirmations from 2026-07-06 while nothing in the OS sent anything
-            at all. It says what the sender sends because both read one
-            declaration (`NOTIFIED_CONDITIONS`), and it is shown before the
-            press as well as after — what a channel will carry is the question
-            somebody is answering when they decide whether to connect it. */}
+        {/* Shown before the press as well as after: what a channel will carry
+            is the question somebody answers when deciding whether to connect it. */}
         {visible("connect") && provider.lanes.includes(NOTIFICATION_LANE) ? (
           <WhatLands connected={connected} />
         ) : null}
@@ -464,9 +400,8 @@ export function ProviderCard({
         ) : null}
 
         <div className="flex flex-wrap items-center gap-2 empty:hidden">
-          {/* A connected credential is replaced from the connection's own
-              actions above; this is the first connect. On a failing key the
-              fix still leads (bead `ro-vu8d.14`): Replace is the primary there. */}
+          {/* The first connect; a connected credential is replaced from the
+              connection's own actions above. */}
           {visible("connect") && !connected && (!guided || !formOpen) && (
             <Button
               type="button"
@@ -562,13 +497,8 @@ export function ProviderCard({
 }
 
 /**
- * Did it work, and when — one row, one answer (doc 14's one-representation
- * rule).
- *
- * Three sources feed it, in this order: a test the operator just ran, the
- * stored error when the credential is failing, and the stored last success
- * otherwise. They are the same fact arriving from different distances, so they
- * share one slot rather than stacking three verdicts down the card.
+ * Did it work, and when: one slot fed, in this order, by a test the operator
+ * just ran, the stored error when failing, and the stored last success.
  */
 function Verdict({
   state,
@@ -583,8 +513,7 @@ function Verdict({
   probe: CredentialProbe | null;
   testError: string | null;
   nowMs: number;
-  /** The result's one press, drawn with what the card knows (bead
-   * `ro-ujb9.96.6.19`). */
+  /** The result's one press, drawn with what the card knows. */
   fix: (result: ProbeResult) => ReactNode;
 }) {
   if (testError) {
@@ -595,8 +524,7 @@ function Verdict({
     );
   }
   if (probe) {
-    // An ingest from before the structured result still says whether it
-    // worked; its sentence is not drawn.
+    // A probe without a structured result still says whether it worked.
     const result: ProbeResult = probe.result ?? { outcome: probe.ok ? "answered" : "refused" };
     return (
       <VerdictLine
@@ -624,11 +552,8 @@ function Verdict({
     );
   }
   if (state !== "not-connected") {
-    // A credential that is stored and has never been used. This is the state a
-    // card is in the SECOND after Save, because a PUT resets the outcome
-    // columns — what an old key proved says nothing about the new one — and it
-    // is a designed answer rather than a blank slot (doc 14 principle 2): the
-    // hollow ring says *no reading yet*, and Test connection is right there.
+    // Stored and never used: a PUT resets the outcome columns, because what an
+    // old key proved says nothing about the new one.
     return (
       <VerdictLine tone="unknown" at={null} nowMs={nowMs} testId="stored-verdict">
         Not tested yet.
@@ -638,12 +563,8 @@ function Verdict({
   return null;
 }
 
-/**
- * A CONNECTION TEST'S RESULT AS VALUES (bead `ro-ujb9.96.6.19`): the outcome,
- * what the answer counted, and the parts that failed by the operator's own
- * names — never the ingest's sentence. Every value is a chip or a number, so
- * the line reads at a glance whatever the provider.
- */
+/** A connection test's result as values (outcome, counts, failing parts),
+ * never the ingest's sentence. */
 function ProbeResultValues({ result, children }: { result: ProbeResult; children?: ReactNode }) {
   const facts = result.facts ?? {};
   const values: { key: string; label: string; mono?: boolean }[] = [];
@@ -683,12 +604,8 @@ const GRANT_PAGE: Record<"Search Console" | "Google Analytics", string> = {
   "Google Analytics": "https://analytics.google.com/analytics/web/#/admin",
 };
 
-/**
- * THE ONE PRESS THAT CLEARS A RESULT (bead `ro-ujb9.96.6.19`), in place of
- * the sentence that used to spell the fix out: Replace the key, sign in
- * again, give the robot its role on Google's own access page, map the sites
- * on their rows, or Run now where only the collection proves a token.
- */
+/** The one press that clears a result: Replace, sign in again, grant the role
+ * on Google's access page, map the sites, or Run now. */
 function ProbeFixPress({
   result,
   providerId,
@@ -754,11 +671,8 @@ function ProbeFixPress({
   return null;
 }
 
-/** Glyph, sentence, time — in that order, so the verdict is read before it is
- * parsed. The time is relative with the exact stamp on hover (doc 14
- * principle 7); an absent time simply is not drawn, rather than becoming a
- * dash (doc 14 rule 6). `unknown` is muted and takes no color from the
- * connectivity scale: *nobody has checked* is not a health reading. */
+/** `unknown` is muted and takes no colour from the connectivity scale: "nobody
+ * has checked" is not a health reading. */
 const VERDICT_TONE = {
   ok: { icon: Check, ink: "text-connected" },
   bad: { icon: TriangleAlert, ink: "text-error" },
@@ -787,8 +701,6 @@ function VerdictLine({
       data-verdict-ok={tone === "ok" ? "true" : tone === "bad" ? "false" : "unknown"}
     >
       <Icon className="mt-0.5 size-4 shrink-0" aria-hidden />
-      {/* The sentence takes the reading's own weight: a verdict is foreground,
-          "nobody has checked" recedes with its glyph. */}
       <span className={cn("min-w-0", tone === "unknown" ? ink : "text-foreground")}>
         {children}
         {age !== null && at ? (
@@ -801,8 +713,7 @@ function VerdictLine({
   );
 }
 
-/** Where this credential came from and when a collector last reached for it.
- * Provenance, not health — the verdict above already said whether it worked. */
+/** Provenance, not health: the verdict above already said whether it worked. */
 function Provenance({
   credential,
   nowMs,
@@ -829,23 +740,9 @@ function Provenance({
   );
 }
 
-/**
- * The countdown (bead `ro-vu8d.8`, doc 14 flow C step 4).
- *
- * WARN-TONED ONLY INSIDE THE WINDOW. A date fourteen months out is provenance,
- * not attention, and an amber chip on it would send the operator to fix
- * something that will not need fixing this year — the same mistake *Legacy env*
- * deliberately avoids two chips to the left. So the ramp has exactly three
- * steps: muted while it is far off, `caution` inside `T-14d`, `critical` once
- * the date has passed. No new token, no fourth severity.
- *
- * IT COUNTS, IT DOES NOT DATE. "in 6 days" is the fact an operator acts on;
- * the exact instant is on hover, which is doc 14 principle 7's own rule for
- * every other time on this desk. Days are FLOORED, so the chip reads 0 days
- * only on the final day rather than rounding up to 1 and going quiet a day
- * early. Composes `StateChip` — the registry has the chip, this is the
- * vocabulary — rather than adding a rival pill (doc 14).
- */
+/** The countdown: muted while far off, `caution` inside the warning window,
+ * `critical` once the date has passed. Days are floored, so the chip reads
+ * "today" only on the final day rather than going quiet a day early. */
 function ExpiryChip({ expiry, subject }: { expiry: CredentialExpiryReading; subject: StatusSubject }) {
   const tone: StateTone =
     expiry.state === "expired" ? "critical" : expiry.state === "warn" ? "caution" : "na";
@@ -881,23 +778,10 @@ function ExpiryChip({ expiry, subject }: { expiry: CredentialExpiryReading; subj
 }
 
 /**
- * When the credential stops working, as ONE VALUE with its actions beside it
- * (beads `ro-vu8d.8`, `ro-ujb9.96.6.1`) — GitHub's token *Expiration* field,
- * not a paragraph about why.
- *
- * NEVER INVENT A DATE, in three shapes:
- *
- *  - `never` — the provider states no lifetime, so the value is "No expiry
- *    date" and there is nothing to edit. doc 14 flow C step 4 asks for a
- *    warning at T-14d; a form that only ever collected a guess would be a
- *    warning built on one.
- *  - `operator` — nobody but the operator knows, so the value is their date,
- *    or "No expiry date" with Record an expiry… beside it.
- *  - `flow` — the connection recorded it. Google is the only one: its Testing
- *    consent screen lapses a grant after seven days, so the date carries the
- *    provider's own fix (Publish app ↗) and the one-press correction — after
- *    which `carriedExpiry` in the ingest keeps the operator's answer through
- *    every later sign-in.
+ * When the credential stops working, as one value with its actions beside it.
+ * Never invents a date: `never` has nothing to edit, `operator` is the
+ * operator's own date or none, `flow` is what the connection recorded, with
+ * the provider's own fix and a one-press correction beside it.
  */
 function ExpiryLine({
   expiry,
@@ -967,10 +851,8 @@ function ExpiryLine({
             >
               {date ? "Change the expiry…" : "Record an expiry…"}
             </Button>
-            {/* The one-press correction for the assumption above. It writes a
-                DELIBERATE null rather than clearing a field: "this does not
-                expire" is an answer, and the store stamps it `operator` so the
-                next sign-in cannot put the seven-day countdown back. */}
+            {/* Writes a deliberate null: the store stamps it `operator` so the
+                next sign-in cannot put a flow-recorded countdown back. */}
             {expiry.state !== "unstated" ? (
               <Button
                 type="button"
@@ -1006,11 +888,7 @@ function ExpiryLine({
             size="sm"
             disabled={saving || draft === ""}
             data-expiry-save
-            // A bare `YYYY-MM-DD` parses as UTC midnight, which is the instant
-            // the credential is treated as gone. Erring EARLY is the correct
-            // side: a warning that fires a few hours before the provider stops
-            // accepting the key costs nothing, and one that fires after costs
-            // the outage this whole feature exists to prevent.
+            // UTC midnight: erring early is the safe side for an expiry.
             onClick={() => submit(`${draft}T00:00:00.000Z`)}
           >
             {saving ? "Saving…" : "Save"}
@@ -1036,36 +914,17 @@ function ExpiryLine({
   );
 }
 
-/**
- * What pressing Test does, said by the BUTTON rather than a sentence under it
- * (beads `ro-vu8d.18`, `ro-ujb9.96.6.1`) — Grafana's contact-point test is
- * "Send test notification" for the same reason.
- *
- * A free read-only call is what "Test connection" is assumed to be, so it
- * keeps that label. Discord's test POSTS into the operator's channel, so its
- * button says it sends a message and wears the send glyph. Clarity's calls
- * nobody — the only free check is which sites hold a token — so its button is
- * named for that check.
- */
+/** What pressing Test does, said by the button: a side-effect test posts
+ * into the operator's channel, and a `none` test only checks which sites hold
+ * a key. */
 const TEST_BUTTON: Record<ProbeCost, { label: string; busy: string }> = {
   free: { label: "Test connection", busy: "Testing…" },
   "side-effect": { label: "Send test message", busy: "Sending…" },
   none: { label: "Check keys", busy: "Checking…" },
 };
 
-/**
- * Which assets this one credential serves — favicons, because the operator
- * knows their portfolio by its icons, each linking to where that asset's own
- * wiring is edited.
- *
- * A PER-ASSET CREDENTIAL TURNS THE SAME LIST INTO A CHECKLIST (bead
- * `ro-vu8d.9`). For a shared credential the list answers *what breaks if this
- * is wrong*; for a per-asset one it also has to answer *which of them is
- * actually covered*, because partial coverage is the normal state — Clarity
- * issues a token per project and an operator collects them one at a time.
- * That is a mark on each row, not a second list: they are the same assets, and
- * two lists would be the card disagreeing with itself.
- */
+/** Which assets this credential serves. For a per-asset credential the same
+ * list is a checklist, because partial coverage is the normal state. */
 function ServedAssets({
   rows,
   identities,
@@ -1102,9 +961,7 @@ function ServedAssets({
                 row.held ? (
                   <Check className="size-3 shrink-0 text-connected" aria-hidden />
                 ) : (
-                  // A dash, not a red mark: an asset with no key yet is work
-                  // outstanding, not a fault — the same reason Legacy env is
-                  // not amber.
+                  // A dash, not a red mark: no key yet is work outstanding, not a fault.
                   <span aria-hidden className="h-px w-3 shrink-0 bg-muted-foreground" />
                 )
               ) : null}
@@ -1134,68 +991,29 @@ function ServedAssets({
   );
 }
 
-/** One budget line: what the ceiling belongs to, how much of it is left, and
- * the bar. Built for whichever window the provider meters, so the two shapes
- * share one rendering rather than one card growing two. */
+/** One budget line, for whichever window the provider meters. */
 interface BudgetLine {
-  /** Stable per line — an asset id, or the word for a portfolio-wide ceiling. */
+  /** An asset id, or the word for a portfolio-wide ceiling. */
   key: string;
   label: string;
-  /** Where the ceiling is set, when the operator owns it (the data budget in
-   * Settings) — the label links there instead of a sentence saying so. */
+  /** Where the ceiling is set, when the operator owns it. */
   href?: string;
-  /** The state a spent-out ceiling puts the provider in, with when it lifts
-   * ("Paused until Oct 1") — the fail-closed rule as a chip, not a paragraph. */
+  /** The state a spent-out ceiling puts the provider in, with when it lifts. */
   paused?: string;
   /** "7 of 10 calls left today", "$23.88 of $25 left in Sep". */
   left: string;
-  /** What the bar draws, and what a screen reader is told it drew. */
   spent: number;
   cap: number;
   ariaLabel: string;
-  /** The remaining figure as a plain number, for the DOM hook a test asserts
-   * on — a formatted string would make "nothing left" unmatchable. */
+  /** The remaining figure as a plain number, for the DOM hook a test asserts on. */
   remaining: number;
 }
 
 /**
- * HOW MUCH OF THE BUDGET IS LEFT (beads `ro-vu8d.25`, `ro-qpas`).
- *
- * doc 14 flow C step 3 asked for this the day it was written — "Clarity: 7/10
- * calls left today", so the operator never wonders why a data source paused —
- * and until now the cards explained their caps in PROSE instead, which is what
- * the OS says when it cannot show a number.
- *
- * IT IS COUNTED, NEVER ASKED. Both figures come from the manifest rows this OS
- * wrote (its report runs, the same rows the metered spend summary reads), so
- * reading either meter costs nothing — the whole point on a provider whose cap
- * is ten calls a day and whose Test button already refuses to spend one, and on
- * a prepaid provider whose credit an operator could otherwise only see by
- * pressing that button.
- *
- * TWO WINDOWS, ONE LINE SHAPE. Clarity's ceiling is calls PER ASSET PER DAY, so
- * it draws one line per asset: a portfolio total would be a number nothing
- * enforces and would hide the one asset that ran out, and only assets holding a
- * key are listed, because a full bar beside an asset that cannot spend reads as
- * budget it does not have. DataForSEO's ceiling is dollars PORTFOLIO-WIDE PER
- * MONTH, so it draws exactly one line: repeating the shape per asset would say
- * the same thing five times against a cap none of them individually has — the
- * same argument the Health page's spend summary makes about its own split.
- *
- * WHAT THE DATAFORSEO LINE IS NOT is the credit sitting on the DataForSEO
- * account, and that credit now has a line of its own BESIDE the bar rather than
- * inside it (bead `ro-qpas`). The two are different in kind: the cap is a
- * ceiling this OS enforces and can count, the credit is the vendor's own figure
- * and is only ever seen when DataForSEO volunteers it. So it is drawn as a
- * dated sighting — the amount, then how long ago it was seen — and never as a
- * bar, because a bar reads as a live measurement. Nothing seen yet says so in
- * words instead of leaving the row out, which would read as an account with no
- * credit on it.
- *
- * `Meter` is the registry's spend-vs-cap bar, unchanged — the shape is
- * one value against a ceiling, which is exactly what it draws. Neutral until it
- * is gone: a month that used its budget is not a fault, and the amber the
- * component already reserves for over-cap is the only colour here.
+ * How much of the budget is left, counted from the manifest rows this OS
+ * wrote, never asked of the provider. A per-asset-per-day ceiling draws one
+ * line per asset holding a key; a portfolio-per-month ceiling draws one line.
+ * The vendor's own prepaid credit is a separate dated sighting, never a bar.
  */
 function MeterNote({
   meter,
@@ -1208,8 +1026,7 @@ function MeterNote({
   reading: ProviderMeterReading;
   rows: CredentialAssetRow[];
   identities: Map<string, ProviderCardAsset>;
-  /** The last sighting of the provider's own prepaid account, or null when the
-   * OS has never seen one. */
+  /** The last sighting of the provider's own prepaid account, or null. */
   balance: CredentialBalanceReading | null;
 }) {
   const lines = budgetLines(meter, reading, rows, identities);
@@ -1245,29 +1062,15 @@ function MeterNote({
           </li>
         ))}
       </ul>
-      {/* THE OTHER NUMBER, on the provider that has one (bead `ro-qpas`). Only
-          a prepaid account has a credit to report, and `portfolio-month` is the
-          window that belongs to one — Clarity's daily calls are not bought in
-          advance, so its card draws nothing here rather than an empty row. */}
+      {/* Only a prepaid account has a credit to report. */}
       {meter.window === "portfolio-month" ? <AccountCredit balance={balance} /> : null}
     </div>
   );
 }
 
-/**
- * The prepaid credit, with its age — or the sentence for an account nobody has
- * read yet (bead `ro-qpas`).
- *
- * DATED OR NOT SHOWN. The amount and "seen 2h ago" are one sentence, because
- * the figure alone would be a claim about right now that this OS cannot make:
- * the credit is the vendor's number, seen only when DataForSEO volunteers it in
- * an answer the OS was already buying. The instant is on hover, like every
- * other time on this desk.
- *
- * NOT A BAR. `Meter` above draws spend against a ceiling this OS enforces; a
- * balance has no ceiling to draw against — an operator can top the account up
- * to any figure — and drawing one would invent a maximum nobody set.
- */
+/** The prepaid credit with its age, or the sentence for an account nobody has
+ * read yet. The figure alone would be a claim about right now the OS cannot
+ * make, and a balance has no ceiling to draw a bar against. */
 function AccountCredit({ balance }: { balance: CredentialBalanceReading | null }) {
   if (balance === null) {
     return (
@@ -1278,12 +1081,8 @@ function AccountCredit({ balance }: { balance: CredentialBalanceReading | null }
       </p>
     );
   }
-  // STALE IS SAID, NOT LEFT TO ARITHMETIC (bead `ro-vu8d.27`). Past two missed
-  // weekly refreshes the age stops being a muted timestamp the operator has to
-  // judge and becomes the warn-toned sentence: the figure is still shown —
-  // hiding it would invent a "no credit" — but it is the age that carries the
-  // meaning now, because the sweep's refresh is silent when it fails and a
-  // quietly ageing number is the one an operator must not plan Monday on.
+  // A stale figure is still shown (hiding it would invent "no credit"), but
+  // the age carries the meaning: the sweep's refresh is silent when it fails.
   return (
     <p
       className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs"
@@ -1317,9 +1116,8 @@ function nextPeriod(period: string): string {
   return month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, "0")}`;
 }
 
-/** The declaration and the reading turned into lines. A meter and a reading of
- * a different window is a payload that cannot be trusted to mean anything, so
- * it draws nothing rather than guessing which half is right. */
+/** A meter and a reading of different windows draw nothing rather than
+ * guessing which half is right. */
 function budgetLines(
   meter: IntegrationMeter,
   reading: ProviderMeterReading,
@@ -1334,9 +1132,7 @@ function budgetLines(
       {
         key: "portfolio",
         label: `Data budget, ${month}`,
-        // The cap is the operator's own setting, fails closed, and lifts at
-        // the UTC month's turn: the label goes where it is set, and a spent
-        // month says when collection resumes.
+        // The cap fails closed and lifts at the UTC month's turn.
         href: "/settings#budget",
         paused: remaining <= 0 ? `Paused until ${formatPeriodMonth(nextPeriod(reading.period))} 1` : undefined,
         left: `${formatUsd(remaining, { cents: true })} of ${formatUsd(reading.capUsd)} left`,
@@ -1369,31 +1165,10 @@ function budgetLines(
 }
 
 /**
- * WHETHER THIS CREDENTIAL STILL HAS TO CARRY A PROPERTY MAP (bead `ro-90mr`).
- *
- * The Google credential holds a per-asset GA4 property / Search Console site of
- * its own, and since `ro-vu8d.16` each asset's Sources tab holds the same fact
- * and wins. The collectors let the credential's copy go, per data source, the
- * moment nothing needs it — so the operator has to be able to see WHEN that
- * happened, or the dead ids sit in their credential forever looking load-bearing.
- *
- * TWO SENTENCES, ONE OF THEM TRUE. Unfinished, it names exactly which asset ×
- * data source is still waiting and links each to the tab that fixes it — a count
- * with no names is a card that says "go and look". Finished, it says so and says
- * what the credential is still FOR, because "you can delete something from a
- * secret" is worth being precise about.
- *
- * No tone token either way. This is neither a fault nor connectivity — the two
- * colour systems doc 14 licenses on this card — so it reads as what it is: one
- * more thing the credential does, or one fewer.
- *
- * THE ANSWER ARRIVES FROM THE INGEST (bead `ro-vu8d.22`), on the credential
- * summary rather than beside it: only the ingest can read the account map, so
- * only the ingest can ask the question of the assets the CREDENTIAL names. The
- * Tower used to derive a second answer from `config/integrations.json`, and the
- * two disagreed exactly where it matters — an asset the credential names that
- * the register has no entry for, where the card would have said the ids were
- * safe to delete while a run was still reading them.
+ * Whether the Google credential still has to carry its own per-asset property
+ * map, now that each asset's Sources tab holds the same fact and wins. The
+ * answer comes from the ingest, which alone can read the account map; the
+ * Tower must not derive a second one.
  */
 function PropertyMapNote({ map }: { map: CredentialPropertyMapUse }) {
   if (!map.needed) {
@@ -1431,21 +1206,9 @@ function PropertyMapNote({ map }: { map: CredentialPropertyMapUse }) {
 }
 
 /**
- * The credential works, but it lives in the environment file the epic is
- * retiring — so this says what to DO, not what state it is in (the chip above
- * already carries that, doc 14).
- *
- * ONE MOVE, TWO SHAPES. Where the OS is running it is a BUTTON: the dev server
- * has the operator's secrets file beside it and its import lane runs the same
- * function `pnpm dev:secrets:import` runs (bead `ro-vu8d.7`). Wherever that
- * lane does not exist it is the command to copy, labelled with where it runs
- * (a deployed Worker has no file to read), or preceded by the migrate command
- * when this machine has no secrets file yet — the deployment's reason as a
- * code the card draws, never its sentence (bead `ro-ujb9.96.6.1`).
- *
- * THE PRESS MOVES THE WHOLE FILE: the import is one crossing from the env path
- * to the store, and a per-card version would leave the operator pressing the
- * same button on four cards for one outcome.
+ * The credential works but lives in the environment file, so this says what
+ * to do: a button where the import lane runs, otherwise the command to copy.
+ * The press moves the whole file, not one card's secret.
  */
 function LegacyEnvExplainer({
   panel,
@@ -1470,12 +1233,9 @@ function LegacyEnvExplainer({
         <span aria-hidden>→</span>
         <span className="text-foreground">move to the store</span>
       </p>
-      {/* THE OLDER SHAPE, NAMED (bead `ro-vu8d.24`): the one binding still
-          carrying a single site's key, and that site. It is why this card can
-          read Connected on an install that never wrote the map, and naming it
-          is what stops a self-hoster deleting a value that is doing work. No
-          input for it: the map is the shape the product teaches, and the move
-          above takes it along. Muted: a working older binding is not a fault. */}
+      {/* The one binding still carrying a single site's key, named so nobody
+          deletes a value that is doing work. No input for it: the move above
+          takes it along. */}
       {legacyBinding ? (
         <p
           className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
@@ -1552,9 +1312,8 @@ function LegacyEnvExplainer({
   );
 }
 
-/** What the store holds, by NAME — the closest this page ever comes to showing
- * a credential. A missing required field is named too, because a half-entered
- * credential explains a Not connected chip that would otherwise look wrong. */
+/** What the store holds, by name only. A missing required field is named too,
+ * because it explains a Not connected chip. */
 function StoredFields({
   fields,
   present,

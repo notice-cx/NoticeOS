@@ -20,13 +20,9 @@ import { buildChangeset } from "@shared/changeset";
 import { configRegister, rowRefusal } from "@shared/config-registers";
 import { validateSchemaAndSafety } from "../../../scripts/config-documents.mjs";
 
-// Adding a site's decisions, without a browser (bead `ro-qsoo`; one screen
-// since `ro-ujb9.96.7.5`).
-//
-// This is where "what Add will write" is pinned. The screen renders these
-// values and calls two functions with them; if the composition were only
-// assertable through a click handler, "a site added in one screen writes what
-// the five-step wizard wrote" would be untestable prose.
+// Adding a site's decisions, without a browser: the screen renders these
+// values and calls two functions with them, so "what Add will write" is
+// pinned here.
 
 /** A catalog shaped like `config/integrations.json`'s: two asset lanes, one
  * `both`, and one `portfolio` lane that is the System's and never an asset's. */
@@ -61,12 +57,11 @@ const CATALOG: SourceSetting[] = [
   },
 ];
 
-/** The entities a portfolio has declared, as `config/entities.json` holds them
- * (bead `ro-aodz`): one that already owns an asset, and one that owns nothing —
- * which is the row whose first asset is a FIRST write rather than an ordinary
- * one, because it carries no `assets` key at all. */
+/** The entities a portfolio has declared: one that already owns an asset, and
+ * one that owns nothing, whose first asset is a first write because it
+ * carries no `assets` key at all. */
 const ENTITIES: EntityRow[] = [
-  { slug: "reindex-ventures", name: "Reindex Ventures LLC", assets: ["nosh.example"] },
+  { slug: "example-ventures", name: "Example Ventures LLC", assets: ["nosh.example"] },
   { slug: "second-co", name: "Second Co" },
 ];
 
@@ -90,7 +85,7 @@ describe("the id is derived from the domain, never typed", () => {
   });
 });
 
-describe("the name is read off the domain, never typed (bead ro-ujb9.96.7.5)", () => {
+describe("the name is read off the domain, never typed", () => {
   it("title-cases the domain's words and keeps a domain hack's ending", () => {
     expect(siteNameFromDomain("journey.example")).toBe("Journey Example");
     expect(siteNameFromDomain("second.example")).toBe("Second Example");
@@ -154,8 +149,8 @@ describe("the refusals are short states beside the field that can fix them", () 
     ]);
     const full = filled({ collection: "pull", pullUrl: "https://meals.example/metrics" });
     expect(validateDraft(full, { existingIds: [] })).toEqual([]);
-    // A push asset is asked for no endpoint at all, so an empty one is not a
-    // refusal — it is the field not existing.
+    // A push asset is asked for no endpoint at all, so an empty one is the
+    // field not existing, not a refusal.
     expect(validateDraft(filled(), { existingIds: [] })).toEqual([]);
   });
 
@@ -195,12 +190,9 @@ describe("the writes Create will make", () => {
       senseOnly: 1,
     });
 
-    // The integrations entry and the panel roster row: a push asset writes no
-    // fetch endpoint, and no totals means no counters entry. An op nobody asked
-    // for is a file changed for nothing — but the roster is not asked for, it is
-    // an invariant (config/signal-panels.README.md: every asset has a row,
-    // including the ones that are off, and its validation refuses a roster whose
-    // keys differ from config/integrations.json's).
+    // A push asset writes no fetch endpoint, and no totals means no counters
+    // entry. The roster row is not asked for, it is an invariant: every asset
+    // has a row, including the ones that are off.
     expect(plan.ops).toEqual([
       {
         kind: "file-json-insert",
@@ -226,11 +218,9 @@ describe("the writes Create will make", () => {
   });
 
   it("never buys a tracked SERP panel at creation", () => {
-    // config/serp-panel.README.md is the opposite rule to the roster's: "an
-    // asset with no entry here is skipped silently — no call, no manifest row,
-    // no attempt". A panel is a weekly bill AND a weekly review obligation, and
-    // that is a decision made from a collection, not from a create form. The
-    // DELETE half still knows the file (bead ro-sk7q); only the create does not.
+    // An asset with no serp-panel entry is skipped silently. A panel is a
+    // weekly bill and a weekly review obligation, a decision made from a
+    // collection, not from a create form. The delete half still knows the file.
     const plan = planWrites(filled(), CATALOG, ENTITIES, AT);
     expect(plan.ops.map((op) => op.file)).not.toContain("config/serp-panel.json");
   });
@@ -243,10 +233,8 @@ describe("the writes Create will make", () => {
     ]);
   });
 
-  // ONE SHAPE FOR A DECLINE (bead `ro-ujb9.96.7.22`). Adding a site asks no
-  // question about its sources, so every one starts Not set up; a decline is
-  // made on its Data sources row, in the one shape a decline has. The
-  // wizard's "Skipped at setup: …" second shape is gone with the wizard.
+  // Adding a site asks no question about its sources, so every one starts Not
+  // set up; a decline is made on its Data sources row.
   it("writes every source Not set up, with no setup-time skip", () => {
     const plan = planWrites(siteDraft({ domain: "shop.example.com", displayName: "Example Shop", prelaunch: false }), CATALOG, ENTITIES, AT);
     const entry = plan.ops[0]?.value as Record<string, { status: string; note: string }>;
@@ -254,10 +242,8 @@ describe("the writes Create will make", () => {
     expect(JSON.stringify(entry)).not.toContain("Skipped at setup");
   });
 
-  // Bead ro-ujb9.96.7.22: a new site's cells carry NO note — never the blank one
-  // the `asset-lane` register refuses on every later write — so each cell is a
-  // row the register accepts, and passes the per-cell checks of
-  // config/integrations.README.md's validation snippet.
+  // A new site's cells carry no note, never the blank one the `asset-lane`
+  // register refuses on every later write.
   it("writes cells the data-source register accepts, with no blank note", () => {
     const plan = planWrites(siteDraft({ domain: "shop.example.com", displayName: "Example Shop", prelaunch: false }), CATALOG, ENTITIES, AT);
     const entry = plan.ops[0]?.value as Record<string, Record<string, unknown>>;
@@ -265,7 +251,6 @@ describe("the writes Create will make", () => {
     for (const [id, cell] of Object.entries(entry)) {
       expect(cell, id).toEqual({ status: "needs-setup", since: "2026-09-04" });
       expect(rowRefusal(lane, cell), id).toBeNull();
-      // The README snippet's per-cell rules, as it states them.
       expect(["live", "degraded", "needs-setup", "skipped", "not-applicable"]).toContain(cell.status);
       expect(cell.status === "skipped" && !/reason/i.test(String(cell.note))).toBe(false);
       expect(String(cell.since)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
@@ -275,12 +260,10 @@ describe("the writes Create will make", () => {
   });
 
 
-  // WHERE THE OWNING ENTITY GOES (bead `ro-aodz`). It was the first sentence of
-  // the ad-network source's note, which is where D5 makes it matter and where
-  // nobody asking who owns an asset would look. It is now a set on that
-  // entity's own list, and every source's note is back to one subject.
+  // The owning entity is a set on that entity's own list, and every source's
+  // note has one subject.
   it("puts the owning entity on the entity's own list, and nowhere else", () => {
-    const plan = planWrites(filled({ entity: "reindex-ventures" }), CATALOG, ENTITIES, AT);
+    const plan = planWrites(filled({ entity: "example-ventures" }), CATALOG, ENTITIES, AT);
     const entry = plan.ops[0]?.value as Record<string, { note?: string }>;
     expect(entry["ad-network"]).not.toHaveProperty("note");
     expect(entry.gsc).not.toHaveProperty("note");
@@ -293,10 +276,9 @@ describe("the writes Create will make", () => {
     });
   });
 
-  // An entity that owns nothing carries no `assets` key at all, and a pointer
-  // never creates structure — so its first asset is the one set that says the
-  // key was absent, licensed at exactly one place: a declared OPTIONAL field of
-  // a row that already exists.
+  // An entity that owns nothing carries no `assets` key, and a pointer never
+  // creates structure, so its first asset is the one set that says the key
+  // was absent.
   it("files the first asset of an entity that owns nothing as a first write", () => {
     const plan = planWrites(filled({ entity: "second-co" }), CATALOG, ENTITIES, AT);
     expect(plan.ops.at(-1)).toEqual({
@@ -337,7 +319,7 @@ describe("the writes Create will make", () => {
       value: { cards: [{ metric: "signups", label: "Accounts" }] },
     });
     // RFC 6902's append token, and the entry carries its own `asset` id so a
-    // later removal can address it (config/changesets/README.md).
+    // later removal can address it.
     expect(plan.ops[3]).toEqual({
       kind: "file-json-insert",
       file: "config/pull.json",
@@ -351,10 +333,8 @@ describe("the writes Create will make", () => {
     });
   });
 
-  // THE SAME WRITE PATH (bead `ro-ujb9.96.7.5`). A site added in one screen is
-  // composed by the same `planWrites` from the wizard's own defaults, so it
-  // writes exactly the row and the changeset the wizard wrote when its three
-  // default screens were clicked through — nothing added, nothing dropped.
+  // A site added in one screen is composed by the same `planWrites` from the
+  // wizard's own defaults.
   it("writes for a one-screen site exactly what the wizard wrote from its defaults", () => {
     const oneScreen = planWrites(
       siteDraft({ domain: "journey.example", displayName: "Journey Example", prelaunch: false }),

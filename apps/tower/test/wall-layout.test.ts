@@ -1,7 +1,6 @@
 // @vitest-environment node
-// The Wall layout contract (epic ro-lzmq): the one rule for "can the Wall draw
-// this", the default — D28's arrangement since bead ro-trai.11 — and the
-// version history a Save and a Revert produce.
+// The Wall layout contract: the one rule for "can the Wall draw this", the
+// default arrangement, and the version history a Save and a Revert produce.
 
 import { describe, expect, it } from "vitest";
 import {
@@ -61,7 +60,7 @@ function layoutWith(mutate: (layout: WallLayout) => void): WallLayout {
   return copy;
 }
 
-/** A layout saved before D28: only widgets D28 retired. */
+/** A layout holding only retired widgets. */
 const PRE_D28 = {
   version: 1,
   rows: [
@@ -87,7 +86,7 @@ const PRE_D28 = {
   ],
 };
 
-describe("the default layout is D28 (docs/14-design.md § Regions)", () => {
+describe("the default layout", () => {
   it("is the strip, then a column of revenue beside Needs you over the sites, beside the feed", () => {
     expect(DEFAULT_WALL_LAYOUT.rows.map((r) => [r.id, r.height])).toEqual([
       ["strip", "auto"],
@@ -121,7 +120,7 @@ describe("the default layout is D28 (docs/14-design.md § Regions)", () => {
     }
   });
 
-  it("offers none of the widgets D28 retired", () => {
+  it("offers none of the retired widgets", () => {
     expect(WALL_WIDGET_TYPES).toEqual(["strip", "revenue", "needs", "sites", "feed"]);
     for (const type of RETIRED_WALL_WIDGET_TYPES) {
       expect(Object.keys(WALL_WIDGET_LIBRARY)).not.toContain(type);
@@ -139,7 +138,7 @@ describe("validateWallLayout refuses, in the operator's words", () => {
     expect(check).toMatchObject({ ok: false, reason: expect.stringContaining("weather") });
   });
 
-  it("a widget D28 retired, when a fresh layout names one", () => {
+  it("a retired widget, when a fresh layout names one", () => {
     const check = validateWallLayout(
       layoutWith((l) => {
         (widget(l, 0, 0) as { type: string }).type = "attention";
@@ -180,9 +179,9 @@ describe("validateWallLayout refuses, in the operator's words", () => {
         }),
       ),
     ).toMatchObject({ ok: false, reason: 'Revenue has no "assets" setting.' });
-    // An empty filter is inferred as "every asset" rather than refused (bead
-    // `ro-ujb9.96.6.17`) — the answer the editor gives when the last box is
-    // unticked — and the drawn widget carries no filter at all.
+    // An empty filter is inferred as "every asset" rather than refused (the
+    // answer the editor gives when the last box is unticked), and the drawn
+    // widget carries no filter at all.
     const emptied = validateWallLayout(
       layoutWith((l) => {
         stacked(l, 1, 0).settings = { assets: [] };
@@ -260,10 +259,10 @@ describe("parseWallConfig", () => {
   });
 });
 
-// Bead ro-trai.11: a Wall saved before D28 names retired widgets. It still
-// reads — never refused, never blank — as the D28 default, and the value as
-// saved rides beside it for the editor's Save guard and its one warning.
-describe("a layout saved before D28", () => {
+// A Wall naming retired widgets still reads, never refused, never blank, as
+// the default, and the value as saved rides beside it for the editor's Save
+// guard and its one warning.
+describe("a layout naming retired widgets", () => {
   const saved = {
     layout: PRE_D28,
     history: [
@@ -276,7 +275,7 @@ describe("a layout saved before D28", () => {
     ],
   };
 
-  it("reads as the D28 default, keeps the drawable versions, and carries the save as it was", () => {
+  it("reads as the default, keeps the drawable versions, and carries the save as it was", () => {
     const before = JSON.stringify(saved);
     const config = parseWallConfig(saved);
     expect(config.layout).toEqual(DEFAULT_WALL_LAYOUT);
@@ -299,7 +298,7 @@ describe("a layout saved before D28", () => {
     expect(wallLayoutNamesRetired({ rows: "x" })).toBe(false);
   });
 
-  it("marks only the history when the current layout is D28's own", () => {
+  it("marks only the history when the current layout is the default itself", () => {
     const config = parseWallConfig({ layout: DEFAULT_WALL_LAYOUT, history: saved.history });
     expect(config.layout).toEqual(DEFAULT_WALL_LAYOUT);
     expect(config.retired?.replaced).toBe(false);
@@ -328,7 +327,7 @@ describe("a layout saved before D28", () => {
 describe("the write doors (wallOpRefusal)", () => {
   const op = (pointer: string, value: unknown) => ({ kind: "file-json-set", file: "config/tower.json", pointer, value });
 
-  it("take back a pre-D28 config whole — an Undo — but refuse a fresh layout that names a retired widget", () => {
+  it("take back an old config whole — an Undo — but refuse a fresh layout that names a retired widget", () => {
     expect(wallOpRefusal(op("/wall", { layout: PRE_D28, history: [] }), "op 1")).toBeNull();
     expect(wallOpRefusal(op("/wall/layout", PRE_D28), "op 1")).toContain("a widget the Wall no longer draws");
   });
@@ -383,9 +382,8 @@ describe("versions", () => {
   });
 });
 
-// Bead ro-trai.2 (docs/14-design.md § Regions): a column stacks rows inside a
-// row, one level deep, so one widget can run the full height beside several —
-// the default's own body.
+// A column stacks rows inside a row, one level deep, so one widget can run
+// the full height beside several: the default's own body.
 describe("a column slot", () => {
   const refusal = (mutate: (layout: WallLayout) => void) => {
     const check = validateWallLayout(layoutWith(mutate));
@@ -442,7 +440,7 @@ describe("a column slot", () => {
     expect(wallLayoutWarnings(squeezed)).toEqual(["Sites squeezed into a fixed-height row"]);
   });
 
-  it("loads a saved D28 layout without columns unchanged", () => {
+  it("loads a saved default layout without columns unchanged", () => {
     const saved = {
       layout: {
         version: 1,

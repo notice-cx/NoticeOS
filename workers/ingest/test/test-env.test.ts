@@ -1,13 +1,12 @@
-// THE SUITE'S WORKER RUNS ON THE BINDINGS THE TEST DECLARES, AND NO OTHERS
-// (bead ro-ujb9.182).
+// The suite's Worker runs on the bindings the test declares, and no others.
 //
 // In a checkout that runs the OS, `workers/ingest/.dev.vars` holds the
 // installation's real secrets, and wrangler reads it from beside whatever
-// config it is given. The pool now gets a copy of wrangler.jsonc in a folder
-// with no secrets (vitest.config.ts, scripts/worker-config-folder.mts). These
-// tests hold that from inside the Worker: its env names nothing the config
-// does not declare, the bootstrap secrets are the test's own, and no provider
-// binding arrives unless the config sets it. A test that exercises a legacy env
+// config it is given. The pool gets a copy of wrangler.jsonc in a folder with
+// no secrets (vitest.config.ts, scripts/worker-config-folder.mts). These tests
+// hold that from inside the Worker: its env names nothing the config does not
+// declare, the bootstrap secrets are the test's own, and no provider binding
+// arrives unless the config sets it. A test that exercises a legacy env
 // binding sets it on its own env copy (test/credentials.test.ts).
 
 import { env } from 'cloudflare:test';

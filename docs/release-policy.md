@@ -1,7 +1,5 @@
 # Release and upgrade policy
 
-Reviewed: 2026-10-04.
-
 NoticeOS release evidence identifies the source commit, toolchain, schema and
 the checks actually executed. A package version or successful build alone does
 not establish a qualified release. Package metadata alone does not state a
@@ -36,15 +34,15 @@ configuration; the checked-in general Worker profiles remain standalone.
 This is a preview hosting profile, with pinned workerd/Miniflare runtime
 dependencies. Qualify the exact image and platform, fresh setup, browser
 requests, restart and restore before routing public traffic. The demo guide
-provides a stopped-stack backup procedure; recurring hosted backups are tracked
-in `ro-ujb9.256.23`. Local qualification does not establish a deployed domain or
+provides a stopped-stack backup procedure; recurring hosted backups are not
+built. Local qualification does not establish a deployed domain or
 production availability. Customer account hosting remains outside this release.
 
 ## Qualify a release candidate
 
 Record an immutable source commit and verification receipts. Use the locked
 dependency graph and the declared tool versions. All six
-[CI jobs](../CONTRIBUTING.md#run-focused-checks-then-the-release-gates) must pass;
+[CI jobs](../CONTRIBUTING.md#local-verification) must pass;
 the evidence must name skipped tests and separately qualified deployment paths.
 Changes to database, task, backup or hosted behavior need the relevant
 disposable integration and recovery proofs as well.

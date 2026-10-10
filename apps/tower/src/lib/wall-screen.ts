@@ -1,19 +1,8 @@
-// Which Wall a screen gets, by its SHAPE (bead ro-trai.31, operator
-// 2026-09-23, docs/14-design.md § Laptop, tablet and phone).
-//
-// A 13-inch MacBook Air in Chrome is about 1470×830 CSS px — the TV's 16:9 at
-// 77 % of its size — so it gets the TV's layout, drawn smaller, not a phone's.
-// Every landscape screen at least 1024 px wide (a laptop, a landscape tablet, a
-// desk monitor, the TV) draws the TV layout at ONE scale: the TV's 1920×1080
-// box fitted into the screen, `min(width / 1920, height / 1080)`, never above
-// the TV's own size. The small type keeps a readable floor (index.css, § THE
-// TV LAYOUT, SCALED). Anything else — a portrait tablet, a phone — keeps the
-// one-column stack.
-//
-// The same idea the Wall editor's preview already uses (a 1920×1080 box scaled
-// into a pane), and how a TV dashboard is scaled onto a smaller screen by the
-// products the Wall is measured against (docs/artifacts/wall-build-2026-09-23/
-// laptop/README.md § Prior art).
+// Which Wall a screen gets, by its shape. Every landscape screen at least
+// 1024 px wide draws the TV layout at one scale: the TV's 1920×1080 box fitted
+// into the screen, `min(width / 1920, height / 1080)`, never above the TV's
+// own size. The small type keeps a readable floor (index.css, § The TV
+// layout, scaled). Anything else keeps the one-column stack.
 
 import { WALL_TV_HEIGHT, WALL_TV_WIDTH } from "@shared/wall-layout";
 
@@ -21,7 +10,7 @@ import { WALL_TV_HEIGHT, WALL_TV_WIDTH } from "@shared/wall-layout";
 export const WALL_TV_LAYOUT_MIN_WIDTH = 1024;
 
 export interface WallScreen {
-  /** `tv`: the D28 arrangement, scaled. `stack`: one column (docs/25). */
+  /** `tv`: the TV's arrangement, scaled. `stack`: one column. */
   layout: "tv" | "stack";
   /** How much of its TV size the TV layout is drawn at; 1 on the TV and above,
    * and on the one-column stack, which is not scaled. */

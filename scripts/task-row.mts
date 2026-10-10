@@ -56,8 +56,8 @@ export function toLiveTask(row: unknown, ready: ReadonlySet<string>): LiveTask {
     id,
     // A human gate is titled by the ask it holds — `bd` titles every one
     // "Gate: human" — through the same reader the runner's snapshot uses, so
-    // the live board and the snapshot never title one gate two ways (bead
-    // ro-ujb9.201). A gate with no reason keeps its own title.
+    // the live board and the snapshot never title one gate two ways. A gate
+    // with no reason keeps its own title.
     title: awaitType === "human" ? gateTitle(title, source.description) : title,
     status: text(source.status, "open"),
     priority: whole(source.priority, DEFAULT_PRIORITY),

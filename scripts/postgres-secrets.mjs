@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// THE POSTGRES SERVICE'S SECRET FILES (bead ro-ujb9.76.12): `pnpm
-// postgres:secrets`, run once by the operator before the Compose service's
-// first start (db/postgres/host/README.md, step 1).
+// The Postgres service's secret files: `pnpm postgres:secrets`, run once by
+// the operator before the Compose service's first start
+// (db/postgres/host/README.md, step 1).
 //
 //   pnpm postgres:secrets [--dir <folder>] [--port <n>]
 //
@@ -49,8 +49,7 @@ export const SECRETS_DIR_VARIABLE = 'NOTICEOS_POSTGRES_SECRETS';
  * The folder the Compose profile reads its secrets from, resolved as
  * compose.yaml resolves it: `NOTICEOS_POSTGRES_SECRETS`, relative to
  * compose.yaml's own folder, or `secrets` beside it. `pnpm start` takes a new
- * installation's database address from here (scripts/start.mjs, bead
- * ro-ujb9.76.7.3).
+ * installation's database address from here (scripts/start.mjs).
  */
 export function composeSecretsDir(env = process.env, root = REPO_ROOT) {
   const profile = path.join(root, 'db', 'postgres', 'host');

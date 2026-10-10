@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# NoticeOS Postgres service: its first start (bead ro-ujb9.76.12).
+# NoticeOS Postgres service: its first start.
 #
 # The image's entrypoint runs this once, on an empty data volume only: after
 # initdb, before the server first listens on TCP, as the cluster's superuser

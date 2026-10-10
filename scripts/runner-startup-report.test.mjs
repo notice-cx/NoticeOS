@@ -11,7 +11,7 @@ import {
   reportLegacyEnvCredentials,
 } from './runner/startup-report.mjs';
 
-// scripts/runner/startup-report.mjs (bead ro-ujb9.22): the two startup notes.
+// scripts/runner/startup-report.mjs: the two startup notes.
 // Every answer below is a canned door; nothing reaches the Tower or the ingest.
 
 const UP = { running: true, ready: true };

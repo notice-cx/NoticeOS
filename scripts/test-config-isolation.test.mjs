@@ -1,5 +1,5 @@
-// Unit tests run on fixture configuration, never the checkout's own config/
-// (beads ro-ujb9.92, ro-ujb9.97). scripts/test-config-isolation.mjs holds the
+// Unit tests run on fixture configuration, never the checkout's own config/.
+// scripts/test-config-isolation.mjs holds the
 // guards and the allowlist; this pins that each guard refuses what it must,
 // allows only the listed seed-validation tests, and is actually wired into the
 // Tower, ingest and contract suites and the root script suite.
@@ -33,7 +33,7 @@ const guardCodeFiles = ['scripts', 'packages/contract/src'].flatMap(dir =>
 const GUARD = pathToFileURL(path.join(REPO_ROOT, 'scripts', 'test-config-isolation.mjs')).href;
 const OWNER_CONSTANTS = path.join(OWNER_CONFIG_DIR, 'constants.json');
 const OWNER_PULL = path.join(OWNER_CONFIG_DIR, 'pull.json');
-const REFUSAL = /reads the checkout's config\/[a-z-]+\.json\. Unit tests run on fixture configuration \(bead ro-ujb9\.92\)/;
+const REFUSAL = /reads the checkout's config\/[a-z-]+\.json\. Unit tests run on fixture configuration:/;
 
 /** A public clone may have no installation directory or a truly empty one.
  * Any nonempty installation keeps the strict saved-file checks. */
@@ -125,7 +125,7 @@ test('only the checkout\'s own config directory counts as owner config', () => {
   assert.equal(ownerConfigFile(OWNER_CONFIG_DIR), null);
 });
 
-// Bead ro-ujb9.125: this installation's own folder is guarded exactly like
+// This installation's own folder is guarded exactly like
 // config/, under the name `installation/…` wherever the folder really is, and
 // product code may not compile it in.
 test('this installation\'s folder counts as owner config, and product code may not import it', (t) => {
@@ -284,7 +284,7 @@ test('the Tower and ingest suites are wired to both guards', () => {
 });
 
 // ---------------------------------------------------------------------------
-// The contract package and the root script suite (bead ro-ujb9.97)
+// The contract package and the root script suite
 // ---------------------------------------------------------------------------
 
 test('the contract suite is wired to both guards, with a copy of every config file it compiles in', () => {

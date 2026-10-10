@@ -17,9 +17,9 @@ export function useAnnotationWriter(assetId: string) {
     kind: AnnotationKind;
     at?: string;
     note?: string;
-    /** The task that caused this change — a bead id (bead `ro-4ko`). Part of
-     * the store's identity `(asset, at, kind, ref)`, so two deploys at the same
-     * instant for two different beads are two rows rather than one. */
+    /** The task that caused this change, as its id. Part of the store's
+     * identity `(asset, at, kind, ref)`, so two deploys at the same instant
+     * for two different tasks are two rows rather than one. */
     ref?: string | null;
   }): Promise<void> {
     await createAnnotation(assetId, input);

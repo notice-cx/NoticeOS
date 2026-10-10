@@ -91,7 +91,7 @@ describe('the actual demo Worker entry points', () => {
           ...(method === 'initialize' ? { params: { protocolVersion: '2025-06-18', capabilities: {} } } : {}) }) });
       expect((await handleMcpRequest(req, store, deps, descriptor)).status).toBe(method === 'notifications/initialized' ? 202 : 200);
     }
-    // A 2026-07-28 client discovers instead of initializing.
+    // An older client discovers instead of initializing.
     const discover = new Request('https://demo.example/api/mcp', { method: 'POST',
       headers: { ...json, 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'server/discover' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'server/discover', params: { _meta: {

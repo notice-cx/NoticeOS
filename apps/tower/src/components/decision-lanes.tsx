@@ -5,18 +5,10 @@ import { formatInt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
- * The decision-lane vocabulary, drawn once (`ro-427`).
- *
- * Two surfaces now classify evidence into the same four lanes — queries
- * (`QueryVisibilityRankings`) and pages (`PageDecisions`) — and they must agree
- * on what a lane is CALLED and what colour it wears, or the operator reads two
- * systems on one page. This module is the single copy: the lane and tone types,
- * the tone classes, the lane's word, the counts strip, and the two cell
- * primitives both tables lay out with.
- *
- * Nothing here decides a lane. Each surface keeps its own rules, because a page
- * and a query are judged on different evidence, and a shared assessor would be
- * one engine pretending two grains are the same one.
+ * The decision-lane vocabulary shared by query and page decision tables: lane
+ * and tone types, tone classes, the lane's word, the counts strip and the cell
+ * primitives. Nothing here decides a lane; each surface keeps its own rules,
+ * since pages and queries are judged on different evidence.
  */
 export type DecisionLane = "act" | "investigate" | "protect" | "wait";
 

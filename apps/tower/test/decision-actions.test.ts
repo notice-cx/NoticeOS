@@ -19,8 +19,7 @@ let testDb: TestStore;
 
 beforeEach(async () => {
   testDb = await createTestStore();
-  // The site and its dispositions are on Postgres (beads ro-ujb9.76.4.2,
-  // ro-ujb9.76.5.8): a test that writes one has a copy of its own (test/sites.ts).
+  // A test that writes a disposition has a copy of its own (test/sites.ts).
   await addSites(testDb, [{ id: "meals.example", domain: null, displayName: "Meal Planner", status: "live", senseOnly: 0, createdAt: T1 }]);
 });
 
@@ -65,8 +64,7 @@ describe("decision records", () => {
       updatedAt: T1,
     });
 
-    // The same decision at a later clock is not a new event: nothing changed,
-    // so nothing moves.
+    // The same decision at a later clock is not a new event.
     expect(
       await recordDecision(
         await store(),
@@ -145,22 +143,18 @@ describe("decision records", () => {
     expect(await loadDecisions(await store(), "meals.example")).toEqual([]);
   });
 
-  // Bead ro-5e8.3. `handed_off` recorded that the operator had COPIED a query's
-  // Markdown, and the query row wore that as a filing marker. The register now
-  // answers the same question with the bead somebody actually filed, so the
-  // self-report is retired at both ends of this module — and since db/0021, at
-  // the store too (bead ro-5e8.4).
-  describe("the retired handed_off self-report", () => {
+  // Whether a row was handed off is answered by the task somebody filed, never
+  // by the operator's self-report.
+  describe("the handed_off self-report", () => {
     it("is not a status the store will accept from the Tower", () => {
-      // The route's own validator, which is what turns this into a 422 rather
-      // than a 500 from the store's CHECK.
+      // The route's own validator, which turns this into a 422 rather than a
+      // 500 from the store's CHECK.
       expect(isDecisionStatus("handed_off")).toBe(false);
       expect(DECISION_STATUSES).toEqual(["marked", "dismissed"]);
     });
 
-    it("is no longer a value the table will hold at all", async () => {
-      // The CHECK closes the door, so even a hand-written INSERT cannot
-      // recreate one.
+    it("is not a value the table will hold at all", async () => {
+      // The CHECK closes the door, so even a hand-written INSERT cannot recreate one.
       await expect(
         (await store()).write((tx) =>
           tx.execute(
@@ -175,9 +169,7 @@ describe("decision records", () => {
 
     it("still cannot reach the display even if a row somehow carried it", async () => {
       // The read filter stays: it binds DECISION_STATUSES, so the payload's
-      // vocabulary is the module's vocabulary and not whatever the column holds.
-      // Belt to the CHECK's braces — a narrowed constraint is the store's answer,
-      // this is the Tower's.
+      // vocabulary is the module's and not whatever the column holds.
       await recordDecision(
         await store(),
         "meals.example",

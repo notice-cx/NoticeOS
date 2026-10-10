@@ -3,9 +3,6 @@
 // commas), so they are stripped string-aware before JSON.parse. One copy for
 // the runner's cron list, the deploy's store check, `pnpm start`'s Worker
 // configs and the unit suites' (scripts/worker-config-folder.mts).
-//
-// Authored TypeScript: `pnpm config:generate` writes the `.mjs` the scripts
-// import and the `.d.mts` beside it.
 export function stripJsonc(text) {
     let out = '';
     let inStr = false;

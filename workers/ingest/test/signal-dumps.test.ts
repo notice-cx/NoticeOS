@@ -20,27 +20,19 @@ import {
 const NOW = Date.parse('2026-07-29T12:15:00.000Z');
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
-/**
- * Every domain-bearing, non-retired property the seed carries — six since
- * pullups.example joined (db/0019) — each asked for the same six Bing report
- * families. Bing verifies all six below, so a sixth property is six more
- * archives, not six more failures.
- */
+/** Every domain-bearing, non-retired property the seed carries, each asked for
+ * the same six Bing report families. Bing verifies all of them below, so another
+ * property is six more archives, not six more failures. */
 const BING_PROPERTIES = 6;
 const BING_ATTEMPTS = BING_PROPERTIES * 6;
 /** `queries` and `pages`: the two families Microsoft refreshes weekly, so a
  * second run for the same date does not ask for them again. */
 const BING_WEEKLY_FAMILIES = 2;
 const BING_WEEKLY_ATTEMPTS = BING_PROPERTIES * BING_WEEKLY_FAMILIES;
-/**
- * The Google properties vitest.config.ts maps onto the test service account.
- * TWO since ro-93l: with one, "collected every configured property" and
- * "collected the first one" were the same number, so a loop that `break`s where
- * it should `continue` — or a candidate list read as `[0]` — passed every GSC
- * and GA4 assertion in this file. The Bing lane has always fanned out across the
- * seeded portfolio; the Google lanes are the heavier half of the archive and had
- * no such pin.
- */
+/** The Google properties vitest.config.ts maps onto the test service account.
+ * Two, so that collecting every configured property and collecting the first
+ * one are different numbers: a loop that breaks where it should continue, or
+ * a candidate list read as `[0]`, fails here. */
 const GOOGLE_PROPERTIES = ['meals.example', 'nosh.example'] as const;
 /** Ten GSC families and nine GA4 families, both properties buying the same set —
  * `js-errors` included, since config/ga4-custom-dimensions.json registers the
@@ -499,7 +491,7 @@ describe('analysis-grade signal dumps', () => {
       expect(flagged.map((row) => row.asset)).toEqual([...GOOGLE_PROPERTIES]);
       const flag = await quotaFlag();
       // The headline with its share; the tokens are the inputs the Alerts row
-      // draws as "Tokens left · 10,000 of 200,000" (bead ro-ujb9.96.6.26).
+      // draws as "Tokens left · 10,000 of 200,000".
       expect(flag!.message).toBe('GA4 daily quota at 5% for 123456');
       const inputs = JSON.parse(flag!.ruleInputs) as Record<string, unknown>;
       expect(inputs).toMatchObject({
@@ -539,16 +531,12 @@ describe('analysis-grade signal dumps', () => {
     });
   });
 
-  /**
-   * ro-z86. The dedup above is a SAME-DATE rule, and that is a decision rather
-   * than an oversight: `reportDate` is in the WHERE clause and inside the hashed
-   * bytes, so a snapshot family whose payload has not moved since yesterday
-   * still writes its own object. Measured over 1105 archives (2026-07-25..08-04)
-   * that costs 35 KiB of 8.3 MiB — 0.42% — and reaching across dates would cost
-   * the panel dir its dates, because a shared object's envelope names the first
-   * date and the flattener reads every row's `report_date` out of that envelope.
-   * This test is what keeps the decision deliberate.
-   */
+  /** The dedup above is a same-date rule by decision: `reportDate` is in the
+   * WHERE clause and inside the hashed bytes, so a snapshot family whose payload
+   * has not moved since yesterday still writes its own object. Reaching across
+   * dates would cost the panel dir its dates, because a shared object's envelope
+   * names the first date and the flattener reads every row's `report_date` out
+   * of that envelope. */
   it('gives each report date its own object even when the provider bytes repeat', async () => {
     const { fetchImpl } = providerDumpFetch();
     await runSignalDumps(env, { nowMs: NOW, fetchImpl, revisionDays: 1 });
@@ -1101,7 +1089,7 @@ describe('analysis-grade signal dumps', () => {
     });
   });
 
-  describe('when the OS is what is down (ro-aed0.4)', () => {
+  describe('when the OS is what is down', () => {
     const ALL_PROPERTIES = [
       'meals.example',
       'nosh.example',
@@ -1126,8 +1114,8 @@ describe('analysis-grade signal dumps', () => {
     }
 
     it('writes no manifest flood for a dead night — one OS fact instead', async () => {
-      // The full four-date revision window: the shape that used to write a
-      // `request_failed` manifest per target x family x date.
+      // The full four-date revision window: the shape that would otherwise write
+      // a `request_failed` manifest per target x family x date.
       const result = await runSignalDumps(env, {
         nowMs: NOW,
         fetchImpl: cutUplink(providerDumpFetch().fetchImpl),
@@ -1319,8 +1307,8 @@ describe('analysis-grade signal dumps', () => {
     });
   });
 
-  describe('re-collecting what an outage cost (ro-aed0.7)', () => {
-    /** The run on 2026-09-14 that never reached Google (the live store's shape). */
+  describe('re-collecting what an outage cost', () => {
+    /** The run that never reached Google. */
     const OUTAGE_RUN = '2026-09-14T12:15:00.000Z';
     /** A scheduled run ten days on: its own window is 2026-09-23 alone. */
     const LATER = Date.parse('2026-09-24T12:15:00.000Z');
@@ -1414,7 +1402,7 @@ describe('analysis-grade signal dumps', () => {
       expect(await latest('meals.example', 'gsc', 'page-query', '2026-09-10')).toMatchObject({ errorCode: 'gsc_dump_http_403' });
     });
 
-    it('names a date this machine failed to save as its own fault, and never asks Google again for it (ro-aed0.10)', async () => {
+    it('names a date this machine failed to save as its own fault, and never asks Google again for it', async () => {
       // Google answered pages-screens for meals.example; the file store refused it.
       const refusing = new Proxy(env.RAW_SIGNALS, {
         get(target, prop) {

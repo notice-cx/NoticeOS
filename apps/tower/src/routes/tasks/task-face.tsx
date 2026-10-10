@@ -5,26 +5,18 @@ import { TASK_STATUSES, isGate } from "@/lib/task-board-read";
 import { cn } from "@/lib/utils";
 
 /**
- * HOW A TASK LOOKS, defined once for every surface that draws one: the Tasks
- * board (`TasksBoard`, on `/tasks` and a site's Tasks tab), the task's own page
- * (`TaskRoute`), and the task rows and counts other screens borrow — Home's
- * Waiting on you, a site's Needs you and the Sites table's Tasks cell (bead
- * `ro-ujb9.240`). A shared route module rather than a registry component,
- * because it composes only task facts, never a layout.
+ * How a task looks, defined once for every surface that draws one. A shared
+ * route module rather than a registry component, because it composes only
+ * task facts, never a layout.
  */
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Priority — a rank, never a severity
-// ─────────────────────────────────────────────────────────────────────────────
+// --- Priority: a rank, never a severity -------------------------------------
 
 /**
- * A TASK'S PRIORITY IS NOT A SEVERITY (doc 14, bead `ro-ujb9.200`). Red and
- * amber say something is failing or needs attention; a top-priority task is
- * neither, and painting it red put it beside a project that could not be read
- * as if the two were the same kind of fact. So priority ranks by INK WEIGHT: a
- * filled `!` at the top band, a ringed `!` at high, and the quiet `◦` below —
- * the bulk of any queue is the default band, and a board where every row is
- * normal has nothing shouting on it.
+ * A task's priority is not a severity: red and amber say something is failing
+ * or needs attention, and a top-priority task is neither. So priority ranks by
+ * ink weight: a filled `!` at the top band, a ringed `!` at high, and the
+ * quiet `◦` below.
  */
 export interface PriorityFace {
   /** The operator's word for the band: top, high, normal, low, lowest. */
@@ -45,11 +37,8 @@ export function priorityFace(priority: number): PriorityFace {
   return { band, glyph: "◦", ink: "text-muted-foreground", emphasis: "quiet" };
 }
 
-/**
- * The ring every task mark is drawn in — doc 14's row glyph (18px, a 1.5px
- * border, the mark inside) on the board, and the same ring at chip scale on the
- * task page's header, so one mark never has two geometries.
- */
+/** The ring every task mark is drawn in: the row glyph on the board, and the
+ * same ring at chip scale on the task page's header. */
 export function markRingClass(size: "row" | "chip"): string {
   return cn(
     "grid shrink-0 place-items-center rounded-full border-current font-semibold leading-none",
@@ -73,7 +62,7 @@ export function PriorityMark({ priority, size = "row", className }: { priority: 
 }
 
 /**
- * HOW MANY TASKS ARE TOP OR HIGH PRIORITY — "3 urgent" — in the ink those two
+ * How many tasks are top or high priority, "3 urgent", in the ink those two
  * bands' marks wear: foreground, weighted, never an attention hue. The Sites
  * table draws it beside `PriorityBar`, whose top segments are the same ink, so
  * the count and the bar read as one fact.
@@ -90,18 +79,13 @@ export function UrgentCount({ count }: { count: number }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// An ask — a row waiting on the operator
-// ─────────────────────────────────────────────────────────────────────────────
+// --- An ask: a row waiting on the operator ----------------------------------
 
 /**
- * A ROW WAITING ON THE OPERATOR, wherever it is listed: the Tasks board's
- * Waiting on you, Home's, and a site's Needs you (bead `ro-ujb9.240`). Its
- * register comes from what it IS, not from its priority (doc 14): every ask is
- * `warn` at every band, a top one too, and a gate keeps the `△` that says it is
- * holding other work. Priority is the list's ORDER, never the row's colour —
- * Home used to ring a top-priority ask red, beside real failures, while the same
- * row was amber one click later on `/tasks`.
+ * A row waiting on the operator, wherever it is listed. Its register comes
+ * from what it is, not from its priority: every ask is `warn` at every band,
+ * and a gate keeps the `△` that says it is holding other work. Priority is
+ * the list's order, never the row's colour.
  */
 export interface AskFace {
   tone: "warn";
@@ -112,23 +96,15 @@ export function askFace(task: Parameters<typeof isGate>[0]): AskFace {
   return { tone: "warn", glyph: isGate(task) ? "△" : "!" };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Status — one glyph, one tone, one word, on every surface
-// ─────────────────────────────────────────────────────────────────────────────
+// --- Status: one glyph, one tone, one word, on every surface ----------------
 
 /**
- * A TASK'S LIFE, read left to right: an empty circle nobody has taken, a circle
- * with something in it, a barred circle, a parked snowflake, a tick (bead
- * `ro-ujb9.202`). The board's State column, its row mark and the task page's
- * header chip all draw a status from here, so a task reads the same one click
- * apart — they used to be two vocabularies, and a closed task was green on the
- * board and grey on its page.
- *
- * A CLOSED TASK WEARS NO GREEN. Doc 14 keeps the healthy token for evidenced
- * health, and closing records a decision, not a proven outcome
- * (the task-key chain): the outcome is read later, in a watch
- * window carrying the task's id. Only Blocked is an attention tone, because
- * only Blocked is a problem.
+ * A task's life, read left to right: an empty circle nobody has taken, a
+ * circle with something in it, a barred circle, a parked snowflake, a tick.
+ * The board's State column, its row mark and the task page's header chip all
+ * draw a status from here. A closed task wears no green: closing records a
+ * decision, not a proven outcome, which is read later in a watch window
+ * carrying the task's id. Only Blocked is an attention tone.
  */
 const STATUS_LOOK: Readonly<Record<(typeof TASK_STATUSES)[number]["key"], { icon: LucideIcon; tone: StateTone }>> = {
   open: { icon: Circle, tone: "neutral" },
@@ -175,8 +151,8 @@ export function TaskStatusGlyph({ status, className }: { status: string; classNa
   );
 }
 
-/** A status compact — glyph and word in the status's ink, no pill — for a
- * table cell, where a chip per row would be heavier than the fact (doc 14). */
+/** A status compact, glyph and word in the status's ink, no pill, for a table
+ * cell, where a chip per row would be heavier than the fact. */
 export function TaskStatusMark({ status }: { status: string }) {
   const face = statusFace(status);
   return (

@@ -1,5 +1,5 @@
-/** Hosted task operations shared by the Tasks HTTP API and the MCP endpoint
- * (epic ro-cvl9). Each adapter parses its own wire format into these calls;
+/** Hosted task operations shared by the Tasks HTTP API and the MCP endpoint.
+ * Each adapter parses its own wire format into these calls;
  * admission, project selection, the read compositions and retry-safe writes
  * live here once, so the two surfaces cannot drift. The executor still
  * re-admits and re-resolves the project before every command.

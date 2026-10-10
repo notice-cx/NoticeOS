@@ -50,9 +50,9 @@ export interface Ga4MinuteRow {
 }
 
 /**
- * THE one derivation from GA4's per-minute rows to a live pulse (bead
- * `ro-trai.27`): the {@link GA4_PULSE_MINUTES} clock minutes ending with the
- * minute `asOfMs` falls in, oldest first.
+ * The one derivation from GA4's per-minute rows to a live pulse: the
+ * {@link GA4_PULSE_MINUTES} clock minutes ending with the minute `asOfMs`
+ * falls in, oldest first.
  *
  * GA4 returns no row for a minute nobody was active in, so a minute the reading
  * covers without a row is `0`. A minute the reading does NOT cover — after the
@@ -110,8 +110,8 @@ export interface Ga4RealtimeSuccess extends Ga4RealtimeAssetBase {
   /** Distinct active users observed in the inclusive 0–29 minute window. */
   activeUsers30m: number;
   /**
-   * The minute pulse (bead `ro-trai.27`): {@link GA4_PULSE_MINUTES} buckets,
-   * oldest first, ending with the minute this snapshot was served in —
+   * The minute pulse: {@link GA4_PULSE_MINUTES} buckets, oldest first, ending
+   * with the minute this snapshot was served in —
    * {@link ga4MinuteBuckets} over the per-minute rows read with the windows
    * above. `0` is a minute nobody was active; `null` a minute the reading did
    * not cover. Absent or `null` as a whole when the per-minute read failed
@@ -126,11 +126,9 @@ export interface Ga4RealtimeSuccess extends Ga4RealtimeAssetBase {
    */
   hourlyActiveUsers: Ga4HourlyActiveUsers[] | null;
   /**
-   * The operator's clock the hours above were bucketed in: the SAVED
-   * `os_time_zone` when this read ran (store first, the ingest's compiled copy
-   * as the fallback — bead `ro-ujb9.88`). A chart labels its axis with this
-   * rather than with a zone of its own, so the label can never name a different
-   * clock from the one the hours were placed on.
+   * The operator's clock the hours above were bucketed in: the saved
+   * `os_time_zone` when this read ran. A chart labels its axis with this
+   * rather than with a zone of its own.
    */
   timeZone: string;
   /** Hourly Core reports fail independently of working realtime counts. */

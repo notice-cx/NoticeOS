@@ -1,12 +1,11 @@
 #!/usr/bin/env node
-// start.mjs — `pnpm start`: NoticeOS on this machine, in one command
-// (bead ro-ujb9.126, decision D30).
+// start.mjs — `pnpm start`: NoticeOS on this machine, in one command.
 //
 // A fresh clone has no store, secrets or saved settings. A proven empty folder
-// gets its own Compose Postgres, the committed frozen schema and one workspace
-// (owner-approved exception, ro-nzy7). Startup then prepares the runtime files,
-// gets its own Dolt hub and OS task project, starts the Tower and ingest on
-// loopback, and prints Home's address. Beads CLI 1.1.2 is checked before setup.
+// gets its own Compose Postgres, the committed frozen schema and one
+// workspace. Startup then prepares the runtime files, gets its own Dolt hub
+// and OS task project, starts the Tower and ingest on loopback, and prints
+// Home's address. Beads CLI 1.1.2 is checked before setup.
 //
 //   pnpm start                       # http://127.0.0.1:4747/
 //   pnpm start -- --port 6000        # the Tower on 6000, its ingest door on 6001
@@ -14,38 +13,34 @@
 //   pnpm start -- --no-open          # do not open a browser
 //   pnpm start -- --development --dir .local/development  # foreground-owned synthetic database
 //
-// IT IS NOT THE MANAGED SERVICE. `pnpm os:*` runs an installation's live OS:
+// It is not the managed service. `pnpm os:*` runs an installation's live OS:
 // launchd, the Tower on :5173, the ingest door on :8791, the checkout's own
-// `.wrangler/state`, `installation/` and secret files. This command uses none of
-// them. Its folder holds local state, its generated secrets, the Worker configs
-// generated beside them (wrangler reads a Worker's secrets from beside its
-// config), its saved-settings exports and its log; its Tower is told so through
-// the same variables the managed service uses (scripts/os-runtime.mjs), and it
-// refuses the managed service's ports outright. scripts/start.test.mjs boots it
-// beside a planted store with a tripwire on every owner path and port.
+// `.wrangler/state`, `installation/` and secret files. This command uses none
+// of them. Its folder holds local state, its generated secrets, the Worker
+// configs generated beside them (wrangler reads a Worker's secrets from beside
+// its config), its saved-settings exports and its log; its Tower is told so
+// through the same variables the managed service uses (scripts/os-runtime.mjs),
+// and it refuses the managed service's ports outright. scripts/start.test.mjs
+// boots it beside a planted store with a tripwire on every owner path and port.
 //
-// EXISTING POSTGRES IS NEVER STARTED OR MIGRATED HERE. Its address stays in the
-// folder's secrets file (ro-ujb9.76.7.2). First-run setup is only for the new,
-// empty project proven by start-postgres.mjs; subsequent starts read and check
-// the configured database. The folder's secrets file holds DATABASE_URL beside the
-// keys made for it; the start checks that address as the application login
-// (scripts/database-address.mts) and hands it to the Tower's environment only.
-// One whose database is behind this code stops naming the operator's command.
-//
-// A NEW FOLDER TAKES ITS ADDRESS FROM THE COMPOSE PROFILE, ONCE (operator,
-// 2026-09-29, bead ro-ujb9.76.7.3). While the folder's secrets file has no
+// An existing Postgres is never started or migrated here. First-run setup is
+// only for the new, empty project proven by start-postgres.mjs; subsequent
+// starts read and check the configured database. The folder's secrets file
+// holds DATABASE_URL beside the keys made for it; the start checks that
+// address as the application login (scripts/database-address.mts) and hands
+// it to the Tower's environment only. One whose database is behind this code
+// stops naming the operator's command. While the folder's secrets file has no
 // DATABASE_URL, the start copies the one line `pnpm postgres:secrets` wrote to
-// the profile's `database.url` into it, so a first run needs no hand copy of a
-// password. Without that file it stops in one sentence naming the command to
-// run first. Nothing else moves a secret: the managed service reads home's
-// secrets file only, and an address already in the folder is never replaced.
+// the profile's `database.url` into it; without that file it stops in one
+// sentence naming the command to run first. Nothing else moves a secret, and
+// an address already in the folder is never replaced.
 //
-// IT KEEPS COLLECTING ON ITS SCHEDULE (bead ro-ujb9.156). Once the door answers
-// and the settings are seeded, it fires the ingest's crons at its own door and
-// keeps their record in its folder (scripts/start-schedule.mjs), so Workflows
-// and System health show this installation's runs. Each start pays the latest
-// missed obligation of every lane once. Task polling uses its own declared hub
-// and credentials; backups run once its own offsite destination is configured.
+// It keeps collecting on its schedule. Once the door answers and the settings
+// are seeded, it fires the ingest's crons at its own door and keeps their
+// record in its folder (scripts/start-schedule.mjs), so Workflows and System
+// health show this installation's runs. Each start pays the latest missed
+// obligation of every lane once. Task polling uses its own declared hub and
+// credentials; backups run once its own offsite destination is configured.
 
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -83,7 +78,7 @@ import {
 import { WORKER_CONFIGS, WRANGLER_SECRET_SWITCHES, workerConfig } from './worker-config-folder.mjs';
 
 // The folder's Worker configs are written by scripts/worker-config-folder.mts,
-// which the unit tests share for a folder with no secrets (bead ro-ujb9.182).
+// which the unit tests share for a folder with no secrets.
 export { WORKER_CONFIGS, workerConfig };
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -238,8 +233,7 @@ export async function prepareFolder(plan) {
 }
 
 /**
- * A new installation's database address, taken once from the Compose profile
- * (operator, 2026-09-29, bead ro-ujb9.76.7.3).
+ * A new installation's database address, taken once from the Compose profile.
  *
  * Only while the folder's secrets file has no DATABASE_URL: the profile's
  * `database.url` (`composeSecretsDir`, the folder compose.yaml reads, beside
@@ -297,8 +291,7 @@ export async function takeComposeAddress(plan, { env = process.env } = {}) {
   return { ok: true, took: source };
 }
 
-/** One start per folder: two runtimes on one store is the corruption this
- * codebase's single-runtime rule exists for (bead ro-mad). */
+/** One start per folder: two runtimes on one store is corruption. */
 export function takeLock(plan, { alive = processAlive } = {}) {
   try {
     const held = JSON.parse(readFileSync(plan.lock, 'utf8'));

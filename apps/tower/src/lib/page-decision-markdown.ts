@@ -10,8 +10,8 @@ import { recommendationHandoffCaveat, type RecommendationValidity } from "@share
 type PageDecisionLane = "act" | "investigate" | "protect" | "wait";
 
 /** The evidence line a page decision names as the likely cause of its click
- * move (bead `ro-ujb9.96.6.8`). Structured, so the row can tag the line and
- * this brief can name it without either carrying a sentence. */
+ * move. Structured, so the row can tag the line and this brief can name it
+ * without either carrying a sentence. */
 export type PageDecisionCause =
   | { kind: "release"; at: string; note: string | null }
   | { kind: "ranking" }
@@ -20,7 +20,7 @@ export type PageDecisionCause =
 
 export interface PageDecisionMarkdownAssessment {
   lane: PageDecisionLane;
-  /** The decision kind — the rule id the filed bead carries. */
+  /** The decision kind: the rule id the filed task carries. */
   kind?: string;
   /** What happened. */
   label: string;
@@ -30,13 +30,10 @@ export interface PageDecisionMarkdownAssessment {
 }
 
 /**
- * One page decision as a self-contained brief (`ro-427`) — the page-grain twin
- * of `queryDecisionMarkdown`, and structurally identical on purpose: an agent
- * receiving one of these should not have to learn two documents.
- *
- * The KEY is the page URL, not its path. Two assets can share a path and a
- * decision has to name exactly one page; the URL is also what `gsc-page`
- * reports and what the next comparison joins on.
+ * One page decision as a self-contained brief: the page-grain twin of
+ * `queryDecisionMarkdown`, structurally identical on purpose. The key is the
+ * page URL, not its path: two assets can share a path, and the URL is what
+ * `gsc-page` reports and what the next comparison joins on.
  */
 export function pageDecisionMarkdown({
   row,
@@ -101,8 +98,7 @@ export function pageDecisionMarkdown({
           "- **Leading query:** not covered by the page/query export in this window — unknown, not “this page ranks for nothing”.",
         ]),
     // What the lane states about its own series before it ranked anything. It
-    // travels with the copy for the same reason it renders on the page: the
-    // bead this becomes must be able to show which checks ran.
+    // travels with the copy so the task this becomes can show which checks ran.
     ...pages.evidence.map(
       (entry) =>
         `- **${entry.label}:** ${entry.value}${entry.detail ? ` — ${entry.detail}` : ""}`,
@@ -145,23 +141,12 @@ function deviceNoun(device: string): string {
   return device.charAt(0).toUpperCase() + device.slice(1);
 }
 
-/** The bead this decision becomes in the asset's own repo.
- *
- * `kind: "page"` is one of the four handoff kinds every list now carries — the
- * poller's `HANDOFF_KINDS` (`scripts/runner/task-snapshot.mjs`), the ingest validator's
- * `BEADS_HANDOFF_KINDS`, the Tower's own reader, and the table in
- * `config/beads.README.md` — so a bead filed from here is reported back onto
- * its row within a poll cycle. It was not always: this surface emitted `page`
- * while the poller knew only `query` and `finding`, and the metadata was
- * written correctly throughout, so the markers appeared retroactively rather
- * than needing the beads refiled. Emitting a kind this surface is not would
- * have been the alternative, and it would have put a page's work on a query's
- * row. `scripts/handoff-kinds.test.mjs` now fails `pnpm test:scripts` when
- * those lists disagree, naming the odd one out (`ro-4l0q`).
- *
- * EXPORTED since bead `ro-l1ed.4`: the copied command and the row's **File
- * task** button file the same bead, and one description of it is the only way
- * the two cannot drift. */
+/** The task this decision becomes in the asset's own repo. `kind: "page"` is
+ * one of the four handoff kinds every list carries (the poller's
+ * `HANDOFF_KINDS`, the ingest validator's `BEADS_HANDOFF_KINDS`, the Tower's
+ * own reader); `scripts/handoff-kinds.test.mjs` fails when those lists
+ * disagree. Exported because the copied command and the row's File task
+ * button file the same task. */
 export function pageTaskHandoff({
   row,
   assessment,

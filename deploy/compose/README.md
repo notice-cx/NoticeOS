@@ -2,8 +2,7 @@
 
 This service packages the existing runner, Tower, ingest and Beads task lane.
 It starts an **already prepared installation**. It never initializes or
-migrates either database. The supported hosting profile is tracked by
-`ro-ujb9.9`; this application slice is `ro-ujb9.9.2`.
+migrates either database.
 
 The image pins Node 24.21.0 to the official multiarchitecture image digest,
 pnpm 12.8.1, Beads 1.3.1 to the official release archive checksums, and
@@ -27,7 +26,7 @@ runtime state, secrets, backups and private artifact roots. Its
 never the checkout:
 
 ```sh
-docker build --platform linux/arm64 --file /absolute/new/context/deploy/compose/Dockerfile --tag noticeos-local:ro-ujb9-9-2-review /absolute/new/context
+docker build --platform linux/arm64 --file /absolute/new/context/deploy/compose/Dockerfile --tag noticeos-local:compose-proof-review /absolute/new/context
 ```
 
 The Compose service requires these host declarations:
@@ -306,10 +305,8 @@ Beads binary and PostgreSQL client; the running app uses its bundled tools.
 Enable it explicitly with a locally built proof image:
 
 ```sh
-NOTICEOS_TEST_CONTAINER=1 NOTICEOS_TEST_APP_IMAGE=noticeos-local:ro-ujb9-9-2-review BEADS_BD_BIN=/absolute/test-tools/bd node --import ./scripts/script-tests-setup.mjs --test scripts/container-compose.test.mjs
+NOTICEOS_TEST_CONTAINER=1 NOTICEOS_TEST_APP_IMAGE=noticeos-local:compose-proof-review BEADS_BD_BIN=/absolute/test-tools/bd node --import ./scripts/script-tests-setup.mjs --test scripts/container-compose.test.mjs
 ```
 
 Ordinary root tests run the context, startup, task client and health contracts
-without Docker. Independent verification and the actually exercised platform
-are recorded on `ro-ujb9.9.2` before completion. The production hosting promise
-remains the parent bead's acceptance, including operational qualification.
+without Docker. A passing proof is not production hosting qualification.

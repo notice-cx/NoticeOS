@@ -1,9 +1,7 @@
-// THE PALETTE'S MEASURES, read straight from the two stylesheets that define
-// the colours: `public/brand/notice.css` (the Notice identity, D35) and
-// `src/index.css` (the application tokens). Shared by the tests that hold the
-// palette to its numbers — the brand blue's distance from every meaning-bearing
-// colour (brand-identity.test.ts) and each chart series' contrast on the card
-// it is drawn on (chart-series-contrast.test.ts) — so both read one resolver.
+// The palette's measures, read straight from the two stylesheets that define
+// the colours: `public/brand/notice.css` (the Notice identity) and
+// `src/index.css` (the application tokens). Shared by brand-identity.test.ts
+// and chart-series-contrast.test.ts, so both read one resolver.
 import { readFileSync } from "node:fs";
 import path from "node:path";
 

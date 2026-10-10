@@ -1,22 +1,9 @@
-// "NOT USING" — ONE PRESS, THEN A REASON THE OPERATOR PICKS (beads
-// `ro-ujb9.96.7.13` and `ro-ujb9.96.7.18`; operator answer A, 2026-09-23).
-//
-// A declined data source is the register's `skipped` posture, and
-// config/integrations.README.md requires every one to carry its reason in
-// `note` — "the system may decide not to do something; it may not decide not
-// to mention it" (AGENTS.md). The operator decided HOW that reason arrives: one
-// of three chips, or a line of their own. Never typed as a rule, never a
-// prefix to learn, never a reason the product picked for them.
-//
-// ONE VOCABULARY AND ONE WRITE, for the two surfaces that decline a source:
-// the asset's Data sources row (`routes/asset-detail/LaneConfig.tsx`
-// `LanePostureAction`) and an unticked row in the connect panel
-// (`components/SitePicker.tsx`, through `shared/site-discovery.ts`
-// `startPlan`, bead `ro-ujb9.96.7.18`). Both write the `asset-lane` register
-// through `laneFieldOp` — the same pointer, guard and `PUT /api/config` with
-// its `config_changes` audit row — so a source declined in the panel is
-// exactly the source declined on its row, and the collectors skip it the same
-// way (`laneDeclined`, workers/ingest/src/lane-mapping.ts).
+// "Not using": declining a data source. A declined source is the register's
+// `skipped` posture and must carry its reason in `note`
+// (config/integrations.README.md); the operator picks one of three reasons or
+// writes their own. Both surfaces that decline a source (the asset's Data
+// sources row and an unticked row in the connect panel) write through
+// `laneFieldOp`, so the collectors skip it the same way either way.
 
 import type { FileJsonDeleteOp, FileJsonSetOp, JsonValue } from "./changeset";
 import { laneFieldOp, laneFieldUnsetOp } from "./lane-mapping-ops";
@@ -31,15 +18,15 @@ export const DECLINE_REASONS = [
 export type DeclineReasonId = (typeof DECLINE_REASONS)[number]["id"];
 
 /**
- * THE MACHINE SHAPE OF A DECLINE REASON, written by the product and never by
+ * The machine shape of a decline reason, written by the product and never by
  * the operator. The README's own validation reads a skipped cell's note with
  * `/reason/i`, and the prefix is also what tells a leftover decline reason on
  * a lane that is in use again apart from a note saying what blocks it.
  */
 export const DECLINE_NOTE_PREFIX = "REASON: ";
 
-/** The register's `note` holds at most 90 characters (`asset-lane` maxLength,
- * bead `ro-ujb9.96.6.4`); the prefix spends eight of them. */
+/** The register's `note` holds at most 90 characters (`asset-lane` maxLength);
+ * the prefix spends eight of them. */
 export const NOTE_MAX_LENGTH = 90;
 export const OWN_REASON_MAX_LENGTH = NOTE_MAX_LENGTH - DECLINE_NOTE_PREFIX.length;
 
@@ -70,7 +57,7 @@ export interface HeldPosture {
  * The write "Not using" makes: the reason and the posture in ONE changeset,
  * each guarded by what the file holds. A note already saying exactly this is
  * not written again. `since` moves with the posture by itself (the register's
- * `stamps`, bead `ro-t7fz`).
+ * `stamps`).
  */
 export function declineOps(asset: string, laneId: string, held: HeldPosture, reason: string): FileJsonSetOp[] {
   const note = declineNote(reason);
@@ -83,7 +70,7 @@ export function declineOps(asset: string, laneId: string, held: HeldPosture, rea
 /**
  * The way back from a decline, as its Undo writes it: the exact inverse. The
  * posture always goes back. The note goes back to what it was — and a cell
- * that had NO note (a new site's source, bead `ro-ujb9.96.7.22`) has the key
+ * that had NO note (a new site's source) has the key
  * taken off again, guarded by the reason just written. Only a legacy cell
  * holding a blank note keeps the reason as its history, because the register
  * refuses a blank note; `declineReason` is what keeps that from reading as a

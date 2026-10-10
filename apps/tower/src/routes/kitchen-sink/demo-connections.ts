@@ -4,7 +4,7 @@ import { CONNECTION_COUNT_KEYS, laneProvider, type ConnectionCounts, type Connec
 import type { CardDataSource } from "@shared/wall";
 
 /**
- * The gallery's connection reads (bead `ro-ujb9.96.7.16`). A card's source
+ * The gallery's connection reads. A card's source
  * marks read each source through the status model, which needs credentials
  * and monitoring items; the demo cards only carry register states. This turns
  * each demo slot into the reads that model would see — a recorded success for
@@ -44,8 +44,7 @@ export function demoConnections(
   return { credentials, items };
 }
 
-/** A week of the Connections strip's daily record (bead `ro-ujb9.96.7.26`),
- * ending on `nowMs`'s day. */
+/** A week of the Connections strip's daily record, ending on `nowMs`'s day. */
 export function demoCountsHistory(nowMs: number): ConnectionCountsHistory {
   const values: Record<keyof ConnectionCounts, number[]> = {
     sitesFailing: [0, 0, 1, 1, 2, 1, 1],

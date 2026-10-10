@@ -35,11 +35,11 @@ function fieldsOf(current: JobSchedule, displayTimezone: string): ScheduleFields
 }
 
 /**
- * THE ONE ANSWER TO "WHAT DO THESE FIELDS SAVE" — shared by the form and the
- * row (bead `ro-ujb9.96.7.12`), so a schedule picked in Settings and one set in
- * System health can never be two different crons for the same choice. Timing
- * the operator did not touch keeps its saved cron and zone exactly; timing they
- * changed is written in the zone the fields are shown in.
+ * The one answer to "what do these fields save", shared by the form and the
+ * row, so a schedule picked in Settings and one set in System health can
+ * never be two different crons for the same choice. Timing the operator did
+ * not touch keeps its saved cron and zone exactly; timing they changed is
+ * written in the zone the fields are shown in.
  */
 function scheduleFrom(current: JobSchedule, initial: ScheduleFields, fields: ScheduleFields, displayTimezone: string) {
   const { frequency, interval, atMinute, time, weekday, enabled } = fields;
@@ -62,17 +62,9 @@ function withSchedule(overrides: ScheduleOverrides | null, jobId: string, next: 
 }
 
 /**
- * One job's schedule, edited in place under the page header (bead
- * `ro-ujb9.96.6.11`: no paragraph). The header above already states what the
- * job does; the fields are labelled in local time; the preview line shows the
- * next three runs the change would produce; after Save the page itself shows
- * "Saved change pending" until the scheduler confirms it. A save the store
- * refused keeps the operator's values and offers the one fix — reload what is
- * saved now, then Save again — as a button rather than an instruction.
- *
- * `variant="row"` is the same editor as one line of Settings → Data collection
- * (bead `ro-ujb9.96.7.12`), where a collection's schedule now lives instead of
- * two areas away in System health: see {@link ScheduleRow}.
+ * One job's schedule, edited in place, fields in local time. A refused save
+ * keeps the operator's values and offers reloading what is saved.
+ * `variant="row"` is the same editor as one Settings row ({@link ScheduleRow}).
  */
 export function ScheduleEditor(props: {
   job: ScheduledJob;
@@ -177,26 +169,10 @@ function minuteOptions(minute: string): string[] {
 }
 
 /**
- * ONE COLLECTION'S SCHEDULE AS ONE ROW OF SETTINGS (bead `ro-ujb9.96.7.12`).
- *
- * Changing how often data is collected used to be Settings → Data collection →
- * a link to System health → Background operations → the job → Edit schedule →
- * a time → Save schedule: seven actions over two areas. Here it is the job's
- * row and a pick, Grafana's data-source settings pattern — the schedule sits
- * with the collection it governs.
- *
- * EVERY CONTROL IS A SELECT AND EVERY PICK SAVES, with "Saved · Undo" beside
- * the row (GitLab Pajamas' single low-risk field, `InlineSaveState`): how often
- * — Paused, every few minutes, hourly, daily, weekly — then the one detail that
- * frequency needs, a time on the quarter hour (plus the saved one if it is
- * off-grid), a minute past the hour, an interval or a day. There is no half-typed
- * state to save, which is why a time is a pick and not a box here.
- *
- * THE SAME WRITE AS THE FORM: `scheduleFrom` decides what the fields mean for
- * both, and the op is the one `file-json-set` of `config/constants.json`
- * `/schedules` — guarded by the whole saved object, created with `expectAbsent`
- * the first time — through `useFieldConfigSave`, the config door every setting
- * uses. Its Undo is that write reversed (a first write undoes into a delete).
+ * One collection's schedule as one Settings row. Every control is a select and
+ * every pick saves, so there is no half-typed state (a time is a pick, not a
+ * box). The same write as the form: one `file-json-set` of
+ * `config/constants.json` `/schedules`, guarded by the whole saved object.
  */
 function ScheduleRow({ job, overrides, writable, onWritten }: { job: ScheduledJob; overrides: ScheduleOverrides | null; writable: boolean; onWritten?: (next: ScheduleOverrides | null) => void }) {
   const current = scheduleFor(job, overrides ?? {});
@@ -262,8 +238,8 @@ function ScheduleRow({ job, overrides, writable, onWritten }: { job: ScheduledJo
 
   return (
     // The row lays out by its list's own width (`ScheduleRows`' container), not
-    // the screen's: a Manage panel is 430px wide on any desk (bead
-    // `ro-ujb9.96.7.28`), so there the label sits over its picks.
+    // the screen's: a Manage panel is 430px wide on any desk, so there the
+    // label sits over its picks.
     <div className="flex flex-col gap-2 border-b border-border py-3 last:border-0 @xl:flex-row @xl:items-center @xl:justify-between @xl:gap-4" data-schedule-row={job.id}>
       <div className="flex min-w-0 flex-col">
         <span className="text-sm font-medium text-foreground">{job.label}</span>
@@ -321,17 +297,10 @@ function scheduleKey(value: ScheduleOverrides | null): string {
 }
 
 /**
- * THE COLLECTION SCHEDULES, ONE ROW EACH (beads `ro-ujb9.96.7.12`,
- * `ro-ujb9.96.7.28`): on a connection's Manage panel for the collections it
- * feeds, and in Settings → Data collection for the ones no connection feeds —
- * `connectionCollections` / `settingsCollections` decide which, so a job's one
- * row is never drawn twice on a screen.
- *
- * All the rows write ONE saved object, guarded by what it held, so the list
- * keeps what its own rows just wrote until the page's read catches up: without
- * it a second pick made before the refresh would be guarded by the stale value
- * and refused as "changed elsewhere". What it keeps is dropped the moment the
- * read shows anything this list did not write — then the read is the truth.
+ * The collection schedules, one row each. All rows write one saved object
+ * guarded by what it held, so the list keeps its own writes until the page's
+ * read catches up; otherwise a second pick before the refresh would be refused
+ * as "changed elsewhere". The kept value drops once the read shows a foreign write.
  */
 export function ScheduleRows({ jobs, overrides, writable }: { jobs: readonly ScheduledJob[]; overrides: ScheduleOverrides | null; writable: boolean }) {
   const [local, setLocal] = useState<{ value: ScheduleOverrides | null; trail: string[] } | null>(null);
@@ -350,8 +319,8 @@ export function ScheduleRows({ jobs, overrides, writable }: { jobs: readonly Sch
         <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
           Collection schedule
           {writable ? null : (
-            // The page says why once (`SavesPaused`, bead `ro-p8qq`); the rows
-            // show the state as a lock, and say it to a screen reader.
+            // The page says why once (`SavesPaused`); the rows show the state
+            // as a lock, and say it to a screen reader.
             <span className="inline-flex items-center text-muted-foreground" data-schedules-locked>
               <Lock aria-hidden className="size-3.5" />
               <span className="sr-only">Saves paused</span>

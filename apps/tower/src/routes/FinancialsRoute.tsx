@@ -58,23 +58,12 @@ import {
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-/**
- * Cents, everywhere on this page.
- *
- * The Wall rounds to whole dollars because a glance never reconciles against a
- * receipt. This page exists to BE reconciled — an operator checking $23.28 of
- * amortized domains against a Porkbun invoice cannot do it against "$23", and a
- * column of rounded figures does not add up to its own total.
- */
+/** Cents, everywhere on this page: it exists to be reconciled against a
+ * receipt, and a column of rounded figures does not add up to its own total. */
 const CENTS = { cents: true } as const;
 
-/**
- * THE THREE SERIES' IDENTITY, stated once for the strip and the chart (doc 14
- * § Tokens, bead `ro-ujb9.12`): revenue cyan and solid, cost violet and
- * dashed, net in plain ink and dotted. The strip's sparklines wear the same
- * ink as the lines under "Month by month", so a KPI and its line are read as
- * one series before a label is; the delta chip beside each carries the verdict.
- */
+/** The three series' identity, stated once for the strip and the chart:
+ * revenue cyan and solid, cost violet and dashed, net in plain ink and dotted. */
 const SERIES = {
   revenue: { name: "Revenue", tone: "revenue", lineStyle: "solid" },
   cost: { name: "Cost", tone: "cost", lineStyle: "dashed" },
@@ -83,52 +72,21 @@ const SERIES = {
 } as const satisfies Record<string, Omit<HeroSeries, "points">>;
 
 /**
- * /financials — **am I making money, and where?** (doc 14, bead `ro-78qo.16`).
- *
- * ONE QUESTION, AND THE FIRST SCREEN IS THE WHOLE ANSWER. Until this rebuild
- * the page opened on five stacked cards of the same weight — a hatched bar
- * chart, a month table, an asset table, a cost table, two register editors and
- * a gaps list — 4,410px at 1440 with seven paragraphs and three config-file
- * chips on the way down. The reader had to assemble the answer. Now the strip
- * states it (net, revenue, cost, what has been reconciled, what is still a
- * forecast), the chart under it carries the shape, and everything that is
- * READ ONE CELL AT A TIME — the month table, the cost breakdown, the two
- * registers — is a collapsed panel underneath.
- *
- * AND NOTHING ON IT IS A PARAGRAPH (bead `ro-ujb9.96.6.9`, doc 14 principle
- * 3a). The About, the known-gaps panel and five tooltips carried seven
- * paragraphs; each fact is now a shape on the figure it qualifies.
- *
- * TWO-TIER BY CONSTRUCTION, and it is the reason this page exists rather than a
- * per-asset margin column on the Wall. Most of the portfolio's cost pays for
- * all of it — Claude Code, the Cloudflare plan — and splitting that across six
- * assets needs an allocation key nobody measured. So overhead sits on asset
- * #0 in its own line, asset nets carry DIRECT costs only, and the reader
- * subtracts once, visibly. A single blended margin per asset would look more
- * finished and be less true.
- *
- * THE MONTH IS THE PAGE'S RANGE (doc 14 gives every surface one range control;
- * on an accounting page that control is the month, not `7d · 28d · 90d`). It
- * lives in the URL, never in component state: a month is then a LINK the
- * operator can send, a bookmark that survives a reload, and a back button that
- * steps through what he actually looked at. The page defaults to the latest
- * month holding rows, and the header says when that is not this month (bead
- * `ro-69vb`).
+ * /financials: am I making money, and where? The strip states the answer, the
+ * chart under it carries the shape, and everything read one cell at a time is
+ * a collapsed panel underneath. Overhead sits on asset #0 in its own line and
+ * asset nets carry direct costs only, because splitting shared cost needs an
+ * allocation key nobody measured. The month is the page's range and lives in
+ * the URL, so it is a link and a bookmark; the page defaults to the latest
+ * month holding rows.
  */
 export default function FinancialsRoute() {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedPeriod = searchParams.get("period");
   const { data, isPending, error } = useFinancials(requestedPeriod);
 
-  /**
-   * The URL named a month the ledger cannot answer (bead `ro-dm67`).
-   *
-   * It is not the same event as a ledger that failed, and it used to render as
-   * one: the reader got "The ledger did not answer" and — because the selector
-   * is drawn from a payload that never arrived — no way out but editing the
-   * URL. A bookmark to last quarter's month is exactly the link a finance page
-   * receives, and it lands here.
-   */
+  /** The URL named a month the ledger cannot answer: not the same event as a
+   * ledger that failed. */
   const missingPeriod =
     requestedPeriod !== null && error instanceof FinancialsPeriodError
       ? error
@@ -143,10 +101,8 @@ export default function FinancialsRoute() {
       ? { period: data.period, periods: data.periods }
       : null;
 
-  /* THE OPEN MONTH IS SAID ONCE, beside the month it qualifies (bead
-     `ro-ujb9.96.6.9`). It used to be a caption under two KPIs, a word in the
-     month table, a tooltip sentence and an About paragraph — four places for
-     one fact. The hollow dot is the chart's own mark for an unfinished period. */
+  /* The open month is said once, beside the month it qualifies; the hollow dot
+     is the chart's own mark for an unfinished period. */
   const monthToDate =
     !missingPeriod && data && !data.empty && data.period >= data.currentPeriod;
 
@@ -154,22 +110,12 @@ export default function FinancialsRoute() {
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3.5 p-4 md:p-6">
       <PageHeader
         title="Money"
-        /* THE PAGE'S ONE QUESTION, not a fact about the query behind it (doc
-           21). This slot used to read "latest month with rows" whenever the
-           ledger's newest month was not the calendar one — a sentence about how
-           the payload chose a period, which is the sort of thing a database
-           says and an operator does not ask. The month picker opposite names
-           the month in full ("August 2026") and a reader standing in September
-           can see it; what nothing else on the page said was what the page is
-           FOR. */
+        /* The page's one question, not a fact about how the payload chose a
+           period. */
         actions={
-          /* THE SELECTOR SURVIVES A BAD MONTH (bead `ro-dm67`). It is the page's
-             standing way to move, and it vanished on exactly the state that
-             needed it. On a refused month its value is the month that is NOT
-             there — which `PeriodPicker` already tolerates, mirrors the URL the
-             reader is on, and, unlike parking it on a real month, means picking
-             any month in the list actually fires a change instead of silently
-             re-selecting what is already selected. */
+          /* The selector survives a bad month: its value is the month that is
+             not there, which `PeriodPicker` tolerates, so picking any month in
+             the list fires a change. */
           picker ? (
             <span className="flex flex-wrap items-center gap-2">
               {monthToDate ? (
@@ -192,11 +138,8 @@ export default function FinancialsRoute() {
       ) : missingPeriod ? (
         <MissingPeriod period={requestedPeriod ?? ""} periods={missingPeriod.periods} />
       ) : !data ? (
-        /* ONLY A LEDGER THAT NEVER ANSWERED (bead `ro-ujb9.96.6.9`). A failed
-           refresh keeps the last-good figures on screen — the query holds its
-           data through a refetch error — which the old hint promised in a
-           sentence while `isError` blanked the page anyway. The way out is the
-           button, not an instruction to reload. */
+        /* Only a ledger that never answered: a failed refresh keeps the
+           last-good figures on screen. The way out is the button. */
         <EmptyState
           title="The ledger did not answer"
           hint={
@@ -229,18 +172,9 @@ function requestedPeriodLabel(period: string): string {
 }
 
 /**
- * A `?period=` the ledger cannot answer (bead `ro-dm67`).
- *
- * This is where a bookmark to last quarter's month lands, and it used to land
- * on "The ledger did not answer" — a sentence about a broken database, for a
- * URL that is merely out of date, with the selector gone because it is drawn
- * from a payload that never arrived. A finance page receives exactly this link,
- * so it answers with the months it HAS.
- *
- * THE MONTHS ARE THE ANSWER, NOT A SENTENCE ABOUT THEM (bead
- * `ro-ujb9.96.6.9`): the title names the miss and the row of months under it
- * is the way out. A ledger holding no month at all is the first-run state, and
- * says what to connect rather than that there is nothing to fall back to.
+ * A `?period=` the ledger cannot answer: where a bookmark to last quarter's
+ * month lands. The months the ledger has are the answer. A ledger holding no
+ * month at all is the first-run state, and says what to connect.
  */
 function MissingPeriod({ period, periods }: { period: string; periods: string[] }) {
   const newest = periods[periods.length - 1];
@@ -279,11 +213,8 @@ function MissingPeriod({ period, periods }: { period: string; periods: string[] 
   );
 }
 
-/**
- * A ledger with no row at all: the title, and the one step that fills it —
- * connecting a revenue source — as a link rather than a sentence describing
- * where to go (bead `ro-ujb9.96.6.9`).
- */
+/** A ledger with no row at all: the title, and the one step that fills it,
+ * connecting a revenue source, as a link. */
 function NothingRecorded() {
   return (
     <EmptyState
@@ -301,13 +232,9 @@ function NothingRecorded() {
   );
 }
 
-/**
- * THE FIRST RUN IS THE TWO STEPS, NOT INSTRUCTIONS FOR THEM (bead
- * `ro-ujb9.96.6.9`). The page used to say "connect a revenue source in
- * Integrations and configure operating costs" and then show neither. Revenue is
- * connected on another page, so that is a link; costs are declared HERE, so the
- * cost registers open in place — the step is the control.
- */
+/** The first run is the two steps, not instructions for them: revenue is
+ * connected on another page, so that is a link; costs are declared here, so
+ * the cost registers open in place. */
 function FirstRun({ data }: { data: FinancialsPayload }) {
   return (
     <>
@@ -327,18 +254,10 @@ function FirstRun({ data }: { data: FinancialsPayload }) {
 }
 
 /**
- * Which month the page describes — doc 14's page-wide range, in the grain an
- * accounting page has (bead `ro-69vb`).
- *
- * A NATIVE `<select>`, not a `RangeSelector`. The options are a plain list of
- * months with no state, no glyph and no severity, and there can be dozens of
- * them; the platform control brings keyboard navigation, type-ahead and the
- * phone's own wheel for free, which three pills cannot.
- *
- * NEWEST FIRST, which is the opposite of the trajectory table below on purpose:
- * that table is read for a shape, so it runs in calendar order; this list is
- * read to FIND a month, and the month wanted is almost always the one that just
- * closed.
+ * Which month the page describes. A native `<select>` rather than a
+ * `RangeSelector`: there can be dozens of months, and the platform control
+ * brings keyboard navigation, type-ahead and the phone's own wheel. Newest
+ * first, because this list is read to find a month.
  */
 function PeriodPicker({
   period,
@@ -371,20 +290,10 @@ function PeriodPicker({
 }
 
 /**
- * A collapsed card (doc 14 principle 3: everything read one cell at a time
- * lives behind a disclosure).
- *
- * IT MOUNTS ITS BODY ONLY WHEN OPEN, which is the difference between a page
- * that is quiet and one that merely looks it. A closed `<details>` still lays
- * its contents out — Chrome reports boxes for a `content-visibility: hidden`
- * subtree — so the first cut of this page measured 3,795px at 1440 with
- * nothing but a 1,350px column on screen, and `surface:audit` counted six
- * paragraphs and a config path nobody could see. Not rendering is the only
- * honest reading of "not visible by default".
- *
- * Local to this page rather than a registry component: it is `Card` plus an
- * eyebrow and a chevron, and a fourth container in the registry is exactly what
- * doc 14 counts as a near-duplicate.
+ * A collapsed card that mounts its body only when open: a closed `<details>`
+ * still lays its contents out, so not rendering is the only honest reading of
+ * "not visible by default". Local to this page because it is `Card` plus an
+ * eyebrow and a chevron.
  */
 function Panel({
   title,
@@ -399,9 +308,8 @@ function Panel({
   count?: ReactNode;
   children: ReactNode;
   className?: string;
-  /** A register deliberately shown on a view route — the audit's own opt-out
-   * (`scripts/README.md`), so the owner chips inside it are not counted as the
-   * chips doc 14 keeps off a view surface. */
+  /** A register deliberately shown on a view route, the surface audit's own
+   * opt-out, so the owner chips inside it are not counted against the view. */
   configSurface?: boolean;
   /** A `data-panel` handle, so a test addresses a panel by what it is rather
    * than by the words in its header. */
@@ -444,10 +352,9 @@ function Panel({
   );
 }
 
-/** A net is a level, not a trend (doc 14 principle 5; D45): ink for any
- * amount, muted for a loss or nothing — never green for being positive and
- * never red: an asset that has not been given a revenue source has not failed
- * at anything. */
+/** A net is a level, not a trend: ink for any amount, muted for a loss or
+ * nothing. Never green for being positive and never red: an asset that has not
+ * been given a revenue source has not failed at anything. */
 function netClass(value: number | null): string {
   if (value === null) return "text-muted-foreground";
   return value < 0 ? "text-muted-foreground" : "";
@@ -464,20 +371,14 @@ function monthly(
   return values.some(value => value === null) ? [] : months.map((month, index) => ({ t: month.period, v: values[index]! }));
 }
 
-/**
- * The page's answer, once the ledger has one.
- *
- * Everything below the hero is a collapsed panel, and that ordering is the
- * whole redesign: the shape of the money is what the page is opened for, and
- * reconciling one figure against a receipt is a job done one cell at a time by
- * somebody who came looking for it.
- */
+/** The page's answer, once the ledger has one. Everything below the hero is a
+ * collapsed panel: the shape of the money is what the page is opened for. */
 function PortfolioRevenue({ history, sites }: { history: PortfolioDailyRevenue; sites: number | null }) {
   // One site's coverage line would restate "5 of 5 days reported" beside the
-  // figure (bead `ro-ujb9.129`); from two sites it says which one missed days.
+  // figure; from two sites it says which one missed days.
   const coverage = (sites ?? history.sources.length) > 1 && history.sources.length > 0;
   const sourceNames = new Map(history.sources.map(source => [source.asset, source.displayName]));
-  // A day owes only the sources already reporting by then (bead `ro-rd6r`).
+  // A day owes only the sources already reporting by then.
   const notesByDate = Object.fromEntries(history.coverage.map(day => [day.date,
     `${day.reported} of ${day.reported + day.missingAssets.length} daily sources reported${day.missingAssets.length ? ` · Missing: ${day.missingAssets.map(asset => sourceNames.get(asset) ?? 'Unknown site').join(', ')}` : ''}`,
   ]));
@@ -488,19 +389,14 @@ function PortfolioRevenue({ history, sites }: { history: PortfolioDailyRevenue; 
     context={coverage ? <SourceCoverage history={history} /> : null} />;
 }
 
-/**
- * EACH SOURCE AND HOW MANY OF THE WINDOW'S DAYS IT REPORTED (bead
- * `ro-ujb9.96.6.9`) — the coverage the panel used to spell out in two
- * sentences ("daily source coverage: …", "3 days have partial reports …").
- * A source that missed days wears the warn ink on its own count, so the
- * one to chase is the one that looks different; each is a door to that
- * asset's own financials.
- */
+/** Each source and how many of the window's days it reported. A source that
+ * missed days wears the warn ink on its own count; each is a door to that
+ * asset's own financials. */
 function SourceCoverage({ history }: { history: PortfolioDailyRevenue }) {
   return (
     <ul className="m-0 flex list-none flex-wrap gap-x-4 gap-y-1 p-0" data-source-coverage>
       {history.sources.map((source) => {
-        // Its days are the ones since it first reported (bead `ro-rd6r`).
+        // Its days are the ones since it first reported.
         const owed = history.coverage.filter((day) => day.date >= source.since);
         const days = owed.length;
         const reported = owed.filter(
@@ -529,20 +425,17 @@ function SourceCoverage({ history }: { history: PortfolioDailyRevenue }) {
 }
 
 function Ledger({ data }: { data: FinancialsPayload }) {
-  // How many sites the installation has — the sidebar's own read, already in
-  // the cache — so a month in which only one of several sites earned keeps its
-  // by-site table (bead `ro-ujb9.129`). Null until that read answers.
+  // How many sites the installation has, from the sidebar's own read already
+  // in the cache, so a month in which only one of several sites earned keeps
+  // its by-site table. Null until that read answers.
   const wall = useWall().data;
   const sites = wall?.assets.length ?? null;
-  /* The OPEN month is the calendar month the STORE is standing in, as the
-     Worker worked it out on the operator's saved clock when it built this
-     payload — not off `period`: the reader may have selected June, and June is
-     not provisional because somebody chose to look at it. */
+  /* The open month is the calendar month the store is standing in, as the
+     Worker worked it out on the operator's saved clock, not off `period`:
+     June is not provisional because somebody chose to look at it. */
   const openPeriod = data.currentPeriod;
-  /* Every month up to and including the selected one. The strip describes the
-     SELECTED month, so its deltas and sparklines have to end there too: a
-     sparkline running past the month the number above it states would be two
-     different periods drawn as one unit. */
+  /* Every month up to and including the selected one, so the strip's deltas
+     and sparklines end at the month it describes. */
   const upto = data.months.filter((month) => month.period <= data.period);
   const shown = upto.at(-1);
   const shownIsOpen = data.period >= openPeriod;
@@ -570,10 +463,9 @@ function Ledger({ data }: { data: FinancialsPayload }) {
 
   return (
     <>
-      {/* ONE ANSWER FIRST (D45): the month's net in a sentence, the pace
-          Home and the TV say under it while the month is open, and revenue,
-          cost and what is confirmed beside it. A cost nobody recorded is a
-          dash, never $0 (doc 14 principle 8). */}
+      {/* One answer first: the month's net in a sentence, the pace Home and
+          the TV say under it while the month is open, and revenue, cost and
+          what is confirmed beside it. A cost nobody recorded is a dash. */}
       <MoneyAnswer shown={shown} shownIsOpen={shownIsOpen} costRecorded={costRecorded} settled={settled} wall={wall} />
 
       {data.dailyRevenue ? <PortfolioRevenue history={data.dailyRevenue} sites={sites} /> : null}
@@ -592,14 +484,9 @@ function Ledger({ data }: { data: FinancialsPayload }) {
         mark="months"
       >
           <div className="mb-4">
-            {/* NET IS DRAWN NOW, NOT INFERRED (bead `ro-78qo.28`). This chart
-                carried revenue and cost and a footnote saying the distance
-                between them was the net, because `HeroChart`'s scale was
-                zero-based and a month at −$224 had nowhere to go. The scale
-                takes a signed domain since that bead, so the page's headline
-                figure is a line the operator can point at rather than a
-                subtraction they perform by eye — and the footnote goes with it,
-                because the third toggle says the same thing without a sentence. */}
+            {/* Net is drawn, not inferred: the scale takes a signed domain, so
+                the page's headline figure is a line rather than a subtraction
+                performed by eye. */}
             <HeroChart
               title="Monthly performance"
               series={[
@@ -634,11 +521,9 @@ function Ledger({ data }: { data: FinancialsPayload }) {
         </Panel>
       ) : null}
 
-      {/* THE TWO REGISTERS ARE DELIBERATELY ON A VIEW PAGE (bead `ro-x5gu.2`),
-          which is what `data-config-surface` declares: doc 14 keeps owner chips
-          and config paths off view surfaces, and these two tables ARE the files
-          — correcting a price here is the whole reason they were brought onto
-          the page that spends them. */}
+      {/* The two registers are deliberately on a view page, which is what
+          `data-config-surface` declares: these two tables are the files, and
+          correcting a price here is why they are on the page that spends them. */}
       <Panel
         title="Declared costs"
         mark="costs"
@@ -654,24 +539,17 @@ function Ledger({ data }: { data: FinancialsPayload }) {
         />
       </Panel>
 
-      {/* NO ABOUT AND NO "WHAT THIS PAGE DOES NOT KNOW" (bead
-          `ro-ujb9.96.6.9`). Seven paragraphs lived behind those two panels, and
-          each now sits on the figure it qualifies, as a shape: the open month
-          is the header chip and the chart's hollow point; the estimated share
-          is Reconciled's second number and bar; the two-tier read is the
-          by-asset table's own direct / overhead / net rows; an asset nothing
-          reported revenue for is a dash; a domain about to renew wears a
-          chip. */}
+      {/* No About panel: each fact sits on the figure it qualifies, as a
+          shape. */}
     </>
   );
 }
 
 /**
- * THE MONTH'S ANSWER (D45). "September net +$135 so far", and while the month
- * is open the revenue pace Home's brief and the TV state (`monthRevenue`, the
- * one derivation), so September is one number on every screen. A cost nobody
- * recorded is "none recorded", and the net says "revenue only", never a green
- * net over a $0 nobody counted.
+ * The month's answer. While the month is open, the revenue pace is the one
+ * Home's brief and the TV state (`monthRevenue`), so it is one number on every
+ * screen. A cost nobody recorded is "none recorded", and the net says "revenue
+ * only", never a green net over a $0 nobody counted.
  */
 function MoneyAnswer({ shown, shownIsOpen, costRecorded, settled, wall }: {
   shown: FinancialMonth;
@@ -704,14 +582,9 @@ function MoneyAnswer({ shown, shownIsOpen, costRecorded, settled, wall }: {
 }
 
 /**
- * WHERE THE MONEY IS, asset by asset — the page's one visible table (doc 14's
- * index template: one `Table` or one `ListPanel`).
- *
- * TWO SHAPES, TWO QUESTIONS (bead `ro-78qo.29`). The share bar answers which
- * asset is carrying THIS month; on a portfolio where one asset is essentially
- * all the revenue that answer is known before the page loads, and the second
- * question — which one is getting BETTER — is the interesting one. Only a
- * series can answer it, so doc 14 puts a net-by-month `Sparkline` in every row.
+ * Where the money is, asset by asset: the page's one visible table. The share
+ * bar answers which asset is carrying this month; the net-by-month sparkline
+ * in every row answers which one is getting better.
  */
 function PropertySplit({
   properties,
@@ -730,18 +603,14 @@ function PropertySplit({
   sites: number | null;
 }) {
   const owned = properties.filter((property) => !property.isOs);
-  /* ONE SITE IS ITS OWN SPLIT (bead `ro-ujb9.129`). Every row of a by-site
-     table over one site equals its total, which reads as a broken report, and
-     with nothing shared there is nothing to allocate: the strip above already
-     states the site's money. The table stays while a cost pays for more than
-     the site — an overhead line — and then the site's own row is its direct
-     subtotal, so "Sites, direct" would repeat it. From two sites the table is
-     as it always was. */
+  /* One site is its own split: every row of a by-site table over one site
+     equals its total, and with nothing shared there is nothing to allocate.
+     The table stays while an overhead line pays for more than the site. */
   const several = (sites ?? owned.length) > 1;
   const overheadExists = overhead.cost !== 0 || overhead.revenue !== 0;
   if (!several && !overheadExists) return null;
   // "Sites, direct" is the total minus the overhead; with no overhead it is
-  // the total again, one figure twice (D45), so it goes with the overhead row.
+  // the total again, so it goes with the overhead row.
   const subtotal = several && overheadExists;
   const direct = sumMoneyFigures(owned.map(property => property.figure));
   const portfolio = sumMoneyFigures([...owned.map(property => property.figure), overhead]);
@@ -751,17 +620,15 @@ function PropertySplit({
 
   return (
     <section className="rounded-[10px] border border-border bg-card">
-      {/* The two-tier read is the table's own last three rows — assets' direct
-          net, the shared overhead, the portfolio net — so it needs no tooltip
-          explaining how costs are allocated (bead `ro-ujb9.96.6.9`). */}
+      {/* The two-tier read is the table's own last three rows: assets' direct
+          net, the shared overhead, the portfolio net. */}
       <SectionLabel
         title="By site"
         caption={formatPeriodMonthYear(period)}
         className="px-4 pb-1 pt-3"
       />
       <div className="px-2 pb-2 sm:px-4 sm:pb-4">
-        {/* `stacked` (bead `ro-md80`): Net was entirely off the right edge at
-            390px — the column the split exists to state. */}
+        {/* `stacked`: Net would otherwise be off the right edge at 390px. */}
         <Table stacked>
           <TableHeader>
             <TableRow>
@@ -784,33 +651,23 @@ function PropertySplit({
                       domain={property.asset}
                       displayName={property.displayName}
                     />
-                    {/* THE NAME IS THE CARD'S ONE WAY OUT (bead `ro-zmyq`). On a
-                        phone this table is six stacked cards and this link is
-                        the only control on each of them, drawn at 20px — under
-                        the thumb floor `ro-md80` set, and not a button, a
-                        field, a palette row or a nav row, which is how it
-                        survived that sweep. `inline-flex` makes the box 44px
-                        and `-my-3` returns 24 of them, so the cell keeps the
-                        20px it had and the six cards cost the page nothing. */}
+                    {/* The name is the card's one way out on a phone, so it needs the
+                        44px thumb floor: `inline-flex` makes the box 44px and
+                        `-my-3` returns 24 of them, so the cell keeps its 20px. */}
                     <Link
                       to={`/assets/${encodeURIComponent(property.asset)}/financials`}
                       /* `min-w-11` as well as `min-h-11`: the floor is 44px on
-                         BOTH axes, and a three-letter name measured 31px wide. The width is
-                         claimed the same way the height is — into the padding
-                         and the gap between cards, where no other control is. */
+                         both axes, claimed into the padding and the gap
+                         between cards, where no other control is. */
                       className="hover:underline max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center"
                     >
                       {property.displayName}
                     </Link>
                   </span>
                 </TableCell>
-                {/* WHICH WAY THIS ASSET IS GOING — the question the three money
-                    columns beside it cannot answer, however carefully they are
-                    read. The line is MUTED: net's movement is not a verdict,
-                    and an asset with no revenue source wired has not failed at
-                    anything (doc 14). `average={false}` because these are
-                    monthly points, and there is no noise in six of them to
-                    smooth away. */}
+                {/* Which way this asset is going. The line is muted: net's movement
+                    is not a verdict. `average={false}` because these are
+                    monthly points with no noise to smooth away. */}
                 <TableCell label="Net · by month" dropWhenStacked>
                   <PropertyTrend
                     property={property}
@@ -819,10 +676,8 @@ function PropertySplit({
                   />
                 </TableCell>
                 <TableCell label="Revenue" className="text-right tabular-nums">
-                  {/* NOTHING REPORTED IS A DASH, NOT $0.00 (bead
-                      `ro-ujb9.96.6.9`). A zero here used to be qualified by a
-                      paragraph under "what this page does not know"; the cell
-                      itself now tells an unreported month from a zero one. */}
+                  {/* Nothing reported is a dash, not $0.00: the cell itself tells an
+                      unreported month from a zero one. */}
                   {property.revenueReported ? (
                     formatMoney(property.figure.revenue, property.figure.currency, CENTS)
                   ) : (
@@ -832,7 +687,7 @@ function PropertySplit({
                       </InfoTooltip>
                     </span>
                   )}
-                  {/* WHICH ASSET IS CARRYING THE MONTH — the one question a
+                  {/* Which asset is carrying the month: the one question a
                       column of dollar figures makes the reader do arithmetic
                       for. Absent when the period earned nothing at all: a
                       share of zero is not a small share, and an empty track
@@ -856,10 +711,8 @@ function PropertySplit({
                 </TableCell>
               </TableRow>
             ))}
-            {/* The three summary rows carry no line: a total's trajectory is
-                the chart at the top of the page, drawn with an axis and a
-                legend, and repeating it at 96px would be the same fact in two
-                places (doc 14). */}
+            {/* The three summary rows carry no line: a total's trajectory is the
+                chart at the top of the page. */}
             {subtotal ? (
               <TableRow className="border-t-2 border-border">
                 <TableCell className="font-medium">Sites, direct</TableCell>
@@ -912,31 +765,22 @@ function PropertySplit({
   );
 }
 
-/**
- * A line needs three points before it is a trend rather than a slope drawn
- * through two readings. Below that the cell prints a dash and says why on
- * hover — the same floor, for the same reason, as the month table's own
- * sparkline column.
- */
+/** A line needs three points before it is a trend rather than a slope drawn
+ * through two readings; below that the cell prints a dash and says why on
+ * hover, the same floor as the month table's own sparkline column. */
 const MIN_TREND_MONTHS = 3;
 
-/** The dash a trend cell prints under that floor, with its reason on demand —
- * the reason as a label, not the argument for it (bead `ro-ujb9.96.6.9`) —
- * from a hover, a key or a tap, where a `title` answered only the hover (bead
- * `ro-ujb9.14`). */
+/** The dash a trend cell prints under that floor, with its reason on demand
+ * from a hover, a key or a tap. */
 function TooShortForATrend() {
   const reason = `Needs ${MIN_TREND_MONTHS} months of history`;
   return <InfoTooltip label={`No trend: ${reason}`} trigger="—">{reason}</InfoTooltip>;
 }
 
 /**
- * ONE ASSET'S NET, MONTH BY MONTH — the row's own shape (bead `ro-78qo.29`).
- *
- * The series stops at the month the table describes: the figures beside it are
- * August's, and a line running into September under them would be two periods
- * drawn as one. Nothing is interpolated — the payload carries a point only for
- * a month the asset actually has a ledger row in, so an asset that booked
- * nothing in July has no July point rather than a manufactured zero.
+ * One asset's net, month by month. The series stops at the month the table
+ * describes, and nothing is interpolated: the payload carries a point only for
+ * a month the asset has a ledger row in.
  */
 function PropertyTrend({
   property,
@@ -947,12 +791,9 @@ function PropertyTrend({
   period: string;
   openPeriod: string;
 }) {
-  /* THE ASSET'S OWN MONTH AXIS, HOLES INCLUDED (bead `ro-78qo.37`). A
-     sparkline spaces its points by POSITION, so a series carrying only the
-     months that booked something would draw January, June and August as three
-     consecutive months — a claim about which months these are that the ledger
-     never made. The payload carries the axis; a month it booked nothing in is
-     null, and the line breaks over it rather than bridging it. */
+  /* The asset's own month axis, holes included: a sparkline spaces its points
+     by position, so the payload carries the axis, a month it booked nothing
+     in is null, and the line breaks over it rather than bridging it. */
   const currency = moneyCurrency(property.months.flatMap(month => month.figure === null ? [] : [month.figure]));
   const series: SeriesPointOrGap[] = property.months
     .filter((month) => month.period <= period)
@@ -961,9 +802,8 @@ function PropertyTrend({
       v: currency === null || month.figure?.currency !== currency ? null : month.figure.net,
     }));
 
-  /* Three READINGS, not three positions: an axis of ten months holding two
-     figures is still two figures, and the floor is about what the ledger
-     recorded rather than how far apart it recorded it. */
+  /* Three readings, not three positions: an axis of ten months holding two
+     figures is still two figures. */
   const booked = series.filter((point) => point.v !== null);
   if (booked.length < MIN_TREND_MONTHS) {
     return <TooShortForATrend />;
@@ -985,13 +825,8 @@ function PropertyTrend({
   );
 }
 
-/**
- * One asset's slice of the period's revenue, as the shape beside the figure.
- *
- * The bar is never the only place a number appears — the dollars are in the
- * cell directly above it and the exact percentage is in the hover — so it is
- * doing the one job a figure cannot.
- */
+/** One asset's slice of the period's revenue, as the shape beside the figure.
+ * The dollars are in the cell above it and the exact percentage in the hover. */
 function RevenueShare({
   name,
   revenue,
@@ -1016,13 +851,9 @@ function RevenueShare({
   );
 }
 
-/**
- * The trajectory, one row per month, with a sparkline cell for the shape.
- *
- * It is behind a disclosure now because the CHART above answers "is this
- * getting better or worse" and this table answers "what exactly did July book"
- * — a different question, asked by somebody holding an invoice.
- */
+/** The trajectory, one row per month, with a sparkline cell for the shape.
+ * Behind a disclosure because the chart above answers "is this getting better"
+ * and this table answers "what exactly did July book". */
 function MonthlyTable({
   months,
   openPeriod,
@@ -1034,9 +865,8 @@ function MonthlyTable({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* `stacked` (bead `ro-md80`): five money columns run 134px past a 390px
-          screen, and Net and Reconciled — the two the operator opened the page
-          for — were the two that fell off the right edge. */}
+      {/* `stacked`: five money columns run past a 390px screen, and Net and
+          Reconciled would be the two that fall off the right edge. */}
       <Table stacked>
         <TableHeader>
           <TableRow>
@@ -1087,9 +917,7 @@ function MonthlyTable({
                   ? <InfoTooltip label={`${formatPeriodMonth(month.period)}: nothing reconciled yet`} trigger="—">Nothing reconciled yet</InfoTooltip>
                   : formatSignedMoney(month.booked.net, month.booked.currency, CENTS)}
               </TableCell>
-              {/* The row's own shape: net up to and including this month, so a
-                  reader scanning down sees the trajectory the chart draws
-                  without leaving the table (doc 14's `Sparkline` cell). */}
+              {/* The row's own shape: net up to and including this month. */}
               <TableCell label="Net to date" className="text-right" dropWhenStacked>
                 {index >= 2 ? (
                   <Sparkline
@@ -1115,16 +943,11 @@ function MonthlyTable({
 }
 
 /**
- * HOW A COST FIGURE CAME TO BE KNOWN, as a glyph rather than a word to read.
- *
- * All four faces stay in the quiet half of the palette on purpose: provenance
- * is not severity, and an amortized domain is not a problem. They separate on
- * WEIGHT and on the dot's shape rather than on hue, so the ladder reads the
- * same on a grayscale screen — and it runs in the order an operator trusts the
- * figure, from measured down to unaccounted-for.
- *
- * The chip REPLACES the word rather than sitting beside it: the label inside it
- * is that word (doc 14, one representation per fact).
+ * How a cost figure came to be known, as a glyph. All four faces stay in the
+ * quiet half of the palette: provenance is not severity. They separate on
+ * weight and on the dot's shape rather than on hue, so the ladder reads the
+ * same on a grayscale screen, and it runs from measured down to
+ * unaccounted-for. The chip replaces the word rather than sitting beside it.
  */
 const PROVENANCE_CHIP: Readonly<
   Record<CostProvenance, Pick<StateChipProps, "tone" | "dot" | "attention">>
@@ -1136,8 +959,7 @@ const PROVENANCE_CHIP: Readonly<
 });
 
 /* The chip is the word and nothing else: the labels are the operator's own
-   words for the four kinds (shared/financials.ts), so the glossary tooltip each
-   one used to carry is gone (bead `ro-ujb9.96.6.9`). */
+   words for the four kinds (shared/financials.ts). */
 function ProvenanceChip({ provenance, subject }: { provenance: CostProvenance; subject: StatusSubject }) {
   const face = PROVENANCE_CHIP[provenance];
   return (
@@ -1152,13 +974,10 @@ function ProvenanceChip({ provenance, subject }: { provenance: CostProvenance; s
 }
 
 /**
- * WHERE A COST LINE CAME FROM, NAMED THE WAY THE OPERATOR NAMES IT (bead
- * `ro-ujb9.96.6.9`): the subscription's own label from the register he wrote
- * it in, the provider's product name for a metered bill, "Domain orders" for
- * the amortized terms. The store's keys (`recurring:claude-code-max`,
- * `metered:dataforseo`) are how the rows are filed, not how anyone says them —
- * and printing them beside a chip that already says "Subscription" stated the
- * kind twice.
+ * Where a cost line came from, named the way the operator names it: the
+ * subscription's own label, the provider's product name for a metered bill,
+ * "Domain orders" for the amortized terms. The store's keys are how the rows
+ * are filed, not how anyone says them.
  */
 function costSourceLabel(source: string | null, recurringCosts: readonly RecurringCost[]): string {
   if (source === null) return "—";
@@ -1184,9 +1003,8 @@ function CostBreakdown({
   const total = sumMoneyFigures(lines.map(line => ({ currency: line.currency, revenue: 0, cost: line.amount, net: -line.amount })));
   return (
     <div className="flex flex-col gap-3">
-      {/* `stacked` (bead `ro-md80`): the Source column — the whole point of the
-          table, since it is what a figure can be checked against — was the one
-          truncated at 390px. */}
+      {/* `stacked`: the Source column, what a figure is checked against, is
+          the one that would be truncated at 390px. */}
       <Table stacked>
         <TableHeader>
           <TableRow>
@@ -1249,14 +1067,9 @@ function nextPeriod(period: string): string {
   return month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, "0")}`;
 }
 
-/**
- * A DOMAIN TERM THAT RUNS OUT THIS MONTH OR NEXT (bead `ro-ujb9.96.6.9`).
- *
- * The page used to carry a paragraph warning that domain figures are what was
- * paid — often a first-year price — not what renewal costs, so the forward run
- * rate is higher than shown. What the operator can act on is WHEN that price
- * changes, so the order whose term is about to end wears the date instead.
- */
+/** A domain term that runs out this month or next: domain figures are what
+ * was paid, often a first-year price, so what the operator can act on is when
+ * that price changes. */
 function renewsSoon(term: DomainSchedule, currentPeriod: string): boolean {
   return term.lastPeriod >= currentPeriod && term.lastPeriod <= nextPeriod(currentPeriod);
 }
@@ -1300,27 +1113,14 @@ function declaredByAsset(
 }
 
 /**
- * THE INPUTS, ON THE PAGE THAT SPENDS THEM (bead `ro-x5gu.2`).
- *
- * Everything above is the ledger — what booked. This is the two files it books
- * FROM, and it is where they are corrected: the subscriptions nobody meters
+ * The inputs, on the page that spends them: the subscriptions nobody meters
  * (`recurring-costs`) and the domain orders being amortized (`domain-costs`).
- * The two provenance chips in the breakdown above — *Stated* and *Amortized* —
- * point at exactly these two tables.
- *
- * NOTHING HERE MAY FILTER OR SORT THE ROWS. Both cross the payload verbatim and
- * in file order because the editor addresses a row by its INDEX (`/costs/3`) —
- * a filtered table would send that pointer for whichever row happened to be
- * first on screen and quietly rewrite a different subscription. So the asset
- * dimension is a SUMMARY above the tables rather than a filter on them.
- *
- * ON A DEPLOYMENT THAT CANNOT WRITE, both tables lose every control and show
- * a lock, and the page says why ONCE, above them (`SavesPaused`, bead
- * `ro-p8qq`) — where the operator would have edited.
- *
- * MONEY KEEPS ITS SAVE (bead `ro-ujb9.96.7.12`): each cell commits with its own
- * Save or Enter, never as it is left, and says "Saved · Undo" or "Not saved"
- * under itself — GitLab Pajamas' rule that financial data is never autosaved.
+ * Nothing here may filter or sort the rows: the editor addresses a row by its
+ * index (`/costs/3`), so a filtered table would rewrite a different
+ * subscription. The asset dimension is therefore a summary above the tables.
+ * On a deployment that cannot write the page says why once, above them
+ * (`SavesPaused`). Money keeps its Save: each cell commits with its own Save
+ * or Enter, never as it is left.
  */
 function Costs({
   period,
@@ -1339,10 +1139,9 @@ function Costs({
   properties: FinancialProperty[];
 }) {
   const declared = declaredByAsset(period, recurringCosts, schedule, properties);
-  // WHICH ASSET IDS EXIST comes from the integration matrix, not from
-  // `properties` (bead `ro-x5gu.10`). `properties` is this period's ledger
-  // split, so an asset that has booked nothing yet is not in it — offering that
-  // as the picker would refuse a perfectly real asset the month it is wired up.
+  // Which asset ids exist comes from the integration matrix, not from
+  // `properties`: that is this period's ledger split, so an asset that has
+  // booked nothing yet is not in it.
   const { data: matrix } = useIntegrations();
   const known = (matrix?.assets ?? []).map((asset) => asset.id);
   // An empty list is "the matrix has not answered", and refuses nothing.
@@ -1356,9 +1155,8 @@ function Costs({
   return (
     <div className="flex flex-col gap-6">
       <SavesPaused />
-      {/* No "about cost editing" tooltip (bead `ro-ujb9.96.6.9`): every cell
-          is its own field with its own Save, and every save answers with an
-          Undo beside it — the control says what it does. */}
+      {/* Every cell is its own field with its own Save, and every save answers
+          with an Undo beside it. */}
       {declaredTotal > 0 ? (
         <DeclaredRunRate lines={declared} total={declaredTotal} />
       ) : null}
@@ -1376,17 +1174,14 @@ function Costs({
         rows={domainOrders}
         slug="financials-domain-order"
         fieldOptions={assetOptions}
-        /* THE TWO FACTS EVERY ROW HAS AND NO FIELD HOLDS (bead `ro-x5gu.11`).
-           A domain order is a prepaid annual term, so what the ledger books
-           every month is the price over twelve — arithmetic, never a stored
-           value. `schedule` is the payload's own amortization of these same
-           rows, so the column restates nothing: it looks the row up by the name
-           it is filed under. It carries no control, because nothing writes it. */
+        /* The two facts every row has and no field holds. A domain order is a
+           prepaid annual term, so what the ledger books every month is the
+           price over twelve. `schedule` is the payload's own amortization of
+           these same rows, looked up by the name the row is filed under. */
         derived={[
           {
             /* The amount and the twelve months it is spread over, both in the
-               cell — the header needs no sentence saying how it is worked
-               out (bead `ro-ujb9.96.6.9`). */
+               cell. */
             name: "amortized",
             label: "Per month",
             render: (row) => {
@@ -1413,11 +1208,9 @@ function Costs({
             },
           },
         ]}
-        /* The facts no ROW carries, in the slot a subtitle already has, as
-           figures (bead `ro-ujb9.96.6.17`): the orders, the cash already
-           spent, and how many are still being spread across the shown month.
-           How one order books is the Per month column, so no sentence here
-           restates the amortization rule. */
+        /* The facts no row carries, in the slot a subtitle already has: the
+           orders, the cash already spent, and how many are still being spread
+           across the shown month. */
         describe={
           domainOrders.length === 0 ? undefined : (
             <span className="tabular-nums" data-domain-terms>
@@ -1426,7 +1219,7 @@ function Costs({
             </span>
           )
         }
-        /* The read-only sentence is a fact about the DEPLOYMENT, and the page
+        /* The read-only sentence is a fact about the deployment, and the page
            states it once above both tables. */
         statesReadOnly={false}
       />
@@ -1435,14 +1228,10 @@ function Costs({
 }
 
 /**
- * WHAT EACH ASSET COSTS PER MONTH BY DECLARATION — the grouped read the two
- * flat tables cannot give, and the only place on this page the asset dimension
- * is not the ledger's.
- *
- * It is deliberately NOT the *Direct cost* column above: that is what the
- * ledger booked for the shown month, and this is what the files say SHOULD
- * book. They differ whenever `cost-import` has not run for the month yet, which
- * is the first thing an operator wants to know when a figure looks low.
+ * What each asset costs per month by declaration: the grouped read the two
+ * flat tables cannot give. Deliberately not the *Direct cost* column above:
+ * that is what the ledger booked, and this is what the files say should book.
+ * They differ whenever `cost-import` has not run for the month yet.
  */
 function DeclaredRunRate({ lines, total }: { lines: DeclaredLine[]; total: number }) {
   return (

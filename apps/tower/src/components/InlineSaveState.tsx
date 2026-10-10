@@ -3,11 +3,7 @@ import { Button } from "@/components/ui/button";
 import type { StatusSubject } from "@/components/StateChip";
 import { cn } from "@/lib/utils";
 
-/**
- * Where a save made beside a field stands (bead `ro-ujb9.96.7.12`).
- *
- * `idle` draws nothing: a field that has not been touched carries no state.
- */
+/** Where a save made beside a field stands. `idle` draws nothing. */
 export type InlineSave =
   | { state: "idle" }
   | { state: "saving" }
@@ -15,20 +11,9 @@ export type InlineSave =
   | { state: "refused"; refusal: string };
 
 /**
- * A SAVE'S OUTCOME, BESIDE THE FIELD THAT MADE IT (bead `ro-ujb9.96.7.12`).
- *
- * *Registry justification:* `KnobEditor` drew "Saved · Undo" inline since bead
- * `ro-ujb9.96.6.3`, and a table cell and a schedule row now save the same way;
- * three private copies of one state would drift into three wordings of it. This
- * is that state, once, after GitLab Pajamas' saving pattern: "Saving…" while the write
- * is out, a check with "Saved" and an **Undo** once it landed, and — the part
- * that used to be a corner toast — "Not saved" with the refusal's own words
- * when it did not, so the operator reads the outcome where they made the
- * change. The words ride one line and truncate; the whole refusal is on hover
- * and to a screen reader.
- *
- * It spends no severity colour on success (a landed save is not an alert) and
- * the error ink only on a refusal, which IS one.
+ * A save's outcome beside the field that made it: "Saving…", "Saved" with
+ * Undo, or "Not saved" with the refusal's own words (truncated; the whole
+ * refusal is on hover and to a screen reader). Error ink only on a refusal.
  */
 export function InlineSaveState({
   save,
@@ -37,11 +22,8 @@ export function InlineSaveState({
 }: {
   save: InlineSave;
   /**
-   * The field this outcome is about, e.g. `field:Time zone`. A save's
-   * state is a fact about ITS field, so two fields saved on one screen are two
-   * subjects, not one status shown twice (doc 14 principle 3b). Drawn as
-   * `data-status-for`, the attribute the flow gate reads a status's subject
-   * from.
+   * The field this outcome is about, e.g. `field:Time zone`, drawn as
+   * `data-status-for`: two fields saved on one screen are two subjects.
    */
   subject: StatusSubject;
   className?: string;

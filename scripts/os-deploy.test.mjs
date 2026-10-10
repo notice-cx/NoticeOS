@@ -35,12 +35,12 @@ import { runCommand } from './run-command.mjs';
 import { runnerRecordedMigrations } from './runner/database.mjs';
 import { hostBackupFile } from './host-backup.mjs';
 
-// `pnpm os:deploy` (bead ro-ujb9.113). Every case runs against a throwaway home
-// checkout — a real git repository with a fake Postgres record — and a fake
-// launchd: nothing here touches the operator's service, ports 5173/8791, or the
-// checkout this test lives in. A commit that opens the Postgres store (bead
-// ro-ujb9.76.7.1) is held against a fake record, and once against a
-// throwaway Postgres read the way the runner reads it.
+// `pnpm os:deploy`. Every case runs against a throwaway home checkout (a real
+// git repository with a fake Postgres record) and a fake launchd: nothing here
+// touches the operator's service, ports 5173/8791, or the checkout this test
+// lives in. A commit that opens the Postgres store is held against a fake
+// record, and once against a throwaway Postgres read the way the runner reads
+// it.
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const homes = [];
@@ -303,8 +303,8 @@ test('the runtime copy LINKS to the home store, logs and secrets — same paths 
   // …and without the environment (started by hand from the copy) it still finds home.
   assert.deepEqual(runnerPaths(copy, {}), fromHome);
   // The nightly backup runs from the home checkout, so the offsite folder it
-  // hands the set to is the HOME installation's host-backup.json (ro-ujb9.120),
-  // and the checkout name a filed bead qualifies its paths with is home's too.
+  // hands the set to is the HOME installation's host-backup.json, and the
+  // checkout name a filed bead qualifies its paths with is home's too.
   assert.equal(hostBackupFile(fromCopy.backupRoot), hostBackupFile(home));
   assert.ok(hostBackupFile(fromCopy.backupRoot).startsWith(`${home}${path.sep}`));
   assert.equal(fromCopy.osCheckout, path.basename(home));
@@ -346,7 +346,7 @@ test('--check verifies and changes nothing', async () => {
   assert.deepEqual([calls.install, calls.restart], [[], []]);
 });
 
-// ─── The raw-signal archive a commit opens (bead ro-ujb9.77.8) ──────────────
+// ─── The raw-signal archive a commit opens ──────────────────────────────────
 
 /** An ingest config whose raw-signal bucket is `bucket`, as a commit carries it. */
 const ingestWithBucket = (bucket) => JSON.stringify({
@@ -354,7 +354,7 @@ const ingestWithBucket = (bucket) => JSON.stringify({
   r2_buckets: [{ binding: 'RAW_SIGNALS', bucket_name: bucket }],
 });
 
-/** The owner's shape: archives in the local store under the pre-rename bucket. */
+/** Archives in the local store under the pre-rename bucket. */
 function holdArchivesUnder(home, bucket) {
   const r2 = path.join(statePaths(home).persistState, 'v3', 'r2');
   mkdirSync(path.join(r2, 'miniflare-R2BucketObject'), { recursive: true });
@@ -408,7 +408,7 @@ test('--check before the cut-over says the service switches with os:install, not
   assert.deepEqual([calls.install, calls.restart], [[], []]);
 });
 
-// ─── A restart that does not come back healthy (bead ro-ujb9.114) ────────────
+// ─── A restart that does not come back healthy ──────────────────────────────
 
 /** What restartAndWait throws when health does not return: status + redacted log. */
 const healthFailure = (action, marker) =>
@@ -608,7 +608,7 @@ test('a failed install leaves the live OS where it was', async () => {
   assert.deepEqual(calls.restart, []);
 });
 
-// ─── A commit that opens the Postgres store (bead ro-ujb9.76.7.1) ───────────
+// ─── A commit that opens the Postgres store ─────────────────────────────────
 
 const onPostgres = () => ({ 'workers/ingest/wrangler.jsonc': wrangler(), 'apps/tower/wrangler.jsonc': wrangler() });
 

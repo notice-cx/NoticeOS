@@ -1,45 +1,27 @@
-/** The provider credential contract — declared ONCE, here (epic `ro-vu8d`).
+/** The provider credential contract, declared once: the Tower renders the
+ * form from this list, the ingest validates a submitted body against it before
+ * encrypting anything, and `scripts/dev-secrets.mjs` reads it to import env
+ * bindings.
  *
- * WHY IT LIVES IN THE CONTRACT PACKAGE. Three runtimes have to agree on what a
- * Google credential is called and what shape it takes: the Tower renders the
- * form from this list, the ingest Worker validates a submitted body against the
- * same list before it encrypts anything, and `scripts/dev-secrets.mjs` reads it
- * to move the operator's existing `.dev.secrets.json` into the store without
- * retyping. Two copies of a field name would be two answers, and the one that
- * lost would be the one an operator typed a password into.
+ * A field name is the legacy env binding name (`BING_WEBMASTER_API_KEY`, not
+ * `apiKey`): every provider client resolves store-first and falls back to
+ * `env[<field name>]`, so one name means one value on either path.
  *
- * WHAT A FIELD NAME IS. Deliberately the LEGACY ENV BINDING NAME
- * (`BING_WEBMASTER_API_KEY`, not `apiKey`). Every provider client resolves
- * store-first and falls back to `env[<field name>]`, so one name means one
- * value whichever half of the move a given install is on — and the import
- * script is a copy rather than a translation.
- *
- * WHAT NEVER APPEARS HERE OR IN ANYTHING DERIVED FROM IT: a value. Every type
- * below carries field NAMES and metadata. `CredentialSummary.fields` is a list
- * of names, `secret` describes how a form should behave, and no route, RPC or
- * log line in this system returns a stored credential to a caller. The
- * plaintext exists inside the ingest Worker at call time and nowhere else.
+ * Nothing here or derived from it carries a value: field names and metadata
+ * only. The plaintext exists inside the ingest Worker at call time and nowhere
+ * else.
  */
 
 import { legacyBindingAsset } from './configuration.mjs';
 
 /** How the Tower renders one field, and how a value is validated.
  *
- * `json` is a JSON document pasted or uploaded whole (a Google service-account
- * map); `url-list` is a JSON object of `label -> url` (or `label -> {url, …}`),
- * which is what a calendar feed map is. Both cross the wire as the JSON TEXT,
- * so every field value is a string on every hop.
- *
- * `url` is ONE http(s) address that is itself the credential — a Discord
- * webhook. It is its own kind rather than a `text` field because the check that
- * matters is *is this an address at all*, and having the browser and the ingest
- * read that rule off the same declaration is what stops a pasted webhook id
- * being stored as if it were a URL.
- *
- * `asset-map` is a JSON object of `asset id -> that asset's own key`, which is
- * the whole of what a `per-asset` credential is (bead `ro-vu8d.9`). It crosses
- * the wire as JSON text like the two above, and the form draws one input PER
- * ASSET rather than a text box somebody has to hand-write braces into.
+ * `json` is a JSON document pasted whole; `url-list` is a JSON object of
+ * `label -> url` (or `label -> {url, …}`); `asset-map` is a JSON object of
+ * `asset id -> that asset's own key`, drawn as one input per asset. All three
+ * cross the wire as JSON text, so every field value is a string on every hop.
+ * `url` is one http(s) address that is itself the credential (a webhook), its
+ * own kind so the browser and the ingest validate it as an address.
  */
 export type IntegrationFieldKind =
   | 'text'
@@ -50,154 +32,93 @@ export type IntegrationFieldKind =
   | 'asset-map';
 
 /**
- * Whether one credential covers the portfolio or is issued per asset.
- *
- * Microsoft Clarity is the first `per-asset` one (bead `ro-vu8d.9`), and the
- * shape it arrived in is the point: it is still ONE encrypted row keyed on the
- * provider, holding an `asset-map` field. The alternative — a compound
- * `(provider, asset)` primary key — is a migration, migrations are
- * operator-only (AGENTS.md), and it would have bought a second `credentials`
- * shape to answer a question a JSON object already answers. What *per-asset*
- * changes is the FORM (one input per asset instead of one box) and the CARD
- * (which assets have a key, not merely which fields are set); the store, the
- * probe contract and the resolver are unchanged.
+ * Whether one credential covers the portfolio or is issued per asset. A
+ * `per-asset` credential is still one encrypted row keyed on the provider,
+ * holding an `asset-map` field; only the form and the card differ.
  */
 export type IntegrationScope = 'shared' | 'per-asset';
 
 /**
- * Who was able to say when a credential dies (bead `ro-vu8d.8`).
- *
- * `flow` — the connection itself recorded it, because the provider states a
- * lifetime for that kind of grant. `operator` — the operator typed a date, or
- * typed the ABSENCE of one; either way it is their answer and no flow may
- * overwrite it, because they are the only party who can see the console the
- * date comes from.
+ * Who said when a credential dies. `flow` — the connection itself recorded it.
+ * `operator` — the operator typed a date, or typed the absence of one; either
+ * way it is their answer and no flow may overwrite it.
  */
 export type CredentialExpirySource = 'flow' | 'operator';
 
 /**
- * Whether an expiry date can ever be known for this provider, and the sentence
- * the card shows where there is no date (bead `ro-vu8d.8`).
- *
- * IT IS A PER-PROVIDER FACT AND IT IS DECLARED, not inferred. doc 14 flow C
- * step 4 has asked for a T-14d warning since the doc was written, and the one
- * way to build it dishonestly is to invent a date for a key that has none. A
- * Bing Webmaster key does not expire; a Google sign-in made against a consent
- * screen still in Testing expires in seven days. Those are different facts and
- * the card has to be able to say which it is holding.
+ * Whether an expiry date can ever be known for this provider. Declared per
+ * provider, never inferred: a Bing Webmaster key does not expire, a Google
+ * sign-in made against a consent screen still in Testing expires in seven
+ * days, and the card must not invent a date for a key that has none.
  */
 export interface IntegrationExpiry {
   /**
-   * `flow` — a connection flow records the date (Google's sign-in).
-   * `operator` — nobody but the operator knows; the card offers a date field.
-   * `never` — this credential has no expiry date to state at all, and the card
-   *   shows exactly that value rather than a field that would collect a guess.
-   *
-   * The card renders this as a VALUE ("No expiry date", a date, a countdown),
-   * never as a sentence about why (bead `ro-ujb9.96.6.1`): the reasons live in
-   * doc 11, and a card that needs a paragraph to state a date is the wrong card.
+   * `flow` — a connection flow records the date. `operator` — nobody but the
+   * operator knows; the card offers a date field. `never` — there is no expiry
+   * date to state, and the card shows that rather than a field that would
+   * collect a guess.
    */
   known: CredentialExpirySource | 'never';
   /**
    * Where the operator makes a flow-dated credential stop expiring, when the
-   * provider offers that — Google's consent screen, whose Publish button ends
-   * the seven-day Testing grant. Rendered as a link beside the date.
+   * provider offers that (Google's consent screen). Rendered beside the date.
    */
   fix?: IntegrationLink;
 }
 
-/** A deep link into the provider's own screen, and the words on it
- * ("Get a key", "Publish app"). Two or three words: the destination is the
- * explanation. */
+/** A deep link into the provider's own screen, and the words on it ("Get a
+ * key"). */
 export interface IntegrationLink {
   url: string;
   label: string;
 }
 
 /**
- * What pressing **Test connection** actually does to the outside world.
- *
- * DECLARED, BECAUSE THE CARD HAS TO SAY IT BEFORE THE PRESS. Every probe in
- * this system is meant to be the provider's cheapest free read (see
- * `workers/ingest/src/credential-probes.ts`), and for four providers it is. Two
- * cannot be:
- *
- *  - `side-effect` — the only call that proves the credential does something an
- *    operator would notice. A Discord webhook has no read that proves delivery,
- *    which is exactly what the register says *live* means for it, so the test
- *    posts a labelled message into their channel.
- *  - `none` — no provider call is made at all, because the only one available
- *    would cost something the operator was saving. The button still answers,
- *    with what the OS can honestly check and the sentence saying what it could
- *    not.
- *
- * A button that surprises somebody once is a button they stop pressing, so
- * anything but `free` is printed beside it rather than discovered afterwards.
+ * What pressing Test connection does to the outside world, declared so the
+ * card says it before the press. `free` is the provider's cheapest read
+ * (`workers/ingest/src/credential-probes.ts`). `side-effect` is the only call
+ * that proves the credential (a webhook has no read that proves delivery, so
+ * the test posts a message). `none` makes no provider call, because the only
+ * one available would cost something; the button answers with what the OS can
+ * check locally.
  */
 export type ProbeCost = 'free' | 'side-effect' | 'none';
 
 /**
- * HOW THE INTEGRATIONS CONNECT PANEL SETS THIS PROVIDER UP (bead
- * `ro-ujb9.96.7.1`, epic `ro-ujb9.96.7`).
- *
- * One panel on `/integrations` connects every provider: the operator enters
- * what the provider issued, presses Connect, and the ingest asks the provider
- * BEFORE it stores anything — Grafana's "Save & test", with the order
- * reversed so a refused key is never kept. The panel shows Checking, then Key
- * accepted or the provider's refusal; a connection is never called connected
- * ahead of that answer.
- *
- * DECLARED, BECAUSE BOTH SIDES READ IT. The Tower opens the panel only for a
- * provider that declares a kind, and the ingest's save-and-test
- * (`workers/ingest/src/credential-connect.ts`) refuses a provider that does
- * not — so the two can never disagree about which providers skip the old
- * multi-step card. Absent means the provider still uses its own setup page.
- * Where each value comes from is the field's own `link`, read by the panel and
- * the provider page alike.
- *
- * `key`: every field is typed or pasted, and one provider call proves them —
- * a free read (Bing's verified sites, DataForSEO's account, PostHog's projects
- * in whichever region answers, Mediavine's sign-in and site list, each
- * calendar feed), or Discord's one test message, the side effect its `test`
- * declares and the panel names beside the press (bead `ro-ujb9.96.7.14`).
- * `site-tokens`: a token pasted per site (Clarity). `sign-in`: the provider's
- * own consent screen (Google).
+ * How the connect panel on `/integrations` sets this provider up: the operator
+ * enters what the provider issued, and the ingest asks the provider before it
+ * stores anything, so a refused key is never kept. The Tower opens the panel
+ * only for a provider that declares a kind, and the ingest's save-and-test
+ * (`workers/ingest/src/credential-connect.ts`) refuses one that does not.
+ * Absent means the provider uses its own setup page.
  */
 export interface IntegrationConnect {
   /**
-   * `key` — typed once and proven by one provider call before it is kept (Bing,
-   * DataForSEO, PostHog, Mediavine, Discord, calendar feeds). `site-tokens` — the provider issues one token per
-   * site and offers no free read (Clarity, bead `ro-ujb9.96.7.9`): each site's
-   * token is pasted on its own row in the panel and saved on paste, and the
-   * proof is the export itself, run by an explicit Run now that says what it
-   * spends. `sign-in` — the provider is connected by signing in on its own
-   * consent screen (Google, bead `ro-ujb9.96.7.7`): the panel's body is the
-   * sign-in — one button where the OAuth client is already present (hosted),
-   * or the one-time console setup and the client file where it is not
-   * (self-hosted) — and the account's sites follow the sign-in back.
+   * `key` — every field is typed or pasted and one provider call proves them
+   * before they are kept. `site-tokens` — the provider issues one token per
+   * site and offers no free read: each site's token is saved on paste, and the
+   * proof is the export itself, run by an explicit Run now. `sign-in` — the
+   * provider's own consent screen; the account's sites follow the sign-in
+   * back.
    */
   kind: 'key' | 'site-tokens' | 'sign-in';
   /**
-   * WHAT THE OPERATOR GIVES (bead `ro-ujb9.96.7.25`), and so what an accepted
-   * connection is called: an API key or token (`api-key`, "Key accepted"), a
-   * person's own email and password (`login`) or a consent screen (`oauth`),
-   * both "Signed in", or an address that is itself the secret (`url` — a
-   * webhook, a calendar feed — "URL accepted"). REQUIRED, like `expiry` and
-   * `test`: a provider added here must not inherit "Key accepted" for a login
-   * nobody gave it a key for. Read through {@link acceptedAs}.
+   * What the operator gives, and so what an accepted connection is called:
+   * `api-key` ("Key accepted"), `login` or `oauth` ("Signed in"), or `url`, an
+   * address that is itself the secret ("URL accepted"). Required, like
+   * `expiry` and `test`: a provider must not inherit "Key accepted" for a
+   * login. Read through {@link acceptedAs}.
    */
   credential: ConnectCredential;
   /**
    * `false` for a connection of the whole installation with no site to match
-   * (Discord's webhook, the calendar feeds — bead `ro-ujb9.96.7.14`): the
-   * panel ends on the provider's answer and Done, with no site list after
-   * it. Absent: the account's sites follow an accepted key.
+   * (a webhook, calendar feeds): the panel ends on the provider's answer.
+   * Absent: the account's sites follow an accepted key.
    */
   sites?: false;
   /** Where the operator adds a site the account does not hold yet, and the
-   * link's words ("Add in Bing") — offered on the connect panel's site list
-   * for an asset the account lists nothing for (bead `ro-ujb9.96.7.2`).
-   * Absent for a provider whose sites are the portfolio's own (DataForSEO). */
+   * link's words ("Add in Bing"). Absent for a provider whose sites are the
+   * portfolio's own. */
   addSite?: { url: string; label: string };
 }
 
@@ -205,14 +126,10 @@ export interface IntegrationConnect {
 export type ConnectCredential = 'api-key' | 'login' | 'oauth' | 'url';
 
 /**
- * WHAT AN ACCEPTED CONNECTION IS CALLED — the one derivation (bead
- * `ro-ujb9.96.7.25`): `key` ("Key accepted"), `sign-in` ("Signed in") or
- * `url` ("URL accepted"). The stored credential's own way in decides where a
- * provider offers two (Google's sign-in or its service-account key); otherwise
- * the provider's declared credential does. The connect panel's answer, the
- * Integrations row, a provider's page and System health all read it here, so
- * an email and a password are never called a key on one screen and a sign-in
- * on the next.
+ * What an accepted connection is called, derived once for the connect panel,
+ * the Integrations row, a provider's page and System health. The stored
+ * credential's own way in decides where a provider offers two; otherwise the
+ * provider's declared credential does.
  */
 export type AcceptedAs = 'key' | 'sign-in' | 'url';
 
@@ -228,16 +145,15 @@ export function acceptedAs(
 
 /**
  * What the provider said to the details the panel sent, as facts the panel
- * draws rather than a sentence it prints (bead `ro-ujb9.96.7.1`).
+ * draws rather than a sentence it prints.
  *
- *  - `accepted` — the provider answered the test call and the credential is now
- *    stored, with what that call showed: Bing's verified-site count, or
- *    DataForSEO's prepaid credit (null when the answer stated none — an absent
- *    balance is not a zero one).
- *  - `refused` — the provider answered and said no. Nothing was stored, and a
- *    credential already stored for this provider is untouched.
- *  - `unreachable` — the provider did not answer usably (a timeout, a network
- *    failure, a 5xx). Nothing was stored; the same details can be sent again.
+ *  - `accepted` — the credential is now stored, with what the test call showed
+ *    (a null credit means the answer stated none; an absent balance is not a
+ *    zero one).
+ *  - `refused` — the provider said no. Nothing was stored, and a credential
+ *    already stored for this provider is untouched.
+ *  - `unreachable` — no usable answer (a timeout, a network failure, a 5xx).
+ *    Nothing was stored; the same details can be sent again.
  *
  * `checkedAt` is when the answer arrived. No field ever carries a credential.
  */
@@ -250,13 +166,13 @@ export interface ConnectFacts {
   /** DataForSEO: prepaid credit in USD, the digits the account endpoint
    * reported (`ExactUsd`). */
   creditUsd?: ExactUsd | null;
-  /** PostHog: the projects the key can read (bead `ro-ujb9.96.7.8`). */
+  /** PostHog: the projects the key can read. */
   projects?: number;
   /** PostHog: the Cloud region that answered for the key — found by asking
    * both, never typed. */
   region?: 'us' | 'eu';
-  /** Calendar feeds: how many feeds answered with a calendar (bead
-   * `ro-ujb9.96.7.14`) — all of them, or the connect is refused. */
+  /** Calendar feeds: how many feeds answered with a calendar — all of them,
+   * or the connect is refused. */
   feeds?: number;
 }
 
@@ -277,9 +193,8 @@ export type ConnectCredentialResult =
   | { ok: false; error: 'store_unavailable'; message: string }
   | { ok: false; error: 'validation'; issues: CredentialIssue[] };
 
-/** One site's token for a `site-tokens` provider, saved on its own row (bead
- * `ro-ujb9.96.7.9`): merged into the provider's per-site map, never replacing
- * the other sites' tokens. */
+/** One site's token for a `site-tokens` provider: merged into the provider's
+ * per-site map, never replacing the other sites' tokens. */
 export interface PutSiteTokenInput {
   provider: string;
   asset: string;
@@ -293,38 +208,20 @@ export type PutSiteTokenResult =
   | { ok: false; error: 'not_supported'; provider: string };
 
 export interface IntegrationTest {
-  /** What the press does, said by the button itself (bead `ro-ujb9.96.6.1`):
-   * `free` is "Test connection", `side-effect` names the message it sends,
-   * `none` names the local check it runs. No sentence beside it. */
+  /** What the press does, said by the button itself: `free` is "Test
+   * connection", `side-effect` names the message it sends, `none` names the
+   * local check it runs. */
   cost: ProbeCost;
 }
 
 /**
- * WHAT A METERED PROVIDER SPENDS, AND WHAT THE OS CAN COUNT OF IT
- * (beads `ro-vu8d.25`, `ro-qpas`; doc 14 flow C step 3).
- *
- * doc 14 has asked since it was written for a live widget to show QUOTA REALITY —
- * its own example is "Clarity: 7/10 calls left today" — "so the operator never
- * wonders why a data source paused". Nothing rendered it, and the cards
- * explained their caps in PROSE instead, which is what the OS says when it
- * cannot show a number.
- *
- * IT IS DECLARED ONLY WHERE THE OS ALREADY HOLDS THE EVIDENCE, and the two
- * metered providers hold it in two different shapes — which is why this is a
- * union rather than one interface with optional halves. Clarity's ceiling is
- * CALLS, per asset per day, and every call it makes writes a manifest row.
- * DataForSEO's ceiling is DOLLARS, portfolio-wide per calendar month, and every
- * report it buys records what it cost on the same rows. Neither reading is a
- * provider call: on a ten-a-day cap the meter would be spending the thing it
- * measures, and on a prepaid account it would be asking a vendor a question the
- * OS's own archive already answers.
- *
- * WHAT NEITHER SHAPE CLAIMS TO BE is the provider's own account. DataForSEO's
- * prepaid credit is not a ceiling this OS can count — it is a figure the vendor
- * reports — so it is recorded as a dated SIGHTING beside the credential
- * (`CredentialMetadata.balance`) and rendered with its age beside the cap line,
- * never inside the bar (bead `ro-qpas`). A stored figure nobody had refreshed,
- * drawn as though it were current, is the one failure that task forbids.
+ * What a metered provider spends, where the OS's own rows can count it. The
+ * two shapes differ, hence a union: Clarity's ceiling is calls per asset per
+ * day, DataForSEO's is dollars portfolio-wide per calendar month, and both are
+ * counted from manifest rows this OS wrote, never from a provider call. A
+ * vendor's prepaid credit is not a ceiling the OS can count; it is recorded as
+ * a dated sighting (`CredentialMetadata.balance`) and rendered with its age,
+ * never inside the bar.
  */
 export type IntegrationMeter = AssetDayMeter | PortfolioMonthMeter;
 
@@ -341,13 +238,10 @@ export interface AssetDayMeter {
 }
 
 /**
- * A ceiling counted in DOLLARS, portfolio-wide per calendar month — the
- * `monthly_caps.data_usd` reserve that fails closed before a metered call.
- *
- * THE CEILING IS NOT DECLARED HERE. It is an operator-owned setting in
- * `config/constants.json`, so the card would go stale the day it was changed;
- * it rides on the reading instead, from the same place `/settings`' budget
- * meter and the Health page's spend summary read it.
+ * A ceiling counted in dollars, portfolio-wide per calendar month — the
+ * `monthly_caps.data_usd` reserve that fails closed before a metered call. The
+ * ceiling is an operator-owned setting in `config/constants.json` and rides on
+ * the reading, so the card cannot go stale when it changes.
  */
 export interface PortfolioMonthMeter {
   window: 'portfolio-month';
@@ -360,9 +254,8 @@ export type ProviderMeterReading = AssetDayMeterReading | PortfolioMonthMeterRea
 
 export interface AssetDayMeterReading {
   window: 'asset-day';
-  /** The UTC day these counts cover — the same calendar the metered spend
-   * summary is written in, and the only day boundary the OS can state without
-   * claiming to know the provider's own. */
+  /** The UTC day these counts cover; the OS cannot know the provider's own
+   * day boundary. */
   day: string;
   assets: ProviderMeterAsset[];
 }
@@ -371,9 +264,8 @@ export interface PortfolioMonthMeterReading {
   window: 'portfolio-month';
   /** The UTC calendar month the sum covers, 'YYYY-MM'. */
   period: string;
-  /** Month-to-date spend, in dollars — the SAME figure `DataSpendSummary`
-   * carries, from the same reader, so the card and the budget meter cannot
-   * disagree by a float. */
+  /** Month-to-date spend, in dollars — the same figure `DataSpendSummary`
+   * carries, from the same reader. */
   spentUsd: number;
   unknownPrices: number;
   /** `monthly_caps.data_usd` as this deployment holds it. */
@@ -386,26 +278,18 @@ export interface ProviderMeterAsset {
   spent: number;
 }
 
-/** What is left of one ceiling. Floored at zero: a provider that let one extra
- * call through — or a month that overran its reserve — is not a negative
- * budget, and the card would be reporting an arithmetic curiosity instead of
- * "nothing left". One rule, so a day of calls and a month of dollars round the
- * same way at the bottom. */
+/** What is left of one ceiling, floored at zero: an overrun is "nothing
+ * left", not a negative budget. */
 export function meterRemaining(cap: number, spent: number): number {
   return Math.max(0, cap - spent);
 }
 
-/** How long before an expiry the OS starts warning — doc 14 flow C step 4's
- * "expiring creds flag at T-14d", stated once so the chip, the nav dot and
- * every test read the same horizon. */
+/** How long before an expiry the OS starts warning, stated once for the
+ * chip, the nav dot and the tests. */
 export const CREDENTIAL_EXPIRY_WARN_DAYS = 14;
 
-/**
- * How long a Google refresh token lives when the consent screen is still in
- * **Testing** — Google's own documented lifetime, and the reason bead
- * `ro-vu8d.14` exists: it is the first credential in this portfolio that dies on
- * a clock rather than on an operator action.
- */
+/** How long a Google refresh token lives while the consent screen is still in
+ * Testing: Google's own documented lifetime. */
 export const GOOGLE_TESTING_GRANT_DAYS = 7;
 
 /** What a card knows about when this credential stops working. */
@@ -434,13 +318,10 @@ export interface CredentialExpiryReading {
 }
 
 /**
- * Read one credential's expiry against a clock — the ONE derivation, so the
- * chip on the card, the dot in the sidebar and every test agree on when T-14d
- * starts.
- *
- * An unparseable stored date reads `unstated` rather than `expired`: a defective
- * timestamp is not evidence that a credential died, and telling an operator to
- * reconnect a working provider is the more expensive mistake.
+ * Read one credential's expiry against a clock — the one derivation for the
+ * card's chip, the sidebar dot and the tests. An unparseable stored date reads
+ * `unstated` rather than `expired`: a defective timestamp is not evidence that
+ * a credential died.
  */
 export function credentialExpiry(
   metadata: CredentialMetadata | null,
@@ -475,29 +356,19 @@ export function credentialExpiry(
 }
 
 /**
- * How a provider is authenticated, where it offers more than one way.
- *
- * Google is the only provider with two (bead `ro-vu8d.3`): an OAuth grant the
- * operator makes by signing in, or the service-account key they used to have to
- * paste. BOTH stay valid — an install already running on a service account is
- * not asked to move — so this is a fact the card reports, never a mode the
- * product picks for you.
- *
- * PostHog has two as well (bead `ro-ujb9.96.7.8`): one personal API key for
- * the account (`account-key`), whose region and projects the OS discovers, or
- * the older key per site (`site-keys`), which an install that connected before
- * keeps collecting with.
+ * How a provider is authenticated, where it offers more than one way: Google
+ * by an OAuth grant or a service-account key, PostHog by one personal API key
+ * for the account or the older key per site. Every way stays valid; this is a
+ * fact the card reports, never a mode the product picks.
  */
 export type CredentialAuthKind = 'oauth' | 'service-account' | 'account-key' | 'site-keys';
 
 /**
  * One complete way to authenticate a provider: every field it needs, together.
- *
- * A provider that declares these marks NO field `required`, because "required"
- * cannot express *either these two or that one*. Completeness is instead "some
- * path holds all of its fields", and the DECLARATION ORDER is the preference —
- * the first path is what a first-run card offers, and the first COMPLETE path
- * is the one in force.
+ * A provider that declares these marks no field `required`; completeness is
+ * "some path holds all of its fields", and declaration order is the
+ * preference: the first path is what a first-run card offers, and the first
+ * complete path is the one in force.
  */
 export interface IntegrationAuthPath {
   kind: CredentialAuthKind;
@@ -507,91 +378,64 @@ export interface IntegrationAuthPath {
   fields: readonly string[];
 }
 
-/** Where the value a client actually used came from. Recorded on the run so
- * "the collector is still on `.dev.vars`" is a fact you can read rather than a
- * thing you assume. */
+/** Where the value a client actually used came from. Recorded on the run. */
 export type CredentialSource = 'store' | 'env' | 'none';
 
 /**
- * AN OLDER ENV BINDING THAT CARRIES ONE ASSET'S KEY (bead `ro-vu8d.24`).
- *
- * Clarity is the only one: `CLARITY_PROJECT_API_TOKEN` is the single-project
- * shape the operator configured before an asset map existed, hard-bound to one
- * asset. It deliberately gets no form input — offering "the token, but only for
- * that one asset" would teach a shape the product is replacing — but it is a
- * WORKING credential, and a card that reads *Not connected* over a collector
- * that collects is the false red this catalog exists to stop.
- *
- * So it is DECLARED instead of deleted: the summary folds it into the asset map
- * as that asset's key, the importer moves it into the store as one map entry,
- * and the collector reads it under its own binding name so a run still records
- * which slot answered. Nothing renders an input for it, and nothing ever writes
- * one back.
+ * An older env binding that carries one asset's key (Clarity's
+ * `CLARITY_PROJECT_API_TOKEN`). It gets no form input, but it is a working
+ * credential: the summary folds it into the asset map as that asset's key, the
+ * importer moves it into the store as one map entry, and the collector reads
+ * it under its own binding name. Nothing ever writes one back.
  */
 export interface LegacyAssetBinding {
   /** The env binding name, exactly as an install still holds it. */
   name: string;
   /**
-   * The lane whose asset it serves. WHICH asset is never written here (bead
-   * `ro-ujb9.118`): it is `legacyBindingAsset(lane, register)` — the first
-   * asset, in the installation's own data-source register order, with this
-   * lane.
+   * The lane whose asset it serves. Which asset is never written here: it is
+   * `legacyBindingAsset(lane, register)`, the first asset in the installation's
+   * own data-source register with this lane.
    */
   lane: string;
   /**
-   * That asset, where a reader holding the register has answered — the Tower's
-   * providers route fills it for the env importer. Absent in the catalog.
+   * That asset, where a reader holding the register has answered. Absent in
+   * the catalog.
    */
   asset?: string | null;
 }
 
 export interface IntegrationField {
-  /** The field's name AND its legacy env binding name. See the module header. */
+  /** The field's name and its legacy env binding name. */
   name: string;
   /** What the form calls it. */
   label: string;
   /**
    * True when the value is a secret: the form masks it, and it is never
-   * rendered back.
-   *
-   * It does NOT gate whether the value can leave the ingest — nothing can. A
-   * `secret: false` field (a DataForSEO API login) is still write-only; it is
-   * marked false only because typing it in the clear is safe and a masked field
-   * an operator cannot proof-read is a support ticket.
+   * rendered back. It does not decide whether the value can leave the ingest —
+   * nothing can; a `secret: false` field is still write-only.
    */
   secret: boolean;
   kind: IntegrationFieldKind;
   required: boolean;
   /**
-   * WHERE THE VALUE COMES FROM, as a deep link beside the label ("Get a key")
-   * rather than a sentence under the input (bead `ro-ujb9.96.6.1`; the connect
-   * panel's pattern, bead `ro-ujb9.96.7.1`). Absent for a value the operator
-   * already knows (an email) or a flow writes (`managed`).
+   * Where the value comes from, as a deep link beside the label. Absent for a
+   * value the operator already knows (an email) or a flow writes (`managed`).
    */
   link?: IntegrationLink;
   /** What a value looks like, shown in the empty input — the format, never an
    * instruction ("….apps.googleusercontent.com"). */
   placeholder?: string;
   /** The access the value must carry, one short label each ("Query: read"),
-   * drawn as chips beside the field — PostHog's own pattern for a restricted
-   * key. */
+   * drawn as chips beside the field. */
   grants?: readonly string[];
   /**
-   * True when a FLOW writes this value and an operator never types it — the
-   * Google refresh token, which the OAuth round-trip stores, and PostHog's
-   * older per-site key map, which an existing install keeps but nothing asks
-   * for any more (bead `ro-ujb9.96.7.8`).
-   *
-   * The connect form skips it, because a text box for a refresh token invites
-   * somebody to paste something that cannot work; the card still reports
-   * whether the store holds it, because *is this connected* is exactly the
-   * question the field answers.
+   * True when a flow writes this value and an operator never types it (a
+   * refresh token, an older per-site key map). The connect form skips it; the
+   * card still reports whether the store holds it.
    */
   managed?: boolean;
-  /**
-   * For an `asset-map` field: an older single-asset binding whose value is one
-   * entry of this map (bead `ro-vu8d.24`). See {@link LegacyAssetBinding}.
-   */
+  /** For an `asset-map` field: an older single-asset binding whose value is
+   * one entry of this map. */
   legacyAssetBinding?: LegacyAssetBinding;
 }
 
@@ -601,56 +445,45 @@ export interface IntegrationProvider {
   /** Where the reader goes for the full story. */
   docRef: string;
   scope: IntegrationScope;
-  /** The `config/integrations.json` catalog lane ids this ONE credential
-   * unlocks — `google` powers both `ga4` and `gsc`. It is what turns "which
-   * assets use this provider" into an answer. */
+  /** The `config/integrations.json` catalog lane ids this one credential
+   * unlocks — `google` powers both `ga4` and `gsc`. */
   lanes: readonly string[];
   /**
-   * Lanes whose PROVIDER fixes the reporting day for every property, whoever
-   * runs the OS (bead `ro-ujb9.118`). A fact about the provider, never the
-   * installation's clock — that is the saved `os_time_zone`. Read through
-   * {@link providerReportingTimeZone}; this is the one place product code may
-   * name a zone (`scripts/neutral-code-gate.mjs`).
+   * Lanes whose provider fixes the reporting day for every property, whoever
+   * runs the OS: a fact about the provider, never the installation's clock.
+   * Read through {@link providerReportingTimeZone}; this is the one place
+   * product code may name a zone (`scripts/neutral-code-gate.mjs`).
    */
   reportingTimeZones?: Readonly<Record<string, string>>;
   fields: readonly IntegrationField[];
   /**
    * The ways in, when there is more than one. Absent means the single implicit
-   * path of every `required` field — which is every provider but Google.
+   * path of every `required` field.
    */
   authPaths?: readonly IntegrationAuthPath[];
   /**
-   * Whether this credential can ever carry an expiry date, and who knows it
-   * (bead `ro-vu8d.8`). REQUIRED, so a provider added here cannot quietly
-   * inherit "no expiry" from an omission — the honest answer for a key with no
-   * stated lifetime is a declared `never` carrying the sentence that says so.
+   * Whether this credential can ever carry an expiry date, and who knows it.
+   * Required, so a provider cannot inherit "no expiry" from an omission.
    */
   expiry: IntegrationExpiry;
   /**
-   * What the *Test connection* button does for this provider. REQUIRED for the
-   * same reason `expiry` is: a provider added here must not inherit "free and
-   * invisible" from an omission, because the one probe an operator has to be
-   * warned about is exactly the one somebody forgot to describe.
+   * What the Test connection button does for this provider. Required for the
+   * same reason `expiry` is.
    */
   test: IntegrationTest;
   /**
-   * What this provider meters, where the OS's own rows can count it (beads
-   * `ro-vu8d.25`, `ro-qpas`). Absent for every provider with no cap the OS can
-   * measure — and a provider with no meter shows nothing rather than a full
-   * bar, because an unmetered bar reads as a measured zero.
+   * What this provider meters, where the OS's own rows can count it. Absent
+   * for a provider with no cap the OS can measure; the card then shows nothing
+   * rather than a full bar.
    */
   meter?: IntegrationMeter;
   /** How the connect panel sets this provider up. Absent = its own setup page
    * (see `IntegrationConnect`). */
   connect?: IntegrationConnect;
   /**
-   * When set, this credential gets NO card of its own: it is a prerequisite the
-   * named provider's card asks for in place.
-   *
-   * `google-oauth-app` is the only one. Its client id and secret configure HOW
-   * you connect Google rather than being a second thing to connect, and a fifth
-   * card on `/integrations` reading "Google OAuth app · Not connected" beside
-   * "Google · Connected" would be one connection stated as two.
+   * When set, this credential gets no card of its own: it is a prerequisite
+   * the named provider's card asks for in place (`google-oauth-app` configures
+   * how you connect Google rather than being a second thing to connect).
    */
   companionOf?: IntegrationProviderId;
 }
@@ -687,13 +520,12 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
     id: 'mediavine', label: 'Mediavine', scope: 'shared', lanes: ['ad-network'],
     docRef: 'docs/11-integrations.md#mediavine-revenue',
     // A password has no lifetime, and the saved session refreshes its own
-    // access tokens; Mediavine states no refresh-token lifetime to date.
+    // access tokens.
     expiry: { known: 'never' },
     // Reads the sites the account can access, reusing the saved session.
     test: { cost: 'free' },
-    // Signs in and lists the account's sites before the login is kept (bead
-    // `ro-ujb9.96.7.6`); a site is added to Mediavine by applying, so there is
-    // no Add link to offer. An email and a password: signed in, not a key.
+    // Signs in and lists the account's sites before the login is kept; a site
+    // is added to Mediavine by applying, so there is no Add link to offer.
     connect: { kind: 'key', credential: 'login' },
     fields: [
       { name: 'MEDIAVINE_USER', label: 'Email', secret: false, kind: 'text', required: true, placeholder: 'you@example.com' },
@@ -708,12 +540,9 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
     lanes: ['ga4', 'gsc'],
     // Google's reporting day for Search Console, the same for every installation — not the operator's clock.
     reportingTimeZones: { gsc: 'America/Los_Angeles' },
-    // The SIGN-IN is the half with a clock on it, and the console setup this OS
-    // prescribes (doc 11 "the one-time console setup" step 3: External, add
-    // yourself as a test user) produces a consent screen in Testing — which
-    // Google expires every refresh token from after seven days. Publishing the
-    // consent screen ends that, so the card's date carries the link that does
-    // it. The service account has no expiry at all.
+    // The sign-in is the half with a clock on it: a consent screen in Testing
+    // expires every refresh token after seven days, and publishing it ends
+    // that, so the date carries the link. The service account has no expiry.
     expiry: {
       known: 'flow',
       fix: { url: 'https://console.cloud.google.com/apis/credentials/consent', label: 'Publish app' },
@@ -721,12 +550,11 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
     // Mints a read-only token, lists the Search Console sites and reads one GA4
     // property's metadata: no day of data, no reporting quota.
     test: { cost: 'free' },
-    // TWO WAYS IN, and the sign-in is first because it is the one an operator
-    // can finish without leaving the product (bead `ro-vu8d.3`). Neither field
-    // is `required`: either alone is a working Google credential, and marking
-    // both required would refuse the very save the OAuth callback makes.
-    // Connected in the panel by signing in (bead `ro-ujb9.96.7.7`); the
-    // service-account path keeps the provider's own page.
+    // Two ways in; the sign-in is first because an operator can finish it
+    // without leaving the product. Neither field is `required`: either alone
+    // is a working credential, and marking both required would refuse the
+    // save the OAuth callback makes. The service-account path keeps the
+    // provider's own page.
     connect: { kind: 'sign-in', credential: 'oauth' },
     authPaths: [
       { kind: 'oauth', label: 'Sign in with Google', fields: ['GOOGLE_OAUTH_REFRESH_TOKEN'] },
@@ -757,16 +585,13 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
     ],
   },
   {
-    // NOT a card of its own — the Google card asks for it in place. See
-    // `companionOf`.
+    // Not a card of its own: the Google card asks for it in place.
     id: 'google-oauth-app',
     label: 'Google OAuth app',
     docRef: 'docs/11-integrations.md#connecting-google',
     scope: 'shared',
     lanes: [],
-    // A client secret is rotated on the operator's schedule, and Google states
-    // no lifetime for one. Nothing here could produce a date that was not a
-    // guess.
+    // Google states no lifetime for a client secret.
     expiry: { known: 'never' },
     // No free Google call proves a client ID and secret without a person on a
     // consent screen, so the check stops at the shape; signing in is the verdict.
@@ -777,8 +602,7 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
         name: 'GOOGLE_OAUTH_CLIENT_ID',
         label: 'Client ID',
         // Not a secret: Google publishes it to every browser that starts a
-        // sign-in, and an operator who cannot proof-read it against the console
-        // is one support ticket away from a redirect-mismatch they cannot see.
+        // sign-in, and the operator needs to proof-read it against the console.
         secret: false,
         kind: 'text',
         required: true,
@@ -802,10 +626,8 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
     docRef: 'docs/11-integrations.md#the-catalog',
     scope: 'shared',
     lanes: ['bing-webmaster'],
-    // Bing prints no expiry on a Webmaster key. The operator may still have a
-    // date — a rotation they scheduled, a key issued on a temporary account —
-    // and that date is worth a warning, so the card offers the field. It stays
-    // empty until they fill it, and an empty field is not a fabricated date.
+    // Bing prints no expiry on a Webmaster key; the operator may still have a
+    // rotation date worth a warning, so the card offers the field.
     expiry: { known: 'operator' },
     // Asks Bing for the verified sites — the free call the collector opens with.
     test: { cost: 'free' },
@@ -838,15 +660,11 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
     // Reads the free account endpoint, which also reports the credit left; the
     // OS records that figure with the date it saw it.
     test: { cost: 'free' },
-    // THE OTHER METER THE OS CAN READ WITHOUT ASKING (bead `ro-qpas`). What
-    // decides whether next Monday's sweep runs is the $25/month portfolio
-    // reserve, not the prepaid credit — the reserve is what fails closed before
-    // a call, and it is the one of the two the OS records for itself: every
-    // report writes its exact cost onto the same rows Clarity's meter counts.
-    // The credit balance is the vendor's own figure and is only ever seen
-    // inside an answer DataForSEO sends, so it is stamped beside the credential
-    // whenever one carries it and shown with its age — a separate line, not a
-    // second bar, because only one of the two is a ceiling this OS enforces.
+    // The monthly portfolio reserve is what fails closed before a call, and
+    // the OS records it for itself: every report writes its exact cost onto
+    // the same rows Clarity's meter counts. The credit balance is the vendor's
+    // figure, seen only inside a DataForSEO answer, so it is stamped beside
+    // the credential and shown with its age — a separate line, not a bar.
     meter: { window: 'portfolio-month', countedFrom: 'dataforseo' },
     connect: { kind: 'key', credential: 'api-key' },
     fields: [
@@ -875,13 +693,12 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
     docRef: 'workers/ingest/README.md#calendar-rpc-the-walls-next-meetings',
     scope: 'shared',
     lanes: [],
-    // A secret ICS address has no lifetime: it works until the operator resets
-    // it in the calendar, which is an action rather than a date.
+    // A secret ICS address works until the operator resets it: an action, not
+    // a date.
     expiry: { known: 'never' },
     // Reads each feed once and reports it by name; writes nothing.
     test: { cost: 'free' },
-    // Every feed read before the map is kept (bead `ro-ujb9.96.7.14`): one
-    // bounded GET per feed, the proof the Test button runs.
+    // Every feed is read before the map is kept: one bounded GET per feed.
     connect: { kind: 'key', credential: 'url', sites: false },
     fields: [
       {
@@ -899,44 +716,27 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
     ],
   },
   {
-    // WHY IT IS HERE AT ALL (bead `ro-vu8d.18`). Discord was env-only for no
-    // reason anyone had written down: one shared url, one probe that already
-    // existed in `pnpm creds:check`, and no row in this catalog — so it could
-    // not be connected in the product, got no card, and was not moved by the
-    // Import button. It falsified the epic's promise that a fresh install needs
-    // only the bootstrap secrets defined in docs/06-operations.md.
     id: 'discord',
     label: 'Discord (operator notifications)',
-    // The catalog anchor, like Bing's and DataForSEO's: the card renders this
-    // string verbatim, and the "How to connect one" heading's own anchor is a
-    // seventy-character line of slugified prose sitting under the provider name.
     docRef: 'docs/11-integrations.md#the-catalog',
     scope: 'shared',
     lanes: ['discord-webhooks'],
-    // A webhook has no lifetime: it works until somebody deletes it in Discord,
-    // which is an action rather than a date — the same shape as a calendar
-    // address, and for the same reason.
+    // A webhook works until somebody deletes it in Discord: an action, not a
+    // date.
     expiry: { known: 'never' },
-    // THE ONE PROBE IN THIS CATALOG WITH A SIDE EFFECT, and the reason the cost
-    // is declared at all. Discord offers a read of the webhook object, but the
-    // register's own definition of live for this data source is that the OS can
-    // DELIVER a notification — "not merely that a webhook URL exists" — and a
-    // read proves the second, not the first. So the test posts, and the button
-    // says so in its own label before the press ("Send test message").
+    // The one probe with a side effect: a read of the webhook object proves it
+    // exists, not that the OS can deliver, so the test posts and the button's
+    // own label says so before the press.
     test: { cost: 'side-effect' },
-    // Connected in the panel (bead `ro-ujb9.96.7.14`): the webhook is kept
-    // only once its test message is delivered, and the panel names that
-    // message beside the press.
+    // The webhook is kept only once its test message is delivered.
     connect: { kind: 'key', credential: 'url', sites: false },
     fields: [
       {
         name: 'DISCORD_WEBHOOK_URL',
         label: 'Webhook URL',
-        // The url IS the credential — anyone holding it can post to that
-        // channel — so it is never echoed and never logged. It is not MASKED,
-        // for the same reason the calendar feed map is not: an operator who
-        // cannot proof-read the address they pasted cannot see the mistake that
-        // makes it 404.
+        // The url is the credential — anyone holding it can post to that
+        // channel — so it is never echoed or logged. It is not masked, so the
+        // operator can proof-read the address they pasted.
         secret: true,
         kind: 'url',
         required: true,
@@ -946,46 +746,33 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
     ],
   },
   {
-    // THE FIRST PER-ASSET CREDENTIAL (bead `ro-vu8d.9`). Clarity issues a
-    // data-export token per PROJECT, so there is no portfolio credential to
-    // enter — and that, plus having no call cheap enough to probe, is why it sat
-    // on its env binding while every other provider became a form.
-    //
-    // Neither obstacle needed a new table. The per-asset dimension is one
-    // `asset-map` field inside the one encrypted row (see `IntegrationScope`),
-    // and the missing probe is DECLARED as missing (`test.cost: 'none'`) instead
-    // of faked with a call that would spend a tenth of an asset's daily budget.
+    // Clarity issues a data-export token per project: the per-asset dimension
+    // is one `asset-map` field inside the one encrypted row, and with no call
+    // cheap enough to probe, the missing probe is declared (`test.cost:
+    // 'none'`) rather than faked.
     id: 'clarity',
     label: 'Microsoft Clarity (data export)',
     docRef: 'docs/11-integrations.md#the-catalog',
     scope: 'per-asset',
     lanes: ['clarity'],
-    // A data-export token has no stated lifetime, and — unlike Bing's — no
-    // operator date field either: one row here holds a token per asset, and a
-    // single date could not honestly describe a map of them.
+    // No stated lifetime and no operator date field: one row holds a token per
+    // asset, and a single date could not describe a map of them.
     expiry: { known: 'never' },
-    // NO CALL AT ALL, and this is the honest half of the bead. Clarity's export
-    // API allows 10 calls per project per DAY and offers no free account or
-    // metadata endpoint, so the cheapest probe available would spend a tenth of
-    // one asset's daily budget to learn what the 04:30 export learns for free a
-    // few hours later. So the button checks what the OS can see — which assets
-    // hold a token — and is named for that check ("Check keys").
+    // Clarity's export API allows 10 calls per project per day and has no free
+    // metadata endpoint, so a probe would spend a tenth of an asset's daily
+    // budget. The button checks which assets hold a token ("Check keys").
     test: { cost: 'none' },
-    // THE ONE METER THE OS CAN READ WITHOUT SPENDING FROM IT (bead
-    // `ro-vu8d.25`). The cap that made this card's Test button call nobody is
-    // the same cap doc 14 flow C step 3 asked to SHOW, and the number is
-    // knowable: the export writes one manifest row per call, so what is left
-    // today is arithmetic over rows this OS wrote (UTC day; Clarity resets on
-    // its own clock, and a call made elsewhere is invisible here).
+    // The export writes one manifest row per call, so what is left today is
+    // arithmetic over rows this OS wrote (UTC day; Clarity resets on its own
+    // clock, and a call made elsewhere is invisible here).
     meter: {
       window: 'asset-day',
       perAssetPerDay: 10,
       unit: 'call',
       countedFrom: 'clarity',
     },
-    // ONE PASTE PER SITE, IN THE PANEL (bead `ro-ujb9.96.7.9`): each site's
-    // token on its own row, saved on paste into this map; the first export is
-    // an explicit Run now that says it spends one of the day's ten calls.
+    // One paste per site in the panel, saved into this map; the first export
+    // is an explicit Run now that says it spends one of the day's calls.
     connect: { kind: 'site-tokens', credential: 'api-key' },
     fields: [
       {
@@ -997,11 +784,8 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
         kind: 'asset-map',
         required: true,
         link: { url: 'https://clarity.microsoft.com/projects', label: 'Clarity projects' },
-        // THE SHAPE THIS ONE REPLACED, kept readable rather than deleted (bead
-        // `ro-vu8d.24`). An install still holding the single-project binding
-        // collects perfectly well, and before this declaration its card said
-        // Not connected — the same false red `ro-vu8d.15` closed for Google.
-        // Connect moves it into the map; there is no input for it.
+        // The single-project binding an older install may still hold. Connect
+        // moves it into the map; there is no input for it.
         legacyAssetBinding: {
           name: 'CLARITY_PROJECT_API_TOKEN',
           lane: 'clarity',
@@ -1010,19 +794,14 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
     ],
   },
   {
-    // PRODUCT ANALYTICS (beads `ro-ghis.1`, `ro-ujb9.96.7.8`). ONE PERSONAL API
-    // KEY FOR THE ACCOUNT: the connect panel shows it to PostHog's US and EU
-    // clouds at once, keeps it only when one answers, and lists that region's
-    // projects — matched to sites by the domains each project records, with
-    // the project's saved funnels — so region, project id and funnel steps are
-    // discovered, never typed. Which region and project each site reads is NOT
-    // secret and does not live here: Start saves it on the site's Data sources
-    // entry (`host`, `projectId`, `funnels`), as that tab would.
-    //
-    // THE OLDER SHAPE STILL COLLECTS. An install that connected a key per site
-    // (`POSTHOG_KEYS`, bead `ro-ghis.1`) keeps its map; a site with a key of its
-    // own uses it, and every other site the account key. Nothing asks for a new
-    // per-site key any more, so the map is `managed` — never a form field.
+    // One personal API key for the account: the connect panel shows it to
+    // PostHog's US and EU clouds, keeps it when one answers, and lists that
+    // region's projects, matched to sites by the domains each project records.
+    // Which region and project each site reads is not secret and lives on the
+    // site's Data sources entry (`host`, `projectId`, `funnels`). An install
+    // that connected a key per site (`POSTHOG_KEYS`) keeps its map: a site with
+    // its own key uses it, every other site the account key; the map is
+    // `managed`, never a form field.
     id: 'posthog',
     label: 'PostHog (product analytics)',
     docRef: 'docs/11-integrations.md#posthog',
@@ -1067,8 +846,7 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
 export const INTEGRATION_PROVIDER_IDS: readonly IntegrationProviderId[] =
   INTEGRATION_PROVIDERS.map((provider) => provider.id);
 
-/** The provider with this id, or null. The one lookup every runtime uses, so an
- * unknown id is one answer rather than four spellings of a 404. */
+/** The provider with this id, or null. */
 export function integrationProvider(id: string): IntegrationProvider | null {
   return INTEGRATION_PROVIDERS.find((provider) => provider.id === id) ?? null;
 }
@@ -1095,25 +873,19 @@ export function integrationProviderCards(): IntegrationProvider[] {
 export interface CredentialAuthState {
   /** True when SOME way in is fully held. */
   complete: boolean;
-  /** Which way, when the provider offers more than one. `null` for the four
-   * providers with a single implicit path — there is no choice to report. */
+  /** Which way, when the provider offers more than one. `null` for a provider
+   * with a single implicit path. */
   auth: CredentialAuthKind | null;
   /** Field names still needed before anything works. Empty when complete. */
   missing: string[];
 }
 
 /**
- * Read a set of held field names against one provider's schema — the ONE rule
- * for "is this credential usable", wherever the names came from.
- *
- * It is called with the store's field list, with the env bindings that are set,
- * and (mirrored, because Node cannot import this package's TypeScript) by
- * `scripts/dev-secrets.mjs` against `.dev.secrets.json`. One rule, so a
- * credential the card calls connected is one the collector can actually run.
- *
- * WHEN NOTHING IS COMPLETE the `missing` list names the CLOSEST path rather
- * than every field of every path: an operator who has pasted a service-account
- * map and is one grant short must not be told to go and sign in instead.
+ * Read a set of held field names against one provider's schema — the one rule
+ * for "is this credential usable", wherever the names came from. It is
+ * mirrored by `scripts/dev-secrets.mjs`, because Node cannot import this
+ * package's TypeScript. When nothing is complete, `missing` names the closest
+ * path rather than every field of every path.
  */
 export function credentialAuthState(
   provider: IntegrationProvider,
@@ -1150,7 +922,7 @@ export function credentialAuthState(
   return { complete: false, auth: null, missing: closest?.missing ?? [] };
 }
 
-/** One provider's legacy env bindings, read once (bead `ro-vu8d.24`). */
+/** One provider's legacy env bindings, read once. */
 export interface EnvCredentialRead {
   /** Field name → the value the environment holds, with any legacy
    * single-asset binding already folded into its `asset-map` field. */
@@ -1162,26 +934,14 @@ export interface EnvCredentialRead {
 }
 
 /**
- * WHAT THE ENVIRONMENT HOLDS FOR ONE PROVIDER — the one rule, so the card, the
- * collector and the importer cannot disagree about whether a legacy binding
- * counts (bead `ro-vu8d.24`).
+ * What the environment holds for one provider — the one rule, so the card, the
+ * collector and the importer agree on whether a legacy binding counts.
  *
- * Before this, three readers answered separately: the collector read
- * `CLARITY_PROJECT_API_TOKEN` and collected, the summary read only the DECLARED
- * field names and called the card *Not connected*, and the importer moved
- * nothing. An install on the older shape therefore had a working data source
- * and a red card — and no way to move.
- *
- * THE MAP WINS wherever both name the same asset: it is the shape that can
- * express the whole portfolio, so a single-asset binding must never override an
- * explicit entry. A map that does not parse is left exactly as it is rather
- * than replaced, because a broken value is a validation refusal the operator
- * has to see, not a value to quietly discard.
- *
- * WHICH ASSET the legacy binding serves is `legacyBindingAsset` over
- * `register` — the installation's own data-source register, store first (bead
- * `ro-ujb9.118`). A caller without it folds nothing: the binding serves no
- * asset rather than one the product guessed.
+ * The map wins wherever both name the same asset. A map that does not parse is
+ * left as it is: a broken value is a validation refusal the operator has to
+ * see, not a value to discard. Which asset the legacy binding serves is
+ * `legacyBindingAsset` over `register`; a caller without a register folds
+ * nothing.
  */
 export function readEnvCredential(
   provider: IntegrationProvider,
@@ -1190,7 +950,7 @@ export function readEnvCredential(
 ): EnvCredentialRead {
   const fields: Record<string, string> = {};
   const legacySlots: Record<string, string> = {};
-  // This integration started with the vault. Disconnect must not revive a legacy environment login.
+  // Mediavine never had an env login; Disconnect must not revive one.
   if (provider.id === 'mediavine') return { fields, legacySlots };
   for (const field of provider.fields) {
     const direct = bindings[field.name];
@@ -1234,23 +994,11 @@ function mergeAssetMapEntry(
   return JSON.stringify({ ...record, [asset]: token });
 }
 
-/** What is known about one provider's credential — NAMES and metadata only.
- *
- * `source` is the question the page exists to answer: `store` (entered in the
- * product), `env` (the legacy `.dev.vars` path, still working), or `none`. A
- * store credential missing a required field still reads `store`, with the gap
- * named in `missingFields` — half-configured is its own state and must not
- * masquerade as unconfigured.
- */
 /**
- * What a credential can say about ITSELF without naming a secret.
- *
- * Deliberately stored in the CLEAR, beside the ciphertext rather than inside
- * it (`credentials.fields_json`): the Integrations page has to render these,
- * and `listCredentialSummaries` answers without the bootstrap key on purpose —
- * so a rotated key still leaves a card an operator can read and disconnect.
- * Nothing here is a credential: an email address identifies the grant, and the
- * scopes are what Google itself would show on the account's permissions page.
+ * What a credential can say about itself without naming a secret. Stored in
+ * the clear beside the ciphertext (`credentials.fields_json`), so
+ * `listCredentialSummaries` answers without the bootstrap key and a rotated
+ * key still leaves a card an operator can read and disconnect.
  */
 export interface CredentialMetadata {
   /** Whose account this is — the Google address the operator signed in as. */
@@ -1261,43 +1009,29 @@ export interface CredentialMetadata {
    * write also moves. */
   connectedAt: string | null;
   /**
-   * When this credential stops working, where that is knowable (bead
-   * `ro-vu8d.8`). Null for every credential whose provider states no lifetime
-   * and whose operator has not named one — never a guess, and never a date
-   * derived from age alone.
-   *
-   * Non-secret by construction, which is why it rides here rather than inside
-   * the ciphertext: a card whose bootstrap key was rotated must still be able
-   * to say "this expires on Friday" while it says "reconnect me".
+   * When this credential stops working, where that is knowable. Null where the
+   * provider states no lifetime and the operator has not named one — never a
+   * date derived from age alone. In the clear, so a card whose bootstrap key
+   * was rotated can still say it.
    */
   expiresAt: string | null;
-  /** Who supplied the date above. `operator` is sticky — a later sign-in must
-   * not overwrite the operator's own answer (including their answer that there
-   * is NO expiry, which is `expiresAt: null` with this set). */
+  /** Who supplied the date above. `operator` is sticky: a later sign-in must
+   * not overwrite the operator's own answer, including the answer that there
+   * is no expiry (`expiresAt: null` with this set). */
   expirySource: CredentialExpirySource | null;
   /**
-   * What the provider's own PREPAID ACCOUNT held the last time this OS saw the
-   * figure (bead `ro-qpas`). Absent for every provider that has no such account
-   * — six of the seven — which is why it is optional rather than a null every
-   * credential has to carry.
-   *
-   * Non-secret in the same way the expiry is: a dollar amount identifies no
-   * login, and it rides in the clear beside the ciphertext so a card whose
-   * bootstrap key was rotated can still say what the account held.
+   * What the provider's prepaid account held the last time this OS saw the
+   * figure. Optional: most providers have no such account. Non-secret, and in
+   * the clear beside the ciphertext like the expiry.
    */
   balance?: CredentialBalance | null;
 }
 
 /**
- * A PREPAID BALANCE AND THE INSTANT IT WAS SEEN, never one without the other
- * (bead `ro-qpas`).
- *
- * DataForSEO is prepaid, and the credit left on the account is the number an
- * operator reaches for when they ask whether next Monday's sweep can run. It
- * comes back only inside a provider answer, so it is a SIGHTING rather than a
- * reading: what the OS can honestly say is what it saw and when. The two travel
- * as one object because a figure that lost its timestamp would be renderable as
- * though it were current, which is the one thing this must not do.
+ * A prepaid balance and the instant it was seen, never one without the other:
+ * the figure comes back only inside a provider answer, so it is a sighting
+ * rather than a reading, and one that lost its timestamp could be rendered as
+ * though it were current.
  */
 export interface CredentialBalance {
   /** Dollars of credit, the digits the provider reported (`ExactUsd`); the
@@ -1308,22 +1042,17 @@ export interface CredentialBalance {
 }
 
 /**
- * When a credit sighting is TOO OLD TO ACT ON (bead `ro-vu8d.27`): two missed
- * weekly refreshes. The sweep refreshes the figure once a week and its read is
- * deliberately silent when refused, so three weeks of failed reads look exactly
- * like three weeks of not looking — and the operator uses this number to
- * decide whether next Monday's sweep can run. One bad week is not an alarm;
- * two is the figure quietly ageing, and the card must say so rather than show
- * it plainly.
+ * When a credit sighting is too old to act on: two missed weekly refreshes.
+ * The sweep's read is silent when refused, so weeks of failed reads look like
+ * weeks of not looking, and the card must say the figure is ageing.
  */
 export const CREDENTIAL_BALANCE_STALE_MS = 14 * 24 * 60 * 60 * 1000;
 
 /**
  * An amount of US dollars as exact decimal text: a JSON number's own digits
- * (`42.5`, `-0.25`), never a floating-point number (bead `ro-ujb9.76.4.4`). A
- * float cannot hold most cents exactly — `(1.005).toFixed(2)` is `1.00` — so
- * a prepaid balance crosses from the provider to the store (`numeric(14,6)`,
- * as provider prices) and on to the card as the text it arrived as.
+ * (`42.5`, `-0.25`), never a float, which cannot hold most cents exactly
+ * (`(1.005).toFixed(2)` is `1.00`). It crosses from the provider to the store
+ * (`numeric(14,6)`) and on to the card as the text it arrived as.
  */
 export type ExactUsd = `${number}`;
 
@@ -1354,15 +1083,10 @@ export interface CredentialBalanceReading {
 }
 
 /**
- * Read one credential's last-seen account balance against a clock — the ONE
- * derivation, so the card, the gallery and every test age it the same way
- * (bead `ro-qpas`).
- *
- * NOTHING RECORDED AND NOTHING READABLE ANSWER THE SAME WAY: null, which the
- * card renders as the sentence saying no figure has been seen yet. A sighting
- * whose timestamp does not parse is exactly the case where showing the number
- * would be showing an undated one, so it is dropped rather than shown bare —
- * the same rule `credentialExpiry` applies to a defective date.
+ * Read one credential's last-seen account balance against a clock — the one
+ * derivation for the card, the gallery and the tests. Nothing recorded and
+ * nothing readable both answer null; a sighting whose timestamp does not parse
+ * is dropped rather than shown undated.
  */
 export function credentialBalance(
   metadata: CredentialMetadata | null,
@@ -1379,21 +1103,17 @@ export function credentialBalance(
 
 export interface CredentialSummary {
   provider: IntegrationProviderId;
+  /** `store` (entered in the product), `env` (the legacy path, still working)
+   * or `none`. A store credential missing a required field still reads
+   * `store`, with the gap named in `missingFields`. */
   source: CredentialSource;
-  /** Field NAMES the store holds for this provider. Never values. */
+  /** Field names the store holds for this provider. Never values. */
   fields: string[];
   /**
-   * For a `per-asset` provider: the ASSET IDS this credential holds a key for
-   * (bead `ro-vu8d.9`). Ids only — never a key, and never how long one is.
-   * Always empty for a `shared` provider, which has no per-asset dimension to
-   * report.
-   *
-   * It rides beside the ciphertext in `fields_json`, in the clear, for the same
-   * reason the metadata does: `listCredentialSummaries` answers WITHOUT the
-   * bootstrap key on purpose, and a card that could not say which assets are
-   * covered until somebody found the key would go blank exactly when the key is
-   * the problem. An asset id is not a secret — it is in
-   * `config/integrations.json` and in the URL of every asset page.
+   * For a `per-asset` provider: the asset ids this credential holds a key for.
+   * Ids only, never a key. Always empty for a `shared` provider. In the clear
+   * beside the ciphertext, so the card can say which assets are covered when
+   * the key is the problem.
    */
   assetsHeld: string[];
   /** Field names still needed before this credential works. Empty when
@@ -1418,21 +1138,11 @@ export interface CredentialSummary {
   /** The last failure's sentence, or null. Never carries a value. */
   lastError: string | null;
   /**
-   * For the one credential that can ALSO carry a per-asset property map:
-   * whether that map is still the only answer for anything (beads `ro-90mr`,
-   * `ro-vu8d.22`).
-   *
-   * `null` for every provider that holds no such map — which is all of them but
-   * Google — and for a Google install with no account blob at all. It carries no
-   * credential CONTENT: the answer is asset ids and data-source ids, which is
-   * exactly what `IntegrationProviderStatus.assets` already carries.
-   *
-   * IT COMES FROM THE INGEST because only the ingest can read the blob, and the
-   * question is *which assets does the credential name*. The Tower used to
-   * derive its own version from `config/integrations.json` alone and the two
-   * could disagree about an ORPHAN — an asset the credential names that the
-   * register has no entry for — with the card telling the operator they could
-   * delete ids that were still steering a run.
+   * For the one credential that can also carry a per-asset property map
+   * (Google): whether that map is still the only answer for anything. `null`
+   * for every other provider, and for a Google install with no account blob.
+   * Answered by the ingest, which alone can read the blob; it carries asset ids
+   * and data-source ids, never credential content.
    */
   propertyMap?: CredentialPropertyMapUse | null;
 }
@@ -1443,13 +1153,10 @@ export interface IntegrationProviderStatus {
   provider: IntegrationProvider;
   credential: CredentialSummary;
   /** Assets that declare one of this provider's lanes in
-   * `config/integrations.json`, with the lanes they declare. Ids only: the
-   * register knows nothing about display names, and a page that had to read the
-   * store for them could go blank when the store is the thing that is broken. */
+   * `config/integrations.json`, with the lanes they declare. Ids only. */
   assets: IntegrationProviderAssetRef[];
   /**
-   * Spend against `provider.meter` — today's calls, or this month's dollars —
-   * from the manifest rows this OS wrote (beads `ro-vu8d.25`, `ro-qpas`).
+   * Spend against `provider.meter`, from the manifest rows this OS wrote.
    * `null` for a provider that declares no meter, and for a store that could
    * not answer — a card must never invent a budget.
    */
@@ -1462,18 +1169,12 @@ export interface IntegrationProviderAssetRef {
 }
 
 /**
- * WHETHER A CREDENTIAL'S OWN PROPERTY MAP IS STILL LOAD-BEARING (bead `ro-90mr`).
- *
- * Google's `GOOGLE_SIGNAL_ACCOUNTS` blob holds a per-asset `ga4_property_id` /
- * `gsc_site_url` map, and since `ro-vu8d.16` each asset's own Sources tab holds
- * the same fact and wins. Two places holding one fact is a state D21 refuses to
- * make permanent, so the collectors let go of the copy the moment nothing needs
- * it — and the card has to be able to say WHEN that is, because otherwise the
- * operator has no way to know the ids in their credential are dead weight.
- *
- * ONE FUNCTION ANSWERS IT, and it is the collector's own
- * (`credentialPropertyMapUse` in `workers/ingest/src/lane-mapping.ts`, bead
- * `ro-vu8d.22`). This type is what that answer looks like on the wire.
+ * Whether a credential's own property map is still load-bearing. Google's
+ * `GOOGLE_SIGNAL_ACCOUNTS` blob holds a per-asset `ga4_property_id` /
+ * `gsc_site_url` map; each asset's own Sources tab holds the same fact and
+ * wins, so the collectors let go of the copy once nothing needs it, and the
+ * card says when that is. Answered by `credentialPropertyMapUse` in
+ * `workers/ingest/src/lane-mapping.ts`.
  */
 export interface CredentialPropertyMapUse {
   /** True while at least one entry is listed below. */
@@ -1496,17 +1197,11 @@ export interface CredentialPropertyMapRef {
 }
 
 /**
- * ONE asset row on a provider card: who declares this provider, and — for a
- * per-asset credential — whether a key is actually held for them.
- *
- * THE SINGLE REPRESENTATION OF "WHICH ASSETS DOES THIS CREDENTIAL SERVE"
- * (bead `ro-vu8d.9`). Two facts arrive from two places: the catalog says which
- * assets DECLARE this provider's data sources, and the store says which assets
- * a key is HELD for. They disagree in both directions and both disagreements
- * matter — an asset waiting on a token is the most actionable row on the card,
- * and a token stored for an asset nothing maps is a secret nobody is using. So
- * they are merged HERE, once, and the card, the connect form and the tests all
- * read this list rather than each pairing the two up their own way.
+ * One asset row on a provider card: who declares this provider, and, for a
+ * per-asset credential, whether a key is held for them. The catalog says which
+ * assets declare the provider's data sources and the store says which assets a
+ * key is held for; they disagree in both directions and both matter, so they
+ * are merged here, once.
  */
 export interface CredentialAssetRow {
   id: string;
@@ -1530,10 +1225,9 @@ export function credentialAssetRows(
     held: held.has(asset.id),
   }));
   const declared = new Set(rows.map((row) => row.id));
-  // A key stored for an asset the catalog does not map is NAMED rather than
-  // dropped: it is either a typo in an asset id or a data source somebody
-  // forgot to declare, and both are invisible if the card only lists the
-  // catalog's side.
+  // A key stored for an asset the catalog does not map is named rather than
+  // dropped: a typo in an asset id or an undeclared data source is invisible
+  // otherwise.
   for (const id of held) {
     if (!declared.has(id)) rows.push({ id, lanes: [], held: true });
   }
@@ -1541,37 +1235,25 @@ export function credentialAssetRows(
 }
 
 /**
- * The four states a provider card leads with, in the operator's words.
- *
- * These are NOT the five data-source states the Health page renders
- * (`live`/`degraded`/`needs-setup`/`skipped`/`not-applicable`). Those are about
- * one asset × one data source and are derived from collector evidence; these are
- * about one CREDENTIAL and are derived from the store. A data source can be
- * Working while its credential is still Legacy env, and that difference is the
- * whole point of epic `ro-vu8d`.
+ * The four states a provider card leads with. Not the data-source states the
+ * Health page renders: those are about one asset × one data source, derived
+ * from collector evidence; these are about one credential, derived from the
+ * store. A data source can be Working while its credential is still Legacy
+ * env.
  */
 export type ConnectionState = 'connected' | 'legacy-env' | 'not-connected' | 'failing';
 
 /**
- * What the card says, from the credential summary alone.
- *
- * ORDER IS THE ARGUMENT. Nothing stored (or stored incomplete) is *not
- * connected* first, because there is no connection to call broken. Then a
- * credential whose last use did not work is *failing*, whatever it is stored
- * in — that is the fact that decides what the operator does next, and a green
- * chip over a failing key is the lie the Integrations page exists to stop. Only
- * then does WHERE it lives get to speak.
+ * What the card says, from the credential summary alone. Order is the
+ * argument: nothing stored (or stored incomplete) is not connected, because
+ * there is no connection to call broken; then a credential whose last use did
+ * not work is failing, wherever it is stored; only then does where it lives
+ * speak.
  *
  * "Its last use did not work" is derived rather than trusted, because
  * `lastError` carries no timestamp of its own: an error older than the last
- * success is one that has already been fixed, and must not shout. The ingest
- * does clear the column on success, so this is belt-and-braces — but the
- * derivation is what makes the rendering correct either way.
- *
- * IT LIVES IN THE CONTRACT, not in the Tower, since bead `ro-vu8d.23`: the
- * notifier interrupts the operator when a data source turns *Failing*, so
- * "failing" has to mean in the ingest exactly what it means on the card. Two
- * derivations of one state is what `ro-vu8d.22` had just finished removing.
+ * success has already been fixed and must not shout. It lives in the contract
+ * because the notifier and the card must mean the same thing by failing.
  */
 export function connectionState(credential: CredentialSummary): ConnectionState {
   if (credential.source === 'none') return 'not-connected';
@@ -1599,24 +1281,18 @@ function parseInstant(iso: string | null): number | null {
   return Number.isNaN(t) ? null : t;
 }
 
-/** What makes a `CREDENTIALS_KEY`: 32 random bytes, base64 (doc 06, bootstrap
- * secrets). The key itself is set where the ingest reads its environment. */
+/** What makes a `CREDENTIALS_KEY`: 32 random bytes, base64. */
 export const CREDENTIALS_KEY_COMMAND = 'openssl rand -base64 32';
 
-/** `GET /api/integrations/providers`.
- *
- * Deliberately NOT `/api/integrations`, which already answers with the
- * portfolio lane matrix the Health page renders. Two payloads, two paths.
- */
+/** `GET /api/integrations/providers`. Not `/api/integrations`, which answers
+ * with the portfolio lane matrix the Health page renders. */
 export interface IntegrationCredentialsPayload {
   generatedAt: string;
   /** Whether `CREDENTIALS_KEY` is set and usable. */
   keyPresent: boolean;
-  /** Why nothing can be stored yet, as codes the Tower draws — a state and the
-   * one command that clears it (bead `ro-ujb9.96.6.19`). Empty when a
-   * credential can be stored. `keyReason` keeps the long
-   * sentence for the command line (`pnpm dev:secrets:import`); the Tower
-   * renders these instead. */
+  /** Why nothing can be stored yet, as codes the Tower draws. Empty when a
+   * credential can be stored. `keyReason` keeps the long sentence for the
+   * command line. */
   blockers: CredentialBlocker[];
   /** When it is not: the sentence naming how to generate one and where to put
    * it. Rendered in place of the forms, so nobody types a password into a field
@@ -1626,34 +1302,25 @@ export interface IntegrationCredentialsPayload {
 }
 
 /**
- * WHY A CREDENTIAL CANNOT BE STORED YET (bead `ro-ujb9.96.6.19`), as a code:
- *
- *  - `key-missing` — `CREDENTIALS_KEY` is not set;
- *  - `key-invalid` — it is set but is not 32 base64 bytes (or the previous
- *    key a rotation reads is not).
- *
- * The Tower draws each as a state and the one command that clears it, and the
- * ingest's own line for the command line is the same state, binding and
- * command (bead `ro-ujb9.96.6.25`), so the two can never say different things.
+ * Why a credential cannot be stored yet: `key-missing` — `CREDENTIALS_KEY` is
+ * not set; `key-invalid` — it is set but is not 32 base64 bytes (or the
+ * previous key a rotation reads is not). The Tower and the ingest's command
+ * line both draw the state and the one command that clears it from here.
  */
 export type CredentialBlocker = 'key-missing' | 'key-invalid';
 
-/** Each blocker's state, in two or three words — the Integrations banner's
- * lead and the start of the ingest's line. Where to set the key is doc 06's
- * (bootstrap secrets), linked, never restated. */
+/** Each blocker's state, in two or three words. Where to set the key is doc
+ * 06's, linked, never restated. */
 export const CREDENTIAL_BLOCKER_LEADS: Readonly<Record<CredentialBlocker, string>> = {
   'key-missing': 'No encryption key',
   'key-invalid': 'Encryption key unusable',
 };
 
 /**
- * WHAT A CONNECTION TEST FOUND, AS FACTS (bead `ro-ujb9.96.6.19`).
- *
- * The Tower draws a result — a mark, counted facts, the parts that failed by
- * the operator's own names — and, where one exists, the one press that clears
- * it; never a sentence the ingest wrote. Nothing here is a credential or a
- * provider's own text: a feed is named by its label, a site by its id, a
- * Google identity by the account or robot address the card already shows.
+ * What a connection test found, as facts the Tower draws, never a sentence the
+ * ingest wrote. Nothing here is a credential or a provider's own text: a feed
+ * is named by its label, a site by its id, a Google identity by the account
+ * address the card already shows.
  *
  *  - `answered` — the provider answered and the credential works;
  *  - `refused` — the provider answered no (all of it, or the parts in
@@ -1703,7 +1370,7 @@ export interface ProbeFacts {
 }
 
 /**
- * THE ONE PRESS THAT CLEARS A RESULT:
+ * The one press that clears a result:
  *  - `replace` — the key, login or webhook is refused or gone: Replace it;
  *  - `sign-in` — Google no longer accepts the sign-in: sign in again;
  *  - `grant` — Google refused the service account `to` on `product`: give it
@@ -1726,11 +1393,10 @@ export type ProbeFix =
 /** `POST /api/integrations/:provider/test` — one real, least-privileged call.
  *
  * `ok: false` is a 200 with the reason in `result`: a credential that does not
- * work is an ANSWER to the question the button asked, not a transport failure.
- * `result` is what the Tower draws (bead `ro-ujb9.96.6.19`); `message` is the
- * same result as one short line (`probeLine`) for the command line and the
- * credential's stored last error. Neither ever contains a credential, and the
- * probe never stores the provider's response body.
+ * work is an answer, not a transport failure. `result` is what the Tower
+ * draws; `message` is the same result as one short line (`probeLine`) for the
+ * command line and the credential's stored last error. Neither ever contains a
+ * credential, and the probe never stores the provider's response body.
  */
 export interface CredentialProbe {
   monitoringAvailable?: boolean;
@@ -1755,12 +1421,8 @@ export function probeOutcomeLabel(outcome: ProbeOutcome): string {
   return PROBE_OUTCOME_WORDS[outcome];
 }
 
-/**
- * A result as ONE short line — `Answered · 3 sites`, `Refused · HTTP 403 ·
- * Search Console` — for the command line and the stored last error, so what a
- * failing card reads later is the same result the test showed, in a dozen
- * words at most.
- */
+/** A result as one short line — `Answered · 3 sites`, `Refused · HTTP 403 ·
+ * Search Console` — for the command line and the stored last error. */
 export function probeLine(result: ProbeResult): string {
   const facts = result.facts ?? {};
   const count = (n: number | undefined, one: string, many: string) => (n === undefined ? null : `${n} ${n === 1 ? one : many}`);
@@ -1794,12 +1456,9 @@ export interface PutCredentialInput {
   provider: string;
   fields: Record<string, string>;
   /**
-   * The non-secret facts to record beside the ciphertext.
-   *
-   * Only the OAuth callback sets this, inside the ingest Worker. The Tower's
-   * PUT route builds `{ provider, fields }` explicitly and cannot forward it —
-   * an operator's browser has no business asserting whose account a grant
-   * belongs to.
+   * The non-secret facts to record beside the ciphertext. Only the OAuth
+   * callback sets this, inside the ingest Worker; the Tower's PUT route cannot
+   * forward it, because a browser must not assert whose account a grant is.
    */
   metadata?: CredentialMetadata;
 }
@@ -1808,8 +1467,7 @@ export type PutCredentialResult =
   | { ok: true; summary: CredentialSummary }
   | { ok: false; error: 'unknown_provider'; provider: string }
   | { ok: false; error: 'key_missing'; message: string }
-  /** The table is not in the store yet. A Save that silently did nothing is the
-   * worst outcome available, so this is an answer rather than a degradation. */
+  /** The table is not in the store yet: an answer, never a silent no-op. */
   | { ok: false; error: 'store_unavailable'; message: string }
   | { ok: false; error: 'validation'; issues: CredentialIssue[] };
 
@@ -1819,17 +1477,12 @@ export type DeleteCredentialResult =
 
 /**
  * `PUT /api/integrations/:provider/expiry` — record (or clear) the one fact
- * about a credential that only the operator can see (bead `ro-vu8d.8`).
- *
- * DELIBERATELY NOT PART OF `PutCredentialInput`. Recording a rotation date must
- * not require retyping a password, and re-sealing the ciphertext to write a
- * public date would clear the last verdict for no reason. The expiry lives in
- * `fields_json`, in the clear, so this write needs no bootstrap key at all —
- * the same reason `deleteCredential` does not.
- *
- * `expiresAt: null` is a STATEMENT, not an omission: it says "this does not
- * expire", is stamped `operator`, and is what a published Google app answers
- * with so the next sign-in does not put the seven-day countdown back.
+ * about a credential that only the operator can see. Not part of
+ * `PutCredentialInput`: recording a rotation date must not require retyping a
+ * password, and the expiry lives in `fields_json` in the clear, so this write
+ * needs no bootstrap key. `expiresAt: null` is a statement ("this does not
+ * expire"), stamped `operator`, so the next sign-in does not put a countdown
+ * back.
  */
 export interface SetCredentialExpiryInput {
   provider: string;
@@ -1853,7 +1506,7 @@ export type SetCredentialExpiryResult =
 export interface CredentialStoreState {
   keyPresent: boolean;
   keyReason: string | null;
-  /** Why nothing can be stored yet, as codes (bead `ro-ujb9.96.6.19`). */
+  /** Why nothing can be stored yet, as codes. */
   blockers: CredentialBlocker[];
   summaries: CredentialSummary[];
 }

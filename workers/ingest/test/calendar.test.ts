@@ -1,12 +1,8 @@
 // The calendar RPC's contract: what the Wall is shown, and what the Tower can
-// never be handed.
-//
-// Two things are being pinned here. The first is arithmetic — an ICS feed states
-// a wall clock and a zone, and every meeting time on the Wall is only as right as
-// the conversion, which has to survive both DST transitions to be worth
-// anything. The second is the boundary: a secret ICS link reads the whole
-// calendar for whoever holds it, so a failing feed must be reportable without
-// the URL appearing in a single byte of output.
+// never be handed. Two things are pinned: the wall-clock-to-instant arithmetic
+// across both DST transitions, and the boundary — a secret ICS link reads the
+// whole calendar for whoever holds it, so a failing feed must be reportable
+// without the URL appearing in a single byte of output.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { env } from 'cloudflare:test';
@@ -728,9 +724,8 @@ describe('recurrence expansion', () => {
       ['2026-08-11T16:00:00.000Z', 'Anniversary'],
       ['2026-08-11T21:00:00.000Z', 'Last working day'],
     ]);
-    // Logged as a documented limit — ONE aggregate line per feed with counts
-    // by FREQ, never one line per event (ro-l2ji: per-event logging from a
-    // calendar of yearly birthdays once drowned the supervisor log).
+    // Logged as a documented limit — one aggregate line per feed with counts
+    // by FREQ, never one line per event.
     const codes = warn.mock.calls.map((call) => String(call[0]));
     const lines = codes.filter((line) => line.includes('calendar_rrule_unsupported'));
     expect(lines).toHaveLength(1);
@@ -1080,8 +1075,7 @@ describe('invitation responses', () => {
   });
 
   it('hides declined, tentative, and unanswered invitations', async () => {
-    // "Actually Accepted" was the operator's word, so a maybe is not a plan and
-    // an unopened invitation is not either.
+    // A maybe is not a plan, and an unopened invitation is not either.
     const { payload } = await upcoming(
       ics(
         ...invited('DECLINED', 'Declined'),
@@ -1325,9 +1319,8 @@ describe('the configured calendars', () => {
   });
 
   it('classifies each failure by whether the operator or the world has to move', async () => {
-    // The reason this field exists: one count said "1 of 5 answered" for five
-    // different problems, and three of these five need the operator to edit the
-    // secret while two need Google to cooperate.
+    // One count saying 1 of 5 answered hides five different problems; three
+    // need the operator to edit the secret and two need Google to cooperate.
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     const refused = 'https://calendar.google.com/calendar/ical/a%40example.test/private-refused/basic.ics';
     const slow = 'https://calendar.google.com/calendar/ical/b%40example.test/private-slow/basic.ics';
@@ -1638,7 +1631,7 @@ describe('the feed url is a credential', () => {
   });
 });
 
-describe('round hygiene (ro-l2ji)', () => {
+describe('round hygiene', () => {
   it('collapses field-for-field twin events into one meeting', async () => {
     // Google's auto-generated events can land in one calendar twice under
     // different UIDs (two booking emails, one flight). Twins are one fact.
@@ -1686,9 +1679,9 @@ describe('round hygiene (ro-l2ji)', () => {
   });
 
   it('logs degraded rules as one aggregate line per feed, at fetch time only', async () => {
-    // A personal calendar of yearly birthdays once wrote one warn line per
-    // event PER POLL — thousands an hour. The round that fetched the bytes
-    // says it once, with counts; a poll served from cache says nothing.
+    // One warn line per event per poll would be thousands an hour on a
+    // calendar of yearly birthdays. The round that fetched the bytes says it
+    // once, with counts; a poll served from cache says nothing.
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const yearly = (uid: string, summary: string) =>
       vevent(

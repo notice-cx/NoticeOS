@@ -7,7 +7,7 @@ export interface DailyRevenueSummary {
   date: string;
   amountMinor: number | null;
   reportedThrough: string | null;
-  /** The source's reporting clock (D42). A reader checking whether this still
+  /** The source's reporting clock. A reader checking whether this still
    * describes yesterday uses the same clock, never the operator's preference. */
   timeZone: string;
 }
@@ -22,7 +22,7 @@ export interface DailyRevenueHistory {
 
 export interface PortfolioDailyRevenue extends DailyRevenueHistory {
   /** Each source owed at least one day of the window. `since` is its first
-   * reported day: it owes no day before it (bead `ro-rd6r`). */
+   * reported day: it owes no day before it. */
   sources: { asset: string; displayName: string; since: string }[];
   /** Per day: sources that reported, and the asset IDs of owed sources that
    * did not. Resolve names through `sources` only when displaying them. */
@@ -48,8 +48,8 @@ export function revenueCalendarDate(now: Date, timeZone: string): string {
 
 /** One site's saved estimates over the page's range, ending yesterday on the
  * source's reporting clock — what the site's Financials tab and, for a site
- * whose first source is ad revenue, its Overview draw (bead `ro-ujb9.146`). A
- * site with no history yet gets the same window, empty. */
+ * whose first source is ad revenue, its Overview draw. A site with no history
+ * yet gets the same window, empty. */
 export function siteRevenueWindow(
   history: DailyRevenueHistory | undefined,
   nowMs: number,

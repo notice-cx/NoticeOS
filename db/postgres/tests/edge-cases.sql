@@ -1,5 +1,5 @@
--- Edge cases, each with the outcome the model accepts (beads ro-ujb9.76.2 and
--- ro-ujb9.71): corrections, source changes, money, change entries, NULL and
+-- Edge cases, each with the outcome the model accepts: corrections, source
+-- changes, money, change entries, NULL and
 -- missing data, invalid imports, the writers' own mutations and snapshot
 -- moves. Runs as the application role inside workspace A after fixture.sql,
 -- and ROLLS BACK, so it leaves the fixture as it found it.
@@ -10,7 +10,7 @@ SET ROLE noticeos_app;
 BEGIN;
 SELECT set_config('noticeos.workspace_id', :'A', true);
 
--- ─── Corrections (ledger, ro-ujb9.69) ────────────────────────────────────────
+-- ─── Corrections (ledger) ───────────────────────────────────────────────────
 DO $$
 DECLARE estimate bigint; correction bigint; n bigint;
 BEGIN
@@ -87,7 +87,7 @@ BEGIN
   EXCEPTION WHEN check_violation THEN NULL;
   END;
 
-  -- Provider cost (ro-ujb9.75). ACCEPTED: a price below a cent, exactly; an unknown price as NULL.
+  -- Provider cost. ACCEPTED: a price below a cent, exactly; an unknown price as NULL.
   INSERT INTO noticeos.research_log (workspace_id, asset_id, provider, endpoint, params_sha256, question, cost_usd,
     cost_state, actor, bought_at)
   VALUES (noticeos.current_workspace_id(), 'a.example', 'dataforseo', 'x', repeat('d', 64), 'priced', 0.000625, 'reported', 'collector', now()),
@@ -101,8 +101,8 @@ BEGIN
     RAISE EXCEPTION 'an unknown price stored as zero' USING ERRCODE = 'ZT001';
   EXCEPTION WHEN check_violation THEN NULL;
   END;
-  -- REFUSED: a price that is not a number, in both tables that keep one
-  -- (ro-ujb9.76.46). numeric holds 'NaN' at any declared precision and
+  -- REFUSED: a price that is not a number, in both tables that keep one.
+  -- numeric holds 'NaN' at any declared precision and
   -- 'NaN' >= 0 is true, so only the check's own NaN test stops it; an
   -- infinite price is past numeric(14,6) and refused by the type.
   BEGIN
@@ -160,12 +160,11 @@ BEGIN
     format('30 daily estimates replace a 20-day import, got %s from %s', shown, source_seen);
 END $$;
 
--- ─── financial_ledger: one case per branch of its WHERE (REVIEW.md) ─────────
--- The view is the schema's most intricate object, so each condition that
--- decides what a month shows has its own case, one month each, on one site.
--- The outcomes are D1's (workers/ingest/test/mediavine.test.ts "daily
--- accounting"). `shows` is what readers see for a month: total, row count and
--- the sources shown, in order.
+-- ─── financial_ledger: one case per branch of its WHERE ─────────────────────
+-- Each condition that decides what a month shows has its own case, one month
+-- each, on one site; the outcomes match workers/ingest/test/mediavine.test.ts
+-- "daily accounting". `shows` is what readers see for a month: total, row
+-- count and the sources shown, in order.
 CREATE FUNCTION pg_temp.fl_month(month date) RETURNS text LANGUAGE sql AS $$
   SELECT coalesce(sum(amount_minor), 0) || ' in ' || count(*) || ': ' || coalesce(string_agg(coalesce(source, '-'), ',' ORDER BY source), '')
     FROM noticeos.financial_ledger
@@ -302,9 +301,9 @@ BEGIN
 END $$;
 SET LOCAL ROLE noticeos_app;
 
--- ─── Change entries: the ledger's third kind (D36, ro-ujb9.76.27) ──────────
+-- ─── Change entries: the ledger's third kind ─────────────────────────────────
 -- A change is booked once, when it ships: its site, the month it shipped, its
--- class, its id and the prediction it shipped with, in its currency (D38). It
+-- class, its id and the prediction it shipped with, in its currency. It
 -- books no money, and the financial view never counts it. The fixture booked
 -- 'change-1' (class copy) on a.example.
 DO $$
@@ -326,7 +325,7 @@ BEGIN
 
   -- REFUSED: a change entry without the prediction it shipped with, or missing
   -- any part of it; a chance outside 0 to 1 (NaN included), a negative cost, a
-  -- signal on the day it ships (D38).
+  -- signal on the day it ships.
   FOR bad IN SELECT * FROM (VALUES
       ('no prediction',         NULL::bigint, NULL::numeric, NULL::bigint, NULL::integer),
       ('no value per month',    NULL, 0.4, 900, 28),
@@ -457,7 +456,7 @@ BEGIN
   RETURNING entry_id INTO closed;
   -- REFUSED: a correction that names another change, another class or another
   -- month, or that states another prediction: no correction edits the
-  -- prediction a change shipped with (D38).
+  -- prediction a change shipped with.
   FOR bad IN SELECT * FROM (VALUES
       ('moved to another change',       'change-1', 'template', '2026-09-01'::date, 2500::bigint, 0.4::numeric, 900::bigint, 28),
       ('re-classed a change',           'change-2', 'feature',  '2026-09-01', 2500, 0.4, 900, 28),
@@ -513,7 +512,7 @@ BEGIN
 END $$;
 
 -- REFUSED: the owner, who may update what the application may not, editing a
--- shipped prediction: the ledger's immutability trigger holds the line (D38).
+-- shipped prediction: the ledger's immutability trigger holds the line.
 SET LOCAL ROLE noticeos_owner;
 DO $$
 BEGIN
@@ -524,7 +523,7 @@ EXCEPTION WHEN raise_exception THEN NULL;
 END $$;
 SET LOCAL ROLE noticeos_app;
 
--- ─── Source changes (series identity, ro-ujb9.70) ────────────────────────────
+-- ─── Source changes (series identity) ───────────────────────────────────────
 DO $$
 DECLARE old_series bigint; new_series bigint; zone_series bigint; n bigint;
 BEGIN
@@ -622,7 +621,7 @@ BEGIN
     RAISE EXCEPTION 'a revision number was reused' USING ERRCODE = 'ZT001';
   EXCEPTION WHEN unique_violation THEN NULL;
   END;
-  -- REFUSED: malformed JSON and an impossible date (ro-ujb9.71).
+  -- REFUSED: malformed JSON and an impossible date.
   BEGIN
     INSERT INTO noticeos.pulses (workspace_id, asset_id, pulse_date, envelope)
     VALUES (noticeos.current_workspace_id(), 'a.example', '2026-09-02', '{not json');
@@ -637,7 +636,7 @@ BEGIN
   END;
 END $$;
 
--- ─── A retry replaces its earlier revision's untouched alerts (ro-ujb9.76.5.2)
+-- ─── A retry replaces its earlier revision's untouched alerts ───────────────
 DO $$
 DECLARE first_rev bigint; second_rev bigint; touched bigint; untouched bigint; shown integer; day integer;
 BEGIN
@@ -683,7 +682,7 @@ BEGIN
   END;
 END $$;
 
--- ─── An alert reads as its newest reading (ro-ujb9.76.5.2) ──────────────────
+-- ─── An alert reads as its newest reading ───────────────────────────────────
 DO $$
 DECLARE held bigint; now_reads noticeos.current_flags%ROWTYPE; stored_message text;
 BEGIN
@@ -701,7 +700,7 @@ BEGIN
   ASSERT stored_message = 'first night', 'the row keeps its first evidence';
 END $$;
 
--- ─── Records that belong together stay together (ro-ujb9.71) ────────────────
+-- ─── Records that belong together stay together ─────────────────────────────
 DO $$
 DECLARE other_pulse bigint;
 BEGIN
@@ -775,7 +774,7 @@ BEGIN
   EXCEPTION WHEN check_violation THEN NULL;
   END;
   -- REFUSED: a median open age that is not a number or is infinite
-  -- ('NaN' >= 0 and 'Infinity' >= 0 are both true in Postgres, ro-ujb9.76.46).
+  -- ('NaN' >= 0 and 'Infinity' >= 0 are both true in Postgres).
   BEGIN
     INSERT INTO noticeos.alert_daily_counts (workspace_id, asset_id, day, observed_at, open, errors, warnings, median_open_age_hours)
     VALUES (noticeos.current_workspace_id(), 'a.example', '2026-09-08', now(), 1, 0, 0, 'NaN');
@@ -808,7 +807,7 @@ BEGIN
   END;
 END $$;
 
--- ─── A lease has one holder at a time (REVIEW.md "Leases") ──────────────────
+-- ─── A lease has one holder at a time ───────────────────────────────────────
 -- The Workers' take (workers/ingest/src/ga4-read-cache.ts, posthog-dumps.ts)
 -- in Postgres: one statement inserts the lease or takes over an expired one,
 -- and returns the row only to the taker (ON CONFLICT DO UPDATE is atomic).
@@ -846,7 +845,7 @@ BEGIN
   ASSERT n = 0, 'a former holder cannot release it';
 END $$;
 
--- ─── Invalid imports are refused (ro-ujb9.71) ───────────────────────────────
+-- ─── Invalid imports are refused ────────────────────────────────────────────
 DO $$
 DECLARE other_series bigint; fixture_series bigint;
 BEGIN
@@ -966,7 +965,7 @@ BEGIN
   END;
 END $$;
 
--- ─── Numbers a workspace hands out (ro-ujb9.76.21) ──────────────────────────
+-- ─── Numbers a workspace hands out ──────────────────────────────────────────
 -- Readers show flag_number, pulse_number, … and never the identity, which is
 -- one sequence shared by every workspace. Each workspace counts its own.
 DO $$
@@ -1069,14 +1068,14 @@ BEGIN
     RAISE EXCEPTION 'one number was given to two annotations' USING ERRCODE = 'ZT001';
   EXCEPTION WHEN unique_violation THEN NULL;
   END;
-  -- ACCEPTED: the owner brings a site's place, as the importer brings the
-  -- order D1 inserted its sites in (ro-ujb9.76.52).
+  -- ACCEPTED: the owner brings a site's place, as an importer brings an
+  -- existing order.
   INSERT INTO noticeos.assets (workspace_id, asset_id, display_name, status, list_position)
   VALUES (noticeos.current_workspace_id(), 'imported.example', 'imported', 'live', 700);
 END $$;
 SET LOCAL ROLE noticeos_app;
 
--- ─── The order of sites (ro-ujb9.76.52) ─────────────────────────────────────
+-- ─── The order of sites ─────────────────────────────────────────────────────
 -- Every list of sites is ordered by each site's place, list_position. The
 -- same counter as the numbers above hands a new site its place; a move deals
 -- the places of the sites it spans out again, in two steps, since a place is
@@ -1147,7 +1146,7 @@ BEGIN
   ASSERT n = 501, format('after an imported 500 the store handed out %s', n);
 END $$;
 
--- ─── Normal writers stay valid (ro-ujb9.71) ─────────────────────────────────
+-- ─── Normal writers stay valid ──────────────────────────────────────────────
 -- Each sanctioned mutation, made the way today's writers make it, by the
 -- application role.
 DO $$
@@ -1241,9 +1240,9 @@ BEGIN
   END;
 END $$;
 
--- ─── Insight snapshots: the two newest stay, older ones move (choice 9) ─────
+-- ─── Insight snapshots: the two newest stay, older ones move ────────────────
 -- The site page reads a site's newest snapshot and the Wall's feed compares it
--- with the one before, so the two newest stay (ro-ujb9.76.17). The fixture
+-- with the one before, so the two newest stay. The fixture
 -- holds snapshot-0 (its move recorded), snapshot-1 and snapshot-2 for a.example.
 DO $$
 BEGIN
@@ -1339,7 +1338,7 @@ BEGIN
 END $$;
 SET LOCAL ROLE noticeos_app;
 
--- ─── History past its window moves to the analytical store (REVIEW.md 4) ────
+-- ─── History past its window moves to the analytical store ──────────────────
 -- An old run and its observation, written by the application; the removals
 -- are the maintenance role's.
 DO $$

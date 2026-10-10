@@ -1,5 +1,5 @@
-// The alert-rule replay (bead `ro-u072`): "how often would this rule have fired
-// in the last 30 days with these settings?"
+// The alert-rule replay: how often would this rule have fired in the last 30
+// days with these settings?
 //
 // The whole value of the answer is that it is PRODUCED, not estimated — the real
 // `evaluatePulse` over the real stored pulses against the same four-matching-
@@ -77,7 +77,7 @@ async function seedPulses(asset: string, first: string, last: string): Promise<v
     const body = envelope(asset, date, DIPS[date] ?? 10);
     days.push({ date, at: body.generatedAt, capabilities: body.capabilities, envelope: JSON.stringify(body) });
   }
-  // One statement: each day's first report (Postgres, bead ro-ujb9.76.5.2).
+  // One statement: each day's first report.
   await env.STORE.write((tx) =>
     tx.execute(
       `INSERT INTO noticeos.pulses (workspace_id, asset_id, pulse_date, revision, generated_at, received_at, capabilities, envelope)

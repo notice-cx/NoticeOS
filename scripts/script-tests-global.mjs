@@ -1,4 +1,4 @@
-// WHAT THE WHOLE ROOT SCRIPT SUITE SHARES FOR ONE RUN (issue #10).
+// What the whole root script suite shares for one run.
 //
 // `pnpm test:scripts` runs every scripts/*.test.mjs in a process of its own.
 // node --test loads this once, before any of them (--test-global-setup), and

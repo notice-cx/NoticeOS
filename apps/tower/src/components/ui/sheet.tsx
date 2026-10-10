@@ -17,30 +17,18 @@ export interface SheetProps {
   data?: Record<`data-${string}`, string>;
   className?: string;
   /**
-   * Where the sheet sits. `side` (the default) is a working panel over the
-   * right edge that the operator stays in for several steps — the connect
-   * panel. `center` is a short question asked over the page and gone after one
-   * answer — Add a site (bead `ro-ujb9.96.7.5`): a card in the middle of the
-   * desk, the width of its one field, and on a phone the same card under the
-   * app bar rather than a whole screen for one input.
+   * `side` (the default) is a working panel over the right edge for several
+   * steps; `center` is a short question answered once, a card the width of
+   * its field.
    */
   placement?: "side" | "center";
 }
 
 /**
- * A panel that slides over the right edge of the desk — a modal side sheet
- * (bead `ro-ujb9.96.7.1`, first used by `ConnectPanel`).
- *
- * WHAT MAKES IT A SCREEN OF ITS OWN WITHOUT BEING A PAGE. The desk behind is
- * blurred and made `inert` while the sheet is open, so the one thing in focus
- * is the one thing that can be operated: Tab stays inside, a screen reader
- * hears only the sheet, and a status drawn behind it is not a second copy of
- * the status drawn in it (doc 14, one representation per fact). Escape, the
- * close control and a press on the blurred desk all close it, and focus goes
- * back to the control that opened it.
- *
- * On a phone the sheet is the screen: it spans the width under the app bar,
- * which stays visible so the operator knows where they are.
+ * A modal sheet over the desk. The desk behind is blurred and `inert`, so Tab
+ * and a screen reader stay inside; Escape, the close control and a press on the
+ * desk close it, and focus returns to the opener. On a phone it spans the width
+ * under the app bar.
  */
 export function Sheet({ labelledBy, onClose, closeLabel = "Close", header, children, data, className, placement = "side" }: SheetProps) {
   const center = placement === "center";

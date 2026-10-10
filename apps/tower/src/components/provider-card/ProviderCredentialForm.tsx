@@ -13,9 +13,9 @@ import { messageOf } from "./errors";
 /**
  * The credential form, rendered from the provider's field schema — never
  * hand-written per provider, so adding a provider to `packages/contract` adds
- * its form here for free (doc 14's crystallization rule).
+ * its form here.
  *
- * It opens EMPTY every time, including on Reconnect: the API returns no values,
+ * It opens empty every time, including on Reconnect: the API returns no values,
  * so anything pre-filled would be invented. A field the operator leaves blank is
  * omitted from the request rather than sent as an empty string.
  */
@@ -29,10 +29,8 @@ export function ProviderCredentialForm({
 }: {
   providerId: string;
   fields: readonly IntegrationField[];
-  /** The assets an `asset-map` field draws a row for — the SAME merged list the
-   * card lists above it (bead `ro-vu8d.9`), so the form cannot offer a
-   * different set of assets from the one the card says are served. Ignored by
-   * every other field kind. */
+  /** The assets an `asset-map` field draws a row for — the same merged list
+   * the card lists above it. Ignored by every other field kind. */
   assetRows?: readonly CredentialAssetRow[];
   /** What the button says. The default is a credential; the Google card's
    * companion form saves an OAuth app, and a button that promised "credential"
@@ -41,10 +39,8 @@ export function ProviderCredentialForm({
   onCancel: () => void;
   onSubmit: (values: Record<string, string>) => Promise<void>;
 }) {
-  // A `managed` field is written by a FLOW, never typed (contract) — today the
-  // Google refresh token. Drawing an input for it would invite an operator to
-  // paste something that cannot work, and leaving it out is not hiding
-  // anything: `StoredFields` above still reports whether the store holds it.
+  // A `managed` field is written by a flow, never typed (the Google refresh
+  // token); `StoredFields` still reports whether the store holds it.
   const fields = declared.filter((field) => field.managed !== true);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -133,8 +129,7 @@ export function ProviderCredentialForm({
   );
 }
 
-/** One field, drawn by its kind. Four kinds, four controls, and each says where
- * its value comes from in place (doc 14 principle 9). */
+/** One field, drawn by its kind; each says where its value comes from. */
 function FieldInput({
   field,
   assetRows = [],
@@ -231,7 +226,7 @@ function FieldInput({
             data-field-upload={field.name}
             onChange={(event) => {
               const file = event.target.files?.[0];
-              // Reset the input so choosing the SAME file twice fires again —
+              // Reset the input so choosing the same file twice fires again —
               // the second attempt is usually a corrected file.
               event.target.value = "";
               if (!file) return;
@@ -255,20 +250,10 @@ function FieldInput({
 }
 
 /**
- * A per-asset credential's map: ONE INPUT PER ASSET (bead `ro-vu8d.9`).
- *
- * The stored value is a JSON object of `asset id -> key`, and asking an
- * operator to hand-write that is asking them to make a syntax error around a
- * secret — the same reason the calendar feed map is a line editor rather than a
- * JSON box. So the rows come from the assets the card already lists, the asset
- * ids are printed rather than typed, and this serializes what they filled in.
- *
- * IT OPENS EMPTY, LIKE EVERY OTHER FORM HERE, and a save REPLACES the whole
- * map — the API returns no values, so a pre-filled row would be invented. What
- * the card can honestly show is which assets a key is currently held for, and
- * each row says so beside its input, because "you are about to replace the
- * three you already have" is the one thing an operator needs to know before
- * typing the fourth.
+ * A per-asset credential's map, one input per asset, serialized to the stored
+ * `asset id -> key` JSON so nobody hand-writes JSON around a secret. It opens
+ * empty and a save replaces the whole map, so each row says whether a key is
+ * already held for that asset.
  */
 function AssetKeyFields({
   field,
@@ -363,10 +348,7 @@ function AssetKeyFields({
 
 /**
  * A field's label, where its value comes from and the access it must carry —
- * as a label, a link and chips, never a sentence under the input (bead
- * `ro-ujb9.96.6.1`). The connect panel's layout (bead `ro-ujb9.96.7.1`): the
- * link sits at the end of the label's line; the grants are PostHog's own
- * pattern for a restricted key, listed beside the field.
+ * as a label, a link and chips, never a sentence under the input.
  */
 function FieldHeader({ field, htmlFor, labelId }: { field: IntegrationField; htmlFor?: string; labelId?: string }) {
   const Label = htmlFor ? "label" : "span";
@@ -418,8 +400,7 @@ function fieldOfRefusal(err: unknown): string | null {
 }
 
 /** A deep link into the provider's own screen — where a value is issued, or
- * where a fix is made — in the connect panel's style (bead `ro-ujb9.96.7.1`):
- * the destination's name and the external-link glyph, nothing else. */
+ * where a fix is made: the destination's name and the external-link glyph. */
 export function ProviderLink({ link, className }: { link: IntegrationLink; className?: string }) {
   return (
     <a

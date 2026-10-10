@@ -1,12 +1,9 @@
-// GET/POST /api/watch-readbacks — the runner's two-step onto the readback queue
-// (src/watch-readbacks.ts, db/0024).
-//
-// Operator-authed, like every other lane the runner drives. Two steps rather
-// than one because the work in the middle happens outside this Worker: workerd
-// cannot run `bd`, so the runner reads what is pending, posts each verdict to
-// its bead, and comes back with the ids that actually landed. A verdict is
-// stamped only by that second call, so a runner that dies mid-post leaves the
-// verdict pending — which is the failure this design prefers.
+// GET/POST /api/watch-readbacks — the runner's two-step onto the readback
+// queue (src/watch-readbacks.ts). Operator-authed. Two steps because the work
+// in the middle happens outside this Worker: the runner reads what is pending,
+// posts each verdict, and comes back with the ids that landed. A verdict is
+// stamped only by that second call, so a runner that dies mid-post leaves it
+// pending.
 
 import { authenticateOperator } from '../auth.js';
 import { json } from '../responses.js';

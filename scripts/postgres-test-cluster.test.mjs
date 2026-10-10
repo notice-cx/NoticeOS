@@ -11,8 +11,7 @@ import { DevelopmentProfileRefused, LOOPBACK_ROLE, PostgresUnavailable, loopback
 import { TEMPLATE_DATABASE, parsePortRange, postgresRequired, startTestCluster, unavailableReason } from './postgres-test-cluster.mjs';
 import { attachTestCluster } from './postgres-test-copies.mjs';
 
-// THE WAY A WORKER REACHES A THROWAWAY POSTGRES, AND A TEST RUN'S STORES
-// (epic ro-ujb9.76).
+// The way a Worker reaches a throwaway Postgres, and a test run's stores.
 //
 //   - STATIC, always: the loopback mode lets in over TCP only noticeos_app,
 //     only from 127.0.0.1, only by password, and refuses a port it may not
@@ -268,10 +267,10 @@ test('a test can analyze only a copy, without owner credentials or statistics le
 });
 
 // The process that holds the cluster is Vitest's or Playwright's own: a copy
-// made there must never stop it answering its test processes (bead
-// ro-ujb9.76.48). A blocking call would finish the copy before the immediate
-// below could run; and each request to the copy service is answered on a
-// connection of its own, which the service then closes.
+// made there must never stop it answering its test processes. A blocking call
+// would finish the copy before the immediate below could run; and each request
+// to the copy service is answered on a connection of its own, which the
+// service then closes.
 test("the owner's operations never block the process that holds them, and the copy service keeps no connection open", async (t) => {
   await live(t, async (cluster) => {
     let turned = 0;
@@ -284,9 +283,8 @@ test("the owner's operations never block the process that holds them, and the co
     clearInterval(turns);
     assert.ok(turned > 0, 'the event loop turned while the copies were made');
     assert.equal(new Set(names).size, 3);
-    // File setup resets a copy, and test cleanup runs owner statements. Both
-    // used to spawn a blocking psql in the process driving workerd (ro-jc8y).
-    // A queued immediate must run before either operation answers; a blocking
+    // File setup resets a copy, and test cleanup runs owner statements. A
+    // queued immediate must run before either operation answers; a blocking
     // implementation resolves before it can run, failing this proof directly.
     for (const [label, operation] of [
       ['reset', () => cluster.resetDatabase(names[0])],
@@ -313,10 +311,10 @@ test("the owner's operations never block the process that holds them, and the co
   });
 });
 
-// A copy a test gives back is handed to the next test that asks (bead
-// ro-ujb9.76.48): it must be as good as a new one — every table the template
-// leaves empty empty, every sequence where the template leaves it — and
-// nothing that held it before may reach it again.
+// A copy a test gives back is handed to the next test that asks: it must be as
+// good as a new one (every table the template leaves empty empty, every
+// sequence where the template leaves it) and nothing that held it before may
+// reach it again.
 test('a copy given back is handed out again under a new name, as empty as a new copy, and unreachable by its old name', async (t) => {
   await live(t, async (cluster) => {
     const copies = attachTestCluster(cluster.handle);
@@ -373,7 +371,7 @@ test('a copy given back is handed out again under a new name, as empty as a new 
 });
 
 // Once a run hands out unnamed copies, spares wait ready, so a test that asks
-// takes one without waiting for a copy to be made (bead ro-ujb9.76.48).
+// takes one without waiting for a copy to be made.
 test('spares wait ready once copies are handed out, each as new as a copy just made', async (t) => {
   await live(t, async (cluster) => {
     const copies = attachTestCluster(cluster.handle);
@@ -391,9 +389,9 @@ test('spares wait ready once copies are handed out, each as new as a copy just m
   });
 });
 
-// Proven by the cluster's own server process, which nothing else owns (bead
-// ro-ujb9.76.54): its TCP port, freed, can be taken at once by another test
-// file's cluster in the same port range.
+// Proven by the cluster's own server process, which nothing else owns: its TCP
+// port, freed, can be taken at once by another test file's cluster in the same
+// port range.
 test('closing stops the server and removes its folder', async (t) => {
   await live(t, async () => {
     const own = mkdtempSync(path.join(os.tmpdir(), 'nos-cluster-close-'));

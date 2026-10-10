@@ -1,8 +1,7 @@
 // @vitest-environment node
-// The Wall's revenue widget read model (docs/14-design.md § Revenue, bead
-// `ro-trai.4`): the figure is the ledger's, the pace is the sum of the sites'
-// ready projections plus revenue no projection covers, and the month chart and
-// its crossing are over the covered sites, day by day.
+// The Wall's revenue widget read model: the figure is the ledger's, the pace
+// is the sum of the sites' ready projections plus revenue no projection
+// covers, and the month chart and its crossing are over the covered sites.
 
 import { describe, expect, it } from "vitest";
 import type { DailyRevenueSummary } from "@shared/daily-revenue";
@@ -45,8 +44,8 @@ const learning: RevenueProjection = {
 
 describe("the month's revenue on the Wall", () => {
   it("paces the month at the sum of every ready projection plus revenue no projection covers", () => {
-    // Two covered sites earned $315 + $105 = $420; the ledger holds $450, so $30
-    // came from a source with no daily report and is added to the pace whole.
+    // Two covered sites earned $315 + $105 = $420; the ledger holds $450, so
+    // $30 came from a source with no daily report and is added to the pace whole.
     const model = monthRevenue(portfolio(450), [
       { revenueProjection: ready(1_500, 2_000, 40_000) },
       { revenueProjection: ready(500, 600, 12_000) },
@@ -59,11 +58,10 @@ describe("the month's revenue on the Wall", () => {
     expect(model?.pace?.projected).toBe((49_500 + 15_900 + 3_000) / 100);
     expect(model?.pace?.daysLeft).toBe(9);
     expect(model?.pace?.sites).toBe(2);
-    // The comparison is like for like: the covered sites against their own
-    // previous month, never with the uncovered $30 on one side only.
+    // Like for like: the covered sites against their own previous month,
+    // never with the uncovered $30 on one side only.
     expect(model?.pace?.previousTotal).toBe(520);
     expect(model?.pace?.changePercent).toBeCloseTo((65_400 / 52_000 - 1) * 100, 6);
-    // The chart adds the sites day by day.
     expect(model?.pace?.points[0]).toEqual({ day: 1, date: "2026-09-01", cumulative: 20, projected: false });
     expect(model?.pace?.points.at(-1)).toEqual({ day: 30, date: "2026-09-30", cumulative: 654, projected: true });
   });
@@ -106,9 +104,8 @@ describe("the month's revenue on the Wall", () => {
     expect(model?.pace?.projected).toBe(300);
   });
 
-  // A new installation's first three weeks (bead ro-trai.33): its revenue site
-  // reports daily, but the projection is still learning and the ledger has no
-  // row for the month yet.
+  // A new installation's first three weeks: its revenue site reports daily,
+  // but the projection is still learning and the ledger has no row yet.
   it("states the reported days and the reason while every source is still learning and the ledger has no row", () => {
     const reporting: RevenueProjection = { ...learning, earnedMinor: 25_200 };
     const model = monthRevenue(portfolio(0), [{ revenueProjection: reporting }, { revenueProjection: { ...reporting, earnedMinor: 6_150 } }, {}]);
@@ -119,8 +116,7 @@ describe("the month's revenue on the Wall", () => {
   });
 
   it("has no figure, only the reason, while no source has a complete day this month", () => {
-    // `earnedMinor` is null until the month's reports are complete: missing is
-    // not $0.
+    // `earnedMinor` is null until the month's reports are complete: missing is not $0.
     const model = monthRevenue(portfolio(0), [{ revenueProjection: learning }, {}]);
     expect(model).toMatchObject({ revenue: null, pace: null, waiting: "Learning from traffic and revenue · 12/21 days." });
   });
@@ -153,8 +149,8 @@ describe("the month's revenue on the Wall", () => {
   });
 
   it("adds a learning site's reported days to the month so far and to the pace", () => {
-    // Ready: $210 so far, $300 at the end. Learning: $61.50 so far, no pace of
-    // its own, so it joins the pace whole, like revenue no projection covers.
+    // Ready: $210 so far, $300 at the end. Learning: $61.50 so far, no pace
+    // of its own, so it joins the pace whole.
     const model = monthRevenue(portfolio(0), [
       { revenueProjection: ready(1_000, 1_000, null) },
       { revenueProjection: { ...learning, earnedMinor: 6_150 } },
@@ -172,9 +168,9 @@ describe("the month's revenue on the Wall", () => {
   });
 });
 
-// Yesterday's revenue across the sites (bead `ro-trai.32`): the providers'
-// saved estimates for yesterday, summed over the sites with a revenue source.
-// Missing is not zero; a recorded $0 is.
+// Yesterday's revenue across the sites: the providers' saved estimates for
+// yesterday, summed over the sites with a revenue source. Missing is not
+// zero; a recorded $0 is.
 describe("yesterday's revenue on the Wall", () => {
   const TZ = "America/Los_Angeles";
   /** 12:30 PM on Tue Sep 22 in Los Angeles: yesterday is Sep 21. */
@@ -200,7 +196,6 @@ describe("yesterday's revenue on the Wall", () => {
 
   it("leaves a site whose report is not in out of the sum, and counts it", () => {
     expect(yesterdayTotal([site(day(4_318)), site(day(null))], NOW)).toEqual({ amount: 43.18, reported: 1, sites: 2, basis: { date: "2026-09-21", timeZone: TZ } });
-    // A site with no summary at all owes the day just the same.
     expect(yesterdayTotal([site(day(4_318)), site(undefined)], NOW)).toEqual({ amount: 43.18, reported: 1, sites: 2, basis: { date: "2026-09-21", timeZone: TZ } });
   });
 
@@ -234,11 +229,9 @@ describe("yesterday's revenue on the Wall", () => {
     const withoutSource = [site(day(null), noRevenue), site(undefined, null)];
     expect(hasRevenueSource(withoutSource[0]!)).toBe(false);
     expect(hasRevenueSource(withoutSource[1]!)).toBe(false);
-    // A projection still learning is a source: the site reports, it just has
-    // no pace yet.
+    // A projection still learning is a source: the site reports, it just has no pace yet.
     expect(hasRevenueSource(site(day(1_207), learning))).toBe(true);
     expect(yesterdayTotal([site(day(1_207), learning), ...withoutSource], NOW)).toEqual({ amount: 12.07, reported: 1, sites: 1, basis: { date: "2026-09-21", timeZone: TZ } });
-    // No site with a source: the Wall says nothing about yesterday.
     expect(yesterdayTotal(withoutSource, NOW)).toBeNull();
     expect(yesterdayTotal([], NOW)).toBeNull();
   });

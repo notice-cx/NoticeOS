@@ -4,14 +4,11 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-// DESK CONSOLIDATION, WITH SUPPORTED WALL CONSUMERS (`ro-78qo.1`, `ro-ujb9.41`).
+// Desk consolidation, with supported Wall consumers.
 //
 // doc 14 makes `HeroChart` the desk's one time-series surface and `Kpi` its one
-// headline figure. The pre-D28 Wall's own `Spark` and `DailyBars` left the
-// Tower with its cards (bead `ro-trai.20`); `Stat` and the `AttentionBand`
-// desk table followed once only the gallery and their own tests drew them
-// (bead `ro-trai.25`). The list below is empty until a component is
-// deprecated again; the retired ones are guarded against coming back.
+// headline figure. The list below is empty until a component is deprecated
+// again; the retired ones are guarded against coming back.
 //
 // The desk boundary is an exact caller check. Every file importing one today is
 // listed below; a file that is not listed and imports one fails this test, and a
@@ -94,7 +91,7 @@ test('retired provider and signed-bar implementations do not return', () => {
   );
 });
 
-// Bead ro-trai.25: deleted because nothing drew them; a revival is a second
+// Deleted because nothing drew them; a revival is a second
 // desk design for a fact the registry already draws.
 test('retired desk components do not return', () => {
   const revived = [];

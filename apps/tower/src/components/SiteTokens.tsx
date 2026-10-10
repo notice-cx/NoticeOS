@@ -41,17 +41,10 @@ type RowState = { state: "idle" } | { state: "saving" } | { state: "refused"; me
 const WHOLE_TOKEN = 16;
 
 /**
- * A TOKEN PER SITE, PASTED ON THE SITE'S ROW (bead `ro-ujb9.96.7.9`, mockup
- * frame b-clarity): the connect panel's body for a provider that issues one
- * token per project and offers no free call to prove it (Clarity).
- *
- * Each site is a row. Pasting its token saves it at once — no Save, no step —
- * and the row then wears the connection model's status for that site. Fields
- * open empty and are cleared once saved: a stored token is never shown back.
- *
- * The proof is the export itself, and each export spends one of that site's
- * ten calls a day, so it runs only on an explicit Run now, labelled with what
- * it spends ("1 of 10"), for the sites holding a token and calls to spare.
+ * The connect panel's body for a provider that issues one token per project
+ * and offers no free call to prove it (Clarity). Pasting a site's token saves
+ * it at once; a stored token is never shown back. The proof is the export,
+ * which spends a metered call, so it runs only on an explicit Run now.
  */
 export function SiteTokens({ provider, sites, statusOf, remaining, cap, onSave, onRun, canSave = true }: SiteTokensProps) {
   const field = provider.fields.find((entry) => entry.kind === "asset-map" && entry.managed !== true) ?? null;

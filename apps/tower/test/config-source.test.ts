@@ -87,7 +87,7 @@ describe("task configuration ownership", () => {
   });
 });
 
-describe("assets that send no nightly report (ro-ujb9.96.8)", () => {
+describe("assets that send no nightly report", () => {
   function constantsReader(body: unknown): ConfigDocumentReader {
     return {
       getConfigDocuments: async () => [{ file: "config/constants.json", body, source: "store", version: 3, updatedAt: null, updatedBy: null, }],
@@ -107,11 +107,9 @@ describe("assets that send no nightly report (ro-ujb9.96.8)", () => {
   });
 });
 
-// Bead ro-trai.45: a stored config/tower.json with one part the Tower cannot
-// read. It used to be swallowed whole — the compiled default served, a valid
-// saved layout discarded with a bad countdown, and the editor left guarding
-// its Save on a value the store did not hold.
-describe("a saved TV document the Tower cannot read in one part (ro-trai.45)", () => {
+// A stored config/tower.json with one part the Tower cannot read must not be
+// swallowed whole: a valid saved layout is kept beside a bad countdown.
+describe("a saved TV document the Tower cannot read in one part", () => {
   function towerReader(body: unknown): ConfigDocumentReader {
     return {
       getConfigDocuments: async () => [{ file: "config/tower.json", body, source: "store", version: 4, updatedAt: null, updatedBy: null, }],
@@ -149,11 +147,11 @@ describe("a saved TV document the Tower cannot read in one part (ro-trai.45)", (
   });
 });
 
-// A setting shown from the built-in copy (bead ro-dk4u): every portfolio
-// setting reads store-first PER KEY, as the ingest's detector does, so a saved
-// rule set that lacks a key shows the compiled value — and its Save, guarded
-// by that value, creates the key (scripts/config-documents.test.mjs).
-describe("settings a saved constants document lacks (ro-dk4u)", () => {
+// Every portfolio setting reads store-first per key, as the ingest's detector
+// does, so a saved rule set that lacks a key shows the compiled value, and
+// its Save, guarded by that value, creates the key
+// (scripts/config-documents.test.mjs).
+describe("settings a saved constants document lacks", () => {
   function constantsReader(body: unknown): ConfigDocumentReader {
     return {
       getConfigDocuments: async () => [{ file: "config/constants.json", body, source: "store", version: 3, updatedAt: null, updatedBy: null, }],

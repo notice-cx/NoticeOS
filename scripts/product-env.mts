@@ -1,12 +1,10 @@
-// THE ENVIRONMENT VARIABLES NOTICEOS READS, BY THEIR NOTICEOS NAMES
-// (bead ro-ujb9.77.4, decision D26).
+// The environment variables NoticeOS reads, by their NoticeOS names.
 //
 // Every variable the product itself defines is named NOTICEOS_*. A running
-// installation may still set the name an earlier release read — the managed
-// service's launchd plist is installed once and is operator-only to change, so
-// the owner's own sets REINDEX_OS_MANAGED and REINDEX_OS_HOME — and those
-// keep working: the NoticeOS name wins when it is set, the legacy one is read
-// when it is not. Writers (the runner, `pnpm start`, the plist template a new
+// installation may still set the name an earlier release read (the managed
+// service's launchd plist is installed once and is operator-only to change),
+// and those keep working: the NoticeOS name wins when it is set, the legacy
+// one is read when it is not. Writers (the runner, `pnpm start`, the plist template a new
 // `pnpm os:install` renders) set only the NoticeOS names.
 //
 // The four bootstrap secrets (CREDENTIALS_KEY, OPERATOR_TOKEN, ASSET_TOKENS,

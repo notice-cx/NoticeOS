@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { HANDOFF_KINDS } from './task-snapshot-summary.mjs';
 import { BEADS_HANDOFF_KINDS } from '../packages/contract/src/task-snapshot.mjs';
 
-// THE DRIFT GUARD BEHIND `noticeos_kind` (bead ro-4l0q).
+// The drift guard behind `noticeos_kind`.
 //
 // A Tower handoff carries `noticeos_kind` naming the surface that raised the
 // work (`config/beads.README.md` §Handoff metadata). The set of legal values is
@@ -16,13 +16,12 @@ import { BEADS_HANDOFF_KINDS } from '../packages/contract/src/task-snapshot.mjs'
 // reader chain, the shared display type, and the operator-facing table in the
 // README. The validator imports its array; the other boundaries must agree.
 //
-// Since `ro-05hb` drift is SURVIVABLE — the ingest validator drops an
-// unrecognized kind's own row and logs `beads_handoff_kind_unknown`, instead of
-// 422'ing the whole project's snapshot and blanking the portfolio's board. It
-// is not VISIBLE, though: a fifth kind added to the emitter and forgotten in
-// the poller is a marker that simply never appears on the row that raised it,
-// with nothing red anywhere. That is what this file exists to turn into a
-// failing gate.
+// Drift is SURVIVABLE: the ingest validator drops an unrecognized kind's own
+// row and logs `beads_handoff_kind_unknown`, instead of 422'ing the whole
+// project's snapshot and blanking the portfolio's board. It is not VISIBLE,
+// though: a fifth kind added to the emitter and forgotten in the poller is a
+// marker that simply never appears on the row that raised it, with nothing red
+// anywhere. That is what this file exists to turn into a failing gate.
 //
 // WHY A REGEX OVER THE TS SOURCES INSTEAD OF AN IMPORT: `pnpm test:scripts` is
 // bare `node --test` with no TS loader and no build artifact to import

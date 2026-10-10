@@ -125,7 +125,7 @@ export async function cachedProviderRead<T, Failure extends ProviderReadFailure>
         [new Date(early ? cooldown : 0), new Date(cooldown), written.ok ? null : JSON.stringify(written), lease, owner]));
     } else {
       // Nothing was read: the cooldown stays as the claim found it. A lease
-      // given back ends at the epoch, as D1's `expires_at = 0` did.
+      // given back ends at the epoch.
       await context.store.write((tx) => tx.execute(
         'UPDATE noticeos.integration_leases SET expires_at = $1::timestamptz WHERE lease_key = $2 AND owner = $3',
         [new Date(0), lease, owner]));

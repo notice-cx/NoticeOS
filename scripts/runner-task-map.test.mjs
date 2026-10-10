@@ -14,7 +14,7 @@ import {
   taskMapTitle,
 } from './runner/task-map.mjs';
 
-// scripts/runner/task-map.mjs (bead ro-ujb9.22): the task-map lane. The hub's
+// scripts/runner/task-map.mjs: the task-map lane. The hub's
 // answer and `bd` are recorded here; nothing reaches a real hub or tracker.
 
 const SPOKES = JSON.stringify({

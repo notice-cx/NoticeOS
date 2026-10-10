@@ -1,35 +1,18 @@
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
-// Connection tests — one least-privileged call per provider (bead `ro-vu8d.1`).
+// Connection tests: one least-privileged call per provider. Apart from the
+// store (credentials.ts) on purpose: every collector imports the resolver, the
+// probes import every collector's client, and one module would be an import
+// cycle.
 //
-// APART FROM THE STORE (credentials.ts) ON PURPOSE. Every collector imports the resolver;
-// the probes import every collector's client. Keeping both in one module would
-// make that an import cycle, so the store knows nothing about providers and
-// this file knows about both.
-//
-// THE THREE RULES, all load-bearing:
-//   1. The call is the CHEAPEST AUTHENTICATED READ the provider offers, and free
-//      wherever it has a free tier. A connection test must never cost money or
-//      a metered quota an operator was saving for evidence. Where the cheapest
-//      call is NOT free of consequence — Discord's only real proof is a posted
-//      message — the provider DECLARES that in `IntegrationTest` and the card
-//      says so before the press. A cost nobody was warned about is the same
-//      failure as a cost nobody could afford.
-//   2. The response body is read for a count and DROPPED. A probe is not
-//      evidence: nothing here writes an observation, a manifest, or an R2
-//      object, and nothing persists a provider payload. The one thing kept is a
-//      fact about the CREDENTIAL rather than about the provider's data —
-//      DataForSEO's prepaid credit, stamped with the instant it was seen so the
-//      card can age it (bead `ro-qpas`), exactly as the verdict below is.
-//   3. No result contains a credential. A calendar failure names the
-//      operator's LABEL and never the url — the url IS the credential — and a
-//      transport error's own message is never copied, because workerd puts
-//      request urls inside some of them.
-//
-// A RESULT, NOT A SENTENCE (bead `ro-ujb9.96.6.19`). Every probe answers a
-// `ProbeResult` — an outcome, counted facts, the parts that failed by the
-// operator's own names, and the one press that clears it — which the Tower
-// draws as a mark, values and a button. `message` is that same result as one
-// short line (`probeLine`), for the command line and the stored last error.
+// Three rules. The call is the cheapest authenticated read the provider offers
+// and free wherever it has a free tier; where it is not free of consequence
+// (Discord's only real proof is a posted message) the provider declares that in
+// `IntegrationTest`. The response body is read for a count and dropped: a
+// probe is not evidence, and the one thing kept is a fact about the credential
+// (DataForSEO's prepaid credit, with the instant it was seen). No result
+// contains a credential: a calendar failure names the label and never the url,
+// and a transport error's own message is never copied. Every probe answers a
+// `ProbeResult`; `message` is the same result as one line (`probeLine`).
 
 import type {
   CredentialProbe,
@@ -87,13 +70,6 @@ export interface ProbeOptions {
 /**
  * Ask the provider whether the credential works, with the cheapest
  * authenticated call it offers.
- *
- * Rules, all three load-bearing: the call is READ-ONLY and free where the
- * provider has a free tier (Google's token mint plus a sites list, Bing's
- * GetUserSites, DataForSEO's account endpoint, a calendar HEAD); the response
- * body is read for a count and then DROPPED — nothing is persisted, because a
- * connection test is not evidence; and no message ever contains a credential,
- * which is why a calendar failure names the operator's label and never the url.
  */
 export async function probeCredential(
   env: IngestEnv,
@@ -118,12 +94,10 @@ export async function probeCredential(
   if (resolved.source === 'none') {
     return { ...answer(false, { outcome: 'not-connected', fix: { kind: 'connect' } }), checkedAt };
   }
-  // `credentialAuthState` decided this credential is complete before the source
-  // could read `store` or `env` at all (credentials.ts), so a per-field
-  // re-check here would be a second rule that could disagree with it. What is
-  // still worth checking is Google's SECOND half — the OAuth app — because a
-  // stored refresh token with no client secret beside it is complete by the
-  // store's rule and unusable by Google's.
+  // `credentialAuthState` already decided this credential is complete, so a
+  // per-field re-check here would be a second rule. What is still worth
+  // checking is Google's OAuth app: a stored refresh token with no client
+  // secret beside it is complete by the store's rule and unusable by Google's.
   if (provider.id === 'google') {
     const google = await resolveGoogleCredential(env);
     if (
@@ -143,13 +117,9 @@ export async function probeCredential(
     const found = await runProbe(env, provider.id, resolved.fields, fetchImpl, options.nowMs ?? Date.now());
     probe = { ...answer(found.ok, found.result), checkedAt };
   } catch (error) {
-    // A revoked or expired Google grant is its own result (bead `ro-vu8d.14`):
-    // swallowing it into "no answer" told the operator their network was the
-    // problem while the real answer was that they had to sign in again. A
-    // dead credential that reads as a flaky API is exactly the failure this
-    // whole store exists to stop. Everything else may be holding a url
-    // (workerd puts request urls inside some transport errors), so it is only
-    // ever "no answer".
+    // A revoked or expired Google grant is its own result: swallowed into "no
+    // answer" it would read as a flaky network. Everything else may be holding
+    // a url, so it is only ever "no answer".
     probe = {
       ...answer(false, isGoogleOAuthRevoked(error)
         ? { outcome: 'refused', failing: ['Google sign-in'], fix: { kind: 'sign-in' } }
@@ -158,13 +128,9 @@ export async function probeCredential(
     };
   }
 
-  // A PROBE THAT MADE NO PROVIDER CALL HAS NO VERDICT TO RECORD (bead
-  // `ro-vu8d.9`). `last_ok_at` is what the card renders as "this credential
-  // worked", and for Clarity and the OAuth app nothing outside this Worker was
-  // asked anything — so stamping it would put a green tick on an unproven
-  // credential, and, worse, would clear the `last_error` a real 04:30 collector
-  // run had left there. The declaration is the gate, so a provider added with
-  // `cost: 'none'` inherits the rule instead of having to remember it.
+  // A probe that made no provider call has no verdict to record: stamping
+  // `last_ok_at` would put a green tick on an unproven credential and clear the
+  // `last_error` a real collector run left. The declaration is the gate.
   if (resolved.source === 'store' && provider.test.cost !== 'none') {
     await recordCredentialOutcome(env, provider.id, {
       ok: probe.ok,
@@ -192,9 +158,7 @@ function answer(ok: boolean, result: ProbeResult): Pick<CredentialProbe, 'ok' | 
   return { ok, result, message: probeLine(result) };
 }
 
-/** Mediavine's refusal kinds as results: its login refused (replace it), a
- * wait it asked for or a sync holding the lease (try again soon), or no
- * answer. */
+/** Mediavine's refusal kinds as results. */
 function mediavineRefusal(kind: MediavineError['kind'] | 'network' | undefined): ProbeResult {
   if (kind === 'auth' || kind === 'permission') return { outcome: 'refused', fix: { kind: 'replace' } };
   if (kind === 'rate-limit' || kind === 'busy') return { outcome: 'rate-limited', fix: { kind: 'wait' } };
@@ -223,13 +187,10 @@ async function runProbe(
 }
 
 /**
- * PostHog: one plain read of each keyed asset's project settings, in the
- * region and project saved on that asset's Sources tab (bead `ro-ghis.1`).
- *
- * No query runs, so none of the hourly query budget the daily archive spends
- * is touched. Reported by ASSET ID, never by key; an asset holding a key but no
- * saved region/project is named as not checked rather than failed, because the
- * key itself was never asked anything.
+ * PostHog: one plain read of each keyed asset's project settings. No query
+ * runs, so the hourly query budget is untouched. Reported by asset id, never
+ * by key; an asset holding a key but no saved region/project is named as not
+ * checked rather than failed.
  */
 async function probePosthog(
   env: IngestEnv,
@@ -245,8 +206,8 @@ async function probePosthog(
   const account = fields[POSTHOG_ACCOUNT_KEY_SLOT];
   const configs = await readCollectorConfigs(env, ['config/integrations.json']);
   const register = configs.documents['config/integrations.json'] as LaneRegister | undefined;
-  // The account's one key (bead `ro-ujb9.96.7.8`) reads every site whose
-  // entry maps a project and that has no key of its own.
+  // The account's one key reads every site whose entry maps a project and that
+  // has no key of its own.
   if (account) {
     for (const asset of Object.keys(register?.assets ?? {})) {
       if (!keys.has(asset) && posthogSettings(asset, register).ok) keys.set(asset, account);
@@ -304,14 +265,10 @@ async function probePosthog(
 }
 
 /**
- * Google: get a read-only token, then `sites.list` — the cheapest call Search
- * Console has, and one that proves the GRANT as well as the credential. GA4 is
- * checked with a property metadata read, which returns no rows and spends no
- * reporting quota.
- *
- * IDENTICAL FOR BOTH WAYS IN (bead `ro-vu8d.3`). The only difference is the
- * press a refusal offers: give the robot the role on the property, or sign in
- * with the account that already has access (`googleFix`).
+ * Google: a read-only token, then `sites.list` (the cheapest Search Console
+ * call, and one that proves the grant). GA4 is checked with a property
+ * metadata read, which spends no reporting quota. Identical for both ways in;
+ * only the press a refusal offers differs (`googleFix`).
  */
 async function probeGoogle(
   env: IngestEnv,
@@ -342,9 +299,8 @@ async function probeGoogle(
   const siteCount = Array.isArray(listed.siteEntry) ? listed.siteEntry.length : 0;
 
   if (ga4Property === null) {
-    // A sign-in with nothing mapped is the NORMAL state right after connecting
-    // — the asset ↔ property mapping is `ro-vu8d.4` — so it is reported as a
-    // pass with the gap named, never as a failure on a credential that works.
+    // A sign-in with nothing mapped is the normal state right after connecting:
+    // a pass with the gap named, never a failure.
     return { ok: true, result: { outcome: 'answered', facts: { sites: siteCount, account: who, ga4Unmapped: true } } };
   }
   const ga4Token = await googleAccessToken(auth, GOOGLE_SCOPES.ga4, nowMs, fetchImpl);
@@ -365,18 +321,16 @@ async function probeGoogle(
   return { ok: true, result: { outcome: 'answered', facts: { sites: siteCount, account: who } } };
 }
 
-/** What clears a Google refusal: the robot given `role` on the property, or —
- * signed in as a person — signing in with the account that has it. */
+/** What clears a Google refusal: the robot given `role` on the property, or
+ * signing in with the account that has it. */
 function googleFix(auth: GoogleAuth, product: 'Search Console' | 'Google Analytics', role: string): ProbeResult['fix'] {
   return auth.kind === 'service-account' ? { kind: 'grant', product, role, to: auth.account.clientEmail } : { kind: 'sign-in' };
 }
 
 /**
- * Which credential a Google probe or discovery should run on, and which GA4
- * property (if any) is worth spot-checking.
- *
- * The sign-in wins where there is one: it is the credential the collectors will
- * use, so it is the one a test has to prove.
+ * Which credential a Google probe or discovery runs on, and which GA4 property
+ * is worth spot-checking. The sign-in wins where there is one: it is the
+ * credential the collectors will use.
  */
 async function probeGoogleAuth(
   env: IngestEnv,
@@ -387,8 +341,7 @@ async function probeGoogleAuth(
   let ga4Property: string | null = null;
   let serviceAccountAuth: GoogleAuth | null = null;
   if (accounts !== undefined) {
-    // The saved register and clock, as the collectors read them — never only
-    // the product defaults compiled into this Worker (bead ro-ujb9.125).
+    // The saved register and clock, as the collectors read them.
     const configs = await readCollectorConfigs(env, ['config/integrations.json', 'config/constants.json']);
     const targets = parseGoogleTargets(
       accounts,
@@ -411,19 +364,13 @@ async function probeGoogleAuth(
 }
 
 /**
- * The OAuth app: checked WITHOUT calling Google, because there is no free call
- * that proves a client id and secret without dragging a person through a
- * consent screen.
- *
- * So this is a shape check and the press that proves it — an honest "not
- * checked, now sign in" rather than a green tick that would be claiming
- * something nobody verified. The real verdict is the sign-in itself, and its
- * refusals (`invalid_client`, `redirect_uri_mismatch`) name what is wrong.
+ * The OAuth app: a shape check and the press that proves it, because there is
+ * no free call that proves a client id and secret without a consent screen. An
+ * honest "not checked, now sign in" rather than an unverified green tick.
  */
 function probeGoogleOAuthApp(fields: Record<string, string>): ProbeFound {
   const clientId = fields.GOOGLE_OAUTH_CLIENT_ID ?? '';
   if (!clientId.endsWith('.apps.googleusercontent.com')) {
-    // Not a Google client id: they end in .apps.googleusercontent.com.
     return { ok: false, result: { outcome: 'invalid', failing: ['Client ID'], fix: { kind: 'replace' } } };
   }
   return { ok: true, result: { outcome: 'not-checked', fix: { kind: 'sign-in' } } };
@@ -435,28 +382,16 @@ async function probeBing(
   fetchImpl: typeof fetch,
 ): Promise<ProbeFound> {
   const sites = await getBingVerifiedSites(fields.BING_WEBMASTER_API_KEY!, fetchImpl);
-  // No verified site is still a key that works: the card draws `0 sites`
-  // beside the provider's own Add link.
+  // No verified site is still a key that works.
   return { ok: true, result: { outcome: 'answered', facts: { sites: sites.size } } };
 }
 
 /**
- * DataForSEO: the account endpoint. Free, and it answers the second question an
- * operator has — how much credit is left before the metered lane stops.
- *
- * THE ONE THING A PROBE KEEPS (bead `ro-qpas`). Rule 2 at the top of this file
- * says the body is read for a count and dropped, and that rule is about the
- * PROVIDER'S DATA: no observation, no manifest, no R2 object, nothing that
- * would make a free button into evidence. The credit balance is not that. It is
- * a non-secret fact about the CREDENTIAL — the same public half as the expiry
- * this probe's verdict already writes to. It is recorded WITH the instant it was
- * seen, and the card shows that age, so nothing here can ever be read as a live
- * figure.
- *
- * The call itself lives in `dataforseo-balance.ts` because the weekly sweep now
- * makes the same one (bead `ro-vu8d.26`), and two copies of a free read are two
- * places to get "free" wrong. What stays here is what only a probe owes: the
- * result the operator reads under the button.
+ * DataForSEO: the free account endpoint, which also answers how much credit is
+ * left. The credit is the one thing a probe keeps: a non-secret fact about the
+ * credential, recorded with the instant it was seen so the card can age it.
+ * The call lives in `dataforseo-balance.ts` because the weekly sweep makes the
+ * same one.
  */
 async function probeDataForSeo(
   env: IngestEnv,
@@ -478,7 +413,7 @@ async function probeDataForSeo(
   return { ok: true, result: { outcome: 'answered', facts: { creditUsd: read.usd } } };
 }
 
-/** Calendars: one bounded GET per feed, reported BY LABEL. The url is the
+/** Calendars: one bounded GET per feed, reported by label. The url is the
  * credential and never appears in the verdict. */
 export async function probeCalendar(
   fields: Record<string, string>,
@@ -532,32 +467,18 @@ export async function probeCalendar(
 }
 
 /**
- * The line a Discord connection test posts. ONE constant, because
- * `scripts/creds-check.mjs` posts the same sentence from Node (it cannot import
- * this TypeScript) and two wordings would be two things an operator has to
- * recognize in their own channel at 2am.
- *
- * It says what it is and that nothing is wrong, in that order: somebody reading
- * an alert channel sees the first four words before they see anything else.
+ * The line a Discord connection test posts. One constant, because
+ * `scripts/creds-check.mjs` posts the same sentence from Node. It says what it
+ * is and that nothing is wrong, in that order.
  */
 export const DISCORD_TEST_MESSAGE =
   'NoticeOS connection test — nothing is wrong, you can ignore this.';
 
 /**
- * Discord: post one labelled message. The ONE probe in this file with a side
- * effect, and it is deliberate.
- *
- * Discord does offer a read (`GET` on the webhook url returns the webhook
- * object), and it would have been the cheaper call. It proves the wrong thing.
- * `config/integrations.json` defines this data source as live when *the OS can
- * deliver operator notifications — not merely that a webhook URL exists*, and a
- * read cannot tell those apart: a webhook whose channel the operator lost
- * access to still answers a GET. So the test does the thing the credential
- * exists to do, the provider declares that cost (`IntegrationTest`), and the
- * card prints it beside the button before anybody presses it.
- *
- * The url never appears in a verdict — it IS the credential — and neither does
- * Discord's own error body, which is provider-controlled text.
+ * Discord: post one labelled message, the one probe with a side effect. A GET
+ * on the webhook url would be cheaper and proves the wrong thing: a webhook
+ * whose channel the operator lost still answers it. The url never appears in a
+ * verdict, and neither does Discord's own error body.
  */
 export async function probeDiscord(
   fields: Record<string, string>,
@@ -570,27 +491,16 @@ export async function probeDiscord(
     signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
   });
   await response.body?.cancel();
-  // The same reading a real delivery gets (notifier.ts), so the card says one
-  // thing about a dead webhook whichever of the two found it.
+  // The same reading a real delivery gets (notifier.ts).
   return discordWebhookAnswer(response.status);
 }
 
 /**
- * Clarity: NO PROVIDER CALL, and the result says which half of the question
- * that leaves unanswered (bead `ro-vu8d.9`).
- *
- * Rule 1 of this file is that a probe is the provider's cheapest FREE read.
- * Clarity has none — its export API allows ten calls per project per DAY and
- * offers no account or metadata endpoint — so the cheapest available probe
- * would spend a tenth of one asset's daily budget to learn a few hours early
- * what the 04:30 export learns for nothing. That is not a test, it is a tax on
- * pressing a button.
- *
- * So this reports what the OS genuinely knows — how many sites hold a token —
- * as Not checked, with the press that does prove them: the export itself, Run
- * now in the connect panel, which says what it spends. `probeCredential` above
- * will not stamp `last_ok_at` from it, so the card's verdict keeps coming from
- * the collector, which is the only thing that ever proved anything here.
+ * Clarity: no provider call. Its export API allows ten calls per project per
+ * day and offers no account endpoint, so the cheapest probe would spend a
+ * tenth of a day's budget. This reports how many sites hold a token as Not
+ * checked, with the press that does prove them (Run now). `probeCredential`
+ * will not stamp `last_ok_at` from it.
  */
 function probeClarity(fields: Record<string, string>): ProbeFound {
   const assets = credentialAssetKeys(fields.CLARITY_TOKENS);
@@ -603,17 +513,9 @@ function probeClarity(fields: Record<string, string>): ProbeFound {
 // ---------------------------------------------------------------------------
 
 /**
- * Forget one provider's credential — and, for Google, tell Google first.
- *
- * WHY THE REVOKE LIVES HERE AND NOT IN `deleteCredential`. The store knows
- * nothing about providers on purpose (credentials.ts header): every collector
- * imports it, so a Google client imported back would be an import cycle. This
- * module is the one already allowed to know about both, so it is where "a
- * disconnect is a revoke and then a delete" belongs — and every caller gets
- * that ordering by calling ONE function rather than remembering two.
- *
- * The revoke is BEST EFFORT and never blocks the delete: an operator pressing
- * Disconnect on a plane still gets the credential removed.
+ * Forget one provider's credential, and for Google tell Google first. The
+ * revoke lives here rather than in `deleteCredential` because the store knows
+ * nothing about providers. Best effort, never blocking the delete.
  */
 export async function disconnectCredential(
   env: IngestEnv,
@@ -634,16 +536,8 @@ export interface DiscoverOptions {
 
 /**
  * The GA4 properties and Search Console sites the connected credential can
- * read — two free list calls, nothing stored.
- *
- * It answers the question an operator has one second after connecting: *did I
- * sign in with the right Google account*. The per-asset picker (`ro-vu8d.4`)
- * consumes exactly this payload; on the card it renders as a read-only list.
- *
- * It works for BOTH ways in. A service-account install gets the same list,
- * which is how they find out the robot was granted on three properties and not
- * the fourth. Each half is reported independently: one API being down must not
- * hide what the other answered.
+ * read: two free list calls, nothing stored. Works for both ways in, and each
+ * half is reported independently.
  */
 export async function discoverGoogleProperties(
   env: IngestEnv,
@@ -680,7 +574,7 @@ export async function discoverGoogleProperties(
       if (!await observeIntegration(env, health, { capability: 'google-discovery', family: label, observedAt: checkedAt, ok: true, evidenceSource: 'probe' })) monitoringAvailable = false;
     } catch (error) {
       // The code, never the thrown message: a transport error can be holding a
-      // request url, and a request url here carries a bearer token.
+      // request url, which here carries a bearer token.
       if (!await observeIntegration(env, health, { capability: 'google-discovery', family: label, observedAt: checkedAt, ok: false, code: error instanceof SignalError ? error.code : 'network', evidenceSource: 'probe' })) monitoringAvailable = false;
       failures.push(
         `${label} (${error instanceof SignalError ? error.code : 'unreachable'})`,
@@ -708,19 +602,13 @@ export async function discoverGoogleProperties(
 const GOOGLE_MAX_PROPERTIES = 50;
 
 /**
- * THE GOOGLE ACCOUNT'S SITES, FOR THE CONNECT PANEL (bead `ro-ujb9.96.7.7`):
- * every GA4 property and Search Console site the signed-in account (or the
- * service account) can read, each with the host it answers for, so the panel
- * matches both to a site by domain — two lanes on one row.
- *
+ * The Google account's sites, for the connect panel: every GA4 property and
+ * Search Console site the account can read, each with the host it answers for.
  * A GA4 property states no domain of its own; its web data stream's default
- * address does (one free Admin API read per property, the first fifty), and a
- * property whose name is a domain answers for that. A Search Console site is
- * its own address; an unverified one is listed, never ticked.
- *
- * A LISTING IS NOT EVIDENCE, as for every provider (site-discovery.ts): no
- * verdict is stamped and no observation recorded. Each half answers on its
- * own; both refusing is `refused`, neither answering `unreachable`.
+ * address does (one free Admin API read per property, the first fifty). An
+ * unverified Search Console site is listed, never ticked. A listing is not
+ * evidence: no verdict is stamped. Both halves refusing is `refused`, neither
+ * answering `unreachable`.
  */
 export async function discoverGoogleSites(
   env: IngestEnv,

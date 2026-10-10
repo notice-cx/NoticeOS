@@ -6,33 +6,12 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { checkoutRelative, installationDir } from './installation.mjs';
 
-// THE PRODUCT IS CALLED NOTICEOS (decision D26, beads ro-ujb9.77.1, ro-ujb9.77.4).
-//
-// Notice is the company and NoticeOS its first product, as www.notice.cx sells
-// it. Before the rename the product's old name stood on 516 lines of the Tower
-// alone and in every package name, one label, title or import at a time, so
-// this is the stop for the next one. Two rules:
-//
-// 1. WHAT A PERSON READS (ro-ujb9.77.1). The old name may not come back into the
-//    Tower's screens and pages (`apps/tower/src`, `apps/tower/shared`,
-//    `apps/tower/public` and the HTML pages beside them) or any tracked
-//    Markdown document, bar the historical records below.
-//
-// 2. WHAT A CONTRIBUTOR READS (ro-ujb9.77.4). No file imports or names the old
-//    package scope `@reindex-os/`, and product code (the Tower, the ingest,
-//    the packages and the scripts, not their tests) carries no `Reindex…`
-//    identifier and no `x-reindex-` wire name. The names a running
-//    installation or an old bead still carries — the REINDEX_* environment
-//    variables, the `reindex-os:` browser keys, the `reindex_*` task metadata
-//    and the `reindex-handoff` label — are read for compatibility, and each is
-//    spelled as a literal in exactly one registry module, so nothing else can
-//    start writing them again. The list of names a working installation keeps
-//    is docs/06-operations.md § Legacy names.
-//
-// WHAT MAY KEEP THE OLD NAME. Dated records keep the wording they were written
-// under, and one installation's own documents are its owner's, not the
-// product's. Each entry is a path prefix with its reason; an entry that stops
-// matching a tracked file fails the suite, so the list only shrinks.
+// The product is called NoticeOS; the old name comes back one label or import
+// at a time. Rule 1: no screen, page or tracked Markdown says it, bar the
+// historical records below. Rule 2: no import of `@reindex-os/`, and no
+// `Reindex…` identifier or `x-reindex-` wire name in product code. The legacy
+// names a running installation still carries are read for compatibility and
+// spelled in one registry module each (docs/06-operations.md § Legacy names).
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -40,10 +19,7 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
  * lowercase `reindexos`, and the lockup's `Reindex<span …>OS</span>`. */
 export const OLD_PRODUCT_NAME = /reindex(?:\s|<[^>]*>)*os\b/i;
 
-/** The short form a sentence used for the product ("Reindex owns the
- * credential store"): the capitalised word standing alone. Not a code name
- * (rule 2 has those) and not the owner's company, Reindex Ventures, whose name
- * is the owner's data. */
+/** The capitalised word standing alone, as a sentence used it for the product. */
 export const OLD_SHORT_NAME = /(?<![-\w])Reindex(?![-\w])(?!\s+Ventures)/;
 
 /** Names a running installation keeps on purpose (docs/06-operations.md
@@ -55,18 +31,14 @@ export const HISTORICAL_PATHS = Object.freeze({
   'docs/reports/': 'Dated reports: a record of what was found under the name of the day.',
   'docs/artifacts/': 'Dated evidence: captures, measurements and the scripts that took them.',
   'docs/briefs/': 'Dated briefs handed to agents, kept as written.',
-  'config/decisions.md': "The decision register's rows are dated decisions; what a past decision said is not rewritten.",
 });
 
-/** Blocks that name the old product on purpose: the one list of legacy names,
- * and blocks another repository owns a byte-identical copy of, changed only
- * together with every copy by the bead named. */
+/** Blocks that name the old product on purpose. */
 export const SHARED_BLOCKS = Object.freeze([
   Object.freeze({
     file: 'docs/06-operations.md',
     begin: '<!-- legacy-names:begin -->',
     end: '<!-- legacy-names:end -->',
-    bead: null,
     why: 'The list of legacy names says what the product was called, once, so a contributor can recognize every old name still in use.',
   }),
 ]);
@@ -172,8 +144,8 @@ export const LEGACY_LITERALS = Object.freeze([
     what: 'the launchd label a service installed before the rename keeps',
   }),
   // An older store's database and bucket names live in that installation's
-  // own folder (resource-names.json, bead ro-ujb9.77.8), never in product code
-  // or the Worker configs a stranger deploys.
+  // own folder (resource-names.json), never in product code or the Worker
+  // configs a stranger deploys.
   Object.freeze({
     pattern: /["']reindex-os-(?:central|raw-signals)["']/,
     registry: [],
@@ -204,9 +176,6 @@ test('the product-name rule has the Tower and the living documents to read', () 
   for (const file of ['apps/tower/index.html', 'apps/tower/src/components/BrandLockup.tsx', 'README.md', 'AGENTS.md', 'CONTEXT.md', 'docs/10-control-tower.md']) {
     assert.ok(SCANNED.includes(file), `${file} must be read by the rule`);
   }
-  for (const file of ['config/decisions.md']) {
-    assert.ok(!SCANNED.includes(file), `${file} is a historical record the rule leaves alone`);
-  }
 });
 
 test('the rule sees every way the old name was written', () => {
@@ -226,7 +195,7 @@ test('nothing a person reads calls the product by its old name', () => {
     const text = withoutSharedBlocks(file, readFileSync(path.join(REPO_ROOT, file), 'utf8'));
     for (const hit of oldNameLines(text)) offenders.push(`${file}:${hit.line}  ${hit.text}`);
   }
-  assert.deepEqual(offenders, [], `the product is NoticeOS (D26); rename these, or record a dated file in HISTORICAL_PATHS with its reason:\n${offenders.join('\n')}`);
+  assert.deepEqual(offenders, [], `the product is NoticeOS; rename these, or record a dated file in HISTORICAL_PATHS with its reason:\n${offenders.join('\n')}`);
 });
 
 test('every historical entry still names a tracked record', () => {
@@ -238,15 +207,12 @@ test('every historical entry still names a tracked record', () => {
   }
 });
 
-test('every shared block still needs its exception, and names the bead that removes it', () => {
+test('every shared block is still where its exception says', () => {
   for (const block of SHARED_BLOCKS) {
     const text = readFileSync(path.join(REPO_ROOT, block.file), 'utf8');
     const start = text.indexOf(block.begin);
     const end = text.indexOf(block.end, start);
     assert.ok(start !== -1 && end !== -1, `${block.file} no longer carries ${block.begin}…${block.end}`);
-    if (block.bead === null) continue; // a permanent block
-    assert.ok(oldNameLines(text.slice(start, end)).length > 0, `${block.file}'s shared block no longer names the old product; remove its entry (bead ${block.bead})`);
-    assert.match(block.bead, /^ro-[a-z0-9.]+$/);
   }
 });
 
@@ -288,7 +254,7 @@ test('the code-name rule sees every retired name, and lets the registries and th
 
 test('no product code uses a retired code, package or wire name', () => {
   const problems = CODE_FILES.flatMap((file) => codeNameProblems(file, readFileSync(path.join(REPO_ROOT, file), 'utf8')));
-  assert.deepEqual(problems, [], `rename these (ro-ujb9.77.4), or read the legacy name through its registry module:\n${problems.join('\n')}`);
+  assert.deepEqual(problems, [], `rename these, or read the legacy name through its registry module:\n${problems.join('\n')}`);
 });
 
 test('no tracked file imports or names the old package scope', () => {
@@ -298,5 +264,5 @@ test('no tracked file imports or names the old package scope', () => {
     // tests (scripts/test-config-isolation.mts); their prose is `config/**/*.md`.
     .filter((file) => !file.startsWith('config/') || file.endsWith('.md'))
     .filter((file) => /@reindex-os\//.test(readFileSync(path.join(REPO_ROOT, file), 'utf8')));
-  assert.deepEqual(offenders, [], 'the workspace scope is @noticeos/ (ro-ujb9.77.4)');
+  assert.deepEqual(offenders, [], 'the workspace scope is @noticeos/');
 });

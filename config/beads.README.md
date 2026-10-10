@@ -1,7 +1,7 @@
 # config/beads.json — the task hub's asset ↔ prefix ↔ database map
 
 Beads supplies NoticeOS's common model for internal and external work; Dolt is
-its central task authority ([D32](decisions.md)). One Dolt SQL server — the
+its central task authority. One Dolt SQL server — the
 **hub** — holds every project's tasks ([Compose profile](../db/dolt/host/README.md);
 an existing installation may keep a host-managed server,
 [legacy profile](dolt-server.README.md)). Every repo is a **spoke**: a `bd`
@@ -11,7 +11,7 @@ settings. This file maps the three names one project answers to — its
 [Connect a project](../docs/project-setup.md) for the complete path.
 
 `config/beads.json` is the product default (the local hub, no projects) and
-`installation/beads.json` this installation's export (D22). Settings, local
+`installation/beads.json` this installation's export. Settings, local
 task actions, polling and task filers read the saved document; the runner does
 not fall back to an export when the store is absent. Local checkout links live
 separately in [`task-host.json`](task-host.README.md); deployed responses omit
@@ -196,14 +196,14 @@ any spoke's copy drifts. Change it here first, then re-stamp the spokes
   `git rm --cached .beads/interactions.jsonl` plus the gitignore line.
 - **`br` (beads_rust) must never be run in a spoke.** It is a separate
   SQLite + JSONL implementation with no Dolt backend: `br create` would
-  scaffold a private, divergent store inside `.beads/`. `bv` is retired
-  (D12). **`bd` is the only task CLI.**
+  scaffold a private, divergent store inside `.beads/`. `bv` is retired.
+  **`bd` is the only task CLI.**
 
 ## The Tower's task lane — the operator's hands, not an agent's
 
 `bd` is the only write path an agent uses: an agent claims and closes work in
 the repo where the work happens, because that is where it has the context to be
-honest about what it did. The operator also has a UI (D19): the Tower's `os:up`
+honest about what it did. The operator also has a UI: the Tower's `os:up`
 dev server carries a local lane (`apps/tower/vite/task-lane.ts`, serving
 `/api/tasks/*` and `/api/gates/*`) that runs `bd` for the operator inside the
 spoke this file names. Twelve verbs (`ALLOWED_VERBS`) are checked before
@@ -222,7 +222,7 @@ command, not the judgment.
 The hub is the portfolio's **only** register of open work, and the process
 rules — file a bead, claim before building, verify, close with evidence, the
 quality bar, the `human` label and gates — are written once, in
-[AGENTS.md](../AGENTS.md#open-work-lives-in-beads). What belongs here is the
+[AGENTS.md](../AGENTS.md#open-work-lives-in-the-task-hub). What belongs here is the
 filing grammar `bd` needs.
 
 - **Epics.** Related work groups under a `-t epic` bead carrying an
@@ -279,7 +279,7 @@ that raised the work, and `noticeos_key` is the join back to the exact row:
 | `finding` | the asset page's executive findings | the finding's card key (`ExecutiveInsight.key`) | the same card key |
 | `query` | the asset page's query decisions | the normalized query, byte-exact | the decision kind (`recover`, `near-win`, …) |
 | `page` | the asset page's page decisions | the absolute page **URL**, never its path — two assets can share `/recipes` | the page decision kind |
-| `alert` | `/alerts` and the desk's attention table *(added 2026-09-04, bead `ro-l1ed.4`)* | `flags.id` as a string | the flag's `rule_id` |
+| `alert` | `/alerts` and the desk's attention table | `flags.id` as a string | the flag's `rule_id` |
 
 `alert` is the one key that is a database id rather than a string the operator
 would recognize, deliberately: one rule fires many times on one asset, and only

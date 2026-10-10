@@ -12,11 +12,9 @@ import { BEADS_SNAPSHOT_RETENTION_DAYS, type BeadsSnapshotInput, writeBeadsSnaps
 import { OPERATOR_TOKEN } from './fixtures.js';
 import { asOwner, call, emptyTables, reset, storedCount } from './helpers.js';
 
-// The daily rollup behind the Tasks strip's six numbers (db/0032, bead
-// `ro-78qo.23`; on Postgres since bead ro-ujb9.76.4.3).
-//
-// It is driven through the REAL route, not by calling the writer, because the
-// thing being asserted is that filing a photograph also files the day.
+// The daily rollup behind the Tasks strip's six numbers. It is driven through
+// the real route, not by calling the writer, because the thing being asserted
+// is that filing a photograph also files the day.
 
 beforeEach(reset);
 
@@ -82,8 +80,8 @@ async function post(body: unknown) {
   );
 }
 
-/** Every stored day, in D1's terms: the project as `asset`, the instant as
- * JavaScript writes it, the closed ids as JSON text. */
+/** Every stored day: the project as `asset`, the instant as JavaScript writes
+ * it, the closed ids as JSON text. */
 async function rows(): Promise<DailyRow[]> {
   const stored = await env.STORE.read((tx) =>
     tx.query<DailyRow>(
@@ -96,7 +94,7 @@ async function rows(): Promise<DailyRow[]> {
 
 // One clock per run: a test crossing midnight must keep all captures on the
 // same named days. Use completed days so an afternoon capture is never future
-// dated when this suite runs before noon (ro-ujb9.27).
+// dated when this suite runs before noon.
 const FIXTURE_NOW = Date.now();
 const DAY_MS = 86_400_000;
 
@@ -104,7 +102,7 @@ const DAY_MS = 86_400_000;
  * day. The cases reach back at most four days: the latest completed day is
  * inside snapshot retention (two days), every day inside the rollup's own. A
  * capture older than snapshot retention still files its day — the rollup reads
- * the incoming photograph, never the stored ones (ro-ujb9.76.16). */
+ * the incoming photograph, never the stored ones. */
 function tick(daysAgo: number, time = 'T12:00:00.000Z', nowMs = FIXTURE_NOW): string {
   const day = new Date(nowMs - (daysAgo + 1) * DAY_MS).toISOString().slice(0, 10);
   return `${day}${time}`;
@@ -332,8 +330,7 @@ describe('the daily rollup — what closed that day', () => {
 
 describe('the daily rollup — first run and retention', () => {
   it('seeds itself from the photographs the store still holds', async () => {
-    // The state the operator is in the minute after `pnpm migrate:local`: a week
-    // of snapshots, and an empty rollup.
+    // A week of snapshots, and an empty rollup.
     for (const daysAgo of [3, 2, 1]) {
       for (const hour of ['08', '20']) {
         await env.STORE.write((tx) =>
@@ -415,10 +412,9 @@ DROP FUNCTION noticeos.refuse_task_day();`);
   });
 
   it('unions two captures of one day taken at once, and keeps one whole photograph', async () => {
-    // Captures run one at a time behind the workspace's snapshot lock, as D1's
-    // one writer ran them. Without it both read the day and the newest row
-    // before either wrote: one day's closings were lost, and two photographs
-    // stayed whole.
+    // Captures run one at a time behind the workspace's snapshot lock. Without
+    // it both read the day and the newest row before either wrote: one day's
+    // closings were lost, and two photographs stayed whole.
     for (let round = 0; round < 3; round += 1) {
       await reset();
       const at = tick(0, `T1${round}:00:00.000Z`);

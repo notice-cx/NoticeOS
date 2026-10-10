@@ -9,16 +9,15 @@ import { freshnessReport } from './signal-panels-refresh.mjs';
 import { parseArgs as parseDownloadArgs } from './signal-dumps-download.mjs';
 import { POSTHOG_FAMILIES, POSTHOG_FAMILY_ROWS } from '../packages/contract/src/posthog-families.mjs';
 
-// PostHog in the panel dir (beads ro-ghis.2, ro-ghis.3), end to end: archives in
-// the shared contract's shape → posthog-<family>.csv → executive.json.
+// PostHog in the panel dir, end to end: archives in the shared contract's
+// shape → posthog-<family>.csv → executive.json.
 //
-// The fixture is the contract's acceptance set: meals.example's first manual
-// PostHog read, 2026-09-08 → 2026-09-22 (meals beads mp-c0ha, mp-sn8x, mp-ge32,
-// mp-36ip). Every archive is the standard envelope the collector writes —
-// integration `posthog`, report = family, reportDate = window end — with the
-// contract body as `pages[0].response`.
+// The fixture is the contract's acceptance set: a site's first manual PostHog
+// read, a fifteen-day window. Every archive is the standard envelope the
+// collector writes (integration `posthog`, report = family, reportDate =
+// window end) with the contract body as `pages[0].response`.
 
-// The frozen copy, never the checkout's own config/ (bead ro-ujb9.97).
+// The frozen copy, never the checkout's own config/.
 const fixtureValueEvents = async () => ({
   body: JSON.parse(await fs.readFile(new URL('./fixture-config/value-events.json', import.meta.url), 'utf8')),
   version: 1,
@@ -519,8 +518,8 @@ test('an empty PostHog family writes its header and reads as collected-with-noth
   );
 });
 
-// Bead ro-ghis.4: the flattener reads the contract's family list rather than
-// keeping its own, and the CSV it writes is the one it wrote before the move.
+// The flattener reads the contract's family list rather than keeping its own,
+// and the CSV it writes is pinned.
 test('the flattener flattens exactly the contract families and fields', () => {
   assert.deepEqual([...FLATTENER_FAMILIES.keys()], [...POSTHOG_FAMILIES]);
   for (const family of POSTHOG_FAMILIES) {
@@ -529,8 +528,8 @@ test('the flattener flattens exactly the contract families and fields', () => {
   }
 });
 
-/** Each family's CSV header as the flattener wrote it before bead ro-ghis.4 —
- * the base columns, then the metadata and contract fields sorted by name. */
+/** Each family's CSV header as the flattener writes it: the base columns, then
+ * the metadata and contract fields sorted by name. */
 const POSTHOG_CSV_HEADERS = {
   'web-daily': 'asset,report_date,collected_at,data_state,provider_truncated,date,pageviews,people,project_time_zone,row_grain,row_limit,sessions,window_end,window_start',
   events: 'asset,report_date,collected_at,data_state,provider_truncated,count,event,first_seen,last_seen,people,project_time_zone,row_grain,row_limit,window_end,window_start',

@@ -1,5 +1,5 @@
-// Synthetic facts for the ordinary NoticeOS store (ro-ujb9.256.2).
-// Scenario choices, not estimates of real businesses; see the dated brief.
+// Synthetic facts for the ordinary NoticeOS store: scenario choices, not
+// estimates of real businesses.
 import { createHash } from 'node:crypto';
 import { generateDemoTaskFacts } from './demo-task-facts.mjs';
 

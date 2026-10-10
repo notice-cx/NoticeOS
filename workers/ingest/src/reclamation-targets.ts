@@ -1,19 +1,10 @@
-// A link-outreach campaign's targets — the touch log of a dead resource's
-// inbound links being reclaimed — written from the operator's target list by
-// `pnpm reclamation:import`
-// through POST /api/reclamation-targets (bead ro-ujb9.76.5.8), and the open
-// ones read back by `pnpm reclamation:open-targets` through GET on the same
-// route (bead ro-ujb9.76.5.9). On Postgres, `noticeos.reclamation_targets`,
-// through the call's store.
-//
-// IDEMPOTENT BY CONSTRUCTION, as the SQL file the import wrote for D1 was. A
-// page is inserted once: its site, domain and page are the key. A status only
-// moves forward, from a status strictly earlier in the funnel, so a row a
-// person moved on is never dragged back and the terminal won, skip and dead
-// are never overwritten. A verification stamp only moves forward. Importing
-// the same list twice changes nothing.
-//
-// The whole import is one transaction: a list is stored whole or not at all.
+// A link-outreach campaign's targets: the touch log of a dead resource's
+// inbound links being reclaimed, imported from the operator's target list and
+// read back open. Idempotent by construction: a page is inserted once (site,
+// domain and page are the key), a status only moves forward from one strictly
+// earlier in the funnel, so a row a person moved on is never dragged back and
+// won, skip and dead are never overwritten, and a verification stamp only
+// moves forward. The whole import is one transaction.
 
 /** The funnel, earliest first; `won` is terminal and set by a person. */
 export const RECLAMATION_FUNNEL = ['queued', 'sent', 'opened', 'clicked', 'replied', 'won'] as const;
@@ -61,9 +52,8 @@ export interface OpenReclamationTarget {
 }
 
 /**
- * A site's OPEN targets, at most `limit`: every target not won, skipped or
- * dead (the baseline's own definition of open, its `reclamation_targets_open`
- * index), in the order they were stored, which is the list's own order.
+ * A site's open targets, at most `limit`: every target not won, skipped or
+ * dead, in the order they were stored, which is the list's own order.
  */
 export async function readOpenReclamationTargets(
   env: IngestEnv,

@@ -4,7 +4,7 @@
  * that must agree with the body, `server/discover` in place of a handshake),
  * and the initialize-based revisions before it. The hosted task endpoint
  * (hosted-task-mcp) and the Tower's `/api/mcp` (apps/tower/worker/mcp-route)
- * share it (epic ro-cvl9); each supplies its own tools and admission.
+ * share it; each supplies its own tools and admission.
  *
  * Stateless in both eras: no session id is issued, nothing is streamed, and a
  * GET is refused. A request is modern exactly when its `_meta` names a

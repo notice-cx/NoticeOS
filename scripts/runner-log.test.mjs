@@ -14,7 +14,7 @@ import {
   writeLine,
 } from './runner/log.mjs';
 
-// scripts/runner/log.mjs (bead ro-ujb9.22): the runner's one combined log.
+// scripts/runner/log.mjs: the runner's one combined log.
 // These tests never open the log file itself (openLog), so they write nothing
 // into this checkout's .local/: a line goes to stdout only, which is captured.
 

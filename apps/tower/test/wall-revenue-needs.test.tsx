@@ -1,5 +1,4 @@
-// D28's revenue and Needs you widgets on the Wall (docs/14-design.md § Revenue
-// and § Needs you, bead `ro-trai.4`), drawn from the synthetic Wall fixture.
+// The Wall's revenue and Needs you widgets, drawn from the synthetic Wall fixture.
 
 import { render, within } from "./render";
 import { describe, expect, it, vi } from "vitest";
@@ -32,8 +31,8 @@ describe("the revenue widget", () => {
     expect(section.querySelector("[data-revenue-figure]")?.textContent).toBe("$1,185");
     // Plate Planner $1,310 + Menu Finder $385, the two ready projections.
     expect(section.querySelector("[data-revenue-pace]")?.textContent).toContain("on pace for $1,695");
-    // Yesterday in place of the month's daily average (bead ro-trai.32):
-    // Plate Planner $43.18 + Menu Finder $12.07, both reports in.
+    // Yesterday in place of the month's daily average: Plate Planner $43.18
+    // + Menu Finder $12.07, both reports in.
     expect(section.querySelector("[data-revenue-pace]")?.textContent).toContain("Sep 21 · Pacific $55.25 est. · 9 days left");
     expect(section.textContent).not.toContain("a day");
     expect(section.querySelector("[data-revenue-yesterday]")?.getAttribute("data-revenue-yesterday")).toBe("all");
@@ -111,7 +110,7 @@ describe("the revenue widget", () => {
   });
 });
 
-// Yesterday's revenue in the pace line (bead ro-trai.32): missing is not zero.
+// Yesterday's revenue in the pace line: missing is not zero.
 describe("yesterday on the revenue widget", () => {
   const withYesterday = (amounts: (number | null)[]) => {
     const data = wallFixturePayload();
@@ -197,9 +196,8 @@ describe("yesterday on the revenue widget", () => {
 });
 
 // The month chart's crossing words ("on pace to pass August on Sep 26") never
-// sit on today's dot (bead ro-trai.35). jsdom has no layout, so the chart's
-// and the words' sizes are the ones a real browser measured at 390 and at the
-// TV (docs/artifacts/wall-build-2026-09-23/followups/README.md).
+// sit on today's dot. jsdom has no layout, so the chart's and the words' sizes
+// are the ones a real browser measured at 390 and at the TV.
 describe("the month chart's crossing words", () => {
   const LINE = { oneLine: { width: 216, height: 16 }, twoLines: { width: 148, height: 32 } };
   /** A phone's chart as the fixture draws it: 374 × 138 px, last month's line
@@ -237,8 +235,7 @@ describe("the month chart's crossing words", () => {
     const size = LINE.twoLines;
     expect(clearOf(placed, size, { left: 0, top: 33.85 - 22, right: 123, bottom: 33.85 })).toBe(true);
     expect(clearOf(placed, size, { left: 256.2 - 16, top: 53.3 - 16, right: 256.2 + 16, bottom: 53.3 + 16 })).toBe(true);
-    // The old phone place, below the line and ending at the dot, is refused:
-    // it covered today's halo.
+    // Below the line and ending at the dot is refused: it covers today's halo.
     expect(clearOf({ ...placed, left: 319.2 - 16 - 216, top: 33.85 + 8 }, LINE.oneLine, { left: 240.2, top: 37.3, right: 272.2, bottom: 69.3 })).toBe(false);
   });
 
@@ -294,8 +291,8 @@ describe("the month chart's crossing words", () => {
   });
 });
 
-// A new installation's first three weeks (bead ro-trai.33): the revenue sites
-// report daily, but no projection is ready and the ledger has no row yet.
+// A new installation's first three weeks: the revenue sites report daily, but
+// no projection is ready and the ledger has no row yet.
 describe("the revenue widget before the month has a pace or a ledger row", () => {
   const NO_LEDGER = { forecast: ZERO, booked: ZERO, netTrend: [], firstRun: true };
   const learningOnly = (earned: boolean) => {
@@ -438,7 +435,7 @@ describe("the Wall draws both from a layout", () => {
     expect(row.querySelector("[data-wall-needs]")).not.toBeNull();
   });
 
-  it("asks the revenue widget's yesterday on the Wall's own clock (ro-trai.34)", () => {
+  it("asks the revenue widget's yesterday on the Wall's own clock", () => {
     const layout: WallLayout = {
       version: 1,
       rows: [{ id: "money", height: "auto", widgets: [{ id: "revenue", type: "revenue", width: 1 }] }],

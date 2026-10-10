@@ -67,19 +67,10 @@ import { useRange } from "@/routes/asset-detail/useRange";
 import { askFace } from "@/routes/tasks/task-face";
 
 /**
- * THE OVERVIEW TAB — the index tab, so `/assets/:id` IS this (`ro-pbzu.4`),
- * rebuilt to doc 14's Asset · Overview template (bead `ro-78qo.3`).
- *
- * It answers ONE question in three parts: how is this asset doing, what needs
- * me, and what matters. Traffic follows the selected day range; financials and
- * alerts have separate accounting-month/latest-recorded scopes. The operator's queue,
- * ranked findings and nightly counts follow those evidence groups.
- *
- * What LEFT, and where it went: the setup checklist to Sources (a banner stands
- * in its place while the asset is still being set up), the search-context strip
- * and its four reference tables to the new Search tab, the reclamation pipeline
- * and the timeline to Activity, the planned-modules row to nowhere — a list of
- * what does not exist yet is not part of the question this tab answers.
+ * The Overview tab, the index tab, so `/assets/:id` is this. It answers one
+ * question in three parts: how is this asset doing, what needs me, and what
+ * matters. Traffic follows the selected day range; financials and alerts have
+ * separate accounting-month and latest-recorded scopes.
  */
 export function OverviewTab({
   data,
@@ -114,10 +105,8 @@ export function OverviewTab({
 
   return (
     <div className="flex flex-col gap-3.5">
-      {/* `#setup` still lands here (`HASH_TAB` sends it to Overview), and the
-          banner is what it lands on: the checklist itself is on Sources now,
-          one link away, and a deep link that scrolled to nothing would be worse
-          than one that scrolls to the sentence saying where it went. */}
+      {/* `#setup` lands here (`HASH_TAB`): the checklist is on Sources, so the
+          banner saying where it is is what a deep link scrolls to. */}
       {setup ? (
         <div id="setup" className="scroll-mt-4">
           <StatusBanner
@@ -129,8 +118,8 @@ export function OverviewTab({
               to: assetTabPath(data.asset.id, "sources"),
             }}
           >
-            {/* A row of values, not a sentence (bead `ro-ujb9.96.7.16`): the
-                fraction, then each step still to do by its own name. */}
+            {/* A row of values, not a sentence: the fraction, then each step
+                still to do by its own name. */}
             {setup.remaining.length === 0
               ? `${setup.done} of ${setup.total} done`
               : `${setup.done} of ${setup.total} done · to do: ${setup.remaining.join(" · ").toLowerCase()}`}
@@ -138,9 +127,9 @@ export function OverviewTab({
         </div>
       ) : null}
 
-      {/* THE VERDICT LINE (D44, doc 14 § Asset · Overview): three facts
-          joined by dots, under the header's verdict word — money, alerts,
-          bets — each from the read this tab already makes. Never a sentence. */}
+      {/* The verdict line: three facts joined by dots under the header's
+          verdict word, money, alerts, bets, each from the read this tab
+          already makes. Never a sentence. */}
       <VerdictLine money={money} moneyPeriod={moneyPeriod} alerts={alerts} watches={data.watches} nowMs={nowMs} />
 
       <SiteLead data={data} days={days} nowMs={nowMs} />
@@ -185,11 +174,9 @@ export function OverviewTab({
             /> : null}
           </details> : null}
         </section>
-        {/* THE SPLIT IS THE ANSWER (doc 14: a number whose shape is how a
-            total divides shows the division). One row names the errors and
-            warnings open now, in the severity ring, with when one last fired —
-            and opens the Alerts tab, where each one is verified. It draws no
-            trend on purpose: saved records cannot say which conditions were
+        {/* The split is the answer: one row names the errors and warnings
+            open now, with when one last fired, and opens the Alerts tab. It
+            draws no trend: saved records cannot say which conditions were
             open on a past day, so there is no honest line to draw. */}
         <div data-alert-current>
           <ListPanel title="Open alerts">
@@ -207,8 +194,7 @@ export function OverviewTab({
 
       <div className="grid gap-3.5 lg:grid-cols-2">
         <NeedsYou assetId={data.asset.id} operator={data.operator} nowMs={nowMs} />
-        {/* `#insights` is the findings' anchor and has been since before the
-            tabs; it now names the panel rather than the whole ranked list. */}
+        {/* `#insights` is the findings' saved anchor; it names the panel. */}
         <div id="insights" className="min-w-0 scroll-mt-4">
           <WhatMatters
             data={data}
@@ -255,14 +241,8 @@ export function OverviewTab({
         </details>
       ) : null}
 
-      {/* NO "ABOUT THESE NUMBERS" (doc 14 principle 3a, bead
-          `ro-ujb9.96.6.6`). Its three paragraphs each restated something the
-          surface already draws: the provider in each chart legend, the
-          averaged or totalled measure in each KPI label, the compared window in
-          each delta's own label, "provisional" as the hollow last point and its
-          legend key, "not comparable" on the delta itself, Booked / Estimated
-          on the net figure, the analysis age on What matters, and the report
-          age on Product use. */}
+      {/* No "about these numbers": each fact is drawn on the surface that
+          owns it. */}
     </div>
   );
 }
@@ -283,7 +263,6 @@ function alertSplit(alerts: ReturnType<typeof alertPosture>): string {
 }
 
 // --- the verdict line ------------------------------------------------------
-/** Days from today to a calendar date, never negative. */
 function VerdictLine({
   money,
   moneyPeriod,
@@ -314,12 +293,10 @@ function VerdictLine({
 
 // --- bets --------------------------------------------------------------------
 /**
- * THE BETS ON THIS SITE (D44; Statsig, Eppo and GrowthBook in the brief's
- * prior art): every pre-registered outcome check, open first, as one row with
- * its verdict chip — "verdict in N days" while it is being watched, the
- * evaluator's word once it closed (`WATCH_OUTCOME`). No dollars are drawn
- * until the ledger books a change's realized value (doc 00); an unmeasured
- * window says so rather than showing a number.
+ * The bets on this site: every pre-registered outcome check, open first, as
+ * one row with its verdict chip, "verdict in N days" while it is being watched
+ * and the evaluator's word once it closed (`WATCH_OUTCOME`). No dollars are
+ * drawn until the ledger books a change's realized value.
  */
 function Bets({ watches, assetId, nowMs }: { watches: AssetDetailFor<"overview">["watches"]; assetId: string; nowMs: number }) {
   const assetTabPath = useAssetTabPath();
@@ -361,12 +338,9 @@ function Bets({ watches, assetId, nowMs }: { watches: AssetDetailFor<"overview">
 }
 
 // --- search movers -----------------------------------------------------------
-/**
- * THE QUERIES THAT MOVED THIS WEEK (D44; Semrush's winners and losers): the
- * three that climbed furthest and the three that fell, as words, from the
- * saved analysis's own like-for-like comparison. The Search tab holds the
- * whole table.
- */
+/** The queries that moved this week: the three that climbed furthest and the
+ * three that fell, from the saved analysis's own like-for-like comparison. The
+ * Search tab holds the whole table. */
 function SearchMovers({ trends, assetId }: { trends: SearchQueryTrends | null; assetId: string }) {
   const assetTabPath = useAssetTabPath();
   const lane = trends?.google ?? trends?.bing ?? null;
@@ -464,8 +438,8 @@ export function NeedsYou({
           marks={{ "data-subject": `task:${item.id}` }}
           to={`/tasks/${encodeURIComponent(item.id)}`}
           returnTo={`${location.pathname}${location.search}`}
-          // The Tasks board's own ask face (bead ro-ujb9.240): warn at every
-          // priority and a gate's △. Priority is the ORDER, never the colour.
+          // The Tasks board's own ask face: warn at every priority and a
+          // gate's △. Priority is the order, never the colour.
           {...askFace(item)}
           title={item.title}
           caption={
@@ -534,11 +508,8 @@ function WhatMatters({
           : undefined
       }
       action={items.length > 3 ? { label: "All findings", onClick: onAll } : undefined}
-      // A STATE, NOT A SENTENCE (bead `ro-ujb9.96.6.21`): the empty panel
-      // names what it holds in the panel's own noun. It used to explain an
-      // internal job ("the archive analysis has not run") the operator meets
-      // nowhere else and cannot start; with an analysis saved, the header
-      // already carries its age.
+      // A state, not a sentence: the empty panel names what it holds in the
+      // panel's own noun, never an internal job the operator cannot start.
       empty={
         !snapshot
           ? "No findings yet"
@@ -562,9 +533,8 @@ function WhatMatters({
             valueLabel={savedEvidenceLabel(findingFigure(insight).label)}
             defaultExpanded={index === 0}
             marks={{ "data-finding-row": insight.key }}
-            // The finding's one decision sits on its row (bead
-            // `ro-ujb9.96.7.11`, PagerDuty's Create Jira issue): a composer
-            // prefilled from the finding, then File task — two presses.
+            // The finding's one decision sits on its row: a composer prefilled
+            // from the finding, then File task.
             rowActions={<FindingFileTask insight={insight} assetId={data.asset.id} />}
             actions={
               <FindingActions
@@ -574,13 +544,9 @@ function WhatMatters({
               />
             }
           >
-            {/* EVIDENCE, NOT PROSE (doc 14: "a row expands in place to show
-                evidence and its actions"). The producer writes `summary` and
-                `whyItMatters` as free paragraphs — two or three sentences of
-                them — and doc 14's acceptance forbids a paragraph visible by
-                default outside `About`. The mockup shows one because it is
-                illustration; the rule is the document. Both sentences are one
-                press away, with the sources and the limitation, in All findings. */}
+            {/* Evidence, not prose: `summary` and `whyItMatters` are free
+                paragraphs, one press away in All findings with the sources and
+                the limitation. */}
             <dl className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
               {findingEvidence(insight).map((row) => (
                 <div key={`${row.label}-${row.value}`} className="flex justify-between gap-3">
@@ -600,15 +566,9 @@ function WhatMatters({
 }
 
 /**
- * THE ROW'S RIGHT-HAND FIGURE: the count, when the title already carries the
- * share.
- *
- * "11.3% of sessions are unattributed · 11.3% unattributed sessions" is one
- * fact stated twice in one row (doc 14), and the half that was missing is the
- * one an operator acts on — eight thousand sessions. So a `primary` whose value
- * is a percentage the TITLE already prints steps aside for the first absolute
- * count in the finding's own evidence. A percentage the title does not carry
- * stays: dropping it would lose the fact rather than de-duplicate it.
+ * The row's right-hand figure: a `primary` whose value is a percentage the
+ * title already prints steps aside for the first absolute count in the
+ * finding's own evidence. A percentage the title does not carry stays.
  */
 export function findingFigure(insight: ExecutiveInsight): {
   value: string;
@@ -624,15 +584,9 @@ export function findingFigure(insight: ExecutiveInsight): {
 /** A whole number, with or without thousands separators. */
 const COUNT = /^\d[\d,]*$/;
 
-/**
- * An internal identifier — a rule id, a decision key, the machine name of the
- * thing that produced the finding.
- *
- * doc 14: an operator never has to read one. They are real evidence and they
- * stay in All findings beside the sources and the limitation, where the reader
- * has asked for the machinery; on the row itself they spend a line of the four
- * this panel has on a string nobody can act on.
- */
+/** An internal identifier: a rule id, a decision key, the machine name of
+ * the thing that produced the finding. Real evidence, kept in All findings
+ * and off the row. */
 const IDENTIFIER = /^[a-z0-9]+(-[a-z0-9]+)+$/;
 
 export function findingEvidence(insight: ExecutiveInsight): ExecutiveEvidence[] {
@@ -702,15 +656,8 @@ function FindingActions({
   );
 }
 
-/**
- * THE WHOLE RANKED LIST, one disclosure below the panel.
- *
- * "All findings →" has nowhere else to go yet: the Search tab (`ro-78qo.4`) is
- * being built beside this one and the eight-card list is not its subject. So
- * the existing list — evidence, sources, limitations, the suppressed-card
- * mention, the marks and the restore — stays reachable on this tab, closed, and
- * moves when a page exists that owns it.
- */
+/** The whole ranked list, one disclosure below the panel: evidence, sources,
+ * limitations, the suppressed-card mention, the marks and the restore. */
 function FullFindings({
   data,
   onWatch,
@@ -749,16 +696,12 @@ function metricLabel(name: string): string {
 
 // --- product use -----------------------------------------------------------
 /**
- * THE SITE'S ALL-TIME TOTALS (bead `ro-trai.21`): accounts, leads, catalog
- * counts — the stock figures config/counters.json declares, which only the old
- * Wall card drew until D28 moved them here (docs/14-design.md § What leaves
- * the Wall). The register's own heading, one cell per total that has a number.
- *
- * AN AGE ONLY WHERE IT IS ITS OWN (doc 14, one representation): a figure from
- * the 15-minute counters lane carries its read age, amber past twice the lane's
+ * The site's all-time totals: the stock figures config/counters.json
+ * declares, one cell per total that has a number. A figure from the
+ * 15-minute counters lane carries its read age, amber past twice the lane's
  * cadence; a figure the nightly report supplied carries none, because the
- * header's report age already states exactly that age. A total neither lane has
- * is left out, never drawn as 0, and a site with nothing to show draws nothing.
+ * header's report age already states it. A total neither lane has is left
+ * out, never drawn as 0.
  */
 function SiteTotals({ counters, nowMs }: { counters: SiteCounters | null; nowMs: number }) {
   const cards = (counters?.cards ?? []).filter(
@@ -820,10 +763,9 @@ export function ProductUse({
       >
         <InfoTooltip label="About product reports" className={stale ? "text-warn" : undefined}
           trigger={receivedLabel === null ? "Report time unknown" : `Report ${formatAge(age)} ago${stale ? " · Outdated" : ""}`}>
-          {/* Exact times and dates only. What each figure IS is printed on the
+          {/* Exact times and dates only. What each figure is is printed on the
               cell ("in 24h", "Prior 7 reports: … / day", "Daily counts",
-              "1 missing day"), so the two methodology paragraphs that restated
-              it are gone (doc 14 principle 3a). */}
+              "1 missing day"). */}
           <span className="block">{receivedLabel === null ? "Report time unknown" : `Report received ${receivedLabel} · ${formatAge(age)} ago.`}</span>
           {cells.map(({ metric, summary }) => summary.previousMean === null ? null : <span key={metric.name} className="block">{metricLabel(metric.name)} comparison: {summary.previousCount} reports · {formatCalendarRange(summary.previousFirst!, summary.previousLast!)}.</span>)}
         </InfoTooltip>

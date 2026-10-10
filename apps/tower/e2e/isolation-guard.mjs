@@ -1,17 +1,13 @@
-// Fail-closed tripwire for the isolated journey server (bead ro-ujb9.81).
-//
-// The journey harness must run from a fresh checkout and in CI, where the
-// operator's secrets files do not exist, and must never borrow the operator's
-// live runtime when it does run on the office Mac. So inside this process:
+// Fail-closed tripwire for the isolated journey server: the harness must run
+// from a fresh checkout and in CI, and must never borrow the operator's live
+// runtime when it runs on the operator's machine. Inside this process:
 //
 //   - reading or opening `.dev.vars` / `.dev.secrets.json` (any directory) is
 //     refused before the filesystem is touched;
 //   - so is reading any file in the checkout's own `config/` directory or its
-//     installation folder (bead ro-ujb9.125) — the
-//     operator's configuration, time zone included (bead ro-ujb9.89). The
-//     journeys run on the fixture's synthetic documents; server.mjs answers
-//     config imports with them, and a read that gets past that is refused
-//     here rather than quietly handing a journey the operator's settings;
+//     installation folder: server.mjs answers config imports with the
+//     fixture's synthetic documents, and a read that gets past that is
+//     refused here;
 //   - a socket to an owner port (Tower 5173, ingest door 8791, task hub 3308)
 //     is refused before it connects, whatever library opened it.
 //
@@ -29,8 +25,8 @@ import { installationDir } from "../../../scripts/installation.mjs";
 export const SECRET_FILES = Object.freeze([".dev.vars", ".dev.secrets.json"]);
 /** The checkout's own configuration directory: the operator's settings. */
 export const OWNER_CONFIG_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../config");
-/** This installation's own folder (bead ro-ujb9.125): its saved documents,
- * change history and host files. Refused exactly like config/. */
+/** This installation's own folder: its saved documents, change history and
+ * host files. Refused exactly like config/. */
 export const OWNER_INSTALLATION_DIR = installationDir({ root: path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..") });
 export const OWNER_PORTS = Object.freeze([5173, 8791, 3308]);
 export const VIOLATION_MARK = "JOURNEY_ISOLATION_VIOLATION";

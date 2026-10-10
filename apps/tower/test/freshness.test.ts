@@ -37,9 +37,9 @@ describe("isAmber (amber past 2× cadence)", () => {
 
 describe("formatAge", () => {
   it("renders compact units and an em dash for unknown", () => {
-    // The em dash STAYS here on purpose (bead ro-kukv.10). The badge's "never"
-    // belongs to the badge; this helper is shared with fifteen sites that
-    // interpolate it as "{age} ago", where a word would read "never ago".
+    // The em dash stays here on purpose: the badge's "never" belongs to the
+    // badge; this helper is shared with call sites that interpolate it as
+    // "{age} ago", where a word would read "never ago".
     expect(formatAge(null)).toBe("—");
     expect(formatAge(5_000)).toBe("5s");
     expect(formatAge(5 * 60_000)).toBe("5m");
@@ -49,9 +49,8 @@ describe("formatAge", () => {
 
   it("never yields a word, so no call site can render 'never ago'", () => {
     // One table over every `formatAge` call site in the app, each with the
-    // template it renders and whether that site can be handed a null age. The
-    // acceptance criterion is mechanical: no output of any row contains a word,
-    // and "never ago" appears nowhere.
+    // template it renders and whether that site can be handed a null age: no
+    // output of any row contains a word, and "never ago" appears nowhere.
     const callSites: {
       where: string;
       render: (age: string) => string;

@@ -1,8 +1,6 @@
 # 03 — Attribution & evaluation
 
-*New in v2 — the stage v1 lacked entirely (its "did it help?" was a deploy
-annotation and a hopeful look at the chart 2–6 weeks later). Attribution is what
-lets the ledger contain truth, which is what lets Learn calibrate Decide, which
+*Attribution is what lets the ledger contain truth, which is what lets Learn calibrate Decide, which
 is what makes improvement continuous. It is also where the system is most
 tempted to lie to itself, so this doc is mostly rules against self-deception.*
 
@@ -43,8 +41,8 @@ foods pages, calculator constellation, programmatic locale sets).
   time). A core update mid-window → extend and rely only on control-relative
   divergence.
 - **A surface inside a measurement window is frozen:** the ship that opens the
-  window files its readback bead first, naming the surfaces, the change and
-  the dates, and that bead is where a later change reads measurement state —
+  window files its readback task first, naming the surfaces, the change and
+  the dates, and that task is where a later change reads measurement state —
   there is no separate register file.
 - Books: realized Δ with credible interval, shrunk (below).
 
@@ -77,12 +75,11 @@ Small copy edits, single-page fixes, hygiene, most UX polish.
   P&L per change-class per asset per quarter — predicted vs realized — because
   that's the resolution at which this portfolio's truth exists. The predicted
   side is what each change's ledger entry froze when it shipped; the realized
-  side is a later entry that supersedes it, never an edit (D38).
+  side is a later entry that supersedes it, never an edit.
 - **Batching discipline serves attribution.** Decide deliberately groups
   same-class changes into evaluable batches (one titles-batch per corpus per
-  window) instead of dribbling confounded singles — v1's "first natural
-  experiment" bundled four workstreams in one day and was unattributable by
-  construction.
+  window) instead of dribbling confounded singles: several workstreams
+  shipped in one day are unattributable by construction.
 - **Long-horizon holdout.** A small permanent slice (pages or one asset surface)
   stays outside the optimizer's reach as the drift detector: if the optimized
   estate's short-window wins don't show up against the holdout over quarters,
@@ -94,16 +91,16 @@ Small copy edits, single-page fixes, hygiene, most UX polish.
   retired from scoring (Facebook-MSI is the cautionary precedent — the proxy
   was actively anti-correlated with quality and nobody checked for years).
 
-## Watch windows — pre-registration, implemented *(landed 2026-07-31)*
+## Watch windows — pre-registration
 
 The rules above are only worth anything if the comparison is fixed **before**
-the numbers exist; a window chosen after the fact is a story. Migration
-`0012_watch_windows.sql` plus the ingest Worker's `POST /api/watch-windows`
+the numbers exist; a window chosen after the fact is a story. The
+`watch_windows` table plus the ingest Worker's `POST /api/watch-windows`
 route and its 03:30 UTC evaluator are that pre-registration in the store: the
 metric, the pre-change baseline window, the days it will be re-read
 (`[7, 14, 28]`-style offsets), and the ship/kill predicate, all written down at
 registration time. That predicate and those days are the change's kill
-criterion; its ledger entry does not repeat them (D38). Backdated
+criterion; its ledger entry does not repeat them. Backdated
 registration is allowed, so a batch that already shipped can still be
 watched against the baseline that preceded it.
 
@@ -145,8 +142,7 @@ the operator through the existing alert surfaces. What it does **not** yet do is
 book a realized Δ: shrinkage, intervals, and the change-class prior described
 above still have no ledger lane, so a `ship_confirmed` window is evidence for
 the operator, not a value claim. When the lane exists, it books the realized
-value, its interval and its method as an entry superseding the change's
-(D38).
+value, its interval and its method as an entry superseding the change's.
 
 ## What Attribute emits
 

@@ -1,74 +1,25 @@
-// The Postgres DEVELOPMENT PROFILE (beads ro-ujb9.76.3, ro-ujb9.71,
-// ro-ujb9.76.2): the only databases NoticeOS's Postgres tooling will talk to
-// before the separately approved host (ro-ujb9.76.12) and switch-over
-// (ro-ujb9.76.10) exist.
+// The Postgres development profile: the only databases the Postgres tooling
+// talks to. Two ways in: a throwaway cluster in a folder (`openThrowaway`,
+// marked by a file so an existing server's data folder is never touched, on a
+// private unix socket, optionally also on one loopback port for noticeos_app
+// alone) and a local development URL (`openDevelopmentUrl`: this machine
+// only, a `_dev` database, no password, marked `noticeos.profile =
+// 'development'`).
 //
-// Two ways in, and nothing else:
-//
-//   - A THROWAWAY CLUSTER in a folder (`openThrowaway(dir)`): created there
-//     with initdb the first time (the folder gets a marker file, and a
-//     non-empty folder without it is refused, so an existing server's data
-//     folder is never touched), started for the duration of one command on a
-//     unix socket in a private temporary folder — no TCP port, so nothing off
-//     this machine can reach it — and stopped again. Its database is
-//     `noticeos_dev`, marked `noticeos.profile = 'development'`, with query
-//     statistics (`pg_stat_statements`) on where the server build has them.
-//     `withDisposablePostgres(fn)` does the same in a temporary folder it
-//     deletes afterwards; the proofs use it. In LOOPBACK MODE
-//     (`{ loopbackPort }`, below) it also listens on 127.0.0.1 at one port,
-//     for noticeos_app alone and by a password made at the start: the way a
-//     Worker's Hyperdrive binding reaches it (scripts/postgres-test-cluster.mts).
-//   - A LOCAL DEVELOPMENT URL (`openDevelopmentUrl(url)`): refused before any
-//     connection unless its host is this machine (localhost, a loopback
-//     address or a unix-socket folder), its database name ends in `_dev`, it
-//     carries no password and no other connection parameter; then refused
-//     before any write unless the database itself says
-//     `noticeos.profile = 'development'`
-//     (`ALTER DATABASE … SET noticeos.profile = 'development'`, run once by
-//     whoever made it).
-//
-// CREDENTIAL CUSTODY. The profile holds no secret. A throwaway cluster trusts
-// only its owner's private socket; a URL with a password is refused (use a
-// local trust or peer login). Every psql child runs with the PG* environment
+// The profile holds no secret. Every psql child runs with the PG* environment
 // removed, no password file and no service file, so nothing outside the
-// command line decides where it connects or what it presents. Nothing here
-// reads .dev.vars, .dev.secrets.json, DATABASE_URL, Wrangler or the D1 store.
-// (The one exception is not this profile's: `checkedSession` hands the
-// operator-only command, scripts/postgres-apply.mjs, the same transport, and
-// a password that command was given reaches psql as PGPASSWORD.)
+// command line decides where it connects. (`checkedSession` is the exception:
+// the operator-only scripts/postgres-apply.mjs gets the same transport, and a
+// password reaches psql as PGPASSWORD.) Values cross as text and are cast in
+// SQL; a number that is not a safe integer is refused.
 //
-// Every write the profile makes on the application's behalf runs in an
-// explicit transaction that names its workspace and its role
-// (`inWorkspace`); the migration runner is scripts/postgres-migrate.mjs.
-// Values cross as text and are cast in SQL, so nothing passes through a
-// floating-point number: a JavaScript number that is not a safe integer is
-// refused, and decimals travel as strings.
-//
-// It needs the Postgres server binaries (`initdb`, `pg_ctl`, `psql`, 15 or
-// later), found on PATH or through `pg_config --bindir`; without them it
-// throws PostgresUnavailable so a proof can skip with the reason.
-// `checkedSession`, which only connects, needs `psql` alone.
-//
-// SHARED MEMORY (bead ro-ujb9.76.25). Every running server holds one System V
-// shared-memory segment, and a machine has few (macOS: 32 in all). A server
-// removes its segment whenever it exits, even on an immediate shutdown, but
-// not when it is killed outright, and a sandbox that refuses shared memory
-// lets the segment be made and then refuses it to the server, which cannot
-// remove what it never got. So a throwaway cluster, before it starts,
-// refuses to start where this process may not list segments (the sandbox:
-// starting would leave one behind) and removes the segments dead servers
-// left: this user's own, attached by nobody, created by a process that has
-// exited, of exactly the size and mode a server makes. It never touches an
-// attached segment, one whose creator still runs, or anyone else's, and it
-// logs each removal. Every server this process starts is stopped in one
-// place (`stopServer`: a fast shutdown with a bounded wait, then an immediate
-// one), by `close()`, and on exit, SIGINT, SIGTERM or SIGHUP when a test or a
-// command is interrupted before its own `close()`. SIGKILL gives a process no
-// chance to run anything, so a watchdog it starts beside its first server
-// (scripts/postgres-watchdog.mjs, beads ro-ujb9.76.26 and ro-ujb9.76.29),
-// told of each server before pg_ctl starts it, stops its servers with an
-// immediate shutdown when it is gone, however it went — even one still
-// starting.
+// Shared memory: a server removes its System V segment when it exits but not
+// when killed outright, and a sandbox that refuses shared memory lets the
+// segment be made and then refuses it to the server. So before any server
+// starts, the profile refuses where segments cannot be listed and removes the
+// segments dead servers left. Every server is stopped in `stopServer`, on
+// `close()`, on exit or an interrupt, and by a watchdog
+// (scripts/postgres-watchdog.mjs) when this process is killed with SIGKILL.
 
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -144,11 +95,10 @@ function requireClient(tools) {
 
 // ─── The psql transport ─────────────────────────────────────────────────────
 
-/** How long a psql child waits to connect, in seconds (bead ro-4qrz). The
- * operator's own commands (`checkedSession`, a development URL) keep 5: a
- * wrong address or a stopped database is told within seconds. A throwaway
- * cluster's sessions wait 30: a proof on a busy machine must fail on what it
- * proves, never on how long the machine took to accept a connection. */
+/** How long a psql child waits to connect, in seconds. The operator's own
+ * commands keep 5, so a wrong address is told within seconds; a throwaway
+ * cluster's sessions wait 30, so a proof on a busy machine fails on what it
+ * proves and not on connection time. */
 export const OPERATOR_CONNECT_SECONDS = 5;
 export const THROWAWAY_CONNECT_SECONDS = 30;
 
@@ -296,14 +246,9 @@ function session(tools, connection, where, password = null, connectSeconds = OPE
 
 /**
  * A session on a database the caller has checked itself: the one way in for
- * scripts/postgres-apply.mjs, the operator-only command for an installation's
- * own database (bead ro-ujb9.76.34), which refuses every development one.
- * Nothing in this profile calls it. `parts` are libpq keywords and values
- * (host, port, dbname, user, …), quoted here; `password`, where the host
- * needs one, reaches psql only through its environment, never its command
- * line, and the rest of that environment is this profile's clean one. It
- * needs psql alone, not the server binaries (bead ro-ujb9.76.39): the
- * database may run in a container or at a provider.
+ * scripts/postgres-apply.mjs. Nothing in this profile calls it. `parts` are
+ * libpq keywords and values, quoted here; `password` reaches psql only
+ * through its environment. Needs psql alone, not the server binaries.
  *
  * @param {Record<string, string>} parts
  * @param {{ where: string, password?: string | null, tools?: ReturnType<typeof findPsql> }} options
@@ -645,16 +590,12 @@ let watchdog = null;
 
 /**
  * Tell this process's watchdog about a server in `data` listening in
- * `socketDir`, a folder only this start uses — BEFORE pg_ctl starts it, so a
- * command killed while its server is still starting is covered too (bead
- * ro-ujb9.76.29) — and again with `started` once the start has returned, so
- * the watchdog need not wait for it. The first call starts the watchdog:
- * detached, in a session of its own, reading one line per report from a pipe
- * only this process holds. It keeps nothing alive here (both are
- * unreferenced), and when the pipe closes — this process ended, however — it
- * stops each server its folder's postmaster.pid names as listening in the
- * socket folder reported for it. Returns the watchdog's pid, or null where
- * none could start (the next start's sweep is then the only line).
+ * `socketDir` — before pg_ctl starts it, so a command killed while its server
+ * is still starting is covered too — and again with `started` once the start
+ * has returned. The first call starts the watchdog: detached, reading one
+ * line per report from a pipe only this process holds, keeping nothing alive
+ * here. When the pipe closes it stops each server reported to it. Returns
+ * the watchdog's pid, or null where none could start.
  */
 function watchServer(data, socketDir, { started = false } = {}) {
   if (!watchdog || watchdog.exitCode !== null || watchdog.signalCode !== null) {
@@ -695,23 +636,13 @@ function stopOnExit(pgCtl, data, socketDir) {
   }
 }
 
-// ─── The loopback mode: how a Worker reaches a throwaway cluster ────────────
-//
-// A Worker reaches Postgres through a Hyperdrive binding (packages/postgres
-// README, "What a Worker needs"), and locally that binding is a TCP pipe from
-// workerd to the connection string it was given: workerd opens no unix
-// socket, and Miniflare refuses a local connection string without a password.
-// So a throwaway cluster can also listen on ONE loopback address and port,
-// for ONE role (epic ro-ujb9.76):
-//   - the owner still reaches it only on the private socket folder, as in the
-//     socket-only profile;
-//   - over TCP, only noticeos_app, only from 127.0.0.1, only with the password
-//     `applicationLogin()` sets. The password is made in this process, sent to
-//     the server on psql's standard input (never a command line), kept in
-//     memory and never written anywhere, and a new start or a second call
-//     replaces it. No other TCP login matches a line, so Postgres refuses it.
-// Every refusal of the socket-only profile stays: a URL this profile is given
-// may still carry no password; the loopback URL is one it hands out.
+// The loopback mode: how a Worker reaches a throwaway cluster. A Hyperdrive
+// binding is locally a TCP pipe from workerd, which opens no unix socket, and
+// Miniflare refuses a local connection string without a password. So a
+// throwaway cluster can also listen on one loopback address and port, for
+// noticeos_app alone, with the password `applicationLogin()` sets: made in
+// this process, sent on psql's standard input, kept in memory only. The owner
+// still reaches it only on the private socket.
 
 /** The one address the loopback mode listens on. */
 export const LOOPBACK_ADDRESS = '127.0.0.1';
@@ -761,23 +692,14 @@ function checkLoopbackPort(port) {
 }
 
 /**
- * Start the throwaway cluster kept in `dir` (creating it there when the
- * folder is missing or empty) and return a session on its development
- * database. `close()` stops the server; the folder stays for the next
- * command. A folder holding anything but a cluster this profile made is
- * refused untouched. Before any server runs (initdb runs one too), it
- * refuses where shared memory cannot be listed and removes the segments dead
- * servers left (`sweepOrphanedSegments`; the session's `removedSegments` are
- * the ones this start removed, since another start on the machine may reach
- * a segment first — bead ro-ujb9.76.28); the server it starts is stopped
- * when this process exits or is interrupted, if `close()` has not run, and by
- * the watchdog (`watchdogPid`) if this process is killed outright, even
- * before the start has returned.
- *
- * `loopbackPort` starts it in loopback mode (above): it also listens on
- * 127.0.0.1 at that port, for noticeos_app alone, once `applicationLogin()`
- * has given that role a password. Without it, as before, it listens on no
- * TCP port at all.
+ * Start the throwaway cluster kept in `dir` (creating it when the folder is
+ * missing or empty) and return a session on its development database.
+ * `close()` stops the server; the folder stays for the next command. A
+ * folder holding anything but a cluster this profile made is refused
+ * untouched. Before any server runs (initdb runs one too), it refuses where
+ * shared memory cannot be listed and removes the segments dead servers left
+ * (`removedSegments` are the ones this start removed). `loopbackPort` starts
+ * it in loopback mode; without it, it listens on no TCP port at all.
  *
  * @param {string} dir
  * @param {ReturnType<typeof findPostgres>} [tools]
@@ -839,11 +761,9 @@ export function openThrowaway(dir, tools = findPostgres(), { loopbackPort = null
       '-o', `${listen} -k ${socketDir} -c fsync=off -c shared_buffers=16MB -c TimeZone=UTC${extra}`,
       'start',
     ]);
-  // Query statistics from the first command (REVIEW.md "Observability"):
-  // pg_stat_statements is loaded at start. A server build without it (its
-  // contrib modules not installed) starts without, and the session's
-  // `queryStatistics` is false. A start pg_ctl gave up waiting for may
-  // still be running, so each failed start is stopped before anything else.
+  // pg_stat_statements is loaded at start; a server build without it starts
+  // without, and `queryStatistics` is false. A start pg_ctl gave up waiting
+  // for may still be running, so each failed start is stopped first.
   let queryStatistics = true;
   try {
     try {

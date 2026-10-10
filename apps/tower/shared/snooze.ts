@@ -1,21 +1,8 @@
-// The snooze vocabulary — the ONE definition of how long an alert may be
-// quiet, shared by the browser that offers the choice and the Worker that
-// validates it (docs/15 flow E, "snooze til date").
-//
-// It lives in `shared/` rather than in either side because a horizon the
-// browser enforces and the Worker does not is not a rule, it is a suggestion;
-// and two copies of "90 days" drift the first time one of them is edited.
+// The snooze vocabulary: how long an alert may be quiet, shared by the browser
+// that offers the choice and the Worker that enforces it.
 
-/**
- * The furthest an alert may be pushed out, in days.
- *
- * A snooze is a promise to look at something later, so it has to be short
- * enough that "later" arrives while the condition still matters. Ninety days is
- * a quarter — past that the honest action is Resolve (the issue is gone) or
- * Mark read (the rule is noise and should be tuned), not silence with no end in
- * sight. The cap is what keeps "muting without a reason doesn't exist"
- * (docs/14-design.md § Operator flows) true in practice rather than only in the note field.
- */
+/** The furthest an alert may be pushed out, in days. Past a quarter the honest
+ * action is Resolve or Mark read, not silence with no end in sight. */
 export const SNOOZE_MAX_DAYS = 90;
 
 /** One entry on the snooze menu. */
@@ -50,14 +37,9 @@ export function snoozeUntilFromDays(fromIso: string, days: number): string {
   return new Date(new Date(fromIso).getTime() + days * DAY_MS).toISOString();
 }
 
-/**
- * A calendar date from `<input type="date">` as the instant the alert returns.
- *
- * "Until the 10th" means the operator expects to see it again ON the 10th, so
- * the snooze ends at the start of that day rather than its end. Returns null
- * for anything that is not a `YYYY-MM-DD` date, which is the browser handing
- * the Worker something it will refuse anyway.
- */
+/** A calendar date from `<input type="date">` as the instant the alert
+ * returns: the start of that day, so "until the 10th" shows it on the 10th.
+ * Null for anything that is not a `YYYY-MM-DD` date. */
 export function snoozeUntilFromDate(date: string): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
   const parsed = new Date(`${date}T00:00:00.000Z`);
@@ -75,13 +57,9 @@ export function latestSnoozeDate(nowIso: string): string {
   return snoozeUntilFromDays(nowIso, SNOOZE_MAX_DAYS).slice(0, 10);
 }
 
-/**
- * Is this a date the store may hold as `flags.snooze_until`?
- *
- * Normalizes as it validates: the caller stores `check.until`, never the raw
- * request field, so every stored horizon is a full ISO instant regardless of
- * which affordance produced it.
- */
+/** Is this a date the store may hold as `flags.snooze_until`? The caller stores
+ * `check.until`, never the raw field, so every stored horizon is a full ISO
+ * instant. */
 export function checkSnoozeUntil(until: unknown, nowIso: string): SnoozeCheck {
   if (typeof until !== "string" || until.length === 0) {
     return { ok: false, reason: "snooze_until_invalid" };
@@ -97,15 +75,10 @@ export function checkSnoozeUntil(until: unknown, nowIso: string): SnoozeCheck {
   return { ok: true, until: at.toISOString() };
 }
 
-/**
- * Has a recorded snooze run out?
- *
- * The read side's half of the rule the SQL in `worker/flag-scope.ts` states:
- * an expired snooze is an OPEN alert whose row still carries the disposition
- * that quieted it, so a surface rendering that row has to say "came back" and
- * not "snoozed". Unsnooze uses the same mechanism — it ends the snooze now
- * rather than erasing it — which is why one predicate covers both.
- */
+/** Has a recorded snooze run out? The read side of `worker/flag-scope.ts`: an
+ * expired snooze is an open alert still carrying the disposition, so it reads
+ * "came back", not "snoozed". Unsnooze ends the snooze now rather than erasing
+ * it, so one predicate covers both. */
 export function snoozeEnded(
   snoozeUntil: string | null | undefined,
   nowMs: number,

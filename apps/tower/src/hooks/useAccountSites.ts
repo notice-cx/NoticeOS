@@ -3,8 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 
 /**
- * WHAT A CONNECTED ACCOUNT HOLDS, FOR A SITE'S OWN DATA SOURCES ROW (bead
- * `ro-ujb9.96.7.24`).
+ * What a connected account holds, for a site's own Data sources row.
  *
  * The same read the connect panel's site list makes
  * (`GET /api/integrations/:provider/sites`, one free provider call inside the

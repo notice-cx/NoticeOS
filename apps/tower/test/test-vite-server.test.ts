@@ -1,11 +1,10 @@
 // @vitest-environment node
 //
-// The shared test-server helper against real Vite (bead ro-ujb9.192). Closing a
-// dev server while its dependency optimizer is still bundling crashes the
-// process in rolldown, or leaves the close waiting forever, so the helper's
-// close waits for the optimizer first. It reads Vite's optimizer from outside,
-// through fields Vite does not document, and this is the test that notices when
-// a Vite upgrade moves them. scripts/test-vite-server.test.mjs covers the rest.
+// The shared test-server helper against real Vite. Closing a dev server while
+// its optimizer is bundling crashes rolldown or hangs the close, so the helper
+// waits for the optimizer first, through fields Vite does not document: this
+// test notices when an upgrade moves them. scripts/test-vite-server.test.mjs
+// covers the rest.
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";

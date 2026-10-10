@@ -27,8 +27,8 @@ export function beginShutdown() {
 export const MANAGED_ORPHAN_MAX_AGE_MS = 120_000;
 
 /**
- * What a runner whose code is NOT the home checkout must prove before it starts
- * anything (bead ro-ujb9.113): every shared path in its copy links to home.
+ * What a runner whose code is not the home checkout must prove before it
+ * starts anything: every shared path in its copy links to home.
  * The subsequent runnerDatabase check validates the application's Postgres
  * login, workspace and schema before any heartbeat, child or schedule starts.
  */
@@ -69,38 +69,28 @@ export async function runtimeCopyRefusal({ codeRoot, homeRoot, liveSourceRoot = 
 export const EXIT_ALREADY_RUNNING = 3;
 
 /** A runner in a runtime copy that is not linked to home's state — it started
- * nothing (bead ro-ujb9.113). */
+ * nothing. */
 export const EXIT_RUNTIME_COPY = 4;
 
 /** A runner whose database address is missing, unusable, or names a database
- * this code cannot start on — it started nothing (bead ro-ujb9.76.7.2). */
+ * this code cannot start on — it started nothing. */
 export const EXIT_NO_DATABASE = 5;
 
 /**
  * Whether this process may arm anything at all, given whether the pinned ingest
  * door already answers.
  *
- * Two runners is not a degraded mode, it is a billing event. Each one reads the
- * same workers/ingest/wrangler.jsonc, arms its own copy of every cron, and fires
- * it at CONFIG.ingestPort — a port the scheduler targets as a CONSTANT, never
- * asking whether its own child is the one bound there. So whichever ingest holds
- * it receives BOTH sets of ticks and every schedule runs twice: a runner
- * forgotten on a Thursday kept doing that for two days, and the unexplained
- * duplicate DataForSEO run of 2026-07-31 is what it cost on a metered lane.
+ * Two runners is not a degraded mode, it is a billing event: each arms its own
+ * copy of every cron and fires it at CONFIG.ingestPort, so whichever ingest
+ * holds the port receives both sets of ticks and every metered schedule runs
+ * twice. The Tower's supervised runtime owns the ingest door and refuses to
+ * start when it cannot bind it.
  *
- * The Tower's supervised runtime owns the ingest door. It refuses to start
- * when it cannot bind that door, so a bind race cannot quietly direct this
- * runner's schedules at somebody else's runtime.
- *
- * The bound port is the guard rather than a pidfile because it CANNOT GO STALE.
- * A pidfile outlives whatever wrote it: after a SIGKILL or a panic it still sits
- * on disk claiming a pid that is now free — or worse, reused — so the next
- * honest runner is refused by a ghost, and the fix is a file the operator has to
- * know to delete. A listening socket is held by a live process or by nobody.
- * And when a crashed runner's vite outlives it and keeps the port, refusing is
- * not a false positive at all: that orphan IS the runtime our crons would have
- * fired at and the one accepting application writes, so it is exactly the thing worth
- * stopping first.
+ * The bound port is the guard rather than a pidfile because it cannot go
+ * stale: a pidfile outlives whatever wrote it, while a listening socket is
+ * held by a live process or by nobody. When a crashed runner's vite outlives
+ * it and keeps the port, refusing is right: that orphan is the runtime our
+ * crons would have fired at, and the thing worth stopping first.
  */
 export function runnerArmDecision({ ingestPortAnswers }, config) {
   const where = `${config.ingestHost}:${config.ingestPort}`;
@@ -117,9 +107,9 @@ export function runnerArmDecision({ ingestPortAnswers }, config) {
     text:
       `REFUSING to start: something already answers on ${where}, which is this repo's ingest door — ` +
       `another os:up, or a vite/workerd orphaned by one that crashed. Starting anyway would point TWO ` +
-      `schedulers at that one ingest and fire every cron TWICE (that is the duplicate DataForSEO run ` +
-      `of 2026-07-31 — a metered lane, real money). Nothing was started here: no children, no crons, ` +
-      `no migrations. Run pnpm os:status, then pnpm os:doctor. If it is the managed service, keep ` +
+      `schedulers at that one ingest and fire every cron TWICE, which bills a metered lane twice. ` +
+      `Nothing was started here: no children, no crons, no migrations. Run pnpm os:status, ` +
+      `then pnpm os:doctor. If it is the managed service, keep ` +
       `this copy stopped and use pnpm os:restart. If status says unmanaged, stop that foreground ` +
       `pnpm os:up terminal; no command here will guess which unknown process tree is safe to kill.`,
   };

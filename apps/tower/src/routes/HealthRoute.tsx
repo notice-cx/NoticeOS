@@ -61,7 +61,7 @@ function FreshnessChart({
     .map(([t, v]) => ({ t, v }));
   // No history, or not enough of it for a line: the section says which, in
   // a state and a count, and draws nothing it cannot draw honestly.
-  // A chart with too few days to be a line is not a card of its own (D45): it
+  // A chart with too few days to be a line is not a card of its own: it
   // arrives when it has three days, and says nothing until then.
   if (points.length < MIN_HISTORY_POINTS) return null;
   const range = Math.min(28, Math.max(1, Math.round((Date.parse(points.at(-1)!.t) - Date.parse(points[0]!.t)) / 86_400_000) + 1));
@@ -94,14 +94,10 @@ function todayOf(nowMs: number): string {
 }
 
 /**
- * SYSTEM HEALTH, ONE STATUS PER CONNECTION (bead `ro-ujb9.96.7.3`). The page
- * used to answer "is it working" three times in three vocabularies — the
- * operations list ("Failing"), a register strip ("Degraded", "Not verified")
- * and an unblock list ("Review … degradation") — about the same site. Now the
- * Connections panel is where a provider connection and its sites are read, in
- * the connection model's words; the rest of the page holds only what no
- * provider collects (the asset's own wiring, uptime, revenue) and the audit
- * grid, in the same words.
+ * System health, one status per connection: the Connections panel is where a
+ * provider connection and its sites are read, in the connection model's
+ * words; the rest of the page holds only what no provider collects (the
+ * asset's own wiring, uptime, revenue) and the audit grid, in the same words.
  */
 export function HealthRoute() {
   const { data, isPending, isError, refetch } = useIntegrations();
@@ -184,8 +180,8 @@ function expiringCount(
 }
 
 /** Every cell the page counts. A source nothing on Integrations connects is
- * not counted as "not set up" while that is all it is (`unusedWithoutConnectPath`,
- * bead `ro-ujb9.133`) — the grid draws no row for it either. */
+ * not counted as "not set up" while that is all it is
+ * (`unusedWithoutConnectPath`); the grid draws no row for it either. */
 function allCells(matrix: IntegrationsMatrix): IntegrationCellBase[] {
   return [
     ...Object.values(matrix.cells).flat(),
@@ -272,11 +268,9 @@ const UNBLOCKER_MARK: Record<UnblockerKind, { tone: ListRowTone; glyph: string }
 /**
  * What to do about the sources no provider credential collects: the asset's
  * own wiring, uptime, affiliate revenue, deploy history. A provider's sources
- * are the Connections panel's; listing them here too would be the same site
- * in a second vocabulary on one screen. A site with no status for a data
- * source — any source, a provider's included — is named here too: the
- * Connections panel cannot show a source the register hides (bead
- * `ro-ujb9.96.15`).
+ * are the Connections panel's. A site with no status for a data source, a
+ * provider's included, is named here too: the Connections panel cannot show
+ * a source the register hides.
  */
 function otherSources(matrix: IntegrationsMatrix) {
   const lanes = [...matrix.catalog, ...matrix.derivedLanes.map((lane) => lane.catalog)].filter((lane) => laneProvider(lane.id) === null);

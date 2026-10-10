@@ -108,12 +108,9 @@ function Site({ site, provider, nowMs }: { site: SiteStatus; provider: string; n
 const needsYou = (status: ConnectionStatus) => needsOperator(status) > 0 || status.kind === 'unknown';
 
 /**
- * CONNECTIONS, GROUPED BY PROVIDER, THEN SITE (bead `ro-ujb9.96.7.3`). Every
- * operation used to be its own row wearing its provider's name and its worst
- * result, so one outage painted five providers red and Google appeared eight
- * times. Now a provider is one row with its one status and its facts, and the
- * sites that need the operator sit under it with their own status. Scoped to
- * one provider (its own page), it is that provider's sites.
+ * Connections grouped by provider, then site: a provider is one row with its
+ * one status and facts, and the sites that need the operator sit under it.
+ * Scoped to one provider, it is that provider's sites.
  */
 export function IntegrationHealthPanel({ data, isError = false, nowMs, provider, providers }: {
   data?: IntegrationHealthResponse;
@@ -148,14 +145,11 @@ export function IntegrationHealthPanel({ data, isError = false, nowMs, provider,
 
   const statuses = providerStatuses(providers ?? [], health.items);
   const pressing = statuses.filter(({ status }) => needsYou(status));
-  // Needs you first, always (D45): with nothing pressing it says "Nothing
-  // needs you" rather than opening on every provider again — the whole list
-  // is Integrations', one press away under All.
+  // Needs you first: with nothing pressing it says "Nothing needs you"; the
+  // whole list is one press away under All.
   const filter = chosen ?? 'needs';
   const shown = filter === 'needs' ? pressing : statuses;
-  // The connection model's four counts, from its one derivation (bead
-  // ro-ujb9.96.7.15) — the same one the daily record of them uses
-  // (worker/connection-status-daily.ts, bead ro-ujb9.96.7.26).
+  // The same derivation the daily record of these counts uses.
   const counts = connectionCounts(statuses.map(({ status }) => status));
   // Both reads, current, or nothing here may read as fine.
   const known = hasData && health.current && providers !== undefined;

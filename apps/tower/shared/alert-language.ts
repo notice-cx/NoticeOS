@@ -1,52 +1,26 @@
 // Alert language — the one place a stored alert becomes a sentence an operator
-// can act on.
-//
-// The STORE stays factual. workers/ingest writes each flag with the rule's own
-// evidence: `message` is "22 in last24h (avg7d 39.3, P(<=22)~=0.0020)" and
-// `rule_inputs` is the exact numbers the rule saw. That pair is the audit trail
-// — it is never rewritten, and this module never asks it to be. Translation is a
-// READ-side concern, so it happens here, over facts the flag row already carries.
-//
-// The anatomy of an operator-facing alert (doc 14 principle 9):
-//
-//   1. WHAT HAPPENED — `headline`. Plain language, magnitude included:
-//      "Signups well below normal — 22 vs ~39/day". Never the raw statistics.
-//      And never a DIRECTION the reader has to decode: on a series where up is
-//      bad the headline says improved/worsened, not up/down (`movementPhrase`).
-//   2. HOW SURE — deliberately absent from the prose. The severity dot beside
-//      the line already carries that, and doc 14's one-representation rule says
-//      one fact gets one rendering. A line that also said "warning" would be
-//      saying it twice.
-//   3. WHAT NOW — `hint`, a rule-specific next step, plus (rendered separately)
-//      any recent change that correlates with the alert. A metric drop sitting
-//      next to "deploy a1b2c3d, 14h before" is the actual insight.
-//
-// The statistics do not disappear — they become `evidence`, which the surfaces
-// hang behind the existing EvidencePopover glyph. That is what the skeptical
-// operator opens, not what everyone else has to read first.
-//
-// Pure and dependency-light on purpose: the payloads stay data, the components
-// stay dumb, and every phrase below is unit-tested directly.
+// can act on. The store stays factual (`message` and `rule_inputs` are the
+// rule's own evidence, never rewritten); translation happens here, at read
+// time. An alert is `headline` (what happened, with magnitude, and on a series
+// where up is bad it says improved/worsened), `hint` (what now) and `evidence`
+// (the statistics, behind the popover glyph). Severity is never in the prose;
+// the dot beside the line carries it.
 
 import { WATCH_SERIES } from "@noticeos/contract/create-watch-window";
 import { ageMs, formatAge } from "./freshness";
 import type { AnnotationItem, AnnotationKind } from "./annotations";
 import { siteNoun } from "./site-noun";
 
-/** How far BEFORE an alert fired a change still counts as correlated. Two nights
- * — wide enough to catch the deploy that shipped the evening before the report
- * that tripped the rule, narrow enough that it stays a coincidence worth naming
- * rather than a list of everything that ever happened. */
+/** How far before an alert fired a change still counts as correlated: two
+ * nights, wide enough to catch the deploy that shipped the evening before the
+ * report that tripped the rule. */
 export const CORRELATION_WINDOW_HOURS = 48;
 
 /**
- * One line of "why this fired", shaped exactly like the integrations register's
- * evidence so the ONE EvidencePopover renders both (doc 14: no rival component).
- *
- * Alert evidence is always `supporting`: it is the arithmetic behind a flag that
- * already fired, not a reading that argues with a declared state. That keeps the
- * glyph the popover's neutral info mark — an amber warning glyph next to the
- * severity dot would be severity rendered twice.
+ * One line of "why this fired", shaped like the integrations register's
+ * evidence so one EvidencePopover renders both. Alert evidence is always
+ * `supporting`: it is the arithmetic behind a flag that already fired, so the
+ * glyph stays the popover's neutral info mark.
  */
 export interface AlertEvidence {
   polarity: "against" | "supporting";
@@ -57,21 +31,17 @@ export interface AlertEvidence {
 
 /** The rendered alert: a sentence, an optional next step, and the numbers. */
 export interface AlertLanguage {
-  /** WHAT HAPPENED, with magnitude. Never blank — falls back to the raw message. */
+  /** What happened, with magnitude. Never blank — falls back to the raw message. */
   headline: string;
-  /** WHAT NOW, when the rule has something specific to say. Absent is normal:
-   * inventing "check your funnel" for every drop is noise, not an insight. */
+  /** What now, when the rule has something specific to say. Absent is normal. */
   hint?: string;
   /** The statistics, for the popover. Empty when the rule keeps none. */
   evidence: AlertEvidence[];
 }
 
-/**
- * One stored reading of an open condition: what the rule said at one run,
- * before a later run refreshed the flag (`flag_evidence`, db/0040, bead
- * `ro-ujb9.220`). The flag row is the condition's current summary; these are
- * the nights behind it.
- */
+/** One stored reading of an open condition: what the rule said at one run,
+ * before a later run refreshed the flag (`flag_evidence`). The flag row is the
+ * condition's current summary; these are the nights behind it. */
 export interface FlagReading {
   /** When the reading was taken, ISO UTC. */
   at: string;
@@ -94,13 +64,12 @@ export interface AlertFacts {
   metric: string | null;
   /** The rule's own stored words — the fallback for any rule not known here. */
   message: string | null;
-  /** The other assets a CROSS-ASSET row stands for (`ro-kukv.6`). Absent on an
-   * ordinary alert and on a group of one, which is what keeps the single-asset
-   * sentence exactly what it was. When present the headline states the fact
-   * once, in the plural, rather than once per asset. */
+  /** The other assets a cross-asset row stands for. Absent on an ordinary
+   * alert and on a group of one. When present the headline states the fact
+   * once, in the plural. */
   members?: readonly { assetDisplayName: string }[];
   /** The condition's stored readings, newest first — absent where the surface
-   * did not read them, and empty on a store without db/0040. */
+   * did not read them, and empty on a store without the table. */
   readings?: readonly FlagReading[];
 }
 
@@ -161,17 +130,9 @@ const SMALL_NUMBERS = [
   "Nine",
 ] as const;
 
-/**
- * A count at the START of a sentence: "Four assets have never reported".
- *
- * Spelled to nine and digits after, which is the ordinary editorial rule and
- * the one that matters here: a headline is prose, and "4 assets have never
- * reported" reads like a metric that belongs in a tile. Past nine the word gets
- * longer than the number and the digit wins.
- *
- * NOT a general number formatter — `count()` stays the one for magnitudes
- * inside a sentence, where a spelled-out figure would be the wrong register.
- */
+/** A count at the start of a sentence: "Four assets have never reported".
+ * Spelled to nine and digits after. Not a general number formatter; `count()`
+ * is the one for magnitudes inside a sentence. */
 export function spellCount(n: number): string {
   const rounded = Math.round(n);
   return rounded >= 0 && rounded < SMALL_NUMBERS.length
@@ -210,10 +171,8 @@ function windowAdjective(hours: number): string {
   return hours % 24 === 0 ? `${hours / 24}-day` : `${hours}h`;
 }
 
-/** What a zero on this metric most likely means. A zero is not just a big drop —
- * it usually means something stopped, so the hint names the thing to go look at.
- * Keyed by metric because the OS's own bookkeeping metric fails differently from
- * an asset's user-facing flow: no ledger rows is a stalled lane, not lost users. */
+/** What a zero on this metric most likely means: a zero usually means
+ * something stopped, so the hint names the thing to go look at. */
 const ZERO_HINT_BY_METRIC: Record<string, string> = {
   ledgerRows: "the bookkeeping import looks stalled",
 };
@@ -231,16 +190,8 @@ function rawFallback(facts: AlertFacts): string {
 
 // --- the rules --------------------------------------------------------------
 
-/**
- * EVIDENCE IS LABEL AND VALUE, NEVER A SENTENCE (bead `ro-ujb9.96.6.7`).
- *
- * Every row below is a short name for the figure and the figure itself —
- * "Arrived · 22 in 24h", "Chance if nothing changed · 0.2%" — the shape
- * Datadog's evaluation graph and Sentry's issue header use for the numbers
- * behind an alert. The prose each row used to carry ("About a 0.2% chance of
- * coming in this low if nothing had changed (Poisson lower tail)") restated its
- * own label; the method names are the rule's, and the rule id heads the panel.
- */
+/** Evidence is label and value, never a sentence: "Arrived · 22 in 24h",
+ * "Chance if nothing changed · 0.2%". */
 function flowEvidence(
   observedLabel: string,
   observed: number | null,
@@ -353,9 +304,7 @@ function lowVolumeWindow(facts: AlertFacts): AlertLanguage {
     num(i.alpha),
     seasonal,
   );
-  // Low volume is why the rule reads a whole window rather than one day, and
-  // the expected count across that window is the figure the chance is taken
-  // against — so it is its own row, stated as the number it is.
+  // The expected count across the window is the figure the chance is taken against.
   if (baseline !== null && lambda !== null) {
     evidence.push({
       polarity: "supporting",
@@ -416,12 +365,10 @@ function percentDrop(facts: AlertFacts): AlertLanguage {
   };
 }
 
-/** `ingest-freshness` — the nightly report never arrived (docs/17: pulse → "nightly report").
- *
- * Two failures share this rule and must not share a sentence (docs/19 finding
- * 5): an asset that reported and went quiet has a lane that BROKE, while one
- * that has never reported has a lane that was never WIRED. Same severity, two
- * different next actions, so the headline states which. */
+/** `ingest-freshness` — the nightly report never arrived. Two failures share
+ * this rule and must not share a sentence: an asset that reported and went
+ * quiet has a lane that broke, while one that has never reported has a lane
+ * that was never wired. */
 function ingestFreshness(facts: AlertFacts): AlertLanguage {
   const i = facts.ruleInputs ?? {};
   const ageHours = num(i.ageHours);
@@ -429,20 +376,17 @@ function ingestFreshness(facts: AlertFacts): AlertLanguage {
   const lastReceivedAt = str(i.lastReceivedAt);
   const registeredAt = str(i.registeredAt);
   const neverReported = str(i.state) === "never-reported";
-  /** More than one asset behind this row (`ro-kukv.6`). The sentence then has a
-   * PLURAL subject and the per-asset evidence below has to stand down: a
-   * registration date belongs to one asset, and printing the representative's
-   * would quietly attribute it to four. */
+  /** More than one asset behind this row: the sentence then has a plural
+   * subject and the per-asset evidence stands down, because a registration
+   * date belongs to one asset. */
   const group = facts.members && facts.members.length > 1 ? facts.members : null;
-  /** Hours of this silence the OS's own connection was provably down (ro-6le).
-   * The write side already subtracted them before deciding to fire, so a flag
-   * carrying this survived the discount — the field exists so the operator
-   * reads the exculpation, not so the surface re-litigates the decision. */
+  /** Hours of this silence the OS's own connection was provably down. The
+   * write side already subtracted them before deciding to fire; the field is
+   * for the operator to read, not for the surface to re-litigate. */
   const osDarkHours = num(i.osDarkHours);
 
   const evidence: AlertEvidence[] = [];
   if (lastReceivedAt) {
-    // The row's own age says when; there is nothing to add in words.
     evidence.push({
       polarity: "supporting",
       source: "Last report accepted",
@@ -451,11 +395,8 @@ function ingestFreshness(facts: AlertFacts): AlertLanguage {
     });
   }
   if (osDarkHours !== null && osDarkHours > 0 && ageHours !== null) {
-    // The first genuinely exculpatory input this rule has carried, so it is the
-    // one "against" row in the family: evidence that argues with the flag it
-    // hangs on, placed right after the last-accepted fact so the operator reads
-    // the mitigation before the threshold arithmetic. The amber glyph it gives
-    // the whole panel is what says "partly not the asset's fault" at a glance.
+    // The one "against" row in the family: evidence that argues with the flag
+    // it hangs on, placed before the threshold arithmetic.
     evidence.push({
       polarity: "against",
       source: "OS offline, not counted",
@@ -488,11 +429,8 @@ function ingestFreshness(facts: AlertFacts): AlertLanguage {
   }
 
   if (neverReported) {
-    // ONE SENTENCE FOR ONE FACT (D15). Four assets that have never reported are
-    // not four things to read; they are one thing about four assets, and the
-    // count belongs in the sentence rather than in a recurrence chip beside it
-    // — a chip there would be counting assets in the shape the band uses to
-    // count re-firings.
+    // One sentence for one fact: the count belongs in the sentence, not in a
+    // recurrence chip beside it.
     if (group) {
       return {
         headline: `${spellCount(group.length)} sites have no nightly reports`,
@@ -507,10 +445,8 @@ function ingestFreshness(facts: AlertFacts): AlertLanguage {
     };
   }
   if (ageHours === null) return { headline: rawFallback(facts), evidence };
-  // The headline's age stays the raw age even when dark hours are credited: the
-  // age is the age, and a number that disagreed with the store would cost more
-  // than the mitigation buys. The evidence carries the discount, as its one
-  // "against" row — the hint stays the next step, not the arithmetic.
+  // The headline's age stays the raw age even when dark hours are credited;
+  // the evidence carries the discount.
   return {
     headline: `No nightly report in ${Math.round(ageHours)}h`,
     hint: "reporting may have stopped",
@@ -518,9 +454,8 @@ function ingestFreshness(facts: AlertFacts): AlertLanguage {
   };
 }
 
-/** What a failing pull most likely needs from the operator, read off the status
- * the provider actually returned — the difference between a dead token and a
- * moved URL is the whole of "what now". */
+/** What a failing pull most likely needs from the operator, read off the
+ * status the provider returned. */
 function pullFailureHint(status: number | null): string | undefined {
   if (status === null) return "the endpoint may be unreachable";
   if (status === 401 || status === 403) return "the fetch credentials may have expired";
@@ -530,12 +465,10 @@ function pullFailureHint(status: number | null): string | undefined {
   return undefined;
 }
 
-/**
- * A failed fetch's cause in a few words: the provider's own error name beats
+/** A failed fetch's cause in a few words: the provider's own error name beats
  * our rendered string ("401 unauthorized"), else that string, else the status.
  * The one derivation for the alert's headline and a site's list of failed
- * fetches, so the two cannot name one night two ways.
- */
+ * fetches. */
 export function pullFailureCause(inputs: Record<string, unknown> | null): string | null {
   const i = inputs ?? {};
   const status = num(i.status);
@@ -547,10 +480,9 @@ export function pullFailureCause(inputs: Record<string, unknown> | null): string
 }
 
 /** `asset-pull-failed` — the OS could not fetch the asset's report. The
- * inputs are rewritten on every failed night, so they carry how long it has been
- * going and what the latest cause was (the row's fired_at still dates the first).
- * Each night's own response is a stored reading (bead `ro-ujb9.220`): when the
- * surface read them, the evidence lists them, newest first. */
+ * inputs are rewritten on every failed night, so they carry how long it has
+ * been going and what the latest cause was (the row's fired_at still dates the
+ * first). Each night's own response is a stored reading, listed newest first. */
 function pullFailed(facts: AlertFacts): AlertLanguage {
   const i = facts.ruleInputs ?? {};
   const status = num(i.status);
@@ -609,10 +541,9 @@ function pullFailed(facts: AlertFacts): AlertLanguage {
   return { headline, hint: pullFailureHint(status), evidence };
 }
 
-/** A legacy spoke-level detector signature one site still emits. It reaches the
- * central store as an asset-declared message rather than the structured OS flow
- * rule, so the read side recognizes exactly this bounded grammar and moves its
- * arithmetic into evidence. Anything else remains the asset's own words. */
+/** A site-side detector signature some sites emit as an asset-declared
+ * message. The read side recognizes exactly this bounded grammar and moves its
+ * arithmetic into evidence; anything else remains the asset's own words. */
 const DECLARED_POISSON_24H =
   /^last24h\s+([0-9]+(?:\.[0-9]+)?)\s+vs\s+avg7d\s+([0-9]+(?:\.[0-9]+)?)\s+\(rule\s+poisson-24h,\s*P<=([0-9.eE+-]+)\)$/i;
 
@@ -621,10 +552,8 @@ function declaredProbability(p: number): string {
   return pct > 0 && pct < 0.01 ? "less than 0.01%" : percent(p);
 }
 
-/** `asset-declared` — usually the asset's own human sentence. The one known
- * exception is the legacy poisson signature above: making every operator read
- * storage vocabulary because one spoke has not migrated would put the archive
- * contract ahead of the decision surface. */
+/** `asset-declared` — usually the asset's own human sentence; the one
+ * exception is the Poisson signature above. */
 function assetDeclared(facts: AlertFacts): AlertLanguage {
   const inputs = facts.ruleInputs ?? {};
   const msg = str(inputs.msg)?.trim() ?? facts.message?.trim();
@@ -668,7 +597,7 @@ function assetDeclared(facts: AlertFacts): AlertLanguage {
     }
   }
   // Nothing to show but provenance: the asset raised this itself and attached
-  // no statistics the OS recognises. Said as a label and a value, like the rest.
+  // no statistics the OS recognises.
   return {
     headline: msg || rawFallback(facts),
     evidence: [
@@ -682,18 +611,11 @@ function assetDeclared(facts: AlertFacts): AlertLanguage {
   };
 }
 
-/** The hygiene lane stores the URL and response separately, so a first-screen
- * headline does not need to repeat a full URL or the collector's check key.
- *
- * WHAT WENT WRONG, NOT WHICH STATUS CAME BACK (`ro-kukv.6`). This used to end
- * every headline with the HTTP status, which produced "Sitemap check failed —
- * HTTP 200" on one asset: a success status quoted beside the word failed, which
- * reads as a contradiction and tells the operator nothing about what to do. A
- * sitemap can fail at 200 in three different ways — the document is not XML,
- * its child sitemaps could not be read, or its URL count collapsed — and the
- * check records which in `rule_inputs.reason` (workers/ingest/src/hygiene.ts).
- * So the reason picks the sentence, and the status is quoted ONLY where it is
- * itself the failure. */
+/** What went wrong, not which status came back: a sitemap can fail at 200 in
+ * three ways (not XML, unreadable child sitemaps, a collapsed URL count), and
+ * the check records which in `rule_inputs.reason`
+ * (workers/ingest/src/hygiene.ts). The reason picks the sentence, and the
+ * status is quoted only where it is itself the failure. */
 function hygieneFailure(
   facts: AlertFacts,
   subject: "Home page" | "Sitemap",
@@ -706,8 +628,7 @@ function hygieneFailure(
   const observedAt = str(inputs.lastObservedAt) ?? str(inputs.evaluatedAt);
   const reason = str(inputs.reason);
   const served = status !== null && status >= 200 && status < 300;
-  // A served status is never a cause: the request succeeded, and whatever else
-  // is wrong, "HTTP 200" is not the news.
+  // A served status is never a cause.
   const cause = status !== null && !served ? `HTTP ${Math.round(status)}` : error;
 
   const evidence: AlertEvidence[] = [];
@@ -727,8 +648,7 @@ function hygieneFailure(
       at: observedAt,
     });
   }
-  // The unreadable child sitemaps, as a value rather than the sentence the
-  // store used to carry (bead `ro-ujb9.96.6.26`).
+  // The unreadable child sitemaps, as a value.
   const childrenFailed = reason === "child-unreachable" ? strings(inputs.children_failed) : [];
   if (childrenFailed.length > 0) {
     evidence.push({
@@ -804,13 +724,10 @@ function hygieneFailure(
 }
 
 /**
- * `os-egress-down` — the one alert in this vocabulary whose subject is the OS
- * itself. It fires on asset #0's row when the nightly lanes could not reach the
- * network at all, and it exists because of what happened without it: on
- * 2026-08-08 a dead house uplink produced ~15 flags accusing six assets of
- * being dark. So this line has one job beyond naming the outage — it has to say,
- * before the operator opens anything else, that tonight's quiet is the OS's and
- * not the portfolio's.
+ * `os-egress-down` — the one alert whose subject is the OS itself. It fires on
+ * asset #0's row when the nightly lanes could not reach the network at all,
+ * and its job is to say that tonight's quiet is the OS's and not the
+ * portfolio's.
  */
 function egressDown(facts: AlertFacts): AlertLanguage {
   const i = facts.ruleInputs ?? {};
@@ -822,10 +739,9 @@ function egressDown(facts: AlertFacts): AlertLanguage {
     : null;
   const failureCount = num(i.failureCount);
   const observedAt = str(i.lastFailedAt) ?? str(i.evaluatedAt);
-  // Set once a reference site answers again while some collectors have not yet
-  // re-run (bead `ro-aed0.5`): the outage is over, and the alert is open only
-  // for the gaps it left. Saying "down" then would send the operator to a router
-  // that is already fine.
+  // Set once a reference site answers again while some collectors have not
+  // yet re-run: the outage is over, and the alert is open only for the gaps
+  // it left.
   const backAt = str(i.connectionBackAt);
 
   // The collectors still owing a re-run, named the way the Workflows page
@@ -848,8 +764,8 @@ function egressDown(facts: AlertFacts): AlertLanguage {
     evidence.push({
       polarity: "supporting",
       source: "Reference sites that did not answer",
-      // Verbatim: the whole argument for suppressing the asset alerts is that
-      // two unrelated sites failed the same way the assets did.
+      // Verbatim: the argument for suppressing the asset alerts is that
+      // unrelated sites failed the same way.
       detail: beacons
         .map((b) => `${str(b.url) ?? "beacon"}: ${str(b.error) ?? "no response"}`)
         .join("; "),
@@ -873,9 +789,6 @@ function egressDown(facts: AlertFacts): AlertLanguage {
     });
   }
 
-  // WHAT HAPPENED, THEN WHAT TO DO. The subject of the headline is the OS, so
-  // "the assets are not at fault" is already said by whose name leads it; the
-  // hint is the one move the operator has — the machine's own connection.
   if (unmeasured === null) return { headline: rawFallback(facts), evidence };
   if (backAt !== null) {
     return {
@@ -905,15 +818,9 @@ const OWED_COLLECTOR_LABELS: Record<string, string> = {
 };
 
 /**
- * Which way is GOOD on this series, so a headline can say so.
- *
- * `WATCH_SERIES` is the OS's one polarity table (packages/contract) and the
- * same one the composer reads when it pre-registers a predicate — average
- * search position improves when it goes DOWN, everything else when it goes up.
- * A metric the table has never heard of falls back on its own name: a new rank
- * series must not be able to reach a headline reading "up" on a number where up
- * is bad, and defaulting an unrecognized `position`/`rank` to higher-is-better
- * is exactly that failure waiting to happen.
+ * Which way is good on this series. `WATCH_SERIES` (packages/contract) is the
+ * one polarity table; a metric it has never heard of falls back on its own
+ * name, so an unrecognized `position`/`rank` never reads as higher-is-better.
  */
 function improvesWhen(
   integration: string | null,
@@ -935,18 +842,9 @@ function improvesWhen(
 }
 
 /**
- * The measured move, in words that carry their own valence (`ro-kukv.3`).
- *
- * Observed 2026-08-31 on one asset's Current signals: *"Revert decision
- * needed — Position up 10.14%"*, in amber, beside the word revert. Three
- * signals pointing two ways, because `up` was read straight off the sign of the
- * delta and a search position that RISES is a search position that got worse.
- *
- * So a series whose good direction is DOWN speaks improvement, not arithmetic:
- * **improved** / **worsened**, the same pair the query table and the page
- * decision markdown already use for a position. Everything else keeps plain
- * up/down, where the arrow and the word agree and inventing a second vocabulary
- * would cost more than it buys.
+ * The measured move, in words that carry their own valence: a series whose
+ * good direction is down says improved/worsened, everything else keeps plain
+ * up/down.
  */
 function movementPhrase(delta: number, direction: "up" | "down"): string {
   const magnitude = `${Math.abs(delta).toLocaleString("en-US", { maximumFractionDigits: 2 })}%`;
@@ -1011,12 +909,9 @@ function watchWindowClosed(facts: AlertFacts): AlertLanguage {
   return { headline: rawFallback(facts), evidence };
 }
 
-// --- the site checks that find a regression (bead `ro-ujb9.96.6.26`) --------
-//
+// --- the site checks that find a regression ---------------------------------
 // Each stores a short headline with its values; the figures and the pages
-// behind it are its `rule_inputs`, drawn here as label · value rows — the way
-// Datadog's monitor status carries the value against its threshold and
-// Sentry's issue header its tags — so no row needs a sentence about the rule.
+// behind it are its `rule_inputs`, drawn here as label · value rows.
 
 function strings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
@@ -1200,11 +1095,8 @@ const TRANSLATORS: Record<string, (facts: AlertFacts) => AlertLanguage> = {
   "watch-window-closed": watchWindowClosed,
 };
 
-/**
- * Turn one stored alert into operator language. A rule this module has never
- * heard of falls back to the words the store already holds — a new rule shipping
- * from the ingest lane degrades to today's rendering, never to a blank row.
- */
+/** Turn one stored alert into operator language. A rule this module has never
+ * heard of falls back to the words the store already holds. */
 export function translateAlert(facts: AlertFacts): AlertLanguage {
   const translate = TRANSLATORS[facts.ruleId];
   return translate ? translate(facts) : { headline: rawFallback(facts), evidence: [] };
@@ -1212,11 +1104,8 @@ export function translateAlert(facts: AlertFacts): AlertLanguage {
 
 // --- correlated changes -----------------------------------------------------
 
-/**
- * The changes on this asset's timeline that landed in the window BEFORE the
- * alert fired. Correlation, not causation — the Tower names the coincidence and
- * lets the operator judge it. Sorted most-recent first (nearest the alert).
- */
+/** The changes on this asset's timeline that landed in the window before the
+ * alert fired. Correlation, not causation. Sorted most-recent first. */
 export function correlateChanges(
   changes: readonly AnnotationItem[],
   firedAt: string,
@@ -1242,13 +1131,9 @@ const KIND_NOUN: Record<AnnotationKind, { one: string; many: string }> = {
   external: { one: "external event", many: "external events" },
 };
 
-/**
- * The chip's words. One change gets named precisely and dated against the alert
- * ("deploy 14h before") — that specific pairing IS the insight. Several get
- * counted, and mixed kinds collapse to "changes" rather than listing them, which
- * would trade the glance for a paragraph. null when nothing correlates, so the
- * absence of a chip is itself the (silent) answer.
- */
+/** The chip's words. One change gets named and dated against the alert
+ * ("deploy 14h before"); several get counted, and mixed kinds collapse to
+ * "changes". null when nothing correlates. */
 export function changesLabel(
   changes: readonly AnnotationItem[],
   firedAt: string,

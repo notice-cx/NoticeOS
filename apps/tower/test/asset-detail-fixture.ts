@@ -8,15 +8,11 @@ import {
 } from "@shared/asset-detail-views";
 
 /**
- * ONE ASSET REPORT WITH SOMETHING ON EVERY TAB, shared by the suites that draw
- * the whole asset page from it: `asset-detail-tabs.test.tsx`, which records
- * each tab's DOM (bead `ro-78qo.2`), and `lazy-parts.test.tsx`, which opens the
- * tabs one at a time to prove each one's code arrives only then (bead
- * `ro-ujb9.84`). Moved here unchanged from the first so the second draws the
- * very page the first recorded.
- *
- * Dates are fixed and assume the suites pin `Date.now()` to
- * 2026-07-05T14:00:00Z and the zone to UTC, as both do.
+ * One asset report with something on every tab, shared by the suites that
+ * draw the whole asset page from it: `asset-detail-tabs.test.tsx`, which
+ * records each tab's DOM, and `lazy-parts.test.tsx`, which opens the tabs one
+ * at a time. Dates are fixed and assume the suites pin `Date.now()` to
+ * 2026-07-05T14:00:00Z and the zone to UTC.
  */
 
 const emptyTrend = () => ({
@@ -102,11 +98,10 @@ const gscLane = {
   mappingSource: "fallback" as const,
 };
 
-/** One payload with something to say on EVERY tab — an open alert, a recorded
- * change, a mixed accounting month, a product-use window, a source that is not
- * set up, and, since the Search tab exists (`ro-78qo.4`), a tracked panel, a
- * page-decision window and a search-context snapshot. A tab that rendered its
- * empty state would pin nothing. */
+/** One payload with something to say on every tab: an open alert, a recorded
+ * change, a mixed accounting month, a product-use window, a source that is
+ * not set up, a tracked panel, a page-decision window and a search-context
+ * snapshot. A tab that rendered its empty state would pin nothing. */
 export function everyTabPayload(): AssetDetailPayload {
   return {
     generatedAt: "2026-07-05T12:00:00.000Z",
@@ -575,9 +570,8 @@ export function everyTabPayload(): AssetDetailPayload {
 
 /**
  * What `GET /api/assets/:id?view=<tab>` answers for this payload's asset: the
- * core and that tab's own sections, every other section ABSENT (bead
- * `ro-ujb9.64`). The Worker builds it by not reading those sections;
- * `test/asset-detail-payload.test.ts` holds its output to this same shape.
+ * core and that tab's own sections, every other section absent.
+ * `test/asset-detail-payload.test.ts` holds the Worker's output to this shape.
  */
 export function viewOf(payload: AssetDetailPayload, view: AssetDetailView): AssetDetailResponse {
   const sectionFields = new Set<string>(ALL_ASSET_DETAIL_SECTIONS.flatMap((section) => ASSET_SECTION_FIELDS[section]));

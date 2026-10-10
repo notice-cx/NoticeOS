@@ -1,15 +1,15 @@
-// THE OPERATOR NOTIFICATION LANE (bead `ro-vu8d.23`).
+// The operator notification lane.
 //
 // Every test here injects its own `fetchImpl` and its own webhook. That is a
-// SAFETY RULE, not a convenience: a suite that let this lane reach real
+// safety rule, not a convenience: a suite that let this lane reach real
 // `fetch` with the operator's webhook would deliver test alerts into the
-// operator's own channel. The pool no longer reads the checkout's `.dev.vars`
-// (bead ro-ujb9.182, test/test-env.test.ts), and `vitest.config.ts` still
-// binds `DISCORD_WEBHOOK_URL` to the empty string, so
-// the only webhook any test can reach is one it stored itself — and the ones
-// below store `https://discord.test/...`, which resolves nowhere.
+// operator's own channel. The pool does not read the checkout's `.dev.vars`
+// (test/test-env.test.ts), and `vitest.config.ts` binds `DISCORD_WEBHOOK_URL`
+// to the empty string, so the only webhook any test can reach is one it stored
+// itself — and the ones below store `https://discord.test/...`, which resolves
+// nowhere.
 //
-// What is pinned is the DESIGN rather than the plumbing: what qualifies, what
+// What is pinned is the design rather than the plumbing: what qualifies, what
 // does not, that a recurring condition is said once, and that the record only
 // ever claims a message that actually landed.
 
@@ -91,7 +91,7 @@ describe('what the OS interrupts the operator about', () => {
     expect(first).toMatchObject({ found: 1, fresh: 1, sent: 1, skipped: null });
     expect(discord.posts).toHaveLength(1);
     expect(discord.posts[0]!.url).toBe(WEBHOOK);
-    // The site by the name the Tower shows (db/0002 seeds it).
+    // The site by the name the Tower shows.
     expect(discord.posts[0]!.content).toContain('Meal Planner — pulse: no report received in 26h');
     expect(await notified()).toEqual([
       { subject: 'alert', ref: String(id), condition: 'open-error' },
@@ -107,8 +107,8 @@ describe('what the OS interrupts the operator about', () => {
     expect(discord.posts).toHaveLength(1);
   });
 
-  // Bead ro-ujb9.76.5.2: an alert a same-day report retry replaced stays in
-  // the store, where D1 deleted it, and is nothing to tell the operator.
+  // An alert a same-day report retry replaced stays in the store and is
+  // nothing to tell the operator.
   it('says nothing about an alert a same-day report retry replaced', async () => {
     await connectDiscord();
     const at = (hoursAgo: number) => new Date(NOW - hoursAgo * HOUR).toISOString();
@@ -125,7 +125,7 @@ describe('what the OS interrupts the operator about', () => {
     expect(await notified()).toEqual([]);
   });
 
-  it("names an alert on the OS's own row NoticeOS, whatever the row stores (ro-ujb9.77.10)", async () => {
+  it("names an alert on the OS's own row NoticeOS, whatever the row stores", async () => {
     await connectDiscord();
     // The notifier names a flag's site from the site list, joined to its
     // alerts (both on Postgres).
@@ -223,8 +223,8 @@ describe('what the OS interrupts the operator about', () => {
     // And the operator hears about it where they can act: the card's verdict.
     const stamped = await credentialVerdict('discord');
     // The same short line the card's connection test stamps for a dead
-    // webhook (bead ro-ujb9.96.6.25): the outcome and the status, not a
-    // sentence about the server's settings.
+    // webhook: the outcome and the status, not a sentence about the server's
+    // settings.
     expect(stamped?.lastError).toBe('Refused · HTTP 404');
     expect(stamped?.lastError).not.toContain(WEBHOOK);
 

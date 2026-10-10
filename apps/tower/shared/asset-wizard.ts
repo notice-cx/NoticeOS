@@ -1,38 +1,15 @@
-// Adding a site: the PURE half (bead `ro-qsoo`, one screen since
-// `ro-ujb9.96.7.5`). The draft the add screen fills in, what it refuses, and the
-// exact writes Add performs.
+// Adding a site: the pure half. The draft the add screen fills in, what it
+// refuses, and the exact writes Add performs; the screen
+// (src/components/AddSite.tsx) renders it. The screen asks for the domain
+// alone; every other answer is the default (`emptyDraft`), changeable on the
+// asset's Settings tab.
 //
-// It lives in `shared/` and imports nothing from React, so the composition every
-// add promises can be asserted directly — "the ops Add would send" is a value,
-// not a thing that only exists inside a click handler. The screen
-// (src/components/AddSite.tsx) renders it; this file decides it.
-//
-// ONE SCREEN, THE SAME WRITES. The five-step wizard this file was written for
-// asked eight questions over seven screens, three of them defaults the operator
-// clicked through (docs/reports/2026-09-23-ux-flow-audit.html, finding 5). The
-// screen now asks for the domain alone: the name is inferred from it
-// (`siteNameFromDomain`, upgraded to the site's own name when it answers), and
-// every other answer is the default the wizard already started from
-// (`emptyDraft`), changeable afterwards on the asset's Settings tab. The writes
-// below did not change: `planWrites` composes the same row and the same one
-// changeset for a site added in one screen as for one added in five.
-//
-// ONE ASSET IS TWO WRITES, and they are deliberately different shapes:
-//
-//   1. the STORE ROW    — POST /api/assets, the join key everything else hangs
-//                         off. Answers in every deployment (a row, not a file).
-//   2. the CONFIG ENTRIES — ONE changeset of `file-json-insert` ops through the
-//                         write lane (PUT /api/config): one guarded setup save.
-//
-// The row goes FIRST. Its `409 asset_exists` is the only authoritative answer to
-// "is this id taken" — the wall payload the add screen checks is a cached read
-// and can be a minute stale — so the cheap guard is spent before anything is
-// written, and the screen stops on the domain rather than half-way. It is also
-// the failure we can leave behind honestly: an orphaned ROW is visible on
-// `/assets`, where its setup can be retried or the site archived, while an
-// orphaned config entry is invisible (every payload builder reads it by asset
-// id and would simply never look). See `planWrites` and
-// `lib/asset-operations.ts`.
+// One asset is two writes: the store row (POST /api/assets, the join key
+// everything else hangs off) and one changeset of config entries through the
+// write lane (PUT /api/config). The row goes first: its `409 asset_exists` is
+// the only authoritative answer to "is this id taken", and an orphaned row is
+// visible on `/assets` while an orphaned config entry is invisible. See
+// `planWrites` and `lib/asset-operations.ts`.
 
 import type {
   AssetStatusValue,
@@ -51,10 +28,10 @@ export { ASSET_ID_MAX, DISPLAY_NAME_MAX, ASSET_ID_RE, DOMAIN_RE } from '@noticeo
 // The draft
 // ---------------------------------------------------------------------------
 
-/** How the OS gets this asset's nightly numbers (doc 14: "Data collection"). */
+/** How the OS gets this asset's nightly numbers. */
 export type CollectionMode = "push" | "pull";
 
-/** What a fetched endpoint speaks. `envelope` is doc 02's pulse envelope;
+/** What a fetched endpoint speaks. `envelope` is the pulse envelope;
  * `prometheus` is a metrics page the counters lane scrapes. */
 export type PullFormat = "envelope" | "prometheus";
 
@@ -69,16 +46,9 @@ export interface CounterCardDraft {
 export interface AssetDraft {
   displayName: string;
   domain: string;
-  /**
-   * Which legal entity owns the asset (docs/15 flow A step 1) — the `slug` of a
-   * row in `config/entities.json`, or `""` for *nobody has said*.
-   *
-   * It was free text until bead `ro-aodz`, because there was nothing to pick
-   * from: the answer went into the ad-network source's note, so two spellings of
-   * one company were two entities and neither was readable anywhere but that
-   * note. It is now a choice over the entities the portfolio has declared, and
-   * Create adds this asset's id to that entity's own list.
-   */
+  /** Which legal entity owns the asset — the `slug` of a row in
+   * `config/entities.json`, or `""` for nobody has said. Create adds this
+   * asset's id to that entity's own list. */
   entity: string;
   status: AssetStatusValue;
   /** 1 = the OS only watches this asset. The store's own default. */
@@ -89,12 +59,8 @@ export interface AssetDraft {
   counters: CounterCardDraft[];
 }
 
-/**
- * A fresh draft. The two defaults that are decisions rather than blanks:
- * `onboarding` (docs/15 flow A step 1 — "creates the asset row in state
- * `onboarding`") and `senseOnly: 1` (the store's own column default, and the
- * only honest starting posture for an asset nothing has observed yet).
- */
+/** A fresh draft. The two defaults that are decisions rather than blanks:
+ * `onboarding`, and `senseOnly: 1` (the store's own column default). */
 export function emptyDraft(): AssetDraft {
   return {
     displayName: "",
@@ -124,15 +90,9 @@ export const CREATABLE_STATUSES: AssetStatusValue[] = [
 
 /**
  * The asset id the store will hold, derived from what the operator typed.
- *
- * Every site's id is its domain (`example.com`, `shop.example.org`), and an
- * operator who types one and an id that says another
- * is exactly the drift D20 spent a decision closing. So the id is DERIVED and
- * shown, never typed: paste a full URL and the scheme, `www.`, path, port and
- * trailing dot all come off.
- *
- * Returns `""` when nothing usable is left — the caller reports that as the
- * domain being wrong, because the domain is the field the operator can fix.
+ * Every site's id is its domain, so the id is derived and shown, never typed:
+ * paste a full URL and the scheme, `www.`, path, port and trailing dot all
+ * come off. Returns `""` when nothing usable is left.
  */
 export function assetIdFromDomain(domain: string): string {
   let value = domain.trim().toLowerCase();
@@ -160,15 +120,10 @@ const GENERIC_ENDINGS: ReadonlySet<string> = new Set([
 const GENERIC_SECOND_LEVELS: ReadonlySet<string> = new Set(["co", "com", "org", "net", "ac", "gov"]);
 
 /**
- * A site's name, read off its domain (bead `ro-ujb9.96.7.5`): the name the add
- * screen shows the moment a domain is typed, before — and without — anything
- * answering from the network.
- *
- * `journey.example` → "Journey Example", `second-site.com` → "Second Site",
- * `shop.example.com` → "Shop Example". It is a starting name, not a verdict: the
- * site's own name replaces it when the site answers (`shared/site-name.ts`), and
- * the asset's Settings tab renames it at any time. Returns `""` when the domain
- * leaves no id — the domain is the field that is wrong, not the name.
+ * A site's name, read off its domain: `journey.example` → "Journey Example",
+ * `second-site.com` → "Second Site", `shop.example.com` → "Shop Example". A
+ * starting name, not a verdict: the site's own name replaces it when the site
+ * answers (`shared/site-name.ts`). Returns `""` when the domain leaves no id.
  */
 export function siteNameFromDomain(domain: string): string {
   const labels = assetIdFromDomain(domain).split(".").filter((label) => label.length > 0);
@@ -199,13 +154,9 @@ export interface SiteAnswers {
   prelaunch: boolean;
 }
 
-/**
- * The draft a one-screen add creates: the wizard's own defaults (`emptyDraft`)
- * with the answers the screen has. Nothing else is asked, so nothing else
- * differs from what the wizard wrote when its default screens were clicked
- * through — the same stage, Monitor only, pushed nightly reports, no totals and
- * every data source Not set up.
- */
+/** The draft a one-screen add creates: `emptyDraft` with the answers the
+ * screen has — Monitor only, pushed nightly reports, no totals and every data
+ * source Not set up. */
 export function siteDraft(answers: SiteAnswers): AssetDraft {
   return {
     ...emptyDraft(),
@@ -223,7 +174,7 @@ export function siteDraft(answers: SiteAnswers): AssetDraft {
  * own id so the screen can render it beside that field. */
 export interface FieldIssue {
   field: string;
-  /** A short state, never a paragraph (doc 14 principle 3a). */
+  /** A short state, never a paragraph. */
   message: string;
   /** Set when the refusal is "this site is already here": the id of the asset
    * the operator can open instead. */
@@ -291,13 +242,9 @@ export function counterIssues(counters: readonly CounterCardDraft[]): FieldIssue
   return issues;
 }
 
-/**
- * Every refusal a whole draft carries, in field order — the guard before Add.
- *
- * The add screen only ever composes a draft whose other answers are the
- * defaults, and those refuse nothing; the checks stay whole so the write path
- * refuses a draft it could not honestly write, however it was composed.
- */
+/** Every refusal a whole draft carries, in field order — the guard before
+ * Add. The checks stay whole so the write path refuses a draft it could not
+ * honestly write, however it was composed. */
 export function validateDraft(
   draft: AssetDraft,
   context: ValidationContext,
@@ -340,22 +287,15 @@ export interface StoreRowWrite {
 export interface PlannedWrites {
   id: string;
   row: StoreRowWrite;
-  /**
-   * The ONE changeset, in file order. Empty is impossible: every asset gets an
-   * integrations entry, so there is always something for the write path to
-   * commit.
-   *
-   * Not every op is an insert. The owning entity is a SET on a row that already
-   * exists — this asset's id appended to that entity's own list — because an
-   * entity is not something an asset is born into (bead `ro-aodz`).
-   */
+  /** The one changeset, in file order. Never empty: every asset gets an
+   * integrations entry. Not every op is an insert: the owning entity is a set
+   * on a row that already exists. */
   ops: (FileJsonInsertOp | FileJsonSetOp)[];
   slug: string;
 }
 
-/** Which catalog lanes a NON-OS asset is asked about: the ones the register's
- * own scope rule says can apply to it. A `portfolio` lane (the operator's
- * Discord webhooks) is the System's and never an asset's. */
+/** Which catalog lanes a non-OS asset is asked about: the ones the register's
+ * own scope rule says can apply to it. */
 export function applicableLanes<T extends { id: string; scope: LaneScope }>(
   catalog: T[],
 ): T[] {
@@ -402,13 +342,9 @@ export function pullEntryOp(id: string, url: string, format: PullFormat): FileJs
 }
 
 /**
- * Everything Add will do, decided before it is pressed.
- *
- * `catalog` is the lane list from `GET /api/settings` (`sources.rows`) and
- * `entities` is that payload's entity list, in file order — the ops that put
- * this asset on one of them address a row by its position, exactly as every
- * other write into that file does. `at` is injectable so a test can assert the
- * `since` dates the register gets.
+ * Everything Add will do, decided before it is pressed. `catalog` is the lane
+ * list from `GET /api/settings` (`sources.rows`) and `entities` is that
+ * payload's entity list, in file order; the ops address a row by its position.
  */
 export function planWrites(
   draft: AssetDraft,
@@ -432,15 +368,10 @@ export function planWrites(
   const lanes = applicableLanes(catalog);
   const cells: Record<string, JsonValue> = {};
   for (const lane of lanes) {
-    // EVERY SOURCE STARTS NOT SET UP (bead `ro-ujb9.96.7.5`). Declining one is
-    // a decision made on its Data sources row, where it is recorded in the one
-    // shape a decline has (`REASON: …`, config/integrations.README.md); the
-    // five-step wizard's "Skipped at setup: …" was a second shape for the same
-    // fact, and the one-screen add asks no such question (bead
-    // `ro-ujb9.96.7.22`). NO NOTE KEY: nothing has been said about the source
-    // yet, and a blank note is one the `asset-lane` register refuses, so the
-    // first reason arrives as a first write (`expectAbsent`) and its Undo
-    // takes the key off again (`undeclineOps`).
+    // Every source starts Not set up; declining one is a decision made on its
+    // Data sources row. No note key: a blank note is one the `asset-lane`
+    // register refuses, so the first reason arrives as a first write
+    // (`expectAbsent`) and its Undo takes the key off again (`undeclineOps`).
     cells[lane.id] = { status: "needs-setup", since };
   }
 
@@ -451,28 +382,18 @@ export function planWrites(
       pointer: `/assets/${id}`,
       value: cells as JsonValue,
     },
-    // The panel roster, in the same changeset (bead `ro-sk7q`). Its README makes
-    // membership an INVARIANT rather than an opt-in — every asset has a row,
-    // including the ones that are off, and its validation refuses a roster whose
-    // keys differ from `config/integrations.json`'s. So an asset created without
-    // one is not "not rostered yet", it is an undocumented gap in a file the
-    // refresh lane walks. `enabled: false` is the only honest starting value: no
-    // lane can be live at creation, and a refresh with none would write an empty
-    // panel dir, which is indistinguishable on disk from a collapsed one.
-    //
-    // `config/serp-panel.json` is deliberately NOT written here. Its README is
-    // the opposite rule — "an asset with no entry here is skipped silently: no
-    // call, no manifest row, no attempt" — and a panel is a weekly BILL plus a
-    // weekly review obligation. That is a decision made from a collection, not
-    // from a create form. The delete half still knows the file, which is the
-    // asymmetry bead `ro-sk7q` is about.
+    // The panel roster, in the same changeset: membership is an invariant
+    // (every asset has a row, and validation refuses a roster whose keys
+    // differ from `config/integrations.json`'s). `enabled: false` is the only
+    // honest starting value. `config/serp-panel.json` is deliberately not
+    // written: an absent asset is skipped silently there, and a panel is a
+    // weekly bill plus a review obligation — a decision made later.
     {
       kind: "file-json-insert",
       file: "config/signal-panels.json",
       pointer: `/assets/${id}`,
-      // No note (bead `ro-ujb9.96.6.17`): `no-lane-yet` IS what would enable
-      // the row — a live search source — and the Growth tab refuses turning it
-      // on before one is.
+      // No note: `no-lane-yet` is what would enable the row, and the Growth
+      // tab refuses turning it on before a live search source exists.
       value: {
         enabled: false,
         reason: "no-lane-yet",
@@ -484,12 +405,8 @@ export function planWrites(
   const counters = countersEntryOp(id, draft.counters);
   if (counters !== null) ops.push(counters);
 
-  // WHO OWNS IT, as the one op that says so (bead `ro-aodz`). Not an insert:
-  // the entity's row already exists, and what changes is its own list of assets
-  // — so this is a set, built by the same function the asset's Identity card
-  // uses to move an asset later. A new asset is on nobody's list, so the move
-  // answers with exactly the op that adds it (and, for an entity that owns
-  // nothing yet, with the first write that creates the list).
+  // Who owns it: a set on the entity's existing row, built by the same
+  // function the asset's Identity card uses to move an asset later.
   if (owner !== null) {
     ops.push(...entityMoveOps(entities, id, owner.slug));
   }

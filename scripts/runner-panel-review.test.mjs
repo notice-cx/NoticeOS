@@ -17,7 +17,7 @@ import {
   serpPanelLandingsUrl,
 } from './runner/panel-review.mjs';
 
-// scripts/runner/panel-review.mjs (bead ro-ujb9.22): the panel-review
+// scripts/runner/panel-review.mjs: the panel-review
 // vocabulary and the filer that writes review beads. The filer is driven with
 // a canned door and a recording `bd`; nothing reaches a real tracker.
 
@@ -98,7 +98,7 @@ test('an already-filed landing files nothing, and a down hub asks nothing', asyn
   assert.match(down.lines[0], /the beads task hub is unreachable/u);
 });
 
-// Epic ro-cvl9: the review points at the panel dir, so it waits until the
+// The review points at the panel dir, so it waits until the
 // published panel holds the collection it is about — said once, then filed.
 test('a review waits for the published panel, then files', async () => {
   const landings = [{ asset: 'shop.example', panelDate: '2026-09-21', queries: 4, families: 2, reports: ['serp-panel', 'ranked-keywords'] }];

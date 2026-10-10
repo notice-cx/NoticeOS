@@ -8,28 +8,16 @@ import { isShuttingDown } from './lifecycle.mjs';
 import { log, writeLine } from './log.mjs';
 import { beadsSkipDecision } from './task-hub.mjs';
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Panel refresh — the lane that keeps `.local/signal-dumps/reports/<asset>/`
-// current for every rostered property (config/signal-panels.json), so a property
-// repo's agent reads panels instead of re-pulling providers
-// (docs/20-signal-panels.md).
+// current for every rostered property (config/signal-panels.json), so a
+// property repo's agent reads panels instead of re-pulling providers.
 //
-// Historically, before the 2026-08 panel refresh, collection was on a cron
-// and FLATTENING was not: the archives
-// landed nightly in R2 and the panel dir held whatever an operator last ran
-// `pnpm signals:download && pnpm signals:analyze` for. One property's panel was
-// a single 2026-07-30 pull, and it was still the freshest thing it had.
-//
-// A SPAWNED CHILD, not an in-process call. The flatten runs the whole insights
+// A spawned child, not an in-process call: the flatten runs the whole insights
 // rules engine over a pinned history generation, per property — synchronous
-// CPU each. Doing that inside the supervisor would stall the beads poller
-// (`* * * * *`) and every cron fire behind it, so the work goes to a child and
-// this process only reads its exit code.
-//
-// It costs no provider money: the refresh reads archives the `15 12 * * *` and
-// `45 12 * * 1` collectors already bought, through the ingest's own
+// CPU each — and doing that inside the supervisor would stall the task poller
+// and every cron fire behind it. It costs no provider money: the refresh reads
+// archives the collectors already bought, through the ingest's own
 // operator-authed read routes. See scripts/signal-panels-refresh.mjs.
-// ─────────────────────────────────────────────────────────────────────────────
 
 /** How long one full-portfolio refresh may take before it is killed. Generous:
  * a first pass on a property with no local archives downloads a whole window. */

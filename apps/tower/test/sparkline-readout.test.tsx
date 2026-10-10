@@ -77,8 +77,8 @@ describe("Sparkline plotted-value contract", () => {
     expect(status).toHaveTextContent("7-day average: 122.7");
     expect(status).toHaveTextContent("Daily value: 59.0");
     expect(status).not.toHaveTextContent("days reported");
-    // The tooltip's primary quantity is the same averaged value positioned
-    // by the endpoint, not merely a second number added beside the old one.
+    // The tooltip's primary quantity is the same averaged value the endpoint is
+    // positioned by.
     const values = averageSeries(COUNTS).map((point) => point.v);
     const min = Math.min(...values);
     const max = Math.max(...values);
@@ -209,8 +209,8 @@ describe("KPI visible trend context", () => {
     expect(() => render(<Sparkline data={COUNTS} preAveragedWindow={window} />)).toThrow("positive integer");
   });
 
-  // Bead ro-ujb9.96.6.15: the line's method is stated ONCE, in the cell's
-  // explanation and the line's own readout, never as a caption under the number.
+  // The line's method is stated once, in the cell's explanation and the
+  // line's own readout, never as a caption under the number.
   it("names the rolling line in the explanation, not under the number", () => {
     const { container } = render(<Kpi label="Signups" value="859" spark={COUNTS} />);
     expect(container.querySelector("[data-spark-caption]")).toBeNull();

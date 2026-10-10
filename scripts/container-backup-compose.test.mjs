@@ -77,7 +77,7 @@ async function until(check, timeoutMs = 90_000) {
 
 test('the fixed backup worker publishes private complete sets and restores every store into new own resources', { skip: !enabled, timeout: 720_000 }, async t => {
   const image = process.env.NOTICEOS_TEST_APP_IMAGE;
-  assert.match(image ?? '', /^noticeos-local:ro-ujb9-9-4-[a-z0-9]+$/u, 'use the explicitly built local proof image');
+  assert.match(image ?? '', /^noticeos-local:backup-proof-[a-z0-9]+$/u, 'use the explicitly built local proof image');
   assert.ok(typeof process.getuid === 'function' && process.getuid() > 0, 'Use a nonroot operator for the real permission and restore proof');
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-container-backup-proof-'));
   // Nothing else exists yet; an early preflight refusal still owns this folder.

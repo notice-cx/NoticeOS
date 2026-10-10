@@ -51,20 +51,10 @@ import { useGoogleOAuthStart } from '@/hooks/useGoogleOAuthStart';
 
 /**
  * `/integrations`: every provider as one row with one status and one action,
- * grouped by what it is for (bead `ro-ujb9.96.7.1`; mockup
- * docs/artifacts/ux-audit-2026-09-23/integration-setup-mockup.html, frame A1).
- *
- * A provider that declares a connect kind (every card today: Google, Bing,
- * DataForSEO, PostHog, Clarity, Mediavine, and since bead `ro-ujb9.96.7.14`
- * Discord and the calendar feeds, which end on the provider's answer with no
- * site list) connects in `ConnectPanel` over this list — through
- * `ProviderConnectPanel`, the same wiring a site's Data sources row opens —
- * paste, Connect, the provider's answer, then
- * the account's sites matched to assets and Start collecting (`SitePicker`,
- * bead `ro-ujb9.96.7.2`) — without leaving the page, and is managed there
- * once connected: its sites, Replace and Disconnect (bead `ro-ujb9.96.7.10`).
- * The others still open their own setup page until their beads under epic
- * `ro-ujb9.96.7` move them into the panel; that page carries the same
+ * grouped by what it is for. A provider that declares a connect kind connects
+ * in `ConnectPanel` over this list, through `ProviderConnectPanel`, the same
+ * wiring a site's Data sources row opens, and is managed there once
+ * connected. The others open their own setup page, which carries the same
  * Replace and Disconnect at its top.
  */
 export function IntegrationsRoute() {
@@ -80,9 +70,9 @@ export function IntegrationsRoute() {
   const monitoring = useIntegrationHealth();
   const [params, setParams] = useSearchParams();
   // The open panel: which provider, whether it opened on the key form, its
-  // sites or Replace, and the site it was opened for (bead ro-ujb9.96.7.2).
-  // A site's Data sources row opens the same panel over that site's page
-  // (bead ro-ujb9.96.7.4); a link here with ?asset= still lands on it.
+  // sites or Replace, and the site it was opened for. A site's Data sources
+  // row opens the same panel over that site's page; a link here with ?asset=
+  // still lands on it.
   const [connecting, setConnecting] = useState<{ id: string; opened: ProviderPanelOpening; asset: string | null } | null>(null);
   // The sites' own names, from the list the sidebar already reads.
   const wall = useWall();
@@ -97,8 +87,8 @@ export function IntegrationsRoute() {
   // own. Derived once here so the banners, the panel and every card agree.
   const blockers = data ? connectBlockers(data) : [];
 
-  // Can the legacy env credentials be moved from HERE (bead `ro-vu8d.7`)? Asked
-  // once for the page: it is a fact about the deployment.
+  // Can the legacy env credentials be moved from here? Asked once for the
+  // page: it is a fact about the deployment.
   const envImport = useEnvImportAvailability(!readOnly);
   const importPanel: ProviderEnvImport = {
     importable: envImport.importable,
@@ -115,21 +105,20 @@ export function IntegrationsRoute() {
     },
   };
 
-  // COMING BACK FROM GOOGLE (bead `ro-vu8d.3`): the callback is a full-page
-  // navigation, so its outcome arrives as a query parameter, lands as a toast,
-  // and is cleared so a refresh does not replay it.
+  // Coming back from Google: the callback is a full-page navigation, so its
+  // outcome arrives as a query parameter, lands as a toast, and is cleared so
+  // a refresh does not replay it.
   const oauthResult = params.get(GOOGLE_OAUTH_RESULT_PARAM);
   useEffect(() => {
     if (readOnly) return;
     const notice = googleOAuthNotice(oauthResult, window.location.origin);
     if (notice === null) return;
     if (notice.tone === "ok") {
-      // Signed in: the connect panel opens on the account's sites with
-      // Signed in in its header (bead ro-ujb9.96.7.7) — no toast says it twice.
+      // Signed in: the connect panel opens on the account's sites with Signed
+      // in in its header; no toast says it twice.
       void refresh();
     } else {
-      // What happened, and the one press that fixes it as the toast's button
-      // (bead `ro-ujb9.96.6.1`) — never a sentence spelling the fix out.
+      // What happened, and the one press that fixes it as the toast's button.
       const action = notice.action;
       toast.error(notice.message, {
         // One notice per return from Google: an effect that runs twice (React's
@@ -168,11 +157,10 @@ export function IntegrationsRoute() {
   const cards = (data?.providers ?? []).filter((status) => status.provider.companionOf === undefined);
   const googleApp = data?.providers.find((status) => status.provider.id === "google-oauth-app") ?? null;
 
-  // A link to connect a panel provider — `?connect=<id>`, or an older
-  // `?provider=<id>` while it is not connected — opens the panel over the list
-  // (the seam an asset's source rows use, bead `ro-ujb9.96.7.4`). `?connect=`
-  // on a provider that is already connected opens it on its sites, with
-  // `?asset=` leading the list (bead `ro-ujb9.96.7.2`).
+  // A link to connect a panel provider, `?connect=<id>` or an older
+  // `?provider=<id>` while it is not connected, opens the panel over the list.
+  // `?connect=` on a provider that is already connected opens it on its sites,
+  // with `?asset=` leading the list.
   const panelTarget = (id: string | null, connectedToo: boolean) => {
     const status = cards.find((card) => card.provider.id === id);
     if (!status || !connectsInPanel(status.provider)) return null;
@@ -202,7 +190,7 @@ export function IntegrationsRoute() {
   const open = (status: IntegrationProviderStatus, opened: ProviderPanelOpening) => {
     if (readOnly) return;
     // A provider whose tokens are pasted per site has no key form: its panel
-    // is always the sites (bead ro-ujb9.96.7.9).
+    // is always the sites.
     setConnecting({ id: status.provider.id, opened: status.provider.connect?.kind === "site-tokens" ? "sites" : opened, asset: null });
   };
   // Disconnect, from the panel or a provider's page: the store forgets it, the
@@ -237,9 +225,8 @@ export function IntegrationsRoute() {
         <div className="grid min-h-[40vh] place-items-center text-muted-foreground">Loading integrations…</div>
       ) : (
         <>
-          {/* A state and the one command that clears it (bead
-              ro-ujb9.96.6.19) — never the ingest's sentence. The panel
-              opened over this page draws none: this says it. */}
+          {/* A state and the one command that clears it. The panel opened over
+              this page draws none: this says it. */}
           <ConnectBlockers blockers={blockers} />
           {selected ? (
             <>
@@ -251,7 +238,7 @@ export function IntegrationsRoute() {
                   status={selected}
                   assets={assetRefs(selected, siteNames)}
                   nowMs={now}
-                  // Why not is the banner's, said once above (bead ro-ujb9.204).
+                  // Why not is the banner's, said once above.
                   canConnect={!readOnly && blockers.length === 0}
                   readOnly={readOnly}
                   oauth={googlePanel(selected, googleApp, refresh, api, toast, googleStart)}
@@ -264,7 +251,7 @@ export function IntegrationsRoute() {
                     toast.success(`Saved — ${selected.provider.label}`);
                   }}
                   onTest={async () => { const result = await testProviderCredential(selected.provider.id); await refresh(); return result; }}
-                  // Only where a date could be true (bead `ro-vu8d.8`).
+                  // Only where a date could be true.
                   onSetExpiry={
                     selected.provider.expiry.known === "never"
                       ? undefined
@@ -355,11 +342,9 @@ function needsYou(shown: ConnectionStatus): boolean {
 
 const CONNECTED = new Set(["working", "key-accepted", "collecting", "overdue", "failing", "unknown", "not-using"]);
 
-/**
- * THE PAGE'S ONE ANSWER (D44): which connections need you, else how many are
- * connected. The rows below carry each one's status; the sentence counts, and
- * names a provider only when it is the problem.
- */
+/** The page's one answer: which connections need you, else how many are
+ * connected. The sentence counts, and names a provider only when it is the
+ * problem. */
 export function integrationsAnswer(rows: readonly { name: string; shown: ConnectionStatus }[]): {
   answer: string;
   detail?: string;
@@ -407,13 +392,10 @@ function withProvider(params: URLSearchParams, provider: string): URLSearchParam
 }
 
 /**
- * One provider: logo, name, its ONE status, and the one thing to do next.
- *
- * The action is the only control. For a provider that connects in the panel
- * it opens the panel: Connect on the key form, Reconnect on it too when the
- * key is failing, and Manage on the connection itself — its sites, Replace
- * and Disconnect (bead `ro-ujb9.96.7.10`). Every other provider opens its own
- * page. Nothing else on the row competes with the status.
+ * One provider: logo, name, its one status, and the one thing to do next. The
+ * action is the only control: Connect on the key form, Reconnect when the key
+ * is failing, Manage on the connection itself. Every other provider opens its
+ * own page.
  */
 function IntegrationRow({
   status,
@@ -492,11 +474,9 @@ function ProviderStatus({ status, items }: { status: IntegrationProviderStatus; 
   );
 }
 
-/**
- * The Google card's sign-in half, or nothing at all for the other providers
- * (bead `ro-vu8d.3`). The origin comes from `window.location`: the redirect URI
- * Google accepts is a fact about the address THIS browser has the Tower open at.
- */
+/** The Google card's sign-in half, or nothing at all for the other providers.
+ * The origin comes from `window.location`: the redirect URI Google accepts is
+ * a fact about the address this browser has the Tower open at. */
 function googlePanel(
   status: IntegrationProviderStatus,
   app: IntegrationProviderStatus | null,

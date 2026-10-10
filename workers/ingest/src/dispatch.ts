@@ -1,28 +1,11 @@
-// The cron dispatch table — which lanes one expression runs, and what config
-// each of them runs on.
-//
-// It lives here rather than inside the Worker class because it now has TWO
-// callers that must never drift: the real `scheduled()` handler (production
-// Cloudflare crons), and the `runScheduled()` RPC the local runner reaches
-// through the Tower's private Service Binding (docs/06, scripts/README.md
-// "Cron behavior"). Under the single-runtime local topology there is no second
-// HTTP listener to hit `/cdn-cgi/handler/scheduled` on, so the runner's fire and
-// the platform's fire have to converge on one function or the local rehearsal
-// stops rehearsing the deployed behaviour.
-//
-// The expressions it answers are the dispatch keys of the scheduled jobs the
-// ingest runs (scripts/scheduled-jobs.mts `ingestJobForCron`), and nothing else:
-// any other expression runs no lane and is refused as `unknown_cron` (bead
-// ro-ujb9.217). Before that, an unmatched expression ran every lane and the
-// notifier at once. test/crons.test.ts pins wrangler.jsonc's `triggers.crons`
-// and this table to the same list of jobs.
-//
-// AND SINCE `ro-syok.7` IT IS ALSO THE CONFIG SEAM. One `readCollectorConfigs`
-// per fire resolves every document the lanes below need, store-first, and hands
-// each lane its own — so a mapping saved on a Sources tab steers the NEXT run
-// rather than the next restart (`ro-7xv2`), and an unseeded install runs the run
-// it ran yesterday because an absent document leaves the compiled copy in place.
-// The lanes keep taking their config as a parameter; nothing below reads a file.
+// The cron dispatch table: which lanes one expression runs, and what config
+// each runs on. Both the real `scheduled()` handler and the `runScheduled()`
+// RPC the local runner reaches converge on one function, so the local
+// rehearsal rehearses the deployed behaviour. The expressions it answers are
+// the dispatch keys of the scheduled jobs (scripts/scheduled-jobs.mts); any
+// other expression is refused as `unknown_cron`. One `readCollectorConfigs`
+// per fire resolves every document the lanes need, store-first, and hands each
+// lane its own; nothing below reads a file.
 
 import { runBingSignals } from './bing-signals.js';
 import { runClarityDumps } from './clarity-dumps.js';
@@ -64,12 +47,9 @@ import { collectNowStep, ingestJobForCron, jobRunName } from '../../../scripts/s
 import { recordManualRun, type JobRunOutcome } from './job-runs.js';
 
 /**
- * One fire's config, typed for the lanes that take it.
- *
- * Every field is `undefined` when the store holds nothing usable for that file,
- * which is exactly what each lane's own override option means — keep the copy
- * compiled into it. `sources` is the word per file, and the only thing about
- * config that reaches a log line.
+ * One fire's config. Every field is `undefined` when the store holds nothing
+ * usable for that file, which means keep the compiled copy. `sources` is the
+ * word per file, and the only thing about config that reaches a log line.
  */
 interface RunConfig {
   pullEntries: PullAssetConfig[] | undefined;
@@ -77,13 +57,11 @@ interface RunConfig {
   laneRegister: LaneRegister | undefined;
   ga4CustomDimensions: Ga4CustomDimensionConfig | undefined;
   serpPanelConfig: SerpPanelConfig | undefined;
-  /** The operator's saved clock (bead `ro-ujb9.88`): the stored
-   * `os_time_zone` when there is a usable one, else the compiled copy — the
-   * same resolution the Tower runs, so the two Workers agree on the day. */
+  /** The operator's saved clock: the stored `os_time_zone` when usable, else
+   * the compiled copy, the same resolution the Tower runs. */
   osTimeZone: string;
-  /** The operator paused the DataForSEO job on the Schedules page. The daily
-   * outage re-collection rides another job's tick, so it has to honour that
-   * pause itself — the runner only knows not to fire the weekly sweep. */
+  /** The operator paused the DataForSEO job. The daily outage re-collection
+   * rides another job's tick, so it has to honour that pause itself. */
   dataForSeoPaused: boolean;
   /** The stored settings document, for the saved schedules a collect-now
    * press honours (`jobPaused`). */
@@ -91,9 +69,8 @@ interface RunConfig {
   configSources: ConfigSourceMap;
 }
 
-/** Is `job` saved as paused in the stored schedules (`config/constants.json`
- * `/schedules`, scripts/scheduled-jobs.mjs)? Anything unreadable is not paused:
- * the runner applies the same saved document, so an absent entry runs. */
+/** Is `job` saved as paused in the stored schedules? Anything unreadable is not
+ * paused: the runner applies the same saved document, so an absent entry runs. */
 function schedulePaused(constants: unknown, job: string): boolean {
   if (typeof constants !== 'object' || constants === null) return false;
   const schedules = (constants as { schedules?: unknown }).schedules;
@@ -102,8 +79,8 @@ function schedulePaused(constants: unknown, job: string): boolean {
   return typeof entry === 'object' && entry !== null && (entry as { enabled?: unknown }).enabled === false;
 }
 
-/** The cast happens ONCE, here, against documents `readCollectorConfigs` has
- * already shape-checked. A lane that received one narrows what it needs. */
+/** The cast happens once, against documents `readCollectorConfigs` has already
+ * shape-checked. */
 function runConfig({ documents, sources }: CollectorConfigs): RunConfig {
   return {
     pullEntries: documents['config/pull.json'] as PullAssetConfig[] | undefined,
@@ -121,11 +98,9 @@ function runConfig({ documents, sources }: CollectorConfigs): RunConfig {
 }
 
 /**
- * The Bing and DataForSEO lanes as a job step runs them — ONE call each, used
- * by the cron below and by `runCollectNow`, so a collect-now press cannot drift
- * from the scheduled run: same stored config, same function, same gates. A
- * collect-now only narrows it (assets, one scope) and, in tests and the journey
- * fixture, answers the provider's network.
+ * The Bing and DataForSEO lanes as a job step runs them, one call each, used
+ * by the cron and by `runCollectNow` so a collect-now press cannot drift from
+ * the scheduled run. A collect-now only narrows it.
  */
 interface LaneNarrowing {
   fetchImpl?: typeof fetch;
@@ -148,25 +123,20 @@ type Lane = (env: IngestEnv, cfg: RunConfig) => Promise<unknown>;
 
 /** What one scheduled job runs. */
 export interface JobLanes {
-  /** Its steps, by the ids its workflow definition names
-   * (scripts/workflow-definitions.mts). Steps of one job run side by side, each
-   * isolated: one provider or one hanging site must not stop the other step. */
+  /** Its steps, by the ids its workflow definition names. Steps of one job run
+   * side by side, each isolated. */
   steps: Readonly<Record<string, Lane>>;
-  /** The step whose own answer is the run's: Mediavine's collector says
-   * whether this tick fell inside its collection window (ran) or not (skipped). */
+  /** The step whose own answer is the run's. */
   answeredBy?: string;
 }
 
 /**
- * WHAT EACH SCHEDULED JOB RUNS, keyed by its id in SCHEDULED_JOBS
- * (scripts/scheduled-jobs.mts). The list of jobs is that file's; this table
- * only says which lanes each one is, and test/crons.test.ts keeps the two
- * naming the same jobs and steps.
+ * What each scheduled job runs, keyed by its id in SCHEDULED_JOBS. The list of
+ * jobs is that file's; test/crons.test.ts keeps the two naming the same jobs.
  */
 export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
   mediavine: { steps: { revenue: (env) => runMediavine(env) }, answeredBy: 'revenue' },
-  // The hourly tick also asks whether each site is up (bead ro-ujb9.165): the
-  // nightly home-page check, run every hour. A site that hangs its 15-second
+  // The hourly tick also asks whether each site is up. A site that hangs its
   // request must not stop the report-freshness alerts.
   freshness: { steps: { freshness: (env) => runFreshnessCheck(env), uptime: (env) => runUptimeChecks(env) } },
   notifications: { steps: { notify: (env) => runNotifier(env) } },
@@ -180,11 +150,9 @@ export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
   'watch-windows': { steps: { outcomes: (env) => runWatchWindows(env) } },
   hygiene: { steps: { hygiene: (env) => runHygieneChecks(env) } },
   clarity: { steps: { clarity: (env, cfg) => runClarityDumps(env, { laneRegister: cfg.laneRegister }) } },
-  // The daily tick also re-collects the DataForSEO families an offline Monday
-  // skipped (`ro-aed0.6`), so that data is at most a day late instead of a
-  // week. 12:15 is daily, 30 minutes clear of the 12:45 weekly sweep it shares
-  // a lane lock with, and before the 13:10 local summary rebuild that reads
-  // both archives. A skipped step (null) when the operator paused DataForSEO.
+  // The daily tick also re-collects the DataForSEO families an offline weekly
+  // sweep skipped, 30 minutes clear of the sweep it shares a lane lock with.
+  // A skipped step (null) when the operator paused DataForSEO.
   'signal-dumps': {
     steps: {
       archives: (env, cfg) =>
@@ -221,7 +189,7 @@ export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
   },
 };
 
-/** The refusal of an expression no scheduled job runs on (bead ro-ujb9.217). */
+/** The refusal of an expression no scheduled job runs on. */
 export class UnknownCronError extends Error {
   readonly code = 'unknown_cron' as const;
   constructor(readonly cron: string) {
@@ -261,10 +229,8 @@ export interface ScheduledStepFailure {
 }
 
 /**
- * WHAT "CHECK THE SERVICE LOGS" FINDS (bead `ro-ujb9.173`). A failed step's
- * Workflows row sends the operator to the logs; this is the line waiting
- * there: the cron, the step, the error's code and its message — scrubbed of
- * anything credential-shaped by the runner's own redaction, and bounded.
+ * The line a failed step leaves in the service log: the cron, the step, the
+ * error's code and its message, redacted and bounded.
  */
 export function scheduledStepFailure(cron: string, step: string | null, error: unknown): ScheduledStepFailure {
   const code = (error as { code?: unknown } | null)?.code;
@@ -303,31 +269,19 @@ export async function runScheduledCron(cron: string, env: IngestEnv): Promise<Sc
   }
 }
 
-// --- collect now (bead `ro-ujb9.96.7.2`) ------------------------------------
+// --- collect now -------------------------------------------------------------
 //
-// The connect panel's Start collecting: one job STEP, run now, for the sites
-// the operator just confirmed. Which step is declared beside the job it
-// belongs to (`collectNow` in scripts/scheduled-jobs.mts), and it runs here —
-// the same seam every cron fire goes through — so it gets exactly what a
-// scheduled run gets and nothing more:
-//
-//   - the stored config, resolved store-first as above, so the mapping the
-//     press just saved is the one this run asks for;
-//   - the job's saved schedule: a job the operator paused is not run early;
-//   - the lane's own function, unchanged, with its egress gate, its lease
-//     (DataForSEO's one-run-at-a-time lane lock refuses here as it refuses the
-//     cron and `POST /api/signal-collect`), its budget gate (the monthly
-//     reserve fails closed before a paid call) and its retry budget.
-//
-// A collect-now is narrower than the job, never wider: it names assets, and
-// each lane still applies its own membership rule to them.
+// The connect panel's Start collecting: one job step, run now, for the sites
+// the operator just confirmed, through the same seam every cron fire goes
+// through, so it gets exactly what a scheduled run gets: the stored config,
+// the job's saved schedule (a paused job is not run early), and the lane's own
+// function with its egress gate, lease, budget gate and retry budget. Narrower
+// than the job, never wider.
 
-/** The lanes' own transport and clock overrides (tests and the journey
- * fixture answer the provider here; everything else uses the real network). */
+/** The lanes' own transport and clock overrides (tests and the journey fixture). */
 export type CollectNowOptions = LaneNarrowing;
 
-/** Is `job` saved as paused? The same reading the runner and the recovery
- * pass make of `config/constants.json` `/schedules`. */
+/** Is `job` saved as paused? The same reading the runner makes. */
 function jobPaused(cfg: RunConfig, job: string): boolean {
   return schedulePaused(cfg.constants, job);
 }
@@ -371,17 +325,15 @@ export async function runCollectNow(
   } else if (plan.step.step === 'search') {
     sites = [];
     for (const asset of assets) {
-      // The collector's own membership rule, asked per asset exactly as
-      // `POST /api/signal-collect` asks it: a scope can never reach an asset
-      // the weekly sweep would not collect.
+      // The collector's own membership rule, asked per asset as
+      // `POST /api/signal-collect` asks it; a declined site is skipped as the
+      // sweep skips it.
       const [candidate] = await dataForSeoCandidates(env.STORE, asset);
-      // Declined on its Data sources row (Not using): the sweep skips it, so
-      // a press does too (bead `ro-ujb9.96.7.18`).
       if (!candidate || laneDeclined(asset, 'dataforseo', cfg.laneRegister)) continue;
       const run = await searchLane(env, cfg, { ...narrow, scope: { asset } });
       if (run.refused) {
-        // Another run holds the lane. Nothing this press asked for has been
-        // bought yet, so say so rather than queue a second paid run behind it.
+        // Another run holds the lane: nothing was bought yet, so say so rather
+        // than queue a second paid run behind it.
         if (sites.length === 0) return { ok: false, provider, error: 'in-flight', job };
         sites.push({ asset, outcome: 'skipped', code: 'in-flight' });
         continue;
@@ -397,8 +349,7 @@ export async function runCollectNow(
       });
     }
   } else if (plan.step.step === 'clarity') {
-    // Clarity (bead `ro-ujb9.96.7.9`): the 04:30 export, run now for the named
-    // sites only — each spends one of that site's ten daily calls, which is
+    // Clarity: each site's export spends one of its ten daily calls, which is
     // why the panel asks for it with an explicit Run now.
     const run = await runClarityDumps(env, { laneRegister: cfg.laneRegister, assets, ...narrow });
     sites = run.outcomes.map((outcome) => ({
@@ -407,9 +358,8 @@ export async function runCollectNow(
       code: outcome.errorCode,
     }));
   } else if (plan.step.step === 'product') {
-    // PostHog (bead `ro-ujb9.96.7.8`): the daily archive, scoped to one site
-    // at a time exactly as `POST /api/signal-collect` scopes it — its own
-    // lease turns a press away while a run holds the site.
+    // PostHog: scoped to one site at a time; its own lease turns a press away
+    // while a run holds the site.
     sites = [];
     for (const asset of assets) {
       if (laneDeclined(asset, 'posthog', cfg.laneRegister)) continue;
@@ -431,10 +381,8 @@ export async function runCollectNow(
       });
     }
   } else if (plan.step.step === 'google') {
-    // Google (bead `ro-ujb9.96.7.7`): the quarter-hourly GA4 and Search
-    // Console collection, narrowed to the named sites — the same call the
-    // cron makes, on the stored mapping the press just saved. A site is
-    // collected when any of its lanes stored a result.
+    // Google: the same call the cron makes, narrowed to the named sites. A site
+    // is collected when any of its lanes stored a result.
     const run = await runGoogleSignals(env, {
       laneRegister: cfg.laneRegister, osTimeZone: cfg.osTimeZone, configSources: cfg.configSources, assets, ...narrow,
     });
@@ -451,11 +399,8 @@ export async function runCollectNow(
       });
     }
   } else if (plan.step.step === 'revenue') {
-    // Mediavine (bead `ro-ujb9.96.7.6`): the daily revenue sync, run now for
-    // each named site — the month so far on a first sync — through the one
-    // Mediavine lease, so a press is turned away while a sync holds it. A site
-    // whose Data sources row says Not using is not synced; the sync itself
-    // refuses it too.
+    // Mediavine: run now for each named site through the one Mediavine lease.
+    // A site whose row says Not using is not synced; the sync refuses it too.
     sites = [];
     for (const asset of assets) {
       if (laneDeclined(asset, 'ad-network', cfg.laneRegister)) continue;
@@ -473,13 +418,12 @@ export async function runCollectNow(
     }
   } else {
     // A step declared in scheduled-jobs.mts that this dispatch cannot run is a
-    // catalog change nobody finished; refusing keeps it from running wide.
+    // catalog change nobody finished.
     return { ok: false, provider, error: 'not-supported', job };
   }
   if (sites.length === 0) return { ok: false, provider, error: 'no-sites', job };
-  // IN ITS JOB'S RUN HISTORY (bead `ro-ujb9.96.7.19`): the press ran the job's
-  // step, so Workflows lists it under that job, marked Manual — never as the
-  // scheduler's firing. A refusal above ran nothing and records nothing.
+  // In its job's run history, marked Manual. A refusal above ran nothing and
+  // records nothing.
   await recordManualRun(env, {
     job: jobRunName(plan.job),
     startedAt,

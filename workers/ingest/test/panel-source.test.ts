@@ -99,8 +99,8 @@ async function seedObservations(input: {
   const status = input.status ?? 'success';
   const provisionalFrom = input.provisionalFrom ?? null;
   const failed = status === 'error';
-  // On Postgres (bead ro-ujb9.76.5.3). A failed run carries no values: the
-  // store refuses a value under a run that did not succeed.
+  // A failed run carries no values: the store refuses a value under a run that
+  // did not succeed.
   await storeSignalRun(
     {
       id: crypto.randomUUID(),
@@ -278,7 +278,7 @@ describe('GET /api/panel-source — the daily trend', () => {
 
   // A run that re-reports a day with the same number writes nothing for it, so
   // the day's value keeps the run that first wrote it. Its provisional flag must
-  // follow the newest run that confirmed the day instead (epic ro-cvl9).
+  // follow the newest run that confirmed the day instead.
   it('finalizes an unchanged day once a later run confirms it', async () => {
     await seedObservations({
       finishedAt: `${today(1)}T00:15:00.000Z`,
@@ -378,8 +378,8 @@ describe('GET /api/panel-source — the daily trend', () => {
   });
 
   // Repointing the asset at another Search Console site starts a different
-  // series (ro-ujb9.70). A day only the old site reported is that site's number
-  // and must not be spliced in front of the new site's.
+  // series. A day only the old site reported is that site's number and must
+  // not be spliced in front of the new site's.
   it('reads only the current provider resource after a property switch', async () => {
     await seedObservations({
       propertyRef: 'sc-domain:nosh.example',

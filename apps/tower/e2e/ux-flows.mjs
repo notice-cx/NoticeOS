@@ -1,29 +1,18 @@
-// THE FLOW REGISTRY: every operator flow the flow walker (flow-gate.mjs) walks.
+// The flow registry: every operator flow the flow walker (flow-gate.mjs)
+// walks, driven by clicking the controls the product offers, and measured at
+// desktop (1440×900) and phone (390×844). The measurements are a report for
+// design review, not a budget; the run fails only when a walk cannot finish.
 //
-// Each entry is a step script driven the way a person drives the Tower — by
-// clicking the controls the product offers, from where the flow starts — and
-// the walker measures it on every run at desktop (1440×900) and phone
-// (390×844): actions, screens, page changes, explanatory words, empty steps,
-// repeated checks, duplicate statuses, ungrouped lists. The measurements are a
-// report for design review, not a budget.
-//
-// Keeping a flow here honest:
-//   - A redesign that changes a flow changes its script in the same commit, so
-//     the walker measures the new flow. If the walk cannot finish, the run
-//     fails: a flow is fixed or deliberately retired, never left broken.
-//   - `setup` puts the fixture in the flow's start state and is NOT counted.
+//   - A redesign that changes a flow changes its script in the same commit.
+//   - `setup` puts the fixture in the flow's start state and is not counted.
 //   - `w.duplicate(label, evidence)` records a second check that no request or
 //     step label reveals; it is removed by the redesign that removes the
 //     second check, never on its own.
-//   - A new flow is designed by whoever builds it. Looking at how comparable
-//     products handle the same job is good practice; the patterns the current
-//     flows adopted are listed below so that research is not redone.
 //
 // Fields: title, kind ("flow" or "survey"), countStart (the starting screen
 // is part of the flow), setup(page, fixture), run(w).
 //
-// PATTERNS THE CURRENT FLOWS ADOPTED (researched 2026-09-23 from each
-// vendor's own documentation):
+// Patterns the current flows adopted, from each vendor's own documentation:
 //   - Connect with one key: Grafana's one-press save-and-test; Zapier's one
 //     status per connection with Reconnect beside it; PostHog's list of the
 //     permissions a key needs beside the field; Ahrefs-style listing of what
@@ -71,7 +60,7 @@ const MEDIAVINE_EMAIL = "journey@example.test";
 /** The synthetic Google OAuth client the fixture accepts (harness.ts). */
 const GOOGLE_CLIENT_ID = "journey-client.apps.googleusercontent.com";
 
-// ── setup helpers (NOT counted: they put the fixture in the flow's start state) ─
+// ── setup helpers (not counted: they put the fixture in the flow's start state) ─
 
 /** An asset added through the real Add a site screen, uncounted, for flows
  * that start after it. Its name is read off the domain (journey.example →
@@ -113,8 +102,8 @@ async function seedPopulated(page, fixture) {
   await fixture("/__journey/task-source");
 }
 
-/** Mediavine signed in through its connect panel (bead ro-ujb9.96.7.6),
- * closed before Start: connected, no site synced yet. */
+/** Mediavine signed in through its connect panel, closed before Start:
+ * connected, no site synced yet. */
 async function seedMediavineConnected(page) {
   await page.goto("/integrations?connect=mediavine");
   const panel = page.locator('[data-connect-panel="mediavine"]');
@@ -142,10 +131,9 @@ async function seedSurvey(page, fixture) {
 
 export const FLOWS = {};
 
-/** Shared API key in the connect panel (Bing Webmaster Tools, beads
- * ro-ujb9.96.7.1 and .2): Integrations → Connect → paste → Connect (saves and
- * tests) → the account's sites matched to assets → Start collecting (saves
- * the matches, collects now) → Working. */
+/** Shared API key in the connect panel (Bing Webmaster Tools): Integrations →
+ * Connect → paste → Connect (saves and tests) → the account's sites matched
+ * to assets → Start collecting (saves the matches, collects now) → Working. */
 FLOWS["connect-bing"] = {
   title: "Connect Bing Webmaster Tools (shared API key, saved and tested, sites matched and collected in one panel)",
   async setup(page) { await seedAsset(page); await page.goto("/"); },
@@ -169,8 +157,7 @@ FLOWS["connect-dataforseo"] = {
   },
 };
 
-/** One personal API key for the account (PostHog, bead ro-ujb9.96.7.8):
- * Integrations → Connect → paste → Connect shows the key to PostHog's US and
+/** One personal API key for the account (PostHog): Integrations → Connect → paste → Connect shows the key to PostHog's US and
  * EU clouds and keeps it where it is accepted (the region found, never typed);
  * the region's projects are matched to sites by the domains each records,
  * with the project's saved funnels picked up; Start saves the match and
@@ -185,8 +172,8 @@ FLOWS["connect-posthog"] = {
   },
 };
 
-/** A token per site, pasted on the site's row in the connect panel (Clarity,
- * bead ro-ujb9.96.7.9): the paste is saved at once — no Save, no step — and
+/** A token per site, pasted on the site's row in the connect panel (Clarity):
+ * the paste is saved at once, no Save, no step, and
  * the proof is the export itself, run by Run now, which says it spends one of
  * the site's ten calls a day; the site then reads Working. */
 FLOWS["connect-clarity"] = {
@@ -205,9 +192,9 @@ FLOWS["connect-clarity"] = {
   },
 };
 
-/** PostHog connected with one key and started from its panel (bead
- * ro-ujb9.96.7.8) — which picks up the project's two saved funnels — then its
- * Checkout funnel removed on the site's row, so the flow has one to add. */
+/** PostHog connected with one key and started from its panel, which picks up
+ * the project's two saved funnels, then its Checkout funnel removed on the
+ * site's row, so the flow has one to add. */
 async function seedPosthogWithOneFunnel(page) {
   await page.goto("/integrations?connect=posthog");
   const panel = page.locator('[data-connect-panel="posthog"]');
@@ -228,10 +215,9 @@ async function seedPosthogWithOneFunnel(page) {
   await settle(page);
 }
 
-/** Change a site's PostHog funnels on its own row (bead ro-ujb9.96.7.24): from
- * the site's page, Data sources → PostHog → Mapping → Add funnel picks one of the
- * project's saved funnels, saved at once with Undo beside it — no event name
- * typed, no Save. */
+/** Change a site's PostHog funnels on its own row: from the site's page, Data
+ * sources → PostHog → Mapping → Add funnel picks one of the project's saved
+ * funnels, saved at once with Undo beside it; no event name typed, no Save. */
 FLOWS["change-posthog-funnel"] = {
   title: "Change a site's PostHog funnels (pick one of the project's saved funnels on the site's row, saved on the pick)",
   async setup(page, fixture) { await fixture("/__journey/every-source"); await seedAsset(page); await seedPosthogWithOneFunnel(page); },
@@ -249,8 +235,8 @@ FLOWS["change-posthog-funnel"] = {
   },
 };
 
-/** Account sign-in and site discovery in the connect panel (Mediavine, bead
- * ro-ujb9.96.7.6): Integrations → Connect → email and password → Connect
+/** Account sign-in and site discovery in the connect panel (Mediavine):
+ * Integrations → Connect → email and password → Connect
  * signs in and lists the account's sites before the login is kept → the site
  * matched by its domain → Start saves it and syncs now → Working. */
 FLOWS["connect-mediavine"] = {
@@ -287,11 +273,10 @@ async function googleSignInToWorking(w, panel) {
   await w.waitFor("Start → Working", () => w.page.locator('[data-connect-panel="google"] [data-site-row] [data-connection="working"]').first().waitFor({ timeout: 60_000 }));
 }
 
-/** Google, self-hosted (bead ro-ujb9.96.7.7): the connect panel's one-time
- * setup — two deep links into the Cloud console (the three APIs, a web
- * client), the redirect address with Copy, the client_secret.json Google
- * hands back dropped on the panel — then Continue with Google, the sites
- * matched, Start → Working. */
+/** Google, self-hosted: the connect panel's one-time setup (two deep links
+ * into the Cloud console, the redirect address with Copy, the
+ * client_secret.json Google hands back dropped on the panel), then Continue
+ * with Google, the sites matched, Start → Working. */
 FLOWS["connect-google"] = {
   title: "Connect Google, self-hosted (console steps deep-linked, the client file dropped, signed in, sites matched and collected in one panel)",
   async setup(page, fixture) { await fixture("/__journey/every-source"); await seedAsset(page); await page.goto("/"); },
@@ -310,9 +295,9 @@ FLOWS["connect-google"] = {
   },
 };
 
-/** Google, hosted (bead ro-ujb9.96.7.7): the installation's own OAuth client
- * is already there, so the panel is one button — Continue with Google — and
- * the account's sites follow the consent back: Start → Working. */
+/** Google, hosted: the installation's own OAuth client is already there, so
+ * the panel is one button, Continue with Google, and the account's sites
+ * follow the consent back: Start → Working. */
 FLOWS["connect-google-hosted"] = {
   title: "Connect Google, hosted (Continue with Google, sites matched and collected in one panel)",
   async setup(page, fixture) {
@@ -330,15 +315,13 @@ FLOWS["connect-google-hosted"] = {
   },
 };
 
-/** The synthetic Discord webhook and calendar feed the fixture accepts
- * (harness.ts, bead ro-ujb9.96.7.14). */
+/** The synthetic Discord webhook and calendar feed the fixture accepts (harness.ts). */
 const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/0/journey-only-not-a-real-key";
 const CALENDAR_FEED = "https://calendar.example/journey-only-not-a-real-key/basic.ics";
 
 /** One secret URL in the connect panel, proved before it is kept (Discord,
- * the calendar feeds; bead ro-ujb9.96.7.14): Integrations → Connect → paste →
- * Connect → the provider's answer. No site list follows: they serve the whole
- * installation. */
+ * the calendar feeds): Integrations → Connect → paste → Connect → the
+ * provider's answer. No site list follows: they serve the whole installation. */
 async function connectUrlInPanel(w, id, label, value) {
   await nav(w, "Integrations");
   await w.click(w.page.locator(`[data-integration-tile="${id}"]`).getByRole("button", { name: /^Connect / }), "row Connect", { role: "reveal" });
@@ -368,7 +351,7 @@ FLOWS["connect-calendar"] = {
   },
 };
 
-/** Historical budget ID retained: core Tasks now opens without connection. */
+/** Core Tasks opens without any connection. */
 FLOWS["connect-beads"] = {
   title: "Open the core Tasks board before adding a site",
   async setup(page, fixture) { await fixture("/__journey/core-tasks"); await page.goto("/"); },
@@ -379,9 +362,9 @@ FLOWS["connect-beads"] = {
   },
 };
 
-/** Empty install → a site added in one screen (bead ro-ujb9.96.7.5): Home's
- * Add a site opens one question over Home — the domain — whose name is read
- * off it; Add lands on the new asset's Data sources. */
+/** Empty install → a site added in one screen: Home's Add a site opens one
+ * question over Home, the domain, whose name is read off it; Add lands on the
+ * new asset's Data sources. */
 async function addAsset(w) {
   w.know("The site's domain");
   await w.click(w.page.getByRole("button", { name: "Add your first site", exact: true }), "Add your first site", { role: "reveal" });
@@ -401,10 +384,10 @@ FLOWS["add-asset"] = {
   },
 };
 
-/** Empty install → first data: a site added in one screen, then its Bing row's
- * Connect — the connect panel opened for this site, where the key is saved and
- * tested, the site matched and collected (beads ro-ujb9.96.7.2, .5) — Working
- * inside the flow, with no wait for a schedule. */
+/** Empty install → first data: a site added in one screen, then its Bing
+ * row's Connect opens the connect panel for this site, where the key is saved
+ * and tested, the site matched and collected: Working inside the flow, with
+ * no wait for a schedule. */
 FLOWS["first-data"] = {
   title: "New site to first data (one-screen add, then its Bing row's Connect: key, site matched and collected in one panel)",
   countStart: true,
@@ -416,11 +399,11 @@ FLOWS["first-data"] = {
   },
 };
 
-/** Fresh install → the first number on screen (bead ro-ujb9.119): the empty
- * install's Home, one-screen add, the site's Bing row's Connect (key, match,
- * first collection in the panel), then the panel's Open. The walk ends only
- * once the site's Overview has drawn the collected search clicks, so the
- * whole way from nothing to a number is measured and can only get shorter. */
+/** Fresh install → the first number on screen: the empty install's Home,
+ * one-screen add, the site's Bing row's Connect (key, match, first collection
+ * in the panel), then the panel's Open. The walk ends only once the site's
+ * Overview has drawn the collected search clicks, so the whole way from
+ * nothing to a number is measured. */
 FLOWS["fresh-install"] = {
   title: "Fresh install to the first number (add a site, connect Bing from its row, open the site: its clicks on screen)",
   countStart: true,
@@ -432,8 +415,8 @@ FLOWS["fresh-install"] = {
     await w.click(panel.getByRole("link", { name: /^Open / }), "Open the site", { role: "nav" });
     // The fixture's Bing days sum to 602 clicks over 28 days (harness.ts).
     await w.waitFor("Open → the first number", () => w.page.locator("[data-kpi]").filter({ hasText: "602" }).first().waitFor({ timeout: 15_000 }));
-    // …and the chart under the strip draws that number (bead ro-ujb9.124),
-    // not an empty users chart beside it.
+    // …and the chart under the strip draws that number, not an empty users
+    // chart beside it.
     await w.waitFor("the first number → its chart", () => w.page.locator("[data-hero-chart]").filter({ hasText: "Search clicks · daily" })
       .locator('[data-hero-line="Bing"], [data-hero-raw="Bing"]').first().waitFor({ timeout: 15_000 }));
     await w.end("first number");
@@ -441,11 +424,9 @@ FLOWS["fresh-install"] = {
 };
 
 /** An existing asset: decline one source with a reason, set another's market.
- * Not using is one press and a reason chip, saved by the chip with Undo in the
- * toast (bead ro-ujb9.96.7.13; it was a typed "REASON:" line and a Posture
- * select, each with its own Save). A site with no number yet opens on its Data
- * sources (bead ro-ujb9.96.7.4, `sitePath`), so the sidebar's site goes there
- * directly instead of through an Overview with nothing on it. */
+ * Not using is one press and a reason chip, saved by the chip with Undo in
+ * the toast. A site with no number yet opens on its Data sources
+ * (`sitePath`), so the sidebar's site goes there directly. */
 FLOWS["configure-sources"] = {
   title: "Configure an existing asset's data sources (skip one with a reason, set a market)",
   async setup(page, fixture) { await fixture("/__journey/every-source"); await seedAsset(page); await page.goto("/"); },
@@ -455,8 +436,8 @@ FLOWS["configure-sources"] = {
     await w.click(w.page.locator('[data-lane-decline="clarity"]'), "Not using", { role: "reveal" });
     await w.click(w.page.locator('[data-decline-reasons] [data-decline-reason="not-relevant"]'), "Not relevant for this site", { role: "commit" });
     await w.waitFor("Not using → saved", () => w.page.locator(SAVED).first().waitFor({ state: "visible", timeout: 15_000 }));
-    // The market is picked by name and saved on the pick (bead ro-ujb9.96.7.4),
-    // never DataForSEO's numeric location code typed and saved.
+    // The market is picked by name and saved on the pick, never DataForSEO's
+    // numeric location code typed and saved.
     await openSourceRow(w, "DataForSEO");
     const market = w.page.locator('[data-lane-mapping="dataforseo"]').getByLabel("Market", { exact: true });
     await w.select(market, "2826:en", "Market");
@@ -465,8 +446,7 @@ FLOWS["configure-sources"] = {
   },
 };
 
-/** The inbox: approve a gate and answer an ask, each on its own row (bead
- * ro-ujb9.96.7.11, Linear Triage). */
+/** The inbox: approve a gate and answer an ask, each on its own row (Linear Triage). */
 FLOWS["inbox"] = {
   title: "Answer the inbox (approve a gate, answer an ask, on the row)",
   async setup(page, fixture) { await seedPopulated(page, fixture); await page.goto("/"); },
@@ -476,14 +456,14 @@ FLOWS["inbox"] = {
     await w.click(gate.getByRole("button", { name: "Approve", exact: true }), "Approve", { role: "commit" });
     const ask = w.page.locator('[data-inbox-row="jt-review"]');
     await w.click(ask.getByRole("button", { name: "Answer", exact: true }), "Answer", { role: "choose" });
-    await w.fill(ask.getByLabel("Your answer to jt-review"), "Approved wording: Plan meals in minutes", "Answer");
+    await w.fill(ask.getByLabel("Your answer to jt-review"), "Approved wording: Example headline", "Answer");
     await w.click(ask.getByRole("button", { name: "Send", exact: true }), "Send", { role: "commit" });
     await w.end("answered");
   },
 };
 
-/** File task on a saved finding's row, prefilled from the finding (bead
- * ro-ujb9.96.7.11, PagerDuty → Jira): two presses, on the page it is read on. */
+/** File task on a saved finding's row, prefilled from the finding (PagerDuty
+ * → Jira): two presses, on the page it is read on. */
 FLOWS["file-task-from-finding"] = {
   title: "File a task from a finding (prefilled, on the asset page)",
   async setup(page, fixture) {
@@ -525,8 +505,7 @@ FLOWS["setting-timezone"] = {
   async setup(page) { await seedAsset(page); await page.goto("/"); },
   async run(w) {
     await nav(w, "Settings");
-    // Settings opens on General, whose first row is the time zone (bead
-    // ro-ujb9.18).
+    // Settings opens on General, whose first row is the time zone.
     const section = w.page.locator("#clock");
     await w.select(section.locator("select").first(), "America/Los_Angeles", "Time zone");
     const saved = section.locator('[data-save-state="saved"]');
@@ -537,12 +516,9 @@ FLOWS["setting-timezone"] = {
   },
 };
 
-/** Settings: one portfolio number (the monthly data budget), saved. The audit
- * walked "a data collection setting"; a collection's schedule is
- * setting-cadence's walk (on its source's Manage panel since bead
- * ro-ujb9.96.7.28), so this is the single typed setting that walk stood for. Money keeps its explicit Save
- * (GitLab Pajamas: never autosave financial data). The budget is a row of
- * General, the page Settings opens on (bead ro-ujb9.18), so there is no
+/** Settings: one portfolio number (the monthly data budget), saved. Money
+ * keeps its explicit Save (GitLab Pajamas: never autosave financial data).
+ * The budget is a row of General, the page Settings opens on, so there is no
  * section to pick first. */
 FLOWS["setting-budget"] = {
   title: "Change a portfolio setting (monthly data budget)",
@@ -556,14 +532,12 @@ FLOWS["setting-budget"] = {
   },
 };
 
-/** How often data is collected, changed on the source's own connection (bead
- * ro-ujb9.96.7.28, operator decision 2026-09-24; Fivetran's and Airbyte's sync
- * frequency on the connection): Integrations → the source's Manage → the
- * collection's time, one pick saved beside its row with Undo. The traffic and
- * search archives are fed by Google and Bing, so the row is on both panels
- * under the job's own name; this walks Bing's. It went through Settings →
- * Data collection before, a section press that decided nothing (1 empty step).
- * The row's own "Saved" is what the walk waits on, so it proves the write. */
+/** How often data is collected, changed on the source's own connection
+ * (Fivetran's and Airbyte's sync frequency on the connection): Integrations →
+ * the source's Manage → the collection's time, one pick saved beside its row
+ * with Undo. The traffic and search archives are fed by Google and Bing, so
+ * the row is on both panels under the job's own name; this walks Bing's. The
+ * row's own "Saved" is what the walk waits on, so it proves the write. */
 FLOWS["setting-cadence"] = {
   title: "Change how often data is collected (a collection's schedule, on its source's Manage panel)",
   async setup(page) { await seedAsset(page); await seedBingConnected(page); await page.goto("/"); },
@@ -577,11 +551,11 @@ FLOWS["setting-cadence"] = {
   },
 };
 
-/** Rotate the Bing key on the connection itself (bead ro-ujb9.96.7.10,
- * Stripe's roll key / Zapier's Reconnect): the row's Manage opens the
- * connection in the panel; Replace API key → paste → Connect shows the new key
- * to Bing before it is kept, so the old key collects until the new one passes,
- * and the panel ends on Bing's answer — no walk back through the sites. */
+/** Rotate the Bing key on the connection itself (Stripe's roll key / Zapier's
+ * Reconnect): the row's Manage opens the connection in the panel; Replace API
+ * key → paste → Connect shows the new key to Bing before it is kept, so the
+ * old key collects until the new one passes, and the panel ends on Bing's
+ * answer with no walk back through the sites. */
 FLOWS["rotate-key"] = {
   title: "Rotate a key (Bing: Replace API key on the connection, tested before it is kept)",
   async setup(page) { await seedAsset(page); await seedBingConnected(page); await page.goto("/"); },
@@ -598,10 +572,10 @@ FLOWS["rotate-key"] = {
   },
 };
 
-/** Disconnect Mediavine on the connection itself (beads ro-ujb9.96.7.10,
- * .6): the row's Manage opens it in the panel; Disconnect, then one
- * confirmation naming the sites that stop — no Settings step, no typed id. It
- * stays one confirmation because it cannot be undone: the secret is deleted. */
+/** Disconnect Mediavine on the connection itself: the row's Manage opens it
+ * in the panel; Disconnect, then one confirmation naming the sites that stop,
+ * no Settings step, no typed id. It stays one confirmation because it cannot
+ * be undone: the secret is deleted. */
 FLOWS["disconnect"] = {
   title: "Disconnect an integration (Mediavine: one confirmation naming what stops)",
   async setup(page) { await seedAsset(page); await seedMediavineConnected(page); await page.goto("/"); },
@@ -617,8 +591,8 @@ FLOWS["disconnect"] = {
   },
 };
 
-/** Arrange the Wall: the Edit beside the sidebar's TV dashboard entry (bead
- * ro-ujb9.96.7.12, PostHog's dashboard Edit), move one widget, save. */
+/** Arrange the Wall: the Edit beside the sidebar's TV dashboard entry
+ * (PostHog's dashboard Edit), move one widget, save. */
 FLOWS["arrange-wall"] = {
   title: "Arrange the TV Wall (Edit beside the TV entry, move one widget, save)",
   async setup(page) {
@@ -642,12 +616,11 @@ FLOWS["arrange-wall"] = {
     }
     await settle(w.page);
     await w.click(w.page.getByRole("button", { name: "Move row 1 down", exact: true }), "Move row 1 down", { role: "commit" });
-    // One press since ro-ujb9.96.6.12: the version note is optional and the
-    // version is named by what changed when the operator writes none.
+    // One press: the version note is optional and the version is named by
+    // what changed when the operator writes none.
     await w.click(w.page.getByRole("button", { name: "Save", exact: true }).first(), "Save", { role: "commit" });
     // Saved means the layout's own status reads saved ("On the TV", declared
-    // for wall:layout) — never any toast: the "Changed elsewhere" refusal of a
-    // first Save on a fresh install passed this walk (bead ro-nuz9).
+    // for wall:layout), never any toast: an error toast is a refusal.
     await awaitSaved(w, "Save layout → On the TV", w.page.locator('[data-save-state="saved"]:has([data-status-for="wall:layout"])'));
     const state = await (await w.page.request.get("/__journey/status")).json();
     const settings = wallLayoutWidgets(state.documents["config/tower.json"].wall.layout).find((widget) => widget.id === "sites").settings;

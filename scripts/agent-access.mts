@@ -1,4 +1,4 @@
-/** Agent sign-in (epic ro-cvl9): OAuth 2.1 for NoticeOS's one MCP endpoint,
+/** Agent sign-in: OAuth 2.1 for NoticeOS's one MCP endpoint,
  * as MCP's authorization specification defines it. These are the protocol
  * facts every side shares: the protected resource, the scopes an agent may
  * hold and the workspace actions each one grants, the discovery documents,

@@ -53,18 +53,17 @@ const ROW =
   "grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 sites:col-span-full sites:grid-cols-subgrid";
 
 /**
- * How the site region is drawn, by the number of sites alone
- * (docs/14-design.md § Density): one site in depth (`focus`), two or three
- * in taller rows with larger charts (`comfortable`), four and more in
- * compact rows. Both row tiers fill the region.
+ * How the site region is drawn, by the number of sites alone: one site in
+ * depth (`focus`), two or three in taller rows with larger charts
+ * (`comfortable`), four and more in compact rows.
  */
 export type SiteRowDensity = "focus" | "comfortable" | "compact";
 
-/** The site counts the tiers stop at — doc 14's Density table, in code. */
+/** The site counts the tiers stop at. */
 export const FOCUS_SITES = 1;
 export const COMFORTABLE_MAX_SITES = 3;
 
-/** The ONE place a Wall's number of sites picks how its sites are drawn. */
+/** The one place a Wall's number of sites picks how its sites are drawn. */
 export function siteRowDensity(siteCount: number): SiteRowDensity {
   if (siteCount === FOCUS_SITES) return "focus";
   if (siteCount > FOCUS_SITES && siteCount <= COMFORTABLE_MAX_SITES) return "comfortable";
@@ -146,8 +145,8 @@ function rowStyle(size: RowSize, totals: boolean): RowStyle {
   return size === "comfortable" && totals ? { ...style, charts: "row", today: ROW_SIZE.compact.today, trend: ROW_SIZE.compact.trend, trendFrame: ROW_SIZE.compact.trendFrame } : style;
 }
 
-/** The weekday a week ago IS today's weekday, on the operator's saved clock —
- * the zone the hours were bucketed in (`Ga4RealtimeSuccess.timeZone`). */
+/** The weekday a week ago is today's weekday, on the zone the hours were
+ * bucketed in (`Ga4RealtimeSuccess.timeZone`). */
 function lastWeekdayLabel(realtime: Ga4RealtimePayload | undefined, nowMs: number): string {
   const zone = realtime?.assets.find((asset) => asset.status === "success")?.timeZone;
   if (!zone) return "last week";
@@ -164,9 +163,8 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
   const snapshotOf = (asset: AssetCard) => ga4Realtime?.assets.find((snapshot) => snapshot.asset === asset.id);
   const hasDatedHistory = assets.some((asset) => !currentHourlyReading(snapshotOf(asset), nowMs) && latestFinishedUsers(asset.activeUsers) !== null);
 
-  // A new installation (bead ro-ujb9.132): no headings over nothing, one calm
-  // line in the Revenue region's shape. A TV has no controls, so the way
-  // forward is the desk's Add a site, not a prompt here.
+  // A new installation: no headings over nothing. A TV has no controls, so
+  // the way forward is the desk's Add a site, not a prompt here.
   if (assets.length === 0) {
     return (
       <section
@@ -206,11 +204,8 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
       <div
         role="table"
         aria-label="Sites"
-        // In the TV's layout the region is the height the Wall leaves it, on
-        // the TV and scaled onto a laptop alike, and every row the budget
-        // holds fits (`pnpm wall:fit`). Rows past it scroll inside the region
-        // under the headings rather than the Wall falling back to one column
-        // (bead ro-trai.31).
+        // Rows past the region's height scroll inside it under the headings
+        // rather than the Wall falling back to one column.
         className={cn("min-h-0 flex-1 tv:overflow-y-auto", TABLE, ROW_SIZE[size].table, compactTotals && "sites:grid-cols-[minmax(12.5rem,1.6fr)_auto_minmax(9rem,0.6fr)_minmax(min-content,1fr)] sites-wide:grid-cols-[minmax(14.5rem,1.6fr)_auto_minmax(9rem,0.6fr)_minmax(min-content,1fr)]")}
         // Row count controls the region's responsive type scale.
         style={{ "--site-rows": assets.length } as CSSProperties}
@@ -218,8 +213,8 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
         <div role="row" className={cn(ROW, "hidden px-4 pb-2 sites:grid tv:sticky tv:top-0 tv:z-10 tv:bg-background")} data-site-header>
           <span role="columnheader" className={eyebrow}>Site</span>
           <span role="columnheader" className={`${eyebrow} whitespace-nowrap`}>{LIVE_HEADING}</span>
-          {/* Scaled, today's column may narrow under its heading (bead
-              ro-trai.36); the heading then takes two lines. */}
+          {/* Scaled, today's column may narrow under its heading, which then
+              takes two lines. */}
           <span role="columnheader" className={`${eyebrow} whitespace-nowrap scaled:whitespace-normal scaled:text-balance`}>{hasDatedHistory ? "Today / latest day" : `Today vs ${lastWeekday}`}</span>
           <span role="columnheader" className={eyebrow}>4 weeks</span>
         </div>
@@ -292,7 +287,7 @@ function SiteRow({
       <div role="row" className={row} data-site-row={asset.id} data-site-density={size} data-site-state="waiting">
         {name}
         <span role="cell" className={`whitespace-nowrap ${style.quiet} text-muted-foreground sites:col-span-3`} data-site-waiting>
-          {/* No report has arrived, so none is expected (D29 amended, ro-ujb9.121). */}
+          {/* No report has arrived, so none is expected. */}
           No data yet
         </span>
       </div>
@@ -336,7 +331,7 @@ function PulseTotals({ asset, choices, nowMs, cell = false, inline = false }: { 
   );
 }
 
-/** The pace's tone: none while its hours carry no verdict (bead ro-trai.43). */
+/** The pace's tone: none while its hours carry no verdict. */
 const paceStep = (pace: IntradayUsersPace | null) => (pace?.paceChange == null ? "neutral" : paceTone(pace.paceChange));
 
 /** The visible arrow carries direction; accessible text spells it out. */
@@ -422,12 +417,8 @@ function TodayCell({
  * filling hour's halo is never cut at either edge. */
 const hourX = (hour: number) => 2 + (hour / 23) * 96;
 
-/**
- * How heavy a chart is drawn, by where it sits (doc 14 § Charts, bead
- * `ro-trai.19`): a compact row's 48 px chart, a roomier row's, or a focus
- * tile's. Stroke widths are for a TV read from three metres — the hero lines
- * 4 px, a row's 2.5 px — and the dot grows with them.
- */
+/** How heavy a chart is drawn, by where it sits. Stroke widths are for a TV
+ * read from three metres, and the dot grows with them. */
 type ChartWeight = "row" | "roomy" | "focus";
 
 const WEIGHT: Record<ChartWeight, { line: number; ghost: number; dot: "md" | "lg"; floor: boolean }> = {
@@ -442,19 +433,12 @@ function Floor() {
 }
 
 /**
- * Today by hour, in the pace's own tone (the caller's `currentColor`), over the
- * same weekday last week dashed in low-contrast neutral ink. Today is a smooth
- * line over a wash of its tone that fades to the floor, ending where the
- * provider's data ends. The now point breathes AT THE CLOCK (`nowHour`, bead
- * `ro-trai.43`): on today's line while its newest hour is the one the clock is
- * in; when the data lags — GA4 processes hours 2–6 h behind — the line ends in
+ * Today by hour in the pace's tone over the same weekday last week, dashed.
+ * The now point breathes at the clock (`nowHour`): on today's line while its
+ * newest hour is the one the clock is in; when the data lags, the line ends in
  * a still dot and the breathing one waits at the clock on the floor, so the
- * gap between them is the lag, drawn rather than explained. The x-domain is
- * the whole day.
- *
- * Everything lives in a 1000×100 viewBox stretched to whatever box the caller
- * gives — a row's fixed chart or a tile's whole height — with non-scaling
- * strokes and round-stroke dots (`ChartMarks`), so nothing squashes.
+ * gap between them is the lag. A 1000×100 viewBox stretched to the caller's
+ * box, with non-scaling strokes and round-stroke dots so nothing squashes.
  */
 function TodayVsLastWeek({ hourly, weight, nowHour }: { hourly: HourlyActiveUsers; weight: ChartWeight; nowHour: number | null }) {
   const style = WEIGHT[weight];
@@ -528,14 +512,11 @@ function PeriodChange({
   );
 }
 
-/** The first and last day a four-week chart draws, at its two ends — small
- * and muted, like the month chart's "Sep 1 … Sep 30": a span, not a legend.
- * On a scaled Wall whose chart has narrowed past the two dates (a 1024-wide
- * tablet, bead ro-trai.36) they are left out rather than run together: the
- * holder is a container in the axis's own type, so "7.5em" is the dates'
- * width at whatever size the floors draw them. The dates keep their step's
- * own line (1.23× the size), taller than the font's ascent and descent, so
- * they never paint below their box (bead ro-trai.37). */
+/** The first and last day a four-week chart draws, at its two ends. On a
+ * chart narrowed past the two dates they are left out rather than run
+ * together: the holder is a container in the axis's own type, so "7.5em" is
+ * the dates' width at any size. The dates keep a line taller than the font's
+ * ascent and descent, so they never paint below their box. */
 function WeeksAxis({ weeks }: { weeks: FourWeeks }) {
   return (
     <span className="block text-wall-axis scaled:@container">
@@ -631,11 +612,10 @@ const CHART_CELL = "relative col-span-2 flex min-h-0 min-w-0 flex-col self-stret
 const COMPARISON_TYPE = "text-[length:calc(var(--wall-detail-size)*var(--wall-boost-detail,1))] leading-tight";
 const COMPARISON_OVERLAY = "absolute right-0 top-0 z-10 bg-background/85 pl-1 text-right";
 
-/** Signal level and colour both carry health; the site page owns the details.
- * The level is the site's one health word (D44, `siteHealth`) — the same word
- * Home, the Sites list and the site's own header say: off track one red bar,
- * at risk two amber, on track or monitor only four, setting up none. The
- * accessible name is the open problem when there is one, else the word. */
+/** Signal level and colour both carry health. The level is the site's one
+ * health word (`siteHealth`), the same word Home, the Sites list and the
+ * site's header say. The accessible name is the open problem when there is
+ * one, else the word. */
 function SiteHealth({ asset, mark, site }: { asset: AssetCard; mark: SiteMark | null; site: string }) {
   const health = siteHealth(asset, mark ? [{ assets: [asset.id], severity: mark.severity }] : []);
   const state = health.key === "off-track" ? "error" : health.key === "at-risk" ? "warn" : health.key === "setting-up" ? "unknown" : "healthy";
@@ -732,8 +712,7 @@ function FocusTile({
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-1">{figures}</div>
       {/* The chart takes the height the tile has left on the TV; below the
-          TV the Wall is one column of content height, where it keeps the
-          phone's 10 rem (bead ro-trai.29). */}
+          TV the Wall is one column of content height, where it keeps 10 rem. */}
       <div className="relative h-40 min-h-0 sites:h-auto sites:min-h-40 sites:flex-1" data-focus-chart>
         {children}
       </div>
@@ -744,9 +723,8 @@ function FocusTile({
   );
 }
 
-/** A figure and the words that say what it is: the tile's lead figure, or a
- * `second` one a step smaller beside it. In a tile too narrow for both on one
- * line the words move under the figure, whole (bead `ro-trai.22`). */
+/** A figure and the words that say what it is. In a tile too narrow for both
+ * on one line the words move under the figure, whole. */
 function Figure({ value, unit, data, second = false }: { value: string; unit: string; data: string; second?: boolean }) {
   return (
     <span className="inline-flex min-w-0 flex-wrap items-baseline gap-x-2 whitespace-nowrap" data-focus-figure={data}>
@@ -951,11 +929,9 @@ function SearchFocusTile({ search }: { search: SearchTile }) {
 }
 
 /**
- * Search clicks by day over the last four weeks in the traffic colour: a
- * smooth line over a wash that fades to a zero-based floor (a wash is only
- * honest down to zero), ending in a dot on the newest finished day — over the
- * four weeks before, dashed, each day above the same weekday, as a site row
- * draws its visitors (bead ro-trai.26).
+ * Search clicks by day over the last four weeks: a line over a wash that
+ * fades to a zero-based floor (a wash is only honest down to zero), ending in
+ * a dot on the newest finished day, over the four weeks before, dashed.
  */
 function ClicksChart({ weeks }: { weeks: FourWeeks }) {
   const top =

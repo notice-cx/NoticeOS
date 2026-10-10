@@ -18,7 +18,7 @@ import {
 
 // A Vite dev server a test starts waits for its dependency optimizer before it
 // closes, runs none when no page is loaded, and keeps its cache in a folder of
-// its own (bead ro-ujb9.192). The real Vite half of this lives in
+// its own. The real Vite half of this lives in
 // apps/tower/test/test-vite-server.test.ts; here are its parts, on fakes.
 
 const REPO = fileURLToPath(new URL('../', import.meta.url));

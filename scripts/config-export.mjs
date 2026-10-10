@@ -1,34 +1,16 @@
 #!/usr/bin/env node
-// config-export.mjs — write the store's config documents into this
-// installation's folder (epic `ro-syok`, db/0029; bead ro-ujb9.125).
+// Write the store's config documents into this installation's folder.
 //
-// WHERE. `installation/` by default, or `NOTICEOS_INSTALLATION_DIR`
-// (scripts/installation.mts). Never `config/`: those are the product's generic
-// defaults, and one installation's settings are not the product's.
-//
-// THIS IS WHAT KEEPS docs/06's PROMISE. Config moved into the store so a
-// deployed Tower could save a setting, and the rule that made file config worth
-// choosing — anything that can change a verdict is visible in a diff — survives
-// because the files are still there and this command refreshes them. A commit of
-// what this writes is the same audit artifact the repo has always carried;
-// `config_changes` is the machine-readable half beside it.
-//
-// IT WRITES THE SAME BYTES A SAVE WOULD. `serializeDocument` is the one spelling
-// a document is written in — 2-space JSON, trailing newline — so an export of an
-// unchanged store leaves the checkout byte-identical and an export never looks
-// like a change it did not make.
+// `installation/` by default, or `NOTICEOS_INSTALLATION_DIR`
+// (scripts/installation.mts); never `config/`, the product's generic
+// defaults. It writes the same bytes a Save would (`serializeDocument`), so an
+// export of an unchanged store leaves the checkout byte-identical. It never
+// commits. `--check` writes nothing and answers whether the checkout already
+// matches the store.
 //
 //   pnpm config:export
 //   pnpm config:export --file config/tower.json     # just one
 //   flags: --door <url>  --check
-//
-// `--check` writes nothing and answers whether the checkout already matches the
-// store, which is what a pre-commit or a runbook step wants.
-//
-// IT NEVER COMMITS. Where those commits go is the operator's business, exactly
-// as it is for `pnpm config:apply` and the Tower's write lane.
-//
-// Plain Node ESM — no TypeScript, no build step, no dependencies.
 
 import { CONFIG_DOCUMENT_FILES, serializeDocument } from './config-documents.mjs';
 import { readInstalledDocument, writeDocumentFile } from './config-apply-core.mjs';
@@ -82,15 +64,12 @@ export async function readStoredDocuments({ door = DEFAULT_DOOR, token, fetchImp
 }
 
 /**
- * What an export would do to this installation's folder, per document, WITHOUT
- * writing anything.
- *
- * Three answers only: `written` (the installation's copy differs from the
- * store, or it has none yet), `same` (byte for byte already), and `unseeded`
- * (the store holds no document, so the file is still the source and this
- * command has nothing to say about it). The product default in `config/` is
- * never compared or written: an export is this installation's own
- * (bead ro-ujb9.125). `path` is the file an export writes.
+ * What an export would do to this installation's folder, per document,
+ * without writing anything: `written` (the installation's copy differs from
+ * the store, or it has none yet), `same`, or `unseeded` (the store holds no
+ * document, so the file is still the source). The product default in
+ * `config/` is never compared or written. `path` is the file an export
+ * writes.
  */
 export async function planExport(stored, files, { repoRoot } = {}) {
   const byFile = new Map((stored.documents ?? []).map((row) => [row.file, row]));
@@ -164,8 +143,7 @@ async function main() {
     return;
   }
   for (const line of exportReport(plan, { check: opts.check })) out(line);
-  // `--check` is a gate: a checkout behind the store is a failure a runbook step
-  // wants to hear about, while an ordinary export writing files is a success.
+  // `--check` is a gate: a checkout behind the store is a failure.
   process.exitCode =
     opts.check && plan.some((row) => row.action === 'written') ? 1 : 0;
 }

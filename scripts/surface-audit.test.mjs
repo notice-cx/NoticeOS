@@ -177,7 +177,7 @@ test('paragraphOffenders: prose that is not visible by default is not on the pag
 });
 
 // ---------------------------------------------------------------------------
-// isInsideClosedDisclosure — doc 14's disclosure principle, measured (ro-78qo.20)
+// isInsideClosedDisclosure — doc 14's disclosure principle, measured
 //
 // The descriptor says `visible: true` for all of these on purpose: that is what
 // Chrome reports for a closed `<details>` now, which is the bug. The rule reads
@@ -412,7 +412,7 @@ test('kpiOffenders: an explicitly related visible chart supports its summary fig
   assert.equal(kpiOffenders(summary([{ ...chart, ancestors: [{ tag: 'details', attrs: {} }] }])).length, 1);
 });
 
-// THE "CAN" IN "every number that CAN have a series" (bead `ro-78qo.6`).
+// The "can" in "every number that CAN have a series".
 // Home's strip carries two numbers the store keeps no history of — the
 // operator's inbox posture and tonight's open-alert count — and doc 14's own
 // Home template draws each of them as a bar: how the total DIVIDES, since there
@@ -520,7 +520,7 @@ test('kpiOffenders: a KPI that is not visible by default is not on the first scr
 });
 
 // ---------------------------------------------------------------------------
-// The 44px rule — ro-md80's floor at 390
+// The 44px rule — the touch-target floor at 390
 // ---------------------------------------------------------------------------
 
 test('touchTargetOffenders: a control under the floor on either axis is named with its size', () => {
@@ -741,11 +741,10 @@ test('readEmpty: a reading with no controls and no text is a skeleton, not a sur
 });
 
 test('readSkeletal: a page that has painted nothing past the fold is the shell, not the surface', () => {
-  // The live failure this exists for (bead `ro-78qo.44`): /assets came back
-  // 844px at 390×844 with `no-hero` and thirteen controls under the floor,
-  // while the same Tower measured the same route at 2,588px with none. The
-  // thirteen was the shell's own nav, and it matched this route's PRE-REBUILD
-  // baseline exactly — which is how convincing a skeleton reading looks.
+  // A skeletal read: a route can come back 844px at 390×844 with `no-hero` and
+  // thirteen controls under the floor (the shell's own nav) while the same
+  // Tower measures the same route at 2,588px with none, and the skeleton
+  // reading can match a stale baseline exactly.
   const shell = {
     counts: { controls: 13, paragraphs: 2 },
     viewport: { width: 390, height: 844 },
@@ -807,8 +806,8 @@ test('parseArgs: the eleven desk routes at the local Tower by default', () => {
   assert.ok(DEFAULT_ROUTES.includes(`/assets/${SITE_TOKEN}/growth`));
 });
 
-// Bead ro-ujb9.120: the site pages are measured on a site this Tower lists, or
-// the one `--asset` names — never a site written into the script.
+// The site pages are measured on a site this Tower lists, or the one `--asset`
+// names, never a site written into the script.
 test('the site pages are filled with --asset, or with the first site the Sites page lists', () => {
   assert.equal(parseArgs(['--asset', 'shop.example']).asset, 'shop.example');
   assert.deepEqual(siteRoutes(DEFAULT_ROUTES, 'shop.example').slice(0, 5), [

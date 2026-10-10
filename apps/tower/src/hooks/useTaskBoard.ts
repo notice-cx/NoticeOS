@@ -4,7 +4,7 @@ import { catalogScope, readTaskBoard, taskBoardProjects, taskCatalogProjects, ty
 
 /** The route receives one read with source limits and row actions already
  * decided — and the snapshot read's own state, so a failed first read is drawn
- * as a failure rather than a wait (bead `ro-ujb9.218`). */
+ * as a failure rather than a wait. */
 export function useTaskBoard(scope: string | null, filters: TaskBoardFilters) {
   const capabilities = useTasksLive();
   const { data, isPending, isError, error, isFetching, refetch } = useWork();

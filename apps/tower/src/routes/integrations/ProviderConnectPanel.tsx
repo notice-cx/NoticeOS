@@ -35,12 +35,9 @@ import { CloudflareD1Panel } from './CloudflareD1Panel';
 /** Which view of the panel a provider opens on: its key form, or its sites. */
 export type ProviderPanelOpening = "form" | "sites" | "replace";
 
-/**
- * Where a provider's panel opens (beads `ro-ujb9.96.7.2`, `.9`, `.10`): on the
- * key form while nothing is stored, on its sites once it is — and always on
- * the sites for a provider whose tokens are pasted per site, which has no key
- * form at all.
- */
+/** Where a provider's panel opens: on the key form while nothing is stored,
+ * on its sites once it is, and always on the sites for a provider whose
+ * tokens are pasted per site, which has no key form at all. */
 export function providerPanelOpening(status: IntegrationProviderStatus): ProviderPanelOpening {
   if (status.provider.connect?.kind === "site-tokens") return "sites";
   return connectionState(status.credential) === "not-connected" ? "form" : "sites";
@@ -54,11 +51,8 @@ export interface ProviderConnectPanelProps {
   asset: string | null;
   /** False while this install cannot store a credential yet. */
   canConnect: boolean;
-  /**
-   * Why not, said in the panel (bead `ro-e70g`) — passed only where the page
-   * behind has no banner saying it: a site's Data sources. /integrations says
-   * it once on the page and passes none.
-   */
+  /** Why not, said in the panel; passed only where the page behind has no
+   * banner saying it (a site's Data sources). */
   blockers?: readonly ConnectBlocker[];
   /** The monitoring items the connection model reads statuses from. */
   items: IntegrationHealthItem[];
@@ -71,17 +65,12 @@ export interface ProviderConnectPanelProps {
 }
 
 /**
- * ONE PROVIDER'S CONNECT PANEL, WHEREVER IT IS OPENED (beads `ro-ujb9.96.7.4`,
- * `.2`, `.9`, `.10`): the Integrations list and a site's Data sources open the
- * same panel over themselves — the key form and the account's sites
- * (`SitePicker`), or a token pasted per site (`SiteTokens`), with the
- * connection's own Replace and Disconnect once there is one. Opening it from
- * a site's row leaves the operator on that site's page, the site first in the
- * list.
- *
- * Route wiring, not a component: it binds the registered pieces (ConnectPanel,
- * SitePicker, SiteTokens, ConnectionActions — each with its gallery demo) to
- * the API, which is why it lives beside the routes that open it.
+ * One provider's connect panel, wherever it is opened: the Integrations list
+ * and a site's Data sources open the same panel over themselves, the key form
+ * and the account's sites (`SitePicker`), or a token pasted per site
+ * (`SiteTokens`), with the connection's own Replace and Disconnect once there
+ * is one. Route wiring, not a component: it binds the registered pieces to
+ * the API.
  */
 export function ProviderConnectPanel({ status, opened, asset, canConnect, blockers, items, names, onClose, onChanged }: ProviderConnectPanelProps) {
   const toast = useOwnerToast();
@@ -92,8 +81,8 @@ export function ProviderConnectPanel({ status, opened, asset, canConnect, blocke
   const state = connectionState(credential);
   const shown = connectionStatus(provider.id, credential, items);
   const siteTokens = provider.connect?.kind === "site-tokens";
-  // A provider connected by signing in (Google, bead ro-ujb9.96.7.7): its OAuth
-  // client is a companion credential with no row of its own.
+  // A provider connected by signing in (Google): its OAuth client is a
+  // companion credential with no row of its own.
   const signIn = provider.connect?.kind === "sign-in";
   const providers = useIntegrationProviders();
   const app = signIn ? providers.data?.providers.find((entry) => entry.provider.companionOf === provider.id) ?? null : null;
@@ -111,8 +100,8 @@ export function ProviderConnectPanel({ status, opened, asset, canConnect, blocke
       status={started || siteTokens ? null : state !== "not-connected" ? (
         <IntegrationStateChip state={shown.kind} accepted={acceptedAs(provider, credential.auth)} subject={`integration:${provider.id}`} />
       ) : undefined}
-      // The connection's own actions, once there is one (bead
-      // ro-ujb9.96.7.10): Replace in this panel, Disconnect asked once.
+      // The connection's own actions, once there is one: Replace in this
+      // panel, Disconnect asked once.
       manage={state !== "not-connected" ? {
         stops: credentialAssetRows(status).map((row) => ({ id: row.id, label: names.get(row.id) ?? row.id, domain: row.id })),
         failing: state === "failing",
@@ -125,11 +114,11 @@ export function ProviderConnectPanel({ status, opened, asset, canConnect, blocke
       } : undefined}
       onClose={onClose}
       // A notification channel says what it carries, and whether it is
-      // sending, before and after it is connected (bead ro-ujb9.96.7.14).
+      // sending, before and after it is connected.
       carries={provider.lanes.includes(NOTIFICATION_LANE) ? (
         <WhatLands connected={state !== "not-connected"} />
       ) : undefined}
-      // When the collections this connection feeds run (bead ro-ujb9.96.7.28).
+      // When the collections this connection feeds run.
       schedule={state !== "not-connected" && connectionCollections(provider.id).length > 0 ? <ConnectionSchedule provider={provider.id} /> : undefined}
       onConnect={async (fields) => {
         const answer = await connectProviderCredential(provider.id, fields);
@@ -153,8 +142,8 @@ export function ProviderConnectPanel({ status, opened, asset, canConnect, blocke
           }}
         />
       ) : undefined}
-      // A connection of the whole installation (Discord, the calendar feeds,
-      // bead ro-ujb9.96.7.14) ends on the provider's answer: no site list.
+      // A connection of the whole installation (Discord, the calendar feeds)
+      // ends on the provider's answer: no site list.
       next={provider.id === 'cloudflare' ? answer => (
         <CloudflareD1Panel inventory={answer?.facts.cloudflareD1} names={names} canSave={canConnect} onChanged={onChanged} />
       ) : provider.connect?.sites === false ? undefined : (_answer, close) => siteTokens ? (
@@ -167,16 +156,12 @@ export function ProviderConnectPanel({ status, opened, asset, canConnect, blocke
 }
 
 /**
- * WHEN THIS CONNECTION'S COLLECTIONS RUN (bead `ro-ujb9.96.7.28`; operator
- * decision 2026-09-24; Fivetran and Airbyte place the sync frequency on the
- * connection): the same rows
- * Settings → Data collection draws for the collections no connection feeds —
- * one pick saves the job's schedule, "Saved · Undo" beside it — for the
- * collections this one feeds (`connectionCollections`). A job two connections
- * feed (the traffic and search archives: Google and Bing) is the same row,
- * under the job's own label, on each of their panels; either pick writes the
- * one saved schedule. Nothing until the saved schedules have been read: a row
- * drawn from no reading would be guarded by a value the store never held.
+ * When this connection's collections run: the same rows Settings → Data
+ * collection draws, for the collections this one feeds
+ * (`connectionCollections`). A job two connections feed is the same row on
+ * each of their panels; either pick writes the one saved schedule. Nothing
+ * until the saved schedules have been read: a row drawn from no reading would
+ * be guarded by a value the store never held.
  */
 function ConnectionSchedule({ provider }: { provider: string }) {
   const jobs = connectionCollections(provider);
@@ -187,10 +172,10 @@ function ConnectionSchedule({ provider }: { provider: string }) {
 }
 
 /**
- * The connect panel's site list for one provider (bead `ro-ujb9.96.7.2`): the
- * account's sites read once for the panel, Start as the Data sources tab's own
- * save followed by the job step's collection, and each collected site's status
- * from the connection model — Collecting until its result is stored.
+ * The connect panel's site list for one provider: the account's sites read
+ * once for the panel, Start as the Data sources tab's own save followed by
+ * the job step's collection, and each collected site's status from the
+ * connection model, Collecting until its result is stored.
  */
 function ProviderSites({
   provider,
@@ -212,12 +197,10 @@ function ProviderSites({
   // that would cover the panel's footer; a refusal still says so.
   const save = useInlineConfigSave();
   const saveDelayMs = useConfigSaveDelay();
-  // Read ONCE for the panel: a second read of the same list is a second check
-  // of the same fact (doc 14 principle 3b), so nothing refetches it behind the
-  // operator's back.
+  // Read once for the panel; nothing refetches it behind the operator's back.
   // One key per panel session: a panel opened again reads the account again,
   // and nothing within one session reads it twice (StrictMode's second mount
-  // included — a zero cache time would drop the answer between the two).
+  // included, which a zero cache time would break).
   const [session] = useState(() => `${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const sites = useQuery({
     queryKey: ["integration-sites", provider.id, session],
@@ -240,8 +223,8 @@ function ProviderSites({
       // read the save; the collection waits for it, as every save's refresh does.
       if (saveDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, saveDelayMs));
     }
-    // Every row was Not using (bead `ro-ujb9.96.7.18`): the save was the
-    // press, and there is nothing to collect.
+    // Every row was Not using: the save was the press, and there is nothing
+    // to collect.
     if (plan.assets.length === 0) {
       await onCollected();
       return "saved";
@@ -276,11 +259,10 @@ function ProviderSites({
 }
 
 /**
- * The connect panel's body for a provider that issues a token per site
- * (Clarity, bead `ro-ujb9.96.7.9`): every site it serves, the one the panel
- * was opened for first, each token saved on its row the moment it is pasted,
- * each held site wearing the connection model's status, and Run now spending
- * one of each site's daily calls from the provider's own meter.
+ * The connect panel's body for a provider that issues a token per site: every
+ * site it serves, the one the panel was opened for first, each token saved on
+ * its row the moment it is pasted, and Run now spending one of each site's
+ * daily calls from the provider's own meter.
  */
 function ProviderSiteTokens({
   status,

@@ -1,13 +1,10 @@
 # OS constants
 
-`config/constants.json` is the **machine-readable half of the decision
-register**: the handful of portfolio-wide numbers and names the Workers import
-directly, whose prose and rationale live in
-[`config/decisions.md`](decisions.md). When a value here is mirrored by a
-decision row (D6, D7), change both in the same commit — the register is the
-reason, this file is the value in force.
+`config/constants.json` is the handful of portfolio-wide numbers and names
+the Workers import directly: the value in force, whose rationale lives in the
+docs that name each key.
 
-**Seed and export, not source of truth** (D22): `pnpm config:seed` loads this
+**Seed and export, not source of truth**: `pnpm config:seed` loads this
 installation's copy (else this generic default) into the store's
 `config_documents` table, the running OS reads and saves it there, and
 `pnpm config:export` writes it to `installation/`. Until an install seeds,
@@ -23,9 +20,9 @@ most of it in place.
 |---|---|---|---|
 | `os_time_zone` | The operator's clock — the IANA zone intraday charts, revenue days and the open month are read in | both Workers, store first, on every request or run (`savedOsTimeZone` in `packages/contract/src/time-zone-setting.ts`) | yes, **General → Clock** |
 | `schedules` | Optional local job schedule overrides, keyed by stable job id | the local scheduler (`scripts/scheduled-job-runner.mts`); see [scheduled job configuration](../scripts/README.md#scheduled-job-configuration) | from the Workflows page, **Edit schedule** |
-| `operator_rate_usd_per_min` | What a minute of operator time costs the ledger (D7) | the Tower's settings and financials payloads | yes, **General → Budget** |
-| `explore_sleeve` | Share of effort reserved for exploration (D7) | reference value; no code reads it | no |
-| `monthly_caps.data_usd` | Hard monthly ceiling on metered data spend (D6) | the DataForSEO budget gate (`workers/ingest/src/dataforseo-dumps.ts`), fail-closed | yes, **General → Budget** |
+| `operator_rate_usd_per_min` | What a minute of operator time costs the ledger | the Tower's settings and financials payloads | yes, **General → Budget** |
+| `explore_sleeve` | Share of effort reserved for exploration | reference value; no code reads it | no |
+| `monthly_caps.data_usd` | Hard monthly ceiling on metered data spend | the DataForSEO budget gate (`workers/ingest/src/dataforseo-dumps.ts`), fail-closed | yes, **General → Budget** |
 | `flag_defaults.alpha` | Anomaly sensitivity: the Poisson tail probability an alert must beat | the flag rules (`packages/contract/src/rules.ts`) | yes, **Alert rules** |
 | `flag_defaults.min_baseline_per_day` | Minimum daily volume before a series is tested at all | the flag rules | yes, **Alert rules** |
 | `flag_defaults.low_volume_window_hours` | How much prior history the low-volume test needs | the flag rules | yes, **Alert rules** |

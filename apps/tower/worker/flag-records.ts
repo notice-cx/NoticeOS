@@ -1,11 +1,7 @@
 // A `flags` row as the alert surfaces read it: one column list, one row shape
-// and one mapper to the wire `FlagRecord`.
-//
-// Which rows are open, closed or snoozed is `flag-scope.ts`'s question; this
-// module only says what one row IS once selected. The asset page's open and
-// history lists and `/alerts/history` (`alert-history.ts`) both read through
-// here, so a settled alert cannot mean one thing on its asset's page and
-// another on the portfolio's history.
+// and one mapper to the wire `FlagRecord`, so a settled alert means the same on
+// its asset's page and on `/alerts/history`. Which rows are open is
+// `flag-scope.ts`'s question.
 
 import type {
   AnnotationItem,
@@ -17,10 +13,7 @@ import { javascriptInstant } from "@noticeos/postgres";
 import { correlateChanges } from "../shared/alert-language";
 import type { Severity } from "../shared/wall";
 
-/** The row shape `FLAG_COLUMNS` selects. Shared by the asset page and
- * `alert-history.ts`, which reads the same rows across every asset: one row
- * shape, one column list, one mapper — so a settled alert cannot mean one thing
- * on its asset's page and another on `/alerts/history`. */
+/** The row shape `FLAG_COLUMNS` selects. */
 export type FlagDbRow = {
   id: number;
   pulseId?: number | null;
@@ -39,7 +32,7 @@ export type FlagDbRow = {
   resolvedAt: string | null;
 };
 
-/** The columns of `noticeos.current_flags` (bead ro-ujb9.76.5.2) a `FlagDbRow`
+/** The columns of `noticeos.current_flags` a `FlagDbRow`
  * is made of: an alert is known by its workspace's number, and its report by
  * the day's number (`pulse_day_number`), never by a table's own identity. Read
  * the rows through `flagDbRow`. */
@@ -56,7 +49,7 @@ export function flagInstant(value: string | null | undefined): string | null {
 }
 
 /** A row read with `FLAG_COLUMNS` (or any of its instants), each instant in the
- * form JavaScript writes, as D1's text columns held them. */
+ * form JavaScript writes. */
 export function flagDbRow<R extends Partial<FlagDbRow> & { firedAt: string }>(row: R): R {
   return {
     ...row,
@@ -81,14 +74,13 @@ export function parseRuleInputs(json: string | null): Record<string, unknown> | 
   }
 }
 
-
 /**
  * The row as stored. Liveness is deliberately NOT set here — it is derived from
  * a source outside this row (`reviewAlertConditions`), and returning a FlagRecord
  * without it would let a caller forget to ask.
  *
  * `condition` is what this row STANDS FOR: the count and onset of the group it
- * represents (`ro-kukv.5`), supplied by the caller because only the caller knows
+ * represents, supplied by the caller because only the caller knows
  * whether it is holding one firing of an ongoing condition or one closed event
  * out of history. Both are required rather than defaulted, so a new call site
  * has to answer the question rather than inherit a 1 by accident.
@@ -107,7 +99,7 @@ export function toFlagRecord(
     message: r.message,
     ruleId: r.ruleId,
     ruleInputs: parseRuleInputs(r.ruleInputs),
-    // The 48h before the condition STARTED, matching the Wall (`ro-kukv.1`):
+    // The 48h before the condition started, matching the Wall:
     // anchored to tonight's re-reading of a month-old condition, this window
     // sits after everything that could have caused it.
     correlatedChanges: correlateChanges(changes, condition.firstFiredAt),

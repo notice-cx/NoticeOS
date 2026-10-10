@@ -1,5 +1,5 @@
-// System posture and its specific Needs you rows (ro-trai.49). The header
-// carries time and obligations; these concerns remain in the action list.
+// System posture and its specific Needs you rows. The header carries time and
+// obligations; these concerns remain in the action list.
 
 import type { ConnectionReads } from "@shared/connection-status";
 import type { MaterialCondition } from "@shared/materiality";
@@ -28,10 +28,10 @@ export interface WallSystemState {
 }
 
 /**
- * How many SOURCE KINDS are failing right now — the rows Needs you lists for
- * them (`failingSources`, bead `ro-trai.17`). One provider failing on two
- * sites is "1 source failing" beside one Needs you row naming both sites; the
- * nightly report's slot counts as "reports stale" instead.
+ * How many source kinds are failing right now, the rows Needs you lists for
+ * them (`failingSources`). One provider failing on two sites is "1 source
+ * failing" beside one Needs you row naming both sites; the nightly report's
+ * slot counts as "reports stale" instead.
  */
 export function failingSourceCount(
   assets: readonly AssetCard[],
@@ -45,9 +45,8 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 
 /** The one state, worst first. */
 export function wallSystemState(system: SystemBand, sourcesFailing: number, nowMs: number): WallSystemState {
-  // Owed and missing, never merely absent (bead ro-ujb9.132): an installation
-  // with no OS row has no OS report to miss, and Home's System tile reads the
-  // same rule.
+  // Owed and missing, never merely absent: an installation with no OS row has
+  // no OS report to miss, and Home's System tile reads the same rule.
   if (osReportMissing(system)) {
     return { kind: "os-report-missing", severity: "error", label: "OS report missing", conditions: ["os-runner-health"] };
   }

@@ -8,21 +8,18 @@ import { unitTestWorkers } from "../../scripts/unit-test-workers.mjs";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
-// Deliberately does NOT load the Cloudflare plugin: these are plain node/jsdom
-// unit tests. Reader SQL runs against isolated real Postgres copies
-// (test/postgres-store.ts) — no workerd needed. Vitest
-// prefers this file over vite.config.ts, so the two never mix.
+// No Cloudflare plugin: these are plain node/jsdom unit tests, and reader SQL
+// runs against isolated Postgres copies (test/postgres-store.ts). Vitest
+// prefers this file over vite.config.ts.
 //
-// No test reads the checkout's own config/ (bead ro-ujb9.92): a module that
-// imports a repo config file (the contract's compiled clock) gets
-// test/fixture-config/'s copy, a test importing one is refused, and
-// test/setup.ts refuses reading one — bar the seed-validation tests listed in
-// scripts/test-config-isolation.mjs.
+// No test reads the checkout's own config/: a module importing a repo config
+// file gets test/fixture-config/'s copy, and test/setup.ts refuses the rest,
+// bar the seed-validation tests listed in scripts/test-config-isolation.mjs.
 export default defineConfig({
   plugins: [
     fixtureConfigPlugin({ fixtureDir: path.resolve(rootDir, "test/fixture-config"), testDir: path.resolve(rootDir, "test") }),
     react(),
-    // A worker that dies names the file it was running (bead ro-ujb9.179).
+    // A worker that dies names the file it was running.
     unitTestAttribution(),
   ],
   resolve: {
@@ -33,10 +30,8 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
-    // Half the cores, beside the ingest suite (scripts/unit-test-workers.mts).
     maxWorkers: unitTestWorkers(),
     setupFiles: ["./test/setup.ts"],
-    // One throwaway Postgres for the run: test/postgres-global-setup.mjs.
     globalSetup: ["./test/postgres-global-setup.mjs"],
     include: ["test/**/*.test.{ts,tsx}"],
   },

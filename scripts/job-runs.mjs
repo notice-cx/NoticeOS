@@ -1,38 +1,18 @@
-// job-runs.mjs — the record every scheduled lane leaves, and the recovery it
-// allows after downtime. Shared by the managed service's runner
-// (scripts/os-up.mjs) and the schedule of an installation `pnpm start` runs
-// (scripts/start-schedule.mjs, bead ro-ujb9.156), so both keep the same record,
-// ship it the same way and catch up by the same policy.
+// The record every scheduled lane leaves, and the recovery it allows after
+// downtime. Shared by the managed service's runner (scripts/os-up.mjs) and
+// `pnpm start`'s schedule (scripts/start-schedule.mjs). Every effect — the
+// file, the clock, the log, the store — is passed in.
 //
-// Every effect here — the file, the clock, the log, the store — is passed in.
-// The caller owns where its installation's state is.
+// Each firing appends one line to `.local/logs/job-runs.jsonl`: which lane,
+// when it started, how long it took, and ran / skipped / failed. The grain is
+// the lane: a per-item failure inside a lane stays an ERROR line, and `failed`
+// means the firing itself came apart.
 //
-// THE RECORD. Every lane already logs what it did, and a log is the wrong shape
-// for the question that matters: "did the nightly backup run last night?" is
-// answered by scrolling a file for an ABSENCE, and absence is the one thing a
-// log cannot prove. That is the same defect as asset #0's `cronRunSuccess = 1`,
-// a constant with no run ledger behind it: a cron that never fired still
-// reports success, so the metric cannot fail (the 2026-07 audit's finding 6, ro-ic5).
-//
-// So each firing appends one line to `.local/logs/job-runs.jsonl`: WHICH lane,
-// WHEN it started, how long it took, and what it amounted to — ran / skipped /
-// failed. A lane that died is then legible as a LAST RUN that stopped moving,
-// at startup, on one line, rather than inferred from silence.
-//
-// The grain is the LANE, deliberately. A per-item failure inside a lane (one
-// spoke's `bd` refusing, one non-201 POST) stays an ERROR line: those are
-// expected, individually recoverable, and the lane firing at all is the fact
-// this record exists to keep. `failed` here means the firing itself came apart.
-//
-// THE FILE IS THE RECORD; THE TABLE IS ITS MIRROR (ro-uwo.4, 2026-08-04). The
-// OS's own store is served by the very runtime these lanes fire at, so a record
-// that needs the ingest up cannot testify about an ingest that was down — which
-// is why the line hits disk FIRST and always. But a Worker cannot read this
-// machine's filesystem, and asset #0's `cronRunSuccess` has to come from
-// somewhere, so each firing is also shipped through `POST /api/job-runs` into
-// `job_runs` (db/0022, operator-approved). Door down = disk only, and the record
-// catches up on the next firing that finds the door open. Nothing is ever lost
-// by a failed ship, because the ship is not where the record lives.
+// The file is the record; the `job_runs` table is its mirror. The store is
+// served by the very runtime these lanes fire at, so the line hits disk first
+// and always; each firing is also shipped through `POST /api/job-runs`, and
+// with the door down the record catches up on the next firing that finds it
+// open.
 
 import fs from 'node:fs/promises';
 import { Cron } from 'croner';
@@ -44,9 +24,8 @@ const DAY_MS = 24 * HOUR_MS;
 
 // ─── The record ──────────────────────────────────────────────────────────────
 
-/** How much history is kept. Long enough that a monthly-cadence question ("has
- * the backup run every night since the last restart?") has data, short enough
- * that the file stays a few megabytes at the busiest lane's one-a-minute. */
+/** Long enough for a monthly-cadence question, short enough that the file
+ * stays a few megabytes at the busiest lane's one-a-minute. */
 export const JOB_RUN_RETENTION_DAYS = 30;
 
 /** What a firing can amount to. `skipped` is a first-class outcome, not a
@@ -54,14 +33,9 @@ export const JOB_RUN_RETENTION_DAYS = 30;
 export const JOB_RUN_OUTCOMES = ['ran', 'skipped', 'failed'];
 
 /**
- * One firing, as the record keeps it.
- *
- * `at` is when the firing STARTED, and `ms` how long it took — so the finish is
- * derivable and the file stays one small object per line. There is no separate
- * "scheduled at": the lane runs on its tick, so `at` is that tick to within the
- * time it takes croner to call a function, and a second timestamp that is
- * always equal to the first is a field that will eventually disagree with
- * itself.
+ * One firing, as the record keeps it. `at` is when the firing started and
+ * `ms` how long it took, so the finish is derivable. There is no separate
+ * "scheduled at": `at` is the tick.
  */
 export function jobRunRecord({ job, outcome, detail = null, startedAtMs, finishedAtMs }) {
   const at = new Date(startedAtMs).toISOString();
@@ -71,8 +45,8 @@ export function jobRunRecord({ job, outcome, detail = null, startedAtMs, finishe
     outcome: JOB_RUN_OUTCOMES.includes(outcome) ? outcome : 'failed',
     ms: Math.max(0, Math.round((finishedAtMs ?? startedAtMs) - startedAtMs)),
   };
-  // Truncated, because the detail is often an error message and one runaway
-  // stack must not cost the record its readability.
+  // The detail is often an error message; one runaway stack must not cost the
+  // record its readability.
   if (detail) record.detail = String(detail).replace(/\s+/g, ' ').trim().slice(0, 200);
   return record;
 }
@@ -81,9 +55,8 @@ export function jobRunLine(record) {
   return `${JSON.stringify(record)}\n`;
 }
 
-/** Records back from the file. A malformed line is skipped rather than fatal:
- * this file is appended by a process that can be SIGKILLed mid-write, so a torn
- * last line is a normal thing to find, not a corruption to refuse. */
+/** Records back from the file. A torn last line is normal (the writer can be
+ * SIGKILLed mid-write), so a malformed line is skipped rather than fatal. */
 export function parseJobRuns(text) {
   const records = [];
   for (const line of String(text ?? '').split('\n')) {
@@ -98,8 +71,8 @@ export function parseJobRuns(text) {
   return records;
 }
 
-/** Everything at or after the cutoff. Pruning is by DATE rather than by line
- * count so the window means the same thing whatever the lanes' cadences are. */
+/** Everything at or after the cutoff. Pruned by date rather than line count
+ * so the window means the same thing whatever the lanes' cadences are. */
 export function pruneJobRuns(records, cutoffIso) {
   return records.filter((r) => typeof r.at === 'string' && r.at >= cutoffIso);
 }
@@ -108,10 +81,8 @@ export function jobRunCutoff(nowMs, retentionDays = JOB_RUN_RETENTION_DAYS) {
   return new Date(nowMs - retentionDays * 86_400_000).toISOString();
 }
 
-/** The record as it stands, pruned to the retention window — on disk too.
- * Called once at startup. A missing file is the normal first-run case and an
- * unreadable one must not stop a runner starting; pruning is hygiene, never a
- * precondition. */
+/** The record as it stands, pruned to the retention window on disk too. A
+ * missing or unreadable file must not stop a runner starting. */
 export async function readJobRuns(file, nowMs = Date.now()) {
   let records = [];
   try {
@@ -130,32 +101,24 @@ export async function readJobRuns(file, nowMs = Date.now()) {
   return kept;
 }
 
-/** Append one firing. Every failure here is swallowed: a record of the work must
- * never be able to stop the work, which is the same posture as the log stream. */
+/** Append one firing. Every failure is swallowed: a record of the work must
+ * never be able to stop the work. */
 export async function appendJobRun(entry, file) {
   try {
     await fs.appendFile(file, jobRunLine(entry));
     return true;
   } catch {
-    // A record we cannot write is not worth a runner we cannot run.
     return false;
   }
 }
 
 /**
- * Run one scheduled lane and leave evidence of the firing.
- *
- * This is also the only `catch` the lanes need: a throw is an outcome (`failed`)
- * with its message kept, rather than an unhandled rejection that takes the
- * process down or a silent one that takes the tick.
- *
- * `outcomeOf` maps a lane's own return value to an outcome. The convention every
- * lane follows: `null` means it stood down (a down ingest, an unreachable hub,
- * nothing to do), anything else means it did its pass.
- *
- * `begin` opens the lane's workflow trace (scripts/workflow-history.mts) or is
- * null for no trace; `stepOf` maps a local lane's return value to its execute
- * step's result.
+ * Run one scheduled lane and leave evidence of the firing. The only `catch`
+ * the lanes need: a throw is a `failed` outcome with its message kept.
+ * `outcomeOf` maps a lane's return value to an outcome; `null` means it stood
+ * down. `begin` opens the lane's workflow trace (scripts/workflow-history.mts)
+ * or is null; `stepOf` maps a local lane's return value to its execute step's
+ * result.
  */
 export async function runRecordedLane(
   job,
@@ -165,20 +128,18 @@ export async function runRecordedLane(
 ) {
   const startedAtMs = now();
   const trace = begin ? begin(job, startedAtMs) : null;
-  // Disk first, then the store — in that order, always. The append is what makes
-  // the firing a fact; the ship is what makes it readable by a Worker.
+  // Disk first, then the store, always.
   const keep = async (entry) => {
-    // Persist the workflow verdict with the retained ledger independently of
-    // rich-step retention; the existing coarse outcome contract is unchanged.
+    // The workflow verdict is kept with the ledger independently of rich-step
+    // retention.
     if (trace) entry.workflowState = trace.verdict(entry.outcome);
     if (trace) await trace.run('record', () => appendJobRun(entry, file));
     else await appendJobRun(entry, file);
     try {
       await ship(entry);
     } catch (err) {
-      // Same posture as the append above: a mirror we cannot write is not worth
-      // a lane we cannot run — and in the catch below, a throw here would turn
-      // one failed firing into a second record of itself.
+      // A throw here would turn one failed firing into a second record of
+      // itself.
       emit('ERROR', `job-run shipping threw: ${err?.message ?? err}`);
     }
   };
@@ -206,33 +167,23 @@ export async function runRecordedLane(
   }
 }
 
-// ─── Shipping the record ─────────────────────────────────────────────────────
-//
-// The disk record, mirrored into `noticeos.job_runs` so asset #0 can derive
-// `cronRunSuccess` from firings instead of asserting it. The runner is the ONLY
-// writer, because it is the only witness: a lane that fires while the ingest is
-// restarting is invisible to the ingest. That makes re-sending the normal case
-// rather than the error case, and the store is idempotent on (job, startedAt)
-// to match — so everything here is free to be simple about what it has already
-// shipped, which is nothing more precise than "whatever is still queued".
+// Shipping the record into `noticeos.job_runs`. The runner is the only
+// writer, because it is the only witness, so re-sending is the normal case
+// and the store is idempotent on (job, startedAt).
 
-/** The outer bound on one POST — pinned to `JOB_RUN_MAX_BATCH` in
- * workers/ingest/src/job-runs.ts, which rejects a longer body. */
+/** Pinned to `JOB_RUN_MAX_BATCH` in workers/ingest/src/job-runs.ts, which
+ * rejects a longer body. */
 export const JOB_RUN_SHIP_MAX = 500;
-/** How many unshipped firings are held in memory. A day of the busiest lane is
- * 1,440; this is several days of everything. Past it the OLDEST are dropped:
- * the disk file still holds them, and the metric on the other end reads each
- * lane's LATEST firing, which is the end of the queue that survives. */
+/** Unshipped firings held in memory: several days of everything. Past it the
+ * oldest are dropped; the disk file still holds them, and the metric reads
+ * each lane's latest firing. */
 export const JOB_RUN_PENDING_MAX = 5_000;
-/** How far back a restart re-sends. The store's read only looks at each lane's
- * latest firing and whether anything fired in the last day, so two days covers
- * everything it can use; older rows the store may be missing would change no
- * answer it gives. */
+/** How far back a restart re-sends. The store reads each lane's latest firing
+ * and whether anything fired in the last day, so two days covers it. */
 export const JOB_RUN_CATCHUP_DAYS = 2;
 
-/** Is this record something the store will accept? A file appended by a
- * killable process can hold a torn or hand-edited line, and one unacceptable
- * record in a batch would 422 every good record beside it. */
+/** Is this record something the store will accept? One unacceptable record
+ * in a batch would 422 every good record beside it. */
 export function jobRunShippable(record) {
   return (
     typeof record?.job === 'string' &&
@@ -243,24 +194,17 @@ export function jobRunShippable(record) {
 }
 
 /**
- * What a restart re-sends: everything recent, PLUS every lane's last known
- * firing however old.
- *
- * The second half is not tidiness. A weekly collection that failed five days ago
- * is exactly the kind of death this record exists to show, and a flat time
- * window would drop it — leaving the store's view of that lane blank and its
- * verdict a `1` earned by the lanes that happen to fire often.
- *
- * Duplicates are the price of not tracking what got through, and the store
- * drops them on arrival.
+ * What a restart re-sends: everything recent, plus every lane's last known
+ * firing however old — a weekly collection that failed five days ago is
+ * exactly the death this record exists to show. Duplicates are the price of
+ * not tracking what got through; the store drops them on arrival.
  */
 export function jobRunCatchup(records, nowMs, { days = JOB_RUN_CATCHUP_DAYS, max = JOB_RUN_PENDING_MAX } = {}) {
   const usable = records.filter(jobRunShippable);
   const cutoff = jobRunCutoff(nowMs, days);
   const chosen = new Map();
-  // The separator is a NUL written as its escape — a literal one would make this
-  // whole file invisible to plain grep (ro-20n). It has to be a byte neither
-  // half can hold, and a lane name holds spaces: `cron 45 12 * * 1`.
+  // A NUL written as its escape (a literal one would hide this file from
+  // grep): a byte neither half can hold, since a lane name holds spaces.
   const key = (r) => `${r.job}\u0000${r.at}`;
   for (const record of usable) if (record.at >= cutoff) chosen.set(key(record), record);
   const latest = new Map();
@@ -280,9 +224,8 @@ export function jobRunQueued(pending, record, max = JOB_RUN_PENDING_MAX) {
   return next.length > max ? next.slice(next.length - max) : next;
 }
 
-/** The disk record's field names are its own; this is the wire. `ms` travels
- * rather than a finish timestamp because `ms` is what was measured — the store
- * derives the finish once, so it can never hold two that disagree. */
+/** The wire shape. `ms` travels rather than a finish timestamp because `ms`
+ * is what was measured. */
 export function jobRunPostBody(records) {
   return {
     runs: records.map((record) => ({
@@ -296,10 +239,8 @@ export function jobRunPostBody(records) {
 }
 
 /**
- * A skip is worth a line only when it is NEW. Pure so the no-spam rule is a
- * test rather than a hope: the same reason twice logs once, and a different
- * reason always logs. `state.skipping` is the reason currently being
- * suppressed; null = nothing is being skipped.
+ * A skip is worth a line only when it is new: the same reason twice logs
+ * once. `state.skipping` is the reason currently being suppressed, or null.
  */
 export function skipIsNew(state, reason) {
   if (state.skipping === reason) return false;
@@ -308,12 +249,10 @@ export function skipIsNew(state, reason) {
 }
 
 /**
- * Arm shipping and seed the queue from what the disk record already holds.
- *
- * Called with the record read at startup, so the firings that happened while
- * the store was unreachable — including the ones from before this process
- * existed — reach it on the first tick after the door opens. `runtime` is the
- * child that serves the door: `{ running, ready }`.
+ * Arm shipping and seed the queue from the record read at startup, so firings
+ * from before this process existed reach the store on the first tick after
+ * the door opens. `runtime` is the child that serves the door:
+ * `{ running, ready }`.
  */
 export function armJobRunShipping(runtime, records, nowMs, state) {
   state.runtime = runtime;
@@ -322,17 +261,10 @@ export function armJobRunShipping(runtime, records, nowMs, state) {
 }
 
 /**
- * Queue one firing and ship what is queued.
- *
- * Every exit here is a return, never a throw: this runs inside a recorded lane,
- * and a record of the work must never be able to stop the work. A door that is
- * down, a missing token, a 500 — all of them leave the queue intact for the next
- * firing to carry.
- *
- * A 422 is the one refusal that does NOT retry. The store validated the body and
- * said no; re-sending the same bytes every minute would jam the queue behind a
- * record that is never going to be accepted, and the disk file is still the
- * record either way.
+ * Queue one firing and ship what is queued. Every exit is a return, never a
+ * throw: a down door, a missing token or a 500 leaves the queue intact for
+ * the next firing. A 422 is the one refusal that does not retry, or the queue
+ * would jam behind a record that will never be accepted.
  */
 export async function shipJobRunQueue(record, { state, post = fetch, readToken, emit, url, stopped = () => false }) {
   if (record) state.pending = jobRunQueued(state.pending, record);
@@ -386,21 +318,19 @@ export async function shipJobRunQueue(record, { state, post = fetch, readToken, 
 /**
  * Recovery is explicit per lane. `maxAgeMs` is how long the latest missed
  * obligation remains useful; every lane runs at most once, however many ticks
- * the machine missed. Unknown cron expressions are excluded: no scheduled job
- * runs on one, and the ingest dispatch refuses it as `unknown_cron`.
+ * the machine missed. Unknown cron expressions are excluded: the ingest
+ * dispatch refuses them as `unknown_cron`.
  *
- * These are the ingest's own crons (workers/ingest/wrangler.jsonc). The managed
- * service adds its host lanes to them (scripts/runner/scheduler.mjs
+ * These are the ingest's own crons (workers/ingest/wrangler.jsonc). The
+ * managed service adds its host lanes (scripts/runner/scheduler.mjs
  * STARTUP_CATCHUP_POLICIES).
  */
 export const CRON_CATCHUP_POLICIES = Object.freeze([
   { job: 'cron 10,30,50 * * * *', expression: '10,30,50 * * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
   { job: 'cron 0 * * * *', expression: '0 * * * *', kind: 'cron', maxAgeMs: 2 * HOUR_MS },
-  // The operator notification lane (bead `ro-vu8d.23`). Two hours, like the
-  // freshness lane it follows: after a short outage the operator should still
-  // hear about what broke while the machine was down, and after a long one the
-  // conditions have either cleared or are on the desk waiting. Catching it up
-  // cannot duplicate anything — the lane records what it has already said.
+  // The operator notification lane: two hours, like the freshness lane it
+  // follows. Catching it up cannot duplicate anything; the lane records what
+  // it has already said.
   { job: 'cron 5 * * * *', expression: '5 * * * *', kind: 'cron', maxAgeMs: 2 * HOUR_MS },
   { job: 'cron 30 2 * * *', expression: '30 2 * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
   { job: 'cron 0 3 * * *', expression: '0 3 * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
@@ -408,9 +338,8 @@ export const CRON_CATCHUP_POLICIES = Object.freeze([
   { job: 'cron 0 4 * * *', expression: '0 4 * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
   { job: 'cron 30 4 * * *', expression: '30 4 * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
   { job: 'cron 15 12 * * *', expression: '15 12 * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
-  // PostHog product analytics archive (bead `ro-ghis.1`): same 36 h as the
-  // other daily archives. A late run reads the same trailing windows, and an
-  // unchanged window re-archives as `unchanged`, so catching it up is safe.
+  // PostHog product analytics archive: an unchanged window re-archives as
+  // `unchanged`, so catching it up is safe.
   { job: 'cron 30 12 * * *', expression: '30 12 * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
   { job: 'cron 45 12 * * 1', expression: '45 12 * * 1', kind: 'cron', maxAgeMs: 8 * DAY_MS },
   { job: 'cron */15 * * * *', expression: '*/15 * * * *', kind: 'cron', maxAgeMs: HOUR_MS },
@@ -449,9 +378,8 @@ export function startupCatchupPlan(configuredCrons, records, nowMs = Date.now(),
   for (const policy of policies) {
     if (policy.kind === 'cron' && !configured.has(policy.expression)) continue;
     let scheduledAt;
-    // The gap between the last two obligations IS the lane's cadence, read from
-    // the schedule the operator actually saved rather than from a hard-coded
-    // table that would drift the moment a cron is edited in the desk.
+    // The gap between the last two obligations is the lane's cadence, read
+    // from the saved schedule.
     let intervalMs = null;
     try {
       const schedule = new Cron(policy.scheduleExpression ?? policy.expression, { timezone: policy.scheduleTimezone ?? 'UTC', paused: true });
@@ -478,10 +406,9 @@ export function startupCatchupPlan(configuredCrons, records, nowMs = Date.now(),
     }
     due.push({ ...policy, scheduledAt: scheduledAt.toISOString(), ageMs, intervalMs });
   }
-  // Cheapest cadence first. The wall's 15-minute counters must not queue behind
-  // a 40-minute weekly collection: the fast lanes are both the quickest to pay
-  // and the ones whose staleness an operator sees. Ties keep policy order, and
-  // a schedule with no measurable cadence keeps policy order at the back.
+  // Cheapest cadence first: the fast lanes are the quickest to pay and the
+  // ones whose staleness an operator sees. Ties keep policy order; no
+  // measurable cadence goes to the back.
   const ordered = due
     .map((item, index) => ({ item, index, key: item.intervalMs ?? Number.POSITIVE_INFINITY }))
     .sort((a, b) => a.key - b.key || a.index - b.index)
@@ -507,13 +434,9 @@ export function catchupStillArmed(item, current) {
 }
 
 /**
- * Which lanes the one startup catch-up pass currently owns.
- *
- * Ownership is per lane, never global. The pass claims exactly the lanes in its
- * plan and releases each one the moment that lane's catch-up firing finishes,
- * so a 40-minute weekly recovery can no longer hold the 20-minute Mediavine
- * lane, the beads snapshot, or any other lane that was never in the plan.
- * Everything outside the set keeps ticking on its own schedule, concurrently.
+ * Which lanes the one startup catch-up pass currently owns. Ownership is per
+ * lane, never global: the pass claims the lanes in its plan and releases each
+ * the moment its catch-up firing finishes; everything else keeps ticking.
  */
 export function createCatchupOwnership() {
   const owned = new Set();
@@ -539,7 +462,7 @@ export function createCatchupOwnership() {
   };
 }
 
-/** `held` is this ONE lane's ownership, not a global "catch-up is running". */
+/** `held` is this one lane's ownership, not a global "catch-up is running". */
 export function scheduledDuringCatchupDecision(held, job) {
   return held
     ? {

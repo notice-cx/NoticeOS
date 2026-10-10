@@ -47,9 +47,8 @@ const TODAY = '2026-07-20';
 /** The day a `NOW + DAY_MS` sweep writes its readings under. */
 const TOMORROW = '2026-07-21';
 const DAY_MS = 86_400_000;
-/** A failed home page's confirming retry, asked without the 45-second wait
- * (bead ro-ujb9.180). The wait itself is proved with fake timers in the uptime
- * suite. */
+/** A failed home page's confirming retry, asked without the 45-second wait.
+ * The wait itself is proved with fake timers in the uptime suite. */
 const AT_ONCE = 0;
 
 function daysBefore(day: string, n: number): string {
@@ -118,12 +117,10 @@ function pageRoutes(count: number, domain: string = DOMAIN): Record<string, () =
 
 // --- structural fixtures: one page, one broken rule -------------------------
 //
-// Borrowed wholesale from badseo.dev, the companion site OpenSEO points its own
-// audit at: every page breaks exactly ONE rule, so a check that fires on the
-// wrong page is caught by the fixture rather than by an operator months later.
-// The pages here are the four faults `page-structure` claims to catch, plus a
-// clean control — and `STRUCTURAL_FIXTURES` is swept as a whole so a fault added
-// to the parser without a page to prove it fails this suite.
+// Every page breaks exactly one rule, so a check that fires on the wrong page
+// is caught by the fixture. The pages are the four faults `page-structure`
+// claims to catch plus a clean control, and `STRUCTURAL_FIXTURES` is swept as
+// a whole so a fault added to the parser without a page to prove it fails here.
 
 /** A structurally perfect page: title, description, one h1, self-canonical. */
 function cleanPage(url: string, body = 'Some real words about food groups.'): string {
@@ -180,12 +177,10 @@ const PERMISSIVE_ROBOTS = `User-agent: *\nAllow: /\nSitemap: ${SITEMAP}\n`;
 
 const isBeacon = (url: string): boolean => (EGRESS_BEACONS as readonly string[]).includes(url);
 
-/**
- * The reference site the egress gate asks before letting a statusless fetch
- * accuse anybody. Routing it means "the OS's own connection is fine", which is
- * what every test about a property's outage has to establish first — leaving it
- * unrouted is how the tests below simulate the 2026-08-08 uplink failure.
- */
+/** The reference site the egress gate asks before letting a statusless fetch
+ * accuse anybody. Routing it means the OS's own connection is fine, which every
+ * test about a property's outage has to establish first; leaving it unrouted
+ * is how the tests below simulate a dead uplink. */
 const BEACON_UP: Record<string, () => Response> = {
   [EGRESS_BEACONS[0]]: () => plain('h=1'),
 };
@@ -204,8 +199,6 @@ function origin(overrides: Partial<Record<string, () => Response>> = {}): {
 }
 
 // --- store helpers ----------------------------------------------------------
-// Readings are on Postgres (bead ro-ujb9.76.5.8); the flags these checks file
-// are still read from D1 below.
 
 async function seedReading(
   check: string,
@@ -323,7 +316,7 @@ describe('countVisibleWords', () => {
   });
 
   it('reads a JS-only shell as the near-empty page a crawler receives', () => {
-    // The meals.example failure shape: a real app that renders client-side.
+    // A real app that renders client-side.
     const shell =
       '<html><head><title>Meal Planner</title></head><body><div id="root"></div>' +
       '<script>const app = { boot() { renderEverything(); } };</script></body></html>';
@@ -571,7 +564,7 @@ describe('hygiene: home-unreachable', () => {
     expect(await flagCount(HOME_UNREACHABLE_RULE_ID, true)).toBe(1);
 
     const flag = await flagFor(HOME_UNREACHABLE_RULE_ID);
-    // A site that is down is the revenue-off-switch band (bead ro-ujb9.165).
+    // A site that is down is the revenue-off-switch band.
     expect(flag).toMatchObject({ severity: 'error', kind: 'anomaly', metric: 'html-depth' });
     expect(flag!.message).toContain('HTTP 503');
     expect(inputsOf(flag)).toMatchObject({
@@ -642,7 +635,7 @@ describe('hygiene: home-unreachable', () => {
     expect(await flagCount(HOME_UNREACHABLE_RULE_ID, true)).toBe(0);
   });
 
-  it('files nothing when the home page fails once and answers the retry (bead ro-ujb9.180)', async () => {
+  it('files nothing when the home page fails once and answers the retry', async () => {
     await seedDepthHistory(10, 800);
     let tries = 0;
     const { fetchImpl } = origin({
@@ -677,7 +670,7 @@ describe('hygiene: home-unreachable', () => {
   });
 });
 
-// --- uptime: the home-page check, hourly (bead ro-ujb9.165) -----------------
+// --- uptime: the home-page check, hourly -------------------------------------
 
 describe('uptime: the hourly home-page check', () => {
   const HOUR_MS = 3_600_000;
@@ -727,8 +720,7 @@ describe('uptime: the hourly home-page check', () => {
   afterEach(() => {
     // The spy on the faked setTimeout first, then the clock. The other way
     // round, restoring the spy puts the dead clock's setTimeout back on the
-    // global, and every timer a later file in this runtime sets never fires
-    // (bead ro-ujb9.76.64).
+    // global, and every timer a later file in this runtime sets never fires.
     vi.restoreAllMocks();
     vi.useRealTimers();
   });
@@ -838,7 +830,7 @@ describe('uptime: the hourly home-page check', () => {
     expect(await readingFor('html-depth')).toMatchObject({ status: 'ok', value_num: 800 });
   });
 
-  it('raises a site-down alert filed at warn before this bead to error', async () => {
+  it('files a site-down alert at error, not warn', async () => {
     await insertFlag({
       asset: 'meals.example',
       firedAt: new Date(NOW - DAY_MS).toISOString(),
@@ -887,8 +879,8 @@ describe('uptime: the hourly home-page check', () => {
 describe('hygiene: OS egress outage', () => {
   it('records readings, accuses no property, and files ONE flag on the OS row', async () => {
     await seedDepthHistory(10, 800);
-    // Nothing is routed — the 2026-08-08 shape, where the house uplink was down
-    // and every one of these fetches came back without a status.
+    // Nothing is routed: the house uplink is down and every one of these
+    // fetches comes back without a status.
     const { fetchImpl, calls } = stubOrigin({});
 
     const result = await runHygieneChecks(env, { assets: ASSETS, fetchImpl, nowMs: NOW });
@@ -1030,7 +1022,7 @@ describe('hygiene: OS egress outage', () => {
       ),
     );
     // … three of them 'ok', and page-structure 'unreachable' rather than 'ok':
-    // nom's empty sitemap leaves no roster, so that check SAMPLED NOTHING. A
+    // an empty sitemap leaves no roster, so that check sampled nothing. A
     // check that measured nothing has not found nothing wrong, and this is the
     // one place the distinction is visible in a count.
     expect(nomRows).toEqual([
@@ -1244,7 +1236,7 @@ describe('hygiene: page directives', () => {
     const flag = await flagFor(PAGE_DIRECTIVES_RULE_ID);
     expect(flag).toMatchObject({ severity: 'warn', kind: 'anomaly', metric: 'robots-ai-access' });
     // The headline is the count; the page and its directive are the inputs the
-    // Tower draws as a row (bead ro-ujb9.96.6.26).
+    // Tower draws as a row.
     expect(flag!.message).toMatch(/^crawler directives closed 1 of \d+ sampled pages$/);
     expect(inputsOf(flag)).toMatchObject({ rule: PAGE_DIRECTIVES_RULE_ID, blocked_urls: [PAGE_A] });
     const flaggedPages = inputsOf(flag).pages as { url: string; blocking: string[] }[];
@@ -1544,9 +1536,8 @@ describe('hygiene sweep', () => {
       const result = await runHygieneChecks(env, { fetchImpl, nowMs: NOW });
 
       const swept = [...new Set(result.outcomes.map((outcome) => outcome.asset))].sort();
-      // pullups.example (db/0019) is swept alongside pacer.example:
-      // the old domain stays live to watch the redirect handoff, so both are
-      // domain-bearing properties this OS can check.
+      // pullups.example is swept alongside pacer.example: the old domain stays
+      // live to watch the redirect handoff, so both are domain-bearing.
       expect(swept).toEqual([
         'fees.example',
         'meals.example',
@@ -1561,7 +1552,7 @@ describe('hygiene sweep', () => {
   });
 });
 
-// --- page structure (ro-cda6.5) ---------------------------------------------
+// --- page structure ---------------------------------------------------------
 
 describe('page structure parsing', () => {
   const URL = `https://${DOMAIN}/p/0`;
@@ -1577,12 +1568,8 @@ describe('page structure parsing', () => {
     expect(structureFaults(parsed)).toEqual([]);
   });
 
-  /**
-   * The badseo.dev discipline, enforced: every fault the parser can name has a
-   * page that breaks exactly that rule and nothing else. A fault added without a
-   * fixture fails here, and a check that fires on the wrong page is caught by
-   * the fixture rather than by an operator months later.
-   */
+  /** Every fault the parser can name has a page that breaks exactly that rule
+   * and nothing else; a fault added without a fixture fails here. */
   it('fires exactly the one fault each fixture page breaks', () => {
     for (const fixture of STRUCTURAL_FIXTURES) {
       const faults = structureFaults(parsePageStructure(fixture.html(URL), URL));
@@ -1769,7 +1756,7 @@ describe('hygiene: page-structure', () => {
       PAGE_STRUCTURE_RULE_ID,
     ]);
     // The headline is the count; the page and its faults are the inputs the
-    // Tower draws as a row (bead ro-ujb9.96.6.26).
+    // Tower draws as a row.
     expect(flag?.message).toMatch(/^page structure regressed on 1 of \d+ sampled pages$/);
     const inputs = JSON.parse(flag!.rule_inputs!) as { faulty_urls: string[]; pages: { url: string; faults?: string[] }[] };
     expect(inputs.faulty_urls).toEqual([P(0)]);

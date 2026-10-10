@@ -4,29 +4,22 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-// A SITE IS NEVER A *PROPERTY*, AND ONE WORD MEANS ONE THING (D20, 2026-09-04,
-// bead ro-pbzu.6). Since D31 (2026-09-23) the word a person reads is *site*;
-// this file holds D20's other half, which D31 kept: never *property*.
-// Between 2026-07-06 and D20 doc 14 mapped the
-// system's `asset` to the UI word *property*, so the Tower rendered "property"
-// in ~44 files while every id, URL, API path and task label said asset. D20
-// reversed the mapping: NoticeOS is a portfolio-ROI tool rather than an
-// analytics tool, and *property* collided with the GA4/Search Console
+// A site is never a *property*, and one word means one thing. The word a
+// person reads is *site*; *property* collides with the GA4/Search Console
 // **property** object the Sources tab has to name.
 //
 // A copy sweep is only true on the day it runs. The old word survives in every
-// commit message, in the docs' history, and in the vocabulary of anyone who
-// worked on this before the decision — so it comes back one string at a time
-// unless something fails. This is that something.
+// commit message, in the docs' history, and in working vocabulary, so it comes
+// back one string at a time unless something fails. This is that something.
 //
-// WHAT IT READS: shipped text only — string and template literals, and JSX text
+// WHAT IT READS: shipped text only, string and template literals and JSX text
 // nodes. Not comments, not identifiers, not object keys. `PropertyFavicon`,
-// `perProperty` and a local `properties` array are code nobody but us reads,
-// and D20 leaves them alone; a LABEL is what this guard is about.
+// `perProperty` and a local `properties` array are code nobody but us reads;
+// a LABEL is what this guard is about.
 //
 // It reads TWO corpora, because the operator's sentences come from two places:
 // the Tower's own source (below), and the config files the Tower renders
-// verbatim (`ro-1f3y`, at the bottom of this file).
+// verbatim (at the bottom of this file).
 //
 // The exemptions are exact phrases rather than a pattern, so widening the guard
 // is a decision somebody makes on purpose.
@@ -46,7 +39,7 @@ const SCAN_DIRS = ['apps/tower/src', 'apps/tower/shared', 'apps/tower/worker'];
  * `worker/mcp-route.ts` speaks to AGENTS, not to the operator: its tool names
  * (`list_properties`, `property_report`) are a published MCP interface, and
  * renaming them would break every caller for a word no person reads. It is the
- * one file whose vocabulary D20 deliberately does not govern.
+ * one file whose vocabulary this rule deliberately does not govern.
  */
 const NOT_OPERATOR_FACING = new Set(['apps/tower/worker/mcp-route.ts']);
 
@@ -56,7 +49,7 @@ const NOT_OPERATOR_FACING = new Set(['apps/tower/worker/mcp-route.ts']);
  *
  *  1. THE PROVIDER'S OWN OBJECT. A site's GA4 property is a real thing with
  *     that real name; calling it an asset would be wrong rather than
- *     consistent, which is the collision D20 cites as its reason.
+ *     consistent.
  *  2. STORED OR WIRE VALUES — config file values, DOM hooks, storage keys, and
  *     the alias URL. Renaming one of these is a data migration, not a copy
  *     change, and `/properties` must keep resolving forever.
@@ -64,10 +57,9 @@ const NOT_OPERATOR_FACING = new Set(['apps/tower/worker/mcp-route.ts']);
  *     history wrong.
  */
 const ALLOWED_PHRASES = [
-  // 1. the provider's own object — doc 14's D20 row keeps Google's word where
-  //    Google's object is what is being named. The plurals earn their place on
-  //    the Integrations page, where a sign-in lists everything one account can
-  //    see (bead `ro-vu8d.3`).
+  // 1. the provider's own object: Google's word stays where Google's object is
+  //    what is being named. The plurals earn their place on the Integrations
+  //    page, where a sign-in lists everything one account can see.
   'GA4 property',
   'GA4 properties',
   'Analytics properties',
@@ -82,13 +74,10 @@ const ALLOWED_PHRASES = [
   'data-property-favicon',
   '`property-findings:',
   '/properties',
-  // The react-query key for the connected Google account's own property list
-  // (bead `ro-vu8d.17`). It names the provider's object and never reaches a
-  // person — it is a cache key, and the two cards that share it share it BY
-  // this string.
+  // The react-query key for the connected Google account's own property list.
+  // It names the provider's object and never reaches a person: it is a cache
+  // key, and the two cards that share it share it BY this string.
   '"google-properties"',
-  // 3. a quotation of a label that existed before bead ro-pbzu.1 deleted it
-  '← All properties',
 ];
 
 /** Comments are not labels. Block comments (JSX `{/* … *\/}` included) go
@@ -161,7 +150,7 @@ test('the UI-noun sweep has files to sweep', () => {
   );
 });
 
-test('no shipped Tower string calls an asset a property (D20)', () => {
+test('no shipped Tower string calls an asset a property', () => {
   const offenders = [];
 
   for (const name of FILES) {
@@ -191,8 +180,8 @@ test('no shipped Tower string calls an asset a property (D20)', () => {
   assert.deepEqual(
     offenders,
     [],
-    `these shipped strings still call an asset a property (D20, bead ro-pbzu.6):\n  ${offenders.join('\n  ')}\n` +
-      'The UI noun is Site (D31) — nav labels, headings, copy, hover text, and the sentences the ' +
+    `these shipped strings still call an asset a property:\n  ${offenders.join('\n  ')}\n` +
+      'The UI noun is Site — nav labels, headings, copy, hover text, and the sentences the ' +
       'payload builders write. If a string genuinely names the GA4/Search Console property ' +
       'object, a stored config value, a DOM hook, or the /properties alias URL, add that exact ' +
       'phrase to ALLOWED_PHRASES in this file with its reason — never widen the pattern.',
@@ -211,18 +200,17 @@ test('every allowed phrase still matches something', () => {
 });
 
 // ---------------------------------------------------------------------------
-// The config side (bead `ro-1f3y`)
+// The config side
 // ---------------------------------------------------------------------------
 // Half the sentences on the Data-sources surfaces are not written in the Tower
-// at all: the Tower reads them VERBATIM out of config/*.json — the integration
+// at all: the Tower reads them VERBATIM out of config/*.json (the integration
 // matrix hovers, the lane copy on an asset page, the setup steps on /health, a
-// recurring cost's note as it rides onto a ledger row. ro-pbzu.6 swept the code
-// and left these, so for one commit the nav said Assets while the lane text
-// beside it said property. A guard that reads only source would let that back in
-// through a file nobody thinks of as copy.
+// recurring cost's note as it rides onto a ledger row). A guard that reads only
+// source would let the old word back in through a file nobody thinks of as
+// copy.
 // The product defaults that carry prose. Per-asset notes and a cost's note are
-// one installation's own words, kept in its installation folder
-// (bead ro-ujb9.125), not product copy.
+// one installation's own words, kept in its installation folder, not product
+// copy.
 const CONFIG_FILES = [
   'config/integrations.json',
 ];
@@ -237,8 +225,8 @@ const CONFIG_FILES = [
  * Only whole values are exempt, never a prose sentence that happens to contain
  * one: an exact-match set cannot be widened by accident.
  *
- * The `perProperty` FIELD NAME needs no entry — the walk below reads values and
- * never keys, because a key is code and D20 leaves code identifiers alone.
+ * The `perProperty` FIELD NAME needs no entry: the walk below reads values and
+ * never keys, because a key is code and code identifiers are left alone.
  */
 const SCHEMA_VALUES = new Set(['property', 'per-property']);
 
@@ -247,9 +235,9 @@ const SCHEMA_VALUES = new Set(['property', 'per-property']);
  * Same rule as ALLOWED_PHRASES above and kept separate from it so each list is
  * pruned against the corpus it actually guards.
  */
-// Empty since bead ro-ujb9.96.6.1 removed the catalog's prose from the generic
-// config/integrations.json; a provider's object named in config prose again
-// earns its place here with its reason.
+// Empty while the generic config/integrations.json carries no catalog prose; a
+// provider's object named in config prose again earns its place here with its
+// reason.
 const CONFIG_ALLOWED_PHRASES = [];
 
 /** Every string VALUE in a parsed config, with a JSON-path label for the error
@@ -275,7 +263,7 @@ test('the config scan has prose to scan', () => {
   }
 });
 
-test('no operator-visible config string calls an asset a property (D20)', () => {
+test('no operator-visible config string calls an asset a property', () => {
   const offenders = [];
 
   for (const { name, values } of CONFIG_VALUES) {
@@ -303,7 +291,7 @@ test('no operator-visible config string calls an asset a property (D20)', () => 
   assert.deepEqual(
     offenders,
     [],
-    `these config strings reach the operator and still call an asset a property (D20, bead ro-1f3y):\n  ${offenders.join('\n  ')}\n` +
+    `these config strings reach the operator and still call an asset a property:\n  ${offenders.join('\n  ')}\n` +
       'The Tower renders these verbatim — lane labels, ' +
       'cell notes, ledger-row notes. A schema literal belongs in SCHEMA_VALUES (whole value ' +
       "only); a provider's own object belongs in CONFIG_ALLOWED_PHRASES with its reason. " +

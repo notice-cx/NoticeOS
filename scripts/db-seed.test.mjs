@@ -13,13 +13,13 @@ import { ADDRESS_FILE, SECRETS_DIR_VARIABLE } from './postgres-secrets.mjs';
 import { TEST_PORTS, parsePortRange, postgresRequired, startTestCluster, unavailableReason } from './postgres-test-cluster.mjs';
 import { FOLDER_MARK, MANAGED_PORTS, startPlan } from './start.mjs';
 
-// `pnpm seed:local` on the Postgres build (bead ro-ujb9.76.57): the invented
-// rows of db/fixtures/dev-seed.json go into the Postgres tables the Tower
-// reads, of a throwaway installation `pnpm start` made, in one transaction as
-// the application login; the store must be empty of them first and say it is
-// for development; nothing reaches D1. The last test starts a real `pnpm
-// start`, seeds it and reads the totals, one report and the money back
-// through its Tower.
+// `pnpm seed:local` on the Postgres build: the invented rows of
+// db/fixtures/dev-seed.json go into the Postgres tables the Tower reads, of a
+// throwaway installation `pnpm start` made, in one transaction as the
+// application login; the store must be empty of them first and say it is for
+// development; nothing reaches D1. The last test starts a real `pnpm start`,
+// seeds it and reads the totals, one report and the money back through its
+// Tower.
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SEED = path.join(REPO_ROOT, 'scripts', 'db-seed.mjs');

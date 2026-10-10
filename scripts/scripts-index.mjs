@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// THE COMMAND INDEX, GENERATED FROM package.json AND EACH SCRIPT'S OWN HEADER.
+// The command index, generated from package.json and each script's own header.
 //
 // `package.json` `scripts` is the one list of commands this repo offers, and
 // the first comment line of each script file is its one-line description. A

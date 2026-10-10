@@ -28,24 +28,18 @@ export interface NavItem {
 }
 
 /**
- * The assets index. Named rather than spelled twice because the sidebar renders
- * the portfolio's own rows underneath this one entry (bead `ro-pbzu.9`) and has
- * to find it by identity — a nav item matched by a string literal in a second
- * file detaches silently the day the path changes.
+ * The assets index. Named because the sidebar renders the portfolio's rows
+ * under this entry and finds it by identity; a string literal in a second file
+ * would detach silently when the path changes.
  */
 export const ASSETS_ROUTE = "/assets";
 
 /**
- * The Integrations page. Named for the same reason `ASSETS_ROUTE` is: the
- * sidebar draws this one entry differently — it carries the expiry dot (bead
- * `ro-vu8d.8`) — and an entry matched by a string literal in a second file
- * detaches silently the day the path changes.
+ * The Integrations page. Named for the same reason as `ASSETS_ROUTE`: the
+ * sidebar draws this entry with the expiry dot.
  */
 export const INTEGRATIONS_ROUTE = "/integrations";
 
-/**
- * Tasks is a core destination in the sidebar and palette (D32).
- */
 export const TASKS_ROUTE = "/tasks";
 
 /**
@@ -53,16 +47,10 @@ export const TASKS_ROUTE = "/tasks";
  * own, what is shouting, what is queued, what it earned, whether the inputs are
  * trustworthy, what they are plugged into, and finally the knobs.
  *
- * Health and Integrations are adjacent and separate on purpose (bead
- * `ro-vu8d.2`): Health answers *is everything working*, from collector
- * evidence; Integrations answers *what am I connected with, and can I connect
- * something*, from the credential store. They shared one address until 2026-09,
- * which meant the page an operator opened to make a connection could only
- * observe one. Label and URL now say the same noun —
- * Sites at `/assets` (D31), Tasks at `/tasks` (D19) — with `/properties` and
- * `/work` kept as aliases. An asset page lights Sites because an asset page IS
- * an asset: NavLink matches the prefix, and a task page lights Tasks the same
- * way.
+ * Health answers "is everything working" from collector evidence; Integrations
+ * answers "what am I connected with" from the credential store. `/properties`
+ * and `/work` stay as aliases. NavLink matches by prefix, so an asset page
+ * lights Sites and a task page lights Tasks.
  *
  * It lives in its own module rather than in `AppShell.tsx` so the command
  * palette can read it without importing the shell that mounts the palette.
@@ -80,7 +68,6 @@ export const NAV_ITEMS: NavItem[] = [
   { to: TASKS_ROUTE, label: "Tasks", icon: ListTodo, keywords: ["work", "queue", "beads", "todo"] },
   {
     to: "/financials",
-    // Money, not Financials (D44, doc 14 § Altitude): the founder's word.
     // The route, the payload and the asset tab's id keep `financials`.
     label: "Money",
     icon: Wallet,
@@ -90,8 +77,7 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/health",
     label: "System health",
     icon: HeartPulse,
-    // "integrations" is deliberately gone from here: it is a page now, and one
-    // word may not point at two of them (doc 14 rule 1).
+    // Not "integrations": that word belongs to its own page.
     keywords: ["sources", "connections", "unblock"],
   },
   {
@@ -115,13 +101,9 @@ export const TV_ITEM: NavItem = {
 };
 
 /**
- * Where the television's layout is arranged (bead `ro-lzmq.2`). It is a desk
- * page but deliberately NOT a sidebar entry of its own: the sidebar holds the
- * places the operator lives, and a TV layout is rearranged rarely and always on
- * purpose. It is reached from the Edit beside the sidebar's TV dashboard entry
- * (bead `ro-ujb9.96.7.12` — Edit, move, Save, PostHog's dashboard pattern),
- * from the Settings page's TV dashboard section, from the palette below, and
- * from nowhere on the television itself — flow D's oldest rule.
+ * Where the television's layout is arranged. Not a sidebar entry of its own:
+ * it is reached from the Edit beside the sidebar's TV dashboard entry, from
+ * Settings and from the palette, and never from the television itself.
  */
 export const TV_EDIT_ITEM: NavItem = {
   to: "/wall/edit",

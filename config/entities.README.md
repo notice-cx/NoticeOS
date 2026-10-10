@@ -1,13 +1,13 @@
 # `entities.json` — which legal entity owns which assets
 
 An asset's owning entity is a **portfolio** fact: it decides which accounts the
-money is reported under ([D5](decisions.md)), whose paperwork covers it, and —
+money is reported under, whose paperwork covers it, and —
 the moment there is more than one — how the ledger has to be split. It is not
 a fact about any one data source, so it has exactly one representation: the
 `assets` list on that entity's row here. Absence is *nobody has said yet*,
 never *nobody owns it*.
 
-**Seed and export, not source of truth** (D22): `pnpm config:seed` loads this
+**Seed and export, not source of truth**: `pnpm config:seed` loads this
 installation's copy (else this generic default) into the store's
 `config_documents` table, the running OS reads and saves it there, and
 `pnpm config:export` writes it to `installation/`. Until an install seeds,

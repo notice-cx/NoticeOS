@@ -2,9 +2,8 @@
 
 *The template a new site's onboarding copies. The two design decisions it rests
 on (server-observable reports, a storage-agnostic contract) are canonical in
-[doc 02](02-signal-contract.md). One installation's own onboarding record lives
-in that installation's notes (bead `ro-ujb9.175`); this page keeps what carries
-to any site.*
+[doc 02](02-signal-contract.md). An installation's own onboarding record lives
+in its notes; this page keeps what carries to any site.*
 
 A site's onboarding answers four questions: what its nightly report can count,
 which search queries its panel watches, which served surfaces a deploy could
@@ -12,8 +11,8 @@ break, and what its own repository's agents must read instead of pulling
 providers themselves.
 
 For the first release, the operator implements the pulse endpoint and writes
-the asset's `AGENTS.md` (D40). NoticeOS shows observed report coverage; asset
-agent execution stays manual, and its pause check is unavailable (D43).
+the asset's `AGENTS.md`. NoticeOS shows observed report coverage; asset
+agent execution stays manual, and its pause check is unavailable.
 Completing data setup does not grant agent execution authority. See
 [doc 14](14-design.md) for the onboarding screen as built and the kill-switch
 and resume contract.

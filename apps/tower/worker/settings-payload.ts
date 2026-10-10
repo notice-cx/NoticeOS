@@ -1,38 +1,11 @@
-// GET /api/settings — every portfolio-wide knob in one payload.
-//
-// A PURE builder over resolved store-first configuration and clock-selection
-// evidence supplied by the route. It reads nothing itself; compiled defaults
-// keep settings visible when a document is absent or unavailable.
-// The deps are parameters, so the test supplies its own fixture config exactly
-// like the wall and asset-detail builders.
-//
-// IT REUSES RATHER THAN RESTATES. The budget caps and the anomaly-rule defaults
-// come from `buildPortfolio` / `buildRules` in portfolio-settings.ts — the
-// same knobs the asset page has rendered since 2026-07-06, which were never
-// about one asset (bead `ro-pbzu.2` moves them here). A second builder for either
-// would be a second answer to "what is this knob called and which file owns it".
-// The source catalog is the one thing that stopped going through a builder at
-// all — see the `expect` guard below.
-//
-// WHAT IS EDITABLE HERE IS EXACTLY WHAT THE WRITE LANE ALLOWS (D18) — and on
-// 2026-09-05 that grew three times. The budget and the alert rules live in
-// `config/constants.json`, wholesale-editable. The task-hub project map (bead
-// `ro-x5gu.5`) and the data-source catalog (`ro-x5gu.6`) are declared
-// REGISTERS, each licensing adds, removes and field edits at its own container
-// and nothing else in its file. The collection cadence is a set of declared
-// KNOBS (`ro-x5gu.8`), one exact pointer each, in two files that are otherwise
-// still unreachable. The hub CONNECTION in `config/beads.json` is none of
-// these: its port lives in three files that must agree, so it is rendered as the
-// fixed fact it is.
-//
-// TWO CONSEQUENCES FOR THIS BUILDER, and both are about the `expect` guard a
-// save carries. The knob values are resolved BY POINTER out of the injected
-// config, from the same declaration the lane licenses, so the browser cannot
-// send a pointer the lane does not know. And the catalog rows are passed
-// VERBATIM rather than through `buildCatalog`: that builder fills a missing
-// `scope` or `credential` in for the Health matrix, which is right there and
-// wrong here — a guard the file never agreed with is a save refused as stale for
-// a reason nobody can see.
+// GET /api/settings — every portfolio-wide knob in one payload. A pure
+// builder over resolved store-first configuration; it reads nothing itself.
+// The budget caps and the anomaly-rule defaults come from `buildPortfolio` /
+// `buildRules` in portfolio-settings.ts, the same knobs the asset page
+// renders. What is editable here is exactly what the write lane allows: the
+// knob values are resolved by pointer from the same declaration the lane
+// licenses, and the catalog rows are passed verbatim rather than through
+// `buildCatalog`, because a save's `expect` guard must be what the file holds.
 
 import type { PullConfigEntry } from "./asset-config";
 import { buildPortfolio, buildRules } from "./portfolio-settings";
@@ -59,11 +32,11 @@ export const BEADS_OWNER = "config/beads.json";
 
 export interface SettingsDeps {
   now: Date;
-  /** config/constants.json `os_time_zone` — the operator's clock (bead ro-py40). */
+  /** config/constants.json `os_time_zone` — the operator's clock. */
   osTimeZone: string;
-  /** Whether somebody chose that clock (`timeZoneChosen`, bead
-   * `ro-ujb9.134`). Read by the route from the config change record; absent
-   * means unknown, which proposes nothing. */
+  /** Whether somebody chose that clock (`timeZoneChosen`). Read by the route
+   * from the config change record; absent means unknown, which proposes
+   * nothing. */
   timeZoneChosen?: boolean;
   /** config/constants.json `monthly_caps`. */
   monthlyCaps: { dataUsd: number };
@@ -79,7 +52,7 @@ export interface SettingsDeps {
   pullConfig: PullConfigEntry[];
   /** config/integrations.json, verbatim — the catalog half only. */
   integrations: IntegrationsConfig;
-  /** config/entities.json `/entities`, verbatim and in FILE ORDER: the page
+  /** config/entities.json `/entities`, verbatim and in file order: the page
    * edits these rows, and a collection editor addresses one by its index. */
   entities: EntityRow[];
   /** config/tower.json, parsed — the shared TV display config. */
@@ -98,10 +71,6 @@ export function buildSettingsPayload(deps: SettingsDeps): SettingsPayload {
 
   return {
     generatedAt: deps.now.toISOString(),
-    // No `note` on any section (bead `ro-ujb9.96.6.3`): a sentence shipped
-    // here is a sentence the page renders word for word. What a section's
-    // setting decides is shown by the page as state — the zone's live values,
-    // the cap's meter, an "All assets" scope chip.
     clock: {
       owner: OWNER.constants,
       timeZone: deps.osTimeZone,
@@ -123,16 +92,13 @@ export function buildSettingsPayload(deps: SettingsDeps): SettingsPayload {
     },
     entities: {
       owner: ENTITIES_OWNER,
-      // No builder: the rows go through untouched for the same reason the
-      // catalog does — this page edits them, and every edit guards on the value
-      // it was rendered from.
+      // Untouched, like the catalog: every edit guards on the value it was rendered from.
       rows: deps.entities,
     },
     taskHub: {
       owner: BEADS_OWNER,
       spokes: deps.beads.spokes,
-      // Absent in a build with no filesystem — and that is also the build where
-      // the map is read-only, so nothing downstream has to guard it twice.
+      // Absent in a build with no filesystem, where the map is read-only.
       hub: deps.beads.hub ?? null,
     },
   };
@@ -142,8 +108,7 @@ function buildCollection(deps: SettingsDeps): CollectionSettings {
   const pullAssets: PullEndpointSetting[] = deps.pullConfig.map((entry) => ({
     asset: entry.asset,
     url: entry.url,
-    // A missing `enabled` is a lane that runs: the field is the OFF switch, and
-    // reading its absence as "paused" would report an asset dark that is not.
+    // A missing `enabled` is a lane that runs: the field is the off switch.
     enabled: entry.enabled !== false,
   }));
   return {
@@ -152,25 +117,16 @@ function buildCollection(deps: SettingsDeps): CollectionSettings {
     }),
     pullAssets,
     pullOwner: PULL_OWNER,
-    // Verbatim, like the catalog rows: a schedule save is guarded by exactly
-    // this object, so a defaulted or reordered copy would be refused as stale.
+    // Verbatim: a schedule save is guarded by exactly this object.
     schedules: deps.schedules ?? null,
   };
 }
 
 /**
- * Every declared knob whose value this deployment can actually read, resolved
- * by the pointer the declaration names (bead `ro-x5gu.8`).
- *
- * The map is keyed by the knob's own `file`, so a knob added to the declaration
- * appears here the moment its file is injected and NOTHING in this builder is
- * touched — and one whose file is not injected, or whose block a fresh install
- * has not got, is simply absent. Absent is a real state and renders as no row;
- * a zero here would claim somebody had configured a cadence of nothing.
- *
- * The docs come in as `unknown` on purpose: the pointer walk IS the check, and
- * a shape this builder asserted instead would be a second opinion about a file
- * it does not own.
+ * Every declared knob whose value this deployment can read, resolved by the
+ * pointer the declaration names. A knob whose file is not injected, or whose
+ * block a fresh install has not got, is simply absent, and renders as no row.
+ * The docs come in as `unknown`: the pointer walk is the check.
  */
 function knobValues(docs: Record<string, unknown>): KnobValueSetting[] {
   const found: KnobValueSetting[] = [];
@@ -184,25 +140,12 @@ function knobValues(docs: Record<string, unknown>): KnobValueSetting[] {
   return found;
 }
 
-/**
- * The catalog rows, VERBATIM (bead `ro-x5gu.6`).
- *
- * They used to come through `buildCatalog`, reduced to five fields with defaults
- * filled in for the missing ones. Both halves of that are wrong now that
- * `/settings` EDITS these rows: a save guards on the value the row was rendered
- * from, so a defaulted `scope` would send a guard the file never held, and the
- * four prose fields the reduction dropped are columns the operator edits.
- *
- * Lane STATE is still deliberately not carried: it is observed evidence, it
- * belongs to `/health`, and a state word here that came from a file rather than
- * a collector run would be exactly the declaration doc 11 warns about.
- */
+/** The catalog rows, verbatim: a save guards on the value the row was
+ * rendered from. Lane state is deliberately not carried; it is observed
+ * evidence and belongs to `/health`. */
 function buildSources(integrations: IntegrationsConfig): SourceSetting[] {
-  // The three enums are OPTIONAL on the config row's type and required here,
-  // and that is not a defaulting in disguise: the register declares all three
-  // required, config/integrations.README.md's validation refuses a catalog row
-  // missing one, and an integrations payload test holds the committed file to
-  // it. A row that broke that would render blank cells the operator can fill in
-  // — which is the honest outcome, and better than a value nobody chose.
+  // The three enums are optional on the config row's type and required here:
+  // the register declares all three required and a payload test holds the
+  // committed file to it. A row that broke that would render blank cells.
   return (integrations.catalog ?? []) as SourceSetting[];
 }

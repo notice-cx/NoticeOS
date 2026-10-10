@@ -1,12 +1,10 @@
-// BING AND DATAFORSEO NOT CONNECTED ARE NO WORK, NOT A FAILURE (bead
-// `ro-ujb9.176`).
-//
-// The same rule `ro-ujb9.172` gave Google (test/google-not-connected.test.ts):
-// a stranger's first action is adding a site, and after it System health read
-// "Needs attention" for the nightly pull (step bing), Traffic and search
-// archives (the Bing half) and the weekly search sweep — sources nobody set up.
-// With no credential anywhere those steps now read skipped and write no failure
-// rows, while a stored row this Worker cannot open still fails loudly.
+// Bing and DataForSEO not connected are no work, not a failure — the same rule
+// Google has (test/google-not-connected.test.ts). A stranger's first action is
+// adding a site, and System health must not then read "Needs attention" for
+// the nightly pull (step bing), Traffic and search archives (the Bing half)
+// and the weekly search sweep — sources nobody set up. With no credential
+// anywhere those steps read skipped and write no failure rows, while a stored
+// row this Worker cannot open still fails loudly.
 
 import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

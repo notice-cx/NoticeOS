@@ -167,7 +167,7 @@ hub, a provider or NoticeOS. Explicit preparation:
 Review the resulting Git diff. Add the project's business goal, architecture,
 verification commands, protected operations and dated `STATE` to its context
 pack, following [the site context mapping](09-onboarding-a-site.md#agentsmd-mapping-before-a-builder-touches-the-site).
-Review current measurement windows: each active one is an open readback bead
+Review current measurement windows: each active one is an open readback task
 naming its surfaces, change and dates ([doc 03](03-attribution.md)).
 Commit the intended repository instructions under that project's
 own Git policy; do not commit local connections or credentials.
@@ -192,7 +192,7 @@ deployments requires explicit owner review. A task connection alone supplies
 coordination, not traffic or revenue evidence.
 
 Agent work remains manual in this release. This setup grants no automatic
-deployment authority, and the future agent pause check is unavailable (D43).
+deployment authority, and the future agent pause check is unavailable.
 
 ## 7. Verify the connection once
 

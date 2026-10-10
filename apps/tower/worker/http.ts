@@ -1,7 +1,5 @@
-// The tiny HTTP vocabulary every Tower API route shares. Extracted so the write
-// routes (flag lifecycle, operator decisions, timeline annotations) cannot drift
-// apart on the cross-origin guard or on the shape of an error body — one
-// implementation, one behaviour.
+// The HTTP vocabulary every Tower API route shares: one cross-origin guard and
+// one error body shape.
 
 export const JSON_HEADERS: Record<string, string> = {
   "content-type": "application/json; charset=utf-8",
@@ -37,7 +35,6 @@ export function crossOrigin(request: Request, url: URL): boolean {
   );
 }
 
-/** True when the request declares a JSON body. */
 export function isJsonRequest(request: Request): boolean {
   return Boolean(
     request.headers.get("content-type")?.toLowerCase().startsWith("application/json"),

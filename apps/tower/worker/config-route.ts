@@ -1,17 +1,11 @@
 // GET/PUT /api/config — where a setting comes from, and where a Save lands.
+// Each configuration document lives in the store. A deployed Save goes over
+// the INGEST binding to the Worker that owns them; the local lane applies the
+// same guarded store write. `PUT` takes `{ops, slug}` and answers
+// `{applied, archive, commit}` or `{error, …}`; `archive` and `commit` are null
+// because a store write has no changeset file and makes no commit.
 //
-// Each configuration document lives in the store (D22). A deployed Save goes
-// over the private INGEST Service Binding to the Worker that owns those
-// documents; the local lane applies the same guarded store write.
-//
-// THE CONTRACT DID NOT MOVE. `PUT /api/config` still takes `{ops, slug}` and
-// still answers `{applied, archive, commit}` on success and `{error, …}` on a
-// refusal, so `apps/tower/src/lib/api.ts` and `useConfigSave` are untouched.
-// `archive` and `commit` are null here: a store write has no changeset file and
-// makes no commit, and the client already renders a missing commit honestly.
-// Local saves also return null for both; a file export is a separate result.
-//
-// WHAT IS STILL REFUSED, and why each one is its own sentence:
+// Refusals, each its own sentence:
 //   - the settings RPC is unavailable → editing is disabled; reads use the
 //     settings compiled into the Worker until the connection returns.
 //   - a stale `expect`, or a stale document version → 409 with what is actually
@@ -31,9 +25,7 @@ export const CONFIG_STORE_NOT_READY_REASON =
  * the machine running the local service, and are read-only everywhere else. */
 export const TASK_PROJECTS_READ_ONLY = "Task projects are read-only here — edit them on the local machine.";
 
-/** Who a Save says wrote it. The Tower is single-operator and unauthenticated on
- * the LAN (docs/10), so there is exactly one honest name for the actor — and an
- * audit row that invented a more specific one would be fiction. */
+/** The standalone Tower has one unauthenticated operator, so one honest name. */
 export const CONFIG_ACTOR = "operator";
 
 /** One refusal, one status. Shared with the ingest's own door so a browser and a
@@ -111,11 +103,6 @@ export async function handleConfigRequest(
   // Task project links belong to the local host. A deployed view exposes only
   // their logical identity, so its shortened rows cannot authorize full-row
   // delete/Undo operations or echo host metadata through conflict responses.
-  //
-  // The page never offers this write here — its Task projects section wears a
-  // "Read-only here" chip in a deployed view — so the refusal states the same
-  // fact in the same words, and no longer adds that other settings still save
-  // (their Save buttons say so; bead `ro-ujb9.96.6.3`).
   if (ops.some((op: unknown) => op !== null && typeof op === "object"
     && (op as { file?: unknown }).file === "config/beads.json")) {
     return jsonError("local_task_setup_required", 422, {
@@ -143,8 +130,7 @@ export async function handleConfigRequest(
     return Response.json(
       {
         applied: result.applied ?? ops.length,
-        // A store write has no archived changeset and makes no commit. Saying
-        // so is the honest answer; the client already handles both being absent.
+        // A store write has no archived changeset and makes no commit.
         archive: null,
         commit: null,
         documents: (result.documents ?? []).map((doc) => ({

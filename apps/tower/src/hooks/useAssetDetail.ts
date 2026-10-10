@@ -37,7 +37,7 @@ function newestRead(client: QueryClient, id: string): AssetDetailResponse | unde
  * `error`: with no payload to hold, the page renders its designed failure state
  * (`refetch` is the operator's retry), never an endless "Loading…".
  *
- * ONE VIEW PER TAB (bead `ro-ujb9.64`). The poll asks for the tab on screen,
+ * One view per tab. The poll asks for the tab on screen,
  * cached under its own key, so returning to a tab shows its last read at once
  * while the next one loads. Leaving a tab stops its poll and cancels its read in
  * flight. Until a tab's own read has arrived — or if it fails — `data` is the

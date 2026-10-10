@@ -7,10 +7,8 @@ import {
 } from "@shared/config-registers";
 import { isCountdownEmoji } from "@shared/dashboard";
 
-// Knob validators — pure, UI-side input validation that runs BEFORE a value is
-// written (the brief: "inputs validate locally — enum, number ranges, URL
-// shape"). A value the field knows is wrong never becomes a request, let alone
-// a commit. Each returns a discriminated result so an editor can show the exact
+// Knob validators: pure, UI-side input validation that runs before a value is
+// written. Each returns a discriminated result so an editor can show the exact
 // reason inline and refuse the Save until it is valid.
 
 export type Validated<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -63,16 +61,9 @@ export function validateUsd(raw: string): Validated<number> {
   return { ok: true, value: n };
 }
 
-/**
- * Which validator guards each `flag_defaults` knob, keyed by the file's own
- * snake_case name.
- *
- * It lives beside the validators rather than in a route because TWO surfaces
- * edit these three numbers: `/settings#alert-rules`, where they belong (bead
- * `ro-pbzu.2`), and the asset page's rules card, which still renders them until
- * the tabs slice removes it. One map means the same value cannot be accepted on
- * one page and refused on the other.
- */
+/** Which validator guards each `flag_defaults` knob, keyed by the file's own
+ * snake_case name. One map, so the same value cannot be accepted on one page
+ * and refused on another. */
 export const FLAG_DEFAULT_VALIDATOR: Record<string, (raw: string) => Validated<number>> = {
   alpha: validateProbability,
   min_baseline_per_day: validatePositiveInt,
@@ -80,14 +71,10 @@ export const FLAG_DEFAULT_VALIDATOR: Record<string, (raw: string) => Validated<n
 };
 
 /**
- * An IANA timezone name (`config/constants.json` `os_time_zone`, bead
- * `ro-py40`).
- *
- * The runtime's own tz database is the authority — `isIanaTimeZone` asks
- * `Intl` rather than checking a hand-written list that would go stale the next
- * time a country moves its clocks. It is the SAME predicate the contract
- * validates the committed value with at the build boundary, so the field cannot
- * accept a zone the build would reject.
+ * An IANA timezone name (`config/constants.json` `os_time_zone`). The
+ * runtime's own tz database is the authority: `isIanaTimeZone` asks `Intl`,
+ * and it is the same predicate the contract validates the committed value
+ * with, so the field cannot accept a zone the build would reject.
  */
 export function validateTimeZone(raw: string): Validated<string> {
   const value = raw.trim();
@@ -101,9 +88,9 @@ export function validateTimeZone(raw: string): Validated<string> {
   return { ok: true, value };
 }
 
-/** The example a refusal offers: the zone this browser runs in, so the hint is
- * one the reader recognises and no installation's zone is written into the
- * product (bead `ro-ujb9.118`). UTC when the runtime cannot say. */
+/** The example a refusal offers: the zone this browser runs in, so no
+ * installation's zone is written into the product. UTC when the runtime
+ * cannot say. */
 function localZoneExample(): string {
   try {
     const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -114,21 +101,13 @@ function localZoneExample(): string {
 }
 
 /**
- * The validator a DECLARED FIELD already is (bead `ro-x5gu.8`).
- *
- * Every validator above is hand-written because the value it guards has no
- * declaration — a timezone, an emoji, a probability. A field of a config
- * register or a scalar knob is the opposite: its rule is written down once, in
- * `scripts/config-registers.mjs`, and `fieldRefusal` is what both the write lane
- * and the CLI judge it with. So a knob does not get a validator beside it — it
- * gets this, which parses the draft the way the field's own type says and hands
- * the result to that one judge.
- *
- * The consequence is the one worth having: the sentence under the input is
- * character-for-character the sentence a 422 would have carried, because it is
- * the same sentence. And it names the field by the label beside the input
- * (`Panel history window must be at least 1`, bead ro-ujb9.154), never by the
- * key the file holds.
+ * The validator a declared field already is. A field of a config register or
+ * a scalar knob has its rule written once, in `scripts/config-registers.mjs`,
+ * and `fieldRefusal` is what both the write lane and the CLI judge it with;
+ * this parses the draft the way the field's own type says and hands the
+ * result to that one judge, so the sentence under the input is the sentence
+ * a 422 would have carried. It names the field by the label beside the input,
+ * never by the key the file holds.
  */
 export function validateRegisterField(
   field: RegisterField,

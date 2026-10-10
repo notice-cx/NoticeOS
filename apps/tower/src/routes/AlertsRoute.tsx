@@ -61,18 +61,17 @@ const SEVERITIES: { value: Severity | "all"; label: string }[] = [
   { value: "warn", label: "Warnings" },
 ];
 
-/** History carries INFO rows the open list never can — a milestone is an event,
- * always info-severity (db/0001's own CHECK), and it settles like anything
- * else. Same three words as everywhere, one more of them. */
+/** History carries info rows the open list never can: a milestone is an event,
+ * always info-severity, and it settles like anything else. */
 const HISTORY_SEVERITIES: { value: Severity | "all"; label: string }[] = [
   ...SEVERITIES,
   { value: "info", label: "Info" },
 ];
 
-/** The kinds an OPEN row can be (bead `ro-ujb9.197`). No Milestones: a
- * milestone is always info-severity (db/0001's CHECK) and the Open list holds
- * warnings and errors only, so that option could only ever empty the list —
- * which reads as "there are no milestones", and that is false. */
+/** The kinds an open row can be. No Milestones: a milestone is always
+ * info-severity and the Open list holds warnings and errors only, so that
+ * option could only ever empty the list, which would read as "there are no
+ * milestones". */
 const KINDS: { value: FlagKind | "all"; label: string }[] = [
   { value: "all", label: "Any kind" },
   { value: "anomaly", label: "Anomalies" },
@@ -87,7 +86,7 @@ function offeredKind(params: URLSearchParams): FlagKind | "all" {
   return KINDS.find((option) => option.value === kind)?.value ?? "all";
 }
 
-// --- the two views (bead `ro-ju7f`) ----------------------------------------
+// --- the two views -----------------------------------------------------------
 /** `open` is the index tab: `/alerts` IS Open, exactly as `/assets/:id` is an
  * asset's Overview. */
 const ALERT_TABS = ["open", "history"] as const;
@@ -114,18 +113,12 @@ function tabFromParam(param: string | undefined): AlertTab {
 }
 
 /**
- * The filters one tab hands the other (bead `ro-clz8`).
- *
- * "What is open for this asset" and "what closed for this asset" are one
- * question asked twice, so the narrowing survives the switch — otherwise the
- * second half of the question costs three clicks.
- *
- * A tab carries only what the DESTINATION can honour, because a filter a view
- * ignores is worse than no filter: its `<select>` would sit on a value that is
- * not one of its options. So `kind` never reaches History, which has no kind
- * filter; `severity: info` never reaches Open, whose list can never hold an info
- * row; and History's `offset` never leaves History, because page 4 of one list
- * is not page 4 of another.
+ * The filters one tab hands the other: "what is open for this asset" and "what
+ * closed for this asset" are one question asked twice. A tab carries only what
+ * the destination can honour, because a filter a view ignores would leave its
+ * `<select>` on a value that is not one of its options: `kind` never reaches
+ * History, `severity: info` never reaches Open, and History's `offset` never
+ * leaves History.
  */
 function carriedFilters(params: URLSearchParams, to: AlertTab): string {
   const carried = new URLSearchParams();
@@ -140,34 +133,10 @@ function carriedFilters(params: URLSearchParams, to: AlertTab): string {
 }
 
 /**
- * `/alerts` — the portfolio's alerts, open and settled, composed to doc 14
- * (beads `ro-ju7f`, `ro-78qo.7`).
- *
- * ONE QUESTION: *what is firing, and how bad.* The strip is the whole answer and
- * the list under it is the same conditions one line at a time.
- *
- * WHAT CHANGED, AND WHY. The page printed FOUR BUTTONS UNDER EVERY ROW — Mark
- * read, Snooze, Resolve, File task — so five alerts meant twenty verbs on
- * screen, each 28px tall and none of them the thing the operator came to read.
- * The queue's own severity was the quietest ink on a page made of controls. Doc
- * 21 puts the verbs where the decision is made: a row opens IN PLACE, and its
- * lifecycle, task handoff and available Tune actions are inside it. Closed,
- * a row is a mark, an asset, a signal, how often
- * it has re-fired, when it was first seen and when it was last confirmed.
- *
- * THE STRIP IS OVER BOTH TABS, and it is the PORTFOLIO's rather than the
- * filtered view's: "how bad is it tonight" does not change because a dropdown
- * did. The panel below states what is on screen whenever a filter narrows it.
- *
- * THE TAB IS THE URL. `/alerts` is Open and `/alerts/history` is History, so a
- * view is a link — the same contract the asset page's tabs keep. `Tabs` matches
- * the active tab on the PATH, which is what lets a tab link CARRY the filters
- * the operator already set (bead `ro-clz8`).
- *
- * FILTERS LIVE IN THE URL. `useSearchParams`, so a filtered view is a LINK — the
- * state can be bookmarked, pasted into a bead, and reached from an asset page.
- * Native `<select>`s in the desk's existing input chrome, because enum pickers
- * do not justify a new component (doc 14, components/registry.ts).
+ * /alerts: the portfolio's alerts, open and settled. The strip is the
+ * portfolio's, not the filtered view's. The tab and the filters live in the
+ * URL; `Tabs` matches the active tab on the path, so a tab link can carry the
+ * filters already set.
  */
 export function AlertsRoute() {
   const { tab: tabParam } = useParams();
@@ -176,17 +145,14 @@ export function AlertsRoute() {
   const now = useNow();
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  // The strip's settled figures. One page, the biggest this archive will hand
-  // over, ordered by when each row CLOSED — so a week's settlements are exact
+  // The strip's settled figures: one page, the biggest this archive will hand
+  // over, ordered by when each row closed, so a week's settlements are exact
   // whenever fewer than a hundred rows have closed since, and the KPI says so
   // when they have not.
   const settled = useAlertHistory(STRIP_HISTORY_QUERY);
 
-  // A segment nobody built renders Open — but `Tabs` matches the active tab on
-  // the PATH, so `/alerts/nonsense` would render Open under a bar with nothing
-  // selected and a panel labelled by an unselected tab. Canonicalise instead:
-  // the URL becomes the view it is already showing. `replace`, because a typo
-  // is not a step in the operator's history.
+  // `Tabs` matches on the path, so `/alerts/nonsense` would render Open with no
+  // tab selected: canonicalise the URL to the view it shows, with `replace`.
   const canonical = tabParam !== undefined && tabParam !== tab;
   const search = params.toString();
   useEffect(() => {
@@ -210,8 +176,7 @@ export function AlertsRoute() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3.5 p-4 md:p-6">
-      {/* No description. What this page is, is the word Alerts over a strip
-          saying how bad tonight is (doc 14 principles 3 and 3a). */}
+      {/* No description: the word Alerts over a strip saying how bad tonight is. */}
       <PageHeader title="Alerts" />
 
       {!data ? (
@@ -222,9 +187,9 @@ export function AlertsRoute() {
         )
       ) : (
         <>
-          {/* ONE ANSWER FIRST (D45): how many are open and how bad, in a
-              sentence, with the oldest and the week's settled count beside it.
-              It sits above the tabs because it is true of both. */}
+          {/* One answer first: how many are open and how bad, in a sentence,
+              with the oldest and the week's settled count beside it. It sits
+              above the tabs because it is true of both. */}
           <AlertsAnswer items={data.attention} settled={settled.data} settledFailed={settled.isError} nowMs={now} />
 
           <Tabs
@@ -241,14 +206,7 @@ export function AlertsRoute() {
               <OpenView data={data} nowMs={now} />
             )}
           </TabPanel>
-          {/* NO ABOUT (bead `ro-ujb9.96.6.7`). Its four paragraphs defined the
-              verification words, listed what an opened row holds, explained the
-              strip's scope and said why Snoozed ignores the filters. Each is now
-              shown where it applies: the verification is a glyph on every row
-              and its checks are rows in the Evidence panel, the opened row IS
-              the list of verbs, a filtered panel says "3 of 8 open" against the
-              strip's total, and the Snoozed panel simply always lists every
-              parked row. */}
+          {/* No About panel: each fact is shown where it applies. */}
         </>
       )}
     </div>
@@ -322,9 +280,9 @@ function filterOpen(
   const kind = offeredKind(params);
   return items.filter(
     (item) =>
-      // A cross-asset row (`ro-kukv.6`) belongs to EVERY asset it stands for:
-      // filtering to one site must not hide the row that carries that site's
-      // own Mark read / Resolve just because another asset leads it.
+      // A cross-asset row belongs to every asset it stands for: filtering to
+      // one site must not hide the row that carries that site's own Mark read
+      // / Resolve just because another asset leads it.
       (asset === "all" ||
         item.asset === asset ||
         (item.members?.some((member) => member.asset === asset) ?? false)) &&
@@ -335,12 +293,8 @@ function filterOpen(
 
 /**
  * Write one filter into the URL, clearing anything the change invalidates.
- *
- * `all` and the empty string both mean ABSENT, so the URL names only what the
- * operator actually chose and the unfiltered view is a bare path.
- *
- * `replace`: a filter is a view of one page, not a place — the back button
- * should leave Alerts, not walk backwards through every dropdown touched.
+ * `all` and the empty string both mean absent, so the unfiltered view is a
+ * bare path. `replace`: Back should leave Alerts, not walk every dropdown.
  */
 function useFilterWriter(): (name: string, value: string, resets?: string[]) => void {
   const [params, setParams] = useSearchParams();
@@ -368,14 +322,14 @@ function OpenView({ data, nowMs }: { data: WallPayload; nowMs: number }) {
   return (
     <>
       {/* On a phone the selects wait behind one Filters press (the shared
-          fold, bead ro-ujb9.13); on a desk they are this row. */}
+          fold); on a desk they are this row. */}
       <FilterBar
         active={[asset, severity, kind].filter((value) => value !== "all").length}
         className="flex flex-wrap items-center gap-2"
         marks={{ "data-alert-filters": "" }}
       >
-        {/* A site filter with one site to pick is a question with one answer
-            (bead ro-ujb9.130); a link that already narrows keeps its select. */}
+        {/* A site filter with one site to pick is a question with one answer;
+            a link that already narrows keeps its select. */}
         {data.assets.length > 1 || asset !== "all" ? (
           <>
             <label className="sr-only" htmlFor="alerts-asset">
@@ -433,8 +387,8 @@ function OpenView({ data, nowMs }: { data: WallPayload; nowMs: number }) {
       {filtered.length > 0 ? (
         <ListPanel
           title="Open"
-          // The STRIP owns the total (doc 14, one fact once); this says what is
-          // on screen only when a filter has made the two differ.
+          // The strip owns the total; this says what is on screen only when a
+          // filter has made the two differ.
           count={
             filtering
               ? `${filtered.length} of ${data.attention.length} open`
@@ -454,7 +408,7 @@ function OpenView({ data, nowMs }: { data: WallPayload; nowMs: number }) {
           )}
         </ListPanel>
       ) : null}
-      {/* A list the eye can finish (D45): every open alert is above. */}
+      {/* A list the eye can finish: every open alert is above. */}
       {filtered.length > 0 && !filtering ? (
         <FinishLine line="That's every open alert." age={readingAge(data.generatedAt, nowMs)} />
       ) : null}
@@ -474,18 +428,12 @@ function OpenView({ data, nowMs }: { data: WallPayload; nowMs: number }) {
   );
 }
 
-/** WHICH ASSET, on a surface that holds several — the favicon that asset's own
- * page wears in its heading, so the eye finds a portfolio's rows by identity
- * before it reads a word. Not a link: the whole row opens, and its expansion
- * carries the way through. */
+/** Which asset, on a surface that holds several: the favicon that asset's own
+ * page wears in its heading. Not a link: the whole row opens. */
 function AssetTag({ id, displayName }: { id: string; displayName: string }) {
   return (
-    // ONE LINE OF ONE TYPE (design review, 2026-09-05). The name used to be
-    // foreground-weight medium ahead of a body-weight headline, so every row's
-    // title was two sizes and two baselines colliding at the left edge. It is a
-    // muted prefix at the line's own size now, with the separator doing the work
-    // the weight was doing — the favicon is the thing the eye finds an asset by,
-    // and the headline is what it reads next.
+    // One line of one type: a muted prefix at the line's own size, with the
+    // separator doing the work a heavier weight would.
     <>
       <span className="inline-flex shrink-0 items-center gap-1.5 text-muted-foreground">
         <PropertyFavicon domain={id} displayName={displayName} className="size-4" />
@@ -499,21 +447,9 @@ function AssetTag({ id, displayName }: { id: string; displayName: string }) {
 }
 
 /**
- * ONE OPEN ALERT, one line (doc 14, bead `ro-78qo.7`).
- *
- * Closed: the severity ring and its mark, which asset, what the rule says in the
- * operator's words, how often it has re-fired, and when it was first seen.
- * That is the triage read; actions appear only after the row opens.
- *
- * Open: the Evidence panel (the rule's numbers, the checks behind the caption,
- * its stored words), any change that landed just before, and Mark read, Snooze,
- * Resolve, task handoff and Tune when the rule supports an honest replay. These
- * are here rather than under every row because a disposition is a decision, and
- * a decision is made after reading the row, not before. Twenty buttons for five
- * alerts is what this page looked like when they were printed by default.
- *
- * The age is the recorded first-seen time, not tonight's re-reading. It does
- * not prove the condition stayed true between observations.
+ * One open alert, one line, its verbs inside the opened row. The age is the
+ * recorded first-seen time, not tonight's re-reading; it does not prove the
+ * condition stayed true between observations.
  */
 function OpenAlertRow({ item, nowMs }: { item: AttentionItem; nowMs: number }) {
   const alert = translateAlert(item);
@@ -521,14 +457,13 @@ function OpenAlertRow({ item, nowMs }: { item: AttentionItem; nowMs: number }) {
   return (
     <ListRow
       tone={item.severity}
-      // doc 14's mark for a finding: the ring says how bad, the triangle says
-      // what kind, so an alert never reads as an unfinished task.
+      // The mark for a finding: the ring says how bad, the triangle says what
+      // kind, so an alert never reads as an unfinished task.
       glyph="△"
-      // NOT a flex row. `ListRow` truncates a closed row's title, which sets
-      // `nowrap` on the line — and a flex child inside that cannot break, so a
-      // long headline ran off the edge of a phone with no ellipsis to say it
-      // had. Inline content lets the ellipsis do its job, and an open row drops
-      // the truncation and wraps the whole line (bead `ro-78qo.7`).
+      // Not a flex row: `ListRow` truncates a closed row's title with `nowrap`,
+      // and a flex child inside that cannot break, so a long headline would run
+      // off the edge of a phone with no ellipsis. Inline content lets the
+      // ellipsis do its job, and an open row wraps the whole line.
       title={
         <>
           <AssetTag id={item.asset} displayName={item.assetDisplayName} />
@@ -544,9 +479,9 @@ function OpenAlertRow({ item, nowMs }: { item: AttentionItem; nowMs: number }) {
       </>}
       value={formatAge(ageMs(nowMs, item.firstFiredAt))}
       valueLabel="first seen"
-      // VERBS IN THE ROW (D45): Snooze and Resolve take an alert out of the
-      // queue without opening it first; Mark read, Tune, a task and the site
-      // are in the opened row, after the evidence.
+      // Verbs in the row: Snooze and Resolve take an alert out of the queue
+      // without opening it first; Mark read, Tune, a task and the site are in
+      // the opened row, after the evidence.
       rowActions={<FlagActions flagId={item.id} assetId={item.asset} only={["snooze", "resolve"]} />}
       actions={
         <>
@@ -574,10 +509,10 @@ function OpenAlertRow({ item, nowMs }: { item: AttentionItem; nowMs: number }) {
         </>
       }
     >
-      {/* One line of chips (bead `ro-ujb9.96.6.7`): the Evidence panel holds
-          the rule's numbers, the checks behind the caption's verification, the
-          stored message and the rule id — the caption already says Confirmed
-          or Last known, so the opened row does not say it a second time. */}
+      {/* One line of chips: the Evidence panel holds the rule's numbers, the
+          checks behind the caption's verification, the stored message and the
+          rule id. The caption already says Confirmed or Last known, so the
+          opened row does not say it a second time. */}
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <EvidencePopover
           evidence={alertPopoverEvidence(alert, item, nowMs)}
@@ -598,22 +533,12 @@ function OpenAlertRow({ item, nowMs }: { item: AttentionItem; nowMs: number }) {
 }
 
 /**
- * ONE ROW FOR ONE FACT, still actionable per asset (`ro-kukv.6`, decision D15).
- *
- * Four assets that have never reported are one condition, not four events, so
- * the row states it once and the four assets are behind its disclosure — which
- * is now the ListRow's own expansion rather than a `<details>` inside a table
- * cell. Each member keeps its own link, its own age and its own Mark read /
- * Resolve, so nothing an operator could do before is taken away.
- *
- * WHAT IS DELIBERATELY ABSENT. No recurrence chip: `occurrences` here counts
- * ASSETS, and the chip's whole meaning is "this condition re-fired N times".
- * And no File task — there is no single firing for a task to name, so work on a
- * portfolio-wide condition is one task the operator writes, not four the page
- * guesses at.
- *
- * The age is the oldest member's recorded first-seen time, not evidence that
- * every member's condition stayed true continuously.
+ * One row for one fact, still actionable per asset. Four assets that have
+ * never reported are one condition, not four events, so the row states it
+ * once and the members are behind its disclosure, each with its own link, age
+ * and Mark read / Resolve. No recurrence chip, because `occurrences` here
+ * counts assets; no File task, because there is no single firing for a task
+ * to name. The age is the oldest member's recorded first-seen time.
  */
 function GroupedAlertRow({ item, nowMs }: { item: AttentionItem; nowMs: number }) {
   const alert = translateAlert(item);
@@ -666,31 +591,10 @@ function GroupedAlertRow({ item, nowMs }: { item: AttentionItem; nowMs: number }
 }
 
 /**
- * WHAT THE OPERATOR PUT OFF, and until when (bead `ro-c7qq`).
- *
- * A snooze that produced no visible row would be a mute with a friendlier name.
- * So every parked condition stays under the Open list with the date it comes
- * back and an **Unsnooze** that ends the wait now — in the row's expansion,
- * like every other verb on this page.
- *
- * IT BELONGS TO OPEN, not History. A snoozed alert is not settled — nobody
- * decided anything about the condition, they deferred it, and the store agrees:
- * `worker/flag-scope.ts` hands the same row back on its date. Filing it under
- * History would be the page claiming a decision the operator has not made.
- *
- * BELOW the list and never merged into it: a parked row is not asking for
- * anything yet, and one list holding both would put the count the operator
- * reads first out of reach. Absent entirely when nothing is parked — "Snoozed
- * (0)" is a heading about a thing that has not happened.
- *
- * It ignores the filters above on purpose. Those narrow what needs attention
- * NOW; this is the standing ledger of what was silenced, and a ledger a
- * dropdown can shorten is a ledger that can hide the row it was set to hide.
- *
- * WIDER THAN THE LIST ABOVE (bead `ro-w13s`). Open attention is error/warn;
- * this lists EVERY parked row, info and milestone included, because Snooze is
- * offered on every open row of the asset page's state hero and a ledger that
- * dropped those would hide precisely what the operator silenced.
+ * What the operator put off, and until when: a snooze with no visible row
+ * would be a mute. It belongs to Open (deferred, not settled), ignores the
+ * filters above so a dropdown cannot hide a parked row, and lists info and
+ * milestone rows too, because Snooze is offered on every open row.
  */
 function SnoozedAlerts({ items, nowMs }: { items: SnoozedItem[]; nowMs: number }) {
   if (items.length === 0) return null;
@@ -745,23 +649,12 @@ function SnoozedAlerts({ items, nowMs }: { items: SnoozedItem[]; nowMs: number }
 
 // --- History ----------------------------------------------------------------
 /**
- * WHAT ALREADY CLOSED, across the portfolio (bead `ro-ju7f`).
- *
- * Every row is `AlertRow` in its settled mode — the same component an asset's
- * own Alerts tab renders over the same `FlagRecord`, plus the one thing a
- * portfolio surface owes and an asset page does not: WHICH ASSET, as its
- * favicon and a link into that asset's Alerts tab.
- *
- * IT IS `AlertRow`, AND `AlertRow` IS NOW A `ListRow` TOO (bead `ro-78qo.17`).
- * doc 14 wants the settled row in the same shape as the open one; the fold
- * happened in the component rather than here, so this surface, the asset page's
- * Current signals and its Alert history all draw one alert one way. Rewriting
- * the row HERE would have left two settled-alert renderings, which is the very
- * thing that bead exists to end.
- *
- * It reads `/api/alerts/history`, not the wall payload: the wall payload is
- * what a television polls every 60 seconds, and a paged archive has no business
- * riding along with it.
+ * What already closed, across the portfolio. Every row is `AlertRow` in its
+ * settled mode, the same component an asset's own Alerts tab renders, plus the
+ * one thing a portfolio surface owes: which asset, as its favicon and a link
+ * into that asset's Alerts tab. It reads `/api/alerts/history`, not the wall
+ * payload, because a paged archive has no business riding along with what a
+ * television polls every 60 seconds.
  */
 function HistoryView({
   assets,
@@ -776,15 +669,8 @@ function HistoryView({
   const { data, isError, error, isFetching, refetch } = useAlertHistory(query);
   const filtering = query.asset !== null || query.severity !== null;
 
-  /**
-   * The URL asked for a page this archive cannot read (bead `ro-oefa`).
-   *
-   * Not the same event as a store that failed, and it used to be neither: a
-   * corrupted `?offset=` was silently dropped and the reader got page one,
-   * which looks exactly like the page a working link lands on. `/api/financials`
-   * had already decided this for a malformed `?period=`; this is the same
-   * answer for the same class of input.
-   */
+  /** The URL asked for a page this archive cannot read: not the same event as
+   * a store that failed. */
   const refusedPage =
     query.malformed !== null && error instanceof AlertHistoryPageError
       ? { refusal: query.malformed, total: error.total, limit: error.limit }
@@ -796,9 +682,9 @@ function HistoryView({
         active={[query.asset, query.severity].filter((value) => value !== null).length}
         className="flex flex-wrap items-center gap-2"
         marks={{ "data-alert-history-filters": "" }}
-        // Where in the archive the reader is: a fact, never folded. Every number
-        // in it is the ANSWERED page's own, so while the next page loads it
-        // still describes the rows on screen (bead `ro-ujb9.196`).
+        // Where in the archive the reader is. Every number in it is the
+        // answered page's own, so while the next page loads it still describes
+        // the rows on screen.
         aside={data && !refusedPage ? <HistoryRange offset={data.offset} rows={data.rows.length} total={data.total} /> : null}
       >
         {assets.length > 1 || query.asset !== null ? (
@@ -840,11 +726,10 @@ function HistoryView({
           ))}
         </select>
 
-        {/* The range badge (the bar's aside) states WHERE IN THE ARCHIVE the
-            reader is, so it has nothing true to say about a page that does not
-            exist — and with `keepPreviousData` the last good page's numbers
-            would still be sitting in `data` (bead `ro-oefa`); every number in
-            it is the answered page's own (bead `ro-ujb9.196`). */}
+        {/* The range badge states where in the archive the reader is, so it
+            has nothing true to say about a page that does not exist, and with
+            `keepPreviousData` the last good page's numbers would still be
+            sitting in `data`. */}
       </FilterBar>
 
       {refusedPage ? (
@@ -894,16 +779,11 @@ function HistoryView({
 }
 
 /**
- * A `?offset=`/`?limit=` this archive cannot read (bead `ro-oefa`).
- *
- * The mirror of `/financials`'s `MissingPeriod`, down to the shape: a heading
- * that quotes back the value the link actually carried, one line saying how much
- * there is to page through, and the way out. No card — a designed state, not a
- * container (doc 14).
- *
- * The way out is a BUTTON rather than a link because this page's other move
- * between pages is a button (Newer / Older), and it clears both page params at
- * once so a URL that got `limit` wrong is not left carrying it.
+ * A `?offset=`/`?limit=` this archive cannot read: the mirror of
+ * `/financials`'s `MissingPeriod`. The way out is a button rather than a link
+ * because this page's other move between pages is a button, and it clears
+ * both page params at once so a URL that got `limit` wrong is not left
+ * carrying it.
  */
 function MalformedPage({
   refusal,
@@ -935,16 +815,11 @@ function MalformedPage({
 }
 
 /**
- * WHICH SLICE OF WHAT — the archive's one count, stated once.
- *
- * `1–25 of 137` rather than a bare total, because the operator paging through
- * an archive needs to know where they are in it, and a total with no position
- * leaves the Older button meaning nothing.
- *
- * ALL THREE NUMBERS COME FROM ONE ANSWER (bead `ro-ujb9.196`). The offset used
- * to be the URL's while the count and total were the answer's, and while the
- * next page loaded — `keepPreviousData` holds the last page on screen — that
- * read "126–150 of 137", a range that cannot exist.
+ * Which slice of what: the archive's one count, stated once. `1–25 of 137`
+ * rather than a bare total, because a total with no position leaves the Older
+ * button meaning nothing. All three numbers come from one answer: with
+ * `keepPreviousData` holding the last page on screen, an offset taken from the
+ * URL would read "126–150 of 137" while the next page loads.
  */
 function HistoryRange({
   offset,

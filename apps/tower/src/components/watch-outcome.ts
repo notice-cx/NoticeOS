@@ -3,20 +3,10 @@ import type { StateTone } from "@/components/StateChip";
 import type { ListRowTone } from "@/components/surface/ListPanel";
 
 /**
- * The evaluator's four verdicts, in the operator's words (`ro-78qo.5`), with a
- * direction glyph and a chip tone of their own (bead `ro-ujb9.96.6.6`).
- *
- * The ROW's tone colours its mark: `ok` is the health green a confirmed
- * improvement earns; a confirmed DECLINE is `warn` rather than `error`, because
- * a bet that did not pay is a result, not an incident. The two undecided
- * verdicts stay muted: they are the absence of a finding, and colouring them
- * would make "we could not tell" look like news. The CHIP carries the verdict's
- * words once, with a glyph so the verdict is never colour-only (doc 14).
- *
- * Its own module since bead `ro-ujb9.96.6.14`: an alert row that owes a
- * decision printed the stored enum ("verdict: kill_confirmed") because this
- * table lived inside the watch composer. The pre-registered checks list and the
- * alert row now name one verdict with one chip.
+ * The evaluator's four verdicts, in the operator's words. A confirmed decline
+ * is `warn`, not `error`: a bet that did not pay is a result, not an incident.
+ * The two undecided verdicts stay muted, so "we could not tell" never looks
+ * like news.
  */
 export const WATCH_OUTCOME: Record<
   WatchOutcome,

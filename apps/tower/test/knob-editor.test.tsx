@@ -12,15 +12,9 @@ import {
   validateUrl,
 } from "@/lib/knob-validators";
 
-// The Tower's one editable-setting affordance, now that it WRITES (D18, bead
-// ro-pbzu.5). What is asserted here is the promise a Save makes: local
-// validation still refuses first, the write carries the value the field was
-// rendered from as its `expect`, the Undo beside the field is itself a guarded
-// write, a stale value is named rather than overwritten, and a deployment that
-// cannot write says so instead of offering a dead button.
-//
-// Sonner is mocked so the suite can prove NO toast is raised: since bead
-// ro-ujb9.96.7.12 every outcome is said beside the field (`InlineSaveState`).
+// The Tower's one editable-setting affordance. Sonner is mocked so the suite can
+// prove no toast is raised: every outcome is said beside the field
+// (`InlineSaveState`).
 const toasts = vi.hoisted(() => ({
   success: vi.fn(),
   error: vi.fn(),
@@ -158,9 +152,8 @@ describe("KnobEditor — a setting saves where it stands", () => {
     expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
   });
 
-  // The `expect` is the whole safety story: it is the value the field was
-  // RENDERED from, not the one being typed, so a save from a page left open
-  // while the file moved is refused rather than winning.
+  // The `expect` is the value the field was rendered from, not the one being
+  // typed, so a save from a page left open while the file moved is refused.
   it("saves a file-owned knob through the config lane, carrying the rendered value as expect", async () => {
     const calls = stubFetch({ status: 200, body: { applied: 1, archive: "config/changesets/0009_x.json", commit: "abc1234" } });
     renderAlpha();
@@ -198,9 +191,8 @@ describe("KnobEditor — a setting saves where it stands", () => {
     await waitFor(() => expect(calls).toHaveLength(1));
   });
 
-  // Undo over confirm (docs/15 principle 5). And the way back is not privileged:
-  // it is the same write with the values swapped and `expect` set to what was
-  // just saved, so it is refused in turn if something else moved the value.
+  // Undo over confirm, and the way back is not privileged: it is the same
+  // write with the values swapped and `expect` set to what was just saved.
   it("offers an Undo that writes the previous value back, guarded by the one just saved", async () => {
     const calls = stubFetch();
     renderAlpha();
@@ -208,8 +200,6 @@ describe("KnobEditor — a setting saves where it stands", () => {
     fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "0.05" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    // Beside the field, never a toast (bead ro-ujb9.96.7.12): every setting
-    // says its outcome where it was changed.
     fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
     expect(toasts.success).not.toHaveBeenCalled();
     await waitFor(() => expect(calls).toHaveLength(2));
@@ -231,7 +221,6 @@ describe("KnobEditor — a setting saves where it stands", () => {
     fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "0.05" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    // Said beside the field as a short state (bead ro-ujb9.96.7.12).
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Changed elsewhere — reload to see the current value",
     );
@@ -239,8 +228,7 @@ describe("KnobEditor — a setting saves where it stands", () => {
     expect(toasts.success).not.toHaveBeenCalled();
   });
 
-  // A store column is not a file, so it saves in a deployed build too — the
-  // read-only rule below is about the filesystem, not about editing at all.
+  // A store column is not a file, so it saves in a deployed build too.
   it("saves a store-owned column through the Worker, one PATCH per asset", async () => {
     const calls = stubFetch({ status: 200, body: { ok: true } });
     renderSenseToggle();
@@ -315,11 +303,8 @@ describe("KnobEditor — a setting saves where it stands", () => {
     expect(calls).toEqual([]);
   });
 
-  /**
-   * Bead `ro-ujb9.79`. A select is as wide as its longest option; the Google
-   * picker on the Sources tab lists "label — account (ref)" and grew to 1,039px
-   * on a 390px phone. It is capped the way the text box already is.
-   */
+  /** A select is as wide as its longest option, so a long option could widen
+   * the page; it is capped the way the text box already is. */
   it("caps a select at its container so a long option cannot widen the page", () => {
     stubFetch();
     render(
@@ -343,18 +328,10 @@ describe("KnobEditor — a setting saves where it stands", () => {
     expect(select.className).toContain("max-w-full");
     expect(select.className).toContain("min-w-0");
   });
-  /**
-   * A KNOB'S INPUT SEEDS WITH THE PARSE'S INVERSE, NOT `String()` (bead
-   * `ro-hem5`).
-   *
-   * A declared knob validates through `validateRegisterField`, which reads the
-   * draft with `fieldFromDraft`. `String()` agreed with that for every knob
-   * declared TODAY — string, enum, date, integer — and disagrees for every
-   * other declared field type, so the first boolean or string-list knob
-   * somebody declares would have seeded a box the parse cannot round-trip and
-   * saved a value the operator never typed. Both directions now come from
-   * `@shared/config-registers`, so the pair cannot drift.
-   */
+  /** A knob's input seeds with the parse's inverse, not `String()`: `String()`
+   * agrees with `fieldFromDraft` for string, enum, date and integer knobs and
+   * disagrees for every other declared field type. Both directions come from
+   * `@shared/config-registers`, so the pair cannot drift. */
   for (const [type, current, seeded] of [
     ['boolean', true, 'true'],
     ['boolean', false, 'false'],
@@ -385,25 +362,15 @@ describe("KnobEditor — a setting saves where it stands", () => {
 
       const box = screen.getByRole('textbox') as HTMLInputElement;
       expect(box.value).toBe(seeded);
-      // The round trip closes: what the box holds parses back to what is stored.
       expect(fieldFromDraft(field, box.value)).toEqual(current);
-      // And an untouched field is not dirty — the seed matching the stored
-      // value is what makes Save dead until something is actually typed.
+      // The seed matching the stored value is what makes Save dead until
+      // something is actually typed.
       expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     });
   }
 });
 
-/**
- * INLINE SAVE, ITS WHOLE OUTCOME BESIDE THE FIELD (bead `ro-ujb9.96.7.12`).
- *
- * `/settings` confirms a save where it was made — "Saved" and an Undo beside
- * the control — and now says a refusal there too, as a short state, instead of
- * a corner toast. What is asserted is that nothing about the WRITE changed: the
- * same `PUT /api/config` (the config door and its `config_changes` audit), the
- * same `expect` guard, and an Undo that is the same write with the values
- * swapped and guarded by what was just saved.
- */
+/** A save is confirmed where it was made, and a refusal is said there too. */
 describe("KnobEditor — inline save says its outcome beside the field", () => {
   const zoneOp = (value: JsonValue): SettingOp => ({
     kind: "file-json-set",

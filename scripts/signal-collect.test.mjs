@@ -209,7 +209,7 @@ test('the no-header-timeout transport cannot be aimed off the local machine', as
   );
 });
 
-// PostHog on demand (bead ro-ghis.1).
+// PostHog on demand.
 test('parseArgs: PostHog families, with an optional fixed window', () => {
   assert.deepEqual(parseArgs(['--asset', 'meals.example', '--families', 'posthog-*']), {
     asset: 'meals.example',
@@ -226,7 +226,7 @@ test('parseArgs: PostHog families, with an optional fixed window', () => {
   ]);
 });
 
-// Bead ro-ghis.4: the CLI's PostHog names come from the contract's list, so no
+// The CLI's PostHog names come from the contract's list, so no
 // family the ingest collects is refused here first.
 test('parseArgs: accepts every contract PostHog family, all at once', () => {
   const tags = POSTHOG_FAMILIES.map((family) => `posthog-${family}`);

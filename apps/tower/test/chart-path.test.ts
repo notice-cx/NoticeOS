@@ -1,7 +1,7 @@
 // @vitest-environment node
-// The charts' one geometry (bead `ro-trai.19`): a monotone cubic through every
-// reading that never overshoots, the wash under it, and a point that stays
-// round in a stretched viewBox.
+// The charts' one geometry: a monotone cubic through every reading that never
+// overshoots, the wash under it, and a point that stays round in a stretched
+// viewBox.
 
 import { describe, expect, it } from "vitest";
 import { areaPath, dotPath, monotonePath, readingRuns, type ChartPoint } from "@/lib/chart-path";

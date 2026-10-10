@@ -1,13 +1,5 @@
-// PATCH /api/flags/:id — the alert-lifecycle lane (docs/15 flow E).
-//
-// Extracted from worker/index.ts when snooze arrived (`ro-c7qq`): the request
-// now carries a DATE, and a date has rules — in the future, inside the horizon,
-// and stored normalized. Validation that lives inline in the router is
-// validation no test can reach without standing up a Worker, so it lives here
-// with the rest of the lane's vocabulary.
-//
-// This is a STORE write, not a config write, so it is not read-only-gated: a
-// deployed Worker serves snooze exactly as it serves Mark read and Resolve.
+// PATCH /api/flags/:id — the alert-lifecycle lane. A store write, not a config
+// write, so a deployed Worker serves it without the read-only gate.
 
 import { checkSnoozeUntil } from "../shared/snooze";
 import { checkTunedSetting, type TunedSetting } from "../shared/tune";
@@ -28,7 +20,7 @@ export async function handleFlagRequest(
   request: Request,
   url: URL,
   store: WorkspaceStore,
-  /** The alert's workspace number (bead ro-ujb9.76.5.2). */
+  /** The alert's workspace number. */
   id: number,
   nowIso: string,
   actor: MutationActor | null = null,
@@ -62,7 +54,7 @@ export async function handleFlagRequest(
     until = checked.until;
   }
 
-  // A tune arrives as WHICH SETTING MOVED and its two values, never as a note:
+  // A tune arrives as which setting moved and its two values, never as a note:
   // `disposition_note` is the store's own sentence about an operator decision,
   // and a free-text field on this lane would let a caller write anything into
   // the record the false-positive rate is later read from (`shared/tune`).

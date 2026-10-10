@@ -8,21 +8,12 @@ import { useConnections } from "@/hooks/useConnections";
 import { useWork } from "@/hooks/useWork";
 import { DEFAULT_RANGE, rangeFromParam } from "./useRange";
 
-// --- the tabs (bead `ro-pbzu.4`) -------------------------------------------
-/** The asset tabs, in the operator's reading order. `overview` is the index tab:
- * it has no segment of its own, so `/assets/:id` IS the Overview.
- *
- * **Tasks** joined between Alerts and Activity on 2026-09-04 (`ro-l1ed.5`), and
- * that is the order the page is read in: what state is this asset in, what is
- * wrong with it, what is being DONE about it, what has already happened, where
- * the numbers come from, and how it is set up.
- *
- * **Search** joined after Growth on 2026-09-05 (doc 14, `ro-78qo.4`). Growth
- * asks *which way did the numbers go*; the tracked panel, the query decisions,
- * the page decisions, the competitors and the linking domains all answer *which
- * term, which page, which domain* — a different question, and doc 14's first
- * principle says a different question is a tab rather than a section further
- * down. It was ten thousand pixels of the same page until this split. */
+// --- the tabs --------------------------------------------------------------
+/** The asset tabs, in the operator's reading order: what state is this asset
+ * in, which way the numbers went, which term and page, what is wrong, what is
+ * being done, what has happened, where the numbers come from, how it is set
+ * up. `overview` is the index tab: it has no segment of its own, so
+ * `/assets/:id` is the Overview. */
 export const ASSET_TABS = [
   "overview",
   "growth",
@@ -77,14 +68,10 @@ export function tabFromParam(param: string | undefined): AssetTab {
 }
 
 /**
- * WHERE A DEEP LINK LANDS — the hash→tab map that replaced `SCROLL_TARGETS`.
- *
- * Before tabs, every one of these anchors was somewhere on one very long page
- * and the route's only job was to open the enclosing `<details>` and scroll. Now
- * the section only exists while its tab is mounted, so a hash selects the tab
- * FIRST (a `replace` navigation, so Back still leaves the page) and the scroll
- * happens once that panel has rendered. A hash that is not in here is left
- * alone, exactly as before.
+ * Where a deep link lands: the hash→tab map. A section only exists while its
+ * tab is mounted, so a hash selects the tab first (a `replace` navigation, so
+ * Back still leaves the page) and the scroll happens once that panel has
+ * rendered. A hash that is not in here is left alone.
  */
 export const HASH_TAB: Record<string, AssetTab> = {
   "#setup": "overview",
@@ -94,23 +81,19 @@ export const HASH_TAB: Record<string, AssetTab> = {
   "#search-performance": "growth",
   "#panel-scoreboard": "growth",
   "#product-use": "growth",
-  // The anchors that MOVED to Search with the evidence they name
-  // (`ro-78qo.4`). `#query-visibility` and `#page-decisions` are linked from a
-  // task page's "where this came from", from doc 10 and from the operator's own
-  // bookmarks, so they keep resolving and simply select a different tab. A hash
-  // that stopped working would be a broken link on every task ever filed from a
-  // decision row.
+  // Anchors linked from a task page's "where this came from" and from saved
+  // bookmarks keep resolving whichever tab their section is on now; a hash
+  // that stopped working would be a broken link on every task ever filed from
+  // a decision row.
   "#search-evidence": "search",
   "#serp-panel": "search",
   "#query-visibility": "search",
   "#page-decisions": "search",
   "#search-context": "search",
-  // The panel's two register editors moved to Settings (bead `ro-78qo.25`), so
-  // the hash follows them. A saved link keeps resolving and selects a different
-  // tab, which is exactly what this table is for.
+  // The panel's register editors are on Settings, so the hash follows them.
   "#tracked-panels": "settings",
   // The nightly report's address and its No report switch, where the setup
-  // checklist's optional "Nightly report" step lands (bead `ro-ujb9.121`).
+  // checklist's optional "Nightly report" step lands.
   "#data-collection": "settings",
   "#alerts": "alerts",
   "#alert-history": "alerts",
@@ -122,7 +105,7 @@ export const HASH_TAB: Record<string, AssetTab> = {
   "#integrations": "sources",
   "#configuration": "settings",
   // An archived site's Restore card: where Add a site's "Already added" lands
-  // when the site holding the domain is archived (bead `ro-ujb9.76.4.5`).
+  // when the site holding the domain is archived.
   [RESTORE_HASH]: "settings",
 };
 
@@ -133,19 +116,14 @@ export const HASH_ANCHOR: Readonly<Record<string, string>> = {
 
 // --- the tab bar -----------------------------------------------------------
 /**
- * The asset page's tabs, each carrying its own state (doc 14, the
- * 2026-09-04 visuals rule): Alerts shows how many are open and how bad the worst
- * one is, Tasks how many are open here and whether any of them is waiting on the
- * operator, Activity how many outcome checks are still running, Sources how much
- * of the evidence is actually working. A tab with nothing to say carries nothing
- * — a zero badge on every tab is noise, not state.
- *
- * The Tasks count comes from the task-hub SNAPSHOT (`useWork`, the same read
- * Home and `/tasks` age), not from the asset payload: tasks are coordination
- * state and never enter the pulse envelope (doc 01), so the asset's own report
- * has nothing to say about them. An asset with no spoke in `config/beads.json`
- * carries no count at all — unknown is not zero, and the tab's own empty state
- * is where that gets explained.
+ * The asset page's tabs, each carrying its own state: Alerts how many are
+ * open and how bad the worst one is, Tasks how many are open here and whether
+ * any is waiting on the operator, Activity how many outcome checks are still
+ * running, Sources how much of the evidence is working. A tab with nothing to
+ * say carries nothing. The Tasks count comes from the task-hub snapshot
+ * (`useWork`), not from the asset payload: tasks are coordination state and
+ * never enter the pulse envelope. An asset with no spoke in
+ * `config/beads.json` carries no count at all, because unknown is not zero.
  */
 export function AssetTabs({
   data,
@@ -156,8 +134,8 @@ export function AssetTabs({
   data: AssetDetailCore;
   assetId: string;
   nowMs: number;
-  /** Fetch a tab's code before it is opened (bead `ro-ujb9.84`): the page hands
-   * this in, since the tab code is the page's to load, not the bar's. */
+  /** Fetch a tab's code before it is opened: the page hands this in, since
+   * the tab code is the page's to load, not the bar's. */
   onPrefetch?: (tab: AssetTab) => void;
 }) {
   const pathFor = useAssetTabPath();
@@ -216,7 +194,7 @@ export function AssetTabs({
     }
     if (key === "sources") {
       // The pip is the worst source status the tab's own rows show: a failing
-      // source red, an overdue one amber (bead `ro-ujb9.96.7.16`).
+      // source red, an overdue one amber.
       const summary = sourcesSummary(sourceReadings(data.asset.id, data.integrations.sources, { credentials, items }, nowMs));
       return {
         ...base,

@@ -1,32 +1,14 @@
 import type { AssetDetailPayload, WatchSlice } from "./asset-detail";
 
 /**
- * ONE READ PER TAB, NOT THE WHOLE PAGE EVERY MINUTE (bead `ro-ujb9.64`).
+ * One read per tab. Each tab polls a view: the page's core (header, tab-bar
+ * counts, config facts no store read is spent on) plus the sections that tab
+ * draws, built at one `now` so everything on screen agrees.
  *
- * The asset page polled one payload every 60 seconds for every tab. Settings
- * and Tasks paid for the 90-day provider trends, the watch composer's
- * calibration series, the ledger and the daily revenue they never draw.
- * Measured over the real schema, that full read is 32 statements and about 1.2M
- * SQLite VM steps for one year of history
- * (docs/artifacts/tower-perf-2026-09-23/measurements.md).
- *
- * Each tab now polls a VIEW: the page's CORE plus the SECTIONS that tab draws.
- * One view is one request built at one `now`. Every fact on screen together —
- * the header, the tab bar's counts and the tab's own content — comes from the
- * same read, just as the whole payload did.
- *
- * The CORE is what every tab shows or needs:
- *  - the header and tab bar: the asset, its data sources, its open alerts and
- *    running outcome checks, when it last reported;
- *  - the facts no store read is spent on (config entries, knobs, the saved
- *    time zone).
- *
- * A SECTION is a store read only some tabs draw. A view either carries a
- * section in full or does not carry its fields at all. It is never an empty
- * stand-in, because an empty list here always means "looked, found none".
- * `viewCovers` is how the page tells the two apart. `AssetDetailFor<V>` is the
- * type each tab takes, so the compiler rejects a tab that reads outside its
- * view.
+ * A view carries a section in full or not at all, never an empty stand-in,
+ * because an empty list always means "looked, found none"; `viewCovers` tells
+ * the two apart. `AssetDetailFor<V>` makes the compiler reject a tab that reads
+ * outside its view.
  */
 
 /** The asset page's tabs, in the same order as `ASSET_TABS`
@@ -47,8 +29,7 @@ export const ASSET_DETAIL_VIEWS = [
 export type AssetDetailView = (typeof ASSET_DETAIL_VIEWS)[number];
 
 /** The anchor of an archived site's Restore card on its Settings tab: where
- * Add a site's "Already added" opens an archived site (bead
- * `ro-ujb9.76.4.5`). */
+ * Add a site's "Already added" opens an archived site. */
 export const RESTORE_HASH = "#restore";
 
 /** The payload fields each section supplies. */
@@ -74,7 +55,7 @@ interface SectionFields {
   watchHistory: { watches: Pick<WatchSlice, "history"> };
   reclamation: Pick<AssetDetailPayload, "reclamation">;
   hygiene: Pick<AssetDetailPayload, "hygiene">;
-  /** The site's recent failed nightly-report fetches (db/0040). */
+  /** The site's recent failed nightly-report fetches. */
   fetchFailures: Pick<AssetDetailPayload, "fetchFailures">;
 }
 
@@ -82,14 +63,11 @@ export type AssetDetailSection = keyof SectionFields;
 
 /** Which sections each tab draws. `AssetDetailFor<V>` is derived from this. */
 export const ASSET_VIEW_SECTIONS = {
-  // `dailyRevenue`: a site whose first source is ad revenue opens its Overview
-  // on that revenue (bead `ro-ujb9.146`).
-  // `counters`: the site's all-time totals (bead `ro-trai.21`).
   overview: ["performance", "executive", "metrics", "counters", "ledger", "dailyRevenue", "decisions", "tasks", "annotations"],
   growth: ["performance", "executive", "decisions", "tasks", "annotations"],
   financials: ["ledger", "dailyRevenue"],
   // `performance`: until a site tracks terms, its Search tab leads with its
-  // search clicks and impressions (bead `ro-ujb9.136`).
+  // search clicks and impressions.
   search: ["performance", "executive", "decisions", "tasks", "annotations"],
   alerts: [],
   tasks: [],

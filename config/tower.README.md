@@ -3,7 +3,7 @@
 `config/tower.json` owns the small set of operator-chosen facts displayed on
 both the Control Tower Home and the read-only `/wall`.
 
-**Seed and export, not source of truth** (D22): `pnpm config:seed` loads this
+**Seed and export, not source of truth**: `pnpm config:seed` loads this
 installation's copy (else this generic default) into the store's
 `config_documents` table, the running OS reads and saves it there, and
 `pnpm config:export` writes it to `installation/`. Until an install seeds,

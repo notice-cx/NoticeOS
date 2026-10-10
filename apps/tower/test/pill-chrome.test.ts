@@ -13,31 +13,18 @@ import {
 import { typeScriptSources, withoutComments } from "./source-files";
 
 /**
- * ONE TOGGLE PILL, NOT EIGHT (bead `ro-s4rg`).
- *
- * Eight hand-rolled toggles on the desk are not `<Button>`: /settings' two
- * replay pickers, the asset wizard's choices, the /assets and /work filter
- * rows, the knob editor's segments, the lifecycle stepper's chips and the tab
- * strip. Each carried its own copy of the box, the focus ring and the phone
- * thumb floor, and the copies were kept in step BY HAND — `ro-zmyq` added the
- * floor to two of them, `ro-md80` had put it on the tab strip, and three had
- * none. The bead named six; a grep found the other two, which is the whole
- * argument for reading the source instead of trusting a list.
- *
- * The guard reads the SOURCE rather than a render, for the same reason
- * `field-chrome.test.ts` does: a copy that happens to agree on the day it is
- * written passes every rendered assertion there is, and diverges on the next
- * utility somebody adds to one of them.
+ * One toggle pill, not hand-rolled copies. The guard reads the source rather
+ * than a render, as `field-chrome.test.ts` does: a copy that agrees today passes
+ * every rendered assertion and diverges on the next utility somebody adds.
  */
 
 const SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src");
 const OWNER = path.join("components", "ui", "pill.ts");
 
-/** Comments say the same words as code and are not the thing under guard. */
+/** Comments are not the thing under guard. */
 
-/** Class literals in a file, as utility TOKENS. Tokens rather than substrings
- * because `hover:bg-muted/60` contains `hover:bg-muted` and means something
- * else — the tab strip's unselected state is not the picker's. */
+/** Class literals in a file, as utility tokens. Tokens rather than substrings
+ * because `hover:bg-muted/60` contains `hover:bg-muted` and means something else. */
 function classTokenSets(file: string): Set<string>[] {
   const source = withoutComments(readFileSync(file, "utf8"));
   return [...source.matchAll(/"[^"\n]*"/g)].map(
@@ -60,8 +47,8 @@ function all(...utilities: string[]): (set: Set<string>) => boolean {
 
 describe("the desk's toggle-pill chrome has one owner", () => {
   it("declares the contract, the box and both pressed pairs", () => {
-    // Not a snapshot of the strings — the point is that these survive a later
-    // edit, since each was missing from at least one of the eight copies.
+    // Not a snapshot of the strings: each of these is one a hand-rolled copy
+    // missed.
     for (const utility of ["outline-none", "max-sm:min-h-11", "focus-visible:ring-ring"]) {
       expect(pillControlClass).toContain(utility);
     }
@@ -69,14 +56,13 @@ describe("the desk's toggle-pill chrome has one owner", () => {
       expect(pillClass).toContain(utility);
     }
     // A picker hides the unpicked border; a choice keeps every border and
-    // fills the chosen one. Two dialects, told apart here so a later
-    // "simplification" into one cannot pass silently.
+    // fills the chosen one. Two dialects, told apart here.
     expect(pillPickerStateClass(true)).toContain("border-primary/30");
     expect(pillPickerStateClass(false)).toContain("border-transparent");
     expect(pillChoiceStateClass(true)).toContain("bg-accent-soft");
     expect(pillChoiceStateClass(false)).toContain("border-border");
-    // The choice box is COMPOSED from the two above, so the shape it overrides
-    // resolves rather than doubling: one radius, one horizontal padding.
+    // The choice box is composed from the two above, so the shape it
+    // overrides resolves rather than doubling: one radius, one horizontal padding.
     const choice = pillChoiceClass.split(/\s+/);
     expect(choice).toContain("rounded-full");
     expect(choice).not.toContain("rounded-md");
@@ -86,14 +72,10 @@ describe("the desk's toggle-pill chrome has one owner", () => {
   });
 
   it("holds the phone floor and the focus ring nowhere else on a pill", () => {
-    // The SHAPE, not the exact string: a copy that reorders the utilities or
-    // swaps the radius is the same defect wearing a disguise. What names a
-    // pill and nothing else in this app is a bordered inline-flex box with a
-    // LABEL INSIDE IT — horizontal padding — that takes focus. The field box is
-    // not `inline-flex`; the owner chip and the command palette's rows draw no
-    // border; `DataSourceIcons`' focusable source mark is a bordered
-    // inline-flex box but holds an icon at a fixed size and has no padding at
-    // all; and the tab strip's box now carries no ring of its own.
+    // The shape, not the exact string: a bordered inline-flex box with horizontal
+    // padding that takes focus names a pill and nothing else here. The field box is
+    // not `inline-flex`; the owner chip and palette rows draw no border;
+    // `DataSourceIcons`' mark has no padding; the tab strip carries no ring.
     expect(
       offenders(
         (set) =>
@@ -106,8 +88,7 @@ describe("the desk's toggle-pill chrome has one owner", () => {
   it("holds neither pressed pair anywhere else in src/", () => {
     // Each pair is pinned by the two tokens that make it that pair. The
     // stepper's `done` chip is `border-transparent bg-muted` and the tab
-    // strip's unselected tab is `border-transparent … hover:bg-muted/60`;
-    // neither is this, which is why the match is on tokens.
+    // strip's unselected tab is `border-transparent … hover:bg-muted/60`.
     expect(offenders(all("border-border", "bg-foreground/10"))).toEqual([]);
     expect(offenders(all("border-primary/30", "bg-accent-soft"))).toEqual([]);
     expect(offenders(all("border-transparent", "hover:bg-muted"))).toEqual([]);
@@ -115,10 +96,8 @@ describe("the desk's toggle-pill chrome has one owner", () => {
   });
 
   it("is read by the eight surfaces that were carrying the copies", () => {
-    // Not a closed list — a new surface with a toggle is welcome and needs no
-    // edit here. What is pinned is that the files the copies lived in read the
-    // declaration, so "adopted everywhere" cannot quietly become "adopted
-    // where it was convenient".
+    // Not a closed list: a new surface with a toggle needs no edit here. What
+    // is pinned is that the files the copies lived in read the declaration.
     const carriers = [
       "components/AddSite.tsx",
       "components/KnobEditor.tsx",
@@ -138,9 +117,8 @@ describe("the desk's toggle-pill chrome has one owner", () => {
   });
 
   it("keeps the stepper's chips off the control contract", () => {
-    // The one of the eight that is NOT a control: `<span>`s in an `<ol>`, with
-    // nothing to press. `ro-s4rg` reads its missing phone floor as drift; it is
-    // a decision, and this is where the decision is kept.
+    // The one of the eight that is not a control: `<span>`s in an `<ol>`, with
+    // nothing to press. Its missing phone floor is a decision, kept here.
     const stepper = readFileSync(path.join(SRC, "components", "Stepper.tsx"), "utf8");
     expect(stepper).toContain("pillClass");
     expect(stepper).not.toContain("pillControlClass");

@@ -1,31 +1,10 @@
-// SAVE AND TEST, IN THAT ORDER REVERSED: the connect panel's one press (bead
-// `ro-ujb9.96.7.1`, epic `ro-ujb9.96.7`).
-//
-// The Integrations page used to store a credential on Save, paint it green,
-// and only test it three screens later. This is the door the one-panel setup
-// uses instead: the details the operator entered are shown to the provider
-// FIRST, with the same free read-only call the Test button makes, and they are
-// stored only if the provider accepts them. So:
-//
-//   - a refused key is never kept, and a credential already stored for the
-//     provider keeps working while its replacement is judged (the rotation
-//     rule bead `ro-ujb9.96.7.10` builds on);
-//   - "Key accepted" is a fact the provider stated, never a save the OS made;
-//   - the accepted credential is stored with that verdict already stamped, and
-//     the health row the Test button feeds records the same proof — one answer,
-//     not a green chip beside "Not tested yet".
-//
-// ONLY PROVIDERS THAT DECLARE `connect` come through here (the contract's
-// `IntegrationConnect`). Their proof is a free read that needs nothing but the
-// typed fields. Every other provider keeps its own setup path until its own
-// bead moves it into the panel, and this refuses it rather than guessing.
-//
-// THE SAME THREE RULES AS credential-probes.ts: the call is the provider's
-// cheapest free read; its body is read for a count and dropped (DataForSEO's
-// prepaid credit is kept, dated, beside the credential — a fact about the
-// credential, exactly as the Test button keeps it); and nothing returned or
-// logged here carries a credential. The answer is a VERDICT plus facts, never
-// the provider's own sentence, so no transport error text can reach a browser.
+// The connect panel's one press: the typed details are shown to the provider
+// with its free read-only call first and stored only when it accepts them, so
+// a refused key is never kept and a stored credential keeps working while its
+// replacement is judged. Only providers declaring `connect` come through here.
+// Same rules as credential-probes.ts: cheapest free read, body read for a
+// count and dropped, nothing returned or logged carries a credential, and the
+// answer is a verdict plus facts, never the provider's own sentence.
 
 import type {
   ConnectCredentialResult,
@@ -45,8 +24,7 @@ import { PROBE_CAPABILITY } from './probe-capability.js';
 import { SignalError } from './signal-store.js';
 import { CloudflareD1Error, listD1Databases } from './cloudflare-d1-client.js';
 
-/** How long the panel's Checking waits on a provider before calling it
- * unreachable — a person is watching a spinner. */
+/** A person is watching a spinner. */
 const CONNECT_TIMEOUT_MS = 10_000;
 
 export interface ConnectOptions {
@@ -61,13 +39,8 @@ export type CandidateAnswer =
   | { verdict: 'unreachable' };
 
 /**
- * Store one provider's credential only after the provider accepts it.
- *
- * `ok: true` carries the provider's verdict — `refused` and `unreachable` are
- * answers to the question the operator asked, and store nothing. `ok: false`
- * is a request that could not be judged at all: an unknown provider, one that
- * does not connect in the panel, a field the schema refuses, or a store that
- * cannot hold a credential (no bootstrap key, no table).
+ * `ok: true` carries the provider's verdict; `refused` and `unreachable` store
+ * nothing. `ok: false` is a request that could not be judged at all.
  */
 export async function connectCredential(
   env: IngestEnv,
@@ -102,8 +75,7 @@ export async function connectCredential(
   }
 
   // Mediavine's proof is a sign-in, so asking and keeping happen together
-  // under its one lease, with the session and site list the sign-in produced
-  // (bead `ro-ujb9.96.7.6`); every other provider is asked, then stored.
+  // under its one lease; every other provider is asked, then stored.
   const answer = provider.id === 'mediavine'
     ? await connectMediavine(env, fields, options)
     : await askProvider(provider, fields, options.fetchImpl ?? fetch);
@@ -122,7 +94,7 @@ export async function connectCredential(
   if (provider.id === 'dataforseo' && credit !== null) {
     await recordDataForSeoBalance(env, credit, checkedAt);
   }
-  // …and on the health row the Test button records under, for the connection
+  // The health row the Test button records under, for the connection
   // revision this write created.
   const health = await tryHealthConnection(env, provider.id);
   await observeIntegration(env, health, {
@@ -162,12 +134,9 @@ export async function askProvider(
 }
 
 /**
- * Calendar feeds and Discord (bead `ro-ujb9.96.7.14`): the Test button's own
- * proof, run before anything is kept — one bounded GET per feed, reported by
- * label; one labelled message posted to the webhook, the side effect the
- * contract declares and the panel names beside the press. A feed that is not
- * a calendar, or a webhook Discord no longer knows, is a refusal; a timeout,
- * a throttle or a 5xx is no answer.
+ * Calendar feeds and Discord: the Test button's own proof, run before anything
+ * is kept. A feed that is not a calendar, or a webhook Discord no longer knows,
+ * is a refusal; a timeout, a throttle or a 5xx is no answer.
  */
 async function fromProbe(run: () => Promise<ProbeFound>): Promise<CandidateAnswer> {
   let found: ProbeFound;
@@ -226,10 +195,9 @@ async function askDataForSeo(fields: Record<string, string>, fetchImpl: typeof f
 }
 
 /**
- * PostHog (bead `ro-ujb9.96.7.8`): the account's one personal API key, shown
- * to the US and EU clouds at once — the region that lists its projects is the
- * key's region, and the only region-bound fact the panel needs. Both refusing
- * is a refusal; anything else without an acceptance is no answer.
+ * PostHog: the one personal API key, shown to the US and EU clouds at once;
+ * the region that lists its projects is the key's region. Both refusing is a
+ * refusal; anything else without an acceptance is no answer.
  */
 async function askPosthog(fields: Record<string, string>, fetchImpl: typeof fetch): Promise<CandidateAnswer> {
   const key = fields[POSTHOG_ACCOUNT_KEY_SLOT];

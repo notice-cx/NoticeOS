@@ -5,18 +5,15 @@ import { handleRevenue } from '../src/routes/revenue.js';
 import { OPERATOR_TOKEN } from './fixtures.js';
 import { effectiveRevenueMinor, reset, storedCount } from './helpers.js';
 
-// THE RACE, MADE DETERMINISTIC (bead ro-ujb9.69). Two uploads correcting one
-// estimate each read the store, see the estimate as current, and write. The
-// route's pre-read cannot stop the second one — only the write can, by
-// re-checking the target inside the INSERT itself and giving way to the
-// correction the store's one-successor index already holds.
-// `writesAfterAllReads` holds every upload's first write until all of them
-// have finished reading, so the pre-read is guaranteed stale and the write is
-// what is tested: the two transactions then run at once on Postgres.
-//
-// D1 ran this twice, the second time on a store without db/0036's chain
-// guards, which the operator's running install might lack. A Postgres store
-// always holds the baseline's rules, so there is one store to prove it on.
+// The race, made deterministic. Two uploads correcting one estimate each read
+// the store, see the estimate as current, and write. The route's pre-read
+// cannot stop the second one — only the write can, by re-checking the target
+// inside the INSERT itself and giving way to the correction the store's
+// one-successor index already holds. `writesAfterAllReads` holds every
+// upload's first write until all of them have finished reading, so the
+// pre-read is guaranteed stale and the write is what is tested: the two
+// transactions then run at once on Postgres, whose baseline always holds the
+// chain guards.
 
 /** A call's store whose `write` waits until `parties` callers have reached it. */
 function writesAfterAllReads(store: WorkspaceStore, parties: number): WorkspaceStore {

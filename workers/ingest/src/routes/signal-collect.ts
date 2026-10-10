@@ -1,37 +1,12 @@
-// POST /api/signal-collect — collect one property's DataForSEO families NOW.
-//
-// WHY THIS ROUTE EXISTS. The collector's only trigger was the Monday `45 12 * * 1`
-// cron, and the only way to fire it early was `runScheduled(cron)` — which runs
-// the WHOLE lane for every property. On 2026-08-03 the operator wanted one asset's
-// newly seeded panel collected the day it was seeded, and the only lever
-// available billed ~$1.60 across five properties to buy ~$0.07 of new data. A bet
-// that launches on a Tuesday should have a baseline on Tuesday, at the price of
-// that one property (bead ro-282.1, ro-e9h part (a)).
-//
-// WHAT IT IS NOT. It is not a second collector. The body becomes a
-// `DataForSeoCollectScope` and `runDataForSeoDumps` — the same function the cron
-// calls, with the same plan list, the same per-family retry budget and the same
-// fail-closed cap gate — does the work. So the manifest row, the R2 archive and
-// the recorded cost of an on-demand landing are what the Monday lane would have
-// written for that property, and nothing downstream (the panel-review filer, the
-// daily refresh, the lane evidence, the review loop) needs a special case.
-//
-// WHAT IS CHECKED BEFORE ANY MONEY IS SPENT. Every call is metered, so a request
-// that cannot collect anything must say so rather than run: the property is
-// matched against the collector's OWN membership query, and each named family
-// against the collector's OWN family list and its config. Asking for
-// `serp-panel` for a property `config/serp-panel.json` does not name is a 422
-// pointing at that file — never a silent skip that reports a $0.00 success.
-//
-// AND ONE RUN AT A TIME. A full-property run holds this request open for minutes.
-// The local door client has no response-header timeout, and independent paid
-// pages checkpoint as they land, but another caller must still never start a
-// duplicate run while the first is alive. The collector serializes itself
-// (ro-xx9); this route turns its refusal into a `409` that names the run already
-// in flight, so the answer to "did my first one die?" is on the screen instead
-// of in the bill. PostHog does the same per asset (ro-ghis.5): its collector
-// holds a lease per asset, and a request for an asset another run holds is the
-// same `409 collection_in_flight`.
+// POST /api/signal-collect: collect one property's DataForSEO or PostHog
+// families now. Not a second collector: the body becomes a scope and the same
+// function the cron calls does the work, so the manifest row, archive and
+// recorded cost are what the scheduled lane would have written. Before any
+// money is spent the property is matched against the collector's own
+// membership query and each named family against its own family list and
+// config; asking for a panel the property is not configured for is a 422, never
+// a $0.00 success. One run at a time: the collector's refusal becomes a 409
+// naming the run in flight, and PostHog's per-asset lease the same.
 
 import {
   DATAFORSEO_REPORTS,
@@ -61,8 +36,8 @@ import {
   type PosthogFamily,
 } from '@noticeos/contract';
 
-/** The collectors' own options, so a test drives the REAL runners with a
- * mocked provider. `posthog` is the PostHog collector's (bead `ro-ghis.1`). */
+/** The collectors' own options, so a test drives the real runners with a
+ * mocked provider. */
 export interface SignalCollectOptions extends DataForSeoDumpsOptions {
   posthog?: PosthogDumpsOptions;
 }
@@ -70,9 +45,8 @@ export interface SignalCollectOptions extends DataForSeoDumpsOptions {
 export async function handleSignalCollect(
   request: Request,
   env: IngestEnv,
-  // The collector's own options, so a test drives the REAL runner with a mocked
-  // provider instead of a stand-in for it. The scope is set below and cannot be
-  // supplied from here: what a request may narrow is decided by this route.
+  // The scope is set below and cannot be supplied from here: what a request may
+  // narrow is decided by this route.
   options: SignalCollectOptions = {},
 ): Promise<Response> {
   const { posthog: posthogOptions, ...dataForSeoOptions } = options;
@@ -91,9 +65,9 @@ export async function handleSignalCollect(
     return json({ error: 'bad_request', detail: 'body must be a JSON object' }, 400);
   }
 
-  // PostHog families are named `posthog-<family>` (or `posthog-*` for all of
-  // them) and go to the PostHog collector; everything else is DataForSEO's,
-  // exactly as before. One request is one provider.
+  // PostHog families are named `posthog-<family>` (or `posthog-*`) and go to
+  // the PostHog collector; everything else is DataForSEO's. One request, one
+  // provider.
   if (Array.isArray(body.families) && body.families.some(isPosthogTag)) {
     return handlePosthogCollect(env, body, posthogOptions ?? {});
   }
@@ -109,9 +83,9 @@ export async function handleSignalCollect(
     return json({ error: 'validation', issues: issues.list }, 422);
   }
 
-  // The collector's membership rule, asked about one property. A property this
-  // comes back empty for is one the weekly lane does not collect either, so
-  // running would write nothing and bill nothing while reading as a success.
+  // The collector's membership rule, asked about one property: one this comes
+  // back empty for would write nothing and bill nothing while reading as a
+  // success.
   const [candidate] = await dataForSeoCandidates(env.STORE, asset);
   if (!candidate) {
     return json(
@@ -120,12 +94,9 @@ export async function handleSignalCollect(
     );
   }
 
-  // The register the cron would read on this fire — store-first, the compiled
-  // copy when the store holds none — so a property declined on its Data
-  // sources row is refused here, by name, rather than run as an empty success
-  // (bead `ro-ujb9.96.7.18`); the run below reads the same document.
-  // The tracked SERP panel too (bead ro-ujb9.125): the saved one, as the cron
-  // reads it, never only the product default compiled into this Worker.
+  // The register and the tracked panel the cron would read on this fire,
+  // store-first, so a property declined on its Data sources row is refused
+  // here by name; the run below reads the same documents.
   const configs =
     dataForSeoOptions.laneRegister === undefined || dataForSeoOptions.serpPanelConfig === undefined
       ? await readCollectorConfigs(env, ['config/integrations.json', 'config/serp-panel.json'])
@@ -138,8 +109,7 @@ export async function handleSignalCollect(
     (configs?.documents['config/serp-panel.json'] as SerpPanelConfig | undefined);
   if (laneDeclined(asset, 'dataforseo', laneRegister)) return declinedRefusal(asset, 'DataForSEO');
 
-  // Every family the property is actually due — the exact set an unscoped run
-  // would collect for it.
+  // Every family the property is due: the set an unscoped run would collect.
   const due = dataForSeoFamiliesFor(asset, serpPanelConfig);
   const missing = (families ?? []).filter((family) => !due.includes(family));
   if (missing.length > 0) {
@@ -168,11 +138,10 @@ export async function handleSignalCollect(
     scope: { asset, families: collected },
   });
 
-  // The one answer on this route that is NOT a report of a run: another
-  // collection already held the lane, so this request asked the provider for
-  // nothing and wrote nothing (ro-xx9). It is a 409 rather than a queue slot
-  // because the operator is standing here — the run they cannot see is the reason
-  // they fired again, and a queue would bill them for the second one too.
+  // Another collection already held the lane, so this request asked for
+  // nothing and wrote nothing. A 409 rather than a queue slot: the run the
+  // operator cannot see is the reason they fired again, and a queue would bill
+  // them twice.
   if (result.refused) {
     return json(
       {
@@ -186,12 +155,9 @@ export async function handleSignalCollect(
     );
   }
 
-  // 200, not 201: what this reports is a RUN — what it attempted and what it
-  // cost — and that report is the same whether every family landed, one was
-  // unchanged since the last run, or the cap gate refused them all. A failure
-  // is not a transport error here; it is an outcome with a price, and the
-  // caller reads `failed` and `outcomes` to see it. `pnpm signals:collect`
-  // exits non-zero on any of them.
+  // 200, not 201: this reports a run, the same whether every family landed,
+  // one was unchanged, or the cap gate refused them all. A failure is an
+  // outcome with a price; `pnpm signals:collect` exits non-zero on any of them.
   return json(
     {
       collected: true,
@@ -201,8 +167,7 @@ export async function handleSignalCollect(
       succeeded: result.succeeded,
       unchanged: result.unchanged,
       failed: result.failed,
-      // The same six decimals the completion log rounds to, so the operator's
-      // two accounts of one run agree to the cent and past it.
+      // The same six decimals the completion log rounds to.
       costUsd: Number(result.costUsd.toFixed(6)),
       retried: result.outcomes
         .filter((outcome) => outcome.retries > 0)
@@ -223,15 +188,10 @@ export async function handleSignalCollect(
 }
 
 /**
- * The refusal in one sentence, written for whoever just fired the second run.
- *
- * `pnpm signals:collect` surfaces a non-2xx as the first 400 characters of this
- * body (scripts/ingest-door.mjs), so it has to lead with WHAT is running and say
- * plainly that this call cost nothing — refused-for-your-own-good reads as a
- * failure otherwise, and the operator's next move would be a third fire. The
- * lease expiry is here because a run whose client hung up may never return: the
- * lane frees itself at that time, and the sentence should say so rather than
- * leave "wait for it" open-ended.
+ * The refusal in one sentence. `pnpm signals:collect` surfaces the first 400
+ * characters of this body, so it leads with what is running and says this
+ * call cost nothing. The lease expiry is here because a run whose client hung
+ * up may never return.
  */
 function inFlightDetail(inFlight: DataForSeoRunInFlight): string {
   const { scope } = inFlight;
@@ -247,14 +207,11 @@ function inFlightDetail(inFlight: DataForSeoRunInFlight): string {
 }
 
 /**
- * A requested subset of the collector's families, or null for "everything this
- * property is due".
- *
- * Names are checked against `DATAFORSEO_REPORTS` — the collector's own list,
- * imported rather than copied — so this route cannot drift into accepting a
- * family the sweep no longer has. A repeat is rejected rather than deduplicated:
- * a caller who asked for the same family twice has a bug, and quietly billing
- * once for it hides the bug at the operator's expense.
+ * A requested subset of the collector's families, or null for everything this
+ * property is due. Checked against `DATAFORSEO_REPORTS`, the collector's own
+ * list, so this route cannot accept a family the sweep no longer has. A repeat
+ * is rejected rather than deduplicated: quietly billing once for it would hide
+ * the caller's bug.
  */
 function validFamilies(issues: Issues, value: unknown): string[] | null {
   if (value === undefined || value === null) return null;
@@ -285,18 +242,8 @@ function validFamilies(issues: Issues, value: unknown): string[] | null {
   return families;
 }
 
-/**
- * Why the collector has nothing for this property — the sentence, not the rule.
- *
- * `dataForSeoCandidates` already gave the verdict; this read only supplies the
- * reason, because "a mistyped id" and "a property that is still pre-launch" are
- * different mistakes and an operator fixing the second one should not go looking
- * for a typo in the first.
- */
-/** A named collection of a source its Data sources row declines (Not using):
- * refused by name, before anything is requested or billed — the collectors
- * skip it on every schedule, so a request cannot reach it either (bead
- * `ro-ujb9.96.7.18`). */
+/** A named collection of a source its Data sources row declines: refused by
+ * name, before anything is requested or billed. */
 function declinedRefusal(asset: string, provider: string): Response {
   return json(
     {
@@ -309,7 +256,6 @@ function declinedRefusal(asset: string, provider: string): Response {
 }
 
 async function whyNotCollected(env: IngestEnv, asset: string, provider: string): Promise<string> {
-  // The site list is on Postgres (bead ro-ujb9.76.4.2).
   const [row] = await env.STORE.read((tx) =>
     tx.query<{ status: string; isOs: boolean; domain: string | null }>(
       `SELECT status, is_os AS "isOs", domain FROM noticeos.assets WHERE asset_id = $1`,
@@ -327,7 +273,7 @@ async function whyNotCollected(env: IngestEnv, asset: string, provider: string):
 }
 
 // ---------------------------------------------------------------------------
-// PostHog on demand (bead `ro-ghis.1`)
+// PostHog on demand
 // ---------------------------------------------------------------------------
 
 function isPosthogTag(value: unknown): boolean {
@@ -335,11 +281,10 @@ function isPosthogTag(value: unknown): boolean {
 }
 
 /**
- * Collect one asset's PostHog families NOW, through the same collector the
- * 12:30 UTC cron runs — the same key, region, project, funnels, budget stop
- * and archive. `start`/`end` pin one window for every family, so a past
- * reading (the 2026-09-08..2026-09-22 acceptance reads) can be reproduced.
- * PostHog bills nothing per query; its hourly query allowance still applies.
+ * Collect one asset's PostHog families now, through the same collector the
+ * cron runs. `start`/`end` pin one window for every family, so a past reading
+ * can be reproduced. PostHog bills nothing per query; its hourly allowance
+ * still applies.
  */
 async function handlePosthogCollect(
   env: IngestEnv,
@@ -357,8 +302,7 @@ async function handlePosthogCollect(
   if (!candidates.some((candidate) => candidate.asset === asset)) {
     return json({ error: 'unknown_asset', detail: await whyNotCollected(env, asset, 'PostHog') }, 422);
   }
-  // The register the cron would read on this fire: store-first, compiled copy
-  // when the store holds none. A test states its own through `options`.
+  // The register the cron would read on this fire, store-first.
   const configs =
     options.laneRegister === undefined
       ? await readCollectorConfigs(env, ['config/integrations.json'])
@@ -374,9 +318,8 @@ async function handlePosthogCollect(
     scope: { asset, families, ...(window ? { window } : {}) },
   });
   const tags = families.map(posthogFamilyTag);
-  // Another run holds this asset (bead ro-ghis.5): nothing was asked of
-  // PostHog. A 409 like DataForSEO's, not a queue slot — a queued second run
-  // would spend the same hourly allowance the refusal exists to protect.
+  // Another run holds this asset: nothing was asked of PostHog. A 409, not a
+  // queue slot, which would spend the allowance the refusal protects.
   const inFlight = result.skipped.find((skip) => skip.reason === 'in-flight');
   if (result.attempted === 0 && inFlight) {
     return json(
@@ -384,8 +327,8 @@ async function handlePosthogCollect(
       409,
     );
   }
-  // The whole asset was skipped before any request: say why, as a refusal the
-  // CLI exits non-zero on, rather than a 200 that collected nothing.
+  // The whole asset was skipped before any request: a refusal the CLI exits
+  // non-zero on, rather than a 200 that collected nothing.
   const assetSkip = result.skipped.find((skip) => skip.family === null);
   if (result.attempted === 0 && assetSkip) {
     return json(
@@ -393,11 +336,8 @@ async function handlePosthogCollect(
       422,
     );
   }
-  // The earlier windows this run asked again (beads ro-aed0.8, ro-aed0.9): the
-  // `retried` and `retryNotAsked` counts the daily run's posthog_dumps_complete
-  // line carries, window by window (bead ro-aed0.11). Each is one more ask of a
-  // past window, so it reads as `retries: 1` in the shape DataForSEO's retries
-  // already use.
+  // The earlier windows this run asked again, window by window; each reads as
+  // `retries: 1` in the shape DataForSEO's retries use.
   const recollected = new Set(result.recollected);
   return json(
     {
@@ -409,8 +349,7 @@ async function handlePosthogCollect(
       succeeded: result.succeeded,
       unchanged: result.unchanged,
       failed: result.failed,
-      // PostHog charges nothing per query; the field is here so one summary
-      // format serves both providers.
+      // PostHog charges nothing per query; one summary format serves both providers.
       costUsd: 0,
       retried: result.recollected.map((outcome) => ({
         report: posthogFamilyTag(outcome.report as PosthogFamily),

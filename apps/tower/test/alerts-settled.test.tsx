@@ -10,16 +10,11 @@ import { readAlert, storeAlert, storeAlerts } from "./alert-rows";
 import { createTestStore, type TestStore } from "./postgres-store";
 import { addSites } from "./sites";
 
-// "SETTLED · 7d" OVER THE REAL ARCHIVE (bead `ro-ujb9.194`).
-//
-// `alerts-route.test.tsx` hands the strip whatever page of history a test
-// writes, which cannot tell whether the Worker files a snooze as settled —
-// and it did: its settled read was "everything not open", so every snooze put
-// one more alert in History with a ✓ and one more on this figure. Here the
-// page's own reads reach the Worker's own handlers over a real store: the
-// history route and the flag route, through `fetch`, as the browser calls
-// them. Only the Wall payload is a stand-in, because the Open list is not what
-// these tests are about.
+// "Settled · 7d" over the real archive. `alerts-route.test.tsx` hands the
+// strip whatever page of history a test writes, which cannot tell whether the
+// Worker files a snooze as settled. Here the page's own reads reach the
+// Worker's own handlers over a real store, through `fetch`, as the browser
+// calls them. Only the Wall payload is a stand-in.
 
 const wall = vi.hoisted(() => ({ data: null as WallPayload | null }));
 
@@ -27,7 +22,6 @@ vi.mock("@/hooks/useWall", () => ({
   useWall: () => ({ data: wall.data, isPending: false, isError: false }),
 }));
 
-// The toast is a receipt, not the assertion.
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
@@ -47,9 +41,9 @@ async function insertAsset(id: string, displayName: string): Promise<void> {
   await addSites(store, [{ id, displayName, status: "live", senseOnly: 0 }]);
 }
 
-/** One open warning, fired `hoursAgo` before the real clock — the Worker and
- * the snooze menu both read the real clock, so the fixture does too. On
- * Postgres (bead ro-ujb9.76.5.2): its number. */
+/** One open warning, fired `hoursAgo` before the real clock: the Worker and
+ * the snooze menu both read the real clock, so the fixture does too. Returns
+ * its number. */
 async function insertOpenWarning(message: string, hoursAgo: number): Promise<number> {
   return storeAlert(store.call, {
     asset: "meals.example",
@@ -131,15 +125,13 @@ function loadAlerts(url = "/alerts") {
 
 /** The strip's settled figure — the value printed right after its label. */
 function settledThisWeek(container: HTMLElement): string {
-  // The answer's "Settled this week" figure (D45); absent while the archive
-  // has not answered, which reads as the dash the strip used to print.
+  // Absent while the archive has not answered.
   return container.querySelector<HTMLElement>("[data-alerts-settled] dd")?.textContent ?? "—";
 }
 
 /** Act on a row, and return once the Worker has answered the action: its
  * write has committed, so a page loaded next reads it. Waiting only for the
- * call let a reload's one history read reach the store before the write did,
- * and nothing read it again (bead ro-ujb9.76.5.2). */
+ * call lets a reload's history read reach the store before the write does. */
 async function act(rowText: string, verb: "snooze" | "resolve") {
   const row = screen.getByRole("button", { name: new RegExp(rowText) }).closest("li") as HTMLElement;
   fireEvent.click(within(row).getByRole("button", { name: new RegExp(rowText) }));
@@ -188,7 +180,6 @@ describe("Settled · 7d and History count what is finished, never what is parked
     expect(parked.disposition).toBe("snooze");
     first.unmount();
 
-    // Reloaded: the archive is read afresh, and a snooze is not in it.
     const reloaded = loadAlerts();
     await waitFor(() => expect(calls.filter((call) => call === "GET /api/alerts/history").length).toBeGreaterThan(1));
     await waitFor(() => expect(settledThisWeek(reloaded.container)).toBe("0"));
@@ -216,12 +207,8 @@ describe("Settled · 7d and History count what is finished, never what is parked
   });
 });
 
-/**
- * Bead `ro-ujb9.196`. History keeps the last page on screen while the next one
- * loads, and its range badge used to take the NEW offset from the URL and the
- * OLD count and total from the page on screen — "26–50 of 30" for as long as
- * page two took.
- */
+/** History keeps the last page on screen while the next one loads; the range
+ * badge must not mix the new offset with the old count and total. */
 describe("History's range badge while the next page loads", () => {
   it("never pairs the new offset with the old page's rows or total", async () => {
     const resolved = new Date(Date.now() - HOUR).toISOString();
@@ -235,7 +222,6 @@ describe("History's range badge while the next page loads", () => {
       ruleId: "rule-the-translator-does-not-know",
       resolvedAt: resolved,
     })));
-    // Page two is held until the test lets it go.
     const answer = vi.mocked(fetch).getMockImplementation()!;
     let release: () => void = () => {};
     const held = new Promise<void>((resolve) => { release = resolve; });
@@ -251,7 +237,6 @@ describe("History's range badge while the next page loads", () => {
     fireEvent.click(screen.getByRole("button", { name: "Older" }));
     await waitFor(() =>
       expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("offset=25"))).toBe(true));
-    // Loading: the rows on screen are still page one, and so is the badge.
     expect(badge()).toBe("1–25 of 30 settled");
 
     release();
@@ -259,11 +244,7 @@ describe("History's range badge while the next page loads", () => {
   });
 });
 
-/**
- * Bead `ro-ujb9.195`. The row left the Open list at once, but the strip and
- * History kept their old answer until a reload: the archive is not polled, and
- * the actions refreshed only the Wall and the site page. No reload below.
- */
+/** The archive is not polled, so the actions must refresh it: no reload below. */
 describe("Settled · 7d and History move the moment an alert is acted on", () => {
   const historyReads = () => calls.filter((call) => call === "GET /api/alerts/history").length;
 

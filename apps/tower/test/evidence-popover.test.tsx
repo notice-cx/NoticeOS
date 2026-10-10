@@ -1,7 +1,7 @@
-// THE EVIDENCE POPOVER KEEPS KEYBOARD FOCUS WITH THE READER (bead
-// ro-ujb9.219): opening moves focus into the panel; Escape and a press outside
-// close it and give focus back to the trigger; a scroll neither closes it nor
-// strands focus. It is built on the desk's Radix popover (components/ui).
+// The evidence popover keeps keyboard focus with the reader: opening moves
+// focus into the panel; Escape and a press outside close it and give focus
+// back to the trigger; a scroll neither closes it nor strands focus. It is
+// built on the desk's Radix popover (components/ui).
 import { act, fireEvent, render, screen, waitFor } from "./render";
 import { describe, expect, it } from "vitest";
 import type { IntegrationEvidence } from "@shared/integrations";

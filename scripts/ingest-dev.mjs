@@ -17,19 +17,12 @@ const log = (msg) => console.log(`[ingest-dev] ${msg}`);
 const fail = (msg) => console.error(`[ingest-dev] ${msg}`);
 
 /**
- * The one wrangler invocation this file exists to gate.
- *
- * Run through `@noticeos/ingest` so it picks up that workspace's
- * `wrangler.jsonc` — bindings, secrets and `triggers.crons` — exactly as the bare
- * `pnpm dev` line did when it lived in that manifest.
- *
- * `--persist-to` is ABSOLUTE, so the store is the repo's own whatever directory
- * the operator typed the command in (the old relative `../../.wrangler/state`
- * only worked because pnpm happened to run it from workers/ingest).
- *
- * stdio is inherited: `wrangler dev` is an interactive, long-lived process with a
- * key-driven console, and that session belongs to the operator exactly as it did
- * when this was a bare pnpm script.
+ * The one wrangler invocation this file exists to gate. Run through
+ * `@noticeos/ingest` so it picks up that workspace's `wrangler.jsonc`.
+ * `--persist-to` is absolute, so the store is the repo's own whatever
+ * directory the operator typed the command in. stdio is inherited:
+ * `wrangler dev` is an interactive, long-lived process with a key-driven
+ * console.
  */
 function wranglerDev(extraArgs = []) {
   return new Promise((resolve) => {
@@ -52,10 +45,7 @@ function wranglerDev(extraArgs = []) {
   });
 }
 
-/** What the operator is told when the OS is up. Named and exported so the test
- * pins the sentence, not just the exit code: the value of a refusal is that it
- * says what to do next — and here "what to do next" is usually "nothing, the
- * ingest you want is already running inside os:up". */
+/** What the operator is told when the OS is up. */
 export function doorHeldMessage(door = DEFAULT_DOOR) {
   const { host } = new URL(door);
   return [
@@ -69,14 +59,8 @@ export function doorHeldMessage(door = DEFAULT_DOOR) {
   ].join('\n');
 }
 
-/**
- * Start standalone `wrangler dev`, or refuse and say why.
- *
- * Returns the exit code rather than calling process.exit, so the refusal is
- * testable. `start` and `held` are injectable for the same reason — a test must
- * be able to prove that a held door means wrangler is never spawned at all,
- * which is the entire point of the file.
- */
+/** Start standalone `wrangler dev`, or refuse and say why. Returns the exit
+ * code. */
 export async function ingestDev({
   start = wranglerDev,
   held = doorIsHeld,
@@ -101,7 +85,7 @@ export async function ingestDev({
 const isEntrypoint =
   process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isEntrypoint) {
-  // exitCode, not process.exit: the refusal above is the whole product of this
-  // script, and a hard exit can cut its last lines off a piped stdout.
+  // exitCode, not process.exit: a hard exit can cut a refusal's last lines
+  // off a piped stdout.
   process.exitCode = await ingestDev({ args: process.argv.slice(2) });
 }

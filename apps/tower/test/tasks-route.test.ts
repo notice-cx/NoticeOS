@@ -7,18 +7,10 @@ import {
   isTasksPath,
 } from "../worker/tasks-route";
 
-// What a DEPLOYED Tower says when asked to read or write the task hub. Locally
-// these paths never reach the Worker — the task lane answers them first, in the
-// process that can run `bd` (D19, bead `ro-l1ed.1`) — so these cases pin the
-// other deployment, the one that has neither `bd` nor a route to a Dolt server
-// on the operator's Mac.
-//
-// The point is not the status code. It is that the board DEGRADES rather than
-// breaks: `live: false` reaches the browser before any action is offered, the
-// snapshot at `/api/work` still renders, and a request that slipped through
-// anyway gets a short refusal back rather than a blank failure. The
-// capability answer is a STATE CODE, never a paragraph (bead
-// `ro-ujb9.96.6.11`): the Tower draws it as a Read-only chip.
+// What a deployed Tower says when asked to read or write the task hub. Locally
+// the task lane answers these paths first, so these cases pin a deployment with
+// neither `bd` nor a Dolt server: the board degrades rather than breaks, and the
+// capability answer is a state code, never a paragraph.
 
 function ask(pathname: string): Response {
   return handleTasksRequest(new URL(`https://tower.example${pathname}`));

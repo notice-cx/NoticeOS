@@ -176,7 +176,7 @@ test('freshnessReport: per-integration, newest report date wins', () => {
       ageDays: 2,
       fresh: true,
       // Each family's own newest day, so a reader can tell a whole collection
-      // from part of one (epic ro-cvl9).
+      // from part of one.
       reports: [
         { report: 'page', newestReportDate: '2026-07-28' },
         { report: 'query', newestReportDate: '2026-08-01' },
@@ -187,11 +187,11 @@ test('freshnessReport: per-integration, newest report date wins', () => {
   assert.deepEqual(report.uncollected, []);
 });
 
-// ro-b3t.2. The Bing AI Performance exports arrive by hand and share their
-// integration id with six API-collected families, so the nightly collection was
-// vouching for a file that could be six months old. Every other family in the
-// dir goes stale loudly when its collector stops; these have no collector to
-// stop, so they carry their own age.
+// The Bing AI Performance exports arrive by hand and share their integration
+// id with six API-collected families, so the nightly collection would vouch
+// for a file that could be six months old. Every other family in the dir goes
+// stale loudly when its collector stops; these have no collector to stop, so
+// they carry their own age.
 test('freshnessReport: a hand-dropped family is aged on its own export, not its integration', () => {
   const report = freshnessReport({
     asset: 'meals.example',
@@ -467,9 +467,9 @@ test('refreshAsset: re-fetches a report day the collector revised', async () => 
   await fs.rm(dir, { recursive: true, force: true });
 });
 
-// Bead ro-m8lm: the hand download now merges its record file with this lane's
-// rule. These are the exact bytes this lane wrote before that change: a report
-// day outside this pass's window stays, a revised day takes this pass's row.
+// The hand download merges its record file with this lane's rule. These are the
+// exact bytes this lane writes: a report day outside this pass's window stays,
+// a revised day takes this pass's row.
 test('refreshAsset: the record file keeps earlier report days and takes this pass’s revision, byte for byte', async () => {
   const { dir, options } = await scratch();
   const settled = {
@@ -589,8 +589,8 @@ function savedRoster(body) {
   };
 }
 
-// Bead ro-ujb9.207: the findings name the market each site's saved settings
-// ask DataForSEO in, read from the same stored snapshot as the roster.
+// The findings name the market each site's saved settings ask DataForSEO in,
+// read from the same stored snapshot as the roster.
 test('refreshPanels: each site’s analysis gets the search market its saved settings name', async (t) => {
   const { dir, options } = await scratch();
   t.after(() => fs.rm(dir, { recursive: true, force: true }));

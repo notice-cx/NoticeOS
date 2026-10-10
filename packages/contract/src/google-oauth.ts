@@ -1,32 +1,16 @@
-/** Connecting Google by signing in, rather than by pasting a robot's key —
- * the shapes three runtimes have to agree on (bead `ro-vu8d.3`, D21).
- *
- * WHY THESE LIVE IN THE CONTRACT. The Tower renders the card and has to know
- * which redirect URI to show the operator; the ingest Worker builds the
- * authorization URL and exchanges the code; and both have to agree on the exact
- * scope strings, because a scope the card promises and the grant does not carry
- * is a lane that fails a month later with a 403 nobody can explain.
- *
- * WHAT IS NOT HERE: a token, a client secret, a state nonce, or the signing key
- * for one. Everything in this file is either a constant, a path, or a shape.
- * The secrets live in the credential store and the plaintext never leaves the
+/** Connecting Google by signing in: the shapes the Tower (which renders the
+ * card and the redirect URI) and the ingest Worker (which builds the
+ * authorization URL and exchanges the code) have to agree on. Nothing here is
+ * a token, a client secret or a state nonce; the plaintext never leaves the
  * ingest Worker (`workers/ingest/src/credentials.ts`).
  */
 
 /**
- * Exactly what the OS asks Google for, and nothing more.
- *
- * Two READ-ONLY data scopes plus the operator's address. `analytics.readonly`
- * covers both the Data API the collectors read and the Admin API that lists
- * which properties the account can see; `webmasters.readonly` is Search
- * Console's read scope — deliberately not `webmasters`, which can also verify
- * and delete sites, and this OS never writes to a property.
- *
- * `openid` + `email` is what makes the card able to say WHOSE account is
- * connected. It costs the operator nothing they have not already granted by
- * signing in, and it is the difference between a card reading "Connected" and a
- * card reading "Connected as ops@example.com" — which is the only version that
- * can catch signing in with the wrong Google account.
+ * Exactly what the OS asks Google for: two read-only data scopes plus the
+ * operator's address. `analytics.readonly` covers the Data API and the Admin
+ * API that lists properties; `webmasters.readonly` is Search Console's read
+ * scope, not `webmasters`, which can also verify and delete sites. `openid` +
+ * `email` is what lets the card say whose account is connected.
  */
 export const GOOGLE_OAUTH_SCOPES: readonly string[] = [
   'openid',
@@ -35,9 +19,8 @@ export const GOOGLE_OAUTH_SCOPES: readonly string[] = [
   'https://www.googleapis.com/auth/webmasters.readonly',
 ] as const;
 
-/** Google's own endpoints. Constants rather than config: they are Google's, and
- * an install that could point them elsewhere is an install that can be phished
- * into sending a code to somebody else. */
+/** Google's own endpoints. Constants rather than config: an install that
+ * could point them elsewhere could be phished into sending a code elsewhere. */
 export const GOOGLE_OAUTH_AUTHORIZE_URL =
   'https://accounts.google.com/o/oauth2/v2/auth';
 export const GOOGLE_OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -60,22 +43,18 @@ export const GOOGLE_PROPERTIES_PATH = '/api/integrations/google/properties';
 export const GOOGLE_OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 
 /**
- * The redirect URI for a Tower reached at this origin.
- *
- * DERIVED, never configured. The operator opens the Tower at some address and
- * Google has to be told that exact string — so the one place it can be right is
- * the request's own origin. A configured copy would be a second answer, and the
- * one that lost would produce `redirect_uri_mismatch`, which is the single most
- * common way an OAuth setup fails.
+ * The redirect URI for a Tower reached at this origin. Derived from the
+ * request's own origin, never configured: a configured copy would be a second
+ * answer, and the one that lost would produce `redirect_uri_mismatch`.
  */
 export function googleOAuthRedirectUri(origin: string): string {
   return `${origin.replace(/\/+$/, '')}${GOOGLE_OAUTH_CALLBACK_PATH}`;
 }
 
 /** Whether Google will accept a redirect URI at this origin at all, and why
- * not as a code (bead `ro-ujb9.96.6.19`): `not-an-address` — the origin does
- * not parse; `insecure-host` — plain http on a host that is not loopback. The
- * press that clears the second is `googleLoopbackOrigin`'s address. */
+ * not as a code: `not-an-address` — the origin does not parse;
+ * `insecure-host` — plain http on a host that is not loopback. The press that
+ * clears the second is `googleLoopbackOrigin`'s address. */
 export interface GoogleRedirectVerdict {
   usable: boolean;
   /** Null when usable. */
@@ -85,26 +64,15 @@ export interface GoogleRedirectVerdict {
 /** Loopback hosts Google exempts from its https rule. */
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 
-/**
- * `scheme://host[:port]`, parsed WITHOUT `URL`.
- *
- * This package compiles for three runtimes and its tsconfig carries no DOM lib
- * on purpose — a shared contract that needs a browser global is a contract that
- * cannot be imported by the thing that has to validate it. The shape being read
- * is small and fixed, so a regex is the honest tool rather than a shortcut.
- */
+/** `scheme://host[:port]`, parsed without `URL`: this package's tsconfig
+ * carries no DOM lib, so a shared contract cannot use a browser global. */
 const ORIGIN_PATTERN = /^(https?):\/\/(\[[0-9a-f:]+\]|[^/?#:]+)(?::(\d+))?$/i;
 
 /**
- * Google refuses a plain-http redirect URI unless it is loopback — no private
- * LAN address, no `.local` name, no exceptions.
- *
- * This matters HERE because the normal way to reach this Tower is over the LAN
- * (`scripts/os-up.mjs` binds `0.0.0.0` by default), and an operator on
- * `http://192.168.1.20:5173` who clicks Sign in with Google would get an
- * `invalid_request` from Google with no hint about why. So the card checks
- * first and offers the press — open the Tower on its loopback address — which
- * turns a dead end into one link.
+ * Google refuses a plain-http redirect URI unless it is loopback: no private
+ * LAN address, no `.local` name. A Tower reached over the LAN would get an
+ * `invalid_request` with no hint why, so the card checks first and offers the
+ * loopback address.
  */
 export function googleRedirectVerdict(origin: string): GoogleRedirectVerdict {
   const match = ORIGIN_PATTERN.exec(origin.replace(/\/+$/, ''));
@@ -117,9 +85,7 @@ export function googleRedirectVerdict(origin: string): GoogleRedirectVerdict {
 
 /**
  * The loopback address of the same Tower — what an operator on a LAN address
- * Google refuses opens instead (bead `ro-ujb9.96.6.1`). The Tower shows it as a
- * link: the fix is one press, so the screen offers the press. Null when
- * `origin` is not an address at all.
+ * Google refuses opens instead. Null when `origin` is not an address at all.
  */
 export function googleLoopbackOrigin(origin: string): string | null {
   const match = ORIGIN_PATTERN.exec(origin.replace(/\/+$/, ''));
@@ -129,12 +95,9 @@ export function googleLoopbackOrigin(origin: string): string | null {
 }
 
 /**
- * What `beginGoogleOAuth` answers: where to send the browser, or why not.
- *
- * A refusal is a CODE and nothing else (bead `ro-ujb9.96.6.25`): the page
- * words each one and puts its one press beside it (`googleOAuthNotice` in the
- * Tower), so no sentence written here could reach the screen or drift from the
- * one that does.
+ * What `beginGoogleOAuth` answers: where to send the browser, or why not. A
+ * refusal is a code and nothing else: the page words each one and puts its
+ * one press beside it (`googleOAuthNotice` in the Tower).
  */
 export type GoogleOAuthStart =
   | { ok: true; authorizeUrl: string; redirectUri: string }
@@ -210,12 +173,9 @@ export interface GoogleDiscoveredProperty {
 
 /**
  * `GET /api/integrations/google/properties` — what the connected account can
- * see, read-only.
- *
- * This is the payload the per-asset picker (`ro-vu8d.4`) consumes; here it
- * renders as a plain list on the card, so an operator can tell immediately
- * whether they signed in with the right Google account. Nothing is stored: it
- * is two free list calls, and a discovery is not evidence.
+ * see, read-only. The per-asset picker consumes it, and the card lists it so
+ * an operator can tell whether they signed in with the right account. Nothing
+ * is stored: two free list calls, and a discovery is not evidence.
  */
 export interface GooglePropertyDiscovery {
   monitoringAvailable?: boolean;

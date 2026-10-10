@@ -62,24 +62,11 @@ import {
 import { declineReason } from "@shared/lane-decline";
 
 /**
- * THE SOURCES TAB — where this asset's numbers come from (`ro-pbzu.4`),
- * restyled to doc 14 under `ro-78qo.5`.
- *
- * IT TOOK THE SETUP CHECKLIST FROM OVERVIEW. doc 14 replaces that section on the
- * Overview with a one-line `StatusBanner` and says its full checklist moves
- * here, which is also where it belongs: three of its four items are about data
- * sources, and the operator who reads "2 of 6 done" has to arrive on this tab to
- * do anything about it. It leads the tab and is the declared hero while the
- * asset is still being set up — on a live asset it renders nothing at all and
- * the data sources take the first screen.
- *
- * EVERY SOURCE'S PARAGRAPH IS OFF THE PAGE. Twelve sources each carried a
- * "Working means …" line and several carried a note running to four sentences
- * about a credential nobody has provisioned — a wall of small text on a tab the
- * operator opens to check one thing. What a state means in general is one
- * sentence in `About`; what THIS source's own record says is inside its row.
- * What is still OWED stays on the face of the row, because that is the next
- * action rather than an explanation.
+ * The Sources tab: where this asset's numbers come from. The setup checklist
+ * is the hero while the asset is still being set up and renders nothing on a
+ * live asset, where the data sources take the first screen. What this source's
+ * own record says is inside its row; what is still owed stays on the face of
+ * the row, because that is the next action rather than an explanation.
  */
 export function SourcesTab({
   data,
@@ -117,11 +104,9 @@ export function SourcesTab({
           there is no checklist at all, and the question becomes "are my sources
           working". */}
       <Hero>{sources}</Hero>
-      {/* Closed on arrival, a new site's included (bead `ro-ujb9.96.7.5`):
-          each source row above already carries its own Connect, so the
-          checklist is the count, not the next step — mockup
-          docs/artifacts/ux-audit-2026-09-23/mockup/e2-sources.jpg shows the
-          rows alone. */}
+      {/* Closed on arrival, a new site's included: each source row above
+          already carries its own Connect, so the checklist is the count, not
+          the next step. */}
       {setup ? <SetupChecklistPanel setup={setup} /> : null}
       {data.scheduledLanes !== null ? (
         <ScheduledLanesPanel lanes={data.scheduledLanes} nowMs={nowMs} />
@@ -130,8 +115,7 @@ export function SourcesTab({
       {data.wiring.pull ? <FetchFailuresPanel failures={data.fetchFailures} nowMs={nowMs} /> : null}
       {/* Nothing to show until the first nightly report: its absence is the
           header's "Nightly report · never" and the Nightly report source row,
-          so an empty panel here would say it a third time (bead
-          `ro-ujb9.96.7.5`). */}
+          so an empty panel here would say it a third time. */}
       {data.metrics.length > 0 || data.freshness.pulseReceivedAt !== null ? (
         <PulseMetricsSection
           metrics={data.metrics}
@@ -164,11 +148,9 @@ type LaneReading = ReturnType<typeof laneStatus>;
 
 const CONNECTED: ReadonlySet<ConnectionKind | "not-applicable"> = new Set(["working", "key-accepted", "collecting"]);
 
-/**
- * THE TAB'S ONE ANSWER (D44): which of the site's own sources need the
- * operator, else how many work. The rows below name each one's status; the
- * sentence counts, and names them only when they are the problem.
- */
+/** The tab's one answer: which of the site's own sources need the operator,
+ * else how many work. The sentence counts, and names them only when they are
+ * the problem. */
 export function sourcesAnswer(direct: readonly { lane: { catalog: { label: string } }; reading: { kind: ConnectionKind | "not-applicable" } }[]): {
   answer: string;
   detail?: string;
@@ -199,15 +181,11 @@ export function sourcesAnswer(direct: readonly { lane: { catalog: { label: strin
 }
 
 /**
- * THE ASSET'S DATA SOURCES, as doc 14's list — each row wearing the ONE status
- * the connection model gives this asset's site (bead `ro-ujb9.96.7.3`), so a
- * source never reads Not connected here while its provider reads Working on
- * Integrations. A row opens in place on what it needs: the provider to
- * connect, the failure and what to do, the missing report dates' count, and
- * the source's own settings.
- *
- * `limit` is seven, the direct sources an asset has: this panel IS the tab's
- * question, and a panel showing three of six has hidden half the work.
+ * The asset's data sources, each row wearing the one status the connection
+ * model gives this asset's site, so a source never reads Not connected here
+ * while its provider reads Working on Integrations. A row opens in place on
+ * what it needs. `limit` is seven, the direct sources an asset has: a panel
+ * showing three of six has hidden half the work.
  */
 function IntegrationsSection({
   integrations,
@@ -226,10 +204,8 @@ function IntegrationsSection({
 }) {
   const demoReadonly = useDemoReadonly();
   const { credentials, items } = useConnections();
-  // THE CONNECT PANEL OPENS OVER THIS PAGE (bead `ro-ujb9.96.7.4`): a row's
-  // Connect for a provider that connects in the panel opens it here, with
-  // this site first, instead of leaving the site for Integrations and coming
-  // back. Every other provider still links to its own page.
+  // The connect panel opens over this page, with this site first; every other
+  // provider still links to its own page.
   const providers = useIntegrationProviders();
   const wall = useWall();
   const queryClient = useQueryClient();
@@ -262,9 +238,9 @@ function IntegrationsSection({
   const notApplicable = integrations.lanes.filter((l) => l.cell.declared === "not-applicable");
   const direct = applicable.filter(({ lane }) => PROPERTY_DATA_SOURCE_IDS.has(lane.catalog.id) || lane.catalog.id === NIGHTLY_REPORT_LANE_ID);
   const optional = applicable.filter((entry) => !direct.includes(entry));
-  // The first source still to connect carries the page's one primary action
-  // (docs/15 principle 4); every other Connect is the outline weight. The
-  // same rule picks Home's next first-run step (`firstToConnect`).
+  // The first source still to connect carries the page's one primary action;
+  // every other Connect is the outline weight. The same rule picks Home's
+  // next first-run step (`firstToConnect`).
   const firstConnect = firstToConnect(direct.map(({ lane, reading }) => ({
     id: lane.cell.laneId, label: lane.catalog.label, kind: reading.kind, provider: reading.provider,
   })))?.id ?? null;
@@ -283,19 +259,15 @@ function IntegrationsSection({
           <LaneRow key={lane.cell.laneId} lane={lane} reading={reading} asset={asset} ga4Config={ga4Config} nowMs={nowMs} primary={lane.cell.laneId === firstConnect} onConnect={openPanel} />
         ))}
       </ListPanel>
-      {/* The sources beyond the site's own data — revenue, deploys — as a
-          second list in plain words (bead `ro-ujb9.164`). It was a closed
-          "Additional connections · N" disclosure around a panel with the same
-          title: a press to learn what it held, and its name said twice.
-          `ListPanel` keeps three rows and discloses the rest itself. */}
+      {/* The sources beyond the site's own data, revenue and deploys, as a
+          second list. `ListPanel` keeps three rows and discloses the rest. */}
       {optional.length > 0 ? (
         <ListPanel title="More sources" count={<span className="tabular-nums">{optional.length}</span>} limit={3}>
           {optional.map(({ lane, reading }) => <LaneRow key={lane.cell.laneId} lane={lane} reading={reading} asset={asset} ga4Config={ga4Config} nowMs={nowMs} onConnect={openPanel} />)}
         </ListPanel>
       ) : null}
-      {/* No file name here (bead `ro-ujb9.96.6.23`): since D22 a site's sources
-          are set in the Tower and kept in the store, so the seed file's path
-          told a stranger nothing they could act on. */}
+      {/* No file name here: a site's sources are set in the Tower and kept in
+          the store. */}
       {notApplicable.length > 0 ? (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1">
           <NotApplicableLanes lanes={notApplicable} asset={asset} isOs={isOs} />
@@ -307,7 +279,7 @@ function IntegrationsSection({
           opened={connecting.opened}
           asset={asset}
           // This page has no blocker banner, so the panel says why Connect is
-          // off, once, with the command that clears it (bead `ro-e70g`).
+          // off, once, with the command that clears it.
           canConnect={blockers.length === 0}
           blockers={blockers}
           items={items ?? []}
@@ -348,18 +320,14 @@ function LaneRow({
     .filter((part): part is string => Boolean(part))
     .join(" · ");
   const spec = provider ? integrationProvider(provider) : null;
-  // ONE ACTION ON THE FACE (bead `ro-ujb9.96.7.5`, mockup
-  // docs/artifacts/ux-audit-2026-09-23/mockup/e2-sources.jpg): a source whose
-  // provider is not connected shows Connect where its status would be — the
-  // press itself says "not connected", so the row never shows both — and it
-  // goes straight to the connect panel opened for this asset, without opening
-  // the row first.
-  // It carries the status it stands for, so every screen's status reader
-  // still finds this source Not connected (bead `ro-ujb9.96.7.16`).
+  // One action on the face: a source whose provider is not connected shows
+  // Connect where its status would be, and it goes straight to the connect
+  // panel for this asset without opening the row first. It carries the status
+  // it stands for, so every status reader still finds this source Not connected.
   const stands = { "aria-label": `${demoReadonly ? 'View' : 'Connect'} ${spec ? providerName(spec) : ""}`, "data-source-connect": catalog.id, "data-status-for": subject, "data-connection": "not-connected" };
   const connect = spec && connectable(reading) ? (
-    // A provider that connects in the panel opens it over this page (bead
-    // `ro-ujb9.96.7.4`); any other opens its own page on Integrations.
+    // A provider that connects in the panel opens it over this page; any
+    // other opens its own page on Integrations.
     connectsInPanel(spec) && onConnect ? (
       <Button type="button" size="sm" variant={primary ? "default" : "outline"} disabled={demoReadonly} onClick={() => onConnect(spec.id)} {...stands}>
         Connect
@@ -372,11 +340,9 @@ function LaneRow({
       </Button>
     )
   ) : undefined;
-  // A FAILING SOURCE'S ONE ACTION IS FIX (bead `ro-ujb9.96.7.4`), beside its
-  // Failing chip and the reason under its name — the connection itself, in
-  // the panel over this page (its key, this site's status) for a provider
-  // that connects there, else the provider's own page. It replaced a
-  // sentence telling the operator what to go and review.
+  // A failing source's one action is Fix, beside its Failing chip: the
+  // connection itself, in the panel over this page for a provider that
+  // connects there, else the provider's own page.
   const fix = kind === "failing" && spec ? (
     connectsInPanel(spec) && onConnect ? (
       <Button type="button" size="sm" variant="outline" onClick={() => onConnect(spec.id)} aria-label={`Fix ${providerName(spec)}`} data-source-fix={catalog.id}>
@@ -398,41 +364,37 @@ function LaneRow({
       caption={
         kind === "failing" && failure ? <span className="text-error">{integrationFailureMessage(failure)}</span>
           : site && connectionFacts(site).length > 0 ? <ConnectionFacts status={site} subject={subject} />
-            // A skipped source's reason is WHY it reads Not using — one line
-            // beside the chip, not a paragraph in the body (bead `ro-ujb9.96.6.4`),
-            // in the operator's words: the stored prefix is the product's
-            // (`declineReason`, bead `ro-ujb9.96.7.13`).
+            // A skipped source's reason is why it reads Not using: one line
+            // beside the chip, in the operator's words, because the stored
+            // prefix is the product's (`declineReason`).
             : kind === "not-using" && cell.note ? <span className="wrap-anywhere" data-lane-reason>{declineReason(cell.note) ?? cell.note}</span>
               : catalog.id === UPTIME_LANE_ID && cell.evidence[0]?.at ? <UptimeCheck evidence={cell.evidence[0]} nowMs={nowMs} />
                 : undefined
       }
       value={connect ? undefined : <IntegrationStateChip state={kind === "not-applicable" ? "not-applicable" : kind} subject={subject} lane={catalog.id} />}
-      // The one decision the file owns — in use, or Not using with a reason
-      // chip — as the expanded row's action (bead `ro-ujb9.96.7.13`), the same
-      // for every source and provider. A derived source has no cell to decide on.
+      // The one decision the file owns, in use or Not using with a reason
+      // chip, as the expanded row's action. A derived source has no cell to
+      // decide on.
       actions={cell.since === "" ? undefined : <LanePostureAction lane={lane} asset={asset} />}
     >
-      {/* No link for a source nothing on Integrations connects (bead
-          `ro-ujb9.133`): it shows only once something arrived for it, and
-          its evidence is what the row has to say. */}
+      {/* No link for a source nothing on Integrations connects: its evidence
+          is what the row has to say. */}
       {kind === "not-connected" && cell.laneId === NIGHTLY_REPORT_LANE_ID ? <Link to="/health" className="inline-flex min-h-11 w-fit items-center text-sm font-medium text-foreground underline underline-offset-4">Nightly report in System health →</Link> : null}
       <span className="flex flex-wrap items-center gap-2">
         {identity ? <span className="tabular-nums">{identity}</span> : null}
         {cell.evidence.length > 0 ? (
           <EvidencePopover evidence={cell.evidence} nowMs={nowMs} contextLabel={catalog.label} />
         ) : null}
-        {/* No documentation pointer on the row (bead `ro-ujb9.96.7.4`): its
-            one action — Connect — is how it gets set up. */}
+        {/* No documentation pointer on the row: its one action, Connect, is
+            how it gets set up. */}
       </span>
 
-      {/* The per-asset configuration of THIS lane (bead `ro-vu8d.4`): what is
-          still owed, which property this asset maps to, and the one posture the
-          file owns. It sits under the verdict, which is the doc-14 disclosure
-          order — the row answers "is this working" before "what have we told
-          it". A derived lane (`nightly-report`, `egress`) has no cell in the
-          register and so has nothing here to edit. */}
+      {/* The per-asset configuration of this lane: what is still owed, which
+          property this asset maps to, and the one posture the file owns. It
+          sits under the verdict. A derived lane (`nightly-report`, `egress`)
+          has no cell in the register and nothing here to edit. */}
       {/* Ad revenue unconnected: the row's Connect is its one action, so its
-          revenue section is not even asked for (bead ro-ujb9.96.7.6). */}
+          revenue section is not even asked for. */}
       {cell.laneId === 'ad-network' ? (connect ? null : <MediavineSettings asset={asset} />) : cell.since === "" ? null : <LaneConfig lane={lane} asset={asset} />}
 
       {cell.laneId === GA4_LANE_ID ? <Ga4LaneConfig asset={asset} config={ga4Config} /> : null}
@@ -441,11 +403,10 @@ function LaneRow({
 }
 
 /**
- * WHEN THE OS LAST LOOKED (bead `ro-ujb9.165`): the uptime row's one fact
- * beside its Up or Down — the check's age, and for a site that did not answer,
- * what it answered with. The chip carries the verdict; this dates it, the way
- * Better Stack and UptimeRobot date a monitor's last check. An Up whose first try failed
- * says so after the age (bead `ro-ujb9.180`): "checked 12m ago · 1 failed try".
+ * When the OS last looked: the uptime row's one fact beside its Up or Down,
+ * the check's age, and for a site that did not answer, what it answered with.
+ * An Up whose first try failed says so after the age: "checked 12m ago · 1
+ * failed try".
  */
 function UptimeCheck({ evidence, nowMs }: { evidence: IntegrationEvidence; nowMs: number }) {
   const age = formatAge(ageMs(nowMs, evidence.at));
@@ -462,12 +423,9 @@ function UptimeCheck({ evidence, nowMs }: { evidence: IntegrationEvidence; nowMs
 }
 
 /**
- * EVERY FAILED NIGHTLY FETCH, ONE LINE EACH (bead `ro-ujb9.220`): a mark, the
- * cause in the provider's own words, and when. The open alert says what failed
- * last night; this is the nights behind it, so a 503 on Monday and a 401 on
- * Tuesday read as two nights rather than "2 nights, latest 401". A red mark is
- * the outage still open, a muted one a past outage. The full response rides the
- * cause's hover.
+ * Every failed nightly fetch, one line each: a mark, the cause in the
+ * provider's own words, and when. A red mark is the outage still open, a muted
+ * one a past outage. The full response rides the cause's hover.
  */
 function FetchFailuresPanel({ failures, nowMs }: { failures: FetchFailure[]; nowMs: number }) {
   const rows = failures;
@@ -524,9 +482,8 @@ function PulseMetricsSection({
           Nothing yet — metrics appear with this site's first nightly report.
         </span>
       ) : (
-        // `stacked` (bead `ro-md80`): the 30-day trend was off the right edge
-        // at 390px, and a metric row without its shape is a number with no
-        // direction.
+        // `stacked`: a metric row without its 30-day trend is a number with no
+        // direction, and the trend would otherwise be off the edge at 390px.
         <Table stacked>
           <TableHeader>
             <TableRow>
@@ -541,14 +498,11 @@ function PulseMetricsSection({
               const summary = productReportSummary(m, reportDate);
               return (
               <TableRow key={m.name}>
-                {/* THE OPERATOR'S WORDS, NOT THE ENVELOPE'S KEY (doc 14 rule 1).
-                    `signups` is fine; `plansSaved` and `recipesSaved` are the
-                    asset's own identifiers wearing camel case on a view surface.
-                    `humanizeMetric` is the same one `translateAlert` puts in
-                    every alert headline, so "Plans saved" cannot be two
-                    different words on two screens (doc 14). The raw key stays
-                    the row's React key and the hover title, because it is what
-                    the operator greps the envelope for. */}
+                {/* The operator's words, not the envelope's key. `humanizeMetric`
+                    is the same one `translateAlert` puts in every alert
+                    headline. The raw key stays the row's React key and the
+                    hover title, because it is what the operator greps the
+                    envelope for. */}
                 <TableCell className="font-medium" title={m.name}>
                   <span className="inline-flex items-center gap-1.5">{metricLabel(m.name)}
                     <InfoTooltip label={`${metricLabel(m.name)} report details`}>
@@ -616,8 +570,7 @@ const HYGIENE_STATE: Record<HygieneStatus, { label: string; tone: StateTone }> =
   unreachable: { label: "Not reached", tone: "na" },
 };
 
-/** doc 14: a series of fewer than three points is a number, not a shape. Two
- * nights of readings drawn as a line invent a trend out of one segment. */
+/** A series of fewer than three points is a number, not a shape. */
 const HYGIENE_MIN_SERIES = 3;
 
 /**
@@ -658,10 +611,8 @@ function HygieneSeries({
           />
         </div>
       </div>
-      {/* doc 14's SMALL-MULTIPLE value: the reading is the large ink and its
-          unit the caption under it, rather than two lines of the same weight.
-          `text-xl` and not the 28px KPI type, because three of these sit in one
-          strip and the KPI scale belongs to a number that leads a screen. */}
+      {/* The small-multiple value: `text-xl` and not the 28px KPI type,
+          because three of these sit in one strip. */}
       <div className="mt-2 flex flex-col gap-0.5">
         <span className="text-xl font-semibold tabular-nums">
           {latest?.value !== null && latest?.value !== undefined
@@ -672,11 +623,8 @@ function HygieneSeries({
           {latest ? unit : "never checked"}
         </span>
       </div>
-      {/* doc 14's full-width sparkline. `Spark`'s range form printed a y-axis
-          gutter and dated x labels inside 250px, where the first x label
-          overprinted the zero — three numbers fighting for the same corner to
-          scale a shape whose figure is already stated above it in KPI type. The
-          line is the shape; the number is the number. */}
+      {/* The full-width sparkline: the line is the shape; the number above it
+          is the number. */}
       {observations >= HYGIENE_MIN_SERIES ? (
         <Sparkline
           className="mt-2"
@@ -696,18 +644,10 @@ function HygieneSeries({
 }
 
 /**
- * The nightly served-layer history (bead `ro-gct`).
- *
- * The hygiene guard has written one row per (asset, check, day) since 2026-07-31
- * and nothing anywhere read it back — the checks only ever reached a human when
- * a rule fired. That is backwards for this family: all three founding cases are
- * SLOW declines nobody noticed (a home page serving 88 words for months, an AI
- * crawler quietly disallowed, a sitemap shrinking week by week). A rule fires on
- * a step change; only the history shows a slope.
- *
- * Read-only and absent when empty, the same rule `WatchesStrip` and
- * `ReclamationSection` follow: the Tower cannot run a check, so a section with
- * no readings is a dead end rather than an invitation.
+ * The nightly served-layer history. A rule fires on a step change; only the
+ * history shows a slope. Read-only and absent when empty: the Tower cannot run
+ * a check, so a section with no readings is a dead end rather than an
+ * invitation.
  */
 function SiteHealthSection({
   hygiene,
@@ -716,9 +656,9 @@ function SiteHealthSection({
   hygiene: HygieneHistory | null;
   nowMs: number;
 }) {
-  // The hourly uptime check writes the home-page reading on its own (bead
-  // `ro-ujb9.165`); this section is the nightly sweep's history, so it waits
-  // for that sweep rather than drawing two "never" tiles on a new site.
+  // The hourly uptime check writes the home-page reading on its own; this
+  // section is the nightly sweep's history, so it waits for that sweep rather
+  // than drawing two "never" tiles on a new site.
   if (!hygiene || (hygiene.robots.latest === null && hygiene.sitemap.latest === null)) return null;
   const robotsState = hygiene.robots.latest
     ? HYGIENE_STATE[hygiene.robots.latest.status]
@@ -763,8 +703,8 @@ function SiteHealthSection({
                   data-hygiene-bot={bot.bot}
                 >
                   <span className="truncate text-muted-foreground">{bot.bot}</span>
-                  {/* Glyph AND word: allowed/blocked survives a glance and a
-                      screenshot with the colour stripped (doc 14). */}
+                  {/* Glyph and word: allowed/blocked survives a screenshot with
+                      the colour stripped. */}
                   <span
                     className={cn(
                       "flex shrink-0 items-center gap-1 font-medium",

@@ -1,22 +1,8 @@
-// Opening a pre-registered outcome check from the Tower (bead `ro-71r`).
-//
-// docs/03's first defense against self-deception is that the comparison is
-// chosen BEFORE the numbers exist. Until now the only way to choose one was a
-// hand-written POST carrying the operator bearer, which made the single most
-// honesty-critical action in the OS also its highest-friction one — so it got
-// skipped, and outcomes were judged after the fact by whoever remembered.
-//
-// This module is what the composer prefills FROM, and what it refuses on. Two
-// rules govern every line of it:
-//
-//  1. **Prefill, never relax.** Every refusal here mirrors a 422 the ingest
-//     route already issues (workers/ingest/src/routes/watch-windows.ts, and its
-//     README's rejection list). The route stays the authority — this exists so
-//     the operator is told *before* they submit, not so anything is skipped.
-//     A rule that lived only here would be a rule a curl could walk around.
-//  2. **One vocabulary.** `WATCH_SERIES` (@noticeos/contract) names the
-//     measurable series once for the OS, so the chooser and the strip that
-//     later reports the verdict cannot call the same number two things.
+// Opening a pre-registered outcome check from the Tower: what the composer
+// prefills from, and what it refuses on. Every refusal here mirrors a 422 the
+// ingest route already issues (workers/ingest/src/routes/watch-windows.ts);
+// the route stays the authority, and this only tells the operator earlier.
+// `WATCH_SERIES` (@noticeos/contract) names the measurable series once.
 
 import {
   WATCH_MIN_WINDOW_COVERAGE,
@@ -34,9 +20,9 @@ export type {
   WatchRecordedChangeCalendar,
 } from "@noticeos/contract";
 
-/** The baseline the composer proposes: four whole weeks. Long enough to survive
- * one bad week, short enough that the final check is not a season away — and it
- * is the length docs/03's 4–8 week windows are built on. */
+/** The baseline the composer proposes: four whole weeks. Long enough to
+ * survive one bad week, short enough that the final check is not a season
+ * away. */
 export const WATCH_BASELINE_DAYS = 28;
 
 /** How long until the verdict, offered as whole windows rather than a free
@@ -47,24 +33,14 @@ export const WATCH_VERDICT_DAYS = [28, 56, 90] as const;
 
 /**
  * The predicate to fall back on when this asset's own archives cannot supply
- * one: symmetric, "call it a win at +10%, a loss at −10%".
- *
- * It is the README's EXAMPLE, and until bead `ro-5e8.2` it was also the answer —
- * which is the defect that bead names. A stop rule's numbers are one
- * origin's and must be calibrated per
- * asset from its own base rates, and nothing calibrated anything: the four
- * windows registered for `ro-hpf` carry this 10 and a ±5 on `position` chosen on
- * the spot, and that ±5 would not have fired on the known-good recovery
- * (8.02 → 7.67, −4.4%) a release-cohort reading treats as real. So this is
- * now the LAST resort — used when a series has no usable history — and the
- * composer says which of the two it is showing, because "10%" and "10%, and
- * nobody has ever checked what this asset does when nothing ships" are
- * different offers.
+ * one: symmetric, "call it a win at +10%, a loss at −10%". A last resort, used
+ * when a series has no usable history, and the composer says which of the two
+ * it is showing.
  */
 export const WATCH_DEFAULT_DELTA_PCT = 10;
 
 // ---------------------------------------------------------------------------
-// Per-asset threshold calibration (bead `ro-5e8.2`)
+// Per-asset threshold calibration
 // ---------------------------------------------------------------------------
 
 /** How far back the calibration reads. Long enough that a 28-day window has
@@ -72,24 +48,15 @@ export const WATCH_DEFAULT_DELTA_PCT = 10;
  * behaviour a season ago does not outvote what it does now. */
 export { WATCH_CALIBRATION_DAYS } from "@noticeos/contract/create-watch-window";
 
-/**
- * The share of a window that must carry observations before the calibration
- * will count it. Re-exported from the contract rather than restated, because
- * the whole point is that it is the EVALUATOR's rule: a noise floor measured
- * over comparisons the evaluator would have refused to judge describes a
- * comparison that will never happen.
- */
+/** The share of a window that must carry observations before the calibration
+ * will count it — the evaluator's rule, re-exported rather than restated. */
 export { WATCH_MIN_WINDOW_COVERAGE };
 
 /**
  * One asset's own daily values for one measurable series, as the calibration
- * reads them.
- *
- * DENSE BY CALENDAR DAY, `null` where the asset has no observation: gaps are
- * load-bearing here. The evaluator's per-day figure divides by the days it
- * actually observed and its coverage rule counts the holes, so a history that
- * quietly closed its gaps would report a floor measured on a series the store
- * does not hold.
+ * reads them. Dense by calendar day, `null` where the asset has no
+ * observation: the evaluator's per-day figure divides by the days it observed
+ * and its coverage rule counts the holes.
  */
 export interface WatchSeriesHistory {
   integration: string;
@@ -103,31 +70,24 @@ export interface WatchSeriesHistory {
 }
 
 /**
- * What this asset's own numbers do outside pairs that cross recorded
- * changes — the floor a registered threshold has to clear to mean anything.
- * An older payload without the full annotation calendar remains measurable but
- * is labelled historical-only, never change-filtered (ro-5e8.9).
+ * What this asset's own numbers do outside pairs that cross recorded changes
+ * — the floor a registered threshold has to clear to mean anything. An older
+ * payload without the full annotation calendar remains measurable but is
+ * labelled historical-only, never change-filtered.
  */
 export interface WatchCalibration {
-  /** The window length the floor was measured at. It is the BASELINE's own
-   * span, never a fixed number: the evaluator compares two windows of exactly
-   * that length, and a floor measured at some other length describes a
-   * different comparison. A 7-day window is far noisier than a 28-day one, so
-   * borrowing a week-over-week figure for a four-week check would set the bar
-   * where no real result could reach it. */
+  /** The window length the floor was measured at: the baseline's own span,
+   * never a fixed number, because a floor measured at another length describes
+   * a different comparison. */
   windowDays: number;
-  /** Adjacent window pairs the floor was measured over. They OVERLAP — the pair
-   * slides a day at a time — so this is a count of comparisons, not of
-   * independent samples, and it is reported as evidence of how much history was
-   * read rather than as a sample size to do statistics with. */
+  /** Adjacent window pairs the floor was measured over. They overlap, so this
+   * is a count of comparisons, not of independent samples. */
   comparisons: number;
   /** Median absolute percent change across those historical pairs. */
   typicalPct: number;
   /** The 90th percentile: nine in ten historical pairs moved less than this. */
   floorPct: number;
-  /** The smallest WHOLE percent above the floor — what the composer prefills.
-   * Whole, because the operator reads and edits this number, and a threshold of
-   * 6.4% invites a precision the underlying estimate does not have. */
+  /** The smallest whole percent above the floor — what the composer prefills. */
   suggestedPct: number;
   /** The observed span the floor was read from, for the sentence that says
    * where the number came from. */
@@ -146,33 +106,17 @@ export interface WatchCalibration {
 
 /**
  * Derive the noise floor for one series at one window length, using the
- * EVALUATOR's own arithmetic (workers/ingest/src/watch-windows.ts).
- *
- * The comparison a watch window will eventually make is: mean daily value over
- * the post window against mean daily value over the baseline, as a percent of
- * the baseline, both windows the same length. So the calibration makes exactly
- * that comparison, over and over — every adjacent pair of `windowDays`-long
+ * evaluator's own arithmetic (workers/ingest/src/watch-windows.ts): mean daily
+ * value over the post window against mean daily value over the baseline, as a
+ * percent of the baseline, made over every adjacent pair of `windowDays`-long
  * windows the history holds. Every pair crossing a day in the supplied
- * annotation calendar is excluded before the percentiles are taken. Without a
- * complete calendar the arithmetic still works for older payloads, but the
- * result records that it is historical-only (ro-5e8.9).
+ * annotation calendar is excluded before the percentiles are taken; without a
+ * complete calendar the result records that it is historical-only.
  *
- * THREE RULES ARE THE EVALUATOR'S, NOT THIS FUNCTION'S, and every one of them
- * exists so the floor describes comparisons that could really be judged:
- *
- *  1. A window under `WATCH_MIN_WINDOW_COVERAGE` is skipped — the evaluator
- *     closes such a window `unmeasurable` rather than reading a verdict out of
- *     it, so counting it here would measure the noise of a check nobody gets.
- *  2. A zero baseline is skipped — a percent change against zero is undefined
- *     there and here.
- *  3. The per-day figure is the mean over OBSERVED days for both count and rate
- *     metrics, which is what makes two windows of unequal (but adequate)
- *     coverage still compare like for like.
- *
- * `null` when the history cannot support even one comparison. That is not a
- * failure to report — it is the honest answer for an asset whose collection
- * started three weeks ago, and the composer says so rather than showing a
- * calibrated-looking number derived from four days.
+ * Three rules are the evaluator's, not this function's: a window under
+ * `WATCH_MIN_WINDOW_COVERAGE` is skipped, a zero baseline is skipped, and the
+ * per-day figure is the mean over observed days. `null` when the history
+ * cannot support even one comparison.
  */
 export function watchCalibration(
   history: WatchSeriesHistory | null | undefined,
@@ -228,9 +172,9 @@ export function watchCalibration(
     comparisons: deltas.length,
     typicalPct: round1(percentile(deltas, 0.5)),
     floorPct: round1(floorPct),
-    // Strictly above the floor: a threshold EQUAL to it fires on the historical
-    // pair that produced it. `Math.floor(x) + 1` clears an exact integer
-    // floor too, which `Math.ceil` would not.
+    // Strictly above the floor: a threshold equal to it fires on the historical
+    // pair that produced it. `Math.floor(x) + 1` clears an exact integer floor
+    // too, which `Math.ceil` would not.
     suggestedPct: Math.max(1, Math.floor(floorPct) + 1),
     firstDay: shiftDay(history.firstDay, firstObserved(values)),
     lastDay: shiftDay(history.firstDay, lastObserved(values)),
@@ -243,18 +187,10 @@ export function watchCalibration(
 }
 
 /**
- * WHAT THE COMPOSER'S THRESHOLD STANDS ON — a code and its evidence, never a
- * sentence (bead `ro-ujb9.96.6.6`).
- *
- * It replaced a calibration paragraph of up to 34 words. The composer draws the
- * basis as a chip, the floor as a noise bar against the threshold, and the
- * evidence as short labelled figures, so "where did this number come from"
- * (bead `ro-5e8.2`) is still answered in full, and read rather than parsed.
- *
- * A calibration beside a query scope is admissible ONLY with the query history
- * that proves its grain. This coupling is the point of the function: it keeps a
- * caller from passing the already-loaded site calibration and relabelling it as
- * a query floor, which is the exact false precision bead `ro-5e8.8` removed.
+ * What the composer's threshold stands on — a code and its evidence, never a
+ * sentence. A calibration beside a query scope is admissible only with the
+ * query history that proves its grain, so a caller cannot relabel the site
+ * calibration as a query floor.
  */
 export type WatchCalibrationBasis =
   /** Measured on this asset's own series. */
@@ -384,15 +320,11 @@ function escapeRegExp(text: string): string {
 }
 
 /**
- * The evaluator's figures from a closed window's note (bead `ro-ujb9.96.6.30`).
- *
- * Until 2026-09-24 the evaluator began every note with the store's own words
- * for the series, its scope and the check — `gsc/clicks for query “x” at
- * +28d: ` — which the row already shows as its title. The ingest no longer
- * writes it; a note stored before then is drawn without it here, on the read
- * side, because the store is history and is never rewritten. Only that exact
- * prefix for this window's own series is removed; any other note is returned
- * as stored.
+ * The evaluator's figures from a closed window's note. Older notes begin with
+ * the store's own words for the series, its scope and the check (`gsc/clicks
+ * for query “x” at +28d: `), which the row already shows as its title; that
+ * exact prefix is removed on the read side, because the store is never
+ * rewritten. Any other note is returned as stored.
  */
 export function watchVerdictFigures(
   note: string | null,
@@ -448,19 +380,11 @@ export function watchDaySpan(start: string, end: string): number {
 }
 
 // ---------------------------------------------------------------------------
-// Opening the composer from somewhere other than the timeline (bead `ro-5e8.5`)
+// Opening the composer from somewhere other than the timeline
 // ---------------------------------------------------------------------------
 
-/**
- * What a surface knows about the check it is asking to open.
- *
- * `ro-71r` put the door on the Timeline section, where a watch is registered
- * against a recorded change: "I deployed something — did it work". That is not
- * the only question the page raises. A query row says *act*, and "did acting
- * help" is the whole point of the table; a finding card already emits a
- * `bd create` handoff with no matching way to pre-register how the work will be
- * judged. Both now carry the same quiet action, and this is what they hand over.
- */
+/** What a surface (a query row, a finding card) knows about the check it is
+ * asking to open. */
 export interface WatchSeed {
   /** What the operator was looking at, in their words — the composer's note,
    * and its `ref` when there is no timeline event to point at. */
@@ -473,15 +397,10 @@ export interface WatchSeed {
    * to the asset instead of silently carrying or dropping the selector. */
   query: string | null;
   /**
-   * The bead somebody filed FROM this row or card, when one exists — the join
-   * that ties the check back to the task that caused it (bead `ro-4ko`).
-   *
-   * It becomes the window's `ref`, which is what makes steps 5–7 of the task key
-   * chain a lookup rather than an operator remembering to paste an id. What it
-   * emphatically does NOT do is let the bead's closure imply a verdict: closed
-   * means shipped, not proven, and the outcome still comes from the window's own
-   * final check. `null` when nothing was filed, or when the register could not
-   * be asked — both leave the ref as the operator's own words.
+   * The task somebody filed from this row or card, when one exists. It becomes
+   * the window's `ref`; the task's closure never implies a verdict — closed
+   * means shipped, not proven. `null` when nothing was filed or the register
+   * could not be asked, which leaves the ref as the operator's own words.
    */
   beadId: string | null;
 }
@@ -497,14 +416,9 @@ export function watchScopeFor(
 
 /**
  * What a seeded query's check will actually judge, as a state the composer
- * draws before the operator registers — rather than discovered when the window
- * closes "could not be measured" (beads `ro-5e8.5`, `ro-5e8.7`).
- *
- * `query`: only that query's daily Google row is compared, and the asset total
- * is never substituted. `widened`: the chosen provider keeps no query-grain
- * series, so the check is asset-wide — the composer offers the one-press way
- * back to a Google series. `null` when nothing was narrowed: a form that
- * flagged a limit it was not hitting would train the operator to skip it.
+ * draws before the operator registers. `query`: only that query's daily Google
+ * row is compared. `widened`: the chosen provider keeps no query-grain series,
+ * so the check is asset-wide. `null` when nothing was narrowed.
  */
 export type WatchScopeState =
   | { kind: "query"; query: string }
@@ -521,15 +435,10 @@ export function watchScopeState(
 }
 
 /**
- * The series a finding is about, read off its OWN sources.
- *
- * A finding names its provider (`gsc/page-query`, `ga4/page-events`) and not a
- * metric, so the metric is that provider's headline outcome — the number the
- * work a finding asks for is meant to move. A finding sourced only from
- * providers the evaluator cannot read (`dataforseo`, `clarity`, `posthog` — the
- * outcome evaluator reads no product series yet) returns null and
- * the composer falls back to the asset's own default lane, because a
- * confident wrong prefill is worse than the one the form already opens on.
+ * The series a finding is about, read off its own sources. A finding names its
+ * provider, not a metric, so the metric is that provider's headline outcome.
+ * A finding sourced only from providers the evaluator cannot read returns
+ * null, and the composer falls back to the asset's own default lane.
  */
 export function watchSeriesForSources(
   sources: readonly string[],
@@ -586,10 +495,8 @@ export function watchDraftIssues(
 ): WatchDraftIssue[] {
   const issues: WatchDraftIssue[] = [];
   if (watchScopeRequired(draft.series) && draft.scope === null) {
-    // The route's rule (ro-715c): an average is taken over whatever the asset
-    // appeared for, so asset-wide it reads the query mix as much as the
-    // change. The composer disables these series unless it was opened from a
-    // query row, so this is a guard, not an explanation.
+    // The route's rule: an average is taken over whatever the asset appeared
+    // for, so asset-wide it reads the query mix as much as the change.
     issues.push({
       field: "series",
       message: `${draft.series.label} needs one query — watch it from Search`,
@@ -607,8 +514,7 @@ export function watchDraftIssues(
     return issues;
   }
   if (draft.baselineEnd > today) {
-    // The route's own rule, and the one a convenient UI is most tempted to bend:
-    // a baseline running past the registration measures the change against
+    // A baseline running past the registration measures the change against
     // itself. The date pickers stop at today; this catches a typed date.
     issues.push({
       field: "baseline",
@@ -634,21 +540,12 @@ export function watchDraftIssues(
 }
 
 /**
- * The request body, derived from the draft in one place so the form and the
- * test cannot hold two opinions of the shape.
- *
- * `registered_at` is deliberately absent — it defaults to ingest's now. The
- * route DOES allow backdating (an old batch can carry an honest baseline), but
- * a UI that backdated by default would let the operator open a window whose
- * final check has already passed, and collect a verdict from numbers they had
- * already seen. That is precisely the self-deception pre-registration exists to
- * prevent, so this door does not offer it: the baseline may be old, the checks
- * always start now.
- *
- * `scope` is present only when a seeded query and a query-grain GSC series make
- * the selector answerable. Asset-level composers omit it, and changing a
- * seeded composer to another provider visibly widens the check before this body
- * is derived.
+ * The request body, derived from the draft in one place. `registered_at` is
+ * deliberately absent: the route allows backdating, but a window whose final
+ * check has already passed would collect a verdict from numbers already seen,
+ * so the baseline may be old and the checks always start now. `scope` is
+ * present only when a seeded query and a query-grain GSC series make the
+ * selector answerable.
  */
 export function watchDraftBody(draft: WatchDraft): {
   ref_kind: string;
@@ -674,10 +571,8 @@ export function watchDraftBody(draft: WatchDraft): {
     baseline_start: draft.baselineStart,
     baseline_end: draft.baselineEnd,
     check_offsets: watchCheckOffsets(draft.verdictDays),
-    // Direction is literal on the metric's own value, which is why the composer
-    // never asks: an improvement in average search position is a DECREASE, and
-    // a form defaulting ship to "up" would pre-register a predicate that fires
-    // when the asset gets worse.
+    // Direction is literal on the metric's own value: an improvement in
+    // average search position is a decrease.
     thresholds: {
       ship: { direction: improve, min_delta_pct: draft.minDeltaPct },
       kill: {

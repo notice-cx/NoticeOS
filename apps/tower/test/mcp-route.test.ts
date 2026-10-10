@@ -15,9 +15,8 @@ import { buildAssetDetailPayload } from "../worker/asset-detail-payload";
 const NOW = new Date("2026-09-15T12:00:00.000Z");
 
 // Synthetic documents in the shapes the config files carry, never the
-// checkout's own config/ (bead ro-ujb9.92): what this suite proves about the
-// MCP surface must not move when an operator saves a setting. One seeded asset
-// declares something in every document, so `property_report` reads each.
+// checkout's own config/. One seeded asset declares something in every
+// document, so `property_report` reads each.
 const INTEGRATIONS: IntegrationsConfig = {
   catalog: [
     { id: "gsc", label: "Google Search Console", docRef: "docs/11-integrations.md#the-catalog", credential: "shared" },
@@ -126,7 +125,7 @@ describe("the MCP surface — handshake", () => {
     }
   });
 
-  it("answers a 2026-07-28 client with no handshake", async () => {
+  it("answers an older client with no handshake", async () => {
     const meta = {
       "io.modelcontextprotocol/protocolVersion": "2026-07-28",
       "io.modelcontextprotocol/clientCapabilities": {},
@@ -189,11 +188,8 @@ describe("the MCP surface — tools", () => {
     expect(result).toHaveProperty("portfolio");
   });
 
-  /**
-   * The split docs/00 turns on: reconciled and reported are different claims,
-   * and an agent handed one summed number would be quoting money the ledger
-   * never booked.
-   */
+  /** Reconciled and reported are different claims; an agent handed one
+   * summed number would be quoting money the ledger never booked. */
   it("keeps booked and forecast apart, never summed", async () => {
     const { body } = await call("tools/call", { name: "list_properties" });
     const properties = (
@@ -217,7 +213,6 @@ describe("the MCP surface — tools", () => {
     const result = (body.result as { structuredContent: Record<string, unknown> })
       .structuredContent;
     expect((result.asset as { id: string }).id).toBe("meals.example");
-    // The evidence an agent came for: money, flags, and the decision lanes.
     expect(result).toHaveProperty("ledger");
     expect(result).toHaveProperty("flags");
     expect(result).toHaveProperty("performance");
@@ -228,12 +223,8 @@ describe("the MCP surface — tools", () => {
     expect(JSON.parse(content[0]!.text)).toEqual(result);
   });
 
-  /**
-   * A tool failure is a RESULT with `isError`, not a JSON-RPC error. MCP draws
-   * that line so a model can read the failure and correct itself, where a
-   * transport error would just abort the call — and "you used the wrong
-   * property id" is exactly the kind of thing a model should be able to fix.
-   */
+  /** A tool failure is a result with `isError`, not a JSON-RPC error, so a
+   * model can read the failure and correct itself. */
   it("reports an unknown property as a correctable tool error", async () => {
     const { body } = await call("tools/call", {
       name: "property_report",
@@ -251,7 +242,6 @@ describe("the MCP surface — tools", () => {
   });
 
   it("rejects a call to a tool that does not exist", async () => {
-    // An unknown tool is an invalid parameter of tools/call, not an unknown method.
     const { body } = await call("tools/call", { name: "delete_everything" });
     expect(body.error).toMatchObject({ code: -32602 });
   });
@@ -291,18 +281,15 @@ describe("the MCP surface — the research log", () => {
       body.result as { structuredContent: { found: boolean; guidance: string } }
     ).structuredContent;
     expect(result.found).toBe(true);
-    // The reuse has to be sayable out loud — a silent skip is
+    // The reuse has to be sayable out loud: a silent skip is
     // indistinguishable from forgetting to make the call.
     expect(result.guidance).toContain("9 day(s) ago");
     expect(result.guidance).toContain("claude-opus-5");
     expect(result.guidance).toContain("reusing");
   });
 
-  /**
-   * Defaulting `params` to `{}` would make every caller who omitted it collide
-   * on one hash, and the second would "reuse" an answer to a question it never
-   * asked.
-   */
+  /** Defaulting `params` to `{}` would make every caller who omitted it
+   * collide on one hash. */
   it("refuses a lookup with no params rather than guessing the question", async () => {
     const { body } = await call("tools/call", {
       name: "research_lookup",
@@ -325,11 +312,8 @@ describe("the MCP surface — the research log", () => {
   });
 });
 
-/**
- * The constraint that makes this surface safe to point an agent at. Collection
- * spends real money behind a lane lock and a budget gate; nothing here may
- * reach it.
- */
+/** Collection spends real money behind a lane lock and a budget gate;
+ * nothing here may reach it. */
 describe("the MCP surface is read-only", () => {
   it("offers no tool that writes, spends, or collects", async () => {
     const { body } = await call("tools/list");
@@ -342,10 +326,7 @@ describe("the MCP surface is read-only", () => {
   });
 
   it("leaves the store untouched after every tool runs", async () => {
-    // D1's tables, and the money ledger, Mediavine's revenue, the item
-    // dispositions, the alerts and the changes on Postgres (beads
-    // ro-ujb9.76.6.1, ro-ujb9.76.5.5, ro-ujb9.76.5.8, ro-ujb9.76.5.2,
-    // ro-ujb9.76.5.7).
+    // Every table a tool could have written to.
     const countRows = async () =>
       ((await (ctx.call).read((tx) =>
         tx.query<{ n: number }>(

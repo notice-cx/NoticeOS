@@ -70,31 +70,21 @@ import { KitchenSinkRoute } from "@/routes/KitchenSinkRoute";
 import { copyText } from "@/lib/clipboard";
 import { queryDecisionMarkdown } from "@/lib/query-decision-markdown";
 
-// A task source connected, as this installation's is (D32, bead
-// ro-ujb9.143): the task screens here render exactly as before it existed.
 vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 
 /**
- * Every render in this file goes through a `QueryClient` (bead `ro-l1ed.4`).
- *
- * The finding, query and page rows embed `FileTaskButton`, which asks the task
- * lane whether this build may write before deciding whether to be enabled — so
- * they need a client where they never used to. Wrapping once here beats forty
- * call sites each saying the same thing, and the `rerender` returned wraps too,
- * so a re-render does not silently drop the provider the first one had.
- *
- * NOTHING answers the question in jsdom, so the button renders in its read-only
- * face throughout, which is the correct face for a surface with no lane behind
- * it. Filing itself is exercised in `test/task-composer.test.tsx`.
+ * Every render goes through a `QueryClient`: the finding, query and page rows
+ * embed `FileTaskButton`, which asks the task lane whether this build may
+ * write. Nothing answers in jsdom, so the button renders read-only throughout;
+ * filing itself is exercised in `test/task-composer.test.tsx`.
  */
 function render(ui: ReactNode, options?: Parameters<typeof rtlRender>[1]) {
   const client = new QueryClient();
   const wrap = (node: ReactNode) => (
     <QueryClientProvider client={client}>{node}</QueryClientProvider>
   );
-  // `options` passes straight through, so the `{ wrapper: MemoryRouter }` the
-  // bead-bearing renders need (HandoffBeadBadge's id is a Link) still applies —
-  // it simply wraps this provider rather than the bare component.
+  // `options` passes straight through, so a `{ wrapper: MemoryRouter }` wraps
+  // this provider rather than the bare component.
   const result = rtlRender(wrap(ui), options);
   return {
     ...result,
@@ -176,8 +166,8 @@ describe("copyText LAN fallback", () => {
 
 describe("PropertyFavicon source routing", () => {
   it("asks every site for its own favicon, with no site singled out", () => {
-    // Bead ro-ujb9.118: the Tower ships no icon for any particular site. The
-    // same rule answers for every domain; a site without one draws its initial.
+    // The Tower ships no icon for any particular site; a site without one
+    // draws its initial.
     for (const domain of ["example.com", "shop.example.org", "fin.example"]) {
       expect(propertyFaviconUrl(domain)).toBe(`https://${domain}/favicon.ico`);
     }
@@ -234,9 +224,8 @@ describe("QueryVisibilityRankings comparison labels", () => {
     expect(container.textContent).not.toContain("2026-06-12");
   });
 
-  // The lane's own pre-ranking check. It exists to prove the check RAN, so the
-  // surface has to keep three states apart: excluded something, excluded
-  // nothing, and never checked.
+  // The pre-ranking check proves the check ran, so the surface keeps three
+  // states apart: excluded something, excluded nothing, and never checked.
   it("renders each lane's grounding proof, including the lane that excluded nothing", () => {
     const googleTrend = {
       ...weeklyTrend,
@@ -273,9 +262,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
     expect(google?.textContent).toContain("4,217");
     expect(google?.textContent).toContain("102 quoted-literal queries");
 
-    // The zero lane is the whole point: it says the check ran and came back
-    // clean, in the same place and the same shape as the lane that excluded
-    // thousands of impressions.
     const bing = container.querySelector('[data-lane-evidence="bing"]');
     expect(bing?.textContent).toContain("Grounding queries excluded");
     expect(bing?.textContent).toContain("0");
@@ -283,13 +269,10 @@ describe("QueryVisibilityRankings comparison labels", () => {
       "No quoted-literal queries in this window",
     );
 
-    // And the closed drawer says a proof is inside rather than only caveats.
     expect(container.textContent).toContain("Sources and limits · 2 checks run");
   });
 
   it("leaves a lane that ran no check saying nothing at all", () => {
-    // Not the same fact as excluding nothing, and it must not read like it: no
-    // row, no count, and the lane's provenance line still present.
     const { container } = render(
       <QueryVisibilityRankings
         trends={{ google: null, bing: weeklyTrend, dataforseo: null }}
@@ -370,13 +353,9 @@ describe("QueryVisibilityRankings comparison labels", () => {
 
     expect(getAllByText("weekly meal plan", { exact: false })).toHaveLength(1);
     expect(getByText("1,900")).toBeInTheDocument();
-    // Modelled demand is labelled where it is stated: the Market evidence line.
     expect(container.textContent).toContain("Market: 1,900 searches/month");
     expect(getByText("Near win")).toBeInTheDocument();
     expect(getByText("Cited source", { exact: false })).toBeInTheDocument();
-    // The decision reads "what the evidence says → what to do", one short
-    // imperative naming the page (bead `ro-ujb9.96.6.5`); the units are
-    // labelled on the evidence lines, not explained in a paragraph.
     expect(container.textContent).toContain(
       "Sharpen the title and opening answer on /meal-plan",
     );
@@ -389,10 +368,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
     expect(getByText("Near win").className).toContain("text-warn");
   });
 
-  it("shows the intent and the estimated visits the clipboard used to keep to itself", () => {
-    // Both fields rode in the payload and appeared only in the copied Markdown,
-    // which is exactly backwards: intent and visits are what an act-vs-wait
-    // judgement is made from, so they have to be readable before the copy.
+  it("shows the intent and the estimated visits the copied Markdown carries", () => {
     const { container, getByText } = render(
       <QueryVisibilityRankings
         trends={{
@@ -416,8 +392,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
                 aioDevices: [],
               },
               {
-                // No intent classification and no visit estimate: the row must
-                // simply say less, never render an empty token or a zero.
                 query: "meal prep containers",
                 monthlySearches: 480,
                 organicPosition: 18,
@@ -443,7 +417,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
     expect(getByText("informational")).toBeInTheDocument();
     expect(getByText("31")).toBeInTheDocument();
     expect(container.textContent).toContain("visits/month at this rank");
-    // The row without either field carries neither a stray token nor a 0.
     const containers = container.querySelector(
       '[data-decision-kind="ranking-opportunity"]',
     );
@@ -452,9 +425,8 @@ describe("QueryVisibilityRankings comparison labels", () => {
   });
 
   it("renders DataForSEO-only decisions when neither observed provider survived", () => {
-    // The payload parser degrades providers independently, so a snapshot whose
-    // Search Console/Bing blocks are missing still arrives with its DataForSEO
-    // half intact — the panel must show that evidence, not an empty state.
+    // The payload parser degrades providers independently, so the DataForSEO
+    // half must show even when the Search Console/Bing blocks are missing.
     const { container, getByText, queryByText } = render(
       <QueryVisibilityRankings
         trends={{
@@ -493,13 +465,9 @@ describe("QueryVisibilityRankings comparison labels", () => {
   });
 
   /**
-   * Bead `ro-ogc7`. This case used to fail about one full-suite run in three and
-   * pass every time alone, because its last assertion was a race against the
-   * WALL CLOCK: the "Copied" confirmation clears itself `COPY_FLASH_MS` after
-   * the copy, in real time, and a loaded 47-file run can put more than that
-   * between the click and the assertion. Nothing about the copy path is
-   * timing-dependent, so the clock is faked and the clearing becomes something
-   * this test drives — including, now, the assertion that it happens at all.
+   * The "Copied" confirmation clears itself `COPY_FLASH_MS` after the copy in
+   * real time, so the clock is faked and the clearing is something this test
+   * drives rather than a race against a loaded run.
    */
   it("copies the query decision with asset, exact evidence, and limitations", async () => {
     vi.useFakeTimers();
@@ -542,8 +510,8 @@ describe("QueryVisibilityRankings comparison labels", () => {
         }),
       );
 
-      // The copy settles on the MICROTASK queue — the clipboard mock resolves
-      // immediately — so this drains it rather than waiting on any clock.
+      // The copy settles on the microtask queue (the clipboard mock resolves
+      // immediately), so this drains it rather than waiting on any clock.
       await act(async () => {});
       expect(writeText).toHaveBeenCalledOnce();
       const markdown = String(writeText.mock.calls[0]?.[0]);
@@ -570,8 +538,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
         }),
       ).toBeTruthy();
 
-      // The confirmation is temporary, and the test now SAYS when it ends
-      // instead of depending on how long it took to get here.
       await act(async () => {
         vi.advanceTimersByTime(COPY_FLASH_MS);
       });
@@ -590,14 +556,9 @@ describe("QueryVisibilityRankings comparison labels", () => {
   });
 
   /**
-   * The other half of bead `ro-ogc7` — the defect UNDER the flake.
-   *
-   * The confirmation used to be cleared by a bare `setTimeout` fired from the
-   * click handler, owned by nobody. Two consequences, both proved here: the
-   * timer outlived the row, so an unmounted component still had a callback
-   * pointed at its dead state; and a second copy did not cancel the first
-   * timer, so the confirmation an operator had just earned was cleared by the
-   * PREVIOUS copy's deadline.
+   * The timer must not outlive the row, and a second copy must cancel the
+   * first timer so the confirmation an operator just earned is not cleared by
+   * the previous copy's deadline.
    */
   describe("the copy confirmation owns its own timer", () => {
     const soloTrend = {
@@ -636,7 +597,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
         expect(vi.getTimerCount()).toBe(1);
 
         unmount();
-        // Nothing is left pointing at a component that no longer exists.
         expect(vi.getTimerCount()).toBe(0);
       } finally {
         restore();
@@ -664,8 +624,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
         fireEvent.click(copied()!);
         await act(async () => {});
 
-        // Past the FIRST copy's deadline, and still confirmed — which is what
-        // the uncancelled timer got wrong.
         await act(async () => {
           vi.advanceTimersByTime(COPY_FLASH_MS - 400);
         });
@@ -732,16 +690,14 @@ describe("QueryVisibilityRankings comparison labels", () => {
       });
   }
 
-  // Bead ro-5e8.3. The row's filing marker used to be `decisions.handed_off` —
-  // a row the Tower wrote the instant the operator COPIED the Markdown, which is
-  // a claim about intent and not about work. It now reads the register.
-  describe("a query row shows its bead, not the operator's self-report", () => {
+  // The row's filing marker reads the register, not the operator's self-report.
+  describe("a query row shows its task, not the operator's self-report", () => {
     const rowFor = (container: HTMLElement, text: string) =>
       [...container.querySelectorAll("[data-decision-kind]")].find((row) =>
         row.textContent?.includes(text),
       ) as HTMLElement | undefined;
 
-    it("marks an open bead with its id and drops the row below unfiled work", () => {
+    it("marks an open task with its id and drops the row below unfiled work", () => {
       const { container } = render(
         <QueryVisibilityRankings
           trends={dfsTrends([
@@ -749,8 +705,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
             dfsRow("bravo query", 1000),
           ])}
           asset={asset}
-          // The join key is the normalized query the rows are unified by,
-          // never the display casing.
           handoffBeads={[filedBead("alpha query")]}
         />,
         { wrapper: MemoryRouter },
@@ -763,7 +717,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
         "Alpha Query",
       );
       expect(rowFor(container, "Alpha Query")?.dataset.decisionFiled).toBe("open");
-      // The stronger query is filed, so the one nobody has picked up leads.
       const rows = [...container.querySelectorAll("[data-decision-kind]")].map(
         (row) => row.textContent ?? "",
       );
@@ -790,8 +743,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
       expect(marker.textContent).toContain("mp-1w2");
       expect(marker.getAttribute("title")).toContain("not proof of shipment or outcome");
       expect(marker.className).not.toContain("text-ok");
-      // A closed bead does not retire the query: the evidence and the next
-      // step are still on the row, and the row is still on the page.
       expect(rowFor(container, "Alpha Query")).toBeTruthy();
       expect(rowFor(container, "Alpha Query")?.textContent).toContain(
         "Near win",
@@ -808,7 +759,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
           <QueryVisibilityRankings
             trends={dfsTrends([dfsRow("Alpha Query", 2000)])}
             asset={asset}
-            // The register was asked and holds nothing for this asset.
             handoffBeads={[]}
           />,
         );
@@ -822,8 +772,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
           ).toBeTruthy(),
         );
 
-        // A copy nobody ran filed nothing, so the row claims nothing — no
-        // marker, no diamond, no "handed off".
         expect(container.querySelector("[data-handoff-bead]")).toBeNull();
         expect(container.querySelector("[data-decision-filed]")).toBeNull();
         expect(container.textContent).not.toContain("Handed off");
@@ -834,7 +782,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
 
     it("renders nothing at all when the register could not be asked", () => {
       // `null` is a snapshot the poller never wrote this field into, an asset
-      // that is not a spoke, or a `bd` that failed — never "nothing is filed".
+      // that is not a spoke, or a `bd` that failed, never "nothing is filed".
       const { container } = render(
         <QueryVisibilityRankings
           trends={dfsTrends([dfsRow("Alpha Query", 2000)])}
@@ -860,9 +808,8 @@ describe("QueryVisibilityRankings comparison labels", () => {
 
       const row = rowFor(container, "Alpha Query")!;
       expect(row.querySelectorAll("[data-handoff-bead]")).toHaveLength(1);
-      // The self-report glyph is GONE, not merely outranked: two markers for
-      // one question are two answers, and the operator would have to know
-      // which of them was about the work.
+      // The self-report glyph is gone, not merely outranked: two markers for
+      // one question are two answers.
       expect(row.querySelector("[data-decision-handed-off]")).toBeNull();
       expect(
         [...row.querySelectorAll('[role="img"]')].filter((glyph) =>
@@ -871,7 +818,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
       ).toHaveLength(0);
     });
 
-    it("never borrows a finding's bead for a query that shares its key", () => {
+    it("never borrows a finding's task for a query that shares its key", () => {
       const { container } = render(
         <QueryVisibilityRankings
           trends={dfsTrends([dfsRow("Alpha Query", 2000)])}
@@ -887,10 +834,8 @@ describe("QueryVisibilityRankings comparison labels", () => {
 
     it("joins on the byte-exact key the handoff itself emits, commas and all", async () => {
       // End to end over the one string the chain turns on: the row normalizes
-      // the query, the copied `bd create` carries it in METADATA (the `key:`
-      // label is a comma-splitting slug), the agent's bead carries it back, and
-      // the poller hands it to this component untouched. A single byte of drift
-      // anywhere on that path silently empties the marker.
+      // the query, the copied `bd create` carries it in metadata (the `key:`
+      // label is a comma-splitting slug), and the poller hands it back untouched.
       const query = "Meal Plan, Weekly";
       const writeText = vi.fn().mockResolvedValue(undefined);
       const restore = withClipboard(writeText);
@@ -913,7 +858,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
         );
         expect(metadata.noticeos_key).toBe("meal plan, weekly");
         expect(metadata.noticeos_kind).toBe("query");
-        // The lossy label is beside it and is NOT what anything joins on.
         expect(markdown).toContain("-l 'key:meal-plan-weekly'");
 
         const { container } = render(
@@ -929,7 +873,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
             ?.textContent,
         ).toContain("mp-1w2");
 
-        // The slug the label carries joins to nothing.
         const slugged = render(
           <QueryVisibilityRankings
             trends={dfsTrends([dfsRow(query, 2000)])}
@@ -948,12 +891,9 @@ describe("QueryVisibilityRankings comparison labels", () => {
   });
 
   describe("tracked SERP panel rules", () => {
-    /** A near win on position alone: the act-lane decision the AI-Overview gate
-     * exists to intercept. Panel state is set per test.
-     *
-     * `(null, null)` is the UNTRACKED query — an empty device list, which is
-     * unknown. A tracked term whose overview did not load is a device list with
-     * a null reading in it, and `panelDevices()` below is how a test says that. */
+    /** A near win on position alone. `(null, null)` is the untracked query:
+     * an empty device list, which is unknown. A tracked term whose overview
+     * did not load is a device list with a null reading in it (`panelDevices()`). */
     const panelRow = (
       aioPresent: boolean | null,
       aioCitesUs: boolean | null,
@@ -1020,7 +960,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
         <QueryVisibilityRankings trends={trends} asset={asset} />,
       );
 
-      // Position 6 alone would read "Near win" in the act lane.
       expect(container.querySelector('[data-decision-kind="near-win"]')).toBeNull();
       const walled = container.querySelector(
         '[data-decision-kind="aio-walled"]',
@@ -1037,7 +976,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
       expect(markdown).toContain(
         "does not cite this site — the click is largely consumed inline",
       );
-      // The positional reading it was demoted from survives as evidence.
       expect(markdown).toContain("- **Current Google organic position:** #6");
     });
 
@@ -1080,7 +1018,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
         />,
       );
 
-      // A -90% decline would otherwise be the act-lane "Recover visibility".
       expect(container.querySelector('[data-decision-kind="recover"]')).toBeNull();
       const champion = container.querySelector(
         '[data-decision-kind="aio-champion"]',
@@ -1088,13 +1025,11 @@ describe("QueryVisibilityRankings comparison labels", () => {
       expect(champion).toHaveAttribute("data-decision-tone", "positive");
       expect(champion?.textContent).toContain("Protect");
       expect(champion?.textContent).toContain("AI Overview cites us");
-      // The slide is not discarded: it turns the protect call urgent.
       expect(champion?.textContent).toContain("Recheck the citation now; keep the quoted passage");
 
       const markdown = await copiedMarkdown(slippingTrends());
       expect(markdown).toContain("- **What to do:** Protect");
       expect(markdown).toContain("Recheck the citation now");
-      // …and the decline itself travels as evidence.
       expect(markdown).toContain("- **Impression change:** -90%");
     });
 
@@ -1108,13 +1043,10 @@ describe("QueryVisibilityRankings comparison labels", () => {
       expect(
         withPanel.container.querySelector('[data-decision-kind="near-win"]'),
       ).not.toBeNull();
-      // Unknown is not "clear": no glyph is drawn at all.
       expect(
         withPanel.container.querySelector("[data-aio-state]"),
       ).toBeNull();
 
-      // A panel that read the page and found no overview leaves the decision
-      // alone too, but says so with the quiet checked-and-clear mark.
       const clear = render(
         <QueryVisibilityRankings
           trends={panelTrends(panelRow(false, false))}
@@ -1185,7 +1117,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
       }
     });
 
-    it("shows a query walled on the phone and clear on the desktop as both (ro-e46.2)", async () => {
+    it("shows a query walled on the phone and clear on the desktop as both", async () => {
       const trends = panelTrends(
         panelDevices([
           { device: "mobile", aioPresent: true, aioCitesUs: false },
@@ -1196,8 +1128,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
         <QueryVisibilityRankings trends={trends} asset={asset} />,
       );
 
-      // Two marks in one cell, phone first — never two rows, and never one
-      // folded mark, because the split IS the finding.
+      // Two marks in one cell, phone first: the split is the finding.
       const glyphs = [...container.querySelectorAll("[data-aio-state]")];
       expect(
         glyphs.map((el) => [
@@ -1213,18 +1144,14 @@ describe("QueryVisibilityRankings comparison labels", () => {
         "Phone: AI Overview shown; this site is not cited",
       );
 
-      // The evidence line names both surfaces rather than picking one.
       expect(container.textContent).toContain(
         "Phone: shown, not cited · Desktop: none",
       );
 
-      // The demotion still fires: an overview consuming the click on the phone
-      // is not undone by a clear desktop page.
       expect(
         container.querySelector('[data-decision-kind="aio-walled"]'),
       ).not.toBeNull();
 
-      // And the handoff carries both, so the split survives the copy.
       const markdown = await copiedMarkdown(trends);
       expect(markdown).toContain(
         "Phone: AI Overview fires and does not cite this site",
@@ -1233,9 +1160,8 @@ describe("QueryVisibilityRankings comparison labels", () => {
     });
 
     it("draws no mark for a surface the panel could not answer for", () => {
-      // The phone was pulled and its overview never loaded. Unknown draws
-      // nothing (doc 14), so the desktop's mark is the only one — but it is
-      // still labelled by surface, because the row was read on two.
+      // The phone was pulled and its overview never loaded: the desktop's mark
+      // is the only one, still labelled by surface because the row was read on two.
       const { container } = render(
         <QueryVisibilityRankings
           trends={panelTrends(
@@ -1250,8 +1176,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
       const glyphs = [...container.querySelectorAll("[data-aio-state]")];
       expect(glyphs).toHaveLength(1);
       expect(glyphs[0]).toHaveAttribute("data-aio-device", "desktop");
-      // The unknown surface is SPELLED on the evidence line rather than
-      // omitted: a missing surface would read as the two agreeing.
       expect(container.textContent).toContain(
         "Phone: not checked · Desktop: cites us",
       );
@@ -1273,7 +1197,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
           ) as HTMLElement,
         );
         await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
-        // Silence, not a claim that no overview fires.
         expect(String(writeText.mock.calls[0]?.[0])).not.toContain(
           "Tracked SERP panel",
         );
@@ -1309,7 +1232,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
       { wrapper: MemoryRouter },
     );
     expect(untouched.container.textContent).toContain("Review 2 more queries");
-    // The strongest query leads the visible set while nobody has acted on it.
     expect(rowFor(untouched.container, "alpha")?.closest("details")).toBeNull();
 
     const reviewed = render(
@@ -1320,8 +1242,6 @@ describe("QueryVisibilityRankings comparison labels", () => {
       />,
       { wrapper: MemoryRouter },
     );
-    // Once a bead exists it is work somebody has: it falls behind the fold and
-    // a query nobody has picked up takes the visible slot.
     expect(rowFor(reviewed.container, "alpha")?.closest("details")).not.toBeNull();
     expect(rowFor(reviewed.container, "india")?.closest("details")).toBeNull();
     expect(reviewed.container.textContent).toContain("Review 2 more queries");
@@ -1334,11 +1254,8 @@ describe("SeverityDot severity → token mapping", () => {
     expect(getByRole("img", { name: "Error" }).className).toContain("text-error");
   });
 
-  /**
-   * DECODABLE WITHOUT A POINTER (bead ro-ujb9.14): error, warning and healthy
-   * are SHAPES — a circle, a triangle, a check — so the state reads without the
-   * colour and without the hover title; the count stays the accessible name.
-   */
+  // Error, warning and healthy are shapes, so the state reads without the
+  // colour and without the hover title; the count stays the accessible name.
   it("draws error, warning and healthy as three different shapes, the count as its name", () => {
     const { container, getByRole } = render(<>
       <SeverityDot severity="error" title="2 open error alerts" />
@@ -1404,8 +1321,6 @@ describe("ScheduledLanesPanel — silence and failure are visible states", () =>
       <ScheduledLanesPanel lanes={[]} nowMs={NOW} />,
     );
     expect(container.textContent).toContain("Scheduled runs not yet recorded");
-    // Unknown is the state, drawn — the warn question mark, never a check —
-    // not a sentence saying so (bead ro-ujb9.96.6.2).
     const empty = container.querySelector("[data-scheduled-empty]");
     expect(empty).toHaveAttribute("data-lane-posture", "unknown");
     expect(empty?.querySelector("svg.text-warn")).not.toBeNull();
@@ -1480,9 +1395,7 @@ describe("ExecutiveInsightRow ranked interaction and Markdown handoff", () => {
     );
   });
 
-  // Same wall-clock race as the query row's copy case, same answer (bead
-  // `ro-ogc7`): the "Copied" confirmation clears itself in real time, so a test
-  // that asserts it after an `await` is only ever probably right.
+  // The "Copied" confirmation clears itself in real time, so the clock is faked.
   it("copies the exact Markdown and exposes completion without hiding context", async () => {
     vi.useFakeTimers();
     const originalClipboard = navigator.clipboard;
@@ -1525,9 +1438,6 @@ describe("ExecutiveInsightRow ranked interaction and Markdown handoff", () => {
     }
   });
 
-  // The operator's half of the same handoff (bead `ro-l1ed.4`): the row offers
-  // the bead the copied command describes, and offers nothing where that
-  // command would also be dropped.
   it("offers File task beside Copy Markdown, and none without an asset", () => {
     const withAsset = render(
       <ExecutiveInsightRow insight={insightFixture} asset="meals.example" rank={1} />,
@@ -1539,9 +1449,6 @@ describe("ExecutiveInsightRow ranked interaction and Markdown handoff", () => {
       }),
     ).toBeInTheDocument();
 
-    // No asset means no repo to file in, so the row offers nothing rather than
-    // a button that would file against nothing — the same rule that drops the
-    // File this task section from the copied Markdown.
     const withoutAsset = render(
       <ExecutiveInsightRow insight={insightFixture} rank={1} />,
     ).container;
@@ -1551,11 +1458,7 @@ describe("ExecutiveInsightRow ranked interaction and Markdown handoff", () => {
     ).toBeNull();
   });
 
-  // Bead ro-ujb9.96.7.11 (PagerDuty's Create Jira issue): File task sits on
-  // the closed row, and pressing it opens the composer without opening or
-  // closing the row around it. A filed finding shows its task instead.
   it("offers File task on the closed row until the finding is filed", () => {
-    // A build with the task lane, so the button is live.
     const client = new QueryClient();
     client.setQueryData(["tasks-live"], { live: true, reason: null });
     const { container } = rtlRender(
@@ -1617,11 +1520,9 @@ describe("ExecutiveInsightRow ranked interaction and Markdown handoff", () => {
   });
 });
 
-/** The handoff files a bead in the asset's own repo, and the labels it
- * carries are what later joins the bead to the finding it came from. The
- * command is generated for an agent to run, so the query text is inside a
- * shell string: quoting is a correctness asset, not a style one. */
-describe("bead-native task handoff", () => {
+/** The command is generated for an agent to run, so the query text is inside
+ * a shell string: quoting is a correctness asset, not a style one. */
+describe("the task handoff command", () => {
   const asset = {
     id: "meals.example",
     displayName: "Meal Planner",
@@ -1710,10 +1611,8 @@ describe("bead-native task handoff", () => {
     expect(markdown).toContain("Nothing files, closes, or measures it on your behalf");
   });
 
-  // The button beside the copy (bead `ro-l1ed.4`). What it files is the same
-  // `queryTaskHandoff` the command above is rendered from, which
-  // `test/task-composer.test.tsx` pins field by field; here the row only has to
-  // offer it, named for the query so eight rows do not read as eight buttons.
+  // What the button files is the same `queryTaskHandoff` the command above is
+  // rendered from, which `test/task-composer.test.tsx` pins field by field.
   it("offers File task on every query row", () => {
     const { getAllByRole } = render(
       <QueryVisibilityRankings
@@ -1766,29 +1665,25 @@ describe("bead-native task handoff", () => {
     const markdown = decisionMarkdown(hostile);
     const command = markdown.slice(markdown.indexOf("bd create"));
 
-    // Everything data-derived is POSIX single-quoted, where a backtick,
-    // $(…), and a double quote are all inert. The only way out of a
-    // single-quoted string is a quote, and each one is escaped as '\''.
+    // Everything data-derived is POSIX single-quoted, where a backtick, $(…)
+    // and a double quote are inert; each quote is escaped as '\''.
     expect(command).toContain(
       `bd create 'Act on “best "protein" powder, \`whoami\` $(id); rm -rf ~ — cheap'\\''s”'`,
     );
-    // The comma would have split one label into two; the slug has none, and
-    // the verbatim key rides in metadata, which bd matches exactly.
+    // The comma would split one label into two; the verbatim key rides in
+    // metadata, which bd matches exactly.
     expect(markdown).toContain(
       "  -l 'key:best-protein-powder-whoami-id-rm-rf-cheap-s'",
     );
-    // What the shell hands bd is the key byte for byte — nothing expanded,
-    // nothing dropped. This is the value the work board joins on.
     expect(metadataOf(markdown).noticeos_key).toBe(hostile);
-    // Every single-quote run in the command is balanced: an odd count would
-    // mean the shell string never closed.
+    // An odd quote count would mean the shell string never closed.
     expect((command.match(/'/g) ?? []).length % 2).toBe(0);
   });
 
   it("flattens a query that tries to span lines or reorder what it renders", () => {
     // A newline would put the rest of the query on a line the command does not
     // own; a bidi override would let the rendered command read differently
-    // from the one that runs. Both are collapsed to a space.
+    // from the one that runs.
     const markdown = decisionMarkdown("chia\n  pudding‮rm -rf ~");
 
     expect(markdown).toContain("bd create 'Act on “chia pudding rm -rf ~”'");
@@ -1841,8 +1736,6 @@ describe("bead-native task handoff", () => {
         noticeos_key: "search-opportunity",
       })}'`,
     );
-    // The task body is the finding's FIELDS, never its prose (bead
-    // ro-ujb9.96.7.11): what it measured, then its window and sources.
     expect(markdown).toContain(
       "-d 'Recommendation on meals.example. Captured impressions: 1,003. High-impression pages: 12. Window: 2026-05-01 to 2026-07-29. Sources: gsc/search-analytics, bing-webmaster/query-stats. Original analysis confidence: high.",
     );
@@ -1857,7 +1750,6 @@ describe("bead-native task handoff", () => {
     expect(prefill.description).toContain(
       "High-impression pages: 12. Evidence: http://tower.local:5173/assets/meals.example Window: 2026-05-01",
     );
-    // Anything but an http(s) link is dropped rather than carried.
     expect(
       taskHandoffPrefill(findingTaskHandoff(insightFixture, "meals.example", undefined, "javascript:alert(1)"))!.description,
     ).not.toContain("Evidence:");
@@ -1879,12 +1771,9 @@ describe("bead-native task handoff", () => {
   });
 
   it("omits the section for a vintage finding or an unattributed one", () => {
-    // A snapshot predating ExecutiveInsight.key: still a complete handoff,
-    // just nothing to file it under.
     expect(
       executiveInsightMarkdown({ ...insightFixture, key: "" }, "meals.example"),
     ).not.toContain("## File this task");
-    // The kitchen sink renders findings with no asset at all.
     expect(executiveInsightMarkdown(insightFixture)).not.toContain("bd create");
     expect(executiveInsightMarkdown(insightFixture)).toContain("## Limitation");
   });
@@ -1946,14 +1835,10 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
       "current-findings-meals.example",
     );
 
-    // Warning sorts first, and each kind is ONE group whose heading names it
-    // and counts it (bead `ro-ujb9.96.6.8`); the rank runs on across groups.
     const groups = [...container.querySelectorAll<HTMLElement>("[data-finding-group]")];
     expect(groups.map((group) => group.dataset.findingGroup)).toEqual(["warning", "recommendation"]);
     expect(groups[1]!.querySelector("h3")?.textContent).toBe("Recommendation1");
     expect(groups[1]!.contains(rows[1]!)).toBe(true);
-    // Even the CLOSED face keeps every material scan fact: order, title,
-    // magnitude, confidence, and bead. The kind is the heading's, not repeated.
     const closedSummary = disclosures[1]!.querySelector("summary")!;
     expect(closedSummary.tagName).toBe("SUMMARY");
     expect(closedSummary.textContent).not.toContain("Recommendation");
@@ -1965,8 +1850,6 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
     expect(closedSummary.textContent).toContain("high confidence");
     expect(closedSummary.textContent).toContain("mp-ux1");
 
-    // The native summary is the keyboard disclosure control. Opening it
-    // reveals the unchanged next move, rationale, handoff, and evidence.
     fireEvent.click(closedSummary);
     await waitFor(() => expect(disclosures[1]!.open).toBe(true));
     expect(rows[1]!.textContent).toContain(
@@ -1982,9 +1865,6 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
     );
   });
 
-  // `ro-kukv.3` asked that the operator KNOW Mark and Dismiss are safe to
-  // press; `ro-ujb9.96.6.8` answers it with the interaction instead of a
-  // sentence: a dismissal offers Undo, and no reassurance prose remains.
   it("answers a dismissal with Undo instead of a reversibility sentence", async () => {
     const onDecide = vi.fn().mockResolvedValue(undefined);
     const { container, getAllByRole } = render(
@@ -2014,7 +1894,6 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
 
     fireEvent.click(getAllByRole("button", { name: "Mark" })[0]!);
     expect(onDecide).toHaveBeenLastCalledWith("traffic-warning", "marked");
-    // The mark is applied optimistically: the finding pins to the top.
     await waitFor(() =>
       expect(
         container.querySelector("[data-insight-marked]"),
@@ -2111,11 +1990,9 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
     await waitFor(() => expect(onDecide).not.toHaveBeenCalled());
   });
 
-  // Bead ro-248. The register knew and the finding could not see it: a finding
-  // whose work had already been filed still presented as untouched. The join is
-  // the handoff's own `noticeos_key`, carried in the bead's metadata and
-  // photographed into the beads snapshot once a minute.
-  describe("a finding shows the bead somebody filed from it", () => {
+  // The join is the handoff's own `noticeos_key`, carried in the task's
+  // metadata and photographed into the task snapshot.
+  describe("a finding shows the task somebody filed from it", () => {
     const filed = (over: Partial<HandoffBead> = {}): HandoffBead => ({
       kind: "finding",
       key: "traffic-warning",
@@ -2125,7 +2002,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
       ...over,
     });
 
-    it("marks an open bead with its id, quietly enough not to rival the severity", () => {
+    it("marks an open task with its id, quietly enough not to rival the severity", () => {
       const { container } = render(
         <ExecutiveFindingsList snapshot={snapshot} handoffBeads={[filed()]} />,
         { wrapper: MemoryRouter },
@@ -2133,18 +2010,11 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
 
       const marker = container.querySelector('[data-handoff-bead="open"]')!;
       expect(marker).toBeInTheDocument();
-      // The visible text is the actionable string: the commit quotes it, the
-      // watch window is keyed to it — and since `ro-l1ed.3` it is a LINK to the
-      // task page, so the id an operator used to paste into `bd show` in a
-      // terminal opens the bead, its conversation and where it came from.
       expect(marker.textContent).toContain("mp-1w2");
       expect(marker.tagName).toBe("A");
       expect(marker).toHaveAttribute("href", "/tasks/mp-1w2");
-      // Muted, not toned. A filed warning is still a warning, and the row's own
-      // rail is the loud thing on it.
       expect(marker.className).toContain("bg-muted");
       expect(marker.className).not.toMatch(/text-(error|warn|info|ok)/);
-      // It lands on the finding it was filed FROM, and on no other.
       const rows = [...container.querySelectorAll("article")];
       expect(rows.find((r) => r.getAttribute("data-insight-filed") === "open")!.textContent)
         .toContain("Organic clicks fell against a stable baseline");
@@ -2164,8 +2034,6 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
       expect(marker).toBeInTheDocument();
       expect(marker.textContent).toContain("mp-1w2");
       expect(marker.getAttribute("title")).toContain("not proof of shipment or outcome");
-      // Only a watch-window verdict retires a finding, so a closed bead may not
-      // dismiss it, hide it, or dress itself as a success.
       expect(marker.className).not.toContain("text-ok");
       expect(container.querySelectorAll("article")).toHaveLength(2);
       expect(container.querySelector("[data-insight-dismissed]")).toBeNull();
@@ -2184,15 +2052,13 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
       const untouched = rows.find(
         (r) => r.textContent?.includes("Organic clicks fell against a stable baseline"),
       )!;
-      // No pill, no dash, no "not filed": most findings have no bead, and a
-      // marker on every one of them would be noise to say nothing.
       expect(untouched.querySelector("[data-handoff-bead]")).toBeNull();
       expect(untouched.hasAttribute("data-insight-filed")).toBe(false);
     });
 
     it("renders nothing at all when the register could not be asked", () => {
       // `null` is a snapshot the poller never wrote this field into, an asset
-      // that is not a spoke, or a `bd` that failed — never "nothing is filed".
+      // that is not a spoke, or a `bd` that failed, never "nothing is filed".
       const { container } = render(
         <ExecutiveFindingsList snapshot={snapshot} handoffBeads={null} />,
       );
@@ -2201,7 +2067,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
       expect(container.textContent).not.toContain("bead");
     });
 
-    it("never borrows a query decision's bead for a finding that shares its key", () => {
+    it("never borrows a query decision's task for a finding that shares its key", () => {
       const { container } = render(
         <ExecutiveFindingsList
           snapshot={snapshot}
@@ -2214,17 +2080,12 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
   });
 });
 
-// Bead ro-wwm. The cut was silent on this surface: the producer named every
-// dropped card in `suppressedItems` and the Tower rendered none of them, so the
-// largest single finding in the meals.example archive sat one field deeper than
-// the screen with nothing on the page admitting it existed.
 describe("ExecutiveFindingsList reaches what the eight-card cut dropped", () => {
   const shown: ExecutiveInsight[] = Array.from({ length: 8 }, (_, index) => ({
     ...insightFixture,
     key: `shown-${index}`,
     title: `Shown finding ${index + 1}`,
   }));
-  // Eleven findings ranked: eight shown, three named.
   const capped: ExecutiveSnapshot = {
     schemaVersion: 1,
     asset: "meals.example",
@@ -2267,12 +2128,9 @@ describe("ExecutiveFindingsList reaches what the eight-card cut dropped", () => 
       "[data-suppressed-findings]",
     );
     expect(reveal).not.toBeNull();
-    // Where the line was drawn, in the summary itself: the eight shown.
     expect(reveal!.querySelector("summary")?.textContent).toBe(
       "3 more below the top 8",
     );
-    // Closed by default: the cap is an attention decision, so the answer to it
-    // is a quiet line, not three more cards.
     expect(reveal!.open).toBe(false);
 
     fireEvent.click(reveal!.querySelector("summary")!);
@@ -2280,7 +2138,6 @@ describe("ExecutiveFindingsList reaches what the eight-card cut dropped", () => 
     for (const item of capped.suppressedItems) {
       expect(getByText(item.title)).toBeTruthy();
     }
-    // The titles are the proof nothing was discarded; no sentence says so.
     expect(reveal!.querySelector("p")).toBeNull();
   });
 
@@ -2289,7 +2146,6 @@ describe("ExecutiveFindingsList reaches what the eight-card cut dropped", () => 
       <ExecutiveFindingsList snapshot={capped} onDecide={vi.fn()} />,
     );
 
-    // Eight rows, eight sets of controls: a mention is not a row.
     expect(getAllByRole("button", { name: "Mark" })).toHaveLength(8);
     expect(
       container.querySelector("[data-suppressed-findings] button"),
@@ -2344,7 +2200,6 @@ describe("like-for-like performance tones", () => {
   });
 });
 
-// --- one open alert, as lib/attention reads it
 const signupsDrop: AttentionItem = {
   id: 1,
   asset: "meals.example",
@@ -2367,12 +2222,9 @@ const signupsDrop: AttentionItem = {
   firstFiredAt: hoursAgo(2),
 };
 
-/**
- * Bead ro-elf. The page states the SAME obligation the card marks, with the
- * room the card does not have: which panel day is owed, when the triage was
- * due, and the bead to go and close. So the assertions are about the extra
- * facts — and about the badge still being the thing that carries the state.
- */
+/** The page states the same obligation the card marks, with the room the card
+ * does not have: which panel day is owed, when the triage was due, and the
+ * task to go and close. */
 describe("PanelReviewLine — the card's marker, with the page's room", () => {
   const DAY = 24 * HOUR;
   const daysAhead = (d: number) => new Date(NOW + d * DAY).toISOString();
@@ -2397,17 +2249,12 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
     );
 
   it("draws nothing whatsoever for an asset with nothing to review", () => {
-    // The card's absence rule, inherited exactly: no row, no dash, no empty
-    // state — and it follows the LANDING, never config/serp-panel.json.
     const { container } = renderLine(null, null);
     expect(container.querySelector("[data-panel-review-line]")).toBeNull();
     expect(container.textContent).toBe("");
   });
 
   it("labels a panel-less asset's row a signal collection, and a panel's a SERP panel", () => {
-    // Bead ro-z0g, one surface down from the badge: the row's own label is the
-    // noun, so an asset that buys no panel reads as the collection it does
-    // buy — the same words its bead title carries.
     const panel = renderLine(openReview(daysAhead(4)));
     const panelLine = panel.container.querySelector("[data-panel-review-line]")!;
     expect(panelLine.textContent).toContain("SERP panel");
@@ -2417,20 +2264,17 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
     const collectionLine = collection.container.querySelector("[data-panel-review-line]")!;
     expect(collectionLine.textContent).toContain("Signal collection");
     expect(collectionLine.textContent).not.toMatch(/SERP panel/);
-    // Still the same row: the day owed, the deadline, and the bead to close.
     expect(collectionLine.textContent).toContain("Jul 1, 2026");
     expect(collectionLine.textContent).toContain("mp-4a2");
   });
 
-  it("names the panel day, the deadline, and the bead to close", () => {
+  it("names the panel day, the deadline, and the task to close", () => {
     const { container } = renderLine(openReview(daysAhead(4)));
     const line = container.querySelector("[data-panel-review-line]")!;
     expect(line.getAttribute("data-panel-review-line")).toBe("pending");
-    // The three facts the badge could only fit into a hover title.
     expect(line.textContent).toContain("Jul 1, 2026");
     expect(line.textContent).toContain("Jul 9, 2026");
     expect(line.textContent).toContain("mp-4a2");
-    // And the state is still the badge's job, in a glyph and a duration.
     expect(line.querySelector("[data-panel-review]")!.textContent).toBe("4d");
     expect(line.textContent).not.toMatch(/pending|overdue|reviewed/i);
   });
@@ -2440,14 +2284,11 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
     const line = container.querySelector("[data-panel-review-line]")!;
     expect(line.getAttribute("data-panel-review-line")).toBe("overdue");
     expect(line.className).toContain("border-error/40");
-    // Still stated in dates and an id — the tone is what carries "late".
     expect(line.textContent).toContain("Jul 2, 2026");
     expect(line.textContent).not.toMatch(/late|overdue/i);
   });
 
   it("stops stating a deadline once the review is done", () => {
-    // A met obligation has no outstanding date, and printing the old one would
-    // be a number the page then has to explain.
     const { container } = renderLine({
       ...openReview(daysAgo(2)),
       status: "closed",
@@ -2461,8 +2302,6 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
   });
 
   it("names the NEWER panel day when a finished review no longer covers it", () => {
-    // The day the operator still owes, not the one they already dealt with —
-    // the same day the badge beside it names, from the same derivation.
     const { container } = renderLine(
       { ...openReview(daysAgo(2)), status: "closed", closedAt: daysAgo(1) },
       "2026-07-08",
@@ -2489,11 +2328,9 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
   });
 });
 
-// The pure answers /alerts and Home read about one open alert (bead
-// `ro-trai.25`: they outlived the desk table they were born in). The rows that
-// draw them are /alerts' and Home's, and are tested there.
+// The pure answers /alerts and Home read about one open alert. The rows that
+// draw them are tested there.
 describe("lib/attention — one alert's handoff and grouping", () => {
-  // The alert row's own handoff (bead `ro-l1ed.4`).
   it("files the translated headline against the firing, never the rule alone", () => {
     // The key is `flags.id`: one rule fires many times on one asset, and only
     // the flag id names the firing the operator was looking at.
@@ -2507,12 +2344,9 @@ describe("lib/attention — one alert's handoff and grouping", () => {
       priority: 2,
     });
     expect(alertTaskHandoff({ ...signupsDrop, severity: "error" }).priority).toBe(1);
-    // Never the rule's stored statistics line — that is what the desk moved
-    // behind the evidence glyph in the first place.
     expect(alertTaskHandoff(signupsDrop).title).not.toContain("avg7d");
   });
 
-  // `ro-kukv.6` / decision D15: one row for one fact true of several sites.
   it("reads a row standing for several sites as a group, with their names as one hover", () => {
     const member = (id: number, asset: string, assetDisplayName: string) => ({ id, asset, assetDisplayName, firedAt: hoursAgo(24) });
     const group: AttentionItem = {
@@ -2527,8 +2361,7 @@ describe("lib/attention — one alert's handoff and grouping", () => {
   });
 });
 
-describe("DataSourceIcons — one status per source, told apart by glyph (ro-kukv.9)", () => {
-  // One slot per distinct look of the connection vocabulary (ro-ujb9.96.7.16).
+describe("DataSourceIcons — one status per source, told apart by glyph", () => {
   const everyState: SourceReading[] = ([
     ["nightly-report", "Nightly report", "working"],
     ["gsc", "Google Search Console", "failing"],
@@ -2558,8 +2391,6 @@ describe("DataSourceIcons — one status per source, told apart by glyph (ro-kuk
     const { container } = render(<DataSourceIcons sources={everyState} />);
     const marks = [...container.querySelectorAll("[role='img']")];
     expect(marks).toHaveLength(8);
-    // Every status names itself for a screen reader, in the words the
-    // Integrations page and the Data sources rows use...
     expect(marks.map((m) => m.getAttribute("aria-label"))).toEqual([
       "Nightly report: Working",
       "Google Search Console: Failing",
@@ -2570,9 +2401,6 @@ describe("DataSourceIcons — one status per source, told apart by glyph (ro-kuk
       "Microsoft Clarity: Not using",
       "DataForSEO: Doesn't apply",
     ]);
-    // ...and each carries a DIFFERENT corner mark. Skipped and not-applicable
-    // used to share one slash at two opacities, which is the single difference
-    // a television across a room cannot carry.
     const shapes = marks.map(
       (mark) =>
         mark.querySelector("[data-state-mark]")?.getAttribute("data-state-mark") ??
@@ -2618,8 +2446,6 @@ describe("AgeBadge amber threshold", () => {
     expect(container.textContent).toContain("last-good");
   });
 
-  // bead ro-kukv.10 / doc 14 rule 6 — a dash in a value's slot reads as a
-  // rendering failure, not as an absence.
   it("says a lane that never reported never reported", () => {
     const { container } = render(
       <AgeBadge iso={null} cadenceHours={24} nowMs={NOW} />,
@@ -2631,10 +2457,7 @@ describe("AgeBadge amber threshold", () => {
     expect(badge?.getAttribute("title")).toBe(
       "Never reported — nothing has ever arrived from this source",
     );
-    // Still amber: an absent age is never fresh (isAmber).
     expect(badge?.className).toContain("text-warn");
-    // And the badge never renders the "{age} ago" shape, so no surface can
-    // read "never ago".
     expect(badge?.textContent).not.toContain("ago");
   });
 
@@ -2660,7 +2483,7 @@ describe("AgeBadge amber threshold", () => {
   });
 });
 
-describe("Timeline — a cut history says it was cut (ro-5e8.1)", () => {
+describe("Timeline — a cut history says it was cut", () => {
   const events: AnnotationItem[] = [
     { id: 9, at: hoursAgo(3), kind: "deploy", ref: "a1b2c3d", note: "ship cards" },
     { id: 8, at: hoursAgo(50), kind: "config", ref: "flags@41", note: "raise alpha" },
@@ -2689,9 +2512,6 @@ describe("Timeline — a cut history says it was cut (ro-5e8.1)", () => {
     expect(container.textContent).toContain("1 older change not shown");
   });
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Bead ro-4ko — an event names the task that caused it.
-  // ───────────────────────────────────────────────────────────────────────────
   const filed: AnnotationItem[] = [
     { id: 9, at: hoursAgo(3), kind: "deploy", ref: "mp-1w2", note: "rewrote the opener" },
     { id: 8, at: hoursAgo(50), kind: "config", ref: "a1b2c3d", note: "raise alpha" },
@@ -2710,15 +2530,11 @@ describe("Timeline — a cut history says it was cut (ro-5e8.1)", () => {
       { wrapper: MemoryRouter },
     );
     const rows = [...container.querySelectorAll("li")];
-    // ONE representation of the ref: the badge IS the ref rendered richer, never
-    // a badge beside the mono string it replaces.
     expect(rows[0]!.querySelector("[data-handoff-bead-id]")).toHaveAttribute(
       "data-handoff-bead-id",
       "mp-1w2",
     );
     expect(rows[0]!.textContent?.match(/mp-1w2/g)).toHaveLength(1);
-    // A commit sha resolves to nothing and stays exactly what it was — an
-    // unresolved ref is not a task-less event.
     expect(rows[1]!.querySelector("[data-handoff-bead-id]")).toBeNull();
     expect(rows[1]!.querySelector(".font-mono")?.textContent).toBe("a1b2c3d");
   });
@@ -2739,7 +2555,6 @@ describe("Timeline — a cut history says it was cut (ro-5e8.1)", () => {
   });
 
   it("falls back to the plain ref when the register could not be asked", () => {
-    // A null slice is "we could not look", never "this event has no task".
     const { container } = render(<Timeline items={filed} nowMs={NOW} beads={null} />);
     expect(container.querySelector("[data-handoff-bead-id]")).toBeNull();
     expect(
@@ -2747,8 +2562,8 @@ describe("Timeline — a cut history says it was cut (ro-5e8.1)", () => {
     ).toEqual(["mp-1w2", "a1b2c3d"]);
   });
 
-  // A lifecycle move (ro-3085) stores the two stages in its `ref` because that
-  // is the row's identity; the row must still read as English.
+  // A lifecycle move stores the two stages in its `ref` because that is the
+  // row's identity; the row must still read as English.
   it("states a recorded lifecycle move in words instead of printing its ref", () => {
     const moved: AnnotationItem[] = [
       { id: 12, at: hoursAgo(2), kind: "config", ref: "lifecycle:baselining>retired", note: null },
@@ -2831,7 +2646,6 @@ describe("StateChip — tone maps to a palette token (no bare state prose)", () 
       </>,
     );
     expect(getByText("Enabled").className).toContain("text-foreground");
-    // Each chip names what it is about (bead ro-ujb9.96.10), read by the flow gate.
     expect(getByText("Enabled")).toHaveAttribute("data-status-for", "collection:example.com");
     expect(getByText("Retired")).toHaveAttribute("data-status-for", "lifecycle:example.com");
     expect(getByText("Paused").className).toContain("text-info");
@@ -2839,9 +2653,8 @@ describe("StateChip — tone maps to a palette token (no bare state prose)", () 
   });
 });
 
-/** Bead ro-pbzu.8: the ONE segmented mass bar. `PriorityBar` became its
- * priority-ramp preset rather than staying a rival implementation of the same
- * shape, so both keep proving the same rules here. */
+/** `PriorityBar` is the priority-ramp preset of the one segmented mass bar, so
+ * both prove the same rules here. */
 describe("ProgressRing — n of m discrete steps", () => {
   const segments = (container: HTMLElement) =>
     [...container.querySelectorAll("[data-segment]")].map((el) =>
@@ -2935,7 +2748,6 @@ describe("SegmentBar — how a total divides", () => {
       ["error", "4"],
       ["warn", "3"],
     ]);
-    // The bar is a sentence, not an ornament: it always names what it divides.
     expect(container.querySelector('[role="img"]')!.getAttribute("aria-label")).toBe(
       "4 of 7 open alerts are errors, 3 are warnings",
     );
@@ -2952,8 +2764,7 @@ describe("SegmentBar — how a total divides", () => {
       />,
     );
 
-    // At true proportion this would be a third of a pixel, which communicates
-    // nothing and makes the bar lie by omission.
+    // At true proportion this would be a third of a pixel.
     const top = container.querySelector('[data-segment="top"]') as HTMLElement;
     expect(top.style.minWidth).toBe("3px");
   });
@@ -2982,8 +2793,6 @@ describe("SegmentBar — how a total divides", () => {
       "Open work by priority: 1 top · 2 high · 8 normal · 2 low · 1 lowest",
     );
     expect(bar.getAttribute("title")).toContain("14 not-closed tasks by priority");
-    // A task's priority is not a severity (doc 14, bead ro-ujb9.200): the ramp
-    // steps down in ink and never wears an attention hue.
     expect(
       container.querySelector('[data-priority-band="top"]')!.className,
     ).toContain("bg-foreground");
@@ -2996,23 +2805,15 @@ describe("SegmentBar — how a total divides", () => {
   });
 });
 
-// The KnobEditor's own cases moved to test/knob-editor.test.tsx when it stopped
-// staging and started writing (D18, bead ro-pbzu.5): they mock Sonner to read
-// the Undo out of the toast, and a module mock is a file-wide fact.
+// The KnobEditor's cases are in test/knob-editor.test.tsx: they mock Sonner
+// to read the Undo out of the toast, and a module mock is a file-wide fact.
 
-/**
- * Bead ro-282.3. The scoreboard is the point — six counts before twenty rows —
- * and every assertion below is about one of the three semantics a naive
- * rendering destroys: depth-bounded ranks, an unstated depth, and unknown AI
- * Overviews. The counts themselves come from `serpPanelScoreboard`, so the
- * derivation is tested once and the component is tested for what it SAYS.
- */
+/** The counts come from `serpPanelScoreboard`, so the derivation is tested
+ * once and the component is tested for what it says. */
 describe("SerpPanelBoard — how the panel is doing, before what each row is", () => {
   const q = (over: Partial<SerpPanelQuery> = {}): SerpPanelQuery => ({
     query: "calorie calculator",
     device: "desktop",
-    // Unlabelled by default — meals.example's panel, and the case the grouping
-    // must leave rendering exactly as it did before clusters existed.
     label: null,
     bestRank: 2,
     bestUrl: "https://nosh.example/calories",
@@ -3052,7 +2853,6 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
       ranking: 6,
       top10: 4,
       top3: 2,
-      // Five rows the panel could answer the AI question for; five unknown.
       aioKnown: 5,
       aioPresent: 3,
       aioCitesUs: 1,
@@ -3067,27 +2867,24 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
     expect(statOf(board, "ranking")).toContain("6");
     expect(statOf(board, "top10")).toContain("4");
     expect(statOf(board, "top3")).toContain("2");
-    // The day the whole block is about, stated once and nowhere else.
     expect(board.textContent).toContain("Aug 3, 2026");
     expect(board.textContent!.match(/Aug 3, 2026/g)).toHaveLength(1);
   });
 
   it("never reads a query outside the tracked depth as not ranking", () => {
-    // The semantic this component exists for. A depth-20 pull that saw
-    // nothing says so about ITS OWN depth; rank 24 and genuinely absent are the
-    // same observation to it, and both are terms worth working.
+    // A depth-20 pull that saw nothing says so about its own depth; rank 24
+    // and genuinely absent are the same observation to it.
     const { container } = render(<SerpPanelBoard panel={panel} />);
     const unranked = container.querySelector("[data-serp-panel-unranked]")!;
     expect(unranked.textContent).toBe(">20");
     expect(unranked.getAttribute("title")).toContain("Not in the top 20");
     expect(container.textContent).not.toMatch(/not ranking|does not rank|no rank/i);
-    // And the tier denominators never absorbed it as a rank.
     expect(statOf(container.querySelector("[data-serp-panel]")!, "ranking")).toContain("6");
   });
 
   it("claims no depth when the archive recorded none", () => {
-    // A legacy row without `tracked_depth`. Printing ">20" here would name a
-    // depth nobody pulled to, so the number simply is not stated.
+    // A legacy row without `tracked_depth`: ">20" would name a depth nobody
+    // pulled to.
     const { container } = render(
       <SerpPanelBoard panel={{ ...panel, trackedDepth: null }} />,
     );
@@ -3098,8 +2895,6 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
   });
 
   it("counts AI Overviews against what was CHECKED, never against the panel", () => {
-    // Five of ten rows never got an answer. Dividing by ten would report this
-    // asset clear of overviews it has never been checked against.
     const { container } = render(<SerpPanelBoard panel={panel} />);
     const board = container.querySelector("[data-serp-panel]")!;
     expect(statOf(board, "aio-present")).toContain("of 5 checked");
@@ -3124,7 +2919,6 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
     expect(statOf(board, "aio-present")).toContain("—");
     expect(statOf(board, "aio-present")).toContain("not checked");
     expect(statOf(board, "aio-present")).not.toMatch(/\b0\b/);
-    // No glyph for an unknown row either — absence means unknown, not clear.
     expect(board.querySelector("[data-aio-state]")).toBeNull();
   });
 
@@ -3144,19 +2938,14 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
   });
 
   it("draws nothing whatsoever for an asset with no panel", () => {
-    // Six zeroes would be a score this asset never played for.
     const { container } = render(<SerpPanelBoard panel={null} />);
     expect(container.querySelector("[data-serp-panel]")).toBeNull();
     expect(container.textContent).toBe("");
   });
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Bead ro-282.5 — the panel groups by the BET each query measures.
-  // Three cases, and the constraint is that they are additive in both
-  // directions: a labelled panel groups, an unlabelled one must render exactly
-  // what it always did, and a mixed one must not invent a cluster for the rows
-  // that carry no label.
-  // ───────────────────────────────────────────────────────────────────────────
+  // Grouping is additive in both directions: a labelled panel groups, an
+  // unlabelled one renders ungrouped, and a mixed one must not invent
+  // a cluster for the rows that carry no label.
   const clustersOf = (root: Element) =>
     [...root.querySelectorAll("[data-serp-panel-cluster]")].map((el) =>
       el.getAttribute("data-serp-panel-cluster"),
@@ -3173,15 +2962,11 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
       ],
     };
     const { container } = render(<SerpPanelBoard panel={labelled} />);
-    // Cluster order is the panel's own row order — the operator's config order,
-    // the order they think about their bets in.
     expect(clustersOf(container)).toEqual(["Calculator seam", "Item head"]);
 
     // The per-cluster figures come from `serpPanelScoreboard` over that
-    // cluster's rows, so the page and the derivation cannot hold two opinions
-    // of "top 10". Two of the seam's terms are inside it; one of the item
-    // head's two terms was never checked for an overview, so its AI clause
-    // quotes ONE as the denominator rather than two.
+    // cluster's rows. One of the item head's two terms was never checked for
+    // an overview, so its AI clause quotes one as the denominator.
     const line = (label: string) =>
       container.querySelector(`[data-serp-panel-cluster-line="${label}"]`)!.textContent ?? "";
     expect(line("Calculator seam")).toContain("2 of 2 in top 10");
@@ -3189,28 +2974,20 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
     expect(line("Item head")).toContain("0 of 2 in top 10");
     expect(line("Item head")).toContain("1 AI Overview of 1 checked");
 
-    // The whole-panel tiles are unchanged by the grouping: four terms, four
-    // rows, no denominator multiplied by the split.
     expect(statOf(container.querySelector("[data-serp-panel]")!, "tracked")).toContain("4");
   });
 
   it("renders a panel with no labels anywhere as the single ungrouped list it always was", () => {
-    // meals.example. Not one group called "Unlabelled" — a fake cluster on a
-    // asset that never placed a bet is a claim it never made.
     const { container } = render(<SerpPanelBoard panel={panel} />);
     expect(clustersOf(container)).toEqual([""]);
     expect(container.querySelector("[data-serp-panel-cluster-line]")).toBeNull();
     expect(container.textContent).not.toMatch(/unlabelled|ungrouped|other/i);
-    // Same rows, same order, same total order as before grouping existed.
     const order = [...container.querySelectorAll("[data-serp-panel-query]")].map((el) =>
       el.getAttribute("data-serp-panel-query"),
     );
     expect(order).toEqual(["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]);
   });
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Bead ro-e46.2 — the device dimension reaches the surface.
-  // ───────────────────────────────────────────────────────────────────────────
   it("shows a query walled on the phone and clear on the desktop as both, not one", () => {
     const split: SerpPanelSnapshot = {
       ...panel,
@@ -3220,8 +2997,7 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
       ],
     };
     const { container } = render(<SerpPanelBoard panel={split} />);
-    // ONE row — the split is a pair of marks in one cell, never a second row.
-    // Doubled rows would list the same bets twice and multiply the tiles.
+    // One row: doubled rows would list the same bets twice and multiply the tiles.
     expect(container.querySelectorAll("[data-serp-panel-query]")).toHaveLength(1);
     const glyphs = [...container.querySelectorAll("[data-aio-state]")];
     expect(
@@ -3229,13 +3005,10 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
         el.getAttribute("data-aio-device"),
         el.getAttribute("data-aio-state"),
       ]),
-      // Phone first, always, so the reader learns the column once.
     ).toEqual([
       ["mobile", "uncited"],
       ["desktop", "absent"],
     ]);
-    // Each mark names its own surface — a pair where only one is labelled would
-    // read as one reading plus an unexplained second mark.
     expect(glyphs[0]).toHaveAttribute(
       "aria-label",
       "Phone: AI Overview shown; this site is not cited",
@@ -3244,29 +3017,23 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
       "aria-label",
       "Desktop: no AI Overview on the tracked result page",
     );
-    // The caption names both surfaces rather than the hardcoded "desktop" it
-    // claimed before the split reached this component — and, for a site that
-    // saved no search market, no market at all (bead ro-ujb9.230).
     const board = container.querySelector("[data-serp-panel]")!;
     expect(board.textContent).toContain("Aug 3, 2026 · phone & desktop · top 20 read");
     expect(board.textContent).not.toContain("US/English");
   });
 
-  it("names the market the site saved, never a US/English it did not choose (ro-ujb9.230)", () => {
+  it("names the market the site saved, never a US/English it did not choose", () => {
     const { container } = render(
       <SerpPanelBoard panel={{ ...panel, market: { locationCode: 2276, languageCode: "de" } }} />,
     );
     const board = container.querySelector("[data-serp-panel]")!;
-    // The market's own spaces do not break: one fact stays on one line.
     expect(board.textContent).toContain("Aug 3, 2026 · desktop · Germany\u00a0·\u00a0German · top 20 read");
     expect(board.textContent).not.toContain("US/English");
     expect(board.textContent).not.toContain("United States");
   });
 
   it("never turns one unknown into two, and never counts a term twice", () => {
-    // The arithmetic risk of the split, asserted on the surface the operator
-    // reads first. Two terms on two devices each: one answered on both, one
-    // answered on neither.
+    // Two terms on two devices each: one answered on both, one on neither.
     const split: SerpPanelSnapshot = {
       ...panel,
       queries: [
@@ -3280,20 +3047,14 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
     const board = container.querySelector("[data-serp-panel]")!;
     expect(statOf(board, "tracked")).toContain("2");
     expect(statOf(board, "ranking")).toContain("1");
-    // ONE term was checked, not two, and the unranked term still reads as the
-    // depth rather than as "does not rank".
     expect(statOf(board, "aio-present")).toContain("of 1 checked");
     expect(container.querySelector("[data-serp-panel-unranked]")!.textContent).toBe(">20");
     expect(container.textContent).not.toMatch(/not ranking|does not rank/i);
-    // The unchecked term draws no mark on either surface: absence is unknown,
-    // and two blanks are still one unknown term.
     const row = container.querySelectorAll("[data-serp-panel-query]")[1]!;
     expect(row.querySelector("[data-aio-state]")).toBeNull();
   });
 
   it("draws one mark for a term the panel read on one surface", () => {
-    // Nothing renders a device the snapshot did not observe: a single-device
-    // panel looks exactly as it did before the split.
     const { container } = render(<SerpPanelBoard panel={panel} />);
     const first = container.querySelectorAll("[data-serp-panel-query]")[0]!;
     expect(first.querySelectorAll("[data-aio-state]")).toHaveLength(1);
@@ -3407,7 +3168,6 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
       "1/2",
     );
     expect(container.querySelector("[data-serp-panel-call-failure]")).not.toBeNull();
-    // Unknown is not outside depth: the page was never read.
     expect(container.querySelector("[data-serp-panel-unread]")?.textContent).toBe("—");
   });
 
@@ -3451,8 +3211,7 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
   });
 
   it("keeps a partly-labelled panel's unlabelled terms in one trailing run", () => {
-    // nom's cutover week: ro-282.2 chose no backfill, so its pre-label
-    // collections have empty cells and a mixed panel is ordinary input.
+    // A cutover week with no backfill: pre-label collections have empty cells.
     const mixed: SerpPanelSnapshot = {
       ...panel,
       queries: [
@@ -3463,13 +3222,10 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
       ],
     };
     const { container } = render(<SerpPanelBoard panel={mixed} />);
-    // One labelled cluster, then ONE trailing run — never a second named group.
     expect(clustersOf(container)).toEqual(["Calculator seam", ""]);
     expect(
       container.querySelectorAll("[data-serp-panel-cluster-line]"),
     ).toHaveLength(1);
-    // The trailing run holds both unlabelled terms, rank-sorted like every
-    // other run, and the labelled ones stay in their cluster.
     const runOf = (label: string) =>
       [
         ...container
@@ -3481,15 +3237,8 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Bead ro-glf — one AI-Overview glyph, drawn twice, now extracted once.
-//
-// The per-surface tests above and below stay exactly where they are: they
-// assert what each SURFACE says, and folding them into these would lose the
-// only claim worth making about a shared component's callers. What is asserted
-// HERE is the component's own contract, and above all the one behavioural
-// difference the extraction had to keep rather than flatten.
-// ─────────────────────────────────────────────────────────────────────────────
+// The per-surface tests assert what each surface says; these assert the shared
+// component's own contract.
 describe("AiOverviewGlyphs", () => {
   const marks = (root: Element | null) =>
     root === null
@@ -3515,13 +3264,12 @@ describe("AiOverviewGlyphs", () => {
       ["mobile", "uncited"],
       ["tablet", "absent"],
     ]);
-    // An AI Overview is a fact about the result page, not an alert (doc 14).
     expect(container.innerHTML).not.toMatch(/text-error|text-warn|text-info/);
   });
 
   it("holds the slot for an unanswered surface when the caller has a column to align to", () => {
-    // SerpPanelBoard's case: the pair sits in a fixed row grid, and a collapsed
-    // one would slide the desktop mark under the phone column.
+    // SerpPanelBoard's case: a fixed row grid, where a collapsed pair would
+    // slide the desktop mark under the phone column.
     const { container } = render(
       <AiOverviewGlyphs
         readings={[
@@ -3536,8 +3284,7 @@ describe("AiOverviewGlyphs", () => {
       "mobile",
       "desktop",
     ]);
-    // The held slot carries no state: it is the absence of an answer, and a
-    // blank that claimed `absent` would be the unknown-as-no lie.
+    // The held slot carries no state: it is the absence of an answer.
     expect(slots[0]).not.toHaveAttribute("data-aio-state");
     expect(slots[0]).toHaveAttribute(
       "title",
@@ -3565,8 +3312,6 @@ describe("AiOverviewGlyphs", () => {
   });
 
   it("still names the surviving surface when its partner went unanswered", () => {
-    // The prefix comes off EVERY reading, not the drawn ones: "Desktop:" is
-    // what tells the reader the other surface exists and is missing.
     const { container } = render(
       <AiOverviewGlyphs
         readings={[
@@ -3596,8 +3341,8 @@ describe("AiOverviewGlyphs", () => {
   });
 
   it("renders nothing at all when the panel does not cover the query", () => {
-    // An empty reading list is unknown, never clear — and `omit` has no column
-    // to hold, so the whole cell goes rather than an empty wrapper.
+    // `omit` has no column to hold, so the whole cell goes rather than an
+    // empty wrapper.
     const { container } = render(
       <AiOverviewGlyphs readings={[]} unknownSurface="omit" />,
     );
@@ -3607,9 +3352,7 @@ describe("AiOverviewGlyphs", () => {
 });
 
 describe("kitchen sink covers the registry", () => {
-  // doc 14 anti-duplication mechanic #2: the registry's promise is that every
-  // entry has a rendered reference. These seven had entries and no demo, so a
-  // token change could not be reviewed against them.
+  // The registry's promise is that every entry has a rendered reference.
   it("renders the components that were missing from it", () => {
     const { container } = render(
       <QueryClientProvider client={new QueryClient()}>
@@ -3646,8 +3389,6 @@ describe("kitchen sink covers the registry", () => {
         ),
       ).toBe(true);
     }
-    // The gallery demo claims the populated fixture reaches every decision lane.
-    // That claim is only worth writing down if something checks it.
     for (const kind of [
       "recover",
       "near-win",
@@ -3665,16 +3406,12 @@ describe("kitchen sink covers the registry", () => {
         container.querySelector(`[data-decision-kind="${kind}"]`),
       ).not.toBeNull();
     }
-    // And the query row's filed states, which the registry entry also claims
-    // (bead ro-5e8.3) — a filing marker nobody can review is a marker whose
-    // weight and tone drift with the next token change.
     expect(
       container.querySelector('[data-decision-filed="open"]'),
     ).not.toBeNull();
     expect(
       container.querySelector('[data-decision-filed="closed"]'),
     ).not.toBeNull();
-    // The page table makes the same claim on its own grain (bead ro-427).
     for (const kind of [
       "recover",
       "harvest",
@@ -3695,18 +3432,11 @@ describe("kitchen sink covers the registry", () => {
     expect(
       container.querySelector('[data-page-decision-filed="closed"]'),
     ).not.toBeNull();
-    // This one test mounts the WHOLE gallery — every registry entry, every
-    // chart, every live control — so it is the most expensive render in the
-    // suite by a wide margin. It sits near two seconds warm and crosses the
-    // 5s default on a cold transform or while the other workspaces are running
-    // beside it, which made a green gate depend on machine load rather than on
-    // the code. The render is the point of the test, so the timeout moves
-    // rather than the coverage.
+    // This test mounts the whole gallery, the most expensive render in the
+    // suite; it crosses the 5s default on a cold transform or under load.
   }, 30_000);
 });
 
-// Bead ro-427. The page grain had cards and no verdicts: the one grain an
-// operator actually edits was the one with no act/investigate/protect row.
 describe("PageDecisions", () => {
   const asset = {
     id: "meals.example",
@@ -3729,15 +3459,14 @@ describe("PageDecisions", () => {
     previousPosition: 6,
     positionImprovement: 0,
     // Above the ~2.1% cited-result benchmark the harvest rule reads, so the
-    // default row is genuinely flat rather than quietly harvestable.
+    // default row is genuinely flat.
     currentCtr: 0.05,
     previousCtr: 0.05,
     leadingQuery: null,
     ...overrides,
   });
 
-  /** The rationale reaches the operator through the copied handoff, not the
-   * row — the same split the query table's tests assert against. */
+  /** The rationale reaches the operator through the copied handoff, not the row. */
   async function copiedMarkdown(pages: SearchPageTrends) {
     const writeText = vi.fn().mockResolvedValue(undefined);
     const original = navigator.clipboard;
@@ -3822,7 +3551,7 @@ describe("PageDecisions", () => {
     ...overrides,
   });
 
-  it("shows each page's filed bead and sinks filed rows below unfiled peers", () => {
+  it("shows each page's filed task and sinks filed rows below unfiled peers", () => {
     const openPage = "https://meals.example/recipes";
     const closedPage = "https://meals.example/guides";
     const untouchedPage = "https://meals.example/plans";
@@ -3841,8 +3570,6 @@ describe("PageDecisions", () => {
             status: "closed",
             closedAt: "2026-08-03T10:00:00.000Z",
           }),
-          // Same key, wrong surface: it must not lend a page somebody else's
-          // task marker.
           pageBead(untouchedPage, { kind: "query", beadId: "mp-query" }),
         ]}
       />,
@@ -3904,8 +3631,6 @@ describe("PageDecisions", () => {
     expect(kinds).toEqual(["recover", "harvest", "growing", "watch"]);
     const recover = container.querySelector('[data-page-decision-kind="recover"]');
     expect(recover).toHaveAttribute("data-page-decision-tone", "loss");
-    // Clicks fell at steady impressions and position: the result page changed,
-    // and the CTR line is tagged as the likely cause (bead `ro-ujb9.96.6.8`).
     expect(recover).toHaveAttribute("data-page-decision-cause", "result-page");
     expect(recover?.textContent).toContain("Search it live; a new result is taking the clicks");
     expect(
@@ -3914,21 +3639,15 @@ describe("PageDecisions", () => {
     const harvest = container.querySelector('[data-page-decision-kind="harvest"]');
     expect(harvest?.textContent).toContain("Shown, rarely clicked");
     expect(harvest?.textContent).toContain("Rewrite the title and opening answer");
-    // The benchmark it was judged against sits beside the number it judged.
     expect(harvest?.textContent).toContain("typical 2.1%");
-    // A flat page stays in the table rather than vanishing: flat is a finding.
     expect(
       container.querySelector('[data-page-decision-kind="watch"]')?.textContent,
     ).toContain("Nothing to do");
-    // The lane's own statement about its series renders, including at zero.
     expect(
       getByText(/Grounding queries excluded from the leading-query join/),
     ).toBeTruthy();
   });
 
-  // Bead `ro-ujb9.96.6.8`: the row infers where to look instead of asking the
-  // operator to — ranking first, then demand, then a release inside the
-  // window, then the result page — and tags that evidence line.
   it("names the likely cause of a click move on the evidence line behind it", () => {
     const loss = {
       currentClicks: 20,
@@ -3948,7 +3667,6 @@ describe("PageDecisions", () => {
         annotations={{
           items: [
             { id: 2, at: "2026-07-02T17:00:00.000Z", kind: "deploy", ref: null, note: "Template refresh" },
-            // Outside the current window: never a cause.
             { id: 1, at: "2026-06-20T17:00:00.000Z", kind: "deploy", ref: null, note: "Older" },
           ],
           olderCount: 0,
@@ -3969,7 +3687,6 @@ describe("PageDecisions", () => {
     expect(row("/b")).toHaveAttribute("data-page-decision-cause", "demand");
     expect(tagged("/b")).toContain("Impressions:");
 
-    // Nothing page-specific explains /c, so the release in the window does.
     expect(row("/c")).toHaveAttribute("data-page-decision-cause", "release");
     expect(row("/c").textContent).toContain("Check what the Jul 2 release changed here");
     expect(tagged("/c")).toContain("Template refresh");
@@ -3986,7 +3703,6 @@ describe("PageDecisions", () => {
         asset={asset}
       />,
     );
-    // The same page without a panel reading is an act-lane harvest row.
     expect(
       container.querySelector('[data-page-decision-kind="harvest"]'),
     ).toBeNull();
@@ -4016,7 +3732,6 @@ describe("PageDecisions", () => {
     const cited = render(
       <PageDecisions pages={citedPages} asset={asset} />,
     );
-    // A -87.5% click loss would otherwise be the act-lane recover row.
     expect(
       cited.container.querySelector('[data-page-decision-kind="recover"]'),
     ).toBeNull();
@@ -4024,8 +3739,6 @@ describe("PageDecisions", () => {
       '[data-page-decision-kind="aio-champion"]',
     );
     expect(champion).toHaveAttribute("data-page-decision-tone", "positive");
-    // The loss is not discarded: a cited page that is sliding defends the
-    // citation now, rather than only keeping it.
     expect(champion?.textContent).toContain(
       "Recheck the citation now; keep the quoted passage",
     );
@@ -4033,7 +3746,6 @@ describe("PageDecisions", () => {
       "Recheck the citation now; keep the quoted passage",
     );
 
-    // An overview that did not load is UNKNOWN and must leave the verdict alone.
     const unknown = render(
       <PageDecisions
         pages={pageTrends([withAio(HARVEST, null, null)])}
@@ -4053,7 +3765,6 @@ describe("PageDecisions", () => {
     expect(getByText("Needs two full weeks of Search Console data")).toBeTruthy();
   });
 
-  // The same bead as a button (bead `ro-l1ed.4`), one per row, beside the copy.
   it("offers File task on every page row", () => {
     const { getAllByRole } = render(
       <PageDecisions
@@ -4077,7 +3788,6 @@ describe("PageDecisions", () => {
     // The page URL is the key, because two assets can share a path.
     expect(markdown).toContain('"noticeos_kind":"page"');
     expect(markdown).toContain('"noticeos_key":"https://meals.example/recipes"');
-    // The lane's own check travels with the copy, at zero as well.
     expect(markdown).toContain(
       "**Grounding queries excluded from the leading-query join:** 0",
     );
@@ -4085,15 +3795,8 @@ describe("PageDecisions", () => {
   });
 });
 
-/**
- * PHONE MODE — the responsive branches, pinned where layout cannot be measured
- * (bead `ro-md80`).
- *
- * jsdom has no layout, so these assert the CLASSES that decide the reflow —
- * exactly what `wall:fit`'s structural guards do for the TV, and for the same
- * reason: the real check is a 390px browser, and what a browser can regress
- * silently is a class somebody deleted while tidying.
- */
+/** jsdom has no layout, so these assert the classes that decide the reflow;
+ * the real check is a 390px browser. */
 describe("phone mode — a wide table reflows instead of hiding its right half", () => {
   it("marks a stacked table and carries the rules that turn its rows into cards", () => {
     const { container } = render(
@@ -4108,15 +3811,11 @@ describe("phone mode — a wide table reflows instead of hiding its right half",
     const table = container.querySelector("table")!;
     expect(table.hasAttribute("data-stacked")).toBe(true);
     const classes = table.className;
-    // the row becomes a card…
     expect(classes).toContain("@max-[40rem]:[&_tr]:block");
-    // …the header goes, because every label it held is now on the cell…
     expect(classes).toContain("@max-[40rem]:[&_thead]:hidden");
-    // …and the label is painted from the cell's own attribute.
     expect(classes).toContain("@max-[40rem]:[&_td[data-label]]:before:content-[attr(data-label)]");
     expect(container.querySelector("td")?.getAttribute("data-label")).toBe("Status");
-    // The width measured is the table's own box, not the screen (bead
-    // `ro-ujb9.169`), and that box scrolls only while it still has columns.
+    // The width measured is the table's own box, not the screen.
     expect(classes).not.toContain("max-sm:");
     const box = container.querySelector("[data-table-box]")!;
     expect(box.className).toContain("@container");
@@ -4136,16 +3835,12 @@ describe("phone mode — a wide table reflows instead of hiding its right half",
     const table = container.querySelector("table")!;
     expect(table.hasAttribute("data-stacked")).toBe(false);
     expect(table.className).not.toContain("@max-[40rem]:");
-    // The scroller is unconditional here; a stacked table only scrolls at `sm`.
     expect(container.firstElementChild?.className).toContain("overflow-x-auto");
     expect(container.querySelector("td")?.hasAttribute("data-label")).toBe(false);
   });
 
-  // The reflow trades width for height, and a register with many rows spends it
-  // all (bead `ro-c59x`): /financials measured 28,244px at 390×844 because 22
-  // rows × 6 fields is 132 labelled lines. A folding row is one line until it is
-  // asked for — and the DESK is untouched, which is what the `max-sm:` prefix on
-  // the fold rule and the `sm:` prefix on the summary rule say.
+  // A folding row is one line until it is asked for, and the desk is
+  // untouched: `max-sm:` on the fold rule, `sm:` on the summary rule.
   it("carries the rules that fold a stacked row down to its summary line", () => {
     const { container } = render(
       <Table stacked>
@@ -4160,10 +3855,7 @@ describe("phone mode — a wide table reflows instead of hiding its right half",
       </Table>,
     );
     const classes = container.querySelector("table")!.className;
-    // A folded row hides the cells that fold…
     expect(classes).toContain("@max-[40rem]:[&_tr[data-stack-fold]_td[data-fold]]:hidden");
-    // …and the summary line it shows instead is gone from `sm` up, where the
-    // header row and the columns already say it.
     expect(classes).toContain("@min-[40rem]:[&_td[data-stack-only]]:hidden");
     const cells = [...container.querySelectorAll("td")];
     expect(cells[0]?.hasAttribute("data-stack-only")).toBe(true);
@@ -4212,8 +3904,6 @@ describe("phone mode — the tab strip scrolls, the page does not", () => {
   it("keeps the seven tabs on one line that scrolls inside its own box", () => {
     const list = strip().querySelector('[role="tablist"]')!;
     expect(list.className).toContain("overflow-x-auto");
-    // Wrapping is what put the selected tab's underline in mid-air two rows
-    // above the divider; one scrolling line replaced it.
     expect(list.className).not.toContain("flex-wrap");
     expect(list.className).toContain("overscroll-x-contain");
   });
@@ -4259,39 +3949,26 @@ describe("phone mode — the thumb floor the desk's densities are under", () => 
     expect(normal!.className).toContain("max-sm:min-h-11");
   });
 
-  /**
-   * THE OWNER CHIP IS THE FIFTH THING (bead `ro-9smi`). `ro-md80` declared the
-   * floor on buttons, fields, palette rows and nav rows; the chip is none of
-   * those, which is how a 23px control on every file-owned section in the
-   * product survived that sweep and `ro-khoy`'s. What is asserted here is the
-   * SHAPE of the fix, because jsdom has no layout: the target and the drawn
-   * chip are two elements, and the growth is given back to the row.
-   */
+  /** jsdom has no layout, so what is asserted is the shape of the fix: the
+   * target and the drawn chip are two elements, and the growth is given back
+   * to the row. */
   it("gives the owner chip a 44px box without redrawing the chip", () => {
     const { container } = render(<OwnerChip path="config/pull.json" />);
     const target = container.querySelector("button");
     expect(target?.className).toContain("max-sm:min-h-11");
-    // Claimed, not added: the box grows, the row it sits in does not.
     expect(target?.className).toContain("max-sm:-my-2.5");
-    // The chip is drawn INSIDE it, at the size it always had — a border, a
-    // background and 11px type on the button itself would have grown with it.
     expect(target?.className).not.toContain("border-border");
     const chip = target?.firstElementChild;
     expect(chip?.className).toContain("border-border");
     expect(chip?.className).toContain("text-[11px]");
     expect(chip?.className).not.toContain("min-h-11");
-    // Hover and focus still reach the chip rather than the empty box.
     expect(chip?.className).toContain("group-hover:bg-muted");
     expect(chip?.className).toContain("group-focus-visible:ring-ring");
   });
 
-  /**
-   * Bead `ro-ujb9.79`. `truncate` never truncated — nothing above the path could
-   * shrink — so a long doc reference set the width of a whole phone-width row.
-   * The chip is capped at its container and the path breaks anywhere; the
-   * padding matches the negative margin so a wrapped, taller chip keeps its own
-   * slot instead of drawing over the line above it.
-   */
+  /** The chip is capped at its container and the path breaks anywhere; the
+   * padding matches the negative margin so a wrapped, taller chip keeps its
+   * own slot. */
   it("wraps a long reference inside its container instead of widening it", () => {
     const path = "docs/11-integrations.md#microsoft-clarity-per-project-export-token-and-daily-quota";
     const { container } = render(<OwnerChip path={path} />);
@@ -4304,17 +3981,12 @@ describe("phone mode — the thumb floor the desk's densities are under", () => 
     const text = container.querySelector("[data-owner-chip-path]")!;
     expect(text.className).toContain("wrap-anywhere");
     expect(text.className).not.toContain("truncate");
-    // The whole reference is there to read and to copy; nothing is elided.
     expect(text.textContent).toBe(path);
   });
 });
 
-/**
- * Bead `ro-ujb9.96.6.14`. A decision-owed alert printed the store's outcome
- * enum ("verdict: kill_confirmed") in its caption. The verdict is now the
- * pre-registered checks list's own chip — the same words and glyph — and the
- * "no decision recorded" state stays a chip beside it.
- */
+/** The verdict is the pre-registered checks list's own chip, and the "no
+ * decision recorded" state stays a chip beside it. */
 describe("AlertRow — a decision-owed row names the verdict in plain words", () => {
   const ROW_NOW = Date.parse("2026-09-23T12:00:00.000Z");
   function owedFlag(verdict: string | null, decisionHome: string | null = null): FlagRecord {
@@ -4360,7 +4032,6 @@ describe("AlertRow — a decision-owed row names the verdict in plain words", ()
     expect(owed).toHaveTextContent(glyph);
     expect(owed).toHaveTextContent("no decision recorded");
     expect(owed).not.toHaveTextContent(verdict);
-    // No stored enum anywhere on the row: no snake_case token, no "verdict:".
     expect(container.textContent).not.toMatch(/[a-z]+_[a-z]+|verdict:/);
   });
 

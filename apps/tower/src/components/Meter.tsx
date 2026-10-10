@@ -8,8 +8,8 @@ export interface MeterProps {
   ariaLabel?: string;
 }
 
-/** A token-driven progress bar (SYSTEM spend-today vs cap). Neutral fill until
- * it exceeds the cap — going over budget IS needs-attention, so it turns amber. */
+/** Neutral fill until the value exceeds the cap; over budget is needs-attention,
+ * so it turns amber. */
 export function Meter({ value, max, className, ariaLabel }: MeterProps) {
   const pct = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
   const over = max > 0 && value > max;

@@ -55,8 +55,7 @@ describe("InfoTooltip", () => {
     const colors = overlayColors(screen.getByRole("tooltip").className);
     expect(colors).toHaveLength(2);
     expect(colors[0]).toHaveLength(2);
-    // Reproduce the original transparent-popup defect: neither missing token
-    // is allowed to pass merely because its class appears in the DOM.
+    // Neither missing token passes merely because its class appears in the DOM.
     expect(() => overlayColors("bg-popover text-popover-foreground text-xs text-left"))
       .toThrow("Unregistered overlay color: popover");
     expect(() => overlayColors("bg-card/50 text-card-foreground text-xs text-left"))
@@ -129,8 +128,8 @@ describe("InfoTooltip", () => {
     expect(popup).toHaveClass("overflow-auto");
     fireEvent.scroll(popup);
     expect(screen.getByRole("tooltip")).toBeInTheDocument();
-    // A page scroll moves the popup with its trigger rather than closing it
-    // (ro-ujb9.14): tabbing to a trigger below the fold scrolls the page.
+    // A page scroll moves the popup with its trigger rather than closing it:
+    // tabbing to a trigger below the fold scrolls the page.
     fireEvent.scroll(window);
     expect(screen.getByRole("tooltip")).toBeInTheDocument();
   });

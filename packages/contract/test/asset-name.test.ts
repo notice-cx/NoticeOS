@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { PRODUCT_NAME, assetDisplayName } from '../src/asset-name.js';
 
-describe("the OS's own row is always called NoticeOS (ro-ujb9.77.10)", () => {
+describe("the OS's own row is always called NoticeOS", () => {
   it('names the OS row by the product, whatever its stored name says', () => {
     expect(PRODUCT_NAME).toBe('NoticeOS');
-    // The owner's store still holds the pre-rename value; it is ignored.
+    // Whatever the store holds for the OS row is ignored.
     expect(assetDisplayName(1, 'ReindexOS')).toBe('NoticeOS');
     expect(assetDisplayName(true, 'ReindexOS')).toBe('NoticeOS');
     expect(assetDisplayName(1, 'Anything an operator typed')).toBe('NoticeOS');

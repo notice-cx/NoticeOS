@@ -1,5 +1,5 @@
-// Comparable pace direction (ro-trai.48): ahead green, equality neutral,
-// behind amber, with the existing far-behind boundary red.
+// Comparable pace direction: ahead green, equality neutral, behind amber,
+// with the existing far-behind boundary red.
 
 import { render } from "./render";
 import { describe, expect, it } from "vitest";

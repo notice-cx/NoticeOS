@@ -22,8 +22,8 @@ describe('viewer-local workflow times', () => {
     expect(scheduleLabel('0 4 * * *', 'UTC', afterDst, 'America/Los_Angeles')).toBe('Daily at 20:00');
     expect(scheduleLabel('0 21 * * *', 'America/Los_Angeles', afterDst, 'America/Los_Angeles')).toBe('Daily at 21:00');
   });
-  /* Bead ro-ujb9.106: formatters are built once per option set and reused, so
-     a reused one must still honour each call's own zone and instant. */
+  /* Formatters are built once per option set and reused, so a reused one must
+     still honour each call's own zone and instant. */
   it('gives the same answers when a formatter is reused across zones and instants', () => {
     expect(formatClock('2026-09-10T04:30:00Z', 'America/Los_Angeles')).toBe('21:30');
     expect(formatClock('2026-09-10T04:30:00Z', 'UTC')).toBe('04:30');

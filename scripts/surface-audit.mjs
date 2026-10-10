@@ -1,45 +1,29 @@
 #!/usr/bin/env node
-// Does a desk surface still meet doc 14? Measures the LIVE Tower's routes at the
-// desk viewport (1440×900) and the phone viewport (390×844) and reports, per
-// route, every acceptance line in `docs/14-design.md` that a browser can
-// see.
+// Does a desk surface still meet the design doc? Measures the live Tower's
+// routes at the desk viewport (1440×900) and the phone viewport (390×844) and
+// reports, per route, every acceptance line in `docs/14-design.md` a browser
+// can see. Same shape as `scripts/wall-fit-check.mjs`: headless Chromium over
+// the DevTools protocol, read-only against a live Tower on 5173, an operator
+// tool rather than part of `pnpm test`.
 //
-// Why this exists (bead `ro-78qo.9`): doc 14's acceptance list is a list of
-// MEASUREMENTS — "the first screen answers the question without scrolling", "no
-// paragraph longer than one sentence outside About", "no owner chip on a view
-// surface", "every number that can have a series shows one", "the 44px floor
-// holds at 390". Every one of those was eyeballed from a screenshot the first
-// time the desk was built, and every one of them drifted: on 2026-09-05 the
-// asset Growth tab measured 10,139px and nobody had done anything careless.
-// A screenshot shows a surface; only a measurement adds it up.
+// The page does no judging: `collectSurface` walks the DOM and returns plain
+// descriptors — tag, attributes, ancestry, text, box. Every rule runs in node
+// over those descriptors, so `surface-audit.test.mjs` drives the same functions
+// over fixture descriptors.
 //
-// It is deliberately the same shape as `scripts/wall-fit-check.mjs` — headless
-// Chromium over the DevTools protocol, no Playwright page driver, no page bundle, read-only
-// against the operator's own Tower — and, like it, is an operator/agent tool
-// rather than part of `pnpm test`: it needs a live Tower on 5173 and a local
-// testing Chromium, neither of which exists in the jsdom suite or in CI.
-//
-// HOW THE WORK IS SPLIT, and why the split is the point. The page does no
-// judging: `collectSurface` walks the DOM and returns plain DESCRIPTORS — tag,
-// attributes, ancestry, text, box. Every rule then runs in node over those
-// descriptors, which is what makes them testable: `surface-audit.test.mjs`
-// drives the same functions over fixture descriptors that a fixture DOM would
-// have produced, so the rule that passes the test is the rule that ran against
-// the Tower rather than a second implementation of it.
-//
-// Exit 0 every route meets doc 14; 1 offenders (named per route); 2 could not
-// measure (no Chrome, no Tower, a route that never rendered). See scripts/README.md.
+// Exit 0 every route meets the doc; 1 offenders (named per route); 2 could not
+// measure (no Chrome, no Tower, a route that never rendered).
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveAuditBrowser, withAuditBrowser } from "./audit-browser.mjs";
 
-/** Where a route names ONE site's page. The audit fills it with `--asset`, else
- * with the first site the Tower's Sites page lists — never a site written into
- * this script (bead ro-ujb9.120). */
+/** Where a route names one site's page. The audit fills it with `--asset`,
+ * else with the first site the Tower's Sites page lists — never a site written
+ * into this script. */
 export const SITE_TOKEN = ":site";
 
-/** The desk routes doc 14 governs. `--routes` overrides. */
+/** The desk routes the design doc governs. `--routes` overrides. */
 export const DEFAULT_ROUTES = [
   "/",
   "/assets",
@@ -56,16 +40,16 @@ export const DEFAULT_ROUTES = [
 
 export const DEFAULT_URL = "http://127.0.0.1:5173";
 
-/** doc 14: "The first screen at 1440×900 answers the surface's one question." */
+/** "The first screen at 1440×900 answers the surface's one question." */
 export const DESK_VIEWPORT = { name: "desk", width: 1440, height: 900 };
-/** doc 14: "Phone width (390) … the 44px floor holds (bead `ro-md80`)." */
+/** "Phone width (390) … the 44px floor holds." */
 export const PHONE_VIEWPORT = { name: "phone", width: 390, height: 844 };
 
-/** ro-md80's touch floor, in CSS pixels. */
+/** The touch floor, in CSS pixels. */
 export const TOUCH_FLOOR = 44;
 
 /** `--strict` only: a subtitle is "one sentence" and this long is a paragraph
- * wearing a subtitle's punctuation. doc 14 principle 3. */
+ * wearing a subtitle's punctuation. */
 export const SUBTITLE_MAX_CHARS = 120;
 
 /** Sub-pixel slack. A control laid out at exactly 44px measures 43.99 often
@@ -169,10 +153,8 @@ export function selfAndAncestors(node) {
   return [node, ...(node?.ancestors ?? [])];
 }
 
-/** doc 14: prose lives behind THE ONE disclosure per screen. `[data-about]` is
- * the contract; `details.about` is the shape the disclosure took before the
- * attribute existed, and is accepted so the audit can measure a surface that
- * has not been rebuilt yet. */
+/** Prose lives behind the one disclosure per screen. `[data-about]` is the
+ * contract; `details.about` is an older shape still accepted. */
 export function isInsideAbout(node) {
   return selfAndAncestors(node).some((step) => {
     if (!step) return false;
@@ -191,24 +173,11 @@ export function isIgnored(node) {
 }
 
 /**
- * FOLDED AWAY INSIDE A CLOSED DISCLOSURE (bead `ro-78qo.20`).
- *
- * doc 14's whole progressive-disclosure principle is `<details>`: the `About`
- * on every surface, "Show all 28 →" on Search, the reference tables that open
- * collapsed. None of that is on the page by default, and the audit was counting
- * all of it — Chrome no longer hides a closed `<details>` with `display: none`
- * but with `content-visibility` on the implicit slot, so the subtree keeps a
- * layout box and the descriptor's `visible` says yes. On the asset Overview
- * that read 3,175px and 35 paragraphs where the browser drew 1,377 and none.
- *
- * The judgement lives here rather than in the page for the reason every other
- * rule does: descriptors already carry the ancestry, and a rule in node is a
- * rule with a test. The page keeps one copy for the page HEIGHT alone, which is
- * a measurement node cannot redo.
- *
- * THE SUMMARY IS NOT FOLDED AWAY. It is the visible line of a closed
- * disclosure and a control a thumb has to hit, so its own 44px floor is still
- * measured — which is why this is not simply "has a closed details ancestor".
+ * Folded away inside a closed disclosure. Chrome hides a closed `<details>`
+ * with `content-visibility` on the implicit slot rather than `display: none`,
+ * so the subtree keeps a layout box and the descriptor's `visible` says yes.
+ * The summary is not folded away: it is the visible line and a control a thumb
+ * has to hit, so its own 44px floor is still measured.
  */
 export function isInsideClosedDisclosure(node) {
   const chain = selfAndAncestors(node);
@@ -246,9 +215,9 @@ const ABBREVIATIONS = new Set([
 
 /**
  * How many sentences a reader sees. Not a parser — a counter tuned for the two
- * false positives that actually occur in this product's copy: decimals ("1.5
- * days", "$12.40") and abbreviations ("e.g.", "28d avg."). A run with no
- * terminator at all is one sentence, because that is what a subtitle is.
+ * false positives that occur in this product's copy: decimals ("1.5 days",
+ * "$12.40") and abbreviations ("e.g.", "28d avg."). A run with no terminator
+ * at all is one sentence.
  */
 export function sentenceCount(text) {
   const clean = collapse(text);
@@ -278,19 +247,16 @@ export function sentenceCount(text) {
     const word = clean.slice(0, index).split(" ").pop() ?? "";
     if (ABBREVIATIONS.has(word.toLowerCase())) continue;
     // A terminator followed by lowercase is mid-sentence punctuation, not a
-    // sentence break: "reported 14h ago. see Sources" is one careless line, but
-    // "…ago. See Sources" is two sentences and doc 14 says so.
+    // sentence break.
     if (/^[“"'(\[A-Z0-9]/.test(rest)) count++;
   }
   return count === 0 ? 1 : count;
 }
 
 /**
- * doc 14 acceptance: "No paragraph longer than one sentence is visible by
- * default outside `About`." `--strict` adds principle 3's other half — a
- * subtitle is at most one sentence AND says what the section is, so a
- * single-sentence run past `SUBTITLE_MAX_CHARS` is prose with a full stop at
- * the end of it.
+ * "No paragraph longer than one sentence is visible by default outside
+ * `About`." `--strict` adds the other half: a single-sentence run past
+ * `SUBTITLE_MAX_CHARS` is prose with a full stop at the end of it.
  */
 export function paragraphOffenders(paragraphs, options = {}) {
   const strict = Boolean(options.strict);
@@ -333,11 +299,11 @@ export function paragraphOffenders(paragraphs, options = {}) {
   return offenders;
 }
 
-/** doc 14 principle 4: config-file paths belong on Settings and Sources. */
+/** Config-file paths belong on Settings and Sources. */
 export const CONFIG_PATH_RE = /(^|[\s(])config\/[A-Za-z0-9._/-]+\.(json|md|yaml|yml)/;
 
 /**
- * The two surfaces doc 14 exempts: Settings (the page and the asset tab) and an
+ * The two exempt surfaces: Settings (the page and the asset tab) and an
  * asset's Sources tab. Everything else is a view surface.
  */
 export function isConfigSurfaceRoute(route) {
@@ -350,16 +316,13 @@ export function isConfigSurfaceRoute(route) {
 }
 
 /**
- * doc 14 acceptance: "No owner chip or config path on a view surface."
- *
- * Three signatures, because the vocabulary that will carry the first one has
- * not landed yet and the audit still has to be able to measure today's desk:
- *   · `[data-owner-chip]` — the contract (scripts/README.md);
- *   · a `title` beginning "Owned by " — today's `OwnerChip.tsx`;
- *   · visible text naming a `config/…` file — the chip's own payload, and also
- *     the bare paths that were written into copy without a chip.
+ * "No owner chip or config path on a view surface." Three signatures:
+ *   · `[data-owner-chip]` — the contract;
+ *   · a `title` beginning "Owned by " — `OwnerChip.tsx`;
+ *   · visible text naming a `config/…` file — the chip's own payload, and
+ *     bare paths written into copy without a chip.
  * `[data-config-surface]` opts a subtree out where one legitimately shows the
- * register (the Sources tab embedded in a page the route rule cannot see).
+ * register.
  */
 /** Is this node the inside of a chip that has already been counted? */
 export function isInsideOwnerChip(node) {
@@ -407,34 +370,19 @@ export function ownerChipOffenders(nodes, options = {}) {
 const SPARK_TAGS = new Set(["svg", "canvas"]);
 
 /**
- * doc 14 acceptance: "Every number that CAN have a series shows one." A
- * `[data-kpi]` declares itself as a number; the offender is the one with no
- * `[data-spark]` (or bare chart element) inside it — and no declared reason why
- * it has none.
+ * "Every number that can have a series shows one." A `[data-kpi]` declares
+ * itself as a number; the offender is the one with no `[data-spark]` (or bare
+ * chart element) inside it and no declared reason why it has none.
  *
- * THE "CAN" IS LOAD-BEARING, and Home is what taught this rule so (bead
- * `ro-78qo.6`). Its strip carries two numbers with no history to draw: the
- * operator's inbox posture and the count of conditions open tonight are both
- * point-in-time totals, and the store keeps no by-day record of either. What
- * they have instead is a COMPOSITION — how the total divides, which is the
- * urgency bar and the severity bar doc 14's own Home template asks for. A KPI
- * carrying `[data-composition]` has answered the question the rule is really
- * asking (does this number show its shape?) with the only shape it has. It is
- * a declaration, not an exemption: a number with a real series that draws a bar
- * instead still has to draw the series.
- *
- * AND THE THIRD ANSWER IS "NOT YET". A payload that keeps no history has no
- * series to draw and no composition either — the Tasks board's six counts are
- * the standing case — and six KPIs each printing a grey "no series" placard is
- * six identical pills saying nothing. Such a KPI draws NOTHING where the line
- * would be and declares the gap on itself (`data-series="unavailable"`, the
- * reason in `data-series-reason`). It is not an offender and it is not silent
- * either: {@link pendingSeries} collects them and the report lists them under
- * the route, so the gap stays visible until the payload grows one.
+ * Two declared reasons. A point-in-time total with no history carries a
+ * composition instead (`[data-composition]`: how the total divides) — a
+ * declaration, not an exemption, since a number with a real series still has
+ * to draw it. A payload that keeps no history yet declares the gap on itself
+ * (`data-series="unavailable"`, the reason in `data-series-reason`); it is not
+ * an offender, and {@link pendingSeries} lists it under the route.
  *
  * A KPI descriptor carries `sparks`: every descendant that could be the series
- * or the composition, so the judgement of what counts stays here rather than in
- * the page.
+ * or the composition, so the judgement of what counts stays here.
  */
 export function kpiOffenders(kpis) {
   const offenders = [];
@@ -464,14 +412,9 @@ export function kpiOffenders(kpis) {
 }
 
 /**
- * The numbers that have DECLARED they have no series yet — informational, never
- * an offence.
- *
- * It is separate from {@link kpiOffenders} rather than a field on it because
- * these two answer different questions: one is "what is wrong with this
- * surface", the other is "what is this surface still waiting on". A route can
- * meet doc 14 with six of these on it, and the report says so on its own line
- * so nobody has to read a passing run to notice the gap.
+ * The numbers that have declared they have no series yet — informational,
+ * never an offence. Separate from {@link kpiOffenders} because "what is wrong"
+ * and "what is this surface still waiting on" are different questions.
  */
 export function pendingSeries(kpis) {
   const pending = [];
@@ -488,14 +431,10 @@ export function pendingSeries(kpis) {
 }
 
 /**
- * ro-md80's floor: at 390 every control a thumb has to hit measures at least
- * 44px on both axes.
- *
- * Two deliberate exemptions. A link laid out `display: inline` is a word inside
- * a sentence, not a control — growing it would break the line box it sits in,
- * and doc 14 has no opinion about running text. A checkbox or radio is measured
- * through its `label`, because that is the box a thumb actually hits (`label`
- * rect arrives on the descriptor as `hitRect`).
+ * At 390 every control a thumb has to hit measures at least 44px on both axes.
+ * A link laid out `display: inline` is a word inside a sentence, not a
+ * control. A checkbox or radio is measured through its `label`, the box a
+ * thumb actually hits (`hitRect` on the descriptor).
  */
 export function touchTargetOffenders(controls, options = {}) {
   const floor = options.floor ?? TOUCH_FLOOR;
@@ -525,15 +464,11 @@ export function touchTargetOffenders(controls, options = {}) {
 }
 
 /**
- * doc 14 acceptance: "The first screen at 1440×900 answers the surface's one
- * question without scrolling."
- *
- * The declared hero is `[data-surface-hero]`. Where a surface has not declared
- * one, the hero is the union of its first `[data-kpi-strip]` and its first
- * `[data-hero-chart]` — the strip-plus-chart pair doc 14's Overview template
- * draws. A surface carrying none of the three has not declared a hero at all,
- * which is itself the offence: the audit cannot certify a first screen nobody
- * named.
+ * "The first screen at 1440×900 answers the surface's one question without
+ * scrolling." The declared hero is `[data-surface-hero]`; without one, the
+ * hero is the union of the first `[data-kpi-strip]` and the first
+ * `[data-hero-chart]`. A surface carrying none of the three has not declared
+ * a hero, which is itself the offence.
  */
 export function heroVerdict(hero, viewport) {
   const height = viewport?.height ?? DESK_VIEWPORT.height;
@@ -578,9 +513,8 @@ export function routeVerdict(measured, options = {}) {
   offenders.push(...ownerChipOffenders(desk?.owners, { route }));
   offenders.push(...kpiOffenders(desk?.kpis));
   offenders.push(...touchTargetOffenders(phone?.controls));
-  // Informational, and deliberately NOT in `offenders`: a route with six of
-  // these still meets doc 14. It rides the verdict so the report can say what
-  // the surface is waiting on without failing it.
+  // Informational, not in `offenders`: it rides the verdict so the report can
+  // say what the surface is waiting on without failing it.
   const pending = pendingSeries(desk?.kpis);
 
   const byRule = {};
@@ -589,8 +523,7 @@ export function routeVerdict(measured, options = {}) {
   }
   return {
     route,
-    // Whole pixels: a page height is a budget doc 14 states in whole pixels
-    // ("≤ 1,600px at 1440"), and a tenth of one is noise on a 10,000px page.
+    // Whole pixels: the page-height budget is stated in whole pixels.
     heights: {
       desk: desk ? Math.round(desk.pageHeight) : null,
       phone: phone ? Math.round(phone.pageHeight) : null,
@@ -623,26 +556,12 @@ export function readEmpty(reading) {
 }
 
 /**
- * A reading of the SKELETON rather than of the surface (bead `ro-78qo.44`).
- *
- * `readEmpty` above catches a page with nothing on it at all, and on a desk
- * route that almost never happens: the shell paints its sidebar, its nav links
- * and its search box immediately, so a route still waiting on `/api/wall` has
- * plenty of controls and text and the settle loop believes it. What it does NOT
- * have is any of its own content — and that shows up as a page whose furthest
- * painted edge is EXACTLY the viewport height, because the shell fills the
- * screen and nothing has extended past it yet.
- *
- * Measured on 2026-09-05: `/assets` came back 844px at 390×844 with `no-hero`
- * and thirteen controls under the floor, while the same Tower a minute later
- * measured the same route at 2,588px with no offenders at all. The thirteen was
- * the shell's own nav, and it matched this route's PRE-REBUILD baseline exactly,
- * which is how convincing a skeleton reading looks in a report.
- *
- * An exact equality rather than a threshold: a real surface that happens to end
- * within a pixel or two of the fold is a real surface, and discarding it would
- * trade a false failure for a hang. A page that has painted nothing past the
- * viewport lands on the number precisely.
+ * A reading of the skeleton rather than of the surface. The shell paints its
+ * sidebar, nav and search box immediately, so a route still waiting on its
+ * payload has controls and text and the settle loop believes it; what it lacks
+ * shows up as a furthest painted edge exactly equal to the viewport height.
+ * Exact equality rather than a threshold: a real surface that ends within a
+ * pixel of the fold is a real surface.
  */
 export function readSkeletal(reading) {
   if (readEmpty(reading)) return true;
@@ -742,20 +661,11 @@ export function collectSurface(options) {
       height: rect.height,
     };
   };
-  /* A CLOSED DISCLOSURE HIDES ITS CONTENT, whatever the box says (bead
-   * `ro-78qo.20`).
-   *
-   * Chrome no longer hides `<details>` content with `display: none` — it uses
-   * `content-visibility` on the implicit slot, so the subtree keeps a layout box
-   * and `getBoundingClientRect()` returns a real rect for text nobody can see.
-   * Every rule below trusts `visible`, so without this the audit reported the
-   * asset Overview at 3,175px with 35 paragraphs where the browser rendered
-   * 1,377 with none — the whole difference being one closed "All findings" and
-   * the `About` that doc 14 tells every surface to have.
-   *
-   * The SUMMARY is the exception and the reason this is not simply "inside a
-   * closed details": the summary is the visible line, it is a control a thumb
-   * has to hit, and its own 44px floor is measured here.
+  /* A closed disclosure hides its content, whatever the box says: Chrome uses
+   * `content-visibility` on the implicit slot rather than `display: none`, so
+   * `getBoundingClientRect()` returns a real rect for text nobody can see. The
+   * summary is the exception: it is the visible line and a control, and its
+   * own 44px floor is measured here.
    */
   const insideClosedDetails = (el) => {
     for (let node = el; node; node = node.parentElement) {
@@ -789,18 +699,12 @@ export function collectSurface(options) {
     ...(extra || {}),
   });
 
-  /* 1 — paragraphs, as a READER sees them rather than as the JSX spelled them.
-   *
-   * The desk writes plenty of prose into a <div>, and a <p> with a <strong> in
-   * the middle is still one paragraph, so neither "every <p>" nor "every
-   * text-only element" is the right set. What a reader sees is a BLOCK BOX with
-   * text in it: walk the text nodes, attribute each to its nearest non-inline
-   * ancestor, and every block that ends up with text is one paragraph. Inline
-   * children merge into their block (a sentence with a link in it is one
-   * sentence); a container whose children are all blocks collects nothing and so
-   * is never double-counted. Walking text nodes rather than elements also keeps
-   * this linear: `textContent` per element on a 10,000px page is a subtree walk
-   * per element. */
+  /* 1 — paragraphs, as a reader sees them rather than as the JSX spelled them:
+   * a block box with text in it. Walk the text nodes, attribute each to its
+   * nearest non-inline ancestor, and every block that ends up with text is one
+   * paragraph; inline children merge into their block, and a container whose
+   * children are all blocks collects nothing. Walking text nodes rather than
+   * elements keeps this linear. */
   const paragraphs = [];
   const blockText = new Map();
   const blockOrder = [];
@@ -932,10 +836,10 @@ export function collectSurface(options) {
   for (const el of doc.querySelectorAll("body *")) {
     const rect = el.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) continue;
-    // A closed disclosure's content keeps its layout box in current Chrome
-    // (`ro-78qo.20`), and a page's HEIGHT is what a reader scrolls past — not
-    // what is folded away inside it. The cheap ancestor walk rather than the
-    // whole of `isVisible`: this loop runs once per element on the page.
+    // A closed disclosure's content keeps its layout box in current Chrome,
+    // and a page's height is what a reader scrolls past. The cheap ancestor
+    // walk rather than the whole of `isVisible`: this loop runs once per
+    // element on the page.
     if (insideClosedDetails(el)) continue;
     const bottom = rect.bottom + scrollY;
     if (bottom > contentBottom) contentBottom = bottom;
@@ -1121,20 +1025,13 @@ export async function withChromePage(binary, viewport, read, { attach = connectA
 }
 
 /**
- * A route is ready when React has mounted AND the surface has stopped changing.
- *
- * The fingerprint is the element count beside the tallest scroll region, not
- * `document.scrollHeight`: the desk shell scrolls inside `main`, so the
- * document's scroll size is the viewport height on every route from first paint
- * onward — a settle loop watching it declares every surface settled ~600ms after
- * mount and measures the skeleton. Element count moves the instant data lands.
- *
- * FOUR equal samples, not two. A desk route pauses between its skeleton and its
- * data for as long as the store takes to answer, and a fingerprint that holds
- * across a short quiet window is a route mid-fetch: on the first live run
- * a site's `/assets/<id>` measured 844px with zero controls at 390 while the
- * identical route measured 6,417px with eighteen. The quiet window has to be
- * longer than the pause; `readEmpty` below is the backstop when it is not.
+ * A route is ready when React has mounted and the surface has stopped
+ * changing. The fingerprint is the element count beside the tallest scroll
+ * region, not `document.scrollHeight`: the desk shell scrolls inside `main`,
+ * so the document's scroll size is the viewport height on every route. Four
+ * equal samples, not two: a route pauses between its skeleton and its data
+ * for as long as the store takes to answer, and the quiet window has to be
+ * longer than the pause; `readEmpty` is the backstop when it is not.
  */
 const FINGERPRINT = `(() => {
   let region = 0;
@@ -1145,14 +1042,10 @@ const FINGERPRINT = `(() => {
 })()`;
 
 /**
- * The mark that says a route has drawn its OWN content, not just the shell.
- *
- * Every desk route declares one of these (doc 14's attribute table), so waiting
- * for one is the difference between measuring a surface and measuring the
- * skeleton in front of it. A route that never grows one is still measured and
- * still reported `no-hero` — that finding is what the mark exists for, and a
- * wait that turned a real missing hero into a hang or a pass would be worse than
- * the bug it fixes.
+ * The mark that says a route has drawn its own content, not just the shell.
+ * A route that never grows one is still measured and still reported
+ * `no-hero`; a wait that turned a real missing hero into a hang would be worse
+ * than the bug it fixes.
  */
 const HERO_PRESENT = `(() => !!document.querySelector('[data-surface-hero], [data-kpi-strip], [data-hero-chart]'))()`;
 
@@ -1167,11 +1060,10 @@ async function settle(page, options) {
     if (mounted) break;
   }
   if (!mounted) return false;
-  // MOUNTED IS NOT RENDERED (bead `ro-78qo.44`). The shell mounts on the first
-  // paint and the route's own content arrives with the payload, so the
-  // fingerprint below can settle on a skeleton that has a `main`, a nav and a
-  // search box. Wait for the surface to declare itself first — and give up
-  // quietly, because a route with no hero is a finding rather than an error.
+  // Mounted is not rendered: the fingerprint below can settle on a skeleton
+  // that has a `main`, a nav and a search box. Wait for the surface to declare
+  // itself first, and give up quietly, because a route with no hero is a
+  // finding rather than an error.
   while (Date.now() < deadline) {
     if (await page.evaluate(HERO_PRESENT)) break;
     await wait(200);
@@ -1291,11 +1183,9 @@ async function main() {
           let reading;
           try {
             reading = await page.evaluate(measureExpression(collectOptions));
-            // A skeleton the settle loop believed — nothing on the page at all, or
-            // nothing past the fold, which on a desk route means the shell and no
-            // surface. Wait it out once more rather than recording it: a route that
-            // measures 844px because it was still fetching is a baseline the
-            // rebuild would then be compared against (bead `ro-78qo.44`).
+            // A skeleton the settle loop believed — nothing on the page, or
+            // nothing past the fold. Wait it out once more rather than
+            // recording it.
             if (readSkeletal(reading)) {
               await settle(page, options);
               reading = await page.evaluate(measureExpression(collectOptions));
@@ -1361,9 +1251,8 @@ async function main() {
     );
     console.log("");
     console.log(formatTable(verdicts));
-    // WHAT EACH SURFACE IS STILL WAITING ON, above the offenders and separate
-    // from them: these routes PASS. Printed for every route that has any, so a
-    // green run still says which numbers are drawing nothing on purpose.
+    // What each surface is still waiting on, above the offenders and separate
+    // from them: these routes pass.
     for (const verdict of verdicts) {
       if (!verdict.pending?.length) continue;
       console.log(

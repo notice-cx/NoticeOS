@@ -1,36 +1,14 @@
 import { tryHealthConnection } from './integration-health-context.js';
 import { beginCollection, collectionMonitoring } from './collection-attempt.js';
-// Operator-owned GA4 + Google Search Console collectors.
-//
-// The credential map is account-centric: one base64-encoded service-account
-// key can serve several properties without duplicating the secret. A token is
-// minted once per account + OAuth scope and reused for every mapped property.
-// Raw credentials and access tokens are never persisted or logged.
-//
-// SINCE `ro-vu8d.3` THERE ARE TWO WAYS IN. An account entry that names no
-// `service_account_b64` authenticates with the operator's SIGN-IN instead
-// (`google-oauth.ts`), and every token this file asks for goes through the one
-// door in `google-auth.ts` — so nothing below branches on which kind it holds.
-// What the two paths still do NOT share is the property map: a sign-in tells
-// the OS which properties exist, and which ASSET each belongs to is the
-// operator's answer.
-//
-// SINCE `ro-vu8d.16` THAT ANSWER IS THE REGISTER (`lane-mapping.ts`). A GA4
-// property id or Search Console site saved on an asset's Sources tab beats the
-// credential blob's own `properties` map for that asset, and an install that
-// signed in without ever pasting a blob collects whatever the register maps —
-// which is what makes the sign-in enough. An asset the register says nothing
-// about keeps exactly the behaviour it had: the credential's value, or nothing
-// at all, said once per pull rather than thrown.
-//
-// AND SINCE `ro-90mr` THE BLOB'S PROPERTY MAP RETIRES ITSELF. Two places held
-// one fact, which is what D21 and the one-representation rule refuse; the copy
-// inside `GOOGLE_SIGNAL_ACCOUNTS` lived on only so the change above could land
-// without an operator migration. `parseGoogleTargets` now decides per lane,
-// before it reads anything, whether that copy is still the ONLY answer for any
-// asset the blob names — and stops reading `ga4_property_id` / `gsc_site_url`
-// where it is not. What the blob always keeps is the routing (which account
-// authenticates which asset) and each entry's `time_zone`.
+// GA4 + Google Search Console collectors. The credential map is
+// account-centric: one service-account key can serve several properties, and
+// a token is minted once per account + scope. An account entry that names no
+// `service_account_b64` authenticates with the operator's sign-in instead, and
+// every token goes through `google-auth.ts`. A property saved on an asset's
+// Sources tab (the register, `lane-mapping.ts`) beats the credential blob's
+// own `properties` map, and `parseGoogleTargets` stops reading the blob's
+// property ids on a lane where the register answers for every asset the blob
+// names; the blob always keeps the routing and each entry's `time_zone`.
 
 import {
   OS_TIME_ZONE,
@@ -108,10 +86,8 @@ import {
   type SignalTarget,
 } from './signal-store.js';
 
-// Re-exported rather than moved out of every caller's import: these are the
-// GOOGLE vocabulary, and `google-auth.ts` (bead `ro-vu8d.3`) is where they now
-// live because both auth paths need them. A collector that has always said
-// `from './google-signals.js'` keeps saying it.
+// Re-exported so a collector that imports the Google vocabulary from here
+// keeps working.
 export {
   GOOGLE_SCOPES,
   mintGoogleAccessToken,
@@ -123,35 +99,18 @@ export {
 
 const REQUEST_TIMEOUT_MS = 20_000;
 /**
- * What day boundary to assume for a GA4 property whose config entry names no
- * `time_zone`, when the caller has not resolved the saved one.
- *
- * THE OPERATOR'S CONFIGURED CLOCK, not a literal (bead `ro-toa0`). It was
- * the operator's own zone written here, which is a fact about ONE portfolio
- * baked into a Worker source file: a self-hoster whose properties report in
- * another zone got silently mis-bucketed rows every time the config omitted
- * the zone, and the only way to fix it was to edit TypeScript. `os_time_zone`
- * in `config/constants.json` is the one timezone a self-hoster already sets, so
- * it is the honest guess — the install's own clock rather than ours.
- *
- * A guess is still a guess. It is announced once per pull (see
- * `assumedTimeZoneEvent`) so a wrong one is visible in the log rather than only
- * in a chart that looks a few hours off. The exact answer is always the config
- * entry's own `time_zone`, and the provider's `metadata.timeZone` is watched
- * separately (`ro-tzq`) for the day a property's real boundary moves.
+ * The day boundary assumed for a GA4 property whose config entry names no
+ * `time_zone`, when the caller has not resolved the saved one: the operator's
+ * configured clock, never a literal zone. A guess is announced once per pull
+ * (`assumedTimeZoneEvent`); the provider's `metadata.timeZone` is watched
+ * separately for the day a property's real boundary moves. Lanes that resolve
+ * the store pass its saved zone as `assumedTimeZone`; this is the fallback.
  */
 const DEFAULT_GA4_TIME_ZONE = OS_TIME_ZONE;
-// AND THE SAVED ONE FIRST (bead `ro-ujb9.88`): since D22 `/settings` saves
-// `os_time_zone` into the config store without a rebuild. Every lane that
-// resolves the store passes its saved zone as `assumedTimeZone` below; this
-// compiled copy is only the fallback for a caller that did not.
 /**
- * Search Console's day boundary. A REAL constant and deliberately not the
- * configured clock: Google documents every Search Console property as reporting
- * in Pacific Time regardless of where the property or its owner is, so this is
- * the provider's contract rather than an assumption about the operator. It is
- * declared once, in the provider catalog (`reportingTimeZones`, bead
- * `ro-ujb9.118`), beside Google's other facts.
+ * Search Console's day boundary: a real constant, because Google documents
+ * every property as reporting in Pacific Time. Declared once, in the provider
+ * catalog.
  */
 const GSC_TIME_ZONE: string = requiredReportingTimeZone('gsc');
 
@@ -170,16 +129,12 @@ export interface GooglePropertyTarget extends SignalTarget {
   propertyRef: string;
   /** GA4's reporting day boundary. GSC is always queried in documented PT. */
   timeZone: string;
-  /** True when `timeZone` above is the OS clock STANDING IN for a config entry
-   * that named none — an assumption, not something the operator stated. Kept on
-   * the target so the pull can announce it once instead of the parse announcing
-   * it on every 30-second realtime read. */
+  /** True when `timeZone` is the OS clock standing in for a config entry that
+   * named none. Kept on the target so the pull can announce it once. */
   timeZoneAssumed: boolean;
-  /** How this property is authenticated — the account entry's own
-   * service-account key, or the operator's sign-in when it names none. */
+  /** The account entry's own service-account key, or the operator's sign-in. */
   auth: GoogleAuth;
-  /** Where `propertyRef` came from (bead `ro-vu8d.16`): the asset's own entry in
-   * `config/integrations.json`, or the credential blob's legacy property map. */
+  /** The asset's own register entry, or the credential blob's legacy property map. */
   mappingSource: LaneMappingSource;
 }
 
@@ -190,14 +145,11 @@ export interface GoogleSignalOutcome {
   providerRows: number;
   observationCount: number;
   errorCode: string | null;
-  /** Which mapping this attempt ran on (bead `ro-vu8d.16`). */
+  /** Which mapping this attempt ran on. */
   mappingSource: LaneMappingSource;
-  /**
-   * True when the collection failed because the OS's own uplink was down (bead
-   * `ro-aed0.1`). Still a failure — nothing was collected — but no `signal_runs`
-   * row and no Health observation accuses the property or Google; the run's one
-   * `os-egress-down` flag carries the fact instead (src/egress.ts).
-   */
+  /** The collection failed because the OS's own uplink was down. Still a
+   * failure, but no `signal_runs` row and no Health observation accuses the
+   * property or Google; the run's one `os-egress-down` flag carries the fact. */
   egressDown?: true;
 }
 
@@ -214,22 +166,16 @@ export interface GoogleSignalsOptions {
   nowMs?: number;
   fetchImpl?: typeof fetch;
   rawConfig?: string;
-  /** Override the compiled-in config/integrations.json mapping (tests state
-   * their own register instead of editing the operator's file). */
+  /** Override the compiled-in config/integrations.json mapping (tests). */
   laneRegister?: LaneRegister;
-  /** Where this run's config came from, per file — resolved once per cron fire
-   * in dispatch.ts and reported on the completion line below (`ro-syok.7`). */
+  /** Where this run's config came from, per file; reported on the completion line. */
   configSources?: ConfigSourceMap;
-  /** The operator's saved clock (config/constants.json `os_time_zone`, store
-   * first — bead `ro-ujb9.88`), assumed for a GA4 property that states no
+  /** The operator's saved clock, assumed for a GA4 property that states no
    * zone of its own. Absent: the zone compiled into this Worker. */
   osTimeZone?: string;
-  /** Override the run's egress gate (tests control the verdict TTL); every other
-   * caller gets a real one over the same fetcher. */
+  /** Override the run's egress gate (tests control the verdict TTL). */
   egress?: EgressGate;
-  /** Collect only these assets — the connect panel's Start (bead
-   * `ro-ujb9.96.7.7`). Narrower than the schedule, never wider: each still
-   * needs its mapping. */
+  /** Collect only these assets. Narrower than the schedule, never wider. */
   assets?: readonly string[];
 }
 
@@ -241,18 +187,13 @@ export async function runGoogleSignals(
 ): Promise<GoogleSignalsResult> {
   const nowMs = options.nowMs ?? Date.now();
   const fetchImpl = options.fetchImpl ?? fetch;
-  // CAN THE OS GET OUT (bead `ro-aed0.1`)? One gate per run, asked only when a
-  // Google call came back with no status at all. On 2026-08-08 a dead uplink
-  // killed the token mint before any property was contacted and this lane wrote
-  // a `request_failed` row per property per integration — each one that
-  // property's latest evidence, rendered as "Google returned request_failed".
-  // The gate's beacons use the raw fetcher; only Google's calls are watched.
+  // One gate per run, asked only when a Google call came back with no status
+  // at all; otherwise one dead token mint writes a `request_failed` row per
+  // property. The gate's beacons use the raw fetcher.
   const gate = options.egress ?? new EgressGate(env, { lane: 'google-signals', fetchImpl, at: new Date(nowMs).toISOString() });
   const transport = watchTransport(fetchImpl);
   const googleFetch = transport.fetch;
-  // Store first, legacy env binding second (bead `ro-vu8d.1`). A caller that
-  // handed us the raw config is a test, so nothing was resolved and the source
-  // is `env` by definition.
+  // A caller that handed us the raw config is a test: the source is `env`.
   const resolved = await resolveGoogleCredential(env);
   const health = await tryHealthConnection(env, 'google', resolved.credential, [resolved.oauth?.clientId ?? '', resolved.oauth?.clientSecret ?? '']);
   const monitoring = beginCollection(env.STORE, health);
@@ -260,9 +201,7 @@ export async function runGoogleSignals(
     options.rawConfig === undefined ? resolved.source : 'env';
   const accounts = options.rawConfig ?? resolved.accounts;
 
-  // A property its Data sources row declines (Not using) is not asked for —
-  // the one skip rule every collector applies (`laneDeclined`, bead
-  // `ro-ujb9.96.7.18`).
+  // A property its Data sources row declines (Not using) is not asked for.
   const targets = googleTargets(
     { accounts, oauth: resolved.oauth, connected: resolved.connected },
     source,
@@ -272,12 +211,9 @@ export async function runGoogleSignals(
   ).filter((target) => !laneDeclined(target.asset, target.integration, options.laneRegister)
     && (options.assets === undefined || options.assets.includes(target.asset)));
 
-  // SIGNED IN, WITH NOTHING MAPPED ANYWHERE. An install that connected with
-  // OAuth, never pasted an account map and has not mapped an asset on its
-  // Sources tab has a working credential and nothing to point it at. That is a
-  // state to REPORT, not a config error: throwing `config_missing` here would
-  // put a red lane on a card the operator just connected successfully. Google
-  // not connected at all is the same no-work run (bead `ro-ujb9.172`).
+  // Signed in with nothing mapped anywhere, or not connected at all, is a state
+  // to report, not a config error: throwing `config_missing` would put a red
+  // lane on a card the operator just connected.
   if (targets.length === 0 && accounts === undefined) {
     console.log(JSON.stringify({
       event: resolved.oauth === null ? 'google_signals_not_connected' : 'google_signals_no_properties_mapped',
@@ -286,13 +222,10 @@ export async function runGoogleSignals(
     return { attempted: 0, succeeded: 0, failed: 0, outcomes: [], egress: EGRESS_NOT_ASKED };
   }
 
-  // ONE line per pull naming the properties whose day boundary we ASSUMED
-  // (bead `ro-toa0`). A wrong assumption does not fail anything — it shifts
-  // which events land on which day, which reads downstream as a chart that is
-  // a few hours out of step and points nowhere near its cause. So the guess
-  // says so, once, here rather than in `parseGoogleTargets`: the same parse
-  // runs on every 30-second realtime read, and a warning at that rate is a
-  // warning nobody reads.
+  // One line per pull naming the properties whose day boundary was assumed. A
+  // wrong assumption shifts which events land on which day, which reads as a
+  // chart a few hours out of step. Said here rather than in
+  // `parseGoogleTargets`, which runs on every 30-second realtime read.
   const assumed = assumedTimeZoneEvent(targets);
   if (assumed) console.warn(JSON.stringify(assumed));
 
@@ -313,8 +246,7 @@ export async function runGoogleSignals(
           googleFetch,
         );
       } catch (error) {
-        // ONE dead mint used to fan into a failure row per property. When the
-        // uplink is what failed, none of them was measured and none is blamed.
+        // When the uplink is what failed, no property was measured and none is blamed.
         if (await egressExplains(gate, transport, error)) {
           for (const target of scopedTargets) outcomes.push(unmeasuredOutcome(gate, target));
           continue;
@@ -344,13 +276,12 @@ export async function runGoogleSignals(
                 : collectGsc(target.propertyRef, window, token, googleFetch),
             (token) => {
               // The whole account shares the token, so a refresh earned by one
-              // property is spent by the rest of the loop rather than minted
-              // again per property.
+              // property is spent by the rest of the loop.
               accessToken = token;
             },
           );
 
-          // Read the PREVIOUS timezone before writing this run, or this run
+          // Read the previous timezone before writing this run, or this run
           // becomes its own predecessor and no change is ever visible.
           const priorTimeZone = result.timeZone
             ? await previousTimeZone(env.STORE, target.asset, integration, target.propertyRef)
@@ -358,11 +289,9 @@ export async function runGoogleSignals(
 
           await recordSignalSuccess(env, target, window, startedAt, result, monitoring);
 
-          // A reporting timezone changing means the property's DAY changed
-          // shape, and the provider does not reprocess what it already bucketed
-          // (`ro-tzq`). Recorded on the timeline so every later comparison can
-          // ask whether its window spans it — the collection itself is
-          // unaffected and must not fail over it.
+          // A reporting timezone change means the property's day changed shape
+          // and the provider does not reprocess what it already bucketed.
+          // Recorded on the timeline; the collection must not fail over it.
           if (
             result.timeZone &&
             priorTimeZone &&
@@ -374,15 +303,12 @@ export async function runGoogleSignals(
                 integration,
                 from: priorTimeZone,
                 to: result.timeZone,
-                // The provider day the two definitions stop agreeing on is the
-                // day this run is reporting through — the first day collected
-                // under the new boundary.
+                // The first day collected under the new boundary.
                 effectiveOn: window.end,
               });
             } catch {
-              // Never fail a collection over its own bookkeeping. The next run
-              // sees the same difference and files again; the annotation's
-              // identity makes that a duplicate rather than a second event.
+              // Never fail a collection over its own bookkeeping; the annotation's
+              // identity makes the next run's filing a duplicate.
             }
           }
           if (integration === 'ga4') {
@@ -436,33 +362,25 @@ export async function runGoogleSignals(
     failed: outcomes.filter((outcome) => outcome.status === 'error').length,
     outcomes,
   };
-  // One `os-egress-down` fact for the whole run, however many properties the
-  // dead uplink left unmeasured — and, on the run that gets through again, the
-  // retraction of the one an earlier run left open.
+  // One `os-egress-down` fact for the whole run, or the retraction of one an
+  // earlier run left open.
   const egress = await gate.finalize();
-  // What this run actually MEASURED. A collection the uplink swallowed says
-  // nothing about the credential or the property, so it may not stamp either.
+  // What this run actually measured: a collection the uplink swallowed may not
+  // stamp the credential or the property.
   const measured = outcomes.filter((outcome) => !outcome.egressDown);
-  // One stamp per pull on the CREDENTIAL, not per property: a service account
-  // that minted a token and returned rows for anything is a working credential,
-  // and a property-level failure is the property's story (db/0028). A run the
-  // uplink swallowed whole stamps nothing: no measurement is not a verdict.
+  // One stamp per pull on the credential, not per property: a property-level
+  // failure is the property's story, and a run swallowed whole stamps nothing.
   if (source === 'store' && !(outcomes.length > 0 && measured.length === 0)) {
     const firstError = measured.find((outcome) => outcome.status === 'error');
-    // A REVOKED GRANT GETS ITS OWN SENTENCE (bead `ro-vu8d.14`). Every other
-    // failure here is a property's story and the credential's column carries a
-    // code the operator can quote; this one is a statement about the CREDENTIAL
-    // — nothing about any property is wrong — and it is the only column the
-    // Integrations card will show, so it has to say what to do rather than name
-    // an enum. `google_oauth_revoked` reaches every property at once, which is
-    // why a single stamp can speak for the whole run.
+    // A revoked grant gets its own sentence: it is a statement about the
+    // credential, nothing about any property is wrong, and the column has to
+    // say what to do rather than name an enum.
     const revoked = measured.every(
       (outcome) =>
         outcome.status !== 'error' || outcome.errorCode === GOOGLE_OAUTH_REVOKED_CODE,
     );
-    // Any other failure is one line (bead `ro-ujb9.96.6.31`): what went wrong
-    // in a site row's words, then how many properties — never the code, which
-    // each property's own run keeps.
+    // Any other failure is one line: the words a site row uses, then how many
+    // properties; never the code, which each property's own run keeps.
     const failed = measured.filter((outcome) => outcome.status === 'error');
     await recordCredentialOutcome(env, 'google', {
       ok: result.succeeded > 0,
@@ -483,19 +401,14 @@ export async function runGoogleSignals(
       attempted: result.attempted,
       succeeded: result.succeeded,
       failed: result.failed,
-      // WHERE THE MAPPING ITSELF CAME FROM (bead `ro-syok.7`) — `store` means
-      // this run read the document an operator saved, with no restart between
-      // the Save and the run; `file` means the copy compiled into this Worker.
+      // `store` means this run read the document an operator saved; `file` the
+      // copy compiled into this Worker.
       ...configSourceLine(options.configSources, ['config/integrations.json']),
-      // WHICH MAPPING THIS PULL RAN ON (bead `ro-vu8d.16`) — `{register: 2,
-      // credential: 2}` reads as two assets steered by their own Sources tab and
-      // two still on the legacy credential map. No property ids here: the
-      // per-property value is already `signal_runs.property_ref`.
+      // No property ids here: the per-property value is `signal_runs.property_ref`.
       mappingSources: mappingSourceTally(
         outcomes.map((outcome) => outcome.mappingSource),
       ),
-      // Provider failures only. A collection the uplink swallowed is counted in
-      // `failed` and here, never listed as Google's error (bead `ro-aed0.1`).
+      // Provider failures only: an unmeasured collection is never listed as Google's.
       errors: measured
         .filter((outcome) => outcome.status === 'error')
         .map(({ asset, integration, errorCode }) => ({ asset, integration, errorCode })),
@@ -506,9 +419,7 @@ export async function runGoogleSignals(
 }
 
 /**
- * A collection the dead uplink swallowed: noted on the gate (which names the
- * property on the run's one `os-egress-down` flag) and nowhere else — no
- * `signal_runs` row, no Health observation, no word against Google.
+ * A collection the dead uplink swallowed: noted on the gate and nowhere else.
  */
 function unmeasuredOutcome(gate: EgressGate, target: GooglePropertyTarget): GoogleSignalOutcome {
   gate.recordUnmeasured(target.asset);
@@ -525,19 +436,11 @@ function unmeasuredOutcome(gate: EgressGate, target: GooglePropertyTarget): Goog
 }
 
 /**
- * Run one provider call, and on a 401 get a fresh token and run it ONCE more.
- *
- * WHY ONCE AND NOT A LOOP. A 401 has exactly two causes worth retrying: a token
- * that expired between minting and using (the pull loop can outlive an hour on
- * a portfolio with many properties) and, on the OAuth path, an access token
- * invalidated early. Both are fixed by the second attempt. Anything that
- * answers 401 twice is a credential or a grant problem, and retrying it again
- * would turn a broken credential into a burst of requests against Google.
- *
- * A REVOKED grant is deliberately not retried: `refreshGoogleAccessToken`
- * raises `google_oauth_revoked` rather than an HTTP failure, so it propagates
- * as itself and the operator is told to reconnect instead of watching a lane
- * fail with a 401 that is not about this token at all.
+ * Run one provider call, and on a 401 get a fresh token and run it once more.
+ * Once, not a loop: a token that expired between minting and using, or an
+ * access token invalidated early, is fixed by the second attempt; anything that
+ * answers 401 twice is a credential problem. A revoked grant raises
+ * `google_oauth_revoked` rather than an HTTP failure, so it propagates as itself.
  */
 async function withFreshTokenOnce<T>(
   auth: GoogleAuth,
@@ -567,11 +470,9 @@ export interface AssumedTimeZoneEvent {
 }
 
 /**
- * The warning, or null when every GA4 property stated its own zone.
- *
- * Built apart from the printing so the suite can pin its shape: inside workerd
- * a test cannot see the lane's own console. GSC targets are excluded — their
- * boundary is Google's documented PT and was never a guess.
+ * The warning, or null when every GA4 property stated its own zone. Built apart
+ * from the printing so the suite can pin its shape. GSC targets are excluded:
+ * their boundary is Google's documented PT.
  */
 export function assumedTimeZoneEvent(
   targets: GooglePropertyTarget[],
@@ -589,24 +490,14 @@ export function assumedTimeZoneEvent(
 }
 
 /**
- * EVERY GOOGLE PROPERTY THIS INSTALL COLLECTS, from both mappings at once
- * (bead `ro-vu8d.16`) — the one door the two Google lanes share, so the live
- * collector and the archive can never disagree about what is configured.
- *
- * Order is the precedence: the credential blob's own entries are parsed first
- * (with the register overriding each ref it holds), then the register's own
- * mapped assets are added for anything the blob did not cover. An asset can
- * therefore be moved off the blob a field at a time, and nothing collects twice.
- *
- * The edge cases. Google not connected at all (`connected: false`, what the
- * Integrations card reads as not connected) is no work: nothing is asked and a
- * scheduled lane reads skipped, like every other provider nobody set up (bead
- * `ro-ujb9.172`). No blob and no sign-in on anything else — a stored row that
- * lost its map or cannot be opened, or a caller that did not say — is still
- * `config_missing` with its old sentence: an install on service accounts must
- * not start reading "sign in" at it. A sign-in with no blob returns whatever
- * the register maps, which is empty until an asset is mapped, and each caller
- * says so in its own words rather than failing.
+ * Every Google property this install collects, from both mappings at once: the
+ * one door the two Google lanes share. The credential blob's entries are parsed
+ * first (with the register overriding each ref it holds), then the register's
+ * own mapped assets are added for anything the blob did not cover, so nothing
+ * collects twice. Google not connected at all is no work. No blob and no
+ * sign-in is still `config_missing` with its old sentence: an install on
+ * service accounts must not start reading "sign in" at it. A sign-in with no
+ * blob returns whatever the register maps.
  */
 export function googleTargets(
   credential: { accounts: string | undefined; oauth: GoogleOAuthGrant | null; connected?: boolean },
@@ -641,10 +532,8 @@ export function googleTargets(
 }
 
 /**
- * `source` says where `raw` came from, and rides into every target's
- * `credentialRef` so `signal_runs` records whether a pull ran on the product's
- * credential or on the legacy `.dev.vars` one (bead `ro-vu8d.1`). It defaults to
- * `env`, which is what every caller that has no opinion has always recorded.
+ * `source` rides into every target's `credentialRef` so `signal_runs` records
+ * whether a pull ran on the product's credential or the legacy env one.
  */
 export function parseGoogleTargets(
   raw: string | undefined,
@@ -669,14 +558,10 @@ export function parseGoogleTargets(
   const root = asRecord(parsed);
   if (!root) throw new SignalError('config_invalid', 'GOOGLE_SIGNAL_ACCOUNTS must be an object.');
 
-  // WHICH HALVES OF THIS BLOB ARE STILL LOAD-BEARING (bead `ro-90mr`), decided
-  // before a single property id is read. The pass below looks at the `properties`
-  // KEYS only — the routing half, which stays — and asks the register whether it
-  // answers for every one of them on each lane. Where it does, `ga4_property_id`
-  // / `gsc_site_url` are not read at all on that lane: the register was already
-  // winning for every asset that could have consulted them, so letting go costs
-  // nothing and the second copy of the fact stops being read the day the last
-  // asset is mapped. Where it does not, this is exactly today's behaviour.
+  // Which halves of this blob are still load-bearing, decided before a single
+  // property id is read: where the register answers for every asset the blob
+  // names on a lane, `ga4_property_id` / `gsc_site_url` are not read on that
+  // lane, so a stale id left in the credential cannot steer anything.
   const named = blobPropertyAssets(root);
   const credentialAnswers: Record<GoogleIntegrationId, boolean> = {
     ga4: credentialPropertyMapNeeded(named, 'ga4', register),
@@ -699,11 +584,9 @@ export function parseGoogleTargets(
       inlineCredential ??
       (credentialBinding ? resolveCredential?.(credentialBinding) ?? null : null);
     const properties = asRecord(entry?.properties);
-    // AN ENTRY WITH NO KEY IS NOT A BROKEN ENTRY ANY MORE (bead `ro-vu8d.3`):
-    // when the operator has signed in, the map may carry properties alone and
-    // the grant authenticates them. Without a sign-in it is still the old
-    // error, with the old sentence — an install on service accounts must not
-    // start reading "sign in" at it.
+    // An entry with no key is fine when the operator has signed in: the grant
+    // authenticates its properties. Without a sign-in it is the old error with
+    // the old sentence.
     const auth: GoogleAuth | null = encoded
       ? { kind: 'service-account', account: decodeServiceAccount(encoded, account) }
       : oauth === null
@@ -725,15 +608,8 @@ export function parseGoogleTargets(
       const configuredTimeZone = stringField(property, 'time_zone');
       const timeZone = configuredTimeZone ?? assumedTimeZone;
       validateTimeZone(timeZone, asset);
-      // THE REGISTER FIRST, THIS BLOB SECOND (bead `ro-vu8d.16`) — AND ONLY
-      // WHILE THE BLOB IS STILL SOMEBODY'S ONLY ANSWER (bead `ro-90mr`). The
-      // asset's own `config/integrations.json` entry is the operator's answer and
-      // wins; `ga4_property_id` / `gsc_site_url` are what an unmapped asset still
-      // reads, which is why nothing about an install that has mapped nothing
-      // changes. `credentialAnswers` above is what makes the second copy go: on a
-      // lane where every asset this blob names is mapped, the field is not read,
-      // so a stale property id left behind in the credential cannot steer
-      // anything and the map is free to shrink to its routing.
+      // The register first, this blob second, and only while the blob is still
+      // somebody's only answer (`credentialAnswers`).
       const refs: [GoogleIntegrationId, ReturnType<typeof resolveLaneRef>][] = [
         [
           'ga4',
@@ -788,14 +664,10 @@ export function parseGoogleTargets(
 }
 
 /**
- * Every asset the account map NAMES, across all of its accounts (bead `ro-90mr`).
- *
- * The keys of each entry's `properties` object and nothing else — this is the
- * routing half, the one the blob keeps once the property ids go. It is
- * deliberately forgiving where the validating pass is strict: a malformed entry
- * is an error the loop below still raises with its own sentence, and answering
- * "this asset is named" for it only ever keeps the credential map in play, which
- * is the conservative side of the question.
+ * Every asset the account map names: the keys of each entry's `properties`
+ * object, the routing half. Forgiving where the validating pass is strict:
+ * answering "named" for a malformed entry only keeps the credential map in
+ * play, the conservative side.
  */
 function blobPropertyAssets(root: Record<string, unknown>): string[] {
   const assets: string[] = [];
@@ -807,21 +679,14 @@ function blobPropertyAssets(root: Record<string, unknown>): string[] {
 }
 
 /**
- * WHICH ASSETS THIS INSTALL'S GOOGLE CREDENTIAL NAMES — the one input the
- * property-map question takes, answered where the blob can actually be read
- * (bead `ro-vu8d.22`).
- *
- * `null` means *this credential has no property map to talk about*, and the
- * card then says nothing rather than guessing. Three cases reach it and all
- * three are honest: an install that signed in and never pasted an account map,
- * a credential whose bootstrap key cannot open it, and a blob that does not
- * parse — the collector reports that one as `config_invalid` in its own words,
- * and a card inventing a verdict over it would be the second opinion.
+ * Which assets this install's Google credential names, answered where the blob
+ * can be read. `null` means this credential has no property map to talk
+ * about (no blob, a key that cannot open it, or a blob that does not parse),
+ * and the card then says nothing rather than guessing.
  */
 export async function credentialNamedAssets(env: IngestEnv): Promise<string[] | null> {
-  // Aliased on import: `resolveCredential` is already the name of the
-  // service-account BINDING resolver `parseGoogleTargets` takes as a parameter,
-  // and two things called that in one file is how a reader loses the thread.
+  // Aliased on import: `resolveCredential` is already the name of the binding
+  // resolver `parseGoogleTargets` takes.
   const credential = await resolveStoredCredential(env, 'google');
   const raw = credential.fields.GOOGLE_SIGNAL_ACCOUNTS;
   if (raw === undefined || raw.trim() === '') return null;
@@ -836,22 +701,11 @@ export async function credentialNamedAssets(env: IngestEnv): Promise<string[] | 
 }
 
 /**
- * The Integrations page's answer to *is this credential's own property map
- * still read*, attached to the summary it belongs to (bead `ro-vu8d.22`).
- *
- * THE INGEST REPORTS IT BECAUSE ONLY THE INGEST CAN READ THE BLOB. The Tower
- * derived its own version from `config/integrations.json` alone — the assets
- * that DECLARE a ga4/gsc cell — because it must never see credential contents.
- * That answers a different question, and the two diverge for an ORPHAN: an asset
- * the credential names with no register entry at all. The collector goes on
- * reading `ga4_property_id` for it, correctly; the card said the map answered
- * for none of them, which licenses deleting a value that is still steering a
- * run. What crosses the wire here is asset ids and data-source ids, no more
- * sensitive than what `IntegrationProviderStatus.assets` already carries.
- *
- * Google is the only credential with a map of its own, so it is the only
- * summary that ever gains one; every other provider keeps `propertyMap`
- * absent.
+ * The Integrations page's answer to "is this credential's own property map
+ * still read", attached to the summary. The ingest reports it because only the
+ * ingest can read the blob; the Tower's own derivation from the register alone
+ * diverges for an orphan asset the credential names with no register entry.
+ * Google is the only credential with a map of its own.
  */
 export async function withCredentialPropertyMaps(
   env: IngestEnv,
@@ -874,20 +728,10 @@ export async function withCredentialPropertyMaps(
 const GOOGLE_OAUTH_ACCOUNT = 'google-oauth';
 
 /**
- * What the account map is NOT the only way to say any more (bead `ro-vu8d.16`).
- *
- * The operator signs in once on `/integrations`, picks this asset's property on
- * its Sources tab (`ro-vu8d.17`), and that is the whole setup: no JSON blob, no
- * `.dev.vars`, nothing to paste. Every asset the register maps on this lane
- * becomes a target authenticated by the sign-in.
- *
- * `credential_ref` records `google-oauth` rather than the operator's email
- * address: the ledger is asking WHICH credential ran the pull, and an address in
- * every row would be a personal detail stored for a question it does not answer.
- *
- * The day boundary is the OS clock, announced as an assumption exactly like a
- * blob entry that named no `time_zone` — the register does not carry one, and
- * GA4's own `metadata.timeZone` is what the run reads back anyway (`ro-tzq`).
+ * Every asset the register maps on a lane becomes a target authenticated by
+ * the sign-in: no JSON blob to paste. `credential_ref` records `google-oauth`
+ * rather than the operator's email, because the ledger asks which credential
+ * ran the pull. The day boundary is the OS clock, announced as an assumption.
  */
 export function registerGoogleTargets(
   oauth: GoogleOAuthGrant,
@@ -949,8 +793,8 @@ async function collectGa4(
         ],
         keepEmptyRows: true,
         limit: '100',
-        // 96 runs a day per property is the heaviest cadence this OS has. Ask
-        // what it costs, or a ceiling hit arrives as an ordinary failure.
+        // The heaviest cadence this OS has: ask what it costs, or a ceiling hit
+        // arrives as an ordinary failure.
         returnPropertyQuota: true,
       }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -993,15 +837,8 @@ async function collectGa4(
   return {
     providerRows: rows.length,
     quota: parseGa4PropertyQuota(record),
-    // THE PROPERTY'S OWN ANSWER, on every call the collector already makes
-    // (`ro-tzq`). GA4 buckets each event into a day using the property's
-    // reporting timezone, and `metadata.timeZone` is that timezone — so the
-    // day-definition behind these numbers arrives with the numbers, for free.
-    //
-    // Read from the provider rather than from config because a configured
-    // timezone is a COPY: it is right until somebody changes the property and
-    // forgets the secret, and then the OS is confidently wrong about what a
-    // "day" is. On 2026-08-31 that is exactly what happened.
+    // The property's own reporting timezone, on every call: a configured zone
+    // is a copy that is right until somebody changes the property.
     timeZone: stringField(asRecord(record?.metadata), 'timeZone'),
     observations: fillDailyObservations(window, observations, [
       'sessions',
@@ -1010,36 +847,22 @@ async function collectGa4(
       'event_count',
     ]),
     dataState: 'includes-provisional',
-    // TODAY AND YESTERDAY are provisional (bead `ro-wo0j`) — see
-    // `GA4_SETTLE_DAYS`. Today is a partial day; yesterday is a whole day GA4
-    // has not finished attributing. The append-only change log still records
-    // every revision; this boundary is what tells a reader not to trust one yet.
+    // Today and yesterday are provisional (`GA4_SETTLE_DAYS`): today is a
+    // partial day; yesterday is a day GA4 has not finished attributing.
     provisionalFrom: ga4ProvisionalFrom(window.end),
   };
 }
 
 /**
  * How many calendar days a GA4 day needs before it is settled: a day stays
- * provisional until it has been collected at least once on day D+2 (bead
- * `ro-wo0j`).
- *
- * The Data API states no finalization flag (unlike Search Console's
- * `first_incomplete_date`), so this is a documented delay rather than the
- * provider's answer: docs/02's signal table already says recent GA4 values can
- * be revised for 24–48h, and this portfolio's own evidence set the number —
- * one asset's 2026-09-21, collected at D+1, carried 3,380 "Unassigned"
- * sessions (101–340 on every other September day), 1,321 "Cross-network" (0 on
- * every other day) and Organic Search at 1,096 against Search Console's 1,398
- * Google clicks — while every day collected at D+2 or later read correctly.
- * Two, not more: the D+2 copies were the correct ones, and a longer hold would
- * hide real days. If a D+2 day is ever seen still settling, this is the number
- * to move.
+ * provisional until collected at least once on day D+2. The Data API states no
+ * finalization flag, so this is a documented delay; two rather than more
+ * because a longer hold would hide real days.
  */
 export const GA4_SETTLE_DAYS = 2;
 
 /** The first provisional date for a GA4 collection whose newest day is
- * `windowEnd` (the property's own today). Pure calendar arithmetic on a
- * `YYYY-MM-DD` date, so no clock or zone enters it twice. */
+ * `windowEnd`. Pure calendar arithmetic, so no clock or zone enters twice. */
 export function ga4ProvisionalFrom(windowEnd: string): string {
   const date = new Date(`${windowEnd}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() - (GA4_SETTLE_DAYS - 1));
@@ -1101,7 +924,7 @@ async function collectGsc(
     'first_incomplete_date',
   );
   // A current-day aggregate is partial even when Search Console omits response
-  // metadata. If Google reports an earlier incomplete boundary, preserve it.
+  // metadata; an earlier incomplete boundary Google reports is preserved.
   const provisionalFrom =
     reportedIncompleteFrom &&
     /^\d{4}-\d{2}-\d{2}$/.test(reportedIncompleteFrom) &&
@@ -1110,10 +933,8 @@ async function collectGsc(
       : window.end;
   return {
     providerRows: rows.length,
-    // Search Console reports no timezone because it has none to report: Google
-    // fixes its day boundary to Pacific time for every property. Stated
-    // here rather than left null, because null means "we do not know" and this
-    // is known.
+    // Search Console has no timezone to report: Google fixes its day boundary
+    // to Pacific time. Stated rather than null, because this is known.
     timeZone: GSC_TIME_ZONE,
     observations: fillDailyObservations(window, observations, [
       'clicks',
@@ -1130,9 +951,8 @@ function collectionWindow(
   target: Pick<GooglePropertyTarget, 'integration' | 'timeZone'>,
   nowMs: number,
 ): SignalDateWindow {
-  // Search Console's API date contract is PT. GA4 groups the `date` dimension
-  // by the property's configured reporting timezone. UTC is therefore not an
-  // honest definition of "today" for either provider.
+  // GSC's date contract is PT; GA4 groups `date` by the property's reporting
+  // timezone. UTC is not an honest "today" for either.
   const timeZone =
     target.integration === 'gsc' ? GSC_TIME_ZONE : target.timeZone;
   const end = dateInTimeZone(nowMs, timeZone);
@@ -1168,9 +988,8 @@ export function groupGoogleTargetsByAccount(
 }
 
 /**
- * A GA4 failure, with a quota ceiling told apart from every other 429. A rate
- * limit recovers on its own; an exhausted budget needs an operator, and burying
- * both under `ga4_http_429` is what made a quota crunch invisible.
+ * A GA4 failure, with a quota ceiling told apart from every other 429: a rate
+ * limit recovers on its own; an exhausted budget needs an operator.
  */
 export function ga4RequestError(status: number, body: unknown): SignalError {
   const generic = providerError('ga4', status, body);
@@ -1206,8 +1025,7 @@ function formatDate(date: Date): string {
 }
 
 /** Daily Search Analytics omits dates with no rows. A bounded date-only query
- * cannot be truncated at 28 rows, so normalize those omissions to honest zeroes
- * and make revisions-to-zero visible in the append-only change log. */
+ * cannot be truncated, so those omissions are honest zeroes. */
 function fillDailyObservations(
   window: SignalDateWindow,
   observations: SignalObservation[],

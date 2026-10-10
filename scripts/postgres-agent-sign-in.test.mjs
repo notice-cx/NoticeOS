@@ -21,7 +21,7 @@ import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 
-// Agent sign-in (epic ro-cvl9; migration 0014, packages/postgres/src/
+// Agent sign-in (migration 0014, packages/postgres/src/
 // agent-sign-in.mts): the maintained OAuth provider behind fixed routes, a
 // person approving an agent once, and one token that reaches each of the
 // person's workspaces as far as the person's role there allows.

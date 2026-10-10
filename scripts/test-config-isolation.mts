@@ -1,49 +1,42 @@
-// Unit tests run on FIXTURE configuration, never on the checkout's own
-// `config/` or this installation's folder (beads ro-ujb9.92, ro-ujb9.125).
+// Unit tests run on fixture configuration, never on the checkout's own
+// `config/` or this installation's folder.
 //
-// WHY. The installation folder (`installation/`, scripts/installation.mts) is
-// the operator's configuration: `pnpm config:export` writes the saved settings
-// back into it. `config/*.json` holds the product's defaults, which change
-// with the product. A test that passes only because of today's values in
-// either fails on a stranger's clean install, or the day a setting or a
-// default changes — the journey harness was isolated from both for the same
-// reason (ro-ujb9.89). So, in the Tower and ingest unit suites:
+// The installation folder (`installation/`, scripts/installation.mts) is the
+// operator's configuration; `config/*.json` holds the product's defaults,
+// which change with the product. A test that passes only because of today's
+// values in either fails on a stranger's clean install. So, in the Tower and
+// ingest unit suites:
 //
-//   - an IMPORT of a repo config file from source code (the ingest's compiled
-//     fallback copies, the contract's compiled clock) is answered with the
-//     suite's own fixture copy, `test/fixture-config/<name>.json`. A config file
-//     the suite holds no copy of fails the import rather than falling through to
-//     the owner's (`fixtureConfigPlugin`);
-//   - TEST code (any file under the suite's test directory) importing one is
+//   - an import of a repo config file from source code is answered with the
+//     suite's own fixture copy, `test/fixture-config/<name>.json`. A config
+//     file the suite holds no copy of fails the import rather than falling
+//     through to the owner's (`fixtureConfigPlugin`);
+//   - test code (any file under the suite's test directory) importing one is
 //     refused, and so is test code reading one with `node:fs`
 //     (`installOwnerConfigReadGuard`, Tower and contract — the ingest suite
 //     runs in workerd, which has no host filesystem).
 //
-// Not seen by either: a COMPUTED dynamic import (`import(/* @vite-ignore */
+// Not seen by either: a computed dynamic import (`import(/* @vite-ignore */
 // path)`), which vitest hands to Node rather than to Vite's resolver. Nothing
 // in the suites does that, and a literal specifier is refused.
 //
-// The contract suite (packages/contract) is wired the same way as the Tower's
-// (bead ro-ujb9.97): its compiled clock gets its own test/fixture-config/ copy.
+// The contract suite (packages/contract) is wired the same way as the Tower's.
 //
-// The ROOT SCRIPT suite (`pnpm test:scripts`, bead ro-ujb9.97) is wired
-// differently, because there is no test directory to tell test code from the
-// code under test: node --test runs each scripts/*.test.mjs in its own process,
-// and the script it drives runs inside that process too. So the whole process
-// is the test. `installScriptTestConfigGuard` (preloaded by
-// scripts/script-tests-setup.mjs through package.json's --import) refuses ANY
-// read or import of the checkout's config in it — by the test, or by a script
-// reaching for its default path — and a test that needs a document reads
-// scripts/fixture-config/'s frozen copy or a temp repo instead.
+// The root script suite (`pnpm test:scripts`) is wired differently, because
+// there is no test directory to tell test code from the code under test: node
+// --test runs each scripts/*.test.mjs in its own process, and the script it
+// drives runs inside that process too. `installScriptTestConfigGuard`
+// (preloaded by scripts/script-tests-setup.mjs through package.json's
+// --import) refuses any read or import of the checkout's config in it, and a
+// test that needs a document reads scripts/fixture-config/'s frozen copy or a
+// temp repo instead.
 //
 // The exception is a seed-validation or generation-input test: a test whose
-// purpose needs the exact shipped source document. Each names the files it reads and
-// why; nothing else may read the checkout's config. Pinned by
-// scripts/test-config-isolation.test.mjs.
+// purpose needs the exact shipped source document. Each names the files it
+// reads and why. Pinned by scripts/test-config-isolation.test.mjs.
 //
-// Authored TypeScript (bead ro-ujb9.100): `pnpm config:generate` writes the
-// `.mjs` the suites and the root test preload import and the `.d.mts` beside
-// it; the Tower's vitest config and test setup compile against this source.
+// Authored TypeScript: `pnpm config:generate` writes the `.mjs` the suites and
+// the root test preload import and the `.d.mts` beside it.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -58,9 +51,9 @@ export const REPO_ROOT: string = path.resolve(path.dirname(fileURLToPath(import.
 /** The checkout's configuration directory: the product's defaults, which a
  * change to the product may change under a test. */
 export const OWNER_CONFIG_DIR: string = path.join(REPO_ROOT, "config");
-/** This installation's own folder (bead ro-ujb9.125): the operator's saved
- * documents, change history and host files. Guarded exactly like `config/`,
- * and named `installation/…` in a `files` entry wherever it really is. */
+/** This installation's own folder: the operator's saved documents, change
+ * history and host files. Guarded exactly like `config/`, and named
+ * `installation/…` in a `files` entry wherever it really is. */
 export const OWNER_INSTALLATION_DIR: string = installationDir({ root: REPO_ROOT });
 
 export interface SeedValidationTest {
@@ -87,7 +80,7 @@ export const SEED_VALIDATION_TESTS: Readonly<Record<string, SeedValidationTest>>
     files: Object.freeze(["config/serp-panel.json", "installation/serp-panel.json"]),
     why: "Every shipped and saved SERP panel must fit the DataForSEO reserve.",
   }),
-  // The root script suite (bead ro-ujb9.97).
+  // The root script suite.
   "scripts/config-knobs.test.mjs": Object.freeze({
     files: Object.freeze(["config/signal-panels.json", "installation/signal-panels.json"]),
     why: "Every declared knob must resolve in its own shipped file, and the value that file holds must satisfy the knob's rule — a rule that refuses the seed refuses the operator's own data.",
@@ -138,15 +131,15 @@ export const SEED_VALIDATION_TESTS: Readonly<Record<string, SeedValidationTest>>
   }),
   "scripts/neutral-code-gate.test.mjs": Object.freeze({
     files: Object.freeze(["config/*.json", "installation/*.json", "config/**/*.md"]),
-    why: "The gate forbids the names this installation's own documents key rows by (bead ro-ujb9.118), in product code, in the product defaults (bead ro-ujb9.125) and in the prose that ships beside them (bead ro-ujb9.149); checking against a fixture list would prove nothing about the real one.",
+    why: "The gate forbids the names this installation's own documents key rows by, in product code, in the product defaults and in the prose that ships beside them; checking against a fixture list would prove nothing about the real one.",
   }),
   "scripts/new-install-names.test.mjs": Object.freeze({
     files: Object.freeze(["config/*.json"]),
-    why: "It proves the product defaults a fresh clone seeds carry no pre-rename name (bead ro-ujb9.77.5); a fixture would prove nothing about the shipped defaults.",
+    why: "It proves the product defaults a fresh clone seeds carry no pre-rename name; a fixture would prove nothing about the shipped defaults.",
   }),
   "scripts/product-name.test.mjs": Object.freeze({
     files: Object.freeze(["config/**/*.md"]),
-    why: "It reads every living document for the product's old name (D26, bead ro-ujb9.77.1); config/'s READMEs are prose a stranger reads. It reads no setting.",
+    why: "It reads every living document for the product's old name; config/'s READMEs are prose a stranger reads. It reads no setting.",
   }),
   "scripts/ui-lexicon.test.mjs": Object.freeze({
     files: Object.freeze(["config/integrations.json"]),
@@ -154,7 +147,7 @@ export const SEED_VALIDATION_TESTS: Readonly<Record<string, SeedValidationTest>>
   }),
   "scripts/ui-noun.test.mjs": Object.freeze({
     files: Object.freeze(["config/integrations.json"]),
-    why: "The Tower renders this shipped seed file's prose verbatim; this lints that copy for an asset called a property (D20).",
+    why: "The Tower renders this shipped seed file's prose verbatim; this lints that copy for an asset called a property.",
   }),
 });
 
@@ -203,7 +196,7 @@ export function mayReadOwnerConfig(testFile: unknown, configFile: string | null)
 }
 
 function refusal(who: string, configFile: string, fixtures = "import the suite's copy from test/fixture-config/"): string {
-  return `${who} reads the checkout's ${configFile}. Unit tests run on fixture configuration (bead ro-ujb9.92): ` +
+  return `${who} reads the checkout's ${configFile}. Unit tests run on fixture configuration: ` +
     `${fixtures} or build a synthetic document in the test. Only a seed-validation ` +
     "test listed in scripts/test-config-isolation.mts may read the real file.";
 }
@@ -237,14 +230,14 @@ export function fixtureConfigPlugin({ fixtureDir, testDir }: { fixtureDir: strin
         throw new Error(refusal(path.relative(REPO_ROOT, from), configFile));
       }
       // Product code compiles the product's defaults in, never one
-      // installation's files (bead ro-ujb9.125).
+      // installation's files.
       if (!configFile.startsWith("config/")) {
         throw new Error(`${path.relative(REPO_ROOT, from)} imports ${configFile}; product code reads the store instead.`);
       }
       const fixture = path.join(fixtureDir, configFile.slice("config/".length));
       if (!fs.existsSync(fixture)) {
         throw new Error(`${path.relative(REPO_ROOT, from)} imports ${configFile}, and this suite holds no fixture copy of it at ` +
-          `${path.relative(REPO_ROOT, fixture)}. Add one; tests never fall back to the checkout's own (bead ro-ujb9.92).`);
+          `${path.relative(REPO_ROOT, fixture)}. Add one; tests never fall back to the checkout's own.`);
       }
       return fixture + source.slice(bare.length);
     },
@@ -306,7 +299,7 @@ export function scriptTestFile(target: unknown): string | null {
 }
 
 /**
- * The root script suite's guard (bead ro-ujb9.97). node --test runs each
+ * The root script suite's guard. node --test runs each
  * `scripts/*.test.mjs` in a process of its own (`process.argv[1]`), and the
  * script under test runs in that same process, so every read of the checkout's
  * config there is on that test's behalf — whoever's frame asked. Refused with

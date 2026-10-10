@@ -2,7 +2,7 @@
 // raw errors, documents, credentials and provider response bodies never enter
 // the trace. Field names remain available beside their operator-facing labels.
 //
-// Authored TypeScript (bead ro-ujb9.61): `pnpm config:generate` writes the
+// Authored TypeScript: `pnpm config:generate` writes the
 // `.mjs` the Worker and Node import and the `.d.mts` beside it.
 
 import type { WorkflowOutputValue, WorkflowStepOutput } from '../packages/contract/src/workflows.js';
@@ -23,7 +23,7 @@ const METRICS: Readonly<Record<string, string>> = {
 };
 const COUNTS: Readonly<Record<string, string>> = { open: 'Open tasks', ready: 'Ready tasks', inProgress: 'In progress', blocked: 'Blocked', deferred: 'Deferred', waiting: 'Waiting', highPriority: 'High priority', closedRecent: 'Recently closed' };
 // Why the unpublished-commit check could not read a site's remote (its
-// `failed` items' `reason`, bead ro-ujb9.188).
+// `failed` items' `reason`).
 const REMOTE_READ_REASONS: Readonly<Record<string, string>> = {
   'remote-sign-in-refused': 'Remote sign-in refused', 'remote-unreachable': 'Remote unreachable', 'git-read-failed': 'Git could not read the branch',
 };
@@ -73,8 +73,8 @@ function itemState(value: Probe): ItemState {
 
 /**
  * How many sites a step could not read, when every item of its `failed` list
- * is a site whose remote the unpublished-commit check could not read (bead
- * ro-ujb9.233); otherwise null. The step summary names those as sites, since
+ * is a site whose remote the unpublished-commit check could not read;
+ * otherwise null. The step summary names those as sites, since
  * nothing was collected from them.
  */
 export function unreadSiteCount(value: unknown): number | null {

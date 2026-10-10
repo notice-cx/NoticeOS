@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { firstToConnect } from "@shared/connect-panel";
 
-/** D45: the page's one filled Connect never asks a stranger to start with a
+/** The page's one filled Connect never asks a stranger to start with a
  * source that spends money on every collection. */
 describe("the source a site connects first", () => {
   const reading = (label: string, provider: string) => ({ label, provider, kind: "not-connected" });

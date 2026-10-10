@@ -17,7 +17,7 @@ import {
   runtimeCopyRefusal,
 } from './runner/lifecycle.mjs';
 
-// scripts/runner/lifecycle.mjs (bead ro-ujb9.22): whether this runner may
+// scripts/runner/lifecycle.mjs: whether this runner may
 // start, and whether it is stopping. Nothing here probes a real port or signals
 // a real process.
 

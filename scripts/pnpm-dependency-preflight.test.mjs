@@ -1,4 +1,4 @@
-// ro-ujb9.253: exercise pinned pnpm against an owned, local-only workspace.
+// Exercise pinned pnpm against an owned, local-only workspace.
 // No real OS action, checkout dependency install, or installation is accessed.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';

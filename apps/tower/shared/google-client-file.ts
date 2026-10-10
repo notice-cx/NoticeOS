@@ -1,14 +1,8 @@
-// THE FILE GOOGLE HANDS YOU FOR A WEB CLIENT (bead `ro-ujb9.96.7.7`).
-//
-// Creating an OAuth client in the Google Cloud console ends on a "Download
-// JSON" button: `client_secret_<id>.json`, shaped `{ "web": { "client_id",
-// "client_secret", "redirect_uris": [...] , ... } }`. Dropping that file on the
-// connect panel replaces typing (or mis-pasting) two long strings, and the file
-// also says whether this Tower's redirect address was added — the single most
-// common reason a sign-in fails (`redirect_uri_mismatch`).
-//
-// Pure, so the rules are tested without a browser. Nothing here is stored:
-// the two values go to the credential write, and the file is dropped.
+// The `client_secret_<id>.json` Google's console downloads for a web OAuth
+// client (`{ "web": { "client_id", "client_secret", "redirect_uris" } }`).
+// Dropping it on the connect panel replaces pasting two strings, and it also
+// says whether this Tower's redirect address was added, the most common reason
+// a sign-in fails. Nothing here is stored.
 
 export type GoogleClientFile =
   | {

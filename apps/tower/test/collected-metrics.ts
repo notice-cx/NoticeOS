@@ -1,12 +1,10 @@
-// A TEST'S COLLECTION RUNS AND THE VALUES THEY CHANGED, on Postgres where the
-// collectors write them (bead ro-ujb9.76.5.3).
-//
-// Written through the application role into the store a test's readers take
-// (`ctx.call`, test/sites.ts), so the sites must be added first:
-// a run references its site. Each value goes under the series its run measured
-// (site, provider, property, reporting zone and metric), named on first use,
-// in the order given; the store refuses a value under a run that did not
-// succeed and a metric its provider does not report.
+// A test's collection runs and the values they changed, written through the
+// application role into the store a test's readers take (`ctx.call`,
+// test/sites.ts), so the sites must be added first: a run references its
+// site. Each value goes under the series its run measured (site, provider,
+// property, reporting zone and metric), named on first use, in the order
+// given; the store refuses a value under a run that did not succeed and a
+// metric its provider does not report.
 import type { Transaction, WorkspaceStore } from "@noticeos/postgres";
 
 /** One collection run, as a test states it. */

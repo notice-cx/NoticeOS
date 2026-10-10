@@ -1,24 +1,11 @@
-// How this OS proves to Google that it is allowed to read — BOTH ways, behind
-// one door (bead `ro-vu8d.3`).
-//
-// WHY THIS MODULE EXISTS. Until now there was exactly one way in: a
-// service-account key, signed into a JWT, exchanged for a scoped access token.
-// Since the Integrations page learned to sign in (D21), there are two, and four
-// call sites needed the second — the daily collectors, the realtime read, the
-// archive lane, and the connection probe. A second `if` in each of those four
-// is four places to get a token refresh wrong, so the auth is ONE value
-// (`GoogleAuth`) and ONE function (`googleAccessToken`), and every collector
-// asks for a token without knowing or caring which kind it holds.
-//
-// THE ONE DIFFERENCE WORTH KNOWING. A service-account token is minted PER
-// SCOPE: ask for Analytics and you get a token that cannot read Search Console.
-// An OAuth token carries the whole granted scope set at once, so `scope` is
-// what the service-account path signs and what the OAuth path merely checks it
-// was granted. Callers pass a scope either way; the difference stays here.
-//
-// NOTHING IS LOGGED. Not a key, not a token, not a refresh token, not a code.
-// The errors this file raises carry Google's own message about the REQUEST, and
-// `providerError` truncates it — the credential is never part of one.
+// How this OS proves to Google that it is allowed to read, both ways behind
+// one door: a service-account key signed into a JWT, or the operator's
+// sign-in. The auth is one value (`GoogleAuth`) and one function
+// (`googleAccessToken`), so no collector branches on which kind it holds. A
+// service-account token is minted per scope; an OAuth token carries the whole
+// granted scope set, so `scope` is what the service-account path signs and
+// what the OAuth path merely checks. Nothing is logged: not a key, a token, a
+// refresh token or a code, and `providerError` truncates Google's message.
 
 import { createHash } from 'node:crypto';
 import { SignalError } from './signal-store.js';
@@ -43,11 +30,8 @@ export interface GoogleServiceAccount {
 
 /**
  * A grant the operator made by signing in: the app that asked, plus the
- * long-lived token that buys short-lived ones.
- *
- * `account` and `scopes` ride along because every error message that mentions
- * an identity should mention THIS one — "the signed-in account" is not an
- * answer an operator can act on, and `ops@example.com` is.
+ * long-lived token that buys short-lived ones. `account` and `scopes` ride
+ * along so every error that mentions an identity names this one.
  */
 export interface GoogleOAuthGrant {
   clientId: string;
@@ -61,19 +45,16 @@ export type GoogleAuth =
   | { kind: 'service-account'; account: GoogleServiceAccount }
   | { kind: 'oauth'; grant: GoogleOAuthGrant };
 
-/** Who this credential is, in a sentence an operator can act on: the robot's
- * address, or the person's. Never a secret — both are addresses Google itself
- * shows on the property's user list. */
+/** Who this credential is, in a sentence an operator can act on. Never a
+ * secret: both are addresses Google itself shows on the property's user list. */
 export function googleAuthIdentity(auth: GoogleAuth): string {
   return auth.kind === 'service-account'
     ? auth.account.clientEmail
     : (auth.grant.account ?? 'the signed-in Google account');
 }
 
-/** What has to be granted where, when a property refuses this credential. The
- * two paths need genuinely different instructions, and an operator reading
- * "grant the service account Viewer" while signed in as themselves is being
- * sent to a screen that will not help. */
+/** What has to be granted where, when a property refuses this credential: the
+ * two paths need genuinely different instructions. */
 export function googleGrantHint(auth: GoogleAuth, role: string): string {
   const who = googleAuthIdentity(auth);
   return auth.kind === 'service-account'
@@ -93,12 +74,9 @@ export function googleAuthCacheKey(auth: GoogleAuth, scope: string): string {
 }
 
 /**
- * An access token for this credential and this scope. The ONE door.
- *
- * Both paths hit the same token endpoint with different grant types, and both
- * return a bearer token with a lifetime of roughly an hour. Nothing here caches
- * — `ga4-realtime.ts` has its own cache because it runs every 30 seconds, and a
- * cache in this module would be a second one.
+ * An access token for this credential and this scope: the one door. Nothing
+ * here caches; `ga4-realtime.ts` has its own cache because it runs every 30
+ * seconds.
  */
 export async function googleAccessToken(
   auth: GoogleAuth,
@@ -154,15 +132,10 @@ export async function mintGoogleAccessToken(
 }
 
 /**
- * The OAuth path: trade the stored refresh token for an access token.
- *
- * The token that comes back carries every scope the operator granted, so this
- * is called once per collector run rather than once per scope. A refresh token
- * Google has revoked (the operator removed the app from their account, or the
- * project went back to testing mode) answers `invalid_grant`, which becomes a
- * `google_oauth_revoked` failure — a distinct code, because "reconnect the
- * card" and "check the property grant" are different instructions and burying
- * both under a 400 is how a dead credential looks like a flaky API.
+ * The OAuth path: trade the stored refresh token for an access token carrying
+ * every granted scope. A refresh token Google has revoked answers
+ * `invalid_grant`, which becomes `google_oauth_revoked`: "reconnect the card"
+ * and "check the property grant" are different instructions.
  */
 export async function refreshGoogleAccessToken(
   grant: GoogleOAuthGrant,
@@ -179,36 +152,21 @@ export async function refreshGoogleAccessToken(
   );
 }
 
-/** The failure code a revoked or expired grant raises. Named so a collector,
- * a probe and a card can all recognise the one condition that only a
- * reconnection fixes. */
+/** The failure code a revoked or expired grant raises, so a collector, a probe
+ * and a card recognise the one condition only a reconnection fixes. */
 export const GOOGLE_OAUTH_REVOKED_CODE = 'google_oauth_revoked';
 
 /**
- * The sentence an operator meets when Google stops accepting the sign-in (bead
- * `ro-vu8d.14`).
- *
- * IT NAMES THE LIKELIEST CAUSE, because `invalid_grant` has three and only one
- * of them is common: a consent screen still in **Testing** expires every
- * refresh token after seven days, and the console setup this OS prescribes
- * makes a Testing screen. The other two — the operator removed NoticeOS from
- * their Google account permissions, or the client secret was rotated — are
- * fixed by the same first instruction. The actions are not in the sentence
- * (bead `ro-ujb9.96.6.24`): the card on /integrations draws them as presses —
- * Sign in again, its loudest control once the grant fails, and Publish app ↗
- * on the expiry line, the one that makes it stop recurring.
- *
- * IT IS OURS, NOT GOOGLE'S. Google's own `invalid_grant` body says nothing an
- * operator can act on, and nothing derived from a request that carried a
- * refresh token may be copied into a store column or a page. This string is a
- * constant, so what reaches `credentials.last_error` is a sentence this repo
- * wrote.
+ * The sentence an operator meets when Google stops accepting the sign-in. It
+ * names the likeliest cause: a consent screen still in Testing expires every
+ * refresh token after seven days. It is ours, not Google's: nothing derived
+ * from a request that carried a refresh token may be copied into a store
+ * column or a page.
  */
 export const GOOGLE_OAUTH_REVOKED_MESSAGE = 'Google revoked this sign-in: Testing-mode grants last 7 days.';
 
-/** Whether a failure is Google refusing the SIGN-IN itself — the one condition
- * that no retry, no fresh token and no property grant can fix. Read
- * structurally so a collector, a probe and a card recognise it identically. */
+/** Whether a failure is Google refusing the sign-in itself, read structurally
+ * so a collector, a probe and a card recognise it identically. */
 export function isGoogleOAuthRevoked(error: unknown): boolean {
   return error instanceof SignalError && error.code === GOOGLE_OAUTH_REVOKED_CODE;
 }
@@ -321,8 +279,8 @@ export function providerError(prefix: string, status: number, body: unknown): Si
   return new SignalError(`${prefix}_http_${status}`, message.slice(0, 500));
 }
 
-/** Whether a failure was Google saying "this token is no good" — the one class
- * that a fresh token can fix, and the reason every collector may retry ONCE. */
+/** Whether a failure was Google saying "this token is no good": the one class a
+ * fresh token can fix, and the reason every collector may retry once. */
 export function isGoogleAuthExpiry(error: unknown): boolean {
   return error instanceof SignalError && /_http_401$/.test(error.code);
 }

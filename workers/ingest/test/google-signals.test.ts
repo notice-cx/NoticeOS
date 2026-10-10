@@ -15,12 +15,9 @@ import { WORKERD_TRANSPORT_ERROR, credentialVerdict, cutUplink, openEgressFlags,
 const NOW = Date.parse('2026-07-29T12:00:00.000Z');
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
-/**
- * The properties vitest.config.ts maps onto the test service account. TWO since
- * ro-93l, so "collected every property" and "collected the first one" are
- * different numbers here — one entry made a `break`-instead-of-`continue`
- * regression invisible to every assertion in this file.
- */
+/** The properties vitest.config.ts maps onto the test service account. Two,
+ * so collecting every property and collecting the first one are different
+ * numbers: a break-instead-of-continue regression is visible here. */
 const GOOGLE_PROPERTIES = ['meals.example', 'nosh.example'] as const;
 /** One GA4 lane and one GSC lane per property. */
 const GOOGLE_ATTEMPTS = GOOGLE_PROPERTIES.length * 2;
@@ -233,7 +230,7 @@ describe('Google signal collector', () => {
       windowStart: '2026-04-24',
       windowEnd: '2026-07-29',
       dataState: 'includes-provisional',
-      // Yesterday too: GA4 has not finished attributing it (ro-wo0j).
+      // Yesterday too: GA4 has not finished attributing it.
       provisionalFrom: '2026-07-28',
       providerRows: 2,
       observationCount: GA4_OBSERVATIONS,
@@ -272,12 +269,10 @@ describe('Google signal collector', () => {
     );
   });
 
-  it('keeps a GA4 day provisional until it has been collected two days after it (ro-wo0j)', async () => {
-    // 2026-09-21 on meals.example: collected at D+1 and marked final, GA4 still
-    // had 3,380 of its sessions as "Unassigned" (101–340 on every other day)
-    // and Organic Search at 1,096 against Search Console's 1,398 clicks. Every
-    // day collected at D+2 or later read correctly. So yesterday is provisional
-    // too, and the trend the panel publishes says so.
+  it('keeps a GA4 day provisional until it has been collected two days after it', async () => {
+    // A day collected at D+1 can still carry a large share of its sessions as
+    // "Unassigned" that a D+2 read attributes correctly. So yesterday is
+    // provisional too, and the trend the panel publishes says so.
     const { fetchImpl } = googleFetch();
     await runGoogleSignals(env, { nowMs: NOW, fetchImpl });
 
@@ -395,9 +390,9 @@ describe('Google signal collector', () => {
     );
   });
 
-  // Bead `ro-ujb9.96.6.31`: the card's verdict on a run where every property
-  // failed is what went wrong in a site row's words, then the count — never
-  // the code each property's own run keeps.
+  // The card's verdict on a run where every property failed is what went wrong
+  // in a site row's words, then the count — never the code each property's own
+  // run keeps.
   it('tells the card what failed and for how many properties, without a code', async () => {
     await putCredential(env, {
       provider: 'google',
@@ -411,7 +406,7 @@ describe('Google signal collector', () => {
     expect(stamped?.lastError).toBe(`Access was refused · ${GOOGLE_ATTEMPTS} of ${GOOGLE_ATTEMPTS} properties`);
   });
 
-  describe('when the OS is what is down (ro-aed0.1)', () => {
+  describe('when the OS is what is down', () => {
     /** Everything a dead night may leave behind, in one read. */
     async function residue(): Promise<{ runs: number; health: number; egressFlags: number }> {
       return {
@@ -581,9 +576,9 @@ describe('Google signal collector', () => {
   });
 });
 
-// Two ways in, one collector (bead `ro-vu8d.3`). What is pinned here is that
-// NOTHING below the auth layer knows which kind it holds: the same parse
-// produces a target either way, and the same 401 recovery runs for both.
+// Two ways in, one collector. Nothing below the auth layer knows which kind it
+// holds: the same parse produces a target either way, and the same 401
+// recovery runs for both.
 describe('authenticating a pull', () => {
   const ACCOUNTS = JSON.stringify({
     'test-signals': {
@@ -686,11 +681,10 @@ describe('authenticating a pull', () => {
   });
 });
 
-// The day boundary a GA4 property is READ IN when its config entry names none
-// (bead ro-toa0). It used to be the string 'America/Los_Angeles' in the Worker
-// source — a fact about THIS portfolio that a self-hoster in another zone could
-// only change by editing TypeScript, and whose only symptom was rows landing on
-// the wrong day.
+// The day boundary a GA4 property is read in when its config entry names none.
+// A literal zone in the Worker source would be a fact about one portfolio that
+// a self-hoster in another zone could only change by editing TypeScript, and
+// whose only symptom is rows landing on the wrong day.
 describe('GA4 fallback reporting timezone', () => {
   /** The shipped fixture states no `time_zone` for either property, which is
    * exactly the case this fallback exists for. */
@@ -718,11 +712,9 @@ describe('GA4 fallback reporting timezone', () => {
 
   it('falls back to the configured OS clock, not a literal', () => {
     const ga4 = targets().find((target) => target.integration === 'ga4')!;
-    // The equality is the whole point: it holds only while the fallback IS
-    // OS_TIME_ZONE. Asserting the string 'America/Los_Angeles' would pass just
-    // as well against the hardcoded value this replaced, and would then break
-    // the day an operator changes config/constants.json — the one case that has
-    // to keep working.
+    // The equality is the point: it holds only while the fallback is
+    // OS_TIME_ZONE. Asserting a literal zone would break the day an operator
+    // changes config/constants.json — the one case that has to keep working.
     expect(ga4.timeZone).toBe(OS_TIME_ZONE);
     expect(ga4.timeZoneAssumed).toBe(true);
   });
@@ -760,7 +752,7 @@ describe('GA4 fallback reporting timezone', () => {
     });
   });
 
-  it('assumes the zone saved in Settings over the compiled one, and says which (ro-ujb9.88)', async () => {
+  it('assumes the zone saved in Settings over the compiled one, and says which', async () => {
     // What dispatch.ts hands the lane from the config store on a cron fire.
     const saved = parseGoogleTargets(
       JSON.stringify({
@@ -786,9 +778,9 @@ describe('GA4 fallback reporting timezone', () => {
   });
 });
 
-// A moved day boundary is a change to ONE provider resource (ro-ujb9.70).
-// Repointing the asset at a different GA4 property that happens to report in
-// another zone is a new series, not a timezone change, and must file nothing.
+// A moved day boundary is a change to one provider resource. Repointing the
+// asset at a different GA4 property that happens to report in another zone is
+// a new series, not a timezone change, and must file nothing.
 describe('GA4 reporting-timezone change detection', () => {
   const PT = 'America/Los_Angeles';
   const ET = 'America/New_York';

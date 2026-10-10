@@ -170,9 +170,7 @@ describe('POST /api/revenue — constraint rejection', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Idempotency (db/0018, the 2026-07 audit's finding 1, bead ro-dql). The lane was
-// append-only with no key: the same export posted twice booked the money twice
-// and every total downstream inherited it silently.
+// Idempotency: the same export posted twice must not book the money twice.
 // ---------------------------------------------------------------------------
 
 const JUNE_EXPORT = [
@@ -291,7 +289,7 @@ describe('POST /api/revenue — a re-uploaded file does not count the money twic
     expect(await count()).toBe(1);
   });
 
-  it('stores exact minor units and nothing else — the mirror is gone (db/0020)', async () => {
+  it('stores exact minor units and no dollars mirror', async () => {
     await call(revenueRequest(JUNE_EXPORT, { token: OPERATOR_TOKEN, csv: true }));
     // 168.20 is the value whose float product (16820.000000000002) is why the
     // column exists.
@@ -303,8 +301,8 @@ describe('POST /api/revenue — a re-uploaded file does not count the money twic
     expect(
       await count("amount_minor IS NULL"),
     ).toBe(0);
-    // The dollars column the route used to mirror into is not in the table at
-    // all, so naming it is an error rather than a second copy of the money.
+    // There is no dollars column, so naming it is an error rather than a second
+    // copy of the money.
     await expect(
       env.STORE.read((tx) => tx.query(`SELECT amount FROM noticeos.ledger_entries`)),
     ).rejects.toThrow(/amount/);
@@ -425,11 +423,9 @@ describe('POST /api/revenue — reconciliation references the estimate by id', (
 });
 
 // ---------------------------------------------------------------------------
-// One entry, one current figure (bead ro-ujb9.69). A correction may replace only
-// an entry of the same asset, period, kind, family and currency, and only the
-// entry that is current now. Before this, a cost for another property and month
-// could replace a revenue estimate with a 200, and two corrections of one
-// estimate both counted.
+// One entry, one current figure. A correction may replace only an entry of the
+// same asset, period, kind, family and currency, and only the entry that is
+// current now.
 // ---------------------------------------------------------------------------
 
 interface UploadResult {
@@ -538,7 +534,7 @@ describe('POST /api/revenue — a correction replaces one current entry of the s
     const outcomes = [a, b].map((r) => r.body.results[0]);
     expect(outcomes.filter((r) => r?.ok)).toHaveLength(1);
     expect(outcomes.find((r) => !r?.ok)).toMatchObject({ ok: false, error: 'already_superseded' });
-    // Before the fix both landed: 100¢ became 200¢ + 300¢ = 500¢.
+    // Both landing would make 100¢ into 200¢ + 300¢ = 500¢.
     const winner = a.body.results[0]?.ok ? 20000 : 30000;
     expect(await effectiveRevenueMinor()).toBe(winner);
     expect(await count()).toBe(2);

@@ -1,4 +1,4 @@
-// The state of each Postgres migration (bead ro-ujb9.76.7.1): one derivation
+// The state of each Postgres migration: one derivation
 // for the runner's status, `pnpm postgres:migrate` and `pnpm os:deploy`.
 
 import assert from 'node:assert/strict';

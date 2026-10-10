@@ -4,11 +4,10 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useWall } from "@/hooks/useWall";
 
-// Bead `ro-ujb9.63`: the Wall read used to poll every minute even from a tab
-// nobody could see. It now stops while the page is HIDDEN and never because the
-// window lacks focus — the TV is on screen and never clicked, and it has to keep
-// refreshing. Driven through the real hook, TanStack's real focus manager and
-// fake timers, so the assertion is on requests made, not on option values.
+// The Wall read stops polling while the page is hidden and never because the
+// window lacks focus: the TV is on screen and never clicked, and it has to
+// keep refreshing. Driven through the real hook, TanStack's real focus
+// manager and fake timers, so the assertion is on requests made.
 
 const fetchWall = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api", async (original) => ({ ...await original<typeof import('@/lib/api')>(), fetchWall }));

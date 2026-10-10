@@ -1,4 +1,4 @@
-// THE ORDER OF SITES IS A FACT THE STORE KEEPS (bead ro-ujb9.76.52).
+// The order of sites is a fact the store keeps.
 //
 // Each site stores its place in the list (`list_position`), and every list of
 // sites orders by it (`SITE_ORDER`, @noticeos/contract site-order.ts). Pinned

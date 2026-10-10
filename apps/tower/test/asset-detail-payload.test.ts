@@ -60,9 +60,8 @@ const INTEGRATIONS = {
     },
   },
 };
-// Both wire formats, exactly as config/pull.json carries them: a prometheus
-// entry with its metric→counter map, and an envelope entry with NO `metrics`
-// key at all (the endpoint already speaks the contract).
+// Both wire formats as config/pull.json carries them: a prometheus entry with
+// its metric→counter map, and an envelope entry with no `metrics` key at all.
 const PULL_CONFIG: PullConfigEntry[] = [
   {
     asset: "meals.example",
@@ -79,18 +78,12 @@ const PULL_CONFIG: PullConfigEntry[] = [
   },
 ];
 
-// config/serp-panel.json's real shape: a MINORITY of assets buy a tracked
-// panel (meals.example since 2026-07, nosh.example since 2026-08-03). This fixture
-// names one, so every other asset here owes the SAME weekly read in the
-// other noun — signal collection, never SERP panel (bead ro-z0g). Membership
-// stopped gating the marker at ro-1tu; it picks the words only.
+// A minority of assets buy a tracked panel. Membership picks the marker's
+// words only; it does not gate the marker.
 const SERP_PANEL = { assets: { "meals.example": { queries: ["meals"] } } };
 
-// config/signal-panels.json's real shape: EVERY asset has a row, including the
-// ones that are off — its README makes membership an invariant rather than an
-// opt-in — so this fixture names an enabled asset and a disabled one. The
-// payload reads it for the same one thing as counters: what a Delete would have
-// to remove with the row (bead ro-sk7q).
+// config/signal-panels.json: every asset has a row, including the ones that
+// are off. The payload reads it for what a Delete would have to remove.
 const SIGNAL_PANELS = {
   assets: {
     "meals.example": {
@@ -108,9 +101,8 @@ const SIGNAL_PANELS = {
   },
 };
 
-// config/counters.json's real shape: an asset with an entry declares total
-// cards; one with none declares nothing. The payload reads it for ONE thing —
-// what a Delete would have to remove with the row (bead ro-z349.2).
+// config/counters.json: an asset with an entry declares total cards. The
+// payload reads it for what a Delete would have to remove.
 const COUNTERS = {
   assets: {
     "meals.example": {
@@ -119,11 +111,10 @@ const COUNTERS = {
   },
 };
 
-// The GA4 lane's two declarations (bead `ro-x5gu.3`). meals.example declares
-// value events and nothing else; nosh.example has registered dimensions and declares
-// no value event; every other asset is absent from both — which is the state
-// these files are mostly in, and the one the payload has to keep distinct from
-// an empty list.
+// The GA4 lane's two declarations. meals.example declares value events and
+// nothing else; nosh.example has registered dimensions and declares no value
+// event; every other asset is absent from both, which the payload has to keep
+// distinct from an empty list.
 const VALUE_EVENTS = {
   assets: {
     "meals.example": { valueEvents: ["calculation_complete", "sign_up"] },
@@ -149,11 +140,8 @@ const DEPS: AssetDetailDeps = {
   signalPanels: SIGNAL_PANELS,
   valueEvents: VALUE_EVENTS,
   ga4EventParams: GA4_EVENT_PARAMS,
-  // The checked-in file declares no entity, which is the state every assertion
-  // below was written against. The one test that needs an owner brings its own
-  // rows (bead `ro-xzxg`).
-  // The operator's clock these fixtures were written in (bead `ro-ujb9.88`):
-  // stated, rather than borrowed from the checkout's config/constants.json.
+  // No entity declared; the one test that needs an owner brings its own rows.
+  // The clock is stated rather than borrowed from the checkout's config.
   osTimeZone: "America/Los_Angeles" };
 
 async function insertAsset(
@@ -165,14 +153,13 @@ async function insertAsset(
   isOs: number,
   domain: string | null = `${id}`,
 ) {
-  // In both of the test's stores: the page reads the site from the site list
-  // on Postgres and joins D1's copy of it (test/sites.ts).
+  // In both of the test's stores (test/sites.ts).
   await addSites(raw, [{ id, domain, displayName: name, status, senseOnly, isOs, createdAt: "2026-07-01T00:00:00.000Z" }]);
 }
 
 type MetricMap = Record<string, { last24h: number; avg7d?: number; total?: number }>;
 
-/** One nightly report as the store holds it (bead ro-ujb9.76.5.2). */
+/** One nightly report as the store holds it. */
 function report(asset: string, date: string, receivedAt: string, metrics: MetricMap): ReportRow {
   return { asset, date, receivedAt, envelope: { asset, metrics } };
 }
@@ -190,7 +177,7 @@ interface FlagSpec {
   disposition?: string | null;
   disposition_note?: string | null;
   ack_expiry?: string | null;
-  /** For `disposition: "snooze"` — when the condition returns (`ro-c7qq`). */
+  /** For `disposition: "snooze"`: when the condition returns. */
   snooze_until?: string | null;
   resolved_at?: string | null;
 }
@@ -214,8 +201,8 @@ function alertRow(f: FlagSpec): AlertRow {
   };
 }
 
-/** One alert, on Postgres in the test's copy of its sites (bead
- * ro-ujb9.76.5.2): its number, which the page shows as its id. */
+/** One alert in the test's copy of its sites: its number, which the page
+ * shows as its id. */
 async function insertFlag(ctx: TestStore, f: FlagSpec): Promise<number> {
   return storeAlert(ctx.call, alertRow(f));
 }
@@ -226,8 +213,8 @@ interface LedgerSpec {
   asset: string;
   period: string;
   family: string;
-  /** DOLLARS, for readable fixtures — the store never sees this number. It is
-   * rounded to exact cents on the way in, which is all `/api/revenue` writes. */
+  /** Dollars, for readable fixtures; rounded to exact cents on the way in,
+   * which is all `/api/revenue` writes. */
   amount: number;
   booking_state: "estimated" | "reconciled";
   source?: string | null;
@@ -236,12 +223,9 @@ interface LedgerSpec {
   recorded_at: string;
 }
 
-/** Writes `amount_minor` and nothing else, exactly as `/api/revenue` does since
- * db/0020 dropped the `amount REAL` mirror — a fixture still filling a column
- * the store no longer has would test a shape no writer produces. On Postgres
- * (bead ro-ujb9.76.6.1), in the test's own copy of its sites (test/money.ts):
- * `id` and `supersedes_id` are the fixture's names for its entries, and the
- * page shows each by the number the store handed it (`bookedNumber`). */
+/** Writes `amount_minor` and nothing else, exactly as `/api/revenue` does.
+ * `id` and `supersedes_id` are the fixture's names for its entries; the page
+ * shows each by the number the store handed it (`bookedNumber`). */
 async function insertLedger(ctx: TestStore, r: LedgerSpec) {
   await bookLedger(ctx.call, [{
     id: r.id,
@@ -258,9 +242,8 @@ async function insertLedger(ctx: TestStore, r: LedgerSpec) {
   }]);
 }
 
-// --- the compact analysis snapshot, as the analyzer publishes it -------------
-// Each family is a separate fixture so a test can corrupt exactly one branch
-// (a provider, an insight, a ranking key) and assert what still survives.
+// The compact analysis snapshot, as the analyzer publishes it. Each family is
+// a separate fixture so a test can corrupt exactly one branch.
 const GOOGLE_TREND = {
   provider: "google",
   currentStart: "2026-07-03",
@@ -305,7 +288,7 @@ const DATAFORSEO_SNAPSHOT = {
   caveat: "Search volume is estimated demand, not impressions.",
 };
 
-// Key names mirror scripts/signal-insights.mjs — the parser validates these
+// Key names mirror scripts/signal-insights.mjs; the parser validates these
 // exact names, so this fixture is also the contract between the two.
 const SEARCH_INTELLIGENCE = {
   observedAt: "2026-07-04",
@@ -388,9 +371,8 @@ function executiveSnapshot() {
   };
 }
 
-/** Publish one presentation snapshot, in the test's own Postgres copy of its
- * sites (bead ro-ujb9.76.5.4). `payload` is deliberately `unknown`: the point
- * of most of these cases is a payload the producer should never write. */
+/** Publish one presentation snapshot. `payload` is deliberately `unknown`:
+ * most of these cases are about a payload the producer should never write. */
 async function insertSnapshot(
   raw: TestStore,
   id: string,
@@ -421,8 +403,7 @@ async function insertSnapshot(
 }
 
 /** meals' ledger: id1 estimate superseded by id2 reconciled; + affiliate rev +
- * cost. Written by the tests that read it, so the rest of `seed` stays a copy
- * every test shares. */
+ * cost. Written by the tests that read it. */
 async function seedLedger(ctx: TestStore) {
   await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-06", family: "ads", amount: 560, booking_state: "estimated", source: "raptive-report", recorded_at: "2026-06-30T00:00:00.000Z" });
   await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meals.example", period: "2026-06", family: "ads", amount: 498.1, booking_state: "reconciled", source: "raptive-report", supersedes_id: 1, recorded_at: "2026-07-03T00:00:00.000Z" });
@@ -431,23 +412,15 @@ async function seedLedger(ctx: TestStore) {
 }
 
 async function seed(raw: TestStore) {
-  // The OS row with the owner's pre-rename stored name (bead ro-ujb9.77.10).
+  // The OS row with a stored name no payload shows.
   await insertAsset(raw, "root-os", "ReindexOS", "live", 0, 1, null);
   await insertAsset(raw, "meals.example", "Meal Planner", "onboarding", 0, 0);
   await insertAsset(raw, "nosh.example", "Nosh", "onboarding", 0, 0);
   await insertAsset(raw, "fees.example", "Fee Codes", "pre-launch", 1, 0);
 
-  // Nightly reports and alerts are on Postgres: `seedReportsAndAlerts`.
-
-  // meals' ledger is on Postgres: `seedLedger`, written by the tests that read it.
-
-  // meals' two changes are on Postgres: `seedChanges`.
 }
 
-/**
- * `seed`'s changes for meals, on Postgres (bead ro-ujb9.76.5.7), in the test's
- * copy of its sites: written by the tests that read them.
- */
+/** `seed`'s changes for meals, written by the tests that read them. */
 async function seedChanges(ctx: TestStore): Promise<void> {
   await storeChanges(ctx.call, [
     { asset: "meals.example", at: "2026-07-04T18:30:00.000Z", kind: "deploy", ref: "a1b2c3d", note: "ship CJ product cards" },
@@ -455,11 +428,7 @@ async function seedChanges(ctx: TestStore): Promise<void> {
   ]);
 }
 
-/**
- * `seed`'s nightly reports and alerts, on Postgres (bead ro-ujb9.76.5.2), in
- * the test's copy of its sites: written by the tests that read them, so the
- * rest of `seed` stays a copy every test in a file shares.
- */
+/** `seed`'s nightly reports and alerts, written by the tests that read them. */
 async function seedReportsAndAlerts(ctx: TestStore) {
   const store = ctx.call;
   await storeReports(store, [
@@ -580,9 +549,9 @@ interface WatchWindowSpec {
   scope_json?: string | null;
 }
 
-/** A pre-registered outcome check, written the way the ingest worker's operator
- * API writes one, on Postgres (bead ro-ujb9.76.5.7). The baseline window ends
- * on the registration date, which the schema's own CHECK enforces. */
+/** A pre-registered outcome check, written the way the ingest worker's
+ * operator API writes one. The baseline window ends on the registration
+ * date, which the schema's own CHECK enforces. */
 async function insertWatchWindow(ctx: TestStore, w: WatchWindowSpec): Promise<void> {
   const closed = (w.status ?? "open") === "closed";
   await storeWatchWindow(ctx.call, {
@@ -604,9 +573,8 @@ async function insertWatchWindow(ctx: TestStore, w: WatchWindowSpec): Promise<vo
   });
 }
 
-/** One change, on Postgres (bead ro-ujb9.76.5.7); returns the number the store
- * handed it, which is what a watch window anchors to (`ref_kind='annotation'`,
- * `ref` = that number as text). */
+/** One change; returns the number the store handed it, which is what a watch
+ * window anchors to (`ref_kind='annotation'`, `ref` = that number as text). */
 async function insertAnnotation(
   ctx: TestStore,
   asset: string,
@@ -640,8 +608,7 @@ async function insertDailyDeploys(
   );
 }
 
-/** One site-check reading as workers/ingest/src/hygiene.ts writes it, on
- * Postgres (bead ro-ujb9.76.5.8). */
+/** One site-check reading as workers/ingest/src/hygiene.ts writes it. */
 async function insertHygieneReading(
   store: WorkspaceStore,
   { asset, check, day, status, value, detail = {}, at = `${day}T04:00:00.000Z` }: {
@@ -667,7 +634,7 @@ interface ReclamationSpec {
   statusAt: string | null;
 }
 
-/** Link-outreach targets, on Postgres (bead ro-ujb9.76.5.8), in the order given. */
+/** Link-outreach targets, in the order given. */
 async function insertReclamationTargets(store: WorkspaceStore, targets: ReclamationSpec[]) {
   await store.write((tx) =>
     tx.execute(
@@ -707,19 +674,18 @@ describe("buildAssetDetailPayload", () => {
     expect(p.wiring.pull?.url).toBe("https://meals.example/api/internal/metrics");
     expect(p.wiring.pull?.enabled).toBe(true);
     expect(p.wiring.pull?.metricMap).toContainEqual({ metric: "signups", counter: "profiles" });
-    // A state in plain words, never the environment binding (bead ro-ujb9.166).
     expect(p.wiring.pull?.auth).toBe("Site token");
     expect(p.wiring.modeOwner).toBe("config/pull.json");
     // the pull entry's array index anchors the changeset edit pointers.
     expect(p.wiring.pull?.index).toBe(0);
-    // The pull job's schedule as the runner reads it — its default while
-    // nothing is saved (bead ro-ujb9.96.7.12).
+    // The pull job's schedule as the runner reads it: its default while
+    // nothing is saved.
     expect(p.wiring.schedule).toEqual({ job: "pull", enabled: true, cron: "30 2 * * *" });
   });
 
   it("reads the nightly report's schedule from the SAVED schedules the runner arms, never a typed time", async () => {
-    // One derivation per fact (D30): once the operator moves the pull job in
-    // Settings → Data collection, the asset page says the new time too.
+    // Once the operator moves the pull job in Settings → Data collection, the
+    // asset page says the new time too.
     const saved = { pull: { enabled: true, cron: "15 9 * * *", timezone: "America/Los_Angeles" } };
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", { ...DEPS, schedules: saved }))!;
     expect(p.wiring.schedule).toEqual({ job: "pull", ...saved.pull });
@@ -751,8 +717,7 @@ describe("buildAssetDetailPayload", () => {
     expect(p.wiring.pull?.index).toBe(1);
   });
 
-  // The site's card totals entry, verbatim: the Settings tab's Card totals
-  // shows it and guards its removal on it (beads ro-trai.21, ro-ujb9.76.4.5).
+  // The Settings tab's Card totals shows this entry and guards its removal on it.
   it("carries the site's card totals entry as config/counters.json holds it", async () => {
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
     expect(p.countersConfig).toEqual(COUNTERS.assets["meals.example"]);
@@ -763,7 +728,7 @@ describe("buildAssetDetailPayload", () => {
     expect(p.countersConfig).toBeNull();
   });
 
-  it("names the OS's own row NoticeOS whatever its stored name, and every site by its own (ro-ujb9.77.10)", async () => {
+  it("names the OS's own row NoticeOS whatever its stored name, and every site by its own", async () => {
     const os = (await buildAssetDetailPayload(ctx.call, "root-os", DEPS))!;
     expect(os.asset).toMatchObject({ isOs: true, displayName: "NoticeOS" });
     expect(JSON.stringify(os)).not.toContain("ReindexOS");
@@ -771,10 +736,9 @@ describe("buildAssetDetailPayload", () => {
     expect(site.asset.displayName).toBe("Meal Planner");
   });
 
-  // The GA4 lane's two declarations reach the page that edits them (bead
-  // `ro-x5gu.3`). What matters here is that three states stay three states: a
-  // declared list, an entry that declares nothing, and no entry at all — the
-  // last of which decides whether the Tower's first Add appends or files.
+  // Three states stay three states: a declared list, an entry that declares
+  // nothing, and no entry at all, which decides whether the Tower's first Add
+  // appends or files.
   it("carries the GA4 declarations this asset has made", async () => {
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
     expect(p.ga4Config.valueEvents).toEqual(["calculation_complete", "sign_up"]);
@@ -815,10 +779,9 @@ describe("buildAssetDetailPayload", () => {
     expect(p.ga4Config.valueEvents).toBeNull();
   });
 
-  // What the Growth tab EDITS (bead ro-x5gu.4) — the tracked terms and the
-  // refresh roster row, with the same three-state rule as the GA4 pair above
-  // and one extra consequence: on `config/serp-panel.json` an entry holding
-  // `[]` is a config error, so `null` is also what the last removal leaves.
+  // The same three-state rule as the GA4 pair above, with one extra
+  // consequence: on `config/serp-panel.json` an entry holding `[]` is a config
+  // error, so `null` is also what the last removal leaves.
   it("carries this asset's tracked terms and its refresh roster row", async () => {
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
     expect(p.panelConfig).toEqual({
@@ -828,9 +791,8 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it("keeps an asset that buys no panel apart from one whose panel lists nothing", async () => {
-    // nosh.example is on the refresh roster and in no tracked panel. `null` is the
-    // answer to the second and it is not `[]`: an asset absent from that file is
-    // skipped silently and is the common, valid state, and it is also what
+    // nosh.example is on the refresh roster and in no tracked panel: `null`,
+    // not `[]`, since absence from that file is the common, valid state and
     // decides whether the Tower's first Add appends or files the entry.
     const nom = (await buildAssetDetailPayload(ctx.call, "nosh.example", DEPS))!;
     expect(nom.panelConfig.trackedQueries).toBeNull();
@@ -881,8 +843,7 @@ describe("buildAssetDetailPayload", () => {
     const keys = p.portfolio.knobs.map((k) => k.key);
     expect(keys).toContain("monthly_caps.data_usd");
     expect(keys).toContain("operator_rate_usd_per_min");
-    // The inference cap was withdrawn with D6 (bead `ro-uj7x`) — nothing in the
-    // OS calls a model, so nothing could ever meter spend against it.
+    // Nothing in the OS calls a model, so no inference cap.
     expect(keys).not.toContain("monthly_caps.inference_usd");
     const dataCap = p.portfolio.knobs.find((k) => k.key === "monthly_caps.data_usd")!;
     expect(dataCap.pointer).toBe("/monthly_caps/data_usd");
@@ -910,9 +871,8 @@ describe("buildAssetDetailPayload", () => {
   it("keeps every metric's all-time total in the payload — the cards' fallback reads it", async () => {
 
     await seedReportsAndAlerts(ctx);
-    // The totals VIEW moved to the asset cards (the wall payload resolves
-    // them); the data stays here, because that resolution falls back to exactly
-    // this number when the fast lane has no reading.
+    // The totals view is on the asset cards; the data stays here because that
+    // resolution falls back to this number when the fast lane has no reading.
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
     expect(p.metrics.find((m) => m.name === "plansSaved")!.total).toBe(1907);
   });
@@ -935,7 +895,6 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it("reuses the provider trends and reads the latest compact executive snapshot", async () => {
-    // On Postgres, where the collectors write them (bead ro-ujb9.76.5.3).
     const store = ctx.call;
     await writeSignalRun(store, {
       id: "ga4-run", asset: "meals.example", integration: "ga4", credentialRef: "google-primary", propertyRef: "assets/1",
@@ -973,8 +932,8 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it("loads the supporting GA4 volume and Search Console rate series for the page", async () => {
-    // The asset page is the ONLY reader of these, so the widened metric
-    // selection has to reach the payload — not just the loader.
+    // The asset page is the only reader of these, so the widened metric
+    // selection has to reach the payload, not just the loader.
     const store = ctx.call;
     const secondary = (id: string, integration: "ga4" | "gsc", propertyRef: string, startedAt: string, finishedAt: string) =>
       writeSignalRun(store, {
@@ -1045,7 +1004,7 @@ describe("buildAssetDetailPayload", () => {
     );
   });
 
-  it("carries page decisions through, dropping only the rows it cannot read (ro-427)", async () => {
+  it("carries page decisions through, dropping only the rows it cannot read", async () => {
     await insertSnapshot(ctx, "snapshot-pages", {
       ...executiveSnapshot(),
       searchPages: {
@@ -1126,10 +1085,10 @@ describe("buildAssetDetailPayload", () => {
     expect(pages?.evidence[0]?.value).toBe("0");
   });
 
-  it("reads a snapshot with no page block, and a malformed one, as no page table (ro-427)", async () => {
-    // Every snapshot published before ro-427 looks like this, and so does every
-    // asset without two complete weeks. Both render nothing rather than an
-    // empty comparison — and neither may take the page down.
+  it("reads a snapshot with no page block, and a malformed one, as no page table", async () => {
+    // A snapshot with no page block, and an asset without two complete weeks:
+    // both render nothing rather than an empty comparison, and neither may
+    // take the page down.
     await insertSnapshot(ctx, "snapshot-no-pages", executiveSnapshot());
     const legacy = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
     expect(legacy.executive?.searchPages).toBeNull();
@@ -1145,11 +1104,9 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it("accepts a snapshot written before the tracked panel and reads it as unknown", async () => {
-    // DATAFORSEO_SNAPSHOT carries neither panel field, which is exactly what
-    // every analysis published before S1b landed looks like. It must parse, and
-    // it must arrive as an EMPTY device list — the shape the rules downstream
-    // compare against for "not tracked". Never a desktop reading of nulls,
-    // which would claim a surface was checked.
+    // DATAFORSEO_SNAPSHOT carries neither panel field. It must parse, and it
+    // must arrive as an empty device list, the shape the rules downstream
+    // compare against for "not tracked", never a desktop reading of nulls.
     await insertSnapshot(ctx, "snapshot-pre-panel", {
       ...executiveSnapshot(),
       searchQueries: { google: null, bing: null, dataforseo: DATAFORSEO_SNAPSHOT },
@@ -1162,11 +1119,8 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it("reads a pre-device snapshot's flat panel pair as the desktop row it was", async () => {
-    // Bead ro-14d.1. Every snapshot between S1b and the device split carries a
-    // flat aioPresent/aioCitesUs pair and no device — and the collector had one
-    // device literal in it then, so that pair is a DESKTOP reading. Parsing it
-    // as an unnamed surface would break every device comparison across the
-    // cutover; dropping it would throw away evidence that was collected.
+    // A flat aioPresent/aioCitesUs pair with no device is a desktop reading;
+    // as an unnamed surface it would break every device comparison.
     await insertSnapshot(ctx, "snapshot-panel", {
       ...executiveSnapshot(),
       searchQueries: {
@@ -1240,10 +1194,8 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it("accepts a movers lane written before it stated its own exclusions", async () => {
-    // GOOGLE_TREND carries no `evidence` key, which is every analysis published
-    // before the lanes ran the grounding check. It must parse, and it must
-    // arrive as an explicit empty list: a producer that predates the check ran
-    // no check, and every consumer should read one value for that.
+    // GOOGLE_TREND carries no `evidence` key. It must parse and arrive as an
+    // explicit empty list: no key means no check ran.
     await insertSnapshot(ctx, "snapshot-pre-lane-evidence", {
       ...executiveSnapshot(),
       searchQueries: { google: GOOGLE_TREND, bing: null, dataforseo: null },
@@ -1254,9 +1206,8 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it("carries a lane's proof rows through, zero value included", async () => {
-    // The zero row is the reason the field exists: it proves the check ran.
-    // Losing it here would leave the surface unable to tell "excluded nothing"
-    // from "nobody looked".
+    // The zero row proves the check ran; losing it would leave the surface
+    // unable to tell "excluded nothing" from "nobody looked".
     await insertSnapshot(ctx, "snapshot-lane-evidence", {
       ...executiveSnapshot(),
       searchQueries: {
@@ -1286,9 +1237,7 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it("drops a lane whose proof rows are malformed rather than rendering it as unproven", async () => {
-    // Unreadable evidence is NOT absent evidence. A lane that silently degraded
-    // to "stated nothing" would look exactly like a lane that never ran the
-    // check — the one confusion this field was added to prevent.
+    // Unreadable evidence is not absent evidence.
     await insertSnapshot(ctx, "snapshot-bad-lane-evidence", {
       ...executiveSnapshot(),
       searchQueries: {
@@ -1298,7 +1247,6 @@ describe("buildAssetDetailPayload", () => {
 
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
     expect(p.executive?.searchQueries?.google).toBeNull();
-    // ...and the other provider still reaches the page, as always.
     expect(p.executive?.searchQueries?.dataforseo?.queries[0]?.query).toBe(
       "weekly meal plan",
     );
@@ -1333,10 +1281,9 @@ describe("buildAssetDetailPayload", () => {
     expect(p.executive?.methodology).toEqual(["Missing rows remain unknown."]);
   });
 
-  // Bead ro-wwm: the cut's own record. The Tower renders it, so it degrades the
-  // way every other late-arriving block does — never at the cost of the cards
-  // that survived the cut.
-  it("normalizes the suppressed list a pre-2026-07-31 snapshot never carried", async () => {
+  // The cut's own record degrades the way every other late-arriving block
+  // does, never at the cost of the cards that survived the cut.
+  it("normalizes the suppressed list an older snapshot never carried", async () => {
     await insertSnapshot(ctx, "snapshot-no-suppressed", executiveSnapshot());
 
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
@@ -1387,8 +1334,8 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it("treats an absent backlinks family as null, keeping the rest of the section", async () => {
-    // An asset with no retained link report — the one family that legitimately
-    // goes missing. `undefined` and explicit null must read the same.
+    // An asset with no retained link report, the one family that legitimately
+    // goes missing: `undefined` and explicit null must read the same.
     await insertSnapshot(ctx, "snapshot-no-backlinks", {
       ...executiveSnapshot(),
       searchIntelligence: { ...SEARCH_INTELLIGENCE, backlinks: undefined },
@@ -1401,10 +1348,9 @@ describe("buildAssetDetailPayload", () => {
     expect(intelligence?.ai.chatgptMentions).toBe(3);
   });
 
-  it("keeps an unreported AI mention figure unknown, keeping the rest of the section (ro-8s5)", async () => {
-    // The producer now writes null where DataForSEO's platform row stated
-    // nothing. That is a reading, not drift: the section stays, the null stays
-    // null, and an explicit zero stays zero. A missing key is still drift.
+  it("keeps an unreported AI mention figure unknown, keeping the rest of the section", async () => {
+    // The producer writes null where DataForSEO's platform row stated nothing.
+    // That is a reading, not drift; a missing key is still drift.
     await insertSnapshot(ctx, "snapshot-unreported-ai", {
       ...executiveSnapshot(),
       searchIntelligence: {
@@ -1438,8 +1384,8 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it("forwards only reviewed keys, so a producer's extra field never reaches the browser", async () => {
-    // Bead ro-a8y: the parser used to validate key NAMES and then spread the
-    // producer's own object, which proved nothing about what was forwarded.
+    // Validating key names and then spreading the producer's own object would
+    // prove nothing about what was forwarded.
     await insertSnapshot(ctx, "snapshot-extra-keys", {
       ...executiveSnapshot(),
       operatorEmail: "operator@example.com",
@@ -1458,15 +1404,12 @@ describe("buildAssetDetailPayload", () => {
     expect(executive?.searchIntelligence?.rankings).not.toHaveProperty(
       "internalDebugScore",
     );
-    // The reviewed numbers still arrive — dropping the unknown key is not
-    // dropping the section.
     expect(executive?.searchIntelligence?.rankings.top20).toBe(41);
     expect(executive?.sourceArchiveCount).toBe(12);
   });
 
   it("keeps the whole snapshot when one window date is missing", async () => {
-    // Bead ro-a8y: an absent windowStart used to fail the top-level gate, so
-    // one optional date cost the operator every card in the analysis.
+    // One optional date must not cost the operator every card in the analysis.
     await insertSnapshot(
       ctx,
       "snapshot-no-window-start",
@@ -1525,23 +1468,18 @@ describe("buildAssetDetailPayload", () => {
       { t: "2026-04-06", v: 5 },
     ]);
 
-    // THE WALL'S DRAWN WINDOW IS STILL FOUR WEEKS, and that is the half of this
-    // contract the TV depends on: `series` is what the card charts, and it did
-    // not move when the payload grew.
+    // `series` is what the card charts, and it did not move when the payload grew.
     const compact = (await loadSignalTrends(store)).get("meals.example")!;
     expect(compact.activeUsers.series).toHaveLength(28);
     expect(compact.activeUsers.series[0]).toEqual({
       t: "2026-06-08",
       v: 68,
     });
-    // WHAT GREW IS THE HISTORY BEHIND IT (bead `ro-78qo.35`): sixty-two context
-    // days, so context plus chart is the ninety doc 14's range selector needs
-    // on /assets, which reads this same payload. Nothing draws these as chart
-    // days, which is why the line above could stay exactly as it was.
+    // Sixty-two context days, so context plus chart is the ninety /assets'
+    // range selector needs. Nothing draws these as chart days.
     expect(compact.activeUsers.contextSeries).toHaveLength(62);
     expect(compact.activeUsers.contextSeries?.[0]).toEqual({ t: "2026-04-07", v: 6 });
     expect(compact.activeUsers.contextSeries?.at(-1)).toEqual({ t: "2026-06-07", v: 67 });
-    // The two together are the ninety days, unbroken and in order.
     expect([
       ...(compact.activeUsers.contextSeries ?? []),
       ...compact.activeUsers.series,
@@ -1552,9 +1490,8 @@ describe("buildAssetDetailPayload", () => {
 
     await seedReportsAndAlerts(ctx);
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
-    // Unresolved warnings remain visible without claiming a recent check: the
-    // central firing has no linked valid report, and the pull failure has no
-    // evaluatedAt. Neither fixture proves confirmation or recovery.
+    // The central firing has no linked valid report and the pull failure has
+    // no evaluatedAt: neither proves confirmation or recovery.
     expect(p.flags.open).toHaveLength(2);
     expect(p.flags.open.every((f) => f.liveness.state === "last-known")).toBe(true);
     for (const flag of p.flags.open) {
@@ -1565,18 +1502,15 @@ describe("buildAssetDetailPayload", () => {
     expect(p.flags.openWarn).toBe(2);
     expect(p.flags.openError).toBe(0);
     expect(p.asset.worstOpenSeverity).toBe("warn");
-    // First arrival is separate from recent observed coverage.
     expect(p.asset.firstReportAt).toBe(new Date(NOW_MS - 34 * HOUR).toISOString());
     expect(p.asset.reportDays).toBe(1);
 
-    // Not dropped — moved. It is real evidence and stays reachable; what it
-    // loses is a heading claiming it is live.
+    // Not dropped, moved: it stays reachable but loses a heading claiming it is live.
     expect(p.flags.notCurrent).toHaveLength(1);
     expect(p.flags.notCurrent[0]).toMatchObject({
       kind: "milestone",
       liveness: { state: "historical" },
     });
-    // history = the ack + the resolved one.
     expect(p.flags.history).toHaveLength(2);
     const ack = p.flags.history.find((f) => f.disposition === "ack")!;
     expect(ack.dispositionNote).toBe("known weekend dip");
@@ -1592,14 +1526,11 @@ describe("buildAssetDetailPayload", () => {
       (f) => f.metric === "plansSaved",
     )!;
     expect(plans.ruleInputs).toMatchObject({ observed: 0, baselinePerDay: 6 });
-    // The stored message is untouched — the store stays factual.
     expect(plans.message).toBe("0 in last24h (avg7d 6, P<0.01)");
 
-    // The pull-failure inputs carry the running failure count the rewrite keeps.
     const pull = p.flags.open.find((f) => f.ruleId === "asset-pull-failed")!;
     expect(pull.ruleInputs).toMatchObject({ failureCount: 3, status: 503 });
 
-    // A flag written without inputs degrades to null rather than failing the page.
     const milestone = p.flags.notCurrent.find((f) => f.kind === "milestone")!;
     expect(milestone.ruleInputs).toBeNull();
   });
@@ -1616,27 +1547,23 @@ describe("buildAssetDetailPayload", () => {
     )!;
     expect(plans.correlatedChanges.map((c) => c.ref)).toEqual(["a1b2c3d"]);
 
-    // The 2026-07-01 milestone predates that deploy — nothing correlates, and an
-    // empty list is what renders no chip at all.
+    // The 2026-07-01 milestone predates that deploy, so nothing correlates.
     const milestone = p.flags.notCurrent.find((f) => f.kind === "milestone")!;
     expect(milestone.correlatedChanges).toEqual([]);
 
-    // History rows are translated the same way; the June external event is far
-    // outside the window of the alert resolved on 2026-06-21.
+    // The June external event is far outside the window of the alert resolved
+    // on 2026-06-21.
     const resolved = p.flags.history.find((f) => f.resolvedAt !== null)!;
     expect(resolved.correlatedChanges).toEqual([]);
   });
 
   it("ledger slice excludes superseded rows and splits the period's rollup by booking state", async () => {
     await seedLedger(ctx);
-    // MIXED, the case the split exists for: meals's June is one reconciled
-    // row and two estimated ones. The page used to state net 644.20 — 666.30
-    // revenue minus 22.10 cost, summed over both states — which is a booked-P&L
-    // claim over $146.10 nobody has confirmed, and a number the card and the
-    // headline above it (reconciled rows only) could never match (ro-jk7).
+    // Mixed: meals's June is one reconciled row and two estimated ones. A net
+    // summed over both states (644.20) would be a booked-P&L claim over
+    // $146.10 nobody has confirmed.
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
     expect(p.ledger.empty).toBe(false);
-    // the 560 estimate is superseded → gone; 498.10 reconciled remains.
     expect(p.ledger.recentRows.some((r) => r.amount === 560)).toBe(false);
     expect(p.ledger.recentRows.some((r) => r.amount === 498.1)).toBe(true);
     const june = p.ledger.periods.find((x) => x.period === "2026-06")!;
@@ -1645,27 +1572,24 @@ describe("buildAssetDetailPayload", () => {
     expect(june.booked.revenueByFamily).toEqual([{ currency: 'USD', family: "ads", amount: 498.1 }]);
     expect(june.booked.costByFamily).toEqual([]);
     // Exact equality, not toBeCloseTo: 168.20 − 22.10 is 146.10000000000002 in
-    // dollars, so a net still subtracted from REAL figures fails here (ro-wtt).
+    // dollars, so a net subtracted from real figures fails here.
     expect(june.forecast.figure).toEqual({ currency: 'USD', revenue: 168.2, cost: 22.1, net: 146.1 });
     expect(june.forecast.revenueByFamily).toEqual([{ currency: 'USD', family: "affiliate", amount: 168.2 }]);
     expect(june.forecast.costByFamily).toEqual([{ currency: 'USD', family: "inference", amount: 22.1 }]);
 
-    // Nothing anywhere on the period is the blend the two sides replaced.
     expect(figureHasMoney(june.booked.figure)).toBe(true);
     expect(figureHasMoney(june.forecast.figure)).toBe(true);
     expect(june.booked.figure.net! + june.forecast.figure.net!).toBeCloseTo(644.2, 10);
     expect(Object.values(june.booked.figure)).not.toContain(644.2);
     expect(Object.values(june.forecast.figure)).not.toContain(644.2);
 
-    // booking_state is preserved on the raw rows (honesty fact).
     const ads = p.ledger.recentRows.find((r) => r.family === "ads")!;
     expect(ads.bookingState).toBe("reconciled");
   });
 
   it("a period with nothing reconciled books nothing, and says so in its own field", async () => {
-    // FORECAST ONLY. `booked` is three zeroes rather than a null or an absent
-    // period, so the tile has a shape to render and never a number to mistake:
-    // `figureHasMoney` is what turns the stated net into an em dash.
+    // Forecast only. `booked` is three zeroes rather than a null, so the tile
+    // has a shape to render; `figureHasMoney` turns the stated net into a dash.
     await insertLedger(ctx, { id: 40, kind: "revenue", asset: "meals.example", period: "2026-05", family: "ads", amount: 210.4, booking_state: "estimated", recorded_at: "2026-05-31T00:00:00.000Z" });
     await insertLedger(ctx, { id: 41, kind: "cost", asset: "meals.example", period: "2026-05", family: "infra", amount: 10.4, booking_state: "estimated", recorded_at: "2026-05-31T00:00:00.000Z" });
 
@@ -1681,8 +1605,7 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it("a fully reconciled period carries no forecast at all", async () => {
-    // BOOKED ONLY: the estimates side is empty, so the tile draws no second
-    // block rather than a $0 one under the hollow notch.
+    // Booked only: the estimates side is empty, so the tile draws no second block.
     await insertLedger(ctx, { id: 42, kind: "revenue", asset: "meals.example", period: "2026-05", family: "ads", amount: 300, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
 
     const may = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!.ledger.periods.find(
@@ -1695,10 +1618,9 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it("a reconciled net of zero is money, and a period of literal zeroes is not", async () => {
-    // The two ZERO cases the tile must tell apart. A month whose reconciled
-    // revenue exactly cancels its reconciled cost is a confirmed $0 — a fact
-    // somebody checked, and it renders. A month whose only rows are worth
-    // nothing at all is three zeroes nobody asked about, and renders the dash.
+    // Two zero cases the tile must tell apart: reconciled revenue that exactly
+    // cancels reconciled cost is a confirmed $0 and renders; rows worth
+    // nothing at all are three zeroes nobody asked about and render the dash.
     await insertLedger(ctx, { id: 43, kind: "revenue", asset: "meals.example", period: "2026-05", family: "ads", amount: 88.5, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
     await insertLedger(ctx, { id: 44, kind: "cost", asset: "meals.example", period: "2026-05", family: "infra", amount: 88.5, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
     await insertLedger(ctx, { id: 45, kind: "revenue", asset: "meals.example", period: "2026-04", family: "ads", amount: 0, booking_state: "reconciled", recorded_at: "2026-04-30T00:00:00.000Z" });
@@ -1718,9 +1640,7 @@ describe("buildAssetDetailPayload", () => {
     // Amounts chosen to break under float summation: in dollars the revenue
     // adds to 1809.6499999999999, ads to 845.3499999999999, the costs to
     // 866.4000000000001, and 1809.65 − 866.40 is 943.2500000000001. Every
-    // figure below is therefore only reachable by adding `amount_minor`
-    // (db/0018) and dividing once — which is what makes this P&L provable
-    // against the portfolio total it rolls into (ro-wtt).
+    // figure below is only reachable by adding `amount_minor` and dividing once.
     const rows = [
       [30, "revenue", "ads", 574.15],
       [31, "revenue", "ads", 271.2],
@@ -1748,8 +1668,7 @@ describe("buildAssetDetailPayload", () => {
       { currency: 'USD', family: "ads", amount: 845.35 },
     ]);
     expect(august.booked.costByFamily).toEqual([{ currency: 'USD', family: "inference", amount: 866.4 }]);
-    // A single row still states its own dollars, unrounded and unscaled (the
-    // row is shown by the number the store handed the entry named 30).
+    // A single row still states its own dollars, unrounded and unscaled.
     const shown = bookedNumber(ctx.call, 30);
     expect(p.ledger.recentRows.find((r) => r.id === shown)!.amount).toBe(574.15);
   });
@@ -1758,15 +1677,12 @@ describe("buildAssetDetailPayload", () => {
     await seedChanges(ctx);
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
     expect(p.annotations.items.map((a) => a.kind)).toEqual(["deploy", "external"]);
-    // Two rows in the store, two on the page: nothing was left out to count.
     expect(p.annotations.olderCount).toBe(0);
   });
 
-  it("shows every change when an asset passes 20 annotations (ro-5e8.1)", async () => {
-    // meals.example's real shape: 21 annotations, and the OLDEST is the
-    // change-point two open watch windows point at. The 20-row read dropped
-    // exactly that row, so the Watches strip named a cause the timeline could
-    // not show.
+  it("shows every change when an asset passes 20 annotations", async () => {
+    // 21 annotations, and the oldest is the change-point two open watch
+    // windows point at; a 20-row read would drop exactly that row.
     await seedChanges(ctx);
     const anchor = await insertAnnotation(
       ctx,
@@ -1792,10 +1708,8 @@ describe("buildAssetDetailPayload", () => {
     }
 
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
-    // 2 seeded + the anchor + 18 = 21, all of them, nothing counted away.
     expect(p.annotations.items).toHaveLength(21);
     expect(p.annotations.olderCount).toBe(0);
-    // The change both open windows point at is on the page, at the far end.
     const oldest = p.annotations.items.at(-1)!;
     expect(oldest.id).toBe(anchor);
     expect(oldest.ref).toBe("23bceb0");
@@ -1803,15 +1717,14 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it("caps a very long timeline but says how many older changes it left out", async () => {
-    // 250 daily deploys is past what one page renders. The read stops — and
-    // names the size of the stop instead of ending in silence.
+    // 250 daily deploys is past what one page renders. The read stops and
+    // names the size of the stop.
     await seedChanges(ctx);
     await insertDailyDeploys(ctx, "meals.example", 250, "2025-06-01T00:00:00.000Z");
 
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
     expect(p.annotations.items).toHaveLength(200);
     expect(p.annotations.olderCount).toBe(52); // 250 + the 2 seeded rows
-    // Contiguous newest-first, so one "N older" line accounts for all of it.
     const times = p.annotations.items.map((a) => a.at);
     expect([...times].sort().reverse()).toEqual(times);
     expect(times[0]).toBe("2026-07-04T18:30:00.000Z");
@@ -1820,8 +1733,8 @@ describe("buildAssetDetailPayload", () => {
   it("reaches past the cap for a change a watch window is anchored to", async () => {
     await seedChanges(ctx);
     const ids = await insertDailyDeploys(ctx, "meals.example", 250, "2025-06-01T00:00:00.000Z");
-    // The 210th-newest change: past the cap, so a plain read would drop the one
-    // row this window exists to explain.
+    // The 210th-newest change: past the cap, so a plain read would drop the
+    // one row this window exists to explain.
     const anchor = ids[250 - 210];
     await insertWatchWindow(ctx, {
       id: "watch-anchored",
@@ -1834,7 +1747,7 @@ describe("buildAssetDetailPayload", () => {
       ref_kind: "annotation",
       ref: String(anchor),
     });
-    // A free-text window whose ref merely LOOKS like an id must not drag the
+    // A free-text window whose ref merely looks like an id must not drag the
     // read down to the oldest row in the store.
     await insertWatchWindow(ctx, {
       id: "watch-manual",
@@ -1848,7 +1761,6 @@ describe("buildAssetDetailPayload", () => {
     });
 
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
-    // 2 seeded + 210 back to the anchor; the 40 older than it are counted.
     expect(p.annotations.items).toHaveLength(212);
     expect(p.annotations.olderCount).toBe(40);
     expect(p.annotations.items.at(-1)!.id).toBe(anchor);
@@ -1862,11 +1774,9 @@ describe("buildAssetDetailPayload", () => {
       metric: "clicks",
       registered_at: "2026-06-20T09:00:00.000Z",
       check_offsets: [7, 14, 28],
-      // The 7-day check has been read; the 14-day one is what is next due.
       readings: [{ offset_days: 7, check_date: "2026-06-27" }],
       note: "June title batch",
     });
-    // Another asset's window must never appear on this page.
     await insertWatchWindow(ctx, {
       id: "watch-other",
       asset: "nosh.example",
@@ -1894,10 +1804,7 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it("carries this asset's own series so a threshold can be calibrated from it", async () => {
-    // Bead ro-5e8.2. The composer's "smallest move that counts" opened on the
-    // README's example for every asset; the archives are local, so the
-    // prefill can come from what THIS asset does when nothing ships.
-    // On Postgres, where the collectors write them (bead ro-ujb9.76.5.3).
+    // The prefill comes from what this asset does when nothing ships.
     const store = ctx.call;
     const run = (id: string, startedAt: string, finishedAt: string, count: number, values: Record<string, number>) =>
       writeSignalRun(store, {
@@ -1905,9 +1812,7 @@ describe("buildAssetDetailPayload", () => {
         startedAt, finishedAt, windowStart: "2026-06-01", windowEnd: "2026-07-04", providerRows: count, observationCount: count,
       }, valuesOf("clicks", values));
     await run("gsc-cal", "2026-07-05T11:00:00.000Z", "2026-07-05T11:01:00.000Z", 3, { "2026-07-02": 100, "2026-07-04": 120 });
-    // A revision for the SAME day: the evaluator takes the latest run's value,
-    // and a calibration that took the first would be calibrating a number the
-    // verdict will never use.
+    // A revision for the same day: the evaluator takes the latest run's value.
     await run("gsc-cal-2", "2026-07-05T11:30:00.000Z", "2026-07-05T11:31:00.000Z", 1, { "2026-07-04": 140 });
     await insertAnnotation(ctx, "meals.example", "2026-07-03T18:00:00.000Z", "deploy", "calibration-fixture", "level-changing deploy");
 
@@ -1924,9 +1829,8 @@ describe("buildAssetDetailPayload", () => {
       );
     expect(clicks!.values[dayOf("2026-07-02")]).toBe(100);
     expect(clicks!.values[dayOf("2026-07-04")]).toBe(140);
-    // The gap is a gap. The evaluator's per-day figure divides by the days it
-    // actually observed and its coverage rule counts the holes, so a history
-    // that quietly closed them would calibrate a series the store does not hold.
+    // The gap is a gap: the evaluator divides by the days it actually observed
+    // and its coverage rule counts the holes.
     expect(clicks!.values[dayOf("2026-07-03")]).toBeNull();
     expect(clicks!.recordedChanges).toMatchObject({
       firstDay: clicks!.firstDay,
@@ -1934,19 +1838,17 @@ describe("buildAssetDetailPayload", () => {
       complete: true,
     });
     expect(clicks!.recordedChanges?.days).toContain("2026-07-03");
-    // A series this asset has never reported is ABSENT, never present and
-    // empty: "does not report Bing clicks" and "reports them and they are zero"
-    // must not arrive as the same fact.
+    // A series this asset has never reported is absent, never present and
+    // empty: "does not report Bing clicks" and "reports zero" are different.
     expect(
       p.watches.history.some((entry) => entry.integration === "bing-webmaster"),
     ).toBe(false);
   });
 
   it("calibrates only from the property the asset is measured on now", async () => {
-    // Bead ro-ujb9.70. The asset was repointed from a URL-prefix Search Console
-    // site to its domain property. The evaluator refuses a verdict across that
-    // switch, so the old site's days are not noise the new registration will be
-    // judged against: they read as gaps, never as the new property's history.
+    // The asset was repointed from a URL-prefix Search Console site to its
+    // domain property. The old site's days read as gaps, never as the new
+    // property's history.
     const store = ctx.call;
     const run = (id: string, propertyRef: string, startedAt: string, finishedAt: string, windowEnd: string, values: Record<string, number>) =>
       writeSignalRun(store, {
@@ -2007,16 +1909,13 @@ describe("buildAssetDetailPayload", () => {
       outcomeNote: "Change was inside normal variation.",
       readings: 1,
       checks: 1,
-      // Every registered offset has been read, so there is nothing left to
-      // promise — the strip says so rather than inventing a date.
       nextCheckDate: null,
     });
   });
 
-  // Bead `ro-ujb9.96.6.30`. A note stored before the evaluator stopped writing
-  // the series, scope and offset still carries them; the store is history and
-  // is never rewritten, so the read drops them. The scope travels as its own
-  // field for the row's title.
+  // A note stored with the series, scope and offset still carries them; the
+  // store is never rewritten, so the read drops them. The scope travels as
+  // its own field for the row's title.
   it("reads a closed watch's stored note as the evaluator's figures, and its scope as a field", async () => {
     await insertWatchWindow(ctx, {
       id: "watch-query",
@@ -2061,33 +1960,27 @@ describe("buildAssetDetailPayload", () => {
 
   it("has no link-outreach section for an asset that runs no campaign", async () => {
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
-    // null, not an empty slice: the Tower has no way to start a campaign here,
-    // so an empty section would be a dead end (the Watches-strip rule).
+    // null, not an empty slice: the Tower has no way to start a campaign here.
     expect(p.reclamation).toBeNull();
   });
 
   it("counts the link-outreach funnel and lists the targets that moved most recently", async () => {
     await insertReclamationTargets(ctx.call, [
-      // Two clicked, one of them longer ago — the newest movement leads.
-      { asset: "meals.example", domain: "genesee.cce.cornell.edu", page: "https://genesee.cce.cornell.edu/food-nutrition/meals", status: "clicked", statusAt: "2026-07-14" },
-      { asset: "meals.example", domain: "albany.cce.cornell.edu", page: "https://albany.cce.cornell.edu/snap-ed", status: "clicked", statusAt: "2026-07-02" },
-      { asset: "meals.example", domain: "nyc.cce.cornell.edu", page: "https://nyc.cce.cornell.edu/tips", status: "replied", statusAt: "2026-07-16" },
-      { asset: "meals.example", domain: "erie.cce.cornell.edu", page: "https://erie.cce.cornell.edu/snap-ed", status: "sent", statusAt: "2026-06-16" },
-      { asset: "meals.example", domain: "wichealth.org", page: "https://wichealth.org/resource/5907", status: "won", statusAt: "2026-07-20" },
-      // Never touched: no status_at at all.
-      { asset: "meals.example", domain: "schoolnutrition.org", page: "https://schoolnutrition.org/resource/x", status: "queued", statusAt: null },
-      // The do-not-pitch reference list: counted, never listed as work.
-      { asset: "meals.example", domain: "cdc.gov", page: "", status: "skip", statusAt: null },
+      { asset: "meals.example", domain: "county-a.extension.example", page: "https://county-a.extension.example/food-nutrition/meals", status: "clicked", statusAt: "2026-07-14" },
+      { asset: "meals.example", domain: "county-b.extension.example", page: "https://county-b.extension.example/snap-ed", status: "clicked", statusAt: "2026-07-02" },
+      { asset: "meals.example", domain: "city.extension.example", page: "https://city.extension.example/tips", status: "replied", statusAt: "2026-07-16" },
+      { asset: "meals.example", domain: "county-c.extension.example", page: "https://county-c.extension.example/snap-ed", status: "sent", statusAt: "2026-06-16" },
+      { asset: "meals.example", domain: "health-resource.example", page: "https://health-resource.example/resource/5907", status: "won", statusAt: "2026-07-20" },
+      { asset: "meals.example", domain: "school-meals.example", page: "https://school-meals.example/resource/x", status: "queued", statusAt: null },
+      { asset: "meals.example", domain: "agency.example", page: "", status: "skip", statusAt: null },
       { asset: "meals.example", domain: "nih.gov", page: "", status: "skip", statusAt: null },
-      // Another asset's campaign must not leak into this one.
       { asset: "nosh.example", domain: "elsewhere.example", page: "https://elsewhere.example/a", status: "sent", statusAt: "2026-07-10" },
     ]);
 
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
     const reclamation = p.reclamation!;
     expect(reclamation.total).toBe(8);
-    // Funnel order, and a stage with no rows is absent rather than a zero:
-    // 'opened' and 'dead' never happened, so they are not measurements.
+    // Funnel order; a stage with no rows is absent rather than a zero.
     expect(reclamation.counts).toEqual([
       { status: "queued", count: 1 },
       { status: "sent", count: 1 },
@@ -2096,24 +1989,22 @@ describe("buildAssetDetailPayload", () => {
       { status: "won", count: 1 },
       { status: "skip", count: 2 },
     ]);
-    // Most recently moved first; the untouched target sorts last rather than
-    // pretending to be the oldest movement, and skip rows stay out entirely.
+    // Most recently moved first; the untouched target sorts last, and skip
+    // rows stay out entirely.
     expect(reclamation.recent.map((t) => t.domain)).toEqual([
-      "wichealth.org",
-      "nyc.cce.cornell.edu",
-      "genesee.cce.cornell.edu",
-      "albany.cce.cornell.edu",
-      "erie.cce.cornell.edu",
-      "schoolnutrition.org",
+      "health-resource.example",
+      "city.extension.example",
+      "county-a.extension.example",
+      "county-b.extension.example",
+      "county-c.extension.example",
+      "school-meals.example",
     ]);
-    // A day is stored as its first instant, 00:00 UTC; the page shows the day.
     expect(reclamation.recent[0]).toMatchObject({
-      domain: "wichealth.org",
+      domain: "health-resource.example",
       status: "won",
       statusAt: "2026-07-20T00:00:00.000Z",
     });
     expect(reclamation.recent.at(-1)!.statusAt).toBeNull();
-    // Each target is known by its workspace number: the order they were stored.
     expect(reclamation.recent.map((t) => t.id)).toEqual([5, 3, 1, 2, 4, 6]);
   });
 
@@ -2131,17 +2022,13 @@ describe("buildAssetDetailPayload", () => {
 
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
     expect(p.reclamation!.recent).toHaveLength(10);
-    // The funnel is the whole campaign, not the visible slice.
     expect(p.reclamation!.counts).toEqual([{ status: "sent", count: 14 }]);
     expect(p.reclamation!.total).toBe(14);
   });
 
-  // --- nightly site health (db/0014) — bead ro-gct ---------------------------
-
-  /** One hygiene reading, written exactly as workers/ingest/src/hygiene.ts
-   * writes it: one row per (asset, check, day), `value_num` NULL whenever the
-   * check produced no number. On Postgres (bead ro-ujb9.76.5.8), in this
-   * test's own copy of its sites (test/sites.ts). */
+  /** One hygiene reading as workers/ingest/src/hygiene.ts writes it: one row
+   * per (asset, check, day), `value_num` NULL whenever the check produced no
+   * number. */
   async function insertHygiene(
     asset: string,
     check: string,
@@ -2154,17 +2041,12 @@ describe("buildAssetDetailPayload", () => {
   }
 
   it("has no site-health section before the guard's first night", async () => {
-    // null, not three empty series: the Tower cannot run a check, so an empty
-    // section would be a dead end (the Watches-strip rule).
+    // null, not three empty series: the Tower cannot run a check.
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
     expect(p.hygiene).toBeNull();
   });
 
   it("reads back the nightly site-health history the guard has been writing", async () => {
-    // The defect bead ro-gct names: hygiene_checks has had one row per (asset,
-    // check, day) since 2026-07-31 and NOTHING in apps/tower read it — the only
-    // way any of it reached a human was a rule firing, which is exactly the
-    // wrong instrument for a slow decline.
     await insertHygiene("meals.example", "html-depth", "2026-07-03", "ok", 880);
     await insertHygiene("meals.example", "html-depth", "2026-07-04", "ok", 640);
     await insertHygiene("meals.example", "html-depth", "2026-07-05", "warn", 88);
@@ -2174,7 +2056,6 @@ describe("buildAssetDetailPayload", () => {
       present: true,
       bots: { GPTBot: true, ClaudeBot: false, Bingbot: true },
     });
-    // Another asset's nightly run must not leak into this one.
     await insertHygiene("nosh.example", "html-depth", "2026-07-05", "ok", 2000);
 
     const hygiene = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!
@@ -2206,7 +2087,6 @@ describe("buildAssetDetailPayload", () => {
       value: 88,
     });
     expect(hygiene.sitemap.latest?.value).toBe(4118);
-    // robots rows carry no number at all, and null travels as null.
     expect(hygiene.robots.latest).toEqual({
       date: "2026-07-05",
       observedAt: "2026-07-05T04:00:00.000Z",
@@ -2222,9 +2102,8 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it("keeps the crawler map it still knows after a night it could not look", async () => {
-    // An unreachable origin stores no bot map. Falling silent about crawler
-    // access because of one bad night would be the section forgetting a fact it
-    // still holds, so the newest reading that HAS a map is the answer.
+    // An unreachable origin stores no bot map, so the newest reading that has
+    // a map is the answer.
     await insertHygiene("meals.example", "robots-ai-access", "2026-07-03", "ok", null, {
       present: true,
       bots: { GPTBot: true, ClaudeBot: true },
@@ -2236,9 +2115,7 @@ describe("buildAssetDetailPayload", () => {
 
     const hygiene = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!
       .hygiene!;
-    // The status is tonight's — we could not look, and the section says so …
     expect(hygiene.robots.latest?.status).toBe("unreachable");
-    // … while the map is the last one actually resolved.
     expect(hygiene.bots).toEqual([
       { bot: "GPTBot", allowed: true },
       { bot: "ClaudeBot", allowed: true },
@@ -2254,8 +2131,7 @@ describe("buildAssetDetailPayload", () => {
     const depth = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!
       .hygiene!.htmlDepth;
     expect(depth.readings.map((r) => r.date)).toEqual(["2026-07-04", "2026-07-05"]);
-    // A night the fetch failed measured nothing. null is the whole point: read
-    // as zero it would be the collapse this section exists to detect honestly.
+    // A night the fetch failed measured nothing: null, never zero.
     expect(depth.readings[0]).toEqual({
       date: "2026-07-04",
       observedAt: "2026-07-04T04:00:00.000Z",
@@ -2264,8 +2140,7 @@ describe("buildAssetDetailPayload", () => {
     });
   });
 
-  /** One stored disposition, on Postgres (bead ro-ujb9.76.5.8), in this
-   * test's own copy of its sites (test/sites.ts). */
+  /** One stored disposition in this test's own copy of its sites. */
   async function insertDisposition(asset: string, key: string, status: string, decidedAt: string, updatedAt: string) {
     await (ctx.call).write((tx) =>
       tx.execute(
@@ -2298,14 +2173,11 @@ describe("buildAssetDetailPayload", () => {
         updatedAt: "2026-07-04T08:00:00.000Z",
       },
     ]);
-    // An untouched query/finding has no row at all — absence IS the state.
     expect(p.decisions).toHaveLength(2);
   });
 
-  it("cannot be handed a legacy handed_off row any more (beads ro-5e8.3, ro-5e8.4)", async () => {
-    // db/0013 permitted the value and the payload filtered it out on read.
-    // db/0021 deleted the surviving rows and narrowed the CHECK, so the shape
-    // this test used to construct is now one the store refuses to hold.
+  it("cannot be handed a legacy handed_off row any more", async () => {
+    // The store's CHECK refuses the value.
     await expect(
       insertDisposition("meals.example", "weekly meal plan", "handed_off", "2026-07-04T08:00:00.000Z", "2026-07-04T08:00:00.000Z"),
     ).rejects.toThrow(/check constraint/);
@@ -2314,12 +2186,10 @@ describe("buildAssetDetailPayload", () => {
     expect(p.decisions).toEqual([]);
   });
 
-  // The register's half of the same keys (bead ro-248). The Tower cannot reach
-  // the hub, so this all comes off the newest task photograph — and the
-  // distinction that matters throughout is between "asked, nothing filed" and
-  // "could not ask", because only the first one lets a card call a finding
-  // untouched.
-  describe("handoff beads", () => {
+  // The Tower cannot reach the hub, so this all comes off the newest task
+  // photograph; "asked, nothing filed" and "could not ask" stay distinct,
+  // because only the first lets a card call a finding untouched.
+  describe("handoff tasks", () => {
     function beadsProject(overrides: Record<string, unknown> = {}) {
       return {
         asset: "meals.example",
@@ -2354,15 +2224,13 @@ describe("buildAssetDetailPayload", () => {
               status: "open",
               closedAt: null,
             },
-            // The fourth kind (ro-05hb). Its key is the flag id, and it reaches
-            // the payload on the same pass as the other three — the reader has
-            // no per-kind allowlist beyond the union itself.
+            // The alert kind: its key is the flag id, and the reader has no
+            // per-kind allowlist beyond the union itself.
             { kind: "alert", key: "flag-8812", beadId: "mp-alrt", status: "open", closedAt: null },
           ],
         }),
-        // Another asset's filed work, on the same snapshot row. A finding
-        // key is a RULE id, so the same string exists on every asset — this
-        // is the one that would attach a stranger's bead to this page.
+        // Another asset's filed work on the same snapshot row. A finding key
+        // is a rule id, so the same string exists on every asset.
         beadsProject({
           asset: "nosh.example",
           prefix: "nom",
@@ -2398,8 +2266,8 @@ describe("buildAssetDetailPayload", () => {
       await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [beadsProject({ handoffs: [] })]);
 
       const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
-      // NOT null: this is a measurement, and it is the only thing that lets a
-      // finding card present itself as untouched work.
+      // Not null: a measurement, the only thing that lets a finding card
+      // present itself as untouched work.
       expect(p.handoffBeads).toEqual([]);
     });
 
@@ -2411,12 +2279,10 @@ describe("buildAssetDetailPayload", () => {
     });
 
     it("is null when the register cannot be asked at all", async () => {
-      // No snapshot has ever been filed.
       let p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
       expect(p.handoffBeads).toBeNull();
 
-      // A snapshot that names other projects but not this one — the asset is
-      // not a spoke in config/beads.json.
+      // A snapshot that names other projects but not this one.
       await seedSnapshot(ctx, "2026-07-05T11:58:00.000Z", [
         beadsProject({ asset: "nosh.example", prefix: "nom", handoffs: [],
         }),
@@ -2424,8 +2290,7 @@ describe("buildAssetDetailPayload", () => {
       p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
       expect(p.handoffBeads).toBeNull();
 
-      // A project the poller could not read. `bd` told it nothing about filed
-      // work either, which is "did not ask" and never "none filed".
+      // A project the poller could not read: "did not ask", never "none filed".
       await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [
         {
           asset: "meals.example",
@@ -2574,20 +2439,15 @@ describe("buildAssetDetailPayload", () => {
   it("carries the integrations section, merging store evidence over declared state", async () => {
     await seedLedger(ctx);
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
-    // No seed-file path rides the payload: nothing on the site page names it
-    // (bead `ro-ujb9.96.6.23`).
     expect(p.integrations).not.toHaveProperty("owner");
     expect(p.integrations.lanes).toHaveLength(3);
-    // meals has recent CJ + ads revenue in the fixture → the needs-setup
-    // revenue lanes carry supporting "manual lane" evidence, still needs-setup.
+    // meals has recent CJ + ads revenue in the fixture, so the needs-setup
+    // revenue lanes carry supporting "manual lane" evidence.
     const cj = p.integrations.lanes.find((l) => l.cell.laneId === "affiliate-cj")!;
     expect(cj.cell.effective).toBe("needs-setup");
     expect(cj.cell.evidence[0]?.polarity).toBe("supporting");
-    // credential scope flows through the asset-detail path too.
     expect(cj.catalog.credential).toBe("shared");
-    // The register's prose never rides the rendered row (bead `ro-ujb9.96.6.1`).
     expect(cj.catalog).not.toHaveProperty("perProperty");
-    // gsc is still needs-setup, with explicit evidence that no collector ran.
     const gsc = p.integrations.lanes.find((l) => l.cell.laneId === "gsc")!;
     expect(gsc.cell.evidence[0]).toMatchObject({
       polarity: "against",
@@ -2604,7 +2464,6 @@ describe("buildAssetDetailPayload", () => {
     expect(p.metrics).toEqual([]);
     expect(p.wiring.mode).toBe("push"); // absent from pull.json
     expect(p.wiring.lastPulseReceivedAt).toBeNull();
-    // Never reported: arrival is unknown and observed coverage is zero.
     expect(p.asset.firstReportAt).toBeNull();
     expect(p.asset.reportDays).toBe(0);
     expect(p.flags.open).toEqual([]);
@@ -2622,21 +2481,15 @@ describe("buildAssetDetailPayload", () => {
     const p = (await buildAssetDetailPayload(ctx.call, "root-os", DEPS))!;
     expect(p.asset.isOs).toBe(true);
     expect(p.wiring.mode).toBe("push");
-    // The System writes its own report at 03:00 UTC; a pushing asset has no
-    // OS-side clock time at all.
+    // The System writes its own report at 03:00 UTC.
     expect(p.wiring.schedule).toEqual({ job: "asset-zero", enabled: true, cron: "0 3 * * *" });
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The tracked-query SERP panel readout (beads `ro-282.3`, `ro-6ok`).
-//
-// The producer is `scripts/signal-insights.mjs`, publishing a `serpPanel` block
-// onto the asset's insight snapshot from the `dataforseo/serp-panel`
-// archive. Everything below is about what the Tower does with a block it did
-// not write: it is JSON out of a store row filled by a separate Node process,
-// so absence, staleness and corruption are ordinary inputs, not incidents.
-// ─────────────────────────────────────────────────────────────────────────────
+// The tracked-query SERP panel readout. The producer is
+// `scripts/signal-insights.mjs`, publishing a `serpPanel` block onto the
+// asset's insight snapshot; absence, staleness and corruption are ordinary
+// inputs.
 describe("buildAssetDetailPayload — the tracked SERP panel", () => {
   let ctx: TestStore;
   beforeEach(async () => {
@@ -2687,14 +2540,11 @@ describe("buildAssetDetailPayload — the tracked SERP panel", () => {
 
   it("carries the panel through with its depth and its three-valued fields intact", async () => {
     const panel = await panelOf({ ...executiveSnapshot(), serpPanel: panelBlock() });
-    // A pre-`ro-14d.1` block names no device; the parser reads that absence as
-    // the desktop row it was, because the collector had exactly one device
-    // literal in it until 2026-08-04. A missing cluster label goes the OPPOSITE
-    // way and becomes null: a label was never sent, so inventing one would
-    // invent a bet nobody placed (`ro-282.5`).
+    // A block naming no device is read as the desktop row it was. A missing
+    // cluster label goes the opposite way and becomes null: inventing one
+    // would invent a bet nobody placed.
     expect(panel).toEqual({
       ...panelBlock(),
-      // A block written before it carried the site's market names none.
       market: null,
       queries: panelBlock().queries.map((row) => ({
         ...row,
@@ -2703,16 +2553,14 @@ describe("buildAssetDetailPayload — the tracked SERP panel", () => {
         composition: row.composition ?? null,
       })),
     });
-    // The two absences that must not collapse into each other on the way in.
     expect(panel!.queries[1]!.aioPresent).toBe(false);
     expect(panel!.queries[2]!.aioPresent).toBeNull();
     expect(panel!.queries[1]!.composition).toBeNull();
   });
 
   it("keeps a term's two devices as two rows, and the scoreboard still counts one term", async () => {
-    // Bead ro-14d.1. The whole risk of the split is arithmetic: twenty tracked
-    // terms read on two devices are still twenty, and a term nobody could
-    // answer the AI question for is ONE unknown rather than two.
+    // Twenty tracked terms read on two devices are still twenty, and a term
+    // nobody could answer the AI question for is one unknown rather than two.
     const panel = await panelOf({
       ...executiveSnapshot(),
       serpPanel: {
@@ -2729,32 +2577,27 @@ describe("buildAssetDetailPayload — the tracked SERP panel", () => {
     expect(panel!.queries).toHaveLength(4);
     expect(serpPanelScoreboard(panel!)).toEqual({
       tracked: 2,
-      // Ranked on the desktop only — a term that ranks anywhere the panel
+      // Ranked on the desktop only: a term that ranks anywhere the panel
       // looked is a term that ranks.
       ranking: 1,
       top10: 1,
       top3: 1,
-      // One term answered on at least one surface; one unknown on both, and it
-      // stays ONE unknown.
+      // One term answered on at least one surface; one unknown on both.
       aioKnown: 1,
-      // Walled on the phone: an overview a real person hit, and a clear desktop
-      // page does not give that click back.
+      // Walled on the phone: a clear desktop page does not give that click back.
       aioPresent: 1,
       aioCitesUs: 0,
     });
   });
 
   it("reads a snapshot with no panel block as no panel, exactly like every older one", async () => {
-    // An asset with no config/serp-panel.json entry has no panel family in
-    // the archive, so the producer writes no block — the same shape every
-    // snapshot published before the block existed already has.
+    // An asset with no config/serp-panel.json entry gets no block from the producer.
     expect(await panelOf(executiveSnapshot())).toBeNull();
   });
 
   it("leaves an unrecorded depth unstated rather than assuming twenty", async () => {
-    // A legacy archive row without `tracked_depth`. Defaulting it here would
-    // turn "no rank recorded" into "outside the top 20" — a claim about a page
-    // nobody read that far down.
+    // A legacy archive row without `tracked_depth`: defaulting it would turn
+    // "no rank recorded" into "outside the top 20".
     const panel = await panelOf({
       ...executiveSnapshot(),
       serpPanel: { ...panelBlock(), trackedDepth: null },
@@ -2763,7 +2606,7 @@ describe("buildAssetDetailPayload — the tracked SERP panel", () => {
     expect(panel!.queries).toHaveLength(3);
   });
 
-  it("carries the market the site saved, and none for an absent or unreadable one (ro-ujb9.230)", async () => {
+  it("carries the market the site saved, and none for an absent or unreadable one", async () => {
     const uk = { locationCode: 2826, languageCode: "en" };
     const carried = await panelOf({ ...executiveSnapshot(), serpPanel: { ...panelBlock(), market: uk } });
     expect(carried!.market).toEqual(uk);
@@ -2777,8 +2620,7 @@ describe("buildAssetDetailPayload — the tracked SERP panel", () => {
   });
 
   it("drops a malformed block rather than the page", async () => {
-    // Every one of these is a producer bug, and none of them may take down a
-    // asset page whose other twelve sections are fine.
+    // Every one of these is a producer bug, and none may take down the page.
     for (const [name, block] of [
       ["not an object", 42],
       ["no report date", { trackedDepth: 20, queries: panelBlock().queries }],
@@ -2802,9 +2644,8 @@ describe("buildAssetDetailPayload — the tracked SERP panel", () => {
         ],
       },
     });
-    // A rank nobody could read is a rank nobody measured — which is the fact
-    // `bestRank: null` already carries. The string "true" is NOT an AI
-    // Overview; anything but a literal boolean is unknown, never false.
+    // A rank nobody could read is a rank nobody measured. The string "true"
+    // is not an AI Overview; anything but a literal boolean is unknown.
     expect(panel!.queries).toEqual([
       {
         query: "macro calculator",
@@ -2845,8 +2686,7 @@ describe("buildAssetDetailPayload — the tracked SERP panel", () => {
       "healthline.com",
     ]);
     // One retained collection can say who is there now and nothing about how
-    // they got there. Movement remains the designed absence until ro-770 keeps
-    // a second panel collection in the read model.
+    // they got there.
     expect(current).not.toHaveProperty("previousComposition");
     expect(current).not.toHaveProperty("movement");
   });
@@ -2866,16 +2706,9 @@ describe("buildAssetDetailPayload — the tracked SERP panel", () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The asset page's serp-panel review obligation (bead `ro-elf`).
-//
-// The card is a drill-down TARGET: an overdue badge on the Wall means "open the
-// asset page and act", and the page said nothing at all about the review. So
-// the assertions below are less about the two fields than about the AGREEMENT —
-// the page reads the same snapshot and the same landings through the same two
-// functions the card does, and the shared `panelReviewState` then says the same
-// word over both.
-// ─────────────────────────────────────────────────────────────────────────────
+// The page is a drill-down target: it reads the same snapshot and the same
+// landings through the same two functions the card does, and the shared
+// `panelReviewState` says the same word over both.
 describe("buildAssetDetailPayload — the page's panel-review slice", () => {
   let ctx: TestStore;
   beforeEach(async () => {
@@ -2886,7 +2719,7 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
   const pageFor = async (asset: string) =>
     (await buildAssetDetailPayload(ctx.call, asset, DEPS))!;
 
-  it("carries the review bead and the panel day it has to be about", async () => {
+  it("carries the review task and the panel day it has to be about", async () => {
     await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ panelReview: panelReviewBead() }),
@@ -2906,9 +2739,8 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
   });
 
   it("marks an asset with no config/serp-panel.json entry as panel-less, not as review-less", async () => {
-    // Bead ro-z0g, and the same answer the card gives (wall-payload's twin
-    // test): the page and the card read one key set, so the row and the badge
-    // that sent the operator to it cannot use two different nouns.
+    // The same answer the card gives (wall-payload's twin test): one key set,
+    // so the row and the badge cannot use two different nouns.
     await insertDataForSeoCollection(ctx, "nosh.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: false });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ asset: "nosh.example", prefix: "nom", panelReview: panelReviewBead({ beadId: "nom-f1c" }) }),
@@ -2921,8 +2753,7 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
   });
 
   it("is overdue on the page exactly when it is overdue on the card", async () => {
-    // Past the deadline with the panel still untriaged — the error-toned state,
-    // and the only one that sends anybody anywhere.
+    // Past the deadline with the panel still untriaged: the error-toned state.
     await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ panelReview: panelReviewBead({ dueAt: "2026-07-04T06:00:00.000Z" }) }),
@@ -2930,13 +2761,13 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
 
     const page = await pageFor("meals.example");
     expect(panelReviewState(page.panelReview, page.latestPanelDate, NOW_MS)).toBe("overdue");
-    // The page has room the card does not, and this is what it spends it on:
-    // the bead to close, and the deadline it is past.
+    // The page has room the card does not: the task to close, and the
+    // deadline it is past.
     expect(page.panelReview!.beadId).toBe("mp-4a2");
     expect(page.panelReview!.dueAt).toBe("2026-07-04T06:00:00.000Z");
   });
 
-  it("is reviewed once the bead for the newest panel day is closed", async () => {
+  it("is reviewed once the task for the newest panel day is closed", async () => {
     await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({
@@ -2950,8 +2781,8 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
   });
 
   it("falls back to pending when a NEWER panel day has landed", async () => {
-    // A fresh result page nobody has opened, behind a finished review about last
-    // week's. The page must not reassure any more readily than the card does.
+    // A fresh result page nobody has opened, behind a finished review about
+    // last week's.
     await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await insertDataForSeoCollection(ctx, "meals.example", "2026-07-04", "2026-07-04T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
@@ -2967,11 +2798,8 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
   });
 
   it("shows the review of an asset that buys a collection but no panel", async () => {
-    // Bead ro-1tu, the page's half. The Wall card is a drill-down TARGET, so a
-    // marker there and silence here would send the operator to a page with
-    // nothing on it. nom is absent from the panel config this test was given and
-    // still owes the read, because since ro-478 the review is about the weekly
-    // collection rather than the panel family inside it.
+    // nom is absent from the panel config and still owes the read: the review
+    // is about the weekly collection, not the panel family inside it.
     await insertDataForSeoCollection(ctx, "nosh.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: false });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ asset: "nosh.example", prefix: "nom", panelReview: panelReviewBead({ beadId: "nom-f1c" }) }),
@@ -2984,10 +2812,9 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
   });
 
   it("sheds the marker once the collection behind the review stops", async () => {
-    // The other half of ro-1tu: a review with no live collection behind it is an
-    // obligation nobody can discharge, so it leaves the page rather than sitting
-    // there as a finished-looking marker forever. This landing is one day past
-    // the window the runner's filer itself works in.
+    // A review with no live collection behind it leaves the page rather than
+    // sitting there as a finished-looking marker forever. This landing is one
+    // day past the window the runner's filer works in.
     const stopped = new Date(NOW_MS - 22 * DAY).toISOString();
     await insertDataForSeoCollection(ctx, "nosh.example", stopped.slice(0, 10), stopped, { panel: false });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
@@ -3009,15 +2836,14 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
   });
 
   it("degrades a snapshot written before the field existed to absence", async () => {
-    // The ordinary state of the store until the operator restarts os:up. An
-    // older writer's payload is not damage: it renders nothing rather than an
-    // unmet obligation nobody has.
+    // An older writer's payload renders nothing rather than an unmet
+    // obligation nobody has.
     await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [workProject()]);
 
     const page = await pageFor("meals.example");
     expect(page.panelReview).toBeNull();
-    // The landing is still readable — it is the REVIEW that is unknown.
+    // The landing is still readable; it is the review that is unknown.
     expect(page.latestPanelDate).toBe("2026-07-01");
     expect(panelReviewState(page.panelReview, page.latestPanelDate, NOW_MS)).toBe("none");
   });
@@ -3032,14 +2858,8 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
   });
 });
 
-/**
- * ro-wlq5.1 — self-declared flags re-derived against the asset's own newest
- * envelope.
- *
- * These arrive inside the asset's pulse: the OS never derived them, so it
- * never un-derived them, and nosh.example accumulated sixteen open ones over four
- * weeks. Their source of truth is the latest envelope.
- */
+/** Self-declared flags arrive inside the asset's pulse: the OS never derived
+ * them, so their source of truth is the latest envelope. */
 describe("buildAssetDetailPayload — self-declared liveness", () => {
   const deps = { ...DEPS, now: new Date("2026-07-06T12:00:00.000Z") };
   let ctx: TestStore;
@@ -3055,7 +2875,7 @@ describe("buildAssetDetailPayload — self-declared liveness", () => {
     flaggedMetrics: string[],
   ): Promise<void> {
     // A source-ended verdict requires the newer report to cover the metric,
-    // not merely leave it out of its flags. Validate the full wire contract here.
+    // not merely leave it out of its flags.
     const envelope = PulseEnvelope.parse({
       asset,
       generatedAt: `${date}T02:00:00.000Z`,
@@ -3126,9 +2946,7 @@ describe("buildAssetDetailPayload — self-declared liveness", () => {
     });
     expect(row.resolvedAt).toBeNull();
     // The reason is a code the desk renders as a label, and the evidence it
-    // names travels as data — the report's date in `lastEvaluatedAt` above and
-    // the metric on the row — so the row reads back rather than merely
-    // vanishing from a list (bead `ro-ujb9.96.6.7`).
+    // names travels as data, so the row reads back rather than vanishing.
     if (row.liveness.state === "stale") {
       expect(row.liveness.reason).toBe("report-no-longer-flags");
     }
@@ -3136,16 +2954,10 @@ describe("buildAssetDetailPayload — self-declared liveness", () => {
     expect(row.metric).toBe("apiRequests");
   });
 
-  /**
-   * THE EDGE CASE THAT DECIDES CORRECTNESS. An asset that has stopped
-   * reporting has no envelope to check against, and absence of a pulse is not
-   * evidence a condition ended — it is evidence nothing was measured. Clearing
-   * alerts because the reporter went quiet is the one failure mode that would
-   * silently delete real ones.
-   */
+  /** Absence of a pulse is not evidence a condition ended; clearing alerts
+   * because the reporter went quiet would silently delete real ones. */
   it("keeps flags open but unverified when the asset has no pulse at all", async () => {
     await seedReportsAndAlerts(ctx);
-    // An asset that has never reported: no envelope exists to check against.
     await addSites(ctx, [{ id: "silent.example", domain: null, displayName: "Silent", status: "live", senseOnly: 0, createdAt: "2026-01-01T00:00:00.000Z" }]);
     await declaredFlag(ctx, "silent.example", "apiRequests");
 
@@ -3163,8 +2975,8 @@ describe("buildAssetDetailPayload — self-declared liveness", () => {
 
     await seedReportsAndAlerts(ctx);
     await declaredFlag(ctx, "meals.example", "apiRequests");
-    // The store takes only a JSON object for a report (bead ro-ujb9.76.5.2),
-    // so the unreadable part is its flags.
+    // The store takes only a JSON object for a report, so the unreadable part
+    // is its flags.
     await storeReport(ctx.call, {
       asset: "meals.example",
       date: "2026-07-06",
@@ -3199,7 +3011,7 @@ describe("buildAssetDetailPayload — self-declared liveness", () => {
     await pulse(ctx, "meals.example", "2026-07-06", []);
 
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", deps))!;
-    // The central evaluator owns recovery. A later report is neither a linked
+    // The central evaluator owns recovery: a later report is neither a linked
     // confirmation nor permission for the read model to run that rule again.
     const row = p.flags.open.find((f) => f.ruleId === "flow-poisson-low" && f.metric === "apiRequests")!;
     expect(row.liveness.state).toBe("last-known");
@@ -3211,12 +3023,8 @@ describe("buildAssetDetailPayload — self-declared liveness", () => {
   });
 });
 
-/**
- * A snoozed condition on the asset page (`ro-c7qq`). It has to be in exactly
- * ONE list at any instant: parked under Snoozed while the clock runs — never in
- * History, which is what is settled (bead `ro-ujb9.194`) — and back in the Open
- * list the moment it does not.
- */
+/** A snoozed condition is in exactly one list at any instant: Snoozed while
+ * the clock runs, never History, and back in Open the moment it does not. */
 describe("a snoozed alert leaves the hero and returns on its date", () => {
   let ctx: TestStore;
   beforeEach(async () => {
@@ -3245,14 +3053,11 @@ describe("a snoozed alert leaves the hero and returns on its date", () => {
 
     expect(p.flags.open).toEqual([]);
     expect(p.flags.notCurrent).toEqual([]);
-    // The hero's headline number agrees with the rows under it: a snoozed
-    // condition that still counted as an open warning would colour the asset
-    // Degraded over a row nobody is being shown.
+    // A snoozed condition that still counted as an open warning would colour
+    // the asset Degraded over a row nobody is being shown.
     expect(p.flags.openWarn).toBe(0);
     expect(p.asset.worstOpenSeverity).toBeNull();
 
-    // Visible where it is honest — parked, with the date it comes back — and
-    // NOT in History: a snooze is put off, not settled (bead `ro-ujb9.194`).
     expect(p.flags.snoozed).toHaveLength(1);
     expect(p.flags.snoozed[0]).toMatchObject({
       disposition: "snooze",
@@ -3262,8 +3067,8 @@ describe("a snoozed alert leaves the hero and returns on its date", () => {
   });
 
   it("is parked as ONE row per condition, like the Open list and /alerts", async () => {
-    // A recurring condition's firings are snoozed together; the site's Snoozed
-    // panel names the condition once, as the Wall's Snoozed ledger does.
+    // A recurring condition's firings are snoozed together; the Snoozed panel
+    // names the condition once.
     for (const firedAt of ["2026-07-02T02:00:00.000Z", "2026-07-03T02:00:00.000Z"]) {
       await insertFlag(ctx, {
         asset: "meals.example",
@@ -3290,8 +3095,7 @@ describe("a snoozed alert leaves the hero and returns on its date", () => {
     const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
 
     expect(p.flags.open).toHaveLength(1);
-    // Same condition, same evidence, and the snooze still on the record — the
-    // row explains its own reappearance rather than arriving as a new alert.
+    // The snooze stays on the record, so the row explains its own reappearance.
     expect(p.flags.open[0]).toMatchObject({
       ruleId: "flow-poisson-low",
       message: "18 in last24h (avg7d 40.0)",
@@ -3299,19 +3103,15 @@ describe("a snoozed alert leaves the hero and returns on its date", () => {
       snoozeUntil: "2026-07-04T12:00:00.000Z",
     });
     expect(p.flags.openWarn).toBe(1);
-    // And it is not ALSO parked or in history: one row, one list.
     expect(p.flags.snoozed).toEqual([]);
     expect(p.flags.history).toEqual([]);
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The PostHog product block (beads `ro-ghis.2` / `ro-ghis.3`).
-//
-// The fixture is the block `scripts/signal-insights.mjs` really emits for the
-// contract's acceptance read — `scripts/posthog-panel.test.mjs` fails when the
-// two drift — so this proves the Tower reads the producer's own output.
-// ─────────────────────────────────────────────────────────────────────────────
+// The PostHog product block. The fixture is the block
+// `scripts/signal-insights.mjs` really emits (`scripts/posthog-panel.test.mjs`
+// fails when the two drift), so this proves the Tower reads the producer's
+// own output.
 describe("buildAssetDetailPayload — latest Clarity observation", () => {
   let ctx: TestStore;
   beforeEach(async () => { ctx = await createTestStore(); await seed(ctx); });
@@ -3385,7 +3185,6 @@ describe("buildAssetDetailPayload — the PostHog product block", () => {
           ...posthogProduct.vitals,
           segments: [
             { ...posthogProduct.vitals.segments[0], lcpP75: "fast" },
-            // A rating with no measurement behind it is a verdict about nothing.
             { ...posthogProduct.vitals.segments[1], inpP75: null, inpRating: "poor" },
           ],
         },
@@ -3398,23 +3197,16 @@ describe("buildAssetDetailPayload — the PostHog product block", () => {
     expect(product?.vitals?.segments[0]?.inpRating).toBeNull();
     expect(product?.funnels).toEqual([]);
     expect(product?.checks).toHaveLength(5);
-    // The parts that were fine are untouched.
     expect(product?.rageClicks).toEqual(posthogProduct.rageClicks);
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// One read per tab (bead `ro-ujb9.64`).
-//
-// Each tab polls a VIEW: the page's core plus that tab's own sections
-// (`shared/asset-detail-views`). What these cases hold it to:
-//  - every field a view carries is the whole page's field, read at the same
-//    clock — a view is a projection, never a second derivation;
-//  - a section a view does not draw is ABSENT, never an empty stand-in;
-//  - a view does not read the tables only other tabs draw;
-//  - the ledger is one statement whose totals still cover every row while it
-//    lists only the newest 20 — held to the row-by-row build it replaced.
-// ─────────────────────────────────────────────────────────────────────────────
+// One read per tab. Each tab polls a view: the page's core plus that tab's own
+// sections (`shared/asset-detail-views`). A view is a projection, never a
+// second derivation; a section a view does not draw is absent, never an empty
+// stand-in; a view does not read the tables only other tabs draw; the ledger
+// is one statement whose totals still cover every row while it lists only
+// the newest 20.
 
 /** The payload fields each section owns — the spec `ASSET_VIEW_SECTIONS` is
  * checked against. `watchHistory` owns `watches.history`, not a key. */
@@ -3449,9 +3241,7 @@ async function seedEverySection(ctx: TestStore) {
     check_offsets: [7, 14],
     readings: [],
   });
-  // The Search Console run, the money sections, the site-page sections, the
-  // task photograph, the insight snapshot and the weekly collection are on
-  // Postgres: `writeViewSignals`, `seedEveryMoneySection` and
+  // The rest is on Postgres: `writeViewSignals`, `seedEveryMoneySection` and
   // `seedEverySectionOnPostgres`.
   await insertPullFailure(ctx, "meals.example", null, [
     { at: "2026-07-05T02:30:00.000Z", status: 503, providerError: "unconfigured", error: "503 unconfigured — set CF_ACCOUNT_ID" },
@@ -3466,9 +3256,8 @@ async function seedEveryMoneySection(ctx: TestStore) {
     attemptedAt: "2026-07-04T08:00:00.000Z", days: [["2026-07-03", 1234]] }]);
 }
 
-/** The site-page sections of `seedEverySection` on Postgres (bead
- * ro-ujb9.76.5.8), in the test's own copy of its sites: written only by the
- * test that reads them (test/sites.ts). */
+/** The site-page sections of `seedEverySection`, written only by the test
+ * that reads them. */
 async function seedEverySectionOnPostgres(ctx: TestStore): Promise<void> {
   await seedSnapshot(ctx, "2026-07-05T11:55:00.000Z", [workProject({ handoffs: [] })]);
   await insertSnapshot(ctx, "snap-views", executiveSnapshot());
@@ -3482,9 +3271,7 @@ async function seedEverySectionOnPostgres(ctx: TestStore): Promise<void> {
   });
 }
 
-/** A Search Console run with two days, on Postgres where the collectors write
- * them (bead ro-ujb9.76.5.3): written by the tests that read it, so the rest
- * of `seedEverySection` stays a copy every test shares. */
+/** A Search Console run with two days, written by the tests that read it. */
 async function writeViewSignals(ctx: TestStore): Promise<void> {
   await writeSignalRun(ctx.call, {
     id: "gsc-views", asset: "meals.example", integration: "gsc", credentialRef: "google-primary",
@@ -3493,12 +3280,9 @@ async function writeViewSignals(ctx: TestStore): Promise<void> {
   }, valuesOf("clicks", { "2026-07-03": 40, "2026-07-04": 44 }));
 }
 
-/**
- * An `asset-pull-failed` alert the way the pull lane leaves it (bead
- * `ro-ujb9.220`): the flag carries the latest night's summary, and each failed
- * night is its own `flag_evidence` reading, on Postgres (bead
- * ro-ujb9.76.5.2). Returns the flag's number.
- */
+/** An `asset-pull-failed` alert the way the pull lane leaves it: the flag
+ * carries the latest night's summary, and each failed night is its own
+ * `flag_evidence` reading. Returns the flag's number. */
 async function insertPullFailure(
   ctx: TestStore,
   asset: string,
@@ -3522,7 +3306,7 @@ async function insertPullFailure(
   return flagId;
 }
 
-describe("failed nightly fetches keep their own records (ro-ujb9.220)", () => {
+describe("failed nightly fetches keep their own records", () => {
   const NIGHTS = [
     { at: "2026-07-03T02:30:00.000Z", status: 503, providerError: "unconfigured", error: "503 unconfigured — set CF_ACCOUNT_ID" },
     { at: "2026-07-04T02:30:00.000Z", status: 401, providerError: "unauthorized", error: "401 unauthorized" },
@@ -3537,7 +3321,6 @@ describe("failed nightly fetches keep their own records (ro-ujb9.220)", () => {
       { at: "2026-06-30T02:30:00.000Z", status: 404, error: "non-200 response (404)" },
     ]);
     const open = await insertPullFailure(ctx, "meals.example", null, NIGHTS);
-    // Another site's failure and another rule's reading never reach this list.
     await insertPullFailure(ctx, "nosh.example", null, [NIGHTS[0]!]);
 
     const sources = (await buildAssetDetailView(ctx.call, "meals.example", DEPS, "sources"))! as AssetDetailFor<"sources">;
@@ -3570,7 +3353,7 @@ describe("failed nightly fetches keep their own records (ro-ujb9.220)", () => {
 });
 
 
-describe("buildAssetDetailView — one read per tab (ro-ujb9.64)", () => {
+describe("buildAssetDetailView — one read per tab", () => {
   let ctx: TestStore;
   beforeEach(async () => {
     ctx = await createTestStore();
@@ -3625,32 +3408,28 @@ describe("buildAssetDetailView — one read per tab (ro-ujb9.64)", () => {
       expect(alerts).not.toHaveProperty(key);
     }
     const response = alerts as AssetDetailResponse;
-    // The Alerts read can draw Tasks (neither has a section of its own)…
     expect(viewCovers(response, "tasks")).toBe(true);
-    // …but never a tab whose sections it does not carry.
     for (const other of ["overview", "growth", "financials", "search", "activity", "sources", "settings"] as const) {
       expect(viewCovers(response, other), other).toBe(false);
     }
-    // A read cut for Overview carries everything Search and Growth draw.
     const overview = (await buildAssetDetailView(ctx.call, "meals.example", DEPS, "overview"))! as AssetDetailResponse;
     expect(viewCovers(overview, "search")).toBe(true);
     expect(viewCovers(overview, "growth")).toBe(true);
-    // …and, since a revenue-first site leads with its daily revenue (bead
-    // ro-ujb9.146), everything Financials draws too.
+    // A revenue-first site leads with its daily revenue, so everything
+    // Financials draws too.
     expect(viewCovers(overview, "financials")).toBe(true);
     expect(viewCovers(overview, "activity")).toBe(false);
   });
 
   it("does not read the tables only other tabs draw", async () => {
     await writeViewSignals(ctx);
-    // The store's statements too: the charts and the watch history read it.
     const fullSql: string[] = [];
     await buildAssetDetailPayload(recordingStore(ctx.call, fullSql), "meals.example", DEPS);
     const tasksSql: string[] = [];
     await buildAssetDetailView(recordingStore(ctx.call, tasksSql), "meals.example", DEPS, "tasks");
     // The Site health history (Sources only). Every tab's header reads each
-    // site's newest home-page check for its uptime mark (bead ro-ujb9.165),
-    // a read of the same readings aliased `x`, not this one.
+    // site's newest home-page check for its uptime mark, a read of the same
+    // readings aliased `x`, not this one.
     const other = [
       /noticeos\.asset_insight_snapshots/, /FROM noticeos\.hygiene_checks\s+WHERE asset_id = \$1/, /noticeos\.reclamation_targets/, /noticeos\.task_snapshots/,
       /FROM noticeos\.item_dispositions/, /latest_success AS/, /reporting-time-zone-changed/, /current_property AS MATERIALIZED/,
@@ -3664,8 +3443,7 @@ describe("buildAssetDetailView — one read per tab (ro-ujb9.64)", () => {
   });
 });
 
-// The totals the old Wall card drew, on the site's own page (bead ro-trai.21):
-// the card's rule, freshest lane wins, over this site's rows only.
+// The site's all-time totals: freshest lane wins, over this site's rows only.
 describe("buildAssetDetailView — the site's all-time totals", () => {
   let ctx: TestStore;
   beforeEach(async () => {
@@ -3673,8 +3451,7 @@ describe("buildAssetDetailView — the site's all-time totals", () => {
     await seed(ctx);
   });
 
-  /** One counters-lane reading, on Postgres where the totals are read (bead
-   * ro-ujb9.76.5.1), in this test's own copy of its sites (test/sites.ts). */
+  /** One counters-lane reading in this test's own copy of its sites. */
   async function insertReading(asset: string, metric: string, value: number, observedAt: string) {
     await (ctx.call).write((tx) =>
       tx.execute(
@@ -3695,11 +3472,10 @@ describe("buildAssetDetailView — the site's all-time totals", () => {
       cadenceHours: 0.25,
       cards: [{ metric: "signups", label: "Accounts", value: 1284, observedAt: "2026-07-06T11:50:00.000Z", source: "counters" }],
     });
-    // Only the Overview reads them.
     expect(await buildAssetDetailView(ctx.call, "meals.example", DEPS, "alerts")).not.toHaveProperty("counters");
   });
 
-  it("ages the totals against the counters job's saved schedule, the one place it is written (ro-ujb9.222)", async () => {
+  it("ages the totals against the counters job's saved schedule, the one place it is written", async () => {
 
     await seedReportsAndAlerts(ctx);
     await insertReading("meals.example", "signups", 1284, "2026-07-06T11:50:00.000Z");
@@ -3712,17 +3488,14 @@ describe("buildAssetDetailView — the site's all-time totals", () => {
     const sql: string[] = [];
     const overview = (await buildAssetDetailView(recordingStore(ctx.call, sql), "nosh.example", DEPS, "overview"))!;
     expect(overview.counters).toBeNull();
-    // The store did answer this page (its site, at least), and never for totals.
     expect(sql.some((statement) => /noticeos\.assets/.test(statement))).toBe(true);
     expect(sql.some((statement) => /counter_readings/.test(statement))).toBe(false);
   });
 });
 
-describe("the asset ledger in one statement (ro-ujb9.64)", () => {
-  // The read this replaced, from d6de54cd, is the specification: every current
-  // row for the asset, totalled in JavaScript, the first 20 listed. Here in its
-  // Postgres form (bead ro-ujb9.76.6.1): the same guard over the money view,
-  // each entry by its workspace number.
+describe("the asset ledger in one statement", () => {
+  // The specification: every current row for the asset, totalled in
+  // JavaScript, the first 20 listed.
   const ROWS_SPEC = `SELECT entry_number AS id, kind, to_char(period_month, 'YYYY-MM') AS period, family, amount_minor AS "amountMinor",
                 booking_state AS "bookingState", source, ref, note,
                 recorded_at AS "recordedAt"
@@ -3747,7 +3520,7 @@ describe("the asset ledger in one statement (ro-ujb9.64)", () => {
     bookingState: string; source: string | null; ref: string | null; note: string | null; recordedAt: string;
   };
 
-  /** The row-by-row build as it stood at d6de54cd. */
+  /** A row-by-row reference build the one-statement read must match. */
   function specLedger(rows: SpecRow[]) {
     type Side = { revenueMinor: number; costMinor: number; rev: Map<string, number>; cost: Map<string, number> };
     const side = (): Side => ({ revenueMinor: 0, costMinor: 0, rev: new Map(), cost: new Map() });
@@ -3820,7 +3593,6 @@ describe("the asset ledger in one statement (ro-ujb9.64)", () => {
     const page = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
     expect(page.ledger).toEqual(specLedger(rows));
     expect(page.ledger.recentRows).toHaveLength(20);
-    // The totals are over all rows, not over the 20 listed.
     expect(page.ledger.periods).toHaveLength(14);
     const [age] = await (ctx.call).read((tx) => tx.query<{ ts: string }>(AGE_SPEC, ["meals.example"]));
     expect(page.freshness.ledgerRecordedAt).toBe(javascriptInstant(age!.ts));
@@ -3836,7 +3608,6 @@ describe("the asset ledger in one statement (ro-ujb9.64)", () => {
     ]) {
       const sql: string[] = [];
       await read(recordingStore(ctx.call, sql));
-      // Before: one read for the rows and a second for the lane's age.
       expect(sql.filter((text) => /FROM noticeos\.financial_ledger/.test(text))).toHaveLength(1);
     }
   });
@@ -3851,8 +3622,7 @@ describe("the asset ledger in one statement (ro-ujb9.64)", () => {
 
   it("breaks a tie on both listing dates newest id first", async () => {
     // The id a row shows is the number the store handed its entry, in the
-    // order entries were booked (D1 let a fixture pick its ids out of that
-    // order; the importer keeps D1's ids as the numbers). Booked 7, 9, 8.
+    // order entries were booked. Booked 7, 9, 8.
     const ctx = await createTestStore();
     await insertAsset(ctx, "meals.example", "Meal Planner", "live", 0, 0);
     for (const id of [7, 9, 8]) {

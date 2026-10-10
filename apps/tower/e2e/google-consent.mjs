@@ -1,6 +1,4 @@
-// GOOGLE'S CONSENT SCREEN, FOR THE ISOLATED JOURNEYS (bead ro-ujb9.96.7.7).
-//
-// Continue with Google is a full-page trip to accounts.google.com, which no
+// Google's consent screen, for the isolated journeys. Continue with Google is a full-page trip to accounts.google.com, which no
 // journey may make. This answers it as a person who pressed Allow: the
 // Tower's own start runs — the production state, signed for this origin —
 // and the redirect it answers with, to Google, is replaced by the one Google

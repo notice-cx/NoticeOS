@@ -34,8 +34,8 @@ describe('durable integration history', () => {
     expect((await rows())[0]?.outcome).toBe('failure');
     expect((await events()).some((event) => event.kind === 'recovered')).toBe(false);
   });
-  // Postgres: observations of one target are taken one at a time, as D1's one
-  // writer took them, so each reads the state the one before it left.
+  // Observations of one target are taken one at a time, so each reads the
+  // state the one before it left.
   it('takes concurrent observations of one target one at a time: two recoveries at once are one', async () => {
     await recordIntegrationObservation(env.STORE, item('failure'));
     // Two connections open before the race, so the two land together.
@@ -100,8 +100,8 @@ describe('durable integration history', () => {
   });
 });
 
-// Bead `ro-ujb9.96.6.31`: a card's verdict is the site row's words, so the
-// codes behind it must land in the right kind.
+// A card's verdict is the site row's words, so the codes behind it must land
+// in the right kind.
 describe('a failed collection in the site row\'s words', () => {
   it('reads Clarity\'s refused token as access and its ten-a-day cap as the daily allowance', () => {
     expect(healthFailure('clarity_token_rejected')).toEqual({ failure: 'access', code: 'access' });

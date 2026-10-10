@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-// The watchdog beside a throwaway Postgres server (beads ro-ujb9.76.26,
-// ro-ujb9.76.29).
+// The watchdog beside a throwaway Postgres server.
 //
 // A process that starts a throwaway server (openThrowaway, the Postgres
 // development profile) stops it on close(), on exit and on SIGINT, SIGTERM or

@@ -5,45 +5,17 @@ import { evidenceInstant } from "@shared/signal-liveness";
 import { cn } from "@/lib/utils";
 
 export interface HandoffBeadBadgeProps {
-  /** The bead filed for this finding, or null — which renders nothing. */
+  /** The task filed for this finding, or null, which renders nothing. */
   bead: HandoffBead | null;
   className?: string;
 }
 
 /**
- * Has this finding already been filed as work? (bead `ro-248`)
- *
- * The register knew and the finding could not see it: once an operator copied a
- * handoff and an agent ran the `bd create`, the card still presented the finding
- * as untouched open work, so the only way to answer "did I already file this?"
- * was to go and read the hub. This badge is that answer, joined by the
- * handoff's own `noticeos_key`.
- *
- * TWO encodings and never a status word (doc 14): the GLYPH carries the state —
- * filled dot open, circle-check recorded closed. The visible text is the BEAD ID, because that is the one
- * thing the operator can act on: it is what `bd show` takes, what the commit
- * quotes, and what a watch window is keyed to.
- *
- * Both states stay MUTED, which is the whole design constraint. A finding's own
- * severity is its loudest fact and this must not rival it — a warning that has
- * been filed is still a warning. So the badge is a small gray pill either way,
- * and the finding's red rail keeps saying what it always said.
- *
- * A closed task records a decision, not shipment or a resolved finding. It may
- * have been declined; only separate evidence can establish what changed and
- * its outcome. Nothing here is green.
- *
- * Absence renders literally nothing — no pill, no dash, no "not filed". Most
- * findings have no bead, and a marker on every card announcing that would be
- * noise on the entire page to say nothing about any of it.
- *
- * THE ID IS A LINK, since 2026-09-04 (bead `ro-l1ed.3`). It always claimed to
- * be the actionable string, and until the task page existed the only thing an
- * operator could do with it was select it and paste it into `bd show` in a
- * terminal. Now it opens `/tasks/<id>` — the whole bead, its conversation, and
- * the finding it came from. One change here reaches every surface that renders
- * this badge: the findings list, the query and page decision tables, and the
- * asset timeline's resolved refs.
+ * Whether a finding has already been filed as work, joined by the handoff's
+ * `noticeos_key`. The glyph carries the state; the visible text is the task id,
+ * linked to `/tasks/<id>`. Both states stay muted so the finding's own severity
+ * stays its loudest fact, and nothing is green: a closed task records a
+ * decision, not shipment or outcome. No task renders nothing.
  */
 export function HandoffBeadBadge({ bead, className }: HandoffBeadBadgeProps) {
   if (!bead) return null;

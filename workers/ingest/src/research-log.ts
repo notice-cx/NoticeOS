@@ -1,25 +1,7 @@
-// The research log — what the OS has already paid a provider to answer.
-//
-// The weekly collector cannot buy the same answer twice: every family carries a
-// cadence and the freshness filter proves the last landing from durable
-// manifests before it spends. Ad-hoc research had no such memory. The
-// `dataforseo` skill's callers, scratchpad copies of them, and anything an agent
-// runs against the same credentials all spend from one account, and until this
-// module the QUESTION was recorded nowhere — so the same read could be bought in
-// three sessions across three weeks and nothing noticed.
-//
-// Not even the cap gate, which is the sharper half. Month-to-date spend summed
-// the collector's report runs alone, so it was an UNDERCOUNT of real DataForSEO
-// spend by exactly the ad-hoc research nobody recorded — a gate that fails the
-// portfolio closed before $25 reading a number it had no right to trust. This
-// log is now the second half of that sum, and the sum itself lives in one place
-// both the gate and the desk's meters read: `loadMeteredDataSpend` in
-// `@noticeos/contract` (bead `ro-ukus`).
-//
-// The grain is the QUESTION and it points at the ANSWER; it never stores one.
-// See db/migrations/0025_research_log.sql for why. On Postgres
-// (`noticeos.research_log`, bead ro-ujb9.76.5.4) a purchase is numbered in its
-// workspace, and its price is kept with its state (`storedProviderCost`).
+// The research log: what the OS has already paid a provider to answer, so a
+// question is not bought twice and ad-hoc research counts toward the one
+// metered spend sum (`loadMeteredDataSpend` in `@noticeos/contract`). The grain
+// is the question and it points at the answer; it never stores one.
 
 import { storedProviderCost } from '@noticeos/contract';
 import { javascriptInstant, type WorkspaceStore } from '@noticeos/postgres';
@@ -28,19 +10,10 @@ export const RESEARCH_PROVIDERS = ['dataforseo'] as const;
 export type ResearchProvider = (typeof RESEARCH_PROVIDERS)[number];
 
 /**
- * How long a bought answer stays reusable.
- *
- * Thirty days is open-seo's number, and it is right for the reason they do not
- * state: it is the shortest window that spans a full monthly cycle of the data
- * underneath. DataForSEO's keyword and SERP-competitor datasets refresh on a
- * roughly monthly cadence, so a question re-asked inside it is answered from the
- * same underlying snapshot the first call paid for — the provider would hand
- * back the same rows and charge again.
- *
- * It is a DEFAULT, not a rule. A caller that knows its question is more volatile
- * (a live SERP, which changes hourly) passes a shorter window; the log answers
- * whatever it is asked. What it must never do is pick a window on the caller's
- * behalf and stay quiet about it.
+ * How long a bought answer stays reusable: the shortest window spanning a full
+ * refresh cycle of the provider's keyword and SERP datasets, so a re-ask inside
+ * it would be answered from the same snapshot and charged again. A default: a
+ * caller with a more volatile question passes a shorter window.
  */
 export const RESEARCH_REUSE_WINDOW_DAYS = 30;
 
@@ -49,7 +22,7 @@ const MS_PER_DAY = 86_400_000;
 export interface ResearchPurchase {
   asset: string | null;
   provider: ResearchProvider;
-  /** Provider path without the API base — see the migration for why. */
+  /** Provider path without the API base. */
   endpoint: string;
   /** The request body as sent. Hashed here; never stored. */
   params: unknown;
@@ -75,12 +48,8 @@ export interface PriorResearch {
 
 /**
  * Canonical JSON: object keys sorted at every depth, so two spellings of one
- * request hash the same.
- *
- * ARRAYS ARE NOT SORTED, deliberately. `["volume,desc"]` and `["volume,asc"]`
- * are different questions, and so are two different keyword lists — order is
- * meaning in a provider request body, and a canonicaliser that sorted arrays
- * would collide questions that genuinely differ. Only KEY order is noise.
+ * request hash the same. Arrays are not sorted: order is meaning in a provider
+ * request body.
  */
 export function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
@@ -104,12 +73,8 @@ export async function researchParamsHash(params: unknown): Promise<string> {
 }
 
 /**
- * Has this exact question been bought recently, and where is the answer?
- *
- * Returns the newest row inside the window, or null. It never decides anything:
- * the caller reuses or re-buys, and either way says which out loud. A hit that
- * silently suppressed a call would be indistinguishable from a caller that
- * forgot to make one.
+ * The newest row inside the window, or null. It never decides anything: the
+ * caller reuses or re-buys, and either way says which out loud.
  */
 export async function findPriorResearch(
   store: WorkspaceStore,
@@ -196,11 +161,7 @@ export async function recordResearch(
 }
 
 /**
- * The actor the collector records itself as.
- *
  * Re-exported rather than declared: the exclusion it drives lives beside the
- * one metered-spend sum in `@noticeos/contract` (`loadMeteredDataSpend`),
- * which is what the cap gate and every desk meter read. A copy here would be a
- * second spelling of the word that decides whether a dollar is billed twice.
+ * one metered-spend sum in `@noticeos/contract`.
  */
 export { RESEARCH_COLLECTOR_ACTOR as COLLECTOR_ACTOR } from '@noticeos/contract';

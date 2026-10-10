@@ -48,13 +48,10 @@ export interface MaterialConditionContract {
  * destination and absence contract fails typecheck here.
  */
 export const MATERIALITY = {
-  // Specific system/source problems join Needs you (ro-trai.49); the
-  // header is local time and obligations. System detail remains on /health.
   "open-flags": {
     source: "WallPayload.attention / AssetDetailPayload.flags.open",
     derivation: "Open rows retain severity and kind as independent visual channels.",
     priority: "critical",
-    // D28 (docs/14-design.md, bead `ro-trai.4`): Needs you lists them, still.
     wall: { placement: "fixed-horizon", component: "NeedsYou", selector: '[data-material-condition~="open-flags"]' },
     asset: { placement: "primary-content", component: "AlertsTab", selector: 'section[aria-label="Open"]' },
     behavior: {
@@ -144,10 +141,6 @@ export const MATERIALITY = {
     source: "WallPayload.assets[].activeWatch / AssetDetailPayload.watches.open",
     derivation: "Only pre-registered open comparisons count as active bets.",
     priority: "high",
-    // The Wall card's bet line left on 2026-08-31 (3997151a) and D28 took the
-    // card itself (bead `ro-trai.11`, docs/14-design.md § What leaves the
-    // Wall). A watch that closes badly is `rollback-failure`, which Needs you
-    // lists; an open one is asset state.
     wall: {
       placement: "not-applicable",
       reason: "An open watch is true but does not move; the asset page owns it, and a watch that closes badly reaches Needs you as rollback-failure.",
@@ -189,10 +182,8 @@ export type PayloadConcern = CurrentConcern | SupportingConcern;
 
 /** New WallPayload top-level keys fail typecheck until their visual role is named.
  * A key no screen draws is removed with the read behind it, not kept here under
- * a screen that does not read it (bead `ro-trai.44`). */
+ * a screen that does not read it. */
 export const WALL_PAYLOAD_INVENTORY = {
-  // D28 (bead `ro-trai.11`): the age appears only when a poll fails, beside
-  // the strip's state — last-good values with their age.
   generatedAt: { class: "supporting-evidence", placement: "fixed-horizon", destination: "WallStrip held-since age" },
   // The MCP `list_properties` tool hands the WHOLE band to agents, so the band
   // keeps fields no screen draws: `bookedDelta` (the last two closed months),
@@ -202,17 +193,11 @@ export const WALL_PAYLOAD_INVENTORY = {
   dashboard: { class: "configuration", placement: "primary-content", destination: "WallStrip countdown + the saved Wall layout" },
   assets: { class: "material-current", placement: "primary-content", destination: "SiteRows" },
   attention: { class: "material-current", placement: "fixed-horizon", destination: "NeedsYou" },
-  // History, not current: a parked condition is a decision the operator already
-  // made, and the surface that owes it is the `/alerts` ledger of what was
-  // silenced — never the Wall, where a row nobody is being asked to act on
-  // would spend the TV's scarcest space saying "not yet" (`ro-c7qq`).
+  // History: a snoozed condition is a decision already made, so it belongs on
+  // `/alerts`, never on the Wall.
   snoozed: { class: "history", placement: "primary-content", destination: "AlertsRoute Snoozed list" },
   operator: { class: "material-current", placement: "fixed-horizon", destination: "NeedsYou urgent tasks" },
-  // The old portfolio card's age. D28's revenue figure names an estimate as
-  // one and says nothing of when the ledger was written (docs/25 § Revenue),
-  // so no screen draws it (bead `ro-trai.11`); the MCP `list_properties` tool
-  // still hands it to agents beside the portfolio.
-  ledgerRecordedAt: { class: "supporting-evidence", placement: "derived-only", destination: "MCP list_properties (no screen since D28)" },
+  ledgerRecordedAt: { class: "supporting-evidence", placement: "derived-only", destination: "MCP list_properties (no screen)" },
 } satisfies Record<keyof WallPayload, PayloadConcern>;
 
 /** New AssetDetailPayload top-level keys fail until classified. A material-current
@@ -235,8 +220,6 @@ export const ASSET_PAYLOAD_INVENTORY = {
   flags: { class: "material-current", placement: "primary-content", destination: "Overview open-alert count and AlertsTab queues" },
   dailyRevenue: { class: "material-current", placement: "first-viewport", destination: "FinancialsTab → DailyRevenuePanel" },
   ledger: { class: "supporting-evidence", placement: "progressive-disclosure", destination: "FinancialsTab → AssetLedger" },
-  // The saved clock the Worker read days on (`ro-ujb9.88`): never drawn, only
-  // what the page's own "yesterday" is worked out on.
   osTimeZone: { class: "configuration", placement: "derived-only", destination: "FinancialsTab daily revenue window end" },
   decisions: { class: "supporting-evidence", placement: "primary-content", destination: "Executive decisions" },
   handoffBeads: { class: "supporting-evidence", placement: "primary-content", destination: "Handoff badges" },
@@ -247,10 +230,6 @@ export const ASSET_PAYLOAD_INVENTORY = {
   hygiene: { class: "supporting-evidence", placement: "progressive-disclosure", destination: "SiteHealthSection" },
   fetchFailures: { class: "supporting-evidence", placement: "progressive-disclosure", destination: "FetchFailuresPanel" },
   integrations: { class: "material-current", placement: "first-viewport", destination: "AssetHeader / DataSourceIcons; SourcesTab source rows" },
-  // What the operator has DECLARED about this asset's GA4 property, not what
-  // GA4 is doing — so it sits under the lane's verdict on the Sources tab
-  // rather than competing with it (doc 14: configuration may be disclosed
-  // after the current state).
   ga4Config: { class: "configuration", placement: "progressive-disclosure", destination: "Sources tab GA4 lane card" },
   panelReview: { class: "material-current", placement: "primary-content", destination: "ActivityTab / PanelReviewLine" },
   latestPanelDate: { class: "supporting-evidence", placement: "primary-content", destination: "ActivityTab / PanelReviewLine age" },

@@ -1,22 +1,8 @@
 // @vitest-environment node
-// The ledger's current-row guard, on Postgres (beads `ro-ujb9.101`,
-// ro-ujb9.76.6.1).
-//
-// Every Tower money read keeps a row of the financial view only while no row
-// of that view replaces it. On D1 each read added that guard itself (`CURRENT`,
-// index-backed since ro-ujb9.101). The Postgres view, `noticeos.financial_ledger`,
-// holds current money entries only, so the readers read it alone. The old
-// guard is kept below as the specification, over the Postgres view:
-//
-//  - on a fixture holding every edge the guard exists for, the view keeps
-//    exactly the rows the guard keeps;
-//  - every builder that reads money returns the same payload when each of its
-//    money statements reads the guarded rows instead of the view.
-//
-// D1's fixture also held a replaced ledger row with a NEGATIVE id equal to a
-// month of daily estimates' synthesized id. Neither writer of the Postgres
-// ledger books one: the route and the collectors take the store's identities,
-// and the importer refuses an id below 1. So that collision cannot be stored.
+// The ledger's current-row guard: a money row counts only while no row of the
+// view replaces it. `noticeos.financial_ledger` holds current entries only, so
+// readers read it alone; the explicit guard below is the specification, and
+// every money-reading builder must return the same payload through either.
 
 import type { Transaction, WorkspaceStore } from "@noticeos/postgres";
 import { describe, expect, it } from "vitest";
@@ -30,7 +16,7 @@ import { createTestStore, type TestStore } from "./postgres-store";
 import { bookLedger, type LedgerRow, writeMediavine } from "./money";
 import { addSites } from "./sites";
 
-/** The guard as every ledger read in the Tower wrote it before ro-ujb9.101, over the Postgres view. */
+/** The explicit guard, over the Postgres view. */
 const SPEC_ROWS = `SELECT v.* FROM noticeos.financial_ledger v
   WHERE NOT EXISTS (SELECT 1 FROM noticeos.financial_ledger s WHERE s.supersedes_id = v.entry_id)`;
 
@@ -161,9 +147,9 @@ function toSpec(sql: string): string {
   return /^\s*WITH\s/iu.test(body) ? body.replace(/^\s*WITH\s/iu, `WITH ${cte}, `) : `WITH ${cte}\n${body}`;
 }
 
-/** The store with every money statement read through `rewrite`, and recorded;
- * every other statement as it is (a `WITH RECURSIVE` read of the report runs
- * takes no second CTE in front of its own). */
+/** The store with every money statement read through `rewrite`, and
+ * recorded; every other statement as it is (a `WITH RECURSIVE` read of the
+ * report runs takes no second CTE in front of its own). */
 function rewriting(store: WorkspaceStore, rewrite: (sql: string) => string, seen: string[]): WorkspaceStore {
   const wrap = (tx: Transaction): Transaction => ({
     workspaceId: tx.workspaceId,
@@ -183,7 +169,7 @@ function rewriting(store: WorkspaceStore, rewrite: (sql: string) => string, seen
   };
 }
 
-/** A builder over D1 (`db`, for what is still there) and the call's store. */
+/** A builder over the call's store. */
 type Build = (store: WorkspaceStore) => Promise<unknown>;
 
 const BUILDERS: [string, Build][] = [
@@ -222,8 +208,8 @@ async function compare(seed: (store: WorkspaceStore) => Promise<void>) {
   return { ctx, store };
 }
 
-describe("the money view keeps only current entries, as the old guard did (ro-ujb9.101, ro-ujb9.76.6.1)", () => {
-  it("keeps exactly the rows the old guard kept", async () => {
+describe("the money view keeps only current entries, as the explicit guard does", () => {
+  it("keeps exactly the rows the explicit guard keeps", async () => {
     const ctx = await createTestStore();
     await sites(ctx);
     const store = ctx.call;
@@ -244,7 +230,7 @@ describe("the money view keeps only current entries, as the old guard did (ro-uj
     expect(named.has("mediavine:daily/meals.example/2026-04") || named.has("mediavine:daily/meals.example/2026-07")).toBe(false);
   });
 
-  it("every builder that reads the ledger returns the old guard's payload", async () => {
+  it("every builder that reads the ledger returns the explicit guard's payload", async () => {
     await compare(seedLedger);
   });
 
@@ -253,9 +239,8 @@ describe("the money view keeps only current entries, as the old guard did (ro-uj
   });
 
   it("no money read evaluates the view twice", async () => {
-    // D1's first guard evaluated the whole view inside every read. Each money
-    // statement now names the view once; the asset page's reads it once into
-    // a MATERIALIZED set its parts share.
+    // Each money statement names the view once; the asset page's reads it
+    // once into a materialized set its parts share.
     const ctx = await createTestStore();
     await sites(ctx);
     const store = ctx.call;

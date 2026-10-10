@@ -81,12 +81,11 @@ export function isGate(task: Pick<WorkItem, "issueType"> & { awaitType?: string 
 }
 
 /**
- * WHAT THE OPERATOR'S INBOX ASKS OF A TASK, or null when it is not waiting on
- * the operator: a human gate is APPROVED (`bd gate resolve`), and a ready task
- * labelled `human` is ANSWERED or dismissed (`bd human respond` / `dismiss`).
- * The one rule the board's Waiting on you and a task's own page both read, so
- * the two offer the same verbs one click apart (bead `ro-ujb9.243`). A timer
- * or GitHub gate resolves itself and asks nothing.
+ * What the operator's inbox asks of a task, or null when it is not waiting on
+ * the operator: a human gate is approved (`bd gate resolve`), and a ready task
+ * labelled `human` is answered or dismissed (`bd human respond` / `dismiss`).
+ * The one rule the board's Waiting on you and a task's own page both read. A
+ * timer or GitHub gate resolves itself and asks nothing.
  */
 export type InboxAsk = "approve" | "answer";
 
@@ -142,11 +141,10 @@ function inboxOrder(a: BoardTask, b: BoardTask): number {
 }
 
 /**
- * THE BOARD'S ONE ORDER, and it is the order the old board's live read already
- * used: live work first, then priority, then whatever has gone longest
- * untouched. Parked work sinks below live work and closed work sinks below
- * that — both are still on the board (doc 05 forbids a deferral that silently
- * vanishes) but neither is what the next hour is spent on.
+ * The board's one order: live work first, then priority, then whatever has
+ * gone longest untouched. Parked work sinks below live work and closed work
+ * below that; both are still on the board, because a deferral must never
+ * silently vanish.
  */
 function boardOrder(a: BoardTask, b: BoardTask): number {
   const rank = restRank(a) - restRank(b);
@@ -318,7 +316,7 @@ export function taskBoardProjects(snapshot: WorkPayload | null | undefined, scop
 
 /** A configured catalog establishes the roster, not measured counts. Missing
  * snapshots stay unavailable until the actual live board answers. The catalog
- * keys a project by its logical key and the snapshot by its asset id; the bead
+ * keys a project by its logical key and the snapshot by its asset id; the task
  * prefix is the identity both carry, so it joins them. A roster row keeps the
  * logical key as `asset`, because that is what the hosted read is addressed by. */
 export function taskCatalogProjects(catalog: readonly TaskProject[], snapshot: WorkPayload | null | undefined): WorkProject[] {
@@ -387,8 +385,8 @@ export function readTaskBoard({ capabilities, snapshot, scope = null, reads, fil
   }
   const inbox = projects.flatMap(project => project.waiting.map(task => ({ project, task })))
     .filter(row => matches(row.task)).sort((a, b) => inboxOrder(a.task, b.task));
-  // ONE ROW PER TASK ON THE PAGE (bead `ro-ujb9.96.7.11`, doc 14 3b): an ask
-  // is answered in Waiting on you, so the table below does not list it again.
+  // One row per task on the page: an ask is answered in Waiting on you, so
+  // the table below does not list it again.
   const waitingIds = new Set(inbox.map(row => row.task.id));
   const totals = boardTotals(projects);
   const missingProjects = projects.filter(project => !project.ok).length;

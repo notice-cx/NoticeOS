@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Inputs for the opt-in real task store suites (`pnpm test:task-store`, the CI
-// task-store job; epic ro-cvl9) on a Linux host with Docker: the task client and
+// task-store job) on a Linux host with Docker: the task client and
 // Dolt client the application image pins, read from deploy/compose/Dockerfile
 // rather than copied, each verified against its pinned digest; the Dolt server
 // image scripts/dolt-host.mjs pins; and a new empty evidence folder.

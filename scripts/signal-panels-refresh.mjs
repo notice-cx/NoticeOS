@@ -46,23 +46,13 @@ export const TREND_FILE = 'signal-trend-daily.csv';
 export const FRESHNESS_FILE = PANEL_FRESHNESS_FILE;
 
 /**
- * The report families NO cron produces: the Bing AI Performance exports, which
- * exist behind a dashboard Export button and nowhere on the documented API
- * (docs/20 §"The `bing-ai` family"). An operator drops the file; there is no
- * collector to stop.
- *
- * They are called out here because they share an integration id with six
- * API-collected families — same account, same verified site — and a per-
- * integration freshness reading therefore let the nightly `bing-webmaster`
- * collection vouch for a `bing-webmaster-ai-queries.csv` that could be six
- * months old. Every other family in the panel dir goes stale loudly when its
- * collector stops. These cannot, so they are measured on their own.
- *
- * Source of truth for the report ids: `BING_AI_FORMATS` in
- * `workers/ingest/src/bing-ai-exports.ts`. Kept as a literal because this script
- * is plain ESM and cannot import the Worker's TypeScript; a family added there
- * and forgotten here reads as collected, which is the failure this list exists
- * to prevent.
+ * The report families no cron produces: the Bing AI Performance exports, which
+ * an operator drops by hand. They share an integration id with the
+ * API-collected families, so a per-integration freshness reading would let the
+ * nightly `bing-webmaster` collection vouch for an export months old; they are
+ * measured on their own. Source of truth for the report ids: `BING_AI_FORMATS`
+ * in `workers/ingest/src/bing-ai-exports.ts`, kept as a literal because this
+ * script is plain ESM and cannot import the Worker's TypeScript.
  */
 export const UNCOLLECTED_FAMILIES = [
   { integration: 'bing-webmaster', report: 'ai-overview' },
@@ -216,14 +206,11 @@ export function archivePath(downloadsRoot, asset, row) {
 }
 
 /**
- * Merge this pass's manifest rows over whatever an earlier pass recorded.
- *
- * The panel dir keeps history the window no longer reaches — a 400-day-old
- * archive stays on disk and stays in the manifest — so the merge is by
- * (integration, report, reportDate) with the newer row winning. Dropping the
- * old rows would make the manifest claim the property has no history, which is
- * a lie about the filesystem sitting right beside it. `signals:download` writes
- * the same file with this rule (bead ro-m8lm).
+ * Merge this pass's manifest rows over whatever an earlier pass recorded, by
+ * (integration, report, reportDate) with the newer row winning: the panel dir
+ * keeps history the window no longer reaches, and dropping the old rows would
+ * make the manifest claim the property has no history. `signals:download`
+ * writes the same file with this rule.
  */
 export function mergeManifest(previous, current) {
   const byKey = new Map();
@@ -277,46 +264,23 @@ export function dayAge(reportDate, nowIso) {
 }
 
 /**
- * The panel's own answer to "can I trust this today?".
+ * The panel's own answer to "can I trust this today?", written into the panel
+ * dir on every pass: data no older than N days is a property of the data, not
+ * of the cron, so a refresh that ran perfectly against a collector that
+ * stopped a fortnight ago must still produce a panel that says so.
  *
- * Written into the panel dir on every pass because the acceptance a consumer
- * cares about — data no older than N days — is a property of the DATA, not of
- * the cron. A refresh that ran perfectly against a collector that stopped a
- * fortnight ago must still produce a panel that says so, out loud, in a file the
- * reader is already opening.
- *
- * Freshness is measured per integration. A property whose GSC is current and
- * whose Bing stalled has a real, partial answer, and collapsing that to one
- * boolean would throw away the half that still works.
- *
- * …with ONE exception, and it is the reason this function knows about report
- * families at all. A family with no collector cannot be vouched for by the
- * integration it happens to share (`UNCOLLECTED_FAMILIES`): the nightly
- * `bing-webmaster` API collection would keep that integration reading fresh
- * forever while a hand-dropped AI export beside it aged for months. So those
- * families get their own source row, keyed `<integration>/<report>`, aged from
- * their OWN newest `report_date`, and they are excluded from the integration
- * row — otherwise an export dropped today would make the API collection look
- * fresher than it is, the same conflation in the other direction.
- *
- * The widening is ADDITIVE, because `sources[]` is a contract with whoever opens
- * the panel dir (docs/20). Existing entries keep every field they had and gain
- * `key` (equal to `integration`) and `collected: true`; `fresh` and `stale` keep
- * their exact meanings — the collected sources — so nothing that reads them
- * today changes answer. What the hand-dropped families are is a separate
- * `uncollected[]` list.
- *
- * Why they do not drag the top-level `fresh` down: there is no promised cadence
- * to miss. An operator drops those files every few months by design, so folding
- * them in would leave every panel permanently red — the standing-noise failure
- * that gets a signal ignored. The honest split is "the collected families are
- * current" plus a row that states, out loud, how old the hand-dropped one is.
- *
- * Each collected source also lists its families' own newest report days
- * (`reports[]`, additive, epic ro-cvl9): the panel-review filer
- * (runner/panel-review.mjs) files a collection's review only once every family
- * of that collection is in a published panel, and the integration's single
- * newest date cannot say that.
+ * Freshness is measured per integration, with one exception: a family with no
+ * collector (`UNCOLLECTED_FAMILIES`) cannot be vouched for by the integration
+ * it shares, so those families get their own source row, keyed
+ * `<integration>/<report>`, aged from their own newest `report_date`, and are
+ * excluded from the integration row. They do not drag the top-level `fresh`
+ * down: there is no promised cadence to miss, and folding them in would leave
+ * every panel permanently red. `sources[]` is a contract with whoever opens
+ * the panel dir: collected entries carry `key` and `collected: true`, `fresh`
+ * and `stale` mean the collected sources, and the hand-dropped families are a
+ * separate `uncollected[]` list. Each collected source also lists its
+ * families' own newest report days (`reports[]`), which the panel-review filer
+ * (runner/panel-review.mjs) waits on.
  */
 export function freshnessReport(input) {
   const { asset, manifest, maxAgeDays, refreshedAt } = input;
@@ -399,12 +363,9 @@ async function fileExists(file) {
 }
 
 /**
- * One property's pass.
- *
- * Every side effect is injectable so the behavior that matters — what it skips,
- * what it re-fetches, what it writes when a collector has stalled — is testable
- * without a running OS. Returns what it did, so a caller can tell a pass that
- * refreshed nothing from a pass that never ran.
+ * One property's pass. Every side effect is injectable. Returns what it did,
+ * so a caller can tell a pass that refreshed nothing from a pass that never
+ * ran.
  */
 export async function refreshAsset(asset, options, deps = {}) {
   panelReportPath(asset, options.analysisRoot);
@@ -455,11 +416,10 @@ async function refreshAssetLocked(asset, options, deps, historyDir) {
   const manifestRows = source.manifest;
   const trendRows = source.trend;
 
-  // Already-on-disk archives are skipped by (objectKey, file exists). The object
-  // key carries the content hash, so an archive the collector revised gets a new
-  // key and is re-fetched; one it re-confirmed unchanged keeps its key and is
-  // not. That is what keeps a nightly pass O(the new day) rather than O(the
-  // window) — and what makes running this daily cost nothing but a few reads.
+  // Already-on-disk archives are skipped by (objectKey, file exists). The
+  // object key carries the content hash, so an archive the collector revised
+  // gets a new key and is re-fetched; one it re-confirmed unchanged keeps its
+  // key and is not.
   const previousManifest = await readJsonFile(
     path.join(downloadsDir, 'manifest.json'),
     { objects: [] },

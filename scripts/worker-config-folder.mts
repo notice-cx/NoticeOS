@@ -1,5 +1,5 @@
-// A WORKER CONFIG IN A FOLDER OF ITS OWN: the folder decides which local
-// secrets the Worker runs on (beads ro-ujb9.126, ro-ujb9.182).
+// A Worker config in a folder of its own: the folder decides which local
+// secrets the Worker runs on.
 //
 // Wrangler reads a Worker's local secrets from beside the config it is given:
 // `.dev.vars` in the config's own folder, else that folder's `.env` files (and
@@ -16,9 +16,7 @@
 //     (`secretFreeWorkerConfigs`) and switch the `.env` and process reads off
 //     (`stopLocalSecretReads`). The ingest suite's Workers pool and the Tower's
 //     end-to-end door test then run on the bindings each test declares and
-//     nothing else. Before this, both read the checkout's
-//     `workers/ingest/.dev.vars`: a real Clarity token merged into a test's
-//     expected map, and the assertion diff printed it into the run's log.
+//     nothing else.
 //
 // Authored TypeScript: `pnpm config:generate` writes the `.mjs` the scripts,
 // the ingest suite's vitest config and the Tower's tests import, and the

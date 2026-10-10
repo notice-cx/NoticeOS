@@ -1,12 +1,11 @@
 # 02 — The signal contract
 
-*v2. Replaces "metrics contract." One capability-agnostic contract covering
-everything the Sense stage ingests: asset pulses, centrally-pulled external
-signals, revenue & cost, and timeline annotations. The design decision that
-survives from v1: every asset emits the same **shapes**, so adding a property is
-"point at its pulse," not "write an integration."*
+*One capability-agnostic contract covering everything the Sense stage
+ingests: asset pulses, centrally-pulled external signals, revenue & cost, and
+timeline annotations. Every asset emits the same **shapes**, so adding a
+property is "point at its pulse," not "write an integration."*
 
-## Glossary (fixing v1's loose vocabulary)
+## Glossary
 
 - **Pulse** — the nightly self-report an asset's own infrastructure can observe
   (worker counters, first-party DB rows, storage counts). Never client-side
@@ -15,12 +14,12 @@ survives from v1: every asset emits the same **shapes**, so adding a property is
   SERP panels, backlinks, revenue reports. Joined to pulses on asset id.
 - **Metric** — one named series inside a pulse or signal.
 - **Flag** — a computed anomaly with **severity** (`info | warn | error`) and
-  **kind** (`anomaly | opportunity | milestone`) as separate fields. (v1 mixed
-  "celebrate" into the severity enum; you can't threshold a mixed enum.
-  Milestone-kind flags are always info-severity.) The pulse JSON carries
+  **kind** (`anomaly | opportunity | milestone`) as separate fields, because a
+  mixed enum cannot be thresholded; milestone-kind flags are always
+  info-severity. The pulse JSON carries
   flags **in transit**; the central store persists them as their own
   queryable rows with disposition fields (mark-read/ack, snooze, tune,
-  incident, hypothesis + `resolved_at`) — the doc 14-E triage loop and per-rule
+  incident, hypothesis + `resolved_at`) — the triage loop and per-rule
   false-positive rates need flags as a table, not JSON archaeology.
 - **Annotation** — a timeline event: deploy, model-version change, config/
   pricing change, incident, autonomy-tier change. Annotations are first-class
@@ -31,7 +30,7 @@ survives from v1: every asset emits the same **shapes**, so adding a property is
 Capability-agnostic: an asset declares the metric families it can observe and
 how (`d1 | analytics-engine | r2 | kv`). Storage is an implementation detail —
 Analytics Engine `writeDataPoint()` is the floor for database-less assets; D1
-assets keep D1. (v1 assumed D1 silently; asset #2 broke it in a day.)
+assets keep D1.
 
 ```jsonc
 {
@@ -45,12 +44,12 @@ assets keep D1. (v1 assumed D1 silently; asset #2 broke it in a day.)
 }
 ```
 
-### Volume-aware anomaly rules (replaces v1's fixed thresholds)
+### Volume-aware anomaly rules
 
-v1's "0 in last24h when avg7d > ~1 → warn" false-positives constantly on
-low-volume assets: at avg 4.1/day, a zero-day is routine Poisson noise, and a
-stream of meaningless warns trains the operator to ignore the channel — which
-defeats the entire observability purpose.
+A fixed threshold ("0 in last24h when avg7d > ~1 → warn") false-positives
+constantly on low-volume assets: at avg 4.1/day, a zero-day is routine Poisson
+noise, and a stream of meaningless warns trains the operator to ignore the
+channel — which defeats the entire observability purpose.
 
 - Model each flow metric as Poisson(seasonal baseline·w). Flag only when
   `P(observed | baseline) < α` (default α = 0.01) **and** baseline ≥ 3/day.
@@ -72,9 +71,8 @@ defeats the entire observability purpose.
 - Thresholds live in NoticeOS config, tunable per asset; every fired flag
   records the rule + inputs so false positives are auditable and the rules
   themselves improve (Learn applies here too).
-- **A day a reporting-timezone change distorted stays in the baseline cohort**
-  *(decided 2026-09-04, bead `ro-kukv.8`)*. When a provider's reporting timezone
-  moves, the change day and the one before it are short and long by the move
+- **A day a reporting-timezone change distorted stays in the baseline cohort.**
+  When a provider's reporting timezone moves, the change day and the one before it are short and long by the move
   alone, and the Tower marks both on every chart that draws them. These rules
   keep reading them, because they do not read those days: the cohort is built
   from stored **pulses** — an asset reporting its own counters out of its own
@@ -90,12 +88,11 @@ defeats the entire observability purpose.
 
 ## Central signals
 
-Same lanes as v1 (GSC, GA4, DataForSEO ranking/SERP/LLM signals, backlinks,
-CrUX), pulled by NoticeOS crons with portfolio credentials — plus the lane v1
-lacked:
+GSC, GA4, DataForSEO ranking/SERP/LLM signals, backlinks and CrUX, pulled by
+NoticeOS crons with portfolio credentials, plus the revenue and cost lane
+below.
 
-The current implemented slice is migrations `0005_google_signals.sql` and
-`0006_bing_webmaster_signals.sql`. The ingest Worker's 15-minute Sense cron
+The ingest Worker's 15-minute Sense cron
 pulls rolling 97-day daily windows for GA4 (`active_users`, `sessions`,
 `page_views`, `event_count`) and GSC (`clicks`, `impressions`, `ctr`,
 `position`): 90 visible property-detail dates plus seven calculation-only dates
@@ -126,21 +123,19 @@ without a manifest row; where the API does reject the field, the attempt is
 recorded as `ga4_custom_dimension_unregistered`, never as an empty success.
 It also retains six BWT families: rank traffic, top queries, top pages, crawl
 stats, crawl issues, and feeds.
-The archive manifest (`0007_signal_dumps.sql` in the retired D1 schema; `archive_runs` in Postgres) appends one row per report attempt;
+The archive manifest (`archive_runs`) appends one row per report attempt;
 unchanged re-fetches point at the prior content-addressed object instead of
 duplicating bytes. This makes the deeper data available to offline scripts
 without turning the store into a document store or making the Tower wait on Google.
-Migration `0009_bing_signal_dumps.sql` widens the constrained manifest contract
-for BWT without deleting or rewriting prior evidence.
 The analyzer emits a bounded evidence-bearing executive snapshot, an optional
 exact-window product-use snapshot, plus compact Google/Bing query-visibility
 movers. The product snapshot uses the provider's aggregate unique-user count
 independently per event; it never adds daily uniques or claims a same-person
 sequence. Query movers compare seven reported
 dates with the preceding equal-length window and rank only queries present in
-both; top-row omissions never become invented zeroes. Migration
-`0008_property_insight_snapshots.sql` stores only that compact read model for
-the Tower, never the raw rows. A warning-style interpretation is not a flag and
+both; top-row omissions never become invented zeroes. The store keeps only
+that compact read model (`asset_insight_snapshots`) for the Tower, never the
+raw rows. A warning-style interpretation is not a flag and
 does not affect property health. Mark/dismiss choices in the Tower are
 reversible browser display preferences, not mutations of this evidence.
 Targeted GSC URL Inspection and GA4 raw event/session sequences remain deferred;
@@ -196,7 +191,7 @@ table rather than treating any series as truth:
 | Signal | Latency / finalization | Known distortions |
 |---|---|---|
 | GSC | today is always provisional in the live aggregate; the archive requests provider-final rows for completed dates and re-pulls four dates for late arrival | never alert on incomplete windows; page/query exports are top-row datasets, can omit anonymized/low-volume data, and grouped totals do not always reconcile |
-| GA4 | today is incomplete in the daily chart; recent processed values can still be revised for 24–48h, so a day stays marked provisional until it has been collected on day D+2 (`GA4_SETTLE_DAYS`, bead `ro-wo0j`) | never alert on today's partial value; consent-mode config changes step the series (a consent flip halved one asset's reported sessions — config, not reality); AI-Mode strips referrers (floor, not truth) |
+| GA4 | today is incomplete in the daily chart; recent processed values can still be revised for 24–48h, so a day stays marked provisional until it has been collected on day D+2 (`GA4_SETTLE_DAYS`) | never alert on today's partial value; consent-mode config changes step the series (a consent flip can halve reported sessions — config, not reality); AI-Mode strips referrers (floor, not truth) |
 | Bing Webmaster | rank-and-traffic data updates daily and currently trails the wall clock by days | stop the series at the latest reported date; never fill the provider-lag tail with zeroes |
 | SERP panels | point-in-time, per-locale/device | volatility ≠ trend; algorithm-update calendar overlay required |
 | Ad revenue | Net-45/60 payouts; estimated → reconciled | seasonality 1.5–2× trough-to-peak (Jan/Jul low, Q4 high) — compare seasonally, book reconciled |
@@ -214,29 +209,27 @@ table rather than treating any series as truth:
   attribution and the reliability ledger.
 - **External**: Google update calendar entries, network policy changes
   (e.g. eligibility-threshold moves), vendor pricing changes.
-- **Writer** *(landed 2026-07-31)*: `POST /api/annotations` on the ingest
-  Worker, operator-authed. Until it existed the table's three Tower readers —
-  timeline, alert correlation, freshness — ran on dev-seed fixtures, so the
-  whole "did the last change move the signal?" surface was reading an empty
-  table. Backdating is allowed and expected (an event is recorded at the time
+- **Writer**: `POST /api/annotations` on the ingest Worker, operator-authed;
+  the timeline, alert correlation and freshness readers all depend on it.
+  Backdating is allowed and expected (an event is recorded at the time
   it happened, not the time somebody remembered it); a future `at` is rejected;
   identity is `(asset, at, kind, ref)`, so a retried post or replayed CI
   webhook returns the existing row instead of duplicating a timeline event.
 
 ## Central store
 
-One Postgres database (D25; the frozen schema in `db/postgres/`, the helper in
+One Postgres database (the frozen schema in `db/postgres/`, the helper in
 `packages/postgres/`): `(asset, date)` pulse rows + normalized signal
 tables + raw-object manifests + compact insight snapshots + the ledger +
 annotations + pre-registered watch windows
-(`0012_watch_windows.sql`, [doc 03](03-attribution.md)). The private
+(`watch_windows`, [doc 03](03-attribution.md)). The private
 `RAW_SIGNALS` R2 bucket holds gzip provider-response archives; locally it is
 persisted under `.wrangler/state`. Both stores are
 append-only; history is what powers trends, baselines, attribution, and
 calibration. An open flag is the one row whose summary moves: a lane that keeps
 one open flag for a lasting condition (the nightly pull's `asset-pull-failed`)
 refreshes its `message` and `rule_inputs` to the latest run, because the alert
-must speak for tonight, and appends every run's own reading to `flag_evidence`
-(`0040_flag_evidence.sql`) — the summary is a current view, never the only copy. The store's own ingest freshness is a Tower metric
+must speak for tonight, and appends every run's own reading to `flag_evidence` — the summary is a
+current view, never the only copy. The store's own ingest freshness is a Tower metric
 ([doc 06](06-operations.md)) — a push-cron that died silently three weeks ago
 must be an `error` flag on asset #0, not a discovery.

@@ -17,7 +17,7 @@ import {
 } from './signal-archive.mjs';
 import { FIXTURE_ASSET, fixtureArchives, fixtureManifest } from './signal-archive-fixture.mjs';
 
-// Bead ro-ujb9.67.1: the one reading of the provider archive, shared by the
+// The one reading of the provider archive, shared by the
 // analyzer and the analytical-file writer. These pin the rules a second reader
 // relies on — through the module's own functions, with no analyzer in the way.
 

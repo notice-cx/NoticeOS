@@ -1,6 +1,4 @@
-// THE FIXTURE'S WALL, SET UP ONCE (issues #13 and #15).
-//
-// Seven Wall journeys draw the same synthetic Wall (wall-fixture.ts): the same
+// The fixture's Wall, set up once. Seven Wall journeys draw the same synthetic Wall (wall-fixture.ts): the same
 // clock pin and the same five reads answered from the fixture. `wallScene`
 // registers those reads once, each payload built once per variant.
 // `wallAt` shows the Wall at a screen size: the first call loads it, and later
@@ -10,7 +8,7 @@
 //
 // Every load is a new tab's: the Wall keeps its last realtime and calendar
 // readings in sessionStorage, and a restored reading from an earlier load
-// once made a journey measure the wrong variant's Wall.
+// would measure the wrong variant's Wall.
 import type { Page } from "@playwright/test";
 import { expect } from "./journey-test";
 import {

@@ -4,7 +4,7 @@ import { WALL_FEED_POLL_MS, type WallFeedPayload } from "@shared/wall-feed";
 
 
 /**
- * The Wall's live feed, polled every 30 s (docs/14-design.md § Feed). Its own
+ * The Wall's live feed, polled every 30 s. Its own
  * query rather than a field of `/api/wall`: the feed moves every half minute,
  * the rest of the TV every minute. A failed poll keeps the last rows (TanStack
  * never clears `data` on error) and the column says it is reconnecting.

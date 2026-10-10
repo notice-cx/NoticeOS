@@ -7,9 +7,8 @@ import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import { storedWatchScope, watchVerdictFigures } from "../shared/watch-windows";
 import { isTaskId } from "../shared/tasks";
 
-// On Postgres (bead ro-ujb9.76.5.7): a window's offsets are an integer array,
-// and the offsets it has read are its rows in `watch_window_readings`, where
-// D1 kept both as JSON text on the window.
+// A window's offsets are an integer array; the offsets it has read are its rows
+// in `watch_window_readings`.
 interface WatchWindowStoreRow extends Record<string, unknown> {
   id: string;
   metricIntegration: string;

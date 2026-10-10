@@ -1,23 +1,12 @@
-// THE JOURNEYS' `test`: EVERY PLAYWRIGHT WORKER OWNS ITS OWN FIXTURE SERVER
-// (bead ro-ujb9.167).
-//
-// The journeys ran one at a time against one shared server, because they all
-// reset the same store. Now each worker starts its own server.mjs — its own
-// in-memory store, its own synthetic config, its own isolation guard, on its
-// own loopback port (fixture-server.mjs) — and every page, context and request
-// of that worker's tests reaches only that server: the base URL is the
-// worker's server's origin and nothing else. So the tests run in parallel and
-// no test ever sees another's store. A test still starts from
-// POST /__journey/reset (journeys.spec.ts), so it never depends on the test
-// its worker ran before it either.
+// The journeys' `test`: every Playwright worker owns its own fixture server
+// (fixture-server.mjs), and every page, context and request of that worker's
+// tests reaches only that server. A test still starts from
+// POST /__journey/reset, so it never depends on the test before it either.
 //
 // After every test, any JOURNEY_ISOLATION_VIOLATION the server printed while
-// it ran fails that test by name: a read of the operator's secrets or config,
-// or an attempt on an owner port (isolation-guard.mjs).
-//
-// And no page leaves that server, not even by following a redirect: the
-// offline guard (offline-guard.mjs, bead ro-o3hv) aborts every request to
-// another origin and fails the test that was redirected to one, naming the URL.
+// it ran fails that test by name (isolation-guard.mjs), and the offline guard
+// (offline-guard.mjs) fails a test whose page was redirected off the server,
+// naming the URL.
 import { test as base, expect } from "@playwright/test";
 import { startFixtureServer, type FixtureServer } from "./fixture-server.mjs";
 import { pinnedPort } from "./journey-port.mjs";
@@ -53,7 +42,7 @@ export const test = base.extend<{ isolationCheck: void; offlineGuard: OfflineGua
     const from = fixtureServer.output().length;
     await use();
     // A failing test carries why each fixture call it made failed, in the
-    // server's own words (bead ro-ujb9.76.56): the answer alone says 500.
+    // server's own words: the answer alone says 500.
     const failures = fixtureServer.failures(from);
     if (failures.length > 0 && testInfo.status !== testInfo.expectedStatus) {
       await testInfo.attach("fixture server failures", { body: failures.join("\n"), contentType: "text/plain" });

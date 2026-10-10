@@ -63,16 +63,9 @@ export function beadsSnapshotUrl(config) {
 const beadsPollState = { skipping: null };
 
 /**
- * Take one snapshot and file it.
- *
- * Every dependency that touches the world is injectable. That is not test
- * scaffolding for its own sake: the whole point of this function is what it
- * does when something is missing — a down hub, a dead ingest, an unreadable
- * repo — and none of those are reachable from a test that has to spawn `bd`
- * and open a socket to find out.
- *
- * Every failure is a log line. None of them take the runner down, and none of
- * them stop the next tick.
+ * Take one snapshot and file it. Every dependency that touches the world is
+ * injectable. Every failure is a log line: none takes the runner down, and
+ * none stops the next tick.
  */
 export async function runBeadsPoll(runtime, deps = {}) {
   const {
@@ -103,8 +96,7 @@ export async function runBeadsPoll(runtime, deps = {}) {
   };
 
   if (stopped()) return null;
-  // The tower's child hosts BOTH Workers now, so its readiness is the ingest's:
-  // there is no separate ingest process left to ask.
+  // The tower's child hosts both Workers, so its readiness is the ingest's.
   if (!runtime.running || !runtime.ready) {
     skip('ingest is down/restarting');
     return null;

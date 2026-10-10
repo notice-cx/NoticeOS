@@ -1,28 +1,8 @@
 // The daily rollup of the integrations matrix — one row per lane per calendar
-// day (`noticeos.connection_daily_counts`, bead `ro-78qo.30`).
-//
-// WHY IT EXISTS. /health states how many connections are working, degraded and
-// not set up, and doc 14 asks for a series behind each figure plus a step chart
-// of freshness by lane. `buildIntegrationsMatrix` computes all of that at RENDER
-// TIME — from `config/integrations.json`, `signal_runs`, open flags and
-// `egress_checks` — and kept none of it, so the two figures that are not a
-// composition (Degraded, Not set up) had nothing to draw and declared it.
-//
-// WRITTEN BY THE HOURLY TICK, NOT BY A PAGE LOAD (bead `ro-ujb9.96.7.31`).
-// The effective state of a lane is decided by `effectiveLaneState` and its
-// loaders, in this Worker; the ingest is a separate build that cannot import
-// them, and a history drawn from a second implementation is a line that can
-// disagree with the number printed above it. So the recorder is a Tower step
-// of the hourly Data freshness checks job (worker/tower-cron.ts), which builds
-// the matrix with the page's own derivation (`recordTodaysSourceHistory` in
-// integrations-payload.ts) and upserts the day's rows. A day the OS ran has a
-// point whether or not anyone opened a page, and building the matrix for a
-// page only reads — the same move bead `ro-ujb9.96.7.29` made for System
-// health's four counts (connection-status-daily.ts).
-//
-// ON POSTGRES (`noticeos.connection_daily_counts`, bead ro-ujb9.76.5.6), in the
-// call's store. A migrated store has the table, so the write lands and the read
-// answers: an empty history means the rollup holds no days yet.
+// day (`noticeos.connection_daily_counts`), the series behind /health's
+// figures and its freshness-by-lane chart. Written by the hourly tick
+// (worker/tower-cron.ts) with the page's own matrix derivation, so the history
+// cannot disagree with the number above it; a page load only reads.
 
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import {
@@ -42,9 +22,7 @@ export const CONNECTION_HISTORY_MIN_POINTS = 3;
 /**
  * One lane's day, as the payload carries it.
  *
- * `states` is keyed by `IntegrationState` so a reader can draw any of the five
- * without this module having an opinion about which two /health happens to put
- * in its strip today.
+ * `states` is keyed by `IntegrationState` so a reader can draw any of the five.
  */
 export interface ConnectionDay {
   day: string;
@@ -84,10 +62,8 @@ function emptyStates(): Record<IntegrationState, number> {
 /**
  * What one lane looked like across every asset column, right now.
  *
- * PER LANE RATHER THAN PER CELL because neither question /health asks is
- * per-asset: the strip sums the states across everything, and the freshness
- * chart draws one line per lane. Summing these rows over a day reproduces the
- * strip's own counts exactly, so the history cannot disagree with the headline.
+ * Per lane, not per cell: summing these rows over a day reproduces the strip's
+ * own counts exactly.
  */
 export function laneDay(cells: IntegrationCellBase[]): {
   states: Record<IntegrationState, number>;
@@ -185,13 +161,7 @@ export async function recordConnectionDay(
   });
 }
 
-/**
- * Every day the rollup holds, per lane.
- *
- * One read for the whole window: 400 days across a dozen lanes is a few
- * thousand short rows, and a query per lane would be a dozen round trips to
- * save nothing.
- */
+/** Every day the rollup holds, per lane, in one read. */
 export async function loadConnectionHistory(store: WorkspaceStore): Promise<ConnectionHistory> {
   const rows = await store.read((tx) =>
     tx.query<DailyRow>(
@@ -235,12 +205,8 @@ export async function loadConnectionHistory(store: WorkspaceStore): Promise<Conn
 /**
  * The portfolio's series per state — the strip's own numbers, day by day.
  *
- * Every lane that has a row for a day contributes to it, and a lane that has
- * none contributes nothing: one build of the matrix writes a row for every lane
- * it could see, so in the ordinary case the days line up and this costs
- * nothing. Where they do not — a lane added to the register last Tuesday — the
- * earlier days are simply smaller by a lane that did not exist, which is what
- * happened rather than a hole in every series at once.
+ * A lane with no row for a day contributes nothing to it, so days before a
+ * lane was added are smaller by that lane rather than a hole in every series.
  */
 export function portfolioSeries(
   history: ConnectionHistory,
@@ -262,17 +228,10 @@ export function portfolioSeries(
 }
 
 /**
- * How stale each lane's evidence was, day by day — doc 14's freshness-by-lane
- * step chart, in hours.
- *
- * The age is measured from the instant the day was OBSERVED rather than from
- * midnight or from now: it is the number /health already prints beside each
- * lane ("2d ago"), recorded rather than recomputed, so the chart and the strip
- * beside it are the same measurement.
- *
- * A day whose lane carried no dated evidence at all is left OUT of that lane's
- * series. It is not "infinitely stale" and it is certainly not fresh; it is a
- * day the lane gave nothing to date, and the honest drawing of that is a gap.
+ * How stale each lane's evidence was, day by day, in hours, measured from the
+ * instant the day was observed (the "2d ago" /health prints, recorded). A day
+ * with no dated evidence is left out of that lane's series: a gap, neither
+ * stale nor fresh.
  */
 export function freshnessSeries(history: ConnectionHistory): { source: string; points: SeriesPoint[] }[] {
   const out: { source: string; points: SeriesPoint[] }[] = [];
@@ -283,10 +242,7 @@ export function freshnessSeries(history: ConnectionHistory): { source: string; p
       const observedMs = Date.parse(entry.observedAt);
       const evidenceMs = Date.parse(entry.newestEvidenceAt);
       if (!Number.isFinite(observedMs) || !Number.isFinite(evidenceMs)) continue;
-      // Negative would mean evidence dated after the observation that read it —
-      // a provider clock ahead of ours. Floored at zero: "as fresh as it gets"
-      // is the only honest reading, and a negative age would draw below the
-      // axis.
+      // Floored at zero: a provider clock ahead of ours would read negative.
       points.push({ t: entry.day, v: Math.max(0, (observedMs - evidenceMs) / 3_600_000) });
     }
     if (points.length > 0) out.push({ source: lane, points });

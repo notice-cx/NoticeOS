@@ -1,17 +1,11 @@
-// os-deploy-forward.mjs — the local runner hands the OS's own deploys to the
-// store, so the Wall feed can say "Deployed" (bead ro-trai.8).
-//
-// The deploy log is a file on this host (`.local/logs/deploys.jsonl`, written
-// by `record()` in scripts/os-deploy.mjs), and the Tower reads only the store.
-// So the runner reads the log through an `OsDeploySource` adapter and posts
-// each recorded move as an annotation through the ingest's existing
-// `POST /api/annotations`. The mapping is scripts/os-deploy-events.mts, shared
-// with the feed that reads it back.
-//
-// REPLAY IS SAFE. The annotation writer is idempotent on (asset, at, kind,
-// ref), so re-sending a deploy the store already holds files nothing; this
-// module also remembers what it sent, so a quiet log costs one small read a
-// minute and no request. A post that fails is simply retried next time.
+// The local runner hands the OS's own deploys to the store, so the Wall feed
+// can say "Deployed". The deploy log is a file on this host
+// (`.local/logs/deploys.jsonl`) and the Tower reads only the store, so the
+// runner reads the log through an `OsDeploySource` adapter and posts each
+// recorded move through `POST /api/annotations`; the mapping is
+// scripts/os-deploy-events.mts. Replay is safe: the annotation writer is
+// idempotent on (asset, at, kind, ref), and this module remembers what it
+// sent.
 
 import fs from 'node:fs/promises';
 import { NO_DEPLOY_SOURCE, osDeployAnnotation } from './os-deploy-events.mjs';
@@ -56,16 +50,16 @@ export function annotationsUrl(config) {
   return `http://${config.ingestHost}:${config.ingestPort}/api/annotations`;
 }
 
-/** The door's "which asset is the OS" read (beads ro-k9hf, ro-ujb9.118). */
+/** The door's "which asset is the OS" read. */
 export function osAssetUrl(config) {
   return `http://${config.ingestHost}:${config.ingestPort}/api/os-asset`;
 }
 
 /**
- * The OS's own asset id as the STORE names it (`assets.is_os`), never an id
+ * The OS's own asset id as the store names it (`assets.is_os`), never an id
  * written into the runner. Null when there is no token, the store cannot
- * answer, or it holds no OS row — a caller then files nothing about the OS
- * rather than guessing which asset that is. Never throws.
+ * answer, or it holds no OS row; a caller then files nothing about the OS.
+ * Never throws.
  */
 export async function readOsAsset({ url, readToken, get = fetch }) {
   const token = await readToken().catch(() => null);
@@ -134,10 +128,9 @@ export async function forwardOsDeploys({
 }
 
 /**
- * What the runner runs once a minute: ask the store which asset is the OS, then
- * forward the log's deploys as that asset's annotations. One `request` carries
- * both calls, so a test drives the whole pass through one fake door. Null when
- * the store names no OS asset (or cannot be asked), exactly as for no token.
+ * What the runner runs once a minute: ask the store which asset is the OS,
+ * then forward the log's deploys as that asset's annotations. Null when the
+ * store names no OS asset or cannot be asked, as for no token.
  */
 export async function forwardOsDeploysToStore({
   source = NO_DEPLOY_SOURCE,

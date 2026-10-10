@@ -106,9 +106,8 @@ describe("calendar upcoming browser contract", () => {
   });
 
   it("rejects a payload missing the feed counts", async () => {
-    // The panel renders NOTHING when no feed is configured, so a payload that
-    // lost the count must fail here rather than reach a surface that would read
-    // the absence as "set up and clear".
+    // The panel renders nothing when no feed is configured, so a payload that
+    // lost the count must fail here rather than read as "set up and clear".
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -166,9 +165,8 @@ describe("calendar upcoming browser contract", () => {
   });
 
   it("rejects a feed status this build cannot act on", async () => {
-    // `status` is a closed set, unlike the free-form color: each value becomes a
-    // different instruction to the operator, so an unknown one must not slip
-    // through and read as healthy.
+    // `status` is a closed set, unlike the free-form color: an unknown one
+    // must not slip through and read as healthy.
     for (const status of ["throttled", "OK", "", null, undefined]) {
       vi.stubGlobal(
         "fetch",
@@ -210,12 +208,11 @@ describe("calendar upcoming browser contract", () => {
   });
 });
 
-// Bead `ro-ujb9.105`: this hook polled from hidden tabs on purpose, because
-// "the TV is never focused". But TanStack's background is a HIDDEN page, not
-// an unfocused one (`ro-ujb9.63`, test/wall-polling.test.tsx), so the TV keeps
-// its minute either way, and only a desk tab nobody can see stops asking.
-// Driven through the real hook, TanStack's focus manager and fake timers, so
-// the assertions count requests, not option values.
+// This hook polls from hidden tabs on purpose, because "the TV is never
+// focused". TanStack's background is a hidden page, not an unfocused one
+// (test/wall-polling.test.tsx), so the TV keeps its minute either way, and
+// only a desk tab nobody can see stops asking. Driven through the real hook,
+// TanStack's focus manager and fake timers, so the assertions count requests.
 describe("useCalendarUpcoming", () => {
   let visibility: DocumentVisibilityState = "visible";
   const fetchSpy = vi.fn();

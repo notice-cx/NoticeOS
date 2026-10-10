@@ -23,22 +23,11 @@ import type { CalendarReadState } from "@/lib/meetings";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-/** What a drag is carrying. Native drag-and-drop moves a string, and this is
- * the string: no library, no drag state in a store, and a drop from anywhere
- * else in the browser carries something this does not recognize and is ignored. */
+/** The native drag-and-drop type; a drop from anywhere else is ignored. */
 export const WALL_DRAG_TYPE = "application/x-noticeos-wall-widget";
 
-/**
- * Below this scale the chrome is not drawn at all.
- *
- * The chrome counter-scales, so it is the same number of SCREEN pixels however
- * far the television has been shrunk — which is right until the widget itself
- * is narrower than its own toolbar. On a phone a three-widget row gives each
- * widget about 40 screen pixels and two 36px controls are 76, so the bar would
- * cover the picture it sits on. Under this width the preview is a picture you
- * tap to select, and every action lives in the widget panel — which is also
- * where a touch operator has to work anyway, since a touch never fires a drag.
- */
+/** Below this scale the counter-scaled chrome would cover the widget it sits
+ * on, so it is not drawn and every action lives in the widget panel. */
 const CHROME_MIN_SCALE = 0.25;
 
 export interface WallPreviewProps {
@@ -56,46 +45,19 @@ export interface WallPreviewProps {
   onRemove: (widgetId: string) => void;
   /** A drop landed: this widget, into that row, before that index. */
   onMove: (widgetId: string, toRowId: string, toIndex: number) => void;
-  /** The measured content height of the 1920×1080 canvas, after every change —
-   * the editor turns it into the fit note. */
+  /** The measured content height of the 1920×1080 canvas, after every change. */
   onMeasure?: (contentHeightPx: number) => void;
   className?: string;
 }
 
 /**
- * The Wall at TV geometry, with the editor's chrome on top (bead `ro-lzmq.2`).
- *
- * IT IS THE REAL RENDERER. The box is exactly 1920×1080 — the TV
- * `scripts/wall-fit-check.mjs` measures — scaled with a transform to whatever
- * width the pane has, and what is inside it is `WallCanvas`, the same component
- * `/wall` draws. A preview with its own layout engine is a preview that lies,
- * and this editor's entire promise is that what the operator arranges is what
- * the television shows.
- *
- * AND IT IS THE REAL BREAKPOINTS (bead `ro-lzmq.5`). The box carries
- * `wall-root`, which `index.css` declares a query container named `wall`, and
- * every breakpoint variant fires on that container as well as on the viewport.
- * So the assets grid is five across and the type is TV-sized inside this box on
- * a 390px phone, exactly as on the kiosk — which is why the fit note is now
- * stated at every width instead of withheld below `xl`.
- *
- * THE CHROME COUNTER-SCALES, AND APPEARS ONE AT A TIME. At 1440 the pane gives
- * the box about a third of its natural width, so a drag handle drawn inside the
- * transform would be four millimetres across and a 44px touch target would be
- * 15. Each widget's chrome therefore carries the inverse scale, which keeps it
- * the size the operator's finger expects at every pane width. That has a cost
- * the first capture made obvious: at full size, seven toolbars over widgets
- * about 110 screen pixels wide covered the entire television. So the toolbar is
- * drawn only over the widget the operator is already pointing at — hovered,
- * focused, or selected — and everything it holds is also in the widget panel,
- * which never hides. The ring is the affordance the rest of the time.
- *
- * THE WIDGET IS A PICTURE. Everything the canvas draws is `pointer-events-none`
- * here: the Wall's own links and buttons must not be operable through a preview,
- * and the whole track is one selection target instead. That is also why the
- * drawn widget is `aria-hidden` and the track carries the name — a screen reader
- * reading the assets grid twice, once as content and once as a thing to move,
- * would be reading the editor's furniture as the portfolio.
+ * The Wall at TV geometry with the editor's chrome on top. It is the real
+ * renderer (`WallCanvas` in an exact 1920×1080 box, scaled by a transform) and
+ * the real breakpoints (`wall-root` is the `wall` query container). The chrome
+ * counter-scales and is drawn only over the widget being pointed at, because
+ * seven full-size toolbars would cover the picture. Everything the canvas
+ * draws is `pointer-events-none` and `aria-hidden`: the track is the one
+ * selection target and carries the name.
  */
 export function WallPreview({
   layout,
@@ -119,11 +81,9 @@ export function WallPreview({
   const [dropping, setDropping] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
 
-  // The frame's width decides the scale. ResizeObserver where there is one (the
-  // pane changes width when the settings pane opens, not only when the window
-  // does); a window listener is the fallback, and a frame that has not been laid
-  // out yet — jsdom, or the first paint — draws at natural size rather than
-  // dividing by zero.
+  // ResizeObserver where there is one (the pane changes width when the
+  // settings pane opens, not only the window); a frame not yet laid out draws
+  // at natural size rather than dividing by zero.
   useLayoutEffect(() => {
     const frame = frameRef.current;
     if (!frame) return;
@@ -141,14 +101,9 @@ export function WallPreview({
     return () => observer.disconnect();
   }, []);
 
-  // The fit check measures the canvas at its OWN 1920×1080, before the
-  // transform — a scaled measurement would only ever say the pane is smaller
-  // than the TV, which nobody needed telling. It measures at EVERY screen width
-  // since bead `ro-lzmq.5`: the box is a `wall` query container, so the widgets
-  // inside it draw the television's arrangement and type on a phone exactly as
-  // they do on the kiosk, and the height that comes back is the television's.
-  // Until that landed the reading below `xl` was the phone's own stacking and
-  // the editor withheld it, because a wrong number is worse than no number.
+  // Measured at the canvas's own 1920×1080, before the transform; the box is
+  // a `wall` query container, so the height is the television's at every
+  // screen width.
   useEffect(() => {
     const box = boxRef.current;
     if (!box || !onMeasure) return;
@@ -161,9 +116,8 @@ export function WallPreview({
       setDropping(null);
       if (!widgetId) return;
       event.preventDefault();
-      // Left half means before this widget, right half after it — the same
-      // reading every list that can be dropped into uses, and the only one that
-      // can express "put it last".
+      // Left half means before this widget, right half after it: the only
+      // reading that can express "put it last".
       const rect = event.currentTarget.getBoundingClientRect();
       const after = rect.width > 0 && event.clientX - rect.left > rect.width / 2;
       onMove(widgetId, rowId, after ? index + 1 : index);
@@ -175,39 +129,22 @@ export function WallPreview({
     <div className={cn("flex flex-col gap-2", className)}>
       <div
         ref={frameRef}
-        // The frame reserves exactly the height the scaled box occupies: a
-        // transform does not change layout, so without this the panes below
-        // would sit under the television.
+        // A transform does not change layout, so the frame reserves the
+        // scaled box's height itself.
         style={{ height: `${WALL_TV_HEIGHT * scale}px` }}
         className="w-full overflow-hidden border border-border bg-background"
-        // THE TV IS DARK ON A LIGHT DESK TOO (bead `ro-c0l3`). The television
-        // never draws light (AppShell takes `.light` off `/wall`), but this box
-        // sits inside the desk, whose `.light` every token below inherited: the
-        // strip and the feed turned pale and the site's name faded on black.
-        // `data-theme="dark"` re-declares the dark tokens here (index.css,
-        // brand/notice.css), so the preview is the picture the TV shows.
+        // The TV never draws light, but this box sits inside the desk's
+        // `.light`; `data-theme="dark"` re-declares the dark tokens here.
         data-theme="dark"
         data-wall-preview
         data-wall-preview-scale={scale.toFixed(3)}
       >
         <div
           ref={boxRef}
-          // `wall-root` is the TELEVISION'S scope — true-black canvas and cards,
-          // the larger type steps — and `WallRoute` puts it on the element above
-          // the canvas rather than on the canvas itself. The preview has to
-          // supply the same thing, or the widgets would draw in desk tokens and
-          // the preview would be showing a Wall that does not exist. It is also
-          // the `wall` query container every breakpoint inside now reads
-          // (`index.css`), which is what makes the widgets below draw the
-          // television's arrangement on a phone.
-          //
-          // The padding is the TV route's own, resolved: `WallRoute` writes it
-          // as `p-2 md:px-wall-inset-x md:py-wall-inset-y` (D28's frame, bead
-          // `ro-trai.11`) because a Wall opened in a narrow browser window wants
-          // the tighter inset, and this box is never narrow — it is 1920 on
-          // every screen. A container cannot query itself, so the element that
-          // IS the container is the one place the television's own values are
-          // spelled out.
+          // `wall-root` is the television's scope and the `wall` query
+          // container, as `WallRoute` puts it above the canvas. The padding is
+          // the TV route's own, resolved: a container cannot query itself, and
+          // this box is 1920 wide on every screen.
           className="wall-root flex flex-col bg-background px-wall-inset-x py-wall-inset-y"
           style={
             {
@@ -215,8 +152,7 @@ export function WallPreview({
               height: `${WALL_TV_HEIGHT}px`,
               transform: `scale(${scale})`,
               transformOrigin: "top left",
-              // Read by every piece of chrome below, so a control keeps its
-              // real size however far the television has been shrunk to fit.
+              // Read by the chrome, so a control keeps its real size.
               "--wall-chrome-scale": scale > 0 ? 1 / scale : 1,
             } as CSSProperties
           }
@@ -230,21 +166,13 @@ export function WallPreview({
             ga4RealtimeError={ga4RealtimeError}
             connections={connections}
             nowMs={nowMs}
-            // The editor is never the surface that reports a failed poll — the
-            // television and Home already do, and a "reconnecting" note inside
-            // a preview would read as a fault in the layout being arranged.
+            // A "reconnecting" note inside a preview would read as a fault in
+            // the layout being arranged.
             lastGood={false}
             editing={({ widget, row, rowIndex, column, index, node }) => {
               const spec = WALL_WIDGET_LIBRARY[widget.type];
               const selected = widget.id === selectedId;
-              // ONE TOOLBAR AT A TIME, and only over a widget the operator is
-              // already pointing at. The controls counter-scale to full size,
-              // so seven of them at once cover the very picture the preview
-              // exists to show — at desk width a widget is about 110 screen
-              // pixels wide and a toolbar is 76. Hover and selection are the
-              // two moments a widget is the subject; the rest of the time the
-              // ring is the whole affordance, and every action is also in the
-              // widget panel, which never hides.
+              // One toolbar at a time, over the widget being pointed at.
               const chrome =
                 scale >= CHROME_MIN_SCALE && (selected || hovered === widget.id);
               return (
@@ -327,8 +255,6 @@ export function WallPreview({
           />
         </div>
       </div>
-      {/* A key, not an essay (bead `ro-ujb9.96.6.12`): what the box is and
-          that it is scaled. */}
       <p className="text-xs tabular-nums text-muted-foreground" data-wall-preview-note>
         TV · {WALL_TV_WIDTH}×{WALL_TV_HEIGHT}, scaled to fit
       </p>

@@ -5,39 +5,30 @@ import path from 'node:path';
 import { after, before, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-// A BUILD ARTIFACT MUST STAND ON ITS OWN. `packages/contract` is the only
-// workspace whose `build` emits JavaScript — the Tower is bundled by Vite and
-// the ingest by wrangler, and both of those resolve the TypeScript source the
-// exports map points at. So `dist` is the one output nobody reads, which is
-// exactly why it rotted unnoticed (bead ro-l9ru).
+// A build artifact must stand on its own. `packages/contract` is the only
+// workspace whose `build` emits JavaScript: the Tower is bundled by Vite and
+// the ingest by wrangler, and both resolve the TypeScript source the exports
+// map points at, so `dist` is the one output nobody reads.
 //
-// The rot: `src/os-time-zone.ts` imports `config/constants.json` (bead ro-py40,
-// the operator's clock is configuration rather than a literal). tsc copies an
-// import specifier into the emitted JS verbatim, and under `rootDir: "src"` the
-// JSON sat outside the program's root — so the emit carried a reference up and
-// out of `dist` to a file that only exists because a checkout happens to be
-// arranged that way. Publish the package, or move the output one directory, and
-// the reference points at nothing. Nobody would have found out from a build:
-// tsc emitted it, the gate went green, and the failure would have surfaced as a
-// module-not-found inside a Worker.
+// The trap: `src/os-time-zone.ts` imports `config/constants.json`, tsc copies
+// an import specifier into the emitted JS verbatim, and under `rootDir: "src"`
+// the JSON sits outside the program's root, so the emit carries a reference up
+// and out of `dist` to a file that only exists because a checkout happens to be
+// arranged that way. Nothing in a build would find out.
 //
-// So this is the standing check the trap earned. It compiles the package the way
-// `pnpm -r build` does, into a throwaway directory, and holds every emitted
-// module to one rule: each relative specifier it names resolves to a file that
-// the same build produced. Reaching outside the output is the failure, whatever
-// the reason — a JSON import, a stray `../../shared` helper, a path alias that
-// only a bundler could have honoured.
+// So this compiles the package the way `pnpm -r build` does, into a throwaway
+// directory, and holds every emitted module to one rule: each relative
+// specifier it names resolves to a file that the same build produced, whatever
+// the reason it reached outside (a JSON import, a stray `../../shared` helper,
+// a path alias only a bundler could honour).
 //
-// AND IT LOADS WHAT IT BUILT (bead `ro-rcny`). Resolving a specifier is not the
-// same question as running the module: the emitted JSON import resolved to a
-// file that was really there and still threw ERR_IMPORT_ATTRIBUTE_MISSING under
-// plain Node, because tsc had copied a bare `import … from './constants.json'`
-// through and Node requires `with { type: 'json' }`. Every consumer that reads
-// the SOURCE — Vite, wrangler's esbuild, vitest — inlines JSON and never asked
-// for the attribute, so nothing in the four gates could see it. Importing each
-// emitted module is the only check that can, and it is the same shape of trap
-// as the one above: harmless until somebody points the exports map at `dist`,
-// and then a runtime failure rather than a build one.
+// AND IT LOADS WHAT IT BUILT. Resolving a specifier is not the same question
+// as running the module: a bare `import … from './constants.json'` resolves to
+// a file that is really there and still throws ERR_IMPORT_ATTRIBUTE_MISSING
+// under plain Node, which wants `with { type: 'json' }`. Every consumer that
+// reads the SOURCE (Vite, wrangler's esbuild, vitest) inlines JSON and never
+// asks for the attribute, so importing each emitted module is the only check
+// that can see it.
 
 const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPTS_DIR, '..');
@@ -159,7 +150,7 @@ test('every relative specifier the build emits resolves inside the output', () =
 });
 
 test('every module the build emits loads under plain Node', async () => {
-  // Bead `ro-rcny`. Resolving a specifier and running the module are different
+  // Resolving a specifier and running the module are different
   // questions, and only the second one catches an import Node refuses: the
   // emitted JSON import pointed at a file that was really there and still threw
   // ERR_IMPORT_ATTRIBUTE_MISSING, because tsc copies the specifier through
@@ -194,7 +185,7 @@ test('every module the build emits loads under plain Node', async () => {
 
 test('the operator clock the build emits is the one config holds', () => {
   // The reason the reference has to resolve, stated as a fact rather than a
-  // shape: `OS_TIME_ZONE` is config/constants.json's `os_time_zone` (ro-py40),
+  // shape: `OS_TIME_ZONE` is config/constants.json's `os_time_zone`,
   // and a build that quietly stopped carrying the JSON would still typecheck.
   assert.equal(built.status, 0, `${built.stdout}${built.stderr}`);
 

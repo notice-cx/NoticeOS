@@ -1,13 +1,8 @@
-// The Wall's site region as numbers (docs/14-design.md § Site rows and
-// § Density, beads `ro-trai.5`, `ro-trai.13`). `SiteRows` draws; this file only
-// reads the payload the Worker already built — nothing here is a new source.
-//
-// ONE SITE IS SHOWN IN DEPTH. With a single site the region becomes three tiles
-// (today by hour, the month's visitors and money, search clicks), each read from
-// data every site already carries: the GA4 realtime snapshot's hours, the Wall
-// payload's `activeUsers` / `searchClicks` series, and the revenue projection's
-// running total. A tile whose data this site does not have is `null` — the
-// region leaves it out and the others widen, never an empty placeholder.
+// The Wall's site region as numbers. `SiteRows` draws; this file only reads
+// the payload the Worker already built. With a single site the region becomes
+// three tiles (today by hour, the month's visitors and money, search clicks),
+// each read from data every site already carries; a tile whose data this site
+// does not have is `null`, and the region leaves it out.
 
 import type { Ga4RealtimeAsset } from "@noticeos/contract";
 import { revenueCalendarDate, type DailyRevenueSummary } from "@shared/daily-revenue";
@@ -26,8 +21,8 @@ import { rollingDailyAverage, rollingWeeklyChange, shiftDate, spannedTimeZoneCha
 export type HourlyActiveUsers = NonNullable<Extract<Ga4RealtimeAsset, { status: "success" }>["hourlyActiveUsers"]>;
 
 /** The latest complete 7 days against the 7 before, as a percent and the tone
- * it may wear: neutral when the window spans a reporting-timezone change
- * (doc 14, `ro-jkp2`) — the number stays, only the verdict goes. */
+ * it may wear: neutral when the window spans a reporting-timezone change; the
+ * number stays, only the verdict goes. */
 export interface WeeklyChange {
   percent: number;
   tone: PerformanceTone;
@@ -60,18 +55,13 @@ export interface FourWeekDay {
 }
 
 /**
- * The last four complete weeks against the four before (bead `ro-trai.26`,
- * docs/14-design.md § Site rows): the one derivation a site row's line and
- * the one-site search tile both draw.
- *
- * - `days` are the 28 days ending on the newest day the provider has finished
- *   counting — the day still being counted is left out, as everywhere.
- * - `hasPrior` is true only when all 28 earlier days were reported; otherwise
- *   the dashed line is left out rather than drawn from part of a span.
- * - `change` compares the two spans' totals, and exists only when both are
- *   whole and the earlier one is not zero: never a fake 0. It is neutral when
- *   the 56 days span a reporting-timezone change (`ro-jkp2`, doc 14): the
- *   number stays, only the verdict goes.
+ * The last four complete weeks against the four before: the one derivation a
+ * site row's line and the one-site search tile both draw. `days` are the 28
+ * days ending on the newest day the provider has finished counting.
+ * `hasPrior` is true only when all 28 earlier days were reported. `change`
+ * compares the two spans' totals, exists only when both are whole and the
+ * earlier one is not zero, and is neutral when the 56 days span a
+ * reporting-timezone change.
  */
 export interface FourWeeks {
   days: FourWeekDay[];
@@ -135,8 +125,8 @@ export interface TodayTile {
   snapshot: Extract<Ga4RealtimeAsset, { status: "success" }>;
   hourly: HourlyActiveUsers;
   pace: IntradayUsersPace | null;
-  /** Today's distinct users from the daily series — never a sum of hours,
-   * which counts a person once per hour (doc 14). */
+  /** Today's distinct users from the daily series, never a sum of hours,
+   * which counts a person once per hour. */
   todayUsers: number | null;
 }
 

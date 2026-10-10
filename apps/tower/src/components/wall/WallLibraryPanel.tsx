@@ -7,22 +7,17 @@ import { cn } from "@/lib/utils";
 export interface WallLibraryPanelProps {
   layout: WallLayout;
   onAdd: (type: WallWidgetType) => void;
-  /** A deployment that cannot save still shows the library — reading what the
-   * Wall CAN hold is not a write — but nothing in it is offered. */
+  /** A deployment that cannot save still shows the library, but nothing in it
+   * is offered. */
   disabled?: boolean;
   className?: string;
 }
 
 /**
- * The widget library (docs/15 flow D: the operator arranges widgets from a
- * FIXED library and never authors new types — that is a component-registry PR).
- *
- * Every type the contract knows is listed, always, including the ones already
- * on the Wall: a library that hid what was placed would answer "what can this
- * TV show" differently depending on what it currently shows, and the operator
- * would have to remove a widget to find out whether a second one was possible.
- * So a refused Add is replaced by its STATE on the row rather than hidden:
- * "On the TV" (the preview shows where) or "TV full".
+ * The fixed widget library. Every type the contract knows is listed, including
+ * the ones already placed, so the list answers "what can this TV show" the
+ * same way whatever it shows now; a refused Add becomes its state on the row
+ * ("On the TV" or "TV full").
  */
 export function WallLibraryPanel({
   layout,
@@ -44,9 +39,8 @@ export function WallLibraryPanel({
           >
             <div className="flex items-start justify-between gap-2">
               <span className="min-w-0 text-sm font-medium text-foreground">{spec.label}</span>
-              {/* A refused Add is a STATE in the button's place — "On the TV"
-                  with a check, or "TV full" — never a sentence under the row
-                  (bead `ro-ujb9.96.6.12`). */}
+              {/* A refused Add is a state in the button's place, never a
+                  sentence under the row. */}
               {disabledReason ? (
                 <span
                   className="inline-flex shrink-0 items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
@@ -70,9 +64,7 @@ export function WallLibraryPanel({
                 </Button>
               )}
             </div>
-            {/* What is ON the widget, as facets — never a sentence (bead
-                `ro-ujb9.96.6.17`); the preview shows the widget itself the
-                moment it is added. */}
+            {/* What is on the widget, as facets — never a sentence. */}
             <ul className="flex flex-wrap gap-x-1.5 text-xs leading-snug text-muted-foreground" data-wall-library-shows>
               {spec.shows.map((facet, index) => (
                 <li key={facet} className="whitespace-nowrap">

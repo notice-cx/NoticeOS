@@ -1,10 +1,7 @@
 // GET /api/os-asset — which asset is the OS itself, as the store says
-// (`assets.is_os`, beads `ro-k9hf`, `ro-ujb9.118`).
-//
-// Operator-authed and READ-ONLY. The caller is the local runner
-// (`scripts/os-up.mjs`), which files the OS's own deploys and its task-map
-// beads against that asset and cannot reach D1 itself. A store with no OS row
-// answers `{ "asset": null }`, and the runner then files nothing about the OS.
+// (`assets.is_os`). Operator-authed and read-only; the caller is the local
+// runner, which files the OS's own deploys against that asset. A store with no
+// OS row answers `{ "asset": null }`, and the runner then files nothing.
 
 import { authenticateOperator } from '../auth.js';
 import { readOsAssetId } from '../os-asset.js';

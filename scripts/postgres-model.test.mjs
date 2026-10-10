@@ -25,7 +25,7 @@ import {
 } from './postgres-dev.mjs';
 import { FROZEN_MIGRATIONS, applyMigrations, frozenMigrationProblems } from './postgres-migrate.mjs';
 
-// THE POSTGRES MODEL AND ITS ISOLATION HOLD (ro-ujb9.76.81).
+// The Postgres model and its isolation hold.
 // Static proofs compare model.json with the complete migration set, frozen
 // hashes, generated docs, capacity joins and retention/NULL identity rules.
 // Disposable Postgres proofs retain the full schema, permission, row-security,
@@ -69,7 +69,7 @@ function alterActions(text) {
  * `{ tables: { name: [columns] }, views: [names] }`: the schema the whole
  * migration set produces, read statement by statement in order — CREATE
  * TABLE, ALTER TABLE's ADD, DROP and RENAME of a column or the table, DROP
- * TABLE, and CREATE or DROP VIEW (bead ro-ujb9.76.20). Other actions (a
+ * TABLE, and CREATE or DROP VIEW. Other actions (a
  * constraint, row security) change no column. The live proof compares this
  * reading with what Postgres built, so a form it cannot read fails there.
  */
@@ -144,7 +144,7 @@ test('every table and view in the model has its revision rule, over columns it r
     if (Array.isArray(update)) {
       for (const column of update) assert.ok(model.tables[name].includes(column), `${name}.${column} is not a column`);
     }
-    assert.ok(model.tables[name].includes('workspace_id'), `${name}: every table carries workspace_id (D27)`);
+    assert.ok(model.tables[name].includes('workspace_id'), `${name}: every table carries workspace_id`);
   }
 });
 
@@ -196,7 +196,7 @@ test('the Postgres migrations are numbered without gaps and hold plain SQL only'
 });
 
 test('a frozen migration never changes: every file frozen-migrations.sha256 lists keeps the hash recorded there', () => {
-  // Empty or absent: no kept development database has applied the migrations yet (ro-ujb9.76.20).
+  // Empty or absent: no kept development database has applied the migrations yet.
   const marker = existsSync(FROZEN_MIGRATIONS) ? readFileSync(FROZEN_MIGRATIONS, 'utf8') : '';
   assert.deepEqual(frozenMigrationProblems(marker), [], 'db/postgres/README.md "Changing the schema" says what to do');
 });
@@ -242,7 +242,7 @@ test('retention names real tables and the columns that date them, and maintenanc
   assert.ok(definition.maintenance._rule && definition.reference._rule, 'maintenance and reference say what they are');
 });
 
-test('a site keeps as many insight snapshots as the Tower reads: the store, the model and the capacity count agree (ro-ujb9.76.17)', () => {
+test('a site keeps as many insight snapshots as the Tower reads: the store, the model and the capacity count agree', () => {
   const repo = path.resolve(MODEL_DIR, '..', '..');
   const lastNumber = (text, pattern, where) => {
     const found = [...text.matchAll(pattern)].at(-1)?.[1];
@@ -365,7 +365,7 @@ DROP TABLE noticeos.counter_readings;
   );
 });
 
-test('on a disposable Postgres: the migrations apply, D27 isolation holds, edge cases keep their outcomes, privileges equal the revision rules', async (t) => {
+test('on a disposable Postgres: the migrations apply, workspace isolation holds, edge cases keep their outcomes, privileges equal the revision rules', async (t) => {
   await live(t, () =>
     withDisposablePostgres(async (dev) => {
       const { psql } = dev;
@@ -422,9 +422,8 @@ test('on a disposable Postgres: the migrations apply, D27 isolation holds, edge 
         }
       }
 
-      // The maintenance role (REVIEW.md item 3): reads every table, removes
-      // rows only where retention lets them go, inserts only its records of
-      // moves and exports, changes nothing.
+      // The maintenance role reads every table, deletes only where retention
+      // allows, inserts only its own records of moves and exports.
       const privilegesOf = (role, schema) =>
         new Map(
           psql(
@@ -457,10 +456,7 @@ test('on a disposable Postgres: the migrations apply, D27 isolation holds, edge 
       ).trim();
       assert.equal(maintColumnUpdates, '0', 'noticeos_maint may update no column');
 
-      // The capacity readback runs as noticeos_maint (REVIEW.md
-      // "Observability"): every table's size and live-row estimate come from
-      // pg_total_relation_size and pg_stat_user_tables, exact and free, with
-      // no grant beyond the model's.
+      // The capacity readback runs as noticeos_maint with no grant beyond the model's.
       const capacity = psql(
         `SET ROLE noticeos_maint;
          SELECT count(*) FILTER (WHERE pg_total_relation_size(c.oid) > 0 AND s.n_live_tup IS NOT NULL) || '/' || count(*)
@@ -471,7 +467,7 @@ test('on a disposable Postgres: the migrations apply, D27 isolation holds, edge 
       const tableCount = Object.keys(model.tables).length;
       assert.equal(capacity, `${tableCount}/${tableCount}`, 'noticeos_maint reads every table\'s size and row estimate');
 
-      // The shared vocabulary (REVIEW.md item 1): read by both, written by neither.
+      // The shared vocabulary: read by both roles, written by neither.
       const reference = [...privilegesOf('noticeos_app', 'noticeos_ref')];
       assert.deepEqual(reference.map(([name]) => name).sort(), ['check_kinds', 'integrations', 'metric_kinds']);
       for (const role of ['noticeos_app', 'noticeos_maint']) {
@@ -480,8 +476,7 @@ test('on a disposable Postgres: the migrations apply, D27 isolation holds, edge 
         }
       }
 
-      // Retention (REVIEW.md item 4): the guard trigger's day column and window
-      // are exactly the ones model.json states, on exactly those tables.
+      // The retention guard's day column and window are exactly model.json's.
       const guards = Object.fromEntries(
         psql(
           `SELECT c.relname || ':' || encode(t.tgargs, 'escape')
@@ -504,7 +499,7 @@ test('on a disposable Postgres: the migrations apply, D27 isolation holds, edge 
       );
 
       // Every NULL a key or a link can hold is a decided one, and the decision
-      // names what Postgres enforces (ro-ujb9.71).
+      // names what Postgres enforces.
       const catalog = readCatalog(psql);
       const { _rule: _vocabulary, ...decided } = definition.nullIdentity;
       const enforced = nullableIdentityColumns(catalog);
@@ -514,7 +509,7 @@ test('on a disposable Postgres: the migrations apply, D27 isolation holds, edge 
       }
 
       // Every fractional number in the model refuses NaN and both infinities,
-      // by its type or by a check on that column alone (ro-ujb9.76.46): numeric
+      // by its type or by a check on that column alone: numeric
       // holds 'NaN' at any declared precision, and 'NaN' >= 0 and
       // 'Infinity' >= 0 are true, so a range check alone lets them through.
       const probed = psql(

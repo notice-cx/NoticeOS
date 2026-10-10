@@ -1,11 +1,7 @@
-// A TEST'S PROVIDER REPORT RUNS, PAID LOOKUPS AND INSIGHT SNAPSHOTS, on
-// Postgres where the collectors and the publisher write them (bead
-// ro-ujb9.76.5.4).
-//
-// Written through the application role into the store a test's readers take
-// (`ctx.call`, test/sites.ts), so the sites must be added first:
-// every row references its site. Stated in the D1 row's own terms, so a test
-// reads as it did; a report run's price is kept by the store's one rule
+// A test's provider report runs, paid lookups and insight snapshots, written
+// through the application role into the store a test's readers take
+// (`ctx.call`, test/sites.ts), so the sites must be added first: every row
+// references its site. A report run's price is kept by the store's one rule
 // (`storedProviderCost`), and a stored run's object is recorded once per key.
 import { storedProviderCost } from "@noticeos/contract";
 import type { WorkspaceStore } from "@noticeos/postgres";

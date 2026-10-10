@@ -30,19 +30,10 @@ import {
   type WatchSeriesHistory,
 } from "@shared/watch-windows";
 
-// Opening a pre-registered outcome check from the Tower (bead `ro-71r`).
-//
-// Two halves are asserted here. The BOUNDARY: what crosses to ingest and how
-// each answer it can give is rendered for the browser — the registration rules
-// themselves live in workers/ingest/test/watch-windows.test.ts against real D1,
-// which stays their only home. And the DERIVATIONS the composer prefills from,
-// which are the honesty-critical half: a form that quietly widened a baseline or
-// backdated a registration would be pre-registration in name only.
-//
-// The binding is stubbed rather than bound: this project's Vitest runs in
-// node/jsdom with no workerd, so a real WorkerEntrypoint cannot be instantiated
-// here. The stub is typed by the shared contract, so a change to the RPC's shape
-// breaks these tests at compile time.
+// Two halves: the boundary (what crosses to ingest and how each answer is
+// rendered; the registration rules live in workers/ingest/test/watch-windows.test.ts)
+// and the derivations the composer prefills from. The binding is stubbed:
+// Vitest here runs without workerd.
 
 const REQUEST_URL = new URL(
   "https://tower.local/api/assets/meals.example/watch-windows",
@@ -117,8 +108,8 @@ function handle(
   return handleWatchWindowRequest(request, REQUEST_URL, ingest, asset);
 }
 
-/** The composer's default draft for a change on 2026-07-12 — the README's own
- * documented example, arrived at by prefill rather than by hand. */
+/** The composer's default draft for a change on 2026-07-12, arrived at by
+ * prefill rather than by hand. */
 function draft(overrides: Partial<WatchDraft> = {}): WatchDraft {
   const baseline = watchBaselineFor("2026-07-12");
   return {
@@ -156,8 +147,7 @@ describe("POST /api/assets/:id/watch-windows", () => {
       ingest,
     );
 
-    // The asset comes from the path, never from the body: a page registers a
-    // watch on the asset it is showing and on nothing else.
+    // The asset comes from the path, never from the body.
     expect(calls[0]?.asset).toBe("meals.example");
     expect(calls[0]).toMatchObject({
       ref_kind: "annotation",
@@ -179,16 +169,15 @@ describe("POST /api/assets/:id/watch-windows", () => {
   it("never defaults a registration field the operator did not see", async () => {
     const { ingest, calls } = stubIngest(registered);
     await handle(post({ ref_kind: "manual", ref: "batch" }), ingest);
-    // No Tower-side clock and no Tower-side baseline: a comparison the operator
-    // never chose is not a pre-registration.
+    // No Tower-side clock and no Tower-side baseline: a comparison the
+    // operator never chose is not a pre-registration.
     expect(calls[0]?.registered_at).toBeUndefined();
     expect(calls[0]?.baseline_start).toBeUndefined();
     expect(calls[0]?.scope).toBeUndefined();
   });
 
   it("carries the query a check was opened from, so it is watched inside that query", async () => {
-    // Dropped, the check was registered site-wide — another comparison than
-    // the composer drew — and every average was refused (bead ro-ujb9.96.6.28).
+    // Dropped, the check would be registered site-wide and every average refused.
     const { ingest, calls } = stubIngest(registered);
     await handle(post({ ref_kind: "manual", ref: "batch", scope: { query: "example query" } }), ingest);
     expect(calls[0]?.scope).toEqual({ query: "example query" });
@@ -264,11 +253,9 @@ describe("POST /api/assets/:id/watch-windows", () => {
   });
 });
 
-describe("the composer's prefill (bead ro-71r)", () => {
+describe("the composer's prefill", () => {
   it("proposes the four whole weeks BEFORE the change, excluding its own day", () => {
     // The change ships at some hour, so its day is part before and part after.
-    // Including it would put a slice of the thing being measured inside the
-    // window it is measured against.
     expect(watchBaselineFor("2026-07-12")).toEqual({
       start: "2026-06-14",
       end: "2026-07-11",
@@ -295,11 +282,9 @@ describe("the composer's prefill (bead ro-71r)", () => {
 
   it("never backdates, though the route would allow it", () => {
     // Backdated to a change two months old, a 28-day window's final check has
-    // already passed and closes on the next nightly run — a verdict read out of
-    // numbers the operator had already seen, which is the exact self-deception
-    // pre-registration exists to prevent.
+    // already passed and closes on the next nightly run: a verdict read out of
+    // numbers the operator had already seen.
     expect(watchDraftBody(draft())).not.toHaveProperty("registered_at");
-    // An asset-level composer does not invent a narrower selector.
     expect(watchDraftBody(draft())).not.toHaveProperty("scope");
   });
 
@@ -320,7 +305,6 @@ describe("the composer's prefill (bead ro-71r)", () => {
   it("reads a window again before its verdict, never instead of it", () => {
     expect(watchCheckOffsets(28)).toEqual([7, 14, 28]);
     expect(watchCheckOffsets(56)).toEqual([14, 28, 56]);
-    // The final offset is always last, because the evaluator closes on it.
     expect(watchCheckOffsets(90).at(-1)).toBe(90);
   });
 
@@ -329,12 +313,11 @@ describe("the composer's prefill (bead ro-71r)", () => {
     // same number two things.
     expect(watchSeriesLabel("gsc", "position")).toBe("Google average position");
     expect(watchSeriesLabel("ga4", "active_users")).toBe("Analytics active users");
-    // A row this build does not know about still renders as words.
     expect(watchSeriesLabel("gsc", "future_metric")).toBe("Google future metric");
   });
 });
 
-describe("the composer refuses what the route would refuse (bead ro-71r)", () => {
+describe("the composer refuses what the route would refuse", () => {
   const TODAY = "2026-08-04";
 
   it("accepts the prefilled draft as it stands", () => {
@@ -351,8 +334,8 @@ describe("the composer refuses what the route would refuse (bead ro-71r)", () =>
   });
 
   it("refuses a verdict that arrives before the baseline is long", () => {
-    // The final post window is baseline-length and ends on the check date, so a
-    // too-early verdict reaches back over the change.
+    // The final post window is baseline-length and ends on the check date, so
+    // a too-early verdict reaches back over the change.
     const baseline = watchBaselineFor("2026-07-12");
     const issues = watchDraftIssues(
       draft({
@@ -384,15 +367,10 @@ describe("the composer refuses what the route would refuse (bead ro-71r)", () =>
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Bead ro-5e8.2 — the threshold is this asset's number, not the README's.
-//
-// The claim under test is traceability: every figure the composer prints has to
-// come out of the asset's own series through the EVALUATOR's arithmetic, and
-// the one case that must not produce a confident-looking number is an asset
-// with nothing to calibrate from.
-// ─────────────────────────────────────────────────────────────────────────────
-describe("threshold calibration (bead ro-5e8.2)", () => {
+// Every figure the composer prints has to come out of the asset's own series
+// through the evaluator's arithmetic, and an asset with nothing to calibrate
+// from must not produce a confident-looking number.
+describe("threshold calibration", () => {
   const history = (
     values: (number | null)[],
     firstDay = "2026-01-01",
@@ -428,34 +406,29 @@ describe("threshold calibration (bead ro-5e8.2)", () => {
   };
 
   it("calibrates an asset that never moves to the smallest predicate there is", () => {
-    // A flat series has no noise to clear, so the floor is 0 — and the prefill
-    // is 1, not 0, because `watchDraftIssues` refuses a predicate with no size
-    // and a form cannot prefill a value it would then reject.
+    // A flat series has no noise to clear, so the floor is 0; the prefill is 1
+    // because `watchDraftIssues` refuses a predicate with no size.
     const result = watchCalibration(history(Array.from({ length: 60 }, () => 100)), 14);
     expect(result!.floorPct).toBe(0);
     expect(result!.suggestedPct).toBe(1);
   });
 
   it("measures the move this asset makes when nothing was registered", () => {
-    // 100 for a week, 110 the next, over and over. Every comparison the
-    // evaluator would make on this series is a swing of that size or less, and
-    // the prefill has to sit ABOVE the whole distribution of them.
+    // 100 for a week, 110 the next, over and over: the prefill has to sit
+    // above the whole distribution of comparisons.
     const result = watchCalibration(history(alternating(7, 100, 110, 12)), 7);
     expect(result).not.toBeNull();
     expect(result!.windowDays).toBe(7);
     expect(result!.floorPct).toBeGreaterThan(5);
     expect(result!.comparisons).toBeGreaterThan(20);
-    // A threshold EQUAL to the floor fires on the historical pair that produced
-    // it, so the prefill is strictly above it and whole.
+    // A threshold equal to the floor fires on the historical pair that produced it.
     expect(result!.suggestedPct).toBeGreaterThan(result!.floorPct);
     expect(Number.isInteger(result!.suggestedPct)).toBe(true);
   });
 
   it("calibrates at the window length actually chosen, not a fixed one", () => {
-    // A wider window is quieter, and that is the whole reason the floor cannot
-    // be measured once at 28 days and reused: the same series, compared over a
-    // longer stretch, moves less. A composer that widened the baseline while
-    // holding a 28-day floor would demand a move no real result could reach.
+    // A wider window is quieter: the same series, compared over a longer
+    // stretch, moves less, so the floor cannot be measured once at 28 days and reused.
     const noisy = history(wobbly(300));
     const short = watchCalibration(noisy, 7);
     const long = watchCalibration(noisy, 28);
@@ -509,16 +482,14 @@ describe("threshold calibration (bead ro-5e8.2)", () => {
       7,
     )!;
     expect(incomplete.changeCalendarComplete).toBe(false);
-    // Still this asset's measurable floor — and the composer's "Changes not
-    // excluded" chip reads `changeCalendarComplete`, never a sentence.
+    // The composer's "Changes not excluded" chip reads `changeCalendarComplete`.
     expect(series.metric).toBe("clicks");
     expect(watchCalibrationBasis(incomplete)).toEqual({ kind: "asset", calibration: incomplete });
     expect(incomplete.excludedComparisons).toBe(0);
   });
 
   it("skips a stretch the evaluator would have closed unmeasurable", () => {
-    // The evaluator refuses a window under 80% coverage, so a floor measured
-    // over one would describe a comparison nobody ever gets. Ten days of data,
+    // The evaluator refuses a window under 80% coverage. Ten days of data,
     // then a hole big enough to void every window that touches it.
     const holed = [
       ...Array.from({ length: 14 }, () => 100),
@@ -530,7 +501,7 @@ describe("threshold calibration (bead ro-5e8.2)", () => {
 
   it("says nothing rather than calibrating from an asset that just started", () => {
     // A number derived from four days would look exactly as authoritative as
-    // one derived from six months, which is the failure this bead is about.
+    // one derived from six months.
     expect(watchCalibration(history([1, 2, 3, 4]), 28)).toBeNull();
     expect(watchCalibration(null, 28)).toBeNull();
   });
@@ -546,8 +517,7 @@ describe("threshold calibration (bead ro-5e8.2)", () => {
     const basis = watchCalibrationBasis(result);
     expect(basis.kind).toBe("asset");
     // The span, the asset's typical move, the floor, and how many comparisons
-    // stand behind it — a number nobody can trace is a number the operator
-    // overrides on feel. The composer draws each of these (route suite).
+    // stand behind it. The composer draws each of these (route suite).
     expect(result.firstDay).toBe("2026-01-01");
     expect(result.floorPct).toBeGreaterThanOrEqual(result.typicalPct);
     expect(result.comparisons).toBeGreaterThan(0);
@@ -555,13 +525,11 @@ describe("threshold calibration (bead ro-5e8.2)", () => {
   });
 
   it("admits when it is showing the README's example instead", () => {
-    // Never a basis that claims to be this asset's number.
     expect(watchCalibrationBasis(null)).toEqual({ kind: "none", gap: "short-history" });
   });
 
   it("never lends site-wide calibration to a query-scoped threshold", () => {
     const siteCalibration = watchCalibration(history(alternating(7, 100, 110, 12)), 7)!;
-    // No query history proves the grain, so the site floor is not admissible.
     expect(
       watchCalibrationBasis(siteCalibration, { query: "chipotle calories" }),
     ).toEqual({ kind: "none", gap: "no-query-archive" });
@@ -615,8 +583,6 @@ describe("threshold calibration (bead ro-5e8.2)", () => {
 
     const basis = watchCalibrationBasis(query, { query: "chipotle calories" }, queryHistory);
     expect(series.metric).toBe("clicks");
-    // The query's own floor, with the archive that proves its grain — never
-    // the site's.
     expect(basis).toEqual({ kind: "query", calibration: query, history: queryHistory });
     expect(query.typicalPct).toBe(0);
     expect(query.floorPct).toBe(0);
@@ -625,9 +591,8 @@ describe("threshold calibration (bead ro-5e8.2)", () => {
   });
 
   it("opens a seeded composer on the number the surface was about", () => {
-    // Bead ro-5e8.5. A finding names its provider and not a metric, so the
-    // metric is that provider's headline outcome — the number the work the
-    // finding asks for is meant to move.
+    // A finding names its provider and not a metric, so the metric is that
+    // provider's headline outcome.
     expect(watchSeriesForSources(["gsc/page-query"])).toMatchObject({
       integration: "gsc",
       metric: "clicks",
@@ -636,14 +601,11 @@ describe("threshold calibration (bead ro-5e8.2)", () => {
       integration: "ga4",
       metric: "sessions",
     });
-    // The FIRST source the evaluator can actually read wins, so a finding built
-    // on a provider it cannot measure still opens on one it can.
+    // The first source the evaluator can actually read wins.
     expect(
       watchSeriesForSources(["clarity/url-3d", "ga4/page-events"]),
     ).toMatchObject({ integration: "ga4" });
-    // And a finding with nothing measurable prefills nothing: the composer's
-    // own default (the asset's first live lane) is a better answer than a
-    // confident wrong one.
+    // A finding with nothing measurable prefills nothing.
     expect(watchSeriesForSources(["dataforseo/ranked-keywords"])).toBeNull();
   });
 
@@ -659,8 +621,7 @@ describe("threshold calibration (bead ro-5e8.2)", () => {
 
     const analytics = WATCH_SERIES.find((s) => s.integration === "ga4")!;
     expect(watchScopeState(seed, analytics)).toEqual({ kind: "widened", query: "chipotle calories" });
-    // Nothing was narrowed, so nothing is flagged: a form that warned about a
-    // limit it was not hitting would train the operator to skip this line.
+    // Nothing was narrowed, so nothing is flagged.
     expect(
       watchScopeState({
         subject: "a finding",
@@ -673,16 +634,15 @@ describe("threshold calibration (bead ro-5e8.2)", () => {
   });
 
   it("holds the same coverage rule the evaluator judges by", () => {
-    // Stated as a contract constant so the two cannot drift; the ingest suite
-    // pins its own MIN_WINDOW_COVERAGE against this same value.
+    // A contract constant, so the two cannot drift; the ingest suite pins its
+    // own MIN_WINDOW_COVERAGE against this same value.
     expect(WATCH_MIN_WINDOW_COVERAGE).toBe(0.8);
   });
 });
 
-// Bead `ro-ujb9.96.6.30`: a closed window's note is drawn as the evaluator's
-// figures. Notes stored before the ingest stopped writing the series, scope and
-// offset still start with them; only that exact prefix, for the row's own
-// series, is dropped.
+// A closed window's note is drawn as the evaluator's figures. Notes stored
+// with the series, scope and offset still start with them; only that exact
+// prefix, for the row's own series, is dropped.
 describe("a closed watch's stored verdict", () => {
   it("drops the store's series, scope and offset from an older note", () => {
     expect(watchVerdictFigures("gsc/clicks at +28d: 40/day vs baseline 38/day (+5%)", "gsc", "clicks"))

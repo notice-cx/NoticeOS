@@ -14,9 +14,8 @@ export interface StatusBannerAction {
 }
 
 export interface StatusBannerProps {
-  /** The banner exists only while its state is open. `false` renders NOTHING —
-   * not a collapsed strip, not a dismissed placeholder — because doc 14's
-   * contract is that it "disappears when it closes". */
+  /** The banner exists only while its state is open. `false` renders nothing,
+   * not a collapsed strip or a dismissed placeholder. */
   open?: boolean;
   /** The bold half: what state this is. Two or three words. */
   lead: string;
@@ -34,16 +33,9 @@ export interface StatusBannerProps {
 }
 
 /**
- * ONE LINE, WHILE SOMETHING IS OPEN (doc 14).
- *
- * *Registry justification:* it replaces the asset page's Setup checklist
- * SECTION — a full card with a heading, a paragraph and a list of steps sitting
- * above the charts on every visit, long after the operator had read it. The
- * checklist itself keeps its home on Sources; what belongs at the top of a view
- * surface is the one line that says the asset is still being set up and where to
- * finish. It draws no severity colour of its own: the mark carries the state and
- * the sentence carries the fact, so a banner cannot become a fifth alarm colour
- * competing with the real alerts under it.
+ * One line at the top of a surface while something is open. It draws no
+ * severity colour of its own: the mark carries the state and the sentence the
+ * fact, so a banner never competes with the real alerts under it.
  */
 export function StatusBanner({
   open = true,
@@ -81,8 +73,8 @@ export function StatusBanner({
 }
 
 function BannerAction({ action }: { action: StatusBannerAction }) {
-  // The same claimed thumb target the panel headers use (bead `ro-9smi`): the
-  // box grows under a finger, the negative margin gives the height back.
+  // A claimed thumb target: the box grows under a finger and the negative
+  // margin gives the height back.
   const chrome = cn(
     pillControlClass,
     "ms-auto text-xs text-muted-foreground hover:text-foreground motion-safe:transition-colors",

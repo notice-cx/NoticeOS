@@ -18,12 +18,9 @@ import { isShuttingDown } from './lifecycle.mjs';
 import { log } from './log.mjs';
 import { operatorToken } from './operator-token.mjs';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// THE JOB-RUN RECORD — evidence that a scheduled lane fired, kept per firing
+// The job-run record — evidence that a scheduled lane fired, kept per firing
 // in `.local/logs/job-runs.jsonl` and mirrored into `noticeos.job_runs`. What
-// it is and why the file comes first: scripts/job-runs.mjs, shared with the
-// schedule of an installation `pnpm start` runs.
-// ─────────────────────────────────────────────────────────────────────────────
+// it is and why the file comes first: scripts/job-runs.mjs.
 
 export const JOB_RUNS_FILE = path.join(LOGS_DIR, 'job-runs.jsonl');
 
@@ -133,10 +130,8 @@ export async function reportJobRuns(nowMs = Date.now(), deps = {}) {
   return kept;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SHIPPING THE RECORD — the disk half above, mirrored into `noticeos.job_runs`
+// Shipping the record — the disk half above, mirrored into `noticeos.job_runs`
 // through this runner's door (scripts/job-runs.mjs shipJobRunQueue).
-// ─────────────────────────────────────────────────────────────────────────────
 
 export function jobRunsUrl(config) {
   return `http://${config.ingestHost}:${config.ingestPort}/api/job-runs`;

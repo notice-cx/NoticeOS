@@ -1,10 +1,8 @@
-// WHAT "CHECK THE SERVICE LOGS" FINDS (bead `ro-ujb9.173`).
+// What "check the service logs" finds.
 //
-// A failed step's Workflows row tells the operator to check the service logs.
-// Before this bead the error was swallowed and the logs held nothing: the
-// cause of a failing lane could only be found by adding a debug line. Now the
-// step that failed writes one structured line — cron, step, code, message —
-// and nothing credential-shaped reaches it.
+// A failed step's Workflows row tells the operator to check the service logs,
+// so the step that failed writes one structured line — cron, step, code,
+// message — and nothing credential-shaped reaches it.
 
 import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

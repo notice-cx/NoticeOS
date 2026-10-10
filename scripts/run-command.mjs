@@ -4,14 +4,13 @@
 // lsof, ps, pgrep, the panel refresh), os:status and os:deploy (launchctl, git,
 // pnpm install), the applied-migration read (sqlite3) and the seed and signal
 // lanes (wrangler). So "when is a command finished?" has one answer: once its
-// output has ended, not merely once it exited (bead ro-ujb9.185).
+// output has ended, not merely once it exited.
 //
 // Node can emit a child's 'exit' while its output is still in the pipe (the
 // child_process docs: "the child process stdio streams might still be open").
 // A helper that resolved on 'exit' could hand back exit 0 with a truncated or
-// EMPTY stdout on a busy machine; bead ro-ujb9.147 caught the applied-migration
-// read answering "the store applied nothing" exactly that way. 'close' fires
-// once the process has exited AND both streams have ended.
+// empty stdout on a busy machine. 'close' fires once the process has exited
+// and both streams have ended.
 //
 // The timeout still bounds the whole wait. A command can leave a process of its
 // own holding the pipe (git's ssh, a shell's background job), and 'close' waits

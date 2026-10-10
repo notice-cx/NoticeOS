@@ -18,16 +18,16 @@ vi.mock("@/hooks/useNow", () => ({
   useNow: () => Date.parse("2026-08-01T12:00:00.000Z"),
 }));
 
-// The strip reads one page of the settled archive for its "Settled · 7d" figure
-// (bead `ro-78qo.7`); the History view reads it with its own query. One stand-in
-// serves both, and `history.data` is what each test sets.
+// The strip reads one page of the settled archive for its "Settled · 7d"
+// figure; the History view reads it with its own query. One stand-in serves
+// both, and `history.data` is what each test sets.
 const history = vi.hoisted(() => ({
   data: undefined as unknown,
   isError: false,
 }));
 
 vi.mock("@/hooks/useAlertHistory", () => ({
-  // The key FlagActions invalidates after every action (bead ro-ujb9.195).
+  // The key FlagActions invalidates after every action.
   ALERT_HISTORY_KEY: ["alert-history"],
   useAlertHistory: () => ({
     data: history.data,
@@ -39,12 +39,10 @@ vi.mock("@/hooks/useAlertHistory", () => ({
 
 import { AlertsRoute } from "@/routes/AlertsRoute";
 
-// A task source connected, as this installation's is (D32, bead
-// ro-ujb9.143): the task screens here render exactly as before it existed.
 vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 
-/** An open flag whose rule the translator has never heard of, so the headline is
- * the store's own message — the fallback every surface renders. */
+/** An open flag whose rule the translator has never heard of, so the headline
+ * is the store's own message. */
 function alert(overrides: Partial<AttentionItem> = {}): AttentionItem {
   return {
     id: 1,
@@ -195,7 +193,7 @@ afterEach(() => {
   history.isError = false;
 });
 
-/** The page's one sentence (D45): how many are open and how bad. */
+/** The page's one sentence: how many are open and how bad. */
 function answer(container: HTMLElement): string {
   const found = container.querySelector<HTMLElement>("[data-alerts-answer] h2");
   if (found === null) throw new Error("no answer line on the page");
@@ -207,13 +205,8 @@ function figure(container: HTMLElement, mark: string): string | null {
   return container.querySelector<HTMLElement>(`[data-${mark}] dd`)?.textContent ?? null;
 }
 
-/**
- * Open the row whose line matches, the way an operator does.
- *
- * The whole point of the rebuild (bead `ro-78qo.7`): the four verbs are INSIDE
- * the row and never printed under it, so a test that wants a verb has to open
- * the row first — which is the assertion, not a workaround for one.
- */
+/** Open the row whose line matches, the way an operator does: the verbs are
+ * inside the row and never printed under it. */
 function openRow(name: RegExp | string): HTMLElement {
   const row = screen.getByRole("button", { name });
   fireEvent.click(row);
@@ -242,11 +235,6 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(row.querySelector('[data-handoff-bead]')).toBeNull();
     expect(within(row).getByRole('button', { name: /^File task for/ })).toBeInTheDocument();
   });
-  /**
-   * doc 14, bead `ro-78qo.7`. The page printed four buttons under every row, so
-   * five alerts meant twenty verbs on screen and the queue's own severity was
-   * the quietest ink on it. A row is one line now and the verbs are inside it.
-   */
   it("gives each alert one line, with Snooze and Resolve on the row and the rest behind it", () => {
     const { container } = renderAlerts([
       alert(),
@@ -260,26 +248,20 @@ describe("/alerts — the portfolio's open exceptions", () => {
     ]);
 
     expect(screen.getByRole("heading", { level: 1, name: "Alerts" })).toBeInTheDocument();
-    // Verbs in the row (D45): the two that take an alert out of the queue
-    // are on every closed row; Mark read waits until a row opens.
     expect(screen.queryByRole("button", { name: "Mark alert read" })).toBeNull();
     expect(screen.getAllByRole("button", { name: "Resolve alert" })).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: "Snooze alert" })).toHaveLength(2);
-    // The answer owns the total, so the page states it exactly once.
     expect(answer(container)).toBe("2 open alerts, 1 error");
 
     const row = openRow(/Signups well below normal/);
     expect(within(row).getByRole("button", { name: "Mark alert read" })).toBeInTheDocument();
     expect(within(row).getByRole("button", { name: "Snooze alert" })).toBeInTheDocument();
     expect(within(row).getByRole("button", { name: "Resolve alert" })).toBeInTheDocument();
-    // The composer names its subject, so a page of these does not read as a
-    // column of identical "File task".
     expect(within(row).getByRole("button", { name: /^File task for/ })).toBeInTheDocument();
     expect(within(row).getByRole("link", { name: "Open Meal Planner" })).toHaveAttribute(
       "href",
       "/assets/meals.example",
     );
-    // Still exactly one alert's worth of verbs: opening one row opens one row.
     expect(screen.getAllByRole("button", { name: "Mark alert read" })).toHaveLength(1);
   });
 
@@ -294,8 +276,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
 
     expect(screen.getByText("Clicks fell off a cliff")).toBeInTheDocument();
     expect(screen.queryByText("Signups well below normal")).toBeNull();
-    // The strip stays portfolio-wide — "how bad is it tonight" does not change
-    // because a dropdown did — and the panel says what a filter left on screen.
+    // The strip stays portfolio-wide; the panel says what a filter left on screen.
     expect(answer(container)).toBe("2 open alerts, 1 error");
     expect(screen.getByText("1 of 2 open")).toBeInTheDocument();
     expect(screen.getByLabelText("Site")).toHaveValue("areas.example");
@@ -316,11 +297,8 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(screen.queryByText("An error opportunity")).toBeNull();
   });
 
-  /**
-   * Bead `ro-ujb9.197`. The Open list holds warnings and errors only, and a
-   * milestone is always info-severity, so "Milestones" could only ever empty
-   * the list — which read as "there are no milestones".
-   */
+  /** The Open list holds warnings and errors only, and a milestone is always
+   * info-severity, so "Milestones" could only ever empty the list. */
   it("offers only the kinds an open row can be, and reads an old milestone link as every kind", () => {
     renderAlerts(
       [
@@ -339,7 +317,6 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(kind).toHaveValue("all");
     expect(screen.getByText("A warning anomaly")).toBeInTheDocument();
     expect(screen.getByText("A warning opportunity")).toBeInTheDocument();
-    // Not a filtered view: the panel states no "N of M open".
     expect(screen.queryByText(/^\d+ of \d+ open$/)).toBeNull();
   });
 
@@ -357,9 +334,8 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(screen.queryByText("Signups well below normal")).toBeNull();
   });
 
-  // `ro-kukv.6`: the never-reported row stands for four assets and carries each
-  // of their actions. Filtering to one of them must not hide the only row that
-  // can act on it just because another asset leads the group.
+  // The never-reported row stands for four assets and carries each of their
+  // actions, so filtering to one of them must not hide it.
   it("keeps a cross-asset row when the filter picks any asset it stands for", () => {
     renderAlerts([
       alert({
@@ -385,11 +361,8 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(screen.queryByText("No open alerts match these filters")).toBeNull();
   });
 
-  /**
-   * Bead `ro-ujb9.199`. These links interpolated the raw site id, and "Open
-   * <site>" always landed on the Overview — where the sidebar and the command
-   * palette open a site with no number yet on its Data sources.
-   */
+  /** The sidebar and the command palette open a site with no number yet on
+   * its Data sources; these links must agree. */
   it("opens a site where the nav does, and builds every site link with the id encoded", () => {
     const firstNumberYet = { ...assetCard("meals.example", "Meal Planner"), pulseReceivedAt: null };
     state.data = {
@@ -422,16 +395,13 @@ describe("/alerts — the portfolio's open exceptions", () => {
       </QueryClientProvider>,
     );
 
-    // "Open Meal Planner" goes where the sidebar sends a site with no number
-    // yet: its Data sources.
     const row = openRow(/Signups well below normal/);
     expect(within(row).getByRole("link", { name: "Open Meal Planner" }))
       .toHaveAttribute("href", "/assets/meals.example/sources");
     expect(within(row).getByRole("link", { name: /config|deploy|before/i }))
       .toHaveAttribute("href", "/assets/meals.example#timeline");
 
-    // A grouped row's members open the same way: Areas has reported, so its
-    // Overview; Meal Planner has not, so its Data sources.
+    // Areas has reported, so its Overview; Meal Planner has not, so its Data sources.
     const grouped = openRow(/Two sites have no nightly reports/);
     expect(within(grouped).getByRole("link", { name: "Areas" }))
       .toHaveAttribute("href", "/assets/areas.example");
@@ -445,14 +415,12 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(
       screen.getByText("No open alerts match these filters"),
     ).toBeInTheDocument();
-    // The portfolio is NOT clear — one alert is open, it is just filtered out.
     expect(screen.queryByText("All clear.")).toBeNull();
   });
 
   it("states the all-clear when nothing at all is open", () => {
     const { container } = renderAlerts([]);
 
-    // The answer says it once; the list's end is the quiet finish line.
     expect(answer(container)).toBe("No open alerts");
     expect(container.querySelector('[data-finish-line="quiet"]')).toHaveTextContent("All clear.");
     expect(container.querySelector("[data-kpi]")).toBeNull();
@@ -473,12 +441,8 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(container.querySelectorAll('[role="tooltip"]')).toHaveLength(0);
   });
 
-  /**
-   * Bead `ro-ujb9.96.6.7`. An opened row printed its verification twice — the
-   * caption and a tooltip trigger under it — plus the rule's stored statistics
-   * line. It now leads with the chips, and everything checkable is ONE press
-   * away in the Evidence panel: the rule's numbers, then the checks.
-   */
+  /** Everything checkable is one press away in the Evidence panel: the rule's
+   * numbers, then the checks, said once. */
   it("opens onto one Evidence panel holding the numbers and the checks, said once", () => {
     renderAlerts([alert({
       firstFiredAt: "2026-07-01T09:00:00.000Z",
@@ -493,7 +457,6 @@ describe("/alerts — the portfolio's open exceptions", () => {
     })]);
     const row = openRow(/Signups well below normal/);
     const body = row.querySelector("[data-list-row-body]") as HTMLElement;
-    // The caption says "Last known"; the opened body does not say it again.
     expect(body.textContent).not.toContain("Last known");
     expect(within(body).queryByRole("button", { name: "Alert verification details" })).toBeNull();
     fireEvent.click(within(body).getByRole("button", { name: /^Why this fired/ }));
@@ -503,8 +466,6 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(panel).toHaveTextContent(/Last confirmed\s*·/);
     expect(panel).toHaveTextContent("Central metric rule");
     expect(panel).toHaveTextContent("Last check is past its freshness window");
-    // A rows-only panel: no explainer paragraph over the rows, and the stored
-    // statistics line is not quoted under the numbers it was written from.
     expect(panel.querySelector("p")).toBeNull();
     expect(panel.textContent).not.toContain("avg7d");
     expect(body.textContent).not.toContain("avg7d");
@@ -548,13 +509,9 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(row.querySelector("button button")).toBeNull();
   });
 
-  /**
-   * doc 14, bead `ro-78qo.7`. The old page said how bad the rows were in a pair
-   * of counts beside the filters; the strip says it in the loudest type on the
-   * screen, and each count carries the SHAPE of its own share — "9 open" is a
-   * shrug when it is nine warnings and an emergency when it is nine errors.
-   */
-  describe("the answer says how bad tonight is (D45)", () => {
+  /** Each count carries the shape of its own share: "9 open" is a shrug when
+   * it is nine warnings and an emergency when it is nine errors. */
+  describe("the answer says how bad tonight is", () => {
     it("says how many are open and how bad, in a sentence", () => {
       const lines = (severities: ("error" | "warn")[]) => {
         const { container, unmount } = renderAlerts(severities.map((severity, index) => alert({ id: index + 1, severity })));
@@ -575,8 +532,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
         alert({ id: 2, severity: "warn", asset: "areas.example", assetDisplayName: "Areas" }),
       ];
       const filtered = renderAlerts(both, "/alerts?asset=meals.example");
-      // Two are open tonight whatever the dropdown says; one is on screen, and
-      // a filtered list is not a finished one.
+      // A filtered list is not a finished one.
       expect(answer(filtered.container)).toBe("2 open alerts, 1 error");
       expect(screen.getByText("1 of 2 open")).toBeInTheDocument();
       expect(filtered.container.querySelector("[data-finish-line]")).toBeNull();
@@ -607,8 +563,8 @@ describe("/alerts — the portfolio's open exceptions", () => {
         generatedAt: "2026-08-01T12:00:00.000Z",
       };
       const exact = renderAlerts([alert()]);
-      // One of the two closed inside the week, and the page holds every settled
-      // row there is, so the count is a count rather than a floor.
+      // The page holds every settled row there is, so the count is a count
+      // rather than a floor.
       expect(figure(exact.container, "alerts-settled")).toBe("1");
       exact.unmount();
 
@@ -633,7 +589,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
     const row = screen.getByRole("button", { name: /Signups well below normal/ });
     expect(row.textContent).toContain("4× in 2d");
     // The ring carries the severity and the mark carries the kind, so neither
-    // is colour alone (doc 14, doc 14's row glyphs).
+    // is colour alone.
     expect(row.querySelector(".text-error")).not.toBeNull();
     expect(row.textContent).toContain("△");
   });
@@ -646,7 +602,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(options).toEqual(["Every site", "Meal Planner", "Areas"]);
   });
 
-  it("offers no site filter with one site to pick, unless a link already narrows (ro-ujb9.130)", () => {
+  it("offers no site filter with one site to pick, unless a link already narrows", () => {
     const oneSite = (url: string) => {
       const data = payload([alert()], []);
       state.data = { ...data, assets: data.assets.slice(0, 1) };
@@ -668,10 +624,8 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(screen.getByLabelText("Site")).toHaveValue("meals.example");
   });
 
-  /**
-   * `ro-c7qq`. A snooze that produced no visible row would be a mute with a
-   * friendlier name, so the page carries the ledger of what was silenced.
-   */
+  /** A snooze that produced no visible row would be a mute with a friendlier
+   * name, so the page carries the ledger of what was silenced. */
   describe("Snoozed — the honest half of a snooze", () => {
     function snoozed(overrides: Partial<SnoozedItem> = {}): SnoozedItem {
       return {
@@ -689,22 +643,18 @@ describe("/alerts — the portfolio's open exceptions", () => {
       expect(section.textContent).toContain("1 parked");
       expect(section.textContent).toContain("Meal Planner");
       expect(section.textContent).toContain("Signups well below normal");
-      // Glyph + date + how long, not the word "snoozed" on its own.
       expect(section.querySelector('[data-snooze-state="active"]')).not.toBeNull();
       expect(section.textContent).toContain("Aug 4, 2026");
       expect(section.textContent).toContain("Last known");
       expect(section.textContent).toContain("first seen");
       expect(section.querySelector("button button")).toBeNull();
 
-      // Unsnooze is the one verb this row has, and it lives where every other
-      // verb on this page does: inside the row (bead `ro-78qo.7`).
+      // Unsnooze is the one verb this row has, inside the row.
       expect(screen.queryByRole("button", { name: "Unsnooze alert" })).toBeNull();
       const row = openRow(/Signups well below normal/);
       expect(
         within(row).getByRole("button", { name: "Unsnooze alert" }),
       ).toBeInTheDocument();
-      // The checks behind "Last known" are in the row's Evidence panel, not a
-      // second copy of the caption (bead `ro-ujb9.96.6.7`).
       expect(within(row).getByRole("button", { name: /^Why this fired/ })).toHaveTextContent("Evidence");
       expect(within(row).queryByRole("button", { name: "Alert verification details" })).toBeNull();
     });
@@ -713,18 +663,12 @@ describe("/alerts — the portfolio's open exceptions", () => {
       const { container } = renderAlerts([], "/alerts", [
         snoozed({ severity: "error" }),
       ]);
-      // The answer counts what NEEDS attention. A parked row appearing in it
-      // would put the number the operator reads first out of agreement with
-      // the list under it.
+      // The answer counts what needs attention; a parked row must not be in it.
       expect(answer(container)).toBe("No open alerts");
     });
 
-    /**
-     * `ro-w13s`. Snooze is offered on every open row of the asset page's state
-     * hero, info and milestone included, while this ledger used to carry the
-     * open table's error/warn scope — so parking an info row hid it portfolio-
-     * wide, which is the one thing this section exists to prevent.
-     */
+    /** Snooze is offered on every open row of the asset page, info and
+     * milestone included, so this ledger must carry them too. */
     it("lists a parked info row the open list above it could never carry", () => {
       const { container } = renderAlerts([], "/alerts", [
         snoozed({
@@ -737,24 +681,18 @@ describe("/alerts — the portfolio's open exceptions", () => {
       const section = container.querySelector("[data-snoozed-alerts]")!;
       expect(section.textContent).toContain("1,000th signup");
 
-      // The severity is the ROW'S OWN, carried by the ring, so a parked error
-      // still reads as an error; the `◦` mark is what says parked. doc 14's
-      // mark set has no milestone glyph — a milestone is info-severity and its
-      // mark is the same quiet one — so this ledger states the kind in words
-      // when it has to, rather than growing a colour the vocabulary lacks.
+      // The severity is the row's own, carried by the ring; the `◦` mark says
+      // parked. There is no milestone glyph, so the kind is stated in words.
       const row = within(section as HTMLElement).getByRole("button", {
         name: /1,000th signup/,
       });
       expect(row.textContent).toContain("◦");
 
-      // Widening the LEDGER widens no count: the answer still speaks for what
-      // needs attention.
       expect(answer(container)).toBe("No open alerts");
     });
 
     it("is absent entirely when nothing is parked", () => {
       const { container } = renderAlerts([alert()]);
-      // "Snoozed (0)" is a heading about a thing that has not happened.
       expect(container.querySelector("[data-snoozed-alerts]")).toBeNull();
     });
 

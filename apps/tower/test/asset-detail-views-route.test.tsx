@@ -9,15 +9,12 @@ import { ASSET_TABS, AssetDetailRoute, type AssetTab } from "@/routes/AssetDetai
 import { everyTabPayload, viewOf } from "./asset-detail-fixture";
 import { loadAssetTabs } from "./lazy-code";
 
-// ONE READ PER TAB, THROUGH THE REAL ROUTE (bead `ro-ujb9.64`).
-//
-// The page used to poll one whole payload for every tab. It now polls the view
-// of the tab on screen. These cases drive `AssetDetailRoute` with a store stub
-// that answers each `?view=` the way the Worker does (`viewOf`), and hold the
-// page to what it did before: the same DOM on every tab, no loading flash
-// when the read on screen already carries the next tab, the header kept while
-// a tab's own read is on its way, a failure said in the panel, the read of a
-// tab left behind cancelled, and only the tab on screen polling.
+// One read per tab, through the real route. These cases drive
+// `AssetDetailRoute` with a store stub that answers each `?view=` the way the
+// Worker does (`viewOf`): the same DOM on every tab, no loading flash when the
+// read on screen already carries the next tab, the header kept while a tab's
+// own read is on its way, a failure said in the panel, the read of a tab left
+// behind cancelled, and only the tab on screen polling.
 
 vi.hoisted(() => {
   process.env.TZ = "UTC";
@@ -57,8 +54,7 @@ function storeStub({
     return answer(wholePage || !view ? payload : viewOf(payload, view));
   });
   vi.stubGlobal("fetch", fetchMock);
-  // Only the asset reads: the tab bar also asks the task snapshot, and that
-  // read is not this file's subject.
+  // Only the asset reads: the tab bar also asks the task snapshot.
   const assetReads = () => requests.filter((r) => r.startsWith("/api/assets/"));
   return {
     requests: assetReads,
@@ -113,7 +109,7 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-describe("the asset page reads one view per tab (ro-ujb9.64)", () => {
+describe("the asset page reads one view per tab", () => {
   for (const key of ASSET_TABS) {
     it(`draws the ${key} tab from its own view exactly as from the whole page`, async () => {
       storeStub({ wholePage: true });
@@ -160,7 +156,6 @@ describe("the asset page reads one view per tab (ro-ujb9.64)", () => {
 
     fireEvent.click(tab("Money"));
     await waitFor(() => expect(showing()).toBe("asset-tab-financials"));
-    // The Overview read carries no daily revenue, so Financials waits for its own.
     expect(loadingFrame()).toHaveAttribute("data-route-loading", "panel");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Meal Planner");
     expect(tab("Alerts")).toBeInTheDocument();
@@ -223,7 +218,6 @@ describe("the asset page reads one view per tab (ro-ujb9.64)", () => {
     await waitFor(() => expect(stub.views()).toContain("activity"));
     expect(showing()).toBe("asset-tab-overview");
 
-    // Already here when the tab is opened: no loading frame at all.
     fireEvent.click(tab("Activity"));
     await waitFor(() => expect(showing()).toBe("asset-tab-activity"));
     expect(loadingFrame()).toBeNull();

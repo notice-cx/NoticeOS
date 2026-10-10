@@ -1,34 +1,15 @@
 // Everything a local script needs out of the central store's signal archive.
-//
-// WHY A WORKER READ AND NOT `wrangler d1 execute`. These readers serve plain
-// Node processes — the standing panel refresh and the hand-run downloader — and
-// the obvious implementation is the one both used to use: shell out to
-// `wrangler d1 execute --local --persist-to ../../.wrangler/state` and
-// `wrangler r2 object get`. Each of those starts a SECOND miniflare over the
-// same sqlite file the live runtime already holds open as its D1DatabaseObject,
-// which is the exact topology that produced the 2026-08-02 store corruption
-// (beads ro-mad, ro-icq; the whole point of apps/tower/vite/runner-door.ts).
-//
-// An operator doing that by hand, once, is a judgement call — but it is the
-// SAME judgement call every time, made beside a live `os:up`, which is the only
-// way these scripts are ever run. So both lanes read through the runtime that
-// already owns the file, over the loopback ingest door, and nothing under
-// scripts/ opens the store a second time (bead ro-2zk.3).
-//
-// Every read here is READ-ONLY and operator-authed. Nothing here writes, and
-// nothing here calls a provider — the archives were already bought by the
-// `15 12 * * *` and `45 12 * * 1` collectors, and materializing them locally
-// costs $0.00 against the monthly data cap (config/constants.json
-// `monthly_caps.data_usd`).
+// These readers serve plain Node processes (the panel refresh and the hand-run
+// downloader) through the runtime that owns the store, over the loopback
+// ingest door, so nothing under scripts/ opens the store a second time. Every
+// read is read-only and operator-authed, and nothing here calls a provider.
 
-/** How far back the refresh reads when the caller names no window. Wider than
+/** How far back the refresh reads when the caller names no window: wider than
  * GA4's rolling 28-day aggregate so a month-boundary pass still carries it. */
 export const PANEL_SOURCE_DEFAULT_WINDOW_DAYS = 35;
 
-/** The widest window this read will serve. A caller asking for "everything"
- * would walk the whole archive on every nightly pass; the panel dir keeps what
- * earlier passes already wrote, so history is preserved by the filesystem
- * rather than re-fetched. */
+/** The widest window this read will serve; the panel dir keeps what earlier
+ * passes wrote, so history is preserved by the filesystem. */
 export const PANEL_SOURCE_MAX_WINDOW_DAYS = 400;
 
 import { ASSET_ID_RE } from '@noticeos/contract/configuration';
@@ -36,14 +17,12 @@ import { javascriptInstant } from '@noticeos/postgres';
 import { signalObjectScope } from './signal-objects.js';
 export { ASSET_ID_RE } from '@noticeos/contract/configuration';
 export const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-/** Integration and report ids as the collectors write them ('bing-webmaster',
- * 'page-query'). Shape only, no vocabulary: a filter naming a report family
- * this OS does not collect is an empty manifest, not a 400. */
+/** Integration and report ids as the collectors write them. Shape only: a
+ * filter naming a family this OS does not collect is an empty manifest, not a 400. */
 export const SLUG_RE = /^[a-z0-9-]+$/;
 
-/** One archived provider response a caller may need on disk. The panel refresh
- * and the hand-run downloader read the SAME rows through the same resolver, so
- * the two write byte-identical files. */
+/** One archived provider response a caller may need on disk. Both lanes read
+ * the same rows through the same resolver, so they write byte-identical files. */
 export interface PanelSourceManifestRow {
   integration: string;
   report: string;
@@ -62,8 +41,7 @@ export interface PanelSourceTrendRow {
   metric: string;
   value: number;
   /** 1 when the provider had not finished reporting this date at collection
-   * time. Carried rather than dropped: a provisional day is a real observation
-   * that may still be revised, and hiding it would read as a traffic cliff. */
+   * time. Carried rather than dropped: hiding it would read as a traffic cliff. */
   provisional: number;
 }
 
@@ -81,11 +59,9 @@ export function panelSourceCutoff(nowMs: number, windowDays: number): string {
 }
 
 /**
- * Clamp a caller's `windowDays` into something a nightly job can afford.
- *
- * A bad value is corrected rather than refused: the refresh must not stop
- * because a config edit typed `"35"` instead of `35`, and the default is always
- * a safe answer.
+ * Clamp a caller's `windowDays` into something a nightly job can afford. A bad
+ * value is corrected rather than refused: the refresh must not stop over a
+ * config edit that typed `"35"` instead of `35`.
  */
 export function panelSourceWindowDays(raw: string | null): number {
   if (raw === null || raw.trim() === '') return PANEL_SOURCE_DEFAULT_WINDOW_DAYS;
@@ -95,13 +71,9 @@ export function panelSourceWindowDays(raw: string | null): number {
 }
 
 /**
- * How a caller narrows the manifest.
- *
- * The panel refresh sets `from` alone — its window is the whole filter. The
- * hand downloader sets whichever of the four the operator typed, and sets NONE
- * of them by default: `pnpm signals:download -- --asset x` means every report
- * day this store has ever archived, and a window silently applied on its behalf
- * would drop history the operator asked for.
+ * How a caller narrows the manifest. The panel refresh sets `from` alone; the
+ * hand downloader sets whichever the operator typed, and none by default,
+ * because a window silently applied would drop history the operator asked for.
  */
 export interface PanelManifestFilters {
   from?: string | null;
@@ -111,16 +83,11 @@ export interface PanelManifestFilters {
 }
 
 /**
- * The newest surviving revision of every archived report the filters reach.
- *
- * `ROW_NUMBER()` over (integration, report, report_date) is the revision
- * resolver both lanes need, and for the same reason: the collector re-archives
- * a day inside its revision window, and a directory built from two revisions of
- * one day would double-count it.
- *
- * `status IN ('success','unchanged')` and `object_key IS NOT NULL` are not
- * filters the caller may relax — a failed collection has no bytes to hand back,
- * and offering the row would invite an empty file that reads as a real zero.
+ * The newest surviving revision of every archived report the filters reach:
+ * the collector re-archives a day inside its revision window, and a directory
+ * built from two revisions of one day would double-count it. Only successful
+ * runs with bytes to hand back; offering a failed row would invite an empty
+ * file that reads as a real zero.
  */
 export async function readPanelManifest(
   env: IngestEnv,
@@ -129,8 +96,8 @@ export async function readPanelManifest(
 ): Promise<PanelSourceManifestRow[]> {
   const objects = await signalObjectScope(env);
   const params: string[] = [asset];
-  // A stored run always names its object (a row check), so a success or
-  // unchanged run IS a run with bytes to hand back.
+  // A stored run always names its object, so a success or unchanged run is a
+  // run with bytes to hand back.
   const where = [`r.asset_id = $1`, `r.status IN ('success','unchanged')`];
   const narrow = (column: string, operator: string, value: string, cast = ''): void => {
     params.push(value);
@@ -141,9 +108,7 @@ export async function readPanelManifest(
   if (filters.integration) narrow('r.integration', '=', filters.integration);
   if (filters.report) narrow('r.report', '=', filters.report);
 
-  // On Postgres (bead ro-ujb9.76.5.4): of one day's revisions the newest
-  // finished, two finished in one instant broken by the run's id as on D1;
-  // text ordered byte by byte, as D1 ordered it.
+  // Of one day's revisions the newest finished, ties broken by the run's id.
   const rows = await env.STORE.read((tx) =>
     tx.query<Omit<PanelSourceManifestRow, 'providerTruncated'> & { providerTruncated: boolean }>(
       `SELECT integration, report, "reportDate", "finishedAt", "objectKey",
@@ -175,41 +140,19 @@ export async function readPanelManifest(
 }
 
 /**
- * The daily site-level series — the panel's answer to "what happened this week".
- *
- * The per-report CSVs are top-row provider exports: they are the right shape for
- * "which query moved" and the wrong shape for "did clicks fall", because a
- * top-1000 export silently drops the tail. `signal_observations` is the
- * normalized daily total the 15-minute and nightly lanes store, so this is the
+ * The daily site-level series. The per-report CSVs are top-row provider exports
+ * that drop the tail; `signal_observations` is the normalized daily total, the
  * one series in the panel dir that can be summed and differenced honestly.
- *
- * Only successful runs, newest revision per (integration, date, metric): a later
- * run that re-reported an earlier date supersedes it, which is exactly how
- * provider backfills should land.
- *
- * Only the CURRENT provider resource per integration (ro-ujb9.70): the
- * `property_ref` of that integration's latest successful run. An asset repointed
- * at another GA4 property or Search Console site is measuring something else,
- * and older days the new resource never reported must fall out of the series
- * rather than splice the old resource's numbers onto the new one's. Credential
- * rotation keeps `property_ref`, so it keeps the whole series. Each lane's
- * current resource is one `LIMIT 1` seek down the runs' latest-first index;
- * the three lanes are the ones the collectors write. The newest write of a day
- * is the one whose run finished last, and between two runs that finished in
- * the same instant the one whose id sorts last, as on D1.
- *
- * A day's provisional flag comes from its newest CONFIRMATION, not from the
- * run that wrote its value (epic ro-cvl9). The store keeps a change log: a run
- * that re-reports a day with the same number writes nothing for it
- * (`recordSignalSuccess`), so the writer of a day first reported while still
- * filling in stays provisional forever. The confirmation is the newest
- * successful run of the same resource and time zone whose window covers the
- * day — the collectors report every day of their window, zeroes included — or
- * the writer itself. A failed run or another resource confirms nothing, and
- * age alone never finalizes a day.
- *
- * Read on Postgres (bead ro-ujb9.76.5.3); text is ordered byte by byte, as D1
- * ordered it.
+ * Only successful runs, newest revision per (integration, date, metric). Only
+ * the current provider resource per integration: an asset repointed at another
+ * property is measuring something else, and the old resource's days must fall
+ * out rather than splice onto the new one's; credential rotation keeps
+ * `property_ref`, so it keeps the series. A day's provisional flag comes from
+ * its newest confirmation, not the run that wrote its value: the store is a
+ * change log, so a day first reported while still filling in would otherwise
+ * stay provisional forever. The confirmation is the newest successful run of
+ * the same resource and time zone whose window covers the day, or the writer
+ * itself; age alone never finalizes a day.
  */
 export async function readPanelTrend(
   env: IngestEnv,
@@ -294,14 +237,9 @@ export async function readPanelSource(
 }
 
 /**
- * One archived object, decompressed, as the JSON the analyzer expects on disk.
- *
- * The selected workspace must own the namespace and its RLS manifest must
- * record the key (`noticeos.archive_objects`). Only explicit standalone reads
- * accept legacy paths, still through that owner's manifest. Entries establish
- * admission before this reader. `null` means "no such archive" — a 404 rather
- * than an empty file, because an empty archive would flatten to a CSV that
- * reads as a real zero.
+ * One archived object, decompressed. The selected workspace must own the
+ * namespace and its manifest must record the key. `null` means "no such
+ * archive": a 404 rather than an empty file that would flatten to a real zero.
  */
 export async function readPanelObject(
   env: IngestEnv,
@@ -325,9 +263,8 @@ async function readRawSignalObject(
   const object = await bucket.get(objectKey);
   if (!object) return null;
 
-  // Stored gzipped (archiveCollectedDump sets contentEncoding: 'gzip'). R2 does
-  // not decode it for us, so unwrap here and hand the caller plain JSON — the
-  // runner writes those bytes straight to the downloads tree.
+  // Stored gzipped; R2 does not decode it, so unwrap here and hand the caller
+  // plain JSON.
   const decompressed = object.body.pipeThrough(new DecompressionStream('gzip'));
   return new Response(decompressed).text();
 }

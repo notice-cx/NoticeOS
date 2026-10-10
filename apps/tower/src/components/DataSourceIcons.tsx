@@ -88,19 +88,13 @@ function sourceFacts(source: SourceReading): string[] {
 }
 
 /**
- * EACH SOURCE'S ONE STATUS, AS A ROW OF MARKS: the asset header and Home's
- * asset table (bead `ro-ujb9.96.7.16`). The status is the one the asset's Data
- * sources row and Integrations show — the same `laneStatus`, the same word in
- * the mark's name, the same tone as `IntegrationStateChip`. Colour is the first
- * signal; the corner mark (check, !, clock, dashed circle, ?, slash, bar, or a
- * dashed box) keeps it readable without colour. The Wall's TV-sized row of
- * these left with the pre-D28 Wall (bead `ro-trai.20`); a failing source is a
- * site's issue mark there.
+ * Each source's one status as a row of marks, in the same `laneStatus`, word
+ * and tone as `IntegrationStateChip`. The corner mark keeps the status readable
+ * without colour.
  */
 export function DataSourceIcons({ sources, className }: DataSourceIconsProps) {
   if (sources.length === 0) return null;
-  /* One chassis for every corner mark, so a status can differ by GLYPH and
-     never by geometry. */
+  /* One chassis for every corner mark, so statuses differ by glyph, never geometry. */
   const stateMark = "absolute -right-0.5 -top-0.5 size-2 rounded-full bg-background";
   // A text mark takes its box's colour, so it sets only its size.
   const textMark = cn(stateMark, "grid place-items-center font-bold text-mark-degraded");
@@ -140,9 +134,8 @@ export function DataSourceIcons({ sources, className }: DataSourceIconsProps) {
             ) : mark === "slash" ? (
               <CircleSlash2 data-state-mark="slash" className={cn(stateMark, "stroke-[2.5]")} aria-hidden />
             ) : mark === "bar" ? (
-              /* A DIFFERENT mark from Not using, not a fainter one (bead
-                 `ro-kukv.9`): a slash is the switch somebody turned off; a bar
-                 is the source that was never in play. */
+              /* A different mark from Not using: a slash is a source somebody
+                 turned off; a bar is one that was never in play. */
               <Minus data-state-mark="bar" className={cn(stateMark, "stroke-[3]")} aria-hidden />
             ) : null}
           </span>

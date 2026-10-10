@@ -1,10 +1,7 @@
-// HOME'S FIRST-RUN GUIDE, DERIVED FROM WHAT THE STORE ALREADY HOLDS (bead
-// `ro-ujb9.123`). No onboarding state is stored: whether the guide shows, which
-// site it follows and which step is next are all read off the wall payload's
-// site cards and each source's one status (`connection-status.ts`).
-//
-// Plausible's waiting screen is the model: the guide stays until the first number arrives, then Home is
-// the dashboard.
+// Home's first-run guide, derived from what the store already holds. No
+// onboarding state is stored: whether the guide shows, which site it follows
+// and which step is next are read off the wall payload's site cards and each
+// source's status. The guide stays until the first number arrives.
 
 import { connectHref, firstToConnect } from "./connect-panel";
 import { integrationLabel } from "./integrations";
@@ -27,21 +24,18 @@ export function siteHasFirstNumber(card: AssetCard): boolean {
 }
 
 /**
- * WHERE A SITE OPENS (bead `ro-ujb9.96.7.4`; docs/reports/2026-09-23-ux-flow-
- * audit.html, "Configure an asset's sources": "While setup is unfinished, the
- * asset opens on Data sources"). Until its first number a site's Overview has
- * nothing to draw and its next action is on Data sources, so the sidebar, the
- * Sites table and the command palette open it there; from the first number on
- * they open its Overview. The same rule ends Home's guide (`firstRunSite`); a
- * new Sentry project opens on its setup guide the same way.
+ * Where a site opens. Until its first number a site's Overview has nothing to
+ * draw and its next action is on Data sources, so every link opens it there;
+ * from the first number on they open its Overview. The same rule ends Home's
+ * guide (`firstRunSite`).
  */
 export function siteOpensOn(card: AssetCard): "overview" | "sources" {
   return siteHasFirstNumber(card) ? "overview" : "sources";
 }
 
 /** The address of a site, or of a place in it — `/alerts`, `#timeline` —
- * with the id encoded. Every link into a site is built on this (bead
- * `ro-ujb9.199`); a link that means "open this site" is {@link sitePath}. */
+ * with the id encoded. Every link into a site is built on this; a link that
+ * means "open this site" is {@link sitePath}. */
 export function siteAddress(id: string, place = ""): string {
   return `/assets/${encodeURIComponent(id)}${place}`;
 }

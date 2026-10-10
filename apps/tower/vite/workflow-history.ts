@@ -4,8 +4,7 @@ import { WORKFLOW_ACTIVE_FILE, WORKFLOW_HISTORY_FILE, readJsonLines } from '../.
 import { manualRecords, buildWorkflowHistory } from '../../../scripts/workflow-history-view.mjs';
 export { manualRecords, buildWorkflowHistory } from '../../../scripts/workflow-history-view.mjs';
 
-/** The manual firings, or none: a read that fails leaves the runner's own
- * history exactly as it was (bead `ro-ujb9.96.7.19`). */
+/** The manual firings, or none: a failed read leaves the runner's own history as it was. */
 export type ManualRunsReader = () => Promise<unknown>;
 const isObject = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object');
 

@@ -52,9 +52,9 @@ const UID = typeof process.getuid === 'function' ? process.getuid() : '';
 const DOMAIN = `gui/${UID}`;
 const USER_DOMAIN = `user/${UID}`;
 const SERVICE = `${DOMAIN}/${LABEL}`;
-// launchd keeps a disabled override per domain (bead ro-7fbf). The plist
-// bootstraps into the gui domain, but a `launchctl disable` armed against the
-// user domain is the same trap, so every power-up clears both.
+// launchd keeps a disabled override per domain: the plist bootstraps into the
+// gui domain, but a `launchctl disable` against the user domain is the same
+// trap, so every power-up clears both.
 export const ENABLE_TARGETS = Object.freeze([SERVICE, `${USER_DOMAIN}/${LABEL}`]);
 const STATE = statePaths(HOME_ROOT);
 const LOGS_DIR = STATE.logsDir;
@@ -155,19 +155,12 @@ function runLaunchctl(args) {
 
 /**
  * Clear the label's disabled override in every domain, then bootstrap or
- * kickstart it. Install and start both power up through here.
- *
- * Enable comes BEFORE the load (bead ro-xlht): a label anyone once `launchctl
- * disable`d refuses the bootstrap, so an enable that waits on a successful
- * bootstrap can never run in the one case it exists for. It covers the user
- * domain as well as the gui domain the plist loads into (bead ro-7fbf), because
- * overrides are kept per domain. Enabling a clean, unknown or already-loaded
- * label is harmless and idempotent — it writes the domain's override, keyed by
- * label rather than by a live service — so no enable result is fatal here; the
- * results are evidence for the failure hint if the load fails too.
- *
- * `launchctl(args)` resolves `{ code, stdout, stderr }`. Tests pass a fake
- * launchd, so this is exercised without touching the real one.
+ * kickstart it. Enable comes before the load: a disabled label refuses the
+ * bootstrap, so an enable that waits on a successful bootstrap can never run
+ * in the one case it exists for. Enabling a clean, unknown or already-loaded
+ * label is harmless, so no enable result is fatal; the results are evidence
+ * for the failure hint if the load fails too. `launchctl(args)` resolves
+ * `{ code, stdout, stderr }`.
  */
 export async function powerUp(action, launchctl) {
   const enable = [];
@@ -237,11 +230,9 @@ function stateGlyph(state) {
   return { healthy: '●', starting: '◐', stale: '◷', unhealthy: '!', stopped: '○' }[state] ?? '?';
 }
 
-// ─── Which code the OS runs (bead ro-ujb9.113) ────────────────────────────────
-//
-// Merging is not deploying: the managed service runs a runtime copy of the code
-// that only `pnpm os:deploy` moves. So "is main ahead of what is live?" is a
-// question status has to answer, in one line.
+// Which code the OS runs. Merging is not deploying: the managed service runs
+// a runtime copy that only `pnpm os:deploy` moves, so status answers "is main
+// ahead of what is live?" in one line.
 
 async function readInstalledPlist() {
   try {
@@ -361,10 +352,9 @@ export async function storeLine({
   {
     const recorded = await readPostgresMigrations();
     if (!recorded.ok) return `${label}Postgres migrations unknown — ${recorded.line}`;
-    // os-control's git reader returns text/null; the deploy helper takes the
-    // command result. Hash and state derivation remain the deploy's own.
+    // The deploy helper takes a command result; hash raw blobs, including
+    // their trailing newline, exactly as deploy does.
     const files = await postgresMigrationFiles(async (...args) => {
-      // Hash raw blobs, including their trailing newline, exactly as deploy does.
       const stdout = await git(...args, { trim: false });
       return { code: stdout === null ? 1 : 0, stdout: stdout ?? '' };
     }, homeRoot, 'main');
@@ -445,8 +435,7 @@ async function doctor() {
     recentLines(LOG_FILE, 200),
     recentLines(JOB_RUNS_FILE, 100),
     storeLine({ code: status.code }).catch((error) => `  store       could not be read (${error?.message ?? error})`),
-    // Asked of the runtime over its door, never by opening the store file
-    // (scripts/os-capacity.mjs, bead ro-ujb9.66).
+    // Asked of the runtime over its door, never by opening the store file.
     capacitySection({ backupsDir: STATE.backupsDir }),
   ]);
   const report = [
@@ -479,10 +468,9 @@ function xmlEscape(value) {
 }
 
 /**
- * The plist for this install. launchd runs the runtime copy's `current` link
- * (bead ro-ujb9.113), so a deploy moves the service by moving that link and
- * never rewrites this file; `NOTICEOS_HOME` tells the runner where its state
- * and the task inventory stay.
+ * The plist for this install. launchd runs the runtime copy's `current` link,
+ * so a deploy moves the service by moving that link and never rewrites this
+ * file; `NOTICEOS_HOME` tells the runner where its state stays.
  */
 export function renderLaunchAgent(template, { label = LABEL, nodePath, nodeBinDir, runtimeRoot, homeRoot, doltHome }) {
   if (doltHome !== undefined && (typeof doltHome !== 'string' || !path.isAbsolute(doltHome) || /[\u0000-\u001f]/u.test(doltHome))) {
@@ -600,25 +588,14 @@ async function uninstallService() {
   process.stdout.write(`Stopped ${LABEL} and removed ${INSTALLED_PLIST}\n`);
 }
 
-// --- stop / start: the same plist, powered down and back up --------------------
-//
-// Until bead ro-8x1 there was no word here for "stop for maintenance" — only
-// uninstall, which also deletes the plist — so the sanctioned migration drill was
-// uninstall → migrate → install: rewriting the login service and waiting on
-// health to apply one migration (observed live on 2026-08-10 for 0023). These two
-// verbs never write or delete the plist; they only move the installed service
-// between loaded and not.
-//
-// Stop proves the door is free before declaring maintenance safe. launchctl
-// bootout only releases the label; the runner must also stop its Worker child.
-// An answering orphan could still accept application writes. The bound socket
-// proves the runtime has stopped independently of launchctl's account.
+// stop / start: the same plist, powered down and back up. Neither writes or
+// deletes the plist. Stop proves the door is free before declaring
+// maintenance safe: launchctl bootout only releases the label, and an
+// answering orphan could still accept application writes.
 
 const { host: DOOR_HOST, port: DOOR_PORT } = new URL(DEFAULT_DOOR);
-// Longer than the runner's own shutdown budget, or a healthy stop gets reported as
-// an orphan: os-up's SIGTERM/SIGKILL handler gives its vite group 5s and then 2s
-// (scripts/os-up.mjs `shutdown`), and only when that group is gone is the door
-// free. 12s is that 7s plus slack for a loaded machine.
+// Longer than the runner's own shutdown budget (5s then 2s for its vite group,
+// scripts/os-up.mjs `shutdown`), or a healthy stop is reported as an orphan.
 export const STOP_WAIT_MS = 12_000;
 const STOP_POLL_MS = 250;
 
@@ -631,28 +608,24 @@ async function plistIsInstalled() {
   }
 }
 
-/** Is the service out of the domain after a bootout? 0 is the normal answer;
- * code 3 / "No such process" means launchd had already dropped it between our
- * `print` snapshot and this call — the outcome we asked for, not an error worth
- * showing an operator. */
+/** Is the service out of the domain after a bootout? Code 3 / "No such
+ * process" means launchd had already dropped it between the `print` snapshot
+ * and this call: the outcome asked for. */
 export function bootoutLeftServiceOut({ code, stderr = '' } = {}) {
   return code === 0 || code === 3 || /no such process|could not find service/iu.test(stderr);
 }
 
-/** Was a bootstrap refused *because the label is already loaded* (EALREADY,
- * printed as "Bootstrap failed: 37: Operation already in progress")? The same
- * race in the other direction: the snapshot said not loaded, launchd disagrees,
- * and "already running" is what the operator wanted anyway. */
+/** Was a bootstrap refused because the label is already loaded (EALREADY,
+ * "Bootstrap failed: 37: Operation already in progress")? The same race in
+ * the other direction, and "already running" is what was wanted anyway. */
 export function bootstrapFoundServiceLoaded({ code, stderr = '' } = {}) {
   return code === 37 || /already in progress|already loaded|already bootstrapped/iu.test(stderr);
 }
 
-/** Did `launchctl enable` leave the label un-disabled? 0 is the normal answer.
- * A label launchd has never loaded answers "no such process" / "could not find
- * service" on some releases, and that is the same outcome — nothing is disabled —
- * which is exactly what makes enabling *before* the bootstrap safe (bead ro-xlht).
- * A domain or permission failure is not that, and is worth telling the operator
- * about if the bootstrap then fails too. */
+/** Did `launchctl enable` leave the label un-disabled? A label launchd has
+ * never loaded answers "no such process" / "could not find service" on some
+ * releases, which is the same outcome. A domain or permission failure is not,
+ * and is worth telling the operator about if the bootstrap then fails too. */
 export function enableLeftServiceEnabled({ code, stderr = '' } = {}) {
   return code === 0 || code === 3 || code === 113 || /no such process|could not find service/iu.test(stderr);
 }
@@ -686,17 +659,12 @@ export async function labelDisabledIn(launchctl) {
 }
 
 /**
- * The extra operator line when launchd really holds the label disabled (beads
- * ro-xlht, ro-ujb9.116).
- *
- * launchd prints a disabled label as a bare `Bootstrap failed: 5: Input/output
- * error` — the same thing it prints for a plist it cannot load and for a label
- * that has not finished leaving the domain after a bootout. So the error is no
- * evidence, and on 2026-09-23 a hint built on it sent the operator after a
- * disabled label that was not there. The hint now appears ONLY when `launchctl
- * print-disabled` shows the label disabled: `disabledIn` is labelDisabledIn's
- * answer (null or empty → no hint). `enable` is the list `powerUp` returns (a
- * single result is read as the gui-domain enable), named if it failed.
+ * The extra operator line when launchd really holds the label disabled.
+ * launchd prints a disabled label as a bare `Bootstrap failed: 5:
+ * Input/output error`, the same thing it prints for a plist it cannot load
+ * and for a label still leaving the domain, so the error is no evidence: the
+ * hint appears only when `disabledIn` (labelDisabledIn's answer) is
+ * non-empty. `enable` is the list `powerUp` returns, named if it failed.
  */
 export function disabledLabelHint({ enable = null, disabledIn = null } = {}) {
   if (!Array.isArray(disabledIn) || disabledIn.length === 0) return null;
@@ -742,11 +710,9 @@ export function doorStillHeldMessage({ bootedOut = false } = {}) {
 }
 
 /**
- * What `stop` does before it touches launchctl.
- *
- * `doorHeld` is a TCP connect (ingest-door's doorIsHeld), rather than the
- * /healthz probe: a bound runtime that is not yet serving still prevents a safe
- * maintenance window.
+ * What `stop` does before it touches launchctl. `doorHeld` is a TCP connect
+ * (ingest-door's doorIsHeld), not the /healthz probe: a bound runtime that is
+ * not yet serving still prevents a safe maintenance window.
  */
 export function resolveStopAction({ plistExists, serviceLoaded, doorHeld }) {
   if (!plistExists) return { action: 'refuse', code: 1, message: stopNotInstalledMessage() };
@@ -764,9 +730,8 @@ export function resolveStopAction({ plistExists, serviceLoaded, doorHeld }) {
 }
 
 /**
- * What `stop` reports once launchctl has answered. `doorHeld` is the state AFTER
- * the bounded wait and is only read when the service is actually out: a bootout
- * that failed says nothing about who holds the port.
+ * What `stop` reports once launchctl has answered. `doorHeld` is the state
+ * after the bounded wait and is only read when the service is actually out.
  */
 export function resolveStopResult({ bootout, doorHeld }) {
   if (!bootoutLeftServiceOut(bootout)) {
@@ -785,21 +750,17 @@ export function resolveStopResult({ bootout, doorHeld }) {
   };
 }
 
-// --- install: out of the domain before back in (bead ro-ujb9.116) --------------
-//
-// `launchctl bootout` returns before a KeepAlive service with children (Vite,
-// workerd) has actually left the domain. A bootstrap in that window is refused
-// with a bare "Bootstrap failed: 5: Input/output error" — on 2026-09-23 that is
-// how the cut-over's install removed the old service, never loaded the new one,
-// and left the OS STOPPED. So an install waits for launchd to let go of the label
-// with the same bounded budget `pnpm os:stop` gives the runner's own shutdown
-// (STOP_WAIT_MS), and a bootstrap still refused with EIO waits once more and is
-// retried once — never more.
+// install: out of the domain before back in. `launchctl bootout` returns
+// before a KeepAlive service with children has actually left the domain, and
+// a bootstrap in that window is refused with a bare "Bootstrap failed: 5:
+// Input/output error". So an install waits for launchd to let go of the label
+// (STOP_WAIT_MS), and a bootstrap still refused with EIO waits once more and
+// is retried once, never more.
 
 const sleepFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Poll `launchctl print` until launchd no longer knows the label, bounded.
- * Returns whether it is gone — the fact the bootstrap depends on. */
+ * Returns whether it is gone. */
 export async function waitForLabelGone({
   launchctl,
   timeoutMs = STOP_WAIT_MS,
@@ -831,10 +792,9 @@ export function installLoadFailedMessage({ launchctl, enable = null, disabledIn 
 }
 
 /**
- * The launchd half of `pnpm os:install`: take the loaded service out, wait until
- * it has left the domain, write the new plist, load it — powering up through
- * powerUp like every load. `launchctl(args)` resolves `{ code, stdout, stderr }`;
- * tests pass a fake launchd whose bootout completes asynchronously.
+ * The launchd half of `pnpm os:install`: take the loaded service out, wait
+ * until it has left the domain, write the new plist, load it through
+ * `powerUp`. `launchctl(args)` resolves `{ code, stdout, stderr }`.
  */
 export async function replaceService({ launchctl, loaded, writePlist, timeoutMs, pollMs, now, sleep }) {
   const wait = () => waitForLabelGone({ launchctl, timeoutMs, pollMs, now, sleep });
@@ -852,7 +812,7 @@ export async function replaceService({ launchctl, loaded, writePlist, timeoutMs,
   let attempts = 1;
   let power = await powerUp('bootstrap', launchctl);
   if (power.launchctl.code === 5) {
-    // EIO: most often the old label still on its way out. Once more, after the wait.
+    // EIO: most often the old label still on its way out.
     await wait();
     attempts += 1;
     power = await powerUp('bootstrap', launchctl);
@@ -883,9 +843,8 @@ export function resolveStartAction({ plistExists, serviceLoaded, serviceState })
         'pnpm os:restart is the restart.',
     };
   }
-  // Loaded but not running (exited, KeepAlive throttled). launchd still owns the
-  // label, so a bootstrap would only answer EALREADY; kickstart is what powers
-  // this state up, exactly as restart already chooses for it.
+  // Loaded but not running: launchd still owns the label, so a bootstrap
+  // would only answer EALREADY; kickstart powers this state up.
   return { action: 'kickstart', code: 0 };
 }
 
@@ -915,8 +874,8 @@ export function resolveStartResult({ action, launchctl, enable = null, disabledI
   };
 }
 
-/** Poll the ingest door until nothing answers, bounded. Returns whether it is
- * STILL held, which is the fact `stop` has to report rather than assume. */
+/** Poll the ingest door until nothing answers, bounded. Returns whether it
+ * is still held. */
 async function waitForDoorRelease({ held = doorIsHeld, timeoutMs = STOP_WAIT_MS } = {}) {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
@@ -975,10 +934,8 @@ async function startService() {
 }
 
 /**
- * Poll classified status until a NEW runner (not `previousPid`) is healthy, or
- * fail with the status and the recent redacted runner log. `inspect`,
- * `readLog`, the budget and the poll are parameters so a test can drive it
- * without launchd; every caller in production takes the defaults but the budget.
+ * Poll classified status until a new runner (not `previousPid`) is healthy,
+ * or fail with the status and the recent redacted runner log.
  */
 export async function waitForHealthy(
   action,
@@ -1008,9 +965,9 @@ export async function waitForHealthy(
 }
 
 /**
- * ONE restart of the loaded managed service, then the health wait above. This is
- * `pnpm os:restart`, and it is the only restart `pnpm os:deploy` makes, so a
- * deploy reports a failed start exactly the way a restart does.
+ * One restart of the loaded managed service, then the health wait above. The
+ * only restart `pnpm os:deploy` makes too, so a deploy reports a failed start
+ * exactly the way a restart does.
  */
 export async function restartAndWait({
   action = 'restart',
@@ -1060,16 +1017,14 @@ async function deployService(argv) {
     argv,
     deps: {
       run: runCommand,
-      // Niced: the live OS keeps serving on this machine while the idle copy
-      // installs. Never asks to purge node_modules — there is no terminal.
+      // Niced: the live OS keeps serving while the idle copy installs. Never
+      // asks to purge node_modules, since there is no terminal.
       install: ({ cwd }) =>
         runCommand('/usr/bin/nice', ['-n', '10', 'pnpm', 'install', '--frozen-lockfile', '--config.confirmModulesPurge=false'], {
           cwd,
           timeoutMs: 15 * 60_000,
         }),
       readPlist: readInstalledPlist,
-      // A commit that opens the Postgres store is held against its record,
-      // read through the address the runner itself starts with.
       readPostgresMigrations: () => runnerRecordedMigrations(),
       service: serviceSnapshot,
       // 'deploy' or 'rollback' — the word a failed health wait leads with.

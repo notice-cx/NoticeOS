@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { browserOwnerKey, captureBrowserOwner, type BrowserOwner } from './browser-owner';
 
-/** An inbox answer lands after its Undo window (ro-ujb9.96.7.11).
+/** An inbox answer lands after its Undo window.
  * It has no inverse, so Undo cancels an unsent answer rather than reversing it.
  * Each queue owns one captured browser context and its already-bound sender.
  * Retirement cancels unissued work; a dispatched request cannot be unsent. */

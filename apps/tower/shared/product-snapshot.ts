@@ -1,17 +1,9 @@
 // The executive snapshot's `product` block, read back out of a stored payload
-// (beads ro-ghis.2 / ro-ghis.3).
-//
-// Same contract as every other block `parseExecutiveSnapshot` reads: the payload
-// is JSON written by a separate process (`scripts/signal-insights.mjs`), so
-// nothing here may throw, and every field is PICKED across by name rather than
-// spread — a key this parser has not reviewed never reaches the browser.
-//
-// DEGRADATION IS PER ROW. A funnel, a segment, an exception or a rage cluster
-// that does not parse costs exactly itself; a part whose frame is unreadable is
-// null (the section then says "not collected" for that part, which is the honest
-// reading of an answer nobody can read). The block as a whole is null only when
-// it is absent or not an object: a snapshot written before PostHog existed, or
-// an asset nobody collects PostHog for.
+// written by `scripts/signal-insights.mjs`. Nothing here may throw, and every
+// field is picked by name rather than spread, so an unreviewed key never
+// reaches the browser. Degradation is per row: a row that does not parse costs
+// itself, an unreadable part is null ("not collected"), and the block is null
+// only when absent or not an object.
 
 import type {
   ProductCheck,

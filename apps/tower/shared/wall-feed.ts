@@ -1,12 +1,8 @@
-// The Wall's live feed contract: what `GET /api/wall/feed` returns (bead
-// `ro-trai.6`, docs/14-design.md § Feed). Shared by the Worker that unions
-// the store's events and the Wall column that draws them, so the shape and the
-// rules the two halves agree on (window, fold gap, cap) are stated once.
-//
-// Every line is a stored event. Nothing here is synthesized: a feed with
-// nothing in its window says so, it never invents activity to look alive.
+// The Wall's live feed contract: what `GET /api/wall/feed` returns, shared by
+// the Worker that unions the store's events and the column that draws them.
+// Every line is a stored event; an empty window says so and never invents one.
 
-/** The closed vocabulary, one entry per kind of line (docs/25 § Feed). */
+/** The closed vocabulary, one entry per kind of line. */
 export const WALL_FEED_KINDS = [
   "task-done",
   "task-filed",
@@ -80,7 +76,7 @@ export interface WallFeedPayload {
   limit: number;
 }
 
-/** Lines fetched per poll (docs/25: at most 50). */
+/** Lines fetched per poll. */
 export const WALL_FEED_LIMIT = 50;
 /** Same-kind events closer than this fold into one line. */
 export const WALL_FEED_FOLD_MS = 15 * 60_000;
@@ -98,10 +94,8 @@ export const WALL_FEED_SLIDE_MS = 240;
 export const WALL_FEED_MAX_WORDS = 12;
 /** The local hour the window opens at, the evening before. */
 export const WALL_FEED_WINDOW_HOUR = 18;
-/** The rows the TV's feed column draws — its 952 px body at about 70 px a row
- * (docs/25 § Budget) — and so the most the one-column Wall on a portrait
- * tablet or a phone lists, newest first (bead ro-trai.31): the evening's
- * whole feed there ran the page 5,850 px tall. */
+/** The rows the TV's feed column draws (its 952 px body at about 70 px a row),
+ * and so the most the one-column Wall on a tablet or phone lists. */
 export const WALL_FEED_TV_ROWS = 12;
 
 /** Words in a line, as the budget counts them. */

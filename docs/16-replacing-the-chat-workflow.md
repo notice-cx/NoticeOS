@@ -1,10 +1,9 @@
 # 16 — Replacing the chat workflow (Ask, Investigations, Commissions)
 
-*The benchmark for these features is empirical: the operator's actual working
-week (2026-07-01→05 on one site) — SERP triage, Clarity analysis, an
-affiliate integration built from docs to deployed cards, four commissioned
-fixes, dozens of portfolio questions — all of it ran through an interactive
-chat session. The recurring loop (docs 00–07) doesn't absorb that work; these
+*The benchmark for these features is empirical: an operator's actual working
+week on one site — SERP triage, behaviour analysis, an affiliate integration
+built from docs to deployed cards, several commissioned fixes, dozens of
+portfolio questions — all of it run through an interactive chat session. The recurring loop (docs 00–07) doesn't absorb that work; these
 seven features do. Same contract as [doc 14](14-design.md): flows are
 specified here before they're built, and the [doc 14 polish principles](14-design.md)
 bind every surface below.*
@@ -74,39 +73,37 @@ Without this lane, novel work falls back to chat and escapes the ledger.
    (novel work is T1-by-definition; doc 05 ladder applies per change-class).
 3. **Build under contract:** normal accountability machinery — claims as
    artifacts, verifier re-executes gates, silence ≠ failure and polish ≠
-   success (doc 05's independence-of-axes datum).
+   success (doc 05's independence of axes).
 4. **Review screen:** verified gate results, diff summary in plain words,
    cost actual-vs-estimate, and visual evidence (flow P) — then merge per
-   the asset's D2 grant, or stage for the operator's own push.
+   the asset's grant, or stage for the operator's own push.
 5. **Ledger + crystallization:** cost logs against the commission's
    change-id; the third commission of the same shape triggers the doc-05
    crystallization rule — propose a runbook, graduate it out of this lane.
 
-> **2026-08-01 — the escape hatch is partly closed.** The concern above
-> ("without this lane, novel work falls back to chat and escapes the ledger")
-> is now partly answered without Commissions existing. A copied Tower handoff
-> — a query decision or a finding — carries a **File this task** section: a
+> **The escape hatch is partly closed without Commissions existing.** The
+> concern above ("without this lane, novel work falls back to chat and escapes
+> the ledger") is partly answered by the handoff: a copied Tower handoff — a
+> query decision or a finding — carries a **File this task** section, a
 > `bd create` the receiving agent runs in the property's own repo, filing a
-> bead on the portfolio task hub with the rule id, the decision key, and the
+> task on the portfolio task hub with the rule id, the decision key, and the
 > asset as labels ([`config/beads.json`](../config/beads.json),
-> [§Handoff metadata](../config/beads.README.md#handoff-metadata)). Work handed off this way is
-> visible to the portfolio while it is in flight and closes with a note,
-> instead of living and dying inside one chat session.
-> **Partly**, precisely: a bead is intent and status, not a work order. There
+> [§Handoff metadata](../config/beads.README.md#handoff-metadata)). Work
+> handed off this way is visible to the portfolio while it is in flight and
+> closes with a note, instead of living and dying inside one chat session.
+> **Partly**, precisely: a task is intent and status, not a work order. There
 > is no plan-back, no cost estimate against a change-id, no review screen, and
 > no crystallization counter — steps 2–5 above are untouched, and a closed
-> bead states that something shipped, never that it worked.
+> task states that something shipped, never that it worked.
 >
-> **2026-09-04 — filing is a button.** The paragraph above still describes
-> where the work goes; what changed is the friction of putting it there. Every
-> handoff surface (findings, query decisions, page decisions, and now alert
-> rows) carries a **File task** beside its Copy Markdown, which opens a composer
-> already holding the title, labels and `reindex_*` metadata that copied
-> `bd create` carries and files it through the Tower's local task lane in the
-> asset's own spoke (D19, bead `ro-l1ed.4`). Step 1 of a commission — a brief
-> against a target asset — is therefore now one click from the evidence that
-> provoked it, and no longer needs a terminal or the right working directory.
-> Steps 2–5 remain exactly as untouched as they were.
+> **Filing is a button.** Every handoff surface (findings, query decisions,
+> page decisions and alert rows) carries a **File task** beside its Copy
+> Markdown, which opens a composer already holding the title, labels and
+> `noticeos_*` metadata that the copied `bd create` carries and files it
+> through the Tower's local task lane in the asset's own spoke. Step 1 of a
+> commission — a brief against a target asset — is therefore one click from
+> the evidence that provoked it, and needs no terminal or working directory.
+> Steps 2–5 remain untouched.
 
 ## O. Idea capture — the operator intake
 
@@ -162,10 +159,10 @@ asset is a ready-made hypothesis for the siblings.
   provenance lets Learn measure the transfer rate — how well wins actually
   travel — which prices future propagation predictions.
 
-## What this sharpens in D1
+## Two substrates
 
-Ask and Commissions split decision D1 ([register](../config/decisions.md)) into
-two cleaner sub-decisions: **(a) the cron substrate** (Sense/Decide sweeps,
+Ask and Commissions split the question of where the OS runs into two cleaner
+sub-decisions: **(a) the cron substrate** (Sense/Decide sweeps,
 scheduled runs — cloud, boring, decided by default proposal) and **(b) the
 interactive substrate** (Ask answers in seconds; commission plan-backs in
 minutes; session-ful, latency-sensitive — this is where "your machine +

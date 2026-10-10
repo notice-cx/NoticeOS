@@ -1,30 +1,10 @@
 // The store's capacity inventory: how big each table is, how fast it grows,
-// and how much of that growth is insight snapshots and raw archive objects
-// (bead ro-ujb9.66).
-//
-// WHY. Sizing the move to Postgres and Parquet (D25) needs numbers the pilot
-// never recorded: bytes and rows per table, rows and bytes added per day, and
-// what the executive snapshots cost. Guessing them from the code gives the
-// wrong answer in both directions — raw provider pages live in R2, not here,
-// while every newly generated insight report appends a fresh row of up to a
-// megabyte (insight-snapshots.ts). So the store is asked, through the runtime
-// that already owns it.
-//
-// HOW IT STAYS SAFE.
-//   - Read-only. Every statement below is a SELECT; nothing
-//     is written, pruned or migrated.
-//   - Metadata only. The answer carries names, counts, byte totals and the
-//     first/last arrival timestamps — never a stored value, so no payload,
-//     credential or provider row can leave through it.
-//   - One query per table, run one after another rather than as a batch, so the
-//     inventory never holds the store for longer than its slowest single table
-//     and the regular lanes interleave with it.
-//   - Workspace row security applies to every scan, including secret sizes.
-//
-// WHAT "BYTES" MEANS HERE. `valueBytes` is the sum of the stored values' own
-// sizes (`pg_column_size`, including compression). It excludes indexes and
-// page overhead. Physical relation sizes cover the whole database, so they
-// are reported only for a store holding this workspace alone.
+// and how much of that is insight snapshots and raw archive objects. Read-only
+// and metadata only: names, counts, byte totals and arrival timestamps, never
+// a stored value. One query per table, run one after another, so the regular
+// lanes interleave. `valueBytes` is `pg_column_size` of the stored values,
+// excluding indexes and page overhead; physical relation sizes cover the whole
+// database, so they are reported only for a store holding this workspace alone.
 
 import { javascriptInstant, type WorkspaceStore } from '@noticeos/postgres';
 import tableCatalog from '../../../db/postgres/tables.json';
@@ -315,16 +295,13 @@ async function measureTable(
 
 /**
  * How many insight snapshots per site the Tower reads: the site page reads the
- * newest (apps/tower/worker/asset-detail-payload.ts) and the Wall's feed
- * compares it with the one before (FEED_INSIGHTS_SQL in
- * apps/tower/worker/wall-feed.ts). Postgres keeps the same two
- * (ro-ujb9.76.17); scripts/postgres-model.test.mjs holds them together.
+ * newest and the Wall's feed compares it with the one before;
+ * scripts/postgres-model.test.mjs holds them together.
  */
 const SNAPSHOTS_READ_PER_SITE = 2;
 
 async function measureSnapshots(store: WorkspaceStore, nowMs: number, longSince: string): Promise<SnapshotCapacity> {
-  // On Postgres (bead ro-ujb9.76.5.4): a payload's size is its stored text's
-  // bytes (json keeps it byte for byte); an arrival's day is its UTC day.
+  // A payload's size is its stored text's bytes; an arrival's day is its UTC day.
   const { found, read } = await store.read(async (tx) => ({
     found: await tx.query<Record<string, unknown>>(
       `SELECT asset_id AS asset,
@@ -516,10 +493,8 @@ async function listBucket(bucket: R2Bucket): Promise<ArchiveCapacity['bucket']> 
 
 async function measureLanes(store: WorkspaceStore, longSince: string): Promise<LaneCapacity[]> {
   // Nearest-rank percentiles per lane, over the firings the runner recorded in
-  // the long window (on Postgres, bead ro-ujb9.76.4.3). A lane's duration is
-  // what one scheduled operation costs end to end — the closest measured
-  // stand-in for write and scan latency. The rank is truncated, as D1's
-  // integer cast did, never rounded.
+  // the long window: the closest measured stand-in for write and scan latency.
+  // The rank is truncated, never rounded.
   const rows = await store.read((tx) =>
     tx.query<Record<string, unknown>>(
       `WITH d AS (

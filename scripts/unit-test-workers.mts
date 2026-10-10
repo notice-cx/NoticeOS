@@ -1,11 +1,9 @@
-// How many workers each unit suite starts (bead ro-ujb9.170).
+// How many workers each unit suite starts.
 //
 // `pnpm -r test` runs the Tower suite (jsdom) and the ingest suite (Workers
-// pool) at the same time, and Vitest's default gives EACH of them every core
-// but one: 13 + 13 on a 14-core Mac, 3 + 3 on a 4-core CI runner. Measured on
-// the 14-core Mac (2026-09-24, six interleaved runs each), half the cores per
-// suite finished `pnpm -r test` in a median 33.6 s against 37.2 s for the
-// default, and it never oversubscribes a 4-core runner (2 + 2).
+// pool) at the same time, and Vitest's default gives each of them every core
+// but one. Half the cores per suite finishes `pnpm -r test` faster than the
+// default and never oversubscribes a 4-core runner (2 + 2).
 //
 // `UNIT_TEST_WORKERS` overrides it for both suites — a whole number of
 // workers, or a percentage of the cores — the way `JOURNEY_WORKERS` does for

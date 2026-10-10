@@ -34,8 +34,8 @@ test('saved declarations select the current warning while historical provider la
   const raw = JSON.stringify(archive); await fs.writeFile(path.join(input, 'events.json'), raw);
   // Only the stored document declares review.example. The checkout's exported
   // config/value-events.json cannot answer instead: under `pnpm test:scripts`
-  // no read of it succeeds in this process (bead ro-ujb9.97,
-  // scripts/test-config-isolation.mjs), so a fallback to it would fail loudly.
+  // no read of it succeeds in this process (scripts/test-config-isolation.mjs),
+  // so a fallback to it would fail loudly.
   let reads = 0;
   const first = await analyzeArchiveFixture({ asset: 'review.example', input, output: path.join(dir, 'first'),
     readValueEvents: async () => { reads += 1; return readStoredValueEvents(stored(configured(['trial_started']))); },

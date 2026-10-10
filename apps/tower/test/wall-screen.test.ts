@@ -1,6 +1,5 @@
 // @vitest-environment node
-// Which Wall a screen gets, by its shape (bead ro-trai.31, docs/14-design.md
-// § Laptop, tablet and phone).
+// Which Wall a screen gets, by its shape.
 import { describe, expect, it } from "vitest";
 import { WALL_TV_LAYOUT_MIN_WIDTH, wallScreen } from "@/lib/wall-screen";
 

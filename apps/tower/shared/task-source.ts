@@ -1,14 +1,13 @@
-// The required Beads/Dolt task hub (D32). Tasks is always part of NoticeOS.
-// These readings describe actual hub availability; they never gate navigation.
-// Future external integrations feed the core work model rather than replace it.
+// The task hub's health as the Tower reads it. Tasks is always part of
+// NoticeOS: these readings describe hub availability and never gate navigation.
 
 import { isAmber } from "./freshness";
 import type { ConnectionKind } from "./connection-status";
 import { TASK_PROJECTS_PATH } from "./tasks";
 import { WORK_POLL_CADENCE_HOURS } from "./work";
 
-/** The beads task hub of D19: the first task source. An id, never a label —
- * what a person reads is `TASK_SOURCES[id].name`. */
+/** The Dolt-backed task hub. An id, never a label: what a person reads is
+ * `TASK_SOURCES[id].name`. */
 export const BEADS = "beads" as const;
 
 /** The core hub adapters whose health this Tower can read. */

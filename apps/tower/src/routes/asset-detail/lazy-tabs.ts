@@ -2,22 +2,13 @@ import { lazyPart } from "@/lib/lazy-route";
 import type { AssetTab } from "@/routes/asset-detail/AssetTabs";
 
 /**
- * EACH ASSET TAB IS ITS OWN FILE (bead `ro-ujb9.84`).
- *
- * After the route split (`ro-82x`) the asset page was the heaviest first load in
- * the Tower, because its one file carried all nine tabs — the Growth charts, the
- * Search boards, the Settings editors, the Activity composer — to draw whichever
- * one the address named. Each tab now arrives when it is opened; the page's own
- * file keeps what every tab shares (the header, the tab bar, the payload read,
- * the deep-link handling).
- *
- * Every tab goes through `lazyPart`, Overview included: a deep link into Growth
- * or Settings should not download the Overview it is not showing, and the page
- * starts fetching the tab it is about to show while the asset's report is still
- * on its way (`AssetDetailRoute`), so the default tab costs no extra wait.
- *
- * A static import of a tab module from `AssetDetailRoute.tsx` puts that tab back
- * into every asset page's first download; `test/lazy-parts.test.tsx` refuses one.
+ * Each asset tab is its own file, arriving when it is opened; the page's own
+ * file keeps what every tab shares. Every tab goes through `lazyPart`,
+ * Overview included: a deep link into Growth should not download the Overview
+ * it is not showing, and the page starts fetching the tab it is about to show
+ * while the asset's report is still on its way. A static import of a tab
+ * module from `AssetDetailRoute.tsx` puts that tab back into every asset
+ * page's first download; `test/lazy-parts.test.tsx` refuses one.
  */
 const overview = lazyPart(() =>
   import("@/routes/asset-detail/OverviewTab").then((module) => module.OverviewTab),

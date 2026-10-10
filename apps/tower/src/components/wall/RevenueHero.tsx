@@ -15,18 +15,9 @@ import {
 import { cn } from "@/lib/utils";
 import { monthRevenue, yesterdayTotal, type MonthPace, type YesterdayTotal } from "@/lib/wall-revenue";
 
-// THE WALL'S REVENUE WIDGET (docs/14-design.md § Revenue, D28, bead
-// `ro-trai.4`): the month's revenue so far as the largest type on the screen
-// (D13), where the month lands, yesterday's money (bead `ro-trai.32`), and the
-// month as a line against last month's total — "are we on track this month?"
-// answered before any site is read.
-//
-// Registry justification: `PortfolioBand` states the month's NET in a narrow
-// card with a monthly backdrop, and `HeroChart` is the desk's interactive chart
-// with legends and toggles the TV cannot use. Nothing drew a cumulative month
-// against a flat prior-month total with the day the two cross named on it.
-// The arithmetic is `lib/wall-revenue` (and under it the Worker's
-// `revenue-projection`); this file only draws it.
+// The Wall's revenue widget: the month so far, where it lands, yesterday's
+// money, and the month as a line against last month's total. The arithmetic
+// is `lib/wall-revenue`; this file only draws it.
 
 export interface RevenueHeroProps {
   portfolio: PortfolioBand;
@@ -68,8 +59,7 @@ export function RevenueHero({ portfolio, assets, nowMs }: RevenueHeroProps) {
     >
       <h2 className={eyebrow}>
         {month} revenue
-        {/* The one word that keeps an estimate from reading as booked money
-            (PortfolioBand's rule, `ro-t0z`). */}
+        {/* The one word that keeps an estimate from reading as booked money. */}
         {model.revenue !== null && model.state === "forecast" ? " · estimated" : null}
       </h2>
       {model.revenue === null ? (
@@ -85,8 +75,7 @@ export function RevenueHero({ portfolio, assets, nowMs }: RevenueHeroProps) {
         </div>
       ) : null}
       <div className="flex min-w-0 flex-wrap items-end gap-x-6 gap-y-1">
-        {/* No figure while no source has a complete day this month (bead
-            ro-trai.33): the reason and yesterday say where the money is. */}
+        {/* No figure while no source has a complete day this month. */}
         {model.revenue !== null ? (
           <span
             className="text-wall-display font-bold tracking-tighter tabular-nums"
@@ -116,20 +105,16 @@ function PaceLine({ pace, yesterday }: { pace: MonthPace; yesterday: YesterdayTo
   const previous = formatPeriodMonth(pace.previousPeriod);
   const comparisonDirection = pace.changePercent === null ? null : pace.changePercent > 0 ? "above" : pace.changePercent < 0 ? "below" : "level with";
   return (
-    // Beside the figure while 16 rem are left there, its lines wrapping inside
-    // that room rather than dropping the whole block under the figure (which
-    // takes the month chart's height); under it on a phone. In the TV's layout
-    // it never drops: a laptop's floored type (bead ro-trai.31) wraps its words
-    // beside the figure instead.
+    // Beside the figure while 16 rem are left there; under it on a phone. In
+    // the TV's layout it never drops.
     <div className="flex min-w-0 flex-1 basis-64 flex-col gap-2 pb-2 tv:basis-0" data-revenue-pace>
       <span className="text-2xl font-medium tabular-nums">
         on pace for <span className="font-bold">{formatUsd(pace.projected)}</span>
       </span>
       <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-wall-body tabular-nums">
         {pace.changePercent !== null ? (
-          // NEUTRAL INK (doc 14, doc 14): a projection against a finished month
-          // is not a completed like-for-like comparison, so the arrow carries
-          // the direction and no colour judges it.
+          // Neutral ink: a projection against a finished month is not a
+          // like-for-like comparison, so no colour judges it.
           <span
             className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 font-semibold"
             data-revenue-change
@@ -162,12 +147,9 @@ function PaceLine({ pace, yesterday }: { pace: MonthPace; yesterday: YesterdayTo
 }
 
 /**
- * Yesterday's revenue (bead `ro-trai.32`): the figure in the foreground's
- * weight, the words around it quiet. It is the providers' estimate, so "est."
- * follows the figure — the old Wall's mark for this very figure, the
- * Financials tab's "estimates" — in neutral ink (doc 14: provisional values
- * stay neutral). A site whose report is not in is left out and counted
- * ("1 of 2 sites"); with none in there is no number at all.
+ * Yesterday's revenue. It is the providers' estimate, so "est." follows the
+ * figure in neutral ink. A site whose report is not in is left out and
+ * counted ("1 of 2 sites"); with none in there is no number at all.
  */
 function Yesterday({ total }: { total: YesterdayTotal }) {
   if (total.mixedBasis) {
@@ -215,7 +197,7 @@ function xOf(day: number, days: number): number {
   return days <= 1 ? 500 : 12 + ((day - 1) / (days - 1)) * 976;
 }
 
-// ─── where the crossing's words go (bead ro-trai.35) ────────────────────────
+// ─── where the crossing's words go ──────────────────────────────────────────
 
 /** A point in the chart's own pixels, from its top left. */
 interface Px {
@@ -293,12 +275,10 @@ const LEFT_OF_CENTRE: readonly Candidate[] = [
 ];
 
 /**
- * Where the crossing's words sit (bead ro-trai.35): the first place, in the
- * order above, that stays inside the chart and clear of today's dot and its
- * halo, the crossing's own dot, last month's label and the month's own lines.
- * A phone's chart is too narrow for the TV's place — last month's label is in
- * the way above, today's dot below — so there the words wrap onto two lines
- * above the line. With nowhere clear they take the first place.
+ * Where the crossing's words sit: the first place, in the order above, that
+ * stays inside the chart and clear of today's dot and its halo, the
+ * crossing's own dot, last month's label and the month's own lines. With
+ * nowhere clear they take the first place.
  */
 export function crossingLabelPlace(scene: CrossingScene): CrossingPlacement {
   const { plot, crossing } = scene;
@@ -384,14 +364,10 @@ function crosses(line: readonly Px[], box: Box): boolean {
  * colour over a wash of it that fades to the floor, the pace dashed in the
  * same colour to the month's end, last month's total as a dashed hairline
  * labelled once, today's point with a halo, and the day the month passed (or
- * is on pace to pass) last month marked and named. One chart language with the
- * site rows (`ChartMarks`, bead `ro-trai.19`): monotone curves, round strokes,
- * a gradient wash.
- *
- * Everything lives in a 1000×100 viewBox stretched to the box with
- * non-scaling strokes, so the chart fills whatever the band leaves it without
- * measuring the page; the dots are round strokes, so the stretch never makes
- * an ellipse, and the words are HTML placed by the same percentages.
+ * is on pace to pass) last month marked and named. A 1000×100 viewBox
+ * stretched to the box with non-scaling strokes; the dots are round strokes,
+ * so the stretch never makes an ellipse, and the words are HTML placed by the
+ * same percentages.
  */
 export function MonthChart({ pace, period }: { pace: MonthPace; period: string }) {
   const { points, previousTotal, crossing } = pace;
@@ -414,10 +390,8 @@ export function MonthChart({ pace, period }: { pace: MonthPace; period: string }
   const label = `${month}: ${formatUsd(last?.cumulative ?? 0)} so far, on pace for ${formatUsd(pace.projected)}${previousTotal !== null ? `, ${previousName} ${formatUsd(previousTotal)}` : ""}`;
   const previousY = previousTotal === null ? 0 : yOf(previousTotal);
 
-  // The crossing's words are placed against what the chart actually draws at
-  // this size (bead ro-trai.35): a phone's narrow chart put "on Sep 26" over
-  // today's dot. Layout pixels (`offsetWidth`), the Wall's own, so a zoomed
-  // Wall places them as the TV does.
+  // Placed against what the chart actually draws at this size, in layout
+  // pixels (`offsetWidth`), so a zoomed Wall places them as the TV does.
   const plotRef = useRef<HTMLDivElement>(null);
   const crossingRef = useRef<HTMLSpanElement>(null);
   const previousRef = useRef<HTMLSpanElement>(null);

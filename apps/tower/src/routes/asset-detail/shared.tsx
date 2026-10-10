@@ -17,10 +17,9 @@ import { formatSeriesDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 // --- the small pieces every tab draws with --------------------------------
-// Lifted out of AssetDetailRoute.tsx unchanged when the page became one file per
-// tab (bead `ro-78qo.2`). Three shapes several tabs share and none of them owns:
-// the card every section sits in, the heading inside one, and the age line a
-// section puts beside its own freshest fact.
+// Three shapes several tabs share and none of them owns: the card every
+// section sits in, the heading inside one, and the age line a section puts
+// beside its own freshest fact.
 
 // --- what a chart marks on its own axis ------------------------------------
 
@@ -35,22 +34,13 @@ export function firstClause(text: string, max = MARK_LABEL_MAX): string {
 }
 
 /**
- * THE RECORDED CHANGES WORTH A MARK ON A CHART, on any tab that draws one
- * (`ro-78qo.3`, shared by `ro-78qo.4`).
- *
- * What somebody deployed or changed here. The other kinds stay on Activity — a
- * chart marked at every external event is a chart of marks.
- *
- * THE LABEL SAYS WHAT CHANGED, IN ONE CLAUSE. "Sep 1 · Change" costs a line and
- * answers nothing; "Sep 1 · GA4 reporting timezone changed" is the reason the
- * operator is looking at the dip beside it. The note is free prose and routinely
- * runs to two sentences, so the marker's accessible label takes the FIRST
- * CLAUSE and its on-demand disclosure retains the full original note. The
- * KIND is never the label: "config" names the
- * row's type rather than what happened, which is the one thing a mark is for.
- *
- * A lifecycle move carries no note at all: it is a `config` row whose ref
- * encodes the move, and doc 14 says the sentence renders and the ref never does.
+ * The recorded changes worth a mark on a chart: what somebody deployed or
+ * changed here. The other kinds stay on Activity, because a chart marked at
+ * every external event is a chart of marks. The label says what changed, in
+ * one clause: the marker's accessible label takes the first clause of the
+ * note and its disclosure retains the whole. The kind is never the label. A
+ * lifecycle move carries no note: it is a `config` row whose ref encodes the
+ * move, and the sentence renders while the ref never does.
  */
 export function timelineAnnotations(
   items: readonly AnnotationItem[],
@@ -73,10 +63,10 @@ export function timelineAnnotations(
 }
 
 /**
- * THE WINDOWS BEING WATCHED, as spans on the story chart (D44): from the day
- * the watch was registered to its next verdict day, labelled with what is
- * measured and when the verdict lands. A window with no check left draws to
- * today. Nothing is invented: registration and check dates are the store's.
+ * The windows being watched, as spans on the story chart: from the day the
+ * watch was registered to its next verdict day. A window with no check left
+ * draws to today. Nothing is invented: registration and check dates are the
+ * store's.
  */
 export function watchSpans(open: readonly WatchWindowItem[], nowMs: number): SurfaceSpan[] {
   const today = new Date(nowMs).toISOString().slice(0, 10);
@@ -139,19 +129,12 @@ export interface PanelProps {
 }
 
 /**
- * THE BLOCK THAT IS THIS SURFACE'S ANSWER (doc 14; `scripts/README.md`'s table
- * of the marks the audit reads).
- *
- * `surface:audit` measures this element's bottom edge against 900px, and a
- * surface that declares no hero fails the first-screen rule by definition — "the
- * audit will not certify a first screen nobody named". Exactly one per tab, and
- * it is always the FIRST block, because a tab whose answer is halfway down is a
- * tab that has not decided what it is for.
- *
- * A wrapper rather than a prop on each panel: `ListPanel` is the vocabulary's
- * component and is not this bead's to change, and a plain block div's box is
- * exactly its child's box, so the measurement is identical. One mechanism means
- * one grep finds every declared hero on the page.
+ * The block that is this surface's answer. `surface:audit` measures this
+ * element's bottom edge against 900px, and a surface that declares no hero
+ * fails the first-screen rule by definition. Exactly one per tab, always the
+ * first block. A wrapper rather than a prop on each panel: a plain block
+ * div's box is exactly its child's box, and one mechanism means one grep
+ * finds every declared hero.
  */
 export function Hero({ children, id }: { children: ReactNode; id?: string }) {
   // It doubles as the deep-link anchor where the hero IS the linked section —
@@ -165,21 +148,9 @@ export function Hero({ children, id }: { children: ReactNode; id?: string }) {
 }
 
 /**
- * DOC 21'S CARD, for a section that is not a list of rows.
- *
- * `ListPanel` is the vocabulary's answer for "things that need something", and
- * five of these tabs also hold sections that are a form, a table or a strip.
- * Drawn with `SectionCard` those sat beside a `ListPanel` in a different radius,
- * a different heading weight and a drop shadow — the "one card style" rule
- * broken on the very screens doc 14 was written for. So this is deliberately
- * `ListPanel`'s own header, spacing and shell with the row list swapped for
- * whatever the section holds: put the two side by side and the only difference
- * is the content.
- *
- * It is not a second `SectionCard`. `SectionCard` keeps its `subtitle` — a
- * paragraph under every heading — which is the exact thing doc 14 moves behind
- * `About`, and it stays only until the Overview and Growth rebuilds retire their
- * last callers.
+ * The card for a section that is not a list of rows: `ListPanel`'s own header,
+ * spacing and shell with the row list swapped for whatever the section holds,
+ * so the two side by side differ only in content.
  */
 export function Panel({ title, count, action, id, children, className }: PanelProps) {
   return (
@@ -191,9 +162,9 @@ export function Panel({ title, count, action, id, children, className }: PanelPr
       )}
       aria-label={title}
     >
-      {/* The vocabulary's eyebrow, not a third copy of it (bead `ro-78qo.39`).
-          The trailing slot is a NODE here rather than a link: what sits at the
-          end of a Settings or Sources panel's header is its owner chip. */}
+      {/* The vocabulary's eyebrow. The trailing slot is a node here rather
+          than a link: what sits at the end of a Settings or Sources panel's
+          header is its owner chip. */}
       <SectionLabel title={title} caption={count} className="px-4 pb-2 pt-3">
         {action}
       </SectionLabel>
@@ -206,10 +177,8 @@ export function Panel({ title, count, action, id, children, className }: PanelPr
  * sub-table's name. Same type as the panel's own title, so a card with two
  * levels still has one heading style. */
 export function Eyebrow({ children }: { children: ReactNode }) {
-  // A LABEL, not a heading: it names a strip or a sub-table INSIDE a panel that
-  // already has one. The type is the vocabulary's own (bead `ro-78qo.39`); the
-  // element is a span, because a second `h2` inside a card would claim a level
-  // in the outline that this is not.
+  // A label, not a heading: a span, because a second `h2` inside a card would
+  // claim a level in the outline that this is not.
   return <span className={eyebrowClass}>{children}</span>;
 }
 
@@ -222,21 +191,12 @@ export function SubHeading({ children }: { children: ReactNode }) {
 }
 
 /**
- * A section header's age. With a cadence to be stale against it IS `AgeBadge`;
- * without one there is nothing to turn amber, so it renders the plain age.
- *
- * ABSENCE IS A WORD, NOT A DASH (bead `ro-kukv.12`, doc 14 rule 6). This slot
- * sits in a section header beside its own title — a labelled value slot, not a
- * dense table cell — so the em-dash it used to print read as a rendering
- * failure rather than as "nothing has been recorded here". `formatAge` keeps
- * its dash, because fifteen call sites interpolate it as "{age} ago" and a word
- * there would read "never ago"; the word belongs where the fact is known, which
- * is the component that was handed no timestamp at all. This is the fix
- * `AgeBadge` got in 42bed39, on the two headers that do not compose it.
- *
- * The two absences are told apart for the reason rule 6 names: **never** claims
- * nothing has ever arrived, and a timestamp we were handed but cannot parse is
- * a different and untrue thing to tell an operator.
+ * A section header's age. With a cadence to be stale against it is
+ * `AgeBadge`; without one there is nothing to turn amber, so it renders the
+ * plain age. Absence is a word, not a dash: this slot sits beside a title, so
+ * an em-dash reads as a rendering failure. The two absences are told apart:
+ * "never" claims nothing has ever arrived, and a timestamp we were handed but
+ * cannot parse is a different thing.
  */
 export function LaneAge({
   iso,

@@ -1,17 +1,11 @@
-// The PostHog archive contract, shared by the collector and every reader
-// (bead ro-ghis.1, epic ro-ghis).
+// The PostHog archive contract, shared by the collector and every reader.
 //
-// ONE ARCHIVE PER (asset, family, window end). The collector stores each family
-// through the ordinary signal-dump path: an R2 object whose envelope carries one
-// page, and that page's `response` is the body below. The body is the whole
-// contract a flattener reads, so it is declared here once and the collector
-// validates what it built against it before anything is archived.
-//
-// WINDOW GRAIN, NOT DAY GRAIN. Unique people and percentiles do not add across
-// days, so five of the six families are one row per thing over the whole
-// window (`people` is PostHog's unique person count for that row over that
-// window). Only `web-daily` is one row per day. A row that is not present was
-// not observed: absent is never zero.
+// One archive per (asset, family, window end): an archived page whose
+// `response` is the body below, which the collector validates before anything
+// is archived. Window grain, not day grain: unique people and percentiles do
+// not add across days, so every family but `web-daily` is one row per thing
+// over the whole window. A row that is not present was not observed: absent
+// is never zero.
 
 import { z } from 'zod';
 import {
@@ -23,9 +17,9 @@ import {
   type PosthogFunnelStep,
   type PosthogHost,
 } from './configuration.mjs';
-// The families and each row's fields are declared ONCE, in a portable module the
-// plain-Node flattener imports too (bead ro-ghis.4). The row schemas below are
-// checked against it field for field.
+// The families and each row's fields are declared once, in a portable module
+// the plain-Node flattener imports too; the row schemas below are checked
+// against it field for field.
 import {
   POSTHOG_FAMILIES,
   POSTHOG_FAMILY_ROWS,

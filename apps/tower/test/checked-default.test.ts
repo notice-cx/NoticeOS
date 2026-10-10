@@ -3,10 +3,9 @@ import { describe, expect, it } from "vitest";
 import { checkedDefault } from "../vite/checked-default";
 
 // The pull, integrations and counters defaults the Tower compiles in as its
-// Worker's fallback are judged at the build boundary by the declarations every
-// Save is judged by (bead ro-ujb9.222). The shipped files themselves are
-// scripts/config-registers.test.mjs's; this is what a malformed one does to the
-// build. Synthetic documents only — no repo config is read here.
+// Worker's fallback are judged at the build boundary by the declarations
+// every Save is judged by. The shipped files themselves are
+// scripts/config-registers.test.mjs's. Synthetic documents only.
 describe("checkedDefault — the build boundary for a compiled default", () => {
   it("hands a well-formed document back unchanged", () => {
     const pull = [{ asset: "meals.example", url: "https://meals.example/m", enabled: true }];

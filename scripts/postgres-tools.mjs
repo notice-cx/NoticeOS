@@ -40,7 +40,7 @@ function psqlVersion(psql) {
 /**
  * `{ psql, version, major }`, or null when this machine has no psql: all a
  * command needs that only connects to a server running elsewhere, in a
- * container or at a provider (bead ro-ujb9.76.39). `checkedSession`, the
+ * container or at a provider. `checkedSession`, the
  * operator's way into an installation's own database, asks for no more.
  */
 export function findPsql() {

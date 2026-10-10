@@ -3,7 +3,7 @@ import { readHostedTaskCommand } from './hosted-task-http.mjs';
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { createHostedTaskOperations, HostedTaskReceiptsUnavailable } from './hosted-task-operations.mjs';
 import { IDEMPOTENCY_KEY } from '../packages/postgres/src/task-receipts.mjs';
-/** A write's optional retry key (epic ro-cvl9); see docs/23 for its semantics. */
+/** A write's optional retry key; see docs/23 for its semantics. */
 export const IDEMPOTENCY_HEADER = 'idempotency-key';
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const STATUSES = ['open', 'in_progress', 'blocked', 'deferred', 'closed'];

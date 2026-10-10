@@ -1,4 +1,4 @@
-/** One feature policy for the native server, Worker and browser (ro-ujb9.256.4). */
+/** One feature policy for the native server, Worker and browser. */
 export const DEMO_READ_ONLY = 'Read only in this synthetic demo.';
 export interface DemoViewerDescriptor {
   readonly version: 1;

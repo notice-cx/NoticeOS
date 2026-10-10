@@ -2,15 +2,9 @@
 //                         columns (the changeset `expect` guard's read).
 // POST /api/asset-state — set one of them (the changeset's `store-asset-set` op).
 //
-// Operator-authed, both halves. The caller is `scripts/config-apply.mjs`, run by
-// hand beside a live `os:up`; these two routes are how the operator's changeset
-// tool reaches the central store WITHOUT a second workerd opening the sqlite file
-// (../asset-state.ts has the why, bead ro-bko).
-//
-// The write is the sharp one: it edits a row the Tower renders as fact. It is
-// bearer-gated for the same reason every other write lane is, and the column it
-// will edit is matched against the two db/README sanctions before any statement
-// is chosen.
+// Operator-authed, both halves; the caller is `scripts/config-apply.mts`. The
+// write edits a row the Tower renders as fact, so the column is matched
+// against the sanctioned two before any statement is chosen.
 
 import { authenticateOperator } from '../auth.js';
 import { readAssetState, writeAssetColumn } from '../asset-state.js';
@@ -47,7 +41,7 @@ export async function handleAssetStateEdit(
   }
 
   // A claim, not a check: `writeAssetColumn` validates the asset, the column and
-  // the value before it touches D1.
+  // the value before it touches the store.
   const result = await writeAssetColumn(env, parsed, nowMs);
 
   if (!result.ok) {

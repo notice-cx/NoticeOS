@@ -1,6 +1,5 @@
-// EVERY INGEST READ OF THE SITE LIST ASKS POSTGRES (bead ro-ujb9.76.4.2).
-//
-// Collectors list sites by their stored place.
+// Every ingest read of the site list asks Postgres; collectors list sites by
+// their stored place.
 
 import { env } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';

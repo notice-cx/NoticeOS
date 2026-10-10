@@ -1,14 +1,8 @@
-// The names the Tower's dev server answers to (bead ro-ujb9.150; D30).
-//
-// `pnpm os:up` serves the Tower on the LAN, and Vite's DNS-rebinding guard
-// (`server.allowedHosts`) refuses a request whose Host header names a machine
-// it was not told about. Vite always admits `localhost`, `*.localhost` and any
-// IP address itself; a machine NAME has to be listed. So the list is this
-// machine's own names, read from the machine when the server starts — never a
-// name written into the product — plus any the operator adds for a name the
-// machine cannot know (a DNS alias, a reverse proxy's host):
-// `TOWER_ALLOWED_HOSTS`, separated by commas or spaces, in Vite's own syntax
-// (`.example.com` also admits every subdomain).
+// The names the Tower's dev server answers to. Vite's DNS-rebinding guard
+// admits `localhost` and IP addresses itself; a machine name has to be listed,
+// so the list is this machine's own names read at start, plus any the operator
+// adds in `TOWER_ALLOWED_HOSTS` (comma or space separated, Vite's own syntax:
+// `.example.com` also admits every subdomain).
 
 import os from "node:os";
 

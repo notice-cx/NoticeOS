@@ -1,4 +1,4 @@
-// Shared fakes for the hosted task operation, HTTP and MCP tests (epic ro-cvl9).
+// Shared fakes for the hosted task operation, HTTP and MCP tests.
 // The receipt store keeps packages/postgres/src/task-receipts.mts's
 // compare-and-set rules (scripts/postgres-task-receipts.test.mjs proves the
 // real one); the executor answers in the pinned task client's JSON shapes and

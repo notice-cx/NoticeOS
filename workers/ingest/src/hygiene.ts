@@ -1,40 +1,9 @@
-// Nightly tech/GEO hygiene guards (docs/08 §S5) — the served layer, checked by
-// actually fetching it.
-//
-// Three regressions in this family are invisible to every other lane the OS
-// runs, because none of them change a metric until long after they happen:
-//
-//   1. STATIC DEPTH. AI crawlers do not render JavaScript. One asset's home
-//      page served 88 words of static HTML for months while GA4, GSC, and the
-//      nightly pulse all stayed green — the page was fine for humans and empty
-//      for crawlers, and nothing in the store could have said so.
-//   2. AI-CRAWLER ACCESS. Whether OAI-SearchBot, ClaudeBot, or PerplexityBot may
-//      read a property is a business input, and it is one robots.txt line away
-//      from being revoked by a framework default, a CDN toggle, or a copy-paste.
-//   3. SITEMAP. A sitemap that 404s or collapses to a handful of URLs surfaces
-//      weeks later as a Search Console notification, i.e. after the damage.
-//
-// All of them are plain HTTPS GETs against the property's OWN domain: zero API
-// quota, zero provider, no credential. The cost of running them nightly is six
-// requests per property — three site-level, three sampled real pages — which is
-// why they run nightly.
-//
-// OURS, NOT THEIRS. Every check here accuses a property, so each one first has
-// to be sure the failure is the property's. That is why a 200 past the byte
-// ceiling records `unsupported` and files nothing, and — since 2026-08-08, when
-// this sweep flagged six properties while the house internet was out — why a
-// fetch that came back with NO status at all asks src/egress.ts whether the OS
-// could reach the network before concluding anything. A real HTTP status never
-// asks: it is proof the request got there and back.
-//
-// WHAT THIS MODULE IS NOT: it is not a crawler and it does not pretend to be
-// one. Requests go out under this OS's own honest User-Agent
-// (HYGIENE_USER_AGENT). Fetching a property's robots.txt to see whether GPTBot
-// is allowed is a different act from fetching a page AS GPTBot, and only the
-// first one is something we are entitled to do. A property that serves
-// different HTML to crawlers than to us is therefore outside what the
-// html-depth check can see — see the limits table in
-// workers/ingest/README §"Hygiene guards".
+// Nightly hygiene guards on the served layer: static HTML depth, AI-crawler
+// access, sitemap health and page structure, checked by fetching each
+// property's own domain under this OS's honest User-Agent. Every check accuses
+// a property, so each first makes sure the failure is the property's: a 200
+// past the byte ceiling records `unsupported`, and a fetch with no status asks
+// src/egress.ts whether the OS could reach the network at all.
 
 import { javascriptInstant } from '@noticeos/postgres';
 import { appendReadingToOpen, holdCondition, raiseAlertUnlessOpen, readOpenAlert, resolveOpen } from './alert-store.js';
@@ -57,74 +26,31 @@ export const HTML_DEPTH_RULE_ID = 'hygiene-html-depth';
 export const ROBOTS_AI_RULE_ID = 'hygiene-robots-ai';
 export const SITEMAP_RULE_ID = 'hygiene-sitemap';
 /**
- * Reachability of the home page, deliberately a SECOND rule on the same
- * `html-depth` reading rather than a second trigger inside the depth rule.
- *
- * The depth rule's only sanctioned trigger is a median collapse, and an
- * unreachable page is not a zero-word page — so it stores `value_num = NULL` and
- * files nothing. That reasoning is right and it left the loudest failure of all
- * (a 500, a 404, a timeout on a property's front door) reaching the operator
- * only sideways, through the sitemap guard or ingest freshness. Two rule ids
- * cannot double-report the same night because they trigger on disjoint
- * outcomes: depth needs a body it counted, this one needs the absence of one.
- *
- * IT IS ALSO THE SITE'S UPTIME (bead `ro-ujb9.165`). The same check runs every
- * hour ({@link runUptimeChecks}), so a site that stops answering is an `error`
- * alert within the hour rather than the next night, and a site's Data sources
- * reads Up or Down from the reading it stores. One GET, one reading, one rule:
- * no second monitor that could disagree with this one. It files only on a
- * failure the retry confirms (bead `ro-ujb9.180`, {@link HOME_CONFIRM_WAIT_MS}).
+ * Reachability of the home page: a second rule on the `html-depth` reading,
+ * because an unreachable page is not a zero-word page. The two cannot
+ * double-report: depth needs a body it counted, this needs the absence of one.
+ * Also the site's uptime ({@link runUptimeChecks}); it files only on a failure
+ * the retry confirms ({@link HOME_CONFIRM_WAIT_MS}).
  */
 export const HOME_UNREACHABLE_RULE_ID = 'hygiene-home-unreachable';
 /**
- * Crawler directives found on REAL PAGES rather than in the site-level file:
- * `<meta name="robots">` and `X-Robots-Tag`. A second rule on the
- * `robots-ai-access` check for the same reason the depth check has two: one
- * fetch, two questions. Site-level and page-level blocks are different facts
- * with different fixes — one is a robots.txt line, the other is a template — so
- * an operator should never have to read the message to learn which they have.
+ * Crawler directives found on real pages (`<meta name="robots">`,
+ * `X-Robots-Tag`). A site-level block is a robots.txt line and a page-level one
+ * is a template, so they carry separate rule ids.
  */
 export const PAGE_DIRECTIVES_RULE_ID = 'hygiene-page-directives';
 /**
- * Structural faults on the sampled pages: a missing `<title>`, a missing meta
- * description, a missing or duplicated `<h1>`, and a canonical that points
- * somewhere else (ro-cda6.5).
- *
- * A FOURTH question on bytes we already have. The page sample is fetched once
- * for {@link PAGE_DIRECTIVES_RULE_ID} and read twice — a served page is one
- * document, and re-fetching it to ask a second question would double the
- * property's nightly request count to learn nothing new.
- *
- * WHY THESE FOUR AND NOT THE TWENTY-FIVE a site-audit tool ships. Each of the
- * three founding S5 checks was born from a real "nobody noticed for months"
- * incident, and that is the bar. These four are the ones with a decision
- * attached and no room to be wrong:
- *
- *   - **no title / no meta description** — the snippet is the click, and
- *     a title and description written against the live result page are the
- *     fix. A page with
- *     impressions and no title is losing the click it already earned.
- *   - **no h1 / several h1** — the page states no subject, or several.
- *   - **canonical elsewhere** — a page canonicalized to another URL cannot
- *     rank, however good it is. The loudest of the four, and the one most often
- *     shipped by accident: a template, a CMS default, a copied `<head>`.
- *
- * DELIBERATELY NOT CHECKED: title and description LENGTH. Google truncates by
- * pixel width, not characters, and rewrites titles at will; "your title is 61
- * characters" is taste with no decision behind it, and a check that fires on
- * taste is a check the operator learns to ignore. Also not checked: image alt
- * text, heading-level skips, and thin content on inner pages — real, but none of
- * them has hurt this portfolio yet, and the register of checks should record
- * incidents rather than a competitor's feature list.
+ * Structural faults on the sampled pages: missing `<title>`, missing meta
+ * description, missing or duplicated `<h1>`, canonical pointing elsewhere.
+ * Read from the bytes the directive check already fetched. Title and
+ * description length are deliberately not checked: Google truncates by pixel
+ * width and rewrites titles, so a length check fires on taste.
  */
 export const PAGE_STRUCTURE_RULE_ID = 'hygiene-page-structure';
 
 /**
- * The bots whose access is a business input for this portfolio: the three AI
- * search crawlers docs/08 names, their sibling training/user agents, Google's
- * AI-training opt-out token, and Bing (whose index feeds ChatGPT search). A bot
- * absent from this list is simply not watched — the check reports on exactly
- * these names and claims nothing about the rest of the file.
+ * The bots whose access is a business input. A bot absent from this list is
+ * not watched: the check claims nothing about the rest of the file.
  */
 export const WATCHED_BOTS = [
   'GPTBot',
@@ -139,53 +65,43 @@ export const WATCHED_BOTS = [
 export type WatchedBot = (typeof WATCHED_BOTS)[number];
 
 /**
- * Who we say we are. Honest identification, with a contact URL, exactly as we
- * would want a third party fetching our properties to identify itself. It is
- * deliberately NOT any crawler's token: impersonating GPTBot to see what GPTBot
- * receives would be lying to the origin about who is asking.
+ * Honest identification. Never a crawler's token: impersonating GPTBot to see
+ * what GPTBot receives would be lying to the origin about who is asking.
  */
 export const HYGIENE_USER_AGENT =
   'NoticeOS-Hygiene/1.0 (+https://www.notice.cx; portfolio self-check)';
 
-/** Per-request ceiling. Three requests per property, so a slow origin costs a
- * bounded amount of the nightly slot rather than the whole sweep. */
+/** Per request, so a slow origin costs a bounded slice of the nightly slot. */
 const REQUEST_TIMEOUT_MS = 15_000;
 
-/** Response byte ceiling — a home page or sitemap far past this is not a
- * document we should be word-counting inside a Worker's memory. */
+/** A document past this is not one to word-count inside a Worker's memory. */
 const RESPONSE_BYTE_LIMIT = 8 * 1024 * 1024;
 
 /** How many prior READINGS feed the html-depth median (see `depthBaseline`). */
 const DEPTH_BASELINE_WINDOW = 14;
-/** Below this many prior readings the depth rule stays unarmed — never flag on
- * sparse history (docs/14-design.md § Operator flows: rules arm after baselining, not before). */
+/** Below this many prior readings the depth rule stays unarmed: never flag on
+ * sparse history. */
 const DEPTH_MIN_READINGS = 7;
 /** Today must be at or under this share of the baseline median to flag. */
 const DEPTH_COLLAPSE_RATIO = 0.5;
 
 /** Same shape for sitemaps: today at or under half of the previous count … */
 const SITEMAP_COLLAPSE_RATIO = 0.5;
-/** … but only when the previous count was big enough for -50% to mean anything.
- * A property going 6 → 3 URLs is noise; 4,000 → 40 is an outage. */
+/** … but only when the previous count was big enough for -50% to mean anything:
+ * 6 → 3 URLs is noise; 4,000 → 40 is an outage. */
 const SITEMAP_MIN_PREV_URLS = 50;
 /**
- * A <sitemapindex> is followed ONE level deep and at most this many children.
- * Large properties shard into hundreds of child sitemaps and fetching all of
- * them would turn a three-request check into a crawl of our own origin. Past
- * the cap the stored count is an explicit floor (`children_capped: true`), and
- * because the cap is constant the collapse comparison is still floor-to-floor.
+ * A <sitemapindex> is followed one level deep and at most this many children,
+ * so a sharded property does not turn a three-request check into a crawl. Past
+ * the cap the stored count is an explicit floor (`children_capped: true`), and a
+ * constant cap keeps the collapse comparison floor-to-floor.
  */
 const SITEMAP_INDEX_CHILD_CAP = 10;
 
 /**
- * How many REAL pages the directive check samples per property per night, on top
- * of the three site-level requests. The roster is the sitemap the sweep already
- * fetched — no new config, no new list to keep true — and the sample is stable
- * (see {@link stableSample}) so the same pages come back night after night.
- *
- * Three is the budget, not a coverage claim: this check says "these pages are
- * clean", never "the property is clean". The cost of getting that wrong is a
- * property's whole nightly slot spent crawling our own origin.
+ * Real pages sampled per property per night, from the sitemap the sweep already
+ * fetched, stably ({@link stableSample}). A budget, not a coverage claim: the
+ * check says "these pages are clean", never "the property is clean".
  */
 const PAGE_SAMPLE_SIZE = 3;
 
@@ -200,26 +116,19 @@ interface FetchOutcome {
   body: string;
   bytes: number;
   contentType: string | null;
-  /**
-   * `X-Robots-Tag`, verbatim. The one response header this lane reads: it is a
-   * crawler directive that lives nowhere in the body, so a page can be
-   * `noindex` with markup that looks perfectly ordinary.
-   */
+  /** `X-Robots-Tag`, verbatim: a crawler directive that lives nowhere in the body. */
   xRobotsTag: string | null;
   /** The origin answered with bytes we will not decode as text (gzip, binary). */
   binary?: boolean;
   error?: string;
 }
 
-/** Content types we refuse to run through `.text()` — decoding them would produce
- * mojibake and a runtime warning, and every one of them is a document this lane
- * cannot read anyway. */
+/** Content types never run through `.text()`: none is a document this lane can read. */
 const BINARY_CONTENT_TYPE = /gzip|zip|octet-stream/i;
 
 /**
- * One hygiene GET. Never throws: every failure mode becomes an outcome, because
- * "the origin refused" and "we could not reach the origin" are both readings
- * this lane wants to store, not exceptions that would abort a property's sweep.
+ * One hygiene GET. Never throws: "the origin refused" and "we could not reach
+ * the origin" are both readings this lane stores.
  */
 async function fetchDoc(fetchImpl: typeof fetch, url: string, accept: string): Promise<FetchOutcome> {
   const base: FetchOutcome = {
@@ -314,27 +223,17 @@ function decodeEntities(text: string): string {
       return String.fromCodePoint(Number.parseInt(ref.slice(2), 16) || 32);
     }
     if (ref.startsWith('#')) return String.fromCodePoint(Number.parseInt(ref.slice(1), 10) || 32);
-    // An unrecognized named entity is almost always a single glyph inside or
-    // between words; dropping it cannot invent a word, whereas substituting a
-    // space could split one in two.
+    // Dropping an unknown entity cannot invent a word; a space could split one in two.
     return NAMED_ENTITIES[ref.toLowerCase()] ?? '';
   });
 }
 
 /**
- * Words of visible text in served HTML — the number that was 88 on one asset's home page.
- *
- * Deliberately a string transform, not a parser: this must run in a Worker with
- * no dependencies, and the question it answers ("is there prose here at all?")
- * is coarse by nature. It strips comments and never-visible elements, drops the
- * remaining tags, decodes the entities that matter, and counts whitespace-
- * separated tokens containing at least one letter or digit — so `|`, `—`, and
- * `&middot;` separators do not inflate the count.
- *
- * What it does NOT do: execute JavaScript (that is the point — neither do AI
- * crawlers), resolve `<iframe>`/shadow DOM content, or distinguish nav
- * boilerplate from article body. A page whose only words are its own menu will
- * read as having those words; the check catches collapse, not quality.
+ * Words of visible text in served HTML. A string transform, not a parser: it
+ * strips comments and never-visible elements, drops tags, decodes the entities
+ * that matter, and counts tokens with at least one letter or digit. It does not
+ * execute JavaScript (neither do AI crawlers) or distinguish nav from body: the
+ * check catches collapse, not quality.
  */
 export function countVisibleWords(html: string): number {
   const text = decodeEntities(
@@ -357,13 +256,10 @@ export function median(values: number[]): number {
 // --- check b: robots-ai-access ----------------------------------------------
 
 /**
- * One `User-agent:` group, reduced to the only question this check asks: is the
- * whole site closed to the agents in this group?
- *
- * `disallow_all` is `Disallow: /` exactly. `allow_root` is `Allow: /` exactly,
- * tracked because a group carrying both is the documented tie-break case (equal
- * path length resolves to allow), which is how several CMS defaults express
- * "blocked from nothing".
+ * One `User-agent:` group, reduced to: is the whole site closed to its agents?
+ * `allow_root` is tracked because a group carrying both `Disallow: /` and
+ * `Allow: /` resolves to allow (equal path length), which is how several CMS
+ * defaults express "blocked from nothing".
  */
 export interface RobotsGroup {
   /** Lower-cased agent tokens this group applies to. */
@@ -373,33 +269,18 @@ export interface RobotsGroup {
 }
 
 /**
- * Hand-rolled robots.txt group parser (no dependencies, per the milestone
- * constraint). It is deliberately a SITE-LEVEL detector, and its limits are as
- * load-bearing as its behavior:
- *
- * CATCHES — the regression this check exists for: a named bot (or `*`) acquiring
- * a blanket `Disallow: /`, a bot's group disappearing so it falls back to a
- * blocking `*` group, and robots.txt itself vanishing.
- *
- * DOES NOT CATCH — path-level rules (`Disallow: /recipes/` reads as allowed,
- * because the bot IS still allowed the rest of the site), wildcard/`$` patterns,
- * longest-match precedence between competing rules inside a group, and
- * `crawl-delay` throttling. Adding real longest-match evaluation is only worth it
- * once a property actually ships path-scoped AI rules. `<meta name="robots">`,
- * `X-Robots-Tag`, and per-page `nosnippet`/`noai` are not this parser's job at
- * all — they are per-URL facts, read from sampled pages by
- * {@link parsePageDirectives}.
- *
- * Agent matching is exact (case-insensitive) on the token, not the substring
- * prefix real crawlers use: a group for `Googlebot` does not resolve
- * `Google-Extended`, which is the conservative direction — it can miss a block,
- * never invent one.
+ * Site-level robots.txt group parser. Catches a named bot (or `*`) acquiring a
+ * blanket `Disallow: /`, a bot's group disappearing into a blocking `*` group,
+ * and robots.txt vanishing. Does not evaluate path-level rules, wildcards, `$`
+ * patterns, longest-match precedence or `crawl-delay`; per-page directives are
+ * {@link parsePageDirectives}'s job. Agent matching is exact (case-insensitive),
+ * not the prefix match real crawlers use: it can miss a block, never invent one.
  */
 export function parseRobotsGroups(text: string): RobotsGroup[] {
   const groups: RobotsGroup[] = [];
   let current: RobotsGroup | null = null;
-  // Consecutive `User-agent:` lines address ONE group; the first rule line ends
-  // the header, so the next `User-agent:` after it starts a new group.
+  // Consecutive `User-agent:` lines address one group; the first rule line ends
+  // the header.
   let inHeader = false;
 
   for (const rawLine of text.split(/\r?\n/)) {
@@ -467,9 +348,8 @@ export function sitemapUrlsFromRobots(text: string): string[] {
 // --- check b, page level: meta-robots and X-Robots-Tag ----------------------
 
 /**
- * Directives that take a value rather than naming a user agent. Without this
- * set, `unavailable_after: 2026-01-01T…` in an `X-Robots-Tag` would parse as a
- * user-agent scope called `unavailable_after`.
+ * Directives that take a value rather than naming a user agent; without this
+ * set `unavailable_after: <date>` would parse as a user-agent scope.
  */
 const VALUED_DIRECTIVES = new Set([
   'unavailable_after',
@@ -479,15 +359,9 @@ const VALUED_DIRECTIVES = new Set([
 ]);
 
 /**
- * The directives that take a page OUT of the surfaces this portfolio is graded
- * on. Deliberately narrower than "every robots directive": `nofollow` and
- * `noarchive` change how a page is treated, `max-image-preview:none` costs a
- * thumbnail — none of them remove the page. These do.
- *
- * `max-snippet:0` is here because it IS `nosnippet` written as a number, and a
- * zero-length snippet is the whole game for an AI answer that quotes you.
- * `noai`/`noimageai` are the emerging opt-out pair; nothing obliges a crawler to
- * honor them, which is exactly why an accidental one must be visible.
+ * The directives that take a page out of the surfaces this portfolio is graded
+ * on; `nofollow`, `noarchive` and `max-image-preview` change treatment without
+ * removing the page. `max-snippet:0` is `nosnippet` written as a number.
  */
 const BLOCKING_DIRECTIVES = new Set([
   'noindex',
@@ -531,19 +405,11 @@ function metaAttributes(tag: string): Record<string, string> {
 }
 
 /**
- * Crawler directives for ONE page: `<meta name="robots">` and any per-agent meta
- * (`<meta name="googlebot">`), plus the `X-Robots-Tag` response header.
- *
- * The header parser scopes by agent the way the header is actually written:
- * `googlebot: noindex, nosnippet` applies BOTH directives to googlebot, so an
- * `agent:` part opens a scope that runs until the next one. That is also its
- * limit — several `X-Robots-Tag` headers arrive here already joined into one
- * comma-separated string, so a bare directive after an agent-scoped header is
- * read as belonging to that agent. Conservative in the direction that matters:
- * it can attribute a block too narrowly, never invent one.
- *
- * Unlike robots.txt this is per-URL by construction, which is the whole point —
- * a `noindex` on one template is invisible to a site-level file.
+ * Crawler directives for one page: `<meta name="robots">`, per-agent meta, and
+ * the `X-Robots-Tag` header. In the header an `agent:` part opens a scope that
+ * runs until the next one; several headers arrive joined into one string, so a
+ * bare directive after an agent-scoped one is read as that agent's. It can
+ * attribute a block too narrowly, never invent one.
  */
 export function parsePageDirectives(html: string, xRobotsTag: string | null): PageDirectives {
   const all: string[] = [];
@@ -593,9 +459,8 @@ export function parsePageDirectives(html: string, xRobotsTag: string | null): Pa
 }
 
 /**
- * The blocking directives on a page, each qualified by the agent it addresses
- * (`noindex`, `googlebot:nosnippet`) so a reading names what an operator would
- * have to go and delete.
+ * The blocking directives on a page, each qualified by the agent it addresses,
+ * so a reading names what an operator would have to go and delete.
  */
 export function blockingDirectives(parsed: PageDirectives): string[] {
   const found = parsed.all.filter((directive) => BLOCKING_DIRECTIVES.has(directive));
@@ -608,15 +473,9 @@ export function blockingDirectives(parsed: PageDirectives): string[] {
 }
 
 /**
- * A stable K-of-N sample: the URLs whose FNV-1a hash sorts first.
- *
- * Order-independent and stable under additions, which is what makes the
- * page-directive rule able to accumulate a comparison at all. "The first three
- * `<loc>` entries" would look simpler and be useless: sitemaps are commonly
- * ordered by `lastmod` descending, so the sample would be three different URLs
- * every night, every reading would be a first reading, and a first reading never
- * flags. Hashing means tonight's sample differs from last night's only where the
- * property actually changed.
+ * A stable K-of-N sample: the URLs whose FNV-1a hash sorts first. Sitemaps are
+ * commonly ordered by `lastmod` descending, so "the first three" would be three
+ * different URLs every night and a first reading never flags.
  */
 export function stableSample(urls: string[], size: number): string[] {
   const unique = [...new Set(urls)];
@@ -638,7 +497,7 @@ async function sha256Hex(text: string): Promise<string> {
 }
 
 
-// --- check d: page structure (ro-cda6.5) ------------------------------------
+// --- check d: page structure ------------------------------------------------
 
 const TITLE_TAG = /<title\b[^>]*>([\s\S]*?)<\/title\s*>/i;
 const H1_TAG = /<h1\b[^>]*>([\s\S]*?)<\/h1\s*>/gi;
@@ -660,13 +519,9 @@ export interface PageStructure {
 
 /**
  * Compare two URLs the way a search engine's canonical check does: scheme and
- * host case-insensitively, path exactly except for a trailing slash, and query
- * order-insensitively. A canonical that differs only in those respects is
- * self-referential, and calling it "elsewhere" would fire on almost every page
- * on the internet.
- *
- * The fragment is dropped: it never reaches the server and cannot distinguish
- * two documents.
+ * host case-insensitively, path exactly except a trailing slash, query
+ * order-insensitively, fragment dropped. Stricter would fire on almost every
+ * page on the internet.
  */
 export function sameCanonicalTarget(pageUrl: string, canonical: string): boolean {
   let left: URL;
@@ -675,9 +530,8 @@ export function sameCanonicalTarget(pageUrl: string, canonical: string): boolean
     left = new URL(pageUrl);
     right = new URL(canonical, pageUrl);
   } catch {
-    // An unparseable canonical is not evidence that the page is disclaimed; it
-    // is evidence that we could not tell. Treated as self-referential, so the
-    // rule stays silent rather than accusing on a string it did not understand.
+    // Unparseable means "could not tell", not "disclaimed": treated as
+    // self-referential so the rule stays silent.
     return true;
   }
   if (left.protocol !== right.protocol) return false;
@@ -697,18 +551,15 @@ export function sameCanonicalTarget(pageUrl: string, canonical: string): boolean
 }
 
 /**
- * Parse the four structural facts out of a served page.
- *
- * Regex rather than a DOM: this runs inside a Worker on up to
- * `RESPONSE_BYTE_LIMIT` of HTML, and the questions are shallow enough that a
- * parser would be weight without accuracy. Where a regex genuinely cannot be
- * sure it returns null, which reads as "not measured" and never as "absent".
+ * Regex rather than a DOM: this runs on up to `RESPONSE_BYTE_LIMIT` of HTML and
+ * the questions are shallow. Where a regex cannot be sure it returns null,
+ * which reads as "not measured", never as "absent".
  */
 export function parsePageStructure(html: string, pageUrl: string): PageStructure {
   const titleMatch = TITLE_TAG.exec(html);
   const rawTitle = titleMatch ? decodeEntities(titleMatch[1] ?? '').trim() : '';
-  // An empty <title></title> is the same fact as no title at all — the SERP has
-  // nothing to print either way — so both resolve to null rather than to ''.
+  // An empty <title></title> is the same fact as no title: the SERP has nothing
+  // to print either way.
   const title = rawTitle.length > 0 ? rawTitle : null;
 
   let description: string | null = null;
@@ -749,10 +600,7 @@ export function parsePageStructure(html: string, pageUrl: string): PageStructure
   };
 }
 
-/**
- * The structural faults on one page, as an operator would name them. Empty is
- * the only thing that means clean.
- */
+/** The structural faults on one page. Empty is the only thing that means clean. */
 export function structureFaults(structure: PageStructure): string[] {
   const faults: string[] = [];
   if (structure.title === null) faults.push('no-title');
@@ -769,10 +617,9 @@ const SITEMAP_ROOT = /<\s*(urlset|sitemapindex)\b/i;
 const LOC_ENTRY = /<loc\b[^>]*>([\s\S]*?)<\/loc\s*>/gi;
 
 /**
- * The document's root element, or null when this is not a sitemap at all — the
- * common failure being an origin that answers /sitemap.xml with its 200 HTML
- * error page. Requires the closing tag too, so a truncated response is
- * unparseable rather than silently short.
+ * The root element, or null when this is not a sitemap (commonly an origin
+ * answering /sitemap.xml with its 200 HTML error page). Requires the closing
+ * tag, so a truncated response is unparseable rather than silently short.
  */
 export function sitemapRoot(xml: string): 'urlset' | 'sitemapindex' | null {
   const opened = SITEMAP_ROOT.exec(xml.replace(HTML_COMMENT, ' '));
@@ -794,19 +641,15 @@ export function locValues(xml: string): string[] {
 }
 
 /**
- * Gzipped sitemaps are legal and common, and we cannot read one — either the
- * origin told us so in the content type (`binary`), or it served a `.gz` URL
- * with a 200 and some content type we would have mis-parsed. A NON-200 on a
- * `.gz` URL is not this case: that is an ordinary outage and is flagged as one.
+ * Gzipped sitemaps are legal and unreadable here: either the content type said
+ * so, or a `.gz` URL came back 200. A non-200 on a `.gz` URL is an ordinary
+ * outage and is flagged as one.
  */
 function isUnreadableSitemap(outcome: FetchOutcome): boolean {
   return outcome.binary === true || (outcome.ok && /\.gz(\?|$)/i.test(outcome.url));
 }
 
 // --- stored history ---------------------------------------------------------
-//
-// On Postgres, `noticeos.hygiene_checks`, through the call's store (bead
-// ro-ujb9.76.5.8). The flags these checks file are other statements.
 
 type HygieneReading = {
   observed_on: string;
@@ -817,21 +660,11 @@ type HygieneReading = {
 };
 
 /**
- * Prior readings for one check, newest first, strictly before today.
- *
- * The window is the last N READINGS rather than the last N calendar days: a
- * night the cron did not run should make the baseline older, not smaller.
- * Shrinking it would be the wrong direction — a thinner baseline is exactly
- * when a median is easiest to trip.
- *
- * `healthyOnly` is the comparison baseline the two count rules use, and it is
- * load-bearing. A regression that persists must not become its own baseline: a
- * fortnight of 88-word home pages would otherwise drag the median down to 88,
- * stop matching the collapse test, and RESOLVE the very flag describing it —
- * the store would quietly redefine normal as broken. Comparing only against
- * readings the check considered healthy means a standing regression keeps
- * alerting until the bytes recover or an operator dispositions the flag (which
- * is what disposition is for, docs/14-design.md § Operator flows).
+ * Prior readings for one check, newest first, strictly before today. The window
+ * is the last N readings, not N days: a night the cron did not run should make
+ * the baseline older, not thinner. `healthyOnly` is load-bearing for the count
+ * rules: a regression that persists must not become its own baseline and
+ * resolve the flag describing it.
  */
 async function priorReadings(
   env: IngestEnv,
@@ -855,8 +688,8 @@ async function priorReadings(
   return rows.map((row) => ({ ...row, observed_at: javascriptInstant(row.observed_at) }));
 }
 
-/** The open flag's stored inputs for one guard, so an ONGOING condition can be
- * told apart from a fresh one (see `checkRobotsAiAccess`). */
+/** The open flag's stored inputs for one guard, so an ongoing condition can be
+ * told apart from a fresh one. */
 async function openFlagInputs(
   env: IngestEnv,
   asset: string,
@@ -872,7 +705,7 @@ async function openFlagInputs(
   }
 }
 
-/** Upsert today's reading (see the migration's grain note on same-day re-runs). */
+/** Upsert today's reading; a same-day re-run replaces it. */
 async function writeReading(
   env: IngestEnv,
   asset: string,
@@ -930,27 +763,13 @@ export interface HygieneFlagWrite {
 }
 
 /**
- * File a hygiene flag, mirroring `asset-pull-failed` (src/pull.ts) exactly —
- * because it is the same shape of fact: an ONGOING condition observed once a
- * night. A hygiene regression that lasts a fortnight is one problem, not
- * fourteen, so the first night INSERTs (guarded by NOT EXISTS against an open
- * flag with the same rule) and every night after becomes that open alert's
- * newest reading (message, inputs and severity; `noticeos.flag_evidence`).
- * Recording rather than dropping matters: the cause can
- * change between nights (a sitemap that 404s on Monday and returns nine URLs on
- * Tuesday), and an operator reading a flag frozen at Monday's cause is chasing
- * the wrong thing. `fired_at` is left alone so the row still dates the onset,
- * and `occurrences`/`lastObservedAt` carry how long it has run.
- *
- * Severity is `warn` on the served-layer guards. docs/08's alert-rules line
- * asks for `error` on static-depth; landing at `warn` is a deliberate first-run
- * posture (see the dated delta in docs/08 §S5) — `error` is the
- * revenue-off-switch band, and a hand-rolled word count that has never fired in
- * production has not earned it yet. A home page that does not answer HAS: the
- * site is down, which is exactly that band, so {@link HOME_UNREACHABLE_RULE_ID}
- * files at `error` (bead `ro-ujb9.165`). An open flag takes the severity of the
- * check that refreshes it, so one filed at `warn` before that is raised by the
- * next check that still finds the site down.
+ * File a hygiene flag as an ongoing condition observed once a night: the first
+ * night inserts, every night after becomes the open alert's newest reading
+ * (message, inputs and severity), because the cause can change between nights.
+ * `fired_at` still dates the onset; `occurrences`/`lastObservedAt` carry how
+ * long it has run. Served-layer guards file at `warn`; a home page that does not
+ * answer files at `error`, and an open flag takes the severity of the check
+ * that refreshes it.
  */
 async function fireHygieneFlag(
   env: IngestEnv,
@@ -962,9 +781,8 @@ async function fireHygieneFlag(
   at: string,
   severity: 'warn' | 'error' = 'warn',
 ): Promise<HygieneFlagWrite> {
-  // One transaction that holds the condition: read the open alert as its
-  // newest reading states it, then raise one or append tonight's reading
-  // (bead ro-ujb9.76.5.2; D1 rewrote the open row, severity included).
+  // One transaction holds the condition: read the open alert as its newest
+  // reading states it, then raise one or append tonight's reading.
   return env.STORE.write(async (tx) => {
     await holdCondition(tx, asset, ruleId);
     const open = await readOpenAlert(tx, asset, ruleId);
@@ -1003,10 +821,8 @@ async function fireHygieneFlag(
 }
 
 /**
- * A clean reading closes the open flag for that guard. The condition these rules
- * describe is a live property of the served bytes, so once the bytes are healthy
- * again the alert has no subject — same contract as `asset-pull-failed`
- * resolving on the next good pull.
+ * A clean reading closes the open flag: the condition is a live property of the
+ * served bytes, so once they are healthy the alert has no subject.
  */
 async function resolveHygieneFlag(
   env: IngestEnv,
@@ -1045,12 +861,8 @@ export interface HygieneRunResult {
   resolved: number;
   outcomes: HygieneCheckOutcome[];
   failed: { asset: string; check: HygieneCheckId; error: string }[];
-  /**
-   * What the run's egress gate concluded, deliberately OUTSIDE the `fired` /
-   * `resolved` totals: those count alerts about properties, and the one alert
-   * this can write is about the OS. Mixing them would put a flag that says
-   * "ignore tonight's silence" into the count of things tonight found.
-   */
+  /** What the run's egress gate concluded, outside the `fired`/`resolved`
+   * totals: those count alerts about properties, this one is about the OS. */
   egress: EgressRunOutcome;
 }
 
@@ -1060,27 +872,18 @@ export interface HygieneOptions {
   /** Override the outbound fetcher (tests stub the origin's responses). */
   fetchImpl?: typeof fetch;
   nowMs?: number;
-  /** Override the run's egress gate — one per run, so its verdict and its
-   * unmeasured-property set describe this sweep. Tests inject one to control the
-   * verdict TTL; every other caller gets a real one over the same fetcher. */
+  /** Override the run's egress gate (tests control the verdict TTL). */
   egress?: EgressGate;
   /** How long a failed home page waits for its confirming retry; default
-   * {@link HOME_CONFIRM_WAIT_MS}. The journey fixture passes 0. */
+   * {@link HOME_CONFIRM_WAIT_MS}. */
   confirmWaitMs?: number;
 }
 
 /**
  * How long a home page whose GET failed waits before the one retry that
- * confirms it (bead `ro-ujb9.180`). A transient 5xx, a deploy in progress or a
- * CDN hiccup is over within it; a site that is really down still is. Uptime
- * products confirm the same way before alerting — UptimeRobot re-checks up to
- * three times 10–20 seconds apart, Pingdom needs a second failed test
- * (bead ro-ujb9.180).
- *
- * The run waits ONCE, for every site whose first GET failed, after every other
- * site is read: never a wait per site. A timer costs no CPU, and a scheduled
- * Worker has 15 minutes of wall clock; the hourly tick's freshness step runs
- * beside this one, so the wait holds up nothing else.
+ * confirms it: a transient 5xx or a deploy is over within it, a site that is
+ * really down still is. The run waits once, for every such site, after every
+ * other site is read.
  */
 export const HOME_CONFIRM_WAIT_MS = 45_000;
 
@@ -1100,12 +903,9 @@ function waitMs(ms: number): Promise<void> {
 }
 
 /**
- * THE SECOND LOOK (bead `ro-ujb9.180`). After one wait, ask each home page
- * whose first GET failed once more. Its answer is the reading: up (with the
- * failed try recorded) or, failing again, the failing reading and the
- * {@link HOME_UNREACHABLE_RULE_ID} alert. A retry with no answer asks the egress
- * gate as the first GET would have: an OS that cannot reach the network
- * accuses no site.
+ * After one wait, ask each home page whose first GET failed once more. Its
+ * answer is the reading; a retry with no answer asks the egress gate as the
+ * first GET would have.
  */
 async function confirmHomeFailures(
   env: IngestEnv,
@@ -1133,18 +933,12 @@ async function confirmHomeFailures(
 
 /**
  * Every property whose served layer this OS can check: it has a domain, it is
- * not retired, and it is not asset #0.
- *
- * Asset #0 is excluded because S5 guards what a CRAWLER receives, and the OS's
- * own cockpit has no crawl surface to guard — including it would mean a
- * permanent "no sitemap" warn on the OS row, which is precisely the standing
- * noise the flags lane exists to avoid. Pre-launch properties ARE included:
- * observing them is Sense, and a pre-launch property is exactly where a robots
- * block or an empty home page is most likely to be sitting unnoticed.
+ * not retired, and it is not asset #0 (the cockpit has no crawl surface, and
+ * including it would mean a permanent "no sitemap" warn). Pre-launch
+ * properties are included: that is where a robots block sits unnoticed.
  */
 async function eligibleAssets(env: IngestEnv): Promise<HygieneAsset[]> {
-  // The site list on Postgres (bead ro-ujb9.76.4.2); its CHECK already
-  // refuses an empty domain. Ids in byte order, as D1 ordered them.
+  // The assets table's CHECK already refuses an empty domain.
   return env.STORE.read((tx) =>
     tx.query<{ asset: string; domain: string }>(
       `SELECT asset_id AS asset, domain
@@ -1159,26 +953,14 @@ async function eligibleAssets(env: IngestEnv): Promise<HygieneAsset[]> {
 
 /**
  * html-depth: fetch the home page, count words of visible text, and flag when
- * today's count has collapsed against the property's own trailing median.
+ * today's count has collapsed against the property's own trailing median. The
+ * rule stays unarmed below {@link DEPTH_MIN_READINGS} prior readings.
  *
- * The rule stays UNARMED below {@link DEPTH_MIN_READINGS} prior readings. A
- * property whose second night looks different from its first has told us
- * nothing, and a guard that cries on day two is a guard that gets muted before
- * the day it matters.
- *
- * A home page that fails to load records `error`/`unreachable` with a NULL count
- * and files NO depth flag: an unreachable page is not a zero-word page, and this
- * rule's only sanctioned trigger is the median collapse. It is instead the
- * trigger for {@link HOME_UNREACHABLE_RULE_ID}, which is fired here because this
- * is the check that already fetches the page — one request, two rules, disjoint
- * conditions.
- *
- * ONE FAILED GET IS NOT DOWN (bead `ro-ujb9.180`). On the run's first GET a
- * failure the site may own is only held: the page joins `attempt.retryOwed`,
- * nothing is written, and this returns null. The run asks once more after
- * {@link HOME_CONFIRM_WAIT_MS} ({@link confirmHomeFailures}); only that second
- * failure writes the failing reading and files the alert, and a retry that
- * answers is an ordinary reading that carries the failed try.
+ * A home page that fails to load records a NULL count and no depth flag; it is
+ * instead the trigger for {@link HOME_UNREACHABLE_RULE_ID}, fired here because
+ * this check already fetches the page. On the run's first GET such a failure is
+ * only held (`attempt.retryOwed`, returns null); only the confirming retry
+ * ({@link confirmHomeFailures}) writes the failing reading and files the alert.
  */
 async function checkHtmlDepth(
   env: IngestEnv,
@@ -1195,15 +977,11 @@ async function checkHtmlDepth(
 
   if (!response.ok) {
     const status: HygieneStatus = response.status === null ? 'unreachable' : 'error';
-    // A 200 we declined to read (past the byte ceiling, or a content type we
-    // will not decode) is OUR limit, not the property's failure — same posture
-    // the sitemap guard takes on a gzipped file. Record the reading so the gap
-    // is visible; accuse nobody.
+    // A 200 we declined to read (byte ceiling, undecodable content type) is
+    // our limit, not the property's failure: record the reading, accuse nobody.
     const oursNotTheirs = response.status === 200;
-    // A fetch with no status at all is the other failure that might be ours: on
-    // 2026-08-08 this branch called six live home pages unreachable while the
-    // OS's own uplink was down. Any status skips the question — it already
-    // proves the request got out.
+    // A fetch with no status at all might be the OS's own uplink. Any status
+    // skips the question: it proves the request got out.
     const egressDown = response.status === null && (await gate.isDown());
     if (!oursNotTheirs && !egressDown && 'retryOwed' in attempt) {
       attempt.retryOwed.push({ entry, firstTry: response });
@@ -1215,14 +993,13 @@ async function checkHtmlDepth(
       error: response.error,
       ...(oursNotTheirs ? { unsupported: true } : {}),
       ...(egressDown ? { egress_down: true } : {}),
-      // Two GETs, the confirmed failure's pair (bead `ro-ujb9.180`).
+      // Two GETs, the confirmed failure's pair.
       ...(oursNotTheirs || egressDown ? {} : { failed_tries: 2 }),
     };
     await writeReading(env, entry.asset, 'html-depth', at, status, null, detail);
     if (oursNotTheirs || egressDown) {
-      // No flag, and no retraction either: the reading stands as the record that
-      // we looked, and "we did not measure it" is never grounds for withdrawing
-      // an alert we already made.
+      // No flag, and no retraction either: "we did not measure it" is never
+      // grounds for withdrawing an alert we already made.
       if (egressDown) gate.recordUnmeasured(entry.asset);
       return { asset: entry.asset, check: 'html-depth', status, value: null, fired: 0, refreshed: 0, resolved: 0 };
     }
@@ -1261,22 +1038,18 @@ async function checkHtmlDepth(
     baseline_readings: baselineValues.length,
     baseline_min_readings: DEPTH_MIN_READINGS,
     armed,
-    // It answered the retry: up, with the one failed try on the record, so the
-    // row can say so without anything filed (bead `ro-ujb9.180`).
+    // It answered the retry: up, with the one failed try on the record.
     ...(firstTry ? { failed_tries: 1, first_try_http_status: firstTry.status } : {}),
   };
   await writeReading(env, entry.asset, 'html-depth', at, collapsed ? 'warn' : 'ok', words, detail);
 
-  // The page answered with a body we counted, so it is reachable — whatever the
-  // depth rule goes on to conclude, and whether or not that rule is armed.
-  // Reachability needs no baseline, so unlike the depth flag this retraction is
-  // unconditional.
+  // A body we counted proves reachability whatever the depth rule concludes and
+  // whether or not it is armed, so this retraction is unconditional.
   const reachable = await resolveHygieneFlag(env, entry.asset, HOME_UNREACHABLE_RULE_ID, at);
 
   if (!collapsed) {
-    // Only an ARMED, healthy reading retracts an open flag. While the rule is
-    // unarmed we have not judged the page, and "we did not measure it" is never
-    // grounds for withdrawing an alert we already made.
+    // Only an armed, healthy reading retracts an open flag: while unarmed we
+    // have not judged the page.
     const resolved = armed ? await resolveHygieneFlag(env, entry.asset, HTML_DEPTH_RULE_ID, at) : 0;
     return {
       asset: entry.asset,
@@ -1294,9 +1067,7 @@ async function checkHtmlDepth(
     entry.asset,
     HTML_DEPTH_RULE_ID,
     'html-depth',
-    // Values only (bead `ro-ujb9.96.6.26`): the Tower's headline and its
-    // evidence rows are drawn from the inputs; why the depth matters (AI
-    // crawlers read the served HTML, not the rendered page) is this file's.
+    // Values only: the Tower draws the headline and evidence rows from the inputs.
     `home page HTML fell to ${words} words (median ${baseline!})`,
     { ...detail, threshold_ratio: DEPTH_COLLAPSE_RATIO },
     at,
@@ -1325,11 +1096,8 @@ interface PageReading {
   /** False when there was nothing to read: UNKNOWN, which is never clean. */
   read: boolean;
   error?: string;
-  /**
-   * The structural facts from the SAME bytes (ro-cda6.5). Present only when the
-   * page was read; a page we could not fetch has no structure, as opposed to a
-   * page with none.
-   */
+  /** The structural facts from the same bytes. Present only when the page was
+   * read: a page we could not fetch has no structure, as opposed to none. */
   structure?: PageStructure;
   /** The structural faults, if any. Empty means clean; absent means unread. */
   faults?: string[];
@@ -1356,9 +1124,7 @@ async function samplePageDirectives(fetchImpl: typeof fetch, urls: string[]): Pr
     const agentScoped = Object.entries(parsed.byAgent).flatMap(([agent, directives]) =>
       directives.map((directive) => `${agent}:${directive}`),
     );
-    // Two questions, one document. The structural parse rides the fetch the
-    // directive check already paid for — re-fetching to ask it separately would
-    // double the property's nightly requests to learn nothing new.
+    // The structural parse rides the fetch the directive check already paid for.
     const structure = parsePageStructure(response.body, url);
     readings.push({
       url,
@@ -1375,26 +1141,15 @@ async function samplePageDirectives(fetchImpl: typeof fetch, urls: string[]): Pr
 }
 
 /**
- * robots-ai-access: what the property's crawler directives say tonight, at BOTH
- * levels — the site-level `robots.txt`, and `<meta name="robots">` /
- * `X-Robots-Tag` on a stable sample of real pages.
+ * robots-ai-access: the site-level `robots.txt`, and `<meta name="robots">` /
+ * `X-Robots-Tag` on a stable sample of real pages. Two rule ids, one reading.
  *
- * Two levels because they are two different regressions with two different
- * fixes. A blanket `Disallow: /` is a robots.txt line; a `noindex` shipped by a
- * template is a page, invisible to any site-level file, and it is the one a CMS
- * or a staging flag actually produces. They therefore carry two rule ids
- * ({@link ROBOTS_AI_RULE_ID}, {@link PAGE_DIRECTIVES_RULE_ID}) and one reading.
- *
- * Both halves share the family's discipline. Only transitions flag, and only in
- * the bad direction: the first reading of a URL (or of a robots.txt) establishes
- * the map and can never fire — a page that has always been `noindex` is a
- * standing configuration to argue about, not tonight's incident. And the
- * transition is measured against last night's reading while CONTINUATION is
- * measured against the open flag, because otherwise night three of a block looks
- * identical to night one of health and the guard would resolve its own alert.
- *
- * The page half is a SAMPLE and says so: `pages_sampled` of `pages_available`.
- * It can prove the pages it read are clean; it never claims the property is.
+ * Only transitions flag, and only in the bad direction: the first reading of a
+ * URL or a robots.txt establishes the map and can never fire. The transition is
+ * measured against last night's reading while continuation is measured against
+ * the open flag, or night three of a block would look like night one of health
+ * and the guard would resolve its own alert. The page half is a sample and says
+ * so: it never claims the property is clean.
  */
 async function checkRobotsAiAccess(
   env: IngestEnv,
@@ -1423,10 +1178,8 @@ async function checkRobotsAiAccess(
   }
 
   const present = robots.ok;
-  // "robots.txt is no longer served" is this lane's loudest claim and its easiest
-  // one to get wrong: an absence proves nothing when the request never left the
-  // house. That is the flag 2026-08-08 fired on six properties at once, so a
-  // statusless robots fetch asks the gate before the word `vanished` is used.
+  // "robots.txt is no longer served" is this lane's loudest claim: an absence
+  // proves nothing when the request never left the house.
   const egressDown = !present && robots.status === null && (await gate.isDown());
   const bots = present ? resolveWatchedBots(parseRobotsGroups(robots.body)) : {};
   const hash = present ? await sha256Hex(robots.body) : null;
@@ -1434,7 +1187,7 @@ async function checkRobotsAiAccess(
   const sampled = stableSample(roster.urls, PAGE_SAMPLE_SIZE);
   const pages = await samplePageDirectives(fetchImpl, sampled);
   // Hand the fetched documents on: `page-structure` asks a second question of
-  // these exact bytes rather than fetching them again (ro-cda6.5).
+  // these exact bytes.
   sample.pages = pages;
   sample.source = roster.source;
   sample.egressDown = egressDown;
@@ -1466,11 +1219,9 @@ async function checkRobotsAiAccess(
   const stillLost = present ? alreadyFlaggedLost.filter((bot) => bots[bot] === false) : [];
   const lost = [...new Set([...newlyLost, ...stillLost])];
   const vanished = !present && (previousDetail.present === true || openInputs?.robots_vanished === true);
-  // Under an OS egress outage NEITHER half of this check measured anything: the
-  // file did not answer and neither did the pages, so no regression may be
-  // declared — and none may be withdrawn either. Forcing both verdicts false is
-  // enough to reach that: the fire branches need a regression and the retract
-  // branches need a served file or a page we read, and an outage has none of them.
+  // Under an OS egress outage neither half measured anything: no regression may
+  // be declared, and none withdrawn. Forcing both verdicts false is enough, since
+  // the retract branches need a served file or a page we read.
   const regression = !egressDown && (vanished || lost.length > 0);
 
   // --- page level ---
@@ -1488,10 +1239,8 @@ async function checkRobotsAiAccess(
       return before?.read === true && before.blocking.length === 0;
     })
     .map((page) => page.url);
-  // A URL the open flag named is retracted only by PROOF that it is clean now.
-  // Not re-reading it tonight (it left the sample, it 500s) is "we did not
-  // measure it", which is never grounds for withdrawing an alert we made — the
-  // flag stands until the page reads clean or an operator dispositions it.
+  // A URL the open flag named is retracted only by proof that it is clean now;
+  // not re-reading it is "we did not measure it".
   const unretracted = alreadyBlocked.filter((url) => {
     const tonight = tonightPages.get(url);
     return !(tonight?.read === true && tonight.blocking.length === 0);
@@ -1520,8 +1269,8 @@ async function checkRobotsAiAccess(
   let resolved = 0;
 
   if (regression) {
-    // A headline with its values (bead `ro-ujb9.96.6.26`); the bots and the
-    // previous file's date ride in the inputs, which the Tower draws as rows.
+    // A headline with its values; the bots and the previous file's date ride in
+    // the inputs.
     const message = vanished
       ? `robots.txt no longer served (${robots.error ?? `HTTP ${robots.status}`}) · allowed ` +
         `${Object.values(previousDetail.bots ?? {}).filter(Boolean).length} of ${WATCHED_BOTS.length} AI crawlers`
@@ -1547,16 +1296,12 @@ async function checkRobotsAiAccess(
     refreshed += write.refreshed;
   } else if (present) {
     // A first-ever reading of an already-blocking robots.txt fires nothing and
-    // resolves nothing; only a served file with the previously-lost bots back
-    // in it retracts the flag. An absent robots.txt never retracts anything.
+    // resolves nothing; an absent robots.txt never retracts anything.
     resolved += await resolveHygieneFlag(env, entry.asset, ROBOTS_AI_RULE_ID, at);
   }
 
   if (pageRegression) {
-    // The count as the headline (bead `ro-ujb9.96.6.26`); each URL and the
-    // directives it carries are in the inputs (`blocked_urls`, `pages`), which
-    // the Tower draws as one row per page. A page-level directive is the one
-    // closure robots.txt cannot show, which is why this check exists.
+    // The count as the headline; each URL and its directives are in the inputs.
     const write = await fireHygieneFlag(
       env,
       entry.asset,
@@ -1622,9 +1367,8 @@ async function countSitemapUrls(
   }
   return {
     pageUrls,
-    // A child we could not read makes the total an undercount, and an undercount
-    // is exactly the shape of the collapse this check flags on. Report no number
-    // rather than a number that would accuse the property of our own failure.
+    // A child we could not read makes the total an undercount, which is exactly
+    // the shape of a collapse: report no number rather than accuse the property.
     urls: failed.length > 0 ? null : total,
     root,
     children_found: entries.length,
@@ -1636,19 +1380,13 @@ async function countSitemapUrls(
 
 /**
  * sitemap: resolve it (robots.txt `Sitemap:` lines first, else /sitemap.xml),
- * fetch it, prove it parses, count its URLs, and flag an outage or a collapse.
+ * fetch it, prove it parses, count its URLs, and flag an outage, an unparseable
+ * body, or a count at or under half the previous healthy reading when that
+ * reading held at least {@link SITEMAP_MIN_PREV_URLS} URLs.
  *
- * Three flagging conditions: unreachable, unparseable, or a URL count at or
- * under half the previous reading when that reading held at least
- * {@link SITEMAP_MIN_PREV_URLS} URLs. The floor keeps small properties out of
- * the rule entirely — 6 → 3 URLs is a content edit, 4,000 → 40 is an outage.
- *
- * It is ALSO the roster supplier: the URLs it walks to produce a count are the
- * only list of the property's real pages this lane has in hand, and re-fetching
- * the sitemap for the directive check would double the most expensive request of
- * the night. So it fills `roster` on its way past, and runs first for that
- * reason. A sitemap that fails leaves the roster empty, which the directive
- * check records as "sampled nothing" rather than as "nothing is wrong".
+ * Also the roster supplier: it fills `roster` on its way past and runs first for
+ * that reason. A failed sitemap leaves the roster empty, which the directive
+ * check records as "sampled nothing", never "nothing is wrong".
  */
 async function checkSitemap(
   env: IngestEnv,
@@ -1691,11 +1429,8 @@ async function checkSitemap(
     return { asset: entry.asset, check: 'sitemap', status, value: null, fired, refreshed, resolved: 0 };
   };
 
-  // A gzipped sitemap is legal and we cannot read one. Record the reading as an
-  // error so the gap is visible, but do NOT flag: we cannot tell a real outage
-  // from our own missing capability, and accusing the property of the second
-  // would be the more expensive mistake. Checked before the transport failure
-  // below because it is the one failure that is OURS.
+  // A gzipped sitemap is legal and unreadable here: record the gap, do not
+  // flag. Checked before the transport failure below because it is ours.
   if (isUnreadableSitemap(response)) {
     await writeReading(env, entry.asset, 'sitemap', at, 'error', null, {
       ...base,
@@ -1708,9 +1443,7 @@ async function checkSitemap(
 
   if (!response.ok) {
     const status: HygieneStatus = response.status === null ? 'unreachable' : 'error';
-    // The same question the depth check asks, checked before the same mistake:
-    // the sitemaps that "vanished" on 2026-08-08 had not moved an inch. Only a
-    // statusless fetch is ambiguous — a 404 sitemap is still a 404 sitemap.
+    // Only a statusless fetch is ambiguous: a 404 sitemap is still a 404 sitemap.
     if (response.status === null && (await gate.isDown())) {
       await writeReading(env, entry.asset, 'sitemap', at, status, null, {
         ...base,
@@ -1737,19 +1470,15 @@ async function checkSitemap(
     });
   }
 
-  // `pageUrls` is the roster and never the reading: a detail_json carrying every
-  // URL of a 4,000-page sitemap would be a copy of the sitemap in the store.
+  // `pageUrls` is the roster and never the reading: detail_json must not carry a
+  // copy of a 4,000-page sitemap.
   const { pageUrls, ...counted } = await countSitemapUrls(fetchImpl, response.body, root);
   roster.urls = pageUrls;
   roster.source = 'sitemap';
 
   if (counted.urls === null) {
-    // NOT egress-gated in v1, on purpose. A child sitemap's fetch failure only
-    // ever reaches a reading through this collapsed count, and to get here the
-    // PARENT fetch has to have succeeded — which is itself proof the OS could
-    // reach this origin moments ago. The gate on the parent covers the outage
-    // shape that actually happened; a mid-traversal outage would file one
-    // `child-unreachable` on one property, not a portfolio's worth of alarms.
+    // Not egress-gated: the parent fetch succeeded moments ago, which is proof
+    // the OS could reach this origin.
     return fail(
       'error',
       'child-unreachable',
@@ -1758,9 +1487,8 @@ async function checkSitemap(
     );
   }
 
-  // The comparator is the last HEALTHY count, not simply yesterday's row: a
-  // sitemap that stayed collapsed would otherwise match itself on night two and
-  // resolve the flag describing it.
+  // The comparator is the last healthy count, not yesterday's row: a sitemap
+  // that stayed collapsed would otherwise match itself and resolve the flag.
   const [previous] = await priorReadings(env, entry.asset, 'sitemap', today, 1, true);
   const previousCount = typeof previous?.value_num === 'number' ? previous.value_num : null;
   const comparable = previousCount !== null && previousCount >= SITEMAP_MIN_PREV_URLS;
@@ -1793,11 +1521,9 @@ async function checkSitemap(
 }
 
 /**
- * The property's real pages, as one check hands them to another. Mutable on
- * purpose: `checkSitemap` fills it while walking the sitemap it had to fetch
- * anyway, and `checkRobotsAiAccess` samples from it. `source` is `'none'` when
- * the sitemap never produced one, which is a different reading from an empty
- * property.
+ * The property's real pages, as one check hands them to another: `checkSitemap`
+ * fills it, `checkRobotsAiAccess` samples from it. `source` is `'none'` when the
+ * sitemap never produced one, which differs from an empty property.
  */
 interface PageRoster {
   urls: string[];
@@ -1805,73 +1531,25 @@ interface PageRoster {
 }
 
 /**
- * Nightly hygiene sweep (04:00 UTC, after the watch-window read-out).
- *
- * robots.txt is fetched ONCE per property and shared by the robots check and the
- * sitemap check's URL resolution, and the sitemap's URL list is handed on to the
- * page-directive sample rather than re-fetched. Six requests per property on a
- * healthy night — three site-level, three sampled pages — and no check can
- * disagree with another about what the property served.
- *
- * ORDER IS LOAD-BEARING: `sitemap` runs first because it is the roster supplier.
- * Its failure is not the directive check's failure, though — an empty roster
- * means "sampled nothing", never "nothing is wrong".
- *
- * Isolation is per CHECK, not just per property: a home page that times out must
- * not cost that property its robots reading, and one property's origin being
- * down must not end the sweep. A check that throws outright is recorded in
- * `failed` with no reading stored — an exception is not an observation.
- *
- * The sweep also carries ONE {@link EgressGate}. Its verdict decides whether a
- * statusless fetch is the property's failure or the OS's own, and the set of
- * properties it caused to be skipped becomes the single `os-egress-down` flag
- * filed at the end of the run. It costs nothing on a night when every property
- * answers: nothing is probed until something has already come back empty.
- */
-
-/**
  * The page sample, handed from the check that fetched it to the check that asks
- * a second question of it — the same device `PageRoster` is for the sitemap.
- *
- * `checkRobotsAiAccess` fills it on its way past, and `checkPageStructure` runs
- * after and reads it. A served page is ONE document: fetching it twice to ask
- * two questions would double every property's nightly request count to learn
- * nothing new, and the two answers could then disagree about a page that
- * changed between them.
+ * a second question of it, so a served page is fetched once per night and two
+ * answers cannot disagree about a page that changed between them.
  */
 interface PageSample {
   pages: PageReading[];
-  /** Where the roster came from, carried through so the second check can say
-   * "sampled nothing because the sitemap failed" rather than "nothing wrong". */
+  /** Carried so the second check can say "sampled nothing because the sitemap
+   * failed" rather than "nothing wrong". */
   source: PageRoster['source'];
-  /** True when the OS itself could not get out — nothing was measured, so
-   * nothing may be declared AND nothing may be withdrawn. */
+  /** The OS itself could not get out: nothing may be declared or withdrawn. */
   egressDown: boolean;
 }
 
 /**
- * page-structure: the four structural facts on the sampled pages — a missing
- * `<title>`, a missing meta description, a missing or duplicated `<h1>`, and a
- * canonical pointing somewhere else (ro-cda6.5).
- *
- * IT FETCHES NOTHING. The pages were read once by
- * {@link checkRobotsAiAccess}; this asks a second question of the same bytes.
- * Hence the `sample` hand-off, the same device `roster` uses between the sitemap
- * and directive checks, and hence this check runs last.
- *
- * ONLY TRANSITIONS FIRE, the same discipline the directive half is held to. A
- * page that has always shipped without a meta description is a standing
- * editorial decision to argue about at leisure; a page that HAD one last night
- * and does not tonight is a regression somebody shipped today. The first reading
- * of a URL establishes the baseline and can never flag — which is also what
- * keeps this check from opening a flag on every page of every property the night
- * it lands.
- *
- * WHAT IT DOES NOT CLAIM. A structural fault is not automatically an *act*: a
- * missing title on a page with impressions is worth a morning, and the same
- * fault on a page nobody reaches is worth nothing. That triage needs traffic
- * evidence, which lives in the Tower's page decisions and not in this lane —
- * so this check reports the fault and stops short of ranking it.
+ * page-structure: the four structural facts on the sampled pages. Fetches
+ * nothing: it asks a second question of the bytes {@link checkRobotsAiAccess}
+ * read, so it runs last. Only transitions fire: the first reading of a URL
+ * establishes the baseline and can never flag. It reports the fault and stops
+ * short of ranking it; that triage needs traffic evidence this lane lacks.
  */
 async function checkPageStructure(
   env: IngestEnv,
@@ -1909,9 +1587,8 @@ async function checkPageStructure(
     ? (openInputs.faulty_urls as unknown[]).filter((url): url is string => typeof url === 'string')
     : [];
 
-  // A fault is NEW only when the same URL read clean last night. No prior
-  // reading means no transition, which is the rule that stops this check from
-  // flagging the whole portfolio on the night it ships.
+  // A fault is new only when the same URL read clean last night; no prior
+  // reading means no transition.
   const newlyFaulty = pages
     .filter((page) => {
       if (!page.read || (page.faults ?? []).length === 0) return false;
@@ -1919,9 +1596,7 @@ async function checkPageStructure(
       return before?.read === true && (before.faults ?? []).length === 0;
     })
     .map((page) => page.url);
-  // A URL the open flag named is retracted only by PROOF that it is clean now.
-  // Not re-reading it tonight is "we did not measure it", never grounds for
-  // withdrawing an alert we made.
+  // A URL the open flag named is retracted only by proof that it is clean now.
   const unretracted = alreadyFaulty.filter((url) => {
     const tonight = tonightPages.get(url);
     return !(tonight?.read === true && (tonight.faults ?? []).length === 0);
@@ -1935,8 +1610,7 @@ async function checkPageStructure(
     ? 'warn'
     : readable.length > 0
       ? 'ok'
-      : // Nothing to read is UNKNOWN, not clean. A property whose sitemap failed
-        // has no roster, so this check measured nothing and must not report 'ok'.
+      : // Nothing to read is unknown, not clean.
         'unreachable';
 
   await writeReading(env, entry.asset, 'page-structure', at, status, readable.length, {
@@ -1949,9 +1623,7 @@ async function checkPageStructure(
   let resolved = 0;
 
   if (regression) {
-    // The count as the headline (bead `ro-ujb9.96.6.26`); each URL and its
-    // faults are in the inputs (`faulty_urls`, `pages`), which the Tower draws
-    // as one row per page.
+    // The count as the headline; each URL and its faults are in the inputs.
     const write = await fireHygieneFlag(
       env,
       entry.asset,
@@ -1971,9 +1643,8 @@ async function checkPageStructure(
     asset: entry.asset,
     check: 'page-structure',
     status,
-    // The headline number is HOW MANY PAGES WERE READ — the denominator behind
-    // every claim this check makes. Zero is a real reading ("the roster was
-    // empty"), which is why the status beside it is 'unreachable' and not 'ok'.
+    // How many pages were read: the denominator behind every claim. Zero is a
+    // real reading, which is why the status beside it is 'unreachable'.
     value: readable.length,
     fired,
     refreshed,
@@ -1990,9 +1661,8 @@ export async function runHygieneChecks(
   const at = new Date(nowMs).toISOString();
   const today = at.slice(0, 10);
   const entries = opts.assets ?? (await eligibleAssets(env));
-  // ONE gate for the whole sweep: the verdict is shared (six dead properties are
-  // one outage, asked about once) and so is the set of properties it cost, which
-  // is what the flag at the end counts.
+  // One gate for the whole sweep: six dead properties are one outage, and the
+  // set of properties it cost is what the flag at the end counts.
   const gate = opts.egress ?? new EgressGate(env, { lane: 'hygiene', fetchImpl, at });
 
   const result: HygieneRunResult = {
@@ -2012,16 +1682,15 @@ export async function runHygieneChecks(
     result.refreshed += outcome.refreshed;
     result.resolved += outcome.resolved;
   };
-  // Home pages whose first GET failed: asked again once, after every site
-  // (bead ro-ujb9.180).
+  // Home pages whose first GET failed are asked again once, after every site.
   const retryOwed: UnconfirmedHome[] = [];
 
   for (const entry of entries) {
     const robots = await fetchDoc(fetchImpl, `https://${entry.domain}/robots.txt`, 'text/plain');
 
     const roster: PageRoster = { urls: [], source: 'none' };
-    // Filled by the directive check and read by the structure check; see
-    // PageSample. The ORDER of the two below is therefore load-bearing.
+    // Filled by the directive check and read by the structure check, so the
+    // order below is load-bearing.
     const sample: PageSample = { pages: [], source: 'none', egressDown: false };
 
     const checks: [HygieneCheckId, () => Promise<HygieneCheckOutcome | null>][] = [
@@ -2055,12 +1724,11 @@ export async function runHygieneChecks(
   return result;
 }
 
-// --- uptime: the home-page check, hourly (bead ro-ujb9.165) -----------------
+// --- uptime: the home-page check, hourly ------------------------------------
 
 /**
- * A home-page reading younger than this is the check this hour would make. The
- * 04:00 nightly sweep and the 04:00 hourly tick fire together, and whichever
- * runs second finds the other's reading and asks the site nothing more.
+ * A home-page reading younger than this is the check this hour would make, so
+ * the nightly sweep and the hourly tick firing together ask the site once.
  */
 export const UPTIME_FRESH_MS = 30 * 60_000;
 
@@ -2070,7 +1738,7 @@ export interface UptimeRunResult {
   checked: number;
   /** Sites skipped because a reading younger than {@link UPTIME_FRESH_MS} stands. */
   skipped: number;
-  /** Sites whose first GET failed and were asked once more (bead `ro-ujb9.180`). */
+  /** Sites whose first GET failed and were asked once more. */
   retried: number;
   fired: number;
   refreshed: number;
@@ -2093,22 +1761,12 @@ async function latestHomeReadingAt(env: IngestEnv, asset: string): Promise<strin
 }
 
 /**
- * IS EACH SITE UP — the OS asks itself, every hour, with no account and no
- * setup (bead `ro-ujb9.165`).
- *
- * It is not a second monitor. It is the nightly sweep's own home-page check
- * ({@link checkHtmlDepth}) run on the hourly tick: the same plain HTTPS GET of
- * `https://<domain>/` under the OS's honest User-Agent and the 15-second
- * ceiling, the same `hygiene_checks` reading (one row per site per day; the
- * hour's check replaces the day's reading, which the migration's grain allows),
- * and the same {@link HOME_UNREACHABLE_RULE_ID} flag, filed at `error` when the
- * page does not answer twice in a row, 45 seconds apart (bead `ro-ujb9.180`,
- * {@link HOME_CONFIRM_WAIT_MS}), and retracted by the first check it answers.
- * The same egress gate means an OS that cannot reach the network accuses no
- * site: the reading says so and the site is not checked, never Down.
- *
- * The robots, sitemap and page-sample checks stay nightly — they guard slow
- * declines and cost several requests a site; being up is one request.
+ * Is each site up: the nightly sweep's own home-page check
+ * ({@link checkHtmlDepth}) run on the hourly tick, with the same reading (the
+ * hour's check replaces the day's row), the same {@link HOME_UNREACHABLE_RULE_ID}
+ * flag and the same egress gate, so there is no second monitor to disagree with
+ * it. The other checks stay nightly: they guard slow declines and cost several
+ * requests a site.
  */
 export async function runUptimeChecks(
   env: IngestEnv,

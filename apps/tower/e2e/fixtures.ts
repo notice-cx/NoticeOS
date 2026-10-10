@@ -5,10 +5,9 @@ export const JOURNEY_NOW = "2026-09-06T12:00:00.000Z";
 export const JOURNEY_ASSET = "journey.example";
 export const JOURNEY_KEY = "journey-only-not-a-real-key";
 export const JOURNEY_SITE = "https://journey.example/";
-/** The fixture's OWN operator clock (bead `ro-ujb9.89`): the saved
- * `os_time_zone` its config store holds and the compiled fallback its Worker
- * is given. Never the checkout's `config/constants.json`, which is whatever
- * the operator of the machine running the suite happens to use. */
+/** The fixture's own operator clock: the saved `os_time_zone` its config
+ * store holds and the compiled fallback its Worker is given. Never the
+ * checkout's `config/constants.json`. */
 export const JOURNEY_TIME_ZONE = "UTC";
 /** The store key the fixture's ingest seals its synthetic connections under:
  * 32 public bytes, sealing only the synthetic values above. */
@@ -43,18 +42,18 @@ export const JOURNEY_CORE_PROJECT = { asset: "os-journey-core", prefix: "no", da
 /** Where the fixture's `bd` commands say the task server is: a synthetic
  * loopback address nothing listens on and nothing here connects to. It is the
  * compiled hub connection a local Tower carries (`__BEADS__.hub`), which is
- * what lets the connect panel save a task project (bead ro-ujb9.152); the
- * saved document keeps `hub: null`, as every stored one does. */
+ * what lets the connect panel save a task project; the saved document keeps
+ * `hub: null`, as every stored one does. */
 export const JOURNEY_TASK_HUB = { host: "127.0.0.1", port: 3399, user: "journey", dataDir: ".journey-task-hub" };
 
-/** An archived site whose id is not its domain, as an imported site's can be
- * (bead ro-ujb9.76.4.6): `/__journey/archived-site` stores it, so adding its
- * domain again meets the store's one-site-per-domain refusal. */
+/** An archived site whose id is not its domain, as an imported site's can
+ * be: `/__journey/archived-site` stores it, so adding its domain again meets
+ * the store's one-site-per-domain refusal. */
 export const JOURNEY_ARCHIVED_SITE = { id: "archived-site", domain: "archived.example", displayName: "Archived Example" };
 
-/** The fixture site's all-time totals in config/counters.json's own shape
- * (bead ro-trai.21): `/__journey/counters` stores a reading for the first two;
- * the third has none, so the Overview leaves it out. */
+/** The fixture site's all-time totals in config/counters.json's own shape:
+ * `/__journey/counters` stores a reading for the first two; the third has
+ * none, so the Overview leaves it out. */
 export const JOURNEY_COUNTER_CARDS = [
   { metric: "accounts", label: "Accounts" },
   { metric: "leads", label: "Leads" },
@@ -84,9 +83,9 @@ export const INJECTED: Record<string, unknown> = {
   __BEADS__: { hub: JOURNEY_TASK_HUB, spokes: [] }, __RUNNER_LANE__: false,
 };
 
-/** One saved finding for the fixture asset (bead ro-ujb9.96.7.11): the
- * analysis snapshot the asset Overview's What matters reads, so a journey can
- * file a task from a finding. Synthetic numbers; no real site. */
+/** One saved finding for the fixture asset: the analysis snapshot the asset
+ * Overview's What matters reads, so a journey can file a task from a finding.
+ * Synthetic numbers; no real site. */
 export const JOURNEY_FINDING_KEY = "journey-sitemap-drop";
 export function journeyFindingSnapshot() {
   return {
@@ -103,9 +102,9 @@ export function journeyFindingSnapshot() {
   };
 }
 
-/** A saved analysis whose only collected source is PostHog (bead
- * ro-ujb9.146): 35 days of site use ending the day before the fixture's clock,
- * and no finding. Synthetic numbers; no real site. */
+/** A saved analysis whose only collected source is PostHog: 35 days of site
+ * use ending the day before the fixture's clock, and no finding. Synthetic
+ * numbers; no real site. */
 export function journeyPosthogSnapshot() {
   const days = Array.from({ length: 35 }, (_, index) => {
     const date = new Date(Date.parse(JOURNEY_NOW) - (35 - index) * 86_400_000).toISOString().slice(0, 10);
@@ -127,9 +126,9 @@ export function journeyPosthogSnapshot() {
   };
 }
 
-/** A saved analysis carrying one tracked search panel (bead ro-ujb9.230), in
- * the market the site saved or none: `market` is the analyzer's
- * `{ locationCode, languageCode }`, or null. Synthetic terms; no real site. */
+/** A saved analysis carrying one tracked search panel, in the market the site
+ * saved or none: `market` is the analyzer's `{ locationCode, languageCode }`,
+ * or null. Synthetic terms; no real site. */
 export function journeySerpPanelSnapshot(market: { locationCode: number; languageCode: string } | null) {
   const reportDate = new Date(Date.parse(JOURNEY_NOW) - 2 * 86_400_000).toISOString().slice(0, 10);
   const row = (query: string, device: string, bestRank: number | null, aioPresent: boolean | null, aioCitesUs: boolean | null) => ({
@@ -151,11 +150,9 @@ export function journeySerpPanelSnapshot(market: { locationCode: number; languag
 }
 
 /** The operator's two asks: a top-priority one, so every journey walks the
- * inbox's warn register at the band that used to turn it red (bead
- * ro-ujb9.200), and a human gate in `bd`'s own shape — titled "Gate: human",
- * with the ask under `Reason:` in its description — so every journey reads the
- * gate's ask the way the live board and the snapshot both title it (bead
- * ro-ujb9.201). */
+ * inbox's warn register, and a human gate in `bd`'s own shape, titled "Gate:
+ * human" with the ask under `Reason:` in its description, so every journey
+ * reads the gate's ask the way the live board and the snapshot both title it. */
 export function initialTasks() {
   const shared = { status: "open", priority: 1, assignee: null, created_at: JOURNEY_NOW,
     updated_at: JOURNEY_NOW, closed_at: null as string | null, close_reason: null as string | null, labels: ["human"], dependencies: [], comment_count: 0 };

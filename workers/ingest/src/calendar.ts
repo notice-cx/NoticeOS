@@ -1,47 +1,18 @@
-// The operator's next meetings, read from secret ICS links (bead ro-c0d2).
+// The operator's next meetings, read from secret ICS links. A private ICS
+// address is a bearer credential wearing a URL's clothes, so it lives where
+// every other credential lives and the credential-free Tower asks for the
+// expanded window over the Service Binding. An RPC, not a lane: this is
+// current display state, not evidence, and nothing here writes the store.
 //
-// WHY THIS LIVES IN INGEST. A Google calendar's private ICS address is a bearer
-// credential wearing a URL's clothes: whoever holds the link reads the whole
-// calendar, forever, with no account and no way to take it back short of
-// rotating the link — which invalidates it everywhere at once. So it lives where
-// every other credential in this OS lives, in ingest's env, and the Tower — LAN
-// served, deliberately credential-free — asks for the expanded window over the
-// private Service Binding.
-//
-// WHY AN RPC AND NOT A LANE. Same reasoning as `ga4Realtime()`: this is current
-// display state, not evidence. Nothing here writes `signal_runs`, an
-// observation, a flag, or an R2 object. A meeting that was on the calendar this
-// morning and is gone this afternoon is not an anomaly, and the store must never
-// be asked to remember it as one.
-//
-// WHAT NEVER LEAVES THIS MODULE. The URLs. Not in the payload, not in a thrown
-// message, not in a log line. A failure names the operator's LABEL and a coarse
-// code, and the error object a failing `fetch` hands us is deliberately NOT
-// copied into ours — workerd puts the request URL inside some transport errors,
-// and that URL is the credential.
-//
-// WHY A CACHE, AND WHAT IT CACHES. The Wall polls its Tower API every 60s, and
-// Google serves these links out of its own cache while throttling callers who
-// ask faster than it refreshes. Five minutes is politer than the poll. The
-// window caches the FETCH, not the answer: the 48-hour window is recomputed from
-// the cached events on every call, so a meeting that ended two minutes ago
-// leaves the list on the next poll instead of lingering until the fetch expires,
-// and `fetchedAt` stays an honest statement about the bytes rather than about
-// the request.
-//
-// ONLY WHAT THE OPERATOR ACCEPTED. An invitation sitting unanswered in a
-// calendar is not a plan, and the operator asked not to be shown the ones they
-// have not "actually Accepted" — so when this module can tell whose calendar a
-// feed is, an event whose guest list has them as DECLINED, TENTATIVE or
-// NEEDS-ACTION is not reported. When it cannot tell (see `deriveSelfEmail`), or
-// when there is no guest list, nothing is filtered: a wrong identity would hide
-// real meetings, which is the one failure worse than showing one too many.
-//
-// THE ICS PARSER IS HAND-ROLLED, and its recurrence support is a documented
-// subset rather than RFC 5545 — see "Calendar RPC" in workers/ingest/README.md
-// for the table, and `parseRecurrenceRule` below for the boundary. A rule
-// outside the subset degrades to its base event; it never throws and never costs
-// the feed its `feedsOk` credit.
+// The URLs never leave this module: not in the payload, a thrown message or a
+// log line. A failure names the operator's label and a coarse code, and the
+// error a failing `fetch` hands us is never copied, because workerd puts the
+// request URL inside some transport errors. The cache holds the fetch, not
+// the answer: the window is recomputed from cached events on every call.
+// When this module can tell whose calendar a feed is, an event the operator
+// has not accepted is not reported; when it cannot, nothing is filtered. The
+// ICS parser is hand-rolled and its recurrence support is a documented subset
+// (`parseRecurrenceRule`); a rule outside it degrades to its base event.
 
 import type {
   CalendarFeed,
@@ -53,10 +24,8 @@ import { cachedProviderRead, ProviderReadCacheError, providerCacheScope } from '
 import { observeIntegration, tryHealthConnection } from './integration-health-context.js';
 
 /**
- * Who we say we are, same contract as `HYGIENE_USER_AGENT` and
- * `EGRESS_USER_AGENT`: honest identification with a contact URL, and a product
- * token distinct enough that a calendar operator reading their logs can tell
- * this dashboard read apart from anything else this OS does.
+ * Honest identification with a contact URL, and a product token distinct enough
+ * that a calendar operator reading their logs can tell this read apart.
  */
 export const CALENDAR_USER_AGENT =
   'NoticeOS-Calendar/1.0 (+https://www.notice.cx; operator dashboard read)';
@@ -64,35 +33,29 @@ export const CALENDAR_USER_AGENT =
 /** Per-feed ceiling. One feed's slow origin must not hold the Wall's poll. */
 const REQUEST_TIMEOUT_MS = 10_000;
 
-/** How long one fetch round's bytes stand. See the header on why this exists. */
+/** How long one fetch round's bytes stand; politer than the Wall's 60s poll. */
 export const CALENDAR_CACHE_TTL_MS = 5 * 60_000;
 
 /** How far ahead the Wall is asked to care about. */
 export const UPCOMING_WINDOW_MS = 48 * 60 * 60_000;
 
 /**
- * How far BACK a recurrence rule is expanded. Only in-progress occurrences live
+ * How far back a recurrence rule is expanded: only in-progress occurrences live
  * behind `now`, and a meeting still running after 24 hours is not a meeting.
- * Non-recurring events are not bounded this way — they are a finite list in the
- * feed, so a multi-day all-day event that began last week can still be reported
- * as in progress.
+ * Non-recurring events are a finite list and are not bounded this way.
  */
 const IN_PROGRESS_LOOKBACK_MS = 24 * 60 * 60_000;
 
 /** What the Wall can draw before the type size stops being a TV's business. */
 const MEETING_LIMIT = 20;
 
-/**
- * Response byte ceiling. A calendar past this is not a document to be expanding
- * inside a Worker's memory, and a feed URL pointed at something else entirely is
- * the likelier explanation.
- */
+/** A calendar past this is likelier a feed URL pointed at something else. */
 const RESPONSE_BYTE_LIMIT = 4 * 1024 * 1024;
 
 /**
- * Hard stop on rule iteration. Expansion is already fast-forwarded to the window
- * for open-ended rules, so this only bounds the pathological cases: a `COUNT` in
- * the thousands, or a rule whose period never advances.
+ * Hard stop on rule iteration. Open-ended rules are fast-forwarded to the
+ * window, so this only bounds a `COUNT` in the thousands or a period that
+ * never advances.
  */
 const MAX_RECURRENCE_STEPS = 5_000;
 
@@ -116,13 +79,8 @@ export interface CalendarUpcomingOptions {
 // --- the entry point --------------------------------------------------------
 
 /**
- * The Tower's window onto the operator's calendars: every configured feed
- * fetched independently, expanded, and reported as plain instants.
- *
- * Failures are isolated per feed, exactly as `ga4Realtime()` isolates them per
- * property. One feed down costs its own events and one point of `feedsOk`; the
- * other feed's meetings still reach the Wall, because a dashboard that blanks
- * both calendars when one link rots has told the operator less than nothing.
+ * The Tower's window onto the operator's calendars. Failures are isolated per
+ * feed: one feed down costs its own events and one point of `feedsOk`.
  */
 export async function calendarUpcoming(
   env: IngestEnv,
@@ -130,10 +88,9 @@ export async function calendarUpcoming(
 ): Promise<CalendarUpcoming> {
   const nowMs = options.nowMs ?? Date.now();
   const fetchImpl = options.fetchImpl ?? fetch;
-  // Store first, legacy env binding second (bead `ro-vu8d.1`). Deliberately no
-  // `last_used_at` stamp: the Wall polls this every 60 seconds, and a status
-  // column is not worth a write a minute. The connection test on the
-  // Integrations page is what gives this credential its `last_ok_at`.
+  // Deliberately no `last_used_at` stamp: the Wall polls this every 60 seconds.
+  // The connection test on the Integrations page gives this credential its
+  // `last_ok_at`.
   const credential = await resolveCredential(env, 'calendar');
   const raw = options.rawFeeds ?? credential.fields.CALENDAR_FEEDS;
   const health = await tryHealthConnection(env, 'calendar', credential);
@@ -160,13 +117,10 @@ interface FeedRound {
   errors: Record<string, string>;
   fetchedAtMs: number;
   /** The feed map as configured, so a changed one cannot be served out of this
-   * cache. Never the urls themselves — see where it is built. */
+   * cache. Never the urls themselves. */
   signature: string;
-  /**
-   * Every configured calendar, in CONFIG order, present whether or not it has an
-   * event in the window and whether or not its fetch worked. It is what the
-   * surface keys an identity color off, so it cannot depend on today's meetings.
-   */
+  /** Every configured calendar, in config order, present whether or not its
+   * fetch worked: the surface keys an identity color off this position. */
   calendars: CalendarFeed[];
   feedsOk: number;
   events: CalendarEvent[];
@@ -193,9 +147,8 @@ async function feedRound(
 ): Promise<FeedRound> {
   const targets = parseFeedTargets(raw);
   if (targets.length === 0) return fetchFeedRound(targets, '', fetchImpl, nowMs);
-  // A resolved store/revision is captured before provider work. The full target
-  // fingerprint invalidates label, URL, color and attendee changes immediately.
-  // Only its opaque digest becomes a cache key, never an ICS bearer address.
+  // The full target fingerprint invalidates label, URL, color and attendee
+  // changes immediately; only its opaque digest becomes a cache key.
   const scope = await providerCacheScope([
     credential.source, credential.provider, credential.revision ?? null,
     targets.map(target => [target.label, target.url, target.color, target.selfEmail]),
@@ -227,13 +180,11 @@ async function fetchFeedRound(
   fetchImpl: typeof fetch,
   nowMs: number,
 ): Promise<FeedRound> {
-  // `Promise.all` preserves order, which is what keeps `calendars` in CONFIG
-  // order — the Tower keys each calendar's identity colour off that position, so
-  // a feed's slot must not move because of how its fetch went.
+  // `Promise.all` preserves order, which keeps `calendars` in config order:
+  // the Tower keys each calendar's colour off that position.
   const settled = await Promise.all(
     targets.map(async (target) => {
-      // Configured but unfetchable: counted in `feedsConfigured`, never in
-      // `feedsOk`, and already reported by label when the config was read.
+      // Configured but unfetchable: counted in `feedsConfigured`, never in `feedsOk`.
       if (target.url === null) {
         return { target, status: 'misconfigured' as const, events: [], code: 'configuration' };
       }
@@ -265,11 +216,9 @@ async function fetchFeedRound(
     events.push(...outcome.events);
   }
 
-  // ONE aggregate line per feed per fetch round for the rules this parser
-  // degrades, counted by frequency — never one line per event, and never from
-  // the per-poll expansion path (ro-l2ji: a calendar of yearly birthdays once
-  // wrote thousands of identical lines an hour). A round with nothing
-  // unsupported logs nothing.
+  // One aggregate line per feed per fetch round for the rules this parser
+  // degrades, never one line per event and never from the per-poll expansion
+  // path. A round with nothing unsupported logs nothing.
   for (const [calendar, byFreq] of unsupportedRuleCounts(events)) {
     console.warn(
       JSON.stringify({ event: 'calendar_rrule_unsupported', calendar, unsupported: byFreq }),
@@ -288,8 +237,7 @@ async function fetchFeedRound(
 }
 
 /** Per-feed counts of series whose RRULE falls outside the supported subset,
- * keyed by the rule's FREQ (or 'unparseable'). Read once per fetch round, for
- * the aggregate log line above. */
+ * keyed by FREQ (or 'unparseable'). */
 function unsupportedRuleCounts(
   events: readonly CalendarEvent[],
 ): Map<string, Record<string, number>> {
@@ -313,35 +261,25 @@ interface FeedTarget {
   /** `null` when the entry names no usable url — configured, never fetchable. */
   url: string | null;
   color: string | null;
-  /** Whose calendar this is, for reading the operator's own RSVP. See
-   * {@link deriveSelfEmail}; `null` means no invitation filtering happens. */
+  /** Whose calendar this is, for reading the operator's own RSVP; `null` means
+   * no invitation filtering. */
   selfEmail: string | null;
 }
 
 /**
- * What CSS notation a pinned color may use. Deliberately a charset and not a
- * grammar: this value is operator config that a rendering surface interpolates,
- * so `;` `{` `}` `<` `>` and quotes have no business in it whatever notation it
- * turns out to be. Escaping is still the surface's job; this is the second lock.
+ * A charset, not a grammar: this value is operator config a rendering surface
+ * interpolates, so `;` `{` `}` `<` `>` and quotes have no business in it.
+ * Escaping is still the surface's job; this is the second lock.
  */
 const CSS_COLOR_CHARS = /^[a-zA-Z0-9#%.,\-/()\s]+$/;
 
 /**
- * `CALENDAR_FEEDS` is `{ "<label>": <feed> }`, where a feed is either the secret
- * ICS url on its own or `{ "url": …, "color"?: …, "email"?: … }`. The url is the
- * credential; the color and the label are not, and the email never leaves either.
- * Parsing is lenient by design — unknown keys are ignored, and a bare string is
- * exactly `{ url }`.
- *
- * A named entry that carries no usable url is still COUNTED as configured. It
- * cannot contribute events, so it lands in `feedsConfigured` and never in
- * `feedsOk`: the operator's typo then reads as one degraded feed out of two,
- * which is visible. Not counting it would make a typo'd calendar indistinguish-
- * able from one that was never configured — invisible forever.
- *
- * An absent or unparseable secret is zero configured feeds and an empty list —
- * the Wall's "no calendars" state, which is a different fact from "every feed
- * failed" and has to stay distinguishable.
+ * `CALENDAR_FEEDS` is `{ "<label>": <feed> }`, where a feed is the secret ICS
+ * url on its own or `{ "url": …, "color"?: …, "email"?: … }`. Unknown keys
+ * are ignored. A named entry with no usable url is still counted as configured
+ * and never as ok, so a typo reads as one degraded feed rather than as a
+ * calendar that was never configured. An absent or unparseable secret is zero
+ * configured feeds, which has to stay distinguishable from "every feed failed".
  */
 export function parseFeedTargets(raw: string | undefined): FeedTarget[] {
   if (typeof raw !== 'string' || raw.trim() === '') return [];
@@ -374,11 +312,9 @@ export function parseFeedTargets(raw: string | undefined): FeedTarget[] {
     targets.push({
       label,
       url,
-      // An unusable color is dropped, not a reason to drop the calendar: the
-      // meetings matter more than the swatch, and the surface has a fallback.
+      // An unusable color is dropped, not a reason to drop the calendar.
       color: color !== '' && CSS_COLOR_CHARS.test(color) ? color : null,
-      // A declared address always wins — it is the only way to get invitation
-      // filtering on a feed whose url says nothing about whose calendar it is.
+      // A declared address always wins.
       selfEmail:
         declared !== null && declared.trim() !== ''
           ? declared.trim().toLowerCase()
@@ -391,9 +327,8 @@ export function parseFeedTargets(raw: string | undefined): FeedTarget[] {
 }
 
 /**
- * Calendar ids that are Google's own machinery rather than a person: shared and
- * secondary calendars, imported feeds, and bookable resources. They contain an
- * `@` and would otherwise pass for an address.
+ * Calendar ids that are Google's own machinery rather than a person. They
+ * contain an `@` and would otherwise pass for an address.
  */
 const SYNTHETIC_CALENDAR_DOMAINS = [
   'group.calendar.google.com',
@@ -404,21 +339,12 @@ const SYNTHETIC_CALENDAR_DOMAINS = [
 ];
 
 /**
- * Whose calendar a secret ICS url belongs to.
- *
- * Google's private address embeds the calendar id as a path segment —
- * `/calendar/ical/<id>/private-<key>/basic.ics` — and for a person's PRIMARY
- * calendar that id IS the account's email address. That is the whole derivation,
- * and it is worth doing because it means invitation filtering works with no
- * extra configuration for the common case.
- *
- * Its limits, honestly: a secondary, shared, holiday, or resource calendar has a
- * synthetic id (`…@group.calendar.google.com`), and a non-Google feed has no
- * `/ical/<id>/` segment at all. Both yield `null`, which turns invitation
- * filtering OFF for that feed rather than guessing — a wrong identity would hide
- * real meetings, and nothing about a calendar you were not invited to is
- * improved by filtering it. The operator can always name the address explicitly
- * with the `email` key.
+ * Whose calendar a secret ICS url belongs to. Google's private address embeds
+ * the calendar id as a path segment (`/calendar/ical/<id>/private-<key>/…`),
+ * and for a primary calendar that id is the account's email. A synthetic id or
+ * a non-Google feed yields `null`, which turns invitation filtering off rather
+ * than guessing: a wrong identity would hide real meetings. The `email` key
+ * names the address explicitly.
  */
 function deriveSelfEmail(url: string): string | null {
   let parsed: URL;
@@ -464,9 +390,9 @@ function feedField(value: unknown, field: string): string | null {
 // --- one feed ---------------------------------------------------------------
 
 /**
- * A feed's failure, carrying the operator's LABEL and a coarse code and nothing
- * else. The message is assembled here rather than inherited from whatever threw,
- * because the thing that threw may well be holding the URL.
+ * A feed's failure, carrying the operator's label and a coarse code. The
+ * message is assembled here rather than inherited, because the thing that
+ * threw may be holding the URL.
  */
 class CalendarFeedError extends Error {
   constructor(
@@ -482,10 +408,8 @@ function feedErrorCode(error: unknown): string {
   return error instanceof CalendarFeedError ? error.code : 'internal_error';
 }
 
-/**
- * The failures the operator can only fix by editing the secret: the entry is
- * unusable as written, and this is knowable BEFORE the network is asked.
- */
+/** The failures the operator can only fix by editing the secret, knowable
+ * before the network is asked. */
 const MISCONFIGURED_CODES = new Set([
   'config_missing_url',
   'invalid_url',
@@ -493,18 +417,11 @@ const MISCONFIGURED_CODES = new Set([
 ]);
 
 /**
- * Which of the two failure classes a code belongs to — the whole point of
- * `CalendarFeed.status`, which exists so the Wall can say "this link needs
- * replacing" instead of one number for four different problems.
- *
- * The split is "could ingest tell without asking" and NOT "who has to act, and
- * that is worth being honest about: `http_403`, and an HTML sign-in page served
- * as `200` (`not_calendar`), most often mean the secret link was ROTATED and
- * needs the operator as much as a typo does. They are `unreachable` anyway,
- * because only the round could discover them — a code cannot tell a rotated link
- * from a calendar that is briefly refusing us, and guessing wrong in the
- * confident direction would send the operator to regenerate a link over what was
- * really a bad afternoon at Google.
+ * Which failure class a code belongs to, so the Wall can say "this link needs
+ * replacing". The split is "could ingest tell without asking", not "who has to
+ * act": a `http_403` or an HTML sign-in page served as 200 most often means a
+ * rotated link, but a code cannot tell that from a calendar briefly refusing
+ * us, so both stay `unreachable`.
  */
 function feedStatusForCode(code: string): 'unreachable' | 'misconfigured' {
   return MISCONFIGURED_CODES.has(code) ? 'misconfigured' : 'unreachable';
@@ -514,8 +431,7 @@ function warnFeedFailure(label: string | null, code: string): void {
   console.warn(
     JSON.stringify({
       event: 'calendar_feed_failed',
-      // The label is the operator's own word for the calendar. The URL is the
-      // credential and is never a field here.
+      // The label is the operator's own word; the URL is the credential.
       calendar: label,
       code,
     }),
@@ -547,7 +463,7 @@ async function fetchFeedEvents(
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
-    // Deliberately not `error.message`: see the module header.
+    // Deliberately not `error.message`: it may hold the URL.
     const timedOut =
       error instanceof Error &&
       (error.name === 'TimeoutError' || error.name === 'AbortError');
@@ -574,7 +490,7 @@ async function fetchFeedEvents(
 // --- the ICS document -------------------------------------------------------
 
 /** One VEVENT, resolved to instants but still carrying its wall clock, because
- * recurrence has to step in the wall-clock domain to survive a DST boundary. */
+ * recurrence steps in the wall-clock domain to survive a DST boundary. */
 interface CalendarEvent {
   calendar: string;
   uid: string;
@@ -587,12 +503,9 @@ interface CalendarEvent {
   /** Exclusive, per ICS DTEND semantics. */
   endMs: number;
   cancelled: boolean;
-  /**
-   * The operator is on the guest list and has NOT accepted — declined, tentative,
-   * or never answered. Kept as a flag rather than dropped at parse time because a
-   * declined single instance still has to suppress the series instance it
-   * replaces; see `upcomingFrom`.
-   */
+  /** The operator is on the guest list and has not accepted. A flag rather than
+   * dropped at parse time, because a declined single instance still has to
+   * suppress the series instance it replaces; see `upcomingFrom`. */
   notAccepted: boolean;
   rrule: string | null;
   /** Normalized occurrence keys this series drops (EXDATE). */
@@ -623,19 +536,15 @@ interface IcsProperty {
 }
 
 /**
- * Unfold an ICS document into logical lines.
- *
- * RFC 5545 folds a long line by inserting a break plus one space or tab; the
- * continuation belongs to the previous line with that single character removed.
- * Both CRLF and bare LF appear in the wild, so both are accepted.
+ * Unfold an ICS document into logical lines: a break plus one space or tab
+ * continues the previous line. Both CRLF and bare LF appear in the wild.
  */
 export function unfoldIcsLines(text: string): string[] {
   const lines: string[] = [];
   for (const raw of text.replace(/\r\n?/g, '\n').split('\n')) {
     if (raw.startsWith(' ') || raw.startsWith('\t')) {
       const previous = lines.length - 1;
-      // A continuation with nothing to continue is dropped rather than promoted
-      // to a property line it was never meant to be.
+      // A continuation with nothing to continue is dropped.
       if (previous >= 0) lines[previous] += raw.slice(1);
       continue;
     }
@@ -645,11 +554,9 @@ export function unfoldIcsLines(text: string): string[] {
 }
 
 /**
- * Split one logical line into `NAME`, its parameters, and its value.
- *
- * The name/value boundary is the first colon OUTSIDE a quoted parameter value,
- * because a param may legitimately contain one (`ALTREP="http://x/y"`), and so
- * may the value of every date property that carries a TZID.
+ * Split one logical line into name, parameters and value. The boundary is the
+ * first colon outside a quoted parameter value, because a param may contain
+ * one (`ALTREP="http://x/y"`) and so may every date value with a TZID.
  */
 function parseIcsProperty(line: string): IcsProperty | null {
   let cut = -1;
@@ -704,9 +611,7 @@ function splitUnquoted(text: string, separator: string): string[] {
 }
 
 /**
- * Unescape a TEXT value: `\n`/`\N` are newlines, and `\,` `\;` `\\` are the
- * three characters ICS has to escape because they are its own punctuation.
- * Anything else after a backslash is kept verbatim rather than guessed at.
+ * Unescape a TEXT value. Anything else after a backslash is kept verbatim.
  */
 export function unescapeIcsText(value: string): string {
   let out = '';
@@ -738,13 +643,10 @@ interface EventDraft {
 }
 
 /**
- * Read every VEVENT out of one calendar.
- *
- * Two passes, because `X-WR-TIMEZONE` is what a floating or all-day value is
- * resolved against and nothing in the format promises it appears before the
- * events that need it. The component stack matters as much: VTIMEZONE carries
- * DTSTART lines of its own, and VALARM carries a TRIGGER — properties are
- * collected only while a VEVENT is the innermost open component.
+ * Read every VEVENT out of one calendar. Two passes, because `X-WR-TIMEZONE`
+ * resolves floating and all-day values and nothing promises it appears before
+ * the events that need it. Properties are collected only while a VEVENT is the
+ * innermost open component: VTIMEZONE carries DTSTART lines of its own.
  */
 export function parseIcsEvents(
   text: string,
@@ -839,8 +741,8 @@ export function parseIcsEvents(
   }
 
   if (!sawCalendar) {
-    // A 200 that is not a calendar — an HTML sign-in page for a rotated link is
-    // the common one. Fetched is not parsed, and only parsed earns `feedsOk`.
+    // A 200 that is not a calendar (an HTML sign-in page for a rotated link):
+    // only parsed earns `feedsOk`.
     throw new CalendarFeedError('not_calendar', calendar);
   }
 
@@ -854,10 +756,8 @@ export function parseIcsEvents(
 
 /**
  * The operator's own answer to an invitation, or `null` when the question does
- * not apply — no identity for this feed, no guest list, or a guest list the
- * operator is not on (a solo block, or a calendar that is not theirs).
- *
- * `null` means SHOW: an event nobody was invited to cannot have been declined.
+ * not apply. `null` means show: an event nobody was invited to cannot have
+ * been declined.
  */
 function selfPartStat(
   attendees: IcsProperty[],
@@ -866,15 +766,13 @@ function selfPartStat(
   if (selfEmail === null) return null;
   for (const attendee of attendees) {
     if (attendeeAddress(attendee.value) !== selfEmail) continue;
-    // RFC 5545's default for an absent PARTSTAT is NEEDS-ACTION, so an
-    // unanswered invitation reads as unanswered rather than as accepted.
+    // RFC 5545's default for an absent PARTSTAT is NEEDS-ACTION.
     return (attendee.params.get('PARTSTAT') ?? 'NEEDS-ACTION').trim().toUpperCase();
   }
   return null;
 }
 
-/** An ATTENDEE's address. The value is a `mailto:` URI in every feed worth
- * naming, but a bare address is accepted too rather than missed. */
+/** An ATTENDEE's address: a `mailto:` URI, or a bare address. */
 function attendeeAddress(value: string): string | null {
   const trimmed = value.trim().toLowerCase();
   if (trimmed.startsWith('mailto:')) return trimmed.slice('mailto:'.length) || null;
@@ -934,8 +832,8 @@ function buildEvent(
 
 /**
  * DTEND, or DTSTART plus DURATION, or RFC 5545's default: one day for a DATE
- * start, zero for a DATE-TIME one. An end before its start is clamped — a
- * malformed feed must not mint an event that is in progress forever.
+ * start, zero for a DATE-TIME one. An end before its start is clamped, so a
+ * malformed feed cannot mint an event that is in progress forever.
  */
 function resolveEnd(
   draft: EventDraft,
@@ -954,8 +852,7 @@ function resolveEnd(
   return start.dateOnly ? stampToUtcMs(addDays(start, 1)) : startMs;
 }
 
-/** The subset of ISO-8601 durations ICS uses: weeks, days, hours, minutes,
- * seconds. A negative duration is not a thing an event's length can be. */
+/** The subset of ISO-8601 durations ICS uses. */
 function parseIcsDuration(value: string): number | null {
   const match =
     /^([+-])?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(
@@ -972,17 +869,11 @@ function parseIcsDuration(value: string): number | null {
 }
 
 /**
- * The four date forms a calendar actually emits:
- *
- * - `VALUE=DATE` (or a bare `YYYYMMDD`) — all-day. Resolved to midnight in the
- *   FEED's zone, not UTC: an all-day event is a statement about the operator's
- *   calendar day, and midnight UTC would move "today" by up to a day for
- *   everyone west of Greenwich.
- * - `…Z` — an absolute UTC instant, taken as given.
- * - `TZID=<zone>:…` — a wall clock in a named zone, converted below.
- * - neither — a floating time, resolved against `X-WR-TIMEZONE` when the feed
- *   declares one, else UTC. Floating means "whatever clock the reader is on",
- *   and the feed's own zone is the closest honest reading of the operator's.
+ * The four date forms a calendar emits: `VALUE=DATE` (all-day, resolved to
+ * midnight in the feed's zone, not UTC, so "today" does not move for everyone
+ * west of Greenwich), `…Z` (an absolute instant), `TZID=<zone>:…` (a wall clock
+ * in a named zone), and a floating time, resolved against `X-WR-TIMEZONE` when
+ * the feed declares one, else UTC.
  */
 function parseIcsStamp(
   property: IcsProperty,
@@ -1050,13 +941,10 @@ function isKnownZone(zone: string): boolean {
 }
 
 /**
- * The zone's offset from UTC at one instant, in milliseconds.
- *
- * There is no timezone database in this Worker and there is not going to be one.
- * `Intl` already ships the full IANA rules, so the offset is read back out of it:
- * format the instant into the zone's wall clock, then re-read those wall-clock
- * fields as if they were UTC. The difference between that and the instant IS the
- * offset, DST included, with no rule table of our own to go stale.
+ * The zone's offset from UTC at one instant. There is no timezone database in
+ * this Worker; `Intl` ships the IANA rules, so the offset is read back out of
+ * it: format the instant into the zone's wall clock, then re-read those fields
+ * as if they were UTC.
  */
 function zoneOffsetMs(utcMs: number, zone: string): number {
   const formatter = zoneFormatter(zone);
@@ -1077,19 +965,11 @@ function zoneOffsetMs(utcMs: number, zone: string): number {
 }
 
 /**
- * A wall clock in a zone, as a UTC instant. Two passes, and the second one is
- * the whole point:
- *
- * The first pass asks for the offset at the instant the wall clock WOULD be if
- * it were UTC, which is up to a day off and — an hour either side of a DST
- * transition — the wrong offset. The second pass re-asks at the instant the
- * first pass produced, which is within seconds of the right one, so the offset
- * it returns is the one actually in force. That is what makes 09:30 stay 09:30
- * on both sides of a spring-forward.
- *
- * A wall clock the zone skipped (02:30 on a spring-forward morning) has no
- * instant; the two passes settle on the instant one offset later, which is the
- * same choice every calendar client makes.
+ * A wall clock in a zone, as a UTC instant. Two passes: the first asks for the
+ * offset at the instant the wall clock would be if it were UTC, which an hour
+ * either side of a DST transition is the wrong offset; the second re-asks at
+ * the instant the first produced. A wall clock the zone skipped settles on the
+ * instant one offset later, the choice every calendar client makes.
  */
 function stampToUtcMs(stamp: ZonedStamp): number {
   const naive = Date.UTC(
@@ -1105,8 +985,8 @@ function stampToUtcMs(stamp: ZonedStamp): number {
   return naive - zoneOffsetMs(firstPass, stamp.zone);
 }
 
-/** Civil-date arithmetic, done in UTC on purpose: UTC has no DST, so adding a
- * day to a wall-clock date can never land on a day that does not exist. */
+/** Civil-date arithmetic in UTC on purpose: UTC has no DST, so adding a day can
+ * never land on a day that does not exist. */
 function addDays(stamp: ZonedStamp, days: number): ZonedStamp {
   const shifted = new Date(
     Date.UTC(stamp.year, stamp.month - 1, stamp.day) + days * MS_PER_DAY,
@@ -1142,13 +1022,9 @@ function civilDayNumber(stamp: ZonedStamp): number {
 }
 
 /**
- * Occurrence identity, and the reason EXDATE and RECURRENCE-ID match at all.
- *
- * A timed occurrence is keyed by its UTC INSTANT, because a feed is free to
- * write the same moment three ways — a `TZID=` zone-local time,
- * the equivalent `20260810T163000Z`, or a floating value — and all three name
- * the same instance. An all-day occurrence has no instant to speak of, so it is
- * keyed by its civil date.
+ * Occurrence identity, which is what lets EXDATE and RECURRENCE-ID match. A
+ * timed occurrence is keyed by its UTC instant, because a feed may write the
+ * same moment three ways; an all-day one by its civil date.
  */
 function occurrenceKey(stamp: ZonedStamp, startMs: number): string {
   if (!stamp.dateOnly) return `t:${startMs}`;
@@ -1176,20 +1052,12 @@ interface RecurrenceRule {
 }
 
 /**
- * The supported RRULE subset — the shapes a calendar full of MEETINGS actually
- * contains, and nothing more:
- *
- * - `FREQ=DAILY` with INTERVAL, COUNT, UNTIL, and BYDAY read as a weekday filter
- *   (the "every weekday" rule some clients write as DAILY rather than WEEKLY).
- * - `FREQ=WEEKLY` with BYDAY, INTERVAL, COUNT, UNTIL, WKST.
- * - `FREQ=MONTHLY` with either BYMONTHDAY (positive or counted from the month's
- *   end) or ONE ordinal BYDAY such as `2TU` / `-1FR`.
- *
- * Everything else — FREQ=YEARLY or FREQ=SECONDLY, BYSETPOS, BYMONTH, BYWEEKNO,
- * BYYEARDAY, sub-day BY* parts, a MONTHLY BYDAY without an ordinal, a WEEKLY
- * BYDAY with one — is reported as unsupported, and the caller then draws the
- * series' base event alone. That is a visibly thin answer rather than a wrong
- * one, and it costs the feed nothing: an unsupported rule is not a broken feed.
+ * The supported RRULE subset: `FREQ=DAILY` with INTERVAL, COUNT, UNTIL and
+ * BYDAY as a weekday filter; `FREQ=WEEKLY` with BYDAY, INTERVAL, COUNT, UNTIL,
+ * WKST; `FREQ=MONTHLY` with either BYMONTHDAY or one ordinal BYDAY such as
+ * `2TU` / `-1FR`. Everything else is reported as unsupported and the caller
+ * draws the series' base event alone: a visibly thin answer rather than a
+ * wrong one, and not a broken feed.
  */
 function parseRecurrenceRule(
   value: string,
@@ -1314,17 +1182,10 @@ interface Occurrence {
 
 /**
  * Expand one series into the occurrences that touch `[fromMs, toMs]`.
- *
- * Iteration happens in the WALL-CLOCK domain — dates step, the time of day is
- * carried, and each candidate is converted to an instant at the end. A weekly
- * 09:30 stays 09:30 across a DST boundary instead of sliding to 08:30, which is
- * the bug every "just add seven days of milliseconds" recurrence has.
- *
- * `COUNT` is the reason there are two paths. Without it the cursor jumps
- * straight to the window, so a daily meeting running since 2019 costs a handful
- * of steps. With it, every occurrence from DTSTART forward has to be counted to
- * know where the series stops, so the walk starts at the beginning — bounded by
- * COUNT itself and, past pathology, by {@link MAX_RECURRENCE_STEPS}.
+ * Iteration happens in the wall-clock domain, so a weekly 09:30 stays 09:30
+ * across a DST boundary. Without `COUNT` the cursor jumps straight to the
+ * window; with it every occurrence from DTSTART has to be counted, bounded by
+ * COUNT and by {@link MAX_RECURRENCE_STEPS}.
  */
 function expandSeries(
   event: CalendarEvent,
@@ -1339,21 +1200,16 @@ function expandSeries(
   let produced = 0;
 
   for (let step = 0; step < MAX_RECURRENCE_STEPS; step += 1) {
-    // Every candidate a period contributes falls on or after the period's own
-    // first day, so a period past the window ends the walk. Without this, a rule
-    // whose candidates are ALL filtered out — an `INTERVAL=7` stride that can
-    // never land on its own `BYDAY` — would spend the whole step budget on
-    // every single call.
+    // A period past the window ends the walk; otherwise a rule whose candidates
+    // are all filtered out would spend the whole step budget on every call.
     if (stampToUtcMs(period) > toMs) return found;
 
     for (const stamp of periodCandidates(period, event.start, rule)) {
       const startMs = stampToUtcMs(stamp);
-      // DTSTART is the series' floor; the caller adds it back explicitly, so a
-      // candidate at or before it is never emitted here.
+      // DTSTART is the series' floor; the caller adds it back explicitly.
       if (startMs <= event.startMs) continue;
       if (rule.untilMs !== null && startMs > rule.untilMs) return found;
-      // COUNT counts the whole series and DTSTART is its first member, so the
-      // rule itself owns COUNT-1 occurrences.
+      // COUNT counts the whole series and DTSTART is its first member.
       if (rule.count !== null && produced >= rule.count - 1) return found;
       produced += 1;
       if (startMs > toMs) return found;
@@ -1372,8 +1228,7 @@ function expandSeries(
 
 /**
  * A recurring instance's end. A timed series keeps the base event's exact
- * length; an all-day one keeps its length in WHOLE DAYS, so a three-day event
- * stays three days across a DST boundary instead of becoming 71 hours.
+ * length; an all-day one keeps its length in whole days across a DST boundary.
  */
 function occurrenceEnd(
   event: CalendarEvent,
@@ -1395,10 +1250,9 @@ function initialPeriod(start: ZonedStamp, rule: RecurrenceRule): ZonedStamp {
 }
 
 /**
- * Skip whole periods until just before the window. One period of deliberate
- * slack absorbs both the period that straddles the window's start and the fact
- * that `fromMs` is measured against a UTC date while the cursor walks a
- * zone-local one.
+ * Skip whole periods until just before the window. One period of slack absorbs
+ * the period that straddles the window's start and the UTC/zone-local mismatch
+ * between `fromMs` and the cursor.
  */
 function fastForward(
   period: ZonedStamp,
@@ -1454,8 +1308,7 @@ function periodCandidates(
   if (rule.byMonthDay.length > 0) {
     for (const day of rule.byMonthDay) {
       const resolved = day > 0 ? day : total + 1 + day;
-      // A rule asking for the 31st skips the months that have no 31st, which is
-      // what RFC 5545 requires and what a calendar client shows.
+      // A rule asking for the 31st skips the months that have no 31st (RFC 5545).
       if (resolved >= 1 && resolved <= total) days.push(resolved);
     }
   } else {
@@ -1477,9 +1330,9 @@ function periodCandidates(
 // --- the window the Wall sees -----------------------------------------------
 
 /**
- * Everything drawable right now: each event's own occurrence plus, for a series,
- * the instances its rule puts inside the window — minus EXDATEs, minus the
- * instances a RECURRENCE-ID replaces, minus anything cancelled.
+ * Everything drawable right now: each event's own occurrence plus a series'
+ * instances inside the window, minus EXDATEs, replaced instances and anything
+ * cancelled.
  */
 function upcomingFrom(
   events: CalendarEvent[],
@@ -1489,9 +1342,8 @@ function upcomingFrom(
   const expandFromMs = nowMs - IN_PROGRESS_LOOKBACK_MS;
 
   // A moved or retitled instance arrives as a second VEVENT sharing the series'
-  // UID and naming the instance it replaces. Collected first, because the rule
-  // must not also produce the instance it stands in for — and a CANCELLED
-  // override belongs here too: it replaces that instance with nothing.
+  // UID and naming the instance it replaces. Collected first, so the rule does
+  // not also produce that instance; a CANCELLED override replaces it with nothing.
   const overridden = new Map<string, Set<string>>();
   for (const event of events) {
     if (event.overrides === null) continue;
@@ -1503,10 +1355,8 @@ function upcomingFrom(
 
   const meetings: UpcomingMeeting[] = [];
   for (const event of events) {
-    // Both suppressions happen AFTER the override map is built, and that order is
-    // the point: declining one instance of a standup has to keep suppressing the
-    // instance it replaced, or the original would reappear at its old time as if
-    // the operator had never answered.
+    // After the override map is built, on purpose: declining one instance of a
+    // standup has to keep suppressing the instance it replaced.
     if (event.cancelled || event.notAccepted) continue;
 
     const baseKey = occurrenceKey(event.start, event.startMs);
@@ -1529,22 +1379,17 @@ function upcomingFrom(
           candidates.push(occurrence);
         }
       }
-      // An unsupported rule is a documented degradation, not a failure: the
-      // base event still shows, and it is NOT logged here. This function runs
-      // on every poll over the cached round, and a personal calendar's few
-      // thousand YEARLY birthdays once produced one warn line each per poll —
-      // thousands of lines an hour, drowning the supervisor lane the operator
-      // diagnoses everything else from (ro-l2ji). The round that fetched the
-      // bytes logs one aggregate line per feed instead (see feedRound).
+      // An unsupported rule is a documented degradation, not a failure, and it
+      // is not logged here: this runs on every poll over the cached round. The
+      // round that fetched the bytes logs one aggregate line per feed.
     }
 
     const replaced = overridden.get(`${event.calendar}\0${event.uid}`);
     for (const occurrence of candidates) {
       if (event.excluded.has(occurrence.key)) continue;
-      // An override replaces its instance, so the SERIES must not also draw it.
-      // The override's own VEVENT is exempt: an instance that was retitled but
-      // not moved still starts where the instance it replaces started, and would
-      // otherwise erase itself.
+      // An override replaces its instance, so the series must not also draw it.
+      // The override's own VEVENT is exempt: retitled but not moved, it still
+      // starts where the replaced instance started.
       if (event.overrides === null && replaced?.has(occurrence.key)) continue;
       if (!inWindow(occurrence, nowMs, windowEndMs)) continue;
       meetings.push({
@@ -1563,17 +1408,12 @@ function upcomingFrom(
       (left, right) =>
         compare(left.startsAt, right.startsAt) ||
         compare(left.title, right.title) ||
-        // Two calendars can hold the same meeting at the same minute; a third
-        // key keeps the order the same on every poll.
+        // A third key keeps the order the same on every poll.
         compare(left.calendar, right.calendar),
     )
-    // Field-for-field twins collapse to one. Google's auto-generated events
-    // (flight check-ins from two booking emails, say) can land in one calendar
-    // twice under different UIDs, and a panel showing "Check in" twice tells
-    // the operator less than showing it once (observed live 2026-08-11: twin
-    // WN 1533 check-ins, ro-l2ji). The sort above makes twins adjacent, so
-    // this is a neighbour test. Anything that differs in ANY field — even
-    // location — is two facts and both survive.
+    // Field-for-field twins collapse to one: auto-generated events can land in
+    // one calendar twice under different UIDs. The sort makes twins adjacent, so
+    // this is a neighbour test; anything that differs in any field survives.
     .filter(
       (meeting, index, sorted) =>
         index === 0 || !sameMeeting(meeting, sorted[index - 1]!),
@@ -1592,8 +1432,7 @@ function sameMeeting(a: UpcomingMeeting, b: UpcomingMeeting): boolean {
   );
 }
 
-/** Starting inside the window, or already running: a meeting the operator is in
- * right now is the one they are most likely to be looking for. */
+/** Starting inside the window, or already running. */
 function inWindow(
   occurrence: Occurrence,
   nowMs: number,

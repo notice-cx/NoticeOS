@@ -47,8 +47,7 @@ export interface AddSitePanelProps {
   /** The domain's refusal, beside the field — "Already added" carries the id
    * of the asset to open instead. */
   issue: FieldIssue | null;
-  /** The site `issue.existing` names is archived: its link opens it at
-   * Restore, the way back (bead `ro-ujb9.76.4.5`). */
+  /** The site `issue.existing` names is archived: its link opens it at Restore. */
   existingArchived?: boolean;
   /** Why Add cannot run on this install right now, as the install says it. */
   blocked: string | null;
@@ -66,24 +65,12 @@ export interface AddSitePanelProps {
 }
 
 /**
- * ADD A SITE IN ONE SCREEN (bead `ro-ujb9.96.7.5`, epic `ro-ujb9.96.7`).
- *
- * The domain is the only question. The name is read off it at once and
- * replaced by the site's own name when the site answers; the icon is the site's
- * favicon, or its initial where none can be fetched — neither ever holds Add
- * up. One optional press says the site has not launched yet. Add writes the
- * asset through the same two writes the five-step wizard made (`planWrites`,
- * `lib/asset-operations.ts`) and lands on the new asset's Data sources, where
- * each source has its one Connect.
- *
- * Refusals are states beside the field — "Already added" with the way to the
- * one that is, "Not a domain" — shown once there is something to refuse: the
- * duplicate at once, a malformed domain only after Add is pressed, so a field
- * being typed into does not turn red.
- *
- * Registry justification: the add-asset wizard (`Wizard`) was the only way to
- * add an asset, and it was seven screens; nothing asked one question over the
- * page and landed on the answer.
+ * Add a site in one screen. The domain is the only question: the name is read
+ * off it and replaced by the site's own name when it answers, and neither the
+ * name nor the favicon ever holds Add up. Add writes through `planWrites`
+ * (`lib/asset-operations.ts`) and lands on the new asset's Data sources.
+ * Refusals sit beside the field: a duplicate at once, a malformed domain only
+ * after Add is pressed, so a field being typed into does not turn red.
  */
 export function AddSitePanel({
   domain,
@@ -341,9 +328,8 @@ export function AddSiteSheet({ onClose }: { onClose: () => void }) {
     warnConfigExport(result);
     void queryClient.invalidateQueries({ queryKey: ["wall"] });
     void queryClient.invalidateQueries({ queryKey: ["settings"] });
-    // The new asset's own page, under its name, is the confirmation — no toast
-    // saying so as well, over the Connect the operator presses next. Landing
-    // there unmounts whichever page held this sheet.
+    // The new asset's page is the confirmation, so no toast; landing there
+    // unmounts whichever page held this sheet.
     navigate(`/assets/${encodeURIComponent(plan.id)}/sources`);
   }
 
@@ -351,10 +337,8 @@ export function AddSiteSheet({ onClose }: { onClose: () => void }) {
     setTried(true);
     setFailed(null);
     if (!usable || blocked !== null) return;
-    // The source catalog is what the new asset's data sources are written from;
-    // adding before it has loaded would write an asset with none. A press that
-    // arrives first is kept, shown as Adding, and sent the moment it loads —
-    // never dropped, which would leave an Add that silently did nothing.
+    // Adding before the source catalog loads would write an asset with no
+    // sources, so an early press is kept, shown as Adding, and sent on load.
     if (settings.data === undefined) {
       setQueued(true);
       return;
@@ -443,12 +427,9 @@ export function AddSiteButton({ children, ...props }: Omit<ButtonProps, "onClick
 }
 
 /**
- * AN EMPTY SITE LIST IS A DOOR (bead `ro-ujb9.96.6.18`, D30): "No sites yet"
- * and Add a site beside it, for a list whose page has no Add a site of its own.
- * It used to say the first site "arrives with its seed row and its nightly
- * report" — how a site reached the store before Add a site existed, and a
- * sentence with no next action. A page whose header already offers Add a site
- * (Sites) shows the bare "No sites yet" and lets that button be the one.
+ * An empty site list as a door: "No sites yet" and Add a site beside it, for a
+ * list whose page has no Add a site of its own. A page whose header already
+ * offers one shows the bare "No sites yet".
  */
 export function NoSitesYet() {
   return (

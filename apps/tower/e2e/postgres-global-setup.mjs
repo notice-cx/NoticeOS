@@ -1,6 +1,4 @@
-// ONE THROWAWAY POSTGRES FOR A JOURNEY RUN (epic ro-ujb9.76).
-//
-// Started once, in Playwright's own process, before any worker: every worker's
+// One throwaway Postgres for a journey run. Started once, in Playwright's own process, before any worker: every worker's
 // fixture server takes its own copies of it (fixture-server.mjs), so a run
 // builds one template instead of one per worker. This process keeps the
 // owner's way in; the workers get only the handle, through the environment.

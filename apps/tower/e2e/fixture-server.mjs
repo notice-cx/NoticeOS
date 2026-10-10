@@ -1,9 +1,7 @@
-// ONE WAY TO START THE ISOLATED JOURNEY SERVER (bead ro-ujb9.167).
-//
-// Three runners start server.mjs: every Playwright worker starts its own
-// (journey-test.ts), every flow-gate lane its own (flow-gate.mjs), and the
-// HTTP harness test one (harness.test.mjs). They all start it here, the same
-// way, so no runner can start it with less isolation than another:
+// The one way to start the isolated journey server. Every Playwright worker
+// (journey-test.ts), every flow-gate lane (flow-gate.mjs) and the HTTP harness
+// test (harness.test.mjs) start server.mjs here, so no runner can start it
+// with less isolation than another:
 //
 //   - a loopback port that is never an owner port (journey-port.mjs): a free
 //     one from the OS, or one the caller pinned;
@@ -16,9 +14,9 @@
 //     line the guard prints;
 //   - an IPC channel the server watches, so a runner that dies without
 //     stopping it (a killed Playwright worker) never leaves it holding a port;
-//   - a stop that fails the run unless the server exits 0 (bead ro-ujb9.192):
-//     a server that crashed at its SIGTERM, or never exited and had to be
-//     killed, is a broken fixture, not a detail of its teardown.
+//   - a stop that fails the run unless the server exits 0: a server that
+//     crashed at its SIGTERM, or never exited and had to be killed, is a
+//     broken fixture, not a detail of its teardown.
 
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -40,11 +38,11 @@ const MAX_SERVERS = 16;
 const STOP_TIMEOUT_MS = 90_000;
 
 /**
- * Where a server finds the run's throwaway Postgres (epic ro-ujb9.76): the
- * cluster's handle (scripts/postgres-test-copies.mts) as JSON — the
- * application role's address, with a password made for this run, and the copy
- * service each server asks for its own copies. The owner's way in stays with
- * whoever started the cluster.
+ * Where a server finds the run's throwaway Postgres: the cluster's handle
+ * (scripts/postgres-test-copies.mts) as JSON, the application role's address
+ * with a password made for this run, and the copy service each server asks
+ * for its own copies. The owner's way in stays with whoever started the
+ * cluster.
  */
 export const JOURNEY_POSTGRES = "NOTICEOS_JOURNEY_POSTGRES";
 let ownCluster = null;

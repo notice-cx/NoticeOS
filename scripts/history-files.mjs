@@ -1,8 +1,6 @@
-// THE HISTORY FILES: HOW A GENERATION IS PUBLISHED, READ AND KEPT (beads
-// ro-ujb9.67.2 and ro-ujb9.67.4, decision D25; shared since ro-ujb9.76.37).
-//
-// A history folder holds Parquet datasets that DuckDB reads, published one
-// complete generation at a time:
+// The history files: how a generation is published, read and kept. A history
+// folder holds Parquet datasets that DuckDB reads, published one complete
+// generation at a time:
 //
 //   generations/00000007.json      one complete generation: every dataset, its
 //                                  schema and the files that hold its rows
@@ -50,10 +48,10 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 export const HISTORY_FORMAT = 'noticeos-signal-history/1';
 
 /**
- * How long the history keeps a generation: every one published in the last 30
- * days, and the newest whatever its age. The operator's decision of 2026-09-29
- * (bead ro-ujb9.67.4): readers only ever need the newest, and 30 days lets a
- * report be re-run on the generation it was built from.
+ * How long the history keeps a generation: every one published in the last
+ * 30 days, and the newest whatever its age. Readers only ever need the
+ * newest; 30 days lets a report be re-run on the generation it was built
+ * from.
  */
 export const KEEP_GENERATIONS_DAYS = 30;
 

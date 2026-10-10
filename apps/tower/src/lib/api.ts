@@ -87,14 +87,14 @@ async function fetchWallRequest(fetch: ApiTransport, signal?: AbortSignal): Prom
   });
   if (!res.ok) {
     // The status rides the error, so a page whose first read failed can say
-    // which (`ReadFailed`, bead ro-ujb9.218).
+    // which (`ReadFailed`).
     throw new ApiError(`GET /api/wall failed: ${res.status}`, res.status);
   }
   return decodeWallMoney(await responseJson(res, 'Portfolio money'));
 }
 
-/** The Wall's live feed (bead ro-trai.9): its own 30-second read, apart from
- * `/api/wall`, so a slow union never delays the rest of the TV. */
+/** The Wall's live feed: its own 30-second read, apart from `/api/wall`, so a
+ * slow union never delays the rest of the TV. */
 async function fetchWallFeedRequest(fetch: ApiTransport, signal?: AbortSignal): Promise<WallFeedPayload> {
   const res = await fetch("/api/wall/feed", { signal, headers: { accept: "application/json" } });
   if (!res.ok) throw new Error(`GET /api/wall/feed failed: ${res.status}`);
@@ -123,7 +123,7 @@ async function fetchIntegrationHealthRequest(fetch: ApiTransport, signal?: Abort
     || !data.items.every((item: unknown) => item && typeof item === 'object' && 'state' in item && typeof item.state === 'string' && Object.hasOwn(INTEGRATION_HEALTH_LABELS, item.state)
       && ['id', 'provider', 'capability', 'label', 'action', 'coverage'].every(key => key in item && typeof (item as Record<string, unknown>)[key] === 'string')
       && ['asset', 'detail', 'code', 'report'].every(key => key in item && ((item as Record<string, unknown>)[key] === null || typeof (item as Record<string, unknown>)[key] === 'string'))
-      // A report's day is a calendar day or nothing (bead ro-ujb9.96.7.17).
+      // A report's day is a calendar day or nothing.
       && 'reportDate' in item && (item.reportDate === null || typeof item.reportDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.reportDate))
       && ['lastAttemptAt', 'lastSuccessAt', 'nextAttemptAt'].every(key => key in item && ((item as Record<string, unknown>)[key] === null || healthInstant((item as Record<string, unknown>)[key])))
       && 'coverage' in item && ['monitored', 'setup', 'gap'].includes(String(item.coverage))
@@ -184,12 +184,9 @@ async function fetchCalendarUpcomingRequest(fetch: ApiTransport,
   return payload;
 }
 
-/**
- * The two counts are the reason this is validated rather than cast: the panel
- * renders NOTHING when no feed is configured, so a malformed payload that lost
- * `feedsConfigured` must fail here instead of reaching a surface that would read
- * the absence as "set up and clear".
- */
+/** Validated rather than cast: the panel renders nothing when no feed is
+ * configured, so a malformed payload that lost `feedsConfigured` must fail
+ * here instead of reading as "set up and clear". */
 export function isCalendarUpcoming(value: unknown): value is CalendarUpcoming {
   if (
     !isRecord(value) ||
@@ -202,13 +199,10 @@ export function isCalendarUpcoming(value: unknown): value is CalendarUpcoming {
   ) {
     return false;
   }
-  // Feed order is load-bearing (it decides identity hues), so the list has to
-  // arrive as a list; a pinned color stays a free-form CSS string, since the
-  // operator's calendar app is the authority on what their feeds look like.
-  // `status` is a CLOSED set, unlike the color: the panel turns each value into
-  // a different instruction to the operator, so an unrecognized one is a value
-  // this build does not know how to act on and is refused here rather than
-  // silently reading as healthy.
+  // Feed order decides identity hues, so the list has to arrive as a list; a
+  // pinned color stays a free-form CSS string. `status` is a closed set: the
+  // panel turns each value into a different instruction, so an unrecognized
+  // one is refused here rather than silently reading as healthy.
   if (
     !value.calendars.every(
       (feed) =>
@@ -272,9 +266,9 @@ export function isGa4RealtimePayload(value: unknown): value is Ga4RealtimePayloa
   );
 }
 
-/** The minute pulse (bead `ro-trai.27`): thirty buckets, each a count or
- * `null` for a minute the reading did not cover. Absent from an ingest that
- * predates it, and `null` when its read was refused — the snapshot stands. */
+/** The minute pulse: thirty buckets, each a count or `null` for a minute the
+ * reading did not cover. Absent from an ingest that predates it, and `null`
+ * when its read was refused. */
 function validMinuteBuckets(value: unknown): boolean {
   if (value === undefined || value === null) return true;
   return Array.isArray(value) && value.length === GA4_PULSE_MINUTES && value.every(nullableNonNegativeInteger);
@@ -332,13 +326,10 @@ export class ApiError extends Error {
 }
 
 /**
- * A `?period=` on /financials the ledger cannot answer — a month it holds no
- * rows for, or a value that is not a month at all (bead `ro-dm67`).
- *
- * It carries `periods[]` off the refusal body, because the only useful thing to
- * say to a reader who followed a stale bookmark is which months DO exist. It is
- * an `ApiError` so a caller that only cares about the status still reads it as
- * one.
+ * A `?period=` on /financials the ledger cannot answer: a month it holds no
+ * rows for, or a value that is not a month at all. It carries `periods[]` off
+ * the refusal body so the page can say which months do exist, and it is an
+ * `ApiError` so a caller that only cares about the status still reads it as one.
  */
 export class FinancialsPeriodError extends ApiError {
   constructor(
@@ -353,12 +344,8 @@ export class FinancialsPeriodError extends ApiError {
 
 /**
  * An `?offset=`/`?limit=` on the alerts archive that is not a whole number of
- * rows (bead `ro-oefa`) — the same refusal `FinancialsPeriodError` carries for
- * a `?period=` that is not a month.
- *
- * It carries `total` and `limit` off the refusal body for the same reason that
- * one carries `periods[]`: the only useful thing to say to a reader who
- * followed a corrupted link is how much there actually is to page through.
+ * rows. It carries `total` and `limit` off the refusal body so the page can say
+ * how much there is to page through.
  */
 export class AlertHistoryPageError extends ApiError {
   constructor(
@@ -373,8 +360,7 @@ export class AlertHistoryPageError extends ApiError {
 
 /** The desk-only asset drill-down read. 404 → ApiError(status: 404) so the page
  * can show a designed "unknown asset" state rather than a generic failure.
- * `view` asks for one tab's read (bead `ro-ujb9.64`); without it, the whole
- * page. */
+ * `view` asks for one tab's read; without it, the whole page. */
 async function fetchAssetDetailRequest(fetch: ApiTransport,
   id: string,
   signal?: AbortSignal,
@@ -508,12 +494,10 @@ async function fetchIntegrationsRequest(fetch: ApiTransport, signal?: AbortSigna
 }
 
 /**
- * Every portfolio-wide setting, in one read (bead `ro-pbzu.2`).
- *
- * The Worker builds it purely from the config compiled into the bundle — no
- * store query — so this read cannot fail on an empty or unreachable database.
- * A save through the write lane restarts the local Worker, and `useConfigSave`
- * invalidates this query once the restart has landed.
+ * Every portfolio-wide setting, in one read. The Worker builds it purely from
+ * the config compiled into the bundle, so this read cannot fail on an empty or
+ * unreachable database. A save through the write lane restarts the local
+ * Worker, and `useConfigSave` invalidates this query once the restart has landed.
  */
 async function fetchSettingsRequest(fetch: ApiTransport, signal?: AbortSignal): Promise<SettingsPayload> {
   const res = await fetch("/api/settings", {
@@ -521,7 +505,7 @@ async function fetchSettingsRequest(fetch: ApiTransport, signal?: AbortSignal): 
     headers: { accept: "application/json" },
   });
   if (!res.ok) {
-    // The status reaches the page's failed read (`ReadFailed`, bead ro-ujb9.242).
+    // The status reaches the page's failed read (`ReadFailed`).
     throw new ApiError(`GET /api/settings failed: ${res.status}`, res.status);
   }
   const { decodeSettings } = await import('./critical-response');
@@ -529,7 +513,7 @@ async function fetchSettingsRequest(fetch: ApiTransport, signal?: AbortSignal): 
 }
 
 /** Which task source every task screen shows, and each source's row on
- * Integrations (D32). */
+ * Integrations. */
 async function fetchTaskSourceRequest(fetch: ApiTransport, signal?: AbortSignal): Promise<TaskSourcePayload> {
   const res = await fetch("/api/task-source", {
     signal,
@@ -550,19 +534,17 @@ async function fetchWorkRequest(fetch: ApiTransport, signal?: AbortSignal): Prom
   });
   if (!res.ok) {
     // The status rides the error, as `fetchWall`'s does, so the Tasks page's
-    // failed first read says which (`ReadFailed`, bead ro-ujb9.218).
+    // failed first read says which (`ReadFailed`).
     throw new ApiError(`GET /api/work failed: ${res.status}`, res.status);
   }
   return (await res.json()) as WorkPayload;
 }
 
 /**
- * One page of the portfolio's SETTLED alerts (bead `ro-ju7f`).
- *
- * The query string is built by the shared `alertHistoryQueryString`, the exact
- * function the Worker parses with, so a filter the page can express is a filter
- * the read understands — and the unfiltered first page is a bare path, which
- * keeps the TanStack cache key honest about what actually varies.
+ * One page of the portfolio's settled alerts. The query string is built by the
+ * shared `alertHistoryQueryString`, the exact function the Worker parses with;
+ * the unfiltered first page is a bare path, which keeps the cache key honest
+ * about what varies.
  */
 async function fetchAlertHistoryRequest(fetch: ApiTransport,
   query: AlertHistoryQuery,
@@ -575,9 +557,8 @@ async function fetchAlertHistoryRequest(fetch: ApiTransport,
     headers: { accept: "application/json" },
   });
   if (!res.ok) {
-    // A page param that is not a whole number is a corrupted LINK, not a broken
-    // archive (bead `ro-oefa`). Losing the distinction here would leave the page
-    // saying "the history read failed" about a URL it can name the fix for.
+    // A page param that is not a whole number is a corrupted link, not a broken
+    // archive, and the page can name the fix for it.
     const refused = await pageRefusal(res);
     if (refused) throw refused;
     throw new ApiError(`GET ${path} failed: ${res.status}`, res.status);
@@ -606,13 +587,11 @@ async function pageRefusal(res: Response): Promise<AlertHistoryPageError | null>
 }
 
 /**
- * What each rule has COST — fired, settled, and how many of those the operator
- * answered by tuning the rule (bead `ro-ayxy`).
- *
- * Its own read rather than a field on `/api/settings`, because that payload is a
- * pure builder over config and must not be able to fail on an empty store, and
- * because the Tune panel needs the same figure on surfaces that never load
- * `/settings`.
+ * What each rule has cost: fired, settled, and how many of those the operator
+ * answered by tuning the rule. Its own read rather than a field on
+ * `/api/settings`, because that payload must not be able to fail on an empty
+ * store, and because the Tune panel needs the same figure on surfaces that
+ * never load `/settings`.
  */
 async function fetchAlertRuleStatsRequest(fetch: ApiTransport,
   signal?: AbortSignal,
@@ -629,17 +608,10 @@ async function fetchAlertRuleStatsRequest(fetch: ApiTransport,
 
 /**
  * "How often would this alert rule have fired in the last 30 days with these
- * settings?" (bead `ro-u072`).
- *
- * A POST that READS. The question's key is a whole settings object the operator
- * is still typing, which does not survive a query string honestly — the same
- * reasoning the research-log lookup records — and nothing on either side of the
- * binding is written: the answer is `evaluatePulse` replayed over stored pulses.
- *
- * Refusals arrive as `ApiError` with the server's own code, because the panel
- * renders a different sentence for each: `unsupported_rule` is "no preview for
- * this rule", `unknown_asset` is an asset that is gone, and `validation` is a
- * value the detector will not accept.
+ * settings?" A POST that reads: the key is a whole settings object the operator
+ * is still typing, and nothing is written. Refusals arrive as `ApiError` with
+ * the server's own code, because the panel renders a different sentence for
+ * each: `unsupported_rule`, `unknown_asset`, `validation`.
  */
 async function fetchRuleBacktestRequest(fetch: ApiTransport,
   input: RuleBacktestInput,
@@ -676,20 +648,13 @@ export interface FlagActionDetail {
 }
 
 /**
- * Move one alert through its lifecycle (docs/15 flow E): mark it read, record
- * that its issue is resolved, park it until a date, bring a parked one back, or
- * record that the rule behind it was tuned.
- *
- * `until` is required for `snooze` and ignored otherwise. It is validated on
- * BOTH sides — here so the operator sees a refusal without a round trip, and in
- * the Worker because a rule only the browser enforces is not a rule
- * (`shared/snooze`). A rejected date throws `ApiError` carrying the store's own
- * code, which is what the toast reads.
- *
- * `tune` rides the SAME lane and the same 409-when-not-open guard (bead
- * `ro-van6`) rather than arriving as a second endpoint: one row's disposition is
- * written in one place, or "only an open alert may be dispositioned" would have
- * two implementations to keep in step.
+ * Move one alert through its lifecycle: mark it read, record that its issue is
+ * resolved, park it until a date, bring a parked one back, or record that the
+ * rule behind it was tuned. `until` is required for `snooze` and ignored
+ * otherwise; it is validated here so the operator sees a refusal without a
+ * round trip, and again in the Worker (`shared/snooze`). `tune` rides the same
+ * lane and the same 409-when-not-open guard, so one row's disposition is
+ * written in one place.
  */
 async function updateFlagRequest(fetch: ApiTransport,
   id: number,
@@ -764,13 +729,10 @@ async function createAnnotationRequest(fetch: ApiTransport,
 }
 
 /**
- * Register one pre-registered outcome check on this asset (bead `ro-71r`).
- *
- * The body is the ingest route's documented shape, built once by
- * `watchDraftBody` — this call adds nothing and defaults nothing, because a
+ * Register one pre-registered outcome check on this asset. The body is built
+ * once by `watchDraftBody`; this call adds and defaults nothing, because a
  * field the composer never showed is a comparison the operator did not choose.
- * A 422 comes back with ingest's own sentence in `detail`, so a refusal the UI
- * failed to anticipate is still readable rather than a silent retry.
+ * A 422 comes back with ingest's own sentence in `detail`.
  */
 async function createWatchWindowRequest(fetch: ApiTransport,
   asset: string,
@@ -840,9 +802,8 @@ const JSON_WRITE_HEADERS = {
   "content-type": "application/json",
 };
 
-/** Where the value a page is rendering came from, per config file — the store
- * once an install is seeded, otherwise the copy compiled into the build (D22,
- * epic `ro-syok`). */
+/** Where the value a page is rendering came from, per config file: the store
+ * once an install is seeded, otherwise the copy compiled into the build. */
 export type ConfigSource = "store" | "file";
 
 /** Whether configuration documents can be saved from this deployment; the one
@@ -854,17 +815,9 @@ export interface ConfigWritability {
   /**
    * Per config file, where the value this deployment renders came from: `store`
    * once the document is seeded, `file` while the copy compiled into the build
-   * is still answering (D22).
-   *
-   * EMPTY when the deployment did not say — the local dev lane answers this
-   * route itself and reports only whether a Save can land — so absence is
-   * "unknown", never "all files".
-   *
-   * It is the SAME field the payloads were built from, which is why a surface
-   * describing when a save takes effect derives its sentence from this rather
-   * than stating one of its own (`laneMappingTiming`), and why
-   * `configSaveDelayMs` reads it to decide whether a save has a Worker restart
-   * to wait out at all (bead `ro-ssgu`).
+   * is still answering. Empty when the deployment did not say, so absence is
+   * "unknown", never "all files". `laneMappingTiming` and `configSaveDelayMs`
+   * derive from this rather than stating a sentence of their own.
    */
   sources: Record<string, ConfigSource>;
 }
@@ -889,7 +842,7 @@ export interface ConfigSaveResult {
   applied: number;
   archive: string | null;
   commit: string | null;
-  /** False means the authoritative save landed but this Mac's file export did
+  /** False means the authoritative save landed but this machine's file export did
    * not. Absent on runtimes without a local checkout. Never retry that Save. */
   exported?: boolean;
 }
@@ -926,26 +879,13 @@ async function saveConfigRequest(fetch: ApiTransport,
 }
 
 /**
- * Write a NEW asset's config entries — one PUT and one guarded store write
- * (bead `ro-qsoo`).
- *
- * It is `saveConfig` with a narrower door, and it exists because the two writes
- * are different acts. A SETTING save is invertible: the Undo in its toast is the
- * same op with `expect` and `value` swapped, which is why `useConfigSave` takes
- * only `file-json-set` and `store-asset-set`. Adding an asset's entries is
- * STRUCTURAL — the inverse of an insert is a delete at a pointer that has moved
- * — so the add-asset flow submits its inserts here instead, and owns its own way
- * back (deleting the asset it just made).
- *
- * The ops arrive as ONE guarded request deliberately, so an asset's
- * integrations, counters and fetch entries land together or not at all.
- *
- * NOT EVERY OP IS AN INSERT since bead `ro-aodz`. The owning entity is this
- * asset's id appended to a row that already exists in `config/entities.json`,
- * which is a SET — an entity is not a thing an asset is born into, it is one
- * that outlives every asset it owns. It travels in the same document for the
- * same reason as the rest: an asset that exists and belongs to nobody is not a
- * state Create should be able to leave behind.
+ * Write a new asset's config entries: one PUT and one guarded store write.
+ * It is `saveConfig` with a narrower door, because adding an asset's entries
+ * is structural: the inverse of an insert is a delete at a pointer that has
+ * moved, so the add-asset flow owns its own way back (deleting the asset it
+ * just made) rather than the setting save's Undo. The ops arrive as one
+ * guarded request so an asset's entries land together or not at all; the
+ * owning entity is a set on a row that already exists in `config/entities.json`.
  */
 async function createAssetConfigRequest(fetch: ApiTransport,
   ops: (FileJsonInsertOp | FileJsonSetOp)[],
@@ -1025,13 +965,10 @@ export interface CreatedAsset {
 }
 
 /**
- * Create an asset — the row under the add-asset wizard (bead `ro-z349.1`).
- *
- * Throws `AssetExistsError` (409) when the store already holds the id or the
- * domain, naming the site that holds it, and `ApiError` `"invalid_asset"`
- * (422) with the store's own sentence about the field it refused; the screen
- * shows either beside the field rather than as a failure. Works in every
- * deployment: the row is in the store, not in a file.
+ * Create an asset: the row under the add-asset wizard. Throws
+ * `AssetExistsError` (409) when the store already holds the id or the domain,
+ * naming the site that holds it, and `ApiError` `"invalid_asset"` (422) with
+ * the store's own sentence about the field it refused.
  */
 async function createAssetRequest(fetch: ApiTransport, asset: NewAsset): Promise<CreatedAsset> {
   const res = await fetch("/api/assets", {
@@ -1053,8 +990,8 @@ async function createAssetRequest(fetch: ApiTransport, asset: NewAsset): Promise
 
 /**
  * The store already holds this site: `holder` is the one it holds the id or
- * the domain under (bead `ro-ujb9.76.4.6`). It can differ from the id just
- * typed, where an imported or seeded site holds the domain under another id.
+ * the domain under. It can differ from the id just typed, where an imported or
+ * seeded site holds the domain under another id.
  */
 export class AssetExistsError extends ApiError {
   constructor(
@@ -1068,9 +1005,8 @@ export class AssetExistsError extends ApiError {
 }
 
 /**
- * The name a site gives itself (bead `ro-ujb9.96.7.5`), or null when it did not
- * answer with one. Never throws: the add screen already shows the name the
- * domain gives, and a lookup that failed changes nothing about what Add writes.
+ * The name a site gives itself, or null when it did not answer with one. Never
+ * throws: a lookup that failed changes nothing about what Add writes.
  */
 async function fetchSiteNameRequest(fetch: ApiTransport, domain: string, signal?: AbortSignal): Promise<string | null> {
   try {
@@ -1109,8 +1045,8 @@ async function clearDecisionRequest(fetch: ApiTransport,
 
 /**
  * The ledger for one accounting period. `period` is the month the reader asked
- * for through the URL (bead `ro-69vb`); omitted, the payload picks the latest
- * month that has rows rather than an empty current one.
+ * for through the URL; omitted, the payload picks the latest month that has
+ * rows rather than an empty current one.
  */
 async function fetchFinancialsRequest(fetch: ApiTransport,
   period?: string | null,
@@ -1122,10 +1058,8 @@ async function fetchFinancialsRequest(fetch: ApiTransport,
     headers: { accept: "application/json" },
   });
   if (!res.ok) {
-    // A month the ledger cannot answer is a MISS, not a broken ledger (bead
-    // `ro-dm67`). Both refusals carry `periods[]`, and losing it here is what
-    // left the page with nothing to say but "the ledger did not answer" — and
-    // no selector, because it is drawn from a payload that never arrived.
+    // A month the ledger cannot answer is a miss, not a broken ledger. Both
+    // refusals carry `periods[]`, which the page's selector is drawn from.
     const refused = await periodRefusal(res);
     if (refused) throw refused;
     throw new Error(`GET ${path} failed: ${res.status}`);
@@ -1153,19 +1087,13 @@ async function periodRefusal(res: Response): Promise<FinancialsPeriodError | nul
   return new FinancialsPeriodError(code, res.status, periods);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Tasks — the operator's live lane into the portfolio's task hub (D19)
-// ─────────────────────────────────────────────────────────────────────────────
+// --- Tasks: the operator's live lane into the portfolio's task hub -----------
 //
 // Answered by the local dev server's task lane (apps/tower/vite/task-lane.ts),
 // which runs an allowlisted set of `bd` verbs in the spoke named by
-// config/beads.json and records `--actor` as the operator. A deployed build has
-// no `bd` and no route to the hub, so its Worker answers `live: false` with the
-// reason and 501 on everything else — the board falls back to the once-a-minute
-// snapshot at `/api/work`, which every deployment can serve.
-//
-// `bd` remains the path an AGENT uses, in the repo where the work happens. That
-// rule is unchanged by any of this (config/beads.README.md, AGENTS.md).
+// config/beads.json. A deployed build has no `bd` and no route to the hub, so
+// its Worker answers `live: false` with the reason and 501 on everything else;
+// the board falls back to the once-a-minute snapshot at `/api/work`.
 
 /** Can this deployment reach the task hub? Asked once per session. */
 async function fetchTasksCapabilitiesRequest(fetch: ApiTransport,
@@ -1230,7 +1158,7 @@ async function fetchTaskRequest(fetch: ApiTransport,
 }
 
 /** What the composer sends. `metadata` carries the `noticeos_*` handoff grammar
- * when a task is filed from a finding, so a filed bead matches the one the
+ * when a task is filed from a finding, so a filed task matches the one the
  * copied `bd create` command would have made. */
 export interface NewTask {
   project: string;
@@ -1263,7 +1191,7 @@ export interface TaskEdit {
   priority?: number;
   assignee?: string;
   parent?: string;
-  /** A date `bd` understands (`+1d`, `next monday`, `2026-10-01`); the empty
+  /** A date `bd` understands (`+1d`, `next monday`, an ISO date); the empty
    * string clears the deferral. */
   defer?: string;
   title?: string;
@@ -1307,7 +1235,7 @@ async function actOnTaskRequest(fetch: ApiTransport,
 }
 
 /** The reason is required, not decoration: completion is evidence, and the
- * closer cites what proves it (config/beads.README.md). */
+ * closer cites what proves it. */
 function closeTaskRequest(fetch: ApiTransport, id: string, reason: string, project?: string): Promise<void> {
   return actOnTaskRequest(fetch, id, "close", { reason }, project === undefined ? undefined : { project });
 }
@@ -1317,7 +1245,7 @@ function commentOnTaskRequest(fetch: ApiTransport, id: string, text: string, pro
 }
 
 /** Answer an ask carrying the `human` label: the response is added as a comment
- * and the bead closes. */
+ * and the task closes. */
 function respondToTaskRequest(fetch: ApiTransport, id: string, response: string, options?: TaskWriteOptions): Promise<void> {
   return actOnTaskRequest(fetch, id, "respond", { response }, options);
 }
@@ -1328,7 +1256,7 @@ function dismissTaskRequest(fetch: ApiTransport, id: string, reason?: string, op
   return actOnTaskRequest(fetch, id, "dismiss", reason === undefined ? {} : { reason }, options);
 }
 
-/** Release a gate holding a bead out of `bd ready`. Its own path because a gate
+/** Release a gate holding a task out of `bd ready`. Its own path because a gate
  * is not a task: it is the wait condition in front of one. */
 async function resolveGateRequest(fetch: ApiTransport, id: string, reason?: string, options?: TaskWriteOptions): Promise<void> {
   const path = `/api/gates/${encodeURIComponent(id)}/resolve`;
@@ -1341,17 +1269,11 @@ async function resolveGateRequest(fetch: ApiTransport, id: string, reason?: stri
   if (!res.ok) throw await refusal(res, `POST ${path} failed: ${res.status}`);
 }
 
-// --- Integrations: connect, test and disconnect a provider (bead ro-vu8d.2) --
+// --- Integrations: connect, test and disconnect a provider ------------------
 
-/**
- * The credential read's path, as ONE constant.
- *
- * `/api/integrations` was already taken when this landed — it is the Health
- * page's lane × asset matrix (`fetchIntegrations` above) — so the provider
- * credential list sits one segment deeper, beside the per-provider writes it
- * belongs with. Naming it once means reconciling with `ro-vu8d.1` is a one-line
- * change rather than a search.
- */
+/** The credential read's path, as one constant. `/api/integrations` is the
+ * Health page's lane × asset matrix (`fetchIntegrations` above), so the
+ * provider credential list sits one segment deeper. */
 export const INTEGRATION_PROVIDERS_PATH = "/api/integrations/providers";
 
 function credentialPath(provider: string): string {
@@ -1359,13 +1281,10 @@ function credentialPath(provider: string): string {
 }
 
 /**
- * Every provider, its field schema, and what the store holds for it — field
- * NAMES and timestamps only, never a value (bead `ro-vu8d.2`).
- *
- * It never answers 501 and it is never read-only: credentials are STORE writes,
- * so this page works the same in a deployed Worker as on the operator's Mac.
- * That is true of nothing else editable on the desk yet — D18 leaves file-owned
- * settings read-only wherever the local write lane is not running.
+ * Every provider, its field schema, and what the store holds for it: field
+ * names and timestamps only, never a value. It never answers 501 and is never
+ * read-only: credentials are store writes, so this page works the same in a
+ * deployed Worker as on a local machine.
  */
 async function fetchIntegrationProvidersRequest(fetch: ApiTransport,
   signal?: AbortSignal,
@@ -1382,12 +1301,9 @@ async function fetchIntegrationProvidersRequest(fetch: ApiTransport,
 }
 
 /**
- * Store one provider's credential — the only moment a secret leaves the
- * browser.
- *
- * The interesting refusal is `422 invalid_credential`, which NAMES the field it
- * refused on `ApiError.field`, so the form puts the reason under the input the
- * operator has to fix instead of at the bottom of the card. `503
+ * Store one provider's credential: the only moment a secret leaves the
+ * browser. `422 invalid_credential` names the field it refused on
+ * `ApiError.field`, so the form puts the reason under that input. `503
  * credentials_key_missing` carries the ingest's own sentence about generating
  * the bootstrap key.
  */
@@ -1405,13 +1321,10 @@ async function saveProviderCredentialRequest(fetch: ApiTransport,
 }
 
 /**
- * Record when one provider's credential stops working, or that it does not
- * (bead `ro-vu8d.8`).
- *
- * The one write on this page that carries no secret: an expiry is a public
- * fact, kept beside the ciphertext rather than inside it. `null` is a real
- * answer — *this does not expire* — and is what a published Google app sends to
- * switch off the Testing-mode countdown for good.
+ * Record when one provider's credential stops working, or that it does not.
+ * The one write on this page that carries no secret. `null` is a real answer,
+ * "this does not expire", and is what a published Google app sends to switch
+ * off the Testing-mode countdown for good.
  */
 async function saveProviderExpiryRequest(fetch: ApiTransport,
   provider: string,
@@ -1441,12 +1354,9 @@ async function deleteProviderCredentialRequest(fetch: ApiTransport, provider: st
 }
 
 /**
- * One real authenticated call against the provider (doc 14 flow C step 2:
- * validation comes from a collector attempt, never a manual health toggle).
- *
- * `ok: false` is a 200 with the provider's own reason in `message` — a wrong
- * password is an ANSWER, not a transport failure, so the card renders it as a
- * sentence rather than as a thrown error.
+ * One real authenticated call against the provider. `ok: false` is a 200 with
+ * the provider's own reason in `message`: a wrong password is an answer, not a
+ * transport failure, so the card renders it as a sentence.
  */
 async function testProviderCredentialRequest(fetch: ApiTransport,
   provider: string,
@@ -1462,14 +1372,11 @@ async function testProviderCredentialRequest(fetch: ApiTransport,
 }
 
 /**
- * The connect panel's one press (bead `ro-ujb9.96.7.1`): send what the operator
- * entered, and hear the provider's verdict. The ingest asks the provider FIRST
- * and stores the credential only when it accepts, so `accepted` means stored
- * and proven, and `refused` / `unreachable` mean nothing was kept.
- *
- * A refusal is a 200, like the Test button's: it is the answer, not a fault.
- * `422 invalid_credential` names its field on `ApiError.field`, so the panel
- * puts the reason under the input to fix.
+ * The connect panel's one press: send what the operator entered, and hear the
+ * provider's verdict. The ingest asks the provider first and stores the
+ * credential only when it accepts, so `accepted` means stored and proven, and
+ * `refused` / `unreachable` mean nothing was kept. A refusal is a 200; `422
+ * invalid_credential` names its field on `ApiError.field`.
  */
 async function connectProviderCredentialRequest(fetch: ApiTransport,
   provider: string,
@@ -1486,9 +1393,9 @@ async function connectProviderCredentialRequest(fetch: ApiTransport,
 }
 
 /**
- * One site's token for a provider that issues one per site (Clarity, bead
- * `ro-ujb9.96.7.9`), saved on its row the moment it is pasted. The ingest
- * merges it into the per-site map; nothing comes back but the status.
+ * One site's token for a provider that issues one per site, saved on its row
+ * the moment it is pasted. The ingest merges it into the per-site map; nothing
+ * comes back but the status.
  */
 async function saveSiteTokenRequest(fetch: ApiTransport, provider: string, asset: string, token: string): Promise<void> {
   const path = `/api/integrations/${encodeURIComponent(provider)}/site-token`;
@@ -1498,8 +1405,8 @@ async function saveSiteTokenRequest(fetch: ApiTransport, provider: string, asset
 
 /**
  * What a connected account lists, beside the portfolio's assets and what the
- * register already maps (bead `ro-ujb9.96.7.2`): the connect panel's second
- * screen. One free provider read inside the ingest; nothing is stored.
+ * register already maps: the connect panel's second screen. One free provider
+ * read inside the ingest; nothing is stored.
  */
 async function fetchProviderSitesRequest(fetch: ApiTransport, provider: string, signal?: AbortSignal): Promise<SitesPayload> {
   const path = `/api/integrations/${encodeURIComponent(provider)}/sites`;
@@ -1510,8 +1417,8 @@ async function fetchProviderSitesRequest(fetch: ApiTransport, provider: string, 
 
 /**
  * Start collecting: the provider's scheduled job step, run now for these
- * assets (bead `ro-ujb9.96.7.2`). Answers once the lane's run has finished; a
- * refusal (paused, already running) is an answer, not a thrown error.
+ * assets. Answers once the lane's run has finished; a refusal (paused, already
+ * running) is an answer, not a thrown error.
  */
 async function collectProviderSitesRequest(fetch: ApiTransport, provider: string, assets: string[]): Promise<CollectNowResult> {
   const path = `/api/integrations/${encodeURIComponent(provider)}/collect`;
@@ -1521,15 +1428,9 @@ async function collectProviderSitesRequest(fetch: ApiTransport, provider: string
 }
 
 /**
- * What the connected Google account can actually see (bead `ro-vu8d.3`).
- *
- * Two free, read-only list calls; nothing is stored. It answers the question an
- * operator has one second after signing in — *did I use the right Google
- * account* — and the same payload is what the per-asset property picker
- * (`ro-vu8d.4`) will read.
- *
- * A failure inside Google is a 200 with `ok: false` and the reason, exactly
- * like the connection test: "Search Console would not answer" is an answer.
+ * What the connected Google account can actually see: two free, read-only list
+ * calls; nothing is stored. A failure inside Google is a 200 with `ok: false`
+ * and the reason, exactly like the connection test.
  */
 async function fetchGooglePropertiesRequest(fetch: ApiTransport,
   signal?: AbortSignal,
@@ -1545,13 +1446,9 @@ async function fetchGooglePropertiesRequest(fetch: ApiTransport,
 }
 
 /**
- * Can the legacy env credentials be imported from HERE (bead `ro-vu8d.7`)?
- *
- * The local dev server can: the operator's `.dev.secrets.json` is beside it, and
- * its import lane reads the file. Anywhere else the answer is no, with a
- * reason code the card draws beside the command it falls back to. Two facts, one
- * question, because a card that draws a button and then hears 404 teaches an
- * operator not to trust the page.
+ * Can the legacy env credentials be imported from here? The local dev server
+ * can, because the secrets file is beside it. Anywhere else the answer is no,
+ * with a reason code the card draws beside the command it falls back to.
  */
 async function fetchEnvImportAvailabilityRequest(fetch: ApiTransport,
   signal?: AbortSignal,
@@ -1572,13 +1469,10 @@ async function fetchEnvImportAvailabilityRequest(fetch: ApiTransport,
 }
 
 /**
- * Move every complete provider in this machine's secrets file into the store —
- * what `pnpm dev:secrets:import` does, as a button.
- *
- * The whole FILE moves, not one provider: the import is the operator's one
- * crossing from the env path to the store, and there is nothing to say for
- * doing it a quarter at a time. The answer names providers and field names, so
- * the toast can report what actually moved without ever holding a value.
+ * Move every complete provider in this machine's secrets file into the store,
+ * what `pnpm dev:secrets:import` does, as a button. The whole file moves. The
+ * answer names providers and field names, so the toast can report what moved
+ * without ever holding a value.
  */
 async function importEnvCredentialsRequest(fetch: ApiTransport): Promise<EnvImportResult> {
   const res = await fetch(ENV_IMPORT_PATH, {

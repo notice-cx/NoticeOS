@@ -3,7 +3,7 @@ import constants from './fixture-config/constants.json';
 import { OS_TIME_ZONE } from '../src/os-time-zone.js';
 import { isIanaTimeZone, parseOsTimeZone, proposedTimeZone, savedOsTimeZone, timeZoneChosen } from '../src/time-zone-setting.js';
 
-describe("a first run proposes the browser's clock until somebody chooses one (ro-ujb9.134)", () => {
+describe("a first run proposes the browser's clock until somebody chooses one", () => {
   it('counts a clock as chosen once saved, or when it is not the product default', () => {
     // A new installation: the product default, never saved.
     expect(timeZoneChosen('UTC', 'UTC', false)).toBe(false);
@@ -28,12 +28,10 @@ describe("a first run proposes the browser's clock until somebody chooses one (r
 
 describe('the operator clock is configuration', () => {
   it('reads the zone out of the constants document it was compiled with', () => {
-    // Not a literal in this package any more (bead ro-py40): a self-hoster in
-    // another timezone edits config, not TypeScript. The suite compiles
-    // test/fixture-config/constants.json in place of the checkout's own (bead
-    // ro-ujb9.97), and that fixture names a different zone from the shipped
-    // seed's, so this passes only while the clock really comes from the document
-    // the suite supplies — and never changes when the operator saves a zone.
+    // The suite compiles test/fixture-config/constants.json in place of the
+    // checkout's own, and that fixture names a different zone from the shipped
+    // seed's, so this passes only while the clock really comes from the
+    // document the suite supplies.
     expect(OS_TIME_ZONE).toBe(constants.os_time_zone);
     expect(OS_TIME_ZONE).toBe('Pacific/Auckland');
   });
@@ -60,7 +58,7 @@ describe('the operator clock is configuration', () => {
     expect(isIanaTimeZone('   ')).toBe(false);
   });
 
-  it('reads the saved zone first and the compiled one only when nothing usable is saved (ro-ujb9.88)', () => {
+  it('reads the saved zone first and the compiled one only when nothing usable is saved', () => {
     expect(savedOsTimeZone({ os_time_zone: 'Europe/Warsaw' }, 'UTC')).toBe('Europe/Warsaw');
     expect(savedOsTimeZone({ os_time_zone: ' Asia/Tokyo ' }, 'UTC')).toBe('Asia/Tokyo');
     // A stored document has no build to fail: an unusable value falls back

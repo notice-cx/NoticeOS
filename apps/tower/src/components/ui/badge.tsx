@@ -2,9 +2,8 @@ import { type VariantProps, cva } from "class-variance-authority";
 import type * as React from "react";
 import { cn } from "@/lib/utils";
 
-// Generic badge. Severity coloring is NOT a variant here — that lives in the
-// severity-aware components (AgeBadge, SeverityDot) so the "only color system"
-// rule stays in one place. These variants are neutral chrome only.
+// Neutral chrome only: severity colour lives in the severity-aware components
+// (AgeBadge, SeverityDot) so the colour system stays in one place.
 const badgeVariants = cva(
   "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium tabular-nums transition-colors",
   {

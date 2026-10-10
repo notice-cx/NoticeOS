@@ -7,19 +7,10 @@ import { READ_ONLY_DEPLOYMENT, READ_ONLY_TASKS_HINT, type TasksCapabilities } fr
 import type { NewTask } from "@/lib/api";
 
 /**
- * FILE A TASK WITH A BUTTON (D19, bead `ro-l1ed.4`).
- *
- * The load-bearing claim this file exists to keep true: **the composer files
- * exactly the bead the copied `bd create` describes.** Both are rendered from
- * one function, and the parity case below proves it the only honest way — by
- * parsing the emitted shell command back apart and comparing the values a shell
- * would actually hand `bd` against the object the composer sends to the lane. A
- * test that compared two calls to the same helper would prove nothing.
- *
- * Everything else here is the composer's own contract: it refuses without a
- * project or a title, it will not file an epic that belongs to another spoke,
- * the handoff labels cannot be edited away, and a build with no lane disables
- * the trigger rather than hiding it.
+ * The composer files exactly the task the copied `bd create` describes. Both
+ * are rendered from one function, and the parity case parses the emitted shell
+ * command back apart and compares what a shell would hand `bd` against the
+ * object the composer sends to the lane.
  */
 
 const lane = vi.hoisted(() => ({
@@ -42,9 +33,9 @@ vi.mock("@/lib/api", async (importOriginal) => {
   };
 });
 
-// The composer reads the spoke map from `/api/settings`; nothing serves it here
-// and every case passes `projects` explicitly, so the hook answers with nothing
-// rather than opening a fetch jsdom cannot complete.
+// The composer reads the spoke map from `/api/settings`; nothing serves it
+// here and every case passes `projects` explicitly, so the hook answers with
+// nothing rather than opening a fetch jsdom cannot complete.
 vi.mock("@/hooks/useSettings", () => ({
   useSettings: () => ({ data: undefined }),
 }));
@@ -67,8 +58,6 @@ import { queryTaskHandoff } from "@/lib/query-decision-markdown";
 import { RECOMMENDATION_RECHECK } from "@shared/recommendation-validity";
 import { resetTaskSourceMock, taskSourceMock } from "./task-source-mock";
 
-// A task source connected, as this installation's is (D32, bead
-// ro-ujb9.143): the task screens here render exactly as before it existed.
 vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 
 const SPOKES: TaskHubSpoke[] = [
@@ -135,15 +124,13 @@ describe('hosted composer fields', () => {
   });
 });
 
-// ─── the parity contract ────────────────────────────────────────────────────
-
-/** Reverse of the emitter's POSIX single-quoting, so a test reads back what the
- * shell would actually hand `bd` rather than what the Markdown looks like. */
+/** Reverse of the emitter's POSIX single-quoting, so a test reads back what
+ * the shell would actually hand `bd`. */
 function unquote(token: string): string {
   return token.slice(1, -1).replaceAll("'\\''", "'");
 }
 
-/** The `bd create` the copied handoff carries, parsed into the bead it makes. */
+/** The `bd create` the copied handoff carries, parsed into the task it makes. */
 function parseCommand(markdown: string) {
   const title = /^bd create (.+) \\$/m.exec(markdown)?.[1] ?? "";
   const labels = [...markdown.matchAll(/^ {2}-l (.+) \\$/gm)].map((match) =>
@@ -228,16 +215,13 @@ describe("the composer's prefill IS the copied bd create", () => {
       expect(prefill.type).toBe(parsed.type);
       expect(prefill.priority).toBe(parsed.priority);
       expect(prefill.description).toBe(parsed.description);
-      // The project is the repo the command tells an agent to stand in.
       expect(command).toContain(`Run it in the \`${prefill.project}\` asset repo`);
-      // And the operator's path is named before it (D19, bead `ro-gj7s`): the
-      // section leads with the button rather than teaching the command.
+      // The section leads with the button rather than teaching the command.
       expect(command).toContain("**File task** button");
       expect(command.indexOf("**File task** button")).toBeLessThan(
         command.indexOf("bd create"),
       );
-      // The tutorial the button replaced is gone, and so is the vocabulary
-      // docs/17 removed from every surface a reader outside this repo meets.
+      // No tutorial, and none of the internal vocabulary.
       for (const gone of ["bd config list", "issue_prefix", "task hub", "bead id"]) {
         expect(command).not.toContain(gone);
       }
@@ -282,8 +266,6 @@ describe("the composer's prefill IS the copied bd create", () => {
   });
 });
 
-// ─── the form ───────────────────────────────────────────────────────────────
-
 describe("TaskComposer", () => {
   const prefill = taskHandoffPrefill({
     asset: "meals.example",
@@ -300,7 +282,7 @@ describe("TaskComposer", () => {
 
     expect(field("Title").value).toBe("Expand pages already earning search demand");
     expect(field("Project").value).toBe("meals.example");
-    // The board's own words, never a P-number (doc 14's demo test).
+    // The board's own words, never a P-number.
     expect(field("Priority").value).toBe("2");
     expect(screen.getByRole("option", { name: "normal" })).toBeInTheDocument();
     expect(screen.queryByText("P2")).toBeNull();
@@ -308,20 +290,19 @@ describe("TaskComposer", () => {
     for (const label of prefill.labels) {
       const chip = document.querySelector(`[data-composer-locked-label="${label}"]`);
       expect(chip).not.toBeNull();
-      // Locked: no remove control on a handoff label, because the join it
-      // carries is what puts the filed bead back on the row that raised it.
+      // Locked: no remove control on a handoff label, because the join it carries
+      // is what puts the filed task back on the row that raised it.
       expect(chip!.querySelector("button")).toBeNull();
     }
 
-    // The metadata itself never renders — what it MEANS does.
     expect(document.querySelector('[data-composer-linked="finding"]')).not.toBeNull();
     expect(screen.getByText(/Linked to a finding/)).toBeInTheDocument();
     expect(document.body.textContent).not.toContain("noticeos_source");
   });
 
-  // A prefill carrying the pre-rename grammar (reindex_*) still says what it
-  // links to (bead ro-ujb9.77.4).
-  it("reads the kind of a handoff written before the rename", () => {
+  // A prefill carrying the legacy handoff grammar (reindex_*) still says what it
+  // links to.
+  it("reads the kind of a handoff written under the old grammar", () => {
     renderComposer({ project: "meals.example", title: "Old handoff", metadata: { reindex_kind: "query", reindex_key: "meal plan" } });
     expect(document.querySelector('[data-composer-linked="query"]')).not.toBeNull();
     expect(screen.getByText(/Linked to a query decision/)).toBeInTheDocument();
@@ -342,7 +323,6 @@ describe("TaskComposer", () => {
       metadata: prefill.metadata,
     });
 
-    // The id the hub minted, immediately, and the composer gets out of the way.
     expect(toasts.success).toHaveBeenCalledWith("Filed mp-9zz", expect.anything());
     expect(onFiled).toHaveBeenCalledWith({ id: "mp-9zz", project: "meals.example" });
     await waitFor(() => expect(onClose).toHaveBeenCalled());
@@ -354,8 +334,7 @@ describe("TaskComposer", () => {
     fireEvent.click(fileTask());
     await waitFor(() => expect(toasts.success).toHaveBeenCalled());
 
-    // `/tasks/:id` is where every other bead id in the Tower leads; the toast
-    // must not be the one place that lands somewhere else.
+    // `/tasks/:id` is where every other task id in the Tower leads.
     const options = toasts.success.mock.calls[0]?.[1] as {
       action: { label: string; onClick: () => void };
     };
@@ -387,16 +366,14 @@ describe("TaskComposer", () => {
       priority: 0,
       parent: "mp-1w2",
       acceptance: "The hub ranks for its own name.",
-      // The handoff's labels first and intact, the operator's after.
       labels: [...prefill.labels, "content"],
     });
   });
 
   it("keeps what the operator typed when the row behind it re-renders", () => {
     // A row builds its prefill fresh on every render, so an effect keyed on
-    // the prefill OBJECT would reset the form whenever anything above it
-    // re-rendered — a poll landing, a toast appearing — and throw the
-    // operator's typing away mid-sentence.
+    // the prefill object would reset the form whenever anything above it
+    // re-rendered and throw the operator's typing away mid-sentence.
     const client = new QueryClient();
     const compose = (p: TaskComposerPrefill) => (
       <QueryClientProvider client={client}>
@@ -414,8 +391,6 @@ describe("TaskComposer", () => {
   });
 
   it("opens a new task on title, project and priority, with the rest under More", () => {
-    // docs/reports/2026-09-23-ux-flow-audit.html finding 10: eight fields and a
-    // hundred words of hints became three fields and none.
     renderComposer({ project: "root-os" });
     expect(field("Title")).toHaveFocus();
     expect(field("Project").value).toBe("root-os");
@@ -438,7 +413,6 @@ describe("TaskComposer", () => {
     renderComposer(prefill);
     expect(screen.getByRole("button", { name: "More" })).toHaveAttribute("aria-expanded", "true");
     expect(field("Type")).toBeInTheDocument();
-    // A locked label says so with its glyph, not a footnote.
     const chip = document.querySelector(`[data-composer-locked-label="${prefill.labels[0]}"]`)!;
     expect(chip.textContent).toContain("Locked label");
     expect(document.body.textContent).not.toContain("cannot be edited");
@@ -483,12 +457,9 @@ describe("TaskComposer", () => {
     fireEvent.click(fileTask());
 
     expect(await screen.findByText("bd: unknown parent mp-nope")).toBeInTheDocument();
-    // The form stays open, holding what the operator typed.
     expect(onClose).not.toHaveBeenCalled();
   });
 });
-
-// ─── the trigger ────────────────────────────────────────────────────────────
 
 describe("FileTaskButton", () => {
   const render1 = (props: Parameters<typeof FileTaskButton>[0]) =>
@@ -518,14 +489,11 @@ describe("FileTaskButton", () => {
     const button = screen.getByRole("button", { name: "File task" });
     expect(button).toBeDisabled();
     expect(button).toHaveAttribute("title", READ_ONLY_TASKS_HINT);
-    // Visible, not hidden: an operator who cannot find the button learns
-    // nothing, and Copy Markdown is beside it and still the way.
+    // Visible, not hidden: an operator who cannot find the button learns nothing.
     expect(button).toBeInTheDocument();
   });
 
-  // D32: snapshot health never hides filing; the actual task lane governs
-  // writes. A read-only build retains a disabled action, where
-  // the tasks exist elsewhere and the button says where to go.
+  // Snapshot health never hides filing; the actual task lane governs writes.
   it("keeps filing available through the live lane before the snapshot connection answers", () => {
     taskSourceMock.connected = null;
     const { container } = render1({ prefill: null, projects: SPOKES });

@@ -1,9 +1,8 @@
-// NIGHTLY REPORTS AND ALERTS, WRITTEN WHERE THE TOWER READS THEM (bead
-// ro-ujb9.76.5.2): a test's reports, alerts, readings, tunes and notices go
-// into its Postgres copy (`ctx.call`, test/sites.ts), whose sites
-// must be added first. A copy written to serves that test alone, so a file
-// writes these rows in the tests that read them, never in a seed every test
-// runs (the port pattern, section 7).
+// Nightly reports and alerts, written where the Tower reads them: a test's
+// reports, alerts, readings, tunes and notices go into its Postgres copy
+// (`ctx.call`, test/sites.ts), whose sites must be added first. A copy
+// written to serves that test alone, so a file writes these rows in the tests
+// that read them, never in a seed every test runs.
 //
 // Each writer returns the number the Tower shows (`flag_number`, a report's
 // `day_number`): the store hands numbers out, so a test names a row by what
@@ -11,7 +10,7 @@
 
 import { javascriptInstant, type SqlValue, type WorkspaceStore } from "@noticeos/postgres";
 
-/** One alert, in the D1 row's terms. */
+/** One alert, as a test states it. */
 export interface AlertRow {
   asset: string;
   firedAt: string;
@@ -88,7 +87,7 @@ export async function storeAlert(store: WorkspaceStore, alert: AlertRow): Promis
   return number!;
 }
 
-/** One site's report for one day, in the D1 row's terms. */
+/** One site's report for one day, as a test states it. */
 export interface ReportRow {
   asset: string;
   date: string;
@@ -194,8 +193,8 @@ export async function storeTune(
   );
 }
 
-/** An alert as it reads now, in the D1 row's terms: its number as `id`,
- * instants as JavaScript writes them, inputs as JSON text. */
+/** An alert as it reads now: its number as `id`, instants as JavaScript
+ * writes them, inputs as JSON text. */
 export interface ReadAlert {
   id: number;
   asset: string;

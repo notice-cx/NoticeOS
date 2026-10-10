@@ -3,10 +3,9 @@ import { siteAddress, sitePath } from "@shared/first-run";
 import { useWall } from "@/hooks/useWall";
 
 /**
- * Where a link that means "open this site" goes, by site id (bead
- * `ro-ujb9.199`) — the rule the sidebar, the Sites table and the command
- * palette already follow (`sitePath`): its Data sources until its first
- * number, its Overview after.
+ * Where a link that means "open this site" goes, by site id: the rule the
+ * sidebar, the Sites table and the command palette already follow
+ * (`sitePath`), its Data sources until its first number, its Overview after.
  *
  * For a surface that holds an alert's site id rather than its card. It reads
  * the cards off `useWall()`, the cached query the desk pages already run; an

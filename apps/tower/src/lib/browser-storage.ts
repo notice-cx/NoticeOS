@@ -1,17 +1,9 @@
 import { browserOwnerKey, captureBrowserOwner } from './browser-owner';
 
-// WHAT ONE BROWSER REMEMBERS FOR THE DESK, UNDER THE PRODUCT'S NAME
-// (bead ro-ujb9.77.4).
-//
-// Every key the desk keeps in localStorage or sessionStorage is namespaced
-// `noticeos:` so it cannot collide with anything else the origin stores. Before
-// the rename the namespace was `reindex-os:`, and an operator's browser still
-// holds their theme, the Sites list's open/closed state, recent palette
-// searches and the rest under it. So a read falls back to the old key once and
-// moves the value to the new one, and forgetting a value forgets both — the
-// operator keeps every choice, and nothing forgotten comes back from the old
-// name.
-//
+// What one browser remembers for the desk, under the product's name. Every
+// key is namespaced `noticeos:` so it cannot collide with anything else the
+// origin stores. A read falls back once to the older `reindex-os:` key and
+// moves the value to the new one, and forgetting a value forgets both.
 // Storage can refuse (private mode, a locked-down profile): every call here
 // swallows that and answers as if nothing were stored.
 

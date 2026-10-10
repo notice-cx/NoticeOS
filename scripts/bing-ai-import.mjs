@@ -1,35 +1,18 @@
 #!/usr/bin/env node
-// bing-ai-import.mjs — drop a Bing AI Performance export anywhere, run one
-// command, and it becomes evidence (bead ro-2dn).
+// Drop a Bing AI Performance export anywhere, run one command, and it becomes evidence.
 //
 //   pnpm bing-ai:import ~/Downloads/example.com_AIPageStatsReport_8_4_2026.csv
 //
-// WHY A HAND-DROPPED FILE AT ALL. Bing Webmaster Tools' AI Performance report —
-// which questions Microsoft's assistants answered with this property's pages,
-// and which pages they cited — exists in the dashboard and behind an Export
-// button, and nowhere on the documented API surface (docs/11 §"Bing AI
-// Performance boundary"). Scraping the dashboard is ruled out on principle. So
-// the operator downloads a file and this is the whole of what they have to do
-// with it: name the path.
-//
-// WHAT IT DOES NOT DO. It does not open the store. The archive is written by the
-// one runtime that owns the local sqlite file, over the loopback ingest door
-// (`POST /api/bing-ai-export`), for the same reason every other lane here does:
-// a second workerd over that file is the 2026-08-02 corruption (beads ro-mad,
-// ro-icq; scripts/no-second-runtime.test.mjs is what keeps it true).
-//
-// WHAT IT REFUSES. The FORMAT is decided by the header row on the far side and
-// an unrecognized header is a loud refusal — this bead exists because a parser
-// that guesses a column is how a silent corruption starts. The ASSET and the
-// EXPORT DATE are read off Bing's own filename (`<site>_<Report>_<M_D_YYYY>.csv`),
-// and a file renamed past recognition is refused here with the two flags that
-// fix it rather than imported under a guess.
-//
-// RUNNING IT TWICE IS SAFE. The archive is content-addressed over the file, so
-// re-importing the same export answers `unchanged` and writes no second copy.
-// A later export lands on its own export date and extends the dated series;
-// where two exports overlap a day, the panel resolves the day to the newest
-// one (scripts/signal-archive.mjs). Nothing double-counts.
+// Bing's AI Performance report exists only behind the dashboard's Export
+// button, so the operator downloads a file and names the path. The archive is
+// written over the loopback ingest door (`POST /api/bing-ai-export`), never
+// by opening the store. The format is decided by the header row on the far
+// side, and an unrecognized header is a loud refusal. The asset and the export
+// date are read off Bing's own filename (`<site>_<Report>_<M_D_YYYY>.csv`); a
+// renamed file is refused with the two flags that fix it. Running it twice is
+// safe: the archive is content-addressed, so the same export answers
+// `unchanged`, and where two exports overlap a day the panel resolves the day
+// to the newest one (scripts/signal-archive.mjs).
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -43,11 +26,9 @@ import {
 export { DEFAULT_DOOR };
 
 /**
- * How Bing names the download: `<site>_<ExportName>_<M>_<D>_<YYYY>.csv`.
- *
- * Two of the three exports carry no date column anywhere in the file, so this
- * filename is the ONLY place their date lives — which is exactly why a file
- * whose name no longer matches is refused instead of stamped with today.
+ * How Bing names the download: `<site>_<ExportName>_<M>_<D>_<YYYY>.csv`. Two
+ * of the three exports carry no date column, so the filename is the only
+ * place their date lives.
  */
 export const EXPORT_FILE_RE =
   /^(?<asset>[a-z0-9][a-z0-9.-]*)_(?<exportName>[A-Za-z0-9]+)_(?<month>\d{1,2})_(?<day>\d{1,2})_(?<year>\d{4})\.csv$/;
@@ -135,13 +116,9 @@ export function describeExportFile(basename) {
 }
 
 /**
- * The property and export date this import will use — from the flags where the
- * operator gave them, from the filename otherwise, and a refusal that names the
- * missing flag when neither answers.
- *
- * A guess here would be the worst kind: the export date is what the whole dated
- * series is keyed on, so a wrong one silently rewrites which day a snapshot
- * describes, and a wrong asset files one property's citations under another.
+ * The property and export date this import will use: from the flags, from
+ * the filename otherwise, and a refusal naming the missing flag when neither
+ * answers. Never a guess: the export date keys the whole dated series.
  */
 export function resolveImport(file, options) {
   const basename = path.basename(file);
@@ -205,10 +182,9 @@ export async function importBingAiExports(options, deps = {}) {
 
   if (!options.refresh) return { imported, refreshed: [] };
 
-  // The panel dir is the only surface a property agent reads (docs/20), so an
-  // import that stopped at the archive would be invisible to the reader it was
-  // collected for. This is the SAME refresh the 13:10 cron runs, scoped to the
-  // properties this run touched, and it costs zero provider calls.
+  // The panel dir is the surface a property agent reads (docs/20), so the
+  // import ends with the same refresh the cron runs, scoped to the properties
+  // this run touched; it costs no provider calls.
   const refreshed = [];
   for (const asset of [...new Set(imported.map((result) => result.asset))]) {
     const { failures } = await refreshPanels(

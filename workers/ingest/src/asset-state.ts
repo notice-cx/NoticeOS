@@ -1,40 +1,13 @@
-// The asset write lane — the three columns of `assets` anything is allowed to
-// edit (db/README §assets: `status`, `sense_only` and `display_name`, and
-// nothing else), the site's place in the list of sites (`moveAsset`, bead
-// ro-ujb9.76.52), plus creating an asset. Nothing removes one: a site is
-// retired, never deleted (db/postgres/README.md, choice 5; bead
-// ro-ujb9.76.4.5).
+// The asset write lane: the three columns of `assets` anything is allowed to
+// edit (`status`, `sense_only`, `display_name`), a site's place in the list
+// (`moveAsset`), and creating an asset. Nothing removes one: a site is
+// retired, never deleted. The Tower reaches these functions through the
+// WorkerEntrypoint RPCs, so no operator bearer crosses into a LAN-served app.
 //
-// ON POSTGRES (bead ro-ujb9.76.4.2). The site list is
-// `noticeos.assets`, read and written through this call's store, `env.STORE`.
-// Postgres is the one answer: every read here asks it, and every write is one
-// transaction on it.
-//
-// TWO CALLERS. `scripts/config-apply.mjs`, the operator's changeset tool, over
-// the operator-authed routes below; and — since D18 (ro-pbzu.5) — the Control
-// Tower, which writes an asset's lifecycle stage, automation mode and name
-// straight from the asset page, and since 2026-09-04 (bead ro-z349.1) creates
-// the row itself. The Tower reaches these functions through the
-// WorkerEntrypoint RPCs (`readAssetState` / `writeAssetColumn` / `createAsset`
-// in ../index.ts), not the HTTP lane: the binding is the
-// capability, so no operator bearer crosses into a LAN-served, unauthenticated
-// app. Both a READ (the `expect` guard resolves the current value before
-// anything is written) and a WRITE come through here, whichever caller asked.
-//
-// WHY THESE ARE ROUTES. Until now the script reached the store by shelling out to
-// `wrangler d1 execute --local --persist-to ../../.wrangler/state`, which starts
-// a SECOND miniflare over the sqlite file the live runtime already holds open as
-// its D1DatabaseObject — the 2026-08-02 corruption topology (ro-mad, ro-icq).
-// `config:apply` is run by hand beside a live `os:up`, because that is the only
-// state the operator's machine is ever in, and it is a WRITER. So the write goes
-// through the runtime that owns the file (bead ro-bko).
-//
-// WHAT THIS MODULE WILL NOT DO. It takes a column NAME from an untrusted body and
-// it still builds no SQL from it: each sanctioned column has its own pinned
-// statement below, chosen by an exact match against the allowlist. A column the
-// store does not sanction is a 422 naming the sanctioned ones, never a query.
-// And nothing here writes a MIGRATION — the schema is operator-only
-// (AGENTS.md); what this module inserts and changes is ROWS.
+// This module takes a column name from an untrusted body and builds no SQL
+// from it: each sanctioned column has its own pinned statement, chosen by
+// exact match against the allowlist. Nothing here writes a migration; what it
+// inserts and changes is rows.
 
 import { PRODUCT_NAME, SITE_ORDER, STORE_COLUMNS } from '@noticeos/contract';
 import type {
@@ -58,13 +31,9 @@ import {
   enumValue,
 } from './routes/validate.js';
 
-/** The lifecycle enum, the column allowlist and the result shapes are the
- * cross-Worker contract now (`@noticeos/contract` asset-column.ts), because
- * the Tower calls this module over the Service Binding rather than reading a
- * JSON body. They are re-exported here because THIS file is where they are
- * enforced: the values below are what an untrusted body is actually checked
- * against, and `UPDATE_SQL` fails to compile if the allowlist ever grows a
- * column with no pinned statement behind it. */
+/** The enum, the allowlist and the result shapes are the cross-Worker contract;
+ * re-exported here because this is where they are enforced, and `UPDATE_SQL`
+ * fails to compile if the allowlist grows a column with no pinned statement. */
 export { ASSET_STATUSES, DISPLAY_NAME_MAX, STORE_COLUMNS } from '@noticeos/contract';
 export type {
   AssetRowSummary,
@@ -94,9 +63,8 @@ type StoredSiteRow = {
 };
 
 /**
- * The row in the shape this lane's callers have always read: the id under its
- * old name, the two flags as 0/1 and instants as JavaScript writes them. The
- * contract and the Tower take it so.
+ * The row in the shape this lane's callers read: the id under its old name,
+ * the two flags as 0/1 and instants as JavaScript writes them.
  */
 interface SiteRow {
   id: string;
@@ -123,13 +91,9 @@ function siteRow(row: StoredSiteRow): SiteRow {
 }
 
 /**
- * One pinned statement per sanctioned column.
- *
- * A single statement with the column name interpolated would be the obvious
- * shape and the wrong one: the name arrives in a request body, and "it was
- * checked against an allowlist first" is a property of code somebody can later
- * move. Two literal statements cannot be talked into editing a third column.
- * (`SITE_ROW` is a constant list of what comes back, never input.)
+ * One pinned statement per sanctioned column: a name that arrives in a request
+ * body is never interpolated, and two literal statements cannot be talked into
+ * editing a third column.
  */
 const UPDATE_SQL: Record<StoreColumn, string> = {
   status: `UPDATE noticeos.assets SET status = $2, updated_at = $3::timestamptz WHERE asset_id = $1
@@ -141,14 +105,10 @@ const UPDATE_SQL: Record<StoreColumn, string> = {
 };
 
 /**
- * What the store currently holds for one asset's editable columns.
- *
- * An unknown asset comes back as `known: false` rather than a 404, because the
- * question this read answers is the changeset's `expect` guard — "what is there
- * now?" — and *nothing is there* is an answer to it. The CLI renders that as
- * `(absent)`, reports the op as a mismatch, and tells the operator to re-stage;
- * a 404 would abort the whole run with a transport error instead of the diff
- * they can act on.
+ * What the store holds for one asset's editable columns. An unknown asset
+ * comes back as `known: false` rather than a 404: the question is the
+ * changeset's `expect` guard, and "nothing is there" is an answer the CLI can
+ * render as a mismatch rather than abort on.
  */
 export async function readAssetState(env: IngestEnv, asset: string): Promise<AssetStateRead> {
   const [row] = await env.STORE.read((tx) =>
@@ -168,11 +128,9 @@ export async function readAssetState(env: IngestEnv, asset: string): Promise<Ass
   };
 }
 
-/** The value check for one column — the same enum and the same 0/1 the table's
- * CHECK constraints declare, so a bad value is a named issue rather than a raw
- * constraint failure. Each is the site row's declared field (`SITE_ROW_FIELDS`),
- * so the refusal names it as the Settings tab does ("Automation must be at most
- * 1"); a column write always carries a value, so each is required here. */
+/** The value check for one column, the same enum and 0/1 the table's CHECK
+ * constraints declare, so a bad value is a named issue rather than a raw
+ * constraint failure. */
 function columnValue(
   issues: Issues,
   column: StoreColumn,
@@ -188,17 +146,11 @@ function columnValue(
 }
 
 /**
- * Set one sanctioned column on one asset row.
- *
- * ONE op per request, mirroring what the CLI does: a changeset resolves every op
- * against current reality first and refuses the whole document on any mismatch,
- * then applies the ops one at a time. Batching them here would move that
- * all-or-nothing decision into this Worker, where it does not belong — the file
- * edits in the same changeset are not ours to roll back.
- *
- * `updated_at` is stamped from the runtime's clock, not the caller's: it is
- * entity metadata about when the store changed (db/README §assets), and the
- * store is here.
+ * Set one sanctioned column on one asset row. One op per request: a changeset
+ * resolves every op against current reality and refuses the whole document on
+ * any mismatch, and that decision belongs in the CLI, whose file edits this
+ * Worker cannot roll back. `updated_at` is stamped from the runtime's clock:
+ * it is metadata about when the store changed, and the store is here.
  */
 export async function writeAssetColumn(
   env: IngestEnv,
@@ -232,15 +184,12 @@ export async function writeAssetColumn(
   const updatedAt = new Date(nowMs).toISOString();
   return env.STORE.write(async (tx): Promise<AssetStateWriteResult> => {
     // Every guarded edit reads, compares and updates under the same row lock.
-    // A competing writer waits, then observes the committed winning value.
     const [target] = await tx.query<StoredSiteRow>(
       `SELECT ${SITE_ROW} FROM noticeos.assets WHERE asset_id = $1 FOR UPDATE`, [asset],
     );
     if (!target) return { ok: false, error: 'unknown_asset', asset };
-    // THE OS HAS NO NAME TO SET (bead `ro-ujb9.77.10`). Its row is the product,
-    // always called PRODUCT_NAME (`@noticeos/contract` asset-name.ts), and its
-    // stored display_name is legacy data nothing shows — so a write there would
-    // be a change nobody could see. Refused by name, never silently kept.
+    // The OS has no name to set: its row is the product, always called
+    // PRODUCT_NAME, and a write there would be a change nobody could see.
     if (column === 'display_name') {
       if (target.is_os === true) {
         return {
@@ -258,8 +207,7 @@ export async function writeAssetColumn(
     const stored = column === 'sense_only' ? value === 1 : value;
     const [row] = await tx.query<StoredSiteRow>(UPDATE_SQL[column], [asset, stored, updatedAt]);
 
-    // No row updated means no such asset — the same clean 422 the annotation and
-    // insight lanes give, rather than a silent no-op the caller reads as success.
+    // No row updated means no such asset: a clean 422 rather than a silent no-op.
     if (!row) return { ok: false, error: 'unknown_asset', asset };
 
     await recordMutation(tx, actor, { event: 'asset.column', assetId: asset, subject: { column } });
@@ -283,43 +231,25 @@ function readBack(row: SiteRow, column: StoreColumn): string | number {
 }
 
 // ---------------------------------------------------------------------------
-// A site's place in the list (bead `ro-ujb9.76.52`).
+// A site's place in the list.
 //
-// Every list of sites follows each site's stored place, `list_position`
-// (@noticeos/contract site-order.ts). A new site takes the next place, at the
-// end, from the workspace's own counter (0001_baseline.sql, the numbering
-// trigger on `assets`); retiring and restoring a site leave its place alone,
-// and nothing removes a site. This is the one write that changes a place: the operator's reorder control
-// makes it.
+// Every list of sites follows each site's stored `list_position`. A new site
+// takes the next place from the workspace's own counter (the numbering trigger
+// on `assets`); retiring and restoring leave its place alone. This is the one
+// write that changes a place.
 // ---------------------------------------------------------------------------
 
 /**
- * Move `asset` to the place `to` holds.
+ * Move `asset` to the place `to` holds: `to` and every site between the two
+ * move one place toward the place `asset` left, no other place changes, and
+ * the list holds the same set of places afterwards.
  *
- * THE RULE. `asset` takes `to`'s place; `to` and every site between the two
- * move one place toward the place `asset` left. Moved down the list, each site
- * it passes moves up one; moved up, each moves down one. No other site's place
- * changes, and the list holds the same set of places afterwards (a gap a
- * refused create left stays where it was). Moving a site onto its own place
- * changes nothing.
- *
- * ONE AT A TIME. A new site takes its place from the workspace's counter row
- * (`workspace_counters`, 'list_position'), which the numbering trigger locks
- * in the inserting transaction. A move locks the same row first, so a move and
- * a create, or two moves, take turns: each reads places nobody else is
- * changing, and no create hands out a place while a move has sites parked
- * above the counter.
- *
- * TWO STATEMENTS. The unique key on a workspace's places is checked row by row
- * as an UPDATE runs, so one UPDATE shifting neighbours would collide with a
- * neighbour it had not shifted yet. So the sites in the span first step out of
- * the way, above every place the counter has handed out, and then each takes
- * its new place, which that step emptied. (A DEFERRABLE key would allow one
- * statement, but a deferrable key cannot settle the `ON CONFLICT DO NOTHING` a
- * create relies on.)
- *
- * Each site whose place changed is stamped `updated_at` from the runtime's
- * clock in the same transaction.
+ * The move locks the counter row first, as the numbering trigger does for a
+ * create, so a move and a create, or two moves, take turns. Two statements,
+ * because the unique key on places is checked row by row as an UPDATE runs:
+ * the sites in the span first step out of the way above every place the
+ * counter has handed out, then each takes its new place. (A DEFERRABLE key
+ * cannot settle the `ON CONFLICT DO NOTHING` a create relies on.)
  */
 export async function moveAsset(
   env: IngestEnv,
@@ -379,12 +309,12 @@ export async function moveAsset(
           WHERE list_position BETWEEN $1 AND $2 ORDER BY list_position`,
         [low, high],
       );
-      // The span's own places, in order, dealt out again: `asset` at the far
-      // end, the others closing up behind it in the order they stood.
+      // The span's own places, dealt out again: `asset` at the far end, the
+      // others closing up behind it in the order they stood.
       const others = span.filter((row) => row.asset_id !== asset).map((row) => row.asset_id);
       const dealt = from < onto ? [...others, asset] : [asset, ...others];
-      // The original place may span hidden or retired assets. The row now in
-      // that exact place, rather than the UI neighbor, is the inverse target.
+      // The original place may span hidden or retired assets; the row now in
+      // that exact place is the inverse target.
       undoTo = from < onto ? dealt[0]! : dealt.at(-1)!;
       await tx.execute(
         `UPDATE noticeos.assets SET list_position = list_position + $3::bigint WHERE list_position BETWEEN $1 AND $2`,
@@ -412,11 +342,7 @@ async function orderRevision(order: readonly string[]): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Creating an asset (bead `ro-z349.1`).
-//
-// Until now an asset was born as a seed MIGRATION plus a handful of hand edits.
-// The add-asset wizard needs a create. A mistaken add is archived, as any site
-// is: `status = 'retired'`, a column write above.
+// Creating an asset. A mistaken add is retired, as any site is.
 // ---------------------------------------------------------------------------
 
 function summarize(row: SiteRow): AssetRowSummary {
@@ -433,26 +359,12 @@ function summarize(row: SiteRow): AssetRowSummary {
 }
 
 /**
- * Create one asset row.
- *
- * WHAT IT WILL NOT SET. `is_os` is not an input and is always false: asset #0 is
- * a fact about this repo (db/0002 seeds it) and it decides which asset the Tower
- * renders first, so a route that could mint a second one would quietly change
- * the portfolio's shape. `created_at` and `updated_at` are stamped from the
- * runtime's clock for the same reason `writeAssetColumn` stamps `updated_at`
- * there — they are metadata about when the STORE changed, and the store is here.
- *
- * DEFAULTS. `status` defaults to `onboarding` (docs/14-design.md § Operator flows: "Creates the asset row
- * in state `onboarding`") and `senseOnly` to 1, the table's own default — a
- * brand-new asset observes before it acts. A wizard that asks sends both.
- *
- * A DUPLICATE IS A RESULT, not an error. Reading before inserting would race
- * with itself; instead the insert does nothing on a conflict and an empty
- * RETURNING is read as "already there". The row that exists is left exactly as
- * it was: this call never doubles as an update. A conflict is either key the
- * store holds a site by: its id, or its domain (one site per domain,
- * db/postgres/migrations/0001_baseline.sql `assets_one_per_domain`), and the
- * answer names the site that holds it.
+ * Create one asset row. `is_os` is not an input and is always false: a route
+ * that could mint a second OS asset would quietly change the portfolio's
+ * shape. `status` defaults to `onboarding` and `senseOnly` to 1: a new asset
+ * observes before it acts. A duplicate is a result, not an error: the insert
+ * does nothing on a conflict (the id, or the domain, one site per domain) and
+ * the answer names the site that holds it; the existing row is never updated.
  */
 export async function createAsset(
   env: IngestEnv,
@@ -469,12 +381,9 @@ export async function createAsset(
     };
   }
 
-  // Every field is the site row's declared one (`SITE_ROW_FIELDS`, bead
-  // `ro-ujb9.183`), so the refusal Add a site shows beside its Domain input is
-  // "Domain must be a hostname such as example.com" — worded as every register
-  // words one — while the issue's path keeps the body's key. A domain is a
-  // LABEL on the row: nothing here resolves or fetches it, and absent means "no
-  // domain" (asset #0 is a service).
+  // Every field is the site row's declared one, so the refusal is worded as
+  // every register words one. A domain is a label on the row: nothing resolves
+  // or fetches it, and absent means "no domain".
   const issues = new Issues();
   const id = declaredString(issues, raw.id, 'id', SITE_ROW_FIELDS.id);
   const displayName = declaredString(issues, raw.displayName, 'displayName', SITE_ROW_FIELDS.displayName);

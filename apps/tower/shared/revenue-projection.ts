@@ -57,7 +57,7 @@ export function revenueExpectedThrough(now: Date, clock: RevenueReportingClock):
  * the latest four occurrences, weighted 4/3/2/1. Earnings use the median rate
  * of up to seven nearest traffic days in the last eight weeks.
  *
- * `clock` is the source's explicit reporting contract (D42). It decides which
+ * `clock` is the source's explicit reporting contract. It decides which
  * month is projected and which reports are expected; ledger booking periods
  * and ordinary timestamps remain independent. */
 export function projectRevenue(now: Date, clock: RevenueReportingClock, revenue: RevenueDay[], traffic: SignalTrend, holidays: RevenueHoliday[] = []): RevenueProjection {
@@ -84,11 +84,11 @@ export function projectRevenue(now: Date, clock: RevenueReportingClock, revenue:
     .filter(point => point.t >= historyStart && point.t < today && (traffic.provisionalFrom === null || point.t < traffic.provisionalFrom) && Number.isFinite(point.v) && point.v >= 0 && !distortedByTimeZoneChange(traffic.timeZoneChanges, point.t))
     .map(point => [point.t, point.v]));
   const latestTraffic = [...sessions.keys()].sort().at(-1);
-  // GA4 keeps a day provisional until it is collected at D+2 (bead `ro-wo0j`),
-  // so yesterday's traffic may still be settling when yesterday's revenue is in.
-  // Traffic only feeds the rate history and weekday pattern, both from final
-  // days, so one settling day is accepted — only when the provider marks it
-  // provisional; a stalled collector still waits (bead `ro-eqda`).
+  // GA4 keeps a day provisional until it is collected two days later, so
+  // yesterday's traffic may still be settling when its revenue is in. Traffic
+  // only feeds the rate history and weekday pattern, both from final days, so
+  // one settling day is accepted, but only when the provider marks it
+  // provisional; a stalled collector still waits.
   const trafficThrough = traffic.provisionalFrom !== null && traffic.provisionalFrom <= expectedThrough ? shiftRevenueDate(expectedThrough, -1) : expectedThrough;
   if (!latestTraffic || latestTraffic < trafficThrough) return { ...base, status: 'waiting-traffic', reason: 'Waiting for complete traffic days.' };
   const matched = [...days].flatMap(([date, amountMinor]) => {

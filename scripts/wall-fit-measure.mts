@@ -1,12 +1,12 @@
 /// <reference lib="dom" />
-// wall-fit-measure.mts — what "does the Wall fit the TV?" measures, as ONE
-// function a page runs (beads ro-wb5d, ro-trai.12).
+// wall-fit-measure.mts — what "does the Wall fit the TV?" measures, as one
+// function a page runs.
 //
 // `pnpm wall:fit` (scripts/wall-fit-check.mjs) runs it in a local Chrome
 // against a live or fixture Tower; the Wall journeys in
 // apps/tower/e2e/journeys.spec.ts run it in Playwright against the isolated
 // fixture at every site count the contract budgets for (docs/14-design.md
-// § Budget), so CI fails the day the D28 Wall stops fitting 1920×1080. Both
+// § Budget), so CI fails the day the Wall stops fitting 1920×1080. Both
 // read this one function and `wallFitVerdict`, so the operator's tool and the
 // gate can never disagree about what "fits" means.
 //
@@ -22,7 +22,7 @@
 //   5. text a region CUTS OFF sideways — a clip that hides a figure is no fix.
 // Overflow an ancestor inside the Wall clips is not a leak; the wall-root clip
 // itself is deliberately not applied, because making it unnecessary is the point.
-// Then the D28 budget: each region's box, each site row's height, the spare
+// Then the budget: each region's box, each site row's height, the spare
 // height under the rows, and whether the feed draws only whole rows.
 
 export interface WallFitBox {
@@ -53,9 +53,9 @@ export interface WallFitLeak {
 export interface WallFitMeasurement {
   viewport: { width: number; height: number };
   tvMediaQuery: boolean;
-  /** Which Wall the screen drew (`wallScreen`, bead ro-trai.31): the TV's
-   * layout or the one-column stack, and the TV layout's scale — 1 on the TV,
-   * about 0.77 on a 13-inch laptop. */
+  /** Which Wall the screen drew (`wallScreen`): the TV's layout or the
+   * one-column stack, and the TV layout's scale — 1 on the TV, about 0.77 on
+   * a 13-inch laptop. */
   layout: string | null;
   scale: number;
   rootClipped: boolean;
@@ -67,7 +67,7 @@ export interface WallFitMeasurement {
   offenders: { x: WallFitOffender[]; y: WallFitOffender[] };
   ink: WallFitLeak[];
   clipped: WallFitLeak[];
-  /** D28's regions, where the Wall draws them. */
+  /** The regions, where the Wall draws them. */
   regions: Record<"strip" | "revenue" | "needs" | "sites" | "feed", WallFitBox | null>;
   /** The site region: its tier, each row's height, and the height left under
    * the last row (null in the one-site tier, which draws tiles, not rows). */
@@ -87,7 +87,7 @@ export function measureWallFit(): WallFitMeasurement | { error: string } {
   const scrollTop = window.scrollY;
   const round = (value: number) => Math.round(value * 10) / 10;
   const squash = (text: string | null) => (text ?? "").trim().replace(/\s+/g, " ");
-  /* A laptop draws the TV's layout zoomed (bead ro-trai.31): an element's
+  /* A laptop draws the TV's layout zoomed: an element's
    * rects are the screen's pixels, its own sizes (scroll, client, borders)
    * its own, which are the screen's over this zoom. */
   const zoomOf = (el: Element) => (el as Element & { currentCSSZoom?: number }).currentCSSZoom ?? 1;
@@ -213,12 +213,9 @@ export function measureWallFit(): WallFitMeasurement | { error: string } {
     }
     return false;
   };
-  /* How far past its box an element's content reaches, in the SCREEN's pixels
-   * (the Wall's own pixels times its zoom on a laptop, bead ro-trai.31). No
-   * allowance for rounding: the one-own-pixel allowance a zoomed Wall once
-   * needed was the four-week dates and the "on pace for" line hanging below
-   * lines shorter than their font, and those lines now hold their glyphs
-   * (bead ro-trai.37). */
+  /* How far past its box an element's content reaches, in the screen's pixels
+   * (the Wall's own pixels times its zoom on a laptop). No allowance for
+   * rounding. */
   const past = (el: Element, scroll: number, client: number) => Math.max(0, scroll - client) * zoomOf(el);
   for (const el of elements) {
     const style = getComputedStyle(el);
@@ -233,7 +230,7 @@ export function measureWallFit(): WallFitMeasurement | { error: string } {
     }
   }
 
-  /* 5 — text a region CUTS OFF sideways (beads ro-n5ya, ro-yo4h): a box that
+  /* 5 — text a region cuts off sideways: a box that
    * clips its own overflow never spills, so 1–4 read "AUG ↑$12…" as fixed.
    * Designed truncation (text-overflow: ellipsis) is a choice, and is not. */
   const clipped: WallFitLeak[] = [];
@@ -270,7 +267,7 @@ export function measureWallFit(): WallFitMeasurement | { error: string } {
   clipRange.detach();
   clipped.sort((a, b) => b.delta - a.delta);
 
-  /* The D28 budget (docs/14-design.md § Budget): the regions, the rows, the
+  /* The budget (docs/14-design.md § Budget): the regions, the rows, the
    * room under them, and the feed's whole rows. */
   const boxOf = (selector: string): WallFitBox | null => {
     const el = root.querySelector(selector);

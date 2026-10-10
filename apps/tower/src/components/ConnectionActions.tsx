@@ -39,18 +39,11 @@ export interface ConnectionActionsProps {
 }
 
 /**
- * THE CONNECTION'S OWN ACTIONS (bead `ro-ujb9.96.7.10`): Replace and
- * Disconnect, on the connection itself — the connect panel's connected view
- * and a provider's page — instead of a Settings step and a typed id.
- *
- * REPLACE (Stripe's roll key, Zapier's Reconnect) opens the key form; on a
- * provider that connects in the panel the new key is shown to the provider
- * before it is kept, so the old one keeps collecting until the new one passes.
- *
- * DISCONNECT keeps exactly one confirmation, because it cannot be undone: the
- * secret is deleted (and a Google grant revoked). The confirmation names what
- * stops — the sites, then what is deleted — as values, never a sentence, and
- * its press names the provider, so it can never be mistaken for the first.
+ * Replace and Disconnect, on the connection itself. Replace opens the key
+ * form; where the panel connects, the new key is tested before it is kept, so
+ * the old one collects until the new one passes. Disconnect keeps one
+ * confirmation because it cannot be undone; it names what stops as values and
+ * its press names the provider.
  */
 export function ConnectionActions({
   name,

@@ -1,8 +1,7 @@
 // @vitest-environment node
-// The translation layer's contract: a stored alert (rule_id + rule_inputs + the
-// rule's own message) becomes a sentence an operator can act on. Every case here
-// is a real rule_inputs shape written by workers/ingest — the fixtures are
-// copied from what the rules actually persist, not invented.
+// The translation layer's contract: a stored alert (rule_id + rule_inputs +
+// the rule's own message) becomes a sentence an operator can act on. Every
+// case is a real rule_inputs shape as workers/ingest persists it.
 
 import { describe, expect, it } from "vitest";
 import type { AnnotationItem } from "@shared/annotations";
@@ -76,7 +75,6 @@ describe("flow-poisson-low — the single-day drop", () => {
     expect(a.evidence[0]!.detail).toBe("22 in 24h");
     expect(a.evidence[1]!.detail).toBe("39.3/day");
     expect(a.evidence[2]!.detail).toBe("0.2% · fires below 1%");
-    // Label-length rows, never sentences (bead `ro-ujb9.96.6.7`).
     for (const row of a.evidence) {
       expect(`${row.source} ${row.detail}`.split(/\s+/).length).toBeLessThanOrEqual(12);
       expect(row.detail).not.toMatch(/\.$/);
@@ -249,8 +247,8 @@ describe("ingest-freshness — the report that never arrived", () => {
     expect(a.evidence.find((e) => e.source === "Fires after")?.detail).toBe("36h without a report");
   });
 
-  // ro-6le: a flag that fired despite dark-hour credit carries osDarkHours,
-  // and the surface reads the exculpation without re-litigating the decision.
+  // A flag that fired despite dark-hour credit carries osDarkHours, and the
+  // surface reads the exculpation without re-litigating the decision.
   const staleAcrossOutage: AlertFacts = {
     ruleId: "ingest-freshness",
     metric: "pulse",
@@ -271,8 +269,8 @@ describe("ingest-freshness — the report that never arrived", () => {
     const dark = a.evidence.find((e) => e.source === "OS offline, not counted")!;
     expect(dark.polarity).toBe("against");
     expect(dark.detail).toBe("10h of 80h · 70h unexplained");
-    // The hint stays the next step; the mitigation is the evidence row, whose
-    // "against" polarity turns the panel's glyph amber.
+    // The mitigation is the evidence row, whose "against" polarity turns the
+    // panel's glyph amber.
     expect(a.hint).toBe("reporting may have stopped");
   });
 
@@ -283,8 +281,8 @@ describe("ingest-freshness — the report that never arrived", () => {
     expect(a.hint).toBe("reporting may have stopped");
   });
 
-  // the 2026-07 audit's finding 5: the same rule now also fires for an asset that has
-  // never reported. It has no age to state, and the fix is a different one.
+  // The same rule also fires for an asset that has never reported. It has no
+  // age to state, and the fix is a different one.
   const neverReported: AlertFacts = {
     ruleId: "ingest-freshness",
     metric: "pulse",
@@ -316,13 +314,13 @@ describe("ingest-freshness — the report that never arrived", () => {
   });
 
   it("never degrades a never-reported alert to the raw stored message", () => {
-    // The old translator keyed on `ageHours`, which this flag cannot have, so
-    // the operator would have been shown the store's own terse sentence.
+    // This flag has no `ageHours`, so the translator must not fall back to the
+    // store's own terse sentence.
     expect(translateAlert(neverReported).headline).not.toContain("no pulse ever received");
   });
 
-  // `ro-kukv.6` / decision D15: four assets that have never reported are ONE
-  // fact about the portfolio, not four sentences to read.
+  // Four assets that have never reported are one fact about the portfolio,
+  // not four sentences to read.
   const members = [
     { assetDisplayName: "Fee Codes" },
     { assetDisplayName: "Pull-up Standards" },
@@ -351,7 +349,7 @@ describe("ingest-freshness — the report that never arrived", () => {
 
   it("names the assets in evidence and drops the representative's registration date", () => {
     const a = translateAlert({ ...neverReported, members });
-    // A registration date belongs to ONE asset; printing the representative's
+    // A registration date belongs to one asset; printing the representative's
     // beside a plural headline would attribute it to all four.
     expect(a.evidence.find((e) => e.source === "Registered, never reported")).toBeUndefined();
     expect(a.evidence.find((e) => e.source === "Sites with no nightly reports")?.detail).toBe(
@@ -389,7 +387,6 @@ describe("asset-pull-failed — the fetch the OS could not make", () => {
     expect(a.headline).toBe("Nightly report fetch failing 5 nights — latest: 401 unauthorized");
     expect(a.hint).toBe("the fetch credentials may have expired");
     expect(a.evidence.find((e) => e.source === "Failed fetches")?.detail).toBe("5 since the first");
-    // The endpoint is the URL itself — no config-file path on a view surface.
     expect(a.evidence.find((e) => e.source === "Endpoint")?.detail).toBe("https://nosh.example/api/os/report");
   });
 
@@ -408,7 +405,6 @@ describe("asset-pull-failed — the fetch the OS could not make", () => {
     });
     expect(a.headline).toBe("Nightly report fetch failed — non-200 response (503)");
     expect(a.hint).toBe("the site's endpoint is erroring");
-    // A first-night failure has no duration worth a row.
     expect(a.evidence.some((e) => e.source === "Failed fetches")).toBe(false);
   });
 
@@ -429,7 +425,7 @@ describe("asset-pull-failed — the fetch the OS could not make", () => {
     expect(a.hint).toBe("the endpoint may be unreachable");
   });
 
-  // ro-ujb9.220: each failed night is a stored reading; the Evidence lists them.
+  // Each failed night is a stored reading; the Evidence lists them.
   it("lists each stored night in the response's own words, newest first, instead of the latest alone", () => {
     const night = (at: string, status: number, error: string, providerError?: string) => ({
       at,
@@ -453,13 +449,11 @@ describe("asset-pull-failed — the fetch the OS could not make", () => {
         lastFailedAt: "2026-07-25T02:30:00.000Z",
       },
     });
-    // The headline still speaks for tonight.
     expect(a.headline).toBe("Nightly report fetch failing 2 nights — latest: 401 unauthorized");
     expect(a.evidence.filter((e) => e.source === "Failed fetch")).toEqual([
       { polarity: "supporting", source: "Failed fetch", detail: "401 unauthorized — token expired", at: "2026-07-25T02:30:00.000Z" },
       { polarity: "supporting", source: "Failed fetch", detail: "503 unconfigured — set CF_ACCOUNT_ID", at: "2026-07-24T02:30:00.000Z" },
     ]);
-    // The newest night IS the latest response, so it is not repeated.
     expect(a.evidence.some((e) => e.source === "Latest response")).toBe(false);
   });
 
@@ -586,10 +580,8 @@ describe("hygiene failures — the check result, not its collector vocabulary", 
     expect(a.headline).not.toContain("pullups.example");
   });
 
-  // `ro-kukv.6`, the copy defect the bead recorded: nosh.example showed "Sitemap
-  // check failed — HTTP 200" after a manual hygiene run. A success status
-  // quoted beside the word FAILED reads as a contradiction and says nothing
-  // about what to do. The sitemap answered; it just was not a sitemap.
+  // A success status quoted beside the word FAILED reads as a contradiction:
+  // the sitemap answered; it just was not a sitemap.
   it("never quotes a success status beside the word failed", () => {
     const a = translateAlert({
       ruleId: "hygiene-sitemap",
@@ -642,17 +634,15 @@ describe("hygiene failures — the check result, not its collector vocabulary", 
     });
     expect(children.headline).toBe("Sitemap index has 2 child sitemaps the OS could not read");
     expect(children.headline).not.toContain("HTTP 200");
-    // The unreadable children are a value, not the stored sentence (bead
-    // ro-ujb9.96.6.26).
+    // The unreadable children are a value, not the stored sentence.
     expect(children.evidence).toContainEqual(
       expect.objectContaining({ source: "First unreadable", detail: "https://nosh.example/sitemap-1.xml · +1 more" }),
     );
   });
 });
 
-// Each of these rules stored a sentence of 15 to 26 words that Alerts drew
-// word for word. The store now keeps a short headline with its values, and the
-// row draws the figures as label · value evidence (bead ro-ujb9.96.6.26).
+// The store keeps a short headline with its values, and the row draws the
+// figures as label · value evidence.
 describe("site checks and quota — a headline and its values, never the rule's sentence", () => {
   const AT = "2026-09-06T04:30:00.000Z";
 
@@ -783,8 +773,6 @@ describe("os-egress-down — the outage that is the OS's own", () => {
 
   it("says whose fault tonight's silence is, before anything else", async () => {
     const a = translateAlert(outage);
-    // The OS leads the sentence, so whose fault it is needs no clause; the
-    // hint is the one move the operator has.
     expect(a.headline).toBe("OS is offline — 3 sites not checked");
     expect(a.headline).not.toMatch(/egress/i);
     expect(a.hint).toBe("check this machine's internet connection");
@@ -794,8 +782,8 @@ describe("os-egress-down — the outage that is the OS's own", () => {
   it("keeps the reference sites' own errors verbatim — they are the whole argument", () => {
     const a = translateAlert(outage);
     const beacons = a.evidence.find((e) => e.source === "Reference sites that did not answer")!;
-    // Two unrelated operators failing the same way is what licenses suppressing
-    // the asset alerts; a paraphrase would not be evidence of anything.
+    // Two unrelated operators failing the same way is what licenses
+    // suppressing the asset alerts; a paraphrase would not be evidence.
     expect(beacons.detail).toContain("cloudflare.com");
     expect(beacons.detail).toContain("google.com");
     expect(beacons.detail).toContain("internal error; reference = 0d9f4a2c");
@@ -825,7 +813,7 @@ describe("os-egress-down — the outage that is the OS's own", () => {
     expect(a.evidence).toEqual([]);
   });
 
-  it("says the connection is back while collectors still owe a re-check (ro-aed0.5)", () => {
+  it("says the connection is back while collectors still owe a re-check", () => {
     // Open only for the gaps the outage left: pointing the operator at the
     // router now would send them to fix something that is already fine.
     const a = translateAlert({
@@ -849,7 +837,7 @@ describe("os-egress-down — the outage that is the OS's own", () => {
     );
   });
 
-  it("names the collectors still owed a re-run instead of explaining the wait (ro-aed0.5)", () => {
+  it("names the collectors still owed a re-run instead of explaining the wait", () => {
     const a = translateAlert({
       ...outage,
       message: "OS connection back — 2 properties not yet re-checked",
@@ -916,10 +904,8 @@ describe("watch-window-closed — a verdict becomes a clear next decision", () =
     ).toBe("Outcome could not be measured");
   });
 
-  // `ro-kukv.3`, observed 2026-08-31 on meals.example's Current signals:
-  // "Revert decision needed — Position up 10.14%", amber, beside the word
-  // revert. A search position that RISES is a search position that got worse,
-  // and the operator had to work that out from the metric's name.
+  // A search position that rises is a search position that got worse, and
+  // the headline must not make the operator work that out from the metric's name.
   describe("a metric where up is bad never reads 'up'", () => {
     const position = {
       ...watch,
@@ -954,8 +940,7 @@ describe("watch-window-closed — a verdict becomes a clear next decision", () =
     });
 
     // The polarity table is `WATCH_SERIES`, but a rule can fire on a metric it
-    // has never listed. A rank series must not be able to reach a headline
-    // saying "up" just because nobody registered it yet.
+    // has never listed.
     it("refuses 'up' on an unregistered rank metric too", () => {
       const headline = translateAlert({
         ...position,

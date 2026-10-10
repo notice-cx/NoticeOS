@@ -521,7 +521,7 @@ test('watch history duplicate arguments bind exactly to original query and fixed
   assert.deepEqual(f.calls.stores, [b, demo]);
 });
 
-test('an agent token reaches the MCP read models in each of its person\'s workspaces, as that person (agent sign-in, epic ro-cvl9)', async () => {
+test('an agent token reaches the MCP read models in each of its person\'s workspaces, as that person (agent sign-in)', async () => {
   const question = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_properties', arguments: {} } };
   const agentRequest = (token, { path = '/api/mcp', workspace = a, headers = {}, body = question } = {}) => new Request(origin + path, { method: 'POST',
     headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json',

@@ -11,24 +11,30 @@ export declare const DEFAULT_REPO_ROOT: string;
  * installation's folder, absolute. */
 export declare function changesetsDir({ repoRoot }?: RepoOption): string;
 /**
- * Read one config document off disk, parsed — the `readDocument` the filesystem
- * entry points hand to `resolveOps`.
- *
- * It throws a plain Error; `resolveOps` is what turns that into the
- * `could not read/parse <file>: <why>` refusal both lanes have always printed.
+ * The `readDocument` the filesystem entry points hand to `resolveOps`. It
+ * throws a plain Error; `resolveOps` turns that into the `could not
+ * read/parse` refusal.
  */
 export declare function fileDocumentReader({ repoRoot }?: RepoOption): DocumentReader;
 /**
- * The product's own default for one document — the copy both Workers compile
- * in and every reader falls back to per key — as the `readBuiltIn` the
- * filesystem entry points hand to `resolveOps` (bead `ro-dk4u`).
+ * The product's own default for one document — the copy every reader falls
+ * back to per key — as the `readBuiltIn` the filesystem entry points hand to
+ * `resolveOps`.
  */
 export declare function builtInDocumentReader({ repoRoot }?: RepoOption): DocumentReader;
+/** `resolveOps` over the files on disk. `fileCache` is the `documents` map:
+ * the parsed files, read once and mutated by `applyFileOps`. */
 export declare function resolve(cs: Changeset, store: StoreLane | null, { repoRoot }?: RepoOption): Promise<{
     resolved: Resolved[];
     mismatches: Mismatch[];
     fileCache: Map<string, unknown>;
 }>;
+/**
+ * Apply the file half: each touched file written exactly once, to this
+ * installation's copy. The store half belongs to the caller. Returns the
+ * written paths, as a commit names them. `at` is the changeset's own
+ * `createdAt`, passed through to the stamps a write refreshes; absent ⇒ now.
+ */
 export declare function applyFileOps(resolved: Resolved[], fileCache: Map<string, unknown>, { repoRoot, at }?: RepoOption & {
     at?: string;
 }): Promise<string[]>;
@@ -38,10 +44,9 @@ export declare function applyFileOps(resolved: Resolved[], fileCache: Map<string
  * bytes a Save would have left. Returns the path written, as a commit names it.
  */
 export declare function writeDocumentFile(rel: string, doc: unknown, { repoRoot }?: RepoOption): Promise<string>;
-/** Read one config document off disk, parsed — the seed side of the same coin:
- * this installation's copy, else the product's default. Neither there answers
- * `null` rather than throwing, because "this install does not carry that
- * register" is an ordinary state for a seed to be in. */
+/** This installation's copy, else the product's default, parsed; `null` when
+ * neither is there, because "this install does not carry that register" is
+ * an ordinary state for a seed to be in. */
 export declare function readDocumentFile(rel: string, { repoRoot }?: RepoOption): Promise<unknown>;
 /** Read this installation's own copy of a document, or `null` when it has
  * none — what `pnpm config:export` compares the store against. The product
@@ -51,19 +56,16 @@ export declare function nextArchiveNumber({ repoRoot }?: RepoOption): Promise<nu
 /** Write the applied changeset to its numbered archive; returns its path as a
  * commit names it, which is also what the caller commits. */
 export declare function archiveChangeset(cs: Changeset, { repoRoot }?: RepoOption): Promise<string>;
-/** `annotations.kind` for a stage move. Not a new kind: `annotations.kind` is a
- * CHECK constraint in db/0001, and `config` is the closest honest member — a
- * stage is a stored setting on the asset. */
+/** `annotations.kind` for a stage move. `annotations.kind` is a CHECK
+ * constraint, and `config` is the closest honest member. */
 export declare const LIFECYCLE_ANNOTATION_KIND: string;
 /** What a lifecycle-move `ref` starts with, so an operator-written ref can never
  * be mistaken for one. */
 export declare const LIFECYCLE_REF_PREFIX: string;
 /**
- * The `ref` one stage move is stored under — `lifecycle:baselining>retired`.
- *
- * Machine-readable ASCII, and part of the row's `(asset, at, kind, ref)`
- * identity, so a retried write collapses into one row and two different moves
- * recorded in the same second stay two.
+ * The `ref` one stage move is stored under (`lifecycle:baselining>retired`).
+ * Part of the row's `(asset, at, kind, ref)` identity, so a retried write
+ * collapses into one row and two moves in the same second stay two.
  */
 export declare function lifecycleMoveRef({ from, to }: {
     from: string;

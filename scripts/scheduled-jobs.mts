@@ -1,33 +1,32 @@
 // Stable job identities are separate from their editable local run times.
 //
-// Authored TypeScript (bead ro-ujb9.61): `pnpm config:generate` writes the
+// Authored TypeScript: `pnpm config:generate` writes the
 // `.mjs` the Tower, the Workers' config pipeline and the local runner import,
 // and the `.d.mts` beside it.
 
 // A job is named by its label; its row's state, last run and next run say the
-// rest (bead ro-ujb9.96.9). `source` names the provider only where the label
+// rest. `source` names the provider only where the label
 // does not: a chip beside the label, never a sentence. `keywords` are extra
 // search terms and are never shown.
 export interface ScheduledJob {
   id: string; surface: 'workflow' | 'system'; label: string; group: string; cron: string;
   source?: string; keywords?: string[]; local?: boolean;
   /** How System health's operations footer names this job's work, for a local
-   * job an installation runs only once it is set up (bead ro-ujb9.178). */
+   * job an installation runs only once it is set up. */
   footer?: string;
   /** Steps of this job an operator can run now for chosen sites. */
   collectNow?: CollectNowStep[];
   /**
    * The integration connections whose Manage panel changes this collection's
-   * schedule (bead ro-ujb9.96.7.28, operator decision 2026-09-24: Fivetran's and
-   * Airbyte's placement, the sync frequency on the connection). A job several
-   * connections feed lists each, and its one schedule shows in each panel under
-   * the job's own label. A collection with none (nightly reports, live
-   * counters, local research) is changed in Settings → Data collection.
+   * schedule. A job several connections feed lists each, and its one schedule
+   * shows in each panel under the job's own label. A collection with none
+   * (nightly reports, live counters, local research) is changed in Settings →
+   * Data collection.
    */
   connections?: string[];
 }
 /**
- * ONE STEP OF A SCHEDULED JOB, RUN NOW FOR CHOSEN SITES (bead ro-ujb9.96.7.2).
+ * One step of a scheduled job, run now for chosen sites.
  *
  * The connect panel's Start collecting runs a provider's first collection at
  * once instead of at the job's next tick. It is not a second collector: the
@@ -42,9 +41,9 @@ export interface CollectNowStep { provider: string; step: string; metered?: bool
 export interface JobSchedule { enabled: boolean; cron: string; timezone?: string }
 export type ScheduleOverrides = Record<string, JobSchedule>;
 /**
- * Why the runner's last read of the saved schedules failed, as a STATE the
- * Tower renders (bead `ro-ujb9.96.6.17`) rather than a sentence it would have
- * to print: `held` — the schedules armed before stay in effect and new changes
+ * Why the runner's last read of the saved schedules failed, as a state the
+ * Tower renders rather than a sentence it would have to print: `held` — the
+ * schedules armed before stay in effect and new changes
  * wait; `waiting` — nothing was ever armed, so every job waits for the settings
  * service. A status file written before the codes carries a sentence here; a
  * reader treats any other non-null value as `held`, which is what it meant.
@@ -57,10 +56,9 @@ export interface ScheduleStatus {
   jobs: { id: string; enabled: boolean; cron: string; timezone?: string; nextRun: string | null }[];
   /**
    * Whether this installation runs the host's own lanes (the jobs marked
-   * `local`). An installation `pnpm start` runs does not (bead ro-ujb9.156): it
-   * runs only the `local` jobs it lists in `jobs`, each once set up (bead
-   * ro-ujb9.174), and the Tower lists those beside the ingest's. Absent: it
-   * runs them all.
+   * `local`). An installation `pnpm start` runs does not: it runs only the
+   * `local` jobs it lists in `jobs`, each once set up, and the Tower lists
+   * those beside the ingest's. Absent: it runs them all.
    */
   hostLanes?: boolean;
   /** Hosted composition executes only the jobs its deployment registered. */
@@ -112,7 +110,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
 ];
 
 /**
- * THE JOB ONE SCHEDULED FIRE NAMES (bead ro-ujb9.217). A job the ingest runs
+ * The job one scheduled fire names. A job the ingest runs
  * (not `local`) is fired by its `cron`, the dispatch key: the runner fires that
  * key whatever time the operator saved, and the deployed Worker's triggers are
  * these keys (workers/ingest/wrangler.jsonc, pinned by
@@ -156,8 +154,8 @@ export function scheduleCronRefusal(cron: unknown): string | null {
 }
 
 /**
- * THE LONGEST WAIT BETWEEN TWO RUNS of a schedule the editor offers, in minutes
- * (bead ro-ujb9.222): what a surface ages a job's newest reading against. Every
+ * The longest wait between two runs of a schedule the editor offers, in
+ * minutes: what a surface ages a job's newest reading against. Every
  * minute of one week is tried, so a list reads as its widest gap —
  * `10,30,50 * * * *` waits 20 minutes, a daily run 1440, a weekly one 10080.
  * Null for an expression the editor does not offer.

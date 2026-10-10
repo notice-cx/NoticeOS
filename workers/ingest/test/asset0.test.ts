@@ -14,8 +14,7 @@ async function insertPulse(asset: string, date: string): Promise<void> {
 }
 
 async function insertLedger(asset: string, family: string): Promise<void> {
-  // Cents, and only cents: db/0020 dropped the `amount REAL` mirror, so this
-  // $10.00 row is written the one way the store still accepts.
+  // Cents, and only cents: the store has no dollars column.
   await bookEntry({ kind: 'revenue', asset, period: '2026-06', family, amountMinor: 1000, bookingState: 'estimated' });
 }
 
@@ -89,18 +88,17 @@ describe('nightly asset-#0 self-pulse', () => {
     expect(envelope.metrics.openFlagsError).toEqual({ last24h: 1, avg7d: 1, total: 1 });
     expect(envelope.metrics.openFlagsWarn).toEqual({ last24h: 2, avg7d: 2, total: 2 });
     expect(envelope.metrics.openFlagsInfo).toEqual({ last24h: 0, avg7d: 0, total: 0 });
-    // OBSERVED, not asserted: the lane that fired half an hour ago is why this
-    // is a 1 (db/0022, ro-uwo.4). It was a hard-coded constant until 2026-08-04.
+    // Observed, not asserted: the lane that fired half an hour ago is why this
+    // is a 1.
     expect(envelope.metrics.cronRunSuccess).toEqual({ last24h: 1, avg7d: 1, total: 1 });
   });
 
   describe('cronRunSuccess is derived from the job-run record', () => {
     it('says nothing at all when nothing has been recorded', async () => {
-      // The state before the operator's first restart after this shipped, and
-      // the reason the metric is three-valued: an empty record is not evidence
-      // of success. Reporting 1 here would rebuild the exact defect this lane
-      // was built to end, so the metric AND its capability are omitted —
-      // docs/02's `capabilities` is "what this asset can observe".
+      // An empty record is not evidence of success, which is why the metric is
+      // three-valued: reporting 1 here would be a constant rebuilt out of a
+      // table, so the metric and its capability are omitted — `capabilities`
+      // is what this asset can observe.
       await runAssetZeroPulse(env);
       const envelope = await readEnvelope();
       expect(envelope.capabilities).not.toContain('cronRunSuccess');
@@ -136,8 +134,7 @@ describe('nightly asset-#0 self-pulse', () => {
 
     it('is 0 when every lane went silent, however healthy the last firing was', async () => {
       // A dead runner stops writing, so the newest row stays healthy forever.
-      // Without this rule the metric would freeze at 1 on stale evidence — the
-      // hard-coded constant rebuilt out of a table.
+      // Without this rule the metric would freeze at 1 on stale evidence.
       await insertJobRun('beads-snapshot', 'ran', minutesAgo(26 * 60));
       await runAssetZeroPulse(env);
       expect((await readEnvelope()).metrics.cronRunSuccess).toEqual({
@@ -154,9 +151,9 @@ describe('nightly asset-#0 self-pulse', () => {
   });
 });
 
-// Beads ro-k9hf / ro-ujb9.118: the OS is whichever row the store marks
-// `is_os = 1`. An installation that seeded its OS under another id must still
-// get its self-report, and the runner must be able to ask which one it is.
+// The OS is whichever row the store marks `is_os = 1`. An installation that
+// seeded its OS under another id must still get its self-report, and the
+// runner must be able to ask which one it is.
 describe('the OS asset is the store\'s is_os row, whatever it is called', () => {
   const RENAMED = 'home-os.example';
 

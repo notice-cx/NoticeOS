@@ -1,8 +1,8 @@
 import type { IntegrationProviderId } from './integrations.js';
 
 /** Monitoring inventory, not a claim that every adapter is already installed.
- * Scheduled evidence is already durable. Other coverage gaps stay explicit
- * until the recorder described in docs/24 is connected (ro-klom). */
+ * Scheduled evidence is durable; other coverage gaps stay explicit until the
+ * recorder described in docs/24 is connected. */
 export interface IntegrationMonitorDefinition {
   id: string;
   label: string;
@@ -10,7 +10,7 @@ export interface IntegrationMonitorDefinition {
   owner: string;
   scope: 'property' | 'family' | 'feed' | 'account' | 'delivery';
   /** When the work runs. What it runs on is the monitor's comment below, not
-   * payload text: nothing on screen reads it (bead ro-ujb9.96.6.2). */
+   * payload text: nothing on screen reads it. */
   trigger: 'scheduled' | 'demand' | 'event' | 'setup';
   evidence: 'signal_runs' | 'signal_dump_runs' | 'mediavine_runs' | 'live-only' | 'success-only' | 'setup-only';
   action: string;
@@ -95,9 +95,8 @@ export const INTEGRATION_MONITORS = {
 } satisfies Record<IntegrationProviderId, readonly IntegrationMonitorDefinition[]>;
 
 /** Why a catalog lane has no automatic attempt monitor: nothing collects it
- * yet (`no-collector`), or the OS sees only what arrives, never what an
- * upstream sender failed to send (`receipt-only`, deploy annotations). A code
- * the item carries, not a sentence (bead ro-ujb9.96.6.2). */
+ * (`no-collector`), or the OS sees only what arrives, never what an upstream
+ * sender failed to send (`receipt-only`, deploy annotations). */
 export type IntegrationMonitoringGap = 'no-collector' | 'receipt-only';
 
 /** Catalog entries with no complete automatic health evidence must be visible
@@ -187,11 +186,9 @@ export interface IntegrationHealthItem {
   detail: string | null;
   /**
    * An archive item's report family ("Search Console · queries") and report
-   * day (YYYY-MM-DD), as fields (bead `ro-ujb9.96.7.17`): the connection model
-   * judges each report by its own latest attempt and counts and dates the
-   * missing ones from these, so rewording `detail` can never merge two reports
-   * into one or drop a missing date. Null for every item that is not one
-   * report of an archive.
+   * day (YYYY-MM-DD), as fields: the connection model judges each report by
+   * its own latest attempt from these, so rewording `detail` can never merge
+   * two reports. Null for every item that is not one report of an archive.
    */
   report: string | null;
   reportDate: string | null;

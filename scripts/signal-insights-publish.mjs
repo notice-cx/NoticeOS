@@ -3,18 +3,10 @@
 // boundary. Raw provider rows stay in R2; the Tower never reads local files or
 // the archive bucket at request time.
 //
-// IT DOES NOT OPEN THE STORE. This lane used to write by shelling out to
-// `wrangler d1 execute --local --persist-to ../../.wrangler/state`, which starts
-// a second miniflare over the sqlite file the running Tower already holds open
-// as its D1DatabaseObject. That is the 2026-08-02 corruption topology (ro-mad,
-// ro-icq) and this was its sharpest instance: a second WRITER, run beside a live
-// `os:up`, because that is the only state an operator ever runs it in. The local
-// publish now POSTs to the ingest's operator-authed route on the loopback door,
-// so the one runtime that owns the file does the write (bead ro-2zk.3).
-//
-// --remote is refused (REMOTE_REFUSED): the snapshots are in the
-// installation's Postgres store since bead ro-ujb9.76.5.4, and this tool reaches
-// it only through the ingest, never with a database credential.
+// It does not open the store: the local publish POSTs to the ingest's
+// operator-authed route on the loopback door, so the one runtime that owns
+// the store does the write. --remote is refused (REMOTE_REFUSED): this tool
+// reaches the store only through the ingest, never with a database credential.
 //
 // The row is content-addressed over the exact bytes sent, so re-publishing an
 // unchanged file is a no-op and says so.

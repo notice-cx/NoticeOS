@@ -6,8 +6,8 @@ import {
 
 const DAY_MS = 86_400_000;
 
-/** Below this many daily reports there is no defensible trend (bead
- * `ro-pbzu.3`): Home's assets table draws no trend chip from fewer. */
+/** Below this many daily reports there is no defensible trend: Home's assets
+ * table draws no trend chip from fewer. */
 export const MIN_TREND_POINTS = 3;
 
 /**
@@ -40,15 +40,11 @@ export function rollingDailyAverage(
 }
 
 /**
- * The calendar window a `rollingWeeklyChange` over these points really covers:
- * the latest complete rolling day back through the thirteen days before it —
- * seven days averaged against the seven before them.
- *
- * It exists so a surface can ASK whether that window is clean (a
- * reporting-timezone change inside it means the two sides are not the same
- * measurement, bead `ro-kukv.13`) without re-deriving the arithmetic beside
- * every chip and drifting from it. `null` exactly when `rollingWeeklyChange`
- * returns `null`: there is no comparison, so there is nothing to qualify.
+ * The calendar window a `rollingWeeklyChange` over these points really
+ * covers: the latest complete rolling day back through the thirteen days
+ * before it. It exists so a surface can ask whether that window is clean
+ * without re-deriving the arithmetic beside every chip. `null` exactly when
+ * `rollingWeeklyChange` returns `null`.
  */
 export function rollingWeeklyWindow(
   points: SeriesPoint[],
@@ -83,24 +79,14 @@ export interface WeeklyComparisonTrend {
 }
 
 /**
- * THE predicate for "this week-on-week comparison straddles a reporting-timezone
- * change" (bead `ro-jkp2`).
- *
- * Every aggregate 7-vs-7 chip in the product asks it — the Wall/Home asset
- * card's signal panel, the asset page's three headline charts, its five
- * supporting tiles — and doc 14 gives them all one answer: the color verdict is
- * withdrawn, the percentage stays, the ⚠ appears. It lives here, next to the
- * arithmetic it qualifies, so no surface can retype the window and drift from
- * the comparison it is speaking about. The Wall card did exactly that until this
- * bead: it built the fourteen days from `series.at(-1)`, the RAW latest point,
- * so on a card whose newest day is still filling it marked a window one day
- * wider than the one the percentage came from.
- *
- * `null` means there is nothing to qualify — no comparison at all, or fourteen
- * days entirely on one side of every change this series' provider filed. A
- * reporting timezone is a setting on ONE provider's property, so each series
- * asks about its own changes and a GA4 move is no evidence about a Search
- * Console day.
+ * The predicate for "this week-on-week comparison straddles a
+ * reporting-timezone change". Every aggregate 7-vs-7 chip asks it and gets
+ * one answer: the color verdict is withdrawn, the percentage stays, the ⚠
+ * appears. It lives next to the arithmetic it qualifies, so no surface can
+ * retype the window (from the raw latest point, say) and drift from the
+ * comparison it is speaking about. `null` means there is nothing to qualify.
+ * A reporting timezone is a setting on one provider's property, so each
+ * series asks about its own changes.
  */
 export function spannedTimeZoneChange<T extends WeeklyComparisonTrend>(
   trend: T,

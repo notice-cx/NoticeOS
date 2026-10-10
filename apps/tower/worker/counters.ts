@@ -1,7 +1,5 @@
-// Counters resolution — which number each of an asset's total cards actually
-// shows, and how old that number is. Split out of the payload builders because
-// the resolution is a rule, not a query: freshest lane wins, in config order.
-// The Wall and Overview share the rule, pure over injected rows.
+// Which number each of an asset's total cards shows, and how old it is:
+// freshest lane wins, in config order. The Wall and Overview share the rule.
 
 import {
   SCHEDULED_JOBS,
@@ -59,8 +57,7 @@ const COUNTERS_JOB = SCHEDULED_JOBS.find((job) => job.id === "counters")!;
 
 /** EFFECTIVE cadence the age badges amber against: the longest wait between two
  * runs of the counters job as it is scheduled — its saved schedule, else its
- * default (bead ro-ujb9.222). The schedule is the one place the cadence is
- * written, so a schedule changed in Settings moves the badges with it. */
+ * default — so a schedule changed in Settings moves the badges with it. */
 export function countersCadenceHours(schedules: ScheduleOverrides | null): number {
   return (cronIntervalMinutes(scheduleFor(COUNTERS_JOB, schedules ?? {}).cron) ?? cronIntervalMinutes(COUNTERS_JOB.cron)!) / 60;
 }
@@ -76,10 +73,7 @@ type CounterRow = {
 /** Every counter reading in the store, grouped asset → metric → row. One query
  * for the whole portfolio: the table is current-state (one row per asset+metric),
  * so it is bounded by the config, not by time. `asset` narrows the same query to
- * one site (its Overview, bead `ro-trai.21`). Read on Postgres
- * (`noticeos.counter_readings`, bead ro-ujb9.76.5.1): a value is a count, exact
- * as a number far past any site's total, and a reading's instant leaves in the
- * form the ingest wrote it. */
+ * one site. A reading's instant leaves in the form the ingest wrote it. */
 export async function readCounterReadings(
   store: WorkspaceStore,
   asset?: string,
@@ -170,12 +164,9 @@ function timeOf(at: string | null): number | null {
  * ties go to the fast lane. Freshness decides, never magnitude — last night's
  * larger total is still last night's number.
  *
- * A lane only enters that comparison when its number can actually be READ. An
- * unparseable `counter_readings` value is an absent reading, not a fresh one, so
- * the nightly total keeps the card and only that one metric degrades (ro-kvk).
- * The store's column is a non-negative bigint, so such a value does not come
- * from the store — but the rows arrive injected, and `num()` here already
- * conceded the possibility before the comparison respected it.
+ * A lane only enters that comparison when its number can be read: an
+ * unparseable `counter_readings` value is an absent reading, so the nightly
+ * total keeps the card and only that one metric degrades.
  *
  * Returns [] when the asset declares no cards; the card then simply has no
  * totals row (see AssetCard.counters). */
@@ -191,12 +182,8 @@ export function resolveCounterCards(
   return configured.map(({ metric, label }): CounterCard => {
     const stored = readings?.get(metric);
     const scraped = stored ? num(stored.value) : null;
-    // A reading whose value does not parse is an ABSENT reading for this metric,
-    // not a fresher one, so it is dropped BEFORE the freshness comparison below.
-    // Freshness decides between two readable lanes; letting an unreadable row
-    // win the lane blanked a card the nightly report could still fill (ro-kvk).
-    // The metric is resolved alone, so this degrades that one reading and never
-    // touches the asset's other cards.
+    // An unparseable value is an absent reading, dropped before the freshness
+    // comparison so it cannot win the lane from a readable nightly total.
     const fast = stored && scraped !== null ? { value: scraped, observedAt: stored.observedAt } : null;
     const total = num(nightly.metrics[metric]?.total);
     const nightlyAt = total !== null ? nightly.receivedAt : null;

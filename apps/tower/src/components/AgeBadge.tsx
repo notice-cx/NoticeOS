@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 export interface AgeBadgeProps {
   /** Timestamp of the data this tile shows (ISO), or null if never received. */
   iso: string | null;
-  /** The lane's expected cadence in hours; amber past 2× (doc 10). */
+  /** The lane's expected cadence in hours; amber past 2×. */
   cadenceHours: number;
   /** Injected for deterministic tests; defaults to now. */
   nowMs?: number;
@@ -14,33 +14,16 @@ export interface AgeBadgeProps {
   className?: string;
 }
 
-/** Every tile carries one of these. Turns amber once the data is older than 2×
- * its lane cadence — a stale tile that looks current is how silent failures
- * survive (doc 10 principle 2).
- *
- * THE BADGE OWNS THE ABSENT CASE (bead `ro-kukv.10`, doc 14 rule 6). A lane
- * that has never received anything has no age, and the badge used to print the
- * `formatAge` em-dash for it beside a clock titled "Data age" — a dash in a
- * value's slot reads as a rendering failure rather than as an absence, and the
- * honest word here is short and available. `formatAge` itself is deliberately
- * NOT changed: fifteen call sites interpolate it as "{age} ago", where a word
- * would produce "never ago", and its dash is the ordinary convention in the
- * dense cells those sites draw. The word lives where the fact does — the badge
- * knows it was handed no timestamp at all, and every one of those call sites
- * has a non-null timestamp or its own guard.
- *
- * A timestamp we were handed but cannot parse is a THIRD state and says so:
- * "never" would claim nothing ever arrived, which is a different and untrue
- * thing to tell an operator about a lane that reported into a bad row. */
+/** Every tile carries one. Amber once the data is older than 2× its lane
+ * cadence, because a stale tile that looks current hides a silent failure.
+ * The badge owns the absent case: no timestamp says "never", and a timestamp
+ * that cannot be parsed says "unknown", since "never" would be untrue. */
 export function AgeBadge({ iso, cadenceHours, nowMs = Date.now(), lastGood = false, className }: AgeBadgeProps) {
   const amber = isAmber(nowMs, iso, cadenceHours);
   const ms = ageMs(nowMs, iso);
   const state = ms !== null ? "aged" : iso ? "unreadable" : "never";
-  /* STALE IS A GLYPH AS WELL AS AMBER (bead `ro-ujb9.14`): an old age and a
-     fresh one used to share the plain clock and differ only in colour, with
-     "Stale" in a hover title a keyboard, a phone and a screen reader never
-     reached. A stale age draws the clock with the mark and says "stale" to a
-     screen reader; an unreadable timestamp draws the question it is. */
+  /* Stale is a glyph as well as amber, and says "stale" to a screen reader,
+     so it does not depend on colour or a hover title. */
   const Icon =
     state === "never" ? CalendarOff : state === "unreadable" ? CircleHelp : amber ? ClockAlert : Clock;
   return (
@@ -72,12 +55,8 @@ export function AgeBadge({ iso, cadenceHours, nowMs = Date.now(), lastGood = fal
 }
 
 /**
- * THE THIRD ABSENCE: NONE IS OWED (bead `ro-ujb9.96.8`). An asset whose
- * Settings declare that it sends no nightly report has no age to show and
- * nothing late about it, so its nightly slot is this: the Not using slash the
- * source strip draws for a declined source, and the words, in the neutral
- * token — never amber, never "never". `ReportFreshness` and the asset header
- * draw this one mark.
+ * The nightly slot of an asset that declares it sends no report: nothing is
+ * owed, so the neutral Not using slash, never amber and never "never".
  */
 export function NoNightlyReport() {
   return (

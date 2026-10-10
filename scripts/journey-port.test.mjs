@@ -12,13 +12,12 @@ import * as journeyPortModule from '../apps/tower/e2e/journey-port.mjs';
 const { JOURNEY_PORT_ENV, OWNER_PORTS, checkedPort, freeLoopbackPort, journeyOrigin, pinnedPort } = journeyPortModule;
 const { parallelServers } = fixtureServerModule;
 
-// TWO JOURNEY RUNS ON ONE MACHINE MUST NOT COLLIDE (bead ro-ujb9.107), AND
-// NEITHER MAY TWO WORKERS OF ONE RUN (bead ro-ujb9.167).
+// Two journey runs on one machine must not collide, and neither may two
+// workers of one run.
 //
-// `pnpm test:journeys` bound 127.0.0.1:4188 on every run, so a second run in
-// another worktree failed at once with "already used", and the flow gate
-// (ro-ujb9.95) put the journeys in front of every Tower change. Every fixture
-// server now binds a free loopback port from apps/tower/e2e/journey-port.mjs,
+// A fixed port would make a second run in another worktree fail at once with
+// "already used", and the flow gate puts the journeys in front of every Tower
+// change. Every fixture server binds a free loopback port from apps/tower/e2e/journey-port.mjs,
 // started the one way apps/tower/e2e/fixture-server.mjs starts it, and each
 // Playwright worker owns its own server (journey-test.ts), so the journeys run
 // in parallel without ever sharing a store.
@@ -73,7 +72,7 @@ test('every runner starts its server through fixture-server.mjs, each worker its
   const spec = read('journeys.spec.ts');
   assert.match(spec, /import \{ test, expect \} from "\.\/journey-test";/, 'the spec runs on the worker-owned server');
   assert.doesNotMatch(spec, /import \{[^}]*\btest\b[^}]*\} from "@playwright\/test"/, 'no test on a server nobody started');
-  // The offline guard (bead ro-o3hv) keeps every test's context on the
+  // The offline guard keeps every test's context on the
   // worker's own origin, and the flow gate's walks on theirs.
   assert.match(fixture, /startOfflineProxy\(fixtureServer\.origin\)/, 'the journey owns a transport limited to its fixture origin');
   assert.match(fixture, /await use\(offlineTransport\.proxy\)/, 'the context receives the owned proxy before pages are created');

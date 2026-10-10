@@ -1,5 +1,4 @@
-// os-deploy-events.mts — the OS's own deploys, as events the store can hold
-// (bead ro-trai.8).
+// The OS's own deploys, as events the store can hold.
 //
 // `pnpm os:deploy` records every move of the live OS on the host that runs it
 // (`record()` in scripts/os-deploy.mjs). The Tower reads only the store, so a
@@ -15,8 +14,6 @@
 // no host log uses `NO_DEPLOY_SOURCE`, and a cloud install supplies its own
 // source or posts the same annotation from its pipeline. Nothing here names a
 // path, a host or an installation.
-//
-// Authored TypeScript; `pnpm config:generate` writes the `.mjs` and `.d.mts`.
 
 /** One line of the host's deploy log, as `record()` writes it. */
 export interface OsDeployRecord {

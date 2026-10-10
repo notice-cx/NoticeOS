@@ -19,13 +19,11 @@ const SECOND_RUNTIME_MARKERS = [/--persist-to/, /\.wrangler[/\\]state/];
  * The scripts allowed to open the store directly, and why.
  *
  * The bar is "nothing else CAN be holding the file at that moment", not "it is
- * only run occasionally" — which is exactly how the two signal lanes and
- * `config:apply` justified themselves right up until the corruption. Every entry
- * left here clears that bar and PROVES it first: the two that open the file both
- * probe the ingest door and refuse while anything answers. Adding an entry needs
- * a reason that survives "…while the operator's OS is running". The dev seed
- * left the list with bead ro-ujb9.76.57: it writes Postgres through the one
- * helper and opens no local store file at all.
+ * only run occasionally". Every entry here clears that bar and PROVES it
+ * first: the two that open the file both probe the ingest door and refuse
+ * while anything answers. Adding an entry needs a reason that survives
+ * "…while the operator's OS is running". The dev seed writes Postgres through
+ * the one helper and opens no local store file at all.
  */
 const ALLOWED = new Map([
   [
@@ -38,7 +36,7 @@ const ALLOWED = new Map([
     'ingest-dev.mjs',
     'starts the ingest STANDALONE for the isolation case workers/ingest/README.md ' +
       'documents, and refuses to start at all while the ingest door answers ' +
-      '(doorIsHeld, beads ro-y1g / ro-nyz) — the sharpest of these three, since a ' +
+      '(doorIsHeld) — the sharpest of these three, since a ' +
       'second `wrangler dev` does not end with a command, it stands there',
   ],
 ]);
@@ -47,10 +45,10 @@ const ALLOWED = new Map([
  * a guarded script; no manifest currently needs an exception. */
 const ALLOWED_PACKAGE_SCRIPTS = new Map([]);
 
-/** Every runnable script, and the local runner's own modules (scripts/runner/,
- * bead ro-ujb9.22): code moved out of os-up.mjs is still the runner's code. Tests
- * are excluded: they assert ABOUT this rule (this file names the flag it
- * forbids), and none of them spawn wrangler. */
+/** Every runnable script, and the local runner's own modules (scripts/runner/):
+ * code moved out of os-up.mjs is still the runner's code. Tests are excluded:
+ * they assert ABOUT this rule (this file names the flag it forbids), and none
+ * of them spawn wrangler. */
 function scriptFiles() {
   const runnable = (name) => name.endsWith('.mjs') && !name.endsWith('.test.mjs');
   const runnerDir = path.join(SCRIPTS_DIR, 'runner');
@@ -64,10 +62,9 @@ function scriptFiles() {
  * The workspace globs, read out of pnpm-workspace.yaml rather than hardcoded.
  *
  * Hardcoding `apps/*` here would mean a new workspace directory is invisible to
- * this guard from the day it is added — the exact failure that let the migrate
- * lines survive, one directory over. Only the flat `- "apps/*"` list shape this
- * repo uses is understood, and an empty parse is a hard failure below: a guard
- * that silently scans nothing passes forever.
+ * this guard from the day it is added. Only the flat `- "apps/*"` list shape
+ * this repo uses is understood, and an empty parse is a hard failure below: a
+ * guard that silently scans nothing passes forever.
  */
 function workspaceGlobs() {
   const yaml = readFileSync(path.join(REPO_ROOT, 'pnpm-workspace.yaml'), 'utf8');
@@ -158,7 +155,7 @@ test('no script opens a second runtime over the live store', () => {
     [],
     `these scripts reach the local store directly:\n  ${offenders.join('\n  ')}\n` +
       'That starts a second workerd over the sqlite file the running Tower owns ' +
-      '(bead ro-mad; the 2026-08-02 corruption). Read and write through the ' +
+      'and corrupts it. Read and write through the ' +
       'loopback ingest door instead — see scripts/ingest-door.mjs and ' +
       'scripts/signal-panels-refresh.mjs for the shape.',
   );
@@ -166,8 +163,7 @@ test('no script opens a second runtime over the live store', () => {
 
 // The same sweep, over the other place a wrangler command can live. A pnpm
 // script is run by hand beside a live os:up exactly like a script under
-// scripts/ is — `pnpm migrate:local` was, every time — so the rule is the same
-// and so is the allowlist.
+// scripts/ is, so the rule is the same and so is the allowlist.
 test('no package.json script opens a second runtime over the live store', () => {
   const manifests = packageManifests();
   // A guard that scans nothing passes forever. These two assertions are what
@@ -198,19 +194,16 @@ test('no package.json script opens a second runtime over the live store', () => 
     [],
     `these pnpm scripts reach the local store directly:\n  ${offenders.join('\n  ')}\n` +
       'A package.json script has nowhere to put a guard: it spawns a second workerd over ' +
-      'the sqlite file the running Tower owns (bead ro-mad; the 2026-08-02 corruption) and ' +
+      'the sqlite file the running Tower owns, corrupting it, and ' +
       'nothing asks first. Point the entry at a small script that probes the ingest door ' +
-      'and refuses — scripts/ingest-dev.mjs is the template (bead ro-7pa).',
+      'and refuses — scripts/ingest-dev.mjs is the template.',
   );
 });
 
 // The lanes that reach the store through the door, named explicitly so a revert
-// reads as a failure about THEM, not as a nameless rule about a directory. Two
-// were second WRITERS beside a live os:up before they were ported:
-// `signal-insights-publish.mjs` (ro-2zk.3) and `config-apply.mjs` (ro-bko).
-// `bing-ai-import.mjs` (ro-2dn) never was one — it is here so it never becomes
-// one: it writes an archive, which is the shape of thing that most tempts a
-// script to open D1 and R2 itself.
+// reads as a failure about THEM, not as a nameless rule about a directory.
+// `bing-ai-import.mjs` writes an archive, which is the shape of thing that most
+// tempts a script to open D1 and R2 itself.
 test('the ported lanes reach the store through the door', () => {
   for (const name of [
     'bing-ai-import.mjs',
@@ -263,11 +256,9 @@ test('every allowlisted script still exists and still needs its entry', () => {
   }
 });
 
-// Same pruning, for the package.json side. This is what made the one exception
-// removable rather than permanent: while `workers/ingest/package.json#dev` was a
-// bare wrangler line the entry was demanded, and the moment ro-y1g / ro-nyz
-// pointed it at scripts/ingest-dev.mjs this test failed until the entry was
-// deleted. The loop is empty today and that is the whole result.
+// Same pruning, for the package.json side: a bare wrangler line in a
+// package.json demands an entry, and pointing it at a guarded script makes the
+// entry deletable. The loop is empty today and that is the whole result.
 test('every allowlisted pnpm script still exists and still needs its entry', () => {
   for (const [key, reason] of ALLOWED_PACKAGE_SCRIPTS) {
     const [manifest, name] = key.split('#');

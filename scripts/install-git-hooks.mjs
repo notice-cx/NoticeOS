@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// INSTALL THE REPOSITORY'S GIT HOOKS ON `pnpm install`.
+// Install the repository's git hooks on `pnpm install`.
 //
 // The root `prepare` script runs this after every install. It points
 // `core.hooksPath` at `.githooks/`, whose pre-commit runs the neutral-code

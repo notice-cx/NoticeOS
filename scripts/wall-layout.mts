@@ -1,61 +1,37 @@
-// wall-layout.mts — the Wall's composition as a DOCUMENT (epic `ro-lzmq`,
-// docs/15 flow D), and the one rule for "can the Wall draw this".
+// wall-layout.mts — the Wall's composition as a document, and the one rule for
+// "can the Wall draw this". The renderer at `/wall`, the editor at `/wall/edit`
+// and every door a layout can be written through share it;
+// `apps/tower/shared/wall-layout.ts` is the typed re-export.
 //
-// WHY IT LIVES IN scripts/ (2026-09-05, bead `ro-lzmq.3`). This is the contract
-// three parties share — the renderer at `/wall`, the editor at `/wall/edit`, and
-// every door a layout can be WRITTEN through. Until today the rule was
-// TypeScript in `apps/tower/shared/`, which the browser and the Workers can
-// import and the config pipeline cannot: `scripts/config-documents.mjs` is plain
-// ESM with no build step so it can bundle into a Worker AND run in a terminal.
-// The result was that `pnpm config:apply` accepted a `/wall` a Wall cannot draw
-// and the first thing to notice was the next build — or the television.
+// Authored TypeScript: `pnpm config:generate` writes the plain-ESM
+// `wall-layout.mjs` and the `wall-layout.d.mts` beside it. No `node:` imports:
+// the portable generation project gives this file no Node types.
 //
-// So the RUNTIME moved here, beside `config-documents.mts`, and
-// `apps/tower/shared/wall-layout.ts` is now the typed re-export: every
-// `@shared/wall-layout` import site is untouched, and the config pipeline runs
-// the same `validateWallLayout` at every door. One rule, one sentence, four
-// entry points — which is what "two implementations would be two answers" has
-// meant everywhere else in this pipeline.
-//
-// AUTHORED TYPESCRIPT (bead ro-ujb9.61). `pnpm config:generate` writes the
-// plain-ESM `wall-layout.mjs` the pipeline, the Workers and the browser load and
-// the `wall-layout.d.mts` beside it, so a TypeScript caller compiles against
-// these exact signatures rather than a hand-kept copy of them. NO `node:`
-// imports, for the same load-bearing reason `config-documents.mts` has none:
-// the portable generation project gives this file no Node types at all.
-//
-// WHERE THE LAYOUT LIVES. `config/tower.json` at pointer `/wall`, as a
+// The layout lives in `config/tower.json` at pointer `/wall`, as a
 // `WallConfig`: the current layout plus the versions it replaced, newest first.
-// Absent, the Wall is `DEFAULT_WALL_LAYOUT` — D28's arrangement since
-// 2026-09-23 (docs/14-design.md § Regions, bead `ro-trai.11`).
+// Absent, the Wall is `DEFAULT_WALL_LAYOUT`.
 //
-// RETIRED WIDGETS (bead `ro-trai.11`). D28 took seven widgets off the Wall — the
-// alert rail, the portfolio and System cards, the clock, meetings and countdown
-// panels, and the asset cards — and every fact they carried has one home on the
-// desk (docs/25 § What leaves the Wall). A layout saved before D28 names them.
-// Reading one is never refused and never blank: the Wall draws the default in
-// its place and the editor says so once (`WallConfig.retired`). Writing a
-// standalone `/wall/layout` that names one is refused. A whole `/wall` write
-// accepts readable retired history so Undo can restore a previously saved value.
+// Retired widgets. A layout saved before the current Wall may name widgets it
+// no longer has. Reading one is never refused and never blank: the Wall draws
+// the default in its place and the editor says so once (`WallConfig.retired`).
+// Writing a standalone `/wall/layout` that names one is refused; a whole
+// `/wall` write accepts readable retired history so Undo can restore it.
 //
-// WIDTHS ARE WEIGHTS, NOT COLUMNS. A row's widgets share its width in
-// proportion to their `width` — the `fr` a CSS grid track takes — because the
-// Wall must fit one fixed 1920×1080 screen (`pnpm wall:fit`) and the existing
-// rows were tuned in fractions, not twelfths. A widget also carries a floor
-// (`minWidthRem`) below which its content clips; the renderer applies it as the
-// track's minimum, exactly as the hand-written grids did.
+// Widths are weights, not columns: a row's widgets share its width in
+// proportion to their `width` (the `fr` a CSS grid track takes), because the
+// Wall must fit one fixed 1920×1080 screen (`pnpm wall:fit`). A widget also
+// carries a floor (`minWidthRem`) below which its content clips; the renderer
+// applies it as the track's minimum.
 //
-// ONE REPRESENTATION PER FACT. The countdown's emoji, label and target stay at
-// `/countdown`, where Home, Settings and the Wall already read them; the
-// countdown WIDGET has no settings of its own and its editor panel shows that
-// form (`configuredAt`). A widget setting exists here only when the renderer
-// actually applies it — today that is the asset filter on the two widgets whose
-// content is per asset.
+// One representation per fact: the countdown's emoji, label and target stay at
+// `/countdown`, and the countdown widget's editor panel shows that form
+// (`configuredAt`). A widget setting exists here only when the renderer
+// applies it.
 
 // From the portable contract module that owns it, not through
 // `config-registers.mjs`, which re-exports the same constant: the TV draws this
-// module, and importing one string through the registers used to download all
-// of them to `/wall` (bead `ro-ujb9.82`).
+// module, and importing one string through the registers would download all
+// of them to `/wall`.
 import { CONFIG_ASSET_KEY_SOURCE as ASSET_ID_SOURCE } from '../packages/contract/src/configuration.mjs';
 
 /** The asset-id rule the rest of config validation already uses. */
@@ -82,13 +58,13 @@ export const WALL_WIDTH_STEP: number = 0.05;
 export const WALL_TV_WIDTH: number = 1920;
 export const WALL_TV_HEIGHT: number = 1080;
 
-/** D28's widgets (docs/14-design.md, epic `ro-trai`), in reading order. */
+/** The Wall's widgets, in reading order. */
 export const WALL_WIDGET_TYPES = ['strip', 'revenue', 'needs', 'sites', 'feed'] as const;
 
 export type WallWidgetType = (typeof WALL_WIDGET_TYPES)[number];
 
-/** The widgets D28 took off the Wall (bead `ro-trai.11`). A saved layout may
- * still name them; see the header's RETIRED WIDGETS. */
+/** The widgets the Wall no longer has. A saved layout may still name them; see
+ * the header. */
 export const RETIRED_WALL_WIDGET_TYPES = [
   'attention',
   'portfolio',
@@ -112,12 +88,10 @@ export type WallSettingKey = keyof WallWidgetSettings;
 
 export interface WallWidgetSpec {
   type: WallWidgetType;
-  /** Operator-facing name — doc 14 words, the same the desk uses. */
+  /** Operator-facing name, the same the desk uses. */
   label: string;
   /** What the widget shows, as the library panel's facets — two to five
-   * nouns, never a sentence (bead `ro-ujb9.96.6.17`): the name says what it
-   * is, the facets what is on it, and the live preview beside the library
-   * shows it the moment it is added. */
+   * nouns, never a sentence. */
   shows: readonly string[];
   /** The weight a freshly added widget gets. */
   defaultWidth: number;
@@ -126,9 +100,7 @@ export interface WallWidgetSpec {
   /**
    * The widest its track may grow; null = none. A capped widget's track is its
    * share of the row by weight, between its floor and this cap, and the
-   * widgets beside it take the rest (bead `ro-trai.31`): the feed is a column
-   * of lines, and a line longer than a glance is a column that took width the
-   * site rows needed.
+   * widgets beside it take the rest.
    */
   maxWidthRem: number | null;
   /** At most one per layout — the fact it shows is portfolio-wide. */
@@ -137,16 +109,13 @@ export interface WallWidgetSpec {
   prefersFill: boolean;
   /**
    * Its place in the one column the Wall becomes on a portrait tablet or a
-   * phone (operator 2026-09-23, beads `ro-trai.24`, `ro-trai.29`,
-   * `ro-trai.31`, docs/14-design.md § Laptop, tablet and phone): the strip,
-   * revenue, the site rows, Needs you, the feed. The sites come before Needs
-   * you and the feed because their numbers are what changes and what shows
-   * the state of the business. By type, so any saved layout reads the same.
+   * phone: the strip, revenue, the site rows, Needs you, the feed. The sites
+   * come before Needs you and the feed because their numbers are what
+   * changes. By type, so any saved layout reads the same.
    */
   stackOrder: number;
-  /** Renders nothing — and yields its track — when it has nothing to show,
-   * exactly as the countdown and meetings do today (bead `ro-py40`): an empty
-   * track is a hole on the Wall for a feature nobody set up. */
+  /** Renders nothing — and yields its track — when it has nothing to show: an
+   * empty track is a hole on the Wall for a feature nobody set up. */
   hidesWhenEmpty: boolean;
   /** The settings keys this widget honours. */
   settings: readonly WallSettingKey[];
@@ -165,15 +134,11 @@ export interface WallWidget {
 }
 
 /**
- * A slot that stacks rows of widgets inside a row (bead `ro-trai.2`,
- * docs/14-design.md § Regions), so one widget can run the full height beside
- * several: D28's live feed beside the revenue band and the site rows. It sits
- * in its row's `widgets` like a widget and takes a width like one.
- *
- * ONE LEVEL DEEP. A column holds rows of widgets and never another column —
- * the types say so and the validator refuses it — because a Wall arranged from
- * across a room needs a layout an operator can picture, and two levels already
- * express every region doc 14 names.
+ * A slot that stacks rows of widgets inside a row, so one widget can run the
+ * full height beside several (the live feed beside the revenue band and the
+ * site rows). It sits in its row's `widgets` like a widget and takes a width
+ * like one. One level deep: a column holds rows of widgets and never another
+ * column — the types say so and the validator refuses it.
  */
 export interface WallColumn {
   /** Shares the widget id space: the editor selects and keys it the same way. */
@@ -226,8 +191,8 @@ export interface WallConfig {
   retired?: WallRetired;
 }
 
-/** What `parseWallConfig` did with a saved `/wall` that names a widget D28
- * took off the Wall (bead `ro-trai.11`). */
+/** What `parseWallConfig` did with a saved `/wall` that names a retired
+ * widget. */
 export interface WallRetired {
   /** The `/wall` value exactly as saved. The editor's Save is guarded by it,
    * because the guard compares against the store, not against the default
@@ -246,9 +211,8 @@ export type WallLayoutCheck =
 type Row = { readonly [key: string]: unknown };
 
 export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec>> = {
-  // D28's one top line (bead `ro-trai.3`, docs/14-design.md § Strip): it
-  // replaced the clock, meetings, countdown and System panels. Its countdown is
-  // the one at `/countdown`, so the editor shows that form for it.
+  // The one top line. Its countdown is the one at `/countdown`, so the editor
+  // shows that form for it.
   strip: {
     type: 'strip',
     label: 'Top strip',
@@ -302,13 +266,11 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     hidesWhenEmpty: false,
     settings: ['assets', 'pulseMetrics'],
   },
-  // The live feed (bead ro-trai.9, docs/14-design.md § Feed): what just
-  // happened, newest on top, from its own 30-second read. Never hides — an
-  // empty window says so ("Nothing new since last night"). Its weight is the
-  // one it has beside the default's column, 3.1 to 1 (docs/25 § Budget), so
-  // taking it off and adding it back puts back the same Wall. Its track is
-  // that share of the row between 21 rem and 30 rem (bead ro-trai.31): about
-  // 446 px on the TV, and never the half of a screen it once took.
+  // The live feed: what just happened, newest on top, from its own 30-second
+  // read. Never hides — an empty window says so. Its weight is the one it has
+  // beside the default's column, so taking it off and adding it back puts
+  // back the same Wall; its track is that share of the row between 21 rem and
+  // 30 rem.
   feed: {
     type: 'feed',
     label: 'Live feed',
@@ -361,10 +323,9 @@ export function wallLayoutWidgets(layout: WallLayout): WallWidget[] {
 }
 
 /**
- * D28's Wall (docs/14-design.md § Regions, bead `ro-trai.11`): the strip on
- * top; below it a column — revenue beside Needs you, then the site rows taking
- * the rest — beside the live feed, which runs the body's full height. The
- * weights are the budget's (column ≈1,390 px to the feed's 440 px at 1920).
+ * The default Wall: the strip on top; below it a column — revenue beside
+ * Needs you, then the site rows taking the rest — beside the live feed, which
+ * runs the body's full height.
  */
 export const DEFAULT_WALL_LAYOUT: WallLayout = {
   version: WALL_LAYOUT_VERSION,
@@ -424,9 +385,9 @@ function isRetiredType(value: unknown): boolean {
 }
 
 /**
- * Does this saved layout name a widget D28 took off the Wall? Read off the raw
- * value, before validation, because the answer decides whether it is validated
- * at all: a retired widget is drawn as the default, never refused.
+ * Does this saved layout name a retired widget? Read off the raw value,
+ * before validation, because the answer decides whether it is validated at
+ * all: a retired widget is drawn as the default, never refused.
  */
 export function wallLayoutNamesRetired(value: unknown): boolean {
   if (!isRecord(value) || !Array.isArray(value.rows)) return false;
@@ -455,7 +416,7 @@ export function isWallWidth(value: unknown): value is number {
  *
  * Reasons are operator sentences: the editor prints them under Save and every
  * write door returns them as the refusal, so the operator reads the same words
- * in the browser and in the terminal (doc 14 principle 2).
+ * in the browser and in the terminal.
  */
 export function validateWallLayout(value: unknown): WallLayoutCheck {
   if (!isRecord(value)) return { ok: false, reason: 'A layout must be an object.' };
@@ -602,9 +563,9 @@ function checkWidget(rawWidget: unknown, where: string, ids: LayoutIds): Checked
         return { ok: false, reason: `${spec.label} has no "${key}" setting.` };
       }
     }
-    // AN EMPTY FILTER READS AS "EVERY ASSET" (bead `ro-ujb9.96.6.17`), the
-    // answer the editor already gives when the last box is unticked — so a
-    // hand-written `[]` is inferred rather than refused with a sentence.
+    // An empty filter reads as "every asset", the answer the editor already
+    // gives when the last box is unticked, so a hand-written `[]` is inferred
+    // rather than refused.
     const emptyFilter = Array.isArray(rawWidget.settings.assets) && rawWidget.settings.assets.length === 0;
     if (rawWidget.settings.assets !== undefined && !emptyFilter) {
       const list = rawWidget.settings.assets;
@@ -648,14 +609,9 @@ function checkWidget(rawWidget: unknown, where: string, ids: LayoutIds): Checked
 
 /**
  * Non-blocking observations the editor shows beside Save. A layout can be
- * drawn and still be a poor Wall; these name the state, in the operator's
- * words, and leave the decision with them (it is their TV).
- *
- * STATES, NOT SENTENCES (bead `ro-ujb9.96.6.17`). Each is what the TV will
- * look like — the editor draws it as a caution chip — and the fix is a control
- * already beside it: every row carries its own "Remaining height" toggle, and
- * the library its Add. The "so the bottom of the TV will be empty" clauses
- * restated the state they followed.
+ * drawn and still be a poor Wall; these name the state and leave the decision
+ * with the operator. States, not sentences: each is what the TV will look
+ * like, drawn as a caution chip, and the fix is a control already beside it.
  */
 export function wallLayoutWarnings(layout: WallLayout): string[] {
   const warnings: string[] = [];
@@ -682,7 +638,7 @@ export function wallLayoutWarnings(layout: WallLayout): string[] {
 }
 
 /** The editor's one warning for a saved layout that named a retired widget:
- * the state the TV is in, as a chip beside Save (bead `ro-trai.11`). */
+ * the state the TV is in, as a chip beside Save. */
 export const WALL_RETIRED_WARNING = 'Old layout retired, new default shown';
 
 /** A `retired` marker carried from an earlier parse — the Worker parses the
@@ -696,10 +652,10 @@ function carriedRetired(value: unknown): WallRetired | undefined {
  * present but undrawable → throws with the validator's own sentence, so a bad
  * file fails the build the way a bad countdown does (`parseDashboardConfig`).
  *
- * A layout naming a widget D28 retired is the one exception (bead
- * `ro-trai.11`): the current layout becomes the default, an older version
- * naming one leaves the history (it could only be reverted to the default),
- * and `retired` keeps the value as saved for the editor's Save guard. */
+ * A layout naming a retired widget is the one exception: the current layout
+ * becomes the default, an older version naming one leaves the history (it
+ * could only be reverted to the default), and `retired` keeps the value as
+ * saved for the editor's Save guard. */
 export function parseWallConfig(value: unknown): WallConfig {
   if (value === undefined || value === null) return EMPTY_WALL_CONFIG;
   if (!isRecord(value)) throw new Error('config/tower.json wall must be an object');
@@ -756,9 +712,9 @@ export function withSavedWallLayout(config: WallConfig, layout: WallLayout, reas
 
 /**
  * Revert is a Save whose layout is an older version — the current layout is
- * retired into the history like any other, so a revert can itself be undone
- * (doc 14 principle 5). The reverted entry stays in the history: it is a
- * record of what the Wall showed, not a stack to pop.
+ * retired into the history like any other, so a revert can itself be undone.
+ * The reverted entry stays in the history: it is a record of what the Wall
+ * showed, not a stack to pop.
  */
 export function withRevertedWallLayout(config: WallConfig, historyIndex: number, savedAt: string): WallConfig {
   const entry = config.history[historyIndex];
@@ -790,19 +746,14 @@ export function nextWallRowId(layout: WallLayout): string {
 }
 
 /**
- * The refusal a changeset's `/wall` ops earn, or `null` (bead `ro-lzmq.3`).
- *
- * THIS IS THE RULE AT EVERY DOOR. `validateSchemaAndSafety` calls it, so the
- * terminal (`pnpm config:apply`), the Worker's `PUT /api/config`, the ingest's
- * `applyConfigOps` and the dev write lane all refuse the same layout in the same
- * words — and `parseWallConfig` fails the build on one that arrived any other
- * way. It was written at ONE of those doors until today, which meant a
- * hand-written changeset applied in a terminal committed a layout the television
- * could not draw and nothing noticed until the next build.
- *
- * A layout is written WHOLE, at `/wall` or `/wall/layout`. A pointer inside one
- * is refused, because a row or a width lifted out of its document cannot be
- * judged on its own and the answer must never be "probably fine".
+ * The refusal a changeset's `/wall` ops earn, or `null`. This is the rule at
+ * every door: `validateSchemaAndSafety` calls it, so the terminal
+ * (`pnpm config:apply`), the Worker's `PUT /api/config`, the ingest's
+ * `applyConfigOps` and the dev write lane all refuse the same layout in the
+ * same words, and `parseWallConfig` fails the build on one that arrived any
+ * other way. A layout is written whole, at `/wall` or `/wall/layout`; a
+ * pointer inside one is refused, because a row or a width lifted out of its
+ * document cannot be judged on its own.
  */
 export function wallOpRefusal(op: unknown, at: string): string | null {
   if (op === null || typeof op !== 'object') return null;
@@ -817,8 +768,8 @@ export function wallOpRefusal(op: unknown, at: string): string | null {
   if ((op as Row).kind === 'file-json-delete') return null;
   if (pointer === WALL_LAYOUT_POINTER) {
     const value = (op as Row).value;
-    // `retired` is what a READ says about the store; written into it, every
-    // later read would believe it (bead `ro-trai.11`).
+    // `retired` is what a read says about the store; written into it, every
+    // later read would believe it.
     if (isRecord(value) && 'retired' in value) {
       return `${at}: config/tower.json /wall.retired is set when the layout is read, never saved.`;
     }

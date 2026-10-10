@@ -9,40 +9,14 @@ export interface BacktestStripProps {
 }
 
 /**
- * WHAT A RULE SETTING WOULD HAVE DONE, as a shape (bead `ro-u072`).
- *
- * docs/15 principle 1 asks a rule edit to show "would have fired 3 times in the
- * last 30 days" before it saves. That sentence alone is not enough to decide
- * with, which is the doc 14 visuals rule in one line: three firings clustered in
- * one bad week is an incident that is now over, and three spread across the
- * month is a rule that will interrupt the operator again on Thursday. Same
- * number, opposite decisions. The strip is the thirty days laid out in order, so
- * WHERE is answered beside HOW MANY.
- *
- * TWO TRACKS, and the second one is the point. The upper track is the REPLAY —
- * what these settings would do. The lower track is REALITY — the days this rule
- * actually fired on, from stored `flags`. Reading them against each other
- * answers the question a pair of totals cannot: is the candidate quieter
- * everywhere, or quieter only on the days that were already the worst?
- *
- * NEUTRAL INK, on purpose. A replayed firing is not an open alert and a settled
- * one is not attention, so neither track may spend the severity palette (doc 14:
- * attention color is reserved for attention; the `chart-distorted` mark makes
- * the same choice). The two tracks are told apart by POSITION and shape, never
- * by an opacity step — the difference a screen across a room cannot carry.
- *
- * FOUR STATES, because "it did not fire" hides three different facts and a strip
- * that drew them alike would claim evidence nobody has: it ran and stayed quiet,
- * it could not run (no same-weekday cohort yet, or the metric was outside this
- * rule's volume regime), or the asset filed no pulse at all. A day with no
- * report is drawn as a HOLE, never as a quiet day (docs/17 rule 6: missing says
- * missing, and no derived visual is drawn over the hole).
- *
- * NO DISTORTED-DAY MARKS, deliberately. Those belong to provider-bucketed series
- * (doc 14, `distortedByTimeZoneChange`); this strip draws stored PULSE days, an
- * asset reporting its own counters, which a provider's reporting-timezone move
- * does not touch — the same boundary `packages/contract/src/rules.ts` states for
- * the baselines these days are judged against.
+ * What a rule setting would have done over thirty days, as a shape: three
+ * firings in one bad week and three spread across the month are the same
+ * count and opposite decisions. The upper track replays the candidate
+ * settings; the lower is the days the rule actually fired, from stored `flags`.
+ * Neutral ink, since neither is open attention; the tracks differ by position.
+ * Four day states: quiet, fired, could not run, and no report (a hole, never a
+ * quiet day). No distorted-day marks: pulse days are the asset's own counters,
+ * untouched by a provider's reporting-timezone move.
  */
 export function BacktestStrip({ backtest, className }: BacktestStripProps) {
   const { days, wouldFire, firedInStore, judged, reported, windowDays } = backtest;
@@ -66,11 +40,8 @@ export function BacktestStrip({ backtest, className }: BacktestStripProps) {
       className={cn("flex flex-col gap-2", className)}
       data-backtest-strip={judged === 0 ? "unjudged" : "judged"}
     >
-      {/* THE HEADLINE IS THE STATE (bead `ro-ujb9.96.6.7`). With no day
-          judged, "Would have fired 0 times" is the one reading this strip must
-          never give — it looks like a quiet rule — so the headline says the
-          replay could not answer, and the dashed cells below show where. Why a
-          given day could not be judged is on that day's hover. */}
+      {/* With no day judged, "Would have fired 0 times" would read as a quiet
+          rule, so the headline says the replay could not answer. */}
       {judged === 0 ? (
         <p
           className="flex items-center gap-1.5 text-sm text-foreground"
@@ -116,9 +87,7 @@ export function BacktestStrip({ backtest, className }: BacktestStripProps) {
   );
 }
 
-/** The four marks, named. Words for the marks and nothing else — the counts are
- * stated once above, and a legend that repeated them would be the same facts
- * twice (doc 14, one representation per fact). */
+/** The four marks, named. The counts are stated once above, not repeated here. */
 function Legend() {
   return (
     <ul
@@ -182,8 +151,7 @@ function DayCell({ day, shaded }: { day: RuleBacktestDay; shaded: boolean }) {
   );
 }
 
-/** The hover, which is where the words live: a mark and never a word on the
- * strip itself, the same shape docs/17 sets for the distorted-day mark. */
+/** The hover, where the words live: the strip itself draws only marks. */
 function dayTitle(day: RuleBacktestDay): string {
   const replay =
     day.state === "fired"
@@ -199,10 +167,9 @@ function dayTitle(day: RuleBacktestDay): string {
 }
 
 /**
- * Sunday–Saturday calendar-week banding, with the NEWEST week unshaded and
- * parity alternating backwards from it (doc 14). Anchoring on the newest week
- * rather than the first visible date is what keeps the bands meaning "weeks"
- * rather than "seven cells from wherever this window happens to start".
+ * Sunday–Saturday week banding, with the newest week unshaded and parity
+ * alternating backwards from it, so bands mean weeks rather than "seven cells
+ * from wherever this window starts".
  */
 function shaded(date: string, days: RuleBacktestDay[]): boolean {
   const newest = days[days.length - 1]?.date;

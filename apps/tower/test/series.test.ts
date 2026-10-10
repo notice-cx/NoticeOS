@@ -29,11 +29,9 @@ describe("daily trend helpers", () => {
     expect(trend.at(-1)).toEqual({ t: "2026-07-14", v: 11 });
   });
 
-  /**
-   * Bead `ro-kukv.13`. A surface asks whether the comparison it is about to
-   * colour is clean, so the window has to be the SAME fourteen days
-   * `rollingWeeklyChange` used — derived here once, never retyped beside a chip.
-   */
+  /** A surface asks whether the comparison it is about to colour is clean, so
+   * the window has to be the same fourteen days `rollingWeeklyChange` used,
+   * derived here once, never retyped beside a chip. */
   it("names the fourteen days the weekly change really compares", () => {
     const trend = rollingDailyAverage(days(21));
     expect(rollingWeeklyWindow(trend)).toEqual({

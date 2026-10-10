@@ -11,18 +11,10 @@ const SETTLE_MS = 350;
 
 /**
  * "How often would this rule have fired in the last 30 days with these
- * settings?" (bead `ro-u072`).
- *
- * DEBOUNCED, because the question is asked while a number field is being typed
- * into: `0.05` passes through `0`, `0.`, `0.0` on the way, and each of those is
- * a full replay of thirty days of pulses in the ingest Worker. The query key is
- * the settled request, so React Query still dedupes and caches per exact
- * question, and `keepPreviousData` holds the last strip on screen while the next
- * one is computed rather than blinking the panel empty between keystrokes.
- *
- * NOT POLLED and never retried. Stored pulses do not change under the panel, and
- * a refusal here is a judgement about the value the operator typed — retrying it
- * would just ask the same rejected question again.
+ * settings?" Debounced, because each keystroke of a number field would be a
+ * full 30-day replay; `keepPreviousData` holds the last strip meanwhile. Not
+ * polled and never retried: stored pulses do not change, and a refusal judges
+ * the typed value.
  */
 export function useRuleBacktest(input: RuleBacktestInput | null, settleMs = SETTLE_MS) {
   const { fetchRuleBacktest } = useTowerApi();

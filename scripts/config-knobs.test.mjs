@@ -14,8 +14,7 @@ import {
   matchKnob,
 } from './config-registers.mjs';
 
-// THE SCALAR KNOBS ARE ONLY DECLARED IF THE PIPELINE ACTUALLY LICENSES THEM
-// (bead `ro-x5gu.8`).
+// The scalar knobs are only declared if the pipeline actually licenses them.
 //
 // A knob is a claim in two directions at once: this exact pointer may be
 // written, and nothing around it may be. Neither half is visible from the
@@ -68,7 +67,7 @@ test('every knob is well formed, and its file is a file the ops may name', () =>
     assert.ok(knob.pointer.startsWith('/'), `${key}: pointer must be an RFC-6901 pointer`);
     assert.ok(knob.label && knob.owner && knob.surface, `${key}: prose`);
     // What changing it costs is drawn beside the field on /settings, never a
-    // paragraph the declaration carries (bead `ro-ujb9.96.6.17`).
+    // paragraph the declaration carries.
     assert.equal('consequence' in knob, false, `${key}: no consequence paragraph`);
     // The last reference token IS the field's name, so a refusal names the key
     // an operator would find in the file rather than a label only we use.
@@ -110,7 +109,7 @@ test("every knob's file is in the Tower's RegisterFile union", () => {
 test('every knob resolves in its own file, and the committed value satisfies its rule', () => {
   for (const [key, knob] of knobEntries()) {
     // The product default, and this installation's saved copy when the
-    // checkout carries one (bead ro-ujb9.125).
+    // checkout carries one.
     const own = installationPath(knob.file, { root: REPO_ROOT });
     const copies = [[knob.file, readConfig(knob.file)]];
     if (existsSync(own)) copies.push([path.relative(REPO_ROOT, own), JSON.parse(readFileSync(own, 'utf8'))]);
@@ -134,8 +133,8 @@ test('matchKnob is an exact pointer match — never a parent, never a child', ()
   assert.equal(matchKnob('config/signal-panels.json', '/refresh/windowDays/0'), null);
   assert.equal(matchKnob('config/signal-panels.json', ''), null);
   assert.equal(matchKnob('config/signal-panels.json', '/refresh'), null);
-  // The counters interval is retired (bead ro-ujb9.222): the counters job's
-  // schedule is the one place that cadence is written.
+  // The counters interval is not a knob: the counters job's schedule is the
+  // one place that cadence is written.
   assert.equal(matchKnob('config/counters.json', '/intervalMinutes'), null);
   // A file with no knobs answers nothing, and a knob is scoped to its own file.
   assert.equal(matchKnob('config/constants.json', '/intervalMinutes'), null);
@@ -143,10 +142,10 @@ test('matchKnob is an exact pointer match — never a parent, never a child', ()
   assert.equal(knobsForFile('config/beads.json').length, 0);
 });
 
-// `config/beads.json` `/hub` stays undeclared ON PURPOSE (the decision on bead
-// `ro-x5gu.8`): host/port/dataDir is how `bd` reaches the Dolt server on this
-// machine, not a portfolio setting, and nothing a browser should be able to
-// move. If it is ever declared, that is a decision somebody makes here first.
+// `config/beads.json` `/hub` stays undeclared ON PURPOSE: host/port/dataDir is
+// how `bd` reaches the Dolt server on this machine, not a portfolio setting,
+// and nothing a browser should be able to move. If it is ever declared, that
+// is a decision somebody makes here first.
 test('the task hub connection is not a knob', () => {
   assert.equal(matchKnob('config/beads.json', '/hub/port'), null);
   assert.throws(
@@ -246,8 +245,8 @@ test('a knob does not open the rest of its file', () => {
 });
 
 test('the declared knobs are the two panel-refresh numbers', () => {
-  // The decision named three; the counters interval was retired by bead
-  // ro-ujb9.222, because the counters job's schedule already says it.
+  // The counters interval is not one: the counters job's schedule already says
+  // it.
   assert.deepEqual(Object.keys(CONFIG_KNOBS), [
     'panel-refresh-window',
     'panel-freshness-bar',

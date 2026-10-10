@@ -1,7 +1,5 @@
-// installation.mts — where THIS installation's files are, and where the
-// product's generic defaults are (bead ro-ujb9.125; decisions D22, D30, D33).
-//
-// Two folders, one rule:
+// Where this installation's files are, and where the product's generic
+// defaults are. Two folders, one rule:
 //
 //   config/         the product's defaults. Generic: no site, no task project,
 //                   no repository path, UTC. Every clone carries them, and a
@@ -45,12 +43,12 @@ export const CHANGESETS_DIR: string = 'changesets';
 /** The host's task repository links (host-only, never in the store). */
 export const TASK_HOST_FILE: string = 'task-host.json';
 /** Where this host copies each night's finished backup off the machine
- * (host-only, never in the store; bead ro-ujb9.120). */
+ * (host-only, never in the store). */
 export const HOST_BACKUP_FILE: string = 'host-backup.json';
 /** The names this installation's database and bucket were made under, when
  * they are not the checked-in Worker configs' (host-only, never in the store;
- * bead ro-ujb9.77.8; read by scripts/resource-names.mts readResourceNames). A
- * new installation has none. */
+ * read by scripts/resource-names.mts readResourceNames). A new installation
+ * has none. */
 export const RESOURCE_NAMES_FILE: string = 'resource-names.json';
 
 export interface InstallationOptions {

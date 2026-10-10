@@ -10,15 +10,12 @@ import {
   type EnvImportResult,
 } from "../shared/env-import";
 
-// The Import button's other half (bead `ro-vu8d.7`): the local lane that moves
-// the operator's `.dev.secrets.json` into the credential store.
-//
-// WHAT THESE ASSERTIONS PROTECT. It runs in the dev server's Node process, it
-// reads the file holding every provider secret on the machine, and it is
-// reachable from a browser — so what is asserted is every way it refuses, that
-// what it PUTs is what `pnpm dev:secrets:import` would have PUT (it calls that
-// same function, and this pins the wire it produces), and that no answer it
-// gives ever carries a value.
+// The local lane that moves the operator's `.dev.secrets.json` into the
+// credential store. It runs in the dev server's Node process, reads the file
+// holding every provider secret on the machine, and is reachable from a
+// browser, so what is asserted is every way it refuses, that what it PUTs is
+// what `pnpm dev:secrets:import` would have PUT (it calls that same
+// function), and that no answer it gives ever carries a value.
 
 const created: string[] = [];
 
@@ -106,8 +103,7 @@ describe("the env-import lane", () => {
     );
     expect(yes.body).toEqual({ importable: true, reason: null });
 
-    // The card must be told BEFORE it draws a button: an Import that answers
-    // "there is no file" is the affordance this bead exists to remove.
+    // The card must be told before it draws a button.
     const no = await handleEnvImportRequest(
       { method: "GET", headers: LOCAL, body: "" },
       { repoRoot: empty },
@@ -137,9 +133,8 @@ describe("the env-import lane", () => {
     expect(result.skipped).toEqual([]);
     expect(result.failed).toEqual([]);
 
-    // The values reached the store's own route and appear nowhere in the answer
-    // the browser gets — the whole reason the button can exist on an
-    // unauthenticated LAN page.
+    // The values reached the store's own route and appear nowhere in the
+    // answer the browser gets.
     expect(tower.puts.map((entry) => entry.url)).toEqual([
       "http://127.0.0.1:5173/api/integrations/bing-webmaster/credential",
       "http://127.0.0.1:5173/api/integrations/dataforseo/credential",
@@ -150,8 +145,7 @@ describe("the env-import lane", () => {
   });
 
   it("skips a half-held provider by name rather than storing a partial credential", async () => {
-    // A partial credential in the store would SHADOW a complete one in the env,
-    // which is the one outcome worse than not importing at all.
+    // A partial credential in the store would shadow a complete one in the env.
     const root = await tempRepo({ DATAFORSEO_LOGIN: "login@example.com" });
     const tower = towerStub();
 
@@ -193,8 +187,7 @@ describe("the env-import lane", () => {
     const tower = towerStub();
     const lane = { repoRoot: root, fetchImpl: tower.fetchImpl };
 
-    // The ONLY thing standing between an operator's browser and this lane: a
-    // page on another site must not be able to move their secrets.
+    // A page on another site must not be able to move the operator's secrets.
     const foreign = await handleEnvImportRequest(
       post({ ...JSON_POST, origin: "https://evil.example" }),
       lane,

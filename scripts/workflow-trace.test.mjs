@@ -52,7 +52,7 @@ test('partial collection failure is visible without changing the collector resul
   assert.equal(stepResult(undefined).state, 'succeeded');
 });
 
-test('a failed step names what failed: sites whose remote could not be read, else collections (ro-ujb9.233)', () => {
+test('a failed step names what failed: sites whose remote could not be read, else collections', () => {
   // The unpublished-commit check (runPushStateFiler in scripts/os-up.mjs):
   // nothing was collected from these sites, so they are not "collections".
   const pushState = { checked: 2, filed: [], closed: [], failed: [

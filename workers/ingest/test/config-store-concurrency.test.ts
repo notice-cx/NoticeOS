@@ -1,6 +1,5 @@
-// A CONFIG SAVE IS ATOMIC AGAINST A COMPETING WRITER (epic `ro-syok`; on
-// Postgres, bead ro-ujb9.76.4.1): the whole changeset lands with its audit
-// rows, or nothing does.
+// A config save is atomic against a competing writer: the whole changeset
+// lands with its audit rows, or nothing does.
 
 import { env } from 'cloudflare:test';
 import type { WorkspaceStore } from '@noticeos/postgres';

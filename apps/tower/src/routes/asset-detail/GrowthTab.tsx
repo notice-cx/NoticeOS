@@ -39,29 +39,12 @@ import {
 import { useRange } from "@/routes/asset-detail/useRange";
 
 /**
- * THE GROWTH TAB — how is this asset doing, in four charts and three strips
- * (doc 14, bead `ro-78qo.4`).
- *
- * WHAT CHANGED AND WHY. On 2026-09-05 this tab measured **10,139px** at 1440
- * wide. Every table it could draw was open at once: three headline charts, five
- * supporting trend cards, a twenty-eight row SERP panel, a query decision table,
- * a page decision table, two config editors and a product-use grid — each
- * individually honest, and together a page nobody could read. The operator's
- * word for it was "everything, all at once, in the same size".
- *
- * doc 14's answer is a split rather than a squeeze. This tab now answers ONE
- * question — which way did the numbers go — as two pairs of charts following the
- * page's range, then the three strips that say whether the tracked panel, the
- * other collected series and the product are moving. Everything that answers
- * *which query, which page, which competitor* moved to the Search tab, where it
- * opens collapsed. Nothing was deleted; the 10,139px became disclosure.
- *
- * NO TABLES HERE, deliberately. A table answers "which row"; this tab answers
- * "which way", and the moment one lands the page is a list again.
- *
- * The header range controls the traffic charts and collected daily metrics.
- * Other snapshots name their own windows explicitly rather than implying the
- * selector can re-query a fixed aggregate.
+ * The Growth tab answers one question, which way did the numbers go, as two
+ * pairs of charts following the page's range, then the three strips that say
+ * whether the tracked panel, the other collected series and the product are
+ * moving. No tables: a table answers "which row", and that is the Search tab.
+ * The header range controls the traffic charts and collected daily metrics;
+ * other snapshots name their own windows explicitly.
  */
 export function GrowthTab({
   data,
@@ -70,14 +53,11 @@ export function GrowthTab({
 }: {
   data: AssetDetailFor<"growth">;
   nowMs: number;
-  /** Kept for the route's shared signature; the composer's callers moved to
-   * Search with the decision rows that raise one. */
+  /** Unused: the watch composer is raised from Search. */
   onWatch: (seed: WatchSeed) => void;
 }) {
-  // The range is the PAGE's and its control is in the asset header
-  // (`ro-78qo.3`), so this tab reads it and renders no second selector — two
-  // controls for one value is doc 14's one-representation rule broken by the
-  // most literal reading of it.
+  // The range is the page's and its control is in the asset header, so this
+  // tab reads it and renders no second selector.
   const { days } = useRange();
   const assetTabPath = useAssetTabPath();
   const { performance } = data;
@@ -90,10 +70,8 @@ export function GrowthTab({
 
   return (
     <div id="growth-evidence" className="flex scroll-mt-4 flex-col gap-5">
-      {/* THE BLOCK THAT IS THIS TAB'S ANSWER (`surface:audit`, doc 14). Growth
-          asks which way the numbers went, and the audience pair is where the
-          eye has to land: the first screen at 1440×900 is this section, and the
-          check measures its bottom edge rather than trusting a screenshot. */}
+      {/* The block that is this tab's answer (`surface:audit`): the audience
+          pair is where the eye has to land. */}
       <section
         id="performance"
         data-surface-hero
@@ -144,14 +122,14 @@ export function GrowthTab({
       <AlsoCollected performance={performance} days={days} />
 
       {/* The analysis's age is Search's to state, beside the findings it
-          dates (D45); Growth draws the numbers. */}
+          dates; Growth draws the numbers. */}
       <PanelScoreboard panel={data.executive?.serpPanel ?? null} searchTab={searchTab} />
 
       <ProductUse snapshot={data.executive?.productUse ?? null} />
 
-      {/* What people do once they arrive, and where it breaks (PostHog, beads
-          `ro-ghis.2` / `ro-ghis.3`). Its header names PostHog as the source,
-          so its numbers are never read as Google's. */}
+      {/* What people do once they arrive, and where it breaks. Its header
+          names PostHog as the source, so its numbers are never read as
+          Google's. */}
       <ProductJourney
         product={data.executive?.product ?? null}
         connection={productConnection(data.integrations.lanes)}
@@ -165,18 +143,12 @@ export function GrowthTab({
 // --- the tracked panel's scoreboard ----------------------------------------
 
 /**
- * THE PANEL AS SIX NUMBERS (doc 14).
- *
- * `SerpPanelBoard` on the Search tab answers *what is each term doing*; this
- * answers *how is the panel doing* and nothing else, which is the only half of
- * it that belongs on a page about direction. Both read `serpPanelScoreboard` —
- * the one derivation — so the strip and the board can never disagree about what
- * "top 10" means.
- *
- * DENOMINATORS, NOT PERCENTAGES. `AI Overview` is quoted against the terms the
- * panel could actually answer for rather than against every tracked term:
- * dividing by the tracked count spends every unknown as a "no" and reports an
- * asset clear of an overview nobody checked.
+ * The panel as six numbers: how is the panel doing, and nothing else. Both
+ * this and `SerpPanelBoard` read `serpPanelScoreboard`, so the strip and the
+ * board can never disagree about what "top 10" means. Denominators, not
+ * percentages: `AI Overview` is quoted against the terms the panel could
+ * answer for, because dividing by the tracked count spends every unknown as a
+ * "no".
  */
 function PanelScoreboard({
   panel,
@@ -287,19 +259,11 @@ interface CollectedSpec {
 }
 
 /**
- * THE OTHER FOUR SERIES THE OS COLLECTS, as one strip with sparklines.
- *
- * These were five bordered cards with a heading, a caption and an explanatory
- * sentence each — a fourth thing competing to be read first on a tab whose
- * question is direction. They are context for the charts above rather than
- * headlines of their own, so they get the shape doc 14 gives context: a label, a
- * figure, a movement and a line, four across in one strip.
- *
- * SESSIONS IS NOT HERE, because it is a chart above. One fact, one rendering.
- *
- * The direction chip states IMPROVEMENT, not raw movement: position 1 is the top
- * of the results, so a falling average position is an improving one, and "arrow
- * up, green" has to mean the same thing on every row of the page.
+ * The other four series the OS collects, as one strip with sparklines:
+ * context for the charts above. Sessions is not here, because it is a chart
+ * above. The direction chip states improvement, not raw movement: a falling
+ * average position is an improving one, and "arrow up, green" has to mean the
+ * same thing on every row of the page.
  */
 function AlsoCollected({
   performance,
@@ -346,8 +310,8 @@ function AlsoCollected({
       lowerIsBetter: true,
     },
   ];
-  // Fewer than three reported days is no trend, and doc 14's rule for that is a
-  // cell that is not there rather than a dash pretending to a series.
+  // Fewer than three reported days is no trend: a cell that is not there
+  // rather than a dash pretending to a series.
   const specs = all.filter((spec) => spec.trend.series.length >= 3);
   if (specs.length === 0) return null;
 
@@ -425,17 +389,10 @@ function CollectedCell({ spec, days }: { spec: CollectedSpec; days: RangeDays })
 // --- product use -----------------------------------------------------------
 
 /**
- * WHAT PEOPLE DID IN THE PRODUCT, as one strip.
- *
- * These were eight bordered cards in three labelled groups with a note under
- * each. The groups were real — building an order and sharing one are different
- * questions — but they were three sections deep on a tab that already had five,
- * and the caveat they each restated — a person can appear under more than one
- * action — is now the shape itself: the strip draws no total (ro-ujb9.96.6.5).
- *
- * NO SPARKLINE HERE, because there is no series: the snapshot is one exact
- * rolling aggregate over its own window, and a line drawn through a single
- * number would be decoration (doc 14's bar for a visual).
+ * What people did in the product, as one strip. The strip draws no total,
+ * because a person can appear under more than one action. No sparkline,
+ * because there is no series: the snapshot is one exact rolling aggregate
+ * over its own window.
  */
 function ProductUse({ snapshot }: { snapshot: ProductUseSnapshot | null }) {
   if (!snapshot) return null;

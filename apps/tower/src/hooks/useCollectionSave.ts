@@ -18,37 +18,22 @@ import {
 import { type FieldSaveOutcome, refusalMessage, warnConfigExport } from "@/hooks/useConfigSave";
 
 /**
- * The one way a ROW is added, changed or removed in the Tower (bead
- * `ro-x5gu.1`).
- *
- * `useConfigSave` is the same promise for a SETTING: apply, confirm, offer Undo,
- * say plainly when it was refused. It deliberately takes only the two invertible
- * op kinds (`file-json-set`, `store-asset-set`) because its Undo is the same op
- * with `expect` and `value` swapped — and a row being added or removed is
- * STRUCTURAL, so its inverse is a DIFFERENT op kind at a different pointer.
- * That is the whole reason this exists beside it rather than inside it.
- *
- * ONE ACTION, ONE CHANGESET. An add is one insert, a remove is one delete
- * carrying the row as `expect`, an edit is one set carrying the old value — so
- * the archive reads as the operator's own history rather than as a batch, and a
- * stale row refuses its own write instead of a page's worth of them.
- *
- * WHAT UNDO IS. `collectionOps` builds the reverse op beside the forward one, so
- * the way back is decided at the same moment and from the same row. It is a
- * guarded write in its own right: an Undo pressed after somebody else moved that
- * row is refused rather than quietly reverting their work too. And it restores
- * POSITION (bead `ro-asj9`): a delete splices, so the undo of a removal splices
- * the row back in at the index it left, which is what RFC 6902's `add` means for
- * an array (config/changesets/README.md). `config/pull.json` is the one register
- * that still appends, because nothing reads the order of the endpoints in it.
+ * The one way a row is added, changed or removed in the Tower. `useConfigSave`
+ * is the same promise for a setting, and takes only the two invertible op
+ * kinds; a row being added or removed is structural, so its inverse is a
+ * different op kind at a different pointer, which is why this exists beside
+ * it. One action, one changeset: an add is one insert, a remove is one delete
+ * carrying the row as `expect`, an edit is one set carrying the old value, so
+ * a stale row refuses its own write instead of a page's worth of them.
+ * `collectionOps` builds the reverse op beside the forward one; it is a
+ * guarded write in its own right, and it restores position: the undo of a
+ * removal splices the row back in at the index it left. `config/pull.json` is
+ * the one register that still appends, because nothing reads its order.
  */
 
-/** WHICH READS A SAVE REFRESHES, and how long it waits for the local Worker to
- * restart, are `config-backed-queries.ts` — the same declaration `useConfigSave`
- * reads (bead `ro-ina0`). Two copies of one fact drifted apart here once
- * already, and the stale copy was the one nobody was looking at. The wait is a
- * question rather than a constant since D22 (bead `ro-ssgu`): a store-backed
- * save restarts nothing, so there is nothing for it to wait out. */
+/** Which reads a save refreshes, and how long it waits for the local Worker
+ * to restart, are `config-backed-queries.ts`, the same declaration
+ * `useConfigSave` reads. */
 
 export interface CollectionSaveRequest {
   register: ConfigRegister;
@@ -85,14 +70,10 @@ function useCollectionWrite() {
 }
 
 /**
- * ONE CELL, ITS OUTCOME BESIDE IT (bead `ro-ujb9.96.7.12`).
- *
- * The same op and the same exact inverse `collectionOps` builds for the toast
- * path, through the same write — only the outcome travels back to the cell
- * that made it instead of into a corner toast: saved with its Undo, or refused
- * with the refusal's own words. `useFieldConfigSave` is the same promise for a
- * single setting; the two answer in one shape so a field and a cell say
- * "Saved · Undo" and "Not saved" the same way (`InlineSaveState`).
+ * One cell, its outcome beside it: the same op and inverse `collectionOps`
+ * builds for the toast path, with the outcome travelling back to the cell
+ * that made it. `useFieldConfigSave` is the same promise for a single
+ * setting; the two answer in one shape (`InlineSaveState`).
  */
 export function useFieldCollectionSave() {
   const write = useCollectionWrite();

@@ -7,13 +7,11 @@ import { type TestStore, createTestStore } from "./postgres-store";
 import { valuesOf, writeSignalRun, writeSignalValues } from "./collected-metrics";
 import { addSites } from "./sites";
 
-// Pins what `loadSignalTrends` answers today about FRESHNESS and MISSING
-// EVIDENCE, against the real schema. The Wall and asset-page suites already pin
-// ordering, provisional tails, timezone marks, the four-week cap and one-asset
-// narrowing; these are the run-log rules they leave implicit: which run a day's
-// value comes from, which runs are no evidence at all, and what an asset with
-// nothing to chart gets back. A change to the trend SQL (series identity, bead
-// `ro-ujb9.70`) must keep these answers or change them here on purpose.
+// Pins what `loadSignalTrends` answers about freshness and missing evidence,
+// against the real schema: which run a day's value comes from, which runs are
+// no evidence at all, and what an asset with nothing to chart gets back. The
+// Wall and asset-page suites pin ordering, provisional tails, timezone marks,
+// the four-week cap and one-asset narrowing.
 
 const DAY = 86_400_000;
 const NOW_MS = Date.parse("2026-07-05T12:00:00.000Z");
@@ -40,8 +38,7 @@ interface RunFixture {
   timeZone?: string;
 }
 
-/** One run, on Postgres where the collectors write them (bead ro-ujb9.76.5.3),
- * in this test's own copy of its sites (test/sites.ts). */
+/** One run, in this test's own copy of its sites (test/sites.ts). */
 async function run(r: RunFixture): Promise<void> {
   await writeSignalRun(ctx.call, {
     id: r.id,
@@ -65,8 +62,7 @@ async function observe(runId: string, values: Record<string, number>, metric = "
   await writeSignalValues(ctx.call, runId, valuesOf(metric, values));
 }
 
-/** This test's reads, on Postgres: the series (bead ro-ujb9.76.5.3) and the
- * dated timezone changes (bead ro-ujb9.76.5.7). */
+/** This test's reads: the series and the dated timezone changes. */
 async function trends(...args: Parameters<typeof loadSignalTrends> extends [unknown, ...infer Rest] ? Rest : never) {
   return loadSignalTrends(ctx.call, ...args);
 }
@@ -89,7 +85,7 @@ describe("loadSignalTrends — which run a day's value comes from", () => {
     });
     await observe("ok", { "2026-07-01": 1, "2026-07-02": 2, "2026-07-03": 3, "2026-07-04": 4 });
     // A failed run is newer: it is still no evidence (and the store refuses
-    // any value under it, bead ro-ujb9.76.5.3).
+    // any value under it).
     await run({
       id: "failed",
       asset: "a.example",
@@ -115,8 +111,8 @@ describe("loadSignalTrends — which run a day's value comes from", () => {
   });
 
   it("reads each day from the newest run that wrote it, carrying unrewritten days forward", async () => {
-    // The observation table is a change log: a run writes only what changed, so
-    // a day the latest run left alone is still the earlier run's value.
+    // The observation table is a change log: a run writes only what changed,
+    // so a day the latest run left alone is still the earlier run's value.
     await run({
       id: "earlier",
       asset: "a.example",
@@ -139,7 +135,6 @@ describe("loadSignalTrends — which run a day's value comes from", () => {
       windowEnd: "2026-07-05",
       provisionalFrom: "2026-07-05",
     });
-    // 07-02 unchanged (not rewritten), 07-03 revised, two new days.
     await observe("latest", { "2026-07-03": 23, "2026-07-04": 24, "2026-07-05": 25 });
 
     const trend = (await trends(28, { nowMs: NOW_MS })).get("a.example")!;
@@ -153,7 +148,6 @@ describe("loadSignalTrends — which run a day's value comes from", () => {
         { t: "2026-07-04", v: 24 },
         { t: "2026-07-05", v: 25 },
       ],
-      // Both come from the latest successful run, never from the day's writer.
       provisionalFrom: "2026-07-05",
       collectedAt: "2026-07-05T11:00:00.000Z",
       timeZoneChanges: [],
@@ -181,10 +175,9 @@ describe("loadSignalTrends — which run a day's value comes from", () => {
   });
 });
 
-// A series is one provider resource (bead `ro-ujb9.70`): asset + integration +
-// `property_ref` + metric. The run log is a change log, so without this rule a
-// day only the OLD property reported would be carried forward into the new
-// property's line, splicing two resources into one chart.
+// A series is one provider resource: asset + integration + `property_ref` +
+// metric. The run log is a change log, so without this rule a day only the
+// old property reported would be carried forward into the new property's line.
 describe("loadSignalTrends — one provider resource per series", () => {
   it("charts only the current property's days after the asset is repointed", async () => {
     await run({
@@ -238,7 +231,6 @@ describe("loadSignalTrends — one provider resource per series", () => {
       windowEnd: "2026-07-03",
     });
     await observe("old-key", { "2026-07-01": 1, "2026-07-02": 2, "2026-07-03": 3 });
-    // Same property, new key: the writer recorded only the days that changed.
     await run({
       id: "new-key",
       asset: "a.example",
@@ -276,7 +268,6 @@ describe("loadSignalTrends — one provider resource per series", () => {
       windowStart: "2026-07-02",
       windowEnd: "2026-07-05",
     });
-    // Recorded under the new zone even where equal (07-02), as the fixed writer does.
     await observe("eastern", {
       "2026-07-02": 12,
       "2026-07-03": 14,
@@ -290,7 +281,6 @@ describe("loadSignalTrends — one provider resource per series", () => {
     }]);
 
     const trend = (await trends(28, { nowMs: NOW_MS })).get("a.example")!;
-    // No time_zone filter: one line, older days carried from the Pacific run.
     expect(trend.activeUsers.series).toEqual([
       { t: "2026-06-30", v: 10 },
       { t: "2026-07-01", v: 11 },
@@ -299,7 +289,6 @@ describe("loadSignalTrends — one provider resource per series", () => {
       { t: "2026-07-04", v: 15 },
       { t: "2026-07-05", v: 16 },
     ]);
-    // …and the dated annotation still says where the day definition moved.
     expect(trend.activeUsers.timeZoneChanges).toEqual([
       {
         effectiveOn: "2026-07-04",
@@ -322,11 +311,10 @@ describe("loadSignalTrends — missing evidence", () => {
       windowEnd: staleDay,
     });
     await observe("stale-ga4", { [staleDay]: 40 });
-    // With only the stale lane, the asset is absent — not a set of zeros.
     expect((await trends(28, { nowMs: NOW_MS })).has("a.example")).toBe(false);
 
-    // The floor is per lane: a fresh Search Console run on the same asset still
-    // charts, while the stale GA4 lane contributes nothing at all.
+    // The floor is per lane: a fresh Search Console run on the same asset
+    // still charts, while the stale GA4 lane contributes nothing.
     await run({
       id: "fresh-gsc",
       asset: "a.example",
@@ -354,7 +342,6 @@ describe("loadSignalTrends — missing evidence", () => {
         windowStart: "2026-07-01",
         windowEnd: "2026-07-03",
       });
-      // Inserted out of date order; the read returns them ascending.
       await observe(`${id}-run`, { "2026-07-03": 3, "2026-07-01": 1, "2026-07-02": 2 });
     }
 
@@ -393,32 +380,23 @@ describe("loadSignalTrends — missing evidence", () => {
       searchCtr: empty,
       searchPosition: empty,
     });
-    // A fresh object every call: a caller that fills one cannot leak into the next.
     expect(emptySignalTrendSet().activeUsers).not.toBe(emptySignalTrendSet().activeUsers);
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The reporting-timezone lookup is bounded by the charted window (bead
-// `ro-ujb9.102`).
-//
-// It used to read every annotation in the store on every trend read, so the
-// Wall's cost grew with years of deploy and config notes. It now starts at the
-// earliest first point of any series, since no change on or before a series'
-// first point is ever kept. The statement below is the old read VERBATIM: it
-// is the specification, and every trend read must give the same answer through
-// it as through the bounded one. The measurement is in
-// docs/artifacts/tower-perf-2026-09-23/measurements.md.
-// ─────────────────────────────────────────────────────────────────────────────
+// The reporting-timezone lookup is bounded by the charted window: it starts
+// at the earliest first point of any series, since no change on or before a
+// series' first point is ever kept. The statement below is the unbounded read
+// verbatim: it is the specification, and every trend read must give the same
+// answer through it as through the bounded one.
 
-// The old read in Postgres's words, since the annotations moved there (bead
-// ro-ujb9.76.5.7): every change the store holds, its UTC day, oldest first.
+// The unbounded read: every change the store holds, its UTC day, oldest first.
 const TIME_ZONE_SPEC = `SELECT asset_id AS asset, (at AT TIME ZONE 'UTC')::date AS "effectiveOn", ref
            FROM noticeos.annotations
           WHERE kind = 'config' AND ref LIKE 'reporting-time-zone-changed:%'
           ORDER BY at ASC, annotation_number ASC`;
 
-/** The store as it was: the bounded read answered by the old statement. */
+/** The bounded read answered by the unbounded statement. */
 function withSpecTimeZoneRead(store: WorkspaceStore): WorkspaceStore {
   const swap = (tx: Transaction): Transaction => ({
     workspaceId: tx.workspaceId,
@@ -546,14 +524,13 @@ async function postgresPlan(store: WorkspaceStore, sql: string, params: readonly
   return rows.map((row) => row["QUERY PLAN"]).join("\n");
 }
 
-describe("loadSignalTrends — the timezone lookup reads only the charted window (ro-ujb9.102)", () => {
+describe("loadSignalTrends — the timezone lookup reads only the charted window", () => {
   it("marks exactly the changes the whole-store read marked, on every trend read", async () => {
     await seedTimeZoneEdges();
     const store = ctx.call;
     for (const [name, read] of TREND_READS) {
       expect([...(await read(store))], name).toEqual([...(await read(withSpecTimeZoneRead(store)))]);
     }
-    // The edges are really in the fixture, so the equality means something.
     const wall = await trends(28, { includeWebSearch: true, nowMs: NOW_MS });
     const marks = (asset: string, pick: (set: ReturnType<typeof emptySignalTrendSet>) => { timeZoneChanges: { effectiveOn: string }[] }) =>
       pick(wall.get(asset)!).timeZoneChanges.map((change) => change.effectiveOn);
@@ -570,11 +547,9 @@ describe("loadSignalTrends — the timezone lookup reads only the charted window
       const narrowed = await trends(84, { ...options, assets });
       expect([...narrowed], assets.join()).toEqual([...portfolio].filter(([id]) => assets.includes(id)));
     }
-    // An empty list reads nothing at all.
     const seen: Seen[] = [];
     expect((await loadSignalTrends(recordingStore(ctx.call, seen), 84, { ...options, assets: [] })).size).toBe(0);
     expect(seen).toEqual([]);
-    // `asset` wins over `assets`, as the one-asset page expects.
     expect([...(await trends(84, { ...options, asset: "b.example", assets: ["a.example"] }))])
       .toEqual([...portfolio].filter(([id]) => id === "b.example"));
   });
@@ -608,9 +583,8 @@ describe("loadSignalTrends — the timezone lookup reads only the charted window
   });
 
   it("seeks the annotation index per asset instead of scanning every annotation", async () => {
-    // Pinned as a PLAN: the cost only shows at a history no fixture has. On
-    // Postgres (bead ro-ujb9.76.5.7): each site's (site, time) range, its first
-    // day inside the index condition.
+    // Pinned as a plan: the cost only shows at a history no fixture has. Each
+    // site's (site, time) range, its first day inside the index condition.
     const store = ctx.call;
     for (const [sql, params] of [
       [timeZoneChangesSql(0), ["2026-06-01"]],
@@ -620,14 +594,13 @@ describe("loadSignalTrends — the timezone lookup reads only the charted window
       expect(plan, sql).not.toMatch(/Seq Scan on annotations/);
       expect(plan, sql).toMatch(/Index Scan using annotations_asset_at on annotations c\s.*\n\s+Index Cond: \(\(workspace_id = a\.workspace_id\) AND \(asset_id = a\.asset_id\) AND \(at >= /);
     }
-    // Before: the whole table, no site and no time bound.
+    // The unbounded statement: the whole table, no site and no time bound.
     expect(await postgresPlan(store, TIME_ZONE_SPEC, [])).not.toMatch(/asset_id = |at >= /);
   });
 
   it("every trend read seeks the run log and the values' (series, day) index", async () => {
-    // The series read is already flat in history (`ro-48p.1`, measured again
-    // for `ro-ujb9.102`); pinned here for every variant the Tower issues, on
-    // Postgres since bead ro-ujb9.76.5.3.
+    // The series read is flat in history; pinned here for every variant the
+    // Tower issues.
     await seedTimeZoneEdges();
     const store = ctx.call;
     await ctx.analyze();

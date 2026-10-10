@@ -7,9 +7,9 @@ import type { JsonValue, SettingOp } from "@shared/changeset";
 import { configRegister, fieldOf, fieldRefusal } from "@shared/config-registers";
 import { FunnelListEditor } from "@/components/FunnelListEditor";
 
-// An asset's PostHog funnels (bead ro-ghis.1): the whole list is one value,
-// judged by the `asset-lane` register's own `funnels` rule — the function the
-// store save runs — and written as ONE file-json-set.
+// An asset's PostHog funnels: the whole list is one value, judged by the
+// `asset-lane` register's own `funnels` rule (the function the store save
+// runs) and written as one file-json-set.
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
@@ -141,8 +141,8 @@ describe("FunnelListEditor", () => {
     expect(document.querySelector("[data-funnel-save]")).toBeNull();
   });
 
-  // Bead ro-ujb9.96.7.24: with the project's saved funnels in hand the list is
-  // picked, never typed, and each change is saved at once.
+  // With the project's saved funnels in hand the list is picked, never typed,
+  // and each change is saved at once.
   describe("picked from the project's saved funnels", () => {
     const SIGNUP: PosthogFunnel = { id: "signup", name: "Signup", steps: [{ event: "$pageview" }, { event: "signed_up" }] };
 

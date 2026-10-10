@@ -117,8 +117,7 @@ describe('asset column writes compare their expected value atomically', () => {
 });
 
 describe('POST /api/asset-state — the door', () => {
-  // This route exists because config:apply used to write through a second
-  // runtime. It must not have traded that for an unauthenticated store edit.
+  // This route must not be an unauthenticated store edit.
   it('rejects an edit with no operator token (401)', async () => {
     const { status, body } = await edit({ asset: 'meals.example', column: 'status', value: 'live' }, null);
     expect(status).toBe(401);
@@ -172,7 +171,7 @@ describe('POST /api/asset-state — what it will edit', () => {
       const { status, body } = await edit({ asset: 'meals.example', column: 'sense_only', value });
       expect(status).toBe(422);
       expect((body.issues ?? []).map((issue) => issue.path)).toContain('value');
-      // Named as the Settings tab names it (bead ro-ujb9.183), never "value".
+      // Named as the Settings tab names it, never "value".
       expect(body.issues?.[0]?.message).toMatch(/^Automation /);
     }
     expect(await stored('meals.example')).toMatchObject({ sense_only: 0 });
@@ -198,7 +197,7 @@ describe('POST /api/asset-state — what it will edit', () => {
     expect(body.detail).toBe('not-a-property.test');
   });
 
-  it("refuses a name for the OS's own row, and leaves the stored value alone (ro-ujb9.77.10)", async () => {
+  it("refuses a name for the OS's own row, and leaves the stored value alone", async () => {
     const os = (await storeSites()).find((site) => site.is_os === 1);
     const before = await stored(os!.id);
     const { status, body } = await edit({ asset: os!.id, column: 'display_name', value: 'Something else' });

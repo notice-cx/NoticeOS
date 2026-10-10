@@ -3,20 +3,13 @@
 //
 // Decompressed JSON lands under .local/ (gitignored).
 //
-// IT DOES NOT OPEN THE STORE. The local half used to shell out to
-// `wrangler d1 execute --local --persist-to ../../.wrangler/state` and
-// `wrangler r2 object get`, each of which starts a second miniflare over the
-// sqlite file the running Tower already holds open as its D1DatabaseObject —
-// the 2026-08-02 corruption topology (ro-mad, ro-icq). An operator only ever
-// runs this beside a live `os:up`, so "by hand, just this once" was in practice
-// every time. Both reads now go through the loopback ingest door instead:
+// It does not open the store. Both reads go through the loopback ingest door:
 // GET /api/signal-archives (the manifest, filtered as asked) and
 // GET /api/panel-object (one archive, decompressed), served by the one runtime
-// that owns the file (bead ro-2zk.3).
+// that owns the file.
 //
-// --remote is refused (REMOTE_REFUSED): the report runs are in the
-// installation's Postgres store since bead ro-ujb9.76.5.4, and this tool reaches
-// them only through the ingest, never with a database credential.
+// --remote is refused (REMOTE_REFUSED): this tool reaches the store only
+// through the ingest, never with a database credential.
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -31,9 +24,9 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 export const REMOTE_REFUSED =
   '--remote reads nothing now: the reports are in the installation\'s own store, reached through its ingest (--door). Nothing downloaded.';
 
-/** The integrations whose archives this tool may be narrowed to. PostHog joined
- * on 2026-09-22 (ro-ghis.2): six aggregate families, one archive per family per
- * window end, flattened by `signal-history-analyze.mjs` into `posthog-<family>.csv`. */
+/** The integrations whose archives this tool may be narrowed to. PostHog is
+ * six aggregate families, one archive per family per window end, flattened by
+ * `signal-history-analyze.mjs` into `posthog-<family>.csv`. */
 export const DOWNLOADABLE_INTEGRATIONS = [
   'ga4',
   'gsc',
@@ -192,7 +185,7 @@ export async function downloadSignalDumps(options, deps = {}) {
     );
   }
   // The manifest keeps every report day an earlier download or refresh
-  // recorded, merged by the refresh's own rule (bead ro-m8lm): the archives stay
+  // recorded, merged by the refresh's own rule: the archives stay
   // on disk, and a filtered pass that dropped their rows would lose the later
   // confirmation that settles a GA4 day, so it would read provisional again.
   const assetDir = path.join(options.out, options.asset);

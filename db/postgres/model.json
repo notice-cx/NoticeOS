@@ -16,7 +16,7 @@
         ],
         "delete": false
       },
-      "rule": "The last number each workspace handed out per numbered table, and the last place in its list of sites, started and advanced by the numbering trigger in the inserting transaction; it never moves back (ro-ujb9.76.21, ro-ujb9.76.52)."
+      "rule": "The last number each workspace handed out per numbered table, and the last place in its list of sites, started and advanced by the numbering trigger in the inserting transaction; it never moves back."
     },
     "assets": {
       "revision": {
@@ -30,7 +30,7 @@
         ],
         "delete": false
       },
-      "rule": "Identity never changes; a site is retired, never deleted, since history references it. A new site takes the next place in the list from the workspace's counter; a move deals the places of the sites it spans out again (ro-ujb9.76.52)."
+      "rule": "Identity never changes; a site is retired, never deleted, since history references it. A new site takes the next place in the list from the workspace's counter; a move deals the places of the sites it spans out again."
     },
     "pulses": {
       "revision": {
@@ -223,7 +223,7 @@
         "update": [],
         "delete": false
       },
-      "rule": "Immutable; a correction is a new entry. Three kinds (D36), each naming its currency (D37): revenue and cost name money and its booking state; a change names a shipped change by its id and class and the prediction it shipped with (value per month, chance of success, full cost, days to signal), is booked once, books no money, and a correction of it repeats that prediction (D38)."
+      "rule": "Immutable; a correction is a new entry. Three kinds, each naming its currency: revenue and cost name money and its booking state; a change names a shipped change by its id and class and the prediction it shipped with (value per month, chance of success, full cost, days to signal), is booked once, books no money, and a correction of it repeats that prediction."
     },
     "mediavine_sites": {
       "revision": {
@@ -495,7 +495,7 @@
     }
   },
   "retention": {
-    "_rule": "What the operational store keeps (D25; REVIEW.md item 4). A row older than its window leaves Postgres for the named analytical dataset (Parquet read with DuckDB, ro-ujb9.67), never simply deleted: the trigger history_leaves_only_when_exported refuses a removal inside the window or past the last day analytical_exports records, and its arguments are the `by` column and `keep` window below (scripts/postgres-model.test.mjs compares them). A `dropped` table is a cache or rebuildable, and is swept. Only noticeos_maint removes rows under these rules (the application still sweeps its own caches one workspace at a time); a table not listed keeps every row.",
+    "_rule": "What the operational store keeps. A row older than its window leaves Postgres for the named analytical dataset (Parquet read with DuckDB), never simply deleted: the trigger history_leaves_only_when_exported refuses a removal inside the window or past the last day analytical_exports records, and its arguments are the `by` column and `keep` window below (scripts/postgres-model.test.mjs compares them). A `dropped` table is a cache or rebuildable, and is swept. Only noticeos_maint removes rows under these rules (the application still sweeps its own caches one workspace at a time); a table not listed keeps every row.",
     "signal_observations": {
       "keep": "13 months",
       "by": "observed_date",
@@ -542,7 +542,7 @@
     "task_snapshots": {
       "keep": "2 days",
       "by": "captured_at",
-      "beyond": "dropped: the task hub is the authority (D32)"
+      "beyond": "dropped: the task hub is the authority"
     },
     "task_daily_counts": {
       "keep": "400 days",
@@ -566,20 +566,20 @@
     }
   },
   "maintenance": {
-    "_rule": "noticeos_maint (roles.sql, REVIEW.md item 3): BYPASSRLS, NOLOGIN, owns nothing, creates nothing, updates nothing. What spans workspaces runs as it: the retention sweeps and moves. A job that works one workspace at a time, including the capacity readback, runs as noticeos_app and names it with SET LOCAL instead. It reads every table; it removes rows only from the tables `retention` lists, where the triggers still hold; it inserts only into `insert`. scripts/postgres-model.test.mjs compares these with what Postgres granted.",
+    "_rule": "noticeos_maint (roles.sql): BYPASSRLS, NOLOGIN, owns nothing, creates nothing, updates nothing. What spans workspaces runs as it: the retention sweeps and moves. A job that works one workspace at a time, including the capacity readback, runs as noticeos_app and names it with SET LOCAL instead. It reads every table; it removes rows only from the tables `retention` lists, where the triggers still hold; it inserts only into `insert`. scripts/postgres-model.test.mjs compares these with what Postgres granted.",
     "insert": [
       "analytical_exports",
       "asset_insight_snapshot_moves"
     ]
   },
   "reference": {
-    "_rule": "Shared vocabulary in schema noticeos_ref (REVIEW.md item 1): no workspace_id, no row security, read and never written by the application and maintenance, changed only by migrations. 0001_baseline.sql seeds it.",
+    "_rule": "Shared vocabulary in schema noticeos_ref: no workspace_id, no row security, read and never written by the application and maintenance, changed only by migrations. 0001_baseline.sql seeds it.",
     "integrations": "An integration a row may name, and the provider whose connection serves it.",
     "metric_kinds": "A daily metric an integration reports, and the unit of its values.",
     "check_kinds": "A check the nightly hygiene lane runs."
   },
   "nullIdentity": {
-    "_rule": "Every nullable column that takes part in a unique key or a link, and what its NULL means (ro-ujb9.71). In a unique key, 'one' is NULLS NOT DISTINCT (a NULL is one value, so two NULL rows collide), 'many' lets any number of NULL rows coexist, and 'excluded' is a partial index that skips NULL rows. In a link, a NULL means no parent: the link is not checked for that row. scripts/postgres-model.test.mjs compares this list with what Postgres built.",
+    "_rule": "Every nullable column that takes part in a unique key or a link, and what its NULL means. In a unique key, 'one' is NULLS NOT DISTINCT (a NULL is one value, so two NULL rows collide), 'many' lets any number of NULL rows coexist, and 'excluded' is a partial index that skips NULL rows. In a link, a NULL means no parent: the link is not checked for that row. scripts/postgres-model.test.mjs compares this list with what Postgres built.",
     "alert_daily_counts.asset_id": {
       "unique": "one",
       "means": "The whole-workspace row (the legacy '*'): one per day."

@@ -30,7 +30,7 @@ const CONFIG: CountersConfig = {
   },
 };
 
-/** Meal Planner's scrape body — the two configured counters plus unrelated tables. */
+/** meals.example's scrape body — the two configured counters plus unrelated tables. */
 function mealsBody(profiles: number, leads: number): string {
   return promBody({
     profiles: { total: profiles, h24: 12, d7: 80 },

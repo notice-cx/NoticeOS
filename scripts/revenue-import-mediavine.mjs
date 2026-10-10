@@ -1,28 +1,20 @@
 #!/usr/bin/env node
-// Book a Mediavine Journey daily-revenue export into the ledger (bead ro-kukv.4).
+// Book a Mediavine Journey daily-revenue export into the ledger.
 //
-// WHY A SCRIPT AND NOT A LANE. Journey has no API — the operator exports a CSV
-// when they want to. So this is deliberately a hand-run importer rather than a
-// cron: there is nothing to poll, and pretending otherwise would put a lane in
-// `job_runs` that can only ever report "the operator did not export today".
+// Journey has no API — the operator exports a CSV when they want to — so this
+// is a hand-run importer rather than a cron. The export is daily; the ledger's
+// grain is a month (`ledger.period` is 'YYYY-MM'), so days are summed per
+// calendar month and one row per month is posted to `POST /api/revenue`, which
+// owns idempotency: the same export replayed books once, and a restated figure
+// is refused rather than silently merged.
 //
-// WHAT IT BOOKS. The export is DAILY; the ledger's grain is a month
-// (`ledger.period` is 'YYYY-MM'). So days are summed per calendar month and one
-// row per month is posted to `POST /api/revenue`, which owns idempotency: the
-// same export replayed books once, and a restated figure is refused rather than
-// silently merged (workers/ingest README, "Revenue idempotency").
-//
-// PARTIAL MONTHS ARE BOOKED, AND SAY SO. An export usually ends mid-month —
-// this one covers 2026-08 only through the 29th. Holding the month back would
-// leave the Wall quoting July while it is August, which is its own dishonesty.
-// So the month is booked as `estimated` with its coverage stated as fields,
-// and it deliberately uses the AUTO key (one figure per source/property/month/
-// family/booking_state). A later export covering the full month therefore
-// collides on that key and the route REFUSES it as `conflicting_replay` —
-// loudly, with both figures — which is the signal to post a `reconciled` row
-// that supersedes the estimate. That is the flow the lane was built for, and it
-// is why this script does not invent a coverage-scoped id: two `estimated` rows
-// for one month would both be current, and the portfolio total would double.
+// Partial months are booked, and say so: the month is booked as `estimated`
+// with its coverage stated as fields, under the auto key (one figure per
+// source/property/month/family/booking_state). A later export covering the
+// full month collides on that key and the route refuses it as
+// `conflicting_replay`, with both figures, which is the signal to post a
+// `reconciled` row that supersedes the estimate. A coverage-scoped id would
+// leave two `estimated` rows for one month both current, doubling the total.
 //
 //   node scripts/revenue-import-mediavine.mjs <csv> --asset example.com [--dry-run]
 

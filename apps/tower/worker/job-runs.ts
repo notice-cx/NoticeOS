@@ -13,11 +13,8 @@ function outcomeOf(value: string): ScheduledLaneOutcome {
   throw new Error(`job_runs contains unsupported outcome: ${value}`);
 }
 
-/**
- * The Tower's read-only view over the runner-owned record, in the call's store
- * (bead ro-ujb9.76.4.3). This intentionally consumes the same SQL constant as
- * ingest's cronRunSuccess derivation.
- */
+/** The runner-owned record, read with the same SQL constant as ingest's
+ * cronRunSuccess derivation. */
 export async function readLatestJobRuns(store: WorkspaceStore): Promise<ScheduledLane[]> {
   const rows = await store.read((tx) => tx.query<LatestJobRunRow>(LATEST_JOB_RUNS_SQL));
   return rows

@@ -1,4 +1,4 @@
-// A fetch that answers every request with one JSON body (issue #21).
+// A fetch that answers every request with one JSON body.
 import { vi } from "vitest";
 
 /** Answer every fetch with `body` as 200 JSON, until `vi.unstubAllGlobals()`. */

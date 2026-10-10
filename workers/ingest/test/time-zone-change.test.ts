@@ -46,8 +46,8 @@ describe('previousTimeZone', () => {
     expect(await previousTimeZone(env.STORE, 'meals.example', 'ga4', 'prop')).toBeNull();
   });
 
-  // Repointing the asset at another GA4 property starts a different series
-  // (ro-ujb9.70). The old property's zone is not the new one's history.
+  // Repointing the asset at another GA4 property starts a different series.
+  // The old property's zone is not the new one's history.
   it('answers only for the same provider resource', async () => {
     await run('meals.example', 'ga4', '2026-08-29T03:00:00.000Z', PT, 'success', 'old-prop');
     expect(await previousTimeZone(env.STORE, 'meals.example', 'ga4', 'new-prop')).toBeNull();
@@ -70,8 +70,8 @@ describe('previousTimeZone', () => {
     expect(await previousTimeZone(env.STORE, 'meals.example', 'ga4', 'prop')).toBe(PT);
   });
 
-  // D1 returned runs that finished in the same instant in the order they were
-  // written; Postgres says so (bead ro-ujb9.76.5.3).
+  // Runs that finished in the same instant answer in the order they were
+  // written.
   it('of two runs that finished in the same instant, answers with the one written first', async () => {
     await run('meals.example', 'ga4', '2026-08-30T03:00:00.000Z', PT);
     await run('meals.example', 'ga4', '2026-08-30T03:00:00.000Z', ET);
@@ -97,8 +97,8 @@ describe('recordTimeZoneChange', () => {
     // asking "do I span this" needs the day the data changed shape.
     expect(row?.at.slice(0, 10)).toBe('2026-09-01');
     expect(row?.kind).toBe('config');
-    // A headline with its values (bead ro-ujb9.96.6.29); what it means for a
-    // comparison is drawn where the comparison is made.
+    // A headline with its values; what it means for a comparison is drawn where
+    // the comparison is made.
     expect(row?.note).toBe('GA4 day moved from America/Los_Angeles to America/New_York on 2026-09-01');
   });
 

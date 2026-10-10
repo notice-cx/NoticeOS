@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { GA4_PULSE_MINUTES, ga4MinuteBuckets } from '../src/ga4-realtime.js';
 
-// The minute pulse's one derivation (bead ro-trai.27): GA4's per-minute rows
-// become the 30 buckets the Wall draws.
+// The minute pulse's one derivation: GA4's per-minute rows become the 30
+// buckets the Wall draws.
 
 const MINUTE = 60_000;
 /** 12:00:20 — twenty seconds into the minute the reading is taken in. */

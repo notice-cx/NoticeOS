@@ -27,9 +27,9 @@ export interface WallFitMeasurement {
         height: number;
     };
     tvMediaQuery: boolean;
-    /** Which Wall the screen drew (`wallScreen`, bead ro-trai.31): the TV's
-     * layout or the one-column stack, and the TV layout's scale — 1 on the TV,
-     * about 0.77 on a 13-inch laptop. */
+    /** Which Wall the screen drew (`wallScreen`): the TV's layout or the
+     * one-column stack, and the TV layout's scale — 1 on the TV, about 0.77 on
+     * a 13-inch laptop. */
     layout: string | null;
     scale: number;
     rootClipped: boolean;
@@ -53,7 +53,7 @@ export interface WallFitMeasurement {
     };
     ink: WallFitLeak[];
     clipped: WallFitLeak[];
-    /** D28's regions, where the Wall draws them. */
+    /** The regions, where the Wall draws them. */
     regions: Record<"strip" | "revenue" | "needs" | "sites" | "feed", WallFitBox | null>;
     /** The site region: its tier, each row's height, and the height left under
      * the last row (null in the one-site tier, which draws tiles, not rows). */

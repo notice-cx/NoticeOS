@@ -177,7 +177,7 @@ test('a non-200 from the door fails loudly and carries the body', async () => {
 });
 
 // The common failure is simply that the OS is not running, and the sentence has
-// to say so — the old lane could not fail this way because it opened the file.
+// to say so.
 test('a door that does not answer names os:up', async () => {
   const { dir, options } = await scratch();
   const get = async () => {
@@ -187,7 +187,7 @@ test('a door that does not answer names os:up', async () => {
   await fs.rm(dir, { recursive: true, force: true });
 });
 
-// Bead ro-m8lm. A GA4 attribution day collected at D+1 is settled only by the
+// A GA4 attribution day collected at D+1 is settled only by the
 // record file's D+2 confirmation; a filtered download of another integration
 // must not forget it, or the day reads provisional again.
 test('a filtered download keeps the report days an earlier download recorded, so a settled GA4 day stays settled', async (t) => {
@@ -267,7 +267,7 @@ test('nothing matched writes nothing at all', async () => {
   await fs.rm(dir, { recursive: true, force: true });
 });
 
-// The report runs are in the installation's own store (bead ro-ujb9.76.5.4),
+// The report runs are in the installation's own store,
 // reached only through its ingest: --remote reads nothing and says so.
 test('--remote is refused before anything is read', () => {
   assert.throws(() => parseArgs(['--asset', 'meals.example', '--remote']), (error) => error.message === REMOTE_REFUSED);

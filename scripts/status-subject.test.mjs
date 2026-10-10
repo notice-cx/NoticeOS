@@ -5,17 +5,15 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadTypeScript } from './ux-gate.mjs';
 
-// EVERY STATUS NAMES WHAT IT IS ABOUT (bead ro-ujb9.96.10).
+// Every status names what it is about.
 //
 // The UX flow gate holds one status per subject per screen and lists grouped
-// by subject (docs/21 principle 3b; apps/tower/e2e/ux-walk.mjs). It used to
-// GUESS a status's subject from the markup around it — the nearest integration
-// tile, Sources row or inbox row, the provider in the URL, the page path — and
-// a list row's from a fixed list of fixture names. A redesign that dropped one
-// of those markers made two copies of one status read as two subjects: a
-// silent pass. Now the product declares it: every status renderer takes a
-// `subject` (a `StatusSubject`, `kind:id`) and draws it as `data-status-for`,
-// and the walker reads only that. This file is the static half of the
+// by subject (docs/21 principle 3b; apps/tower/e2e/ux-walk.mjs). Guessing a
+// status's subject from the markup around it would let a redesign that drops
+// a marker make two copies of one status read as two subjects, a silent pass.
+// So the product declares it: every status renderer takes a `subject` (a
+// `StatusSubject`, `kind:id`) and draws it as `data-status-for`, and the
+// walker reads only that. This file is the static half of the
 // contract, so a call site that names no subject fails `pnpm test:scripts`
 // before a walk ever has to find it.
 //

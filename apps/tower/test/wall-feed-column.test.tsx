@@ -1,4 +1,4 @@
-// The Wall's live feed column (bead ro-trai.9, docs/14-design.md § Feed).
+// The Wall's live feed column.
 import { act, render, screen, within } from "./render";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WallFeed, feedClock } from "@/components/wall/WallFeed";
@@ -141,9 +141,8 @@ describe("the feed column", () => {
   });
 
   // In one column (a portrait tablet, a phone) the feed lists the rows the TV
-  // shows and no more, newest first (bead ro-trai.31): the evening's whole feed
-  // once ran the phone's page 5,850 px tall. The TV's own column keeps fitting
-  // whole rows by measure.
+  // shows and no more, newest first. The TV's own column keeps fitting whole
+  // rows by measure.
   it("in one column lists the TV's twelve newest rows and hides the rest", () => {
     const items = Array.from({ length: WALL_FEED_TV_ROWS + 5 }, (_, i) => item(`r${i}`, i + 1));
     render(<WallFeed feed={payload(items)} nowMs={NOW} />);

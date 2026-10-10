@@ -1,4 +1,4 @@
-// Agent sign-in's authorization server (epic ro-cvl9): the identity engine's
+// Agent sign-in's authorization server: the identity engine's
 // maintained OAuth 2.1 provider behind fixed routes only. MCP clients discover
 // it from the MCP endpoint's resource metadata, register themselves, send the
 // person's browser to authorize, and exchange the code for a JWT access token
@@ -47,9 +47,8 @@ function record(text: string, allowed: readonly string[]): Record<string, unknow
   return value as Record<string, unknown>;
 }
 /** A registration that omits application_type and redirects only to this
- * machine's loopback is a native app (RFC 8252 §7.3), as MCP's 2026-07-28
- * revision requires clients to say. Older MCP clients leave it out, and the
- * library's OIDC default, web, refuses loopback redirects. */
+ * machine's loopback is a native app (RFC 8252 §7.3). Older MCP clients leave
+ * it out, and the library's OIDC default, web, refuses loopback redirects. */
 function nativeByDefault(body: string): string {
   let value: unknown;
   try { value = JSON.parse(body); } catch { return body; }
@@ -78,7 +77,7 @@ export function openAgentSignIn(input: AgentSignInOptions): AgentSignIn {
   async function database() {
     resources ??= openIdentityDatabase(options);
     const { database } = await resources;
-    // Fail closed until migration 0014 is applied.
+    // Fail closed until the agent sign-in tables exist.
     validated ??= (async () => {
       const context = await identityEngine(database, options, { transaction: true, agents: true, validateSchema: true }).$context;
       await context.checkSchema?.();

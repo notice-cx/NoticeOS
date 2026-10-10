@@ -7,14 +7,14 @@ import { MEDIAVINE_LEASE, withMediavineLease } from '../src/mediavine-connection
 import { POSTHOG_LEASE_MS, claimPosthogLease, posthogLeaseKey, releasePosthogLease } from '../src/posthog-dumps.js';
 import { reset } from './helpers.js';
 
-// ONE COLLECTOR AT A TIME, ON POSTGRES (bead ro-ujb9.76.5.5). A lease is one
-// row of `noticeos.integration_leases`, taken by one INSERT … ON CONFLICT DO
-// UPDATE … WHERE the row has expired. Postgres locks the row, so of two
-// takers at the same instant the second waits for the first and then finds it
-// held: exactly one gets it. Each lease the ingest takes is proved here — the
-// Mediavine account's, a PostHog site's and a GA4 read's — with both takers
-// sent at once over separate connections, round after round, and each with an
-// expired lease that can be taken and a live one that cannot.
+// One collector at a time, on Postgres. A lease is one row of
+// `noticeos.integration_leases`, taken by one INSERT … ON CONFLICT DO UPDATE …
+// WHERE the row has expired. Postgres locks the row, so of two takers at the
+// same instant the second waits for the first and then finds it held: exactly
+// one gets it. Each lease the ingest takes is proved here — the Mediavine
+// account's, a PostHog site's and a GA4 read's — with both takers sent at once
+// over separate connections, round after round, and each with an expired
+// lease that can be taken and a live one that cannot.
 
 beforeEach(reset);
 

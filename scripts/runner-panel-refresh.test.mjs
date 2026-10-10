@@ -5,7 +5,7 @@ import * as osUp from './os-up.mjs';
 import { REPO_ROOT } from './runner/config.mjs';
 import { runPanelRefresh } from './runner/panel-refresh.mjs';
 
-// scripts/runner/panel-refresh.mjs (bead ro-ujb9.22): the daily panel refresh
+// scripts/runner/panel-refresh.mjs: the daily panel refresh
 // child. The command is answered here; nothing runs `pnpm signals:refresh`.
 
 const UP = { running: true, ready: true };

@@ -1,36 +1,25 @@
-// The route a verdict takes back to the bead that is owed it (db/0024).
-//
-// A closed watch window already files a flag on its property (see
-// `closeWindow`). That is the right surface for "what happened to this
-// property", and the wrong one for "what happened to the thing I did": the
-// freeze register in each spoke names a READBACK BEAD per entry — the bead that
-// owns the reading — and until now that bead learned nothing. The verdict sat
-// on a card, and the task that caused the change sat open beside it.
-//
-// This module is the queue between the two. It cannot post anything itself:
-// workerd has no `bd`, and the beads hub is a Dolt server this store only
-// mirrors (db/0017). So the runner asks what is pending, posts it, and says so —
-// and because the store stamps `readback_posted_at` only on the way back, a
-// crash between the two leaves the verdict pending rather than lost. Reporting
-// twice is the failure this guards against; reporting late is not a failure.
+// The queue between a closed watch window and the task that is owed its
+// verdict. This module cannot post anything itself (workerd has no `bd`), so
+// the runner asks what is pending, posts it, and says so; `readback_posted_at`
+// is stamped only on the way back, so a crash between the two leaves the
+// verdict pending rather than lost. Reporting twice is the failure guarded
+// against; reporting late is not a failure.
 
 import type { WatchScopeInput } from '@noticeos/contract';
 import { javascriptInstant } from '@noticeos/postgres';
 import { parseWatchScope, watchScopeLabel, watchScopeSelector } from './watch-windows.js';
 
-/** How many verdicts one poll carries. A backlog drains over ticks rather than
- * in one unbounded body — the posture db/0022 set for job runs. */
+/** A backlog drains over ticks rather than in one unbounded body. */
 export const WATCH_READBACK_MAX_BATCH = 50;
 
-/** One closed window whose verdict has not reached its bead. */
+/** One closed window whose verdict has not reached its task. */
 export interface PendingWatchReadback {
   windowId: string;
   bead: string;
   asset: string;
   outcome: string;
   closedAt: string;
-  /** The comment to post, composed HERE so one place owns the sentence an
-   * operator will read on the bead. */
+  /** Composed here so one place owns the sentence an operator reads. */
   comment: string;
 }
 
@@ -53,8 +42,7 @@ export async function readPendingWatchReadbacks(
   env: IngestEnv,
   limit: number = WATCH_READBACK_MAX_BATCH,
 ): Promise<PendingWatchReadback[]> {
-  // On Postgres (bead ro-ujb9.76.5.7): the pending windows' own index, oldest
-  // close first, ties by id.
+  // Oldest close first, ties by id.
   const records = await env.STORE.read((tx) =>
     tx.query<ReadbackRow>(
       `SELECT window_id AS id, asset_id AS asset, ref, note, metric_integration, metric,
@@ -85,11 +73,9 @@ export async function readPendingWatchReadbacks(
 }
 
 /**
- * The sentence posted on the bead.
- *
- * It says what was bet, what came back, and where to look — and nothing about
- * what to do next. A verdict is evidence for the person who owns the reading;
- * an OS that also announced the decision would be pre-registering the operator.
+ * The sentence posted on the task: what was bet, what came back, and where to
+ * look, and nothing about what to do next. A verdict is evidence for the
+ * person who owns the reading.
  */
 function readbackComment(row: ReadbackRow): string {
   const scope: WatchScopeInput | null = parseWatchScope(row.scope_json);
@@ -110,12 +96,9 @@ function readbackComment(row: ReadbackRow): string {
 }
 
 /**
- * Stamp the windows whose verdicts have been posted.
- *
- * The WHERE clause repeats every precondition rather than trusting the caller's
- * list: an id that is open, unclaimed, or already stamped is left alone and
- * reported as not stamped, so a confused runner cannot mark a verdict delivered
- * that never was.
+ * Stamp the windows whose verdicts have been posted. The WHERE clause repeats
+ * every precondition rather than trusting the caller's list: an id that is
+ * open, unclaimed or already stamped is left alone and reported as not stamped.
  */
 export async function markWatchReadbacksPosted(
   env: IngestEnv,
@@ -139,7 +122,7 @@ export async function markWatchReadbacksPosted(
     ),
   );
   const stampedIds = new Set(stamped.map((row) => row.id));
-  // In the caller's order, as the D1 batch answered them.
+  // In the caller's order.
   const posted = wanted.filter((id) => stampedIds.has(id));
   return { posted, skipped: wanted.filter((id) => !stampedIds.has(id)) };
 }

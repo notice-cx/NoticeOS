@@ -19,8 +19,7 @@ import {
 import { JSON_HEADERS, jsonError } from "./http";
 import { googleOAuthRequest } from '../../../scripts/workspace-operations.mjs';
 
-/** The three ingest RPCs these routes call, declared structurally so the test
- * project can bind a double — the same trick every route file here uses. */
+/** Declared structurally so the test project can bind a double. */
 export interface GoogleOAuthIngest {
   beginGoogleOAuth(input: { origin: string }, proof?: Request): Promise<GoogleOAuthStart>;
   completeGoogleOAuth(input: {
@@ -55,7 +54,7 @@ function crossSiteNavigation(request: Request): boolean {
 
 function backToPage(url: URL, result: string): Response {
   const target = new URL(INTEGRATIONS_PAGE, url.origin);
-  // Back to the connect panel (bead ro-ujb9.96.7.7): on the account's sites
+  // Back to the connect panel: on the account's sites
   // once signed in, on the sign-in again when it did not finish.
   target.searchParams.set("connect", "google");
   target.searchParams.set(GOOGLE_OAUTH_RESULT_PARAM, result);
@@ -68,11 +67,9 @@ function backToPage(url: URL, result: string): Response {
 /**
  * Standalone GET redirects to Google; hosted POST returns the consent URL.
  *
- * In standalone, the redirect URI is derived from this request's origin,
- * because the operator opens the Tower at some address and Google has to be
- * told that exact string. A configured copy would be a second answer, and the
- * one that lost would produce `redirect_uri_mismatch` — the single most common
- * way an OAuth setup fails.
+ * In standalone, the redirect URI is derived from this request's origin:
+ * Google must be told the exact address the Tower was opened at, and a
+ * configured copy that disagreed would produce `redirect_uri_mismatch`.
  */
 export async function handleGoogleOAuthStartRequest(
   request: Request,
@@ -115,10 +112,8 @@ export async function handleGoogleOAuthStartRequest(
  *
  * The code is read off the query string, handed straight to ingest, and never
  * touched again: it is not logged, not stored, and not echoed into the redirect
- * this route answers with. `error=access_denied` on the query is the operator
- * pressing Cancel on Google's screen — an answer, not a failure, and it gets
- * its own word so the page can say "you cancelled" rather than "something went
- * wrong".
+ * this route answers with. `error=access_denied` is the operator pressing
+ * Cancel on Google's screen — an answer, not a failure, with its own word.
  */
 export async function handleGoogleOAuthCallbackRequest(
   request: Request,
@@ -164,10 +159,10 @@ export async function handleGoogleOAuthCallbackRequest(
  * Console sites the connected account can see.
  *
  * 200 whichever way it went, like the connection test beside it: "Search
- * Console would not answer" is the ANSWER to the question the button asked. It
- * Standalone retains its existing local door. Hosted entry requires current
- * provider-read admission and original browser evidence at both receivers.
- * Discovery records technical connection health, never a business outcome.
+ * Console would not answer" is the answer to the question the button asked.
+ * Standalone keeps its local door; hosted entry requires current provider-read
+ * admission and original browser evidence at both receivers. Discovery records
+ * technical connection health, never a business outcome.
  */
 export async function handleGooglePropertiesRequest(
   request: Request,

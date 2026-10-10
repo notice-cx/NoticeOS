@@ -7,30 +7,18 @@ import { fieldClass } from "../src/components/ui/field";
 import { typeScriptSources, withoutComments } from "./source-files";
 
 /**
- * ONE FIELD BOX, NOT TWENTY-EIGHT (bead `ro-2qc6`).
- *
- * The desk's input/select chrome existed as ~28 literal copies across 13 files,
- * three of them as a route-local `SELECT_CLASS` whose comment claimed it was
- * "the same string /alerts, /assets and /settings carry". That claim was true
- * and unenforced, which is why bead `ro-md80` had to add the phone thumb floor
- * to all of them at once by scripted replace: editing some and not others would
- * have left the desk with two field heights on a phone.
- *
- * The guard reads the SOURCE rather than a render, for the same reason
- * `collection-editor.test.tsx` does: a copy that happens to agree on the day it
- * is written passes every rendered assertion there is, and diverges on the next
- * utility somebody adds to one of them.
+ * One field box, not literal copies. The guard reads the source rather than a
+ * render: a copy that agrees today passes every rendered assertion.
  */
 
 const SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src");
 const OWNER = path.join("components", "ui", "field.ts");
 
-/** Comments say the same words as code and are not the thing under guard. */
+/** Comments are not the thing under guard. */
 
 describe("the desk's field chrome has one owner", () => {
   it("declares the box the phone floor and the disabled dim ride on", () => {
-    // Not a snapshot of the whole string — the point is that these four
-    // survive a later edit, since each was missing from at least one copy.
+    // Not a snapshot of the whole string: the parts a copy must not drop.
     for (const utility of [
       "border-input",
       "bg-background",
@@ -43,21 +31,17 @@ describe("the desk's field chrome has one owner", () => {
   });
 
   it("holds the chrome nowhere else in src/", () => {
-    // The guard is on the SHAPE, not on the exact string: a copy that reorders
-    // the utilities, drops the phone floor, or swaps `text-sm` for `text-xs` is
-    // the same defect wearing a disguise. A field box is the only thing in this
-    // app that is a rounded, bordered, `bg-background` box with a focus ring —
-    // the read-only `<code>` boxes beside it have no ring, and the containers
-    // that share the surface have no ring either.
+    // The guard is on the shape, not the exact string. A field box is the
+    // only thing in this app that is a rounded, bordered, `bg-background` box
+    // with a focus ring; the read-only `<code>` boxes beside it have no ring,
+    // and the containers that share the surface have no ring either.
     const offenders = typeScriptSources(SRC).filter((file) => {
       if (file.endsWith(OWNER)) return false;
       const source = withoutComments(readFileSync(file, "utf8"));
       return [...source.matchAll(/"[^"\n]*"/g)].some((literal) => {
         const text = literal[0];
-        // No radius in the predicate (bead `ro-o6qr`): the Wall editor's reason
-        // field was the 29th copy and the only one drawn square, which is how
-        // it hid from a guard that asked for `rounded-md`. The box is the
-        // border + surface + ring; the corner is a variation of it.
+        // No radius in the predicate: a square field is still a field. The
+        // box is the border + surface + ring; the corner is a variation of it.
         return (
           (text.includes("border-border") || text.includes("border-input")) &&
           text.includes("bg-background") &&
@@ -69,11 +53,8 @@ describe("the desk's field chrome has one owner", () => {
     expect(offenders.map((file) => path.relative(SRC, file))).toEqual([]);
   });
 
-  it("is read by the surfaces that were carrying the copies", () => {
-    // Not a closed list — a new surface with a field is welcome and needs no
-    // edit here. What is pinned is that the thirteen files the copies lived in
-    // read the declaration, so "adopted everywhere" cannot quietly become
-    // "adopted where it was convenient".
+  it("is read by the surfaces that draw a field", () => {
+    // Not a closed list: a new surface with a field needs no edit here.
     const carriers = [
       "components/AddSite.tsx",
       "components/CollectionEditor.tsx",
@@ -83,10 +64,8 @@ describe("the desk's field chrome has one owner", () => {
       "components/ProviderCard.tsx",
       "components/TaskComposer.tsx",
       "routes/AlertsRoute.tsx",
-      // `routes/AssetDetailRoute.tsx` held both of the asset page's fields
-      // until the per-tab split (bead `ro-78qo.2`) moved them, unchanged, to
-      // the two files that draw them: the lifecycle editor and the Delete
-      // confirmation. The entry follows the code rather than the filename.
+      // The asset page's two fields live in the lifecycle editor and the
+      // Delete confirmation; the entry follows the code rather than the filename.
       "routes/asset-detail/SettingsTab.tsx",
       "routes/asset-detail/AssetRetirement.tsx",
       "routes/AssetsRoute.tsx",

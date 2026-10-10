@@ -65,7 +65,7 @@ export function currentDayReadings(saved: Ga4RealtimePayload, nowIso: string): G
 
 /**
  * A read that is merely in progress says nothing new about a site, so it never
- * replaces what the Wall last drew with a dash (bead `ro-trai.40`). The site
+ * replaces what the Wall last drew with a dash. The site
  * keeps its last reading, still dated by its own `observedAt`, so an old one
  * reads as out of date. Today's hours stay only while they are today's on the
  * clock they were bucketed on. Every other answer, a refusal included,

@@ -22,48 +22,23 @@ import { cn } from "@/lib/utils";
 import { storageKey } from "@/lib/browser-storage";
 
 /**
- * HOW OFTEN THE OPERATOR ANSWERED THIS RULE BY TUNING IT (bead `ro-ayxy`) —
- * docs/15 flow E's false-positive rate, on the two surfaces where a rule is
- * looked at: `/settings#alert-rules`, and the Tune panel on the alert the rule
- * just fired.
- *
- * ONE COMPONENT, TWO SURFACES, on purpose. The panel is where the operator is
- * about to quieten a rule and the settings page is where they go when nothing is
- * firing; a second spelling of the same figure would let the two disagree about
- * a number the OS is meant to eventually act on by itself.
- *
- * REGISTRY JUSTIFICATION. Nothing here draws a share WITH its counts and its own
- * missing states. `SegmentBar` is the shape and is composed here rather than
- * duplicated — it holds no figures, no denominator and no empty state. `Meter`
- * is one value against a CAP with over-cap as its own amber, and a tune rate has
- * no cap. `ProgressRing` counts DISCRETE steps finished out of a known total —
- * this total is not known in advance and grows every time the rule fires.
- * `EmptyState` is a section's blank slate, block-sized with a `text-base` title;
- * what a rule with no firings needs is ONE quiet line inside a list of rules.
- *
- * THE BAR IS THE SHAPE, THE TEXT IS THE FIGURES — `SegmentBar`'s own rule. The
- * amber segment says "the operator answered by changing the rule", against the
- * muted rest of the alerts they finished with some other way.
+ * How often the operator answered this rule by tuning it: the false-positive
+ * rate, on both surfaces a rule is looked at. The amber segment is the alerts
+ * answered by changing the rule, against the muted rest.
  */
 export interface TuneRateProps {
-  /** This rule's counts, or `null` when the read returned nothing for it —
-   * which is a rule that has not fired in the window, not a rule at zero. */
+  /** This rule's counts, or `null` for a rule that has not fired in the
+   * window, which is not a rule at zero. */
   stat: AlertRuleStat | null;
   /** The window the counts cover, so the sentence states its own scope. */
   windowDays: number;
-  /**
-   * File the proposal's task somewhere other than the operator's own task
-   * database — the gallery's escape hatch, handed straight to
-   * `FileTaskButton`, exactly as `KnobEditor` and `TaskComposer` take one. A
-   * demo is then a real form whose commit is a promise.
-   */
+  /** File the proposal's task somewhere else; the gallery passes a fake. */
   onFileTask?: FileTaskButtonProps["onFile"];
   /** Stand in for the write lane's own answer, so the gallery can show the
    * proposal on a deployment that cannot file anything. */
   taskCapabilities?: FileTaskButtonProps["capabilities"];
-  /** Whether a decline is remembered across reloads. `false` in the gallery —
-   * the demo rule ids are REAL rule ids, and a reviewer pressing the demo's
-   * decline would otherwise silence the operator's own proposal. */
+  /** Whether a decline is remembered across reloads. `false` in the gallery,
+   * whose demo rule ids are real ones. */
   rememberDecline?: boolean;
   className?: string;
 }
@@ -97,9 +72,7 @@ export function TuneRate({
   return (
     <div className={cn("flex flex-col gap-1", className)} data-tune-rate={stat.ruleId}>
       {share === null ? (
-        // Fired, but the operator has not finished with any of them. An empty
-        // track here would read as a measured 0% — a rule this page has cleared
-        // — which is the one thing the store cannot say yet.
+        // Fired, none settled: an empty track would read as a measured 0%.
         <p
           className="flex items-center gap-1.5 text-xs leading-snug text-muted-foreground"
           data-tune-rate-state="unsettled"
@@ -110,11 +83,7 @@ export function TuneRate({
       ) : (
         <>
           <div className="flex items-center gap-2">
-            {/* THE PROPOSAL LINE IS DRAWN, NOT DESCRIBED (bead
-                `ro-ujb9.96.6.7`). A tick at the share the OS proposes tuning at
-                sits on the bar, so "is this rule over the line" is where the
-                amber ends relative to the mark — the sentence that used to
-                state the threshold under the proposal is the tick. */}
+            {/* The proposal line is a tick on the bar, not a sentence. */}
             <span className="relative flex w-full max-w-[7rem] items-center">
               <SegmentBar
                 ariaLabel={`${stat.tuned} of ${stat.settled} settled alerts from this rule were answered by tuning it`}
@@ -152,12 +121,7 @@ export function TuneRate({
         </>
       )}
 
-      {/* HOW MANY TIMES, once the store keeps a row per tune (bead `ro-6d1t`).
-          Every figure above counts ALERTS; this counts what the operator DID,
-          which is the question a rule that has been fiddled with repeatedly is
-          actually asking. Absent until the operator applies the migration, and
-          absent is `null` — a rule at zero prints nothing rather than a "0" that
-          would read the same on a store that cannot count. */}
+      {/* Every figure above counts alerts; this counts what the operator did. */}
       {stat.tunes > 0 ? (
         <p
           className="text-[11px] leading-snug tabular-nums text-muted-foreground"
@@ -168,11 +132,8 @@ export function TuneRate({
         </p>
       ) : null}
 
-      {/* Tuning does not close the firing, and a tuned alert the operator then
-          snoozed is parked rather than settled (`flag-open.ts`), so an answer
-          the operator has already given sits outside the rate until the alert
-          itself settles. Saying so beside the figure is the difference between a
-          quiet 0% and "you have tuned this three times this week". */}
+      {/* Tuning does not close the firing, so a tune already given sits
+          outside the rate until the alert itself settles. */}
       {stat.tunedOpen > 0 ? (
         <p
           className="text-[11px] leading-snug tabular-nums text-muted-foreground"
@@ -182,9 +143,7 @@ export function TuneRate({
         </p>
       ) : null}
 
-      {/* And what the OS makes of all that (bead `ro-bgny`). It sits UNDER the
-          figures rather than above them: the proposal is a reading of the
-          counts, and a reading that arrives before the evidence is an
+      {/* Under the figures: a reading that arrives before the evidence is an
           instruction. */}
       <TuneProposal
         facts={tuneProposal(stat)}
@@ -197,31 +156,21 @@ export function TuneRate({
   );
 }
 
-// --- THE OS PROPOSES, AND ONLY PROPOSES (bead `ro-bgny`) -------------------
+// --- the OS proposes, and only proposes ------------------------------------
 
 /** Where a declined proposal is remembered: rule id → the evidence it was
- * declined ON. Namespaced like every other desk key. */
+ * declined on. */
 const TUNE_PROPOSAL_NAME = "tune-proposal";
 export const TUNE_PROPOSAL_KEY = storageKey(TUNE_PROPOSAL_NAME);
 
-/**
- * A proposal is declined against the EVIDENCE, never forever.
- *
- * "Keep it as it is" is an answer about four tunes out of six, not about the
- * rule for all time — the eleventh alert is new evidence and deserves to be
- * asked about again. So the signature is the counts, and a proposal comes back
- * the moment they move.
- */
+/** A proposal is declined against the evidence, never forever: the signature
+ * is the counts, and a proposal comes back the moment they move. */
 function evidenceSignature(facts: TuneProposalFacts): string {
   return `${facts.tuned}/${facts.settled}`;
 }
 
-/**
- * Guarded like every other storage read on the desk (`useTheme`, the sidebar's
- * asset list): a private window or hand-edited JSON must leave the operator
- * with a working page. A decline that cannot be persisted simply shows again,
- * which is the safe direction — the durable answer is the task, or the tune.
- */
+/** A decline that cannot be read or persisted simply shows again, which is
+ * the safe direction. */
 function readDeclined(preferences: ReturnType<typeof useOwnerPreferences>): Record<string, string> {
   try {
     const raw = preferences.read(TUNE_PROPOSAL_NAME);
@@ -242,23 +191,14 @@ function writeDeclined(preferences: ReturnType<typeof useOwnerPreferences>, rule
       JSON.stringify({ ...readDeclined(preferences), [ruleId]: signature }),
     );
   } catch {
-    /* storage disabled or full — the proposal comes back, and that is fine */
+    /* storage disabled or full: the proposal comes back, and that is fine */
   }
 }
 
-/** The task the OS proposes filing, as data — the composer opens with this and
- * the operator still judges it (D19: the button replaces the paste, not the
- * judgment). It files against the OS's own project, because these three
- * settings are portfolio-wide and belong to no asset.
- *
- * WHICH PROJECT THAT IS COMES FROM THE STORE (bead `ro-ujb9.118`): `osAssetId`
- * is the `assets.is_os` row's id. Unknown (null), the prefill names no project
- * and the composer asks, rather than filing into an id the product guessed.
- *
- * THE BODY IS FACTS, ONE PER LINE (bead `ro-ujb9.96.6.7`). It used to be two
- * paragraphs the operator had to read in the composer before filing; the same
- * WHAT, WHY, WHERE and acceptance now arrive as labelled lines, the shape a
- * task body scans in — and every figure the paragraph carried is still here. */
+/** The task the OS proposes filing, as data the operator still judges in the
+ * composer. It files against the OS's own project (`osAssetId`, the
+ * `assets.is_os` row), because these settings belong to no asset; unknown,
+ * the prefill names no project and the composer asks. */
 export function tuneProposalTask(
   facts: TuneProposalFacts,
   windowDays: number,
@@ -287,48 +227,22 @@ export function tuneProposalTask(
 }
 
 export interface TuneProposalProps {
-  /** `null` — below the line, or too little settled to have an opinion —
-   * renders nothing at all. */
+  /** `null` (below the line, or too little settled) renders nothing at all. */
   facts: TuneProposalFacts | null;
   windowDays: number;
   onFileTask?: FileTaskButtonProps["onFile"];
   taskCapabilities?: FileTaskButtonProps["capabilities"];
-  /** Persist a decline across reloads. `false` keeps the gallery out of the
-   * operator's own storage — its demo rule ids are real ones. */
+  /** Persist a decline across reloads. `false` in the gallery. */
   remember?: boolean;
   className?: string;
 }
 
 /**
- * WHAT THE OS MAKES OF ITS OWN TELEMETRY — docs/15 flow E's "rules above ~40%
- * FP get auto-proposed for tuning", which was prose for as long as the doc has
- * existed (bead `ro-bgny`).
- *
- * IT LIVES INSIDE {@link TuneRate} AND NOWHERE ELSE, so it reaches both
- * surfaces a rule is looked at — `/settings#alert-rules` and the Tune panel on
- * the alert the rule just fired — from the one component that already holds the
- * counts it is derived from. A panel of its own would be a second place to
- * learn the same thing, and a third opinion about the same number.
- *
- * IT NEVER CHANGES A SETTING. Guardrail thresholds are operator-only and
- * forever-forbidden on the autonomy ladder (AGENTS.md), so crossing the line
- * produces a sentence, two answers, and no write. The sentence says so out
- * loud rather than leaving the operator to wonder what pressing something
- * would do.
- *
- * TWO ANSWERS, AND THEY ARE NOT SYMMETRIC. **File task** is the accept, and it
- * is the OS's own mechanism for a proposal somebody agreed to (D19): it opens
- * the shipped composer prefilled against NoticeOS itself, so the proposal
- * outlives the page instead of dying when the panel closes, and the operator
- * still edits and judges it. **Keep it as it is** is the decline, and it is
- * deliberately the weaker of the two — a per-viewer note against THIS evidence
- * rather than a record, so a rule the operator declined at 4-of-6 asks again at
- * 6-of-9. The durable answers are the task and the tune itself; a decline that
- * pretended to be either would be muting without a reason, which docs/15 flow E
- * says does not exist.
- *
- * WARN TONE, no new token and no new severity: a noisy rule is an ordinary
- * warning about the OS's own instruments.
+ * The OS's proposal to quieten a rule whose tune rate crossed the line. It
+ * never changes a setting: guardrail thresholds are operator-only, so it
+ * offers a sentence and two answers. File task is the accept and outlives the
+ * page; Keep it as it is is deliberately weaker, a per-viewer note against
+ * this evidence, so the rule asks again when the counts move.
  */
 export function TuneProposal({
   facts,
@@ -339,9 +253,8 @@ export function TuneProposal({
   className,
 }: TuneProposalProps) {
   const preferences = useOwnerPreferences();
-  // Storage is read at RENDER, not seeded into state: `facts` is null while the
-  // read is in flight on `/settings`, and a state seeded from that first render
-  // would forget a decline the moment the counts arrived.
+  // Storage is read at render, not seeded into state: `facts` is null while
+  // the read is in flight, and state seeded then would forget the decline.
   const [justDeclined, setJustDeclined] = useState<string | null>(null);
   if (facts === null) return null;
   const signature = evidenceSignature(facts);
@@ -360,8 +273,7 @@ export function TuneProposal({
       )}
       data-tune-proposal={facts.ruleId}
     >
-      {/* What the OS proposes and the line it crossed; the two buttons are the
-          whole of what it will do about it — nothing here changes a setting. */}
+      {/* Nothing here changes a setting. */}
       <p className="flex items-start gap-1.5 text-xs font-medium leading-snug text-warn">
         <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
         Proposed: make this rule quieter
@@ -393,9 +305,7 @@ export function TuneProposal({
   );
 }
 
-/** The accept, filed against the OS's own project as the store names it. Its
- * own component so the OS-asset read happens only where a proposal is drawn —
- * the same place the composer's task-lane read already does. */
+/** Its own component so the OS-asset read happens only where a proposal is drawn. */
 function TuneProposalFileTask({
   facts,
   windowDays,

@@ -156,15 +156,11 @@ describe('the research log — never buy the same answer twice', () => {
     });
   });
 
-  /**
-   * The correctness half of this bead, and of `ro-ukus` after it. Month-to-date
-   * spend summed `signal_dump_runs` alone, so it was an undercount by exactly
-   * the ad-hoc research nobody recorded — and the error ran in the dangerous
-   * direction: spend the gate could not see was spend it could not stop. The
-   * sum the gate now reads is the SAME body every desk meter reads
+  /** Month-to-date spend must count the ad-hoc research as well as the
+   * collected reports, or spend the gate cannot see is spend it cannot stop.
+   * The sum the gate reads is the same body every desk meter reads
    * (`loadMeteredDataSpend`), so the number that fails the portfolio closed is
-   * the number the operator is shown.
-   */
+   * the number the operator is shown. */
   describe('month-to-date spend', () => {
     const AT = '2026-09-15T10:00:00.000Z';
 
@@ -186,7 +182,7 @@ describe('the research log — never buy the same answer twice', () => {
       await insertReport('dfs-mp', 'meals.example', '2026-09-01T12:45:00.000Z', 1.1);
       await insertReport('dfs-nom', 'nosh.example', '2026-09-03T12:45:00.000Z', 0.4);
       await recordResearch(env.STORE, purchase({ costUsd: 0.24 }), NOW);
-      // Portfolio-level research names no property; db/0025 keeps that NULL
+      // Portfolio-level research names no property; the store keeps that NULL
       // rather than inventing an asset id, so the money is stated separately.
       await recordResearch(
         env.STORE,

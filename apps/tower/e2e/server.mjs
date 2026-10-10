@@ -11,31 +11,27 @@ import { journeyPostgres } from "./fixture-server.mjs";
 import { HANDLER_FAILURE_MARK, handlerFailureText } from "./handler-failure.mjs";
 
 // Before Vite or any fixture module loads: this process never reads the
-// operator's secrets files (ro-ujb9.81) or the checkout's config/ (ro-ujb9.89),
-// and never opens a socket to an owner port.
+// operator's secrets files or the checkout's config/, and never opens a
+// socket to an owner port.
 const isolation = installIsolationGuard();
 const root = fileURLToPath(new URL("../", import.meta.url));
 const port = Number(process.env.JOURNEY_PORT ?? 4187);
 if (!Number.isInteger(port) || port < 1024 || [5173, 8791, 3308].includes(port)) throw new Error("Unsafe journey port");
 let dispatch;
 let fixedNow;
-// The ingest modules the harness runs import this repo's own config files as
-// their compiled fallback copies, and so does the contract package the Worker
-// loads (`os-time-zone.ts` compiles `config/constants.json` in, bead
-// ro-ujb9.89). This process answers EVERY import of a repo config file, from
-// any module, with the fixture's synthetic documents instead, so nothing here
-// loads owner configuration, not even as a fallback nothing reads: the clock
-// the journeys run on is the fixture's own. A config file the fixture does not
-// hold fails the import, and a read that bypasses imports altogether is refused
-// by the isolation guard.
+// The ingest modules and the contract package import this repo's own config
+// files as their compiled fallback copies. This process answers every import
+// of a repo config file with the fixture's synthetic documents instead, so
+// nothing here loads owner configuration, not even as a fallback nothing
+// reads. A config file the fixture does not hold fails the import, and a read
+// that bypasses imports is refused by the isolation guard.
 const repoConfig = path.resolve(root, "../../config");
 const CONFIG_MODULE = "\0journey-config:";
 let syntheticConfig;
-// Through the shared test-server helper (bead ro-ujb9.192): its own Vite cache
-// in the OS temp dir, so runs and `pnpm dev` never invalidate each other's
-// optimized browser modules while one of them is loading a page, and a close
-// (a SIGTERM's included) that waits for the dependency optimizer, because a
-// server stopped while that was still bundling crashed or never exited.
+// Through the shared test-server helper: its own Vite cache in the OS temp
+// dir, so runs and `pnpm dev` never invalidate each other's optimized browser
+// modules, and a close (a SIGTERM's included) that waits for the dependency
+// optimizer.
 const vite = await createTestViteServer(createServer, {
   configFile: false, envDir: false, root,
   plugins: [{ name: "journey-synthetic-config", enforce: "pre",
@@ -53,11 +49,9 @@ const vite = await createTestViteServer(createServer, {
       return `export default ${JSON.stringify(syntheticConfig[file])};`;
     },
   }, { name: "isolated-journey-api", transformIndexHtml() {
-    // Every page runs at JOURNEY_NOW, unless the journey set its own clock
-    // (bead ro-r49j). Playwright installs page.clock before any page script as
-    // globalThis.__pwClock; this pin used to wrap that clock and win, so the
-    // Wall legibility journey drew Sep 6 and every card's reading out of date.
-    // That journey asserts the fixture's own date, so a renamed hook fails it.
+    // Every page runs at JOURNEY_NOW, unless the journey set its own clock:
+    // Playwright installs page.clock before any page script as
+    // globalThis.__pwClock, and that clock must win over this pin.
     return [{ tag: "script", injectTo: "head-prepend", children: `if (!globalThis.__pwClock) {
       const ActualDate = Date;
       globalThis.Date = class extends ActualDate {
@@ -88,8 +82,8 @@ globalThis.Date = class extends RealDate {
   static now() { return RealDate.parse(fixtures.JOURNEY_NOW); }
 };
 const { createJourneyHarness } = await vite.ssrLoadModule("/e2e/harness.ts");
-// The production ingest functions, unchanged: the harness runs them over a
-// its own Postgres copy of the run's throwaway cluster (epic ro-ujb9.76).
+// The production ingest functions, unchanged: the harness runs them over its
+// own Postgres copy of the run's throwaway cluster.
 const ingest = (file) => vite.ssrLoadModule(`/../../workers/ingest/src/${file}`);
 const { forgetConfigCache } = await ingest("config-store.ts");
 const { createAsset, moveAsset } = await ingest("asset-state.ts");
@@ -107,16 +101,16 @@ const { mediavineStatus, syncMediavine, disconnectMediavine } = await ingest("me
 const { probeCredential, discoverGoogleProperties } = await ingest("credential-probes.ts");
 const { beginGoogleOAuth, completeGoogleOAuth } = await ingest("google-oauth.ts");
 const { GOOGLE_OAUTH_REVOKED_MESSAGE } = await ingest("google-auth.ts");
-// A failure's own words, reached through the lane that writes them (epic
-// ro-ujb9.96.6): the notifier, the GA4 quota flag, the time-zone annotation,
-// the signal store's writer and the watch-window registration and sweep.
+// A failure's own words, reached through the lane that writes them: the
+// notifier, the GA4 quota flag, the time-zone annotation, the signal store's
+// writer and the watch-window registration and sweep.
 const { runNotifier } = await ingest("notifier.ts");
 const { recordGa4Quota } = await ingest("ga4-quota.ts");
 const { recordTimeZoneChange } = await ingest("time-zone-change.ts");
 const { recordSignalSuccess } = await ingest("signal-store.ts");
 const { writeWatchWindow } = await ingest("routes/watch-windows.ts");
 const { runWatchWindows } = await ingest("watch-windows.ts");
-// The nightly report fetch, whose failures keep their own records (bead ro-ujb9.220).
+// The nightly report fetch, whose failures keep their own records.
 const { runPullAdapter } = await ingest("pull.ts");
 const postgres = await journeyPostgres();
 // What a failure's words may never carry: this run's database password.
@@ -160,8 +154,7 @@ dispatch = async (req, res, next) => {
     res.end(Buffer.from(await response.arrayBuffer()));
   } catch (error) {
     // The reason, in the answer and on one marked line the runner attaches to
-    // the failing test (handler-failure.mjs, bead ro-ujb9.76.56); never an
-    // address or a password.
+    // the failing test (handler-failure.mjs); never an address or a password.
     const reason = handlerFailureText(error, secrets);
     console.error(`${HANDLER_FAILURE_MARK} ${req.method} ${pathname}: ${reason}`);
     if (!res.headersSent) { res.statusCode = 500; res.setHeader("content-type", "text/plain; charset=utf-8"); }

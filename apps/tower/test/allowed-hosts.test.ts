@@ -1,7 +1,7 @@
 // @vitest-environment node
-// The Tower answers on THIS installation's machine names (bead ro-ujb9.150):
-// the list comes from the machine at start, never from names written into the
-// product, and Vite's DNS-rebinding guard still refuses every other Host.
+// The Tower answers on this installation's machine names: the list comes from
+// the machine at start, never from names written into the product, and
+// Vite's DNS-rebinding guard still refuses every other Host.
 import { mkdtempSync, rmSync } from "node:fs";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
@@ -44,8 +44,7 @@ describe("Vite's host guard, given that list", () => {
 
   beforeAll(async () => {
     root = mkdtempSync(path.join(tmpdir(), "tower-hosts-"));
-    // The shared test-server helper: no page is loaded, so no optimizer
-    // (bead ro-ujb9.192).
+    // The shared test-server helper: no page is loaded, so no optimizer.
     server = await createTestViteServer(createServer, {
       configFile: false,
       root,

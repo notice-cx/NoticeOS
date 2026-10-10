@@ -9,8 +9,8 @@ export interface ProviderSites { provider: string; sites: SiteStatus[] }
 
 /**
  * The monitoring read as the shell's summaries count it (System health's status
- * cell, the Wall's warning), in the connection model's units (bead
- * `ro-ujb9.96.7.3`): a site failing or late now needs the operator; a report
+ * cell, the Wall's warning), in the connection model's units: a site failing
+ * or late now needs the operator; a report
  * date missing from an old outage is a fact on its site, not an incident.
  */
 export interface IntegrationStatus {

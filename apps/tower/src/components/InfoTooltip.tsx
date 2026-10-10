@@ -58,12 +58,8 @@ export function InfoTooltip({ label, children, trigger, className }: InfoTooltip
       if (!button.current?.contains(event.target) && !panel.current?.contains(event.target)) close();
     };
     const key = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
-    /* A SCROLL MOVES THE PANEL, IT DOES NOT CLOSE IT (bead `ro-ujb9.14`).
-       Tabbing to a trigger below the fold scrolls it into view, and that
-       scroll used to close the explanation the focus had just opened — so a
-       keyboard never saw one past the first screen, and a phone lost it the
-       moment the reader scrolled. The panel now follows its trigger; Escape,
-       a press outside and focus leaving still close it. */
+    // A scroll moves the panel rather than closing it: tabbing to a trigger
+    // below the fold scrolls, and must not close what focus just opened.
     const scroll = () => setScrolled((count) => count + 1);
     document.addEventListener("pointerdown", outside, true);
     document.addEventListener("focusin", outside, true);

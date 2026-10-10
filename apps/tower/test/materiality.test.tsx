@@ -102,8 +102,8 @@ const system: SystemData = {
   ],
 };
 
-/** D15 moved this condition's Wall home to the attention rail: one expandable
- * row that owns the fact, while SYSTEM keeps its posture and drops the count. */
+/** This condition's Wall home is the attention rail: one expandable row that
+ * owns the fact, while SYSTEM keeps its posture and drops the count. */
 const neverReportedAttention: AttentionItem = {
   id: 21,
   asset: "fees.example",
@@ -140,12 +140,11 @@ const rollbackAttention: AttentionItem = {
   firstFiredAt: RECENT,
 };
 
-/** The Wall's widgets since D28 (docs/14-design.md § Regions, bead
- * `ro-trai.11`): every Wall destination is one of them or not-applicable. */
+/** The Wall's widgets: every Wall destination is one of them or not-applicable. */
 const D28_WIDGETS = ["WallStrip", "RevenueHero", "NeedsYou", "SiteRows", "WallFeed"];
 
-describe("the Wall's destinations under D28 (ro-trai.11)", () => {
-  it("names a D28 widget for every condition the Wall shows, and a reason for each it does not", () => {
+describe("the Wall's destinations", () => {
+  it("names a Wall widget for every condition the Wall shows, and a reason for each it does not", () => {
     for (const condition of MATERIAL_CONDITIONS) {
       const wall = MATERIALITY[condition].wall;
       if (wall.placement === "not-applicable") {
@@ -168,8 +167,8 @@ describe("the Wall's destinations under D28 (ro-trai.11)", () => {
       "budget-guardrail": "NeedsYou",
       "human-gates": "NeedsYou",
       "active-changes": "not-applicable",
-      // The asset card's bet line has not been drawn since 3997151a; D28 took
-      // the card, and a watch that closes badly is rollback-failure.
+      // The asset card's bet line is not drawn, and a watch that closes badly
+      // is rollback-failure.
       "outcome-watches": "not-applicable",
       "rollback-failure": "NeedsYou",
     });

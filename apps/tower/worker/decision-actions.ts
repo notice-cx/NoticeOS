@@ -1,6 +1,6 @@
-// The operator's dismissal or acceptance of one item on a site's page, on
-// Postgres as `noticeos.item_dispositions` (bead ro-ujb9.76.5.8): display
-// state, keyed by the item's own text key, never joined to anything.
+// The operator's dismissal or acceptance of one item on a site's page
+// (`noticeos.item_dispositions`): display state, keyed by the item's own text
+// key, never joined to anything.
 
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import { recordMutation, type MutationActor } from "@noticeos/postgres/mutation-audit";
@@ -11,24 +11,14 @@ import type {
 } from "../shared/asset-detail";
 
 export const DECISION_KINDS: readonly DecisionKind[] = ["query", "finding"];
-/**
- * The whole write vocabulary, and the whole read vocabulary.
- *
- * `handed_off` is deliberately absent (bead `ro-5e8.3`): the query row's filing
- * marker is now the bead the register actually holds, so a status meaning "the
- * operator copied this" would be a second, weaker claim about the same fact. The
- * route answers a `handed_off` write with the ordinary `status` validation
- * error, which is what "no longer written" has to mean at an HTTP boundary; since
- * `db/0021` the CHECK refuses it too, so the 422 is a courtesy rather than the
- * only thing standing between the value and the table.
- */
+/** The whole write vocabulary, and the whole read vocabulary. */
 export const DECISION_STATUSES: readonly DecisionStatus[] = [
   "marked",
   "dismissed",
 ];
 
-/** db/0013 CHECK bounds, mirrored so the route rejects an over-long key with a
- * validation error rather than a 500 from the constraint. */
+/** The column's CHECK bounds, mirrored so the route rejects an over-long key
+ * with a validation error rather than a 500 from the constraint. */
 export const DECISION_KEY_MAX = 512;
 export const DECISION_NOTE_MAX = 2000;
 
@@ -144,16 +134,9 @@ export async function clearDecision(
 }
 
 /**
- * Every decision recorded for one asset, newest activity first.
- *
- * Filtered to the CURRENT vocabulary rather than selecting the column raw. This
- * began as the only defence: `handed_off` rows an older Tower wrote outlived the
- * retirement, and serving them would have put back exactly the self-report
- * `ro-5e8.3` removed. `db/0021` has since deleted those rows and narrowed the
- * CHECK, so the filter is now belt to the store's braces — kept because the list
- * is bound from `DECISION_STATUSES`, which makes the read provably the same
- * vocabulary the route accepts however that vocabulary next changes. Ties keep
- * D1's order: the key byte by byte, then the order the rows were written.
+ * Every decision recorded for one asset, newest activity first, filtered to
+ * `DECISION_STATUSES` so the read is the vocabulary the route accepts. Ties:
+ * the key byte by byte, then the order the rows were written.
  */
 export async function loadDecisions(
   store: WorkspaceStore,

@@ -66,7 +66,7 @@ async function observe(
 ): Promise<void> {
   const runId = crypto.randomUUID();
   const dates = Object.keys(values).sort();
-  // On Postgres, where the collectors write them (bead ro-ujb9.76.5.3).
+  // On Postgres, where the collectors write them.
   await storeSignalRun(
     {
       id: runId,
@@ -91,7 +91,7 @@ async function observeClicks(baseline: number, post: number, end = '2026-07-08')
   await observe('meals.example', 'gsc', 'clicks', values);
 }
 
-/** Archive one provider-final GSC query day through the real R2/D1 shape. */
+/** Archive one provider-final GSC query day through the real archive shape. */
 async function archiveQueryDay(
   date: string,
   rows: { query: string; clicks: number; impressions?: number; ctr?: number; position?: number }[],
@@ -288,8 +288,8 @@ interface StoredWindow extends Record<string, unknown> {
   readings_json: string;
 }
 
-/** A window as the store holds it (on Postgres, bead ro-ujb9.76.5.7): its
- * readings, one row per offset, gathered in offset order. */
+/** A window as the store holds it: its readings, one row per offset, gathered
+ * in offset order. */
 async function storedWindow(id: string): Promise<StoredWindow> {
   const [row] = await pgRows<StoredWindow>(
     `SELECT w.status, w.outcome, w.outcome_note, w.closed_at, w.last_checked_at,
@@ -318,11 +318,8 @@ type StoredFlag = {
   rule_inputs: string;
 };
 
-/**
- * Make the store refuse every closing window's flag, as the owner: a trigger
- * on the test's own copy (bead ro-ujb9.76.5.7), the Postgres form of the D1
- * trigger this file used to add. `asset` narrows it to one site.
- */
+/** Make the store refuse every closing window's flag, as the owner: a trigger
+ * on the test's own copy. `asset` narrows it to one site. */
 async function refuseWindowFlags(asset?: string): Promise<void> {
   await asOwner(`CREATE FUNCTION noticeos.refuse_window_flag() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN RAISE EXCEPTION 'window flag refused'; END $$;
@@ -487,9 +484,8 @@ describe('POST /api/watch-windows — registration', () => {
     expect(await pgCount(`SELECT COUNT(*) AS n FROM noticeos.watch_windows`)).toBe(1);
   });
 
-  // Postgres runs two writers side by side, where D1 ran one statement at a
-  // time: the read and the insert hold the bet (bead ro-ujb9.76.5.7), so a
-  // freeze register synced twice at once still holds the bet once.
+  // Postgres runs two writers side by side: the read and the insert hold the
+  // bet, so a freeze register synced twice at once still holds the bet once.
   it('registers the same bet once when it arrives several times at once', async () => {
     const results = await Promise.all(
       Array.from({ length: 6 }, () => writeWatchWindow(env, registration() as unknown as CreateWatchWindowInput)),
@@ -517,8 +513,8 @@ describe('POST /api/watch-windows — registration', () => {
   });
 
   it('refuses an average metric with no scope, and takes the same bet scoped', async () => {
-    // ro-715c: average position is taken over whatever the property appeared
-    // for, so a property-wide window reads the query mix as much as the change.
+    // Average position is taken over whatever the property appeared for, so a
+    // property-wide window reads the query mix as much as the change.
     const wide = await call(
       watchRequest(
         registration({ metric: 'position', thresholds: {
@@ -531,7 +527,7 @@ describe('POST /api/watch-windows — registration', () => {
     expect(wide.status).toBe(422);
     const body = (await wide.json()) as { issues: { path: string; message: string }[] };
     expect(body.issues.map((issue) => issue.path)).toContain('scope');
-    // The field and what it needs, in one line (bead ro-ujb9.96.6.28).
+    // The field and what it needs, in one line.
     expect(body.issues.find((issue) => issue.path === 'scope')?.message).toBe('gsc/position needs one query or page');
 
     const scoped = await call(
@@ -602,11 +598,11 @@ describe('POST /api/watch-windows — registration', () => {
   });
 });
 
-// The Tower's door onto the same writer (bead `ro-71r`). The Tower is served
-// unauthenticated on the LAN and must never hold the operator bearer, so it
-// reaches this write over the private Service Binding — where the binding is
-// the capability. What these assert is that the second door is not a softer
-// one: the rules a curl hits are the rules the UI hits.
+// The Tower's door onto the same writer. The Tower is served unauthenticated
+// on the LAN and must never hold the operator bearer, so it reaches this write
+// over the private Service Binding — where the binding is the capability. The
+// second door is not a softer one: the rules a curl hits are the rules the UI
+// hits.
 describe('createWatchWindow() — the Tower Service Binding', () => {
   it('registers without a bearer, because the binding IS the capability', async () => {
     const result = await worker().createWatchWindow({
@@ -683,10 +679,9 @@ describe('createWatchWindow() — the Tower Service Binding', () => {
     ).sort();
     expect(offered).toEqual(evaluable);
 
-    // And they must agree on HOW each series collapses: `aggregation` is what
-    // decides whether a series may be registered property-wide at all, so a
-    // contract that called `position` a sum would re-open exactly the hole
-    // ro-715c closed.
+    // And they must agree on how each series collapses: `aggregation` decides
+    // whether a series may be registered property-wide at all, so a contract
+    // that called `position` a sum would let an average be bet on property-wide.
     for (const series of WATCH_SERIES) {
       expect(series.aggregation).toBe(WATCH_METRICS[series.integration][series.metric]);
     }
@@ -702,10 +697,10 @@ describe('createWatchWindow() — the Tower Service Binding', () => {
 
   it('agrees with the contract about how full a window has to be to be judged', () => {
     // The Tower calibrates a registration's threshold from this property's own
-    // history (bead `ro-5e8.2`) and has to skip exactly the stretches THIS
-    // evaluator would close `unmeasurable`, or the noise floor it reports is
-    // measured over comparisons that never happen. The constant is stated once
-    // in the contract; this pins the evaluator's own copy to it.
+    // history and has to skip exactly the stretches this evaluator would close
+    // `unmeasurable`, or the noise floor it reports is measured over
+    // comparisons that never happen. The constant is stated once in the
+    // contract; this pins the evaluator's own copy to it.
     expect(MIN_WINDOW_COVERAGE).toBe(WATCH_MIN_WINDOW_COVERAGE);
   });
 
@@ -801,12 +796,9 @@ describe('watch-window evaluation — outcomes', () => {
     expect((inputs.reading as WatchReading).baseline?.per_day).toBe(10);
   });
 
-  // The second verdict a property ever reaches is the one that used to die.
-  // The dedupe guard asked `rule_inputs LIKE '%"watchWindowId":"<uuid>"%'` — 56
-  // characters against a 50-character ceiling — but the comparison only runs
-  // once some row matches asset AND rule_id. So the first close on a property
-  // sailed over an empty scan, and every close after it threw "LIKE or GLOB
-  // pattern too complex", nightly, into a lane that logged nothing (ro-5tqk).
+  // The second verdict a property ever reaches: the dedupe guard only compares
+  // once some row matches asset and rule_id, so the first close on a property
+  // never exercises it.
   it('files a verdict for a property that already has one on file', async () => {
     await observeClicks(10, 13);
     await insertFlag({
@@ -827,11 +819,10 @@ describe('watch-window evaluation — outcomes', () => {
     expect(await closedFlags()).toHaveLength(2);
   });
 
-  // One transaction, as the D1 batch was (bead ro-ujb9.76.5.7): the close,
-  // the readings it took, then the flag. The store refuses the flag, the last
-  // write: the close and the readings before it are undone with it, so the
-  // window is still open and unread, and the next sweep closes it and files
-  // its verdict once.
+  // One transaction: the close, the readings it took, then the flag. The store
+  // refuses the flag, the last write: the close and the readings before it are
+  // undone with it, so the window is still open and unread, and the next sweep
+  // closes it and files its verdict once.
   it('undoes the close when its flag is refused, and closes it with one flag on the next sweep', async () => {
     await observeClicks(10, 13);
     const id = await register();
@@ -898,8 +889,8 @@ describe('watch-window evaluation — outcomes', () => {
 
     const result = await runWatchWindows(env, FINAL_RUN_MS);
     expect(result.closed[0]).toMatchObject({ outcome: 'ship_confirmed' });
-    // The evaluator's figures and nothing else (bead ro-ujb9.96.6.30): the
-    // series, scope and offset are the row's own title on the Activity tab.
+    // The evaluator's figures and nothing else: the series, scope and offset
+    // are the row's own title on the Activity tab.
     expect(result.closed[0]?.note).toBe('13/day vs baseline 10/day (+30%)');
     // The flag is read without its row, so its statistics line still says
     // which series, which scope and which check.
@@ -1092,8 +1083,7 @@ describe('watch-window evaluation — outcomes', () => {
 
   // A window whose evaluation throws must not cost the other windows their
   // check. The store refuses one registered_at that is not an instant, so the
-  // throw is the store refusing the broken window's close (bead
-  // ro-ujb9.76.5.7).
+  // throw is the store refusing the broken window's close.
   it('isolates a window whose own evaluation throws', async () => {
     await observeClicks(10, 13);
     const healthy = await register();
@@ -1124,8 +1114,8 @@ describe('watch-window evaluation — outcomes', () => {
   });
 });
 
-// A comparison is only honest inside one measurement series (ro-ujb9.70). An
-// asset repointed at another GSC site or GA4 property is measuring a different
+// A comparison is only honest inside one measurement series. An asset
+// repointed at another GSC site or GA4 property is measuring a different
 // resource, and the evaluator must refuse to subtract one from the other.
 describe('watch-window evaluation — one provider resource per comparison', () => {
   const OLD_SITE = 'sc-domain:meals.example';
@@ -1155,9 +1145,9 @@ describe('watch-window evaluation — one provider resource per comparison', () 
   }
 
   it('closes unmeasurable when the post window was measured on a different property', async () => {
-    // EQUAL values on purpose: before the fix the new site's 10s were
-    // suppressed as "unchanged" against the old site's 10s, the post window
-    // silently read the old site, and this closed as a like-for-like 0%.
+    // Equal values on purpose: suppressed as "unchanged" against the old
+    // site's 10s, the post window would silently read the old site and close
+    // as a like-for-like 0%.
     await collect(OLD_SITE, { start: BASELINE_START, end: '2026-07-08' }, () => 10);
     await collect(NEW_SITE, { start: '2026-07-02', end: '2026-07-08' }, () => 10);
     const id = await register();
@@ -1252,8 +1242,7 @@ describe("watch-window evaluation — the sweep's own report", () => {
     expect(event.errors.map((entry) => entry.id)).toEqual(['broken']);
     expect(event.closed[0]?.outcome).toBe('ship_confirmed');
     // The window that threw is past its final check and unanswered, so it is
-    // overdue as well. (D1 could hold a row too malformed to date, which was
-    // neither; Postgres holds no such row.)
+    // overdue as well.
     expect(event.overdue).toEqual(['broken']);
   });
 

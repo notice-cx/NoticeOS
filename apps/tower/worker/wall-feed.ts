@@ -1,30 +1,17 @@
 import { minorToMajorUnits } from '@noticeos/contract/money';
-// GET /api/wall/feed — what just happened, across the store (bead `ro-trai.6`,
-// docs/14-design.md § Feed).
+// GET /api/wall/feed — what just happened, across the store: a read-only
+// union of stored events. Nothing is inferred; an empty window is an empty
+// feed. Every statement reads only the window (6 PM yesterday in the OS time
+// zone) through an index and carries a row cap; the per-asset reads are
+// driven from the small `assets` registry so each asset seeks its own
+// `(asset, time)` range. `test/wall-feed.test.ts` asserts every plan.
 //
-// A READ-ONLY UNION OF STORED EVENTS. Every line below comes from a row with a
-// timestamp: an alert that fired, a run that finished, a report that landed, a
-// task the hub photographed closing. Nothing is inferred and nothing is made up
-// to look busy — an empty window is an empty feed.
-//
-// BOUNDED TWICE. Every statement reads only the window (6 PM yesterday in the
-// OS time zone, never earlier) through an index, and carries a row cap. The
-// event tables are only ever SEARCHed: the per-asset reads are driven from the
-// small `assets` registry (`CROSS JOIN` keeps that order, so each asset seeks
-// its own `(asset, time)` range), and the tables with no time index are
-// read as their newest rows by rowid. `test/wall-feed.test.ts` asserts every
-// plan. No migration: the indexes are the ones the brief names.
-//
-// FOLDING, in this order:
-// 1. collections fold per provider per run, and only a provider's newest run
-//    is a line ("Google · 5 sites, none failed");
-// 2. revenue folds per report day, nightly reports per night, spend per
-//    provider per run, insight refreshes per run, and the OS's own successful
-//    deploys into one line for the whole window (bead ro-trai.38);
-// 3. consecutive foldable lines of the same kind within 15 minutes fold
-//    with a count. Created and completed tasks keep their individual titles.
-// A failure never folds into a success and is never superseded: every failed
-// collection, job and source is its own event.
+// Folding, in this order: collections fold per provider per run, and only a
+// provider's newest run is a line; revenue folds per report day, nightly
+// reports per night, spend per provider per run, insight refreshes per run,
+// and the OS's own successful deploys into one line for the whole window;
+// consecutive foldable lines of the same kind within 15 minutes fold with a
+// count. A failure never folds into a success and is never superseded.
 
 import { javascriptInstant, type SqlValue, type WorkspaceStore } from "@noticeos/postgres";
 import { readSites } from "./asset-registry";
@@ -62,12 +49,10 @@ export const FEED_SNAPSHOT_STEP_MINUTES = 15;
 const RUN_START_SLACK_MS = 2 * 86_400_000;
 
 // ─── the statements ─────────────────────────────────────────────────────────
-// Postgres positional parameters, exercised by the real-store fixtures.
 
-/** On Postgres (bead ro-ujb9.76.5.2): each site's alerts through its (site,
- * fired_at) index — the registry first, then one bounded seek per site, as
- * D1's CROSS JOIN ordered it — every alert as its newest reading states it and
- * known by its workspace number, never one a same-day report retry replaced. */
+/** Each site's alerts through its (site, fired_at) index — the registry
+ * first, then one bounded seek per site — every alert as its newest reading
+ * states it, never one a same-day report retry replaced. */
 export const FEED_FLAGS_FIRED_SQL = `SELECT f.flag_number::int AS id, a.asset_id AS asset, f.fired_at AS at, f.severity, f.metric, f.message,
        f.rule_id AS "ruleId", f.rule_inputs::text AS "ruleInputs"
   FROM noticeos.assets a
@@ -95,10 +80,9 @@ export const FEED_FLAGS_RESOLVED_SQL = `SELECT f.flag_number::int AS id, a.asset
          LIMIT $2) f
  ORDER BY f.resolved_at DESC LIMIT $2`;
 
-/** Transitions only (failed, changed, recovered): the store records one when a
- * source's state moves, not on every attempt. On Postgres since bead
- * ro-ujb9.76.5.6: the window's newest through the (workspace, recorded time)
- * index, each with the target it is about. */
+/** Transitions only (failed, changed, recovered): the store records one when
+ * a source's state moves, not on every attempt. The window's newest through
+ * the (workspace, recorded time) index, each with the target it is about. */
 export const FEED_HEALTH_SQL = `SELECT e.event_id AS "eventId", t.provider, t.capability, t.asset_id AS asset, e.recorded_at AS at,
        e.kind, e.failure_kind AS "failureKind", e.evidence_source AS "evidenceSource", e.evidence_id AS "evidenceId"
   FROM noticeos.integration_health_events e
@@ -106,12 +90,10 @@ export const FEED_HEALTH_SQL = `SELECT e.event_id AS "eventId", t.provider, t.ca
  WHERE e.recorded_at >= $1::timestamptz
  ORDER BY e.recorded_at DESC LIMIT $2`;
 
-/** On Postgres since collected metrics moved (bead ro-ujb9.76.5.3), like the
- * one below: driven from the site list, each site's lane seeking its newest
- * runs down the runs' (site, lane, finish) index — a LATERAL read per lane keeps
- * that order, as CROSS JOIN kept it on D1. Runs that finished in the same
- * instant come in the order they were written, as D1 returned them. A run is
- * named by its own id. */
+/** Driven from the site list, each site's lane seeking its newest runs down
+ * the runs' (site, lane, finish) index; a LATERAL read per lane keeps that
+ * order. Runs that finished in the same instant come in the order they were
+ * written. */
 export const FEED_SIGNAL_FAILURES_SQL = `SELECT r.run_id AS id, r.asset_id AS asset, r.integration, r.finished_at AS at
   FROM noticeos.assets a
  CROSS JOIN (VALUES ('ga4'), ('gsc'), ('bing-webmaster')) AS lanes(integration)
@@ -125,9 +107,8 @@ export const FEED_SIGNAL_FAILURES_SQL = `SELECT r.run_id AS id, r.asset_id AS as
         LIMIT $2) r
  ORDER BY r.finished_at DESC, r.run_seq LIMIT $2`;
 
-/** A site's newest successful run per integration: the 15-minute refresh
- * writes one every quarter hour, and only the newest says anything; of two
- * that finished in the same instant, the one written first, as D1 kept it. */
+/** A site's newest successful run per integration: only the newest says
+ * anything; of two that finished in the same instant, the one written first. */
 export const FEED_SIGNAL_LATEST_SQL = `SELECT r.asset_id AS asset, r.integration, r.finished_at AS at, r.run_id AS id
   FROM noticeos.assets a
  CROSS JOIN (VALUES ('ga4'), ('gsc'), ('bing-webmaster')) AS lanes(integration)
@@ -141,10 +122,9 @@ export const FEED_SIGNAL_LATEST_SQL = `SELECT r.asset_id AS asset, r.integration
         LIMIT 1) r
  ORDER BY r.asset_id COLLATE "C", r.integration COLLATE "C"`;
 
-/** On Postgres since provider reports moved (bead ro-ujb9.76.5.4): each lane's
- * runs asked since the run-start slack, one seek per lane down the runs'
- * (lane, asked) index, a run named by its own id; two finished in one instant,
- * the later written first. An unknown price is no spend. */
+/** Each lane's runs asked since the run-start slack, one seek per lane down
+ * the runs' (lane, asked) index; two finished in one instant, the later
+ * written first. An unknown price is no spend. */
 export const FEED_DUMPS_SQL = `SELECT d.run_id AS id, d.asset_id AS asset, d.integration, d.report, d.finished_at AS at, d.status,
        COALESCE(d.cost_usd, 0)::float8 AS "costUsd"
   FROM (VALUES ('ga4'), ('gsc'), ('bing-webmaster'), ('dataforseo'), ('clarity'), ('posthog')) AS lanes(integration)
@@ -157,9 +137,8 @@ export const FEED_DUMPS_SQL = `SELECT d.run_id AS id, d.asset_id AS asset, d.int
         LIMIT $3) d
  ORDER BY d.finished_at DESC, d.run_seq DESC LIMIT $3`;
 
-/** On Postgres since the Mediavine unit moved (bead ro-ujb9.76.5.5), driven
- * from the site list so each site seeks its own (site, time) range. A run is
- * known by its own text id, the one its health event names. */
+/** Driven from the site list so each site seeks its own (site, time) range.
+ * A run is known by its own text id, the one its health event names. */
 export const FEED_MEDIAVINE_RUNS_SQL = `SELECT m.run_id AS id, m.asset_id AS asset, m.attempted_at AS at, m.outcome
   FROM noticeos.assets a
   JOIN noticeos.mediavine_runs m
@@ -178,9 +157,8 @@ export const FEED_REVENUE_SQL = `SELECT d.daily_number AS id, m.asset_id AS asse
                          WHERE x.workspace_id = m.workspace_id AND x.run_seq = m.run_seq)
  ORDER BY d.recorded_at DESC, d.daily_id DESC LIMIT $2`;
 
-/** On Postgres since bead ro-ujb9.76.5.8: each site's checks since the
- * window's first day through the (site, check, day) index. A reading is known
- * by its workspace's number; readings of one instant, newest written first. */
+/** Each site's checks since the window's first day through the (site, check,
+ * day) index; readings of one instant, newest written first. */
 export const FEED_HYGIENE_SQL = `SELECT h.reading_number::text AS id, h.asset_id AS asset, h.observed_at AS at
   FROM noticeos.assets a
   JOIN noticeos.hygiene_checks h
@@ -192,8 +170,7 @@ export const FEED_HYGIENE_SQL = `SELECT h.reading_number::text AS id, h.asset_id
 
 /** Money booked: the newest `FEED_TAIL_ROWS` entries by the workspace's own
  * number (the ledger keeps no time index), read down its (workspace, number)
- * index. A change entry names no money (D36), and an entry is known by its
- * number. */
+ * index. A change entry names no money. */
 export const FEED_LEDGER_SQL = `SELECT l.entry_number AS id, l.kind, l.asset_id AS asset, to_char(l.period_month, 'YYYY-MM') AS period,
        l.family, l.currency, l.amount_minor AS "amountMinor", l.recorded_at AS at
   FROM (SELECT * FROM noticeos.ledger_entries ORDER BY entry_number DESC LIMIT $1) l
@@ -230,8 +207,7 @@ export const FEED_INSIGHTS_SQL = `SELECT a.asset_id AS asset, p.snapshot_id AS i
  ORDER BY a.asset_id COLLATE "C", p.generated_at DESC`;
 
 /** Each site's reports through its (site, received_at) index, one bounded
- * seek per site: a day's newest revision, numbered by the day (bead
- * ro-ujb9.76.5.2). */
+ * seek per site: a day's newest revision, numbered by the day. */
 export const FEED_PULSES_SQL = `SELECT p.day_number::int AS id, a.asset_id AS asset, p.pulse_date::text AS date, p.received_at AS at
   FROM noticeos.assets a
   CROSS JOIN LATERAL (
@@ -243,8 +219,7 @@ export const FEED_PULSES_SQL = `SELECT p.day_number::int AS id, a.asset_id AS as
  ORDER BY p.received_at DESC LIMIT $2`;
 
 /** Each site's changes through its (site, time) index, one bounded seek per
- * site (bead ro-ujb9.76.5.7). A change is known by its workspace's number;
- * two at one instant, newest filed first. */
+ * site; two at one instant, newest filed first. */
 export const FEED_ANNOTATIONS_SQL = `SELECT n.annotation_number::int AS id, a.asset_id AS asset, n.at, n.kind, n.ref, n.note
   FROM noticeos.assets a
   CROSS JOIN LATERAL (
@@ -255,40 +230,33 @@ export const FEED_ANNOTATIONS_SQL = `SELECT n.annotation_number::int AS id, a.as
          LIMIT $2) n
  ORDER BY n.at DESC, n.annotation_number DESC LIMIT $2`;
 
-/** On Postgres since the config store moved (bead ro-ujb9.76.4.1): the
- * documents registry, then each document's changes through its (document,
- * time) index. A change's number is its workspace's, never the table's own
- * identity. */
+/** The documents registry, then each document's changes through its
+ * (document, time) index. */
 export const FEED_CONFIG_SQL = `SELECT c.change_number::text AS id, c.document_key AS "documentKey", c.reason, c.changed_at AS at
   FROM noticeos.config_documents cd
   JOIN noticeos.config_changes c
     ON c.workspace_id = cd.workspace_id AND c.document_key = cd.document_key AND c.changed_at >= $1::timestamptz
  ORDER BY c.changed_at DESC LIMIT $2`;
 
-/** On Postgres since bead ro-ujb9.76.4.3: the window's failed firings
- * through the (workspace, start) index, a firing known by its workspace's
- * number; two finished at one instant, the later recorded first. */
+/** The window's failed firings through the (workspace, start) index; two
+ * finished at one instant, the later recorded first. */
 export const FEED_JOBS_SQL = `SELECT j.job_run_number::text AS id, j.job, j.finished_at AS at
   FROM noticeos.job_runs j
  WHERE j.started_at >= $1::timestamptz AND j.finished_at >= $2::timestamptz AND j.outcome = 'failed'
  ORDER BY j.finished_at DESC, j.job_run_id DESC LIMIT $3`;
 
 /**
- * Tasks done and tasks filed, from the hub's photographs. The table keeps a
- * photograph only when the board changed; this reads the one in force at every
+ * Tasks done and tasks filed, from the hub's snapshots. The table keeps a
+ * snapshot only when the board changed; this reads the one in force at every
  * quarter hour of the window (and so the newest), each an index seek, and
- * unrolls only the two lists: `recentlyClosed` by `closedAt`, and
- * `recentlyCreated` by `createdAt` (bead `ro-trai.7`; absent from an older
- * poller's photographs, which then simply file no new tasks). The same bead in
- * several photographs is one event: the oldest photograph's line is kept.
- * Deduplicate before taking the newest events up to the source cap; repeated
- * early photographs must not crowd later work out of the feed (ro-kl1m).
- * The store keeps two days of photographs, older ones holding
- * only these two lists (`BEADS_SNAPSHOT_RETENTION_DAYS`, `supersededPayload`,
- * workers/ingest/src/beads-snapshots.ts), which covers this window's farthest
- * reach; keep the two in step. On Postgres since bead ro-ujb9.76.4.3; an
- * item's time is the text the writer stored (`toISOString`), compared byte by
- * byte as D1 compared it.
+ * unrolls only `recentlyClosed` by `closedAt` and `recentlyCreated` by
+ * `createdAt` (absent from an older poller's snapshots). The same task in
+ * several snapshots is one event: the oldest snapshot's line is kept, and the
+ * deduplication happens before the source cap so repeated early snapshots
+ * cannot crowd later work out. The store keeps two days of snapshots
+ * (`BEADS_SNAPSHOT_RETENTION_DAYS`, workers/ingest/src/beads-snapshots.ts),
+ * which covers this window's farthest reach; keep the two in step. An item's
+ * time is the text the writer stored (`toISOString`), compared byte by byte.
  */
 export const FEED_TASKS_SQL = `WITH RECURSIVE ticks(t) AS (
     SELECT $1::timestamptz
@@ -347,7 +315,7 @@ interface FeedEvent {
 const ms = (iso: string): number => Date.parse(iso);
 
 /** Any other noun's count. A count of sites goes through `siteCount`
- * (shared/site-noun.ts), the one way the Tower writes it (bead ro-ujb9.155). */
+ * (shared/site-noun.ts). */
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 const across = (text: string, sites: number) => (sites > 1 ? `${text} across ${siteCount(sites)}` : text);
@@ -722,9 +690,8 @@ export interface WallFeedDeps {
   limit?: number | null;
 }
 
-/** Mediavine attempts, revenue days and money booked since `since`, from the
- * call's store (beads ro-ujb9.76.5.5, ro-ujb9.76.6.1): one read, instants as
- * JavaScript writes them, cents and numbers as exact numbers. */
+/** Mediavine attempts, revenue days and money booked since `since`: one read,
+ * instants as JavaScript writes them, cents and numbers as exact numbers. */
 async function moneyRows(
   store: WorkspaceStore,
   since: string,
@@ -745,8 +712,7 @@ async function moneyRows(
   };
 }
 
-/** Rows of a statement on this call's Postgres store, each `at` in the form
- * JavaScript writes. */
+/** Rows of a statement, each `at` in the form JavaScript writes. */
 async function storeRows<T extends { at: string }>(
   store: WorkspaceStore,
   sql: string,
@@ -797,8 +763,7 @@ const EVIDENCE_LINE: Readonly<Record<string, string>> = {
   mediavine_runs: "mediavine_runs",
 };
 
-/** The feed, every source read from this call's Postgres store (the last off
- * D1 moved with provider reports, bead ro-ujb9.76.5.4). */
+/** The feed, every source read from this call's store. */
 export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): Promise<WallFeedPayload> {
   const nowIso = deps.now.toISOString();
   const windowStart = feedWindowStart(deps.now, deps.osTimeZone);
@@ -826,7 +791,6 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
     jobs,
     tasks,
   ] = await Promise.all([
-    // Every event reader and the site list share the call's workspace store.
     readSites(store),
     storeRows<FlagRow>(store, FEED_FLAGS_FIRED_SQL, since, cap),
     storeRows<FlagRow>(store, FEED_FLAGS_RESOLVED_SQL, since, cap),
@@ -1072,12 +1036,11 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
   // Deploys and other recorded changes.
   const osDeploys: AnnotationRow[] = [];
   for (const row of annotations) {
-    // The OS's own moves (bead ro-trai.8) carry one of three fixed notes: a
-    // rollback and a failed deploy are each their own line, never folded, and
-    // a failure wears the failure tone.
+    // The OS's own moves carry one of three fixed notes: a rollback and a
+    // failed deploy are each their own line, never folded.
     const osMove = row.kind === "deploy" ? osDeployOutcome(row.note) : null;
     // The OS's successful deploys are maintenance, not the business: all of
-    // them in the window are one line below (bead ro-trai.38).
+    // them in the window are one line below.
     if (row.kind === "deploy" && sites.get(row.asset)?.isOs && (osMove === null || osMove === "deployed")) {
       osDeploys.push(row);
       continue;
@@ -1116,11 +1079,9 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
           : (n, s) => across(plural(n, "change"), s),
     });
   }
-  // Every successful deploy of the OS since last night is ONE line, at the
-  // newest one's time, with the count (bead ro-trai.38): on a busy day the
-  // OS's own updates otherwise fill the column the business's events need. A
-  // failed deploy and a rollback stay their own lines above — a failure never
-  // folds into a success. A site's own deploys keep their lines.
+  // Every successful deploy of the OS since last night is one line, at the
+  // newest one's time, with the count. A failed deploy and a rollback stay
+  // their own lines above. A site's own deploys keep their lines.
   const osDeploysInWindow = osDeploys
     .filter((row) => inWindow(ms(row.at)))
     .sort((a, b) => ms(b.at) - ms(a.at) || b.id - a.id);
@@ -1168,7 +1129,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
     });
   }
 
-  // Tasks done and tasks filed, once per bead whichever photographs held it.
+  // Tasks done and tasks filed, once per task whichever snapshots held it.
   for (const row of tasks) {
     if (!row.id || !row.at) continue;
     const done = row.list === "recentlyClosed";

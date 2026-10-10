@@ -16,11 +16,9 @@ export interface DeltaChipProps {
   /** Performance tones are scoped like-for-like signals, never severity; pace
    * tones are today's pace against the same hours last week (`paceTone`). */
   tone?: ChipTone;
-  /** What this movement IS, in one sentence: which two windows, over what. A
-   * bare signed number is only honest while the reader knows what it compares,
-   * so the sentence becomes both the tooltip and the accessible name — the
-   * arrow is decorative and a screen reader would otherwise hear a magnitude
-   * with no direction and no period. */
+  /** What this movement is, in one sentence: which two windows, over what.
+   * It becomes the tooltip and the accessible name, since the arrow is
+   * decorative. */
   meaning?: string;
   /** The direction in words beside the magnitude, such as ahead or behind. */
   directionLabel?: string;
@@ -67,13 +65,9 @@ export type PerformanceTone =
   | "negative-strong";
 
 /**
- * TODAY'S PACE HAS ITS OWN DIRECTION SCALE (bead `ro-trai.48`;
- * docs/14-design.md § Site rows, doc 14 § Tokens): today's
- * completed hours against the same hours on the same weekday last week. The
- * direction says ahead, on pace or behind; large deficits keep red. It is a
- * comparison, never an alert: "a little behind" borrows the warn HUE through
- * its own `pace-behind` token, and the arrow and the % always ride beside the
- * colour.
+ * Today's completed hours against the same hours on the same weekday last
+ * week. A comparison, never an alert: "behind" borrows the warn hue through its
+ * own token, and the arrow and % always ride beside the colour.
  */
 export type PaceTone = "pace-on" | "pace-behind" | "pace-far-behind";
 
@@ -97,11 +91,9 @@ const TONE_CLASS: Record<ChipTone, string> = {
 };
 
 /**
- * The tone's colour for something else drawn in it — D28's site rows draw
- * today's line, its wash and its now point in its pace's tone
- * (docs/14-design.md § Site rows). The element carries `data-tone={tone}`
- * like the chip does, so both read the one table above rather than a second
- * copy of the steps.
+ * The tone's colour for something else drawn in it (a pace line, wash or
+ * point). The element carries `data-tone={tone}` like the chip, so both read
+ * the one table above.
  */
 export function performanceToneClass(tone: ChipTone): string {
   return cn("text-foreground", TONE_CLASS[tone]);
@@ -117,13 +109,10 @@ export function paceDirectionLabel(percent: number): "ahead" | "behind" | "on pa
 }
 
 /**
- * THE ONE DERIVATION of a pace's step, for every place a pace is drawn: the
- * Wall's site rows and one-site tile (line, wash, now point and %), the old
- * asset card and the desk's Today column. Takes the signed percent
- * `intradayUsersPace` states (today vs last week, in %), so the ratio is
- * `1 + percent / 100`: positive is ahead, equality neutral, every deficit
- * behind. Deficits below the existing 0.60 boundary are far behind. That
- * boundary retains its whole-basis-point comparison (−40% is behind).
+ * The one derivation of a pace's step. Takes the signed percent
+ * `intradayUsersPace` states, so the ratio is `1 + percent / 100`: positive is
+ * ahead, zero neutral, every deficit behind, and below `PACE_FAR_RATIO` far
+ * behind, compared in whole basis points (−40% is behind).
  */
 export function paceTone(percent: number): PaceTone | "neutral" {
   if (!Number.isFinite(percent) || percent === 0) return "neutral";

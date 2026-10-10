@@ -152,7 +152,7 @@ describe('Mediavine encrypted connection and controls', () => {
   it('sees a pause from another isolate despite a warm configuration cache', async () => {
     await connect();
     const config = await getConfigDocument(env, 'config/integrations.json');
-    // A pause is the site's Not using (bead ro-ujb9.96.7.6).
+    // A pause is the site's Not using.
     const changed = structuredClone(config.body) as { assets: Record<string, Record<string, { status: string }>> };
     changed.assets[ASSET]!['ad-network']!.status = 'skipped';
     await env.STORE.write((tx) => tx.execute("UPDATE noticeos.config_documents SET body = $1::json WHERE document_key = 'integrations'", [JSON.stringify(changed)]));
@@ -200,7 +200,7 @@ describe('Mediavine encrypted connection and controls', () => {
   it('pause stops scheduled calls, preserves history, and disconnect removes credentials/session', async () => {
     await connect(); const fetchImpl = transport();
     await syncMediavine(env, { asset: ASSET }, { fetchImpl, nowMs: NOW });
-    // A pause is the site's Not using, with its reason (bead ro-ujb9.96.7.21).
+    // A pause is the site's Not using, with its reason.
     await declineAdRevenue();
     fetchImpl.mockClear(); await runMediavine(env, { fetchImpl, nowMs: NOW + 86_400_000 });
     expect(fetchImpl).not.toHaveBeenCalled(); expect(await count('mediavine_daily')).toBe(8);
@@ -208,9 +208,9 @@ describe('Mediavine encrypted connection and controls', () => {
     expect((await resolveCredential(env, 'mediavine')).source).toBe('none');
     expect(await count('mediavine_daily')).toBe(8);
   });
-  // Bead ro-ujb9.96.7.21: switching a running sync off here would record a
-  // decline nobody explained. The settings door starts a sync and never writes
-  // `skipped`; stopping is the row's Not using, which saves the reason with it.
+  // Switching a running sync off here would record a decline nobody explained.
+  // The settings door starts a sync and never writes `skipped`; stopping is
+  // the row's Not using, which saves the reason with it.
   it('never switches a running sync off, and no skipped ad revenue cell is ever written without its reason', async () => {
     await connect();
     const before = await adRevenueCell();
@@ -377,10 +377,10 @@ describe('request budget and scheduling', () => {
   });
 });
 
-// THE CONNECT PANEL (bead ro-ujb9.96.7.6): the login is shown to Mediavine
-// before it is kept, the account's sites are listed without a second sign-in,
-// Start's one write — the site id — is what starts the sync, and Disconnect
-// forgets the login and nothing else.
+// The connect panel: the login is shown to Mediavine before it is kept, the
+// account's sites are listed without a second sign-in, Start's one write — the
+// site id — is what starts the sync, and Disconnect forgets the login and
+// nothing else.
 describe('Mediavine in the connect panel', () => {
   const LOGIN = { MEDIAVINE_USER: 'fake@example.test', MEDIAVINE_PASSWORD: SECRET };
   // A site the older switch never touched: its entry holds no Mediavine field.

@@ -7,11 +7,9 @@ import { readAlert, storeAlert } from "./alert-rows";
 import { type TestStore, createTestStore } from "./postgres-store";
 import { addSites } from "./sites";
 
-// PATCH /api/flags/:id, against a real Postgres copy (bead ro-ujb9.76.5.2),
-// as the payload suites use. The date rules are asserted HERE and not only in the
-// browser, because a horizon only the picker enforces is a horizon anyone with
-// a fetch call can ignore — and nothing under this layer (`flags.snooze_until`
-// is any instant) would refuse a snooze until the year 2199.
+// PATCH /api/flags/:id, against a real Postgres copy. The date rules are
+// asserted here and not only in the browser, because a horizon only the
+// picker enforces is a horizon anyone with a fetch call can ignore.
 
 const NOW = "2026-07-29T22:00:00.000Z";
 const DAY = 86_400_000;
@@ -80,8 +78,8 @@ describe("PATCH /api/flags/:id — the alert lifecycle over HTTP", () => {
   });
 
   it("normalizes the date it stores rather than trusting the request's spelling", async () => {
-    // A `<input type="date">` value, and an instant with no milliseconds: both
-    // legal, neither is what the column should end up holding twice over.
+    // A `<input type="date">` value, and an instant with no milliseconds:
+    // both legal, neither is what the column should end up holding twice over.
     await send({ action: "snooze", until: "2026-08-05T00:00:00Z" });
     expect(await columns(["snooze_until"])).toEqual({ snooze_until: "2026-08-05T00:00:00.000Z" });
   });
@@ -104,7 +102,6 @@ describe("PATCH /api/flags/:id — the alert lifecycle over HTTP", () => {
     expect(
       await send({ action: "snooze", until: daysFromNow(SNOOZE_MAX_DAYS + 1) }),
     ).toMatchObject({ status: 422, json: { error: "snooze_until_too_far" } });
-    // The boundary itself is allowed: the cap is a limit, not an exclusion.
     expect(
       await send({ action: "snooze", until: daysFromNow(SNOOZE_MAX_DAYS) }),
     ).toMatchObject({ status: 200 });
@@ -172,12 +169,10 @@ describe("PATCH /api/flags/:id — the alert lifecycle over HTTP", () => {
   });
 });
 
-/**
- * `ro-van6`. The tune arrives as WHICH SETTING MOVED, never as a note: the
- * store's sentence about an operator decision is composed server-side from the
- * same field metadata `/settings` labels that field with, so nothing a caller
- * types can land in the record the false-positive rate is read from.
- */
+/** The tune arrives as which setting moved, never as a note: the store's
+ * sentence is composed server-side from the same field metadata `/settings`
+ * labels that field with, so nothing a caller types can land in the record
+ * the false-positive rate is read from. */
 describe("PATCH /api/flags/:id — recording a tune", () => {
   const TUNED = { setting: "alpha", from: 0.01, to: 0.05 };
 

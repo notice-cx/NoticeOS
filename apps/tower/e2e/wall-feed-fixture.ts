@@ -1,22 +1,18 @@
-// The live feed's synthetic store (beads ro-trai.6, ro-trai.9): the D28
-// reference feed (docs/artifacts/wall-rethink-2026-09-23/d28-six-1920.png) as
-// STORED ROWS, so `/api/wall/feed` runs its real SQL, folds and window over
-// them. Times are minutes before the fixture server's own clock. The sites are
-// the Wall fixture's own cards (one list, `wall-fixture.ts`), plus the OS;
-// every value is invented.
+// The live feed's synthetic store, as stored rows, so `/api/wall/feed` runs
+// its real SQL, folds and window over them. Times are minutes before the
+// fixture server's own clock. The sites are the Wall fixture's own cards
+// (`wall-fixture.ts`), plus the OS; every value is invented.
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { osDeployAnnotation } from "../../../scripts/os-deploy-events.mjs";
 import { writeMediavine } from "../test/money";
 import { writeArchiveRuns, writeInsightSnapshots } from "../test/provider-reports";
 import { wallFixturePayload } from "./wall-fixture";
 
-/** The OS itself: the asset an OS deploy is recorded against. Its row stores a
- * name of its own, as the owner's pre-rename store does; the feed still calls
- * it NoticeOS (bead ro-ujb9.77.10). */
+/** The OS itself: the asset an OS deploy is recorded against. Its row stores
+ * a name of its own; the feed still calls it NoticeOS. */
 export const WALL_FEED_OS: readonly [id: string, storedName: string] = ["os.example.com", "Stored name, never shown"];
 
-// No saved layout here: D28's default places the feed beside the column
-// (bead ro-trai.11), so the Wall nobody arranged is the one the feed runs in.
+// No saved layout here: the default places the feed beside the column.
 
 /** What the arrival journey injects: one new stored alert. */
 export const WALL_FEED_INJECTED_TEXT = "Home page stopped answering";
@@ -47,9 +43,8 @@ export function wallFeedSites(): WallFeedSite[] {
 }
 
 /** The OS moved to a newer version at 7:40 PM yesterday (its own clock): the
- * annotation the runner files from its deploy log (bead ro-trai.8), on
- * Postgres where the feed reads changes (bead ro-ujb9.76.5.7), in a store
- * already holding the feed's sites. */
+ * annotation the runner files from its deploy log, on Postgres where the feed
+ * reads changes, in a store already holding the feed's sites. */
 export async function seedWallFeedChanges(store: WorkspaceStore, nowIso: string): Promise<void> {
   const at = new Date(Date.parse(nowIso) - 1010 * MINUTE).toISOString();
   const deploy = osDeployAnnotation({ at, action: "deploy", from: "1".repeat(40), to: "2".repeat(40), result: "healthy" }, WALL_FEED_OS[0])!;
@@ -63,8 +58,7 @@ export async function seedWallFeedChanges(store: WorkspaceStore, nowIso: string)
 }
 
 /** The insight refreshes and the paid reports, on Postgres where the
- * publisher and the collector write them (bead ro-ujb9.76.5.4), after the
- * feed's sites are there. */
+ * publisher and the collector write them, after the feed's sites are there. */
 export async function seedWallFeedProviderReports(store: WorkspaceStore, nowIso: string): Promise<void> {
   const now = Date.parse(nowIso);
   const ago = (minutes: number) => new Date(now - minutes * MINUTE).toISOString();
@@ -93,8 +87,8 @@ export async function seedWallFeedProviderReports(store: WorkspaceStore, nowIso:
 }
 
 /** Yesterday's ad revenue from two sites, reported 195 minutes ago: on
- * Postgres, where Mediavine's reports are read (bead ro-ujb9.76.5.5), after
- * the feed's sites are there. */
+ * Postgres, where Mediavine's reports are read, after the feed's sites are
+ * there. */
 export async function seedWallFeedRevenue(store: WorkspaceStore, nowIso: string): Promise<void> {
   const now = Date.parse(nowIso);
   const ago = (minutes: number) => new Date(now - minutes * MINUTE).toISOString();
@@ -106,7 +100,7 @@ export async function seedWallFeedRevenue(store: WorkspaceStore, nowIso: string)
   })));
 }
 
-/** One stored alert, as a lane raises it (bead ro-ujb9.76.5.2). */
+/** One stored alert, as a lane raises it. */
 async function storeFeedAlert(store: WorkspaceStore, asset: string, firedAt: string, severity: string, message: string): Promise<void> {
   await store.write((tx) =>
     tx.execute(
@@ -118,7 +112,7 @@ async function storeFeedAlert(store: WorkspaceStore, asset: string, firedAt: str
 }
 
 /** The feed's alerts and nightly reports, on Postgres where the feed reads
- * them (bead ro-ujb9.76.5.2), in a store already holding the feed's sites. */
+ * them, in a store already holding the feed's sites. */
 export async function seedWallFeedAlertsAndReports(store: WorkspaceStore, nowIso: string): Promise<void> {
   const now = Date.parse(nowIso);
   const ago = (minutes: number) => new Date(now - minutes * MINUTE).toISOString();
@@ -138,8 +132,8 @@ export async function seedWallFeedAlertsAndReports(store: WorkspaceStore, nowIso
   );
 }
 
-/** The task hub's photograph a minute ago, on Postgres where the feed reads it
- * (bead ro-ujb9.76.4.3). Tasks done: one six minutes ago, one at 52, and three
+/** The task hub's photograph a minute ago, on Postgres where the feed reads
+ * it. Tasks done: one six minutes ago, one at 52, and three
  * within a quarter hour of each other five hours ago (three named lines);
  * one task filed 19 minutes ago. */
 export async function seedWallFeedTasks(store: WorkspaceStore, nowIso: string): Promise<void> {
@@ -151,7 +145,7 @@ export async function seedWallFeedTasks(store: WorkspaceStore, nowIso: string): 
     counts: { open: created.length, ready: 0, inProgress: 0, blocked: 0, closedRecent: closed.length },
     ready: [], inProgress: [],
     recentlyClosed: closed.map(([id, title, minutes]) => ({ id, title, status: "closed", priority: 2, issueType: "task", closedAt: ago(minutes) })),
-    // Newly filed work (bead ro-trai.7).
+    // Newly filed work.
     recentlyCreated: created.map(([id, title, minutes]) => ({ id, title, status: "open", priority: 2, issueType: "task", createdAt: ago(minutes) })),
   });
   const payload = JSON.stringify({
@@ -169,9 +163,9 @@ export async function seedWallFeedTasks(store: WorkspaceStore, nowIso: string): 
   );
 }
 
-/** Google, every reporting site's newest refresh 31 minutes ago: one run each,
- * on Postgres where the collectors write them (bead ro-trai.6, ro-ujb9.76.5.3).
- * The store must already hold the feed's sites. */
+/** Google, every reporting site's newest refresh 31 minutes ago: one run
+ * each, on Postgres where the collectors write them. The store must already
+ * hold the feed's sites. */
 export async function seedWallFeedRuns(store: WorkspaceStore, nowIso: string): Promise<void> {
   const now = Date.parse(nowIso);
   const ago = (minutes: number) => new Date(now - minutes * MINUTE).toISOString();

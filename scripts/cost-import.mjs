@@ -1,29 +1,13 @@
 #!/usr/bin/env node
-// Book the portfolio's costs into the ledger (bead ro-kukv.4).
-//
-// TWO KINDS, and the difference is the whole design.
-//
-//   METERED — DataForSEO. The OS records the cost of every provider call on the
-//   manifest of the call that spent it, per (property, family). Nobody states
-//   it; it is derived from `GET /api/provider-spend`. This is the only cost in
-//   the portfolio that is genuinely attributable to a property, which is what
-//   makes a per-property margin real rather than an allocation.
-//
-//   STATED — Claude Code, the Cloudflare plan. A card is charged monthly and
-//   the only record is a statement, so the operator states them once in
-//   `config/recurring-costs.json` and they book every month from `from`.
-//
-//   AMORTIZED — domains. A registration is a prepaid ANNUAL term, so
-//   `config/domain-costs.json` holds what was paid and when, and each order
-//   spreads evenly across the twelve months it covers. Booking the whole charge
-//   in the month it was paid would make one month look catastrophic and eleven
-//   look free, and monthly margin is the number this ledger exists to make
-//   legible.
-//
-// EVERYTHING PORTFOLIO-WIDE BOOKS TO ASSET #0. Splitting $200 of Claude Code
-// across six properties needs an allocation key nobody measured, and a margin
-// resting on an invented denominator is the kind of number that feels rigorous
-// and is not. See config/recurring-costs.README.md.
+// Book the portfolio's costs into the ledger. Three kinds: metered provider
+// spend, derived from `GET /api/provider-spend` per (property, family) and the
+// only cost genuinely attributable to a property; stated subscriptions, which
+// the operator declares once in `config/recurring-costs.json` and which book
+// every month from `from`; and amortized domains, where each prepaid annual
+// order in `config/domain-costs.json` spreads evenly across the twelve months
+// it covers. Everything portfolio-wide books to the OS asset, because
+// splitting it needs an allocation key nobody measured
+// (config/recurring-costs.README.md).
 //
 //   node scripts/cost-import.mjs --through 2026-08 [--from 2026-06] [--dry-run]
 
@@ -78,8 +62,7 @@ export function recurringFor(config, period) {
       family: cost.family,
       amount: cost.amountUsdPerMonth,
       // The config `id` is part of the idempotency key, so renaming an entry
-      // re-books every month it ever covered. Said again here because the
-      // consequence is invisible at the call site.
+      // re-books every month it ever covered.
       source: `recurring:${cost.id}`,
       booking_state: 'estimated',
       note: `${cost.label} — ${cost.note}`,
@@ -88,10 +71,7 @@ export function recurringFor(config, period) {
 
 /**
  * The twelve months a domain order covers, starting the month it was bought.
- *
- * Whole months rather than day-proration: the ledger's grain is a month, the
- * amounts are single dollars, and a part-month split would add arithmetic
- * nobody could check against a receipt.
+ * Whole months rather than day-proration: the ledger's grain is a month.
  */
 export function amortizeDomain(order) {
   const [year, month] = order.paidOn.slice(0, 7).split('-').map(Number);
@@ -109,9 +89,8 @@ export function amortizeDomain(order) {
 
 /**
  * One `infra` row per property per month, summing every domain that property
- * carries. Summed rather than one row per domain because the idempotency key is
- * (source, kind, asset, period, family, booking_state) — several domain rows
- * under one source would collide and refuse each other.
+ * carries: the idempotency key is (source, kind, asset, period, family,
+ * booking_state), so several domain rows under one source would collide.
  */
 export function domainCostsFor(config, period) {
   const byAsset = new Map();
@@ -167,8 +146,7 @@ async function main() {
     console.error('OPERATOR_TOKEN is not set — the same bearer the OS runner uses.');
     process.exit(2);
   }
-  // This installation's declarations, else the product's empty defaults
-  // (bead ro-ujb9.125).
+  // This installation's declarations, else the product's empty defaults.
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const declared = async (name) => JSON.parse(await readFile(readablePath(name, { root }), 'utf8'));
   const config = await declared('config/recurring-costs.json');
@@ -183,9 +161,8 @@ async function main() {
   for (const period of months) {
     rows.push(...recurringFor(config, period));
     rows.push(...domainCostsFor(domains, period));
-    // Metered spend, derived rather than stated. A month with no provider calls
-    // contributes no row at all — booking a $0 cost would assert the lanes ran
-    // and found nothing to buy, which is not the same as not having run.
+    // A month with no provider calls contributes no row: a $0 cost would
+    // assert the lanes ran and found nothing to buy.
     const spend = await api(`/api/provider-spend?period=${period}`, token);
     for (const entry of spend.byAsset) {
       if (entry.costUsd <= 0) continue;

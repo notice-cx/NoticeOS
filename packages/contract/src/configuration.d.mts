@@ -91,12 +91,10 @@ export declare function noNightlyReportOpRefusal(op: {
  */
 export declare function noNightlyReportAssets(constants: unknown): string[] | null;
 /**
- * WHICH ASSET AN OLDER SINGLE-ASSET BINDING SERVES: the first asset, in the
+ * Which asset an older single-asset binding serves: the first asset, in the
  * installation's own data-source register order (`config/integrations.json`
- * `/assets`, store first), whose entry has `lane` — the one site an install
- * had when it was set up with a single token, before a per-asset map existed.
- * Null, and the binding serves no asset, when the register is missing or no
- * asset has the lane.
+ * `/assets`, store first), whose entry has `lane`. Null, and the binding
+ * serves no asset, when the register is missing or no asset has the lane.
  */
 export declare function legacyBindingAsset(lane: string, register: unknown): string | null;
 /** A guard states the value or the absence the writer observed, never both. */

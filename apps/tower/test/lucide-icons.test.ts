@@ -7,12 +7,12 @@ import { installedLucideExports, lucideExportMap, lucideIcons, rewriteLucideImpo
 import { typeScriptSources } from "./source-files";
 
 // The dev server serves each icon as its own module instead of the whole
-// 4 MB icon set (bead ro-ujb9.83). See vite/lucide-icons.ts for why.
+// 4 MB icon set. See vite/lucide-icons.ts for why.
 
 const towerRoot = path.resolve(import.meta.dirname, "..");
 const table = installedLucideExports(towerRoot);
 
-describe("lucide icon imports on the dev server (bead ro-ujb9.83)", () => {
+describe("lucide icon imports on the dev server", () => {
   it("reads the installed index into a table of every icon and helper", () => {
     expect(table).not.toBeNull();
     expect(table!.size).toBeGreaterThan(1000);

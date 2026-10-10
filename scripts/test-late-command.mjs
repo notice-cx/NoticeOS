@@ -1,6 +1,6 @@
 // test-late-command.mjs — a stand-in command whose output outlives its exit,
-// for the tests that pin bead ro-ujb9.185: every script reads a command to the
-// END of its output (scripts/run-command.mjs), not merely until it exited.
+// for the tests that pin the rule that every script reads a command to the
+// end of its output (scripts/run-command.mjs), not merely until it exited.
 //
 // The command prints `early`, exits at once with `code`, and leaves a process
 // it started to print `late` 0.3 s later on the same stdout. Code that stops

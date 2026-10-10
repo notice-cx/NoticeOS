@@ -3,8 +3,8 @@ import { useIntegrationHealth } from './useIntegrationHealth';
 import { useIntegrationProviders } from './useIntegrationProviders';
 
 /**
- * The two reads every connection status is derived from (bead
- * `ro-ujb9.96.7.3`): the stored credentials and the monitoring items. A read
+ * The two reads every connection status is derived from: the stored
+ * credentials and the monitoring items. A read
  * that has not answered is `undefined` / `null`, which the model turns into
  * Unknown — never into Not connected.
  */

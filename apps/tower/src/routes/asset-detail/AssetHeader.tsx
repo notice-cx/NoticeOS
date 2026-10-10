@@ -19,13 +19,9 @@ import { RANGES, useRange, type RangeDays } from "@/routes/asset-detail/useRange
 
 // --- header ----------------------------------------------------------------
 /** Identity and each source's status. Manual lifecycle belongs in Settings;
- * the date control is offered only on the tabs whose charts follow it.
- *
- * THE SOURCES ARE THE WALL CARD'S MARKS, not a word of their own (bead
- * `ro-ujb9.96.7.16`). A one-word verdict ("Receiving data") was a second
- * derivation from the 15-minute runs, and it read green while a source's Data
- * sources row read Failing. The marks read each source through the same model
- * as that row, so the header, Home, the Wall and Integrations agree. */
+ * the date control is offered only on the tabs whose charts follow it. The
+ * sources are the Wall card's marks, read through the same model as the Data
+ * sources row, so the header, Home, the Wall and Integrations agree. */
 export function Header({
   asset,
   integrations,
@@ -48,9 +44,8 @@ export function Header({
   const { credentials, items } = useConnections();
   const sources = sourceReadings(asset.id, integrations.sources, { credentials, items }, nowMs);
   const verdict = siteHealth(asset, useSiteIssues());
-  // The identity row IS the heading (doc 14: one representation per fact) —
-  // the page header renders it inside its `h1` rather than repeating the name
-  // above a separate identity strip.
+  // The identity row is the heading: the page header renders it inside its
+  // `h1` rather than repeating the name above a separate identity strip.
   return (
     <PageHeader
       breadcrumb={[{ label: "Sites", to: "/assets" }]}
@@ -63,10 +58,8 @@ export function Header({
             className="size-7"
           />
           {asset.displayName}
-          {/* THE VERDICT (D44, doc 14 § Asset · Overview): one word from the
-              one derivation Home's sites strip reads (`siteHealth`), in place
-              of the bare severity dot — the word says what the dot meant and
-              more (Setting up, Monitor only), and its hover keeps the count. */}
+          {/* The verdict: one word from the one derivation Home's sites strip
+              reads (`siteHealth`); its hover keeps the count. */}
           <StateChip
             label={verdict.word}
             tone={verdict.tone}
@@ -79,9 +72,9 @@ export function Header({
               href={`https://${asset.domain}`}
               target="_blank"
               rel="noreferrer"
-              // The target is CLAIMED rather than added (bead `ro-md80`, the
-              // pattern `OwnerChip` uses): the negative margin gives the height
-              // back to the header row while the box keeps the thumb floor.
+              // The target is claimed rather than added (the pattern
+              // `OwnerChip` uses): the negative margin gives the height back
+              // to the header row while the box keeps the thumb floor.
               className="font-mono text-sm font-normal text-muted-foreground underline-offset-4 hover:underline max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
             >
               {asset.domain}
@@ -92,9 +85,8 @@ export function Header({
               System
             </Badge>
           ) : null}
-          {/* No automation chip (bead `ro-ujb9.135`): "Monitor only" is every
-              new site's default and named a concept nothing on this page
-              uses. The site's Settings → Automation holds it. */}
+          {/* No automation chip: "Monitor only" is every new site's default.
+              The site's Settings → Automation holds it. */}
         </>
       }
       actions={
@@ -102,8 +94,7 @@ export function Header({
           {/* Beside the heading rather than inside it, so the page's name stays
               the asset's name and each mark keeps its own accessible name. */}
           <DataSourceIcons sources={sources} className="me-1" />
-          {/* No report expected — none ever sent (D29 amended, bead
-              `ro-ujb9.121`) or declared away (`ro-ujb9.96.8`) — is the Wall
+          {/* No report expected, none ever sent or declared away, is the Wall
               card's neutral mark, not an amber "never": nothing is owed. */}
           {!showsNightlyReport(asset.noNightlyReport === true, pulseReceivedAt, nowMs) ? (
             <NoNightlyReport />

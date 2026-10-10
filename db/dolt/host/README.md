@@ -10,8 +10,8 @@ operators manage work through NoticeOS. Host-side development helpers check
 the same Beads version before creating a new task project. See the official
 [Dolt 2.4.0 release](https://github.com/dolthub/dolt/releases/tag/v2.4.0) and
 [Beads 1.3.1 release](https://github.com/gastownhall/beads/releases/tag/v1.3.1).
-These were the latest stable releases verified on 2026-09-30. Pin changes
-do not authorize upgrades of existing databases or their running services.
+Pin changes do not authorize upgrades of existing databases or their running
+services.
 
 ## Hosting and credentials
 
@@ -142,8 +142,8 @@ confirm task IDs, history and authenticated reads/writes before any cutover.
 
 ## Existing-hub migration metadata
 
-Existing hubs move through a separately approved migration
-(`ro-ujb9.9.1`), not fresh setup. The source version, database identities,
+Existing hubs move through a separately approved migration, not fresh
+setup. The source version, database identities,
 permissions and spoke links must be known before selecting a capture or
 cutover procedure. Do not manufacture a managed profile around the native
 server, attach its data directory to Compose, or initialize imported projects.
@@ -375,7 +375,7 @@ One designated `--sandbox migrate schema --force --json --actor <actor>` then
 migrates the copied target; a reachable mock listener observes no migration or
 push contacts, even with auto-push enabled. Source data remains unchanged.
 
-`pnpm test:task-store` runs the hosted task store proofs (epic `ro-cvl9`): the
+`pnpm test:task-store` runs the hosted task store proofs: the
 fixed executor's qualification, two executors racing one claim, and a create
 and comment retried after a lost reply. On a Linux host with Docker,
 `node scripts/task-store-test-tools.mjs --out <new folder>` prepares their

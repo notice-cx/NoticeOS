@@ -9,7 +9,7 @@ import { READ_MODEL_TOOL_NAMES } from './read-model-tools.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { fakeTaskExecutor, memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 
-// scripts/hosted-mcp.mts (epic ro-cvl9): NoticeOS's one MCP endpoint. One
+// scripts/hosted-mcp.mts: NoticeOS's one MCP endpoint. One
 // connection and one token reach every tool in every workspace its person
 // belongs to; each call names its workspace, where the person's role bounds
 // the token's scopes. Task tools run over the shared operations; read-model

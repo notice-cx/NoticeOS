@@ -10,22 +10,9 @@ import {
 import type { IntegrationsConfig } from "../shared/integrations";
 import { parseDashboardConfig } from "../shared/dashboard";
 
-// GET /api/settings, built over a fixture config.
-//
-// The point of these cases is that the settings page is a VIEW OF THE FILES and
-// nothing else: no store is consulted, every section names the file that owns
-// it, and the two knob families the asset page already rendered come out of the
-// SAME builders rather than a second spelling of them (bead `ro-pbzu.2`).
-//
-// What is editable is not a taste decision either — it is what the write lane
-// licenses (D18). `config/constants.json` is wholesale-editable, so budget and
-// alert rules are fields. The collection cadence is a set of DECLARED KNOBS
-// (bead `ro-x5gu.8`), so the payload carries their VALUES keyed by declaration
-// and nothing else — the label, the rule and the consequence stay in
-// `scripts/config-registers.mjs`, where one copy of each lives. The catalog is a
-// declared register, so its rows come through VERBATIM: an edit guards on the
-// value it was rendered from, and a helpfully-defaulted field would be a guard
-// the file never agreed with. `config/beads.json` is still neither.
+// GET /api/settings over a fixture config. No store is consulted, every section
+// names the file that owns it, and an edit guards on the value it was rendered
+// from.
 
 const signalPanels = {
   refresh: { windowDays: 35, freshnessMaxAgeDays: 7, providerCallsPerPass: 0 },
@@ -82,7 +69,7 @@ function deps(overrides: Partial<SettingsDeps> = {}): SettingsDeps {
     integrations,
     dashboard,
     entities: [
-      { slug: "reindex-ventures", name: "Reindex Ventures LLC", assets: ["meals.example"] },
+      { slug: "example-ventures", name: "Example Ventures LLC", assets: ["meals.example"] },
     ],
     beads: {
       spokes: [
@@ -107,7 +94,7 @@ describe("buildSettingsPayload", () => {
     const { clock } = buildSettingsPayload(deps());
     expect(clock.timeZone).toBe("America/Los_Angeles");
     // The owner is what the page's Save writes to; a wrong path here would
-    // send the write lane at a file that does not hold the key (ro-py40).
+    // send the write lane at a file that does not hold the key.
     expect(clock.owner).toBe("config/constants.json");
   });
 
@@ -119,24 +106,21 @@ describe("buildSettingsPayload", () => {
   it("carries a TV config with no countdown, so a fresh install has a payload", () => {
     const payload = buildSettingsPayload(deps({ dashboard: parseDashboardConfig({}) }));
     expect(payload.dashboard.countdown).toBeUndefined();
-    // Everything else still builds: the countdown is one optional card, not a
-    // precondition for reading the settings page.
+    // The countdown is one optional card, not a precondition for reading the page.
     expect(payload.budget.knobs.length).toBeGreaterThan(0);
   });
 
   it("carries the two budget knobs with the pointers the write lane needs", () => {
     const { budget } = buildSettingsPayload(deps());
     expect(budget.owner).toBe("config/constants.json");
-    // NO INFERENCE CAP (D6 amended 2026-09-05, bead `ro-uj7x`). Nothing in the
-    // OS calls a model, so that row could only state a ceiling and admit it was
-    // not instrumented. Asserted as an exact list so it cannot come back by
-    // accident: it comes back with a meter or not at all.
+    // No inference cap: nothing in the OS calls a model. Asserted as an exact
+    // list so it cannot come back by accident.
     expect(budget.knobs.map((k) => k.key)).toEqual([
       "monthly_caps.data_usd",
       "operator_rate_usd_per_min",
     ]);
-    // The exact pointer and the effective value: the field writes one and sends
-    // the other as its `expect`, so a wrong pointer is a silent no-op edit.
+    // The exact pointer and the effective value: the field writes one and
+    // sends the other as its `expect`.
     expect(budget.knobs[0]).toMatchObject({
       pointer: "/monthly_caps/data_usd",
       value: 25,
@@ -161,15 +145,12 @@ describe("buildSettingsPayload", () => {
     expect(alpha.pointer).toBe("/flag_defaults/alpha");
     expect(alpha.raw).toBe(0.01);
     expect(alpha.label).toBe("Anomaly sensitivity");
-    // The one-line "what this means" is the page's whole defence against a
-    // settings form nobody dares touch.
     expect(alpha.explain.length).toBeGreaterThan(0);
   });
 
   it("resolves every declared knob by its own pointer, and names the pull owner", () => {
     const { collection } = buildSettingsPayload(deps());
-    // Keyed by DECLARATION, in declaration order — one file, two knobs, and
-    // no label or rule restated here.
+    // Keyed by declaration, in declaration order, and no label or rule restated.
     expect(collection.knobs).toEqual([
       { key: "panel-refresh-window", value: 35 },
       { key: "panel-freshness-bar", value: 7 },
@@ -181,8 +162,7 @@ describe("buildSettingsPayload", () => {
     ]);
   });
 
-  // Absent is a real state: a config with no `/refresh` block renders no rows
-  // rather than two zeros nobody configured.
+  // Absent is a real state: a config with no `/refresh` block renders no rows.
   it("leaves out a knob whose block the config does not carry", () => {
     const { collection } = buildSettingsPayload(deps({ signalPanels: {} }));
     expect(collection.knobs).toEqual([]);
@@ -202,14 +182,13 @@ describe("buildSettingsPayload", () => {
   it("carries the source catalog exactly as the file holds it, so an edit can guard on it", () => {
     const { sources } = buildSettingsPayload(deps());
     expect(sources.owner).toBe("config/integrations.json");
-    // Verbatim, prose fields and all: these are the register's columns now, and
-    // the `expect` an edit sends has to be the value the file actually has.
+    // Verbatim, prose fields and all: the `expect` an edit sends has to be
+    // the value the file actually has.
     expect(sources.rows[0]).toEqual(integrations.catalog[0]);
-    // Nothing is filled in. The second lane declares no credential, and the
-    // payload says so rather than inventing the matrix's conservative default —
-    // which would be a guard the file has never agreed with.
+    // The second lane declares no credential, and the payload says so rather
+    // than inventing the matrix's conservative default.
     expect(sources.rows[1]!.credential).toBeUndefined();
-    // Lane STATE is /health's, off collector evidence. Nothing here may claim it.
+    // Lane state is /health's, off collector evidence.
     expect(Object.keys(sources.rows[0]!)).not.toContain("status");
   });
 
@@ -220,9 +199,8 @@ describe("buildSettingsPayload", () => {
       { asset: "root-os", prefix: "ro", database: "ro", repo: "." },
       { asset: "meals.example", prefix: "mp", database: "mp", repo: "../meals.example" },
     ]);
-    // Read-only, and only so the onboarding command an operator copies after an
-    // Add carries the real host and port rather than a fourth typed copy of a
-    // value three files already have to agree on (bead ro-x5gu.5).
+    // Read-only, and only so the onboarding command an operator copies after
+    // an Add carries the real host and port rather than a typed copy.
     expect(taskHub.hub).toEqual({
       host: "127.0.0.1",
       port: 3308,
@@ -233,8 +211,7 @@ describe("buildSettingsPayload", () => {
 
   it("says the connection is absent rather than inventing one, on a build without it", () => {
     // `vite build` compiles the hub out with the runner lane, and that is also
-    // the build where nothing here is editable — so the checklist that needs the
-    // command can never appear in it.
+    // the build where nothing here is editable.
     const { taskHub } = buildSettingsPayload(deps({ beads: { spokes: [] } }));
     expect(taskHub.hub).toBeNull();
   });
@@ -252,7 +229,6 @@ describe("buildSettingsPayload", () => {
     expect(payload.sources.rows).toEqual([]);
     expect(payload.taskHub.spokes).toEqual([]);
     expect(payload.alertRules.knobs).toEqual([]);
-    // The budget is two constants, not a list, so it never empties.
     expect(payload.budget.knobs).toHaveLength(2);
   });
 });

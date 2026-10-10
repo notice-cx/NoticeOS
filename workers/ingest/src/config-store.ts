@@ -1,44 +1,14 @@
-// The config store — where a setting is read from, and the one door it is
-// written through (epic `ro-syok`). On Postgres (bead ro-ujb9.76.4.1): the
-// tables config_documents and config_changes, through this call's store,
-// `env.STORE`.
-//
-// WHAT MOVED AND WHAT DID NOT. Until now every config file was compiled into
-// both Workers: `apps/tower/vite.config.ts` injects twelve of them with `define`
-// and this Worker imports the five its collectors need. That is a fine way to
-// SHIP software and a hopeless way to OPERATE it — a deployed Tower could render
-// a setting and never save one, because config is version-controlled files
-// (docs/06) and a Worker has no filesystem. So the store now holds each config
-// file as a whole JSON document keyed by its file's name (`config/tower.json`
-// is `tower`, scripts/config-documents.mts `configDocumentKey`), and this
-// module is the only thing in either Worker that reads or writes one. Its
-// callers still name a document by its path.
-//
-// THE FILES ARE STILL THERE, as seed and as export. `pnpm config:seed` loads
-// them in; `pnpm config:export` writes them back; the repo's history is the
-// audit trail it always was, now with `config_changes` beside it. An install
-// whose store holds no document yet behaves EXACTLY as one before the store
-// did, because every read falls back to the copy compiled into this Worker.
-//
-// WHOLE DOCUMENTS, NOT TYPED TABLES. Every register, knob, pointer and validator
-// in `scripts/config-documents.mjs` already operates on a parsed JSON document,
-// and the changeset vocabulary the Tower, the CLI and the dev write lane all
-// speak is RFC-6901 pointers into one. So the ops apply here unchanged; only
-// where the document comes from and goes to is different. A second, typed
-// representation would be a second answer to "what may the Tower edit", which is
-// the exact failure `config-registers.mjs` exists to prevent.
-//
-// WHY THE PIPELINE IS IMPORTED FROM scripts/. `config-documents.mjs` is plain
-// ESM with no `node:` import precisely so it can bundle into this Worker;
-// `config-apply-core.mjs` is the same pipeline plus a filesystem and is what the
-// terminal uses. One module decides; two places persist the answer.
-//
-// A STORE THAT FAILS IS AN ERROR, never a fallback. The Postgres store is
-// built whole by its baseline (db/postgres/migrations), so D1's "the migration
-// is not applied yet" cannot happen: a read or a write that cannot reach the
-// store throws. The compiled copy answers only for a document the store does
-// not hold, which is the unseeded install above, and a WRITE never degrades —
-// a Save that silently did nothing is the worst outcome available.
+// The config store: where a setting is read from, and the one door it is
+// written through. The store holds each config file as a whole JSON document
+// keyed by its file's name, and this module is the only thing in either Worker
+// that reads or writes one. The files are still the seed (`pnpm config:seed`)
+// and the export (`pnpm config:export`); every read falls back to the copy
+// compiled into this Worker, so an install whose store holds no document
+// behaves exactly as one before the store did. Whole documents, not typed
+// tables: the changeset vocabulary is RFC-6901 pointers into one, and the
+// pipeline is imported from scripts/config-documents.mjs, which is plain ESM
+// so it bundles here. A store that fails is an error, never a fallback, and a
+// write never degrades.
 
 import { javascriptInstant, type WorkspaceStore } from '@noticeos/postgres';
 import type {
@@ -58,9 +28,8 @@ import {
   validateSchemaAndSafety,
 } from '../../../scripts/config-documents.mjs';
 
-// The ordinary Worker retains its existing compiled fallback, including the
-// exclusion of the coordination document. Provisioning uses the complete
-// released defaults from that same source. Neither path reads installation files.
+// The compiled fallback excludes the coordination document and reads no
+// installation files.
 import { collectorDefaultDocument } from '../../../scripts/config-defaults.mjs';
 
 /** Every file the store may hold a document for. Derived from the register
@@ -110,24 +79,16 @@ function keyOf(file: string): string {
 // The read cache
 // ---------------------------------------------------------------------------
 //
-// ONE SECOND, and invalidated on every write from this isolate.
-//
-// It exists because a config read is per-REQUEST now rather than per-BUILD: one
-// Wall poll resolves a dozen documents, several times a minute, for rows an
-// operator changes a few times a week. Without a cache that is a dozen store
-// round trips on the hot path of the display that has to stay smooth.
-//
-// One second is the number because it is shorter than anything that reads a
-// value back after writing it: `useConfigSave` waits 1500ms before invalidating
-// its queries, so a Save is never read back stale even in the isolate that did
-// not perform it. Longer than that and the operator would see their own change
-// arrive late, which is the one staleness a settings page may not have.
+// One second, invalidated on every write from this isolate. A config read is
+// per request: one Wall poll resolves a dozen documents several times a minute.
+// One second is shorter than anything that reads a value back after writing it
+// (`useConfigSave` waits 1500ms before invalidating), so a Save is never read
+// back stale even in the isolate that did not perform it.
 
 const CACHE_MS = 1000;
 type DocumentCache = Map<string, { at: number; row: StoredRow | null }>;
-// Where the store is and which workspace a call acts for are the cache key:
-// one isolate serves many calls, each with its own store, and a hosted
-// installation's workspaces, or two stores, must never share an answer.
+// The store and the workspace are the cache key: one isolate serves many
+// calls, and two workspaces or two stores must never share an answer.
 let caches = new Map<string, DocumentCache>();
 
 /** Invalidate what was cached from `store` after a write to it; omit it to reset all tests. */
@@ -173,11 +134,9 @@ async function readRows(store: WorkspaceStore, files: string[]): Promise<Map<str
   return out;
 }
 
-/** A stored row's document, or null when its JSON does not parse.
- *
- * A body that will not parse is a corrupted row rather than a setting, and the
- * honest answer is the compiled file plus a log line — a Worker that threw here
- * would take every page down over one bad character. */
+/** A stored row's document, or null when its JSON does not parse: a corrupted
+ * row answers the compiled file plus a log line rather than taking every page
+ * down over one bad character. */
 function parseBody(row: StoredRow): JsonValue | null {
   try {
     return JSON.parse(row.body_json) as JsonValue;
@@ -188,26 +147,11 @@ function parseBody(row: StoredRow): JsonValue | null {
 }
 
 /**
- * The compiled copy of one file — A COPY, never the module object itself
- * (bead `ro-pg1l`).
- *
- * `BUNDLED` holds the objects `import constantsJson from …` compiled into this
- * Worker, and they live for the life of the isolate. `applyConfigOps` hands
- * whatever this answered to `applyDocumentOps`, which mutates the document it
- * was given by design — the caller owns persisting it. So handing back the
- * module object meant a FIRST save on an unseeded install edited the Worker's
- * own compiled config in memory, before a single D1 statement had run.
- *
- * Normally the write then lands and every later read comes from the store, so
- * the mutation is invisible. It stops being invisible when the write does NOT
- * land — the guarded UPDATE loses its race, the INSERT hits `ON CONFLICT DO
- * NOTHING`, or D1 errors afterwards. The isolate would then answer reads with a
- * compiled document carrying an edit nobody persisted, and "an unseeded install
- * behaves exactly as it did before" would stop being true for the rest of that
- * isolate's life.
- *
- * The store branch has always handed out a fresh object (`JSON.parse` per
- * read); this makes the file branch say the same thing.
+ * The compiled copy of one file: a copy, never the module object itself.
+ * `applyDocumentOps` mutates the document it is given, so handing back the
+ * module object would let a first save on an unseeded install edit the
+ * Worker's own compiled config in memory, visible for the rest of the
+ * isolate's life whenever the write did not land.
  */
 function bundled(file: string): JsonValue | null {
   return collectorDefaultDocument(file);
@@ -217,7 +161,7 @@ function bundled(file: string): JsonValue | null {
 // Reads
 // ---------------------------------------------------------------------------
 
-/** Several documents in one round trip — what a page load actually needs. */
+/** Several documents in one round trip. */
 export async function getConfigDocuments(
   env: Pick<IngestEnv, 'STORE'>,
   files: readonly string[],
@@ -254,8 +198,8 @@ export async function getConfigDocument(
   file: string,
 ): Promise<ConfigDocumentRead> {
   const [read] = await getConfigDocuments(env, [file]);
-  // `getConfigDocuments` maps over its input, so a one-element input always
-  // answers a one-element output; the fallback keeps the type honest.
+  // A one-element input always answers a one-element output; the fallback
+  // keeps the type honest.
   return (
     read ?? {
       file,
@@ -268,8 +212,7 @@ export async function getConfigDocument(
   );
 }
 
-/** Which files the store actually holds — what `pnpm config:seed` and the
- * runner's startup line report as seeded — in file order. */
+/** Which files the store holds, in file order. */
 export async function listConfigDocuments(env: IngestEnv): Promise<{
   documents: { file: string; version: number; updatedAt: string; updatedBy: string | null }[];
 }> {
@@ -293,9 +236,8 @@ class StaleVersions extends Error {
   override name = 'StaleVersions';
 }
 
-/** MISSING is a symbol and does not survive an RPC boundary, so an absent value
- * says so in a field of its own — the same shape the dev write lane has always
- * put on the wire. */
+/** MISSING is a symbol and does not survive an RPC boundary, so an absent
+ * value says so in a field of its own. */
 function serializeMismatch(m: Mismatch): ConfigWriteMismatch {
   const where =
     m.op.kind === 'store-asset-set'
@@ -312,21 +254,16 @@ function serializeMismatch(m: Mismatch): ConfigWriteMismatch {
 }
 
 /**
- * Apply one changeset to the stored documents, and record what it did.
+ * Apply one changeset to the stored documents, and record what it did. Every
+ * step refuses before anything is written: validate against the declarations,
+ * read the named documents, check each file's version against the one the
+ * caller read, resolve every op's `expect`, apply, then write all documents
+ * behind one version guard with their audit rows in the same transaction.
  *
- * THE SEQUENCE, and every step of it refuses before anything is written:
- * validate the changeset against the declarations → read the documents the ops
- * name → check each file's version against the one the caller read → resolve
- * every op's `expect` against the document → apply → write all documents behind
- * one version guard, followed by their audit rows in the same transaction.
- *
- * A DOCUMENT THE STORE DOES NOT HOLD YET IS SEEDED BY THIS WRITE, from the copy
- * compiled into this Worker, and its audit row records `version_before = 0`. The
- * alternative — refusing until somebody runs `pnpm config:seed` — would mean a
- * freshly deployed Tower could still not save a setting, which is the whole
- * thing this epic exists to fix. The `expect` guard is unaffected: the browser
- * rendered the field from the compiled document, and that is exactly what the
- * op is checked against.
+ * A document the store does not hold yet is seeded by this write from the
+ * compiled copy (`version_before = 0`), so a freshly deployed Tower can save a
+ * setting; the `expect` guard is checked against the same compiled document
+ * the browser rendered.
  */
 export async function applyConfigOps(
   env: IngestEnv,
@@ -338,11 +275,8 @@ export async function applyConfigOps(
   if (actor === '') {
     return { ok: false, error: 'invalid_changeset', detail: 'a config change must name its actor' };
   }
-  // An asset's stage, automation mode or name is a store COLUMN and is written
-  // through its own route. Refused by name rather than ignored: it is a real
-  // part of the changeset vocabulary, just not this door's. The refusal is the
-  // route it belongs to, in the dev lane's own words (bead `ro-ujb9.96.6.29`,
-  // apps/tower/vite/config-write-lane.ts).
+  // An asset's stage, automation mode or name is a store column with its own
+  // route. Refused by name rather than ignored, in the dev lane's own words.
   if (ops.some((op) => (op as { kind?: unknown } | null)?.kind === 'store-asset-set')) {
     return { ok: false, error: 'store_op_not_accepted', detail: 'Store columns save through PATCH /api/assets/:id' };
   }
@@ -370,9 +304,8 @@ export async function applyConfigOps(
   const reads = await getConfigDocuments(env, [...new Set([...named, 'config/integrations.json'])]);
   const byFile = new Map(reads.map((read) => [read.file, read]));
 
-  // Neither the store nor this deployment holds the file: the state, the
-  // files and the command that seeds them from a checkout (bead
-  // `ro-ujb9.96.6.29`).
+  // Neither the store nor this deployment holds the file: the state, the files
+  // and the command that seeds them.
   const unseedable = named.filter((file) => (byFile.get(file)?.body ?? null) === null);
   if (unseedable.length > 0) {
     return {
@@ -404,7 +337,7 @@ export async function applyConfigOps(
     ({ resolved, mismatches, documents } = await resolveOps(changeset, null, {
       readDocument: async (file: string) => byFile.get(file)?.body ?? null,
       // A key the stored document lacks is what the page showed from the
-      // compiled copy, as a whole document the store lacks is (bead `ro-dk4u`).
+      // compiled copy.
       readBuiltIn: async (file: string) => bundled(file),
     }));
   } catch (err) {
@@ -417,9 +350,9 @@ export async function applyConfigOps(
     return { ok: false, error: 'expect_mismatch', mismatches: mismatches.map(serializeMismatch) };
   }
 
-  // `at` is this changeset's own instant, which is also what `config_changes`
-  // records — so a date the write stamps into a document (bead `ro-auav`) names
-  // the same day the audit row does, on this path exactly as on the file one.
+  // `at` is this changeset's own instant, which `config_changes` also records,
+  // so a date the write stamps into a document names the same day the audit
+  // row does.
   let touched: string[];
   try {
     touched = applyDocumentOps(resolved, documents, { at });
@@ -439,12 +372,10 @@ export async function applyConfigOps(
       ops_json: JSON.stringify(ops.filter((op) => (op as { file?: string }).file === file)),
     };
   });
-  // ONE TRANSACTION for the whole changeset. Each document is written only if
+  // One transaction for the whole changeset. Each document is written only if
   // the store still holds the version this write started from (a missing
-  // document is version 0, so a concurrent first seed counts as a competing
-  // save), and every row it did not write refuses the whole changeset: the
-  // transaction rolls back, and no document moves and no audit row lands.
-  // Only then are the audit rows written, in the same transaction.
+  // document is version 0, so a concurrent first seed is a competing save), and
+  // any row it did not write rolls the whole changeset back.
   let landed = true;
   try {
     await env.STORE.write(async (tx) => {
@@ -510,8 +441,7 @@ export interface SeedConfigDocumentsInput {
   /** file → the document as the checkout holds it. */
   documents: Record<string, unknown>;
   actor: string;
-  /** Re-seed a document that is already there. Every forced file needs a reason
-   * — overwriting somebody's saved settings from a file is a deliberate act. */
+  /** Re-seed a document that is already there. Every forced file needs a reason. */
   force?: string[];
   reason?: string | null;
 }
@@ -526,14 +456,11 @@ export interface SeedConfigDocumentsResult {
 }
 
 /**
- * Load documents the store does not have yet. NEVER an overwrite: a file already
- * in the store is reported as skipped, with the version it is at.
- *
- * That rule is the whole safety of running `pnpm config:seed` twice, and of
- * running it after months of Saves — the checkout may be behind the store, and a
- * seed that silently won would undo every setting the operator changed in the
- * product. `--force <file> --reason <why>` is the deliberate way past it, and it
- * records a `config_changes` row like any other change.
+ * Load documents the store does not have yet. Never an overwrite: a file already
+ * in the store is reported as skipped with its version, so running the seed
+ * after months of Saves cannot undo the operator's settings. `--force <file>
+ * --reason <why>` is the deliberate way past it, and records a `config_changes`
+ * row like any other change.
  */
 export async function seedConfigDocuments(
   env: IngestEnv,
@@ -619,29 +546,13 @@ export async function seedConfigDocuments(
 // What this Worker's own collectors read
 // ---------------------------------------------------------------------------
 //
-// ONE READER, ONE ROUND TRIP, ONE FALLBACK RULE (bead `ro-syok.7`).
-//
-// Every config document a collector needs is resolved HERE, together, once per
-// cron fire — `dispatch.ts` calls this and hands each lane what it asked for.
-// Read here rather than inside each lane for two reasons that both matter:
-//
-//   1. A COLLECTOR KEEPS TAKING ITS CONFIG AS A PARAMETER. That is what lets a
-//      suite state its own mapping without editing the operator's file, and it
-//      is what stops a second module becoming a second reader of a config file.
-//   2. ONE ROUND TRIP. Six documents, one `SELECT … WHERE file IN (…)`, one
-//      cache policy — the one above. A per-lane read would be six.
-//
-// `undefined` IS THE FALLBACK RULE, WRITTEN ONCE. A document the store does not
-// hold — or holds in a shape its readers cannot use — answers `undefined`, which
-// is exactly what each lane's existing override option means: keep the copy
-// compiled into this Worker, byte for byte. So a run on an unseeded install is
-// the run it was yesterday, and no lane carries a second copy of that rule.
-//
-// THE SHAPE CHECK IS DELIBERATELY SHALLOW. It asks only whether the container a
-// reader indexes into is there; the readers themselves are already total about
-// what is inside it. A collector that stopped collecting over one malformed key
-// would be a worse outcome than a stale document, and the run says which of the
-// two it read either way.
+// One reader, one round trip, one fallback rule. Every config document a
+// collector needs is resolved here, once per cron fire, and handed to each
+// lane as a parameter, which is what lets a suite state its own mapping. A
+// document the store does not hold, or holds in a shape its readers cannot
+// use, answers `undefined`, which means keep the compiled copy. The shape
+// check is deliberately shallow: a collector that stopped over one malformed
+// key would be worse than a stale document.
 
 /** The documents this Worker's own collectors resolve store-first. */
 export const COLLECTOR_CONFIG_FILES = [
@@ -656,11 +567,8 @@ export const COLLECTOR_CONFIG_FILES = [
 export type CollectorConfigFile = (typeof COLLECTOR_CONFIG_FILES)[number];
 
 /**
- * Per file, which of the two answered on this run.
- *
- * THE WORD ONLY. A completion line carries `{"config/integrations.json":"store"}`
- * and never a document — config holds property ids, tracked queries and spend
- * caps, and a log is the one place none of them belong.
+ * Per file, which of the two answered on this run. The word only: a
+ * completion line never carries a document.
  */
 export type ConfigSourceMap = Readonly<Partial<Record<CollectorConfigFile, ConfigSource>>>;
 
@@ -685,11 +593,9 @@ const USABLE: Record<CollectorConfigFile, (body: unknown) => boolean> = {
 };
 
 /**
- * Resolve every collector document store-first, in one read.
- *
- * `files` narrows it for a caller on a path of its own — the panel-landings read
- * the runner asks for, which is not a cron fire — so that caller still comes
- * through this reader rather than growing one.
+ * Resolve every collector document store-first, in one read. `files` narrows
+ * it for a caller on a path of its own, so that caller still comes through
+ * this reader rather than growing one.
  */
 export async function readCollectorConfigs(
   env: Pick<IngestEnv, 'STORE'>,
@@ -716,14 +622,9 @@ export async function readCollectorConfigs(
 }
 
 /**
- * The `configSource` field of one lane's completion line, narrowed to the files
- * that lane actually reads.
- *
- * ABSENT WHEN NOTHING WAS RESOLVED. A direct caller — every suite in
- * `workers/ingest/test` — states its own config, and a run that read neither the
- * store nor a file must not claim it read one. So the field appears on a real
- * cron fire and nowhere else, which is also what keeps every existing log
- * assertion true.
+ * The `configSource` field of one lane's completion line, narrowed to the
+ * files that lane reads. Absent when nothing was resolved: a direct caller
+ * that stated its own config must not claim it read the store or a file.
  */
 export function configSourceLine(
   sources: ConfigSourceMap | undefined,

@@ -7,21 +7,10 @@ import { pillControlClass } from "@/components/ui/pill";
 import { cn } from "@/lib/utils";
 
 /**
- * ONE THING THAT CHANGED SINCE YOU LAST LOOKED (D44, doc 14 § Home — the
- * Morning Brief; prior art in docs/briefs/2026-10-08-home-overview-redesign.md
- * § home: Apple Health's Highlights, Oura's "One Big Thing", Linear Pulse).
- *
- * A highlight is one KIND, one sentence under twelve words, one SHAPE (a
- * line, a line over its normal band, or a display figure) and at most one
- * action. The first card of a brief is the big thing and is drawn larger. The
- * card's tint is its kind's SUBJECT (doc 14 § Surface kinds) — an alert card
- * is tinted alert whether its alert is warn or error — and the severity rides
- * the dot before the eyebrow and the word.
- *
- * *Registry justification:* `Kpi` is a label over a number fused to a chart,
- * `ListRow` is a mark, a title and a value in a list, `SmallMultiple` is a
- * figure with its history. None of them is a sentence with a shape under it
- * and a verb beside it, which is what a brief is made of.
+ * One thing that changed since you last looked: one kind, one sentence under
+ * twelve words, one shape (a line, a line over its normal band, or a figure)
+ * and at most one action. The first card of a brief is drawn larger. The tint
+ * is the kind's subject; severity rides the dot.
  */
 export type HighlightKind =
   | "alert"
@@ -34,7 +23,7 @@ export type HighlightKind =
   | "win"
   | "milestone";
 
-/** The kind's word, set as the eyebrow (doc 14 altitude: business words). */
+/** The kind's word, set as the eyebrow. */
 export const HIGHLIGHT_WORD: Record<HighlightKind, string> = {
   alert: "Alert",
   broken: "Stopped",

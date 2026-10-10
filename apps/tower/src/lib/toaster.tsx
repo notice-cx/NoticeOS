@@ -3,36 +3,16 @@ import { Toaster } from "sonner";
 import { useAppliedTheme } from "@/hooks/useTheme";
 
 /**
- * THE DESK'S TOASTER, WITHOUT THE KEYBOARD TRAP (beads `ro-ujb9.87`,
- * `ro-ujb9.54`).
+ * The desk's toaster, without the keyboard trap.
  *
- * Sonner (2.0.7) remembers the element focus came from whenever focus enters
- * its list, and puts focus back there as soon as focus leaves the list (its
- * `onFocus`/`onBlur` on the `<ol>`). That return is built for its Alt+T hotkey,
- * which jumps into the notifications from wherever the operator is and should
- * bring them back. But every toast is ALSO a normal Tab stop (`<li tabIndex=0>`),
- * and the toaster sits last in the page. So Tab from the page's last control
- * entered the toast, the next Tab left it, and sonner put focus straight back on
- * that last control: Tab alternated between the two for as long as the toast
- * stayed up (WCAG 2.1.2, no keyboard trap). The same return pulled focus back
- * when the operator clicked somewhere else.
+ * Sonner returns focus to where it came from whenever focus leaves its list
+ * (meant for its Alt+T hotkey), but every toast is also a Tab stop, so Tab from
+ * the page's last control bounced between the two (WCAG 2.1.2). Sonner has no
+ * option for this, so the section hides ordinary focus moves from sonner's
+ * handlers; only the hotkey's own focus of the list still reaches it.
  *
- * Sonner has no option for this (its props are `hotkey`, `containerAriaLabel`
- * and presentation), so the section keeps ordinary focus moves — a Tab or a
- * click onto a toast, or between the parts of one — from reaching sonner's
- * handlers. Tab then passes through a toast once and continues out of the page,
- * Shift+Tab returns to the page, and leaving a toast never moves focus anywhere
- * but where the operator sent it. Only the hotkey's own focus of the list, from
- * outside it, still reaches sonner, so Alt+T keeps its "take me there and back".
- *
- * One return is kept, because nothing else would place focus: when the toast the
- * operator is on closes under them (its timer, or its own Undo), focus goes back
- * to the control they came from — never when focus has already moved on.
- *
- * IN THE DESK'S THEME (bead `ro-ujb9.117`): a toast is drawn light on a light
- * desk and dark on a dark one, and follows a toggle while it is up. It used to
- * be dark always, so the Undo after answering an inbox row was a dark block on
- * a light page.
+ * One return is kept: when the focused toast closes under the operator, focus
+ * goes back to the control they came from, never once focus has moved on.
  */
 export function AppToaster() {
   const section = useRef<HTMLElement>(null);

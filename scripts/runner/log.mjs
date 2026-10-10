@@ -84,7 +84,7 @@ export async function openLog() {
  * Resolves once every line written so far is in the file, then closes it: what
  * a refusal awaits before it exits. The managed service's stdout goes nowhere,
  * and a line still queued behind a stream that is opening dies with the
- * process (bead ro-ujb9.76.7.2).
+ * process.
  */
 export async function closeLog() {
   await logRollover;

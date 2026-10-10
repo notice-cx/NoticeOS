@@ -143,7 +143,7 @@ test('planExport reads the file once per document and never writes', async () =>
   await assert.rejects(() => fs.readFile(path.join(root, 'installation/tower.json'), 'utf8'));
 });
 
-// Bead ro-ujb9.125: the export is this installation's own. A product default in
+// The export is this installation's own. A product default in
 // config/ that happens to equal the store is not an export, and is never
 // rewritten with one installation's settings.
 test('an export writes the installation folder and never the product default', async () => {

@@ -1,32 +1,15 @@
-// The readings behind an open alert's summary (`noticeos.flag_evidence`,
-// bead `ro-ujb9.220`).
-//
-// A lane that keeps one open flag for a condition lasting several runs
-// refreshes that flag each run and keeps each run's own reading in
-// `flag_evidence`. The nightly pull lane is the first to: every failed fetch is
-// a row. Two readers:
-//
-//   - an alert's Evidence lists its readings (`readFlagReadings`, attached by
-//     `readingsOf` as `readings` to the alert rows of the asset page, `/alerts`
-//     and the alert history; `pullFailed` in shared/alert-language.ts renders
-//     them);
-//   - a site's Data sources tab lists its failed fetches
-//     (`readSiteFetchFailures`).
-//
-// `noticeos.flag_evidence` is keyed here by
-// each alert's workspace number. Every lane that keeps one open alert appends
-// its readings there now (the store never rewrites a firing), but only the
-// nightly pull's alert lists them (`pullFailed` in shared/alert-language.ts
-// renders them), so the readings read here are that alert's. An empty list
-// means no readings are recorded; a failed read throws.
+// The per-run readings behind an open alert (`noticeos.flag_evidence`, keyed by
+// each alert's workspace number). Every lane that keeps one open alert appends
+// them, but only the nightly pull's alert lists them (`pullFailed` in
+// shared/alert-language.ts), on the alert rows and on a site's Data sources tab.
+// An empty list means none recorded; a failed read throws.
 
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import { READINGS_SHOWN, type FlagReading } from "../shared/alert-language";
 import type { FetchFailure } from "../shared/asset-detail";
 
 /** `workers/ingest` PULL_FAILED_RULE_ID, restated because the Tower does not
- * build the ingest worker's source (the same practice as `shared/wall`'s
- * freshness rule id). */
+ * build the ingest worker's source. */
 const PULL_FAILED_RULE_ID = "asset-pull-failed";
 
 type ReadingRow = {
@@ -79,8 +62,7 @@ export async function readFlagReadings(
   return byFlag;
 }
 
-/** The `readings` field for one alert row: present only when it has some, so a
- * row without readings is exactly the row it always was. */
+/** The `readings` field for one alert row, present only when it has some. */
 export function readingsOf(
   readings: ReadonlyMap<number, FlagReading[]>,
   flagId: number,

@@ -18,7 +18,7 @@ export interface PageHeaderProps {
   breadcrumb?: PageHeaderCrumb[];
   /** Right-aligned page-level controls; wraps under the title on narrow widths. */
   actions?: ReactNode;
-  /** A fact ABOUT the page rather than a control — an age badge, a period —
+  /** A fact about the page rather than a control — an age badge, a period —
    * seated inline beside the description. */
   meta?: ReactNode;
   /** Full-width slot under the header, for tabs and section navigators. */
@@ -30,20 +30,9 @@ export interface PageHeaderProps {
 }
 
 /**
- * One page header for every desk surface (bead `ro-pbzu.1`).
- *
- * Before this, each route drew its own: a different heading size, a different
- * back link ("← Home" on `/work` and `/health`, "← All properties" on
- * `/financials` and the asset page), and the changeset cart on three pages
- * out of five. Navigation now lives in the shell, so what a page owes the
- * operator is only what it IS — hence no back link and no cart here, and none
- * on any page that uses this.
- *
- * It is layout, not vocabulary: it introduces no state color, no chip, and no
- * word of its own. `title` is deliberately a `ReactNode` so the asset page
- * can keep its identity row (favicon, name, severity, domain, status badges)
- * as the heading instead of duplicating the name above it — one representation
- * per fact (doc 14).
+ * One page header for every desk surface. Navigation lives in the shell, so
+ * there is no back link here. It is layout only: no state colour, chip or word
+ * of its own.
  */
 export function PageHeader({
   title,
@@ -68,11 +57,8 @@ export function PageHeader({
               {index > 0 ? <span aria-hidden>/</span> : null}
               <Link
                 to={crumb.to}
-                // A crumb is a LINK IN A NAV ROW, not a word in running text, so
-                // the 44px floor covers it (bead `ro-78qo.19`). The target is
-                // claimed rather than added — `OwnerChip`'s pattern: the
-                // negative margin hands the height back to the layout while the
-                // box keeps it, so the header does not grow on a phone.
+                // A crumb is a nav target, so the 44px phone floor covers it;
+                // the negative margin hands the height back to the layout.
                 className="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center"
               >
                 {crumb.label}

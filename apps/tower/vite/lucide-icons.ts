@@ -1,34 +1,14 @@
-// One file per icon on the dev server, instead of every icon in one file
-// (bead ro-ujb9.83).
-//
-// WHY. The Tower imports its icons by name from the `lucide-react` package index
-// (`import { Plus } from "lucide-react"`), which re-exports all ~2,000 icons. A
-// production build keeps only the icons a screen uses (the package declares
-// `sideEffects: false`). The dev server — what `os:up` serves to the desk and the
-// TV every day — cannot: Vite pre-bundles a dependency once, from its entry, so
-// the index became ONE 4.3 MB file that every screen downloaded and parsed, for
-// the few dozen icons that screen actually draws.
-//
-// WHAT. While Vite is serving, and only for the browser's code, each named
-// import from the index is rewritten to the icon's own module, which the package
-// ships beside the index:
+// One file per icon on the dev server. Vite pre-bundles `lucide-react` from
+// its index into one multi-megabyte file every screen downloads; while serving
+// browser code, each named import is rewritten to the icon's own module:
 //
 //   import { Plus, X as Close } from "lucide-react";
 //   → import Plus from "lucide-react/dist/esm/icons/plus.mjs"; import Close from "lucide-react/dist/esm/icons/x.mjs";
 //
-// and the package is taken out of pre-bundling, so each icon module is served
-// as it is (a few hundred bytes, plus `createLucideIcon` shared by all of them).
 // The name → file table is read from the installed index itself, so aliases
-// (`AlertTriangle` → `triangle-alert.mjs`) resolve exactly as the index does.
-//
-// WHAT IT DOES NOT DO. It changes no source file and no production output
-// (`apply: "serve"`); `vite build` and Vitest still import the index. A name
-// the table does not know stays on the index import, which still works, just
-// slowly; `test/lucide-icons.test.ts` fails if any import in `src/` would. If
-// the index cannot be read, the plugin leaves both the imports and the
-// pre-bundling alone, so the worst case is the old 4 MB file, never a broken
-// page. The rewrite keeps every line where it was (the generated imports share
-// the original's first line), so source maps below the imports are unchanged.
+// resolve exactly as the index does. A name the table lacks stays on the index
+// import; an unreadable index leaves imports and pre-bundling alone. Line
+// count is preserved, so source maps below the imports still hold.
 
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";

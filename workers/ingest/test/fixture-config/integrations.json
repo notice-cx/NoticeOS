@@ -120,19 +120,19 @@
     "root-os": {
       "uptime": {
         "status": "needs-setup",
-        "note": "The System's 'uptime on the Tower' check. Uptime/monitoring is a named Phase 0-1 gap (doc 11 'Current known gaps'); not stood up. The OS is meant to watch itself first (doc 06) — this check's own failure is itself a System warning.",
+        "note": "Not set up for this site yet.",
         "ref": "CF Health Check / UptimeRobot -> central store (not built)",
         "since": "2026-07-06"
       },
       "github-app": {
         "status": "needs-setup",
-        "note": "The GitHub App (the crown-jewel credential, doc 06 §Secrets) is a Phase-0 accounts-pass task (doc 12 checklist item 1); not yet provisioned. Org remote verified 2026-07-05 (decisions.md D4), but the App itself is unprovisioned.",
+        "note": "Not set up for this site yet.",
         "ref": "GitHub App for the root-os org (unprovisioned)",
         "since": "2026-07-06"
       },
       "discord-webhooks": {
         "status": "needs-setup",
-        "note": "Operator-notification webhooks (flags digest, approvals, kill-switch confirmations) are a Phase-0 accounts-pass task (doc 12 checklist item 1); channel not yet provisioned. Fallback is email (doc 11).",
+        "note": "Not set up for this site yet.",
         "ref": "operator-notification webhook URL -> central store (unprovisioned)",
         "since": "2026-07-06"
       }
@@ -140,42 +140,42 @@
     "meals.example": {
       "gsc": {
         "status": "live",
-        "note": "End-to-end central collector re-proved 2026-07-30 with the renamed studio-signals account alias: GSC returned the full 90-day window for 2026-05-02–2026-07-30. The 15-minute collector requests dataState=all, treats today as provisional, and honors an earlier Google incomplete-date boundary when present.",
-        "ref": "GOOGLE_SIGNAL_ACCOUNTS studio-signals -> sc-domain:meals.example",
+        "note": "Collected centrally; effective health comes from the stored attempts.",
+        "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> sc-domain:meals.example",
         "since": "2026-07-29"
       },
       "bing-webmaster": {
         "status": "live",
-        "note": "End-to-end central collector proved 2026-07-29: Bing returned 129 history rows and the OS normalized 26 reported days (2026-07-02–2026-07-27) of clicks and impressions into the append-only signal store. The daily collector stops at Bing's latest reported date rather than manufacturing zeroes for its reporting lag.",
+        "note": "Collected centrally; effective health comes from the stored attempts.",
         "ref": "BING_WEBMASTER_API_KEY -> https://meals.example/",
         "since": "2026-07-29"
       },
       "ga4": {
         "status": "live",
-        "note": "End-to-end central collector re-proved 2026-07-30 with the renamed studio-signals account alias: GA4 returned the full 90-day window for 2026-05-02–2026-07-30. The 15-minute collector marks only today's incomplete calendar day provisional; later provider revisions remain auditable as new observation rows.",
-        "ref": "GOOGLE_SIGNAL_ACCOUNTS studio-signals -> configured GA4 property",
+        "note": "Collected centrally; effective health comes from the stored attempts.",
+        "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> configured GA4 property",
         "since": "2026-07-29"
       },
       "clarity": {
         "status": "needs-setup",
-        "note": "Asset-side Clarity live; scripts/clarity-export.mjs snapshots to _analytics/ in-repo (10 calls/project/day, 72h window, verified 2026-07-04). Central Clarity export token not provisioned (doc 11 Phase 0-1 gap) — the OS cannot consume it centrally yet.",
+        "note": "Not set up for this site yet.",
         "ref": "Clarity project token -> central store (unprovisioned)",
         "since": "2026-07-06"
       },
       "dataforseo": {
         "status": "needs-setup",
-        "note": "In scope for the weekly domain-driven collector. Effective health is derived from the newest five stored report attempts, not set by hand.",
+        "note": "Not set up for this site yet.",
         "ref": "DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD -> meals.example",
         "since": "2026-07-30"
       },
       "uptime": {
         "status": "needs-setup",
-        "note": "Uptime/monitoring not built (doc 11 Phase 0-1 gap).",
+        "note": "Not set up for this site yet.",
         "since": "2026-07-06"
       },
       "ad-network": {
         "status": "needs-setup",
-        "note": "AdSense-eligible traffic (doc 12, 2026-07-04); no confirmation the program is serving/reporting, and ad-report ingestion is not built (doc 11 Phase 0-1 gap). Book on reconciliation only (doc 06).",
+        "note": "Not set up for this site yet.",
         "ref": "AdSense pub id (pub-XXXXXXXX placeholder)",
         "since": "2026-07-06",
         "mediavineSiteId": "SW50ZXJuYWxTaXRlOjMxNjMz",
@@ -184,30 +184,30 @@
       },
       "affiliate-cj": {
         "status": "needs-setup",
-        "note": "CJ is LIVE as a program since 2026-07-04 (Magnifique; per-placement SID attribution; product feed powers gen:magnifique — doc 11, doc 12 stale-facts). But OS-side commission/EPC ingestion is NOT built: the designated interim path is a manual monthly CSV (decisions.md D5), which is itself a Phase-0 task (doc 12 checklist item 6, not yet done). So the OS cannot consume this data source yet — needs-setup, not live. Not 'degraded': there is no reduced-mode OS collection running, the OS side simply does not exist yet.",
-        "ref": "CJ SID = per-placement id (Magnifique); PAT+CID -> central store",
+        "note": "Not set up for this site yet.",
+        "ref": "CJ SID = per-placement id; PAT+CID -> central store",
         "since": "2026-07-06"
       },
       "affiliate-amazon": {
         "status": "skipped",
-        "note": "REASON: Amazon Associates program is OFF on Meal Planner (doc 12 stale-facts, 2026-07-04) — operator-declined in favor of CJ; Amazon reporting is degraded + 60-day lag (doc 11), so it loses to CJ's SID-level, near-real-time attribution. Relevant (Meal Planner does affiliate) but declined for now = skipped, not not-applicable.",
+        "note": "REASON: Not used on this site.",
         "ref": "Amazon Associates tag (program OFF)",
         "since": "2026-07-04"
       },
       "deploy-annotations": {
         "status": "needs-setup",
-        "note": "Unverified whether Meal Planner CI emits a deploy webhook the OS could ingest; the OS deploy-annotation ingest is not built. (Nosh's deploy-notify is the documented exemplar — doc 09.)",
+        "note": "Not set up for this site yet.",
         "since": "2026-07-06"
       },
       "github-app": {
         "status": "needs-setup",
-        "note": "App installation on the Meal Planner repo is unverified (decisions.md D4 — asset repos unverified). Required before the first T2 auto-merge (content-data on meals.example, decisions.md D7 / D2).",
-        "ref": "GitHub App install on the meals repo (unverified — D4)",
+        "note": "Not set up for this site yet.",
+        "ref": "GitHub App install on the site repo (unverified)",
         "since": "2026-07-06"
       },
       "posthog": {
         "status": "needs-setup",
-        "note": "PostHog is live on the site (US cloud, project 596607) and replaced Clarity there on 2026-09-07. The OS reads it once a key is connected on /integrations and db/migrations/0037 is applied; effective health then comes from the daily archive's own runs.",
+        "note": "Not set up for this site yet.",
         "ref": "POSTHOG_KEYS -> meals.example (us, project 596607)",
         "since": "2026-09-22",
         "host": "us",
@@ -235,341 +235,341 @@
     "nosh.example": {
       "gsc": {
         "status": "live",
-        "note": "End-to-end central collector proved 2026-07-30 with the shared studio-signals service account: the exact sc-domain:nosh.example resource is readable and the full 90-day GSC window for 2026-05-02–2026-07-30 is stored. The latest reporting day remains visibly provisional.",
-        "ref": "GOOGLE_SIGNAL_ACCOUNTS studio-signals -> sc-domain:nosh.example",
+        "note": "Collected centrally; effective health comes from the stored attempts.",
+        "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> sc-domain:nosh.example",
         "since": "2026-07-30"
       },
       "bing-webmaster": {
         "status": "live",
-        "note": "End-to-end central collector proved 2026-07-29: Bing returned 197 history rows and the OS normalized 26 reported days (2026-07-02–2026-07-27) of clicks and impressions into the append-only signal store. The daily collector stops at Bing's latest reported date rather than manufacturing zeroes for its reporting lag.",
+        "note": "Collected centrally; effective health comes from the stored attempts.",
         "ref": "BING_WEBMASTER_API_KEY -> https://nosh.example/",
         "since": "2026-07-29"
       },
       "ga4": {
         "status": "live",
-        "note": "End-to-end central collector proved 2026-07-30 with the shared studio-signals service account: the full 90-day GA4 window for 2026-05-02–2026-07-30 is stored. The latest reporting day remains visibly provisional. Never make Nosh call GA4 to report on itself (doc 09 design decision 1).",
-        "ref": "GOOGLE_SIGNAL_ACCOUNTS studio-signals -> configured GA4 property",
+        "note": "Collected centrally; effective health comes from the stored attempts.",
+        "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> configured GA4 property",
         "since": "2026-07-30"
       },
       "clarity": {
         "status": "needs-setup",
-        "note": "No Clarity project documented for Nosh (Clarity is currently a Meal Planner data source). Optional UX data source; inventory unverified (decisions.md D8) — install pending if adopted.",
+        "note": "Not set up for this site yet.",
         "since": "2026-07-06"
       },
       "dataforseo": {
         "status": "needs-setup",
-        "note": "In scope for the weekly domain-driven collector. Nosh's older in-repo tracked-query panel remains separate; OS health is derived from the central stored attempts.",
+        "note": "Not set up for this site yet.",
         "ref": "DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD -> nosh.example",
         "since": "2026-07-30"
       },
       "uptime": {
         "status": "needs-setup",
-        "note": "Uptime/monitoring not built (doc 11 Phase 0-1 gap).",
+        "note": "Not set up for this site yet.",
         "since": "2026-07-06"
       },
       "ad-network": {
         "status": "needs-setup",
-        "note": "AdSense application is PENDING re-review (~2-4wk after remediation deploy — doc 09 / doc 12 stale-facts, as of 2026-07). This data source is blocked UPSTREAM on AdSense approval; ad-report ingestion also not built. Pending approval is not operator-declined, so needs-setup, not skipped.",
+        "note": "Not set up for this site yet.",
         "ref": "AdSense pub id (pub-XXXXXXXX placeholder) — application pending",
         "since": "2026-07-06"
       },
       "affiliate-cj": {
         "status": "needs-setup",
-        "note": "Nosh's affiliate BEACON is live asset-side (doc 12 'affiliate beacon live'; /api/affiliate-click, the affiliateClicks nightly-report metric — doc 09). But whether Nosh is enrolled on CJ is not documented (network affiliation unverified, decisions.md D5), and OS-side commission/EPC ingestion is not built. CJ is the portfolio-primary network, so this is the data source to track.",
+        "note": "Not set up for this site yet.",
         "ref": "/api/affiliate-click beacon (network unconfirmed); CJ PAT+CID -> central store",
         "since": "2026-07-06"
       },
       "affiliate-amazon": {
         "status": "not-applicable",
-        "note": "No Amazon Associates program on Nosh; Amazon is off portfolio-wide (doc 11). Nosh's affiliate is the asset-side beacon (network unconfirmed).",
+        "note": "Does not apply to this site.",
         "since": "2026-07-06"
       },
       "deploy-annotations": {
         "status": "needs-setup",
-        "note": "Nosh's deploy pipeline ALREADY emits a Discord deploy notification (deploy-notify step — doc 09); pointing that webhook at the OS ingest is 'zero new plumbing in the asset'. But the OS-side ingest is not built. This is the portfolio's readiest deploy-annotation source.",
+        "note": "Not set up for this site yet.",
         "ref": "deploy-notify Discord step -> OS ingest (doc 09); OS ingest pending",
         "since": "2026-07-06"
       },
       "github-app": {
         "status": "needs-setup",
-        "note": "App installation on the Nosh repo is unverified (decisions.md D4). Nosh is a full-loop onboarding target (doc 12) but Act is not stood up yet in Phase 0.",
-        "ref": "GitHub App install on the nom repo (unverified — D4)",
+        "note": "Not set up for this site yet.",
+        "ref": "GitHub App install on the site repo (unverified)",
         "since": "2026-07-06"
       },
       "posthog": {
         "status": "needs-setup",
-        "note": "PostHog inventory unverified for this asset; optional data source — save its PostHog region and project here and connect a key if adopted.",
+        "note": "Not set up for this site yet.",
         "since": "2026-09-22"
       }
     },
     "pacer.example": {
       "gsc": {
         "status": "live",
-        "note": "End-to-end central collector proved 2026-07-30 with example-signals: GSC returned 43 reported dates in the bounded 90-day window for 2026-05-02–2026-07-30, and the daily archive preserved all configured GSC report families for four completed dates.",
+        "note": "Collected centrally; effective health comes from the stored attempts.",
         "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> sc-domain:pacer.example",
         "since": "2026-07-30"
       },
       "bing-webmaster": {
         "status": "live",
-        "note": "End-to-end central collector proved 2026-07-29: Bing returned 38 history rows and the OS normalized 26 reported days (2026-07-02–2026-07-27) of clicks and impressions into the append-only signal store. The daily collector stops at Bing's latest reported date rather than manufacturing zeroes for its reporting lag.",
+        "note": "Collected centrally; effective health comes from the stored attempts.",
         "ref": "BING_WEBMASTER_API_KEY -> https://pacer.example/",
         "since": "2026-07-29"
       },
       "ga4": {
         "status": "live",
-        "note": "End-to-end central collector proved 2026-07-30 with example-signals: GA4 returned 40 reported dates in the bounded 90-day window for 2026-05-02–2026-07-30, and the daily archive preserved all configured GA4 report families for four completed dates plus the rolling 28-day event aggregate.",
+        "note": "Collected centrally; effective health comes from the stored attempts.",
         "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> configured GA4 property",
         "since": "2026-07-30"
       },
       "clarity": {
         "status": "needs-setup",
-        "note": "Analytics inventory unverified (decisions.md D8); optional data source — install pending if adopted.",
+        "note": "Not set up for this site yet.",
         "since": "2026-07-06"
       },
       "dataforseo": {
         "status": "needs-setup",
-        "note": "In scope for the weekly domain-driven collector. Effective health is derived from the newest five stored report attempts.",
+        "note": "Not set up for this site yet.",
         "ref": "DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD -> pacer.example",
         "since": "2026-07-30"
       },
       "uptime": {
         "status": "needs-setup",
-        "note": "Uptime/monitoring not built (doc 11 Phase 0-1 gap).",
+        "note": "Not set up for this site yet.",
         "since": "2026-07-06"
       },
       "ad-network": {
         "status": "needs-setup",
-        "note": "Ads-intended (doc 12 orphaned-demand play); no ad program stood up yet, and pft is Sense-only until revenue exists (doc 12). Relevant eventually -> needs-setup, not not-applicable.",
+        "note": "Not set up for this site yet.",
         "ref": "AdSense pub id (pub-XXXXXXXX placeholder)",
         "since": "2026-07-06"
       },
       "affiliate-cj": {
         "status": "not-applicable",
-        "note": "pft's revenue intent is ADS only (doc 12 'Ads-intended'); no affiliate program planned.",
+        "note": "Does not apply to this site.",
         "since": "2026-07-06"
       },
       "affiliate-amazon": {
         "status": "not-applicable",
-        "note": "pft is ads-intended (doc 12); no affiliate program planned, and Amazon is off portfolio-wide (doc 11).",
+        "note": "Does not apply to this site.",
         "since": "2026-07-06"
       },
       "deploy-annotations": {
         "status": "needs-setup",
-        "note": "No deploy-notify -> OS ingest wired; unverified whether pft CI emits a deploy webhook. OS ingest not built.",
+        "note": "Not set up for this site yet.",
         "since": "2026-07-06"
       },
       "github-app": {
         "status": "needs-setup",
-        "note": "App installation on the pft repo is unverified (decisions.md D4). pft is Sense-only (doc 12) — Act not stood up.",
-        "ref": "GitHub App install on the pft repo (unverified — D4)",
+        "note": "Not set up for this site yet.",
+        "ref": "GitHub App install on the site repo (unverified)",
         "since": "2026-07-06"
       },
       "posthog": {
         "status": "needs-setup",
-        "note": "PostHog inventory unverified for this asset; optional data source — save its PostHog region and project here and connect a key if adopted.",
+        "note": "Not set up for this site yet.",
         "since": "2026-09-22"
       }
     },
     "pullups.example": {
       "gsc": {
         "status": "needs-setup",
-        "note": "New consolidated asset (decisions.md D11, 2026-08-02): hosts the former pacer.example content plus the military PT cluster; both old domains 301 in. GSC property + Change of Address tracked as a launch task (pts-7fu). The pacer.example collectors stay live to watch the redirect handoff.",
+        "note": "Not set up for this site yet.",
         "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> sc-domain:pullups.example (to be verified)",
         "since": "2026-08-02"
       },
       "bing-webmaster": {
         "status": "needs-setup",
-        "note": "Verification + IndexNow tracked in launch task pts-7fu; the site ships a fresh IndexNow key.",
+        "note": "Not set up for this site yet.",
         "ref": "BING_WEBMASTER_API_KEY -> https://pullups.example/ (to be verified)",
         "since": "2026-08-02"
       },
       "ga4": {
         "status": "needs-setup",
-        "note": "Fresh GA4 property required (launch task pts-ao9); index.html IDs intentionally blank so traffic never reports into the pacer.example accounts.",
+        "note": "Not set up for this site yet.",
         "since": "2026-08-02"
       },
       "clarity": {
         "status": "needs-setup",
-        "note": "Optional data source; fresh project ID goes into index.html (launch task pts-ao9).",
+        "note": "Not set up for this site yet.",
         "since": "2026-08-02"
       },
       "dataforseo": {
         "status": "needs-setup",
-        "note": "In scope for the weekly domain-driven collector once the domain serves (launch task pts-brg). Pre-launch decision evidence lives under analysis/pacer.example/drill-decision-2026-08-02/.",
+        "note": "Not set up for this site yet.",
         "ref": "DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD -> pullups.example",
         "since": "2026-08-02"
       },
       "uptime": {
         "status": "needs-setup",
-        "note": "Uptime/monitoring not built (doc 11 Phase 0-1 gap).",
+        "note": "Not set up for this site yet.",
         "since": "2026-08-02"
       },
       "ad-network": {
         "status": "needs-setup",
-        "note": "Ads-intended (inherits the pft orphaned-demand play, doc 12); no ad program stood up. Network choice tracked as task pts-pp9, gated on the LLC (pts-a31).",
+        "note": "Not set up for this site yet.",
         "since": "2026-08-02"
       },
       "affiliate-cj": {
         "status": "not-applicable",
-        "note": "Revenue intent is ads + (owner-gated) Amazon affiliate; no CJ program planned.",
+        "note": "Does not apply to this site.",
         "since": "2026-08-02"
       },
       "affiliate-amazon": {
         "status": "needs-setup",
-        "note": "The site ships a fully built affiliate layer behind AFFILIATE_ENABLED=false (owner-gated; task pts-ea7, blocked on the LLC). Doc 11's Amazon-off posture holds until the owner flips it — needs-setup records the built capability, not a go decision.",
+        "note": "Not set up for this site yet.",
         "since": "2026-08-02"
       },
       "deploy-annotations": {
         "status": "needs-setup",
-        "note": "deploy-notify.mjs ships with the repo (IndexNow + optional Discord ping); Cloudflare project wiring is launch task pts-brg. OS ingest not built.",
+        "note": "Not set up for this site yet.",
         "since": "2026-08-02"
       },
       "github-app": {
         "status": "needs-setup",
-        "note": "Repo github.com/example/pullups.example; App installation unverified (decisions.md D4). Sense-only — Act not stood up.",
+        "note": "Not set up for this site yet.",
         "since": "2026-08-02"
       },
       "posthog": {
         "status": "needs-setup",
-        "note": "PostHog inventory unverified for this asset; optional data source — save its PostHog region and project here and connect a key if adopted.",
+        "note": "Not set up for this site yet.",
         "since": "2026-09-22"
       }
     },
     "areas.example": {
       "gsc": {
         "status": "live",
-        "note": "End-to-end central collector proved 2026-07-30 with example-signals: GSC returned 42 reported dates in the bounded 90-day window for 2026-05-02–2026-07-30, and the daily archive preserved all configured GSC report families for four completed dates.",
+        "note": "Collected centrally; effective health comes from the stored attempts.",
         "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> sc-domain:areas.example",
         "since": "2026-07-30"
       },
       "bing-webmaster": {
         "status": "live",
-        "note": "End-to-end central collector proved 2026-07-29: Bing returned 37 history rows and the OS normalized 26 reported days (2026-07-02–2026-07-27) of clicks and impressions into the append-only signal store. The daily collector stops at Bing's latest reported date rather than manufacturing zeroes for its reporting lag.",
+        "note": "Collected centrally; effective health comes from the stored attempts.",
         "ref": "BING_WEBMASTER_API_KEY -> https://areas.example/",
         "since": "2026-07-29"
       },
       "ga4": {
         "status": "live",
-        "note": "End-to-end central collector proved 2026-07-30 with example-signals: GA4 returned 41 reported dates in the bounded 90-day window for 2026-05-02–2026-07-30, and the daily archive preserved all configured GA4 report families for four completed dates plus the rolling 28-day event aggregate.",
+        "note": "Collected centrally; effective health comes from the stored attempts.",
         "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> configured GA4 property",
         "since": "2026-07-30"
       },
       "clarity": {
         "status": "needs-setup",
-        "note": "Analytics inventory unverified (decisions.md D8); optional data source — install pending if adopted.",
+        "note": "Not set up for this site yet.",
         "since": "2026-07-06"
       },
       "dataforseo": {
         "status": "needs-setup",
-        "note": "In scope for the weekly domain-driven collector. Effective health is derived from the newest five stored report attempts.",
+        "note": "Not set up for this site yet.",
         "ref": "DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD -> areas.example",
         "since": "2026-07-30"
       },
       "uptime": {
         "status": "needs-setup",
-        "note": "Uptime/monitoring not built (doc 11 Phase 0-1 gap).",
+        "note": "Not set up for this site yet.",
         "since": "2026-07-06"
       },
       "ad-network": {
         "status": "needs-setup",
-        "note": "Ads/affiliate-intended (doc 12); no ad program stood up yet, and areas is Sense-only until revenue exists (doc 12).",
+        "note": "Not set up for this site yet.",
         "ref": "AdSense pub id (pub-XXXXXXXX placeholder)",
         "since": "2026-07-06"
       },
       "affiliate-cj": {
         "status": "needs-setup",
-        "note": "Ads/affiliate-intended (doc 12); no affiliate program stood up yet, network unconfirmed. Sense-only until revenue exists. CJ is the portfolio-primary network.",
+        "note": "Not set up for this site yet.",
         "ref": "CJ PAT+CID -> central store (unprovisioned)",
         "since": "2026-07-06"
       },
       "affiliate-amazon": {
         "status": "not-applicable",
-        "note": "Amazon is off portfolio-wide (doc 11); areas's affiliate plan defaults to CJ-primary, no Amazon program.",
+        "note": "Does not apply to this site.",
         "since": "2026-07-06"
       },
       "deploy-annotations": {
         "status": "needs-setup",
-        "note": "No deploy-notify -> OS ingest wired; unverified whether areas CI emits a deploy webhook. OS ingest not built.",
+        "note": "Not set up for this site yet.",
         "since": "2026-07-06"
       },
       "github-app": {
         "status": "needs-setup",
-        "note": "App installation on the areas repo is unverified (decisions.md D4). Sense-only (doc 12) — Act not stood up.",
-        "ref": "GitHub App install on the areas repo (unverified — D4)",
+        "note": "Not set up for this site yet.",
+        "ref": "GitHub App install on the site repo (unverified)",
         "since": "2026-07-06"
       },
       "posthog": {
         "status": "needs-setup",
-        "note": "PostHog inventory unverified for this asset; optional data source — save its PostHog region and project here and connect a key if adopted.",
+        "note": "Not set up for this site yet.",
         "since": "2026-09-22"
       }
     },
     "fees.example": {
       "gsc": {
         "status": "live",
-        "note": "End-to-end central collector proved 2026-07-30 with example-signals: the exact sc-domain:fees.example Search Console property returned 33 reported dates in the bounded 90-day window for 2026-05-02–2026-07-30, and all configured GSC archive families were preserved for four completed dates. This proves the signal collection, not a launch decision; YMYL publication safeguards remain unchanged.",
+        "note": "Collected centrally; effective health comes from the stored attempts.",
         "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> sc-domain:fees.example",
         "since": "2026-07-30"
       },
       "bing-webmaster": {
         "status": "live",
-        "note": "End-to-end central collector proved 2026-07-30: Bing listed https://fees.example/ as verified, the live collector returned 30 reported dates through 2026-07-28 (60 click/impression observations), and all six archive families completed. The operator confirmed the asset live on 2026-08-05; NoticeOS remains sense-only for this YMYL asset.",
+        "note": "Collected centrally; effective health comes from the stored attempts.",
         "ref": "BING_WEBMASTER_API_KEY -> https://fees.example/",
         "since": "2026-07-30"
       },
       "ga4": {
         "status": "live",
-        "note": "End-to-end central collector proved 2026-07-30 with example-signals: GA4 returned 34 reported dates in the bounded 90-day window for 2026-05-02–2026-07-30, and all configured GA4 archive families were preserved for four completed dates plus the rolling 28-day event aggregate. The operator confirmed the asset live on 2026-08-05; NoticeOS remains sense-only for this YMYL asset.",
+        "note": "Collected centrally; effective health comes from the stored attempts.",
         "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> configured GA4 property",
         "since": "2026-07-30"
       },
       "clarity": {
         "status": "needs-setup",
-        "note": "The asset is live as of 2026-08-05, so UX evidence now applies; no fees.example Clarity project token is provisioned in the central CLARITY_TOKENS map.",
+        "note": "Not set up for this site yet.",
         "ref": "CLARITY_TOKENS['fees.example'] (unprovisioned)",
         "since": "2026-08-05"
       },
       "dataforseo": {
         "status": "live",
-        "note": "First scoped central collection succeeded 2026-08-05 after the operator confirmed the asset live: 6 of 6 families stored with no failures at $0.380940. The focused panel contributed 15 terms × 2 devices (688 provider rows, $0.113); ranked keywords, backlinks, and both LLM-mention families landed beside it. Expensive backlink and LLM families remain weekly, never daily.",
+        "note": "Collected centrally; effective health comes from the stored attempts.",
         "ref": "DATAFORSEO_LOGIN/DATAFORSEO_PASSWORD -> fees.example + config/serp-panel.json",
         "since": "2026-08-05"
       },
       "uptime": {
         "status": "needs-setup",
-        "note": "The asset is live as of 2026-08-05, so uptime applies; portfolio uptime/monitoring is not built yet (doc 11 Phase 0–1 gap).",
+        "note": "Not set up for this site yet.",
         "since": "2026-08-05"
       },
       "ad-network": {
         "status": "needs-setup",
-        "note": "The asset is live as of 2026-08-05 and ads are an intended revenue source, but no ad network is configured or approved.",
+        "note": "Not set up for this site yet.",
         "since": "2026-08-05"
       },
       "affiliate-cj": {
         "status": "needs-setup",
-        "note": "The asset is live as of 2026-08-05 and affiliate monetization now applies, but no CJ program is connected. fin-gz0 owns the asset's affiliate activation path.",
+        "note": "Not set up for this site yet.",
         "ref": "CJ PAT+CID -> central store (unprovisioned for fees.example)",
         "since": "2026-08-05"
       },
       "affiliate-amazon": {
         "status": "not-applicable",
-        "note": "Amazon is off portfolio-wide (doc 11); launch state does not change this data source.",
+        "note": "Does not apply to this site.",
         "since": "2026-08-05"
       },
       "deploy-annotations": {
         "status": "needs-setup",
-        "note": "The asset is live as of 2026-08-05, so deploy timing now matters; no fees.example deploy-notify path into NoticeOS is proved.",
+        "note": "Not set up for this site yet.",
         "since": "2026-08-05"
       },
       "github-app": {
         "status": "needs-setup",
-        "note": "The fees.example repo and site are live; GitHub App installation + remote reachability remain unverified under decisions.md D4. Verify before any Act path is enabled.",
-        "ref": "GitHub App install on the fees.example repo (unverified — D4)",
+        "note": "Not set up for this site yet.",
+        "ref": "GitHub App install on the site repo (unverified)",
         "since": "2026-07-06"
       },
       "posthog": {
         "status": "needs-setup",
-        "note": "PostHog inventory unverified for this asset; optional data source — save its PostHog region and project here and connect a key if adopted.",
+        "note": "Not set up for this site yet.",
         "since": "2026-09-22"
       }
     }

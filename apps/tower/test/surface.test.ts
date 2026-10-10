@@ -28,7 +28,7 @@ function daily(end: string, count: number, value: (i: number) => number): Series
 }
 
 describe("the range vocabulary", () => {
-  it("offers the three ranges doc 14 names and defaults to 28 days", () => {
+  it("offers the three ranges and defaults to 28 days", () => {
     expect([...SURFACE_RANGES]).toEqual([7, 28, 90]);
     expect(DEFAULT_RANGE_DAYS).toBe(28);
   });
@@ -108,8 +108,8 @@ describe("averageSeries", () => {
       { t: "2026-09-05", v: 20 },
     ];
     const average = averageSeries(series);
-    // Two observations inside the seven days ending 09-05 → 15, not 6 (which is
-    // what counting the missing days as zero would give).
+    // Two observations inside the seven days ending 09-05 → 15, not 6 (which
+    // counting the missing days as zero would give).
     expect(average.at(-1)!.v).toBe(15);
   });
 
@@ -117,10 +117,8 @@ describe("averageSeries", () => {
     expect(averageSeries(daily("2026-09-05", 3, () => 1), 0)).toEqual([]);
   });
 
-  /**
-   * A DECLARED hole is different from a period that is simply absent (bead
-   * `ro-78qo.37`): it keeps its place on the axis so the line can break over it.
-   */
+  /** A declared hole is different from a period that is simply absent: it
+   * keeps its place on the axis so the line can break over it. */
   it("keeps a declared hole a hole, and leaves it out of the windows around it", () => {
     const average = averageSeries([
       { t: "2026-09-01", v: 10 },
@@ -186,8 +184,7 @@ describe("periodDelta", () => {
       { effectiveOn: "2026-09-01", from: "UTC", to: "America/New_York" },
     ])!;
     expect(straddled.comparable).toBe(false);
-    // The figures and the direction survive: the operator decided a marked
-    // number beats a blank. Only the verdict is withdrawn.
+    // The figures and the direction survive; only the verdict is withdrawn.
     expect(straddled.change).toBe(7);
     expect(straddled.tone).toBe("up");
   });
@@ -220,8 +217,8 @@ describe("periodDelta", () => {
     // Fourteen days at 10, then a fifteenth the provider is still counting at 1.
     const series = [...daily("2026-09-04", 14, () => 10), { t: "2026-09-05", v: 1 }];
 
-    // Anchored on the provisional day, the last seven days total 61 against 70
-    // and every morning reports a fall.
+    // Anchored on the provisional day, the last seven days total 61 against
+    // 70 and every morning reports a fall.
     expect(periodDelta(series, 7)!.change).toBe(-9);
 
     // Anchored on the last COMPLETE day, the two sides are equal.
@@ -348,13 +345,9 @@ describe("weekendSpans", () => {
   });
 });
 
-/**
- * THE LABELS A SERIES SKIPS (bead `ro-78qo.37`).
- *
- * A `Sparkline` spaces its points by position, so three points always look like
- * three consecutive periods. This is what a caller asks before drawing one, and
- * what a caller filling an axis uses to know where the holes go.
- */
+/** A `Sparkline` spaces its points by position, so three points always look
+ * like three consecutive periods. This is what a caller asks before drawing
+ * one, and what a caller filling an axis uses to know where the holes go. */
 describe("missingLabels", () => {
   it("finds nothing in a series with no holes", () => {
     expect(
@@ -385,8 +378,7 @@ describe("missingLabels", () => {
     ).toEqual(["2026-07-02", "2026-07-03"]);
   });
 
-  /** Bounded by the series' OWN span: a gap cannot be a period outside the
-   * range the series already covers, so nothing here can invent a month. */
+  /** Bounded by the series' own span, so nothing here can invent a month. */
   it("never looks outside the first and last labels it was handed", () => {
     expect(missingLabels([])).toEqual([]);
     expect(missingLabels([{ t: "2026-07", v: 1 }])).toEqual([]);

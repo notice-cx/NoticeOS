@@ -22,11 +22,8 @@ import { useConfigWritable } from "@/hooks/useConfigWritable";
 import { cn } from "@/lib/utils";
 import { Panel } from "@/routes/asset-detail/shared";
 
-// THE DEFAULTS ADD A SITE NO LONGER ASKS, CHANGEABLE HERE (bead
-// `ro-ujb9.96.7.5`). The one-screen add writes the wizard's defaults: the
-// asset sends its own nightly report, and its card carries no totals. The
-// wizard's Data collection step was the only place either could be changed,
-// so both come here, beside the rest of the asset's data collection — the same
+// The defaults Add a site does not ask about, changeable here: the asset
+// sends its own nightly report, and its card carries no totals. The same
 // inserts the add would have sent (`pullEntryOp`, `countersEntryOp`), through
 // the same write lane.
 

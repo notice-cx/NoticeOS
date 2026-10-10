@@ -1,9 +1,6 @@
 // A product default the Tower compiles in as its Worker's fallback, judged by
-// the same register and knob declarations every Save is judged by (bead
-// ro-ujb9.222). vite.config.ts runs it at the build boundary, beside the time
-// zone and the display config it already parses there, so a malformed default
-// fails the build naming the file instead of reaching every read of an
-// installation that has not seeded its store.
+// the same declarations every Save is judged by, so a malformed default fails
+// the build naming the file.
 //
 // `scripts/config-documents.mjs` is plain ESM with no `node:` or package
 // import, so it loads before Vite's resolver exists.

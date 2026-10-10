@@ -11,7 +11,7 @@ const ACCESS: Readonly<Record<string, string>> = {
   'evidence:read': 'Read site reports and research',
 };
 
-/** Agent sign-in (epic ro-cvl9): the one decision a person makes for an
+/** Agent sign-in: the one decision a person makes for an
  * agent. Allowing it covers every workspace the person belongs to; in each,
  * the person's own role still bounds what the agent may do. */
 export function AgentAccessRoute({ entry, state }: { entry: BrowserEntry; state: BrowserEntryState }) {

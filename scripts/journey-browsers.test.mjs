@@ -7,11 +7,11 @@ import test from 'node:test';
 import { JOURNEY_BROWSERS } from '../apps/tower/e2e/journey-browsers.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 
-// THE JOURNEY BROWSER INSTALL PUTS CHROMIUM WHERE THE JOURNEYS LOOK, FROM ANY
-// CHECKOUT OR WORKTREE (bead ro-ujb9.181). The install once set a relative
-// PLAYWRIGHT_BROWSERS_PATH, which Playwright resolves against INIT_CWD (the
-// folder pnpm was started in), so run from the checkout root it wrote Chromium
-// two folders above the checkout while the journeys read an absolute path
+// The journey browser install puts Chromium where the journeys look, from any
+// checkout or worktree. A relative PLAYWRIGHT_BROWSERS_PATH is resolved by
+// Playwright against INIT_CWD (the folder pnpm was started in), so run from
+// the checkout root it would write Chromium two folders above the checkout
+// while the journeys read an absolute path
 // inside it. Now one module (apps/tower/e2e/journey-browsers.mjs) names the
 // folder from its own place in the checkout, and the install, the browser
 // suite and the flow gate all take it from there. The install is proved with
@@ -30,8 +30,8 @@ test('the install puts every browser there whether pnpm was started at the check
   const elsewhere = mkdtempSync(path.join(os.tmpdir(), 'journey-install-'));
   try {
     for (const started of [REPO_ROOT, TOWER, elsewhere]) {
-      // pnpm sets INIT_CWD to the folder it was started in; the old install's
-      // relative path is left in the environment to show it no longer counts.
+      // pnpm sets INIT_CWD to the folder it was started in; a relative path is
+      // left in the environment to show it does not count.
       const result = spawnSync(process.execPath, [INSTALL, '--dry-run'], {
         cwd: started,
         env: { ...process.env, INIT_CWD: started, PLAYWRIGHT_BROWSERS_PATH: '../../node_modules/.cache/journey-playwright' },

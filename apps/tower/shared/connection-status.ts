@@ -1,25 +1,18 @@
-// THE ONE STATUS MODEL FOR A CONNECTION (bead `ro-ujb9.96.7.3`, epic
-// `ro-ujb9.96.7`). Every screen that shows a connection's state — the
-// Integrations list, a provider's own page, an asset's Data sources tab, System
-// health — derives it here, so no two screens can disagree and no screen needs a
-// second word for the same fact.
+// The one status model for a connection. Every screen that shows a
+// connection's state derives it here.
 //
 //   Not connected → (Checking, the panel's one call) → Key accepted → Collecting
 //     → Working | Failing, plus Not using, Overdue and Unknown
 //
-// WORKS NOW, NOT WORST EVER. A provider used to take the worst of hundreds of
-// stored operations, so report dates that failed during an outage and were never
-// retried, or one site nobody verified, painted the whole provider red while its
-// latest attempts succeeded. Here each kind of work (one capability, one report)
-// is judged by its LATEST attempt; an older failure that a later success
-// superseded is a GAP — a missing report, counted and shown on the site that
-// owns it, never hidden and never a status. A site fails when its latest work
-// fails; a connection fails when its credential is refused or most of its sites
-// fail. An incomplete report is a data fact, never a failed connection.
-//
-// NEVER AHEAD OF PROOF. Working needs a stored successful attempt; a saved key
-// nobody tested is Not checked; a monitoring read that is not current turns
-// every retained success into Unknown.
+// Works now, not worst ever: each kind of work (one capability, one report)
+// is judged by its latest attempt; an older failure a later success superseded
+// is a gap — a missing report, counted and shown on the site that owns it,
+// never a status. A site fails when its latest work fails; a connection fails
+// when its credential is refused or most of its sites fail. An incomplete
+// report is a data fact, never a failed connection. Never ahead of proof:
+// Working needs a stored successful attempt; a saved key nobody tested is Not
+// checked; a monitoring read that is not current turns every retained success
+// into Unknown.
 
 import {
   INTEGRATION_MONITORS,
@@ -109,16 +102,12 @@ export const CONNECTION_LABELS: Record<ConnectionKind | "checking", string> = {
   unknown: "Unknown",
 };
 
-/**
- * The uptime source's two observed states, in the words every monitor uses
- * (bead `ro-ujb9.165`; Better Stack, UptimeRobot).
- * What its check observes IS the site, so "Failing" would read as the monitor
- * being broken; Down says the site is. Its other states keep their words.
- */
+/** The uptime source's two observed states, in the words every monitor uses:
+ * what its check observes is the site, so Down says the site is. */
 const UPTIME_LABELS: Partial<Record<ConnectionKind, string>> = { working: "Up", failing: "Down" };
 
-/** An accepted connection, in the words of what the operator gave it (bead
- * `ro-ujb9.96.7.25`; `acceptedAs` in the contract decides which). */
+/** An accepted connection, in the words of what the operator gave it
+ * (`acceptedAs` in the contract decides which). */
 export const ACCEPTED_LABELS: Record<AcceptedAs, string> = {
   key: "Key accepted",
   "sign-in": "Signed in",
@@ -165,12 +154,9 @@ export function itemLanes(item: Pick<IntegrationHealthItem, "provider" | "capabi
   return monitorOf(item)?.lanes ?? [];
 }
 
-/**
- * An archive item's report family and report day, from the item's own fields
- * (bead `ro-ujb9.96.7.17`) — never from `detail`, which is display text a
- * rewording must not be able to break. Empty for anything that is not one
- * report of an archive.
- */
+/** An archive item's report family and report day, from the item's own
+ * fields — never from `detail`, which is display text. Empty for anything
+ * that is not one report of an archive. */
 export function reportOf(item: Pick<IntegrationHealthItem, "provider" | "capability" | "report" | "reportDate">): { report: string; date: string } {
   if (monitorOf(item)?.evidence !== "signal_dump_runs") return { report: "", date: "" };
   const date = item.reportDate ?? "";
@@ -331,14 +317,11 @@ export function registerKind(cell: IntegrationCellBase, nowMs: number): Connecti
 }
 
 /**
- * ONE DATA SOURCE ON ONE ASSET, as every screen shows it — the asset's Data
- * sources row and the register's cell read this same answer, so they cannot
- * disagree with the provider's own page. A declined or inapplicable source is
- * the register's decision; a provider's source is that site's status for the
- * provider's work on this lane; everything else is its register cell.
- *
- * `credentials` undefined, or `items` null, means that read is missing: the
- * answer is Unknown, never Not connected.
+ * One data source on one asset, as every screen shows it. A declined or
+ * inapplicable source is the register's decision; a provider's source is that
+ * site's status for the provider's work on this lane; everything else is its
+ * register cell. `credentials` undefined, or `items` null, means that read is
+ * missing: Unknown, never Not connected.
  */
 export function laneStatus(input: {
   laneId: string;
@@ -393,13 +376,11 @@ export interface SourceReading {
 }
 
 /**
- * ONE ASSET'S SOURCES AS THE HEADER, HOME, THE WALL AND THE SETUP CHECKLIST
- * SHOW THEM (bead `ro-ujb9.96.7.16`). Each card slot is read by `laneStatus`,
- * the function the asset's Data sources rows and Integrations use, over the
- * same credentials and monitoring items, so a source cannot read Working on
- * the Wall and Failing on its Data sources row. The payload's slot contributes
- * only its register cell: its scope decision, and the proof for a source no
- * provider collects.
+ * One asset's sources as the header, Home, the Wall and the setup checklist
+ * show them. Each card slot is read by `laneStatus` over the same credentials
+ * and monitoring items the Data sources rows use. The payload's slot
+ * contributes only its register cell: its scope decision, and the proof for a
+ * source no provider collects.
  */
 export function sourceReadings(
   assetId: string,
@@ -478,15 +459,12 @@ export function connectionFacts(status: ConnectionStatus | SiteStatus): Connecti
   return facts;
 }
 
-/** Everything that needs the operator now: failing and overdue sites, or a
- * refused credential with no site to blame. Gaps are facts, not incidents. */
 /**
- * THE FOUR COUNTS System health's Connections strip states (bead
- * `ro-ujb9.96.7.15`), in the connection model's own words: sites whose latest
- * attempt failed, sites past their schedule, reports not yet re-collected, and
- * sites whose latest attempt worked — across every provider's status. One
- * derivation, so today's number and any daily record of it (the rollup the
- * strip's history waits on) can never count different things.
+ * The four counts System health's Connections strip states: sites whose
+ * latest attempt failed, sites past their schedule, reports not yet
+ * re-collected, and sites whose latest attempt worked — across every
+ * provider's status. One derivation, so today's number and its daily record
+ * count the same things.
  */
 export interface ConnectionCounts {
   sitesFailing: number;
@@ -514,11 +492,10 @@ export interface ProviderCredential {
 }
 
 /**
- * EVERY CONNECTION SYSTEM HEALTH LISTS, each with its one status: the
+ * Every connection System health lists, each with its one status: the
  * providers the store answered for, a companion (the Google OAuth app) folded
  * into the provider it serves. The Connections panel and the daily recorder
- * both count through this and `connectionCounts` (bead `ro-ujb9.96.7.26`), so
- * the history under the strip and the number on it are one derivation.
+ * both count through this and `connectionCounts`.
  */
 export function providerStatuses<T extends ProviderCredential>(
   providers: readonly T[],
@@ -532,10 +509,8 @@ export function providerStatuses<T extends ProviderCredential>(
 /** The four counts in the order the strip states them. */
 export const CONNECTION_COUNT_KEYS = ["sitesFailing", "sitesOverdue", "reportsMissing", "sitesWorking"] as const satisfies readonly (keyof ConnectionCounts)[];
 
-/**
- * The four counts, day by day, as `/api/integrations/health` carries them
- * (bead `ro-ujb9.96.7.26`). `days: 0..2` is a record too short to draw.
- */
+/** The four counts, day by day, as `/api/integrations/health` carries them.
+ * `days: 0..2` is a record too short to draw. */
 export interface ConnectionCountsHistory {
   days: number;
   series: Record<keyof ConnectionCounts, SeriesPoint[]>;
@@ -550,8 +525,8 @@ export type IntegrationHealthResponse = IntegrationHealthPayload & {
 /** A daily line needs three points before it is a shape rather than a segment. */
 export const CONNECTION_HISTORY_MIN_DAYS = 3;
 
-/** Why the four counts draw no series: the hourly tick has
- * not recorded a day yet (bead `ro-ujb9.96.7.29`), or no history came. */
+/** Why the four counts draw no series: the hourly tick has not recorded a
+ * day yet, or no history came. */
 export const CONNECTION_HISTORY_GAP = "No daily record of these counts yet";
 
 /** The reason a strip KPI draws no line, or null when it draws one. */

@@ -1,83 +1,34 @@
 #!/usr/bin/env node
-// PRODUCT CODE NAMES NO INSTALLATION'S OWN SITES OR CLOCK
-// (operator, 2026-09-23; decision D30; bead `ro-ujb9.118`).
+// Product code names no installation's own sites, accounts or clock.
 //
-// A stranger's installation must not carry somebody else's sites, or behave
-// differently because of them. On 2026-09-23 the operator's own domains stood
-// in 216 lines of product source and his time zone in 15, one honest comment
-// or demo row at a time, because nothing stopped the next one. This is that
-// stop — the sister of the UX gate (`scripts/ux-gate.mjs`) and wired the same
-// way: `pnpm neutral:gate`, the pre-commit hook and `pnpm test:scripts` in CI.
+// Wired as `pnpm neutral:gate`, the pre-commit hook and `pnpm test:scripts`
+// in CI.
 //
-// WHAT IT FORBIDS, AND WHERE THE LIST COMES FROM. Nothing here names a site.
-// The forbidden names are read from THIS installation's own asset list, so the
-// gate protects whoever runs it:
-//   - every asset id and domain its config documents key rows by — the
-//     registers in `scripts/config-registers.mjs` whose rows are keyed by an
-//     asset id or a domain (`integrations.json` /assets, `beads.json`
-//     /spokes, `domain-costs.json` /domains, ...), read from the installation
-//     folder `pnpm config:export` writes the store back into
-//     (`installation/`, scripts/installation.mts, bead ro-ujb9.125);
-//   - the tracked `neutral-names.json` inventory in the installation folder:
-//     the OS's own asset id, each historical site's domain and display name;
-//     retired names stay protected after their runtime rows change;
-//   - every Google account the installation's sources are routed through: the
-//     alias each `integrations.json` row's `ref` names after
-//     `GOOGLE_SIGNAL_ACCOUNTS`, and the `GOOGLE_SERVICE_ACCOUNT_<ALIAS>` secret
-//     name derived from it (bead ro-ujb9.157).
-// Plus one rule that needs no list: a literal IANA time zone. The installation's
-// clock is a saved setting (`os_time_zone`, UTC in `config/constants.json`);
-// UTC is the one neutral fallback product code may name.
+// Nothing here names a site. The forbidden names are read from this
+// installation's own asset list, so the gate protects whoever runs it: every
+// asset id and domain its config documents key rows by (the registers in
+// `scripts/config-registers.mjs`, read from the installation folder), the
+// tracked `neutral-names.json` inventory there (retired names stay protected),
+// and every Google account alias an `integrations.json` `ref` names after
+// `GOOGLE_SIGNAL_ACCOUNTS`, with the `GOOGLE_SERVICE_ACCOUNT_<ALIAS>` secret
+// name derived from it. Plus one rule that needs no list: a literal IANA time
+// zone, since the installation's clock is the saved `os_time_zone` and UTC is
+// the one neutral fallback.
 //
-// WHAT IT READS. Product source: `apps/tower/{src,shared,worker,vite}`,
-// `workers/ingest/src`, `packages/contract/src`, `apps/tower/vite.config.ts`
-// and `apps/tower/index.html` — code, comments, styles, JSON and the component
-// registry alike, because a comment naming a site is how the next copy of it
-// starts. And `scripts/`: the local runner and the host and CLI scripts ship
-// with the product too, so a stranger's runner must not file against, back up
-// to or describe somebody else's sites (bead ro-ujb9.120; a generated `.mjs`
-// is judged as its authored `.mts`, and the folder's README is prose). And the product DEFAULTS, `config/*.json` and `config/*.yaml`: a
-// fresh clone seeds those, so a site or zone there is a site or zone in every
-// stranger's installation (bead ro-ujb9.125). And the prose that ships beside
-// them — `config/*.md` (each register's README and the decision log) and
-// `config/changesets/README.md` — which teaches a stranger the product with
-// example names; one installation's own history and decisions live in its
-// installation folder (bead ro-ujb9.149). And the TEST CODE (bead
-// ro-ujb9.151): the Tower, ingest, contract and script suites, the e2e walks,
-// their frozen config fixtures and the dev seed ship in the public repository
-// too, and a test that passes on somebody's own sites can hide an assumption
-// about them. They name invented `.example` sites; a store a suite migrates
-// renames the historical seed's rows to them (`db/fixtures/invented-sites.json`).
-// The zone rule does not apply there: a time-zone test's data is a zone. The
-// one test that must spell the product's old slug — which the historical seed
-// also gives the OS asset — is the old-name rule's own (`OLD_NAME_TEST`).
-// And the two pages a stranger reads first, `README.md` and `docs/README.md`
-// (bead ro-ujb9.139): the repository's first screen names no installation.
-// And every operator document that ships with the product (bead ro-ujb9.157):
-// `docs/**/*.md`, the scripts' and the Workers' READMEs, the glossary and the
-// example secrets files. They explain the product with example names; this
-// installation's own history and evidence moved to its installation folder's
-// `notes.md`, word for word. Dated records — `docs/reports/`, `docs/briefs/`
-// and the capture notes in `docs/artifacts/` — keep the words they were
-// written in and are not read.
+// It reads product source, `scripts/` (a generated `.mjs` is judged as its
+// authored `.mts`), the product defaults in `config/`, the prose beside them,
+// the operator docs (dated records in `docs/reports/`, `docs/briefs/` and
+// `docs/artifacts/` keep their words and are not read), and the test code,
+// which is judged for names only: a time-zone test's data is a zone. The one
+// test that must spell the product's old slug is `OLD_NAME_TEST`.
 //
-// HOW A NAME MATCHES. Case-insensitively, as a whole name:
-//   - a domain anywhere, including inside a URL, a subdomain or a file name
-//     (`https://shop.example/x`, `api.shop.example`, `shop.example.svg`);
-//   - a dot-less id (the OS asset's, typically the product's own slug) only
-//     where it stands alone — `'home-os'`, `home-os's page` — and never as a
-//     namespace or a path segment of the PRODUCT's own name: a package scope
-//     (`@home-os/contract`), a storage key (`home-os:theme`), a repository path
-//     (`github.com/home-os/home-os`) or a longer name (`home-os-central`).
-//
-// THE ONE PLACE A ZONE MAY BE NAMED is a provider's documented reporting zone
-// in the provider catalog (`reportingTimeZones` in
-// `packages/contract/src/integrations.ts`): Search Console fixes every
-// property's day to Pacific time for every installation, which makes it a fact
-// about Google rather than about anybody's clock. Everything else is zero.
-//
-// There is no baseline and no allowance file (operator rule: no grandfathering).
-// A name that must appear is read from the store with a generic default.
+// A name matches case-insensitively, as a whole name: a domain anywhere,
+// including inside a URL, a subdomain or a file name; a dot-less id only where
+// it stands alone, never as a namespace or path segment of the product's own
+// name (`@home-os/contract`, `home-os:theme`, `home-os-central`). The one
+// place a zone may be named is a provider's documented reporting zone
+// (`reportingTimeZones` in `packages/contract/src/integrations.ts`). There is
+// no baseline and no allowance file.
 //
 //   pnpm neutral:gate                       every product and test file (what CI runs)
 //   pnpm neutral:gate -- --files <paths>    just these files
@@ -92,12 +43,10 @@ import { fileURLToPath } from 'node:url';
 import { CONFIG_REGISTERS } from './config-registers.mjs';
 import { checkoutRelative, installationDir, installationPath, readablePath } from './installation.mjs';
 
-export const GATE_BEAD = 'ro-ujb9.118';
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-/** Directories whose every file is product source. `scripts/` is the local
- * runner and the host and CLI scripts that ship with the product (bead
- * ro-ujb9.120); its tests, its frozen fixture config and its Markdown are not. */
+/** Directories whose every file is product source. `scripts/` ships with the
+ * product; its tests, its frozen fixture config and its Markdown are not. */
 export const PRODUCT_DIRS = Object.freeze([
   'apps/tower/src',
   'apps/tower/shared',
@@ -112,8 +61,8 @@ export const PRODUCT_DIRS = Object.freeze([
 const SCRIPTS_PROSE = /^scripts\/.*\.md$/;
 /** Single product files outside those directories. */
 export const PRODUCT_FILES = Object.freeze(['apps/tower/vite.config.ts', 'apps/tower/index.html', 'README.md', 'docs/README.md']);
-/** The operator documents that ship beside the product outside docs/ (bead
- * ro-ujb9.157): read as prose, whatever their extension. */
+/** The operator documents that ship beside the product outside docs/, read
+ * as prose whatever their extension. */
 export const PRODUCT_DOCS = Object.freeze([
   'CONTEXT.md',
   'apps/tower/README.md',
@@ -132,12 +81,11 @@ export const DOCS_DIR = 'docs';
 export const DATED_DOCS = Object.freeze(['docs/reports/', 'docs/briefs/', 'docs/artifacts/']);
 const DOCS_PROSE = /^docs\/.+\.md$/;
 /** The product's defaults: every config document and host file a fresh clone
- * ships, directly in this directory (bead ro-ujb9.125). */
+ * ships, directly in this directory. */
 export const PRODUCT_DEFAULTS_DIR = 'config';
 const PRODUCT_DEFAULT = /^config\/[^/]+\.(?:json|ya?ml)$/;
-/** The prose that ships beside those defaults — each register's README, the
- * decision log and the changeset format — which teaches a stranger the product
- * and so names nobody's sites either (bead ro-ujb9.149). */
+/** The prose that ships beside those defaults: each register's README and
+ * the changeset format. */
 const PRODUCT_PROSE = /^config\/(?:[^/]+\.md|changesets\/README\.md)$/;
 /** The one product prose file below the defaults' own directory. */
 export const CHANGESETS_README = 'config/changesets/README.md';
@@ -145,8 +93,8 @@ export const CHANGESETS_README = 'config/changesets/README.md';
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs', '.css', '.html', '.json', '.md']);
 const NEUTRAL_NAMES_FILE = 'neutral-names.json';
 
-/** Test code (bead ro-ujb9.151): every file below these directories, every
- * root script test and each suite's own config. */
+/** Test code: every file below these directories, every root script test
+ * and each suite's own config. */
 export const TEST_DIRS = Object.freeze([
   'apps/tower/test',
   'apps/tower/e2e',
@@ -263,8 +211,8 @@ export function installationNames(root = REPO_ROOT) {
   for (const register of Object.values(CONFIG_REGISTERS)) {
     const keyed = ownedKey(register);
     if (keyed === null) continue;
-    // This installation's own copy (scripts/installation.mts, bead
-    // ro-ujb9.125); a clone with none reads the defaults, which name nobody.
+    // This installation's own copy (scripts/installation.mts); a clone with
+    // none reads the defaults, which name nobody.
     const file = readablePath(register.file, { root });
     const doc = readJson(file);
     if (doc === null) continue;
@@ -416,7 +364,7 @@ export function isProductFile(file) {
   return PRODUCT_FILES.includes(posix) || PRODUCT_DIRS.some((dir) => posix.startsWith(`${dir}/`));
 }
 
-/** The suites, the e2e walks and their fixtures (bead ro-ujb9.151). */
+/** The suites, the e2e walks and their fixtures. */
 export function isTestFile(file) {
   const posix = toPosix(file);
   if (TEST_OUTPUT.test(posix)) return false;
@@ -460,7 +408,7 @@ export function productFiles(root = REPO_ROOT) {
     .sort();
 }
 
-/** Every test file in the checkout, repo-relative (bead ro-ujb9.151). */
+/** Every test file in the checkout, repo-relative. */
 export function testFiles(root = REPO_ROOT) {
   const out = [];
   for (const dir of TEST_DIRS) walk(root, dir, out);
@@ -514,7 +462,7 @@ const KIND_LABEL = {
 };
 
 export const FIXED_INSTRUCTIONS = [
-  "Product code names no installation's own sites, accounts or time zone (D30, AGENTS.md).",
+  "Product code names no installation's own sites, accounts or time zone (AGENTS.md).",
   '  - Behaviour keyed on a site: make it a property of the asset read from the store, with a generic default.',
   "  - The OS's own asset: find it by assets.is_os, never by its id.",
   '  - A Google account: an example alias such as example-signals.',
@@ -550,7 +498,7 @@ export function formatReport(result) {
     return `neutral-code gate: ${result.files} product and test files name none of this installation's ${result.names} sites, ids or domains, and product code no time zone.`;
   }
   const lines = [
-    `neutral-code gate: ${result.offenders.length} place(s) in product or test code name this installation's own sites or clock (bead ${GATE_BEAD})`,
+    `neutral-code gate: ${result.offenders.length} place(s) in product or test code name this installation's own sites or clock`,
     '',
   ];
   for (const offender of result.offenders) {
@@ -562,7 +510,7 @@ export function formatReport(result) {
   return lines.join('\n');
 }
 
-const USAGE = `neutral-code-gate — product code names no installation's own sites or clock (bead ${GATE_BEAD})
+const USAGE = `neutral-code-gate — product code names no installation's own sites or clock
 
   pnpm neutral:gate                          every product and test file (what CI runs)
   pnpm neutral:gate -- --files <paths...>    just these files

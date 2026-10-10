@@ -53,67 +53,17 @@ import { useAskActions } from "./ask-actions";
 import { PriorityMark, RestingMark, TaskStatusMark, askFace } from "./task-face";
 
 /**
- * THE TASK BOARD — doc 14's index template, on two surfaces.
- *
- * `/tasks` renders it across every project (`TasksRoute`); an asset page's
- * **Tasks** tab renders the same component with `project` fixed to that asset.
- * One rendering of the task database, two surfaces, differing by one prop.
- *
- * WHY IT WAS REBUILT (2026-09-05, bead `ro-78qo.12`). The old board drew one
- * bordered section per project, each with its own headline panel, its own
- * "Next up" list, one card per epic, a parked lane and a closed lane. Every
- * section was individually reasonable and the page was **32,495px tall at 1440
- * and 132,918px on a phone, with 430 controls under the 44px thumb floor** —
- * the single worst surface in `surface:audit`'s baseline, on the page an
- * operator opens to decide what to do next. doc 14's diagnosis applies exactly:
- * everything, all at once, in the same size.
- *
- * WHAT IT IS NOW, top to bottom:
- *   · the filter row — five controls, all URL state, so a narrowed board is a link;
- *   · a `KpiStrip` that is NOT selectable: the six counts an operator opens this
- *     page to read, over the whole board rather than over the current filter,
- *     each riding its own daily sparkline (db/0032, bead `ro-78qo.23`);
- *   · `Waiting on you` as a `ListPanel` at five rows, the rest disclosed in
- *     place — the only rows here the OS physically cannot move, each answered
- *     on its own row (Approve, or Answer / Dismiss);
- *   · every OTHER task as ONE `Table`, 25 rows at a time, each row one line
- *     that expands in place for its claim / close / defer.
- *
- * NO PARAGRAPHS (bead `ro-ujb9.96.6.11`, doc 14 principle 3a). The board used
- * to end in an About of six paragraphs and carry three banners that could be
- * open at once. Each fact is now shown by the state that owns it, once: a
- * read-only build is one `Read-only snapshot` banner; projects that could not
- * be read are one warn banner with their names and a Retry; a local read still
- * loading is a spinner beside the age badge; a count that is missing a project
- * is a lower bound (`12+`) rather than a caption repeated on six tiles.
- *
- * PAGED, NOT VIRTUALISED. doc 14's acceptance asks for one or the other and for
- * the reason to be written down. Paging keeps three things honest that a
- * windowed list does not: the browser's own find-in-page still reaches every
- * rendered row, a deep link to `/tasks/:id` never depends on a scroll offset
- * being restored first, and the row count under the filters is a fact about the
- * DOM rather than about a virtualiser's estimate. 25 rows is ~1,050px — the
- * whole page fits doc 14's 2,400px budget — and `Load more` costs one press
- * where virtualisation would have cost a scroll container that has to be told
- * how tall its own rows are.
- *
- * TWO READS, ONE BOARD, unchanged. Live, each project's rows come from the OS's
- * local read of the task database — untruncated, with labels, blocker-aware
- * `ready`, and gate metadata. Without it they come from the once-a-minute
- * photograph, whose lists are heads with counts over the whole. The sections
- * are identical either way and the age badge says which instant is being shown.
- *
- * AN AGENT still claims and closes with `bd` in the repository where the work
- * happens; this board is the operator's door onto the same command.
+ * The task board: `/tasks` across every project, an asset's Tasks tab with
+ * `project` fixed. Paged, not virtualised: find-in-page reaches every rendered
+ * row and a deep link never depends on a scroll offset. Rows come from the
+ * live task database, else the once-a-minute snapshot (heads with counts).
  */
 
-/** Rows per press. doc 14's index template: "one Table paged 25 rows at a
- * time". 25 rows is about 1,050px, which is what leaves the page inside its
- * budget with the strip and the inbox above it. */
+/** Rows per press: about 1,050px, which keeps the page inside its budget. */
 const PAGE_ROWS = 25;
-/** The inbox opens at five rows (doc 14's Home template) and discloses the rest
- * through `ListPanel`'s own expander. The page does not slice first: a panel
- * that silently keeps five of nine is lying about the size of the queue. */
+/** The inbox opens at five rows and discloses the rest through `ListPanel`'s
+ * own expander. The page does not slice first: a panel that silently keeps
+ * five of nine is lying about the size of the queue. */
 const INBOX_ROWS = 5;
 
 
@@ -125,20 +75,11 @@ function composeRequested(state: unknown): boolean {
 }
 
 /**
- * FILE A TASK — one button, two surfaces.
- *
- * The press opens the board's composer IN PLACE: it sets location state, not
- * the query string, so the page the operator is on does not change under them
- * (bead `ro-ujb9.96.7.11` — a URL change with nothing entered on the page it
- * left was the file-task flow's one empty step). `?new=1` still opens it, so
- * "file something against example.com" can still be sent as a link. On an
- * asset's Tasks tab the board is already pinned to one project, and
- * `data-new-task-project` carries that id — the composer takes its project from
- * the board it opened on rather than asking a question the page has answered.
- *
- * Disabled without the live read, with what to do on hover: a deployed build
- * cannot run `bd`, and a button that looks live and then refuses is worse than
- * one that says why up front.
+ * File a task. The press opens the board's composer in place through location
+ * state, not the query string, so the page does not change under the operator;
+ * `?new=1` still opens it, so filing against a site can be sent as a link. On
+ * an asset's Tasks tab `data-new-task-project` carries the pinned project.
+ * Disabled without the live read, with what to do on hover.
  */
 export function NewTaskButton({ project = null }: { project?: string | null }) {
   const demoReadonly = useDemoReadonly();
@@ -171,14 +112,10 @@ export function NewTaskButton({ project = null }: { project?: string | null }) {
 
 export interface TasksBoardProps {
   /**
-   * Scope the board to ONE project — the asset id the projects file maps to a
-   * repository. `null` (the default) is every project, which is the index.
-   *
-   * A scoped board drops what the page around it already says: the project
-   * control, the project column, the project name on each inbox row, and the
-   * first-screen mark, which belongs to the tab rather than to the board inside
-   * it. The filter is still pinned, so everything below counts and matches
-   * exactly as it does on the index.
+   * Scope the board to one project, the asset id the projects file maps to a
+   * repository. `null` (the default) is every project. A scoped board drops
+   * what the page around it already says: the project control, the project
+   * column and the project name on each inbox row.
    */
   project?: string | null;
   /**
@@ -196,9 +133,8 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
 
   const scoped = scope !== null;
 
-  // A scoped board's project is the PAGE, not a control: it comes from the
-  // route rather than the query string, so it survives a Clear and cannot be
-  // widened into a portfolio board from inside an asset.
+  // A scoped board's project comes from the route rather than the query
+  // string, so it survives a Clear and cannot be widened from inside an asset.
   const projectFilter = scoped ? scope : (params.get("project") ?? "all");
   const statusFilter = params.get("status") ?? "all";
   const priorityFilter = params.get("priority") ?? "all";
@@ -208,9 +144,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
   const navigate = useNavigate();
   const composing = params.get("new") === "1" || composeRequested(location.state);
 
-  // Narrowing the board starts it again at the first page. Without this a
-  // reader who had pressed Load more four times would land on 125 rows of a
-  // filter they have just applied, which is the opposite of narrowing.
+  // Narrowing the board starts it again at the first page.
   const filterKey = [projectFilter, statusFilter, priorityFilter, labelFilter, assigneeFilter].join("|");
   useEffect(() => {
     setShown(PAGE_ROWS);
@@ -218,12 +152,10 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
 
   function setParam(name: string, value: string) {
     const next = new URLSearchParams(params);
-    // The default never occupies the query string, so a cleared board is
-    // `/tasks` and two operators who narrowed the same way produce one link.
+    // A default never occupies the query string: one view, one link.
     if (value === "all" || value === "") next.delete(name);
     else next.set(name, value);
-    // `replace`: a filter is a view of one page, not a place — the back button
-    // should leave Tasks, not walk backwards through every control touched.
+    // `replace`: Back should leave Tasks, not walk every control touched.
     setParams(next, { replace: true });
   }
 
@@ -249,9 +181,9 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
     label: labelFilter, assignee: assigneeFilter,
   });
 
-  // AN ANSWERED ROW LEAVES AT ONCE (bead `ro-ujb9.96.7.11`): it is out of the
-  // list and out of the count while its Undo window runs, and stays out until a
-  // read taken after the answer says what the hub now holds.
+  // An answered row leaves at once: out of the list and the count while its
+  // Undo window runs, and until a read taken after the answer says what the
+  // hub now holds.
   const { hides: answerHides } = useOwnerAnswers();
   const inbox = read.filter(({ project, task }) => !answerHides(task.id, project.readAt));
   const answered = read.length - inbox.length;
@@ -268,19 +200,13 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
     labelFilter !== "" ||
     assigneeFilter !== "all";
 
-  /**
-   * A COUNT THAT IS MISSING A PROJECT IS A LOWER BOUND, and says so in its own
-   * digits: `12+`. It used to be a dash with "12 observed · 1 project
-   * unavailable" under every one of the six tiles — the same fact six times,
-   * when the banner above already names the project. `—` stays for a count the
-   * read cannot bound at all: nothing measured it, or no project was read.
-   */
+  /** A count that is missing a project is a lower bound, `12+`. `—` is a count
+   * the read cannot bound at all: nothing measured it, or no project was read. */
   const anyRead = missingProjects < projects.length;
   const bounded = (complete: number | null, observed: number | null) =>
     complete ?? (observed === null || !anyRead ? "—" : `${observed}+`);
-  // ONE ANSWER FIRST (D45): what waits on you, in a sentence, with the three
-  // counts that change what you do next beside it. The strip of six equal
-  // tiles said "2" three times over the same two tasks.
+  // One answer first: what waits on you, in a sentence, with the three counts
+  // that change what you do next beside it.
   const waitingCount = bounded(counts.waiting, totals.waiting);
   const nothingWaits = totals.waiting === 0 && countsComplete;
   const answer = (
@@ -307,17 +233,13 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
       }
       limit={INBOX_ROWS}
       empty={countsComplete ? "Nothing is waiting on you." : "Waiting work is unknown for unread projects."}
-      // NO RING. doc 14 is one card style, and every row in here already leads
-      // with a toned glyph: a warn-coloured border around them adds a second
-      // encoding of urgency the panel does not own — the panel is a place, and
-      // the rows are what is urgent.
+      // No ring: every row in here already leads with a toned glyph, and the
+      // panel is a place, not what is urgent.
     >
-      {/* No row opens on arrival, deliberately. doc 14's Overview template
-          opens the first "What matters" row, and the same trick here is a lie
-          waiting to happen: `ListRow` reads `defaultExpanded` once, at mount,
-          and this panel mounts on the photograph and is then reordered by the
-          live read — so the row that ends up first is whichever one happened to
-          mount first, opened for no reason the operator can see. */}
+      {/* No row opens on arrival: `ListRow` reads `defaultExpanded` once, at
+          mount, and this panel mounts on the snapshot and is then reordered by
+          the live read, so the row that ends up first would be whichever one
+          happened to mount first. */}
       {inbox.map(({ project, task }) => (
         <InboxRow
           key={task.id}
@@ -329,7 +251,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
         />
       ))}
     </ListPanel>
-    {/* A list the eye can finish (D45). */}
+    {/* A list the eye can finish. */}
     {inbox.length > 0 && countsComplete ? <FinishLine line="That's everything waiting on you." age={shownAt ? `read ${formatAge(ageMs(now, shownAt))} ago` : null} /> : null}
     </div>
   );
@@ -342,19 +264,16 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
         </div>
       ) : null}
 
-      {/* Read-only is said ONCE, here, rather than on every disabled control:
-          the lead is what happened, the line is what to do. It covers the
-          sample too — a read-only board IS the saved snapshot. */}
+      {/* Read-only is said once, here, rather than on every disabled control.
+          A read-only board is the saved snapshot. */}
       <div data-tasks-readonly={live ? undefined : ""}>
         <StatusBanner open={!live} severity="info" lead="Read-only snapshot" subject="tasks:snapshot">
           {READ_ONLY_TASKS_HINT}
         </StatusBanner>
       </div>
 
-      {/* One composer, two ways in: New task opens it in place (location
-          state, so the page does not change), and `?new=1` is a link that opens
-          it, so "file something against example.com" can be sent rather than
-          described. It inherits the PROJECT the board is showing and nothing
+      {/* One composer, two ways in: New task (location state) and `?new=1`
+          (a link). It inherits the project the board is showing and nothing
           else. Closing drops whichever opened it and keeps the filters. */}
       {composing ? (
         <TaskComposer
@@ -366,8 +285,8 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
       ) : null}
 
       {!data ? (
-        // No board and nothing pending is a failed read, and it says so
-        // (bead ro-ujb9.218) — the shared state Home, Sites and Alerts draw.
+        // No board and nothing pending is a failed read, and it says so with
+        // the shared state Home, Sites and Alerts draw.
         isError ? (
           <ReadFailed title="Couldn't load tasks" subject="read:tasks" error={error} retrying={isFetching} onRetry={() => void refetch()} />
         ) : (
@@ -383,16 +302,9 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
         </div>
       ) : (
         <>
-          {/* THE FIRST SCREEN, and the whole of the page's one question: how big
-              is the queue, and what in it cannot move without you. Everything
-              below is the same rows in detail.
-
-              A SCOPED BOARD MARKS IT TOO (bead `ro-78qo.32`). The asset Tasks
-              tab used to declare the mark instead, with a wrapper around this
-              whole component — but a wrapper can only span the board, so the
-              audit measured the bottom of the 25-row table and reported the
-              first screen 973px over. Only the board knows where its answer
-              ends, so the board says. */}
+          {/* The first screen: how big is the queue, and what in it cannot
+              move without you. The board marks it, scoped or not, because only
+              the board knows where its answer ends. */}
           <div data-surface-hero className="flex flex-col gap-3.5">
             {answer}
             {panel}
@@ -436,9 +348,9 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
             onPick={setParam}
           />
 
-          {/* ONE banner for projects that could not be read — which, and a way
+          {/* One banner for projects that could not be read: which, and a way
               to try again. Their rows stay on the board from the saved
-              snapshot, without actions; the six counts carry a `+`. */}
+              snapshot, without actions; the counts carry a `+`. */}
           <StatusBanner
             open={broken.length > 0}
             subject="tasks:projects"
@@ -477,17 +389,14 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
   );
 }
 
-/** What a refusal says out loud: the local read hands back `bd`'s own stderr in
- * `detail`, and `ApiError.message` is that sentence. Never a sentence written
- * here over the top of one `bd` already wrote. */
+/** The local read hands back `bd`'s own stderr in `detail`, and
+ * `ApiError.message` is that sentence; never a sentence written here over it. */
 function errorText(err: unknown, fallback: string): string {
   if (err instanceof Error && err.message !== "") return err.message;
   return fallback;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Filters — the state is the URL, so a narrowed board is a link
-// ─────────────────────────────────────────────────────────────────────────────
+// --- Filters: the state is the URL, so a narrowed board is a link -----------
 
 interface FilterValue {
   project: string;
@@ -498,21 +407,11 @@ interface FilterValue {
 }
 
 /**
- * FIVE CONTROLS, ONE ROW, and every one of them is
- * `?project=&status=&priority=&label=&assignee=`, so a narrowed view can be
- * bookmarked, pasted into a task, or linked from an asset page.
- *
- * WHY THEY ARE ALL SELECTS NOW. Status and priority were twelve chips carrying
- * a glyph and a count, and doc 14's rule at the time was right: a chip row
- * answers "how much is blocked?" without a click. doc 14 gives that answer to
- * the `KpiStrip` two lines above, in 28px type, and a fact stated twice on one
- * screen is the duplicate doc 14 forbids — so the counts stay (each option
- * carries its own) and the twelve controls become two. That is 12 fewer boxes
- * under a thumb at 390 and one row instead of two on every width.
- *
- * A SCOPED board drops the project control entirely: its project is the page it
- * is on, so a select offering one option would be a control that cannot change
- * anything.
+ * Five controls, one row, every one of them
+ * `?project=&status=&priority=&label=&assignee=`. Selects rather than chip
+ * rows, because the counts are already stated above; each option carries its
+ * own. A scoped board drops the project control: a select offering one option
+ * cannot change anything.
  */
 function Filters({
   live,
@@ -546,8 +445,8 @@ function Filters({
   for (const project of projects) for (const task of project.tasks) {
     if (task.assignee) assigneeNames.set(task.assignee, taskActorLabel(task.assignee, task.actors));
   }
-  // What the fold's one press carries on a phone (bead ro-ujb9.13): how many of
-  // these are narrowing the board now.
+  // What the fold's one press carries on a phone: how many of these are
+  // narrowing the board now.
   const active = [scoped ? "all" : value.project, value.status, value.priority, value.assignee].filter((pick) => pick !== "all").length
     + (value.label === "" ? 0 : 1);
   return (
@@ -558,8 +457,8 @@ function Filters({
       // How old the board is: a fact about the list, never folded.
       aside={age ? <span className="ms-auto inline-flex items-center gap-2">{age}</span> : null}
     >
-      {/* One project is not a choice (bead ro-ujb9.130); a link that already
-          narrows keeps its select so it can be cleared. */}
+      {/* One project is not a choice; a link that already narrows keeps its
+          select so it can be cleared. */}
       {scoped || (projects.length < 2 && value.project === "all") ? null : (
         <>
           <label className="sr-only" htmlFor="tasks-project">
@@ -673,30 +572,12 @@ function Filters({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Waiting on you — the operator's own asks, five at a time
-// ─────────────────────────────────────────────────────────────────────────────
+// --- Waiting on you: the operator's own asks, five at a time ----------------
 
 /**
- * ONE ASK, ANSWERED ON ITS ROW (bead `ro-ujb9.96.7.11`, Linear Triage). It
- * leads the board rather than sitting inside each project, because these are
- * the only rows here the OS physically cannot move: a `human`-labelled task
- * that is claimable now, and an open gate, which matters more because it is
- * holding other work out of the claimable queue until it is released.
- *
- * ONE PRESS PER DECISION, without opening the row. A gate's verb is Approve
- * (`bd gate resolve` — releasing a wait condition is not answering a
- * question). An ask's verbs are Answer, which opens a box under the row where
- * Enter sends (`bd human respond`: the words become a comment and close it, so
- * an empty answer is never sent), and Dismiss (`bd human dismiss`, a permanent
- * decline). All three land after the Undo window (`lib/answer-queue.ts`), and
- * the row leaves at once. Opening the row shows what the ask says and its page.
- *
- * The register is **warn, never error, at every priority** (bead
- * `ro-ujb9.200`): the operator being the blocker is a call for attention, not a
- * failure, and a task's priority is not a severity (doc 14) — the inbox is
- * already ordered gate first, then priority. A project without a live read
- * offers no verbs at all — the Read-only snapshot banner says why, once.
+ * One ask, answered on its row (`useAskActions`): a claimable `human`-labelled
+ * task, or an open gate holding other work. Warn, never error, at every
+ * priority: the operator being the blocker is not a failure.
  */
 function InboxRow({
   project,
@@ -711,7 +592,7 @@ function InboxRow({
   nowMs: number;
   showProject: boolean;
 }) {
-  // The verbs and the answer box are the task page's too (bead ro-ujb9.243).
+  // The verbs and the answer box are the task page's too.
   const capabilities = useTasksLive();
   const supported = taskOperationAvailable(capabilities, isGate(task) ? 'resolve' : 'respond');
   const { buttons, box } = useAskActions({ ask: askVerb(task), id: task.id, title: task.title, project: task.project, placement: "row",
@@ -724,9 +605,8 @@ function InboxRow({
       title={task.title}
       caption={
         <>
-          {/* Business altitude (doc 14), as Home's Decide row says it: the
-              project and what the row asks, never the task's id — that is on
-              the task's own page. */}
+          {/* The project and what the row asks, never the task's id, which is
+              on the task's own page. */}
           {[showProject ? project.name : null, isGate(task) ? "needs your approval" : null].filter(Boolean).join(" · ") || null}
         </>
       }
@@ -754,20 +634,10 @@ function InboxRow({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The board — one table, 25 rows at a time
-// ─────────────────────────────────────────────────────────────────────────────
+// --- The board: one table, 25 rows at a time --------------------------------
 
-/**
- * EVERY TASK, ONE LINE EACH. The old board drew one card per project, one card
- * per epic inside it and one heading per lane inside that; this is the same
- * rows in one table with the grouping moved onto the row that expands.
- *
- * The epic is on the EXPANDED row rather than in a card of its own: "what is
- * this project trying to do" is a question about a task once you are looking at
- * it, and thirty containers stacked above the work was how the page reached
- * 32,495px.
- */
+/** Every task, one line each, with the grouping on the row that expands: the
+ * epic is a question about a task once you are looking at it. */
 function Board({
   rows,
   shown,
@@ -794,19 +664,14 @@ function Board({
 
   return (
     <section className="flex flex-col rounded-[10px] border border-border bg-card">
-      {/* The desk's ONE eyebrow (bead `ro-78qo.39`). This header was the same
-          three parts hand-rolled — an 11px tracked title and a quiet count —
-          and a second copy of a vocabulary component is exactly what the
-          registry exists to prevent. The card's own padding rides in through
-          `className`, which is the pattern `ListPanel` already uses. */}
+      {/* The desk's one eyebrow; the card's own padding rides in through
+          `className`, as `ListPanel` does. */}
       <SectionLabel
         title="All tasks"
         caption={
-          // The mark stays on the span the audit and the tests read, inside the
-          // caption rather than instead of it.
-          // A count, and against what when narrowed: `12 of 29`. Paging is the
-          // Load more button's to say, and an incomplete board wears the same
-          // `+` as the strip — the banner above says why, once.
+          // The mark stays on the span the audit and the tests read. A count,
+          // and against what when narrowed: `12 of 29`; an incomplete board
+          // wears the same `+` as the strip.
           <span data-tasks-summary className="tabular-nums">
             {rows.length}
             {countsComplete ? "" : "+"}
@@ -871,11 +736,9 @@ function Board({
   );
 }
 
-/** doc 14's mark set, chosen by what the row IS before what it is worth: a
- * finished or parked task wears its status glyph — the one its State cell and
- * its page wear (bead `ro-ujb9.202`) — and everything live carries its
- * priority mark, ink weight and never a severity hue (doc 14, bead
- * `ro-ujb9.200`). */
+/** The mark, chosen by what the row is before what it is worth: a finished or
+ * parked task wears its status glyph, and everything live carries its priority
+ * mark, ink weight and never a severity hue. */
 function RowMark({ task }: { task: BoardTask }) {
   return task.status === "closed" || task.status === PARKED
     ? <RestingMark status={task.status} className="self-start" />
@@ -883,12 +746,10 @@ function RowMark({ task }: { task: BoardTask }) {
 }
 
 /**
- * ONE ROW, one line, and every action behind the press that opens it.
- *
- * The row is a button rather than a link: opening it must not leave the board,
- * and the id beside it is the link for the reader who wants the task's own page.
- * On a phone the row folds to its summary line and unfolds with the same press,
- * which is what keeps 25 rows from becoming 150 labelled lines.
+ * One row, one line, and every action behind the press that opens it. The row
+ * is a button rather than a link: opening it must not leave the board, and the
+ * id beside it is the link to the task's own page. On a phone the row folds to
+ * its summary line and unfolds with the same press.
  */
 function BoardRow({
   task,
@@ -960,9 +821,8 @@ function BoardRow({
         >
           {formatAge(ageMs(nowMs, task.updatedAt)) || "—"}
         </TableCell>
-        {/* THE STATE, READ BEFORE THE WORD IS (doc 14): the glyph carries the
-            state's shape and tone, the word carries the state, and both come
-            from the one status face the task page uses. */}
+        {/* The glyph carries the state's shape and tone, the word carries the
+            state, and both come from the one status face the task page uses. */}
         <TableCell label="State" foldWhenStacked className="whitespace-nowrap py-1">
           <TaskStatusMark status={task.status} />
         </TableCell>
@@ -991,14 +851,10 @@ function BoardRow({
 }
 
 /**
- * WHAT AN OPEN ROW SHOWS: the facts a one-line row could not carry, then the
- * verbs.
- *
- * INLINE, NOT A DIALOG. Every one of these is a sentence the operator is
- * already looking at; a modal would hide the row the decision is about. The
- * reason on a close is REQUIRED because completion is evidence and the closer
- * cites what proves it — the local read refuses a reasonless close anyway, and
- * a field that will be refused should not be submittable.
+ * What an open row shows: the facts a one-line row could not carry, then the
+ * verbs, inline rather than in a dialog that would hide the row the decision
+ * is about. The reason on a close is required because completion is evidence;
+ * the local read refuses a reasonless close anyway.
  */
 function RowDetail({
   task,
@@ -1150,8 +1006,7 @@ function RowDetail({
   );
 }
 
-/** An empty board's one way out: the page that fixes it, as a link, in place
- * of the paragraph that used to describe the fix. */
+/** An empty board's one way out: the page that fixes it, as a link. */
 function EmptyAction({ to, children }: { to: string; children: ReactNode }) {
   return (
     <Link

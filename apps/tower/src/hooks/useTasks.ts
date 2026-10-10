@@ -17,22 +17,12 @@ import { useOwnerAnswers } from "@/lib/browser-context";
 import { useOwnerMutation as useMutation } from '@/lib/browser-context';
 
 /**
- * The Tower's live reads and writes over the portfolio's task hub (D19, epic
- * `ro-l1ed`).
- *
- * TWO BOARDS, ONE HUB. `useWork()` reads the snapshot — a photograph the runner
- * files once a minute, served by the Worker in every deployment. These hooks
- * read the hub itself through the local lane, which only exists where `os:up`
- * is serving. `useTasksLive()` is the question that decides which one a surface
- * may offer actions on, and it is asked once.
- *
- * EVERY WRITE INVALIDATES THE SNAPSHOT. A close through this lane lands in the
- * hub instantly; the `/api/work` board would keep showing the bead as open
- * until the next poll, and the Wall's counts with it. Invalidating `["work"]`
- * and `["wall"]` after a write costs one read and removes a whole class of "I
- * closed that, why is it still there".
- *
- * `bd` remains the path an AGENT uses. Nothing here is for an agent.
+ * The Tower's live reads and writes over the portfolio's task hub. Two boards,
+ * one hub: `useWork()` reads the snapshot the runner files once a minute,
+ * served in every deployment; these hooks read the hub itself through the
+ * local lane. `useTasksLive()` decides which one a surface may offer actions
+ * on. Every write invalidates the snapshot (`["work"]`, `["wall"]`), or the
+ * board would keep showing a closed task as open until the next poll.
  */
 
 /** Assumed absent until the answer arrives, and if the question fails — the
@@ -127,7 +117,7 @@ export function useTasksAcross(
   });
 }
 
-/** One bead and its comments, by id — the project comes from the id's prefix. */
+/** One task and its comments, by id; the project comes from the id's prefix. */
 export function useTask(id: string | null, project?: string) {
   const { fetchTask } = useTowerApi();
   const { live, projectSelection } = useTasksLive();
@@ -143,15 +133,9 @@ export function useTask(id: string | null, project?: string) {
 /**
  * What every task write invalidates: the live board and task page it changed,
  * the snapshot board that has not heard yet, the Wall, whose counts are built
- * from the same snapshot, and the ASSET page, whose findings, query rows and
- * page rows carry the `HandoffBeadBadge` for the bead that was just filed or
- * closed (bead `ro-l1ed.4`).
- *
- * The badge itself still arrives on the poller's own cadence — the marker is
- * read out of `beads_snapshots`, which the runner refreshes once a minute — so
- * this buys the refetch, not the row. That is the honest ceiling: the Tower
- * does not write the snapshot, and pretending the badge is instant would mean
- * rendering a bead the register has not photographed yet.
+ * from the same snapshot, and the asset page, whose rows carry the
+ * `HandoffBeadBadge` for the task just filed or closed. The badge itself still
+ * arrives on the poller's own cadence; this buys the refetch, not the row.
  */
 export function useTaskRefresh(): () => Promise<void> {
   const queryClient = useQueryClient();
@@ -231,13 +215,12 @@ export function useCommentOnTask() {
 }
 
 /**
- * THE INBOX'S THREE ANSWERS (bead `ro-ujb9.96.7.11`) — approve a gate, answer
- * an ask, decline one — each ONE call on the lane the inbox has always used:
- * `bd gate resolve`, `bd human respond`, `bd human dismiss`. What changed is
- * WHEN: each is one press on its row, the row leaves at once, and the call is
- * made when the Undo window closes (`lib/answer-queue.ts`), because none of
- * the three has an inverse the lane can run. All three close the bead, so all
- * three invalidate everything a close does.
+ * The inbox's three answers, approve a gate, answer an ask, decline one, each
+ * one call on the lane: `bd gate resolve`, `bd human respond`, `bd human
+ * dismiss`. Each is one press on its row, the row leaves at once, and the call
+ * is made when the Undo window closes (`lib/answer-queue.ts`), because none
+ * of the three has an inverse the lane can run. All three close the task, so
+ * all three invalidate everything a close does.
  */
 export type InboxAnswer = (
   | { kind: "approve"; id: string; title: string }

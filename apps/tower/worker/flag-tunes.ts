@@ -1,40 +1,17 @@
-// THE RECORD PER TUNE — writing it and reading it
-// (bead `ro-6d1t`, `noticeos.flag_tunes`).
-//
-// WHAT IT ADDS. `flags.disposition_note` records THAT an alert was tuned and
-// WHICH setting last moved (bead `ro-bkcl`); a second tune on the same row
-// overwrites the first note, so "the operator has tuned this rule five times
-// this quarter" had no answer. `flag_tunes` is one row per tune, which makes
-// that a count instead of a guess.
-//
-// `noticeos.flag_tunes` is written in the same transaction as the disposition
-// it records (`flag-actions.ts`), so a tune and its row land together.
+// One row per tune in `noticeos.flag_tunes` (a disposition note keeps only the
+// last), written in the same transaction as the disposition it records.
 
 import type { Transaction, WorkspaceStore } from "@noticeos/postgres";
 import type { TunedSetting } from "../shared/tune";
 
-/**
- * Who a tune is recorded as. The Tower is single-operator and unauthenticated
- * on the LAN (docs/10), so there is exactly one honest name — the same value and
- * the same reasoning as `config-route.ts`'s `CONFIG_ACTOR`, and an audit row
- * that invented a more specific one would be fiction.
- */
+/** The standalone Tower has one unauthenticated operator, so one honest name. */
 export const TUNE_ACTOR = "operator";
 
-/**
- * File one tune, inside the transaction that dispositions its alert.
- *
- * ONE ROW PER DECISION. The caller passes the flag the operator acted FROM, not
- * every row the disposition touched: a grouped rule writes its disposition onto
- * every open firing of the same condition at once (`flag-actions.ts`), which is
- * exactly why the false-positive counts are counts of alerts and have to say so.
- * These rows are counts of decisions, and that is the grain the question "how
- * many times" is asked at.
- */
+/** One row per decision: the caller passes the flag the operator acted from,
+ * not every firing a grouped disposition touched. */
 export async function recordFlagTune(
   tx: Transaction,
   entry: {
-    /** The alert's identity in the store (the tune references it). */
     flagId: bigint;
     ruleId: string;
     tuned: TunedSetting;
@@ -58,19 +35,8 @@ export async function recordFlagTune(
   );
 }
 
-/**
- * How many tunes each rule has recorded since `since`.
- *
- * A MAP RATHER THAN A COLUMN ON THE COUNTS QUERY, because the two are different
- * questions over different tables and a LEFT JOIN would have made the tune
- * counts depend on a rule having fired inside the window — a rule tuned in
- * March and quiet since would then read as never tuned, which is the opposite of
- * what a tune record is for.
- *
- * The window is on `tuned_at`: "five times this quarter" is a question about the
- * operator's quarter, where the false-positive rate's window is on `fired_at`
- * and is a question about the rule's.
- */
+/** Tunes per rule since `since`, windowed on `tuned_at` and kept apart from
+ * the firing counts so a rule tuned but quiet since still reads as tuned. */
 export async function loadFlagTuneCounts(
   store: WorkspaceStore,
   since: string,

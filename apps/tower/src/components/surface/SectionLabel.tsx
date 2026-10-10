@@ -13,12 +13,9 @@ export interface SectionLabelAction {
 }
 
 /**
- * The eyebrow's TYPE, for the two places the eyebrow is a label inside a
- * control rather than a section's heading (bead `ro-78qo.39`): the panel
- * toggles on /financials and /health, where the header IS the button, and an
- * `<h2>` inside a `<button>` is not markup a browser accepts. Everywhere else
- * renders `SectionLabel` itself. Exported as a class the way `pillControlClass`
- * is, so the type is declared once whichever of the two shapes needs it.
+ * The eyebrow's type, for an eyebrow that is a label inside a control (a
+ * panel toggle whose header is the button, where an `<h2>` is not allowed).
+ * Everywhere else renders `SectionLabel` itself.
  */
 export const eyebrowClass =
   "text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground";
@@ -27,43 +24,25 @@ export interface SectionLabelProps {
   /** One or two words. The section's question is the page's; this names the
    * section. */
   title: string;
-  /** One sentence at most, and about what the section IS — never how it works.
+  /** One sentence at most, and about what the section is — never how it works.
    * The mechanics belong in `About`. A panel's quiet count sits here too. */
   caption?: ReactNode;
-  /** The section's one link out, doc 14's "All →". */
+  /** The section's one link out, "All →". */
   action?: SectionLabelAction;
-  /** Goes on the HEADING, not the row: a section that labels itself with
+  /** Goes on the heading, not the row: a section that labels itself with
    * `aria-labelledby` must point at the title, not at the title plus the
    * caption plus the link. Also what a tab bar or a skip link anchors to. */
   id?: string;
-  /** The end of the row when what belongs there is NOT a link — the owner chip
-   * on a Settings or Sources panel is the standing case (doc 14 keeps chips to
-   * those two surfaces). A caller passing both gets the link first. */
+  /** The end of the row when what belongs there is not a link (an owner chip
+   * on a Settings or Sources panel). A caller passing both gets the link first. */
   children?: ReactNode;
   className?: string;
 }
 
 /**
- * THE EYEBROW EVERY DOC 21 SECTION OPENS WITH — AND THE DESK'S ONLY ONE.
- *
- * The mockup's `.section-lbl`: an 11px tracked uppercase title, one quiet
- * caption of at most a sentence saying what the section is, and, at the right, a
- * link that takes the question somewhere else. It replaces `SectionCard`'s
- * header — a card per section, each with a title, a paragraph and a chip, is the
- * shape doc 14 exists to end.
- *
- * *Registry justification (beads `ro-78qo.27`, `ro-78qo.33`):* it was built
- * beside the two asset tabs that first needed it, because two callers in one
- * folder is layout rather than vocabulary. Home's assets panel is the third
- * caller and the mockup puts the same header on every index page — at which
- * point a second local copy is the exact near-duplicate the registry exists to
- * prevent. `ListPanel` drew the same three parts as its own header and now
- * COMPOSES this one, so the product has a single eyebrow: the panel supplies
- * its card's padding through `className`, its quiet count through `caption` and
- * its "All →" through `action`, and its own props did not change.
- *
- * The caption is `tabular-nums` because most of them carry a count or a date,
- * and doc 14 asks for tabular digits wherever numbers align.
+ * The desk's one section eyebrow: an 11px tracked uppercase title, one quiet
+ * caption saying what the section is, and a link at the right that takes the
+ * question elsewhere. `ListPanel` composes it as its header.
  */
 export function SectionLabel({
   title,
@@ -90,9 +69,8 @@ export function SectionLabel({
 }
 
 function SectionAction({ action }: { action: SectionLabelAction }) {
-  // 16px of text against a 44px thumb: the target is CLAIMED from the row
-  // rather than added to it (`OwnerChip`'s pattern, bead `ro-9smi`), so an
-  // eyebrow row stays 24px on the desk and every phone press still lands on 44.
+  // The 44px phone target is claimed from the row rather than added to it, so
+  // the eyebrow row keeps its height.
   const chrome = cn(
     "ms-auto text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline",
     pillControlClass,

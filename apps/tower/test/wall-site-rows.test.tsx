@@ -1,5 +1,4 @@
-// D28's site rows (docs/14-design.md § Site rows, bead `ro-trai.5`): one slim
-// row per site, drawn from the synthetic Wall fixture.
+// The Wall's site rows: one slim row per site, drawn from the synthetic Wall fixture.
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -49,7 +48,6 @@ describe("the site rows", () => {
     );
     const headings = [...container.querySelectorAll('[role="columnheader"]')].map((cell) => cell.textContent);
     // The weekday comes from the saved clock the hours were bucketed in.
-    // "30 min" is the live figure's window, said once here (bead ro-trai.27).
     expect(headings).toEqual(["Site", "Live · 30 min", "Today vs last Tue", "4 weeks"]);
   });
 
@@ -57,15 +55,12 @@ describe("the site rows", () => {
     const container = draw(wallFixturePayload().assets);
     const menus = row(container, "menus.example");
     expect(menus.querySelector("[data-live]")?.getAttribute("data-live")).toBe("fresh");
-    // One clean figure in neutral ink (bead ro-trai.19), announced whole.
     const live = menus.querySelector("[data-live-count]")!;
     expect(live.getAttribute("data-value")).toBe("21");
     expect(live.textContent).toBe("21");
     expect(live.getAttribute("aria-label")).toBe("Live users: 21");
     expect(live.className).toContain("text-foreground");
     expect(menus.querySelector("[data-split-flap-counter]")).toBeNull();
-    // Today solid over last week dashed, the hour still filling a breathing
-    // now point, the pace % and the hours it compares (bead ro-trai.43).
     const today = menus.querySelector("[data-site-today]")!;
     expect(today.querySelector("[data-today]")?.getAttribute("stroke-dasharray")).toBeNull();
     expect(today.querySelector("[data-last-week]")?.getAttribute("stroke-dasharray")).toMatch(/^[\d.]+ [\d.]+$/);
@@ -73,11 +68,8 @@ describe("the site rows", () => {
     expect(today.querySelector("[data-filling-hour] [data-chart-breathe]")).not.toBeNull();
     expect(today.textContent).toBe("6.9%to 12 PM");
     expect(today.querySelector('[aria-label*="6.9% ahead; completed hours"]')).not.toBeNull();
-    // Ahead of last week is on pace (paceTone, operator 2026-09-23).
+    // Ahead of last week is on pace.
     expect(today.querySelector("[data-tone]")?.getAttribute("data-tone")).toBe("pace-on");
-    // The last four weeks solid over the four before dashed (the charts'
-    // comparison line), the same two spans' smaller change to their right, and the first
-    // and last day under them (bead ro-trai.26).
     const weeks = menus.querySelector("[data-site-trend]")!;
     expect(weeks.querySelector("[data-trend-line]")?.getAttribute("stroke-dasharray")).toBeNull();
     expect(weeks.querySelector("[data-prior-weeks]")?.getAttribute("data-chart-line")).toBe("ghost");
@@ -128,8 +120,6 @@ describe("the site rows", () => {
     site.dataSources = [];
     const container = draw(assets, { realtime: { ...wallFixtureRealtime(), assets: [] }, pulseMetrics: { [site.id]: [] } });
     const siteRow = row(container, site.id);
-    // The bars say the site's one health word (D44): this site has an open
-    // warning, so it is At risk here exactly as it is on Home and its page.
     expect(siteRow.querySelector("[data-site-health]")).toHaveAttribute("data-site-health", "warn");
     expect(siteRow.querySelector("[data-site-health]")).toHaveAccessibleName("Site health: At risk");
     expect(siteRow.querySelector('[data-site-totals]')).toBeNull();
@@ -138,7 +128,6 @@ describe("the site rows", () => {
 
   it("colours today's line, wash, now point and % in the pace's one step: amber a little behind, red far behind", () => {
     const realtime = wallFixtureRealtime();
-    // Today's completed hours at a share of last week's same hours.
     const atShare = (asset: string, share: number): Ga4RealtimePayload["assets"][number] => {
       const snapshot = realtime.assets.find((one) => one.asset === asset)!;
       if (snapshot.status !== "success") return snapshot;
@@ -158,11 +147,10 @@ describe("the site rows", () => {
     const container = draw(wallFixturePayload().assets, { realtime: shaped });
     const steps = (id: string) =>
       [...row(container, id).querySelectorAll("[data-site-today] [data-tone]")].map((element) => element.getAttribute("data-tone"));
-    // The chart (line, wash and now point share its ink) and the % chip.
     expect(steps("menus.example")).toEqual(["pace-behind", "pace-behind"]);
     expect(steps("plate.example")).toEqual(["pace-far-behind", "pace-far-behind"]);
-    // A site too small for a verdict (bead ro-trai.43: under 100 of last
-    // week's users in the hours so far) draws no step and no percent.
+    // A site too small for a verdict (under 100 of last week's users in the
+    // hours so far) draws no step and no percent.
     expect(steps("areas.example")).toEqual(["neutral"]);
     expect(row(container, "areas.example").querySelector("[data-site-today]")?.textContent).toBe("to 12 PM");
     const chart = row(container, "menus.example").querySelector("[data-site-today] [data-site-chart]")!;
@@ -170,12 +158,10 @@ describe("the site rows", () => {
     expect(chart.querySelector("[data-today]")?.getAttribute("class")).toContain("stroke-current");
     expect(chart.querySelector("[data-chart-area]")).not.toBeNull();
     expect(chart.querySelector("[data-filling-hour]")).not.toBeNull();
-    // Never colour alone: the arrow and the number stay.
     const chip = row(container, "menus.example").querySelector("[data-site-today] span[aria-label]")!;
     expect(chip.querySelector("svg")).not.toBeNull();
     expect(chip.textContent).toMatch(/^\d+%$/);
     expect(chip.getAttribute("aria-label")).toMatch(/% behind; completed hours today vs last Tue$/);
-    // The one-site tile reads the same step from the same derivation.
     const only = wallFixturePayload().assets.find((asset) => asset.id === "menus.example")!;
     const tile = draw([only], { realtime: shaped }).querySelector('[data-focus-tile="today"]')!;
     expect([...tile.querySelectorAll("[data-tone]")].map((element) => element.getAttribute("data-tone"))).toEqual([
@@ -195,7 +181,6 @@ describe("the site rows", () => {
     const { container, rerender } = render(<SiteRows assets={assets} issues={issues} ga4Realtime={at(21)} nowMs={NOW} />);
     rerender(<SiteRows assets={assets} issues={issues} ga4Realtime={at(121)} nowMs={NOW} />);
     const live = () => row(container, "menus.example").querySelector("[data-live-count]")!;
-    // The whole new reading is announced at once; only the drawn figure counts.
     expect(live().getAttribute("aria-label")).toBe("Live users: 121");
     expect(live().getAttribute("data-value")).toBe("121");
     expect(Number(live().textContent)).toBeLessThan(121);
@@ -217,8 +202,8 @@ describe("the site rows", () => {
   });
 });
 
-// Bead ro-trai.27: the live figure is the last 30 minutes, labelled, over a
-// minute pulse whose newest five bars are the 5-minute window.
+// The live figure is the last 30 minutes, labelled, over a minute pulse whose
+// newest five bars are the 5-minute window.
 const failedFor = (id: string, realtime = wallFixtureRealtime()): Ga4RealtimePayload => ({
   ...realtime,
   assets: realtime.assets.map((asset) =>
@@ -249,13 +234,11 @@ describe("the minute pulse", () => {
     expect(pulse(menus).getAttribute("class")).toContain("text-traffic");
     expect(bars(menus, "recent")).toHaveLength(5);
     expect(bars(menus, "earlier")).toHaveLength(25);
-    // Oldest on the left: the bars' values are the reading's own minutes.
     const snapshot = wallFixtureRealtime().assets.find((asset) => asset.asset === "menus.example");
     if (snapshot?.status !== "success") throw new Error("expected a reading");
     expect([...bars(menus, "earlier"), ...bars(menus, "recent")].map((bar) => Number(bar.getAttribute("data-value")))).toEqual(
       snapshot.activeUsersByMinute,
     );
-    // The bright end is full ink; the rest keep a share of it.
     expect(bars(menus, "recent").every((bar) => bar.getAttribute("stroke-opacity") === "1")).toBe(true);
     expect(bars(menus, "earlier").every((bar) => Number(bar.getAttribute("stroke-opacity")) < 1)).toBe(true);
     expect(menus.querySelector("[data-live-recent-count]")?.getAttribute("data-value")).toBe("7");
@@ -278,7 +261,6 @@ describe("the minute pulse", () => {
       const [, y] = /V([\d.]+)$/.exec(bar.getAttribute("d")!)!;
       return 14 - Number(y);
     });
-    // A quiet minute is a tick; a minute with anyone in it stands clear of it.
     expect(heights[0]).toBe(1.5);
     expect(heights[1]).toBeGreaterThan(2.5);
     expect(heights.at(-1)).toBe(14);
@@ -289,13 +271,11 @@ describe("the minute pulse", () => {
     expect(plate.getAttribute("data-live")).toBe("stale");
     expect(pulse(plate).getAttribute("data-minute-pulse")).toBe("dimmed");
     expect(pulse(plate).getAttribute("class")).toContain("text-muted-foreground");
-    // Read twenty minutes before now and served in the minute before this
-    // one: the nineteen minutes since were never read, so the bright end is
-    // empty rather than zero.
+    // Read twenty minutes before now and served in the minute before this one:
+    // the nineteen minutes since were never read, so the bright end is empty.
     expect(pulse(plate).getAttribute("data-unread-minutes")).toBe("19");
     expect(bars(plate, "recent")).toHaveLength(0);
-    // The age takes the 5-minute count's place: an old reading's last five
-    // minutes are not the last five minutes.
+    // An old reading's last five minutes are not the last five minutes.
     expect(plate.querySelector("[data-live-age]")?.textContent).toBe("20m");
     expect(plate.querySelector("[data-live-recent-count]")).toBeNull();
   });
@@ -312,10 +292,8 @@ describe("the minute pulse", () => {
     expect(menus.querySelector("[data-live-count]")?.getAttribute("data-value")).toBe("21");
     expect(pulse(menus).getAttribute("data-minute-pulse")).toBe("dimmed");
     expect(menus.querySelectorAll("[data-minute-bar]")).toHaveLength(30);
-    // The age of the reading drawn, named by what went wrong.
     expect(menus.querySelector("[data-live-age]")?.textContent).toBe("4m");
     expect(menus.querySelector('[data-live-age] svg[role="img"]')?.getAttribute("aria-label")).toBe("Google rate limit");
-    // A good read comes back: fresh again.
     rerender(<SiteRows assets={assets} issues={issues} ga4Realtime={good} nowMs={NOW} />);
     expect(row(container, "menus.example").querySelector("[data-live]")?.getAttribute("data-live")).toBe("fresh");
   });
@@ -346,12 +324,10 @@ describe("the minute pulse", () => {
     const assets = wallFixturePayload().assets;
     const width = (container: HTMLElement, id: string) => Number(row(container, id).querySelector("[data-minute-pulse]")?.getAttribute("width"));
     expect(width(draw(assets), "menus.example")).toBe(119);
-    // A roomier row's is as wide, and taller: its charts leave it no width.
     expect(width(draw(assets.slice(0, 3)), "menus.example")).toBe(119);
     expect(Number(row(draw(assets.slice(0, 3)), "menus.example").querySelector("[data-minute-pulse]")?.getAttribute("height"))).toBe(28);
     const tile = draw([assets.find((asset) => asset.id === "menus.example")!]).querySelector('[data-focus-tile="today"]')!;
     expect(Number(tile.querySelector("[data-minute-pulse]")?.getAttribute("width"))).toBe(238);
-    // No heading over the tile: the figure says its window itself.
     expect(words(tile.querySelector('[data-focus-figure="live"]')!)).toBe("21 · 30 min7 · 5 min");
     expect(tile.querySelector("[data-live-unit]")?.className).not.toContain("sites:hidden");
   });
@@ -373,9 +349,7 @@ describe("the site rows", () => {
     const spanned = row(draw([moved, ...others]), "menus.example").querySelector("[data-site-trend] [data-tone]")!;
     expect(clean.getAttribute("data-tone")).toBe("positive");
     expect(spanned.getAttribute("data-tone")).toBe("neutral");
-    // The number stays; only the verdict goes.
     expect(spanned.textContent).toBe(clean.textContent);
-    // One site shown in depth reads the same weekly change the same way.
     const alone = (asset: AssetCard) =>
       draw([asset]).querySelector('[data-focus-tile="visitors"] [data-site-week] [data-tone]')!.getAttribute("data-tone");
     expect([alone(menus), alone(moved)]).toEqual(["negative", "neutral"]);
@@ -408,7 +382,7 @@ describe("a site's signal-bar health indicator", () => {
     expect(mark.querySelectorAll('.opacity-100')).toHaveLength(1);
   });
 
-  it("never marks a site that declared it sends no nightly report for a missing one (D29)", () => {
+  it("never marks a site that declared it sends no nightly report for a missing one", () => {
     const data = wallFixturePayload();
     const assets = data.assets.map((asset) =>
       asset.id === "rates.example" ? { ...asset, noNightlyReport: true, pulseReceivedAt: new Date(NOW - 9 * 24 * HOUR).toISOString() } : asset,
@@ -426,8 +400,7 @@ describe("rows without data yet", () => {
     const container = draw(wallFixturePayload().assets);
     const waiting = row(container, "standards.example");
     expect(waiting.getAttribute("data-site-state")).toBe("waiting");
-    // A site that has never sent a report expects none (D29 amended,
-    // ro-ujb9.121), so nothing is being waited for.
+    // A site that has never sent a report expects none.
     expect(waiting.textContent).toBe("StandardsNo data yet");
     const declared = { ...wallFixturePayload().assets.find((asset) => asset.id === "standards.example")!, noNightlyReport: true };
     expect(row(draw([declared]), "standards.example").textContent).toBe("StandardsNo data yet");
@@ -453,20 +426,15 @@ describe("any number of sites", () => {
     const container = draw(assets);
     expect(container.querySelector("[data-site-row] .truncate")).toBeNull();
     expect([...container.querySelectorAll("[data-site-label]")].map(element => element.textContent)).toEqual(assets.map(asset => asset.displayName));
-    // Names can wrap; numeric figures retain their own column and shape.
   });
 });
 
-// docs/14-design.md § Density, bead `ro-trai.13`.
 describe("the density tiers", () => {
   const density = (container: HTMLElement) => container.querySelector("[data-wall-sites]")?.getAttribute("data-site-density");
 
   it("are chosen by the number of sites alone: one in depth, two or three roomier, four and more compact", () => {
     expect([1, 2, 3, 4, 7, 12].map(siteRowDensity)).toEqual(["focus", "comfortable", "comfortable", "compact", "compact", "compact"]);
     expect([FOCUS_SITES, COMFORTABLE_MAX_SITES]).toEqual([1, 3]);
-    // Nothing about the sites themselves moves the tier: the three healthiest
-    // sites and the three quietest (one still waiting for its first report)
-    // are drawn alike, and so is one site with data or without.
     const assets = wallFixturePayload().assets;
     expect(density(draw(assets.slice(0, 3)))).toBe("comfortable");
     expect(density(draw(assets.slice(-3)))).toBe("comfortable");
@@ -480,18 +448,14 @@ describe("the density tiers", () => {
     const container = draw(assets, { pulseMetrics: Object.fromEntries(assets.map(asset => [asset.id, []])) });
     const rows = [...container.querySelectorAll("[data-site-row]")];
     expect(rows.map((r) => r.getAttribute("data-site-density"))).toEqual(["comfortable", "comfortable", "comfortable"]);
-    // The same cells as a compact row: live, today, 30 days, money.
     const menus = row(container, "menus.example");
     expect(menus.querySelector("[data-live-count]")?.getAttribute("data-value")).toBe("21");
     expect(menus.querySelector("[data-site-today]")?.textContent).toBe("6.9%to 12 PM");
     expect(menus.querySelector("[data-site-money]")).toBeNull();
-    // Both charts fill their cell: today over last week, and the four-week line.
     expect(menus.querySelector('[data-site-today] [data-site-chart="filling"] [data-today]')).not.toBeNull();
     expect(menus.querySelector('[data-site-trend] [data-site-chart="filling"] [data-trend-line]')).not.toBeNull();
-    // A step larger: the live figure and the others.
     expect(menus.querySelector("[data-live-count]")?.className).toContain("text-[length:var(--text-wall-site-live)]");
 
-    // The rows share the region; the table knows how many.
     const table = container.querySelector('[role="table"]') as HTMLElement;
     expect(table.style.getPropertyValue("--site-rows")).toBe("3");
     expect(table.className).toContain("sites:auto-rows-[minmax(min-content,1fr)]");
@@ -525,11 +489,10 @@ describe("the density tiers", () => {
     const container = draw(wallFixturePayload().assets);
     const menus = row(container, "menus.example");
     expect(menus.querySelector('[data-site-chart="row"]')?.className).toContain("flex-1");
-    // The four-week line before its small comparison %, in the traffic colour.
     expect(menus.querySelector('[data-site-trend] [data-site-chart="row"]')?.className).toContain("text-traffic");
     expect(menus.querySelector("[data-site-trend] [data-trend-line]")).not.toBeNull();
-    // A step under the TV's stat size since the minute pulse sits under it
-    // (bead ro-trai.27): the row keeps its 56 px floor and the column its width.
+    // A step under the TV's stat size since the minute pulse sits under it:
+    // the row keeps its 56 px floor and the column its width.
     expect(menus.querySelector("[data-live-count]")?.className).toContain("text-[length:var(--text-wall-site-live)]");
     expect(menus.querySelector("[data-live-count]")?.className).not.toContain("text-wall-hero-sm");
 
@@ -562,10 +525,8 @@ describe("one site, in depth", () => {
     const visitors = container.querySelector('[data-focus-tile="visitors"]')!;
     expect(visitors.querySelector("h3")?.textContent).toBe("Visitors and money · September");
     expect(visitors.querySelector('[data-focus-figure="per-thousand"]')?.textContent).toMatch(/^\$\d+\.\d\dper 1,000 visitors Sep 21$/);
-    // The month so far: Sep 1 to today, today still being counted.
     expect(visitors.querySelectorAll("[data-visitors-bar]")).toHaveLength(22);
     expect(visitors.querySelectorAll('[data-visitors-bar="provisional"]')).toHaveLength(1);
-    // The day still counted is hatched, never a short solid bar.
     expect(visitors.querySelector('[data-visitors-bar="provisional"]')?.className).toContain("chart-bar-provisional");
     expect(visitors.querySelector("[data-money-line]")).not.toBeNull();
 
@@ -576,11 +537,9 @@ describe("one site, in depth", () => {
 
   it("leaves out a tile whose data the site lacks, and the others take its width", () => {
     const [only] = wallFixturePayload().assets;
-    // The committed fixture has no search source.
     const noSearch = draw([only!]);
     expect(tiles(noSearch)).toEqual(["today", "visitors"]);
     expect(noSearch.querySelector('[data-focus-tile="search"]')).toBeNull();
-    // No empty placeholder stands in: each tile present carries its own share.
     for (const tile of noSearch.querySelectorAll("[data-focus-tile]")) expect(tile.className).toMatch(/sites:flex-\[/);
 
     const realtime = wallFixtureRealtime();
@@ -599,13 +558,10 @@ describe("one site, in depth", () => {
   });
 });
 
-// Bead ro-trai.18: the site region is its own container. In D28's arrangement
-// it is one track of a column beside the feed — about 1,380 px of a 1920 TV but
-// about 670 px of a 1440 window — so its table must switch on the REGION's
-// width. Keyed on the Wall's `xl:`, the table asked for ~950 px of columns in
-// 670 px and its figures ran over each other and under the feed. jsdom has no
-// layout, so the pixels are the captures' (docs/artifacts/wall-build-2026-09-23/
-// default/sites-*-1440.png); this pins the mechanism.
+// The site region is its own container: one track of a column beside the
+// feed, about 1,380 px of a 1920 TV but about 670 px of a 1440 window, so its
+// table must switch on the region's width. jsdom has no layout; this pins the
+// mechanism.
 describe("the site region's own breakpoints", () => {
   const css = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../src/index.css"), "utf8");
   const classesIn = (container: HTMLElement) =>
@@ -650,7 +606,6 @@ describe("saved site traffic without a current-day reading", () => {
     expect(site.querySelector('[data-today]')).toBeNull();
     expect([...container.querySelectorAll('[role="columnheader"]')].map(cell => cell.textContent)).toContain("Today / latest day");
     if (mode !== "previous-day") expect(site.querySelector('[data-live]')?.textContent).toBe("—");
-    // A neighboring current observation retains its hourly chart and pace.
     expect(row(container, "plate.example").querySelector('[data-today]')).not.toBeNull();
   });
 

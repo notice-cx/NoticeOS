@@ -13,8 +13,8 @@ type QueryDecisionLane = "act" | "investigate" | "protect" | "wait";
 
 export interface QueryDecisionMarkdownRow {
   query: string;
-  /** The normalized query — `decisions.key` for kind `query`, and the label
-   * that joins the filed bead back to the operator's recorded decision. */
+  /** The normalized query: `decisions.key` for kind `query`, and the label
+   * that joins the filed task back to the operator's recorded decision. */
   key?: string;
   google: SearchQueryMover | null;
   bing: SearchQueryMover | null;
@@ -23,12 +23,11 @@ export interface QueryDecisionMarkdownRow {
 
 export interface QueryDecisionMarkdownAssessment {
   lane: QueryDecisionLane;
-  /** The decision kind — the rule id the filed bead carries. */
+  /** The decision kind: the rule id the filed task carries. */
   kind?: string;
   /** What the evidence says. */
   label: string;
-  /** What to do: one short imperative (bead `ro-ujb9.96.6.5`). The evidence
-   * section below is the why; there is no rationale paragraph. */
+  /** What to do: one short imperative. The evidence section below is the why. */
   action: string;
 }
 
@@ -102,14 +101,10 @@ export function queryDecisionMarkdown({
 }
 
 /**
- * The bead this decision becomes in the asset's own repo. `null` when the row
- * carries no usable key — an unkeyed row still hands off its evidence, it just
- * cannot name the task the work files under.
- *
- * EXPORTED since bead `ro-l1ed.4`, because two things now file this bead: the
- * copied `bd create` an agent runs, and the row's **File task** button. One
- * description of the bead, read twice — a second literal in the component would
- * be free to drift from the command sitting under it in the same Markdown.
+ * The task this decision becomes in the asset's own repo. `null` when the row
+ * carries no usable key: an unkeyed row still hands off its evidence, it just
+ * cannot name the task the work files under. Exported because the copied `bd
+ * create` and the row's File task button file the same task.
  */
 export function queryTaskHandoff({
   row,
@@ -197,14 +192,10 @@ function dataForSeoMarkdown(
   ];
 }
 
-/** Per device, because the surfaces are the finding (bead `ro-14d.1`): an
- * overview can consume the click on the phone and be absent on the desktop, and
- * a handoff that folded them would hand someone one page's worth of a two-page
- * observation.
- *
- * The surface is NAMED only where the panel read more than one — a device
- * column that never varies is noise, and a single-device panel's line reads
- * exactly as it did before the split. */
+/** Per device, because the surfaces are the finding: an overview can consume
+ * the click on the phone and be absent on the desktop. The surface is named
+ * only where the panel read more than one; a device column that never varies
+ * is noise. */
 function trackedPanelLabel(row: DataForSeoQueryVisibilityRow): string {
   const named = row.aioDevices.length > 1;
   return row.aioDevices
@@ -223,7 +214,7 @@ function trackedPanelLabel(row: DataForSeoQueryVisibilityRow): string {
     .join("; ");
 }
 
-/** The surface as the operator names it (doc 14): never the lane's `mobile`. */
+/** The surface as the operator names it: never the lane's `mobile`. */
 function deviceNoun(device: string): string {
   if (device === "mobile") return "Phone";
   if (device === "desktop") return "Desktop";
@@ -248,8 +239,7 @@ function providerEvidenceMarkdown(
     `- **Previous average position:** ${mover.previousPosition.toFixed(1)}`,
     `- **Average-position change:** ${positionMovementLabel(mover.positionImprovement)}`,
     // What the lane states about its own series before it ranked anything. It
-    // travels with the copy for the same reason it renders on the page: the
-    // bead this Markdown becomes must be able to show that the
+    // travels with the copy so the task this becomes can show that the
     // grounding-exclusion check ran, including when it excluded nothing.
     ...trend.evidence.map(
       (row) =>

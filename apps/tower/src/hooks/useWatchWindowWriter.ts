@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 
 /**
- * The asset page's pre-registration, bound to one asset (bead `ro-71r`).
+ * The asset page's pre-registration, bound to one asset.
  * Resolves only after the store has the row and the detail read has been
  * invalidated, so the caller can treat a rejection as "nothing was registered"
  * and leave the operator's choices exactly where they are.

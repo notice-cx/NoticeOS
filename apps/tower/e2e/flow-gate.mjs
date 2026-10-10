@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// THE FLOW WALKER: walk every declared operator flow in a real browser and
-// report what each one costs — actions, screens, page changes, explanatory
-// words, empty steps, repeated checks, duplicate statuses, ungrouped lists.
+// The flow walker: walk every declared operator flow in a real browser and
+// report what each one costs (actions, screens, page changes, explanatory
+// words, empty steps, repeated checks, duplicate statuses, ungrouped lists).
 //
 // The text report (scripts/ux-gate.mjs) sees words in source files; it cannot
 // see a flow that takes nine clicks across two pages. This walks the flows and
@@ -18,7 +18,7 @@
 //                   as the journeys' workers, JOURNEY_WORKERS or half the cores, 1 to 4)
 //   --json          machine-readable result on stdout
 //
-// ISOLATION is the journey suite's own (apps/tower/e2e/README.md): one
+// Isolation is the journey suite's own (apps/tower/e2e/README.md): one
 // fixture server per lane, started once per run (server.mjs, in-memory store,
 // synthetic config, the isolation guard armed before Vite loads), loopback
 // only, every browser request to another origin aborted, each flow started
@@ -26,9 +26,9 @@
 // prints fails the run. Before any flow, the probes are checked against a page
 // holding one of each violation (`probeSelfTest`).
 //
-// OUTPUT: apps/tower/e2e/ux-flows-results/results.json (schema ux-walk/1, the
-// audit's shape) and shots/<flow>/<viewport>/*.jpg, the screenshot every
-// failure names. Both are generated and ignored by git.
+// Output: apps/tower/e2e/ux-flows-results/results.json (schema ux-walk/1)
+// and shots/<flow>/<viewport>/*.jpg, the screenshot every failure names. Both
+// are generated and ignored by git.
 
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -145,8 +145,8 @@ export async function probeSelfTest(browser) {
       problems.push(`the list probe did not read undeclared rows by the line they lead with (${JSON.stringify(lead?.repeats ?? null)})`);
     }
     if (!lists.find((list) => list.name === "Recent")?.exempt) problems.push("the list probe did not exempt a chronological list");
-    // A refusal is a refusal and never a confirmation (bead ro-nuz9): the
-    // error toast is read as one, and only the success toast counts as saved.
+    // The error toast is read as a refusal, and only the success toast
+    // counts as saved.
     const refusal = await refusalOnScreen(page);
     if (refusal !== "Changed elsewhere — reload to see the current value") problems.push(`the refusal probe read ${JSON.stringify(refusal)}, not the error toast`);
     const confirmations = await page.locator(SAVED).allInnerTexts();
@@ -171,7 +171,7 @@ async function walkOne({ browser, base, id, viewport }) {
     context = await browser.newContext({ ...VIEWPORTS[viewport], baseURL: base, colorScheme: "dark", locale: "en-US",
       timezoneId: "UTC", reducedMotion: "reduce", serviceWorkers: "block", proxy: transport.proxy });
     context.setDefaultTimeout(15_000);
-    // No page leaves the fixture, not even by a redirect (bead ro-o3hv).
+    // No page leaves the fixture, not even by a redirect.
     guard = await installOfflineGuard(context, base, { transport });
     await installSyntheticProviders(context, base);
     const page = await context.newPage();
@@ -269,9 +269,8 @@ export async function main(argv = process.argv.slice(2)) {
   if (full) await rm(RESULTS_DIR, { recursive: true, force: true });
   await mkdir(RESULTS_DIR, { recursive: true });
   const jobs = ids.length * args.viewports.length;
-  // Each lane's server takes a free loopback port (fixture-server.mjs, beads
-  // ro-ujb9.107 and ro-ujb9.167), so two runs on one machine never collide;
-  // --port pins them.
+  // Each lane's server takes a free loopback port (fixture-server.mjs), so
+  // two runs on one machine never collide; --port pins them.
   const laneCount = Math.max(1, Math.min(args.parallel, jobs));
   const fixtures = [];
   let results;

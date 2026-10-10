@@ -4,11 +4,10 @@ import { WORKFLOW_DEFINITIONS, type WorkflowDefinition } from '../../../scripts/
 export * from '../../../scripts/workflow-definitions.mjs';
 
 /**
- * The workflows this installation runs. One whose runner says it does not run
- * the host's lanes (an installation `pnpm start` runs, bead ro-ujb9.156) has
- * only the `local` jobs its runner lists — the task board refresh and the
- * backup, once each is set up (bead ro-ujb9.174); every other job is listed,
- * and one its runner does not report stays unconfirmed.
+ * The workflows this installation runs. One whose runner does not run the
+ * host's lanes (an installation `pnpm start` runs) has only the `local` jobs
+ * its runner lists; every other job is listed, and one its runner does not
+ * report stays unconfirmed.
  */
 export function installedWorkflows(data?: Pick<ScheduledJobsPayload, 'runtime'> & { workflows?: readonly { id: string }[] }): WorkflowDefinition[] {
   const runtime = data?.runtime;
@@ -20,11 +19,9 @@ export function installedWorkflows(data?: Pick<ScheduledJobsPayload, 'runtime'> 
   return WORKFLOW_DEFINITIONS.filter((workflow) => !workflow.local || runtime.jobs.some((job) => job.id === workflow.id));
 }
 /**
- * What System health's footer says this installation runs in the background,
- * named from the workflows it has installed (bead `ro-ujb9.178`): collection
- * and service checks always, then each installed job's own `footer` phrase —
- * the task-board refresh and backups a started installation runs once a task
- * project is saved and an offsite backup folder is set.
+ * What System health's footer says this installation runs in the background:
+ * collection and service checks always, then each installed job's own
+ * `footer` phrase.
  */
 export function backgroundWorkSummary(workflows: readonly Pick<WorkflowDefinition, 'footer'>[]): string {
   const parts = ['Collection', 'service checks', ...workflows.flatMap((workflow) => (workflow.footer ? [workflow.footer] : []))];
@@ -69,16 +66,13 @@ export function workflowRunAge(startedAt: string, now: number): string {
 
 /** The runner's unpublished-commit check (`push-state` in
  * scripts/scheduled-jobs.mts): the one job whose unread sites System health
- * names (bead `ro-ujb9.188`). */
+ * names. */
 export const PUSH_STATE_JOB = 'push-state';
 
 /**
- * THE SITES A RUN COULD NOT READ, and why (bead `ro-ujb9.188`): its steps'
- * failed output items, each labelled by its site, and their reasons in words
- * (the run's own projection, scripts/workflow-output.mts). Null when the run
- * read every site. Under launchd the unpublished-commit check can find a
- * site's remote refusing the service's sign-in; this is how that reaches the
- * screen rather than one log line.
+ * The sites a run could not read, and why: its steps' failed output items,
+ * each labelled by its site, and their reasons in words (the run's own
+ * projection, scripts/workflow-output.mts). Null when the run read every site.
  */
 export function unreadSites(run: WorkflowRun | null | undefined): { runId: string; sites: string[]; reasons: string[] } | null {
   const items = run?.steps?.flatMap((step) => step.output?.items ?? []).filter((item) => item.state === 'failed') ?? [];

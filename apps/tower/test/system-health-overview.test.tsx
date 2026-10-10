@@ -9,8 +9,8 @@ import { stepResult } from '../../../scripts/workflow-trace.mjs';
 
 const mock = vi.hoisted(() => ({ data: undefined as WorkflowsPayload | undefined, isError: false }));
 vi.mock('@/hooks/useWorkflows', () => ({ useWorkflows: () => mock }));
-// System health names the OS's own problems from the Wall's read (D45); these
-// cases are about the workflow and connection reads, so the Wall has none.
+// System health names the OS's own problems from the Wall's read; these cases
+// are about the workflow and connection reads, so the Wall has none.
 const wall = vi.hoisted(() => ({ data: undefined as unknown }));
 vi.mock('@/hooks/useWall', () => ({ useWall: () => ({ data: wall.data, isError: false }) }));
 vi.mock('@/hooks/useNow', () => ({ useNow: () => Date.parse('2026-09-09T12:00:00Z') }));
@@ -27,9 +27,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe('System Health status evidence', () => {
-  it("names the OS's own problem first, in the words Home's Stopped card used (D45)", () => {
-    // The OS sent no report: Home's brief says "OS report missing" and its
-    // Look opens this page, which must say the same thing first.
+  it("names the OS's own problem first, in the words Home's Stopped card used", () => {
     wall.data = { system: { assetId: 'os-root', hasPulse: false, spendTodayUsd: 0, dailyCapUsd: 2, ingest: { fresh: 0, stale: 0, notExpected: 0, expected: 0 }, scheduledLanes: [] } };
     mount();
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('OS report missing');
@@ -37,7 +35,6 @@ describe('System Health status evidence', () => {
 
   it('links internal failures to their exact run and excludes operator workflows from the summary', () => {
     mount();
-    // Only what happened: nothing is listed at zero.
     expect(screen.getByText('1 background operation failed')).toBeVisible();
     expect(screen.getByRole('link', { name: /Backups/ })).toHaveAttribute('href', '/health/operations/backup?run=backup%402026-09-09T11%3A59%3A00Z');
     expect(screen.queryByText('Operator notifications')).toBeNull();
@@ -67,8 +64,8 @@ describe('System Health status evidence', () => {
     expect(screen.getByRole('heading', { name: 'Current health is unconfirmed' })).toBeVisible();
   });
   it('judges an installation whose runner runs no host lanes by the jobs it does run', () => {
-    // An installation `pnpm start` runs (bead ro-ujb9.156): no backup or task
-    // hub lanes, so their absence is neither a failure nor unconfirmed.
+    // An installation `pnpm start` runs: no backup or task hub lanes, so their
+    // absence is neither a failure nor unconfirmed.
     const ingest = WORKFLOW_DEFINITIONS.filter((definition) => !definition.local);
     mock.data!.runtime = { ...mock.data!.runtime!, hostLanes: false, jobs: mock.data!.runtime!.jobs.filter((job) => ingest.some((definition) => definition.id === job.id)) };
     mock.data!.workflows = ingest.map((definition) => ({ id: definition.id, active: null, history: [], runs: [], latest: { id: `${definition.id}@latest`, workflowId: definition.id, definitionVersion: 1, startedAt: '2026-09-09T11:59:00Z', finishedAt: '2026-09-09T11:59:10Z', state: 'succeeded', steps: null } }));
@@ -77,8 +74,7 @@ describe('System Health status evidence', () => {
     expect(screen.queryByRole('link', { name: /Backups/ })).toBeNull();
     expect(screen.getByText('Collection and service checks')).toBeVisible();
   });
-  // Bead ro-ujb9.178: the footer names what installedWorkflows lists, so a
-  // started installation that backs up or refreshes a task board says so.
+  // The footer names what installedWorkflows lists.
   describe('the operations footer names what this installation runs', () => {
     const started = (local: string[]) => {
       const installed = WORKFLOW_DEFINITIONS.filter((definition) => !definition.local || local.includes(definition.id));
@@ -104,9 +100,8 @@ describe('System Health status evidence', () => {
       expect(screen.getByText('Collection, service checks, task-board refreshes and backups')).toBeVisible();
     });
   });
-  // Bead ro-ujb9.188: under launchd the unpublished-commit check can be refused
-  // by a site's remote. That is on the screen, by site and reason, every run —
-  // not one log line that falls silent after it.
+  // Under launchd the unpublished-commit check can be refused by a site's
+  // remote. That is on the screen, by site and reason, every run.
   describe('sites the unpublished-commit check could not read', () => {
     const pushRun = (failed: { asset: string; reason: string }[]) => {
       const output = captureWorkflowOutput({ checked: 1, filed: [], closed: [], failed });

@@ -6,25 +6,11 @@ import type { LiveTask, LiveTasksPayload, TasksCapabilities } from "@shared/task
 import { READ_ONLY_DEPLOYMENT, READ_ONLY_TASKS_HINT } from "@shared/tasks";
 import { emptyWorkHistory, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
 
-// `/tasks` — doc 14's index template over the task database (bead `ro-78qo.12`).
-//
-// WHAT THE REBUILD KEPT, and therefore what this file is mostly about: the five
-// filters are still the URL, claim / close / defer / respond / dismiss / resolve
-// still run through the local read as the operator, every row still opens at
-// `/tasks/:id`, and the same component still draws the asset page's Tasks tab
-// with one prop set. What changed is the SHAPE — a KPI strip, a five-row inbox
-// panel and one paged table instead of a card per project, a card per epic and a
-// heading per lane — so every assertion about layout is new and every assertion
-// about behaviour is the one that was here before.
-//
-// WHAT IS MOCKED AND WHY. The two READS are hooks (`useWork`, `useTasksLive`,
-// `useTasksAcross`), so they are stubbed with fixtures — this file is about what
-// the page does with a payload, not about react-query. The WRITES are not: the
-// real mutation hooks run, over a real QueryClient, against a mocked
-// `src/lib/api`. That is deliberate — "Claim calls the local read with --claim"
-// is only an assertion if the argv-shaped call is what gets asserted, and
-// mocking the hook instead would have tested that a button calls a function this
-// test wrote.
+// `/tasks`: the filters are the URL, every row opens at `/tasks/:id`, and the
+// same component draws the asset page's Tasks tab with one prop set. The reads
+// (`useWork`, `useTasksLive`, `useTasksAcross`) are stubbed; the writes are not:
+// the real mutation hooks run over a real QueryClient against a mocked
+// `src/lib/api`, so each verb is asserted on the argv-shaped call.
 
 const state = vi.hoisted(() => ({
   work: null as WorkPayload | null,
@@ -86,11 +72,7 @@ import { statusFace } from "@/routes/tasks/task-face";
 import { STATE_TONE } from "@/components/StateChip";
 import { resetTaskSourceMock, taskSourceMock } from "./task-source-mock";
 
-// A task source connected, as this installation's is (D32, bead
-// ro-ujb9.143): the task screens here render exactly as before it existed.
 vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
-
-// ── fixtures ─────────────────────────────────────────────────────────────────
 
 function item(overrides: Partial<WorkItem> = {}): WorkItem {
   return {
@@ -151,8 +133,7 @@ function payload(overrides: Partial<WorkPayload> = {}): WorkPayload {
   };
 }
 
-/** One project whose daily rollup holds `days` days of every count — the shape
- * `/api/work` carries once migration 0032 has been applied and has run. */
+/** One project whose daily rollup holds `days` days of every count. */
 function withHistory(days = 4): WorkProject {
   const series = (base: number) =>
     Array.from({ length: days }, (_unused, index) => ({
@@ -203,8 +184,6 @@ function board(
     epics,
   };
 }
-
-// ── harness ──────────────────────────────────────────────────────────────────
 
 /** The current query string, so "the filter is the URL" is asserted against the
  * URL rather than against what the control happens to look like. */
@@ -271,8 +250,8 @@ function row(container: HTMLElement, id: string): HTMLElement {
   return found!;
 }
 
-/** Open a row in place and hand back what it revealed — the claim/close/defer
- * verbs live behind the same press that shows the evidence (doc 14). */
+/** Open a row in place and hand back what it revealed: the claim/close/defer
+ * verbs live behind the same press that shows the evidence. */
 function open(container: HTMLElement, id: string): HTMLElement {
   fireEvent.click(within(row(container, id)).getByRole("button", { expanded: false }));
   const detail = container.querySelector<HTMLElement>(`[data-task-detail="${id}"]`);
@@ -292,7 +271,7 @@ it('shows the selected workspace member name in an expanded board row without ch
   expect(value.tasks[0].assignee).toBe(principal);
 });
 
-/** The answer's figures (D45), by label, in the order they are drawn. */
+/** The answer's figures, by label, in the order they are drawn. */
 function figures(container: HTMLElement): string[] {
   return [...container.querySelectorAll("[data-page-answer-figures] dt")].map((node) => node.textContent ?? "");
 }
@@ -321,8 +300,6 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-// ── the first screen ─────────────────────────────────────────────────────────
-
 describe("/tasks — the first screen answers the page's one question", () => {
   it("is the answer and the inbox, and nothing else is above the fold", () => {
     const { container } = renderBoard();
@@ -332,7 +309,6 @@ describe("/tasks — the first screen answers the page's one question", () => {
     expect(hero).not.toBeNull();
     expect(hero.querySelector("[data-tasks-answer]")).not.toBeNull();
     expect(hero.querySelector("[data-kpi-strip]")).toBeNull();
-    // The table and its filters are BELOW the answer, never above or in it.
     expect(hero.compareDocumentPosition(container.querySelector("#tasks-status")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(hero.querySelector("table")).toBeNull();
   });
@@ -396,8 +372,6 @@ describe("/tasks — the first screen answers the page's one question", () => {
   });
 
   it("needs no paragraph: no About, and no line over the label budget", () => {
-    // Bead ro-ujb9.96.6.11: every fact the old About carried is now the state
-    // that owns it — the strip, the banners, the empty-state links.
     const { container } = renderBoard();
     expect(container.querySelector("[data-about]")).toBeNull();
     for (const node of container.querySelectorAll("p, [role=status]")) {
@@ -411,8 +385,6 @@ describe("/tasks — the first screen answers the page's one question", () => {
     expect(container.textContent).not.toContain("config/beads.json");
   });
 });
-
-// ── the board ────────────────────────────────────────────────────────────────
 
 describe("/tasks — the board is one table", () => {
   it("draws every project's work in one table, one line each", () => {
@@ -431,11 +403,9 @@ describe("/tasks — the board is one table", () => {
       }),
     });
 
-    // One table, not one section per project.
     expect(container.querySelectorAll("table")).toHaveLength(1);
     expect(row(container, "mp-1w2")).toBeInTheDocument();
     expect(row(container, "ro-9zz")).toBeInTheDocument();
-    // The project is a COLUMN now, not a card heading.
     expect(within(row(container, "ro-9zz")).getByText("NoticeOS")).toBeInTheDocument();
   });
 
@@ -467,12 +437,11 @@ describe("/tasks — the board is one table", () => {
     const ids = [...container.querySelectorAll("tr[data-task-row]")].map((node) =>
       node.getAttribute("data-task-row"),
     );
-    // Both are P0 and would otherwise lead the board; neither is hidden.
     expect(ids.indexOf("mp-park")).toBeGreaterThan(ids.indexOf("mp-1w2"));
     expect(ids.indexOf("mp-done")).toBe(ids.length - 1);
   });
 
-  it("draws closed, in progress and an unknown status from the task page's own status face (bead ro-ujb9.202)", () => {
+  it("draws closed, in progress and an unknown status from the task page's own status face", () => {
     const { container } = renderBoard({
       data: payload({
         projects: [
@@ -488,21 +457,17 @@ describe("/tasks — the board is one table", () => {
       const face = statusFace(stored);
       const word = within(row(container, id)).getAllByText(face.label)[0]!;
       expect(word, id).toHaveAttribute("data-task-status", face.key);
-      // The word and its glyph wear the face's own ink — the chip's ink on the
-      // task page — so a closed task is grey here exactly as it is there.
       expect(word.className, id).toContain(STATE_TONE[face.tone].text);
       const glyph = row(container, id).querySelector(`[data-task-status-glyph="${face.key}"]`)!;
       expect(glyph, id).not.toBeNull();
       expect(glyph.getAttribute("class"), id).toContain(STATE_TONE[face.tone].text);
     }
-    // A closed task wears no green anywhere on its row, the mark included.
     const closed = row(container, "mp-done");
     expect(closed.innerHTML).not.toContain("healthy");
     expect(closed.querySelector("[data-task-rest-mark]")).toHaveAttribute("data-task-rest-mark", "closed");
     expect(statusFace("closed").tone).toBe("na");
     expect(statusFace("in_progress").tone).toBe("affirmative");
     expect(statusFace("triaged")).toMatchObject({ key: "unknown", label: "triaged", tone: "neutral" });
-    // Neither does the week's count of closings.
     expect(fig(container, "closed").innerHTML).not.toContain("healthy");
   });
 
@@ -514,7 +479,7 @@ describe("/tasks — the board is one table", () => {
     });
 
     // Twice per row: the desk's State column and the summary line a stacked
-    // phone row shows in its place. Both say the raw value, neither invents one.
+    // phone row shows in its place.
     const words = within(row(container, "mp-odd")).getAllByText("triaged");
     expect(words).toHaveLength(2);
     for (const word of words) expect(word.getAttribute("data-task-status")).toBe("unknown");
@@ -529,7 +494,6 @@ describe("/tasks — the board is one table", () => {
     });
 
     expect(container.querySelectorAll("tr[data-task-row]")).toHaveLength(25);
-    // The count is the board's; how many are left is the button's to say.
     expect(container.querySelector("[data-tasks-summary]")!.textContent).toBe("60");
     expect(container.querySelector("[data-tasks-more]")!.textContent).toContain("35 left");
 
@@ -538,7 +502,6 @@ describe("/tasks — the board is one table", () => {
 
     fireEvent.click(container.querySelector<HTMLElement>("[data-tasks-more]")!);
     expect(container.querySelectorAll("tr[data-task-row]")).toHaveLength(60);
-    // Nothing left to load, so nothing to press.
     expect(container.querySelector("[data-tasks-more]")).toBeNull();
   });
 
@@ -556,8 +519,7 @@ describe("/tasks — the board is one table", () => {
     fireEvent.change(container.querySelector<HTMLSelectElement>("#tasks-status")!, {
       target: { value: "blocked" },
     });
-    // 30 blocked rows, and the reader is back on the first 25 of them rather
-    // than looking at 50 rows of a filter they have just applied.
+    // 30 blocked rows, and the reader is back on the first 25 of them.
     expect(container.querySelectorAll("tr[data-task-row]")).toHaveLength(25);
   });
 
@@ -586,13 +548,10 @@ describe("/tasks — the board is one table", () => {
     });
 
     const detail = open(container, "mp-1w2");
-    // The epic is a fact ABOUT a task now, not thirty containers above the work.
     expect(detail.textContent).toContain("Part of Recipe schema overhaul");
     expect(detail.querySelector('[data-task-action="claim"]')).not.toBeNull();
   });
 });
-
-// ── the filters ──────────────────────────────────────────────────────────────
 
 describe("/tasks — the filters are the URL", () => {
   const many = payload({
@@ -628,12 +587,10 @@ describe("/tasks — the filters are the URL", () => {
     const { container } = renderBoard({ data: twoProjects, live: true,
     });
     const filters = container.querySelector("[data-tasks-filters]")!;
-    // doc 14's "avoid overwhelming": twelve status/priority chips became two
-    // selects, because the strip two lines above already answers "how much".
     expect(filters.querySelectorAll("select")).toHaveLength(4);
     expect(filters.querySelectorAll("input")).toHaveLength(1);
-    // The one button is the phone's fold (bead ro-ujb9.13), hidden from `sm` up;
-    // the controls themselves hold none.
+    // The one button is the phone's fold, hidden from `sm` up; the controls
+    // themselves hold none.
     expect(filters.querySelector("[data-filter-controls]")!.querySelectorAll("button")).toHaveLength(0);
     const fold = within(filters as HTMLElement).getByRole("button", { name: "Filters" });
     expect(fold).toHaveClass("sm:hidden");
@@ -650,15 +607,13 @@ describe("/tasks — the filters are the URL", () => {
     fireEvent.click(fold);
     expect(fold).toHaveAttribute("aria-expanded", "true");
     expect(controls).not.toHaveClass("max-sm:hidden");
-    // The board's age is a fact about the list, not a filter: never folded.
     expect(filters.lastElementChild).not.toBe(controls);
   });
 
   it("names each filter, and does not print the same total four times", () => {
     const { container } = renderBoard({ data: twoProjects });
-    // The closed label of a select IS its selected option, and four controls
-    // each reading "· 206" was the same number stated four times across one row
-    // (doc 14). The count stays on every option a reader opens the list to see.
+    // The closed label of a select is its selected option; the count stays on
+    // every option a reader opens the list to see.
     for (const id of ["tasks-project", "tasks-status", "tasks-priority", "tasks-assignee"]) {
       const select = container.querySelector<HTMLSelectElement>(`#${id}`)!;
       expect(select.options[0]!.textContent).not.toContain("·");
@@ -749,11 +704,8 @@ describe("/tasks — the filters are the URL", () => {
   });
 
   it("offers no label filter on the photograph, whose rows carry no labels", () => {
-    // A field that can never match is not drawn — rather than drawn disabled
-    // with a sentence explaining why.
     const { container } = renderBoard();
     expect(container.querySelector("#tasks-label")).toBeNull();
-    // One project is not a choice either (bead ro-ujb9.130).
     expect(container.querySelector("#tasks-project")).toBeNull();
     expect(container.querySelector("[data-tasks-filters]")!.querySelectorAll("select")).toHaveLength(3);
   });
@@ -767,8 +719,6 @@ describe("/tasks — the filters are the URL", () => {
     );
   });
 });
-
-// ── the inbox ────────────────────────────────────────────────────────────────
 
 describe("/tasks — Waiting on you leads, and it can be answered", () => {
   const withInbox = payload({
@@ -798,16 +748,14 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
     const titles = [...inbox.querySelectorAll("li")].map((node) => node.textContent ?? "");
     expect(titles[0]).toContain("approve the spend");
     expect(titles[1]).toContain("Decide the Korea trip");
-    // The project is the row's caption; the id is on the task's own page
-    // (doc 14 altitude, as Home's Decide row says it).
     expect(titles[1]).toContain("Meal Planner");
     expect(titles[1]).not.toContain("mp-9k1");
     expect(titles[0]).toContain("needs your approval");
   });
 
-  it("wears warn on a top-priority ask like every other ask, never error (bead ro-ujb9.200)", () => {
-    // A task's priority is not a severity (doc 14): the operator being the
-    // blocker is a call for attention at every priority, a gate included.
+  it("wears warn on a top-priority ask like every other ask, never error", () => {
+    // A task's priority is not a severity: the operator being the blocker is
+    // a call for attention at every priority, a gate included.
     const { container } = renderBoard({
       data: payload({
         projects: [
@@ -829,7 +777,7 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
     }
   });
 
-  it("ranks the board's rows and the Urgent count by ink, never by an attention hue (bead ro-ujb9.200)", () => {
+  it("ranks the board's rows and the Urgent count by ink, never by an attention hue", () => {
     const { container } = renderBoard();
     const top = container.querySelector('[data-task-row="mp-88x"] [data-priority-mark]')!;
     expect(top.getAttribute("data-priority-mark")).toBe("top");
@@ -846,12 +794,9 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
 
   it("keeps approval and saved-sample status visible while moving definitions on demand", () => {
     const { container } = renderBoard({ data: withInbox });
-    // The approval is said in the answer's own words, never "gate".
     const answer = container.querySelector("[data-tasks-answer]")!;
     expect(answer).toHaveTextContent("1 needs your approval");
     expect(answer).not.toHaveTextContent(/gate/);
-    // The saved sample is said ONCE, by the Read-only snapshot banner; the
-    // tile keeps only its period.
     expect(container.querySelector("[data-tasks-readonly]")).toHaveTextContent("Read-only snapshot");
     expect(container.querySelector("button button, a button")).toBeNull();
   });
@@ -870,7 +815,6 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
       liveTask({ id: "mp-9k1", title: "Decide the Korea trip", labels: ["human"], ready: true }),
     ];
     state.boards = { "meals.example": board([gateTask, ...otherTasks]) };
-    // A URL change rerenders the mocked live read without remounting the panel.
     fireEvent.change(container.querySelector("#tasks-status")!, { target: { value: "open" } });
     expect(inbox.getByText("2 asks")).toBeTruthy();
     expect(inbox.queryByText("Wait for tomorrow")).toBeNull();
@@ -898,16 +842,15 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
         liveTask({ id: "mp-9k1", title: "Decide the Korea trip", priority: 1, labels: ["human"], ready: true }),
       ]),
     } });
-    // Bead ro-ujb9.96.7.11 (Linear Triage): one press per decision, without
-    // opening the row. A gate is approved; an ask is answered or dismissed.
+    // One press per decision, without opening the row.
     const gate = within(container.querySelector('[data-inbox-row="mp-gate"]') as HTMLElement);
     const ask = within(container.querySelector('[data-inbox-row="mp-9k1"]') as HTMLElement);
     expect(gate.getByRole("button", { name: "Approve" })).toBeEnabled();
     expect(ask.getByRole("button", { name: "Answer" })).toBeEnabled();
     expect(ask.getByRole("button", { name: "Dismiss" })).toBeEnabled();
-    // No row opens on arrival — `ListRow` reads `defaultExpanded` once, at
+    // No row opens on arrival: `ListRow` reads `defaultExpanded` once, at
     // mount, and this panel mounts on the photograph and is reordered by the
-    // live read. The evidence is one press away.
+    // live read.
     expect(container.querySelector("[data-inbox-evidence]")).toBeNull();
     fireEvent.click(gate.getByRole("button", { name: /approve the spend/ }));
     expect(container.querySelector("[data-inbox-evidence]")).toHaveTextContent("Spend $40 on the launch ads.");
@@ -963,8 +906,6 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
 
     const inbox = container.querySelector("[data-waiting-list]")!;
     expect(inbox.querySelectorAll("li")).toHaveLength(5);
-    // The panel says how many it is keeping back rather than silently keeping
-    // five of nine (doc 14's "As built").
     fireEvent.click(within(inbox as HTMLElement).getByRole("button", { name: "Show 4 more" }));
     expect(inbox.querySelectorAll("li")).toHaveLength(9);
   });
@@ -1022,7 +963,6 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
 
     fireEvent.click(ask.getByRole("button", { name: "Dismiss" }));
     expect(container.querySelector('[data-inbox-row="mp-9k1"]')).toBeNull();
-    // The panel's count follows the rows it shows.
     expect(within(container.querySelector("[data-waiting-list]") as HTMLElement).getByText("1 ask")).toBeTruthy();
 
     const undo = vi.mocked(toasts.success).mock.calls.at(-1)![1] as { action: { onClick: () => void } };
@@ -1031,7 +971,6 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
     act(() => flushAnswers());
     expect(api.dismissTask).not.toHaveBeenCalled();
 
-    // Declined for real this time: the permanent decline, with no reason asked.
     fireEvent.click(within(container.querySelector('[data-inbox-row="mp-9k1"]') as HTMLElement).getByRole("button", { name: "Dismiss" }));
     act(() => flushAnswers());
     await waitFor(() => expect(api.dismissTask).toHaveBeenCalledWith("mp-9k1"));
@@ -1065,8 +1004,6 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
     expect(container.querySelector("[data-waiting-list]")).toBeNull();
   });
 });
-
-// ── the row's verbs ──────────────────────────────────────────────────────────
 
 describe("/tasks — claim, close and defer in place", () => {
   it("claims atomically, the way the local read spells it", async () => {
@@ -1166,8 +1103,6 @@ describe("/tasks — claim, close and defer in place", () => {
   });
 });
 
-// ── the two reads ────────────────────────────────────────────────────────────
-
 describe("/tasks — live where the local read is, the photograph where it is not", () => {
   it("uses every recent closed task for the KPI, filter and paged history", () => {
     const closed = Array.from({ length: 60 }, (_, index) => liveTask({
@@ -1191,7 +1126,6 @@ describe("/tasks — live where the local read is, the photograph where it is no
     expect(container.querySelectorAll("tr[data-task-row]")).toHaveLength(60);
     expect(container.querySelector("[data-tasks-summary]")?.textContent).toBe("60 of 61");
     expect(container.querySelector("[data-task-history-status]")).toBeNull();
-    // Closed P0s never inflate the active urgent queue.
     expect(fig(container, "urgent").textContent).not.toContain("60");
   });
 
@@ -1203,8 +1137,7 @@ describe("/tasks — live where the local read is, the photograph where it is no
       data: payload({ projects: [project({ recentlyClosed: [item({ id: "mp-done", status: "closed" })] })] }),
     });
     // Still arriving: a spinner beside the age. Failed: one banner naming the
-    // project, with a Retry. Either way the week's total is a dash, not the
-    // sample's count.
+    // project, with a Retry. Either way the week's total is a dash.
     if (failed) {
       expect(container.querySelector("[data-lane-error]")!.textContent).toContain("Meal Planner");
       expect(screen.getByRole("button", { name: /Retry/ })).toBeInTheDocument();
@@ -1244,10 +1177,7 @@ describe("/tasks — live where the local read is, the photograph where it is no
 
     const state = within(row(container, "mp-blk")).getAllByText("Blocked")[0]!;
     expect(state).toBeInTheDocument();
-    // Doc 14: the state is read as colour before it is read as a word, so the
-    // dot in front of it carries the same meaning the word does.
     expect(state.previousElementSibling?.getAttribute("aria-label")).toBe("State — Blocked");
-    // Epic containers are grouping, not claimable work, and never become rows.
     expect(container.querySelectorAll("tr[data-task-row]")).toHaveLength(2);
   });
 
@@ -1271,13 +1201,10 @@ describe("/tasks — live where the local read is, the photograph where it is no
   });
 });
 
-// ── the read-only fallback ───────────────────────────────────────────────────
-
 describe("/tasks — the read-only fallback", () => {
   it("states the reason once, at the top, and disables every action", () => {
     const { container } = renderBoard();
 
-    // What happened as the lead, what to do as the one line — no paragraph.
     const banner = container.querySelector("[data-tasks-readonly]")!;
     expect(banner.textContent).toContain("Read-only snapshot");
     expect(banner.textContent).toContain(READ_ONLY_TASKS_HINT);
@@ -1300,15 +1227,12 @@ describe("/tasks — the read-only fallback", () => {
   });
 });
 
-// ── new task ─────────────────────────────────────────────────────────────────
-
 describe("/tasks — filing one", () => {
   it("is the page's one primary action, and opens the composer in place", () => {
     renderBoard({ live: true, boards: { "meals.example": board([liveTask()]) }, entry: "/tasks?status=open" });
 
     fireEvent.click(screen.getByRole("button", { name: "New task" }));
-    // The page does not change under the composer (bead ro-ujb9.96.7.11: the
-    // URL change was the flow's one empty step); the filters stay.
+    // The page does not change under the composer; the filters stay.
     expect(screen.getByTestId("search").textContent).toBe("?status=open");
     expect(screen.getByRole("dialog", { name: "File a task" })).toBeInTheDocument();
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
@@ -1379,7 +1303,7 @@ describe("/tasks — filing one", () => {
   });
 });
 
-// ── core hub availability (D32) ─────────────────────────────────────────────
+// ── core hub availability ────────────────────────────────────────────────────
 
 describe("/tasks — core hub availability", () => {
   it("keeps core navigation and points an unread project list to Task projects", () => {
@@ -1410,8 +1334,6 @@ describe("/tasks — core hub availability", () => {
   });
 });
 
-// ── empty and first-run ──────────────────────────────────────────────────────
-
 describe("/tasks — designed empty states", () => {
   it("distinguishes no project reading from an empty task queue", () => {
     for (const capturedAt of [null, "2026-08-01T11:59:00.000Z"]) {
@@ -1437,17 +1359,15 @@ describe("/tasks — designed empty states", () => {
   });
 });
 
-// ── the route table ──────────────────────────────────────────────────────────
-
 describe("/work is the old address and still answers", () => {
-  it("redirects to /tasks in place and keeps the link's filters and anchor (bead ro-ujb9.198)", async () => {
+  it("redirects to /tasks in place and keeps the link's filters and anchor", async () => {
     const legacy = deskRoutes.find((route) => route.path === "/work");
     expect(legacy?.element).toBeDefined();
     expect(deskRoutes.some((route) => route.path === "/tasks")).toBe(true);
     expect(deskRoutes.some((route) => route.path === "/tasks/:id")).toBe(true);
 
-    // The board's filters ARE the query, so a redirect that dropped it would
-    // open the unfiltered board instead of the view the old link was written for.
+    // The board's filters are the query, so a redirect that dropped it would
+    // open the unfiltered board.
     const router = createMemoryRouter(
       [
         { path: "/work", element: legacy!.element },
@@ -1460,17 +1380,12 @@ describe("/work is the old address and still answers", () => {
     await screen.findByTestId("board");
     const { pathname, search, hash } = router.state.location;
     expect(`${pathname}${search}${hash}`).toBe("/tasks?status=blocked&priority=0#top");
-    // Replaced, not pushed: Back goes where the operator came from.
     expect(router.state.historyAction).toBe("REPLACE");
   });
 });
 
-// ── the same board, scoped to one asset (bead `ro-l1ed.5`) ───────────────────
-//
-// `/assets/:id/tasks` renders THIS component with `project` set, so the asset
-// page's Tasks tab is the index with one prop rather than a second board that
-// has to be kept in agreement with it by hand. What is asserted here is the
-// scoping and nothing else: everything above already covers the rest.
+// `/assets/:id/tasks` renders this component with `project` set. What is
+// asserted here is the scoping and nothing else.
 
 function renderScoped(
   asset: string,
@@ -1529,17 +1444,12 @@ describe("the asset page's Tasks tab", () => {
 
     expect(container.textContent).not.toContain("Somebody else's queue");
     expect(container.querySelector("#tasks-project")).toBeNull();
-    // The asset page's header already names the asset, so the table drops the
-    // column that would state it on every row.
     expect(container.querySelector("th")!.textContent).toBe("Task");
     expect(
       [...container.querySelectorAll("th")].map((node) => node.textContent),
     ).not.toContain("Project");
-    // THE BOARD DECLARES ITS OWN FIRST SCREEN, scoped or not (`ro-78qo.32`).
-    // The asset tab used to declare it with a wrapper, which could only span the
-    // whole board — so the audit measured the bottom of the 25-row table and
-    // reported the first screen 973px over. The mark belongs on the strip and
-    // the Waiting-on-you panel, which is the answer, and only the board knows
+    // The board declares its own first screen, scoped or not: the mark belongs
+    // on the strip and the Waiting-on-you panel, and only the board knows
     // where that ends.
     const hero = container.querySelector("[data-surface-hero]")!;
     expect(hero.querySelector("[data-tasks-answer]")).not.toBeNull();
@@ -1552,8 +1462,7 @@ describe("the asset page's Tasks tab", () => {
     fireEvent.change(container.querySelector<HTMLSelectElement>("#tasks-status")!, {
       target: { value: "in-progress" },
     });
-    // A pinned project never occupies the query string — it is the page, not a
-    // control — so the link an operator copies from here is exactly one clause.
+    // A pinned project never occupies the query string: it is the page, not a control.
     expect(screen.getByTestId("search").textContent).toBe("?status=in-progress");
     expect(container.querySelector('tr[data-task-row="mp-33j"]')).not.toBeNull();
     expect(container.querySelector('tr[data-task-row="mp-1w2"]')).toBeNull();
@@ -1594,9 +1503,7 @@ describe("the asset page's Tasks tab", () => {
 
     expect(screen.getByText("No task project for this site")).toBeInTheDocument();
     expect(container.querySelector("[data-tasks-unwired]")).not.toBeNull();
-    // The fix is a door, not a paragraph about the projects file.
     expect(screen.getByRole("link", { name: /Add a task project/ })).toHaveAttribute("href", "/settings#task-hub");
-    // Not an empty board: no filters, no table, no "0 tasks".
     expect(container.querySelector("[data-tasks-filters]")).toBeNull();
     expect(container.querySelector("table")).toBeNull();
   });
@@ -1635,8 +1542,8 @@ describe("/tasks — per-project source and action guarantees", () => {
     const ask = item({ id: "mp-ask", title: "Choose launch date" });
     const { container } = renderBoard({ live: true, data: payload({ projects: [project({ waiting: [ask] })] }) });
     fireEvent.click(within(container.querySelector("[data-waiting-list]") as HTMLElement).getByRole("button", { name: /Choose launch date/ }));
-    // No verbs at all on a row the live read has not confirmed — the saved
-    // sample is not something an answer can be sent against.
+    // No verbs on a row the live read has not confirmed: the saved sample is
+    // not something an answer can be sent against.
     const row = within(container.querySelector('[data-inbox-row="mp-ask"]') as HTMLElement);
     expect(row.queryByRole("button", { name: "Answer" })).toBeNull();
     expect(row.queryByRole("button", { name: "Dismiss" })).toBeNull();
@@ -1647,12 +1554,10 @@ describe("/tasks — per-project source and action guarantees", () => {
 it("shows unavailable project totals as unknown and never declares an empty queue", () => {
   const { container } = renderBoard({ live: true, data: payload({ projects: [project({ ok: false, error: "Snapshot failed" })] }), errors: { "meals.example": "Local read failed" } });
   for (const mark of ["urgent", "blocked", "closed"] as const) {
-    // Nothing was read at all, so nothing is bounded: a dash, never "0+".
     expect(fig(container, mark)).toHaveTextContent("—");
     expect(fig(container, mark)).not.toHaveTextContent("0+");
   }
   expect(answerLine(container)).toBe("Couldn't read what waits on you");
-  // Which project, once, in the banner — not under each of the figures.
   expect(container.querySelector("[data-lane-error]")).toHaveTextContent("Meal Planner");
   expect(screen.getByText("Waiting work is unknown for unread projects.")).toBeInTheDocument();
   expect(screen.getByText("Task availability is unknown for unread projects.")).toBeInTheDocument();
@@ -1663,7 +1568,6 @@ it("shows unavailable project totals as unknown and never declares an empty queu
 it("labels observed counts as partial when another project's totals are unavailable", () => {
   const { container } = renderBoard({ live: true, data: payload({ projects: [project(), project({ asset: "nosh.example", prefix: "nom", name: "Nosh", ok: false, error: "No snapshot" })] }), boards: { "meals.example": board([liveTask()]) }, errors: { "nosh.example": "Cannot read Nosh" } });
   const blocked = fig(container, "blocked");
-  // A lower bound in the count's own digits; the banner names what is missing.
   expect(blocked).toHaveTextContent("0+");
   expect(blocked).not.toHaveTextContent("observed");
   expect(container.querySelector("[data-lane-error]")).toHaveTextContent("Nosh");
@@ -1671,7 +1575,7 @@ it("labels observed counts as partial when another project's totals are unavaila
 });
 
 
-describe("Task reasons support focus and tap (ro-ujb9.241)", () => {
+describe("Task reasons support focus and tap", () => {
   it("explains unavailable creation without enabling it or calling a write", () => {
     renderBoard();
     expect(screen.getByRole("button", { name: "New task", exact: true })).toBeDisabled();

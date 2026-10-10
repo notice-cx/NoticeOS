@@ -19,7 +19,7 @@ import { demoDocumentUrl } from "@/lib/demo-visit";
 import { cn } from "@/lib/utils";
 
 // One cohesive read-only header: local time/date, the next meeting and the
-// operator's countdown. Specific problems belong in Needs you (ro-trai.49).
+// operator's countdown. Specific problems belong in Needs you.
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
@@ -37,8 +37,8 @@ export interface StripClock {
   dayPeriodFirst: boolean;
 }
 
-/** The time in the locale's own format, no seconds (the operator's choice over
- * the seven-segment face); `locale` is the viewer's unless a test names one. */
+/** The time in the locale's own format, no seconds; `locale` is the viewer's
+ * unless a test names one. */
 export function stripClock(nowMs: number, locale?: string): StripClock {
   const parts = new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" }).formatToParts(nowMs);
   const hour = parts.findIndex((part) => part.type === "hour");
@@ -131,8 +131,7 @@ export interface WallStripProps {
   meetings?: CalendarUpcoming | null;
   calendarState?: CalendarReadState;
   /** When the Wall's last poll failed, the time the values on screen were
-   * read; null while polls succeed (docs/25 § TV rules: last-good values with
-   * their age). */
+   * read; null while polls succeed. */
   heldSince?: string | null;
   /** The Wall's shared one-second tick; the strip shows minutes. */
   nowMs: number;

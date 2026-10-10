@@ -1,19 +1,12 @@
 // The vocabulary of the local runner's private lane into the ingest Worker.
 //
-// WHY THIS EXISTS. Locally there is now ONE workerd runtime: the Tower is the
-// entry Worker and the ingest is an auxiliary Worker beside it
-// (apps/tower/vite.config.ts `auxiliaryWorkers`). This began to avoid shared
-// SQLite ownership (bead ro-mad); Postgres now owns the operational store.
-// One runtime means one HTTP listener, and the ingest lost the
-// port `os:up` used to fire crons and push snapshots at.
-//
-// So the runner reaches it through the Tower instead — but the Tower binds the
-// LAN (0.0.0.0:5173) and the ingest's scheduled trigger has no authentication of
-// its own, so the lane must be invisible from anywhere but this machine. The
-// boundary is a SECOND LISTENER bound to 127.0.0.1 (the "ingest door",
-// apps/tower/vite/runner-door.ts) — the same kernel-level guarantee the ingest's
-// own `--ip 127.0.0.1` used to give. This module is the shared alphabet the door
-// and the Worker use to agree on what came through it.
+// Locally there is one workerd runtime: the Tower is the entry Worker and the
+// ingest an auxiliary Worker beside it (vite.config.ts `auxiliaryWorkers`), so
+// the runner reaches the ingest through the Tower. The Tower binds the LAN and
+// the ingest's scheduled trigger has no authentication of its own, so the lane
+// is a second listener bound to 127.0.0.1 (the "ingest door",
+// apps/tower/vite/runner-door.ts). This module is the alphabet the door and the
+// Worker share.
 //
 // Three independent things must all hold before a runner request is served:
 //   1. it arrived on the loopback door (kernel: nothing off-machine can),
@@ -41,14 +34,9 @@ export const RUNNER_SCHEDULED_PATH = `${RUNNER_PATH_PREFIX}scheduled`;
 export const RUNNER_INGEST_PREFIX = `${RUNNER_PATH_PREFIX}ingest`;
 
 /**
- * The paths that used to mean "fire a scheduled event" on the ingest's own
- * `wrangler dev`.
- *
- * All three are kept because all three are documented somewhere an operator will
- * paste from: `/cdn-cgi/handler/scheduled` is what `scripts/os-up.mjs` fires and
- * what miniflare serves today, `/cdn-cgi/mf/scheduled` is its deprecated
- * spelling, and `/__scheduled` is what `workers/ingest/README.md` has told
- * people to curl for months.
+ * The paths that mean "fire a scheduled event" on the ingest: what
+ * `scripts/os-up.mjs` fires and miniflare serves, its deprecated spelling, and
+ * the `/__scheduled` form `workers/ingest/README.md` documents.
  */
 export const SCHEDULED_TRIGGER_PATHS = [
   "/cdn-cgi/handler/scheduled",
@@ -66,15 +54,9 @@ export const SCHEDULED_TRIGGER_PATHS = [
  * `workers/ingest/README.md`, and `/` answers with the ingest's own 404 rather
  * than the Tower's UI.
  *
- * The fixed D1 backup path reaches the Tower's authenticated machine receiver
- * before SQL access. Other non-trigger paths still go to the ingest.
- *
- * A path that is ALREADY a runner path also stays unchanged. Prefixing it again
- * would ask the ingest for `/api/runner/scheduled` and get its 404 — which is a
- * true answer to a question nobody meant to ask. Whoever curls the canonical
- * path at the door means the lane itself, and should get the lane's own
- * diagnosis (`400 cron_required` for a fire with no expression) rather than a
- * 404 that reads like the door is broken.
+ * The fixed Cloudflare D1 backup path goes to the Tower's authenticated
+ * receiver. A path that is already a runner path stays unchanged, so curling
+ * the canonical path at the door gets the lane's own diagnosis, not a 404.
  */
 export function runnerDoorTarget(rawUrl: string): string {
   const [rawPath = "/", search = ""] = splitQuery(rawUrl);

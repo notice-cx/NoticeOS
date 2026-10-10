@@ -211,11 +211,8 @@ test('conflicting network flags fail closed', () => {
   );
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Single instance. A second runner arms a SECOND copy of every ingest cron and
-// fires it at the same pinned port, so the ingest bound there runs each schedule
-// twice — on a metered lane that is money, not noise.
-// ─────────────────────────────────────────────────────────────────────────────
+// Single instance: a second runner would arm a second copy of every ingest
+// cron at the same pinned port and run each schedule twice on a metered lane.
 
 test('a free ingest port is this runner taking ownership of the crons', () => {
   const d = runnerArmDecision({ ingestPortAnswers: false }, CONFIG);
@@ -234,12 +231,9 @@ test('a second runner refuses to arm rather than double-firing every cron', () =
 
 test('the refusal says what it would have cost and how to clear it', () => {
   const d = runnerArmDecision({ ingestPortAnswers: true }, CONFIG);
-  // Why: the duplicate-fire mechanism, named in money rather than in symptoms.
   assert.match(d.text, /TWICE/);
-  assert.match(d.text, /2026-07-31/);
-  // What did NOT happen, so nobody goes hunting for half-started state.
+  assert.match(d.text, /bills a metered lane twice/);
   assert.match(d.text, /no children, no crons, no migrations/);
-  // How: use the repo-owned diagnosis and recovery surface; never guess a pid.
   assert.match(d.text, /pnpm os:status/);
   assert.match(d.text, /pnpm os:doctor/);
   assert.match(d.text, /pnpm os:restart/);
@@ -255,9 +249,8 @@ test('the guard asks about the pinned ingest port, not a hardcoded one', () => {
 });
 
 test('a crashed runner leaves nothing behind that could refuse the next one', () => {
-  // The whole reason the guard is a listening socket and not a pidfile: nothing
-  // is written, so there is no stale claim to outlive a SIGKILL. A free port is
-  // permission to start, whatever happened to the runner before it.
+  // The guard is a listening socket, not a pidfile: nothing is written, so no
+  // stale claim outlives a SIGKILL.
   assert.equal(runnerArmDecision({ ingestPortAnswers: false }, CONFIG).arm, true);
 });
 
@@ -312,11 +305,9 @@ test('orphan recovery never kills a manual, live, stale, foreign, or unprovable 
   assert.equal(managedOrphanDecision({ ...input, owners: null }).recover, false);
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The ingest door. One runtime serves both Workers now, so the ingest's address
-// is a loopback listener the tower's vite dev server binds — and the port map
-// above has to be the only place that number lives.
-// ─────────────────────────────────────────────────────────────────────────────
+// The ingest door: one runtime serves both Workers, so the ingest's address is
+// a loopback listener the tower's vite dev server binds, and the port map above
+// is the only place that number lives.
 
 test('the tower runtime is told the door address from CONFIG, not a literal', () => {
   assert.deepEqual(ingestDoorEnv({ ingestHost: '127.0.0.1', ingestPort: 9999 }), {
@@ -334,10 +325,8 @@ test('the door the runner opens is the port the scheduler fires at', () => {
   assert.match(env.OS_UP_INGEST_DOOR_HOST, /^127\./);
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Startup catch-up. Recovery pays the latest missed obligation; it never
-// replays an outage tick-for-tick or guesses what an unknown expression means.
-// ─────────────────────────────────────────────────────────────────────────────
+// Startup catch-up pays the latest missed obligation; it never replays an
+// outage tick-for-tick or guesses what an unknown expression means.
 
 test('every configured ingest cron has an explicit catch-up policy', () => {
   const wrangler = readFileSync(path.join(REPO_ROOT, 'workers/ingest/wrangler.jsonc'), 'utf8');
@@ -420,8 +409,8 @@ test('catch-up ownership holds its own lanes and nobody else, and lets each go a
   ownership.own(['cron 45 12 * * 1', 'cron */15 * * * *']);
   assert.equal(ownership.holds('cron 45 12 * * 1'), true);
   assert.equal(ownership.holds('cron */15 * * * *'), true);
-  // The 2026-09-14 defect: a 14–48 minute weekly lane held every lane on the
-  // machine, including lanes the plan never contained.
+  // A long weekly lane must not hold every lane on the machine, including
+  // lanes the plan never contained.
   assert.equal(ownership.holds('cron 10,30,50 * * * *'), false);
   assert.equal(ownership.holds('beads-snapshot'), false);
   assert.equal(ownership.size, 2);
@@ -477,12 +466,9 @@ test("the vite plugin's fallback door port matches the port map", () => {
   assert.equal(Number(match[1]), CONFIG.ingestPort);
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The job-run record (ro-ic5). Every lane already logged what it did, and a log
-// cannot answer "did the nightly backup run last night?" — that question is
-// answered by an ABSENCE, and absence is the one thing a log cannot prove. So
-// each firing leaves a line, and the runner reads them back at startup.
-// ─────────────────────────────────────────────────────────────────────────────
+// The job-run record. A log cannot prove an absence ("did the nightly backup
+// run last night?"), so each firing leaves a line the runner reads back at
+// startup.
 
 const RUN_AT = Date.parse('2026-08-04T04:00:00.000Z');
 
@@ -712,13 +698,10 @@ test('a missing record file is a first run, never a crash', async () => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Shipping the record into the store (ro-uwo.4). The disk half above is the
-// record; `job_runs` (db/0022) is its mirror, and asset #0 derives
-// `cronRunSuccess` from the mirror. The runner is the only writer because it is
-// the only witness — a lane that fires while the ingest restarts is invisible to
-// the ingest — so every rule here is about a door that may be shut.
-// ─────────────────────────────────────────────────────────────────────────────
+// Shipping the record into the store. The disk half above is the record;
+// `job_runs` is its mirror, and asset #0 derives `cronRunSuccess` from the
+// mirror. The runner is the only writer because it is the only witness, so every
+// rule here is about a door that may be shut.
 
 /** A runtime the shipper will talk to, and one it will not. */
 const upRuntime = { running: true, ready: true };
@@ -776,10 +759,8 @@ test('a torn line never travels: one bad record would 422 every good one beside 
 });
 
 test('a restart re-sends what is recent PLUS every lane’s last known firing', () => {
-  // The second half is not tidiness: a weekly collection that failed five days
-  // ago is exactly the death this record exists to show, and a flat time window
-  // would drop it — leaving the store's view of that lane blank and its verdict
-  // a 1 earned by the lanes that happen to fire often.
+  // A weekly collection that failed five days ago is exactly the death this
+  // record exists to show, and a flat time window would drop it.
   const catchup = jobRunCatchup(
     [
       record({ job: 'beads-snapshot', startedAtMs: RUN_AT - 3_600_000 }),
@@ -931,14 +912,10 @@ test('arming seeds the queue from the record the last runner left behind', () =>
   assert.equal(state.runtime, upRuntime);
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Door OWNERSHIP (ro-1b0.1). The port guard refuses the second runner in every
-// real case, but two started in the same second both see a FREE port and both
-// proceed — and only one can win the bind. `child.ready` cannot tell them apart:
-// it is set by vite's banner (printed BEFORE the door binds) and by a 15s grace
-// timer, both of which are liveness facts. So a tick has to prove its own child
-// holds the door before it fires anything at it.
-// ─────────────────────────────────────────────────────────────────────────────
+// Door ownership. Two runners started in the same second both see a FREE port
+// and both proceed; `child.ready` is a liveness fact (vite's banner prints
+// before the door binds), so a tick has to prove its own child holds the door
+// before it fires anything at it.
 
 test('the ownership probe asks about the pinned door port, in machine format', () => {
   assert.deepEqual(listenerOwnersArgs(CONFIG.ingestPort), [
@@ -988,10 +965,10 @@ test('a listener in somebody else’s group is somebody else’s door', () => {
 });
 
 test('a listener that left our process group is still our process tree', () => {
-  // The group check is an assumption (detached spawn → the child leads the group
-  // its vite and workerd inherit). If a package manager ever broke it, standing
-  // every cron down forever would be an outage caused by the guard, so a foreign
-  // GROUP is re-checked against the process TREE before anything stands down.
+  // The group check assumes a detached spawn leads the group its vite and
+  // workerd inherit; a foreign GROUP is re-checked against the process TREE
+  // before anything stands down, so a broken assumption cannot stand every
+  // cron down forever.
   const parents = parseProcessParents(' 941 933\n 933 900\n 900 1\n');
   const d = doorOwnershipDecision(
     { owners: [{ pid: 941, pgid: 941 }], group: 900, parents },
@@ -1051,7 +1028,7 @@ test('a tick whose child does not hold the door is inert, and says why', () => {
   assert.equal(d.level, 'ERROR');
   assert.match(d.text, /STANDING DOWN/);
   assert.match(d.text, /45 12 \* \* 1/);
-  assert.match(d.text, /ro-u33/);
+  assert.match(d.text, /double-fire/);
   // Nothing fired, and the tick is not lost — the owner's scheduler has it.
   assert.match(d.text, /Nothing was fired/);
   assert.match(d.text, /lsof -nP -iTCP:8791 -sTCP:LISTEN/);
@@ -1164,7 +1141,7 @@ test('a synthetic server config copy matches settings, detects drift and refuses
 
 /** A frozen copy of the task-hub map, never the checkout's own: the operator
  * adds and removes spokes from /settings, and that must not change a result
- * here (bead ro-ujb9.97). */
+ * here. */
 test('every configured spoke is backed up', () => {
   const raw = readFileSync(FIXTURE_BEADS_MAP, 'utf8');
   assert.deepEqual(parseBeadsSpokes(raw), ['ro', 'mp', 'nom', 'pft', 'pts', 'ac', 'fin']);
@@ -1177,10 +1154,6 @@ test('a broken task map costs the operational backup nothing', () => {
 });
 
 test('what counts as a usable task database is declared once', () => {
-  // Bead `ro-pb2u`: the rule used to be written three times — the backup, the
-  // poller and the drift check — one line apart in behaviour and hundreds
-  // apart in the file. The version that matters is the backup's, and them
-  // drifting is how a project stops being copied with nothing saying so.
   assert.equal(beadsDatabaseName('mp'), 'mp');
   assert.equal(beadsDatabaseName('reindex_os'), 'reindex_os');
   // Trimmed BEFORE the check, so one padded value is not usable to one reader
@@ -1251,9 +1224,9 @@ test('binary resolution prefers a known install over launchd’s bare PATH', () 
   assert.equal(resolveBin(undefined, ['/opt/homebrew/bin/dolt'], () => false, 'dolt'), 'dolt');
 });
 
-// Bead ro-ujb9.185: the runner's commands (bd, git, lsof, ps, pgrep, the panel
-// refresh) go through scripts/run-command.mjs. A bd whose answer is still in
-// the pipe when it exits must be read in full, never cut short at the exit.
+// The runner's commands (bd, git, lsof, ps, pgrep, the panel refresh) go
+// through scripts/run-command.mjs. A bd whose answer is still in the pipe when
+// it exits must be read in full, never cut short at the exit.
 test('a bd answer still arriving after bd exited is read in full', async () => {
   const late = lateWritingCommand('bd', { early: '[{"id":"ex-1",', late: '"title":"late"}]\n' });
   const saved = process.env.BEADS_BD_BIN;
@@ -1269,14 +1242,9 @@ test('a bd answer still arriving after bd exited is read in full', async () => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Hub contention diagnosis.
-//
-// From a real incident (2026-08-01): a hand-run `dolt sql-server` held 3308 and
-// the per-database write locks, the hub then died five times on `database "ac"
-// is locked by another dolt process`, and the runner gave up — after five blind
-// restarts that never named the cause. Under brew's keep_alive there is no
-// give-up at all. These pin that the log says what happened and what to do.
+// Hub contention diagnosis: a stray `dolt sql-server` holding the port and the
+// per-database write locks must be named as the cause, with the fix, rather
+// than restarted around blindly.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const HUB = { beadsHubHost: '127.0.0.1', beadsHubPort: 3308 };
@@ -1300,9 +1268,8 @@ test('pgrep output becomes pids we can name in a log line', () => {
 
 test('a concurrent pgrep is not a stray server, however its argv reads', () => {
   // The 15-minute cron check and the per-poll check coincide at :00/:15/:30/:45
-  // and each ran `pgrep -fl "dolt sql-server"` — pgrep excludes itself but not
-  // its twin, so every coinciding tick reported a phantom second server: 175
-  // false CONTENDED warnings over 2026-08-01..03, never a real stray (ro-4q9).
+  // and each ran `pgrep -fl "dolt sql-server"`; pgrep excludes itself but not
+  // its twin, so every coinciding tick reported a phantom second server.
   const stdout = [
     '78866 /opt/homebrew/opt/dolt/bin/dolt sql-server --config /opt/homebrew/etc/dolt/config.yaml',
     '97636 /usr/bin/pgrep -fl dolt sql-server',
@@ -1388,13 +1355,11 @@ test('every hub state is one line the operator can act on', () => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Beads snapshot poller — the Tower work board's supply (db/0017).
+// Beads snapshot poller, the Tower work board's supply.
 //
 // Fixture shapes come from `bd` 1.1.2 output recorded against a throwaway
 // project, with personal identifiers replaced by examples. A bd upgrade that
 // renames a field breaks these rather than quietly emptying the board.
-// ─────────────────────────────────────────────────────────────────────────────
 
 const BD_READY = JSON.stringify([
   {
@@ -1553,11 +1518,9 @@ test('a half-declared spoke is dropped rather than half-polled', () => {
 });
 
 test('the declared database is carried, not required, and not dropped on the floor', () => {
-  // Bead `ro-237o`: the poll never uses this field — `bd` resolves the database
-  // from the repo's own .beads/config.yaml — so requiring it would blank a
-  // working board over a value only the backup reads. Ignoring it, which is
-  // what happened before, is how a wrong value stayed invisible until a
-  // restore. It travels, and it travels as null when it is unusable.
+  // The poll never uses this field (`bd` resolves the database from the repo's
+  // own .beads/config.yaml), so requiring it would blank a working board over a
+  // value only the backup reads. It travels, and travels as null when unusable.
   const raw = JSON.stringify({
     spokes: [
       { asset: 'meals.example', prefix: 'mp', repo: '../meals.example', database: 'mp' },
@@ -1667,14 +1630,10 @@ test('a bead with no title still renders as something', () => {
   assert.equal(entry.ready[0].issueType, 'task');
 });
 
-// From the real hub on 2026-08-01: six epics turned root-os's 33 claimable
-// beads into 39 and its 34 open ones into 40. An epic is a container — nobody
-// claims one or closes one by doing it — so counting them overstates every
-// "how much is left?" number by however much structure a repo happens to use.
-//
-// This has to happen HERE. The counts are the only untruncated view of the hub
-// (`--limit 0`), and the stored lists keep ten of thirty-nine, so no consumer
-// downstream can either find the epics or subtract them.
+// An epic is a container (nobody claims one or closes one by doing it), so
+// counting epics overstates every "how much is left?" number. This has to
+// happen HERE: the counts are the only untruncated view of the hub
+// (`--limit 0`), so no consumer downstream can find or subtract the epics.
 test('epic containers are not work, and are counted as none of it', () => {
   const epic = (id, extra = {}) => ({
     id,
@@ -2028,9 +1987,9 @@ test('a reason is read from bd’s own format and bounded', () => {
   // The route caps a title at 512; a runaway reason must cost the gate its
   // tail, never the whole project its snapshot.
   assert.equal(beadsGateReason(`Reason: ${'x'.repeat(900)}`).length, 400);
-  // ONE reader, not a copy (bead ro-ujb9.201): the Tower's live task read
-  // titles a gate through this same function, so the snapshot and the live
-  // board can never disagree about what a gate asks.
+  // ONE reader, not a copy: the Tower's live task read titles a gate through
+  // this same function, so the snapshot and the live board can never disagree
+  // about what a gate asks.
   assert.equal(beadsGateReason, gateReason);
 });
 
@@ -2196,7 +2155,7 @@ test('recently closed is ordered by when it closed, newest first', () => {
   assert.deepEqual(entry.recentlyClosed.map((i) => i.id), ['zz-b', 'zz-d', 'zz-c', 'zz-a', 'zz-e']);
 });
 
-test('recently filed work is sent newest first and capped, whatever became of it (ro-trai.7)', () => {
+test('recently filed work is sent newest first and capped, whatever became of it', () => {
   const bead = (id, createdAt, extra = {}) => ({
     id, title: id, status: 'open', priority: 2, issue_type: 'task', created_at: createdAt, ...extra,
   });
@@ -2725,9 +2684,8 @@ test('a bd that cannot answer about reviews leaves no “nothing to triage” be
 // renders the result: rename a metadata key on either side and a marker quietly
 // disappears from every finding in the portfolio.
 
-/** One handoff bead as `bd list --json` hands it back — the shape verified
- * against bd 1.1.2 on 2026-08-03, metadata parsed into an object and the key
- * byte-exact including its comma. */
+/** One handoff bead as `bd list --json` hands it back, metadata parsed into an
+ * object and the key byte-exact including its comma. */
 const handoff = (overrides = {}) => ({
   id: 'mp-1w2',
   title: 'Expand pages already earning search demand',
@@ -2745,10 +2703,9 @@ const handoff = (overrides = {}) => ({
   ...overrides,
 });
 
-/** The same bead as one filed BEFORE the NoticeOS rename carries it in a
- * property's tracker today (bead ro-ujb9.77.4): the `reindex-handoff` label
- * and `reindex_*` metadata, exactly as apps/tower/src/lib/task-handoff.ts
- * wrote them at a24490d8. */
+/** The same bead as one filed before the NoticeOS rename carries it: the
+ * `reindex-handoff` label and `reindex_*` metadata, exactly as
+ * apps/tower/src/lib/task-handoff.ts wrote them then. */
 const legacyHandoff = (overrides = {}) => ({
   id: 'mp-0ld',
   title: 'Expand pages already earning search demand',
@@ -3039,9 +2996,9 @@ test('a landing is a property and a collection day, and nothing less', () => {
 });
 
 /**
- * ro-478: a property with no entry in config/serp-panel.json buys five report
- * families every Monday. The landing carries `panel: false`, and everything the
- * filer decides from it — wording, scope, acceptance — follows that flag alone.
+ * A property with no entry in config/serp-panel.json buys five report families
+ * every Monday. The landing carries `panel: false`, and everything the filer
+ * decides from it (wording, scope, acceptance) follows that flag alone.
  */
 test('a collection with no panel is a landing, sized by families rather than queries', () => {
   const landings = parsePanelLandings({
@@ -3054,9 +3011,9 @@ test('a collection with no panel is a landing, sized by families rather than que
   ]);
 });
 
-// The runner can outlive an ingest deployed before ro-478, which reported panel
-// collections only and always sized them. Read that way, its rows still file the
-// wording the portfolio already reads instead of silently regrading them.
+// An older ingest reported panel collections only and always sized them. Read
+// that way, its rows still file the wording the portfolio already reads instead
+// of silently regrading them.
 test('a landing from an ingest that predates the flag is read as a panel', () => {
   const [landing] = parsePanelLandings({
     landings: [{ asset: 'nosh.example', panelDate: '2026-08-02', queries: 6 }],
@@ -3101,11 +3058,11 @@ test('the bead carries the whole convention, in the property’s own repo', () =
 });
 
 /**
- * ro-478, the identity guarantee. A panel-less property's review differs in
- * WORDING and SCOPE only: the label and the two metadata keys are byte-identical
- * to a panel property's, because those are what the poller and the Tower match
- * on. Change them and every review already filed goes unrecognized — which the
- * filer would read as "never filed" and duplicate.
+ * The identity guarantee: a panel-less property's review differs in WORDING
+ * and SCOPE only. The label and the two metadata keys are byte-identical to a
+ * panel property's, because those are what the poller and the Tower match on;
+ * change them and every review already filed goes unrecognized, which the filer
+ * would read as "never filed" and duplicate.
  */
 test('a panel-less review is the same bead with a different noun', () => {
   const landing = { asset: 'areas.example', panelDate: '2026-08-03', panel: false, queries: null, families: 5 };
@@ -3217,9 +3174,8 @@ test('the bead tells its reader where the panel is, from inside the property rep
   assert.match(text, /scoped to the content source paths/);
 });
 
-// Bead ro-ujb9.120: the OS checkout a filed bead points its reader at is the
-// home checkout's own folder name — never a name written into the runner — so
-// a checkout named as this one always was files exactly the sentences it did.
+// The OS checkout a filed bead points its reader at is the home checkout's own
+// folder name, never a name written into the runner.
 test("a filed bead names the OS checkout by the home folder's own name", () => {
   assert.equal(osCheckoutName('/home/operator/home-os'), 'home-os');
   assert.equal(osCheckoutName('/srv/noticeos'), 'noticeos');
@@ -3240,17 +3196,15 @@ test('a panel of unknown size still asks for the whole panel', () => {
 });
 
 /**
- * ro-1b0.3: the landing's `queries` is a count of PROVIDER CALLS, and since
- * ro-o1n the panel buys one per (tracked term, device). meals.example's 28-term
- * panel therefore reports 56, and the bead said "all 56 tracked queries" — a
- * number in open disagreement with config/serp-panel.json, which the same bead
- * hands the reviewer as the term list. The count is what sizes the triage
- * session in the operator's head, so it has to be named for what it counts.
+ * The landing's `queries` is a count of PROVIDER CALLS, one per (tracked term,
+ * device), so a 28-term panel reports 56 while config/serp-panel.json hands the
+ * reviewer 28 terms. The count sizes the triage session in the operator's head,
+ * so it has to be named for what it counts.
  */
 test('a two-device panel is sized in result pages, never in tracked queries', () => {
   const text = panelReviewDescription({ asset: 'meals.example', panelDate: '2026-08-03', queries: 56 }, { osCheckout: 'root-os' });
   assert.match(text, /all 56 collected result pages/);
-  // The word that was wrong: 56 is not a count of queries or of terms.
+  // 56 is not a count of queries or of terms.
   assert.doesNotMatch(text, /56 tracked queries/);
   assert.doesNotMatch(text, /56 tracked terms/);
   // And the reader is told what the extra rows ARE, so 56 pages against 28
@@ -3260,11 +3214,10 @@ test('a two-device panel is sized in result pages, never in tracked queries', ()
 });
 
 test('the filer never divides a call count it cannot divide', () => {
-  // The device count does not ride on the wire — the manifest has no device
-  // column, which is what let ro-o1n land without a migration — so a filer that
-  // printed "28 tracked terms" would be inventing the denominator. An odd count
-  // (a one-device panel, or a partial collection) has to read as truthfully as
-  // an even one.
+  // The device count does not ride on the wire (the manifest has no device
+  // column), so a filer that printed "28 tracked terms" would be inventing the
+  // denominator. An odd count (a one-device panel, or a partial collection) has
+  // to read as truthfully as an even one.
   const odd = panelReviewDescription({ asset: 'nosh.example', panelDate: '2026-08-02', queries: 7 });
   assert.match(odd, /all 7 collected result pages/);
   // No halved count, and no COUNT of terms at all — the bead points at the term
@@ -3274,11 +3227,9 @@ test('the filer never divides a call count it cannot divide', () => {
 });
 
 /**
- * ro-540.2: the panel day is the ANCHOR, and the scope is the week's whole
- * collection. Before this, the panel was the only collection that could produce
- * a review obligation — so the 200-row ranked-keywords inventory, the link and
- * LLM families, and the property's own GSC/GA4/Bing exports all landed weekly
- * with no reader, which is precisely the failure the review bead exists to end.
+ * The panel day is the ANCHOR, and the scope is the week's whole collection:
+ * the ranked-keywords inventory, the link and LLM families, and the property's
+ * own GSC/GA4/Bing exports all land weekly and all need a reader.
  */
 test('the review asks for the week’s whole collection, not only the panel', () => {
   const text = panelReviewDescription({ asset: 'nosh.example', panelDate: '2026-08-02', queries: 20 });
@@ -3349,7 +3300,7 @@ function filerDeps(overrides = {}) {
         return Promise.resolve(ok(argv.includes('create') ? '{"id":"nom-4q2"}' : '[]'));
       },
       // Every collection here is already in its property's published panel;
-      // runner-panel-review.test.mjs covers the wait (epic ro-cvl9).
+      // runner-panel-review.test.mjs covers the wait.
       readPublished: (asset) =>
         Promise.resolve({ asset, sources: [{ key: 'dataforseo', collected: true, newestReportDate: '2026-08-03' }] }),
       state: { skipping: null, unmapped: new Set() },
@@ -3376,11 +3327,9 @@ test('a landed panel with no review becomes one bead in the property’s tracker
 });
 
 /**
- * ro-478 end to end. Before this, the endpoint reported panel properties only,
- * so areas.example — five report families every Monday, no entry in
- * config/serp-panel.json — was never checked and never asked to read anything.
- * Now both properties are one landing each, one bead each, worded for what they
- * actually bought.
+ * End to end: a panel property and a panel-less property (five report families
+ * every Monday, no entry in config/serp-panel.json) are one landing each, one
+ * bead each, worded for what they actually bought.
  */
 test('a property with no panel gets the same obligation, worded for what it bought', async () => {
   const { ran, deps } = filerDeps({
@@ -3696,16 +3645,11 @@ test('a shutting-down runner refreshes nothing', async () => {
   assert.equal(spawned.length, 0);
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Push-state filer — the second bead-writing lane, and the only one that closes.
+// Push-state filer: the second bead-writing lane, and the only one that closes.
 //
-// The bead it maintains is the one shape that cannot be written once and left:
-// its referent (the unpushed commits) moves while the bead sits still. mp-jxs
-// stayed open for two days after its five commits were pushed, by which point
-// its title named a DIFFERENT five commits. Every assertion below is about one
-// of the two ways that goes wrong — a bead that outlives its work, or a bead
-// filed/closed on a push state nobody actually read.
-// ─────────────────────────────────────────────────────────────────────────────
+// Its bead's referent (the unpushed commits) moves while the bead sits still,
+// so every assertion below is about one of the two ways that goes wrong: a bead
+// that outlives its work, or a bead filed/closed on a push state nobody read.
 
 test('push state is reconciled hourly, on a tick no other lane uses', () => {
   assert.match(CONFIG.pushStateCron, /^\d+ \* \* \* \*$/);
@@ -3877,7 +3821,7 @@ test('nothing ahead and nothing open is the steady state: no action, no line', (
   assert.equal(decision.action, 'none');
 });
 
-test('nothing ahead with a bead open closes it — this is the mp-jxs case', () => {
+test('nothing ahead with a bead open closes it', () => {
   const beads = [{ beadId: 'nom-8kd', title: pushStateTitle('nosh.example') }];
   const decision = pushStateDecision({ ...FACTS, ahead: 0, openPushBeads: beads });
   assert.equal(decision.action, 'close');
@@ -3936,8 +3880,8 @@ test('commits we could not date are not commits we file about', () => {
 // ── The bead ────────────────────────────────────────────────────────────────
 
 test('the title pins no count, because a count is what went stale', () => {
-  // mp-jxs was "Push the 5 unpushed local commits" and was read two days later,
-  // when the number was true of a different five commits.
+  // "Push the 5 unpushed local commits" is true of a different five commits
+  // two days later.
   const title = pushStateTitle('nosh.example');
   assert.equal(title, 'Push the unpushed local commits on nosh.example');
   assert.doesNotMatch(title, /\d/);
@@ -4030,8 +3974,7 @@ test('a spoke far ahead lists a readable head, not a wall', () => {
 
 test('the close carries the evidence, not just the verdict', () => {
   // A push bead closed by a machine has to say what the machine saw and when,
-  // or the next reader has no more reason to believe the close than mp-jxs's
-  // reader had to believe its title.
+  // or the next reader has no reason to believe the close.
   const reason = pushStateCloseReason({
     asset: 'nosh.example',
     repoDir: '/Users/operator/dev/nom',
@@ -4227,8 +4170,7 @@ test('a fetch that failed files nothing, closes nothing, and says so once', asyn
     fetchResult: { code: 128, stdout: '', stderr: 'fatal: could not read Username for https://github.com' },
   });
   const result = await runPushStateFiler(deps);
-  // Unread, and the run record says so every pass (bead ro-ujb9.188) while the
-  // log says it once.
+  // Unread, and the run record says so every pass while the log says it once.
   assert.deepEqual(result, { checked: 0, filed: [], closed: [], failed: [{ asset: 'nosh.example', reason: 'remote-sign-in-refused' }] });
   assert.equal(ran.some((argv) => argv.includes('create') || argv.includes('close')), false);
   assert.deepEqual((await runPushStateFiler(deps)).failed, result.failed);
@@ -4271,10 +4213,10 @@ test('a spoke with no origin/main is unreadable, not up to date', async () => {
   assert.deepEqual(result.failed, [{ asset: 'nosh.example', reason: 'git-read-failed' }]);
 });
 
-// Bead ro-ujb9.188: under launchd a fetch can be refused (no SSH agent, no key)
-// and the push state goes unread. The run record names each such spoke and a
-// reason code, never git's own text, and the recorded step fails, so System
-// health and the job's run page show it.
+// Under launchd a fetch can be refused (no SSH agent, no key) and the push
+// state goes unread. The run record names each such spoke and a reason code,
+// never git's own text, and the recorded step fails, so System health and the
+// job's run page show it.
 test('an unread push state is named per spoke in the run record, by reason', async () => {
   assert.equal(pushStateUnreadReason('git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.'), 'remote-sign-in-refused');
   assert.equal(pushStateUnreadReason('fatal: could not read Username for https://github.com: terminal prompts disabled'), 'remote-sign-in-refused');
@@ -4401,9 +4343,8 @@ test('every spoke’s gates are evaluated on the same tick', () => {
 });
 
 test('gate evaluation happens even for a spoke whose push state is unreadable', async () => {
-  // A timer gate's whole promise is that it expires on its own; until this lane
-  // ran, "on its own" meant the next time a human typed `bd gate check`. It
-  // does not depend on git, so a missing SSH agent must not stop it.
+  // A timer gate's whole promise is that it expires on its own. It does not
+  // depend on git, so a missing SSH agent must not stop it.
   const { ran, deps } = pushDeps({ fetchResult: { code: 128, stdout: '', stderr: 'Permission denied (publickey)' } });
   await runPushStateFiler(deps);
   assert.deepEqual(ran.map((argv) => argv.slice(2)), [['gate', 'check']]);
@@ -4473,16 +4414,11 @@ test('a shutting-down runner reconciles nothing', async () => {
   assert.equal(gitRan.length, 0);
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The operations contract vs the code (ro-uwo.3). docs/06 told operators a dead
-// push-cron becomes an `error` flag "within 24h" while the rule has never fired
-// before 48h — a promise of half the real latency, which teaches its reader
-// either to distrust the flag when it arrives late or to believe a lane is
-// healthy for a day longer than the OS can vouch for. The threshold is the one
-// that is right (two consecutive silent nights, so a single late collector is
-// not an error that resolves itself by morning), so the DOC moved. This pins the
-// two together, because the only reason the doc drifted is that nothing read it.
-// ─────────────────────────────────────────────────────────────────────────────
+// The operations contract vs the code: docs/06 may quote the staleness
+// constant but must never promise a latency of its own. The threshold is two
+// consecutive silent nights, so a single late collector is not an error that
+// resolves itself by morning; this pins the doc to it because nothing else
+// reads the doc.
 
 /** The contract's staleness age, read out of the source rather than imported:
  * this is a plain-node test and `packages/contract` is TypeScript. */
@@ -4510,8 +4446,8 @@ test('docs/06 promises the freshness latency the code actually delivers', () => 
   const promise = freshnessPromise();
   assert.match(promise, new RegExp(`${contractMaxAgeHours()}h`));
   assert.match(promise, /two nightly cycles/);
-  // The old sentence, and any successor that invents its own number: the doc may
-  // quote the constant but must never promise a latency of its own.
+  // Any sentence that invents its own number: the doc may quote the constant
+  // but must never promise a latency of its own.
   assert.doesNotMatch(promise, /within 24h/);
 });
 
@@ -4522,9 +4458,8 @@ test('docs/06 names where the number lives, so the next change moves one thing',
 });
 
 
-// ───────────────────────────────────────────────────────────────────────────
 // The readback lane: a closed bet's verdict, carried to the bead that owns its
-// reading (db/0024). Everything is stubbed — no spawn, no network.
+// reading. Everything is stubbed: no spawn, no network.
 
 const READBACK_SPOKE = { asset: 'meals.example', prefix: 'mp', repo: '../meals.example' };
 
@@ -4576,9 +4511,9 @@ test('a verdict reaches its bead in the spoke that owns it, then is stamped', as
   // `-C <repo>`: bead ids are project-scoped, so the comment has to be made
   // from the spoke's own repo or the hub cannot resolve the id.
   assert.deepEqual(spawned, [
-    // Resolved from the HOME checkout the inventory is relative to (bead
-    // ro-ujb9.113): a runner running from a runtime copy must not look for
-    // ../meals.example beside that copy.
+    // Resolved from the HOME checkout the inventory is relative to: a runner
+    // running from a runtime copy must not look for ../meals.example beside
+    // that copy.
     ['-C', '/home/operator/meals.example', 'comment', 'mp-f0g.35', 'Watch window kill_confirmed — meals.example\n\nReading: …'],
   ]);
   // Read, then post — the stamp is the LAST thing that happens.
@@ -4645,14 +4580,12 @@ test('comments that landed but could not be stamped say so in one line', async (
   assert.match(lines[0], /filed but NOT stamped \(HTTP 500\)/);
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Which providers are still on the environment file (bead `ro-vu8d.5`).
+// Which providers are still on the environment file.
 //
-// D21 moved provider credentials into the product; a binding is the legacy
-// fallback. Both work, so this is a NOTE and never a warning — what it exists to
-// stop is an install quietly staying half-moved, where a green portfolio depends
-// on a gitignored file a fresh install would not have.
-// ─────────────────────────────────────────────────────────────────────────────
+// Provider credentials live in the product; a binding is the legacy fallback.
+// Both work, so this is a NOTE and never a warning. What it exists to stop is an
+// install quietly staying half-moved, where a green portfolio depends on a
+// gitignored file a fresh install would not have.
 
 const providerPayload = (entries) => ({
   providers: entries.map(([id, source]) => ({
@@ -4721,14 +4654,12 @@ test('it reads the OS itself, and stays silent when the OS cannot answer', async
   assert.equal(lines.length, 1);
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Which config this install is reading (epic `ro-syok`, db/0029).
+// Which config this install is reading.
 //
 // The same posture as the credentials note above, for the same reason: a Save
 // that lands in a file rather than the store is a different OS from the one the
 // docs describe, and an install that has applied the migration but never seeded
 // is correct, quiet, and indistinguishable from one that has.
-// ─────────────────────────────────────────────────────────────────────────────
 
 test('the config startup line names the files still read from a file', () => {
   assert.equal(
@@ -4802,15 +4733,11 @@ test('the config line reads the ingest door, and stays silent when it cannot', a
   assert.equal(lines.length, 1);
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The task-map lane — is each project's declared database one the hub holds?
-// (bead `ro-237o`)
+// The task-map lane: is each project's declared database one the hub holds?
 //
-// The whole bug was that ONE lane read `spokes[].database`, at 04:00, and said
-// so in a log line at 04:07. So what these guard is not the SQL — it is the
-// decisions: what counts as drift, what refuses to decide at all, and that the
-// answer is a bead somebody will see rather than a line nobody reads.
-// ─────────────────────────────────────────────────────────────────────────────
+// What these guard is not the SQL but the decisions: what counts as drift, what
+// refuses to decide at all, and that the answer is a bead somebody will see
+// rather than a line nobody reads.
 
 const TASK_MAP_CONFIG = JSON.stringify({
   spokes: [
@@ -4862,8 +4789,7 @@ test('drift is a declared name the hub does not hold — and a missing name too'
   const held = new Set(['ro', 'mp', 'information_schema', 'mysql']);
 
   assert.deepEqual(beadsDatabaseDrift(spokes, held), [
-    // "mp_typo" is a plausible-looking name that is simply not there — the
-    // exact edit the bead describes.
+    // "mp_typo" is a plausible-looking name that is simply not there.
     { asset: 'meals.example', declared: 'mp_typo' },
     // No database at all is drift too, and the more urgent kind: the backup
     // lane drops this project silently, so it is not being copied and nothing
@@ -4884,12 +4810,10 @@ test('a drift bead is identified by its project, metadata first and title second
   assert.equal(taskMapBeadAsset({ title: taskMapTitle('meals.example') }), 'meals.example');
   assert.equal(taskMapBeadAsset({ title: 'Something else entirely' }), null);
 
-  // AND THE TOWER READS THE SAME TITLE (bead `ro-eb7z`). /settings#task-hub
-  // marks the row whose database the hub does not hold, and it learns which one
-  // from the bead this lane files — the only record of the drift that reaches a
-  // Worker, since the reconciliation itself needs a MySQL client. Its matcher
-  // (`driftingAssetOf` in apps/tower/shared/task-map.ts) keys on this prefix, so
-  // it is pinned HERE, on the writing side, rather than left to agree by luck.
+  // AND THE TOWER READS THE SAME TITLE. /settings#task-hub marks the row whose
+  // database the hub does not hold, and it learns which one from the bead this
+  // lane files; its matcher (`driftingAssetOf` in apps/tower/shared/task-map.ts)
+  // keys on this prefix, so it is pinned HERE, on the writing side.
   assert.match(taskMapTitle('nosh.example'), /^Point nosh\.example's task database at one\b/);
 
   const open = taskMapOpenBeads([
@@ -5034,9 +4958,9 @@ test('a hub that will not answer decides nothing at all', async () => {
   }
 });
 
-// Beads ro-k9hf / ro-ujb9.118: the lane files into the OS's own project as the
-// STORE names it (`assets.is_os`), whatever that asset is called — and files
-// nothing when the store names none, rather than guessing an id.
+// The lane files into the OS's own project as the STORE names it
+// (`assets.is_os`), whatever that asset is called, and files nothing when the
+// store names none rather than guessing an id.
 test('the lane files into whichever project the store names as the OS', async () => {
   const bd = taskMapBd({
     sql: { code: 0, stdout: '[{"Database":"home"}]', stderr: '' },
@@ -5079,7 +5003,7 @@ test('the lane files into whichever project the store names as the OS', async ()
   assert.ok(lines.some((line) => line.includes('the store names no OS asset')));
 });
 
-// --- starting from a runtime copy (bead ro-ujb9.113) ---------------------------
+// --- starting from a runtime copy ---------------------------------------------
 //
 // The managed service runs a runtime copy of the code. Before that runner starts
 // anything, its copy must be linked to home's state. The following Postgres
@@ -5122,12 +5046,12 @@ test('the runner records which code it is, for os:status and os:deploy', () => {
   }
   assert.match(source, /runnerState\.commit = codeCommit\(\);/u);
   // The tower child is handed home's store and home checkout, and the
-  // database's address (bead ro-ujb9.76.7.2).
+  // database's address.
   assert.match(source, /env: \{ \.\.\.ingestDoorEnv\(config\), \.\.\.runtimeChildEnv\(HOME_ROOT\), \.\.\.database \}/u);
 });
 
-// Bead ro-ujb9.217: an expression no scheduled job runs on is refused by the
-// dispatch and runs nothing; the runner and `pnpm os:cron` say so by name.
+// An expression no scheduled job runs on is refused by the dispatch and runs
+// nothing; the runner and `pnpm os:cron` say so by name.
 test('a refused cron fire is failed by its name, in the run record and the log', async () => {
   const lines = [];
   const refused = await fireScheduledTrigger('http://127.0.0.1:8599', '7 7 7 7 7', {

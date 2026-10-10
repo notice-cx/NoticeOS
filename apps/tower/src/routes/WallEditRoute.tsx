@@ -49,21 +49,14 @@ const OWNER = "config/tower.json";
 const SLUG = "wall-layout";
 
 /**
- * What the store holds at `/wall`, and what the editor draws for it.
- *
- * The RAW value is the Save's `expect`, because the concurrency guard has to
- * compare against what is in the file rather than against a normalization of
- * it. The PARSED value is what the editor draws. A `config/tower.json` with no
- * layout saved carries `null` there or no `/wall` at all; the payload reads
- * both as none, so the guard is `null`, and the write lane takes `null` at a
- * declared document for "not saved yet" whichever way the store spells it
- * (`scripts/config-documents.mjs` `readsAsUnsaved`, bead `ro-nuz9`).
- *
- * A SAVED LAYOUT THE TOWER REFUSED (bead `ro-trai.45`) reaches this page as the
- * default drawn in its place, plus the versions saved with it that still read;
- * the value as stored rides beside it in `dashboard.refused.wall`, and that is
- * the guard — a Save built on the default and guarded by it would be refused
- * as "Changed elsewhere" by a store that never held the default.
+ * What the store holds at `/wall`, and what the editor draws for it. The raw
+ * value is the Save's `expect`, because the concurrency guard compares against
+ * what is in the file, not a normalization of it. No layout saved is `null`
+ * whichever way the store spells it (`scripts/config-documents.mjs`
+ * `readsAsUnsaved`). A saved layout the Tower refused reaches this page as the
+ * default drawn in its place, with the value as stored in
+ * `dashboard.refused.wall` as the guard: a Save guarded by the default would
+ * be refused by a store that never held it.
  */
 function readWallConfig(dashboard: DashboardConfig): {
   raw: JsonValue;
@@ -88,24 +81,9 @@ function readWallConfig(dashboard: DashboardConfig): {
 }
 
 /**
- * `/wall/edit` — the Wall is composed here (bead `ro-lzmq.2`, docs/15 flow D).
- *
- * IT IS A DESK PAGE, INSIDE THE SHELL. `/wall` stays the television: read-only,
- * outside the shell, with no edit affordance anywhere on it, which is flow D's
- * oldest rule and is pinned by a test. The two are reached from each other and
- * from nowhere else that could be pointed at a TV.
- *
- * THE PREVIEW IS THE RENDERER. `WallPreview` draws `WallCanvas` at 1920×1080
- * and scales it; there is no second layout engine, so what is arranged here is
- * what the television shows.
- *
- * SAVE IS ONE WRITE (D18). The whole layout plus its history is one value at one
- * pointer, so a save is a single `file-json-set` on `config/tower.json` at
- * `/wall`, guarded by the value the page was rendered from, through the same
- * `useConfigSave` every other setting uses — one guarded store write and
- * one Undo in the toast. A note is optional (bead `ro-ujb9.96.6.12`): with
- * none, the version is described by what changed (`wallChangeSummary`), so the
- * history still reads six weeks later and Save is one press.
+ * `/wall/edit`: the Wall's editor. The preview is the renderer (`WallCanvas`
+ * at 1920×1080, scaled). Save is one write: the layout plus its history is
+ * one value at one pointer, through `useConfigSave`.
  */
 export function WallEditRoute() {
   const { data, isError, error, isFetching, refetch } = useWall();
@@ -131,8 +109,8 @@ export function WallEditRoute() {
 
   const dirty = wallEditorDirty(state);
   const refusal = wallEditorRefusal(state.layout);
-  // A saved layout that named a retired widget is drawn as the default (bead
-  // `ro-trai.11`): one chip says so until a Save replaces it.
+  // A saved layout that named a retired widget is drawn as the default: one
+  // chip says so until a Save replaces it.
   const warnings = [
     ...(config.retired?.replaced ? [WALL_RETIRED_WARNING] : []),
     ...wallEditorWarnings(state.layout),
@@ -140,21 +118,18 @@ export function WallEditRoute() {
 
   /**
    * The document this page just wrote, and the payload it wrote it over.
-   *
-   * After a Save the payload still carries the OLD document until its
-   * refetch. Until a newer payload arrives, `saved` is what this page wrote:
-   * the effect below must not put the operator's arrangement back the way it
-   * was, and the NEXT Save or Revert builds on it and is guarded by it (bead
-   * `ro-nuz9`) — built on the stale payload, a second Save inside that beat was
-   * refused as "Changed elsewhere" by the operator's own first one. Any newer
-   * payload is the store's answer and wins, an Undo from the toast included.
+   * After a Save the payload still carries the old document until its
+   * refetch, so until a newer payload arrives `saved` is what this page wrote:
+   * the next Save or Revert builds on it and is guarded by it, or a second
+   * Save inside that beat would be refused by the operator's own first one.
+   * Any newer payload is the store's answer and wins.
    */
   const [written, setWritten] = useState<{ over: WallConfig; config: WallConfig } | null>(null);
   const pending = written !== null && written.over === config ? written.config : null;
   const saved = pending ?? config;
   // The store holds a layout the Tower refused, and nothing this page wrote
-  // has replaced it yet: the TV draws the default, and a Save — even of the
-  // default as drawn — is what puts a readable layout back (bead `ro-trai.45`).
+  // has replaced it yet: the TV draws the default, and a Save, even of the
+  // default as drawn, is what puts a readable layout back.
   const replacing = refused !== null && pending === null;
 
   // The payload polls every 60s. Adopting a layout that arrived while the
@@ -195,8 +170,7 @@ export function WallEditRoute() {
 
   async function submit() {
     if (!(dirty || replacing) || refusal) return;
-    // THE NOTE IS OPTIONAL (Grafana's save). With none, the version is described by what changed, so
-    // the history still reads six weeks later without a question in the way.
+    // The note is optional; with none, the version is described by what changed.
     const words = note.trim() || wallChangeSummary(state.saved, state.layout);
     setSaving(true);
     const next = withSavedWallLayout(saved, state.layout, words, new Date().toISOString());
@@ -222,7 +196,7 @@ export function WallEditRoute() {
     <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 md:p-6">
       <LeaveGuard when={dirty} />
       {/* No description line: the save bar's state ("On the TV" / "Unsaved")
-          is the fact it used to explain (bead `ro-ujb9.96.6.12`). */}
+          is the fact. */}
       <PageHeader
         title="TV layout"
         actions={
@@ -236,8 +210,8 @@ export function WallEditRoute() {
       />
 
       {!data ? (
-        // A failed first read is the desk's one failure state (bead
-        // `ro-ujb9.242`), never a sentence of this page's own.
+        // A failed first read is the desk's one failure state, never a
+        // sentence of this page's own.
         isError ? (
           <ReadFailed title="Couldn't load the TV layout" subject="read:tv-layout" error={error} retrying={isFetching} onRetry={() => void refetch()} />
         ) : (
@@ -247,9 +221,8 @@ export function WallEditRoute() {
         <>
           <SavesPaused />
 
-          {/* Three panes on a wide screen, one column below it (D17's phone
-              rule): the library, the television, and whatever is selected. The
-              preview keeps the middle because it is the thing being changed. */}
+          {/* Three panes on a wide screen, one column below it: the library,
+              the television, and whatever is selected. */}
           <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[14rem_minmax(0,1fr)_19rem] xl:items-start">
             <WallLibraryPanel
               layout={state.layout}
@@ -348,29 +321,10 @@ export function WallEditRoute() {
 }
 
 /**
- * Save, and everything the operator should read before pressing it.
- *
- * ONE PRESS (bead `ro-ujb9.96.6.12`). Save used to open a second step — a "Why this layout" field
- * with a paragraph under it and a second "Save the layout" button. Grafana's
- * save takes an optional description and keeps versions as the safety net, and
- * so does this: the note field sits beside Save while there is something to
- * save, its placeholder is the change summary the version will carry if the
- * operator writes nothing, and Enter or Save writes.
- *
- * THE REFUSAL AND THE WARNINGS ARE DIFFERENT THINGS and are drawn as different
- * things: a refusal is the Wall saying it cannot draw this, so Save is dark and
- * the sentence is the reason; a warning is the Wall saying this is a poor idea,
- * so Save is live and the sentence is beside it. The fit note is a warning of
- * the same kind — it is the operator's television, and a measurement is not a
- * veto.
- *
- * A SAVED LAYOUT THE TOWER REFUSED IS THE SAVE'S STATE, not a paragraph above
- * the page (bead `ro-trai.45`): the chip that says "On the TV" says instead
- * that what is saved was refused, the validator's sentence on hover, and Save
- * is live without a change, because saving the default as drawn — or a Revert
- * to a version that still reads — is how the store gets a layout back. A
- * refused countdown is its own chip beside it, and takes the operator to the
- * strip's form that saves it.
+ * Save, and what to read before pressing it. A refusal darkens Save with the
+ * reason; a warning leaves it live. While the saved layout is one the Tower
+ * refused, Save is live without a change, because saving the default as drawn
+ * (or a Revert) is how the store gets a layout back.
  */
 function SaveBar({
   dirty,
@@ -412,9 +366,9 @@ function SaveBar({
   return (
     <div className="flex flex-col gap-2 border border-border bg-card p-3" data-wall-save-bar>
       <div className="flex flex-wrap items-center gap-2">
-        {/* The save's state in markup, as InlineSaveState draws a field's:
-            the flow gate reads a Save as landed only when this says `saved`
-            for wall:layout (bead `ro-nuz9`). */}
+        {/* The save's state in markup, as InlineSaveState draws a field's: the
+            flow gate reads a Save as landed only when this says `saved` for
+            wall:layout. */}
         <span className="shrink-0" data-save-state={state}>
           {state === "unsaved" ? (
             <StateChip label="Unsaved changes" tone="caution" subject="wall:layout" />
@@ -481,9 +435,8 @@ function SaveBar({
           {refusal}
         </p>
       ) : null}
-      {/* Each warning is a STATE the TV will be in, drawn as a caution chip
-          (bead `ro-ujb9.96.6.17`); its fix is a control already on the page —
-          a row's "Remaining height", the library's Add. */}
+      {/* Each warning is a state the TV will be in, drawn as a caution chip;
+          its fix is a control already on the page. */}
       {notes.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
           {notes.map((note) => (
@@ -498,16 +451,9 @@ function SaveBar({
 }
 
 /**
- * Leaving with something unsaved asks first.
- *
- * TWO EXITS, TWO MECHANISMS. Navigating inside the desk is react-router's
- * blocker, which can actually stop and ask; closing the tab is the browser's
- * own `beforeunload`, which cannot be worded by us and only ever produces the
- * browser's generic prompt. Both are hung on the same one fact, so there is no
- * way out of this page that quietly drops an arrangement.
- *
- * It is a child component because `useBlocker` needs a data router, and this
- * keeps the whole route out of that dependency.
+ * Leaving with something unsaved asks first: react-router's blocker inside the
+ * desk, the browser's `beforeunload` when the tab closes. A child component
+ * because `useBlocker` needs a data router; this keeps the route free of it.
  */
 function LeaveGuard({ when }: { when: boolean }) {
   const blocker = useBlocker(when);

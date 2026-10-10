@@ -152,8 +152,8 @@ describe("real store selection: same counts and rows on Wall and asset detail", 
   const wall: BuildOptions = { now: NOW, constants: detail.monthlyCaps, pullConfig: [], integrations: detail.integrations,
     serpPanel: detail.serpPanel, dashboard: { countdown: { emoji: "", label: "", targetAt: FRESH } },
     osTimeZone: detail.osTimeZone };
-  // The alerts and reports are on Postgres (bead ro-ujb9.76.5.2), in the
-  // test's copy of its sites; the store numbers them.
+  // The alerts and reports go into the test's copy of its sites; the store
+  // numbers them.
   async function insertFlag(
     ctx: TestStore, ruleId: string, severity = "warn", inputs: unknown = null, metric = "requests",
     over: { firedAt?: string; message?: string } = {},
@@ -225,8 +225,7 @@ describe("real store selection: same counts and rows on Wall and asset detail", 
     expect(countAttentionConditions([]).size).toBe(0);
   });
   it("reads every asset's latest report in one statement without truncating assets", async () => {
-    // D1 bound at most 100 values, so its read went 80 assets at a time; a
-    // Postgres statement takes the assets as one array (bead ro-ujb9.76.5.2).
+    // A Postgres statement takes the assets as one array.
     const ctx = await database();
     const rows: EvidenceFlagRow[] = [];
     for (let i = 0; i < 81; i++) {

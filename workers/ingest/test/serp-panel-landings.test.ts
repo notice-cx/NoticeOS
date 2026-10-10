@@ -7,7 +7,7 @@ import {
 } from '../src/serp-panel-landings.js';
 import { handleSerpPanelLandings } from '../src/routes/serp-panel-landings.js';
 // The suite's frozen copy, the one the route's compiled fallback reads here —
-// never the checkout's own config/ (bead ro-ujb9.92).
+// never the checkout's own config/.
 import serpPanelConfig from './fixture-config/serp-panel.json';
 import { OPERATOR_TOKEN } from './fixtures.js';
 import { call, reset, storeArchiveRun } from './helpers.js';
@@ -16,24 +16,18 @@ beforeEach(reset);
 
 const PANEL_ASSETS = new Set(Object.keys(serpPanelConfig.assets));
 
-/**
- * The clock this file's fixtures AND the route under test are both measured
+/** The clock this file's fixtures and the route under test are both measured
  * from — the handler takes `nowMs`, so nothing here consults the wall clock.
+ * Pinned rather than `Date.now()`: the boundary these cases are about only
+ * holds still if both ends of the comparison do. A Thursday, three days after
+ * that week's Monday sweep.
  *
- * Pinned rather than `Date.now()` on purpose (ro-bjm6). The fixtures used to
- * seed literal August days while the route measured its 21-day window from the
- * real clock, so the file went red on nobody's change three weeks after it was
- * written — 13 of 22 cases by 2026-09-04. A `now` that MOVES is the other trap:
- * the boundary these cases are about only holds still if both ends of the
- * comparison do. A Thursday, three days after that week's Monday sweep.
- *
- * WHERE IT SITS MATTERS. Every collection below is graded against the families
- * that were due ON ITS OWN DAY (`DATAFORSEO_REPORT_AVAILABLE_FROM`), and this
- * pin puts all of them before 2026-09-01, when `backlinks-referring-domains`
- * and `backlinks-anchors` joined the weekly set. That is why the counts asserted
- * here are six families for a panel property and five without. Move the pin
- * across that date and those numbers move with it.
- */
+ * Where it sits matters: every collection below is graded against the families
+ * that were due on its own day (`DATAFORSEO_REPORT_AVAILABLE_FROM`), and this
+ * pin puts all of them before `backlinks-referring-domains` and
+ * `backlinks-anchors` joined the weekly set. That is why the counts asserted
+ * here are six families for a panel property and five without; move the pin
+ * across that date and those numbers move with it. */
 const NOW = Date.parse('2026-08-06T09:00:00.000Z');
 
 /** A collection day `daysBack` before NOW, in the YYYY-MM-DD the manifest
@@ -166,7 +160,7 @@ describe('GET /api/serp-panel-landings — what landed', () => {
         queries: 6,
         families: 6,
         // The families due that day, by name: what the filer checks the
-        // published panel for (epic ro-cvl9).
+        // published panel for.
         reports: dataForSeoReportsFor('nosh.example', PANEL_ASSETS, THIS_WEEK),
       },
     ]);
@@ -239,12 +233,9 @@ describe('GET /api/serp-panel-landings — what landed', () => {
   });
 });
 
-/**
- * ro-478: the anchor is the weekly COLLECTION, not the panel family inside it.
- * A property with no entry in config/serp-panel.json still buys five report
- * families every Monday, and while this read answered only about `serp-panel` it
- * landed nothing for them — so nobody was ever asked to read what they bought.
- */
+/** The anchor is the weekly collection, not the panel family inside it: a
+ * property with no entry in config/serp-panel.json still buys five report
+ * families every Monday, and somebody must be asked to read what they bought. */
 describe('GET /api/serp-panel-landings — the collection, panel or no panel', () => {
   it('lands a collection for a property that has no panel at all', async () => {
     await seedCollection('pacer.example', THIS_WEEK);

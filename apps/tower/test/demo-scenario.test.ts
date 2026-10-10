@@ -19,8 +19,8 @@ const detail: AssetDetailDeps = {
   now: NOW, osTimeZone: 'UTC', flagDefaults: {}, monthlyCaps: { dataUsd: 25 }, operatorRateUsdPerMin: 2,
   integrations, counters: { assets: {} }, pullConfig: [], serpPanel: { assets: {} }, signalPanels: { assets: {} }, valueEvents: { assets: {} }, ga4EventParams: { assets: {} },
 };
-// One filled store for the tests that only read it (issue #24); the refused
-// second seed rolls back. A test that fills its own scenario gets its own.
+// One filled store for the tests that only read it; the refused second seed
+// rolls back. A test that fills its own scenario gets its own.
 let fixture: TestStore;
 beforeAll(async () => {
   fixture = await createTestStore({ scope: 'suite' });

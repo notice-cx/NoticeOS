@@ -97,7 +97,7 @@ selector.
 
 The opt-in proof is `scripts/container-backup-compose.test.mjs`, enabled by
 `NOTICEOS_TEST_CONTAINER_BACKUP=1` and a qualified local
-`NOTICEOS_TEST_APP_IMAGE=noticeos-local:ro-ujb9-9-4-…` tag. It requires the qualified
+`NOTICEOS_TEST_APP_IMAGE=noticeos-local:backup-proof-…` tag. It requires the qualified
 Beads binary through `BEADS_BD_BIN`, a local Docker endpoint and a nonroot operator.
 Preserve explicit `DOCKER_CONFIG` when isolating HOME. Run with
 `node --import ./scripts/script-tests-setup.mjs --test scripts/container-backup-compose.test.mjs`.
@@ -105,7 +105,5 @@ It creates and removes only its own projects and volumes, reserves loopback port
 5900–5949, and verifies an internal network before starting the app and worker.
 The exporter is synthetic; the proof executes no real remote exporter.
 
-Portable backup qualification is tracked by `ro-ujb9.9.4`. The local migration
-keeps the native application and its existing asset exporter while moving Dolt
-first; this worker profile does not establish compatibility for that native
-exporter's credentials or platform dependencies.
+This worker profile does not establish compatibility for a native exporter's
+credentials or platform dependencies.

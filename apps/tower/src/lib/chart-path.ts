@@ -1,10 +1,8 @@
-// THE CHARTS' ONE GEOMETRY (bead `ro-trai.19`, doc 14 § Charts): the SVG path
-// strings every line, area and point in the Tower's small charts is drawn with
-// — the Wall's month, today-by-hour, 30-day, visitors and search charts, and
-// the desk's `Sparkline`. Pure functions of points already in the chart's own
-// coordinates; nothing here knows about data, dates or colour.
+// The charts' one geometry: the SVG path strings every line, area and point in
+// the Tower's small charts is drawn with. Pure functions of points already in
+// the chart's own coordinates; nothing here knows about data, dates or colour.
 //
-// WHY A MONOTONE CURVE. A daily line drawn as straight segments reads like a
+// Why a monotone curve. A daily line drawn as straight segments reads like a
 // seismograph at TV size, and an ordinary smoothing spline invents peaks and
 // dips the data never had (it overshoots between two readings). The monotone
 // cubic (Fritsch–Carlson, the curve d3-shape calls `curveMonotoneX`) passes

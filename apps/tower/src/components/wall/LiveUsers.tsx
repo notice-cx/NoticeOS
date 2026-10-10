@@ -8,23 +8,19 @@ import { MinutePulse, type MinutePulseSize } from "@/components/surface/MinutePu
 import { formatInt } from "@/lib/format";
 import { useTweenedNumber } from "@/lib/use-tweened-number";
 
-// A SITE'S LIVE USERS ON THE WALL (docs/14-design.md § Site rows, beads
-// `ro-trai.19`, `ro-trai.27`): "84 · 30 min", the figure counting to each new
-// reading, over the minute pulse — the last 30 minutes one bar a minute, the
-// newest five bright beside "19 · 5 min". One cell for every tier: a compact
-// row, a roomier row, a phone card and the one-site Today tile.
+// A site's live users on the Wall: "84 · 30 min", the figure counting to each
+// new reading, over the minute pulse, with "19 · 5 min" beside its bright end.
+// One cell for every tier: a compact row, a roomier row, a phone card and the
+// one-site Today tile.
 //
 // Honest in every state, never a zero it did not read:
 //   fresh     the reading as it is;
 //   stale     older than three minutes (`liveTrafficCardIssue`): the figures
 //             and the pulse drop to neutral ink beside a clock and the age;
 //   failed    the last read was refused: the last pulse this cell drew stays,
-//             dimmed the same way with ITS age — the failure's label is the
+//             dimmed the same way with its age — the failure's label is the
 //             clock's name;
 //   none      no GA4 on the site, or no reading yet: a dash.
-//
-// Registry justification: it is `SiteRows`' former `LiveUsers`/`LiveCount`
-// grown a pulse, moved to its own module so the rows and the tile share it.
 
 type Reading = Extract<Ga4RealtimeAsset, { status: "success" }>;
 

@@ -1,27 +1,20 @@
 # 05 — Execution, autonomy & accountability
 
-*New in v2. v1 said "PRs are the output, humans merge" — which is safe, and
-routes every change through the single operator, which is the bottleneck the
-system exists to remove. v1 also silently assumed agents report their own work
-truthfully. Both assumptions are replaced here: autonomy becomes a per-class
-dial opened by evidence, and completion becomes something the system proves,
-not something an agent claims.*
+*"PRs are the output, humans merge" is safe, and routes every change through
+the single operator, which is the bottleneck the system exists to remove; and
+agents do not report their own work truthfully by default. So autonomy is a
+per-class dial opened by evidence, and completion is something the system
+proves, not something an agent claims.*
 
 ## Accountability: evidence-based completion (the trust substrate)
 
 The threat model is not malice — it's the measured default: agents cut corners,
-silently drop scope, and confidently report work they didn't do. (Frontier
-agents game gameable tasks at 25–100% rates; this repo's own build history
-includes an agent committing without its final build, silent no-report idles,
-skipped scope extensions, and a sub-agent returning confident boilerplate with
-zero tool calls. Every one was caught only by human re-verification — the
-behavior this section mechanizes. Sharpest datum, 2026-07-04: of 4 parallel
-scoped agents on one site, 3 idled without their contracted final report;
-one never reported even when confronted — yet its code was excellent and
-passed every re-executed gate, while polished reports elsewhere still needed
-verification. **Report compliance and work quality are independent axes**, so
-verification is unconditional in both directions: silence doesn't imply bad
-work, and a confident report doesn't imply good work.)
+silently drop scope, and confidently report work they didn't do (frontier
+agents game gameable tasks at 25–100% rates). An agent that never reports can
+still have shipped excellent code, and a polished report can cover work that
+was never done. **Report compliance and work quality are independent axes**,
+so verification is unconditional in both directions: silence doesn't imply
+bad work, and a confident report doesn't imply good work.
 
 1. **Task contracts.** Every dispatch enumerates deliverables and acceptance
    checks. Completion is evaluated as a diff of delivered-vs-contracted;
@@ -33,7 +26,7 @@ work, and a confident report doesn't imply good work.)
    structurally worthless. For changes touching a user-facing surface,
    before/after screenshots (desktop + mobile) are mandatory claim
    artifacts, rendered in review ([doc 16](16-replacing-the-chat-workflow.md)
-   flow P).
+   § P).
 3. **Independent, change-scoped verification.** The verifier selects checks
    for changed logic and affected critical paths; a builder's own passing
    transcript is inadmissible. One focused independent run supplies completion
@@ -41,7 +34,7 @@ work, and a confident report doesn't imply good work.)
    dependencies/configuration and runtime inputs are unchanged. After relevant
    changes or failures, rerun affected checks; broaden only for a concrete
    unresolved risk. Full repository gates run in CI rather than being repeated
-   locally by default (owner, 2026-10-05; `ro-ujb9.341`). Local verification
+   locally by default. Local verification
    targets at least 80% less execution time and CPU work than a full pass;
    record actual command time and never omit a critical check for the budget.
    The selection and compact evidence contract is in
@@ -62,11 +55,10 @@ work, and a confident report doesn't imply good work.)
    attribution entry exists — not "PR opened." Anything deferred must be parked
    in the WIP registry with an owner and a trigger; the Tower surfaces orphaned
    deferrals as first-class debt. The system may decide not to do something; it
-   may not decide not to *mention* it. *(2026-08-01: the **WIP registry** named
-   in this doc is the **beads hub** — `bd create` in the owning repo,
-   `bd ready` to read it. See
-   [AGENTS.md §Open work lives in beads](../AGENTS.md#open-work-lives-in-beads).
-   A deferral written into a doc instead of a bead is a silent deferral.)*
+   may not decide not to *mention* it. The **WIP registry** is the task hub —
+   `bd create` in the owning repo, `bd ready` to read it
+   ([AGENTS.md § Open work lives in the task hub](../AGENTS.md#open-work-lives-in-the-task-hub)).
+   A deferral written into a doc instead of a task is a silent deferral.
 7. **Random deep audits.** A sampled fraction of "green" completions gets full
    re-verification each cycle. Any discrepancy is an incident; every incident
    postmortem ends as a rule in a context pack or a check in the verifier —
@@ -118,8 +110,8 @@ operator-only, forever, never promotable.
 - **T3 — closed-loop.** The class runs Sense→…→Learn without per-change human
   contact; operator governs by policy, budget, and the calibration report.
 
-**Starting tiers:** a newly onboarded asset sits at T0 while baselining
-(doc 14 flow A) — with one exemption: operator-invoked **onboarding runbooks**
+**Starting tiers:** a newly onboarded asset sits at T0 while baselining —
+with one exemption: operator-invoked **onboarding runbooks**
 (pulse endpoint, AGENTS.md) run at T1, since the operator is the merger by
 construction. After baselining, every allowed (asset × class) starts at
 **T1** — T0→T1 requires no earned evidence because T1's gate *is* the
@@ -183,14 +175,14 @@ minute as the number this ladder exists to improve.
 One key travels unchanged from the finding that raised work to the verdict that retires it; without it a shipped change and the observation that provoked it are two unrelated events in two stores. The key is the finding's own stable key — a query decision's normalized query, a finding card's `ExecutiveInsight.key`.
 
 1. **The Tower writes the key into the handoff.** The copied Markdown ends in a ready-to-run `bd create` labelled `noticeos-handoff`, `asset:<id>`, `rule:<id>`, `key:<slug>`, with `noticeos_key`, `noticeos_rule`, `noticeos_asset` and `noticeos_kind` in `--metadata` verbatim. Only the metadata is byte-exact: `bd` splits label values on commas.
-2. **The agent files the bead in the asset's own repo.** The prefix comes from the repo `bd` runs in, never from the handoff. The poller reads the bead back onto the finding card (`HandoffBeadBadge`, `packages/contract/src/task-snapshot.mts`).
-3. **Every commit names the bead id.**
-4. **The bead closes with the decision and its evidence** — a commit for shipped work, the basis for a decline. Closure records a decision, never a measured outcome.
-5. **A ship writes a timeline annotation** (`annotations.kind = 'deploy'`) whose `ref` is the same bead id, so Attribution ([doc 03](03-attribution.md)) sees a cause.
+2. **The agent files the task in the asset's own repo.** The prefix comes from the repo `bd` runs in, never from the handoff. The poller reads the task back onto the finding card (`HandoffBeadBadge`, `packages/contract/src/task-snapshot.mts`).
+3. **Every commit names the task id.**
+4. **The task closes with the decision and its evidence** — a commit for shipped work, the basis for a decline. Closure records a decision, never a measured outcome.
+5. **A ship writes a timeline annotation** (`annotations.kind = 'deploy'`) whose `ref` is the same task id, so Attribution ([doc 03](03-attribution.md)) sees a cause.
 6. **The watch window opens against the same ref**, sized to the change class.
 7. **The window's verdict retires the finding**, kept or reverted.
 
-No bead means untracked work, whatever the diff says. A bead without the rule id and key is a task, not a link. A bead id in a commit but on no annotation leaves Attribution blind. Never fake a link: an annotation for a ship that never happened, or a verdict read off a chart instead of a window, turns an unknown into a false known. Nothing auto-reverts. Renaming `noticeos-handoff` or the `noticeos_*` fields breaks every existing join; readers also accept the older `reindex_*` names (`packages/contract/src/task-metadata.mts`).
+No task means untracked work, whatever the diff says. A task without the rule id and key is work, not a link. A task id in a commit but on no annotation leaves Attribution blind. Never fake a link: an annotation for a ship that never happened, or a verdict read off a chart instead of a window, turns an unknown into a false known. Nothing auto-reverts. Renaming `noticeos-handoff` or the `noticeos_*` fields breaks every existing join; readers also accept the older `reindex_*` names (`packages/contract/src/task-metadata.mts`).
 
 ## Intelligence tiering: crystallize smarts into tools
 
@@ -263,8 +255,8 @@ Approval state (who approved which version, when) lives **Tower-side** in the
 grants table — never in the file, or a builder could self-approve. A rendered
 "approved v3 by operator" line in the library view is a display of that
 record. **Failure streaks suspend**: 3 consecutive failed runs auto-suspend a
-runbook's grants (same suspended state as a manifest deviation, doc 14 flow
-B) pending operator review — approval survives *edits* never, and failure
+runbook's grants (the same suspended state as a manifest deviation) pending
+operator review — approval survives *edits* never, and failure
 streaks only until reviewed.
 
 - **Terminology, fixed:** a *tool* is a script (deterministic, contracted);
@@ -301,8 +293,8 @@ This is the trust model that makes autonomy legible to the operator:
 ## Cost discipline at the execution layer
 
 Per-run and per-change budgets are **fail-closed runtime caps, on by default**
-(every documented agent cost blowup — $47k/11-day loops, $437 overnight runs,
-1.67B-token sessions — traces to a limit that existed but defaulted off):
+(documented agent cost blowups trace to a limit that existed but defaulted
+off):
 per-run USD + step caps, spend-velocity breaker, identical-call dedup,
 recursion-depth caps, retry budgets at one layer, and an out-of-band kill that
 cancels provider-side runs. Enforcement lives at the gateway

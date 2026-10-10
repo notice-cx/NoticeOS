@@ -55,10 +55,8 @@ function register(settings: Record<string, unknown> = { host: 'us', projectId: '
 const KEYS = JSON.stringify({ 'meals.example': KEY });
 
 // ---------------------------------------------------------------------------
-// Recorded response fixtures. The numbers are the 2026-09-08..2026-09-22 manual
-// PostHog readings for meals.example (meals beads mp-c0ha, mp-sn8x, mp-ge32,
-// mp-36ip), shaped as PostHog's query endpoint answers: `results` rows in the
-// SELECT's column order, plus `columns`.
+// Recorded response fixtures, shaped as PostHog's query endpoint answers:
+// `results` rows in the SELECT's column order, plus `columns`.
 // ---------------------------------------------------------------------------
 
 const FIXTURE_ROWS: Record<string, unknown[][]> = {
@@ -387,7 +385,7 @@ describe('PostHog product analytics archive', () => {
     expect(new Set(rows.map((row) => row.errorCode))).toEqual(new Set(['posthog_access_denied']));
     const message = await pgFirst<{ m: string }>(`SELECT error_message AS m FROM ${ARCHIVE_RUNS} WHERE integration = 'posthog' LIMIT 1`);
     expect(message?.m).not.toContain(KEY);
-    // One short line a site's Data sources row draws (bead ro-ujb9.96.6.27).
+    // One short line a site's Data sources row draws.
     const stored = await pgAll<{ m: string }>(`SELECT DISTINCT error_message AS m FROM ${ARCHIVE_RUNS} WHERE integration = 'posthog'`);
     expect(stored.results.map((row) => row.m)).toEqual([
       'PostHog refused the key · HTTP 401 · Personal API key found in request Authorization header is invalid.',
@@ -433,8 +431,7 @@ describe('PostHog product analytics archive', () => {
   });
 
   it('leaves a refused key on the card as one short line, in the words the site row uses', async () => {
-    // Bead ro-ujb9.96.6.27: what went wrong, then the count — never a list
-    // of every site and report.
+    // What went wrong, then the count — never a list of every site and report.
     await putCredential(env, { provider: 'posthog', fields: { POSTHOG_KEYS: KEYS } });
     const { fetchImpl } = posthogFetch(() =>
       Response.json({ type: 'authentication_error', detail: 'Personal API key found in request Authorization header is invalid.' }, { status: 401 }),
@@ -446,8 +443,8 @@ describe('PostHog product analytics archive', () => {
 });
 
 // ---------------------------------------------------------------------------
-// One run per asset at a time (bead ro-ghis.5). The lease clock is pinned to
-// NOW so every expiry below is exact.
+// One run per asset at a time. The lease clock is pinned to NOW so every expiry
+// below is exact.
 // ---------------------------------------------------------------------------
 
 const clock = () => NOW;
@@ -490,8 +487,8 @@ function gatedPosthogFetch(responder: Responder = answerAll) {
 describe('PostHog — one run per asset at a time', () => {
   it('bounds the lease well past the longest run and short of a missed day', () => {
     // The longest run on one asset: the project read, six queries and the
-    // windows an outage cost it (ro-aed0.8), each cut off at the request
-    // timeout, one after another.
+    // windows an outage cost it, each cut off at the request timeout, one after
+    // another.
     expect(POSTHOG_RETRY_LIMIT).toBe(POSTHOG_FAMILIES.length);
     const longestRunMs = (1 + POSTHOG_FAMILIES.length + POSTHOG_RETRY_LIMIT) * POSTHOG_REQUEST_TIMEOUT_MS;
     expect(POSTHOG_LEASE_MS).toBeGreaterThanOrEqual(4 * longestRunMs);
@@ -611,7 +608,7 @@ describe('PostHog — one run per asset at a time', () => {
 });
 
 // ---------------------------------------------------------------------------
-// A store failure while saving a report PostHog answered (bead ro-aed0.10).
+// A store failure while saving a report PostHog answered.
 // ---------------------------------------------------------------------------
 
 /** R2 refusing the archive object of one family; everything else is stored. */
@@ -630,7 +627,7 @@ function objectPutsFail(bucket: R2Bucket, family: string): R2Bucket {
   });
 }
 
-describe('PostHog — a store failure while saving a report (ro-aed0.10)', () => {
+describe('PostHog — a store failure while saving a report', () => {
   // A past day: a Health observation counts once it has finished, and one
   // dated after the test's own clock never would.
   const DAY = Date.parse('2026-09-14T12:30:00.000Z');
@@ -734,11 +731,11 @@ describe('PostHog — a store failure while saving a report (ro-aed0.10)', () =>
 });
 
 // ---------------------------------------------------------------------------
-// An offline night, and the windows it cost (bead ro-aed0.8). NOW's run owns
-// the window ending 2026-09-22; the next day's run owns the one ending 09-23.
+// An offline night, and the windows it cost. NOW's run owns the window ending
+// 2026-09-22; the next day's run owns the one ending 09-23.
 // ---------------------------------------------------------------------------
 
-describe('PostHog — an offline night and the windows it cost (ro-aed0.8)', () => {
+describe('PostHog — an offline night and the windows it cost', () => {
   const NEXT_DAY = NOW + 86_400_000;
   const FAMILIES = [...POSTHOG_FAMILIES];
 
@@ -851,7 +848,7 @@ describe('PostHog — an offline night and the windows it cost (ro-aed0.8)', () 
     expect(next.retried).toBe(0);
   });
 
-  it('asks again a window PostHog never answered, once one it answered “not now”, never a refused key (ro-aed0.9)', async () => {
+  it('asks again a window PostHog never answered, once one it answered “not now”, never a refused key', async () => {
     // A night PostHog could not be reached while the OS could reach the world:
     // PostHog's network failure, recorded as before.
     const dropped = await runPosthogDumps(env, {
@@ -875,7 +872,7 @@ describe('PostHog — an offline night and the windows it cost (ro-aed0.8)', () 
     await failedWindow('events', '2026-09-15', 'posthog_http_503', '2026-09-17T12:30:00.000Z');
     await failedWindow('events', '2026-09-14', 'posthog_invalid_response', '2026-09-15T12:30:00.000Z');
     await failedWindow('events', '2026-09-14', 'posthog_invalid_response', '2026-09-16T12:30:00.000Z');
-    // PostHog answered; this machine failed to keep it (ro-aed0.10).
+    // PostHog answered; this machine failed to keep it.
     await failedWindow('exceptions', '2026-09-20', LOCAL_STORE_FAILED);
 
     const posthog = posthogFetch();
@@ -974,13 +971,12 @@ describe('PostHog — an offline night and the windows it cost (ro-aed0.8)', () 
       'meals.example': ['exceptions', 'rageclicks', 'web-vitals', 'funnels'].map((family) => `posthog:${family}:2026-09-22`),
     });
 
-    // The next day (ro-aed0.9): the four the alert names, the refused window
-    // once more, and the windows of 09-23 the stop never asked — oldest first,
-    // six at most.
+    // The next day: the four the alert names, the refused window once more,
+    // and the windows of 09-23 the stop never asked — oldest first, six at most.
     const again = posthogFetch();
     const next = await runPosthogDumps(env, { nowMs: NEXT_DAY + 86_400_000, fetchImpl: reachable(again.fetchImpl), rawKeys: KEYS, laneRegister: register() });
     expect(next.retried).toBe(6);
-    // Named window by window, with the four left for the next run (ro-aed0.11).
+    // Named window by window, with the four left for the next run.
     expect(next.recollected.map((outcome) => `${outcome.report} ${outcome.reportDate}`)).toEqual([
       'events 2026-09-22',
       'events 2026-09-23',
@@ -1010,8 +1006,7 @@ describe('PostHog — an offline night and the windows it cost (ro-aed0.8)', () 
   });
 
   // -------------------------------------------------------------------------
-  // A window PostHog answered "not now", and the windows a 429 never reached
-  // (bead ro-aed0.9).
+  // A window PostHog answered "not now", and the windows a 429 never reached.
   // -------------------------------------------------------------------------
 
   /** PostHog answering the named windows (`family`, window end) its own way,

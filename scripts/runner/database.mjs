@@ -1,5 +1,5 @@
-// runner/database.mjs — the database address the runner hands its Tower child
-// (bead ro-ujb9.76.7.2). DATABASE_URL, the fourth bootstrap secret, is read
+// runner/database.mjs — the database address the runner hands its Tower
+// child. DATABASE_URL, the fourth bootstrap secret, is read
 // from home's secrets file (runner/config.mjs SECRET_FILES) the way the
 // operator bearer is (runner/operator-token.mjs), and checked as the
 // application login by scripts/database-address.mts: the same read and check
@@ -7,7 +7,7 @@
 // migration.
 //
 // `pnpm os:deploy` reads the database's migration record through this same
-// address (bead ro-ujb9.76.7.1), so a deploy asks the database the runner
+// address, so a deploy asks the database the runner
 // will start on, and never names or opens the secrets file itself.
 
 import { recordedMigrations, towerDatabase } from '../database-address.mjs';

@@ -1,9 +1,5 @@
-// The operator's inbox posture and its one sentence — the pure answers Home's
-// "Needs you" tile, the desk's attention band and the Wall's Needs you all
-// read (bead `ro-pbzu.3`). They lived in `components/bands/AttentionRail.tsx`
-// beside the old Wall's rotating rail; since D28 took that rail off the Wall
-// (bead `ro-trai.11`) they live here, so the TV downloads the answer without
-// the rail; the rail itself left with bead `ro-trai.20`.
+// The operator's inbox posture and its one sentence: the pure answers Home's
+// "Needs you" tile and the Wall's Needs you both read.
 
 import type { OperatorPosture } from "@shared/wall";
 import { isAmber } from "@shared/freshness";

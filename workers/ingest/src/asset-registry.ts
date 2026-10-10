@@ -1,10 +1,7 @@
-// "IS THIS ONE OF THE INSTALLATION'S SITES?" — asked of the site list on
-// Postgres, `noticeos.assets`, through the call's store (bead ro-ujb9.76.4.2).
-//
-// Every lane that takes a site id from a request checks it here first, so an
-// unknown id is a clean refusal naming it rather than a foreign-key failure
-// deeper in. A retired site is still known: sites are retired, never deleted
-// (db/postgres/README.md, choice 5), and a retired site's history is still
+// Is this one of the installation's sites? Every lane that takes a site id
+// from a request checks here first, so an unknown id is a clean refusal
+// rather than a foreign-key failure deeper in. A retired site is still known:
+// sites are retired, never deleted, and a retired site's history is still
 // written and read.
 
 import type { WorkspaceStore } from '@noticeos/postgres';

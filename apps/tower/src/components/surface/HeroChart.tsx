@@ -32,9 +32,7 @@ import { InfoTooltip } from "@/components/InfoTooltip";
 import { useChartLabelVisibility } from "@/hooks/useChartLabelVisibility";
 
 export interface HeroSeries {
-  /** What the legend and the toggle say. Provider-coloured lines are named
-   * here and nowhere else, which is what keeps `search-bing` beside the word
-   * "Bing" (doc 14). */
+  /** What the legend and the toggle say. */
   name: string;
   points: readonly SeriesPoint[];
   tone?: SeriesTone;
@@ -43,26 +41,16 @@ export interface HeroSeries {
   /** This provider's unfinished tail. Undefined inherits the chart boundary;
    * null explicitly means this series has no provisional observations. */
   provisionalFrom?: string | null;
-  /**
-   * A REFERENCE the lead line is read against — the same weekday last week
-   * (bead `ro-trai.10`) — rather than a second trend. It is drawn as observed
-   * (never averaged), thinner, dotted and in quiet ink unless the caller names
-   * a tone or pattern, so the lead line leads (Plausible draws its comparison
-   * period the same way).
-   */
+  /** A reference the lead line is read against, not a second trend: drawn as
+   * observed (never averaged), thinner, dotted and in quiet ink unless the
+   * caller names a tone or pattern. */
   reference?: boolean;
 }
 
 const LINE_DASH = { solid: undefined, dashed: "8 5", dotted: "2 5" } as const;
 
-/**
- * THE THREE WEIGHTS A LINE CAN BE DRAWN AT, in screen pixels (bead
- * `ro-ujb9.12`). The lead is what the chart is about; a reference is read
- * against it; the raw daily values under a trailing average are texture. One
- * table, read by the plot and by the key, so a key can never be bolder or
- * fainter than the line it names — which is how the old "7-day average" key
- * came to be thicker than every line on the chart.
- */
+/** Line weights in screen pixels. One table read by the plot and by the key,
+ * so a key can never be bolder or fainter than the line it names. */
 const WEIGHT = {
   lead: { width: 2.5, opacity: 1 },
   reference: { width: 1.5, opacity: 1 },
@@ -75,8 +63,8 @@ function SeriesKey({ tone, lineStyle = "solid", weight = "lead", bars = false, o
   lineStyle?: HeroSeries["lineStyle"];
   weight?: Weight;
   bars?: boolean;
-  /** The key for a PARTIAL bar: the same bars drawn as outlines, which is
-   * exactly how the plot draws a day only some sources reported. */
+  /** The key for a partial bar: outlines, as the plot draws a day only some
+   * sources reported. */
   outlined?: boolean;
 }) {
   return (
@@ -89,8 +77,7 @@ function SeriesKey({ tone, lineStyle = "solid", weight = "lead", bars = false, o
   );
 }
 
-/** The key for the hollow point every provisional series ends on — the same
- * ring the plot draws, so "Provisional" is keyed where the other marks are. */
+/** The key for the hollow point every provisional series ends on. */
 function ProvisionalKey() {
   return (
     <svg aria-hidden className="size-3 shrink-0 text-muted-foreground" viewBox="0 0 12 12">
@@ -99,9 +86,7 @@ function ProvisionalKey() {
   );
 }
 
-/** One legend entry. A series entry is the TOGGLE whenever the chart has more
- * than one (bead `ro-ujb9.12`): the legend is the control, so there is no
- * second row of pills repeating its names. */
+/** One legend entry. With more than one series the entry is the toggle. */
 const keyItemClass = "inline-flex items-center gap-1.5 text-xs";
 const keyToggleClass = cn(
   keyItemClass,
@@ -109,22 +94,15 @@ const keyToggleClass = cn(
   "cursor-pointer rounded-md px-1.5 py-0.5 font-medium hover:bg-muted/60 motion-safe:transition-colors",
 );
 
-/**
- * A daily observation is
- * a point on a line and reads best with its trailing average over it; an
- * accounting month is a settled quantity and reads as an area; and a count that
- * only changes when something happens — open alerts — is a step, because a
- * diagonal between Tuesday's three and Thursday's one claims a Wednesday value
- * nobody measured.
- */
+/** A daily observation is a line with its trailing average; a settled month
+ * is an area; a count that only changes when something happens is a step,
+ * because a diagonal would claim a value nobody measured. */
 export type HeroVariant = "line" | "monthly" | "step" | "bars";
 
 export interface HeroChartProps {
-  /** One short line above the plot. The section's own heading owns the
-   * question; this names the measure and its grain. */
+  /** One short line naming the measure and its grain. */
   title?: ReactNode;
-  /** One figure beside the title — the weekly change daily users carry on the
-   * asset Overview (bead `ro-trai.10`). */
+  /** One figure beside the title. */
   titleAside?: ReactNode;
   series: readonly HeroSeries[];
   /** Periods of the series' own grain, from the page's `RangeSelector`. */
@@ -135,20 +113,17 @@ export interface HeroChartProps {
   notesByDate?: Readonly<Record<string, string>>;
   /** Incomplete observed bars use an outline as well as a text explanation. */
   partialDates?: readonly string[];
-  /** 240 on an Overview, 180 in a pair (doc 14). */
   height?: number;
   variant?: HeroVariant;
-  /** Bold trailing average over the faint raw line. `line` only — a monthly
-   * ledger has nothing to smooth and a step has nothing to average. */
+  /** Bold trailing average over the faint raw line. `line` only. */
   average?: boolean;
   averageWindow?: number;
-  /** Fill under the leading line. Drawn only while ONE series is visible: two
-   * overlapping translucent areas read as a third colour that means nothing. */
+  /** Fill under the leading line. Drawn only while one series is visible:
+   * two overlapping translucent areas read as a third colour. */
   area?: boolean;
   weekends?: boolean;
   annotations?: readonly SurfaceAnnotation[];
-  /** Watch windows shaded behind the series (D44): the days a shipped change
-   * is being judged in, each with one label at its start. */
+  /** Watch windows shaded behind the series, each with one label at its start. */
   spans?: readonly SurfaceSpan[];
   provisionalFrom?: string | null;
   format?: (value: number) => string;
@@ -165,39 +140,31 @@ export interface HeroChartProps {
   className?: string;
 }
 
-/** The plot's own coordinate space. Geometry only — every glyph on this chart
+/** The plot's own coordinate space, geometry only: every glyph on this chart
  * is HTML, so `preserveAspectRatio="none"` can stretch x to any width without
- * squeezing a single letter. That is the whole reason the axis labels are not
- * `<text>`: at 390px a viewBox drawn for a desk squashes them to a third of
- * their width, and a phone is where doc 14 says the chart stays full width. */
+ * squeezing a letter. */
 const VIEW_WIDTH = 1000;
 const PAD_TOP = 10;
 const PAD_BOTTOM = 6;
 
 const GRID_LINES = 4;
 
-/** Below this, quarters of the maximum stop being numbers a person recognises:
- * a max of 1 splits into 0, 0.25, 0.5, 0.75, 1, which an integer format prints
- * as 0, 0, 1, 1, 1 — an axis that says nothing true (bead `ro-78qo.15`). */
+/** Below this, quarters of the maximum are not numbers an integer format can
+ * print distinctly, so the scale takes integer steps instead. */
 const SMALL_DOMAIN = 5;
 
-/** The axis labels' own type size, in px. It is a number rather than only a
- * class because the y gutter is measured from it. */
+/** The axis labels' type size in px; the y gutter is measured from it. */
 const AXIS_LABEL_PX = 12;
 
-/** Room to the right of the last point, in px, so the provisional cap — a
- * hollow circle drawn ON the final x — is not sliced by the card's edge. */
+/** Room to the right of the last point, so the provisional cap drawn on the
+ * final x is not sliced by the card's edge. */
 const RIGHT_GUTTER = 7;
 
 /**
- * How wide a tick label will draw, in px.
- *
- * The y gutter cannot be an `auto` grid column: every label inside it is
- * absolutely positioned, so the column measures nothing, collapses, and the
- * card clips whatever hangs out of it — which is how 5,000 came to read as
- * "000" on the full-width hero. An estimate is enough and, unlike a canvas,
- * exists in a test: the labels are `tabular-nums`, where every digit is one
- * fixed advance (~0.6em) and the separators about half of one.
+ * How wide a tick label will draw, in px. The y gutter cannot be an `auto`
+ * grid column, because its labels are absolutely positioned and the column
+ * would collapse. The labels are `tabular-nums`: every digit is one fixed
+ * advance (~0.6em) and a separator about half of one.
  */
 export function axisLabelWidth(label: string, fontPx = AXIS_LABEL_PX): number {
   let em = 0;
@@ -207,9 +174,8 @@ export function axisLabelWidth(label: string, fontPx = AXIS_LABEL_PX): number {
   return Math.ceil(em * fontPx);
 }
 
-/** A tick STEP a person reads without decoding and a compact format prints
- * exactly: 1, 2, 2.5, 4, 5 or 10 times a power of ten, never smaller than the
- * gap it has to cover. `8` is missing on purpose — see `isExactStep`. */
+/** A tick step a compact format prints exactly: 1, 2, 2.5, 4, 5 or 10 times a
+ * power of ten. `8` is missing on purpose; see `isExactStep`. */
 function niceStep(value: number): number {
   if (!(value > 0)) return 1;
   const power = 10 ** Math.floor(Math.log10(value));
@@ -224,8 +190,7 @@ function niceStep(value: number): number {
   return nice * power;
 }
 
-/** A scale maximum a person reads without decoding: 1, 2, 2.5, 4, 5, 8 or 10
- * times a power of ten. */
+/** A scale maximum: 1, 2, 2.5, 4, 5, 8 or 10 times a power of ten. */
 function niceMax(value: number): number {
   if (value <= 0) return 1;
   const power = 10 ** Math.floor(Math.log10(value));
@@ -241,11 +206,8 @@ function niceMax(value: number): number {
   return nice * power;
 }
 
-/**
- * A step a compact format can print WITHOUT ROUNDING: 1, 2, 2.5, 4 or 5 times a
- * power of ten, so every tick above it lands on a value `formatCompact` renders
- * exactly (2,500 is "2.5K"; 3,750 is not "3.8K", it is a lie about the scale).
- */
+/** A step a compact format prints without rounding (2,500 is "2.5K"; 3,750
+ * would be "3.8K", a lie about the scale). */
 function isExactStep(step: number): boolean {
   if (!(step > 0)) return false;
   const fraction = step / 10 ** Math.floor(Math.log10(step));
@@ -253,9 +215,8 @@ function isExactStep(step: number): boolean {
   return [1, 2, 2.5, 4, 5, 10].some((one) => Math.abs(fraction - one) < 1e-9);
 }
 
-/** The tick values a scale prints, bottom row first. The residue of dividing a
- * span into equal gaps is snapped away so a zero tick prints as "0" rather than
- * as a number with fourteen zeroes after the point. */
+/** The tick values, bottom first. Floating-point residue is snapped away so a
+ * zero tick prints as "0". */
 function scaleTicks(bottom: number, top: number, steps: number): number[] {
   const gap = (top - bottom) / steps;
   return Array.from({ length: steps + 1 }, (_, at) => {
@@ -265,16 +226,9 @@ function scaleTicks(bottom: number, top: number, steps: number): number[] {
 }
 
 /**
- * A SIGNED domain — a bottom below zero, and zero ON A TICK (bead `ro-78qo.28`).
- *
- * An accounting net crosses zero: one asset's June is −$224 and its August is
- * positive, and a zero-based scale can only draw that by dropping half of it
- * off the floor. So the step is chosen first, from the observed span, and the
- * two ends are rounded outward to whole steps — which puts zero on a tick by
- * construction, and that tick is where the zero line and the area's baseline
- * both land. Candidate gap counts are tried widest-first for the same reason
- * the zero-based path tries them: the first step the FORMAT can state exactly
- * wins, and an axis that prints one number twice answers nothing.
+ * A signed domain: the step is chosen first from the observed span and both
+ * ends are rounded outward to whole steps, which puts zero on a tick by
+ * construction. The first step the format can state exactly wins.
  */
 function signedScale(min: number, max: number, format: (value: number) => string) {
   const span = Math.max(max, 0) - Math.min(min, 0);
@@ -296,22 +250,13 @@ function signedScale(min: number, max: number, format: (value: number) => string
 }
 
 /** A line whose lowest reading is at least this share of its highest is drawn
- * on a fitted scale (`fittedScale`): from zero it would be a flat band across
- * the top of the plot, its shape squeezed out of sight. */
+ * on a fitted scale; from zero it would be a flat band. */
 const FIT_FLOOR_SHARE = 0.5;
 
 /**
- * A FITTED domain for a positive line that never comes near zero — traffic
- * between 1,900 and 2,100 a day, a month's net between $1,500 and $1,800.
- * Zero-based, such a line spends three quarters of the plot on nothing and its
- * movement is a few pixels; fitted, it fills the plot and the movement is the
- * shape the reader came for. The labelled gutter carries the floor, so the
- * axis still states exactly where it starts. Like `signedScale`, the step is
- * chosen first from the observed span and both ends are rounded outward to
- * whole steps, so every tick is a number the format prints exactly.
- *
- * Bars and steps never take it: a bar's length is its value, and a bar cut off
- * at a floor above zero says something false about the ratio between two days.
+ * A fitted domain for a positive line that never comes near zero. The
+ * labelled gutter carries the floor. Bars and steps never take it: a bar cut
+ * off at a floor above zero says something false about the ratio of two days.
  */
 function fittedScale(min: number, max: number, format: (value: number) => string) {
   const span = max - min;
@@ -330,25 +275,10 @@ function fittedScale(min: number, max: number, format: (value: number) => string
 }
 
 /**
- * The scale, as a top and the number of gaps beneath it.
- *
- * THE STEP MUST BE ONE THE LABEL CAN STATE EXACTLY (bead `ro-78qo.4`). A
- * four-way split of 5,000 is 1,250 a step, and `formatCompact` prints those
- * ticks as 1.3K / 2.5K / 3.8K / 5K — three of the five round, and an axis whose
- * numbers are not the numbers is worse than a coarser one. So the candidate
- * step counts are tried in order and the first whose STEP is exactly printable
- * wins: 5,000 falls to five gaps of 1,000, and 8,000 keeps its four of 2,000.
- *
- * Below a handful the quarters land between values the series can actually
- * take, so a small domain gets INTEGER steps instead — 0, 1 for open alerts,
- * 0, 1, 2 for a count of two.
- *
- * Distinctness is the last gate on both paths, because a format that rounds
- * (money without cents) can still collide, and an axis that prints one number
- * twice answers nothing.
- *
- * A series that goes BELOW zero leaves this path entirely for `signedScale`:
- * zero-based is the right default for a count, and the wrong scale for a net.
+ * The zero-based scale. Candidate gap counts are tried in order and the first
+ * whose step the format prints exactly wins; a small domain takes integer
+ * steps; distinct labels are the last gate, because a rounding format can
+ * still collide. A series below zero goes to `signedScale` instead.
  */
 function heroScale(min: number, max: number, format: (value: number) => string) {
   if (min < 0) return signedScale(min, max, format);
@@ -366,25 +296,13 @@ function heroScale(min: number, max: number, format: (value: number) => string) 
 }
 
 /**
- * THE ONE TIME-SERIES SURFACE ON THE DESK (doc 14).
- *
- * Shared desk geometry and interactions: named series, date exploration,
- * comparisons and a data table. The Wall has a separate read-only TV contract
- * and keeps its own chart components.
- *
- * The x domain is EVERY calendar period in the range, built from the range and
- * not from the points, so a day no provider reported is a visible break rather
- * than a segment that quietly spans it — and two providers with different end
- * dates land on the same axis instead of being stretched to the same width.
- *
- * The y domain is zero-based for a count and SIGNED for a series that goes
- * below zero (bead `ro-78qo.28`) — /financials' net by month is the standing
- * case. That is a property of the data and not a prop: a chart cannot be asked
- * to draw a negative month above the floor, so there is nothing for a caller to
- * opt into. A line whose lowest reading is at least half its highest is
- * FITTED (`fittedScale`): its labelled floor sits just below the data, so
- * similar values draw as a shape rather than a flat band. Bars and steps stay
- * zero-based.
+ * The desk's one time-series surface; the Wall keeps its own chart components.
+ * The x domain is every calendar period in the range, built from the range and
+ * not from the points, so a missing day is a visible break and two providers
+ * with different end dates share one axis. The y domain is zero-based for a
+ * count, signed for a series that goes below zero, and fitted for a line that
+ * never comes near zero; none of that is a prop, because it is a property of
+ * the data.
  */
 export function HeroChart({
   title,
@@ -438,10 +356,9 @@ export function HeroChart({
     const lanes = series.map((one, index) => {
       const byLabel = new Map(one.points.map((point) => [point.t, point.v]));
       const raw = domain.map((label) => byLabel.get(label) ?? null);
-      // The average is taken over the WHOLE series and windowed afterwards, so
-      // the first visible day carries a true seven-day figure when there is
-      // history behind the window (doc 14's pre-roll rule) rather than a
-      // partial one that dips for no reason the operator can see.
+      // The average is taken over the whole series and windowed afterwards, so
+      // the first visible day carries a true figure when there is history
+      // behind the window.
       const boundary = one.provisionalFrom === undefined ? provisionalFrom : one.provisionalFrom;
       const complete = boundary === null ? one.points : one.points.filter((point) => point.t < boundary);
       // Average only actual completed observations, never the shared calendar
@@ -511,8 +428,7 @@ export function HeroChart({
   // The gutter is the widest label the format actually produces, so no tick
   // loses its leading digits at any width the chart is drawn at.
   const gutter = Math.max(...ticks.map((value) => axisLabelWidth(format(value))));
-  /** A drawn series went below zero, so the zero line is INSIDE the plot: it is
-   * the area's baseline and the line the eye measures each period against. */
+  // The zero line is inside the plot: the area's baseline.
   const signed = bottom < 0;
 
   const plotHeight = height - PAD_TOP - PAD_BOTTOM;
@@ -520,9 +436,7 @@ export function HeroChart({
     variant === "bars" ? ((index + 0.5) / domain.length) * VIEW_WIDTH
       : domain.length === 1 ? VIEW_WIDTH / 2 : (index / (domain.length - 1)) * VIEW_WIDTH;
   const yOf = (value: number) => PAD_TOP + (1 - (value - bottom) / (top - bottom)) * plotHeight;
-  /** The bottom of the PLOT BOX, which is `yOf(0)` only while the scale is
-   * zero-based. A mark on the axis and the hover crosshair span the whole box —
-   * on a signed scale they would otherwise stop at the zero line. */
+  // The bottom of the plot box, which is `yOf(0)` only on a zero-based scale.
   const floor = PAD_TOP + plotHeight;
   const percentOf = (index: number) => (xOf(index) / VIEW_WIDTH) * 100;
 
@@ -535,8 +449,7 @@ export function HeroChart({
   const bands =
     weekends && variant === "line" ? weekendSpans(domain.map((t) => ({ t, v: 0 }))) : [];
 
-  /** Segments of consecutive observed periods — a missing period BREAKS the
-   * line rather than being drawn through. */
+  // A missing period breaks the line rather than being drawn through.
   const segments = (values: (number | null)[]) => {
     const runs: { index: number; value: number }[][] = [];
     let run: { index: number; value: number }[] = [];
@@ -577,10 +490,9 @@ export function HeroChart({
             return stepped ? `H${x} V${y}` : `L${x} ${y}`;
           })
           .join(" ");
-        // Toward ZERO, not toward the floor: on a signed scale a negative month
-        // fills downward from the zero line, which is the only fill that says
-        // what the period was. A fitted scale has no zero inside the plot; its
-        // wash stops at the labelled floor.
+        // Toward zero, not the floor: a negative month fills downward from the
+        // zero line. A fitted scale has no zero inside the plot and stops at
+        // the labelled floor.
         const base = yOf(Math.max(0, bottom));
         return `${body} L${xOf(run.at(-1)!.index)} ${base} L${xOf(run[0]!.index)} ${base} Z`;
       })
@@ -619,27 +531,17 @@ export function HeroChart({
   function toggle(name: string) {
     setHidden((current) => {
       if (current.includes(name)) return current.filter((one) => one !== name);
-      // The last visible line never hides: an empty plot is not a view of the
-      // data, it is a chart the operator has to undo before it says anything.
+      // The last visible line never hides.
       if (lanes.length - current.length <= 1) return current;
       return [...current, name];
     });
   }
 
-  /* A PARTIAL DAY IS KEYED, NOT FOOTNOTED (bead `ro-ujb9.96.6.9`). The outline
-     is the chart's own encoding, so the chart names it beside the series it
-     qualifies, with the count — the panel above used to spend a sentence on
-     "outlined bars show reported subtotals". Which sources are missing is the
-     day's own readout. */
+  // A partial day is keyed beside the series it qualifies; which sources are
+  // missing is the day's own readout.
   const partialShown = variant === "bars" ? domain.filter((date) => partialDates.includes(date)).length : 0;
-  /* ONE KEY PER DRAWN MARK, IN ONE ROW (bead `ro-ujb9.12`). Each series is
-     keyed by its lead line exactly as drawn — tone, pattern and weight — and
-     with more than one series that key IS the toggle. A trailing average gets
-     two keys: the bold line is the average and the faint one under it is each
-     reported day, in the averaged series' own ink. When one series is
-     averaged, its own entry names the average, so the same glyph never
-     appears twice. The hollow end point is keyed as "Provisional", which is where its
-     explanation opens. */
+  // One key per drawn mark. When exactly one series is averaged, its own entry
+  // names the average, so the same glyph never appears twice.
   const smoothedShown = shown.filter((lane) => lane.smooth);
   const period = grain === "monthly" ? "month" : "day";
   const averageName = `${averageWindow}-${period} average`;
@@ -702,11 +604,7 @@ export function HeroChart({
         </ul>
       </div>
 
-      {/* The y gutter is measured, not `auto`: its labels are absolutely
-          positioned, so an `auto` column has nothing to measure and collapses
-          — and the padding at the end keeps the provisional cap inside the
-          card, since both the plot and the x labels sit in the same column and
-          narrow together. */}
+      {/* The y gutter is measured, not `auto` (see `axisLabelWidth`). */}
       <div
         className="grid gap-x-2"
         style={{
@@ -731,10 +629,8 @@ export function HeroChart({
           ))}
         </div>
 
-        {/* doc 14's phone rule: the hero chart stays FULL WIDTH and drops to
-            180px below `sm`. The height is a custom property rather than an
-            inline `height`, so a media query can still win — an inline style
-            beats every breakpoint there is. */}
+        {/* The height is a custom property rather than an inline `height`, so
+            the `max-sm` media query can still win. */}
         <div
           className="relative h-(--hero-height) rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:h-[180px]"
           style={{ "--hero-height": `${height}px` } as CSSProperties}
@@ -776,10 +672,8 @@ export function HeroChart({
               />
             ))}
 
-            {/* THE WINDOWS A CHANGE IS JUDGED IN (D44): a quiet warn wash
-                from the day the watch began to its verdict day, under the
-                series and the grid, so the ▲ mark and its consequence share
-                one axis. Clipped at the window's edge when it runs past it. */}
+            {/* Watch windows: a quiet wash under the series and the grid,
+                clipped at the chart's edge when a window runs past it. */}
             {windows.map((window) => (
               <rect
                 key={`span-${window.startIndex}-${window.label}`}
@@ -808,10 +702,8 @@ export function HeroChart({
               ),
             )}
 
-            {/* Still a hairline — a period's own ink is what the reader is
-                here for — but stronger than the grid, because on a signed
-                scale this is the line that says which side a month fell on.
-                Its label is the gutter's own zero tick. */}
+            {/* Stronger than the grid: the line that says which side a period
+                fell on. Its label is the gutter's own zero tick. */}
             {signed ? (
               <line
                 data-hero-zero=""
@@ -856,8 +748,7 @@ export function HeroChart({
                 </g>;
               }
               const stepped = variant === "step";
-              // A reference is read against the lead, so it never takes the
-              // wash that says "this is the quantity".
+              // A reference never takes the wash that says "this is the quantity".
               const filled = !lane.reference && (variant !== "line" || (area && shown.length === 1));
               const leadValues = variant === "line" && lane.smooth ? lane.average : lane.raw;
               return (
@@ -886,10 +777,8 @@ export function HeroChart({
                     strokeLinejoin="round"
                     vectorEffect="non-scaling-stroke"
                   />
-                  {/* Points are round-capped zero-length strokes (`ChartDot`),
-                      not circles: the plot's x is stretched to its box, and a
-                      circle drawn in it is an ellipse a third as wide on a
-                      phone. */}
+                  {/* Round-capped zero-length strokes, not circles: the plot's
+                      x is stretched, and a circle would be an ellipse. */}
                   {leadValues.map((value, index) => {
                     if (value === null) return null;
                     const isolated = leadValues[index - 1] == null && leadValues[index + 1] == null;
@@ -968,11 +857,8 @@ export function HeroChart({
           ) : null}
         </div>
 
-        {/* The last date is anchored to the END of the plot rather than
-            centred on its final point: at `left: 100%` a centred label has no
-            width left to grow into and breaks itself in two ("Sep" over "5").
-            The first is anchored to the start for the same reason at the other
-            end, and everything between is centred and told never to wrap. */}
+        {/* The first and last dates are anchored to the plot's ends: a centred
+            label at `left: 100%` has no width to grow into and wraps. */}
         <div ref={dateAxis} data-hero-x-axis className="relative col-start-2 mt-1 h-4" aria-hidden>
           {axisLabels.map((label) => {
             const index = domain.indexOf(label);

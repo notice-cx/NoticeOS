@@ -1,8 +1,5 @@
 // The egress gate's own contract: what proves the OS can get out, what it costs
-// to ask, and the single self-flag it files when the answer is no.
-//
-// The case these pin is 2026-08-08 — a dead house uplink that made every nightly
-// lane accuse the properties it could not reach. The rule that fixes it is
+// to ask, and the single self-flag it files when the answer is no. The rule is
 // narrow on purpose: any HTTP status proves egress, so only a fetch that never
 // completed is worth a question.
 
@@ -269,7 +266,7 @@ describe('os-egress-down flag', () => {
   });
 });
 
-describe('os-egress-down across collectors — one outage, every gap counted (ro-aed0.5)', () => {
+describe('os-egress-down across collectors — one outage, every gap counted', () => {
   const UP = { [CLOUDFLARE]: () => new Response('h=1', { status: 200 }) };
   const NIGHT = '2026-08-08T02:30:00.000Z';
   const MORNING = '2026-08-08T12:15:00.000Z';
@@ -425,7 +422,7 @@ describe('os-egress-down across collectors — one outage, every gap counted (ro
   });
 });
 
-describe('watchTransport — which failures the provider collectors may ask about (ro-aed0)', () => {
+describe('watchTransport — which failures the provider collectors may ask about', () => {
   it('recognizes only what the watched fetcher itself threw', async () => {
     const { fetchImpl } = stub({ 'https://api.example.test/ok': () => new Response('{}', { status: 503 }) });
     const transport = watchTransport(fetchImpl);

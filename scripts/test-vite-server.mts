@@ -1,12 +1,10 @@
-// A VITE DEV SERVER A TEST STARTS AND STOPS (beads ro-ujb9.186, ro-ujb9.192).
+// A Vite dev server a test starts and stops.
 //
 // Vite 8 starts a dependency optimizer when a dev server begins listening: a
 // rolldown scan and bundle running in the background. Closing the server while
 // that is still running kills the process inside rolldown's native code
 // (SIGSEGV or SIGBUS), or leaves the close waiting forever. A test server is
-// closed seconds after it starts, which is exactly then: the Tower's door e2e
-// test killed its Vitest worker that way, and the journey fixture servers
-// crashed or hung at their SIGTERM.
+// closed seconds after it starts, which is exactly then.
 //
 // So every Vite dev server a test or the journeys start in-process is created
 // by `createTestViteServer`, which gives it:

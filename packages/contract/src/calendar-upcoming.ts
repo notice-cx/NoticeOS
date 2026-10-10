@@ -1,4 +1,4 @@
-/** Cross-Worker contract for the Wall's upcoming-meetings read (bead `ro-c0d2`).
+/** Cross-Worker contract for the Wall's upcoming-meetings read.
  *
  * The ingest Worker owns the calendar feed URLs (an operator secret) and returns
  * plain data through a private Service Binding; the Tower proxies that shape to
@@ -45,11 +45,10 @@ export interface CalendarFeed {
    *   refused connection, an HTTP error, a response too large, or a body that
    *   was not a calendar at all.
    *
-   * The line between the last two is "could ingest tell without asking", NOT
-   * "who has to act" — so do not render `unreachable` as purely transient. A
-   * `403`, or an HTML sign-in page served as `200`, most often means the secret
-   * link was ROTATED and needs replacing by hand; both land in `unreachable`
-   * because only the round could discover them.
+   * The line between the last two is "could ingest tell without asking", not
+   * "who has to act": do not render `unreachable` as purely transient, since a
+   * `403` or a sign-in page served as `200` most often means the secret link
+   * was rotated.
    */
   status: 'ok' | 'unreachable' | 'misconfigured';
 }

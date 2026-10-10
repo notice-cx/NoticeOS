@@ -1,18 +1,8 @@
-// THE TOWER'S READS OF THE SITE LIST, on Postgres (bead ro-ujb9.76.4.2).
-//
-// `noticeos.assets` through the call's store (`env.STORE`, index.ts). Every
-// Tower reader that needs the sites alone asks here, so the row reaches each
-// of them in the shape the D1 row had: the id under its old name, the two flags
-// as 0/1, instants as JavaScript writes them. A reader that joins the sites
-// with a table still on D1 keeps reading D1, which the ingest keeps in step
-// (workers/ingest/src/asset-state.ts) until that table's unit moves it.
-//
-// Sites are listed by each site's stored place in the list (`SITE_ORDER`,
-// shared with the ingest's collectors through @noticeos/contract; bead
-// ro-ujb9.76.52): a new site at the end, an imported list in the order D1
-// held it, a moved site where the operator put it. A site is never deleted
-// (db/postgres/README.md, choice 5): a retired one is still listed, as it
-// always was; each reader decides whether to show it.
+// The Tower's reads of the site list (`noticeos.assets`). Every reader that
+// needs the sites alone asks here and gets one shape: the two flags as 0/1,
+// instants as JavaScript writes them. Sites come in their stored list order
+// (`SITE_ORDER`, shared with ingest). A site is never deleted: retired ones are
+// listed too and each reader decides whether to show them.
 
 import { SITE_ORDER } from "@noticeos/contract";
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";

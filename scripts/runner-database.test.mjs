@@ -1,4 +1,4 @@
-// scripts/runner/database.mjs (bead ro-ujb9.76.7.2): the runner reads
+// scripts/runner/database.mjs: the runner reads
 // DATABASE_URL from HOME's secrets file, checks it as the application login,
 // and hands it to its one Tower child's environment and nowhere else; a
 // missing or unusable address stops it before anything starts.
@@ -83,8 +83,8 @@ test("the address is read from home's secrets file, and a missing one is refused
   );
 });
 
-// Taking the Compose profile's address is `pnpm start`'s, for a new folder
-// (bead ro-ujb9.76.7.3). The managed service never takes it: a home without
+// Taking the Compose profile's address is `pnpm start`'s, for a new folder.
+// The managed service never takes it: a home without
 // DATABASE_URL is refused even beside a profile that holds one.
 test("the runner never takes the Compose profile's address, and leaves home's secrets file as it was", (t) => {
   const missing = homeWith(t, { OPERATOR_TOKEN: 'x' });

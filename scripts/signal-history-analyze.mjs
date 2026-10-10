@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// THE ANALYSIS, READ FROM THE HISTORY FILES (bead ro-ujb9.67.3, decision D25).
+// The analysis, read from the history files.
 //
 // The one signal report: one
 // CSV per report family, index-coverage.csv, executive.json and summary.json —
@@ -10,19 +10,15 @@
 //   pnpm signals:analyze-history -- --asset example.com --history <history folder> --out <report link>
 //
 // The archive writer owns normalization and revision choice; this module alone
-// owns CSV/report publication. Frozen reference hashes prove report parity
-// with the retired raw analyzer over one copy per report day. A report day
-// delivered twice is read once, from the copy read last under the history
-// rule. Raw evidence and dated reference outputs remain available for rebuild
-// and comparison; signal-history-analyze.test.mjs covers those contracts.
+// owns CSV/report publication. A report day delivered twice is read once, from
+// the copy read last under the history rule.
 //
 // Parquet cannot tell an empty cell from a missing one, nor the number 20 from
 // the text "20" in a column that holds both. An empty cell is read back as ''
 // and such a column as text; the rules read every value through helpers that
-// treat these alike, and docs/artifacts/signal-history-analyze-2026-09-29/
-// measures that no finding changes (rules-blindness.mjs).
+// treat these alike.
 //
-// PINNED TO A GENERATION. A run reads one generation — the newest, or
+// Pinned to a generation. A run reads one generation — the newest, or
 // `--generation <n>` — checks every file it reads against the sha256 its
 // manifest records, and names it in report.json. The same generation read by
 // the same code on the same clock writes the same bytes. It refuses:
@@ -39,7 +35,7 @@
 //     scripts/history-files.mjs), asked for or removed while the job reads
 //     it: the refusal names the generation, the rule and the oldest kept.
 //
-// BOUNDED. The work runs in a child process with four limits, and hitting any
+// Bounded. The work runs in a child process with four limits, and hitting any
 // one stops it with a plain message and publishes nothing:
 //   --memory-mb           the child's JavaScript heap (V8's own limit)
 //   --duckdb-memory-mb    DuckDB's memory
@@ -51,7 +47,7 @@
 // its own spill folder, loads no extension and cannot change its settings.
 // There is no database file, so no second process can open one.
 //
-// PUBLISHED WHOLE. `--out` is a link to the newest complete report, a folder
+// Published whole. `--out` is a link to the newest complete report, a folder
 // under `<out>.reports/`. The job stages the whole report beside it, flushes it
 // to disk and swaps the link in one rename, so a reader of `--out` sees the
 // previous report or the new one, never a mix, and a job stopped at any point —
@@ -107,10 +103,10 @@ function record(value) {
 }
 
 /**
- * THE SITE'S SAVED SEARCH MARKET in a stored settings snapshot (bead
- * ro-ujb9.207): its `dataforseo` entry in config/integrations.json, read by the
- * contract's rule the collector asks by. Null when the site saved none, and
- * its findings name its default market rather than assume one.
+ * The site's saved search market in a stored settings snapshot: its
+ * `dataforseo` entry in config/integrations.json, read by the contract's rule
+ * the collector asks by. Null when the site saved none, and its findings name
+ * its default market rather than assume one.
  */
 export function storedSearchMarket(snapshot, asset) {
   const assets = record(record(snapshot.get('config/integrations.json')?.body)?.assets);

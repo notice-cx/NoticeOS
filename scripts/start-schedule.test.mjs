@@ -1,4 +1,4 @@
-// The schedule of an installation `pnpm start` runs (bead ro-ujb9.156): the
+// The schedule of an installation `pnpm start` runs: the
 // ingest's crons, fired at that installation's door, recorded in its folder,
 // shipped to its store — and none of the managed service's host lanes.
 //
@@ -163,7 +163,7 @@ test('a lane its person paused is neither ticked nor caught up', async (t) => {
   assert.equal(parseJobRuns(readFileSync(schedulePaths(home).jobRuns, 'utf8')).some((r) => r.job === jobRunName(paused)), false);
 });
 
-// ─── Its host lanes, once set up (bead ro-ujb9.174) ──────────────────────────
+// ─── Its host lanes, once set up ──────────────────────────
 
 /** A door that also serves the saved settings — the schedules and, when
  * given, task projects whose hub is the door itself — and takes snapshots. */

@@ -64,10 +64,9 @@ describe("buildChangeset serializer", () => {
     expect(cs.slug).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/); // kebab, CLI-accepted
   });
 
-  // A SLUG THE PIPELINE ACCEPTS, out of words no surface can choose (bead
-  // `ro-6ygn`). An asset id is domain-shaped and a declared field is camelCase,
-  // and `validateSchemaAndSafety` wants kebab-case — so interpolating them
-  // refused every Save on an asset's Sources tab for its filename.
+  // An asset id is domain-shaped and a declared field is camelCase, and
+  // `validateSchemaAndSafety` wants kebab-case, so a slug interpolating them
+  // would be refused.
   it("changesetSlug is kebab-case, and readable", () => {
     expect(changesetSlug("meals.example", "ga4", "propertyId")).toBe(
       "meals-example-ga4-property-id",

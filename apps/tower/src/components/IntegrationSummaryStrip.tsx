@@ -16,11 +16,7 @@ export interface IntegrationSummaryStripProps {
   className?: string;
 }
 
-/**
- * The register's totals above its grid, in the connection vocabulary every
- * other screen uses (bead `ro-ujb9.96.7.3`): one chip per status with a count,
- * and one line of reusable credentials still to add. Counts, never sentences.
- */
+/** The register's totals above its grid: one chip per status with a count. */
 export function IntegrationSummaryStrip({ counts, sharedCredential, className }: IntegrationSummaryStripProps) {
   const nonZero = ORDER.filter((kind) => (counts[kind] ?? 0) > 0);
   const shared = sharedCredential && sharedCredential.cells > 0 ? sharedCredential : null;

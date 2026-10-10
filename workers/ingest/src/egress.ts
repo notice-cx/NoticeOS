@@ -1,56 +1,29 @@
-// Can the OS get out? — asked before any property is accused of being dark
-// (beads ro-034).
+// Can the OS get out? Asked before any property is accused of being dark, so
+// the OS's own blindness is never reported as six properties' outage.
 //
-// THE INCIDENT. 2026-08-08, the operator's home internet was down for the night.
-// Every nightly lane in this OS runs from that machine, so every one of them was
-// fetching into a wall. The 04:00 hygiene sweep fired ~15 flags across six
-// properties (`hygiene-home-unreachable`, `hygiene-robots-ai` reporting the file
-// "vanished", `hygiene-sitemap` unreachable) and the 02:30 pull lane fired
-// `asset-pull-failed` on two more. Not one property had changed anything. The OS
-// had reported its own blindness as six other people's outage, and every alert
-// was of the kind an operator has to open before learning it was nothing.
-//
-// WHY NOT READ THE ERROR. workerd wraps a connection-level failure as
-// "internal error; reference = 0123…" — the same sentence for a dead uplink, a
-// refused connection, and DNS that never resolved. There is nothing in the string
-// to attribute. What IS decisive is the presence of a status: an HTTP status of
-// ANY kind — 403, 404, even 500 — proves a packet left this machine, reached an
-// origin, and came back, so that failure is the property's and this module is
-// never consulted about it. Only `status === null` is ambiguous, and only that
-// case pays for a probe. That single rule is what keeps the gate from ever making
-// the lanes quieter about a real outage.
-//
-// TWO BEACONS, TWO OPERATORS. Cloudflare's trace endpoint and Google's
-// generate_204, on purpose: one company having a bad afternoon must not read as
-// this house's uplink being down. Egress is UP the moment either answers with any
-// status at all; it is DOWN only when every one of them fails at the transport
-// level, which is the same evidence the property fetch produced and therefore the
-// only honest reason to stop blaming the property.
-//
-// WHAT THIS MODULE IS NOT: it is not a health check on the beacons and it stores
-// nothing about them beyond whether they answered us. Requests go out under this
-// OS's own honest User-Agent, the same posture src/hygiene.ts takes toward the
-// properties it reads.
+// workerd wraps every connection-level failure in the same sentence, so the
+// error string cannot be attributed. What is decisive is the presence of a
+// status: any HTTP status proves a packet left this machine and came back, so
+// that failure is the property's and this module is never consulted. Only
+// `status === null` is ambiguous, and only that case pays for a probe. Two
+// beacons from two operators: egress is up the moment either answers with any
+// status, and down only when every one fails at the transport level. Requests
+// go out under this OS's own honest User-Agent.
 
 import { type OpenAlert, appendReading, holdCondition, raiseAlertUnlessOpen, readOpenAlert } from './alert-store.js';
 import { readOsAssetId } from './os-asset.js';
 
-/** rule id stamped on the ONE flag the OS files against itself when it cannot
- * reach the network. It lives on asset #0's row: the subject of this alert is
- * the OS, and a flag on a property would be the very mistake it exists to stop.
- *
- * The `egress_checks` rows this gate writes have a second reader:
- * `runFreshnessCheck` (src/db.ts) subtracts the dark spans they evidence from a
- * property's silence before accusing it of staleness (ro-6le), so a change to
- * what a row MEANS here changes what an ingest-freshness flag says there. */
+/** The one flag the OS files against itself when it cannot reach the network.
+ * It lives on asset #0's row: the subject of this alert is the OS. The
+ * `egress_checks` rows this gate writes have a second reader, `runFreshnessCheck`
+ * (src/db.ts), which subtracts the dark spans they evidence from a property's
+ * silence. */
 export const EGRESS_DOWN_RULE_ID = 'os-egress-down';
 
 /**
- * The reference sites, in the order they are asked. Both are endpoints whose
- * whole job is to answer cheaply and say nothing (a plaintext trace, a 204), run
- * by two independent operators. Neither is a property of this portfolio — asking
- * one of our own origins whether we can reach the internet would fail exactly
- * when a property is down, which is the case this gate has to get right.
+ * The reference sites, in the order they are asked: endpoints whose whole job
+ * is to answer cheaply, run by two independent operators. Never one of our own
+ * origins, which would fail exactly when a property is down.
  */
 export const EGRESS_BEACONS = [
   'https://www.cloudflare.com/cdn-cgi/trace',
@@ -58,33 +31,25 @@ export const EGRESS_BEACONS = [
 ] as const;
 
 /**
- * Who we say we are, same contract as `HYGIENE_USER_AGENT`: honest
- * identification with a contact URL, and a distinct product token so a beacon
- * operator reading their logs can tell a connectivity self-check apart from this
- * OS reading a property.
+ * Honest identification with a contact URL, and a product token distinct from
+ * the hygiene lane's.
  */
 export const EGRESS_USER_AGENT =
   'NoticeOS-Egress/1.0 (+https://www.notice.cx; connectivity self-check)';
 
 /**
- * Per-beacon ceiling. Deliberately a third of the hygiene lane's 15s: this
- * request is not the work, it is the question asked before deciding whose fault
- * the work's failure was, and it is asked while a lane is already waiting.
+ * Per-beacon ceiling, a third of the hygiene lane's: this is the question asked
+ * while a lane is already waiting, not the work.
  */
 const BEACON_TIMEOUT_MS = 5_000;
 
 /**
- * How long one verdict stands before the next failure re-asks.
- *
- * Re-asking at all is the point: an outage can begin in the middle of a sweep,
- * and a verdict cached for the whole run would let the properties checked after
- * it starts get flagged anyway. The window only bounds the cost — six properties
- * failing six fetches each is 36 questions, and they are all the same question.
+ * How long one verdict stands before the next failure re-asks. Re-asking is the
+ * point: an outage can begin mid-sweep. The window only bounds the cost.
  */
 export const EGRESS_VERDICT_TTL_MS = 5 * 60_000;
 
-/** One beacon's answer. `status === null` is the only failure that matters here:
- * it means nothing came back at all. */
+/** One beacon's answer. `status === null` means nothing came back at all. */
 export interface BeaconReading {
   url: string;
   status: number | null;
@@ -132,11 +97,9 @@ export const EGRESS_NOT_ASKED: EgressRunOutcome = {
 };
 
 /**
- * The collectors that ask the gate. Each keeps its OWN entry on the one flag
- * (bead `ro-aed0.5`): before that, every lane rewrote the flag's count with its
- * own, so the alert showed whichever lane ran last — an undercount of what the
- * outage actually left dark — and the first lane to get through again retracted
- * it while the others were still owed their re-collection.
+ * The collectors that ask the gate. Each keeps its own entry on the one flag,
+ * so the alert counts what the outage left dark across all of them and the
+ * first lane through again does not retract it while others are still owed.
  */
 export const EGRESS_LANES = [
   'pull',
@@ -146,24 +109,19 @@ export const EGRESS_LANES = [
   'signal-dumps',
   'dataforseo',
   'posthog',
-  // The hourly home-page check (hygiene.ts `runUptimeChecks`, bead ro-ujb9.165).
+  // The hourly home-page check (hygiene.ts `runUptimeChecks`).
   'uptime',
 ] as const;
 export type EgressLaneId = (typeof EGRESS_LANES)[number];
 
 /** One collector's share of an outage: what its runs left unmeasured and have
- * not measured since. It stays on the flag until that collector covers it again. */
+ * not measured since. */
 export interface EgressLaneRecord {
   /** The properties, in the order they first went unmeasured. */
   unmeasuredAssets: string[];
-  /**
-   * Per property, the parts of it (a report family) the collector named when it
-   * gave up. A property with no entry here went unmeasured WHOLE. Kept because a
-   * collector's own scoped runs cover families, not whole properties, and must
-   * clear exactly what they re-collected — and because the DataForSEO daily
-   * re-collection (bead `ro-aed0.6`) re-runs exactly these families, never one
-   * that failed at the provider.
-   */
+  /** Per property, the parts of it (a report family) the collector named when
+   * it gave up; a property with no entry here went unmeasured whole. A scoped
+   * run clears exactly what it re-collected. */
   parts?: Record<string, string[]>;
   /** The run that last added to this record. */
   lastFailedAt: string;
@@ -172,12 +130,10 @@ export interface EgressLaneRecord {
 /** What the os-egress-down flag persists, rewritten by every gated run that owes it. */
 interface EgressFlagInputs {
   rule: typeof EGRESS_DOWN_RULE_ID;
-  /** Every beacon that failed on the most recent down verdict, with its error
-   * verbatim — the operator's evidence that this was the uplink and not a property. */
+  /** Every beacon that failed on the most recent down verdict, with its error. */
   beacons: { url: string; error: string }[];
-  /** EVERY collector's unmeasured properties, de-duplicated — the number the
-   * alert leads with. Derived from `lanes`, and kept flat so a reader that
-   * predates the per-collector entries still reads the right total. */
+  /** Every collector's unmeasured properties, de-duplicated: the number the
+   * alert leads with. Derived from `lanes`. */
   unmeasuredAssets: string[];
   /** Per collector, what it is still owed. The flag stays open while any is. */
   lanes: Partial<Record<string, EgressLaneRecord>>;
@@ -185,19 +141,15 @@ interface EgressFlagInputs {
   failureCount: number;
   /** The most recent down verdict; the row's `fired_at` stays the FIRST one. */
   lastFailedAt: string;
-  /**
-   * When a reference site first answered again after the last down verdict, or
-   * null while the connection is still out. Set means the outage itself is over
-   * and the flag is open only for the collectors that have not re-run yet — the
-   * Tower says "connection back", not "connection down", off this field.
-   */
+  /** When a reference site first answered again after the last down verdict,
+   * or null while the connection is still out. Set means the flag is open only
+   * for the collectors that have not re-run yet. */
   connectionBackAt: string | null;
   evaluatedAt: string;
 }
 
 /** The open flag's stored inputs as the gate needs them, whatever shape an
- * older writer left them in (a flag opened before `lanes` existed reads as one
- * with no collector entries, so the first up verdict retracts it as it always did). */
+ * older writer left them in. */
 interface PriorEgressInputs {
   beacons: { url: string; error: string }[];
   lanes: Record<string, EgressLaneRecord>;
@@ -209,45 +161,29 @@ interface PriorEgressInputs {
 export interface EgressGateOptions {
   /** Which collector this run is — the key of its entry on the flag. */
   lane: EgressLaneId;
-  /** Override the outbound fetcher — the SAME one the lane uses, so a test that
-   * kills the network kills the beacons with it. */
+  /** The same fetcher the lane uses, so a test that kills the network kills
+   * the beacons with it. */
   fetchImpl?: typeof fetch;
-  /**
-   * The lane run's instant, ISO UTC. Every egress row and every flag write this
-   * gate makes carries it, so an egress reading and the property readings it
-   * explains can never look like they were about different moments.
-   */
+  /** The lane run's instant, ISO UTC, carried on every row and flag write this
+   * gate makes. */
   at: string;
-  /**
-   * Wall clock, read ONLY for the verdict TTL above and never for a stored
-   * value. Injected so a test can hold time still or push it past the window;
-   * the lanes leave it alone, because a run's own timestamp is frozen and a
-   * frozen clock cannot notice an outage that starts mid-sweep.
-   */
+  /** Wall clock, read only for the verdict TTL: a run's own timestamp is frozen
+   * and cannot notice an outage that starts mid-sweep. */
   clock?: () => number;
 }
 
 export interface EgressFinalizeOptions {
-  /**
-   * Which of this collector's EARLIER unmeasured entries the run answered for.
-   * Omitted means all of them: a full sweep's result replaces the collector's
-   * entry outright, so what it measured drops off and what it missed again stays.
-   * A scoped run — one property on demand — passes the slice it covered, so the
-   * properties it never tried are still owed. `part` is null for an entry that
-   * named the whole property.
-   */
+  /** Which of this collector's earlier unmeasured entries the run answered
+   * for. Omitted means all of them; a scoped run passes the slice it covered.
+   * `part` is null for an entry that named the whole property. */
   covers?: (asset: string, part: string | null) => boolean;
 }
 
 /**
  * One run's egress gate: the cached verdict, the properties it caused to be
- * skipped, and this collector's entry on the single self-flag it files at the end.
- *
- * Created once per lane run and consulted only from the `status === null`
- * branches. It is deliberately LAZY — nothing is probed until a fetch has
- * actually come back empty-handed. An eager check at sweep start would cost two
- * requests on every healthy night to learn what the property fetches were about
- * to prove anyway, and it would spend them before the lane had a question.
+ * skipped, and this collector's entry on the single self-flag it files at the
+ * end. Lazy: nothing is probed until a fetch has come back empty-handed, so a
+ * healthy night costs nothing.
  */
 export class EgressGate {
   private readonly env: IngestEnv;
@@ -256,8 +192,8 @@ export class EgressGate {
   private readonly at: string;
   private readonly clock: () => number;
   private verdict: EgressVerdict | null = null;
-  /** The most recent DOWN verdict — the flag's evidence, even when the run
-   * later saw the connection come back. */
+  /** The most recent down verdict: the flag's evidence, even when the run later
+   * saw the connection come back. */
   private lastDown: EgressVerdict | null = null;
   /** property -> the parts of it left unmeasured; null = the whole property. */
   private readonly unmeasured = new Map<string, Set<string> | null>();
@@ -284,9 +220,8 @@ export class EgressGate {
   /**
    * The current verdict, probing at most once per {@link EGRESS_VERDICT_TTL_MS}.
    * Every completed round is recorded in `egress_checks`. The flag itself is
-   * settled once, at {@link finalize}: whether this collector is still owed a
-   * re-check depends on everything the run went on to measure, which a probe in
-   * the middle of it cannot know.
+   * settled once, at {@link finalize}, because what this collector is owed
+   * depends on everything the run went on to measure.
    */
   async check(): Promise<EgressVerdict> {
     const now = this.clock();
@@ -312,10 +247,8 @@ export class EgressGate {
   }
 
   /**
-   * Note that a property went unchecked this run. Idempotent per asset: one
-   * property can fail all three hygiene checks in one night and is still one
-   * property nobody measured. `part` names the piece of it that was skipped (a
-   * report family) when the collector can say; without it the whole property is.
+   * Note that a property went unchecked this run. Idempotent per asset. `part`
+   * names the piece of it that was skipped when the collector can say.
    */
   recordUnmeasured(asset: string, part?: string): void {
     if (!this.unmeasured.has(asset)) {
@@ -330,17 +263,11 @@ export class EgressGate {
 
   /**
    * End of the lane run. Settles this collector's entry on the flag with what
-   * the run actually measured — which is why the flag is written here and not at
-   * probe time: the entry names what went unmeasured, and that does not exist
-   * until the run is over.
-   *
-   * A run that never had to ask still asks ONCE when the open flag is waiting on
-   * it: when this collector has an entry to clear, or when nothing has yet seen
-   * the connection come back. Without that, a night on which every property
-   * answered — the exact shape of recovery — would never probe, the entry would
-   * stand forever, and the up reading that closes the dark span in
-   * `egress_checks` would never be written. A collector with nothing owed, once
-   * another has already seen the connection back, costs nothing.
+   * the run actually measured. A run that never had to ask still asks once
+   * when the open flag is waiting on it (this collector has an entry to clear,
+   * or nothing has yet seen the connection come back); otherwise a night on
+   * which every property answered would never probe and the entry would stand
+   * forever.
    */
   async finalize(options: EgressFinalizeOptions = {}): Promise<EgressRunOutcome> {
     if (this.verdict === null) {
@@ -363,10 +290,8 @@ export class EgressGate {
   }
 
   /**
-   * Ask the beacons in order, stopping at the first HTTP status. Any status is
-   * the whole proof, so a second opinion about a question already answered is a
-   * request spent on nothing — the healthy check costs ONE request, and only a
-   * real outage pays for the rest (whose errors then become the flag's evidence).
+   * Ask the beacons in order, stopping at the first HTTP status: the healthy
+   * check costs one request, and only a real outage pays for the rest.
    */
   private async probe(): Promise<BeaconReading[]> {
     const readings: BeaconReading[] = [];
@@ -378,8 +303,7 @@ export class EgressGate {
     return readings;
   }
 
-  /** Store the reading, on Postgres (`noticeos.egress_checks`, bead
-   * ro-ujb9.76.5.1). D1's db/0023 says why a suppressed alert needs a row. */
+  /** Store the reading; a suppressed alert still needs a row. */
   private async record(verdict: EgressVerdict): Promise<void> {
     await this.env.STORE.write((tx) =>
       tx.execute(
@@ -397,29 +321,15 @@ export class EgressGate {
   }
 
   /**
-   * Fire, refresh or retract the single os-egress-down flag, mirroring
-   * `firePullFailure` (src/pull.ts), because it is the same shape of fact: an
-   * ONGOING condition observed once per lane run. A week-long outage is one
-   * problem, not fourteen lane runs' worth, so the first observation INSERTs
-   * (guarded by NOT EXISTS against an open flag with this rule) and every one
-   * after becomes that alert's newest reading (`noticeos.flag_evidence`, bead
-   * ro-ujb9.76.5.2; D1 rewrote the row), while `fired_at` stays the moment the
-   * connection went.
-   *
-   * What a refresh changes is THIS collector's entry and the evidence it saw;
-   * every other collector's entry is carried through untouched, and the headline
-   * count is their union. The flag is retracted only by an up verdict that
-   * leaves no collector owed anything — "the connection is back" and "the
-   * outage's gaps are filled" are two facts, and the alert keeps the second.
-   *
-   * ONE COLLECTOR AT A TIME. Two lanes share a tick (the 02:30 pull and Bing
-   * run together), and each carries the other's entries through, so the read,
-   * the merge and the write are one transaction that holds the condition: a
-   * second collector waits and then merges onto the first one's reading, rather
-   * than overwriting its entry — which is the bug this whole record exists to
-   * fix. (D1 got there with a compare-and-swap retried five times.) The
-   * readings are stamped by the store, one instant each, because two
-   * collectors can settle at one lane instant.
+   * Fire, refresh or retract the single os-egress-down flag as an ongoing
+   * condition observed once per lane run: the first observation inserts and
+   * every one after becomes the alert's newest reading, while `fired_at` stays
+   * the moment the connection went. A refresh changes this collector's entry
+   * and the evidence it saw; every other collector's entry is carried through,
+   * and the headline count is their union. The flag is retracted only by an up
+   * verdict that leaves no collector owed anything. One collector at a time:
+   * the read, the merge and the write are one transaction that holds the
+   * condition, so two lanes sharing a tick merge rather than overwrite.
    */
   private async settle(
     verdict: EgressVerdict,
@@ -463,7 +373,7 @@ export class EgressGate {
         lanes,
         failureCount: prior.failureCount + (lastDown === null ? 0 : 1),
         lastFailedAt: lastDown === null ? (prior.lastFailedAt ?? this.at) : this.at,
-        // Back as of THIS run when it saw the connection fail and then answer;
+        // Back as of this run when it saw the connection fail and then answer;
         // otherwise the earlier sighting stands. A down verdict clears it.
         connectionBackAt: verdict.up
           ? lastDown === null
@@ -495,11 +405,7 @@ export class EgressGate {
   }
 }
 
-/**
- * Asset #0's id, read from the store rather than written down here
- * (`./os-asset.ts`, the one reader). A store with no OS row gets no flag —
- * this alert would have no subject.
- */
+/** Asset #0's id, from the store. A store with no OS row gets no flag. */
 const osAssetId = readOsAssetId;
 
 /** The open os-egress-down alert, as its newest reading states it. */
@@ -509,9 +415,7 @@ async function readOpenEgressFlag(env: IngestEnv, asset: string): Promise<OpenAl
 
 /**
  * What the open flag says one collector is still owed, or null when nothing is
- * open or that collector has no entry. Read by a collector deciding whether it
- * has an outage's gaps to fill — the DataForSEO daily re-collection (bead
- * `ro-aed0.6`) runs only the families listed here, and nothing when it is null.
+ * open or that collector has no entry.
  */
 export async function openEgressLaneRecord(
   env: IngestEnv,
@@ -580,8 +484,7 @@ function unionOfLanes(lanes: Partial<Record<string, EgressLaneRecord>>): string[
   return [...all];
 }
 
-/** The stored message — the count, not the list: six property names would not
- * fit a glance, and the list is one popover away in the inputs. */
+/** The count, not the list: the list is one popover away in the inputs. */
 function egressFlagMessage(inputs: EgressFlagInputs): string {
   const n = inputs.unmeasuredAssets.length;
   return inputs.connectionBackAt === null
@@ -653,24 +556,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 // ---------------------------------------------------------------------------
-// The provider-collector half (beads ro-aed0.1–.4)
+// The provider-collector half
 // ---------------------------------------------------------------------------
 //
 // The hygiene and pull lanes read a status off their own fetch before asking
-// the gate. The provider collectors — Google, Bing, the nightly archive,
-// DataForSEO, PostHog (`ro-aed0.8`) — cannot: their fetches are buried inside token mints, discovery
-// calls and retry ladders that turn every failure into an error object before
-// the lane sees it. So the lane wraps its fetcher ONCE and asks afterwards
-// whether a given error is exactly what that fetcher threw. That is the same
-// `status === null` rule, read by identity instead of by variable, and it keeps
-// a malformed key, a D1 write or a provider's own error sentence from ever
-// being mistaken for a dead uplink.
+// the gate. The provider collectors cannot: their fetches are buried inside
+// token mints, discovery calls and retry ladders. So the lane wraps its fetcher
+// once and asks afterwards whether a given error is exactly what that fetcher
+// threw: the same `status === null` rule, read by identity.
 
 /**
- * The code a collector's run result carries for a family or property it did not
- * measure because the OS could not get out. It is never written to a provider's
- * run table — the only durable trace of that night is the `egress_checks` row
- * and the one `os-egress-down` flag, which is the whole point.
+ * The code a collector's run result carries for a family or property it did
+ * not measure because the OS could not get out. Never written to a provider's
+ * run table: the only durable trace is the `egress_checks` row and the flag.
  */
 export const EGRESS_DOWN_CODE = 'os_egress_down';
 
@@ -678,16 +576,12 @@ export const EGRESS_DOWN_CODE = 'os_egress_down';
 export interface TransportWatch {
   /** Hand this to every provider call the lane makes. */
   readonly fetch: typeof fetch;
-  /**
-   * True only for an error that fetcher itself threw: the request produced no
-   * response at all. Anything with a status — a 401, a 503, a body that would
-   * not parse — was an answer from the far side and is never the uplink's.
-   */
+  /** True only for an error that fetcher itself threw: the request produced no
+   * response at all. */
   statusless(error: unknown): boolean;
 }
 
-/** Wrap a lane's fetcher. Identity is the evidence, so the error is rethrown
- * untouched — every caller's existing handling sees exactly what it saw before. */
+/** Wrap a lane's fetcher. The error is rethrown untouched; identity is the evidence. */
 export function watchTransport(fetchImpl: typeof fetch): TransportWatch {
   const failures = new WeakSet<object>();
   const watched = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -706,9 +600,8 @@ export function watchTransport(fetchImpl: typeof fetch): TransportWatch {
 
 /**
  * The one question a collector asks before it blames a provider: did this call
- * never come back, AND is the OS's own connection what is down? Only a
- * status-less failure pays for the (cached) probe, so a healthy night and a
- * provider that answered with an error never touch the gate.
+ * never come back, and is the OS's own connection what is down? Only a
+ * status-less failure pays for the (cached) probe.
  */
 export async function egressExplains(
   gate: EgressGate,
@@ -719,10 +612,8 @@ export async function egressExplains(
 }
 
 /**
- * One beacon GET. Never throws: a beacon that fails is the reading, not an
- * exception — this whole module exists to turn a failed request into a fact.
- * The body is dropped unread (`redirect: 'manual'` for the same reason: a 301
- * already proves egress, so following it would spend a request to learn nothing).
+ * One beacon GET. Never throws: a failed beacon is the reading. The body is
+ * dropped unread, and `redirect: 'manual'` because a 301 already proves egress.
  */
 async function probeBeacon(fetchImpl: typeof fetch, url: string): Promise<BeaconReading> {
   try {

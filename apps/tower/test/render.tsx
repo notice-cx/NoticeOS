@@ -7,9 +7,8 @@ import { resetAnswerQueue, standaloneAnswerQueue } from '@/lib/answer-queue';
 
 export * from '@testing-library/react';
 
-/** Legacy component cases explicitly exercise standalone compatibility. New
- * ownership/entry cases import testing-library directly and supply real facts.
- * This is neither a production fallback nor a mock of the runtime hook. */
+/** Legacy component cases exercise standalone compatibility; new ownership
+ * cases import testing-library directly and supply real facts. */
 function StandaloneTestOwner({ children }: { children: ReactNode }) {
   const [runtime] = useState(() => {
     resetAnswerQueue();

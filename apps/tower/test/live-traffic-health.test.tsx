@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Ga4RealtimeAsset } from '@noticeos/contract';
 import { liveTrafficCardIssue, liveTrafficFailure } from '@shared/live-traffic-health';
 
-// The one live-traffic issue a Wall site row names (`LiveUsers`). The page-wide
-// summary nothing drew left in bead ro-trai.41; these are the states still read.
+// The one live-traffic issue a Wall site row names (`LiveUsers`).
 const AT = '2026-09-11T00:00:00Z';
 const NOW = Date.parse(AT);
 const good = (asset = 'plate.example'): Extract<Ga4RealtimeAsset, { status: 'success' }> => ({ asset, status: 'success', activeUsers5m: 0, activeUsers30m: 0, hourlyActiveUsers: [], observedAt: AT, timeZone: 'America/Los_Angeles', errorCode: null });

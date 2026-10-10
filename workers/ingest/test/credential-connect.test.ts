@@ -1,6 +1,6 @@
-// The connect panel's save-and-test (bead `ro-ujb9.96.7.1`).
+// The connect panel's save-and-test.
 //
-// One rule carries the design: the provider is asked FIRST and the credential
+// One rule carries the design: the provider is asked first and the credential
 // is stored only when it says yes. Against real Postgres and real WebCrypto; the
 // providers are stubbed at the network boundary (the `fetchImpl` the call
 // goes out through), so Bing's and DataForSEO's own endpoints, request shapes
@@ -139,7 +139,7 @@ describe('save and test: the provider answers before anything is stored', () => 
   });
 });
 
-describe('Discord and calendar feeds in the panel (bead ro-ujb9.96.7.14)', () => {
+describe('Discord and calendar feeds in the panel', () => {
   const WEBHOOK = 'https://discord.com/api/webhooks/1/SEKRIT-discord-connect-do-not-echo';
   const FEED = 'https://calendar.example/SEKRIT-feed-do-not-echo/basic.ics';
 
@@ -199,7 +199,7 @@ describe('Discord and calendar feeds in the panel (bead ro-ujb9.96.7.14)', () =>
 describe('what it refuses before asking any provider', () => {
   it('refuses a provider that does not connect with one key', async () => {
     let asked = false;
-    // Clarity's tokens are pasted per site, on their own rows (bead ro-ujb9.96.7.9).
+    // Clarity's tokens are pasted per site, on their own rows.
     const result = await connectCredential(env, { provider: 'clarity', fields: { CLARITY_TOKENS: '{"example.com":"SEKRIT"}' } },
       { fetchImpl: (async () => { asked = true; return new Response(''); }) as typeof fetch, nowMs: NOW });
     expect(result).toEqual({ ok: false, error: 'not_supported', provider: 'clarity' });

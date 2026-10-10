@@ -1,21 +1,21 @@
-// THE PROOF THAT EVERY TEST FILE STARTS CLEAN IN A REUSED RUNTIME (bead
-// ro-ujb9.168; the reset is test/clean-start.ts, the fence test/store-fence.ts).
+// The proof that every test file starts clean in a reused runtime (the reset
+// is test/clean-start.ts, the fence test/store-fence.ts).
 //
 // isolation-probe-a.test.ts and isolation-probe-b.test.ts are this one file
 // under two names. Each first checks that it starts from the migrated store,
 // an empty bucket and cache, and no module state held (src/isolate-state.ts);
 // then it leaves all of those dirty behind it — a saved settings document, a
-// stored object, a cached response, a warm read cache — and it leaves work running: writes to
-// the database, the bucket and the cache, waiting to be let go. Whichever of
-// the two runs second in a runtime checks what the first left and lets its
-// work go, which must be refused and land nowhere, so either order proves it.
-// Each also leaves a dead fake clock's setTimeout on the global, and the next
-// file's timers still fire (bead ro-ujb9.76.64).
+// stored object, a cached response, a warm read cache — and it leaves work
+// running: writes to the database, the bucket and the cache, waiting to be let
+// go. Whichever of the two runs second in a runtime checks what the first left
+// and lets its work go, which must be refused and land nowhere, so either order
+// proves it. Each also leaves a dead fake clock's setTimeout on the global, and
+// the next file's timers still fire.
 // In the full suite they share a runtime only by chance;
 // `vitest run test/isolation-probe --maxWorkers=1` always puts them in one.
 // Inside each file, one test leaves the same work for the next to let go.
 // Postgres is in both halves: the settings document the probe saves lives
-// there now (src/config-store.ts), and so does a site it leaves; both are gone
+// there (src/config-store.ts), and so does a site it leaves; both are gone
 // at the next file, and work left running cannot reach its test's store.
 import { env } from 'cloudflare:test';
 import { expect, it, vi } from 'vitest';
@@ -122,7 +122,7 @@ export function isolationProbe(self: Probe): void {
     const seeded = TEST_SITES.map((site) => site.id).sort();
     expect((await storeSites()).map((site) => site.id)).toEqual(seeded);
     expect(await postgresSites()).toEqual(seeded);
-    // The runtime's own timers: a timer set now fires (bead ro-ujb9.76.64).
+    // The runtime's own timers: a timer set now fires.
     expect(await zeroDelayTimerFires()).toBe(true);
     if (earlier) {
       // What the other file left held is held no longer.
@@ -156,8 +156,8 @@ export function isolationProbe(self: Probe): void {
     expect(held).toContain('config-store read cache');
     left()[self] = { held, running: leaveRunning(`${self}-across-files`), test: `${file} > ${leaving}` };
     // Last: a spy on a faked setTimeout, restored after the clock. That order
-    // leaves the dead clock's setTimeout on the global (bead ro-ujb9.76.64),
-    // and a zero-delay timer set after it never fires.
+    // leaves the dead clock's setTimeout on the global, and a zero-delay timer
+    // set after it never fires.
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const spy = vi.spyOn(globalThis, 'setTimeout');
     vi.useRealTimers();

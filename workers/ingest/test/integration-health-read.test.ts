@@ -109,8 +109,8 @@ it('keeps incomplete archives and failed report dates separate from other succes
   await recordCollectedHealth({ target: target, monitoring, attempt: { id: 'truncated-fixture', startedAt: new Date(NOW + 1000).toISOString(), finishedAt: new Date(NOW + 1000).toISOString(), source: 'signal_dump_runs', ok: false, code: 'incomplete-report', report: first.report, reportDate: first.date } });
   let result = await readIntegrationHealth(env, NOW + 2000);
   expect(result.items.find(i => i.asset === target.asset && i.detail === `${first.report} · ${first.date}`)).toMatchObject({ state: 'failing', failure: 'incomplete-report', report: first.report, reportDate: first.date });
-  // The report and its day are fields (bead ro-ujb9.96.7.17): every item
-  // that is not one archive report carries neither.
+  // The report and its day are fields: every item that is not one archive
+  // report carries neither.
   expect(result.items.filter(i => i.report === null).every(i => i.reportDate === null)).toBe(true);
   expect(result.items.some(i => i.capability === 'ga4-daily' && i.report === null)).toBe(true);
   await storeArchiveRun({ ...run, id: 'other-date-fixture', report_date: '2026-01-01', finished_at: new Date(NOW + 1500).toISOString(), object_key: 'object2' });
@@ -246,7 +246,7 @@ it('does not let thousands of resolved historical archive dates exhaust current 
   expect(result.items.find(i => i.asset === target.asset && i.capability === 'ga4-daily')?.state).toBe('healthy');
 });
 
-it('retires a current-state network failure once a later attempt was answered — never a refusal, never a dated archive (ro-aed0.7)', async () => {
+it('retires a current-state network failure once a later attempt was answered — never a refusal, never a dated archive', async () => {
   const hour = (h: number) => new Date(NOW - (10 - h) * 3_600_000).toISOString();
   const collected = { pages: [{ request: {}, response: { d: [] } }], providerRows: 0, providerTruncated: false };
   const bing = beginCollection(env.STORE, await healthConnection(env, 'bing-webmaster'));
@@ -278,8 +278,7 @@ it('retires a current-state network failure once a later attempt was answered �
   expect(result.items.find(i => i.asset === ga4.asset && i.detail === `${report} · 2026-01-01`)).toMatchObject({ state: 'failing', failure: 'network' });
 });
 // The properties a Bing site was saved under come from its daily runs and its
-// report runs, one statement over both (beads ro-ujb9.76.5.3, ro-ujb9.76.5.4):
-// this site has daily runs alone.
+// report runs, one statement over both: this site has daily runs alone.
 it('finds a Bing site by the property its daily runs were saved under, when its archive has none', async () => {
   const bing = beginCollection(env.STORE, await healthConnection(env, 'bing-webmaster'));
   const site = { asset: 'meals.example', integration: 'bing-webmaster' as const, credentialRef: 'env:BING_WEBMASTER_API_KEY', propertyRef: 'https://meals.example/' };
@@ -300,7 +299,7 @@ it('lists a Bing site\'s saved properties once each, in text order, from both ki
   expect(result.items.filter(i => i.asset === 'meals.example' && i.capability === 'bing-daily').map(i => i.detail))
     .toEqual(['https://meals.example/', 'https://www.meals.example/']);
 });
-it('shows no PostHog network failure once the next healthy run has asked the lost window again (ro-aed0.8)', async () => {
+it('shows no PostHog network failure once the next healthy run has asked the lost window again', async () => {
   await putCredential(env, { provider: 'posthog', fields: { POSTHOG_KEYS: JSON.stringify({ 'meals.example': 'phx_health_read_fixture' }) } });
   // Connected long before the dark night.
   await setConnection('posthog', { updated_at: '2026-09-01T00:00:00.000Z' });
@@ -316,7 +315,7 @@ it('shows no PostHog network failure once the next healthy run has asked the los
   const network = (payload: Awaited<ReturnType<typeof readIntegrationHealth>>) =>
     payload.items.filter(i => i.provider === 'posthog' && i.failure === 'network');
 
-  // 2026-09-14: PostHog never answered, so every window ending 09-13 failed at the network.
+  // PostHog never answered, so every window ending 09-13 failed at the network.
   await runPosthogDumps(env, { nowMs: Date.parse('2026-09-14T12:30:00.000Z'), fetchImpl: posthog(false), laneRegister: register });
   // Read on today's clock: an attempt finishes when the test runs, and a read
   // dated before that would not count it yet.

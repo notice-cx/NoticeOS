@@ -1,12 +1,8 @@
-// WHY A FIXTURE CALL FAILED, IN THE FAILING TEST'S OWN OUTPUT (bead
-// ro-ujb9.76.56).
-//
-// When a fixture server's handler throws (server.mjs), the reason used to go
-// to the server's own output alone, and the test saw "500". A journey that
-// failed in its setup on a busy machine left nothing to read. Now the server
-// answers 500 with the error's own words, prints the same words on one line
-// behind HANDLER_FAILURE_MARK, and the runner (journey-test.ts) attaches every
-// such line a failing test's server printed to that test's output.
+// Why a fixture call failed, in the failing test's own output. When a fixture
+// server's handler throws (server.mjs), the server answers 500 with the
+// error's own words, prints the same words on one line behind
+// HANDLER_FAILURE_MARK, and the runner (journey-test.ts) attaches every such
+// line to the failing test's output.
 //
 // Those words never carry an address or a password: every URL and loopback
 // address, every socket file and the password of this run's Postgres are

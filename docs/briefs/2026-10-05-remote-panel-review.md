@@ -7,14 +7,13 @@ database credential. Preserve standalone installations through the same contract
 **Reader:** agents building and independently verifying this project.
 **Write trigger:** an agreed contract changes or source inspection changes a
 design assumption. **End condition:** promote implemented contracts into the
-panel, tenancy and setup documentation; audit the scope through Beads, record a
-git-history reference on the epic, then delete this temporary brief.
+panel, tenancy and setup documentation; audit the scope through the task hub,
+then delete this temporary brief.
 
 This is a **build contract**, not a claim that remote access is shipped.
-The inspected source baseline is `145cd2e0fbd7470d38df3d682979f51979cfc99d`
-(2026-10-05). Execution, ownership and completion live in epic **`ro-cvl9`**;
-read its current children with `bd list --parent ro-cvl9`, then `bd show`.
-Do not turn this document into a second task register.
+Execution, ownership and completion live in the task hub; read the current
+children of its epic with `bd list --parent <epic>`, then `bd show`. Do not
+turn this document into a second task register.
 
 ## The outcome
 
@@ -139,7 +138,7 @@ its actual age and the current publication failure visible.
 Only then may the review filer create or update a review task. Pin its evidence
 to the published version, not to a mutable `latest` path or an archive landing
 that has not been published. Deduplicate the logical review by workspace, site
-and review period; a retry must not create another bead. If a later version
+and review period; a retry must not create another task. If a later version
 materially changes an existing review's evidence, add an explicit superseding
 reference under the task-write guarantees, preserving the original reference.
 

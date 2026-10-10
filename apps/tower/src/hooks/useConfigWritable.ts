@@ -4,19 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { type ConfigWritability } from "@/lib/api";
 import { DEMO_READ_ONLY } from '@shared/demo-viewer';
 
-/** Assumed until the answer arrives, and if the question fails. A field that
- * renders disabled for a beat on every page load is a worse lie than one that
- * offers a Save whose store request is then refused. The write path checks
- * availability again and supplies the refusal.
- *
- * `sources` is empty rather than optimistic, and deliberately the other way
- * round: no answer means no answer, so an unknown file reads as the compiled
- * copy. Both readers then start at the cautious answer and improve — a sentence
- * about when a save takes effect, and `configSaveDelayMs`, which waits out a
- * Worker restart whenever it cannot prove nothing restarted. Promising "no
- * restart" for a beat to an operator who then does not restart is the one
- * mistake in this pair that costs them a collection run; guessing "store" the
- * same way would refetch a page early and leave a figure quietly stale. */
+/** Assumed until the answer arrives, and if the question fails: a field that
+ * flashes disabled on every load is worse than a Save the write path then
+ * refuses. `sources` is empty rather than optimistic, so an unknown file reads
+ * as the compiled copy and `configSaveDelayMs` waits out a possible restart. */
 const OPTIMISTIC: ConfigWritability = { writable: true, reason: null, sources: {} };
 
 /** What a disabled control says when the deployment gave no sentence of its

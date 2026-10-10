@@ -1,24 +1,11 @@
 /**
- * The Wall editor's state, with no DOM in it (bead `ro-lzmq.2`).
- *
- * Every arrangement the operator can make at `/wall/edit` — add, remove, widen,
- * filter, drag, nudge, and the row operations — is a pure function of a
- * `WallLayout` and one action. The route holds this in a `useReducer` and draws
- * it; nothing here knows about React, and `apps/tower/test/wall-editor.test.ts`
- * exercises the whole grammar without rendering anything.
- *
- * That split is deliberate rather than tidy. The preview is the REAL Wall
- * renderer (`WallCanvas`, bead `ro-lzmq.1`), so the editor cannot own a second
- * idea of how a layout is drawn; what it owns is how a layout is CHANGED. Those
- * are two different questions and they are answered in two different files.
- *
- * THE VALIDATOR IS NOT REIMPLEMENTED HERE. `validateWallLayout` in
- * `apps/tower/shared/wall-layout.ts` is the one rule for "can the Wall draw
- * this", read by the write lane before it writes and by this editor before it
- * offers Save. Actions here therefore do NOT refuse: an action that produces a
- * layout the Wall cannot draw produces it, Save goes dark, and the validator's
- * own sentence says why. An editor that silently declined a move would be a
- * second, quieter rule the operator could not read.
+ * The Wall editor's state, with no DOM in it: every arrangement the operator
+ * can make at `/wall/edit` is a pure function of a `WallLayout` and one
+ * action. The preview is the real Wall renderer (`WallCanvas`), so this owns
+ * how a layout is changed, never how it is drawn. The validator is not
+ * reimplemented here: `validateWallLayout` is the one rule for "can the Wall
+ * draw this", so actions here do not refuse; a layout the Wall cannot draw is
+ * produced, Save goes dark, and the validator's own sentence says why.
  */
 
 import {
@@ -162,12 +149,10 @@ export const WALL_WIDGET_PLACED = "On the TV";
 export const WALL_FULL = "TV full";
 
 /**
- * The library panel's rows, in the contract's order.
- *
- * A refused Add shows WHY in place of the button, as a state rather than a
- * sentence (bead `ro-ujb9.96.6.12`): "On the TV" for a one-of-a-kind widget
- * already placed — the preview beside it shows where — and "TV full" when
- * every row holds `WALL_MAX_WIDGETS_PER_ROW` and there are `WALL_MAX_ROWS`.
+ * The library panel's rows, in the contract's order. A refused Add shows why
+ * in place of the button: "On the TV" for a one-of-a-kind widget already
+ * placed, and "TV full" when every row holds `WALL_MAX_WIDGETS_PER_ROW` and
+ * there are `WALL_MAX_ROWS`.
  */
 export function wallLibraryOptions(layout: WallLayout): WallLibraryOption[] {
   const present = new Set(wallLayoutWidgets(layout).map((w) => w.type));
@@ -180,13 +165,10 @@ export function wallLibraryOptions(layout: WallLayout): WallLibraryOption[] {
 }
 
 /**
- * What changed between the saved layout and this one, in a few words — the
- * version's description when the operator writes no note (bead
- * `ro-ujb9.96.6.12`). Grafana makes a save's message optional and shows the
- * difference instead; a history reads without anyone having to write it.
- *
- * "Moved" means a widget changed row, or changed place among the widgets its
- * row kept — a neighbour arriving or leaving does not move it.
+ * What changed between the saved layout and this one, in a few words: the
+ * version's description when the operator writes no note. "Moved" means a
+ * widget changed row, or changed place among the widgets its row kept; a
+ * neighbour arriving or leaving does not move it.
  */
 export function wallChangeSummary(before: WallLayout, after: WallLayout): string {
   type Place = { widget: WallWidget; rowId: string; order: string[] };
@@ -268,13 +250,10 @@ export function wallWidthShare(row: WallRow | WallColumnRow, widgetId: string): 
 }
 
 /**
- * The fit check (docs/15 flow D). The preview draws at the TV's own 1920×1080,
- * so its measured content height answers "would this fit" directly.
- *
- * It WARNS and never blocks: the operator's TV may be taller than ours, they
- * may not care about the bottom of the assets grid, and the kiosk clips rather
- * than scrolls by design (index.css). A layout nobody can save because a
- * measurement said so would be the editor overruling its owner.
+ * The fit check. The preview draws at the TV's own 1920×1080, so its measured
+ * content height answers "would this fit" directly. It warns and never
+ * blocks: the operator's TV may be taller, and the kiosk clips rather than
+ * scrolls by design (index.css).
  */
 export function wallOverflowNote(contentHeightPx: number): string | null {
   const over = Math.round(contentHeightPx - WALL_TV_HEIGHT);
@@ -394,7 +373,7 @@ function moveWidget(
 }
 
 /**
- * Stack a widget in a column, or take it out of one (bead `ro-trai.2`).
+ * Stack a widget in a column, or take it out of one.
  *
  * At the top level it joins its row's column as a new row at the bottom — or,
  * with no column in the row, becomes one in its own place, at its own width.
@@ -532,8 +511,8 @@ export function wallEditorReducer(
       return {
         ...state,
         layout: replaceWidget(state.layout, action.widgetId, (w) => {
-          // An empty asset filter is no filter (bead `ro-ujb9.96.6.17`): the
-          // widget shows every asset, and the layout says so by carrying none.
+          // An empty asset filter is no filter: the widget shows every asset,
+          // and the layout says so by carrying none.
           if (action.settings === undefined || action.settings.assets?.length === 0) {
             const { settings: _dropped, ...rest } = w;
             return rest;

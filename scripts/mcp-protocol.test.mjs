@@ -4,7 +4,7 @@ import {
   MCP_LEGACY_VERSIONS, MCP_MODERN_VERSIONS, McpRefused, McpToolError, parseMcpMessage, serveMcp,
 } from './mcp-protocol.mjs';
 
-// scripts/mcp-protocol.mts (epic ro-cvl9): one POST route speaking both MCP
+// scripts/mcp-protocol.mts: one POST route speaking both MCP
 // eras — 2026-07-28's self-describing requests and the initialize handshake
 // before it — for the task endpoint and the Tower's /api/mcp alike.
 

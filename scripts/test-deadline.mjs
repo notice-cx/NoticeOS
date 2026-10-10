@@ -1,13 +1,10 @@
-// A FIXED DEADLINE, PROVED ON A FAKE CLOCK (issue #7).
+// A fixed deadline, proved on a fake clock.
 //
 // Several request handlers end a stalled body read at a fixed deadline that no
-// URL, header, setting or variable can change. A test used to wait it out in
-// real time, two seconds at a go. With node:test's mock timers on, from the
-// real time (`fakeClock(t)`), this drives the
-// handler's own clock instead: one millisecond short of the deadline it must
-// still be waiting, and at the deadline it must settle. That is stricter than
-// the old wall-clock bound, and takes no real time. The product code is
-// unchanged.
+// URL, header, setting or variable can change. With node:test's mock timers
+// on, from the real time (`fakeClock(t)`), this drives the handler's own clock:
+// one millisecond short of the deadline it must still be waiting, and at the
+// deadline it must settle. It takes no real time.
 
 import assert from 'node:assert/strict';
 

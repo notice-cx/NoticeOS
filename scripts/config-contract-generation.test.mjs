@@ -23,7 +23,7 @@ function authoredScripts() {
  * JavaScript script under scripts/ (a Node-only source may compile against
  * one — scripts/postgres-test-cluster.mts reads the Postgres development
  * profile's implementation), and the package sources the projects list or
- * import (the contract, and the Postgres helper, bead ro-ujb9.76.18). */
+ * import (the contract, and the Postgres helper). */
 async function withGenerationRoot(work) {
   const root = mkdtempSync(path.join(tmpdir(), 'config-generation-test-'));
   try {
@@ -46,7 +46,7 @@ async function withGenerationRoot(work) {
     mkdirSync(path.join(root, 'config'), { recursive: true });
     for (const file of CONFIG_DOCUMENT_FILES) writeFileSync(path.join(root, file), readFileSync(path.join(repo, file)));
     // TypeScript and zod for the contract; croner for the runner and the root's
-    // own @types/node for the Node-only project (ro-ujb9.99); the Postgres
+    // own @types/node for the Node-only project; the Postgres
     // driver's types for its helper — linked, never copied. The Tower's
     // ambient dependencies are deliberately absent; its private node_modules
     // contains only the copied contract package needed by its shared types.
@@ -67,7 +67,7 @@ function edit(root, file, from, to) {
   writeFileSync(target, before.replace(from, to));
 }
 
-// Bead ro-ujb9.61: an authored source no project lists would compile nowhere,
+// An authored source no project lists would compile nowhere,
 // and its committed .mjs/.d.mts could drift with every gate green.
 test('every authored scripts/*.mts belongs to exactly one generation project', () => {
   const listed = PROJECTS.flatMap((project) => JSON.parse(readFileSync(path.join(repo, project), 'utf8')).include);
@@ -89,7 +89,7 @@ test('a node: import in a portable source fails generation', async () => {
   });
 });
 
-// Bead ro-ujb9.61, the deliberate mismatch: a runtime that starts returning a
+// The deliberate mismatch: a runtime that starts returning a
 // different shape than its callers compile against is a type error, not a
 // green gate and a broken caller.
 test('a return shape the declared contract does not allow fails generation', async () => {
@@ -135,7 +135,7 @@ test('generation checks reject stale runtime, stale types, and missing output wi
   });
 });
 
-// Bead ro-ghis.4, the deliberate mismatch: a PostHog field added to the one
+// The deliberate mismatch: a PostHog field added to the one
 // definition without regenerating is caught by the check the contract's
 // typecheck runs, and once regenerated the module the flattener imports
 // carries it.

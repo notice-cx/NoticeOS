@@ -85,72 +85,10 @@ import {
 } from "@/lib/knob-validators";
 
 /**
- * /settings — every portfolio-wide knob on one page (bead `ro-pbzu.2`).
- *
- * WHY IT EXISTS. Until now an operator (or a stranger) looking for "where do I
- * configure this" had nowhere to go. The countdown editor sat on the dashboard;
- * the spend caps, the operator rate and the alert-rule defaults were repeated on
- * every asset page under "Applies to every asset", so editing the data cap
- * from one asset's page read as editing that asset; and the rest — the counters
- * cadence, the pull registry, the source catalog, the task-hub spoke map — was
- * rendered nowhere at all and lived only as files somebody had to know about.
- *
- * A FEW FOCUSED FORMS, GENERAL FIRST (bead `ro-ujb9.18`; prior art:
- * Vercel's and Plausible's General,
- * Stripe's grouping by what a setting applies to, Linear's sections that
- * appear only for the people they concern). **General** holds the two things a
- * new installation sets — the clock the OS reads in and what it may spend —
- * so the page no longer opens on one select. Then when it shouts, how it
- * collects, the TV in the other room, who owns what (bead `ro-aodz`) and,
- * where core work is tracked (D32). Each has
- * an anchor id, and the old ones still land: `#clock` and `#budget` open
- * General at their row. A left section list on `lg` doubles as the outline.
- *
- * NOTHING CONFIGURED IS NOT AN EMPTY CARD. `config/tower.json`'s countdown is
- * optional (bead `ro-py40`), so a fresh install shows no countdown on the
- * television. Home never renders a countdown. The TV dashboard section offers
- * the way to make one: **Set a countdown**, opening the same editor the configured card
- * shows (bead `ro-fqag`). Before that the section could edit three fields it
- * could never create, and the only path to a first countdown was hand-editing
- * the file — the terminal step D18 retired everywhere else.
- *
- * EDITABLE VS READ-ONLY IS NOT A DESIGN CHOICE — it is what the configuration
- * store's guarded write allows (D22). `config/constants.json` and `config/tower.json` are on its
- * safety allowlist, so the countdown, the caps and the rules are ordinary
- * fields with a Save and an Undo toast. The task-hub project map is a declared
- * REGISTER (bead `ro-x5gu.5`), which licenses rows being added, edited and
- * removed at its own container and nothing else in its file — so it is a table
- * with the same Save and Undo, plus the one thing a file cannot do: saying what
- * is still left to do outside it.
- *
- * TWO MORE SECTIONS STOPPED BEING READ-ONLY ON 2026-09-05 (bead `ro-x5gu.6`),
- * and for the same reason: the lane learned to license them. **Data
- * collection**'s cadence numbers are DECLARED KNOBS (`ro-x5gu.8`) — one exact
- * pointer each, in files that are otherwise still unreachable — so each is a
- * `KnobEditor` row with the declaration's own rule, and what changing it COSTS
- * is the visual beside it (cost per pass, fit inside the window), because a
- * cadence an operator can move without being told the price is a trap rather
- * than a setting. What stays read-only is the pull registry — an endpoint is
- * edited on its own asset's page, where the rest of that asset's wiring is.
- *
- * THE DATA-SOURCE CATALOG LEFT (bead `ro-ujb9.96.14`). It was an editable
- * ten-column table with an Add, but every field ships with the code — a row
- * only works if a collector for its id exists — so a newcomer met the OS's
- * internals and an Add that could never collect. The sources a person sets up
- * are connected on Integrations and set per site on its Data sources tab.
- *
- * EVERY QUANTITY CARRIES ITS VISUAL (doc 14, 2026-09-04). A cap has its meter
- * of month-to-date spend, the alert sensitivity has its position on the
- * conventional scale, the low-volume window has its share of a week, the
- * cadence has a clock, a pull lane has its state chip and a spoke has its
- * asset's favicon. A settings page that is only labels and inputs is not
- * finished.
- *
- * AND NOTHING ON IT NEEDS A PARAGRAPH (bead `ro-ujb9.96.6.3`, doc 14 principle
- * 3a). Every field is a label, a
- * label-length unit or effect line, its control, and its state beside it; a save
- * is confirmed where it was made ("Saved · Undo", `KnobEditor`);
- * a problem leads with what happened and ends in buttons.
+ * /settings: every portfolio-wide setting on one page, a few focused forms
+ * with General first. Which sections are editable is what the configuration
+ * store's guarded write allows, not a design choice. Every quantity carries
+ * its visual and nothing on the page needs a paragraph.
  */
 export function SettingsRoute() {
   const { runtime, workspaceRole } = useBrowserContext();
@@ -162,26 +100,23 @@ export function SettingsRoute() {
   const { hash } = useLocation();
   const requestedSection = sectionOf(hash);
   const section = requestedSection === 'members' && !managesMembers ? 'general' : requestedSection;
-  // The old address of the job schedules. A collection's schedule is edited in
-  // Data collection now (bead `ro-ujb9.96.7.12`), so that is where it lands.
+  // Aliases: schedules are rows of Data collection, and the data-source
+  // catalog ships with the product rather than being a setting.
   if (hash === '#scheduled-jobs') return <Navigate to="/settings#data-collection" replace />;
-  // The old address of the data-source catalog. The catalog ships with the
-  // product and is not a setting (bead `ro-ujb9.96.14`); the sources a person
-  // does set up are connected on Integrations.
   if (hash === '#data-sources') return <Navigate to="/integrations" replace />;
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4 md:p-6">
       <PageHeader title="Settings" />
-      {/* WHEN SAVES ARE PAUSED THE PAGE SAYS SO ONCE (bead `ro-p8qq`): every
-          editor below shows only its lock (`statesReadOnly={false}`). */}
+      {/* When saves are paused the page says so once: every editor below shows
+          only its lock (`statesReadOnly={false}`). */}
       <SavesPaused />
 
       {section === 'members' && managesMembers ? <div className="lg:grid lg:grid-cols-[12rem_minmax(0,1fr)] lg:items-start lg:gap-6">
         <SettingsSectionNav section={section} managesMembers={managesMembers} /><MembersSection />
       </div> : !data ? (
-        // A failed first read is the desk's one failure state (bead
-        // `ro-ujb9.242`), never a sentence of this page's own.
+        // A failed first read is the desk's one failure state, never a sentence
+        // of this page's own.
         isError ? (
           <ReadFailed title="Couldn't load settings" subject="read:settings" error={error} retrying={isFetching} onRetry={() => void refetch()} />
         ) : (
@@ -225,9 +160,9 @@ const SECTIONS = [
 
 const SECTION_IDS: ReadonlySet<string> = new Set(SECTIONS.map((s) => s.id));
 
-/** Addresses that are rows of a section now rather than sections of their
- * own (bead `ro-ujb9.18`): the clock and the budget are General's rows, and a
- * link to either (Integrations' DataForSEO card links `#budget`) lands there. */
+/** Addresses that are rows of a section rather than sections of their own:
+ * the clock and the budget are General's rows, and a link to either lands
+ * there. */
 const SECTION_ALIASES: Readonly<Record<string, string>> = { clock: "general", budget: "general" };
 
 /** Which section a hash opens: its own, the one it is a row of, else General. */
@@ -236,22 +171,15 @@ function sectionOf(hash: string): string {
   return SECTION_IDS.has(id) ? id : (SECTION_ALIASES[id] ?? "general");
 }
 
-/**
- * The outline names what the page actually renders, and a navigator entry
- * pointing at an anchor that is not there is worse than one fewer line.
- *
- * Every section is rendered today. The one exception used to be TV dashboard
- * (bead `ro-py40`: a config with no countdown got no card), and it stopped being
- * one when that section gained the layout editor's door — every install has a
- * television whether or not it counts down to anything.
- */
+/** The outline names what the page renders: a navigator entry pointing at an
+ * anchor that is not there is worse than one fewer line. */
 function SettingsSectionNav({
   section,
   managesMembers,
 }: {
   section: string;
   managesMembers: boolean;
-  /** Task projects is listed only once it concerns this installation (D32). */
+  /** Task projects is listed only once it concerns this installation. */
 }) {
   return (
     <nav
@@ -275,13 +203,8 @@ function SettingsSectionNav({
 
 /**
  * One section: an anchor the navigator and an external link can both reach, a
- * title, and — only where the scope is not obvious from the fields — one chip or
- * link beside it.
- *
- * NO DESCRIPTION LINE AND NO HELP TOOLTIP (bead `ro-ujb9.96.6.3`, doc 14
- * principle 3a). Every section used to open with a sentence or an "About"
- * paragraph saying what it held; the fields below said the same thing, and the
- * one fact they added — alert rules judge every site — is an `aside` chip now.
+ * title, and, only where the scope is not obvious from the fields, one chip or
+ * link beside it. No description line and no help tooltip.
  */
 function Section({
   id,
@@ -294,8 +217,8 @@ function Section({
   aside?: ReactNode;
   children: ReactNode;
 }) {
-  // The navigator beside the card already names the one section shown
-  // (D44: not a repeat), so the title is the card's accessible name only.
+  // The navigator beside the card already names the one section shown, so the
+  // title is the card's accessible name only.
   return (
     <Card id={id} className="scroll-mt-4" aria-labelledby={`${id}-title`} role="region">
       <h2 id={`${id}-title`} className="sr-only">{title}</h2>
@@ -345,14 +268,9 @@ function fileOp(file: EditableFile, pointer: string, expect: JsonValue) {
 }
 
 // --- 1. General -----------------------------------------------------------
-/**
- * WHAT A NEW INSTALLATION SETS, ON THE PAGE SETTINGS OPENS ON (bead
- * `ro-ujb9.18`): the clock the OS reads in, and what it may spend. They were
- * two sections of their own — a first screen of one select, and a press on
- * "Budget" before the data cap could be typed — and they are three rows of one
- * form now, the way Vercel's and Plausible's General pages hold the settings
- * everything else rests on. `#clock` and `#budget` still land on their rows.
- */
+/** What a new installation sets, on the page Settings opens on: the clock the
+ * OS reads in, and what it may spend. `#clock` and `#budget` land on their
+ * rows. */
 function GeneralSection({
   settings,
   nowMs,
@@ -377,30 +295,12 @@ function GeneralSection({
 }
 
 /**
- * The one zone the whole OS reads in (bead `ro-py40`). It used to be a string
- * literal in `packages/contract`, which meant an operator in another timezone
- * edited TypeScript; it is now `config/constants.json` `os_time_zone`, and that
- * file is on the write lane's allowlist (D18), so this is an ordinary field.
- *
- * IT CARRIES ITS VISUAL (doc 14, 2026-09-04): a zone name is not legible on its
- * own — two neighbouring zone names look equally plausible
- * until you see what time it currently is in each. The field's visual is the
- * clock the setting produces, which is the only check that answers "is this the
- * zone I meant".
- *
- * AND IT SHOWS WHAT THE ZONE DECIDES (beads `ro-ujb9.88`, `ro-ujb9.96.6.3`):
- * not only the time, but which date is yesterday's revenue and which month is
- * the current one, since a save moves both at once. Those used to be a
- * 32-word tooltip; they are values now, and they move as the zone does — the
- * Stripe start-of-day pattern.
- *
- * PICK TO SAVE, UNDO BESIDE IT: a zone is one low-risk choice, so choosing it is the
- * save and "Saved · Undo" appears next to the picker.
- *
- * THIS DEVICE'S ZONE LEADS THE LIST (bead `ro-ujb9.18`): the zone a person
- * most likely means is the one their browser runs in, so it is the first
- * option, named as such, rather than one of four hundred to scroll to. Home's
- * first-run proposal (`ClockProposal`) offers the same zone in one press.
+ * The one zone the whole OS reads in. Its visual is the clock the setting
+ * produces, which is the only check that answers "is this the zone I meant",
+ * and what the zone decides (yesterday's revenue day, the current month) is
+ * shown as values that move with it. Choosing a zone is the save, with Undo
+ * beside the picker. This device's zone leads the list; Home's first-run
+ * proposal (`ClockProposal`) offers the same zone in one press.
  */
 function ClockField({
   settings,
@@ -500,19 +400,11 @@ function ZonePreview({ timeZone, nowMs }: { timeZone: string; nowMs: number }) {
 
 // --- 4. TV dashboard -------------------------------------------------------
 /**
- * The television, from the desk.
- *
- * TWO THINGS LIVE HERE and they are different sizes. The LAYOUT — which widgets
- * the TV shows, in what rows, how wide — is arranged on its own page
- * (`/wall/edit`, bead `ro-lzmq.2`), because rearranging a television needs the
- * television on screen and a settings card cannot hold one; this section is
- * where the operator goes looking for it. The COUNTDOWN is three fields and
- * belongs right here, where it has always been.
- *
- * The section now renders whether or not a countdown is configured, which is a
- * change from bead `ro-py40`: that rule said a fresh install gets no empty card
- * for an event nobody declared, and it still holds for the countdown itself —
- * but every install has a TV layout, so the section always has a subject.
+ * The television, from the desk. The layout is arranged on its own page
+ * (`/wall/edit`) because rearranging a television needs the television on
+ * screen; the countdown is three fields and belongs here. The section renders
+ * whether or not a countdown is configured, because every install has a TV
+ * layout.
  */
 function TvDashboardSection({
   countdown,
@@ -520,7 +412,7 @@ function TvDashboardSection({
   nowMs,
 }: {
   countdown?: CountdownConfig;
-  /** A saved countdown the Tower refused (bead `ro-trai.45`). */
+  /** A saved countdown the Tower refused. */
   refused: DashboardRefusal | null;
   nowMs: number;
 }) {
@@ -539,8 +431,8 @@ function TvDashboardSection({
         {countdown ? (
           <CountdownWidget config={countdown} nowMs={nowMs} interactive statesReadOnly={false} />
         ) : refused ? (
-          // Saved, and refused: not "No countdown set" — the store holds one,
-          // and the form saves over it (bead `ro-trai.45`).
+          // Saved, and refused: not "No countdown set", because the store holds
+          // one and the form saves over it.
           <div className="flex flex-col gap-2" data-settings-countdown-refused>
             <span className="self-start">
               <StateChip
@@ -562,19 +454,10 @@ function TvDashboardSection({
 }
 
 /**
- * No countdown yet — and the way to make the first one (bead `ro-fqag`).
- *
- * WHY THERE IS A BUTTON RATHER THAN A FORM. A countdown is optional (bead
- * `ro-py40`) and most installs have none: an open three-field form in a section
- * about the television would be a permanent ask about a feature nobody chose.
- * The sentence says what is true, the button says what can be done about it, and
- * the form is the same `CountdownEditor` the configured card shows — never a
- * second one, which is the whole reason that component is exported.
- *
- * Until today this said "it is one entry in config/tower.json under countdown",
- * which was accurate and was also a terminal step: `/settings` could edit the
- * three fields and never create them, so the only path to a first countdown was
- * hand-editing the file. That is what D18 retired everywhere else.
+ * No countdown yet, and the way to make the first one. A countdown is optional
+ * and most installs have none, so this is a sentence and a button rather than
+ * an open three-field form; the form it opens is the same `CountdownEditor`
+ * the configured card shows.
  */
 function NoCountdown({ nowMs }: { nowMs: number }) {
   const [open, setOpen] = useState(false);
@@ -616,7 +499,7 @@ function BudgetFields({ settings }: { settings: SettingsPayload }) {
       {budget.knobs.map((knob) => (
         <FieldWithVisual key={knob.key} visual={budgetVisual(knob, spend)}>
           {/* Label, unit and effect in one line, the control, and the state
-              beside it — no help tooltip (bead `ro-ujb9.96.6.3`). */}
+              beside it, with no help tooltip. */}
           <KnobEditor
             statesReadOnly={false}
             className="border-0 py-0"
@@ -640,13 +523,7 @@ function BudgetFields({ settings }: { settings: SettingsPayload }) {
 /** What the eye reads beside each budget field. A cap is a ceiling, so it gets
  * the meter of what has been spent against it; a rate is not a ceiling, so it
  * gets the hourly figure the per-minute number hides instead of a bar with no
- * maximum to draw.
- *
- * EVERY CAP HERE HAS A METER, which is now true because the one that could not
- * have one is gone: the monthly inference cap was withdrawn on 2026-09-05 (D6,
- * bead `ro-uj7x`) rather than keep drawing an empty bar labelled *not
- * instrumented*. The OS makes no model calls of its own, so there was nothing
- * to meter — and a ceiling this page cannot back is worse than no row. */
+ * maximum to draw. */
 function budgetVisual(
   knob: PortfolioKnob,
   spend: { period: string; spentUsd: number; unknownPrices: number } | null,
@@ -680,7 +557,7 @@ function DataSpendMeter({
         </span>
         <span className="shrink-0 tabular-nums text-foreground">
           {/* Never a fabricated zero: a spend nobody has read yet is unread, not
-              nothing (doc 14 "a request failure is unavailable, never zero"). */}
+              nothing. */}
           {spend ? `${formatUsd(spend.spentUsd, { cents: true })} of ${formatUsd(cap)}` : "not read yet"}
           {spend ? <UnknownPriceCount count={spend.unknownPrices} /> : null}
         </span>
@@ -692,8 +569,7 @@ function DataSpendMeter({
         ariaLabel="Metered data spend this month against the monthly cap"
       />
       {/* What happens at the cap, as a state beside the meter rather than a
-          sentence under it (bead `ro-ujb9.18`; Vercel's spend amount beside
-          its Pause action). */}
+          sentence under it. */}
       <div className="mt-1.5 flex items-center gap-1">
         <StateChip tone="neutral" label="Stops at the budget" glyph={<Ban className="size-3" />} subject="budget:portfolio" className="font-normal" />
         <InfoTooltip label="How data spend is counted">Includes scheduled DataForSEO collection and one-off research bought on the same account.</InfoTooltip>
@@ -733,13 +609,11 @@ function AlertRulesSection({ settings }: { settings: SettingsPayload }) {
     <Section
       id="alert-rules"
       title="Alert rules"
-      // The one fact the fields cannot show: they judge every asset. A chip in
-      // the header, where a 19-word note sat (bead `ro-ujb9.96.6.3`).
+      // The one fact the fields cannot show: they judge every asset.
       aside={<StateChip tone="neutral" label="All sites" glyph={<Globe className="size-3" />} subject="alert-rules:portfolio" />}
     >
-      {/* SHOW, THEN ASK (docs/15 principle 1, bead `ro-w35m`). The evidence
-          leads the fields it is about, exactly as it does in the panel these
-          same three settings open from an alert row. */}
+      {/* The evidence leads the fields it is about, exactly as it does in the
+          panel these same three settings open from an alert row. */}
       {assets.length === 0 ? (
         <p
           className="flex items-center gap-1.5 border-b border-border pb-3 text-xs text-muted-foreground"
@@ -784,27 +658,12 @@ function AlertRulesSection({ settings }: { settings: SettingsPayload }) {
 }
 
 /**
- * WHAT EACH RULE HAS ACTUALLY COST — the false-positive rate docs/15 flow E has
- * promised since the beginning and nothing has ever rendered (bead `ro-ayxy`).
- *
- * The write half landed with `ro-van6`: a save from the Tune panel records
- * `disposition='tune'` on the alert it was made from. Until this block, that
- * record went into the store and came out nowhere — the operator could see that
- * THIS alert was tuned (the row's chip) but not that they have now tuned this
- * rule five times this quarter, which is the only version of the fact that
- * changes a decision.
- *
- * IT IS A SECOND READ, not a field on the settings payload. That payload is a
- * pure builder over `config/constants.json` on purpose (see
- * `worker/settings-payload.ts`): nothing on this page is evidence, so an empty
- * or unreachable store must not blank the page an operator opens to fix things.
- * This block is the exception that proves it — it IS evidence, so it travels on
- * `GET /api/alerts/rules`, and a store that cannot answer costs the operator
- * this block and nothing else. The fields below still edit.
- *
- * ONLY RULES THAT HAVE FIRED get a row. A rule the store has never seen is
- * absent rather than a line of zeros, which would read as "this rule has never
- * been a problem" — a claim from silence.
+ * What each rule has cost: how many of its firings the operator tuned away.
+ * It is a second read, not a field on the settings payload, which is a pure
+ * builder over config so an unreachable store cannot blank the page an
+ * operator opens to fix things; a store that cannot answer costs this block
+ * and nothing else. Only rules that have fired get a row: a line of zeros
+ * would read as "never a problem", a claim from silence.
  */
 function AlertRuleRecord() {
   const { data, isError } = useAlertRuleStats();
@@ -812,8 +671,6 @@ function AlertRuleRecord() {
   // Not yet answered is not the same as nothing to say: an empty block while the
   // read is in flight beats a "no firings yet" the store never confirmed.
   if (!data) {
-    // Unknown, said as a state: the fields below are enabled either way, so
-    // saying that they "still edit" restated the page (bead `ro-ujb9.96.6.3`).
     return isError ? (
       <p
         className="flex items-center gap-1.5 border-b border-border py-3 text-xs text-muted-foreground"
@@ -852,9 +709,9 @@ function AlertRuleRecord() {
               className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-1.5"
               data-alert-rule-row={stat.ruleId}
             >
-              {/* The rule id is EVIDENCE and rides in the hover, never as the
-                  headline (docs/17 rule 4) — except for a rule nothing has a
-                  name for, where the id is the only honest identity there is. */}
+              {/* The rule id is evidence and rides in the hover, never as the
+                  headline, except for a rule nothing has a name for, where the
+                  id is the only honest identity there is. */}
               <span className="text-xs text-foreground" title={stat.ruleId}>
                 {ruleLabel(stat.ruleId)}
               </span>
@@ -867,38 +724,19 @@ function AlertRuleRecord() {
   );
 }
 
-/** The two rules these settings steer, in the operator's words. Which one an
- * asset can answer depends on the asset's own volume, so the choice is the
- * operator's rather than a default that would leave half the portfolio looking
- * at a strip of unjudged days. The rule id rides in the hover — evidence, not a
- * label (docs/17 rule 4).
- *
- * NEITHER HALF IS TYPED HERE. The ids come from the contract that decides which
- * rules a replay can honestly serve (`BACKTESTABLE_RULE_IDS`), and the words
- * from the one map every rule is named by (`shared/alert-rules.ts`, bead
- * `ro-ayxy`) — so the picker above, the record below, and the Tune panel on an
- * alert row cannot call one rule three different things. */
+/** The two rules these settings steer, in the operator's words; the choice is
+ * the operator's because which one an asset can answer depends on its volume.
+ * The ids come from `BACKTESTABLE_RULE_IDS` and the words from
+ * `shared/alert-rules.ts`, so the picker, the record below and the Tune panel
+ * cannot call one rule three different things. */
 const REPLAYABLE_RULES = BACKTESTABLE_RULE_IDS.map((id) => ({ id, label: ruleLabel(id) }));
 
 /**
- * WHAT THESE SETTINGS WOULD HAVE DONE, on the page they are edited on (bead
- * `ro-w35m`).
- *
- * The same three settings typed on an alert row have shown their 30-day replay
- * since `ro-u072`, and typed one click away on `/settings` showed nothing —
- * which is docs/15 principle 1 holding on one surface and not the other, for
- * the same edit. The reason was never the machinery: the replay is scoped by
- * PARAMETER, not by surface. What this page lacked was an ASSET, so it asks for
- * one.
- *
- * IT IS THE SAME PREVIEW, NOT A SECOND ONE: `useRulePreview` builds the request
- * and `RulePreview` renders all four of its states, both imported from the panel
- * that already had them. A page that computed its own would be free to disagree
- * with the alert row about the same numbers.
- *
- * THE SCOPE IS STATED, NOT IMPLIED. These settings judge every asset, and this
- * strip is one asset's thirty days — so the caption names the asset AND the
- * values replayed, and the picker is visibly a choice of what to look at rather
+ * What these settings would have done, on the page they are edited on. The
+ * replay is scoped by parameter, not by surface, so this is the same preview
+ * the alert row shows (`useRulePreview`, `RulePreview`); what this page lacks
+ * is an asset, so it asks for one, and the caption names the asset and the
+ * values replayed so the picker reads as a choice of what to look at rather
  * than a scope the settings apply to.
  */
 function AlertRulePreview({
@@ -940,19 +778,11 @@ function AlertRulePreview({
               aria-pressed={candidate.id === asset.id}
               onClick={() => setPicked(candidate.id)}
               data-replay-asset={candidate.id}
-              /* The box, the thumb floor and the pressed state are
-                 `ui/pill.ts` (bead `ro-s4rg`) — this row and the preset row
-                 below it are the two call sites that carry that pressed pair
-                 exactly, and they used to carry it as two literals kept in step
-                 by hand.
-                 WHAT IS LOCAL IS THE PRICE (bead `ro-zmyq`): this row PAYS its
-                 18px rather than claiming them, and it is the one place on this
-                 route that does. `ro-9smi`'s idiom claims the height back with a
-                 negative margin, which works when the control draws nothing — an
-                 owner chip is a pointer inside a 44px target. These pills draw a
-                 border and a fill and are the whole control: claiming would put
-                 this row's target inside the preset row's below it, and two
-                 pickers sharing pixels is worse on a thumb than a taller page. */
+              /* The box, the thumb floor and the pressed state are `ui/pill.ts`.
+                 This row pays its 18px rather than claiming them back with a
+                 negative margin: these pills draw a border and a fill and are
+                 the whole control, so claiming would put this row's target
+                 inside the preset row's below it. */
               className={cn(
                 pillClass,
                 pillControlClass,
@@ -979,9 +809,8 @@ function AlertRulePreview({
             onClick={() => setRuleId(rule.id)}
             title={rule.id}
             data-replay-rule={rule.id}
-            /* The same three reads as the asset picker above, which is the
-               point of `ui/pill.ts`: this row and that one are one pill, and
-               the floor `ro-zmyq` gave them both is now declared once. */
+            /* The same three reads as the asset picker above: this row and that
+               one are one pill. */
             className={cn(pillClass, pillControlClass, pillPickerStateClass(rule.id === ruleId))}
           >
             {rule.label}
@@ -1020,18 +849,9 @@ function replayedValue(
 }
 
 /**
- * The assets a replay can honestly serve, noisiest first.
- *
- * FILTERED to those that have filed a report: the rest have nothing to replay,
- * and offering them would put the operator one click from a strip that can only
- * say "this asset filed nothing".
- *
- * SORTED by open alerts, because the operator on this page is here to quieten
- * something, and the asset with the most open alerts is the one they mean. It is
- * deliberately NOT "most alerts in the last 30 days", which would read better
- * and which no payload holds — the Wall counts what is OPEN. Inventing a read
- * for it belongs to the bead that surfaces per-rule false-positive counts, not
- * to a picker's default.
+ * The assets a replay can honestly serve, noisiest first: filtered to those
+ * that have filed a report, sorted by open alerts because the operator on this
+ * page is here to quieten something.
  */
 function replayableAssets(assets: readonly AssetCard[]): AssetCard[] {
   return assets
@@ -1043,16 +863,8 @@ function replayableAssets(assets: readonly AssetCard[]): AssetCard[] {
 /** Two of these three numbers mean nothing on their own. A probability is read
  * against the conventional 0.05 ceiling and a window in hours is read against a
  * week; a minimum daily count is already the plain number it claims to be, so it
- * gets no bar — a visual that answers nothing the figure does not is decoration
- * (doc 14).
- *
- * WHAT THESE METERS DO NOT SAY, since `ro-w35m`, is what the value would DO.
- * The sensitivity field used to carry "about one false alert per N tested days",
- * an estimate from the number alone; the strip above the fields now answers the
- * same question from the store, for a real asset over thirty real days. Keeping
- * both would be an estimate arguing with a measurement about one fact (doc 14),
- * and the estimate is the one that loses. The position on the scale is a
- * different fact and stays. */
+ * gets no bar. What the value would do is the replay's answer, not an estimate
+ * from the number alone. */
 function alertRuleVisual(knob: KnobFact) {
   const n = typeof knob.raw === "number" ? knob.raw : Number(knob.raw);
   if (!Number.isFinite(n)) return undefined;
@@ -1106,14 +918,10 @@ function formatDays(hours: number): string {
 
 // --- 3. Data collection ----------------------------------------------------
 /**
- * How often the OS reads and how far back it looks — the declared knobs, in
- * declaration order, each with what changing it costs (bead `ro-x5gu.6`).
- *
- * The section renders whatever `CONFIG_KNOBS` declares that this deployment
- * could read a value for. Nothing here names a pointer, a label or a rule: a
- * knob added to the declaration appears as a row, and a knob whose block a
- * config does not carry is simply not in the payload and draws nothing — never
- * a zero nobody configured.
+ * How often the OS reads and how far back it looks: the declared knobs, in
+ * declaration order, each with what changing it costs. A knob added to
+ * `CONFIG_KNOBS` appears as a row; one whose block a config does not carry is
+ * not in the payload and draws nothing, never a zero nobody configured.
  */
 function CollectionSection({ settings }: { settings: SettingsPayload }) {
   const { collection } = settings;
@@ -1124,16 +932,12 @@ function CollectionSection({ settings }: { settings: SettingsPayload }) {
 
   return (
     <Section id="data-collection" title="Data collection">
-      {/* WHEN A COLLECTION NO CONNECTION FEEDS RUNS, EDITED HERE (beads
-          `ro-ujb9.96.7.12`, `ro-ujb9.96.7.28`). One row per collection and one
-          pick, saved beside the row with its Undo. A collection a connection
-          feeds — ad revenue, the traffic and search archives, product
-          analytics, rankings, Clarity — is changed on that connection's Manage
-          panel on Integrations instead (`connectionCollections`), the sync
-          frequency on the connection as Fivetran and Airbyte place it; what is
-          left here is what no connection feeds: nightly reports, live
-          counters, local research. System health keeps the runner's own view
-          and links to wherever the job's one editor is (`scheduleHref`). */}
+      {/* When a collection no connection feeds runs, edited here: one row per
+          collection and one pick, saved beside the row with its Undo. A
+          collection a connection feeds is changed on that connection's Manage
+          panel on Integrations instead (`connectionCollections`). System
+          health keeps the runner's own view and links to wherever the job's
+          one editor is (`scheduleHref`). */}
       <div className={cn("pb-3", knobs.length > 0 && "border-b border-border")}>
         <ScheduleRows
           jobs={settingsCollections()}
@@ -1171,8 +975,7 @@ function CollectionSection({ settings }: { settings: SettingsPayload }) {
         <span className="text-sm font-medium text-foreground">Nightly report pulls</span>
       </div>
       {collection.pullAssets.length === 0 ? (
-        // A state, not a sentence (bead `ro-ujb9.96.7.12`: 0 words to act on
-        // this section): nothing is fetched, so every asset sends its own.
+        // A state, not a sentence: nothing is fetched, so every asset sends its own.
         <p className="py-2" data-pull-none>
           <StateChip tone="na" label="None · sites send their own" subject="collection:portfolio" />
         </p>
@@ -1191,11 +994,10 @@ function CollectionSection({ settings }: { settings: SettingsPayload }) {
               </div>
             </div>
             <StateChip
-              // Deliberately NOT the connected green: that token means a
-              // collector run succeeded, and this is a switch in a file. A
-              // lane can be enabled and failing, and this chip must never be
-              // read as health (doc 14 — health comes from the latest stored
-              // attempt, never from the presence of config).
+              // Deliberately not the connected green: that token means a
+              // collector run succeeded, and this is a switch in a file. A lane
+              // can be enabled and failing, and this chip must never be read as
+              // health.
               label={entry.enabled ? "Enabled" : "Paused"}
               tone={entry.enabled ? "affirmative" : "na"}
               subject={`collection:${entry.asset}`}
@@ -1213,11 +1015,8 @@ function CollectionSection({ settings }: { settings: SettingsPayload }) {
  * The control a declared field gets, chosen by its TYPE — the same rule
  * `CollectionEditor` follows for a table cell, so a knob and a column of the
  * same type are edited the same way.
- *
- * Everything today is an `integer`, and the cast is where the two vocabularies
- * meet: `validateRegisterField` answers in the declaration's `JsonValue`, and
- * this control's callback is typed to the number it has already refused
- * anything else from being.
+ * The cast is safe: `validateRegisterField` has already refused anything but
+ * a number before the callback sees it.
  */
 function knobControl(field: RegisterField): KnobControl {
   const validate = validateRegisterField(field);
@@ -1244,14 +1043,10 @@ function numberOf(value: JsonValue | undefined): number | null {
 }
 
 /**
- * What the eye reads beside a cadence field — the figure the number itself
- * hides, never a bar for its own sake (doc 14).
- *
- * A read interval in minutes hides how many reads a day that is. A history
- * window in days hides how many weeks. And the freshness bar is the one that is
- * meaningless alone: it has to fit INSIDE the window, so it gets the meter of
- * itself against it — the only visual here that shows an invariant rather than
- * a restatement.
+ * What the eye reads beside a cadence field: the figure the number hides. A
+ * read interval in minutes hides how many reads a day; a history window in
+ * days hides how many weeks; the freshness bar has to fit inside the window,
+ * so it gets the meter of itself against it.
  */
 function collectionVisual(knob: KnobValueSetting, windowDays: number | null) {
   const n = numberOf(knob.value);
@@ -1280,8 +1075,8 @@ function collectionVisual(knob: KnobValueSetting, windowDays: number | null) {
   }
 
   if (knob.key === "panel-freshness-bar" && windowDays !== null) {
-    // The one invariant here — the bar must fit inside the window — as a
-    // meter and a ✓/✕ chip, where a sentence said it (bead `ro-ujb9.96.6.3`).
+    // The one invariant here, the bar must fit inside the window, as a meter
+    // and a ✓/✕ chip.
     const fits = n <= windowDays;
     return (
       <div data-collection-scale="panel-freshness-bar">
@@ -1313,26 +1108,9 @@ function collectionVisual(knob: KnobValueSetting, windowDays: number | null) {
 
 // --- 5. Ownership -----------------------------------------------------------
 /**
- * WHO OWNS WHAT (bead `ro-aodz`).
- *
- * The add-asset wizard has asked for an owning entity since `ro-qsoo` and had
- * nowhere to put it, so it went into the ad-network source's note — where D5
- * makes it matter and where nobody asking "who owns this asset" would look.
- * `config/entities.json` is that fact's own home, and this is the table over it.
- *
- * THE TABLE EDITS THE ENTITY; THE ASSET PAGE EDITS THE MEMBERSHIP. The declared
- * `assets` column is deliberately not offered here (`columns`): an asset belongs
- * to exactly one entity, no field of one row can see another, and a list typed
- * into two rows would claim the same asset twice with nothing to catch it. On
- * the asset's own Identity card the move is ONE change that takes it off the old
- * list on its way onto the new one, so the rule holds by construction rather
- * than by a check. What this section owes instead is the READ — who owns what,
- * and which assets nobody has claimed — which is the map below the table.
- *
- * REMOVING AN ENTITY LEAVES ITS ASSETS UNOWNED rather than deleting anything,
- * and the map is where that shows: the assets it held move straight into the
- * *no entity* line. Said under the table, because a Remove that quietly changes
- * a fact about five assets is one an operator should meet before pressing it.
+ * Who owns what: the table over `config/entities.json`. Membership is edited
+ * on the asset page, because a list typed into two rows here could claim one
+ * asset twice. Removing an entity leaves its assets unowned.
  */
 function EntitiesSection({ settings }: { settings: SettingsPayload }) {
   const { entities } = settings;
@@ -1341,11 +1119,7 @@ function EntitiesSection({ settings }: { settings: SettingsPayload }) {
   const unowned = known.filter((id) => entityOfAsset(entities.rows, id) === null);
 
   return (
-    // No OwnerChip here: the table below carries the file it writes, and one
-    // fact rendered twice on one card is one fact too many (doc 14) — the same
-    // reason the Tasks section below states its file once. No description or
-    // help either (bead `ro-ujb9.96.6.3`): the table is titled "Legal
-    // entities", and where an asset is assigned is its own link in the map.
+    // No OwnerChip here: the table below carries the file it writes.
     <Section id="entities" title="Ownership">
       <CollectionEditor
         statesReadOnly={false}
@@ -1365,17 +1139,11 @@ function EntitiesSection({ settings }: { settings: SettingsPayload }) {
 }
 
 /**
- * The map: one line per entity, plus the assets nobody has claimed.
- *
- * It is a READ of the same field the asset pages write, not a second place to
- * write it — every asset here is a link to the Identity card that owns the
- * change. An asset id is a domain and reads faster with its favicon than
- * without it (doc 14), which is also what makes the unowned line scannable.
- *
- * The unowned line renders only when the matrix has answered. An empty asset
- * list means "nothing said" rather than "every asset is owned", and a green
- * all-clear that came from an unanswered read is the one claim this page must
- * not make.
+ * The map: one line per entity, plus the assets nobody has claimed. It is a
+ * read of the same field the asset pages write; every asset here links to the
+ * Identity card that owns the change. The unowned line renders only when the
+ * matrix has answered, because an empty asset list means "nothing said", not
+ * "every asset is owned".
  */
 function EntityOwnership({
   rows,
@@ -1435,37 +1203,11 @@ function AssetLinks({ ids }: { ids: string[] }) {
 
 // --- 6. Task projects -----------------------------------------------------------
 /**
- * The map from an asset to the project its tasks live in (bead `ro-x5gu.5`).
- *
- * IT USED TO BE A LIST YOU COULD ONLY LOOK AT. Adding a project meant knowing
- * `config/beads.json` existed, which is the definition of a setting with no
- * surface — so it is now the declared register's own table, with the same Add,
- * Save, Remove and Undo every other register on this page has.
- *
- * BUT THE FILE IS NOT THE WHOLE JOB, AND THE PAGE SAYS SO. A row here is a
- * mapping, not a project: the database still has to be created, the repo still
- * has to be pointed at the hub, and a project is not onboarded until it carries
- * its own freeze register. So an Add is answered with the steps that are left,
- * as commands an operator can copy — the honest alternative to a table that
- * looks finished and produces a board entry nobody can read.
- *
- * THE ASSET COLUMN PICKS FROM REALITY. The declaration can say "an asset id"
- * but not WHICH ids exist — those are rows in the store — so the assets the OS
- * actually has come from the integrations matrix this page already reads, and
- * the picker offers the ones no project has claimed yet.
- *
- * THE CONNECTION IS NOT A SETTING. Its port lives in three files that must
- * agree and a test pins them, so it is shown as the fixed fact it is rather than
- * as a field that would break two other files.
- *
- * AND IT SAYS WHEN A NAME IS WRONG (bead `ro-eb7z`). The runner reconciles each
- * project's declared database against what actually exists once an hour and
- * files an operator task about the ones that disagree — which the operator used
- * to meet in his inbox rather than on the field he had typed it into. The mark
- * comes off THAT TASK, read from `/api/work`, not from a probe: `/api/settings`
- * is a pure builder over config with no store read, so the page an operator
- * opens to fix things cannot blank on a store that is empty or down.
- * `shared/task-map.ts` owns the join and the reasoning.
+ * The map from an asset to the project its tasks live in. A row is a mapping,
+ * not a project, so an Add answers with the remaining steps as commands. The
+ * connection is a fixed fact because its port lives in three files that must
+ * agree. A missing database is read from `/api/work`, never probed, so a down
+ * store cannot blank this page; `shared/task-map.ts` owns the join.
  */
 function TaskHubSection({ settings }: { settings: SettingsPayload }) {
   const { taskHub } = settings;
@@ -1480,14 +1222,12 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
   const known = (matrix?.assets ?? []).map((asset) => asset.id);
   const unclaimed = known.filter((id) => !mapped.has(id));
 
-  // WHAT THE HOURLY CHECK FOUND, read off the task it filed rather than probed
-  // from here (`shared/task-map.ts` says why). `null` is "nothing answered", and
-  // the column is not offered at all in that case: an unanswered board must not
-  // render as a table where every row is fine.
+  // What the hourly check found, read off the task it filed. `null` is
+  // "nothing answered", and the column is not offered at all in that case.
+  // When every project's read failed, the column says it does not know rather
+  // than disappearing.
   const drifting = driftingTaskDatabases(work?.projects);
   const marked = taskHub.spokes.filter((spoke) => drifting?.has(spoke.asset));
-  // Every project's read failed: the server row says so, and the column says
-  // it does not know rather than disappearing (bead `ro-ujb9.208`).
   const serverDown = taskServerFailure(work?.projects);
   const found = drifting !== null ? FOUND_COLUMN(drifting) : serverDown !== null ? FOUND_UNKNOWN : null;
 
@@ -1497,8 +1237,7 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
       title="Task projects"
       // A deployed view cannot reach the machine the projects live on: the
       // section says so as a chip, and the rows are a plain list rather than an
-      // editor that would refuse every save (bead `ro-ujb9.96.6.3`). What an
-      // Add leaves to do is the checklist it opens, not a description line.
+      // editor that would refuse every save.
       aside={
         taskHub.hub === null ? (
           <StateChip tone="na" label="Read-only here" glyph={<Lock className="size-3" />} subject="tasks:projects" />
@@ -1547,24 +1286,14 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
 }
 
 /**
- * The one column this page WORKS OUT rather than stores (bead `ro-eb7z`): does a
- * database by this name exist where the tasks live?
- *
- * It is a computed column and not a field, for the reason `CollectionEditor`
- * gives: nothing writes it, nothing addresses it, and a file holding it would be
- * a file that can disagree with itself. It carries no control either — the fix
- * is the `Database` cell one column to the left, or a command in the repo, and
- * both are said under the table.
- *
- * ONLY THE WRONG ROWS ARE MARKED. An agreeing row is blank rather than
- * green-ticked, because `/api/work` carries a bounded head of each list and a
- * filed task can exist without travelling — so blank means "nothing here says
- * otherwise", which is all that can honestly be claimed. The column is not
- * offered at all when nothing answered (`shared/task-map.ts`).
+ * The one column this page works out rather than stores: does a database by
+ * this name exist where the tasks live? Nothing writes it, so it is computed,
+ * and the fix is the `Database` cell one column to the left. Only the wrong
+ * rows are marked: `/api/work` carries a bounded head of each list, so blank
+ * means "nothing here says otherwise", which is all that can be claimed.
  */
 function FOUND_COLUMN(drifting: ReadonlySet<string>): DerivedColumn {
-  // No header tooltip (bead `ro-ujb9.96.6.3`): a blank cell or a warn dot whose
-  // own hover names the missing database, and the note under the table.
+  // A blank cell or a warn dot whose own hover names the missing database.
   return {
     name: "found",
     label: "Found",
@@ -1579,9 +1308,9 @@ function FOUND_COLUMN(drifting: ReadonlySet<string>): DerivedColumn {
   };
 }
 
-/** The same column when no project could be read (bead `ro-ujb9.208`): each row
- * says it is not known, never blank — blank there claims "nothing here says
- * otherwise", and nothing was asked. */
+/** The same column when no project could be read: each row says it is not
+ * known, never blank, because blank claims "nothing here says otherwise" and
+ * nothing was asked. */
 const FOUND_UNKNOWN: DerivedColumn = {
   name: "found",
   label: "Found",
@@ -1594,26 +1323,10 @@ const FOUND_UNKNOWN: DerivedColumn = {
 };
 
 /**
- * What was found, and the two ways out of it.
- *
- * The runner already files this as an operator task; what it could not do is put
- * it on the field the operator typed the value into. So the same two fixes the
- * filed task names are offered here — change the name on this page, or point
- * the repo at the name that is already there — because from this page the first
- * one is a single edit and the operator should not have to open an inbox to
- * learn that.
- *
- * WHAT HAPPENED, THEN TWO BUTTONS (bead `ro-ujb9.96.6.3`). This was an 83-word
- * paragraph explaining that the Tasks board keeps working and that the nightly
- * copy is what reads the name. The consequence is the headline now — the project
- * is not being backed up — and the fixes are side by side, Vercel-domain
- * style: *Edit name* puts the cursor in the
- * Database cell, *Keep* is the command with Copy. Choosing between them is the
- * decision; nothing needs reading to make it.
- *
- * A COMMAND IS COPIED, NOT READ (doc 14 principle 10), so it keeps the
- * machinery's own words inside a labelled block with a Copy button, exactly as
- * the onboarding checklist below does.
+ * What was found, and the two ways out of it: the same two fixes the filed
+ * task names, offered on the field the value was typed into. The consequence
+ * is the headline and the fixes are side by side; a command is copied, not
+ * read.
  */
 function DatabaseNotFound({
   spokes,
@@ -1704,13 +1417,10 @@ function spokeOf(row: Record<string, JsonValue>): TaskHubSpoke {
   };
 }
 
-/** The connection, as the fixed fact it is: a label, a lock and the value. Absent
- * in a build that has no filesystem, where it would be a claim about a machine
- * this page cannot see.
- *
- * AND WHETHER IT ANSWERED (bead `ro-ujb9.208`): when every project's last read
+/** The connection, as the fixed fact it is: a label, a lock and the value.
+ * Absent in a build that has no filesystem. When every project's last read
  * failed, the address carries *Not answering* and the read's own error as a
- * chip, once each — an address alone looks the same up or down. */
+ * chip, because an address alone looks the same up or down. */
 function HubConnection({ hub, failure }: { hub: TaskHubConnection | null; failure: { errors: string[] } | null }) {
   if (hub === null) return null;
   return (

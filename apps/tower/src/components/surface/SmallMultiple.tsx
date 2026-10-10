@@ -5,8 +5,8 @@ import { Sparkline, type SeriesTone } from "@/components/surface/Sparkline";
 import { cn } from "@/lib/utils";
 
 /** The same static map `KpiStrip` uses, and for the same reason: Tailwind reads
- * source text, so a class assembled at runtime generates no CSS. doc 14's
- * strips are rows of five or six; a phone gets two. */
+ * source text, so a class assembled at runtime generates no CSS. A phone gets
+ * two columns. */
 const COLUMNS: Record<number, string> = {
   1: "grid-cols-1",
   2: "grid-cols-2",
@@ -23,14 +23,9 @@ export interface SmallMultipleStripProps {
 }
 
 /**
- * A row of comparable measures in ONE bordered strip (doc 14).
- *
- * *Registry justification:* the asset page drew five product-use figures as
- * five separate cards, each with its own border, heading and subtitle — five
- * boundaries around five numbers that are only interesting beside each other.
- * The strip is the boundary; the cells are hairlines. It carries the border
- * `KpiStrip` deliberately does not, because a small-multiple row stands on its
- * own under a section eyebrow rather than fusing to a chart.
+ * A row of comparable measures in one bordered strip; the cells are
+ * hairlines. Unlike `KpiStrip` it carries its own border, because it stands
+ * under a section eyebrow rather than fusing to a chart.
  */
 export function SmallMultipleStrip({
   children,
@@ -70,9 +65,8 @@ export interface SmallMultipleProps {
 
 /**
  * One cell of a `SmallMultipleStrip`: a label, a figure, what it is against,
- * and the shape behind it. The sparkline is full-width and filled here — at
- * this size the area is what makes five cells comparable at a glance, which is
- * the whole reason they are drawn as a row rather than a list.
+ * and the shape behind it. The sparkline is full-width and filled so the
+ * cells compare at a glance.
  */
 export function SmallMultiple({
   label,

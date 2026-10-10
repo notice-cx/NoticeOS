@@ -1,25 +1,11 @@
 // PATCH /api/assets/:id — the store-owned settings on one asset.
 //
 // `assets.status` (lifecycle stage), `assets.sense_only` (automation mode) and
-// `assets.display_name` (the Tower label) are the only columns of the row
-// anything may edit; everything else is identity or entity metadata (db/README
-// §assets). They are STORE-owned, not file-owned, so they do not go
-// through the config write lane: the lane exists only in the local dev server,
-// while these work in every deployment, because a Worker can always reach the
-// store. D18, bead ro-pbzu.5; `display_name` joined them in bead ro-z349.1, so
-// an asset created from the wizard can be renamed after the typo is spotted.
-//
-// The row itself is written by ingest, which owns the table, through
-// `writeAssetColumn()` on its WorkerEntrypoint — the private INGEST Service
-// Binding, exactly as the annotation write goes. Hosted receivers independently
-// admit the original request; the binding alone is not customer authority.
-//
-// What is here is browser-facing only: the same-origin guard, the JSON
-// envelope, the EXPECT GUARD (the value the browser last saw must still be the
-// value the store holds, or the save is refused rather than blindly
-// overwriting a change made somewhere else), and the mapping from ingest's
-// result to this route's error vocabulary. The column allowlist, the lifecycle
-// enum, the 0/1 rule and the 1–80-character name live in
+// `assets.display_name` (the Tower label) are the only editable columns. They
+// are store-owned, so they work in every deployment. Ingest writes the row
+// through `writeAssetColumn()` over the INGEST binding; hosted receivers still
+// admit the original request. This route adds the expect guard: the value the
+// browser last saw must still be the stored value. The column rules live in
 // workers/ingest/src/asset-state.ts.
 
 import type {
@@ -31,13 +17,8 @@ import type {
 import { STORE_COLUMNS } from "@noticeos/contract";
 import { JSON_HEADERS, crossOrigin, isJsonRequest, jsonError } from "./http";
 
-/**
- * The two ingest RPCs this route calls. `env.INGEST` satisfies it structurally;
- * declaring the surface here rather than importing the binding's type keeps
- * this file free of Workers globals (the test project typechecks it too) and
- * lets a test bind a double. Same trick as `AnnotationWriter` in
- * ./annotation-route.
- */
+/** Declared here rather than imported from the binding so this file stays free
+ * of Workers globals (the test project typechecks it). */
 export interface AssetColumnWriter {
   readAssetState(asset: string, originalProof?: Request): Promise<AssetStateRead>;
   writeAssetColumn(input: WriteAssetColumnInput, originalProof?: Request): Promise<AssetStateWriteResult>;
@@ -58,9 +39,6 @@ function currentValue(read: AssetStateRead, column: StoreColumn): string | numbe
 }
 
 /**
- * Handle one column edit. `asset` has already been extracted from the path.
- *
- * Error vocabulary matches the flag, decision and annotation routes:
  * 405 method_not_allowed · 403 forbidden · 415 unsupported_media_type ·
  * 400 bad_request · 422 invalid_asset_column · 404 asset_not_found ·
  * 409 expect_mismatch · 500 asset_column_write_failed.
@@ -127,9 +105,7 @@ export async function handleAssetColumnRequest(
 
   let result: AssetStateWriteResult;
   try {
-    // A claim, not a check: ingest is the validator. It re-checks the column,
-    // the lifecycle enum and the 0/1 rule, because an HTTP body is untrusted
-    // wherever it entered.
+    // A claim, not a check: ingest is the validator.
     result = await ingest.writeAssetColumn({ asset, column, value, expect: record.expect as WriteAssetColumnInput['expect'] });
   } catch {
     // Keep the service boundary opaque: the browser gets a code, not ingest's

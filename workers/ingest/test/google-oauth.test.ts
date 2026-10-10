@@ -1,17 +1,13 @@
-// Connecting Google by signing in (bead `ro-vu8d.3`, epic `ro-vu8d`, D21).
-//
-// WHAT THESE ASSERTIONS PROTECT. In the order an attacker or an accident would
-// meet them: a state that this install did not sign, or signed for another
-// address, or signed too long ago, never reaches Google's token endpoint at
-// all; a code is exchanged exactly once and what comes back is sealed rather
-// than echoed; the refresh token appears in NO summary, NO return value and NO
-// log line; a grant missing a scope is refused instead of stored; a disconnect
-// revokes at Google before it deletes; and every collector authenticates the
-// same way whichever credential it holds.
-//
-// Against REAL D1, REAL WebCrypto and a MOCKED token endpoint. The crypto is
-// the point — the state is an HMAC over a key derived from `CREDENTIALS_KEY`,
-// and a mock of that would be testing the mock.
+// Connecting Google by signing in. What these assertions protect, in the order
+// an attacker or an accident would meet them: a state this install did not
+// sign, or signed for another address, or signed too long ago, never reaches
+// Google's token endpoint; a code is exchanged exactly once and what comes back
+// is sealed rather than echoed; the refresh token appears in no summary, return
+// value or log line; a grant missing a scope is refused; a disconnect revokes
+// at Google before it deletes; and every collector authenticates the same way
+// whichever credential it holds. Against a real store, real WebCrypto and a
+// mocked token endpoint: the state is an HMAC over a key derived from
+// `CREDENTIALS_KEY`, and a mock of that would be testing the mock.
 
 import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -480,8 +476,8 @@ describe('finishing a sign-in', () => {
 
   it("answers Google's refusal as a code and its status, never a sentence or the code it was sent", async () => {
     // The page words each code and puts its one press beside it
-    // (`googleOAuthNotice`, bead `ro-ujb9.96.6.25`); nothing the ingest wrote
-    // could reach the screen, so it writes nothing.
+    // (`googleOAuthNotice`); nothing the ingest wrote could reach the screen,
+    // so it writes nothing.
     await storeOAuthApp();
     const state = await signOAuthState(bare(), REDIRECT_URI, NOW);
     const outcome = await completeGoogleOAuth(bare(), {
@@ -539,8 +535,7 @@ describe('using the grant', () => {
     expect(resolved.oauth).not.toBeNull();
     expect(resolved.oauth!.clientId).toBe(CLIENT_ID);
     expect(resolved.oauth!.account).toBe('ops@example.test');
-    // No map was pasted, so there is nothing to point the credential at yet —
-    // that mapping is `ro-vu8d.4`, and this is the honest state until it lands.
+    // No map was pasted, so there is nothing to point the credential at yet.
     expect(resolved.accounts).toBeUndefined();
   });
 
@@ -590,12 +585,11 @@ describe('using the grant', () => {
   });
 
   it('answers the connection test with what actually happened, not "could not be reached"', async () => {
-    // Bead `ro-vu8d.14`. `probeCredential` catches everything and rewrites it,
-    // because a transport error may be holding a url that has a token in it —
-    // and that catch used to swallow a REVOKED grant too, telling the operator
-    // their network was the problem while the real answer was "sign in again".
-    // The one exception is a `SignalError` this repo raised carrying a CONSTANT
-    // sentence, so nothing derived from the request is copied anywhere.
+    // `probeCredential` catches everything and rewrites it, because a transport
+    // error may be holding a url that has a token in it — but a revoked grant
+    // must not be reported as a network problem. The one exception is a
+    // `SignalError` this repo raised carrying a constant sentence, so nothing
+    // derived from the request is copied anywhere.
     await connect();
     const probe = await probeCredential(bare(), 'google', {
       nowMs: NOW,
@@ -605,8 +599,7 @@ describe('using the grant', () => {
           : Response.json({}, { status: 500 })) as typeof fetch,
     });
     expect(probe.ok).toBe(false);
-    // A refused sign-in whose one press is signing in again (bead
-    // ro-ujb9.96.6.19) — never "no answer".
+    // A refused sign-in whose one press is signing in again — never "no answer".
     expect(probe.result).toEqual({ outcome: 'refused', failing: ['Google sign-in'], fix: { kind: 'sign-in' } });
     expect(probe.message).not.toContain('No answer');
 
@@ -629,8 +622,7 @@ describe('using the grant', () => {
       provider: 'google',
       fields: {
         GOOGLE_SIGNAL_ACCOUNTS: JSON.stringify({
-          // No `service_account_b64`, so this entry authenticates with the
-          // sign-in — the OAuth-only install `ro-vu8d.3` made possible.
+          // No `service_account_b64`, so this entry authenticates with the sign-in.
           portfolio: { properties: { 'meals.example': { ga4_property_id: '123456' } } },
         }),
       },
@@ -845,13 +837,13 @@ describe('disconnecting', () => {
   });
 });
 
-describe('when a sign-in is due to stop working (bead `ro-vu8d.8`)', () => {
+describe('when a sign-in is due to stop working', () => {
   it('dates the grant seven days out, because the console setup this OS prescribes is Testing mode', () => {
     // Google publishes no API that reports whether a consent screen is still in
-    // Testing, and doc 11's own console steps (External + a test user) produce
-    // one — which expires every refresh token after seven days. So the default
-    // is the setup we told the operator to make, stamped `flow` and stated in
-    // words on the card, with a one-press correction beside it.
+    // Testing, and the console steps doc 11 prescribes (External + a test user)
+    // produce one — which expires every refresh token after seven days. So the
+    // default is that setup, stamped `flow` and stated in words on the card,
+    // with a one-press correction beside it.
     return (async () => {
       await storeOAuthApp();
       const state = await signOAuthState(bare(), REDIRECT_URI, NOW);
@@ -916,10 +908,10 @@ describe('when a sign-in is due to stop working (bead `ro-vu8d.8`)', () => {
   });
 });
 
-// THE CONNECT PANEL (bead ro-ujb9.96.7.7): the sign-in is its own proof, the
-// account's GA4 properties and Search Console sites are listed with the host
-// each answers for (two lanes on one row), and Start's collection is the
-// quarter-hourly Google step narrowed to the named sites.
+// The connect panel: the sign-in is its own proof, the account's GA4 properties
+// and Search Console sites are listed with the host each answers for (two lanes
+// on one row), and Start's collection is the quarter-hourly Google step narrowed
+// to the named sites.
 describe('Google in the connect panel', () => {
   afterEach(async () => {
     await emptyTables(['config_documents']);

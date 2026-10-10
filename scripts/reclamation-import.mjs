@@ -4,8 +4,8 @@
 //
 // The list goes to the ingest's door (POST /api/reclamation-targets, with the
 // operator bearer), which stores it in one transaction — a script never holds
-// a database credential (bead ro-ujb9.76.5.8). `--dry-run`
-// shows what would be sent and sends nothing. Importing the same list twice
+// a database credential. `--dry-run` shows what would be sent and sends
+// nothing. Importing the same list twice
 // changes nothing: a page is stored once, keyed on its site, domain and page,
 // and a status only moves forward from a status strictly earlier in the
 // funnel, so a row a person moved forward is never dragged back.
@@ -49,7 +49,7 @@ const NOT_APPLICABLE = new Set(['', 'n/a', 'N/A', 'n/A', 'N/a']);
 // { domain, referringPage?, status, statusAt?, lastVerifiedAt?, outcomeNote? },
 // one entry per target row it moves forward. It is reviewable data, never parsed
 // out of prose, because a wrong row means a double pitch or a lost reply.
-// Without the file there is no overlay (bead ro-ujb9.157).
+// Without the file there is no overlay.
 //
 // Mapping rules (see db/README §reclamation_targets):
 //   * A hard bounce has no status: the row stays `sent` with the bounce in
@@ -210,11 +210,10 @@ function tierOf(value) {
  * Turn one CSV record into the rows it stands for.
  *
  * The list's last line is not a target: it is a do-not-pitch declaration whose
- * `domain` cell holds ten slash-separated federal and Wikipedia hosts, kept in
- * the sheet so a later research pass does not re-add them. It becomes one `skip`
- * row PER DOMAIN, because "is this host on the do-not-pitch list?" is the
- * question the rest of the pipeline asks, and it is a domain-grain question. The
- * shared reason travels on every row.
+ * `domain` cell holds slash-separated hosts, kept in the sheet so a later
+ * research pass does not re-add them. It becomes one `skip` row per domain,
+ * because "is this host on the do-not-pitch list?" is a domain-grain question.
+ * The shared reason travels on every row.
  */
 function toRows(record, asset) {
   const isSkip = String(record.tier ?? '').trim().toUpperCase() === SKIP_TIER;

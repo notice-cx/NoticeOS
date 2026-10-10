@@ -45,9 +45,9 @@ export interface JourneyIngestEnv {
    * store the production ingest code reads its settings from, as a Worker
    * call's is (workers/ingest/src/call-store.ts). */
   STORE: WorkspaceStore;
-  /** A HOSTED installation's own Google OAuth client (bead ro-ujb9.96.7.7):
-   * present only after `/__journey/google-hosted`, a synthetic client the
-   * fixture's Google network accepts — never a real one. */
+  /** A hosted installation's own Google OAuth client: present only after
+   * `/__journey/google-hosted`, a synthetic client the fixture's Google
+   * network accepts, never a real one. */
   GOOGLE_OAUTH_CLIENT_ID?: string; GOOGLE_OAUTH_CLIENT_SECRET?: string;
 }
 
@@ -100,7 +100,7 @@ export interface JourneyIngest {
    * test, run unchanged; only the provider's network answer is the fixture's. */
   connectCredential(env: JourneyIngestEnv, input: PutCredentialInput, options: { fetchImpl: typeof fetch; nowMs: number }): Promise<ConnectCredentialResult>;
   /** workers/ingest/src/site-tokens.ts: one site's token merged into its
-   * provider's per-site map (bead ro-ujb9.96.7.9), run unchanged. */
+   * provider's per-site map, run unchanged. */
   putSiteToken(env: JourneyIngestEnv, input: PutSiteTokenInput): Promise<PutSiteTokenResult>;
   deleteCredential(env: JourneyIngestEnv, provider: string): Promise<DeleteCredentialResult>;
   recordCredentialOutcome(env: JourneyIngestEnv, provider: IntegrationProviderId, outcome: { ok: boolean; error?: string | null; at?: string }): Promise<void>;
@@ -120,38 +120,37 @@ export interface JourneyIngest {
   /** workers/ingest/src/site-discovery.ts: the `discoverSites()` RPC's whole
    * body; only the provider's network answer is the fixture's. */
   discoverSites(env: JourneyIngestEnv, provider: string, options: { fetchImpl: typeof fetch; nowMs: number }): Promise<SiteDiscovery>;
-  /** workers/ingest/src/dispatch.ts: the `collectNow()` RPC's whole body — the
-   * scheduled job's own lane step, run for the confirmed sites (bead
-   * ro-ujb9.96.7.2); only the provider's network answer is the fixture's. */
+  /** workers/ingest/src/dispatch.ts: the `collectNow()` RPC's whole body, the
+   * scheduled job's own lane step run for the confirmed sites; only the
+   * provider's network answer is the fixture's. */
   runCollectNow(env: JourneyIngestEnv, input: CollectNowInput, options: { fetchImpl: typeof fetch; nowMs: number }): Promise<CollectNowResult>;
-  /** workers/ingest/src/hygiene.ts: the hourly tick's uptime step (bead
-   * ro-ujb9.165) — the OS fetching each site's home page; only the site's
-   * answer is the fixture's. */
+  /** workers/ingest/src/hygiene.ts: the hourly tick's uptime step, the OS
+   * fetching each site's home page; only the site's answer is the fixture's. */
   runUptimeChecks(env: JourneyIngestEnv, options: { fetchImpl: typeof fetch; nowMs: number; confirmWaitMs?: number }): Promise<{ checked: number; retried: number; fired: number; resolved: number }>;
   /** workers/ingest/src/credential-probes.ts: the `probeCredential()` RPC's
-   * whole body — Test connection's result (bead ro-ujb9.96.6.19). */
+   * whole body, Test connection's result. */
   probeCredential(env: JourneyIngestEnv, provider: string, options: { fetchImpl: typeof fetch; nowMs: number }): Promise<CredentialProbe>;
-  /** workers/ingest/src/google-oauth.ts: signing in to Google (bead
-   * ro-ujb9.96.7.7), run unchanged; Google's consent screen is the walk's own
-   * redirect and Google's token endpoint the fixture's network. */
+  /** workers/ingest/src/google-oauth.ts: signing in to Google, run unchanged;
+   * Google's consent screen is the walk's own redirect and Google's token
+   * endpoint the fixture's network. */
   beginGoogleOAuth(env: JourneyIngestEnv, input: { origin: string; nowMs: number }): Promise<GoogleOAuthStart>;
   completeGoogleOAuth(env: JourneyIngestEnv, input: { code: string; state: string; redirectUri: string; nowMs: number; fetchImpl: typeof fetch }): Promise<GoogleOAuthCompletion>;
   /** workers/ingest/src/credential-probes.ts: what the Google account lists. */
   discoverGoogleProperties(env: JourneyIngestEnv, options: { fetchImpl: typeof fetch; nowMs: number }): Promise<GooglePropertyDiscovery>;
-  /** workers/ingest/src/mediavine.ts (bead ro-ujb9.96.7.6): a site's revenue
-   * status, its sync (Refresh, a backfill) and Disconnect, run unchanged; only
-   * Mediavine's network answer is the fixture's. */
+  /** workers/ingest/src/mediavine.ts: a site's revenue status, its sync
+   * (Refresh, a backfill) and Disconnect, run unchanged; only Mediavine's
+   * network answer is the fixture's. */
   mediavineStatus(env: JourneyIngestEnv, asset: string): Promise<MediavineStatus>;
   syncMediavine(env: JourneyIngestEnv, input: MediavineSync, options: { fetchImpl: typeof fetch; nowMs: number }): Promise<MediavineResult<MediavineStatus>>;
   disconnectMediavine(env: JourneyIngestEnv): Promise<DeleteCredentialResult>;
   /** workers/ingest/src/google-auth.ts: what a collection stamps on the
-   * Google credential when Google revokes the sign-in (bead ro-ujb9.96.6.24). */
+   * Google credential when Google revokes the sign-in. */
   GOOGLE_OAUTH_REVOKED_MESSAGE: string;
-  /** The lanes whose own words the Tower draws after a failure (epic
-   * ro-ujb9.96.6, beads .25–.29), run unchanged over the fixture store; only the
-   * provider's or the site's answer is the fixture's. workers/ingest/src/
-   * notifier.ts, hygiene.ts, ga4-quota.ts, time-zone-change.ts,
-   * signal-store.ts, routes/watch-windows.ts and watch-windows.ts. */
+  /** The lanes whose own words the Tower draws after a failure, run unchanged
+   * over the fixture store; only the provider's or the site's answer is the
+   * fixture's. workers/ingest/src/ notifier.ts, hygiene.ts, ga4-quota.ts,
+   * time-zone-change.ts, signal-store.ts, routes/watch-windows.ts and
+   * watch-windows.ts. */
   runNotifier?(env: JourneyIngestEnv, options: { nowMs: number; fetchImpl: typeof fetch }): Promise<unknown>;
   runHygieneChecks?(env: JourneyIngestEnv, options: { assets: { asset: string; domain: string }[]; fetchImpl: typeof fetch; nowMs: number }): Promise<unknown>;
   recordGa4Quota?(env: JourneyIngestEnv, input: {
@@ -166,8 +165,8 @@ export interface JourneyIngest {
     }): Promise<unknown>;
   writeWatchWindow?(env: JourneyIngestEnv, input: Record<string, unknown>, nowMs: number): Promise<{ ok: boolean }>;
   runWatchWindows?(env: JourneyIngestEnv, nowMs: number): Promise<unknown>;
-  /** workers/ingest/src/pull.ts: the nightly report fetch (bead ro-ujb9.220),
-   * run unchanged; only the site's answer is the fixture's. */
+  /** workers/ingest/src/pull.ts: the nightly report fetch, run unchanged;
+   * only the site's answer is the fixture's. */
   runPullAdapter?(env: JourneyIngestEnv & { ASSET_TOKENS: string }, options: {
     entries: { asset: string; url: string; enabled: boolean; format: "envelope" }[];
     fetchImpl: typeof fetch; nowMs: number;
@@ -175,23 +174,17 @@ export interface JourneyIngest {
 }
 
 /**
- * The journey's isolated Postgres store (epic ro-ujb9.76):
- * a copy of the run's template for this server alone, asked of the run's copy
- * service (scripts/postgres-test-copies.mts).
+ * The journey's isolated Postgres store: a copy of the run's template for this
+ * server alone, asked of the run's copy service
+ * (scripts/postgres-test-copies.mts).
  *
- * A RESET TAKES ANOTHER COPY AND NEVER WAITS ON THE ONE BEFORE (bead
- * ro-ujb9.76.56). It used to make the same copy again (drop, then copy),
- * which waits for every session on it to end and, on a busy machine, queued
- * behind every other server's reset. Now the copy the last test used is given
- * back, without waiting — the copy service ends its sessions and takes its
- * name away, so nothing that test left running reaches the next one — and the
- * next test gets another copy under a new name. A copy that cannot be taken
- * back stays in the run's cluster, which is deleted when the run ends.
- *
- * The server's own store on that copy closes first, so work the last test
- * left running on it (a collection still writing) finishes rather than has
- * its connection ended under it; a Tower call still running on the copy when
- * its sessions are ended fails its own statement, never the server.
+ * A reset takes another copy and never waits on the one before: the copy the
+ * last test used is given back without waiting (the copy service ends its
+ * sessions and takes its name away), and the next test gets a copy under a new
+ * name. A copy that cannot be taken back stays in the run's cluster, which is
+ * deleted when the run ends. The server's own store on that copy closes
+ * first, so work the last test left running finishes rather than has its
+ * connection ended under it.
  */
 function journeyPostgres(handle: TestClusterHandle) {
   const cluster = attachTestCluster(handle);
@@ -234,9 +227,9 @@ const CALL_CONTEXT = { waitUntil: (work: Promise<unknown>) => void work.catch(()
 export const JOURNEY_DATAFORSEO_LOGIN = "journey-login";
 
 /**
- * The providers' side of the network, for the connect panel's save and test
- * (bead ro-ujb9.96.7.1): the production ingest code sends its real requests
- * here instead of the internet. Bing Webmaster's GetUserSites lists the
+ * The providers' side of the network, for the connect panel's save and test:
+ * the production ingest code sends its real requests here instead of the
+ * internet. Bing Webmaster's GetUserSites lists the
  * journey's verified site for the synthetic key only; DataForSEO's free
  * account endpoint answers the synthetic login and key with a prepaid credit.
  * Anything else is refused the way each provider refuses it, and any other
@@ -247,15 +240,15 @@ export const journeyProviderNetwork: typeof fetch = async (input, init) => {
   if (url.origin === "https://ssl.bing.com" && url.pathname.startsWith("/webmaster/api.svc/json/")) {
     if (url.searchParams.get("apikey") !== JOURNEY_KEY) return Response.json({ ErrorCode: 3, Message: "InvalidApiKey" }, { status: 400 });
     if (url.pathname.endsWith("/GetUserSites")) return Response.json({ d: JOURNEY_BING_SITES });
-    // The first collection (bead ro-ujb9.96.7.2): the same 35 days of clicks
-    // and impressions `/__journey/receive` files, as Bing answers them.
+    // The first collection: the same 35 days of clicks and impressions
+    // `/__journey/receive` files, as Bing answers them.
     if (url.pathname.endsWith("/GetRankAndTrafficStats") && url.searchParams.get("siteUrl") === JOURNEY_SITE) {
       return Response.json({ d: journeyBingDays().map(({ date, clicks, impressions }) =>
         ({ Date: `/Date(${Date.parse(`${date}T00:00:00Z`)})/`, Clicks: clicks, Impressions: impressions })) });
     }
     return Response.json({ ErrorCode: 7, Message: "NotAuthorized" }, { status: 400 });
   }
-  // PostHog (bead ro-ujb9.96.7.8): the synthetic personal API key belongs to
+  // PostHog: the synthetic personal API key belongs to
   // the US cloud, so the EU cloud refuses it the way PostHog does; the US one
   // lists the journey's project (and a staging one no site claims), each
   // project's details and saved insights, and answers every archive query
@@ -272,14 +265,14 @@ export const journeyProviderNetwork: typeof fetch = async (input, init) => {
     if (rest === "query/" && init?.method === "POST") return Response.json({ results: [], query_status: { complete: true } });
     return Response.json({ detail: "Not found." }, { status: 404 });
   }
-  // Clarity (bead ro-ujb9.96.7.9): the data export answers the synthetic
+  // Clarity: the data export answers the synthetic
   // token with one metric block of the journey's pages, and refuses any other
   // the way Clarity does.
   if (url.origin === "https://www.clarity.ms" && url.pathname === "/export-data/api/v1/project-live-insights") {
     if (new Headers(init?.headers).get("authorization") !== `Bearer ${JOURNEY_KEY}`) return Response.json({ message: "Unauthorized" }, { status: 401 });
     return Response.json([{ metricName: "Traffic", information: [{ sessionsCount: "42", distinctUserCount: "30", URL: JOURNEY_SITE }] }]);
   }
-  // Mediavine (bead ro-ujb9.96.7.6): the publishers' GraphQL signs the
+  // Mediavine: the publishers' GraphQL signs the
   // synthetic login in, lists the journey's one site, and reports $1.25 a day
   // with a summary two cents above the daily rows — the difference the Data
   // sources row shows. Any other login is refused the way Mediavine refuses it.
@@ -308,7 +301,7 @@ export const journeyProviderNetwork: typeof fetch = async (input, init) => {
     }
     return Response.json({ errors: [{ message: "Forbidden", extensions: { code: "FORBIDDEN" } }] });
   }
-  // Google (bead ro-ujb9.96.7.7): the token endpoint exchanges the walk's
+  // Google: the token endpoint exchanges the walk's
   // synthetic consent code and refreshes the grant for the synthetic client
   // only; the Analytics Admin API lists the journey's two properties, each
   // with its web stream's address; Search Console lists the journey's domain
@@ -363,13 +356,13 @@ export const journeyProviderNetwork: typeof fetch = async (input, init) => {
     }
     return Response.json({ error: { message: "Not found" } }, { status: 404 });
   }
-  // Discord (bead ro-ujb9.96.7.14): the synthetic webhook takes the connect
+  // Discord: the synthetic webhook takes the connect
   // panel's test message as Discord does (204); any other webhook is one
   // Discord no longer knows (404).
   if (url.origin === "https://discord.com" && url.pathname.startsWith("/api/webhooks/") && init?.method === "POST") {
     return new Response(null, { status: url.href === JOURNEY_DISCORD_WEBHOOK ? 204 : 404 });
   }
-  // A calendar host (bead ro-ujb9.96.7.14): the synthetic secret feed is a
+  // A calendar host: the synthetic secret feed is a
   // calendar; any other address answers a sign-in page, as a rotated secret
   // link does.
   if (url.origin === "https://calendar.example") {
@@ -392,8 +385,8 @@ export const journeyProviderNetwork: typeof fetch = async (input, init) => {
 };
 
 /** The same providers, with a PostHog key that may read projects but not run
- * queries (bead ro-ujb9.96.6.27): PostHog answers each query 403, as it does a
- * key missing the Query scope. */
+ * queries: PostHog answers each query 403, as it does a key missing the
+ * Query scope. */
 const posthogWithoutQueries: typeof fetch = async (input, init) => {
   const url = new URL(input instanceof Request ? input.url : String(input));
   if (url.origin === "https://us.posthog.com" && url.pathname.endsWith("/query/")) {
@@ -403,8 +396,8 @@ const posthogWithoutQueries: typeof fetch = async (input, init) => {
 };
 
 /** The same providers, with a Google account that signs in and lists its
- * sites but may not read their reports (bead ro-ujb9.96.6.31): GA4 and Search
- * Console answer each report 403, as they do an account without access. */
+ * sites but may not read their reports: GA4 and Search Console answer each
+ * report 403, as they do an account without access. */
 const googleWithoutReports: typeof fetch = async (input, init) => {
   const url = new URL(input instanceof Request ? input.url : String(input));
   if ((url.origin === "https://analyticsdata.googleapis.com" && init?.method === "POST") ||
@@ -414,8 +407,7 @@ const googleWithoutReports: typeof fetch = async (input, init) => {
   return journeyProviderNetwork(input, init);
 };
 
-/** The synthetic site the nightly site checks read (bead ro-ujb9.96.6.26):
- * its home page, robots.txt, sitemap and three sampled pages, healthy or as
+/** The synthetic site the nightly site checks read: its home page, robots.txt, sitemap and three sampled pages, healthy or as
  * one regressed night leaves them — the home page's served text cut to 120
  * words, two AI crawlers newly disallowed, one page newly `noindex` and one
  * newly without a title. */
@@ -443,7 +435,7 @@ function journeySite(night: "healthy" | "regressed"): typeof fetch {
   };
 }
 
-/** The synthetic Google account (bead ro-ujb9.96.7.7): the OAuth client the
+/** The synthetic Google account: the OAuth client the
  * fixture's Google network accepts (dropped as a client file, or the hosted
  * installation's own), the consent screen's code, the grant it issues, and
  * what the account holds — two GA4 properties (the journey's and one no site
@@ -472,19 +464,18 @@ function journeyDays(start: string | undefined, end: string | undefined): string
 }
 
 /** The synthetic Discord webhook and calendar feed the fixture's network
- * accepts (bead ro-ujb9.96.7.14), and the webhook the notifier's failed
- * delivery is replayed against (ro-ujb9.96.6.25) — addresses nothing outside
- * this process ever hears of. */
+ * accepts, and the webhook the notifier's failed delivery is replayed
+ * against: addresses nothing outside this process ever hears of. */
 export const JOURNEY_DISCORD_WEBHOOK = "https://discord.com/api/webhooks/0/journey-only-not-a-real-key";
 export const JOURNEY_CALENDAR_FEED = "https://calendar.example/journey-only-not-a-real-key/basic.ics";
 
-/** The synthetic Mediavine account (bead ro-ujb9.96.7.6): its login, the
+/** The synthetic Mediavine account: its login, the
  * access token its sign-in issues, and its one site, on the journey's domain. */
 export const JOURNEY_MEDIAVINE_EMAIL = "journey@example.test";
 const JOURNEY_MEDIAVINE_TOKEN = "journey-mediavine-access";
 export const JOURNEY_MEDIAVINE_SITE = { id: "journey-mediavine-site", title: "Journey Example", domain: JOURNEY_ASSET };
 
-/** The synthetic PostHog account (bead ro-ujb9.96.7.8): the journey's own
+/** The synthetic PostHog account: the journey's own
  * project, whose app URL is the journey's domain, with two saved funnels (one
  * query-based, one filter-based) and a trend that is not a funnel; and a
  * staging project no site claims. */
@@ -558,18 +549,17 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
   let collected = false;
   let failNextSave = false;
   // A hosted installation: its own Google OAuth client arrives with the
-  // deployment (bead ro-ujb9.96.7.7), so the panel is one button.
+  // deployment, so the panel is one button.
   let hostedGoogle = false;
-  // A PostHog key that reads projects but may not run queries (bead
-  // ro-ujb9.96.6.27): set by `/__journey/posthog-query-denied`, so the next
-  // collection meets the refusal PostHog gives such a key.
+  // A PostHog key that reads projects but may not run queries: set by
+  // `/__journey/posthog-query-denied`, so the next collection meets the
+  // refusal PostHog gives such a key.
   let posthogQueryDenied = false;
   let googleReportsDenied = false;
 
   /** One provider's card, from the production credential read over the rows
-   * the fixture store holds (bead ro-ujb9.90). The /integrations cards, and
-   * every "is it connected / has it been tested" question this fixture asks,
-   * come from here, so there is no second answer to drift from them. */
+   * the fixture store holds. Every "is it connected / has it been tested"
+   * question this fixture asks comes from here. */
   async function credential(provider: IntegrationProviderId): Promise<CredentialSummary> {
     const found = (await ingestCode.readCredentialSummaries(ingestEnv())).summaries.find((row) => row.provider === provider);
     if (!found) throw new Error(`The credential read returned no ${provider} card`);
@@ -626,7 +616,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
   }
 
   /** Whether the site list holds this site: read on Postgres, where the Tower
-   * and the ingest read it (bead ro-ujb9.76.4.2). */
+   * and the ingest read it. */
   async function siteStored(id: string): Promise<boolean> {
     const found = await postgres.current().store.read((tx) =>
       tx.query("SELECT 1 AS stored FROM noticeos.assets WHERE asset_id = $1", [id]));
@@ -658,7 +648,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
   const ingest: TowerEnv["INGEST"] = {
     // The site's revenue status and sync are the production ones over the
     // fixture store, the saved documents published first as a real run reads
-    // them (bead ro-ujb9.96.7.6).
+    // them.
     async mediavineStatus(asset) {
       await publishDocuments();
       return ingestCode.mediavineStatus(ingestEnv(), asset);
@@ -670,9 +660,9 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       const config = documents['config/integrations.json'] as { assets: Record<string, Record<string, Record<string, unknown>>> };
       const lane = config.assets[JOURNEY_ASSET]?.['ad-network'];
       if (!lane) return { ok: false, message: 'Create the asset first.' };
-      // As the ingest's own door (workers/ingest/src/mediavine.ts, bead
-      // ro-ujb9.96.7.21): it starts a sync and never writes a decline, which
-      // is the row's Not using with its reason.
+      // As the ingest's own door (workers/ingest/src/mediavine.ts): it starts
+      // a sync and never writes a decline, which is the row's Not using with
+      // its reason.
       if (!input.enabled && lane.status !== 'skipped' && lane.status !== 'not-applicable') return { ok: false, message: 'Stop this sync with Not using on the site’s Ad revenue row.' };
       const values = { mediavineSiteId: input.siteId, mediavineEnabled: input.enabled, ...(input.enabled ? { status: 'needs-setup' } : {}), ...(input.holidayCalendar === undefined ? {} : { revenueHolidayCalendar: input.holidayCalendar }) };
       const result = await ingest.applyConfigOps({ actor: 'journey-fixture', ops: Object.entries(values).map(([field, value]) => ({
@@ -715,7 +705,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
         if (versionMismatches.length) return { ok: false, error: "version_mismatch", files: versionMismatches };
         const resolved = await resolveOps(change, null, {
           readDocument: async (file) => structuredClone(documents[file] ?? null),
-          // The fixture's compiled copies, as the ingest's `bundled` (bead ro-dk4u).
+          // The fixture's compiled copies, as the ingest's `bundled`.
           readBuiltIn: async (file) => structuredClone(INITIAL_DOCUMENTS[file] ?? null),
         });
         if (resolved.mismatches.length) return { ok: false, error: "expect_mismatch", mismatches: resolved.mismatches.map(serializeMismatch) };
@@ -735,8 +725,8 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       await publishDocuments();
       return ingestCode.readIntegrationHealth(ingestEnv(), Date.now());
     },
-    // The credential cards: the production read over the rows sealed below
-    // (bead ro-ujb9.90), not a fixture summary.
+    // The credential cards: the production read over the rows sealed below,
+    // not a fixture summary.
     listCredentialSummaries: () => ingestCode.readCredentialSummaries(ingestEnv()),
     async putCredential(input) {
       // Fixture boundary: only the documented synthetic values are accepted. The
@@ -744,7 +734,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       if (input.provider === 'mediavine' && input.fields.MEDIAVINE_USER === JOURNEY_MEDIAVINE_EMAIL && input.fields.MEDIAVINE_PASSWORD === JOURNEY_KEY) {
         return seal(input);
       }
-      // The client file dropped on Google's panel (bead ro-ujb9.96.7.7).
+      // The client file dropped on Google's panel.
       if (input.provider === 'google-oauth-app' && input.fields.GOOGLE_OAUTH_CLIENT_ID === JOURNEY_GOOGLE_CLIENT_ID && input.fields.GOOGLE_OAUTH_CLIENT_SECRET === JOURNEY_KEY) {
         return seal(input);
       }
@@ -755,18 +745,18 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
     },
     // The connect panel: the production save-and-test over the fixture store,
     // with the providers answering from `journeyProviderNetwork`.
-    // A token pasted on a site's row (Clarity, bead ro-ujb9.96.7.9): the
-    // production merge into the per-site map, over the fixture store.
+    // A token pasted on a site's row (Clarity): the production merge into
+    // the per-site map, over the fixture store.
     putSiteToken: (input) => ingestCode.putSiteToken(ingestEnv(), input),
     // With PostHog's queries refused, the key's test is stamped a second
     // before the collection that meets the refusal, as it is on an
     // installation, so the card reads the later answer (compare google-revoked).
     connectCredential: (input) => ingestCode.connectCredential(ingestEnv(), input,
       { fetchImpl: journeyProviderNetwork, nowMs: Date.parse(JOURNEY_NOW) - (posthogQueryDenied ? 1000 : 0) }),
-    // The connect panel's site list and Start collecting (bead
-    // ro-ujb9.96.7.2): the production listing and the production dispatch
-    // step over the fixture store, the saved documents published first so the
-    // lane reads the mapping the press just saved, as a real run does.
+    // The connect panel's site list and Start collecting: the production
+    // listing and the production dispatch step over the fixture store, the
+    // saved documents published first so the lane reads the mapping the press
+    // just saved, as a real run does.
     discoverSites: (provider) => ingestCode.discoverSites(ingestEnv(), provider,
       { fetchImpl: journeyProviderNetwork, nowMs: Date.parse(JOURNEY_NOW) }),
     async collectNow(input) {
@@ -774,9 +764,9 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       const network = posthogQueryDenied ? posthogWithoutQueries : googleReportsDenied ? googleWithoutReports : journeyProviderNetwork;
       return ingestCode.runCollectNow(ingestEnv(), input, { fetchImpl: network, nowMs: Date.parse(JOURNEY_NOW) });
     },
-    // Test connection (bead ro-ujb9.96.6.19): the production probe over the
-    // fixture store, its verdict stamped and observed where the real test's
-    // is; only the provider's network answer is the fixture's.
+    // Test connection: the production probe over the fixture store, its
+    // verdict stamped and observed where the real test's is; only the
+    // provider's network answer is the fixture's.
     async probeCredential(provider) {
       await publishDocuments();
       return ingestCode.probeCredential(ingestEnv(), provider, { fetchImpl: journeyProviderNetwork, nowMs: Date.parse(JOURNEY_NOW) });
@@ -793,8 +783,8 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
     calendarUpcoming: refuse, researchLookup: refuse,
     runScheduled: refuse, fetch: refuse, watchQueryHistory: refuse,
     createWatchWindow: refuse, backtestRule: refuse,
-    // Signing in to Google (bead ro-ujb9.96.7.7): the production start and
-    // callback, the account's lists, over the fixture's Google network.
+    // Signing in to Google: the production start and callback, the account's
+    // lists, over the fixture's Google network.
     beginGoogleOAuth: (input) => ingestCode.beginGoogleOAuth(ingestEnv(), { origin: input.origin, nowMs: Date.parse(JOURNEY_NOW) }),
     // With Google's reports refused, the sign-in is stamped a second before the
     // collection that meets the refusal, as on an installation (compare
@@ -851,8 +841,8 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       publishTasks();
       return answer({ id: row.id });
     }
-    // The inbox's other two answers and a filed task (bead ro-ujb9.96.7.11),
-    // so the journeys prove each one reaches `bd` through the real lane.
+    // The inbox's other two answers and a filed task, so the journeys prove
+    // each one reaches `bd` through the real lane.
     if (verb === "human" && (arg === "respond" || arg === "dismiss")) {
       const row = tasks.find((task) => task.id === argv[4]);
       if (!row || row.issue_type === "gate" || !row.labels.includes("human")) return { code: 1, stdout: "", stderr: "Unknown fixture ask" };
@@ -888,8 +878,8 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
   }
 
   /** Photographs `publishTasks` is filing into this fixture's Postgres copy,
-   * where the desk reads them (bead ro-ujb9.76.4.3): every answer waits for
-   * them (`fetchRequest`), so the next read sees what the last command did. */
+   * where the desk reads them: every answer waits for them (`fetchRequest`),
+   * so the next read sees what the last command did. */
   let publishing: Promise<void> = Promise.resolve();
   function filePhotograph(payload: string) {
     const { store: postgresStore } = postgres.current();
@@ -904,8 +894,8 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
   }
 
   /** The runner's task snapshot, as `runBeadsPoll` files it: one entry per
-   * SAVED task project, and an empty one when none is saved — which is what
-   * preserves the core snapshot's actual project availability (D32). */
+   * saved task project, and an empty one when none is saved, which preserves
+   * the core snapshot's actual project availability. */
   function publishTasks() {
     if (!savedTaskProjects().includes(taskProject.asset)) {
       filePhotograph(JSON.stringify({ projects: [] }));
@@ -937,8 +927,8 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       // Rows have the same constraints/shape as saved successful provider results.
       const end = new Date(Date.parse(JOURNEY_NOW) - 86_400_000).toISOString().slice(0, 10);
       const start = new Date(Date.parse(JOURNEY_NOW) - 35 * 86_400_000).toISOString().slice(0, 10);
-      // On Postgres, where the collectors write them (bead ro-ujb9.76.5.3):
-      // the run, the series it measured and its values, in one transaction.
+      // On Postgres, where the collectors write them: the run, the series it
+      // measured and its values, in one transaction.
       const days = journeyBingDays();
       await postgres.current().store.write(async (tx) => {
         const [run] = await tx.query<{ run_seq: bigint }>(
@@ -998,7 +988,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
     const nowMs = Date.parse(JOURNEY_NOW);
     const day = (offset: number) => new Date(nowMs + offset * 86_400_000).toISOString().slice(0, 10);
     if (kind === "discord") {
-      // A deleted Discord webhook (bead ro-ujb9.96.6.25): the webhook stored,
+      // A deleted Discord webhook: the webhook stored,
       // then the hourly notifier's delivery of an open error alert answered
       // 404, as Discord answers a webhook deleted in the server's settings.
       // Fire an error alert first (`/__journey/uptime?status=503`).
@@ -1012,8 +1002,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
     }
     if (kind === "site-checks") {
       // Eight healthy nights of the site checks, then one regressed night an
-      // hour ago (bead ro-ujb9.96.6.26), and a GA4 property whose daily token
-      // budget is down to 5%.
+      // hour ago, and a GA4 property whose daily token budget is down to 5%.
       const assets = [{ asset: JOURNEY_ASSET, domain: JOURNEY_ASSET }];
       const run = lane(ingestCode.runHygieneChecks, "runHygieneChecks");
       for (let night = 8; night >= 1; night -= 1) {
@@ -1026,30 +1015,28 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       return Response.json(regressed);
     }
     if (kind === "posthog-query-denied") {
-      // A PostHog key that reads projects but not queries (bead
-      // ro-ujb9.96.6.27): the next collection — Start in the connect panel —
-      // meets PostHog's 403.
+      // A PostHog key that reads projects but not queries: the next
+      // collection (Start in the connect panel) meets PostHog's 403.
       posthogQueryDenied = true;
       return Response.json({ armed: true });
     }
     if (kind === "google-reports-denied") {
-      // A Google account that may list its sites but not read their reports
-      // (bead ro-ujb9.96.6.31): the next collection — Start in the connect
-      // panel — meets GA4's and Search Console's 403 on every property.
+      // A Google account that may list its sites but not read their reports:
+      // the next collection (Start in the connect panel) meets GA4's and
+      // Search Console's 403 on every property.
       googleReportsDenied = true;
       return Response.json({ armed: true });
     }
     if (kind === "time-zone") {
-      // The GA4 property's reporting time zone moved three days ago (bead
-      // ro-ujb9.96.6.29), as the collector files it on the site's timeline.
+      // The GA4 property's reporting time zone moved three days ago, as the
+      // collector files it on the site's timeline.
       return Response.json(await lane(ingestCode.recordTimeZoneChange, "recordTimeZoneChange")(env,
         { asset: JOURNEY_ASSET, integration: "ga4", from: "Europe/Lisbon", to: "UTC", effectiveOn: day(-3) }));
     }
     if (kind === "watch-split") {
       // An outcome check on Google clicks whose baseline was collected on the
       // site's URL-prefix property and whose post window on its domain
-      // property (bead ro-ujb9.96.6.28): the daily watch sweep closes it
-      // unmeasurable, naming both.
+      // property: the daily watch sweep closes it unmeasurable, naming both.
       const record = lane(ingestCode.recordSignalSuccess, "recordSignalSuccess");
       const collect = async (propertyRef: string, start: number, end: number) => {
         const dates: string[] = [];
@@ -1070,8 +1057,8 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       return Response.json(await lane(ingestCode.runWatchWindows, "runWatchWindows")(env, nowMs));
     }
     if (kind === "watch-query") {
-      // An outcome check narrowed to one search query (bead ro-ujb9.96.6.30)
-      // whose query archive was never collected: the daily watch sweep closes
+      // An outcome check narrowed to one search query whose query archive was
+      // never collected: the daily watch sweep closes
       // it unmeasurable, and the row names the query beside its series.
       const registered = await lane(ingestCode.writeWatchWindow, "writeWatchWindow")(env, {
         asset: JOURNEY_ASSET, ref_kind: "manual", ref: "Recipe intro rewrite", metric_integration: "gsc", metric: "clicks",
@@ -1108,12 +1095,12 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       requests.length = 0; taskCommands.length = 0;
       response = Response.json({ reset: true });
     } else if (url.pathname === "/__journey/google-hosted" && request.method === "POST") {
-      // A hosted installation (bead ro-ujb9.96.7.7): its Google OAuth client
-      // is the deployment's own, so Google's panel is one button.
+      // A hosted installation: its Google OAuth client is the deployment's
+      // own, so Google's panel is one button.
       hostedGoogle = true;
       response = Response.json({ hosted: true, clientId: JOURNEY_GOOGLE_CLIENT_ID });
     } else if (url.pathname === "/__journey/google-revoked" && request.method === "POST") {
-      // Google stops accepting the stored sign-in (bead ro-ujb9.96.6.24): the
+      // Google stops accepting the stored sign-in: the
       // outcome a collection stamps, in the ingest's own words, standing in
       // for Google's invalid_grant. Sign in to Google first; the sign-in's own
       // success is stamped at the fixture's clock, so the refusal comes a
@@ -1122,7 +1109,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
         { ok: false, error: ingestCode.GOOGLE_OAUTH_REVOKED_MESSAGE, at: new Date(Date.parse(JOURNEY_NOW) + 1000).toISOString() });
       response = Response.json({ revoked: true, lastError: ingestCode.GOOGLE_OAUTH_REVOKED_MESSAGE });
     } else if (url.pathname === "/__journey/counters" && request.method === "POST") {
-      // The site's all-time totals (bead ro-trai.21): three cards in the
+      // The site's all-time totals: three cards in the
       // register, and the counters lane's reading for two of them,
       // `?minutesAgo=` before the fixture's clock (default 10; past 30 is two
       // 15-minute cadences, amber). The third has no reading and no report.
@@ -1133,7 +1120,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
         counters.assets[JOURNEY_ASSET] = { heading: "All-time totals", cards: JOURNEY_COUNTER_CARDS };
         versions.set("config/counters.json", (versions.get("config/counters.json") ?? 0) + 1);
         const at = new Date(Date.parse(JOURNEY_NOW) - Number(url.searchParams.get("minutesAgo") ?? 10) * 60_000).toISOString();
-        // On Postgres, where the site's totals are read (bead ro-ujb9.76.5.1).
+        // On Postgres, where the site's totals are read.
         await postgres.current().store.write((tx) =>
           tx.execute(
             `INSERT INTO noticeos.counter_readings (workspace_id, asset_id, metric, value, observed_at)
@@ -1145,9 +1132,9 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
         response = Response.json({ seeded: true, observedAt: at, cards: JOURNEY_COUNTER_CARDS });
       }
     } else if (url.pathname === "/__journey/refused-tower" && request.method === "POST") {
-      // A stored config/tower.json the Tower cannot read in one part (bead
-      // ro-trai.45), as a hand edit or a store written before a contract change
-      // leaves it — written straight into the store, never through a Save.
+      // A stored config/tower.json the Tower cannot read in one part, as a
+      // hand edit or a store written before a contract change leaves it:
+      // written straight into the store, never through a Save.
       // `?part=wall`: a layout with no rows, beside one version that still
       // reads. `?part=countdown`: a countdown with no emoji, beside a valid
       // saved layout.
@@ -1171,7 +1158,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       }
     } else if (url.pathname === "/__journey/redirect-away") {
       // A route that sends the browser to another site, as an OAuth start or
-      // a billing portal would (bead ro-o3hv): the offline guard must refuse it.
+      // a billing portal would: the offline guard must refuse it.
       response = new Response(null, { status: 302, headers: { location: "https://example.com/" } });
     } else if (url.pathname === "/__journey/fail-next-save" && request.method === "POST") {
       failNextSave = true; response = Response.json({ armed: true });
@@ -1181,7 +1168,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       // The local runner's task-board refresh, on demand: the snapshot the
       // desk's task reads come from. `/__journey/receive` files it beside its
       // synthetic collection; a journey whose data came from the real
-      // collector (Start collecting, bead ro-ujb9.96.7.2) asks for it here.
+      // collector (Start collecting) asks for it here.
       publishTasks();
       response = Response.json({ published: true });
     } else if (url.pathname === "/__journey/core-tasks" && request.method === "POST") {
@@ -1221,14 +1208,13 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       versions.set("config/integrations.json", (versions.get("config/integrations.json") ?? 0) + 1);
       response = Response.json({ catalog: config.catalog.map((entry) => entry.id) });
     } else if (url.pathname === "/__journey/connection-history" && request.method === "POST") {
-      // System health's daily record of its four connection counts (bead
-      // ro-ujb9.96.7.26): `?days=` earlier days written by the production
-      // recorder, so the Connections strip draws the line an installation
-      // draws after that many days. Today's row is the hourly tick's (bead
-      // ro-ujb9.96.7.29), run here as the Worker's cron runs it over this
-      // store and its saved settings — which also records each data source's
-      // day for the Source history (bead ro-ujb9.96.7.31); only the earlier
-      // days' counts are the fixture's.
+      // System health's daily record of its four connection counts: `?days=`
+      // earlier days written by the production recorder, so the Connections
+      // strip draws the line an installation draws after that many days.
+      // Today's row is the hourly tick's, run here as the Worker's cron runs
+      // it over this store and its saved settings, which also records each
+      // data source's day for the Source history; only the earlier days'
+      // counts are the fixture's.
       const days = Math.min(30, Math.max(1, Number(url.searchParams.get("days") ?? 6) || 6));
       for (let back = days; back >= 1; back -= 1) {
         await recordConnectionStatusDay(postgres.current().store, {
@@ -1241,7 +1227,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       const today = await runTowerCron(HOURLY_TICK, { STORE: postgres.current().store, INGEST: ingest, config: towerConfigResolver(ingest, compiledConfig()) });
       response = Response.json({ days, today: today.map((step) => step.state) });
     } else if (url.pathname === "/__journey/older-settings" && request.method === "POST") {
-      // A settings document saved before these keys existed (bead ro-dk4u):
+      // A settings document saved before these keys existed:
       // the stored constants lack the monthly cap and the time rate, so
       // Settings shows the compiled values until a Save creates the keys.
       const constants = documents["config/constants.json"] as Record<string, unknown>;
@@ -1250,7 +1236,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       versions.set("config/constants.json", (versions.get("config/constants.json") ?? 0) + 1);
       response = Response.json({ constants });
     } else if (url.pathname === "/__journey/undeclared-source" && request.method === "POST") {
-      // A site with no status for a catalog data source (bead ro-ujb9.96.15):
+      // A site with no status for a catalog data source:
       // what a hand-written or product-update changeset can leave behind. The
       // site's first declared source loses its entry; `?lane=` picks another.
       const config = documents["config/integrations.json"] as { assets: Record<string, Record<string, unknown>> };
@@ -1264,13 +1250,12 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
         response = Response.json({ asset: JOURNEY_ASSET, lane });
       }
     } else if (url.pathname === "/__journey/uptime" && request.method === "POST") {
-      // The hourly uptime check (bead ro-ujb9.165), run by the production
-      // ingest lane over this store. The only stand-in is the site itself: its
-      // home page answers `?status=` (default 200), `?minutesAgo=` (default 12)
-      // before the fixture's clock; with `?transient=1` only the first GET
-      // gets that status and the confirming retry gets the page (bead
-      // ro-ujb9.180), which the lane asks at once here rather than after
-      // 45 seconds. Nothing leaves this process.
+      // The hourly uptime check, run by the production ingest lane over this
+      // store. The only stand-in is the site itself: its home page answers
+      // `?status=` (default 200), `?minutesAgo=` (default 12) before the
+      // fixture's clock; with `?transient=1` only the first GET gets that
+      // status and the confirming retry gets the page, which the lane asks at
+      // once here rather than after 45 seconds. Nothing leaves this process.
       if (!await siteStored(JOURNEY_ASSET)) {
         response = Response.json({ error: "Create the fixture asset first." }, { status: 409 });
       } else {
@@ -1291,18 +1276,17 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
         response = Response.json(run);
       }
     } else if (url.pathname.startsWith("/__journey/after-failure/") && request.method === "POST") {
-      // A failure's own words, reached through the lane that writes them
-      // (epic ro-ujb9.96.6, beads .25–.29): each state below is the production
-      // lane run over this store, with only the provider's or the site's
-      // answer the fixture's, so a capture shows what an installation shows.
+      // A failure's own words, reached through the lane that writes them:
+      // each state below is the production lane run over this store, with
+      // only the provider's or the site's answer the fixture's, so a capture
+      // shows what an installation shows.
       response = await afterFailure(url.pathname.slice("/__journey/after-failure/".length));
     } else if (url.pathname === "/__journey/finding" && request.method === "POST") {
-      // One saved finding on the fixture asset (bead ro-ujb9.96.7.11), after the
-      // real wizard created it.
+      // One saved finding on the fixture asset, after the real wizard created it.
       if (!await siteStored(JOURNEY_ASSET)) {
         response = Response.json({ error: "Create the fixture asset first." }, { status: 409 });
       } else {
-        // On Postgres, where the publisher writes it (bead ro-ujb9.76.5.4).
+        // On Postgres, where the publisher writes it.
         await writeInsightSnapshots(postgres.current().store, [{
           id: "journey-finding", asset: JOURNEY_ASSET, generated_at: JOURNEY_NOW, window_start: "2026-08-30",
           window_end: "2026-09-05", payload: JSON.stringify(journeyFindingSnapshot()),
@@ -1310,7 +1294,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
         response = Response.json({ seeded: true, key: JOURNEY_FINDING_KEY });
       }
     } else if (url.pathname === "/__journey/costs" && request.method === "POST") {
-      // Booked monthly costs for a site the wizard created (bead ro-ujb9.12),
+      // Booked monthly costs for a site the wizard created,
       // `{ asset?, months: { "YYYY-MM": cents } }`, estimated as the cost
       // import books them — so Financials' revenue, cost and net are three
       // different lines, and a month can fall below zero.
@@ -1322,7 +1306,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       } else if (months.length === 0 || months.some(([period, cents]) => !/^\d{4}-\d{2}$/.test(period) || !Number.isInteger(cents) || cents < 0)) {
         response = Response.json({ error: "months maps YYYY-MM to whole cents." }, { status: 400 });
       } else {
-        // Into the ledger on Postgres, where the Tower reads it (bead ro-ujb9.76.6.1).
+        // Into the ledger on Postgres, where the Tower reads it.
         await bookLedger(postgres.current().store, months.map(([period, cents]) => ({
           kind: 'cost' as const, asset, period, family: 'infra', amount_minor: cents, currency: 'USD', source: null,
           booking_state: 'estimated' as const, recorded_at: JOURNEY_NOW,
@@ -1330,7 +1314,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
         response = Response.json({ seeded: true, asset, months: months.length });
       }
     } else if (url.pathname === "/__journey/serp-panel" && request.method === "POST") {
-      // A saved analysis with one tracked search panel (bead ro-ujb9.230), in
+      // A saved analysis with one tracked search panel, in
       // the market `?market=<locationCode>-<languageCode>` names, or none.
       const [location, language] = (url.searchParams.get("market") ?? "").split("-");
       const market = location && language ? { locationCode: Number(location), languageCode: language } : null;
@@ -1345,7 +1329,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
         response = Response.json({ seeded: true, market });
       }
     } else if (url.pathname === "/__journey/posthog" && request.method === "POST") {
-      // A site whose only collected source is PostHog (bead ro-ujb9.146): the
+      // A site whose only collected source is PostHog: the
       // saved analysis its product archive produces, standing in for the
       // external collector and the nightly analysis.
       if (!await siteStored(JOURNEY_ASSET)) {
@@ -1359,8 +1343,8 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
         response = Response.json({ seeded: true, days: snapshot.product.webDaily.days.length });
       }
     } else if (url.pathname === "/__journey/fetch-failures" && request.method === "POST") {
-      // The fixture site's nightly report FETCHED by the OS, and failing
-      // (bead ro-ujb9.220): the site gets a nightly-fetch entry, then the
+      // The fixture site's nightly report fetched by the OS, and failing: the
+      // site gets a nightly-fetch entry, then the
       // production pull lane runs over this store once a night for `?nights=`
       // nights (default 3) before the fixture's clock. The site answers 503
       // "unconfigured" on the first night and 401 "unauthorized" after it.
@@ -1394,14 +1378,14 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
     } else if (url.pathname === "/__journey/nightly-report" && request.method === "POST") {
       // One nightly report from the fixture site, `?hoursAgo=` before the
       // fixture's clock (default 72: overdue), standing in for the site's own
-      // sender (bead ro-ffbg): the row POST /api/pulse stores.
+      // sender: the row POST /api/pulse stores.
       if (!await siteStored(JOURNEY_ASSET)) {
         response = Response.json({ error: "Create the fixture asset first." }, { status: 409 });
       } else {
         const hours = Number(url.searchParams.get("hoursAgo") ?? 72);
         const at = new Date(Date.parse(JOURNEY_NOW) - hours * 3_600_000).toISOString();
-        // On Postgres, where the Tower reads reports (bead ro-ujb9.76.5.2): a
-        // second one for the same day is that day's next revision.
+        // On Postgres, where the Tower reads reports: a second one for the
+        // same day is that day's next revision.
         await postgres.current().store.write((tx) =>
           tx.execute(
             `INSERT INTO noticeos.pulses (workspace_id, asset_id, pulse_date, revision, received_at, envelope)
@@ -1413,7 +1397,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
         response = Response.json({ seeded: true, receivedAt: at });
       }
     } else if (url.pathname === "/__journey/wall-feed" && request.method === "POST") {
-      // The live feed's stored events (bead ro-trai.6): rows, not a payload,
+      // The live feed's stored events: rows, not a payload,
       // so /api/wall/feed runs its real read over them.
       await feedSitesIntoPostgres();
       await seedWallFeedRevenue(postgres.current().store, JOURNEY_NOW);
@@ -1424,8 +1408,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       await seedWallFeedChanges(postgres.current().store, JOURNEY_NOW);
       response = Response.json({ seeded: true, now: JOURNEY_NOW });
     } else if (url.pathname === "/__journey/archived-site" && request.method === "POST") {
-      // An archived site whose id is not its domain (bead ro-ujb9.76.4.6), in
-      // the Postgres copy.
+      // An archived site whose id is not its domain, in the Postgres copy.
       const { id, domain, displayName } = JOURNEY_ARCHIVED_SITE;
       const status = url.searchParams.get('status') === 'live' ? 'live' : 'retired';
       await postgres.current().store.write((tx) =>
@@ -1438,7 +1421,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       );
       response = Response.json({ seeded: true, ...JOURNEY_ARCHIVED_SITE });
     } else if (url.pathname === "/__journey/wall-feed-event" && request.method === "POST") {
-      // One new stored event, for the arrival journey (bead ro-trai.9).
+      // One new stored event, for the arrival journey.
       await injectWallFeedEvent(postgres.current().store, JOURNEY_NOW);
       response = Response.json({ injected: true, text: WALL_FEED_INJECTED_TEXT });
     } else if (url.pathname === '/__journey/revenue-history' && request.method === 'POST') {
@@ -1454,7 +1437,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       const reportingToday = revenueCalendarDate(now, reportingTimeZone);
       const through = revenueExpectedThrough(now, MEDIAVINE_REPORTING_CLOCK);
       // `?traffic=none`: the money alone, for a site whose first source is ad
-      // revenue (bead ro-ujb9.146).
+      // revenue.
       await seedRevenueHistory(postgres.current().store, JOURNEY_ASSET, JOURNEY_NOW, through, 'US', { traffic: url.searchParams.get('traffic') !== 'none' });
       const config = documents['config/integrations.json'] as { assets: Record<string, Record<string, Record<string, unknown>>> };
       config.assets[JOURNEY_ASSET]!['ad-network']!.revenueHolidayCalendar = 'US';
@@ -1468,10 +1451,10 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       response = Response.json({ seeded: true, timeZone, today, reportingTimeZone, reportingToday, through, days });
     } else if (url.pathname === "/api/config" && request.method === "PUT" && await savesTaskProject(request)) {
       // A task project saved (the connect panel's Beads, Settings → Task
-      // projects; bead ro-ujb9.152). The Worker refuses these — a project
-      // belongs to the machine its checkout is on — and a local Tower's own
-      // write lane takes them, store first (vite/config-write-lane.ts). This
-      // is that lane's store write, with no checkout to export to or commit.
+      // projects). The Worker refuses these, since a project belongs to the
+      // machine its checkout is on, and a local Tower's own write lane takes
+      // them, store first (vite/config-write-lane.ts). This is that lane's
+      // store write, with no checkout to export to or commit.
       const body = await request.json() as { ops: unknown[]; slug?: string };
       const result = await ingest.applyConfigOps({ ops: body.ops, actor: "operator", ...(body.slug ? { slug: body.slug } : {}), reason: null, expectVersions: null });
       if (result.ok) {

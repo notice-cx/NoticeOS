@@ -16,11 +16,10 @@ const attempts = new WeakMap<QueryClient, { failures: number; retryAt: number }>
  * runs off the wall clock, so a held snapshot keeps aging correctly between
  * polls — sixty seconds is fine for a surface whose smallest unit is a minute.
  *
- * A HIDDEN TAB DOES NOT POLL (bead `ro-ujb9.105`), as `useWall` since
- * `ro-ujb9.63`. This hook polled "in the background" because the TV is never
- * focused, but TanStack's background is `visibilityState === "hidden"`, not a
- * missing focus: the TV is on screen and keeps its minute. A desk tab behind
- * another stops asking; return respects the current retry deadline. */
+ * A hidden tab does not poll, as `useWall`: TanStack's background is
+ * `visibilityState === "hidden"`, not a missing focus, so the TV is on screen
+ * and keeps its minute while a desk tab behind another stops asking. Return
+ * respects the current retry deadline. */
 export function useCalendarUpcoming() {
   const demoReadonly = useDemoReadonly();
   const runtime = useBrowserRuntime();

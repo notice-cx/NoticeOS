@@ -3,11 +3,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { asOwner, bookEntry, emptyTables, reset, storedCount } from './helpers.js';
 
 // The ledger's correction rules, for entries that never pass through POST
-// /api/revenue: imports, restores, fixtures, hand-written SQL (bead
-// ro-ujb9.69). They are the store's own (0001_baseline.sql
-// `ledger_correction_matches_target`, `ledger_entries_one_successor`,
-// `ledger_entries_are_immutable`), ported from D1's db/0036. Every statement
-// here is direct SQL against the store.
+// /api/revenue: imports, restores, fixtures, hand-written SQL. They are the
+// store's own (0001_baseline.sql `ledger_correction_matches_target`,
+// `ledger_entries_one_successor`, `ledger_entries_are_immutable`). Every
+// statement here is direct SQL against the store.
 
 beforeEach(reset);
 

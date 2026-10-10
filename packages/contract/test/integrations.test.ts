@@ -70,10 +70,8 @@ describe('INTEGRATION_PROVIDERS', () => {
       'clarity',
       'posthog',
     ]);
-    // `google-oauth-app` is a PREREQUISITE, not a provider you connect: the
-    // Google card asks for it in place, and a fifth card reading "Google OAuth
-    // app · Not connected" beside "Google · Connected" would state one
-    // connection twice (bead `ro-vu8d.3`).
+    // `google-oauth-app` is a prerequisite the Google card asks for in place,
+    // not a provider you connect.
     expect(integrationProviderCards().map((provider) => provider.id)).toEqual([
       'cloudflare',
       'mediavine',
@@ -105,8 +103,8 @@ describe('INTEGRATION_PROVIDERS', () => {
       for (const field of provider.fields) {
         expect(field.name).toMatch(/^[A-Z][A-Z0-9_]*$/);
         expect(field.label.length).toBeGreaterThan(0);
-        // WHERE THE VALUE COMES FROM is a link, never a sentence under the
-        // input (bead `ro-ujb9.96.6.1`): https, and two or three words on it.
+        // Where the value comes from is a link, never a sentence under the
+        // input: https, and two or three words on it.
         if (field.link) {
           expect(field.link.url.startsWith('https://')).toBe(true);
           expect(field.link.label.split(' ').length).toBeLessThanOrEqual(3);
@@ -154,8 +152,6 @@ describe('INTEGRATION_PROVIDERS', () => {
   it('lets Google be complete either way in, and neither way alone by halves', () => {
     // `required` cannot express *either a sign-in or a service account*, so
     // Google marks neither field required and declares two auth paths instead.
-    // This is the rule the store, the card and the importer all read
-    // (bead `ro-vu8d.3`).
     const google = integrationProvider('google')!;
     expect(google.fields.some((field) => field.required)).toBe(false);
 
@@ -209,11 +205,8 @@ describe('INTEGRATION_PROVIDERS', () => {
   });
 
   it('declares what pressing Test costs for every provider, and flags the two that surprise', () => {
-    // The declaration is required in the type (bead `ro-vu8d.18`). A provider
-    // that inherited "free and invisible" from an omission would be exactly the
-    // button an operator presses once and never again. The button's own label
-    // says what a non-free press does (bead `ro-ujb9.96.6.1`), so the
-    // declaration is the cost alone — no sentence rides beside it.
+    // The declaration is required in the type, and the button's own label
+    // says what a non-free press does, so the declaration is the cost alone.
     for (const provider of INTEGRATION_PROVIDERS) {
       expect(['free', 'side-effect', 'none']).toContain(provider.test.cost);
       expect(provider.test).not.toHaveProperty('note');
@@ -231,16 +224,16 @@ describe('INTEGRATION_PROVIDERS', () => {
     }
   });
 
-  it('connects in the panel only where one free read proves every typed field (bead `ro-ujb9.96.7.1`)', () => {
+  it('connects in the panel only where one free read proves every typed field', () => {
     // The Tower opens the one-panel save-and-test for these and the ingest
     // refuses it for every other provider, from this one declaration.
     const panel = INTEGRATION_PROVIDERS.filter((provider) => provider.connect?.kind === 'key');
     expect(panel.map((provider) => provider.id)).toEqual(['cloudflare', 'mediavine', 'bing-webmaster', 'dataforseo', 'calendar', 'discord', 'posthog']);
     // Discord and the calendar feeds connect the whole installation: no site
-    // list follows the answer (bead `ro-ujb9.96.7.14`).
+    // list follows the answer.
     expect(panel.filter((provider) => provider.connect!.sites === false).map((provider) => provider.id)).toEqual(['cloudflare', 'calendar', 'discord']);
-    // Clarity connects in the panel too, a token pasted per site (bead
-    // `ro-ujb9.96.7.9`): no one key, and no free read to prove it.
+    // Clarity connects in the panel too, a token pasted per site: no one key,
+    // and no free read to prove it.
     const perSite = INTEGRATION_PROVIDERS.filter((provider) => provider.connect?.kind === 'site-tokens');
     expect(perSite.map((provider) => [provider.id, provider.scope, provider.test.cost])).toEqual([['clarity', 'per-asset', 'none']]);
     for (const provider of panel) {
@@ -250,19 +243,17 @@ describe('INTEGRATION_PROVIDERS', () => {
       // declares and the panel names beside the press.
       expect(provider.test.cost).toBe(provider.id === 'discord' ? 'side-effect' : 'free');
       expect(provider.scope).toBe('shared');
-      // Every field the panel asks for is typed; a `managed` one (PostHog's
-      // older per-site map, bead `ro-ujb9.96.7.8`) is never on the form, and
-      // at least one field always is.
+      // Every field the panel asks for is typed; a `managed` one is never on
+      // the form, and at least one field always is.
       expect(provider.fields.some((field) => field.managed !== true)).toBe(true);
       // The first field says where the provider issues it, as the panel's link
-      // — except a sign-in (Mediavine, bead `ro-ujb9.96.7.6`): the operator's
-      // own email and password, which nothing issues.
+      // — except a sign-in (Mediavine): an email and password nothing issues.
       if (provider.id === 'mediavine') expect(provider.fields.map((field) => field.kind)).toEqual(['text', 'password']);
       else expect(provider.fields[0]!.link?.url.startsWith('https://')).toBe(true);
     }
   });
 
-  it('names an accepted connection for what was given, from one declaration (bead `ro-ujb9.96.7.25`)', () => {
+  it('names an accepted connection for what was given, from one declaration', () => {
     const named = Object.fromEntries(INTEGRATION_PROVIDERS.filter((provider) => provider.connect)
       .map((provider) => [provider.id, acceptedAs(provider)]));
     expect(named).toEqual({
@@ -278,9 +269,8 @@ describe('INTEGRATION_PROVIDERS', () => {
   });
 
   it('gives Discord one shared url that is itself the credential', () => {
-    // Bead `ro-vu8d.18`: it was env-only because nobody had written a row, not
-    // because of anything about Discord. One field, one data source, and the
-    // field name IS the legacy binding so the importer is a copy.
+    // One field, one data source, and the field name is the legacy binding so
+    // the importer is a copy.
     const discord = integrationProvider('discord')!;
     expect(discord.scope).toBe('shared');
     expect(discord.lanes).toEqual(['discord-webhooks']);
@@ -296,10 +286,8 @@ describe('INTEGRATION_PROVIDERS', () => {
   });
 
   it('makes Clarity per-asset without a second credential shape', () => {
-    // Bead `ro-vu8d.9`. The two obstacles that kept Clarity on its binding were
-    // a per-asset token and no probe cheap enough to spend. Neither needed a
-    // migration: the per-asset dimension is ONE `asset-map` field inside the one
-    // row keyed on the provider, and the missing probe is declared missing.
+    // The per-asset dimension is one `asset-map` field inside the one row
+    // keyed on the provider, and the missing probe is declared missing.
     const clarity = integrationProvider('clarity')!;
     expect(clarity.scope).toBe('per-asset');
     expect(clarity.lanes).toEqual(['clarity']);
@@ -312,10 +300,9 @@ describe('INTEGRATION_PROVIDERS', () => {
   });
 
   it('connects PostHog with one account key in the panel, and keeps the older per-site map collecting', () => {
-    // Bead `ro-ujb9.96.7.8` (was `ro-ghis.1`'s key per asset). One personal
-    // API key for the account, typed once in the connect panel; region and
-    // projects are discovered, and region and project id are NOT in the
-    // credential — Start saves them on each site's Data sources entry.
+    // One personal API key for the account, typed once in the connect panel;
+    // region and projects are discovered, and region and project id are not
+    // in the credential — Start saves them on each site's Data sources entry.
     const posthog = integrationProvider('posthog')!;
     expect(posthog.scope).toBe('shared');
     expect(posthog.connect).toEqual({ kind: 'key', credential: 'api-key' });
@@ -340,9 +327,8 @@ describe('INTEGRATION_PROVIDERS', () => {
   });
 
   it('answers which assets a per-asset credential serves from one merged list', () => {
-    // THE single representation (bead `ro-vu8d.9`): the catalog says who
-    // declares the data source, the store says who has a key, and this is where
-    // the two are paired — once, so the card and its form cannot disagree.
+    // The catalog says who declares the data source, the store says who has a
+    // key, and this is where the two are paired, once.
     const clarity = integrationProvider('clarity')!;
     const rows = credentialAssetRows({
       provider: clarity,
@@ -382,7 +368,7 @@ describe('INTEGRATION_PROVIDERS', () => {
 
 });
 
-// --- when a credential dies (bead `ro-vu8d.8`) -------------------------------
+// --- when a credential dies ---------------------------------------------------
 
 const NOW = Date.parse('2026-09-05T12:00:00.000Z');
 const DAY = 86_400_000;
@@ -393,9 +379,8 @@ function metadata(over: Partial<CredentialMetadata> = {}): CredentialMetadata {
 
 describe('the expiry a card counts down', () => {
   it('says nothing at all where no date can be known, rather than guessing one', () => {
-    // The whole acceptance test of `ro-vu8d.8`: a provider that cannot report an
-    // expiry says so. `unstated` is what the card renders the provider's own
-    // sentence for; it is never a zero, a dash, or a date derived from age.
+    // A provider that cannot report an expiry says so. `unstated` is never a
+    // zero, a dash, or a date derived from age.
     expect(credentialExpiry(null, NOW).state).toBe('unstated');
     expect(credentialExpiry(metadata(), NOW)).toMatchObject({
       state: 'unstated',
@@ -453,7 +438,7 @@ describe('the expiry a card counts down', () => {
   });
 });
 
-// --- the prepaid credit a card ages (bead `ro-qpas`) -------------------------
+// --- the prepaid credit a card ages -------------------------------------------
 
 describe('the account credit a card reports', () => {
   it('answers nothing where no balance has ever been seen', () => {
@@ -471,7 +456,7 @@ describe('the account credit a card reports', () => {
     expect(reading).toMatchObject({ usd: '18.72', ageMs: 2 * 3_600_000 });
   });
 
-  it('calls a sighting stale once two weekly refreshes have been missed (bead `ro-vu8d.27`)', () => {
+  it('calls a sighting stale once two weekly refreshes have been missed', () => {
     // The sweep refreshes the credit weekly and its read is silent when it
     // fails, so a figure that quietly ages is the failure mode. One missed
     // week is not an alarm; two is, and the card says so rather than showing
@@ -488,9 +473,8 @@ describe('the account credit a card reports', () => {
   });
 
   it('drops a sighting whose instant cannot be read, rather than showing it undated', () => {
-    // The whole rule of `ro-qpas`: a balance without its age is renderable as
-    // though it were current, which is the one thing this must not do. So an
-    // unreadable stamp answers exactly as "never seen" does.
+    // A balance without its age is renderable as though it were current, so
+    // an unreadable stamp answers exactly as "never seen" does.
     expect(
       credentialBalance(metadata({ balance: { usd: '18.72', seenAt: 'this morning' } }), NOW),
     ).toBeNull();
@@ -512,7 +496,7 @@ describe('the account credit a card reports', () => {
     expect(reading?.ageMs).toBe(0);
   });
 
-  it('keeps the credit exact from the provider to the card: decimal text, never a float (ro-ujb9.76.4.4)', () => {
+  it('keeps the credit exact from the provider to the card: decimal text, never a float', () => {
     // A JSON number's own digits are the value; anything else is none.
     for (const text of ['42.5', '0', '-0.25', '18.720000', '1.2e3']) expect(exactUsd(text)).toBe(text);
     for (const other of [42.5, '', ' 42.5', '42.', '.5', '$42.50', 'NaN', 'Infinity', '0x10', null]) {
@@ -533,8 +517,7 @@ describe('the account credit a card reports', () => {
 describe('every provider answers the expiry question', () => {
   it('declares whether a date can be known at all, as a value the card shows', () => {
     // The field is required in the type. A `never` provider shows "No expiry
-    // date" rather than a countdown or a paragraph about why (bead
-    // `ro-ujb9.96.6.1`); the reasons are doc 11's.
+    // date" rather than a countdown or a paragraph about why.
     for (const provider of INTEGRATION_PROVIDERS) {
       expect(['flow', 'operator', 'never']).toContain(provider.expiry.known);
       expect(provider.expiry).not.toHaveProperty('note');
@@ -559,11 +542,11 @@ describe('every provider answers the expiry question', () => {
   });
 });
 
-describe('the older single-asset binding (bead `ro-vu8d.24`)', () => {
+describe('the older single-asset binding', () => {
   const clarity = integrationProvider('clarity')!;
   const map = clarity.fields.find((field) => field.kind === 'asset-map')!;
-  // The installation's own data-source register (bead ro-ujb9.118): the OS
-  // first with no Clarity lane, then two sites that have one.
+  // The installation's own data-source register: the OS first with no
+  // Clarity lane, then two sites that have one.
   const REGISTER = {
     assets: {
       'home-os': { 'discord-webhooks': {} },
@@ -579,8 +562,7 @@ describe('the older single-asset binding (bead `ro-vu8d.24`)', () => {
     });
     // It names no site: WHICH asset it serves is the installation's answer.
     expect(map.legacyAssetBinding).not.toHaveProperty('asset');
-    // It is not a FIELD, so no form ever draws an input for it — the whole
-    // reason it was left out of the catalog in the first place.
+    // It is not a field, so no form ever draws an input for it.
     expect(clarity.fields.map((field) => field.name)).not.toContain(
       'CLARITY_PROJECT_API_TOKEN',
     );
@@ -593,8 +575,8 @@ describe('the older single-asset binding (bead `ro-vu8d.24`)', () => {
   });
 
   it('serves the first site in the installation’s own register that has the lane', () => {
-    // Beads ro-vu8d.24 / ro-ujb9.118: one rule, read over the installation's
-    // register — never a site written into the catalog.
+    // One rule, read over the installation's register — never a site written
+    // into the catalog.
     expect(legacyBindingAsset('clarity', REGISTER)).toBe('first.example');
     // Register order decides, not the alphabet.
     expect(
@@ -683,7 +665,7 @@ describe('the older single-asset binding (bead `ro-vu8d.24`)', () => {
   });
 });
 
-describe('a provider’s own reporting day (bead `ro-ujb9.118`)', () => {
+describe('a provider’s own reporting day', () => {
   it('is declared in the catalog for Search Console only, as a zone the runtime knows', () => {
     const zone = providerReportingTimeZone('gsc');
     expect(zone).not.toBeNull();
@@ -694,7 +676,7 @@ describe('a provider’s own reporting day (bead `ro-ujb9.118`)', () => {
   });
 });
 
-describe('the meter a card can honestly show (beads `ro-vu8d.25`, `ro-qpas`)', () => {
+describe('the meter a card can honestly show', () => {
   it('is declared only where the OS already holds the evidence', () => {
     const metered = INTEGRATION_PROVIDERS.filter((provider) => provider.meter !== undefined);
     // The two metered providers, and only those. Clarity writes one manifest
@@ -719,9 +701,9 @@ describe('the meter a card can honestly show (beads `ro-vu8d.25`, `ro-qpas`)', (
     expect(JSON.stringify(integrationProvider('dataforseo')!.meter)).not.toContain('25');
   });
 
-  it('declares the meter as numbers only — the card draws the lines (bead `ro-ujb9.96.6.1`)', () => {
+  it('declares the meter as numbers only — the card draws the lines', () => {
     // The prepaid credit is the vendor's own figure and draws as its own dated
-    // line beside the cap's bar (bead `ro-qpas`); neither needs a sentence.
+    // line beside the cap's bar; neither needs a sentence.
     for (const provider of INTEGRATION_PROVIDERS) {
       if (provider.meter) expect(provider.meter).not.toHaveProperty('note');
     }

@@ -1,8 +1,6 @@
 // @vitest-environment node
-// What today's meetings ARE (lib/meetings): the distance strings and the
-// hero/followers split the Wall's top strip reads. The panel that also drew
-// them, with its feed colours and failure lines, left with the pre-D28 Wall
-// (bead `ro-trai.20`).
+// What today's meetings are (lib/meetings): the distance strings and the
+// hero/followers split the Wall's top strip reads.
 import { describe, expect, it } from "vitest";
 import type {
   CalendarFeed,
@@ -20,10 +18,9 @@ const MINUTE = 60_000;
 const HOUR = 3_600_000;
 
 /**
- * Every fixture is built from a LOCAL wall-clock time, because the panel's
- * today/tomorrow split and its clock strings are both the viewer's local zone —
- * ISO literals would make these assertions pass or fail on the machine's TZ.
- * 9:05 AM on a fixed date is "now" throughout.
+ * Every fixture is built from a local wall-clock time, because the panel's
+ * today/tomorrow split and its clock strings are the viewer's local zone; ISO
+ * literals would pass or fail on the machine's TZ. 9:05 AM is "now" throughout.
  */
 const NOW = new Date(2026, 7, 10, 9, 5).getTime();
 
@@ -62,9 +59,8 @@ function allDay(calendar: string, title: string, days = 0): UpcomingMeeting {
   };
 }
 
-/** Two feeds in config order with nothing pinned. The names are deliberately
- * NOT "work"/"personal" in most fixtures: feeds are operator-named, and no
- * behaviour may depend on a particular string. */
+/** Two feeds in config order with nothing pinned. Feeds are operator-named, so
+ * no behaviour may depend on "work"/"personal". */
 const FEEDS: CalendarFeed[] = [
   { id: "Day job", color: null, status: "ok" },
   { id: "House", color: null, status: "ok" },

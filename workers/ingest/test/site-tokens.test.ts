@@ -1,10 +1,10 @@
-// A TOKEN PER SITE, SAVED ON ITS ROW (bead `ro-ujb9.96.7.9`).
+// A token per site, saved on its row.
 //
 // Clarity issues one export token per project and offers no free call to prove
 // it, so the connect panel saves each site's token the moment it is pasted,
 // merged into the one encrypted per-site map here, and the proof is the
-// export — run for the named sites only, by an explicit Run now. Against real
-// D1 and WebCrypto; Clarity is stubbed at the network boundary.
+// export — run for the named sites only, by an explicit Run now. Against a
+// real store and WebCrypto; Clarity is stubbed at the network boundary.
 
 import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

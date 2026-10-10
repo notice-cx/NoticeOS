@@ -4,15 +4,12 @@ import { cn } from "@/lib/utils";
 export interface EmptyStateProps {
   title: React.ReactNode;
   hint?: React.ReactNode;
-  /** `sm` is a list's own empty value under its heading (bead
-   * `ro-ujb9.96.6.22`): the state at the heading's size, never louder than
-   * the heading it answers. */
+  /** `sm` is a list's own empty value under its heading: never louder than the heading. */
   size?: "default" | "sm";
   className?: string;
 }
 
-/** A designed empty state (doc 14 principle 2) — never a blank tile, never a
- * spinner. Used for the first-run portfolio band and any band with no data yet. */
+/** A designed empty state, never a blank tile or a spinner. */
 export function EmptyState({ title, hint, size = "default", className }: EmptyStateProps) {
   const small = size === "sm";
   return (

@@ -24,9 +24,8 @@ type Spec = { connection: HealthConnection; capability: string; asset?: string; 
 interface SignalRow { id: string; asset: string; integration: string; property_ref: string; started_at: string; finished_at: string; status: string; error_code: string | null; credential_ref: string; provider_truncated?: number }
 interface DumpRow extends Omit<SignalRow, 'started_at'> { requested_at: string; report: string; report_date: string; last_success_at: string | null; scope_count: number; failure_count: number; family_rank: number }
 type EventRow = { workspace_id: string; event_id: string; provider: string; connection_revision: string; capability: string; asset: string; target_id: string; family: string; recorded_at: string; kind: 'failed' | 'changed' | 'recovered' };
-/** Stored states, on Postgres (`noticeos.integration_capability_state` and its
- * targets, bead ro-ujb9.76.5.6): `where` over the target `t` and state `s`. A
- * failure first, then the newest; a tie in the order its target was named. */
+/** `where` over the target `t` and state `s`. A failure first, then the
+ * newest; a tie in the order its target was named. */
 async function healthStates(tx: Transaction, where: string, params: readonly (string | readonly string[])[], limit: number): Promise<StoredHealthRow[]> {
   const rows = await tx.query<StoredHealthRow>(`${HEALTH_STATE_SELECT}
     WHERE ${where}
@@ -50,35 +49,24 @@ const familyReport = (family: string): string | null => {
   } catch { return null; }
 };
 /**
- * Archive lanes whose provider can only answer with its CURRENT state — no
- * request names a date (Bing Webmaster, Clarity's trailing 72 hours, DataForSEO's
- * live SERP and link snapshots). A report date whose collection never reached
- * such a provider can never be asked for again: re-asking today would file
- * today's answer under that date. Its answer is the lane's next attempt at the
- * same report, so once this connection has a later attempt that did NOT fail at
- * the network — a collected snapshot, or the provider's own refusal — the old
- * network failure stops counting as current, and the page shows whatever that
- * later attempt says (bead `ro-aed0.7`). Only a network failure: a refusal is
- * never hidden by anything but a success of its own date, and every failed date
- * of the GA4 and Search Console archives, which DO name a date, is asked again
- * instead (`owedArchiveDates`, src/signal-dumps.ts) — as is every PostHog window
- * end, whose queries are bounded to their window (`owedWindows`,
- * src/posthog-dumps.ts, bead `ro-aed0.8`). A run that re-collects an earlier
- * window files it under the same `requested_at` as its own, so a date-less
- * family's newest attempt breaks that tie by the newest date.
+ * Archive lanes whose provider only answers with its current state, so a
+ * report date whose collection never reached the provider can never be asked
+ * for again. Once such a connection has a later attempt that did not fail at
+ * the network, the old network failure stops counting as current. Only a
+ * network failure: a refusal is hidden by nothing but a success of its own
+ * date, and dated archives (GA4, Search Console, PostHog windows) are asked
+ * again instead. A date-less family's newest attempt breaks a `requested_at`
+ * tie by the newest date.
  */
 const CURRENT_STATE_ARCHIVES = new Set(['bing-webmaster', 'clarity', 'dataforseo']);
 const since = (now: number, hours: number) => new Date(now - hours * REPORT_STALE_MULTIPLIER * 3_600_000).toISOString();
-// The collectors' own skip rule, asked of a cell (bead `ro-ujb9.96.7.18`): a
-// declined source reads paused here exactly because no collector asks for it.
+// The collectors' own skip rule, asked of a cell.
 const disabled = cellDeclined;
 
 /**
  * One daily lane's last 50 collection attempts on one property, newest first,
- * and its newest success since the connection last changed (all, when it never
- * did). Read on Postgres (bead ro-ujb9.76.5.3); attempts that started in the
- * same instant come in the order they were written, as D1 returned them, and
- * instants leave in the form the collector wrote them.
+ * and its newest success since the connection last changed. Attempts that
+ * started in the same instant come in the order they were written.
  */
 async function readDailyRuns(
   store: WorkspaceStore,
@@ -120,9 +108,7 @@ async function readDailyRuns(
 
 /**
  * The Bing properties a site's collections were saved under, each once, in
- * text order, at most 50: its daily runs' and its report runs', as one
- * statement (both on Postgres, beads ro-ujb9.76.5.3 and ro-ujb9.76.5.4). Text
- * is ordered byte by byte, as D1's UNION ordered it.
+ * byte order, at most 50: its daily runs' and its report runs'.
  */
 async function savedBingProperties(env: IngestEnv, asset: string): Promise<{ property_ref: string }[]> {
   return env.STORE.read((tx) =>
@@ -196,8 +182,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
     const id = await healthId([spec.connection.provider, spec.capability, spec.asset ?? '', spec.family ?? '', spec.detail ?? '']);
     const lastSuccess = stored?.last_success_finished_at ?? projected.lastSuccessAt;
     const item: IntegrationHealthItem = { id, provider: spec.connection.provider, capability: spec.capability, label: def.label, asset: spec.asset ?? null,
-      // The report and its day as fields (bead ro-ujb9.96.7.17): `detail`
-      // is display text, and nothing downstream parses it.
+      // `detail` is display text; nothing downstream parses it.
       detail: spec.detail ?? null, report: spec.report ?? null, reportDate: spec.reportDate ?? null, state, lastAttemptAt: projected.latest?.startedAt ?? null,
       lastSuccessAt: lastSuccess && Date.parse(lastSuccess) <= nowMs ? lastSuccess : null,
       nextAttemptAt: spec.nextAttemptAt ?? projected.latest?.nextAttemptAt ?? null,
@@ -219,8 +204,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
   };
   const archive = async (connection: HealthConnection, capability: string, asset: string, target: string, lane: string, plan: { report: string; date?: string; cadenceDays: number }[], paused: boolean) => {
     // Latest outcome of each exact report/date, plus its last successful attempt.
-    // No age cut-off can make an unresolved failed date disappear. On Postgres
-    // (bead ro-ujb9.76.5.4); attempts asked at one instant, the later written first.
+    // No age cut-off can make an unresolved failed date disappear.
     const dated = plan.filter(item => item.date);
     const history = (await env.STORE.read(tx => tx.query<Omit<DumpRow, 'provider_truncated'> & { provider_truncated: boolean }>(`SELECT *, (COUNT(*) OVER ())::int AS scope_count, (COUNT(*) FILTER (WHERE status = 'error' OR provider_truncated) OVER ())::int AS failure_count FROM (
       SELECT *, (ROW_NUMBER() OVER (PARTITION BY report ORDER BY requested_at DESC, report_date DESC, run_seq DESC))::int AS family_rank FROM (
@@ -233,8 +217,8 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
     ORDER BY CASE WHEN status = 'error' OR provider_truncated THEN 0 ELSE 1 END, requested_at DESC, run_seq DESC LIMIT 256`,
     [asset, lane, target, connection.changedAt || null, [...new Set(plan.map(item => item.report))], dated.map(item => item.report), dated.map(item => item.date!), plan.filter(item => !item.date).map(item => item.report)])))
       .map(row => ({ ...row, provider_truncated: row.provider_truncated ? 1 : 0, requested_at: javascriptInstant(row.requested_at), finished_at: javascriptInstant(row.finished_at), last_success_at: row.last_success_at === null ? null : javascriptInstant(row.last_success_at) }));
-    // A capped list says so as a value — "256 of N", failures first (bead
-    // `ro-ujb9.96.6.29`) — and its action opens the full history.
+    // A capped list says so as a value, failures first, and its action opens
+    // the full history.
     if ((history[0]?.scope_count ?? 0) > history.length) {
       const def = definition(connection.provider, capability);
       payload.items.push({ id: await healthId([connection.provider, capability, asset, 'overflow']), provider: connection.provider, capability, label: def.label, asset, report: null, reportDate: null, detail: `256 of ${history[0]!.scope_count} report dates · ${history[0]!.failure_count} unresolved failures`, state: 'unknown', lastAttemptAt: null, lastSuccessAt: null, nextAttemptAt: null, failure: 'monitoring', code: 'monitoring', action: 'Inspect report history for the full archive.', coverage: 'monitored' });
@@ -362,7 +346,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
       } else if (provider === 'posthog') {
         // One daily obligation per family an asset is actually due: a key AND a
         // saved region + project; funnels only where some are declared. The
-        // account's one key (bead `ro-ujb9.96.7.8`) is a key for every site.
+        // account's one key is a key for every site.
         const keys = resolvePosthogKeys(credential.fields[POSTHOG_KEY_SLOT]);
         const accountKey = Boolean(credential.fields[POSTHOG_ACCOUNT_KEY_SLOT]);
         for (const target of await posthogCandidates(env.STORE)) {

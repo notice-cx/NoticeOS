@@ -18,12 +18,10 @@ import { createTestStore, type TestStore, postgresUnavailable } from "./postgres
 
 import { addSites } from './sites';
 
-// System health's four connection counts, once a day (db/0039, bead
-// ro-ujb9.96.7.26): the Connections strip draws each count's history from rows
-// the hourly tick writes (bead ro-ujb9.96.7.29) — with the same derivation the
-// strip states its numbers with. Reading System health writes nothing. The
-// record is on Postgres since bead ro-ujb9.76.5.6, in each test's own copy
-// (test/sites.ts).
+// System health's four connection counts, once a day: the Connections strip
+// draws each count's history from rows the hourly tick writes, with the same
+// derivation the strip states its numbers with. Reading System health writes
+// nothing. The record is in each test's own copy (test/sites.ts).
 
 const AT = '2026-09-12T12:00:00.000Z';
 const NOW = new Date(AT);
@@ -110,7 +108,7 @@ needsPostgres('System health’s four connection counts, once a day', () => {
     expect(kpi('Sites working')).toHaveTextContent(String(row!.sites_working));
   });
 
-  it('writes nothing when System health is read (bead ro-ujb9.96.7.29)', async () => {
+  it('writes nothing when System health is read', async () => {
     const body = await read(store);
     expect(await rows(store)).toEqual([]);
     // A store with the table and no tick yet has no record, not "0 days".
@@ -189,9 +187,9 @@ needsPostgres('System health’s four connection counts, once a day', () => {
   });
 });
 
-// Beads ro-ujb9.96.7.29 and ro-ujb9.96.7.31: the hourly tick's Tower steps,
-// the one function a deployed Tower's cron and the local runner's fire both
-// run — System health's four counts, then each data source's day.
+// The hourly tick's Tower steps, the one function a deployed Tower's cron and
+// the local runner's fire both run: System health's four counts, then each
+// data source's day.
 needsPostgres('the Tower’s share of the hourly tick', () => {
   // One site with one data source, as the saved register declares it.
   const SETTINGS = {

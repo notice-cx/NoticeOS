@@ -21,26 +21,22 @@ import {
   runBd,
 } from './task-hub.mjs';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Task-map reconciliation — is each project's DECLARED database one the hub
-// actually holds? (bead `ro-237o`)
+// Task-map reconciliation — is each project's declared database one the hub
+// actually holds? Saved workspace database names are checked against the
+// physical hub; task execution additionally requires an exact
+// asset/prefix/database host link. Backups use the host inventory
+// independently: removing workspace membership must not silently remove a
+// physical database from backup coverage. Drift is filed in NoticeOS, where an
+// operator can correct the mapping even if the affected project's own task
+// database is unavailable.
 //
-// Saved workspace database names are checked against the physical hub. Task
-// execution additionally requires an exact asset/prefix/database host link.
-// Backups use the host inventory independently: removing workspace membership
-// must not silently remove a physical database from backup coverage.
-// Drift is filed in NoticeOS, where an operator can correct the mapping even
-// if the affected project's own task database is unavailable.
-//
-// UNKNOWN IS NOT DRIFT. Every decision comes from a `SHOW DATABASES` this pass
-// just made; a hub that would not answer skips the pass entirely. Filing
-// against a hub we could not read would be the same lie as staying silent.
-// ─────────────────────────────────────────────────────────────────────────────
+// Unknown is not drift. Every decision comes from a `SHOW DATABASES` this pass
+// just made; a hub that would not answer skips the pass entirely.
 
 /** The label every drift bead carries — how this lane finds its own work, and
  * how a bead filed by hand is adopted (and auto-closed) by it. */
 export const TASK_MAP_LABEL = 'task-map-drift';
-/** Filed FOR the operator: the fix is `bd init` or a settings edit, both his. */
+/** Filed for the operator: the fix is `bd init` or a settings edit. */
 export const TASK_MAP_HUMAN_LABEL = 'human';
 /** Who the audit trail names. Nobody chose to file this; a reconciliation did. */
 export const TASK_MAP_ACTOR = 'os-up-task-map';
@@ -55,8 +51,8 @@ export const TASK_MAP_SYSTEM_DATABASES = ['information_schema', 'mysql'];
 /** Whose tracker the drift beads land in — the OS's own project, because the
  * file that is wrong is this repo's and the lane that breaks is this repo's
  * backup. Which project that is: the spoke whose asset the store marks as the
- * OS (`GET /api/os-asset`, `assets.is_os`; beads ro-k9hf, ro-ujb9.118), never
- * an id written here and never assumed to be the first spoke. */
+ * OS (`GET /api/os-asset`, `assets.is_os`), never an id written here and never
+ * assumed to be the first spoke. */
 export function taskMapHomeAsset() {
   return readOsAsset({ url: osAssetUrl(CONFIG), readToken: operatorToken });
 }
@@ -130,7 +126,7 @@ export function taskMapTitle(asset) {
   return `Point ${asset}'s task database at one the hub holds`;
 }
 
-/** What the operator reads in his inbox: what disagrees, both ways to fix it,
+/** What the operator reads in the inbox: what disagrees, both ways to fix it,
  * and what it costs to leave. */
 export function taskMapDescription({ asset, declared, repo, held, checkedAt }) {
   const names = [...held].filter((db) => !TASK_MAP_SYSTEM_DATABASES.includes(db)).sort();
@@ -203,7 +199,7 @@ export function taskMapOpenBeads(rows) {
 
 /** The bead, as argv. P1 and `human` for the push filer's reason: only the
  * operator can run `bd init` or change the value, and `bd human list` is the
- * only inbox he reads. */
+ * operator's inbox. */
 export function taskMapCreateArgs(repoDir, filing) {
   return [
     '-C',
@@ -249,11 +245,7 @@ const taskMapState = { skipping: null };
 
 /**
  * One pass: ask the hub what it holds, file what drifted, close what agrees.
- *
- * Every dependency that touches the world is injectable, for the same reason as
- * the other filers': what this does when something is missing IS the behaviour,
- * and none of it is reachable from a test that has to spawn `bd` against a live
- * Dolt server.
+ * Every dependency that touches the world is injectable.
  */
 export async function runTaskMapCheck(deps = {}) {
   const {

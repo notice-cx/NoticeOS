@@ -1,10 +1,9 @@
 # 26 — Storage capacity and transition sizing
 
-*Bead `ro-ujb9.66`, under the storage move decided in
-[D25](../config/decisions.md) (epic `ro-ujb9.76`). This doc is the method: what
-the store's capacity inventory measures, how its numbers size the Postgres and
-Parquet/DuckDB design, and which numbers the live readback supplies. The
-numbers themselves are dated evidence and are recorded on the bead, not here.
+*This doc is the method: what the store's capacity inventory measures, how
+its numbers size the Postgres and Parquet/DuckDB design, and which numbers the
+live readback supplies. The numbers themselves are dated evidence and are
+recorded in the installation's own task hub, not here.
 The target data model the sizing applies to is
 [`db/postgres/`](../db/postgres/README.md).*
 
@@ -26,9 +25,8 @@ code alone gives wrong answers in both directions:
   site are ever read: the site page reads the newest, and the Wall's feed
   compares it with the one before (`apps/tower/worker/wall-feed.ts`).
 
-The inventory measures the Postgres operational store (`ro-ujb9.76.7.4`);
-the store is Postgres since the approved switch (D25, `ro-ujb9.76.10`). The
-inventory changes no retention and migrates nothing.
+The inventory measures the Postgres operational store. The inventory changes
+no retention and migrates nothing.
 
 ## What the inventory measures
 
@@ -108,26 +106,27 @@ bytes added per day:
    buying after the move.
 7. **Snapshot retention**: *kept but unread* bytes are what a snapshot
    retention rule would reclaim. Measured only — changing retention is an
-   operator decision. The operator chose the Postgres rule: each site's two
-   newest stay, older ones move to the analytical store (bead
-   `ro-ujb9.76.17`, [`db/postgres/`](../db/postgres/README.md#what-stays-in-postgres)).
+   operator decision. The Postgres rule is that each site's two newest stay
+   and older ones move to the analytical store
+   ([`db/postgres/`](../db/postgres/README.md#what-stays-in-postgres)).
 
 The **capacity envelope** is then, per store: the projected 3-year size, the
 largest payload, the slowest lane's p95, and the newest
 backup's size and restore time — each with the headroom the chosen hosting
-leaves (bead `ro-nj6p.3` chooses the host).
+leaves.
 
 ## The live readback
 
 The inventory has been proved against a synthetic store
 (`workers/ingest/test/capacity.test.ts`, `scripts/os-capacity.test.mjs`). The
-live numbers come from one run on the owner's OS after the change is deployed:
+live numbers come from one run on the installation after the change is
+deployed:
 
 ```sh
 pnpm os:capacity -- --json
 ```
 
-The readback records on bead `ro-ujb9.66`, dated:
+The readback records, dated, in the installation's own task hub:
 
 - database size, stored bytes and unattributed bytes; tables and missing tables;
 - per table: kind, rows, bytes, rows and bytes per day, largest column;

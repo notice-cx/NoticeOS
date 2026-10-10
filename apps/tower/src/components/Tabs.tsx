@@ -3,29 +3,25 @@ import { NavLink, useLocation } from "react-router-dom";
 import { pillControlClass } from "@/components/ui/pill";
 import { cn } from "@/lib/utils";
 
-/** One tab. `key` is the stable slug the panel points back at; `to` is the URL
- * the tab IS — the active tab is a location, not component state, so a tab can
+/** One tab. The active tab is a location, not component state, so a tab can
  * be linked to, bookmarked, and reached with Back. */
 export interface TabSpec {
   key: string;
-  /** Where the tab goes. It may carry a query string — filters the operator has
-   * already set, handed across the switch — because only the PATH decides which
-   * tab is selected. A tab is a place; the query is that place's view state. Two
+  /** Where the tab goes. It may carry a query string (filters handed across
+   * the switch), because only the path decides which tab is selected. Two
    * tabs may therefore never differ by query alone: both would light. */
   to: string;
   label: string;
   /** Exact-match this path. The index tab needs it, or it matches every tab. */
   end?: boolean;
-  /** A number the tab carries — open alerts, open outcome checks. */
+  /** A number the tab carries. */
   count?: number;
-  /** A small state glyph seated before the count (a severity dot, a segmented
-   * ratio bar). doc 14: a tab with state answers with a shape, not a word. */
+  /** A small state glyph seated before the count. */
   glyph?: ReactNode;
-  /** Hover/tap explainer for what the count or glyph means (doc 14 principle 9). */
+  /** Hover/tap explainer for what the count or glyph means. */
   title?: string;
-  /** Called when a pointer rests on the tab or the keyboard focuses it — the
-   * moment before it is opened. The asset page fetches that tab's code here
-   * (bead `ro-ujb9.84`), the way the sidebar does for a page's. */
+  /** Called when a pointer rests on the tab or the keyboard focuses it, the
+   * moment before it is opened; the asset page fetches the tab's code here. */
   onIntent?: () => void;
 }
 
@@ -50,10 +46,9 @@ function normalize(path: string): string {
   return path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
 }
 
-/** The place half of a tab's `to`, dropping any query string or hash it carries
- * across the switch (bead `ro-clz8`). Matching on the path is what `NavLink`
- * itself does with a `to` that has a search, so this keeps the tab's own
- * selection and the link's `aria-current` telling the same story. */
+/** The place half of a tab's `to`. Matching on the path is what `NavLink`
+ * itself does with a `to` that has a search, so the tab's selection and the
+ * link's `aria-current` tell the same story. */
 function pathOf(to: string): string {
   const cut = to.search(/[?#]/);
   return cut === -1 ? to : to.slice(0, cut);
@@ -66,53 +61,23 @@ export function isTabActive(pathname: string, to: string, end = false): boolean 
 }
 
 /**
- * The desk's tab bar: an ARIA tablist whose tabs are links (bead `ro-pbzu.4`).
- *
- * The registry had no tab primitive, and the asset page had grown the thing tabs
- * exist to replace — one very long scroll with collapsed question disclosures and
- * a sticky "Jump to" navigator, which told a stranger nothing about where they
- * were and needed a deep link to open a `<details>` programmatically before it
- * could scroll (the 2026-07 audit's finding 11).
- *
- * Two decisions worth keeping:
- *
- * **The tab is the URL.** Each tab is a `NavLink`, so selection survives a
- * reload, a bookmark, and Back, and one hash→tab map is all a deep link needs.
- *
- * **Selection is decided by the PATH, so a link may carry a query** (bead
- * `ro-clz8`). Alerts narrowed to one asset stays narrowed across Open ↔ History
- * because each tab links with the filters the destination can honour; the query
- * is stripped before the comparison, so the tab still lights. The constraint
- * that buys: two tabs must never differ by query string alone.
- *
- * **Manual activation** (WAI-ARIA APG). Arrow keys and Home/End move focus along
- * the bar; Enter or Space opens the focused tab. Panels here mount charts and
- * tables, so activating on every arrow press would render five panels on the way
- * to the sixth.
+ * The desk's tab bar: an ARIA tablist whose tabs are links, so selection
+ * survives a reload, a bookmark and Back. Selection is decided by the path,
+ * so a link may carry a query. Manual activation (WAI-ARIA APG): arrow keys
+ * and Home/End move focus, Enter or Space opens, because panels mount charts
+ * and tables.
  */
 export function Tabs({ label, tabs, idBase, panelId, className }: TabsProps) {
   const { pathname } = useLocation();
   const list = useRef<HTMLDivElement | null>(null);
 
-  /**
-   * What each tab CURRENTLY measures, near enough — its key and whatever number
-   * it is wearing. The scroll below has to re-run when this changes, not only
-   * when the route does: the counts arrive with the payload, a beat after first
-   * paint, and every tab to the right of one that gained a badge moves. Keyed on
-   * the route alone, the strip settles against widths that are already stale and
-   * leaves the selected tab half off the edge.
-   */
+  // The scroll below must re-run when a count changes, not only the route:
+  // counts arrive a beat after first paint and move every tab to their right.
   const measure = tabs.map((tab) => `${tab.key}:${tab.count ?? ""}`).join("|");
 
-  // The strip scrolls, so the selected tab has to be brought into it. Seven
-  // asset tabs do not fit 390px and Settings is the seventh: without this, a
-  // deep link to a tab off the right edge lands on a bar showing Overview with
-  // nothing lit (bead `ro-md80`).
-  //
-  // The strip's own `scrollLeft`, not `scrollIntoView`: that method also scrolls
-  // every ancestor, so selecting a tab would jump the PAGE — the exact thing the
-  // asset page's hash→tab map exists to control — and it is what the deep-link
-  // tests watch. A bar that already fits (every desk width) moves not at all.
+  // Brings the selected tab into the scrolling strip. The strip's own
+  // `scrollLeft`, not `scrollIntoView`: that also scrolls every ancestor, so
+  // selecting a tab would jump the page.
   useEffect(() => {
     const strip = list.current;
     const selected = strip?.querySelector<HTMLElement>('[aria-selected="true"]');
@@ -151,15 +116,9 @@ export function Tabs({ label, tabs, idBase, panelId, className }: TabsProps) {
   }
 
   return (
-    // THE STRIP SCROLLS, THE PAGE DOES NOT (bead `ro-md80`). The bar used to
-    // wrap, which fits — but a wrapped tablist draws the selected tab's
-    // underline in mid-air two rows above the divider it belongs to, and the
-    // asset page's seven tabs became three ragged rows of chrome above the
-    // content on a phone. One line that scrolls inside its own box is the
-    // idiom every touch product uses for exactly this, and it never touches
-    // the page's own width. The divider is on the WRAPPER so the scroller
-    // cannot clip it, and the strip is pulled a pixel down over it so the
-    // selected tab's border lands on the line rather than above it.
+    // The strip scrolls, the page does not. The divider is on the wrapper so
+    // the scroller cannot clip it, and the strip is pulled a pixel down over
+    // it so the selected tab's border lands on the line.
     <div className={cn("-mx-1 border-b border-border px-1", className)} data-tab-strip>
       <div
         ref={list}
@@ -191,14 +150,8 @@ export function Tabs({ label, tabs, idBase, panelId, className }: TabsProps) {
                   event.currentTarget.click();
                 }
               }}
-              // The control contract — focus ring and the phone thumb floor a
-              // 36px tab is under (bead `ro-md80`) — is `ui/pill.ts`'s, shared
-              // with five hand-rolled toggles that are not `<Button>` either
-              // (bead `ro-s4rg`). The BOX is not: a tab is an underline on a
-              // divider, not a pill, and reading a bordered box here only to
-              // cancel its border and its radius would be worse than the
-              // literal. Selected underlines rather than fills, for the same
-              // reason.
+              // `ui/pill.ts`'s control contract (focus ring, thumb floor) but
+              // not its box: a tab is an underline on a divider, not a pill.
               className={cn(
                 "inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm",
                 pillControlClass,
@@ -241,9 +194,7 @@ export interface TabPanelProps {
   children: ReactNode;
 }
 
-/** The one panel the tab bar swaps. Only the active tab's content is mounted —
- * which is the other half of what tabs bought: five sections of charts no longer
- * render to answer a question nobody asked. */
+/** The one panel the tab bar swaps. Only the active tab's content is mounted. */
 export function TabPanel({
   id,
   idBase,

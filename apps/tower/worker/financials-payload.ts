@@ -1,17 +1,10 @@
 import { moneyFigure, minorToMajorUnits, type MinorMoneyFigure } from '@noticeos/contract/money';
 import { revenueCalendarDate } from "../shared/daily-revenue";
 import { loadPortfolioDailyRevenue } from "./daily-revenue";
-// The /financials read model (bead `ro-kukv.7`).
-//
-// Money is summed in MINOR UNITS throughout and divided once on the way out.
-// `db/0020` dropped the original `amount REAL` column for exactly this reason:
-// a sum of binary floats is never provably cent-exact, and this page's whole
-// job is being addable.
-//
-// SUPERSEDED ROWS ARE EXCLUDED EVERYWHERE: every money query in this worker
-// reads the one view that holds only current entries (`./ledger-history`). A
-// restated figure is a new row that supersedes the old one, so counting both
-// would double a month the day it reconciles.
+// The /financials read model. Money is summed in minor units and divided once
+// on the way out, so every figure adds up to the cent. Every money query reads
+// the view of current entries only (`./ledger-history`), so a restated figure
+// never doubles its month.
 
 import type {
   DomainOrder,
@@ -27,23 +20,17 @@ import type { WorkspaceStore } from "@noticeos/postgres";
 import { costProvenance } from "../shared/financials";
 import { cents, loadAssetMonths, monthDate } from "./ledger-history";
 
-// The two cost registers' ROW shapes (`DomainOrder`, `RecurringCost`) live in
-// the shared contract beside the payload that carries them (bead `ro-x5gu.2`):
-// the page edits these rows, so the browser needs the same type this builder
-// does. Callers import them from `../shared/financials`, not from this builder.
+// The cost registers' row shapes live in `../shared/financials`, because the
+// page edits these rows.
 
 export interface FinancialsDeps {
   now: Date;
   /** config/domain-costs.json, verbatim. */
   domainOrders: readonly DomainOrder[];
   /**
-   * config/recurring-costs.json, verbatim.
-   *
-   * The ledger already holds what these rows BOOKED — `scripts/cost-import.mjs`
-   * writes one row per entry per month. This is the DECLARATION behind those
-   * rows, which is the thing /financials edits. Optional so every existing
-   * caller keeps compiling: a register nobody injected is an empty list, which
-   * is a real state (no subscriptions declared), never an error.
+   * config/recurring-costs.json, verbatim: the declaration behind the rows
+   * `scripts/cost-import.mjs` books into the ledger. Absent means no
+   * subscriptions declared, a real state.
    */
   recurringCosts?: readonly RecurringCost[];
   /**
@@ -54,9 +41,8 @@ export interface FinancialsDeps {
    */
   period?: string | null;
   /**
-   * The operator's clock: config/constants.json `os_time_zone` as SAVED,
-   * resolved store first (bead `ro-ujb9.88`). It decides the open month and
-   * where the daily revenue window stops.
+   * The operator's clock: `os_time_zone` as saved. It decides the open month
+   * and where the daily revenue window stops.
    */
   osTimeZone: string;
 }
@@ -125,21 +111,12 @@ export async function buildFinancialsPayload(
       total: moneyFigure([...entry.booked, ...entry.estimated]),
     }));
 
-  // --- WHICH PERIOD THE BREAKDOWNS DESCRIBE (bead `ro-69vb`) ----------------
-  // The same rule the Wall's ROI card runs on (`wall-payload.ts`, bead
-  // `ro-bdkp`), stated once more here because this page reaches the ledger by
-  // its own query and the two surfaces must not disagree about what "this
-  // period" means: THE LATEST PERIOD, NOT IN THE FUTURE, THAT HAS ANY CURRENT
-  // ROW — else the current month.
-  //
-  // The current month wins the moment it holds one row, so twenty-six days out
-  // of thirty this is byte-identical to reading the clock. It is the other four
-  // that this exists for: on 2026-09-04 the store held June through August, and
-  // the by-asset, cost and portfolio-net blocks all printed $0.00 directly under
-  // a table showing August at +$200.25.
-  //
-  // `periods` comes off `months` rather than a second query, so the selector
-  // can only ever offer a month the trajectory table already lists.
+  // --- which period the breakdowns describe ---------------------------------
+  // The Wall's ROI card rule (`wall-payload.ts`): the latest period, not in the
+  // future, that has any current row — else the current month. Early in a month
+  // the current one may hold nothing yet, and the breakdowns must not print
+  // $0.00 under a table showing last month's figures. `periods` comes off
+  // `months`, so the selector only offers a month the table lists.
   const periods = months.map((month) => month.period);
   const latestWithRows =
     [...periods].reverse().find((candidate) => candidate <= currentPeriod) ?? null;
@@ -152,19 +129,13 @@ export async function buildFinancialsPayload(
   const period = requested ?? latestWithRows ?? currentPeriod;
   const periodIsCurrent = period === currentPeriod;
 
-  // --- BY ASSET, MONTH BY MONTH (beads `ro-78qo.29`, `ro-78qo.35`) ----------
-  // ONE grouping, not two, and since `.35` not two payloads either: the table's
-  // figures, the sparkline in each of its rows and the wall card's `netByMonth`
-  // are the same arithmetic asked for different months. The selected month is a
-  // SLICE of this result rather than a second read of the ledger, so a row can
-  // never print a net its own line disagrees with.
+  // --- by asset, month by month ---------------------------------------------
+  // The selected month is a slice of the one grouping the sparklines and the
+  // Wall's `netByMonth` read, so a row never disagrees with its own line.
   const history = await loadAssetMonths(store);
 
-  // WHICH ASSETS REPORTED ANY REVENUE THIS PERIOD (bead `ro-ujb9.96.6.9`) —
-  // the one fact the monthly sums cannot keep: a sum of no rows and a sum of a
-  // $0.00 row are both 0. The page draws "not reported" as a dash in the row
-  // rather than explaining under a separate heading that $0.00 might not mean
-  // zero.
+  // Which assets reported any revenue this period: a sum of no rows and a sum
+  // of a $0.00 row are both 0, and the page draws "not reported" as a dash.
   const reporting = new Set(
     (
       await store.read((tx) =>
@@ -180,11 +151,8 @@ export async function buildFinancialsPayload(
 
   const properties: FinancialProperty[] = [...history.entries()]
     .flatMap(([asset, entry]) => {
-      // The table lists the assets with a row in the SELECTED month, and this
-      // is where that filter now lives. An asset with history but nothing this
-      // period is not a row of a table describing this period — and since
-      // `ro-78qo.37` that includes an asset whose axis merely SPANS this month
-      // with a hole in it, which is why the null is rejected here too.
+      // The table lists assets with a figure in the selected month; a filled
+      // hole (null) in an asset's span is not one.
       const shown = entry.months.find((month) => month.period === period);
       if (!shown?.figure) return [];
       return [
@@ -207,8 +175,8 @@ export async function buildFinancialsPayload(
   const overhead: MoneyFigure = os?.figure ?? moneyFigure([], months.find(month => month.period === period)?.total.currency ?? 'USD');
 
   // --- this period, by cost family and how it was learned -------------------
-  // Equal totals keep the order D1's grouping gave them: family, then source
-  // with no source first, byte for byte.
+  // Equal totals order by family, then source with no source first, byte for
+  // byte.
   const costRows = await store.read((tx) =>
     tx.query<{ family: string; source: string | null; currency: string; amountMinor: bigint; rows: number }>(
       `SELECT family, source, currency,
@@ -250,12 +218,8 @@ export async function buildFinancialsPayload(
     })
     .sort((a, b) => b.paidUsd - a.paidUsd);
 
-  // WHAT THE PAGE DOES NOT KNOW IS DRAWN WHERE IT APPLIES (bead
-  // `ro-ujb9.96.6.9`), not listed as paragraphs under its own heading: a month
-  // with nothing reconciled is the Reconciled figure's own all-estimated bar,
-  // an asset with no revenue row is a dash in its Revenue cell
-  // (`revenueReported`), and a domain term about to renew is marked on its
-  // order. Each fact sits once, on the figure it qualifies.
+  // What the page does not know is drawn on the figure it qualifies, never
+  // listed under its own heading.
 
   return {
     generatedAt: now.toISOString(),
@@ -269,10 +233,8 @@ export async function buildFinancialsPayload(
     overhead,
     costLines,
     domains,
-    // FILE ORDER, both of them — and deliberately NOT the sorted `domains`
-    // above. These are the rows the page's editor addresses by index and
-    // guards by value (bead `ro-x5gu.2`); a convenience sort here would point
-    // every `/domains/3` at a different row than the operator clicked.
+    // File order, not the sorted `domains` above: the editor addresses these
+    // rows by index, so a sort would point `/domains/3` at the wrong row.
     recurringCosts: [...recurringCosts],
     domainOrders: [...domainOrders],
     empty: months.length === 0,

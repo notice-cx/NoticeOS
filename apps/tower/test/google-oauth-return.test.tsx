@@ -4,11 +4,10 @@ import { render } from "./render";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
-// Coming back from Google's consent screen with a failure (bead
-// ro-ujb9.96.6.25): the page says it once. The notice is raised from an effect,
-// and React runs effects twice in development — the Tower's own dev server,
-// which is what an installation's operator opens — so without an id each
-// return stacked two copies of the same toast.
+// Coming back from Google's consent screen with a failure: the page says it
+// once. The notice is raised from an effect, and React runs effects twice in
+// development, so without an id each return would stack two copies of the
+// same toast.
 
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
 vi.mock("sonner", async (importOriginal) => ({ ...(await importOriginal<typeof import("sonner")>()), toast }));

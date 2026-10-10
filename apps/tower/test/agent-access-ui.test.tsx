@@ -6,9 +6,8 @@ import type { ApiTransport } from '@/lib/api';
 import { AGENT_ACCESS_PATHS, parseAgentAccessLanding } from '../../../scripts/agent-access.mjs';
 import { WORKSPACE_SESSION_HEADER } from '../../../scripts/browser-request-policy.mjs';
 
-// Agent sign-in's page (epic ro-cvl9): an agent landing becomes the agent
-// phase instead of a workspace, and allowing it is the whole decision: it
-// covers every workspace the person belongs to.
+// Agent sign-in's page: an agent landing becomes the agent phase instead of a
+// workspace, and allowing it covers every workspace the person belongs to.
 
 const [PERSON, SESSION, WA, WB] = ['11111111', '33333333', '55555555', '66666666'].map(prefix => `${prefix}-1111-4111-8111-111111111111`);
 const query = 'response_type=code&client_id=agent-1&scope=tasks%3Aread+tasks%3Awrite&exp=1&sig=abc';

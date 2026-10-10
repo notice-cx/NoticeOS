@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// WHICH SUITES A CHANGE NEEDS (issue #4).
+// Which suites a change needs.
 //
 // AGENTS.md, The CI bar: documentation and image changes need their own
 // checks, not runtime suites. So a pull request that changes only

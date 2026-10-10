@@ -1,4 +1,4 @@
-// The task project of a proven new pnpm start installation (ro-ujb9.246.2).
+// The task project of a proven new pnpm start installation.
 // Existing folders never initialize or migrate a task database here.
 import { randomBytes } from 'node:crypto';
 import * as fs from 'node:fs';

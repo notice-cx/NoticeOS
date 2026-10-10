@@ -52,8 +52,7 @@ export declare const TASK_METADATA: Readonly<{
         legacy: "reindex_task_map_asset";
     }>;
     /** The server's identity for the hosted write that created this task, so a
-     * retried request can find it (epic ro-cvl9). Server-set only; it was named
-     * after the rename, so its legacy key is the same. */
+     * retried request can find it. Server-set only; it has no older name. */
     operation: Readonly<{
         name: "noticeos_operation_id";
         legacy: "noticeos_operation_id";

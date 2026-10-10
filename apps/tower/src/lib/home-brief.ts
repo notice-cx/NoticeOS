@@ -11,20 +11,12 @@ import { monthRevenue, yesterdayTotal } from "@/lib/wall-revenue";
 import { withSystemIssues } from "@/lib/wall-system-state";
 
 /**
- * THE MORNING BRIEF (D44, doc 14 § Home): what changed since the operator
- * last looked, as at most five highlight cards, the first the big thing.
- *
- * Nothing here is synthesized. Every card stands for a stored fact the Tower
- * already reads: an open problem (`wallIssues`, the Wall's Needs you list,
- * with the OS's own problems merged in), the month's revenue and its pace
- * (`monthRevenue`, the Wall's revenue band), yesterday's visitors against the
- * same weekday last week (the asset cards' daily users), and the live feed's
- * wins and ships (`/api/wall/feed`, the Wall's feed column). A quiet day is a
- * brief with no cards and a finish line, never an invented highlight.
- *
- * RANKING is severity, then dollars, then kind (doc 14): a broken thing or an
- * error first, warnings next, then money, then people when they moved, then
- * wins, ships and findings. Within a rank the newest first.
+ * The morning brief: what changed since the operator last looked, as at most
+ * five highlight cards, the first the big thing. Nothing here is synthesized:
+ * every card stands for a stored fact the Tower already reads (`wallIssues`,
+ * `monthRevenue`, the asset cards' daily users, `/api/wall/feed`). A quiet
+ * day is a brief with no cards and a finish line. Ranking is severity, then
+ * dollars, then kind; within a rank the newest first.
  */
 export const BRIEF_LIMIT = 5;
 

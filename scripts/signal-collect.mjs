@@ -1,21 +1,20 @@
 #!/usr/bin/env node
-// Collect one property's DataForSEO families NOW, instead of waiting for Monday —
-// or its PostHog families (bead ro-ghis.1), `--families 'posthog-*'`, with an
-// optional fixed `--start/--end` window.
+// Collect one property's DataForSEO families now, instead of waiting for
+// Monday — or its PostHog families, `--families 'posthog-*'`, with an optional
+// fixed `--start/--end` window.
 //
-// The Monday `45 12 * * 1` cron sweeps the whole portfolio. Firing it early to
-// baseline ONE property re-bills all five — on 2026-08-03 that was ~$1.60 to buy
-// ~$0.07 of new data for one site's newly seeded panel. This lane asks for the one
-// property (bead ro-282.1), through `POST /api/signal-collect`.
+// The Monday `45 12 * * 1` cron sweeps the whole portfolio, so firing it early
+// to baseline one property re-bills every property. This lane asks for the one
+// property, through `POST /api/signal-collect`.
 //
-// IT DOES NOT OPEN THE STORE, and it does not collect anything itself. Every
+// It does not open the store, and it does not collect anything itself. Every
 // decision — which families the property is due, the $0.25-per-family reserve
 // against the monthly cap, the retry budget, the archive and manifest write —
 // belongs to the ingest's collector, the same one the cron runs. This script
 // carries the operator's request to the loopback door and reports what came back
 // (scripts/ingest-door.mjs has the one-runtime rule this obeys).
 //
-// IT SPENDS MONEY. Every provider call is metered, so the summary below states
+// It spends money. Every provider call is metered, so the summary below states
 // what was attempted, what landed and what it cost, in the same six decimals the
 // manifest row stores. A run with any failed family exits non-zero.
 
@@ -43,9 +42,9 @@ const KNOWN_FAMILIES = [
   'serp-panel',
 ];
 
-/** PostHog's families (bead ro-ghis.1), named `posthog-<family>`; `posthog-*`
- * asks for all six. Read from the contract's own list (bead ro-ghis.4) rather
- * than copied, so a family the ingest collects is never refused here first. */
+/** PostHog's families, named `posthog-<family>`; `posthog-*` asks for all
+ * six. Read from the contract's own list rather than copied, so a family the
+ * ingest collects is never refused here first. */
 const POSTHOG_FAMILIES = CONTRACT_POSTHOG_FAMILIES.map((family) => `posthog-${family}`);
 const POSTHOG_ALL = 'posthog-*';
 

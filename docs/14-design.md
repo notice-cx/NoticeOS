@@ -199,7 +199,7 @@ severity for an alert, the money or people identity otherwise.
 how old the reading is. On an empty queue it is the whole list, so empty and
 finished read the same, and neither is a blank panel.
 
-**Home is the Morning Brief** (D44). A greeting line with three small figures:
+**Home is the Morning Brief.** A greeting line with three small figures:
 yesterday's revenue, the month's pace and yesterday's visitors. Then at most
 five highlight cards, the first drawn larger as the big thing, ranked by
 severity, then dollars at stake, then kind; then the finish line that names
@@ -209,7 +209,7 @@ health word. The OS never describes itself on Home unless something is
 broken, and then the broken thing arrives as a highlight card. With one site,
 the brief is that site's.
 
-**A site's Overview opens with a verdict** (D44): the header carries one
+**A site's Overview opens with a verdict**: the header carries one
 health word (`siteHealth` in `lib/site-health.ts`, the same derivation Home,
 the Sites table and the TV's site rows read) and one line of three facts
 joined by dots. Below it the hero row is money, people, search and the site's
@@ -219,7 +219,7 @@ effect sit on one axis. Then bets ranked by dollars, Needs you, the search
 movers, and product cells that say "normal" out loud. Provider names appear
 only as a chart key beside their own line.
 
-**Index pages** (D45) follow the same bar: Sites, Alerts, Tasks, Money,
+**Index pages** follow the same bar: Sites, Alerts, Tasks, Money,
 Integrations and Workflows each open with a `PageAnswer`; Alerts and Tasks end
 on a `FinishLine`; a fact appears once per screen, so a navigator's selected
 item is not repeated as a card title and a back link is not repeated as a
@@ -353,8 +353,7 @@ coinages, each with the word to use instead, and the lower altitudes' words
 banned on the business surfaces) and `scripts/ui-noun.test.mjs` (never
 *property* for a site). Both read shipped text only — string literals and JSX
 text — and both are exact lists, so widening either is a decision somebody
-makes on purpose. A word moves up an altitude only by a decision recorded in
-`config/decisions.md`.
+makes on purpose, in the same commit that widens the list.
 
 ## Components
 

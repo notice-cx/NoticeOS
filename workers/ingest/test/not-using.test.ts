@@ -1,14 +1,14 @@
-// NOT USING MEANS NOT COLLECTED, AND NOT BILLED (bead `ro-ujb9.96.7.18`).
+// Not using means not collected, and not billed.
 //
 // A data source an asset's Data sources row declines — the register's
 // `skipped`, with its reason, written by the row's reason chip or by an
-// unticked row in the connect panel — used to be a word on a card. Two lanes
-// reach an asset nobody mapped and kept collecting it: Bing matches the
-// asset's own domain against the account's verified sites (both its 15-minute
-// collector and its nightly archive), and the weekly DataForSEO sweep collects
-// every launched asset with a domain — billing it. Each case below states the
-// same register the Sources tab would have saved and proves the declined site
-// is neither requested nor recorded, while the rest of the portfolio is.
+// unticked row in the connect panel — must stop every lane that would reach
+// the asset without a mapping: Bing matches the asset's own domain against the
+// account's verified sites (both its 15-minute collector and its nightly
+// archive), and the weekly DataForSEO sweep collects every launched asset with
+// a domain — billing it. Each case below states the same register the Sources
+// tab would have saved and proves the declined site is neither requested nor
+// recorded, while the rest of the portfolio is.
 
 import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -191,8 +191,8 @@ describe('the DataForSEO weekly sweep neither requests nor bills a declined site
   });
 });
 
-// ONE SKIP RULE, EVERY COLLECTOR (D30): Not using is a product concept, the
-// same for every provider, so the other collectors ask the same `laneDeclined`.
+// One skip rule, every collector: Not using is a product concept, the same for
+// every provider, so the other collectors ask the same `laneDeclined`.
 describe('every other collector skips a declined source the same way', () => {
   it('Google: neither GA4 nor Search Console is asked for a declined property', async () => {
     const urls: string[] = [];

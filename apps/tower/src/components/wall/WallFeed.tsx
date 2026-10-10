@@ -1,17 +1,16 @@
-// The Wall's live feed column (bead ro-trai.9, docs/14-design.md § Feed).
-//
-// What just happened, newest on top, from GET /api/wall/feed — the Wall's one
+// The Wall's live feed column: what just happened, newest on top, from
+// GET /api/wall/feed — the Wall's one
 // moving part. Every row is a stored event (the Worker unions and folds them);
 // this component only draws them and makes an arrival visible across a room:
 //
-// - ARRIVAL. A row the column has not drawn before slides in at the top (240 ms,
+// - Arrival. A row the column has not drawn before slides in at the top (240 ms,
 //   none under reduced motion) and keeps a tint of its own tone that fades over
 //   two minutes. At most one arrival every 2 s; a burst queues, oldest first, so
 //   the newest still lands on top.
-// - AGING. A row older than 12 hours drops to muted ink. Times are clock times
+// - Aging. A row older than 12 hours drops to muted ink. Times are clock times
 //   ("12:24", "7:40p" for yesterday), never "5m ago" churn.
-// - FIT. Only whole rows are drawn: a row the column would cut is hidden.
-// - FAILURE. A failed poll keeps the last rows, dims the live dot and says
+// - Fit. Only whole rows are drawn: a row the column would cut is hidden.
+// - Failure. A failed poll keeps the last rows, dims the live dot and says
 //   "Reconnecting" — never an empty feed that reads as "nothing happened".
 //
 // Read-only on the TV: nothing here is a control. Colour is tokens only, and the
@@ -67,7 +66,7 @@ const GLYPH: Record<WallFeedKind, ComponentType<{ className?: string }>> = {
   "setting-saved": SlidersHorizontal,
 };
 
-/** Tokens only (doc 14): ink for the kind label and glyph, a soft tile behind
+/** Tokens only: ink for the kind label and glyph, a soft tile behind
  * the glyph, and the arrival tint. */
 const TONE: Record<WallFeedTone, { ink: string; tile: string; tint: string }> = {
   healthy: { ink: "text-healthy", tile: "bg-healthy/15", tint: "bg-healthy/10" },
@@ -163,7 +162,7 @@ function useWholeRows(list: RefObject<HTMLOListElement | null>, rows: readonly W
       setFit(cut === -1 ? Infinity : cut);
     };
     measure();
-    // The list AND every row: an arriving row opens its height over 240 ms,
+    // The list and every row: an arriving row opens its height over 240 ms,
     // pushing the rows below it down after this effect has already measured.
     const observer = new ResizeObserver(measure);
     observer.observe(element);
@@ -217,11 +216,10 @@ export function WallFeed({ feed, failed = false, nowMs }: WallFeedProps) {
           rows fill whatever height the Wall gives the column and never ask for
           more: out of flow, so a long feed cannot stretch its row. In the one
           column (a portrait tablet, a phone) the feed is the last region and
-          as tall as its rows, the TV's twelve at most (beads ro-trai.24,
-          ro-trai.29, ro-trai.31). */}
+          as tall as its rows, the TV's twelve at most. */}
       <div className="relative tv:min-h-80 tv:flex-1">
         {/* Newest first: a feed's order is its meaning, so its rows are not
-            grouped by site (doc 14 principle 3b's timeline exemption). */}
+            grouped by site. */}
         <ol ref={listRef} aria-live="polite" data-order="chronological" className="flex flex-col gap-1 tv:absolute tv:inset-0 tv:overflow-hidden">
           {visible.map((item, index) => {
             const tone = TONE[item.tone];
@@ -231,7 +229,7 @@ export function WallFeed({ feed, failed = false, nowMs }: WallFeedProps) {
             const tinted = arrived.has(item.id);
             const cut = index >= fit;
             // In the one column (`stack:`) the feed lists the rows the TV
-            // shows and no more (bead ro-trai.31).
+            // shows and no more.
             const past = index >= WALL_FEED_TV_ROWS;
             return (
               <li

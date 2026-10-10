@@ -12,13 +12,11 @@
     "enabled": true,
     "head_sampling_rate": 1
   },
-  // The operational store (D25; the port pattern is
-  // docs/briefs/2026-09-29-postgres-port-pattern.md). Deployed, `id` is the
-  // host's Hyperdrive configuration, created with --caching-disabled and
-  // logging in as noticeos_app (ro-ujb9.76.12); this placeholder is not one.
-  // Locally the connection string comes from the environment,
-  // CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES, never from this
-  // file: it carries a password.
+  // The operational store. Deployed, `id` is the host's Hyperdrive
+  // configuration, created with --caching-disabled and logging in as
+  // noticeos_app; this placeholder is not one. Locally the connection string
+  // comes from CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES, never
+  // from this file: it carries a password.
   "hyperdrive": [
     {
       "binding": "POSTGRES",
@@ -32,20 +30,17 @@
     }
   ],
   "triggers": {
-    // hourly: ingest-freshness check (docs/06). 02:30 UTC: pull-mode adapter +
-    // daily Bing Webmaster snapshot (docs/02, docs/11, before asset-#0).
-    // 03:00 UTC: asset-#0 self-pulse. 03:30 UTC: watch-window evaluation, after
-    // the day's signals have landed (docs/03). 04:00 UTC: tech/GEO hygiene
-    // guards — three plain fetches per property, no provider quota (docs/08
-    // §S5). 04:30 UTC: one Microsoft Clarity export per configured project —
-    // once daily on purpose, because the provider allows only 10 calls per
-    // project per day. 12:15 UTC: GA4/GSC/BWT raw
-    // archives to private/local R2. Monday 12:45 UTC: weekly DataForSEO
-    // rank/backlink/LLM snapshots. Every 15 min: counters + GA4/GSC — the
-    // Tower ages the cards against the counters job's schedule.
+    // hourly: ingest-freshness check. 02:30 UTC: pull-mode adapter + daily Bing
+    // Webmaster snapshot, before asset #0. 03:00 UTC: asset-#0 self-pulse.
+    // 03:30 UTC: watch-window evaluation, after the day's signals have landed.
+    // 04:00 UTC: tech/GEO hygiene guards, no provider quota. 04:30 UTC: one
+    // Microsoft Clarity export per configured project, once daily because the
+    // provider allows only 10 calls per project per day. 12:15 UTC: GA4/GSC/BWT
+    // raw archives. Monday 12:45 UTC: weekly DataForSEO snapshots. Every 15
+    // min: counters + GA4/GSC; the Tower ages the cards against this schedule.
     //
     // Each expression is matched by an exported constant in src/crons.ts
-    // (test/crons.test.ts pins the two lists equal — an unmatched expression
+    // (test/crons.test.ts pins the two lists equal; an unmatched expression
     // falls through to the self-heal `default:` and would run every lane).
     "crons": ["0 * * * *", "5 * * * *", "30 2 * * *", "0 3 * * *", "30 3 * * *", "0 4 * * *", "30 4 * * *", "15 12 * * *", "30 12 * * *", "45 12 * * 1", "*/15 * * * *", "10,30,50 * * * *"]
   }

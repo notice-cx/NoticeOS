@@ -6,12 +6,8 @@ import type { AlertHistoryPayload, AlertHistoryRow } from "@shared/alert-history
 import type { FlagRecord } from "@shared/asset-detail";
 import type { WallPayload } from "@shared/wall";
 
-// `/alerts`' Open | History switch (bead `ro-ju7f`).
-//
-// The wall read and the history read are both stubbed: what is under test is
-// the PAGE — which view the URL selects, what each one states, and that a
-// settled row carries the two things an asset page's own history cannot (which
-// asset, and how long the alert stayed open). The read itself is asserted
+// `/alerts`' Open | History switch. The wall read and the history read are
+// both stubbed: what is under test is the page. The read itself is asserted
 // against the real schema in `alert-history.test.ts`.
 
 const state = vi.hoisted(() => ({
@@ -31,7 +27,7 @@ vi.mock("@/hooks/useNow", () => ({
 }));
 
 vi.mock("@/hooks/useAlertHistory", () => ({
-  // The key FlagActions invalidates after every action (bead ro-ujb9.195).
+  // The key FlagActions invalidates after every action.
   ALERT_HISTORY_KEY: ["alert-history"],
   useAlertHistory: (query: unknown) => {
     state.lastQuery = query;
@@ -177,8 +173,8 @@ function assetCard(id: string, displayName: string): WallPayload["assets"][numbe
   };
 }
 
-/** Rendered through the real `/alerts/:tab?` shape, so the tab genuinely comes
- * off the URL rather than off a prop the test invented. */
+/** Rendered through the real `/alerts/:tab?` shape, so the tab genuinely
+ * comes off the URL. */
 function renderAlerts(url: string) {
   state.wall = wall();
   return render(
@@ -223,19 +219,15 @@ describe("/alerts — the Open | History switch", () => {
       "aria-selected",
       "true",
     );
-    // The sentence that used to sit under the title is in the About with the
-    // rest of the prose (doc 14 principle 3, bead `ro-78qo.7`); what says which
-    // view this is, is the selected tab.
     expect(within(tabs).getByRole("tab", { name: "Open" })).toHaveAttribute(
       "aria-selected",
       "false",
     );
   });
 
-  /** A mistyped tab is still the page the operator asked for. It lands on Open
-   * AND the URL is corrected to say so, because `Tabs` matches on the path —
-   * left alone, `/alerts/nonsense` would render Open under a bar with nothing
-   * selected. */
+  /** A mistyped tab lands on Open and the URL is corrected to say so, because
+   * `Tabs` matches on the path; left alone, `/alerts/nonsense` would render
+   * Open under a bar with nothing selected. */
   it("canonicalises a tab nobody built back to Open", () => {
     renderAlerts("/alerts/nonsense");
 
@@ -256,16 +248,15 @@ describe("/alerts — the Open | History switch", () => {
 
     expect(screen.getByLabelText("Site")).toHaveValue("nosh.example");
     expect(screen.getByLabelText("Severity")).toHaveValue("error");
-    // Nothing matches, and the page says so as an empty state rather than as a
-    // zero beside the filters — the strip above owns the portfolio's counts.
+    // Nothing matches, and the page says so as an empty state; the strip
+    // above owns the portfolio's counts.
     expect(
       screen.getByText("No open alerts match these filters"),
     ).toBeInTheDocument();
   });
 
   /** "What is open for this asset" and "what closed for this asset" are one
-   * question asked twice (bead `ro-clz8`), so the narrowing crosses the switch
-   * rather than costing three clicks on the far side. */
+   * question asked twice, so the narrowing crosses the switch. */
   it("hands the asset and severity narrowing from Open to History", () => {
     state.history = history([]);
     renderAlerts("/alerts?asset=nosh.example&severity=error");
@@ -304,8 +295,7 @@ describe("/alerts — the Open | History switch", () => {
     expect(screen.getByLabelText("Severity")).toHaveValue("error");
   });
 
-  /** A tab carries only what the destination can honour. Anything else arrives
-   * as a `<select>` sitting on a value that is not one of its options. */
+  /** A tab carries only what the destination can honour. */
   it("drops the kind filter History has no answer for", () => {
     renderAlerts("/alerts?asset=nosh.example&kind=anomaly");
 
@@ -359,10 +349,8 @@ describe("/alerts/history — what already closed", () => {
     );
   });
 
-  // `ro-hou2`: the asset link's accessible name is the asset, exactly. The
-  // favicon beside it used to carry `title="Meal Planner favicon"`, which joined the
-  // link's name (accname step 2I) and made a screen reader say the identity
-  // twice, the second time with the word "favicon" in it.
+  // The favicon's wrapper must carry no title: a titled element with no text
+  // joins the link's accessible name (accname step 2I).
   it("names the asset link by the asset alone, not by its favicon", () => {
     state.history = history([row({ id: 11 })]);
     renderAlerts("/alerts/history");
@@ -374,9 +362,8 @@ describe("/alerts/history — what already closed", () => {
     expect(screen.queryByTitle(/favicon/i)).toBeNull();
   });
 
-  // Bead `ro-ujb9.96.6.7`: one status per subject. A settled row's caption is
-  // its disposition; "Recorded closed" beside it was the same closure twice. It
-  // survives in the Evidence panel, where it says recovery was not checked.
+  // One status per subject: a settled row's caption is its disposition, and
+  // "Recorded closed" survives only in the Evidence panel.
   it("states a settled row's closure once, as its disposition", () => {
     state.history = history([row({
       id: 11, disposition: "ack", dispositionAt: at(6),
@@ -419,9 +406,7 @@ describe("/alerts/history — what already closed", () => {
     expect(line.querySelector('[data-snooze-state="active"]')).toBeNull();
   });
 
-  /** doc 14's 2026-09-04 rule: the duration is the fact neither date states,
-   * and the operator's question over a list of closed alerts is which of them
-   * dragged on. */
+  /** The duration is the fact neither date states. */
   it("shows how long each alert stayed open as a glyph and a duration", () => {
     state.history = history([
       row({ id: 11, firedAt: at(9), firstFiredAt: at(9), resolvedAt: at(6) }),
@@ -433,7 +418,6 @@ describe("/alerts/history — what already closed", () => {
       (el) => el.getAttribute("data-alert-open-span"),
     );
     expect(spans).toEqual(["3d", "0s"]);
-    // The glyph carries its own accessible name; the bar is not color-only.
     expect(
       screen.getByRole("img", { name: "Open for 3d" }),
     ).toBeInTheDocument();
@@ -533,16 +517,14 @@ describe("/alerts/history — what already closed", () => {
     state.historyError = new Error("GET /api/alerts/history failed: 500");
     renderAlerts("/alerts/history");
 
-    // The desk's one failure state (bead ro-ujb9.218).
     expect(screen.getByText("Couldn't load alert history")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
     expect(screen.queryByText("No settled alerts yet")).toBeNull();
   });
 
   it("names a page it cannot read rather than quietly showing page one", () => {
-    // Bead `ro-oefa`. Page one of the archive looks the same however the reader
-    // got there, so an operator who shared "page 4" and got page 1 back had no
-    // way to see that anything was dropped.
+    // Page one of the archive looks the same however the reader got there, so
+    // a dropped page must be visible.
     state.historyError = new AlertHistoryPageError(400, 137, 25);
     state.history = history([row()], { total: 137, offset: 75 });
     renderAlerts("/alerts/history?offset=nonsense");
@@ -550,10 +532,9 @@ describe("/alerts/history — what already closed", () => {
     expect(
       screen.getByText("“nonsense” is not a page of this archive"),
     ).toBeInTheDocument();
-    // The archive's size in figures, not a paragraph about paging.
     expect(screen.getByText("137 settled · 25 per page")).toBeInTheDocument();
-    // The range badge would be describing a page that does not exist — and with
-    // `keepPreviousData` its numbers are the LAST GOOD page's.
+    // The range badge would be describing a page that does not exist, and
+    // with `keepPreviousData` its numbers are the last good page's.
     expect(screen.queryByText(/of 137 settled/)).toBeNull();
     expect(screen.queryByText("Couldn't load alert history")).toBeNull();
   });
@@ -564,7 +545,6 @@ describe("/alerts/history — what already closed", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "First page" }));
 
-    // The narrowing the operator chose survives; only the page does not.
     expect(state.lastQuery).toMatchObject({
       asset: "nosh.example",
       offset: 0,

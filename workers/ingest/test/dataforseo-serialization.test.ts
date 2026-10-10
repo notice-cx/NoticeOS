@@ -1,17 +1,16 @@
-// One DataForSEO collection at a time (ro-xx9).
+// One DataForSEO collection at a time.
 //
 // The collector has two triggers — the Monday `45 12 * * 1` cron and the
-// operator-authed `POST /api/signal-collect` — and before this suite nothing
-// stopped them overlapping. A double collection does not double the ARCHIVE
-// (`archiveCollectedDump` stores identical content as `unchanged`); it doubles
-// the SPEND, because both runs make every provider call, both write manifest rows
-// carrying `provider_cost_usd`, and the cap gate reads month-to-date spend once
-// at the top of a run, so two runs started together both see the pre-run total.
+// operator-authed `POST /api/signal-collect`. A double collection does not
+// double the archive (`archiveCollectedDump` stores identical content as
+// `unchanged`); it doubles the spend, because both runs make every provider
+// call, both write manifest rows carrying `provider_cost_usd`, and the cap gate
+// reads month-to-date spend once at the top of a run.
 //
-// What every test here holds the lane with is a REAL run parked inside its first
-// provider call, because that is the shape of the bug: a full-property run holds
-// the request open for minutes, the operator's client times out, the run carries
-// on server-side invisibly, and firing again is the honest next move.
+// Every test here holds the lane with a real run parked inside its first
+// provider call, because that is the shape of the overlap: a full-property run
+// holds the request open for minutes, the operator's client times out, the run
+// carries on server-side invisibly, and firing again is the honest next move.
 
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -142,7 +141,7 @@ async function collect(
 beforeEach(reset);
 
 describe('the DataForSEO collector runs one collection at a time', () => {
-  /** (a) and (b): the refusal names what is running, and pays for nothing. */
+  /** The refusal names what is running, and pays for nothing. */
   it('refuses a second on-demand run with a 409 naming the run in flight', async () => {
     const holder = gatedProvider();
     const running = runDataForSeoDumps(env, {
@@ -174,7 +173,7 @@ describe('the DataForSEO collector runs one collection at a time', () => {
     expect(body.detail).toContain('Nothing was billed for this call');
     expect(body.detail?.length ?? 0).toBeLessThanOrEqual(360);
 
-    // (b) Nothing was asked of the provider and nothing was written. The holder
+    // Nothing was asked of the provider and nothing was written. The holder
     // is still parked in its first call, so a row here could only be the
     // refusal's.
     expect(challenger.calls).toEqual([]);
@@ -184,7 +183,7 @@ describe('the DataForSEO collector runs one collection at a time', () => {
     await running;
   });
 
-  /** (c): the lane is the run's, not the process's — it comes back on completion. */
+  /** The lane is the run's, not the process's — it comes back on completion. */
   it('collects normally once the run in flight has completed', async () => {
     const holder = gatedProvider();
     const running = runDataForSeoDumps(env, {
@@ -212,12 +211,10 @@ describe('the DataForSEO collector runs one collection at a time', () => {
     expect(await pgCount(DUMP_ROWS)).toBe(2);
   });
 
-  /**
-   * (d), the direction that costs the most: the operator's run is in flight when
+  /** The direction that costs the most: the operator's run is in flight when
    * Monday 12:45 comes round. The cron takes no options, so it collects on the
    * real clock and through the global `fetch` — stubbed here so a serialization
-   * that failed would be a recorded call rather than a live, billed one.
-   */
+   * that failed would be a recorded call rather than a live, billed one. */
   it('refuses the weekly cron while an on-demand run is in flight', async () => {
     const holder = gatedProvider();
     // No injected clock: the cron reads Date.now(), so the lease it is measured
@@ -246,7 +243,7 @@ describe('the DataForSEO collector runs one collection at a time', () => {
     await running;
   });
 
-  /** (d), the other direction: the Monday sweep is running and somebody fires the
+  /** The other direction: the Monday sweep is running and somebody fires the
    * route. The refusal has to name the sweep, which carries no scope at all. */
   it('refuses an on-demand run while the weekly sweep holds the lane', async () => {
     const sweep = gatedProvider();
@@ -273,14 +270,12 @@ describe('the DataForSEO collector runs one collection at a time', () => {
     await running;
   });
 
-  /**
-   * (c), the half that matters most: a lock over money must fail open on a
-   * schedule. A run whose request context was torn down mid-await never reaches
-   * its release, so the lane is held by nobody — and the lease is the answer. The
-   * expiry is the one the refusal itself advertised, so the promise made to the
-   * operator is the promise under test. (A restarted runtime is the other
-   * release: the marker lives in module scope and comes back empty.)
-   */
+  /** A lock over money must fail open on a schedule. A run whose request
+   * context was torn down mid-await never reaches its release, so the lane is
+   * held by nobody — and the lease is the answer. The expiry is the one the
+   * refusal itself advertised, so the promise made to the operator is the
+   * promise under test. (A restarted runtime is the other release: the marker
+   * lives in module scope and comes back empty.) */
   it('lets the next trigger through once a stale run has outlived its lease', async () => {
     const abandoned = gatedProvider();
     const stale = runDataForSeoDumps(env, {

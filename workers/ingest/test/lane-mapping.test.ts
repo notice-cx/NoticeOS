@@ -1,10 +1,9 @@
-// THE REGISTER IS WHAT THE COLLECTORS ASK (bead `ro-vu8d.16`).
-//
-// Every case here is the same question from a different lane: does the value an
-// operator saved on an asset's Sources tab reach the provider, and does an asset
-// nobody has mapped keep exactly the behaviour it had? The register is injected
-// (`laneRegister`) rather than read from `config/integrations.json`, so this
-// suite states its own mapping and the operator's file stays a file.
+// The register is what the collectors ask. Every case here is the same
+// question from a different lane: does the value an operator saved on an
+// asset's Sources tab reach the provider, and does an asset nobody has mapped
+// keep exactly the behaviour it had? The register is injected (`laneRegister`)
+// rather than read from `config/integrations.json`, so this suite states its
+// own mapping.
 
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -33,13 +32,10 @@ import { reset } from './helpers.js';
 
 const NOW = Date.parse('2026-07-29T12:00:00.000Z');
 
-/**
- * The credential blob shape the ingest has always read, for the two PURE target
- * tests below (nothing here is signed, so an unusable key is fine). The two
- * collector runs use the suite's own `GOOGLE_SIGNAL_ACCOUNTS` binding instead —
- * vitest.config.ts maps meals.example to GA4 123456 and nosh.example to 654321 under
- * a real generated key, which is what makes a token mintable.
- */
+/** The credential blob shape the ingest reads, for the two pure target tests
+ * below (nothing here is signed, so an unusable key is fine). The two collector
+ * runs use the suite's own `GOOGLE_SIGNAL_ACCOUNTS` binding instead, under a
+ * real generated key, which is what makes a token mintable. */
 const ACCOUNTS = JSON.stringify({
   'test-signals': {
     service_account_b64: btoa(
@@ -196,7 +192,7 @@ describe('the Google lanes', () => {
     expect(
       urls.some((url) => url.includes(encodeURIComponent('sc-domain:register.meals.example'))),
     ).toBe(true);
-    // The unmapped one: exactly what it asked for before this bead existed.
+    // The unmapped one: exactly what it asked for with no register.
     expect(urls.some((url) => url.includes('/properties/654321:runReport'))).toBe(true);
     expect(urls.some((url) => url.includes(encodeURIComponent('sc-domain:nosh.example')))).toBe(true);
 
@@ -228,11 +224,8 @@ describe('the Google lanes', () => {
     ).toBe(true);
   });
 
-  /**
-   * The point of joining `ro-vu8d.3` to `ro-vu8d.4`: an install that signed in
-   * and never pasted an account map collects whatever the register maps. Before
-   * this bead it collected nothing and said so once per pull.
-   */
+  /** An install that signed in and never pasted an account map collects
+   * whatever the register maps. */
   it('collects a sign-in against the register alone, with no account map at all', () => {
     const targets = googleTargets(
       { accounts: undefined, oauth: GRANT },
@@ -264,13 +257,10 @@ describe('the Google lanes', () => {
     ).toHaveLength(1);
   });
 
-  /**
-   * THE SECOND COPY RETIRES ITSELF (bead `ro-90mr`).
-   *
-   * `FULLY_MAPPED` maps both assets the suite's own `GOOGLE_SIGNAL_ACCOUNTS`
-   * names, on both lanes, to values the blob does NOT hold — so "the blob was
-   * not read" and "the blob was read and discarded" cannot look the same.
-   */
+  /** The second copy retires itself. `FULLY_MAPPED` maps both assets the
+   * suite's own `GOOGLE_SIGNAL_ACCOUNTS` names, on both lanes, to values the
+   * blob does not hold — so the blob not being read and the blob being read
+   * and discarded cannot look the same. */
   const FULLY_MAPPED: LaneRegister = {
     assets: {
       'meals.example': {
@@ -298,17 +288,12 @@ describe('the Google lanes', () => {
     expect(credentialPropertyMapNeeded([], 'ga4', { assets: {} })).toBe(false);
   });
 
-  /**
-   * ONE FUNCTION ANSWERS IT, AND THE ORPHAN IS WHY (bead `ro-vu8d.22`).
-   *
-   * The Tower used to derive its own version from the assets that DECLARE a
-   * ga4/gsc cell in `config/integrations.json`, because it must never see
-   * credential contents. That is a different question, and it diverges for an
-   * asset the credential NAMES with no register entry at all: the collector goes
-   * on reading `ga4_property_id` for it — correctly, it is that asset's only
-   * mapping — while the card said the map answered for none of them, which is a
-   * "safe to remove" the operator cannot recover from.
-   */
+  /** One function answers it, because of the orphan: an asset the credential
+   * names with no register entry at all is still mapped only by the
+   * credential, so the collector goes on reading `ga4_property_id` for it,
+   * and the card must not say the map answers for none of them — a safe to
+   * remove the operator cannot recover from. The Tower never sees credential
+   * contents, so it cannot derive this itself. */
   it('keeps the map open for an asset the register has no entry for at all', () => {
     const orphaned = credentialPropertyMapUse(
       ['meals.example', 'nosh.example', 'areas.example'],
@@ -356,9 +341,9 @@ describe('the Google lanes', () => {
   });
 
   it('reports the answer to the card from the credential the collector reads', async () => {
-    // The whole point of `ro-vu8d.22`: the ingest ANSWERS, so the card and the
-    // run cannot hold two opinions. The suite's own GOOGLE_SIGNAL_ACCOUNTS
-    // binding names meals.example and nosh.example.
+    // The ingest answers, so the card and the run cannot hold two opinions.
+    // The suite's own GOOGLE_SIGNAL_ACCOUNTS binding names meals.example and
+    // nosh.example.
     expect((await credentialNamedAssets(env))?.sort()).toEqual(['meals.example', 'nosh.example']);
 
     const state = await withCredentialPropertyMaps(
@@ -522,8 +507,7 @@ describe('the DataForSEO lane', () => {
     return { fetchImpl, tasks };
   }
 
-  /** Every family whose request carries a market at all — the five places the
-   * baseline used to be written out by hand. */
+  /** Every family whose request carries a market at all. */
   const scoped = (tasks: Record<string, unknown>[]): Record<string, unknown>[] =>
     tasks.filter((task) => task.location_code !== undefined);
 
@@ -539,9 +523,8 @@ describe('the DataForSEO lane', () => {
     });
     const markets = scoped(tasks);
     // Every family that carries a market asks the same question — the
-    // register's, rather than the five hand-written copies of a US/English
-    // literal this replaced (six families, because the two llm-mentions
-    // families share one request builder).
+    // register's, rather than a hand-written US/English literal (six families,
+    // because the two llm-mentions families share one request builder).
     expect(new Set(markets.map((task) => String(task.tag).split(':')[1])).size).toBe(6);
     for (const task of markets) {
       expect(task.location_code).toBe(2826);

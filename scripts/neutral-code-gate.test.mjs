@@ -1,4 +1,4 @@
-// The neutral-code gate (bead ro-ujb9.118): product code names no
+// The neutral-code gate: product code names no
 // installation's own sites or clock, and the list it forbids is read from the
 // installation itself — never written into the gate.
 import assert from 'node:assert/strict';
@@ -153,7 +153,7 @@ describe('the list comes from this installation, never from the gate', () => {
     }
   });
 
-  // Bead ro-ujb9.157: a site's display name and the Google accounts its sources
+  // A site's display name and the Google accounts its sources
   // route through name the installation as surely as its domain does.
   test("a site's display name, its Google account and a name inside a path are caught", () => {
     const root = scratchInstallation('export {};\n');
@@ -174,7 +174,7 @@ describe('zero offenders in generic source', () => {
     assert.ok(result.files > 100, 'the gate read the product');
     const files = productFiles(REPO_ROOT);
     assert.ok(files.includes('config/integrations.json'), 'the gate read the product defaults');
-    // Bead ro-ujb9.120: the local runner and the host scripts are product too,
+    // The local runner and the host scripts are product too,
     // a generated `.mjs` judged as its authored `.mts`, and never a test.
     assert.ok(files.includes('scripts/os-up.mjs'), 'the gate read the runner');
     assert.ok(files.includes('scripts/host-backup.mjs'), 'the gate read the backup');
@@ -182,7 +182,7 @@ describe('zero offenders in generic source', () => {
     assert.ok(!files.includes('scripts/installation.mjs'), 'a generated .mjs is judged as its .mts');
     assert.ok(!files.some((file) => /^scripts\/.*\.test\.mjs$/.test(file)), 'no script test is product');
     assert.ok(files.filter((file) => file.startsWith('scripts/')).length > 40, 'the gate read the scripts');
-    // Bead ro-ujb9.157: the operator documents that ship are read too, and the
+    // The operator documents that ship are read too, and the
     // dated records are not.
     for (const doc of ['docs/06-operations.md', 'docs/project-setup.md', 'scripts/README.md', 'workers/ingest/README.md',
       'db/README.md', 'apps/tower/README.md']) {
@@ -194,9 +194,9 @@ describe('zero offenders in generic source', () => {
     }
     assert.ok(files.filter((file) => file.startsWith('docs/')).length > 20, 'the gate read the docs');
     assert.ok(!files.some((file) => /^docs\/(?:reports|briefs|artifacts)\//.test(file)), 'no dated record is read');
-    // Bead ro-ujb9.149: the READMEs, the decision log and the changeset format
-    // ship beside the defaults, so they are read too.
-    for (const prose of ['config/decisions.md', 'config/serp-panel.README.md', 'config/changesets/README.md']) {
+    // The READMEs and the changeset format ship beside the defaults, so they
+    // are read too.
+    for (const prose of ['config/constants.README.md', 'config/serp-panel.README.md', 'config/changesets/README.md']) {
       assert.ok(files.includes(prose), `the gate read ${prose}`);
     }
     // A public checkout has no private inventory; configured names and an
@@ -258,7 +258,7 @@ describe('it fails on a planted name', () => {
     assert.equal(leaks.length, 2);
   });
 
-  // Bead ro-ujb9.125: a fresh clone seeds config/, so a name or a zone there
+  // A fresh clone seeds config/, so a name or a zone there
   // is in every stranger's installation.
   test('a product default in config/ that names a site or a zone fails', () => {
     const root = scratchInstallation('export {};\n');
@@ -274,27 +274,27 @@ describe('it fails on a planted name', () => {
     assert.equal(isProductFile('installation/integrations.json'), false);
   });
 
-  // Bead ro-ujb9.149: a stranger learns the product from the READMEs and the
-  // decision log beside the defaults, so they name nobody's sites or clock; one
-  // installation's own history and decisions live in its installation folder.
-  test('a README, the decision log or the changeset format naming a site or a zone fails', () => {
+  // A stranger learns the product from the READMEs beside the defaults, so
+  // they name nobody's sites or clock; one installation's own history and
+  // decisions live in its installation folder.
+  test('a README or the changeset format naming a site or a zone fails', () => {
     const root = scratchInstallation('export {};\n');
     mkdirSync(path.join(root, 'config/changesets'), { recursive: true });
     writeFileSync(path.join(root, 'config/serp-panel.README.md'), '# panel\n\n`shop.example` is at 28 of 31.\n');
-    writeFileSync(path.join(root, 'config/decisions.md'), '| D1 | clock | Europe/Warsaw |\n');
+    writeFileSync(path.join(root, 'config/constants.README.md'), '| clock | Europe/Warsaw |\n');
     writeFileSync(path.join(root, 'config/changesets/README.md'), '`/assets/shop.example/gsc` is an edit\n');
-    writeFileSync(path.join(root, 'installation/decisions.md'), '| D4 | `shop.example` repos | Europe/Warsaw |\n');
+    writeFileSync(path.join(root, 'installation/notes.md'), '| `shop.example` repos | Europe/Warsaw |\n');
     const run = runGate(['--root', root]);
     assert.equal(run.status, 1);
     assert.match(run.stderr, /config\/serp-panel\.README\.md:3 {2}(an asset id|a domain) "shop\.example"/);
-    assert.match(run.stderr, /config\/decisions\.md:1 {2}a time zone "Europe\/Warsaw"/);
+    assert.match(run.stderr, /config\/constants\.README\.md:1 {2}a time zone "Europe\/Warsaw"/);
     assert.match(run.stderr, /config\/changesets\/README\.md:1 {2}(an asset id|a domain) "shop\.example"/);
     assert.doesNotMatch(run.stderr, /installation\/decisions\.md/);
   });
 
-  // Bead ro-ujb9.120: a runner that files against, backs up to or describes
-  // somebody else's sites fails like any other product code — and since bead
-  // ro-ujb9.151 so does its test.
+  // A runner that files against, backs up to or describes
+  // somebody else's sites fails like any other product code, and so does its
+  // test.
   test('a planted name in a runner or host script fails, and so does the same name in its test', () => {
     const root = scratchInstallation('export {};\n');
     writeFileSync(path.join(root, 'apps/tower/src/planted.ts'), 'export {};\n');
@@ -311,7 +311,7 @@ describe('it fails on a planted name', () => {
     assert.match(named.stderr, /scripts\/runner\.test\.mjs:1/);
   });
 
-  // Bead ro-ujb9.151: the suites, the e2e walks, their frozen fixtures and the
+  // The suites, the e2e walks, their frozen fixtures and the
   // dev seed name invented sites. A zone there is test data, not a clock.
   test('test code names none of the installation’s sites, and may name a zone', () => {
     const names = installationNames(scratchInstallation('export {};\n'));
@@ -362,7 +362,7 @@ describe('it fails on a planted name', () => {
     assert.equal(isProductFile('apps/tower/test/components.test.tsx'), false);
     assert.equal(isProductFile('apps/tower/e2e/fixtures.ts'), false);
     assert.equal(isProductFile('workers/ingest/test/fixture-config/pull.json'), false);
-    // The runner and host scripts ship with the product (ro-ujb9.120); their
+    // The runner and host scripts ship with the product; their
     // tests, frozen fixture config, generated declarations and README do not.
     assert.equal(isProductFile('scripts/os-up.mjs'), true);
     assert.equal(isProductFile('scripts/installation.mts'), true);
@@ -371,20 +371,19 @@ describe('it fails on a planted name', () => {
     assert.equal(isProductFile('scripts/fixture-config/pull.json'), false);
     assert.equal(isProductFile('scripts/installation.d.mts'), false);
     // The product defaults are product, and so is the prose that ships beside
-    // them (ro-ujb9.149); this installation's folder is not.
+    // them; this installation's folder is not.
     assert.equal(isProductFile('config/constants.json'), true);
     assert.equal(isProductFile('config/dolt-server.yaml'), true);
     assert.equal(isProductFile('config/constants.README.md'), true);
-    assert.equal(isProductFile('config/decisions.md'), true);
     assert.equal(isProductFile('config/changesets/README.md'), true);
     assert.equal(isProductFile('installation/constants.json'), false);
-    assert.equal(isProductFile('installation/decisions.md'), false);
+    assert.equal(isProductFile('installation/notes.md'), false);
     assert.equal(isProductFile('installation/notes.md'), false);
   });
 
   // The repository's first screen and the docs index are what a stranger reads
-  // first (bead ro-ujb9.139), and every operator document that ships explains
-  // the product with example names (bead ro-ujb9.157). Dated records keep the
+  // first, and every operator document that ships explains
+  // the product with example names. Dated records keep the
   // words they were written in; the owner's context pack is its own.
   test('the READMEs and the operator docs are held to it, the dated records are not', () => {
     for (const file of ['README.md', 'docs/README.md', 'docs/09-onboarding-a-site.md', 'docs/release-policy.md',

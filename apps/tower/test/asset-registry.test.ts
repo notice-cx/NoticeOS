@@ -53,8 +53,7 @@ describe.skipIf(unavailable !== null)(`the site list is read on Postgres${unavai
     ]);
   });
 
-  // A stored-order fixture: sites that share
-  // one instant, placed in the order D1 inserted them, which is not their ids'
+  // Sites that share one instant, placed in an order that is not their ids'
   // order. Home, the Sites page and the navigation list the Wall payload's
   // sites as it orders them (`useWall`); the Sites panel reads the list itself.
   it("every reader lists sites that share one instant in the order they were placed", async () => {

@@ -1,7 +1,6 @@
 // POST /api/reclamation-targets — a campaign's target list, from
-// `pnpm reclamation:import` (bead ro-ujb9.76.5.8). Operator-authed, the same
-// shape as /api/annotations: a script on this machine writes the store through
-// the ingest's door, never with a database credential of its own.
+// `pnpm reclamation:import`. Operator-authed: a script on this machine writes
+// the store through the ingest's door, never with a database credential.
 //
 // Body: { asset, targets: [{ tier, segment, domain, referringPage,
 // linksToDead, replaceWith, contact, notes, status, statusAt, lastVerifiedAt,
@@ -9,10 +8,9 @@
 // that day.
 //
 // GET /api/reclamation-targets?asset=<site>&open=1 — the site's open targets,
-// for `pnpm reclamation:open-targets` (bead ro-ujb9.76.5.9), which writes the
-// file the reclamation-match rule reads. Operator-authed through the same
-// door. Answers { ok, asset, targets: [{ domain, referringPage, replaceWith,
-// status }] }, in the order they were stored.
+// for `pnpm reclamation:open-targets`, which writes the file the
+// reclamation-match rule reads. Answers { ok, asset, targets: [{ domain,
+// referringPage, replaceWith, status }] }, in the order they were stored.
 
 import { assetKnown } from '../asset-registry.js';
 import { authenticateOperator } from '../auth.js';

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { workflowsAnswer } from "@/routes/WorkflowsRoute";
 
-describe("the Workflows index's one answer (D44)", () => {
+describe("the Workflows index's one answer", () => {
   it("counts what needs you, then every state once in its own label", () => {
     expect(workflowsAnswer(["failed", "unknown", "succeeded", "succeeded", "never"], "workflows")).toEqual({
       answer: "2 of 5 workflows need you",

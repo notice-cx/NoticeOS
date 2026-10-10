@@ -19,8 +19,3 @@ is limited to `pnpm start` creating a provably new, empty installation.
 Settings and encrypted provider credentials live in Postgres. Raw provider
 archives remain in R2; task coordination remains in the Beads/Dolt hub. See
 [operations](../docs/06-operations.md) for backup and restore.
-
-The private D1 transition completed on 2026-09-30 (`ro-ujb9.76.10`). Its old
-schema, importer and rehearsals are frozen in the private recovery archive at
-cutover release `a85e82837411729bc15b5cf1c2feacc7de209083`; they are not maintained
-as a second product backend. Existing recovery data is preserved separately.

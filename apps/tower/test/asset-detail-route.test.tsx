@@ -15,9 +15,8 @@ import { formatCalendarDate, formatSeriesDate } from "@/lib/format";
 import { toLocalDateTimeInput } from "@/lib/countdown";
 import { parseProductSnapshot } from "@shared/product-snapshot";
 import posthogProductJson from "@/routes/kitchen-sink/posthog-product.json";
-// The write pipeline itself, so a case about a SAVE can run the ops the browser
-// built instead of stubbing a 200 over them (bead `ro-j71v`). Plain ESM with no
-// `node:` imports, which is why it is safe to reach from jsdom.
+// The real write pipeline, so a case about a save runs the ops the browser
+// built. Plain ESM with no `node:` imports, so it is safe to reach from jsdom.
 import {
   applyDocumentOps,
   resolveOps,
@@ -30,26 +29,17 @@ import { RESTORE_HASH } from "@shared/asset-detail-views";
 import { MATERIALITY, type MaterialCondition } from "@shared/materiality";
 import { loadAssetTabs } from "./lazy-code";
 
-// A task source connected, as this installation's is (D32, bead
-// ro-ujb9.143): the task screens here render exactly as before it existed.
 vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 
-// Each tab's code arrives when the tab is opened (bead `ro-ujb9.84`); what this
-// file asserts is the tab once it has. The arrival itself is
-// `lazy-parts.test.tsx`'s.
 beforeAll(loadAssetTabs);
 
-// Sonner is mocked rather than mounted, the same way `knob-editor.test.tsx` does
-// it: the Undo the Settings tab offers is a CALLBACK on the toast, and asserting
-// it through a rendered toast would be asserting Sonner's DOM. Nothing else in
-// this file reads a toast, so the mock is inert everywhere but there.
+// Sonner is mocked: the Settings tab's Undo is a callback on the toast, and
+// asserting it through a rendered toast would be asserting Sonner's DOM.
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast: toasts }));
 
-// The Data sources rows read the connection model (bead `ro-ujb9.96.7.3`):
-// the stored credentials and the monitoring items. By default both reads are
-// missing, which the model reads as Unknown; a case that is about a source's
-// status says what the reads answered.
+// Both connection reads are missing by default, which the model reads as
+// Unknown; a case about a source's status says what the reads answered.
 const connections = vi.hoisted(() => ({
   credentials: undefined as ReadonlyMap<string, unknown> | undefined,
   items: null as unknown[] | null,
@@ -74,69 +64,25 @@ afterEach(() => {
   connections.credentials = undefined;
   connections.items = null;
 });
-/** The header's source marks, "label: status" in slot order (bead
- * `ro-ujb9.96.7.16`): each is the status its Data sources row shows. */
+/** The header's source marks, "label: status" in slot order. */
 const headerStatuses = (heading: HTMLElement) =>
   [...heading.closest("header")!.querySelectorAll("[data-source]")].map((mark) => mark.getAttribute("aria-label"));
 
-/**
- * "The card this text sits in", as a selector.
- *
- * Three assertions walk up from a heading to the section that holds it, and they
- * did it by the card's RADIUS — which made doc 14's one-card-style change
- * (`rounded-xl` → `rounded-[10px]`, bead `ro-78qo.10`) a three-test failure in
- * files about totals, ledgers and panel reviews. Naming it once means the next
- * radius decision is one line, and the escape (`[` and `]` are CSS syntax) is
- * written once rather than three times.
- */
+/** The card this text sits in, as a selector (`[` and `]` are CSS syntax). */
 const CARD = ".rounded-\\[10px\\]";
 
-/**
- * OPEN A SOURCE'S ROW ON THE SOURCES TAB.
- *
- * doc 14 collapsed the twelve lane CARDS into twelve rows (`ro-78qo.5`): a
- * source's register note, its setup steps, its mapping fields and its posture
- * control are inside the row now, revealed when the operator presses it. The
- * tests below are about what those editors DO, not about whether the row opens,
- * so this presses it for them — a click a real operator makes once, written once
- * here instead of forty times.
- *
- * Idempotent: an already-open row is left open, so a test that opens two lanes
- * or calls a helper twice still describes one page state.
- */
-/**
- * OPEN ONE OF THE ACTIVITY TAB'S COMPOSERS.
- *
- * doc 14 put both behind the Timeline panel's one header action (`ro-78qo.5`):
- * "Record →" opens the form, and WHICH form is a segmented choice inside it, so
- * recording an event now takes one press where it took none and a watch takes
- * two. Written once here, because none of these tests is about the disclosure —
- * they are about what the composer sends.
- */
+/** Open one of the Activity tab's composers. Idempotent. */
 async function openComposer(
   findByRole: (role: string, options: { name: RegExp | string }) => Promise<HTMLElement>,
   which: "event" | "watch",
 ): Promise<void> {
-  // The header action always opens on the event form, so pressing it twice is
-  // harmless — it sets the state it is already in.
   fireEvent.click(await findByRole("button", { name: /^log a change →$/i }));
   if (which === "watch") {
     fireEvent.click(await findByRole("button", { name: /watch an outcome/i }));
   }
 }
 
-/**
- * OPEN THE `ListPanel` ROW WHOSE TITLE CONTAINS THIS TEXT.
- *
- * doc 14's row shows a mark, a title, one caption line and one value; the
- * evidence and the actions are revealed IN PLACE when the operator presses it
- * (`ro-78qo.5`). Three tabs are built from that row — the alert queue, the
- * timeline, the data sources — so the press is written once here. None of the
- * cases below is about whether a row opens; they are about what is inside it.
- *
- * Idempotent: an already-open row is left open, so a case that opens two rows,
- * or a helper that opens the same one twice, still describes one page state.
- */
+/** Open the `ListPanel` row whose title contains this text. Idempotent. */
 function openRow(titleFragment: string): void {
   const row = [...document.querySelectorAll<HTMLButtonElement>("button[aria-expanded]")].find(
     (button) => button.textContent?.includes(titleFragment),
@@ -144,8 +90,6 @@ function openRow(titleFragment: string): void {
   if (row && row.getAttribute("aria-expanded") === "false") fireEvent.click(row);
 }
 
-/** `openRow`, named for the surface. The alert's rule id, its evidence, the
- * change that landed before it and its verbs are all inside the row. */
 const openAlert = openRow;
 
 /** Open the real disclosure path before interacting with a source's editor. */
@@ -162,37 +106,25 @@ function openLane(titleFragment: string): void {
   openRow(titleFragment);
 }
 
-/** One `PUT /api/config` body, exactly as the browser sent it — the SLUG
- * included, because the pipeline validates that too (bead `ro-6ygn`). */
+/** One `PUT /api/config` body, exactly as the browser sent it, slug included. */
 interface ConfigPut {
   ops: Record<string, unknown>[];
   slug?: string;
 }
 
-// The route's three terminal reads of GET /api/assets/:id — 404, a real failure,
-// and a hang — rendered through the real hook. A failing read used to leave the
-// page on "Loading…" forever, which is the failure mode a read-only page can
-// least afford: it looks like it is still working (doc 10 principle 2).
-
-/** A fresh cache per case. useAssetDetail owns the retry POLICY (404 terminal,
- * one retry otherwise) — the only thing overridden here is the backoff, so the
- * failure state is reached without waiting out a real 1s delay. */
+/** A fresh cache per case. Only the backoff is overridden, so the failure
+ * state is reached without waiting out a real 1s delay. */
 function testClient() {
   return new QueryClient({ defaultOptions: { queries: { retryDelay: 0 } } });
 }
 
-/** The page is tabbed (bead `ro-pbzu.4`) and the tab is the URL, so a test that
- * is about a section says which tab that section lives on — exactly as a link
- * into it would. `tab` omitted means Overview, the index tab. Only the active
- * tab's sections mount, which is the point of the tabs. */
+/** `tab` omitted means Overview. Only the active tab's sections mount. */
 function renderRoute(id: string, hash = "", tab: AssetTab | "" = "") {
   return renderPath(`/assets/${id}${tab ? `/${tab}` : ""}${hash}`);
 }
 
-/** The same render at a LITERAL url. `renderRoute` builds one out of an asset and
- * a tab, which is the right shape for every case about a tab that exists; a case
- * about a segment nobody built has to say the URL itself. The probe rides along
- * so a redirect can be asserted as the address bar, not only as the tab bar. */
+/** Render at a literal URL, for a segment nobody built. The probe lets a
+ * redirect be asserted as the address bar, not only as the tab bar. */
 function renderPath(path: string) {
   return render(
     <QueryClientProvider client={testClient()}>
@@ -222,8 +154,8 @@ function LocationProbe() {
   return <span data-testid="path">{`${pathname}${search}${hash}`}</span>;
 }
 
-/** jsdom has no scrollIntoView. Recording the element id it was called on is
- * what the deep-link tests actually assert: which section came into view. */
+/** jsdom has no scrollIntoView; the deep-link tests assert which element id
+ * it was called on. */
 function captureScrollTargets(): string[] {
   const scrolled: string[] = [];
   Object.defineProperty(Element.prototype, "scrollIntoView", {
@@ -271,10 +203,8 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-/** A minimal but COMPLETE payload — the page renders every section, so a fixture
- * that omits one would fail for the wrong reason. The ledger is left empty on
- * purpose: it keeps the Daily metrics table the only table on the page, so the
- * header assertion below can read every `th` without disambiguating. */
+/** A complete payload: the page renders every section. The ledger is empty so
+ * the Daily metrics table is the only table on the page. */
 function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
   return {
     generatedAt: "2026-07-05T12:00:00.000Z",
@@ -294,12 +224,7 @@ function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
       openWarn: 0,
     },
     scheduledLanes: null,
-    // Configured NOWHERE by default: the cases that are about the Delete
-    // confirmation say what this asset's config holds, and every other case is
-    // spared a register it never reads.
     countersConfig: null,
-    // The Growth tab's two panel registers as this asset holds them: no tracked
-    // panel (the common state), and a roster row that is on.
     panelConfig: {
       trackedQueries: null,
       roster: { enabled: true, reason: "live-lanes", note: "GSC + GA4 live.", since: "2026-08-03" },
@@ -422,8 +347,8 @@ function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
               positionImprovement: 1.3,
             },
           ],
-          // The lane's own pre-ranking check, reporting clean. A zero here is a
-          // statement, not an absence — see the assertion below.
+          // The lane's own pre-ranking check, reporting clean: a zero is a
+          // statement, not an absence.
           evidence: [
             {
               label: "Grounding queries excluded",
@@ -497,8 +422,6 @@ function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
         needsAttention: 0,
       },
     },
-    // Declared NOWHERE by default, which is the state both GA4 files are mostly
-    // in — the cases about the Sources tab's editors say what this asset has.
     ga4Config: { valueEvents: null, eventParams: null },
     freshness: {
       pulseReceivedAt: "2026-07-05T02:00:00.000Z",
@@ -506,17 +429,14 @@ function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
       flagFiredAt: null,
       annotationAt: null,
     },
-    // Most assets buy no tracked panel, so the page says nothing about one
-    // — the same absence the card renders (bead ro-elf).
     panelReview: null,
     latestPanelDate: null,
     ...over,
   };
 }
 
-/** One MIXED accounting month: $498.10 reconciled ad revenue, and beside it
- * $168.20 of estimated affiliate revenue against a $22.10 estimated cost. The
- * blend the page used to state was $644.20 (bead `ro-jk7`). */
+/** One mixed accounting month: $498.10 reconciled ad revenue beside $168.20 of
+ * estimated affiliate revenue against a $22.10 estimated cost. */
 const MIXED_LEDGER: AssetDetailPayload["ledger"] = {
   periods: [
     {
@@ -563,8 +483,8 @@ const MIXED_LEDGER: AssetDetailPayload["ledger"] = {
   currency: "USD",
 };
 
-/** Nosh's exact-window snapshot — shared by the funnel test and the deep-link
- * test, because `#product-use` only exists when an asset declares one. */
+/** An exact-window product-use snapshot, shared by the funnel test and the
+ * deep-link test because `#product-use` only exists when an asset declares one. */
 const productUseSnapshot: ProductUseSnapshot = {
   windowStart: "2026-07-02",
   windowEnd: "2026-07-29",
@@ -666,22 +586,15 @@ describe("AssetDetailRoute — Alerts speak the same language as the portfolio b
     ackExpiry: null,
     resolvedAt: null,
     liveness: { state: "live" as const },
-    // An ordinary single event: one firing, dated by itself (ro-kukv.5).
     occurrences: 1,
     firstFiredAt: "2026-07-01T02:30:00.000Z",
   };
 
-  // `ro-hou2`: the page's one h1 IS the identity row — favicon, name, severity,
-  // domain — so the favicon must contribute nothing to it. Its wrapper used to
-  // carry `title="Meal Planner favicon"`, which joined the heading's accessible name
-  // (accname step 2I) and announced the asset twice.
   it("names the page heading by the asset, not by its favicon", async () => {
     stubFetch(200, payload());
     const { findByText } = renderRoute("meals.example");
     await findByText("What matters");
 
-    // The heading's name is the identity row's own words — the display name,
-    // the domain link, the stage badge — and nothing about a picture.
     const heading = screen.getByRole("heading", { level: 1 });
     expect(heading).toHaveAccessibleName(/^Meal Planner/);
     expect(heading).not.toHaveAccessibleName(/favicon/i);
@@ -692,16 +605,9 @@ describe("AssetDetailRoute — Alerts speak the same language as the portfolio b
     stubFetch(200, payload({ flags: { open: [pullFailure], notCurrent: [], snoozed: [], history: [], openError: 0, openWarn: 1 } }));
     const { container, findByText } = renderRoute("meals.example", "", "alerts");
 
-    // The open queue is the Alerts tab's own panel now (doc 14, `ro-78qo.5`),
-    // where it used to be the state hero's "Current signals".
     await findByText("Nightly report fetch failing 5 nights — latest: 401 unauthorized");
     expect(container.textContent).toContain("the fetch credentials may have expired");
-    // The endpoint and the provider's raw sentence are not what the row leads
-    // with — they are evidence, and evidence is inside the row.
     expect(container.textContent).not.toContain("https://meals.example/api/os/report");
-    // The change that landed 14h before it — the actual lead for the operator —
-    // is one press away; the numbers the rule saw are in the row's Evidence
-    // panel, one press further (bead `ro-ujb9.96.6.7`).
     openAlert("Nightly report fetch failing");
     expect(container.textContent).toContain("config change 14h before");
     expect(container.textContent).not.toContain("https://meals.example/api/os/report");
@@ -714,11 +620,7 @@ describe("AssetDetailRoute — Alerts speak the same language as the portfolio b
     const { container, findByText } = renderRoute("meals.example", "", "alerts");
 
     await findByText("Nightly report fetch failing 5 nights — latest: 401 unauthorized");
-    // Closed, the row spends none of its width on machine text.
     expect(container.textContent).not.toContain("asset-pull-failed");
-    // Opened, the rule id heads the Evidence panel with the numbers the rule
-    // saw — the operator's rule: what happened and what to do on the row, the
-    // statistics in the evidence panel (bead `ro-ujb9.96.6.7`).
     openAlert("Nightly report fetch failing");
     expect(container.textContent).not.toContain("asset-pull-failed");
     fireEvent.click(screen.getByRole("button", { name: /^Why this fired/ }));
@@ -761,14 +663,8 @@ describe("AssetDetailRoute — Alerts speak the same language as the portfolio b
     );
   });
 
-  /**
-   * ro-kukv.5. The asset page's Current signals shows one row per CONDITION and
-   * says so in the Wall's own chip — the same component, so "16× in 26d" cannot
-   * become "16 times" on one screen and a shape on the other. The row is aged
-   * from the ONSET too: a condition is as old as it has been true, not as old as
-   * tonight's re-reading, and dating it from the newest firing would report a
-   * month-old problem as hours old.
-   */
+  // One row per condition, aged from the onset: a condition is as old as it
+  // has been true, not as old as tonight's re-reading.
   it("says how long a recurring condition has been running, in the Wall's chip", async () => {
     const onset = new Date(Date.now() - 26 * 86_400_000).toISOString();
     const recurring = {
@@ -791,37 +687,21 @@ describe("AssetDetailRoute — Alerts speak the same language as the portfolio b
     };
     stubFetch(
       200,
-      // The counts stay FIRINGS, matching the Wall's asset card — the row count
-      // is the badge beside the heading.
       payload({ asset: { ...payload().asset, id: "nosh.example" }, flags: { open: [recurring], notCurrent: [], snoozed: [], history: [], openError: 0, openWarn: 16 } }),
     );
     const { container, findByText, getByRole } = renderRoute("nosh.example", "", "alerts");
 
     await findByText(/16× in 26d/u);
-    // The chip is on the row's own line, beside the headline.
     expect(container.textContent).toContain("16× in 26d");
 
-    // The verbs act on the whole condition, and they are inside the row with
-    // the rest of what the operator needs to decide (`ro-78qo.5`).
     openRow("16× in 26d");
     expect(getByRole("button", { name: "Resolve alert" })).toBeTruthy();
-    // Aged from the ONSET, not from the six-hour-old re-reading. The dated
-    // facts moved into the row when `AlertRow` and this tab's own row were
-    // folded together (`ro-78qo.17`) — the closed line already states the age
-    // as its value, so a second "fired 26d ago" under it was the same fact
-    // twice — and the Evidence panel dates "First seen" from the onset too.
     expect(container.textContent).toContain("26d");
     fireEvent.click(screen.getByRole("button", { name: /^Why this fired/ }));
     expect(screen.getByRole("dialog").textContent).toMatch(/First seen\s*·\s*26d ago/);
     expect(screen.getByRole("dialog").textContent).not.toMatch(/First seen\s*·\s*6h ago/);
   });
 
-  /**
-   * Bead `ro-ujb9.194`. A snooze is put off, not settled: it used to sit in
-   * this tab's History with the finished ✓, counted as "2 settled". It is
-   * parked under Open now, as on `/alerts`, with the date it comes back and
-   * the one verb it has.
-   */
   it("parks a snoozed alert under Snoozed with Unsnooze, and History counts only what is settled", async () => {
     const until = new Date(Date.now() + 3 * 86_400_000).toISOString();
     const parked = {
@@ -1031,9 +911,7 @@ describe("AssetDetailRoute — material state on the current screens", () => {
 
 describe("AssetDetailRoute — executive page identity", () => {
   it("Daily metrics carries only flow columns — totals live on the asset card", async () => {
-    // The regression guard on doc 14's one-representation move: a total is stated
-    // once, on the asset card (portfolio home + Wall). If a `Total` column ever
-    // returns to this table, this fails.
+    // A total is stated once, on the asset card; a `Total` column here fails.
     stubFetch(200, payload());
     const { findByText } = renderRoute("meals.example", "", "sources");
 
@@ -1083,7 +961,6 @@ describe("AssetDetailRoute — executive page identity", () => {
     stubFetch(200, payload());
     const { container, findByText } = renderRoute("meals.example");
 
-    // doc 14's Overview: the strip and its chart first, the two lists under it.
     const findings = await findByText("What matters");
     const strip = container.querySelector("[data-kpi-strip]")!;
 
@@ -1092,20 +969,14 @@ describe("AssetDetailRoute — executive page identity", () => {
     ).toBeTruthy();
     expect(container.querySelector("[data-hero-chart]")).not.toBeNull();
     expect(container.querySelector('section[aria-label="Needs you"]')).not.toBeNull();
-    // The question-shaped disclosures are gone with the Jump-to bar (bead
-    // ro-pbzu.4): the operator's location is the tab, not a `<details>` they
-    // remembered to open.
     expect(container.textContent).not.toContain("Where is growth moving?");
     expect(container.textContent).not.toContain("Can I trust the inputs?");
     expect(container.textContent).not.toContain("Jump to");
     expect(container.querySelector("details[id]")).toBeNull();
-    // …and only the Overview's own sections are mounted.
     expect(container.textContent).not.toContain("Performance");
     expect(container.textContent).not.toContain("Query decisions");
     expect(container.querySelector("#configuration")).toBeNull();
     expect(container.textContent).toContain("Move “weekly meal plan” into the top results");
-    // The ranked list is not mounted until "All findings" is opened, so its
-    // source badges and its Copy Markdown are not on the page by default.
     expect(container.textContent).not.toContain("GSC · Page Query");
     expect(
       container.querySelectorAll('button[title^="Copy this finding"]'),
@@ -1114,10 +985,6 @@ describe("AssetDetailRoute — executive page identity", () => {
   });
 
   it("keeps the Growth tab's four charts on Growth and its decisions on Search", async () => {
-    // doc 14 split the 10,139px tab in two (bead `ro-78qo.4`): Growth answers
-    // which way the numbers went, Search answers which term and which page moved
-    // them. This case pins BOTH halves, because the failure that matters is a
-    // section that ends up on neither tab.
     stubFetch(200, payload());
     const { container, findByText } = renderRoute("meals.example", "", "growth");
 
@@ -1126,23 +993,13 @@ describe("AssetDetailRoute — executive page identity", () => {
     expect(container.textContent).toContain("Sessions");
     expect(container.textContent).toContain("Clicks");
     expect(container.textContent).toContain("Impressions");
-    // The evidence moved with the question it answers.
     expect(container.textContent).not.toContain("Query decisions");
     expect(container.textContent).not.toContain("Page decisions");
-    // What matters now belongs to Overview and does not follow the operator here.
     expect(container.textContent).not.toContain("What matters now");
-    // Charts lead: no table on this tab at all.
     expect(container.querySelector("table")).toBeNull();
   });
 
   it("stands the state block down on every tab", async () => {
-    // The block is 524px and doc 14 budgets Growth and Search at 1,400 and 1,800
-    // for the whole page (bead `ro-78qo.4`); above the other tabs it put every
-    // one of their first blocks past the 900px first screen (`ro-78qo.5`). It
-    // also answers a question no tab is asking, and the header already carries
-    // the state, the source count and the report age. With all eight tabs
-    // rebuilt the exception list is empty, so the block is simply not on this
-    // route — which is why this asserts every tab rather than a set.
     stubFetch(200, payload());
     for (const tab of ASSET_TABS) {
       const view = renderRoute("meals.example", "", tab === "overview" ? "" : tab);
@@ -1162,8 +1019,6 @@ describe("AssetDetailRoute — executive page identity", () => {
     expect(container.textContent).not.toContain("reported dates");
     expect(container.textContent).toContain("140");
     expect(container.textContent).toContain("Near win");
-    // Closed: the row states its decision and its number, and the evidence, the
-    // next step and the three actions are inside it rather than gone.
     const row = container.querySelector<HTMLDetailsElement>(
       "[data-decision-collapsed]",
     )!;
@@ -1222,9 +1077,6 @@ describe("AssetDetailRoute — executive page identity", () => {
   });
 
   it("gives a collapsed decision row one tone encoding, not two", async () => {
-    // doc 14: one row style. The glyph and the decision label carry the tone;
-    // the coloured left stripe the full table draws was a third rendering of
-    // the same fact on a row whose job is to say one thing.
     stubFetch(200, payload());
     const { container, findByText } = renderRoute("meals.example", "", "search");
 
@@ -1233,7 +1085,6 @@ describe("AssetDetailRoute — executive page identity", () => {
       "[data-decision-collapsed]",
     )!;
     expect(row.className).not.toContain("border-l");
-    // …and the tone is still there to be read, on the row's own mark.
     expect(row.getAttribute("data-decision-tone")).toBeTruthy();
     expect(row.querySelector("svg")).not.toBeNull();
   });
@@ -1243,23 +1094,17 @@ describe("AssetDetailRoute — executive page identity", () => {
     const { container, findByText } = renderRoute("nosh.example", "", "growth");
 
     await findByText("Audience");
-    // ONE strip, not three labelled groups of bordered cards.
     const strip = container.querySelector("#product-use")!;
     expect(container.querySelectorAll("#product-use")).toHaveLength(1);
     expect(strip.textContent).toContain("last 28 days");
-    // The title and its dates are the whole description: no explainer.
     expect(strip.querySelector("[data-info-tooltip-trigger]")).toBeNull();
     expect(strip.textContent).toContain("233");
     expect(strip.textContent).toContain("85");
-    // The stage comparison is a NUMBER with its two volumes beside it, never a
-    // sentence and never a word like "conversion" (bead `ro-ujb9.96.6.5`).
     const rate = container.querySelector('[data-small-multiple="Added of opened"]')!;
     expect(rate.textContent).toContain("36%");
     expect(rate.parentElement!.textContent).toContain("85 of 233");
     expect(rate.hasAttribute("title")).toBe(false);
     expect(strip.textContent).not.toMatch(/conversion/i);
-    // A metric GA4 returned no row for stays a dash and says nothing was
-    // recorded — never a fabricated zero.
     const share = container.querySelector('[data-small-multiple="Completed a share"]')!;
     expect(share.textContent).toContain("—");
     expect(share.parentElement!.textContent).toContain("none recorded");
@@ -1271,7 +1116,6 @@ describe("AssetDetailRoute — executive page identity", () => {
     await view.findByText("Audience");
     const productUse = view.container.querySelector<HTMLElement>("#product-use")!;
     expect(within(productUse).getByRole("heading", { name: "Product use · last 28 days" })).toBeInTheDocument();
-    // "Fixed" and its own dates are what say the range selector does not move it.
     expect(productUse).toHaveTextContent("Jul 2–29, 2026");
     const snapshot = productUse.textContent;
 
@@ -1290,7 +1134,6 @@ describe("AssetDetailRoute — executive page identity", () => {
     await view.findByText("Audience");
     const product = view.container.querySelector<HTMLElement>("[data-product-journey]")!;
     expect(within(product).getByRole("heading", { name: "Product" })).toBeInTheDocument();
-    // Grouped by page: "/calculator" is its group's heading, said once.
     const breaks = within(product).getByRole("region", { name: "Where it breaks" });
     expect(within(breaks).getByRole("heading", { name: "/calculator 6 found" })).toBeInTheDocument();
     expect(breaks).toHaveTextContent("Chrome OS Desktop");
@@ -1304,10 +1147,6 @@ describe("AssetDetailRoute — executive page identity", () => {
   });
 
   it("puts each tab in the URL and mounts only the active tab's sections", async () => {
-    // The sticky "Jump to" navigator over one very long scroll is gone (bead
-    // ro-pbzu.4). Its replacement has to answer three things: where the operator
-    // is, where else they can go, and — the half the anchor bar could never do —
-    // that the other panels are not rendered behind this one.
     stubFetch(200, payload());
     const { container, findByText } = renderRoute("meals.example");
 
@@ -1315,10 +1154,6 @@ describe("AssetDetailRoute — executive page identity", () => {
     const bar = container.querySelector('[role="tablist"]')!;
     expect(bar.getAttribute("aria-label")).toBe("Site sections");
     const tabs = [...bar.querySelectorAll('[role="tab"]')];
-    // Tasks sits between Alerts and Activity (bead ro-l1ed.5): what is wrong,
-    // what is being done about it, what has already happened. Search sits after
-    // Growth (doc 14, bead ro-78qo.4): which way the numbers went, then which
-    // term, page and domain moved them.
     expect(tabs.map((t) => t.textContent?.replace(/\d+$/, ""))).toEqual([
       "Overview",
       "Growth",
@@ -1341,7 +1176,6 @@ describe("AssetDetailRoute — executive page identity", () => {
       "/assets/meals.example/sources",
       "/assets/meals.example/settings",
     ]);
-    // Exactly one selected tab, and it is the URL the page was opened at.
     expect(tabs.map((t) => t.getAttribute("aria-selected"))).toEqual([
       "true",
       "false",
@@ -1353,7 +1187,6 @@ describe("AssetDetailRoute — executive page identity", () => {
       "false",
       "false",
     ]);
-    // Roving tabindex: the bar is one tab stop.
     expect(tabs.map((t) => t.getAttribute("tabindex"))).toEqual([
       "0",
       "-1",
@@ -1435,8 +1268,6 @@ describe("AssetDetailRoute — executive page identity", () => {
   });
 
   it("carries each tab's own state — open alerts, running checks, source health", async () => {
-    // doc 14's 2026-09-04 rule, on the tab bar: a tab with state answers with a
-    // shape before a word, and a tab with nothing to say carries nothing.
     const data = payload({
       flags: {
         open: [
@@ -1481,8 +1312,6 @@ describe("AssetDetailRoute — executive page identity", () => {
         needsAttention: 3,
       },
     };
-    // The Data sources pip is the worst status its rows show (bead
-    // `ro-ujb9.96.7.16`): here Analytics' latest attempt was refused.
     googleAnswers([{ capability: "gsc-daily", state: "healthy" }, { capability: "ga4-daily", state: "failing" }]);
     stubFetch(200, data);
     const { container, findByText } = renderRoute("meals.example");
@@ -1499,10 +1328,6 @@ describe("AssetDetailRoute — executive page identity", () => {
     expect(sources.textContent).toBe("Data sources");
     expect(sources.querySelector('[role="img"]')).toHaveAttribute("aria-label", "Error");
     expect(sources).toHaveAttribute("title", "1 working · 1 failing");
-    // Nothing is watched and no task snapshot covers this asset, so Overview,
-    // Growth, Search, Tasks and Activity carry nothing — a zero badge on every
-    // tab is noise, not state, and an asset with no project has an UNKNOWN
-    // count rather than a zero one.
     expect(tabs[0]!.textContent).toBe("Overview");
     expect(tabs[1]!.textContent).toBe("Growth");
     expect(tabs[2]!.textContent).toBe("Money");
@@ -1529,9 +1354,7 @@ describe("AssetDetailRoute — executive page identity", () => {
     const unknown = heading.closest("header")!.querySelector('[data-connection="unknown"]');
     expect(unknown?.querySelector('[data-state-mark="unknown"]')).not.toBeNull();
     expect(unknown?.querySelector('[data-state-mark="check"]')).toBeNull();
-    // The page's name stays the asset's name: the marks sit beside it.
     expect(heading).not.toHaveTextContent("Unknown");
-    // Without its reads a source is Unknown, never counted as working.
     expect(view.container.querySelector("#integrations")).not.toHaveTextContent("working");
     expect(view.getByRole("tab", { name: "Data sources" }).querySelector("[data-sources-ratio]")).toBeNull();
   });
@@ -1563,21 +1386,16 @@ describe("AssetDetailRoute — executive page identity", () => {
     const view = renderRoute("meals.example", "", "growth");
     const heading = await view.findByRole("heading", { name: /Meal Planner/u, level: 1 });
     const header = heading.closest("header")!;
-    // The Bing source keeps its own mark; the report's age is its own fact.
     expect(headerStatuses(heading)).toEqual(["Bing Webmaster Tools: Unknown"]);
     expect(within(header).queryByText("Reported", { exact: true })).toBeNull();
     const report = header.querySelector<HTMLElement>("[data-nightly-report-age]")!;
     expect(report).toHaveTextContent("Nightly report3d");
     expect(report.querySelector("[data-age-state]")).toHaveAttribute("data-age-state", "aged");
     expect(report.querySelector("[data-age-state]")).toHaveClass("text-warn");
-    // The label and its age stay together while the containing action row can
-    // wrap below identity/range controls at narrow widths.
     expect(report).toHaveClass("inline-flex", "whitespace-nowrap");
     expect(report.parentElement).toHaveClass("flex-wrap");
   });
 
-  // D29 amended (ro-ujb9.121): a site that has never sent a report expects
-  // none, so its header says the neutral "No report", never an amber "never".
   it("names an absent nightly report as the neutral No report, never an amber never", async () => {
     const data = payload();
     data.freshness.pulseReceivedAt = null;
@@ -1621,8 +1439,6 @@ describe("AssetDetailRoute — executive page identity", () => {
 
     await waitFor(() => expect(container.querySelector("#search-evidence")).not.toBeNull());
     expect(container.querySelector("#query-visibility")).toBeNull();
-    // The Search tab is still there and still selected — a tab is a place, not
-    // a jump link that vanishes when its sections have nothing in them.
     expect(
       container.querySelector('[role="tab"][aria-selected="true"]')?.textContent,
     ).toBe("Search");
@@ -1630,9 +1446,6 @@ describe("AssetDetailRoute — executive page identity", () => {
   });
 
   it("shows the movers lane proving its grounding check ran, even at zero", async () => {
-    // The fixture's Google lane excluded nothing. That row is the only thing on
-    // the page distinguishing "the check ran and came back clean" from "these
-    // movers are raw" — dropping it at the type boundary is what ro-14d.2 was.
     stubFetch(200, payload());
     const { container, findAllByText } = renderRoute("meals.example", "", "search");
 
@@ -1643,18 +1456,11 @@ describe("AssetDetailRoute — executive page identity", () => {
     expect(container.textContent).toContain("Sources and limits · 1 check run");
   });
 
-  /** The whole ranked list is one disclosure below the "What matters" panel
-   * now (doc 14, bead `ro-78qo.3`) — the panel shows three rows and this is
-   * where "All findings →" goes. Its marks, dismissals and restores are
-   * unchanged, so the case scopes itself to the disclosure rather than to a
-   * page that also carries the panel's own Dismiss. */
   it("marks findings to the top and records the decision in the OS", async () => {
     const fetchMock = stubFetch(200, payload());
     const { container, findByText } = renderRoute("meals.example");
 
     await findByText("What matters");
-    // Opening the disclosure is what mounts the list: a closed one holds no
-    // rows at all, which is the point of it.
     const disclosure = container.querySelector<HTMLElement>("[data-all-findings]")!;
     fireEvent.click(within(disclosure).getByText(/All findings/));
     const list = within(disclosure);
@@ -1674,7 +1480,6 @@ describe("AssetDetailRoute — executive page identity", () => {
       key: "search-striking-distance",
       status: "marked",
     });
-    // The decision belongs to the asset, not to this browser.
     expect(
       window.localStorage.getItem("noticeos:property-findings:meals.example"),
     ).toBeNull();
@@ -1716,7 +1521,6 @@ describe("AssetDetailRoute — recommendation applicability", () => {
     const panel = await view.findByRole("region", { name: "What matters" });
     const row = within(panel).getByText("Move “weekly meal plan” into the top results").closest("li")!;
     expect(row).toHaveTextContent("Original analysis: high confidence");
-    // The saved date is the panel's, said once; the row carries only its state.
     expect(row).not.toHaveTextContent("Analysis Aug 5, 2026");
     expect(row).toHaveTextContent("Newer source reports");
     expect(row).toHaveTextContent("Rank at analysis");
@@ -1738,8 +1542,6 @@ describe("AssetDetailRoute — recommendation applicability", () => {
     expect(tooltip).toHaveTextContent("Newer source reports");
   });
 
-  // Bead ro-ujb9.96.7.11: File task is the finding's decision, on its row —
-  // open or closed — and it is not repeated inside the opened row.
   it("puts File task on every What matters row, and only once", async () => {
     stubFetch(200, reviewedPayload());
     const view = renderRoute("meals.example");
@@ -1791,9 +1593,6 @@ describe("AssetDetailRoute — recommendation applicability", () => {
       await view.findByRole("heading", { name: "Query decisions" });
       const query = view.container.querySelector<HTMLElement>("[data-decision-collapsed]")!;
       const page = view.container.querySelector<HTMLElement>("[data-page-decision-collapsed]")!;
-      // ONE STATUS PER SUBJECT PER SCREEN (bead `ro-ujb9.96.6.5`): the saved
-      // analysis's state is said once, at the top of the tab, and neither list
-      // header nor any row says it again.
       expect(view.container.querySelector("[data-analysis-evidence]")).toHaveTextContent("Newer source reports");
       expect(view.container.querySelector("[data-query-decisions-validity]")).toBeNull();
       expect(view.container.querySelector("[data-page-decisions-validity]")).toBeNull();
@@ -1815,10 +1614,6 @@ describe("AssetDetailRoute — recommendation applicability", () => {
   });
 
   it("a decision list states its own applicability only where it differs from the tab's line", async () => {
-    // The findings' own sources have nothing newer, so the top line is the
-    // analysis age alone (bead ro-ujb9.135) — while the query and page reports
-    // DO have newer reports. The lists say so, once each, in their headers;
-    // their rows stay quiet.
     const data = reviewedPayload();
     data.recommendationEvidence!.reports = data.recommendationEvidence!.reports.filter(
       (report) => report.source !== "gsc/page-query",
@@ -1840,7 +1635,7 @@ describe("AssetDetailRoute — recommendation applicability", () => {
   });
 });
 
-describe("AssetDetailRoute — the setup checklist (bead ro-28ma)", () => {
+describe("AssetDetailRoute — the setup checklist", () => {
   /** An asset mid-onboarding: named, one lane still unconfigured, a first report
    * nine days old. Two of four items resolved. */
   function settingUp(): AssetDetailPayload {
@@ -1877,8 +1672,6 @@ describe("AssetDetailRoute — the setup checklist (bead ro-28ma)", () => {
     await findAllByText("Data sources");
     expect(container.querySelector("[data-setup-checklist]")).toBeNull();
     expect(container.querySelector("[data-progress-ring]")).toBeNull();
-    // …and the Overview's banner is gone with it: one derivation decides
-    // whether an asset is still being set up, and both surfaces read it.
     expect(container.textContent).not.toContain("Data setup");
   });
 
@@ -1900,20 +1693,11 @@ describe("AssetDetailRoute — the setup checklist (bead ro-28ma)", () => {
       ["baseline", "pending"],
       ["pause-check", "unavailable"],
     ]);
-    // NO RING HERE (doc 14 one representation per fact, `ro-78qo.5`). The ring
-    // is the asset CARD's and Home's row's marker, where there is no room for
-    // words; in this header the words are right there, and a 20px arc with a gap
-    // in its stroke beside them read as a spinner — the one thing a derived,
-    // never-moving figure must not look like.
     expect(container.querySelector("[data-progress-ring]")).toBeNull();
     expect(
       container.querySelector("[data-setup-checklist]")!.closest("details")!.textContent,
     ).toContain("2 of 4 done");
-    // ONE NAME AND ONE COUNT (bead `ro-ujb9.164`): the disclosure is the panel,
-    // named as the Overview's banner names it, never "checks complete".
     expect(container.querySelector("[data-setup] summary")!.textContent).toBe("Data setup · 2 of 4 done");
-    // The header's verdict word may say "Setting up" (D44); the tab itself
-    // never repeats the checklist's state in those words.
     expect(container.querySelector('[role="tabpanel"]')!.textContent).not.toMatch(/checks complete|Setting up/u);
     const pause = container.querySelector('[data-setup-item="pause-check"]')!;
     expect(pause).toHaveTextContent("Pause check");
@@ -1935,14 +1719,10 @@ describe("AssetDetailRoute — the setup checklist (bead ro-28ma)", () => {
     expect(href("identity")).toBe("/assets/meals.example/settings");
     expect(href("sources")).toBe("/assets/meals.example/sources");
     expect(href("first-report")).toBe("/health");
-    // Missing reports can be a collection outage rather than time left to wait.
     expect(href("baseline")).toBe("/health");
   });
 
   it("counts the sources without repeating each one's status, which its Data sources row carries", async () => {
-    // ONE STATUS PER SUBJECT PER SCREEN (bead `ro-ujb9.96.7.16`). The step used
-    // to list every source again under the Data sources rows, in a second
-    // vocabulary ("Configured") that disagreed with the rows ("Failing").
     googleAnswers([{ capability: "gsc-daily", state: "healthy" }]);
     stubFetch(200, settingUp());
     const { container, findByText } = renderRoute("meals.example", "", "sources");
@@ -1950,7 +1730,6 @@ describe("AssetDetailRoute — the setup checklist (bead ro-28ma)", () => {
     await findByText(/^Data setup ·/);
     expect(container.querySelector("[data-setup-source]")).toBeNull();
     const step = container.querySelector('[data-setup-item="sources"]')!;
-    // gsc is connected and Bing is off; Analytics has nothing scheduled here.
     expect(step).toHaveTextContent("2 of 3 connected, off or not applicable");
     expect(step).toHaveAttribute("data-setup-state", "pending");
     expect(step).not.toHaveTextContent(/Configured|Working|Declined for now/u);
@@ -1982,14 +1761,11 @@ describe("AssetDetailRoute — the setup checklist (bead ro-28ma)", () => {
     const view = renderRoute("meals.example", "", "sources");
     const heading = await view.findByRole("heading", { name: /Meal Planner/u, level: 1 });
     const word = attempt === "healthy" ? "Working" : "Failing";
-    // The header's mark and the Data sources row read the same status.
     expect(headerStatuses(heading)).toEqual([`Google Search Console: ${word}`]);
     const sources = view.container.querySelector<HTMLElement>("#integrations")!;
     const currentRow = within(sources).getByRole("button", { name: /Google Search Console/u });
     expect(currentRow.querySelector("[data-connection]")).toHaveAttribute("data-connection", attempt === "healthy" ? "working" : "failing");
 
-    // A connected source is set up whatever its health: a failure does not
-    // undo the setup step, and the step never restates the health.
     const setupToggle = view.getByText(/^Data setup ·/);
     if (!setupToggle.closest("details")!.open) fireEvent.click(setupToggle);
     const setup = view.container.querySelector<HTMLElement>("[data-setup-checklist]")!;
@@ -1997,18 +1773,10 @@ describe("AssetDetailRoute — the setup checklist (bead ro-28ma)", () => {
     expect(sourceStep).toHaveAttribute("data-setup-state", "done");
     expect(sourceStep).toHaveTextContent("1 of 1 connected, off or not applicable");
     expect(sourceStep).not.toHaveTextContent(/working|failing|healthy/iu);
-    // An old accepted report is still a completed first-report step, not proof
-    // that the source is working now. Lifecycle and progress stay unchanged.
     expect(setup.querySelector('[data-setup-item="first-report"]')).toHaveAttribute("data-setup-state", "done");
     expect(setup.querySelector('[data-setup-item="baseline"]')).toHaveAttribute("data-setup-state", "pending");
   });
 
-  /**
-   * `#setup` still lands on Overview (doc 14, bead `ro-78qo.3`). What it lands
-   * ON is the banner: the four rows are on Sources now, and the one line that
-   * says setup is open — with the link that finishes it — is what the Overview
-   * keeps. The anchor is unchanged because it is a URL somebody may have saved.
-   */
   it("is reachable by its own anchor, which lands on the Overview's banner", async () => {
     const scrolled = captureScrollTargets();
     stubFetch(200, settingUp());
@@ -2058,9 +1826,6 @@ describe("AssetDetailRoute — inbound deep links", () => {
   }
 
   it("brings the query-decision section into view, on the Search tab", async () => {
-    // The anchor did not change when the section moved (doc 14, bead
-    // `ro-78qo.4`): every task ever filed from a decision row links at it, so it
-    // keeps resolving and simply selects a different tab.
     const scrolled = captureScrollTargets();
     stubFetch(200, payload());
     const { container, findAllByText } = renderRoute("meals.example", "#query-visibility");
@@ -2081,9 +1846,6 @@ describe("AssetDetailRoute — inbound deep links", () => {
   });
 
   it("brings the tracked panel's own settings into view, on Settings", async () => {
-    // The editors moved off the view surface (bead `ro-78qo.25`) and the hash
-    // followed them: a saved link keeps resolving and selects a different tab,
-    // which is the whole reason the hash table exists.
     const scrolled = captureScrollTargets();
     stubFetch(200, payload());
     const { container, findByText } = renderRoute("meals.example", "#tracked-panels");
@@ -2153,10 +1915,6 @@ describe("AssetDetailRoute — inbound deep links", () => {
   });
 });
 
-/** A tab segment nobody built (bead `ro-02rn`). The fallback to Overview was
- * always there, but only half of it: the panel switched and the URL did not, and
- * `Tabs` reads the PATH — so the bar lit nothing and `TabPanel` told a screen
- * reader it was named by a tab carrying `aria-selected="false"`. */
 describe("AssetDetailRoute — a tab segment nobody built", () => {
   it("lands on Overview AND corrects the URL to say so", async () => {
     stubFetch(200, payload());
@@ -2220,9 +1978,6 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
       ref: null,
       since: "2026-07-06",
     },
-    // The per-asset half (bead `ro-vu8d.4`). These cases are about the setup
-    // POINTER, not the mapping, so the lane declares none — which is also the
-    // shape most lanes have.
     mapping: [],
     mappingSource: "fallback" as const,
   };
@@ -2239,17 +1994,12 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     connections.items = [];
   }
 
-  // Bead ro-ujb9.96.7.4: a not-set-up source's one action is Connect — the
-  // connect panel, Google's included since it signs in there (bead
-  // ro-ujb9.96.7.7) — and the opened row carries no documentation pointer or
-  // setup checklist.
   it("gives a not-set-up source one action, Connect, and no setup pointer or checklist", async () => {
     stubFetch(200, withLane());
     nothingConnected();
     const { findByText, getByRole, container } = renderRoute("meals.example", "", "sources");
 
     await findByText("Google Search Console");
-    // Until the providers are read, Connect is the link to the same panel.
     expect(getByRole("link", { name: /Connect Google/u })).toHaveAttribute("href", "/integrations?connect=google&asset=meals.example");
     openLane("Google Search Console");
     expect(container.querySelector("[data-lane-doc-ref]")).toBeNull();
@@ -2257,9 +2007,6 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     expect(container.textContent).not.toContain("Setup steps:");
   });
 
-  // Bead ro-ujb9.133: a source no card on Integrations connects reaches this
-  // tab only once something arrived for it (money added by hand). Its row says
-  // so and offers no Connect and no link to a page with nothing to connect.
   it("shows a source nothing connects with its evidence, and no Connect or dead link", async () => {
     const cj = {
       ...gscLane,
@@ -2282,14 +2029,9 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     expect(row.textContent).not.toContain("Manage integrations");
   });
 
-  // Bead ro-ujb9.165: uptime needs no connection. Its row reads the OS's own
-  // home-page check: Up with when it was checked, or Down with what the page
-  // answered — never a Connect and never "Failing".
   it.each([
     ["live", { polarity: "supporting" as const, source: "Home page answered", detail: "",
       verification: { kind: "collection-success" as const, laneId: "uptime" } }, "working", "Up", "checked 12m ago"],
-    // Bead ro-ujb9.180: one failed try the retry recovered files nothing and
-    // still shows.
     ["live", { polarity: "supporting" as const, source: "Home page answered", detail: "1 failed try",
       verification: { kind: "collection-success" as const, laneId: "uptime" } }, "working", "Up", "checked 12m ago · 1 failed try"],
     ["degraded",{ polarity: "against" as const, source: "Home page did not answer", detail: "HTTP 503" },
@@ -2317,11 +2059,6 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     expect(row.textContent).not.toMatch(/Working|Failing|Not connected/u);
   });
 
-  // Bead ro-ujb9.164: the tab's last internal labels, in plain words. The
-  // sources beyond the site's own are an open "More sources" list and the
-  // Nightly report row's link names the nightly report. Bead
-  // ro-ujb9.96.6.23: no repository path anywhere on the tab — a site's
-  // sources are set in the Tower, not in a file.
   it("says More sources, names no config file, and names the nightly report", async () => {
     const cj = {
       ...gscLane,
@@ -2352,9 +2089,6 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     expect(view.container.textContent).not.toMatch(/Additional connections|Technical details|checks complete|daily report status|config\//iu);
   });
 
-  // Bead ro-ujb9.96.7.4: a provider that connects in the panel is connected
-  // from the site's own row — the panel opens over this page, this site's
-  // page stays the address, and nothing sends the operator to Integrations.
   it("opens a panel provider's connect panel over the site's page from its row", async () => {
     const bing = {
       ...gscLane,
@@ -2381,20 +2115,14 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     nothingConnected();
     const view = renderRoute("meals.example", "", "sources");
 
-    // Once the providers are read, Connect is a press on this page, not a link.
     const connect = await view.findByRole("button", { name: "Connect Bing Webmaster Tools" });
     fireEvent.click(connect);
     const panel = await view.findByRole("dialog", { name: "Bing Webmaster Tools" });
     expect(within(panel).getByLabelText("API key")).toBeInTheDocument();
     expect(view.getByTestId("path").textContent).toBe("/assets/meals.example/sources");
-    // Nothing was asked of Bing: the panel only opened.
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/connect"))).toBe(false);
   });
 
-  // Bead ro-e70g: an installation that cannot store a credential met a Connect
-  // greyed out with no reason on the one path a stranger takes. The panel this
-  // page opens says why ONCE — the blocker's lead and the command that clears
-  // it, the Integrations page's own banner — and Connect stays off.
   it.each([
     ["key-missing", "No encryption key", "openssl rand -base64 32", "CREDENTIALS_KEY"],
     ["key-invalid", "Encryption key unusable", "openssl rand -base64 32", "CREDENTIALS_KEY"],
@@ -2424,13 +2152,11 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     nothingConnected();
     const view = renderRoute("meals.example", "", "sources");
 
-    // The page itself carries no banner: the reason belongs where Connect is.
     const connect = await view.findByRole("button", { name: "Connect Bing Webmaster Tools" });
     expect(view.container.querySelector("[data-connect-blocked]")).toBeNull();
     fireEvent.click(connect);
     const panel = await view.findByRole("dialog", { name: "Bing Webmaster Tools" });
 
-    // Once on the whole screen, inside the panel: the lead, the command, Copy.
     expect(document.querySelectorAll("[data-connect-blocked]")).toHaveLength(1);
     expect(document.querySelectorAll(`[data-status-for="setup:${blocker}"]`)).toHaveLength(1);
     const banner = panel.querySelector(`[data-blocker="${blocker}"]`);
@@ -2441,7 +2167,6 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     if (binding) expect(banner!.querySelector("[data-blocker-binding]")).toHaveTextContent(binding);
     else expect(banner!.querySelector("[data-blocker-binding]")).toBeNull();
 
-    // Connect stays off even with a key typed.
     fireEvent.change(within(panel).getByLabelText("API key"), { target: { value: "k" } });
     expect(within(panel).getByRole("button", { name: "Connect" })).toBeDisabled();
   });
@@ -2461,7 +2186,6 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     const row = view.container.querySelector("#integrations li")!;
     expect(row.querySelector("[data-connection]")).toHaveAttribute("data-connection", "working");
     expect(row).toHaveTextContent("1 report missing");
-    // The tab opens with the sentence, not a tally (D44).
     expect(view.container.querySelector("[data-sources-answer]")).toHaveTextContent("Google Search Console working");
   });
 
@@ -2478,8 +2202,6 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     expect(row).toHaveTextContent("Access was refused.");
     expect(view.container.querySelector("[data-sources-answer]")).toHaveTextContent("Google Search Console needs you");
     expect(view.container.querySelector("[data-page-answer-detail]")).toHaveTextContent("Google Search Console failing");
-    // Bead ro-ujb9.96.7.4: its one action is Fix — Google's own page, since
-    // Google does not connect in the panel — not a sentence saying what to review.
     expect(within(row as HTMLElement).getByRole("link", { name: "Fix Google" })).toHaveAttribute("href", "/integrations?provider=google");
   });
 
@@ -2506,21 +2228,12 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     stubFetch(200, payload());
     const { findByRole } = renderRoute("meals.example", "", "sources");
 
-    // `ListPanel` draws its own arrow after the label (doc 14's "All →"), so
-    // the accessible name carries it too.
     expect(
       await findByRole("link", { name: /^All integrations/u }),
     ).toHaveAttribute("href", "/integrations");
   });
 });
 
-// The GA4 lane's card is where an asset's two GA4 DECLARATIONS are edited
-// (bead `ro-x5gu.3`): the events it calls value events, and the event
-// parameters already registered as custom dimensions on its GA4 property.
-// Neither list touches GA4 — the measurement channel is operator-only — so what
-// is asserted here is that the operator's claim is editable in the one place
-// the lane's health is already stated, and that ABSENCE and EMPTINESS write
-// different ops.
 describe("AssetDetailRoute — the GA4 lane's declarations", () => {
   const ga4Lane = {
     catalog: {
@@ -2570,12 +2283,8 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
     });
   }
 
-  /**
-   * Three different answers from one stub: the asset, the write lane's
-   * writability, and what a PUT did. The file's shared `stubFetch` returns one
-   * canned body for every request, which is enough for a page that only reads
-   * — an editable section needs all three.
-   */
+  /** Three answers from one stub: the asset, the write lane's writability,
+   * and what a PUT did. */
   function stubEditing(
     data: AssetDetailPayload,
     writable: { writable: boolean; reason: string | null } = {
@@ -2626,8 +2335,6 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
-    // Each list says what READS it, in a few words (bead `ro-ujb9.96.6.4`) —
-    // the fact that decides whether a row is worth adding.
     expect(collection("value-events").textContent).toContain(
       "Checked nightly against key events",
     );
@@ -2647,8 +2354,6 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
-    // Absence is a designed state: nothing declared, so nothing is checked —
-    // said as the list's state, never a sentence (bead ro-ujb9.96.6.22).
     await waitFor(() => expect(within(collection("value-events")).getByText("None yet")).toBeInTheDocument());
     expect(within(collection("value-events")).getByText("Conversion counts unchecked")).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/Nothing in .* yet/);
@@ -2661,7 +2366,6 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
     });
     fireEvent.click(within(form).getByRole("button", { name: "Add" }));
 
-    // A pointer never creates structure, so the first row files the whole entry.
     await waitFor(() => expect(puts).toHaveLength(1));
     expect(onlyOp(puts)).toEqual({
       kind: "file-json-insert",
@@ -2755,9 +2459,6 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
     const undo = toasts.success.mock.calls[0]?.[1] as { action: { onClick: () => void } };
     undo.action.onClick();
     await waitFor(() => expect(puts).toHaveLength(2));
-    // The row comes back at the index it was spliced out of (bead `ro-asj9`) —
-    // one rule for every register whose rows have declared fields, rather than
-    // a list that reorders itself on some surfaces and not others.
     expect(onlyOp(puts, 1)).toEqual({
       kind: "file-json-insert",
       file: "config/value-events.json",
@@ -2800,18 +2501,11 @@ describe("AssetDetailRoute — the GA4 lane's declarations", () => {
       container.querySelectorAll("[data-ga4-config-read-only]"),
     ).toHaveLength(1);
     expect(container.querySelectorAll("[data-collection-read-only]")).toHaveLength(0);
-    // Read-only means read-only: the rows are still legible, nothing edits them.
     expect(container.textContent).toContain("sign_up");
     expect(within(collection("value-events")).queryByRole("button", { name: "Add" })).toBeNull();
   });
 });
 
-// The per-asset half of an integration (bead `ro-vu8d.4`): which GA4 property
-// this asset is, and the one posture the register file owns. What these assert
-// is that a mapping saves where it lives with an Undo, that a value the
-// declaration refuses never becomes a request, that the file's own
-// "a decline states its reason" invariant is enforced BEFORE a decline is
-// written, and that none of it touches the observed state chip.
 describe("AssetDetailRoute — the per-asset provider mapping", () => {
   const catalog = {
     id: "ga4",
@@ -2825,9 +2519,8 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     derived: false,
   };
 
-  /** A GA4 lane exactly as `buildAssetIntegrations` hands one over — the setup
-   * steps DERIVED from the same catalog, cell and mapping the card renders, so
-   * the fixture cannot claim a state the payload would not. */
+  /** A GA4 lane as `buildAssetIntegrations` hands one over: the setup steps
+   * derived from the same catalog, cell and mapping the card renders. */
   function ga4Lane(
     over: { propertyId?: string | null; declared?: string; effective?: string; note?: string | null } = {},
   ) {
@@ -2838,8 +2531,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
       declared: (over.declared ?? "needs-setup") as "needs-setup",
       effective: (over.effective ?? "needs-setup") as "needs-setup",
       evidence: [],
-      // `null` is a cell with no note key: a new site's source (bead
-      // ro-ujb9.96.7.22).
+      // `null` is a cell with no note key: a new site's source.
       note: over.note === undefined ? "No successful collector run yet." : over.note,
       ref: null,
       since: "2026-07-06",
@@ -2861,13 +2553,8 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     });
   }
 
-  /**
-   * What the connected Google account answers with (bead `ro-vu8d.17`).
-   *
-   * The default is the shape an install that never signed in gets: a 200 that
-   * says so, because "Google is not connected" is the ANSWER to the question the
-   * picker asked, not an error. Tests that want a list hand one in.
-   */
+  /** What the connected Google account answers. The default is a 200 saying
+   * not connected, which is an answer, not an error. */
   const NOT_CONNECTED = {
     ok: false,
     message: "Google is not connected — sign in on /integrations first.",
@@ -2884,7 +2571,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     account: "ops@example.test",
     auth: "oauth",
     properties: [
-      { lane: "ga4", ref: "313598867", label: "Meal Planner", detail: "Reindex Ventures" },
+      { lane: "ga4", ref: "313598867", label: "Meal Planner", detail: "Example Ventures" },
       { lane: "ga4", ref: "444555666", label: "Nosh", detail: null },
       { lane: "gsc", ref: "sc-domain:meals.example", label: "meals.example", detail: "owner" },
     ],
@@ -2895,8 +2582,8 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
   function stubEditing(
     lane: ReturnType<typeof ga4Lane>,
     discovery: unknown = NOT_CONNECTED,
-    /** Where this deployment read `config/integrations.json` — what the timing
-     * sentence is derived from (beads `ro-syok.7`, `ro-7xv2`). */
+    /** Where this deployment read `config/integrations.json`, which the
+     * timing sentence is derived from. */
     sources: Record<string, "store" | "file"> = {},
     /** What the write lane answers. The default is a canned 200 — cases about
      * the SAVE rather than the request hand in the real pipeline instead. */
@@ -2904,8 +2591,8 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     /** Only a fixture explicitly exercising successful collection supplies this. */
     observedAt: string | null = null,
     verified = false,
-    /** What `GET /api/integrations/posthog/sites` answers (bead
-     * ro-ujb9.96.7.24); `null` is the read failing outright. */
+    /** What `GET /api/integrations/posthog/sites` answers; `null` is the read
+     * failing outright. */
     accountSites: unknown = null,
   ) {
     const data = payload();
@@ -2931,8 +2618,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
           return accountSites === null ? json({ error: "sites_unavailable" }, 503) : json(accountSites);
         }
         if (String(input).startsWith(GOOGLE_PROPERTIES_PATH)) {
-          // `null` is the read failing outright — the case the field has to
-          // survive without blocking anything.
           return discovery === null ? json({ error: "google_properties_failed" }, 500) : json(discovery);
         }
         return String(input).startsWith("/api/config")
@@ -2943,8 +2628,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     return puts;
   }
 
-  // Bead ro-ujb9.96.7.4: a DataForSEO site's market is one pick by name,
-  // saved on the pick — never the two numeric codes typed under sentences.
   it("picks a DataForSEO market by name and saves both codes in one press", async () => {
     const mapping = [{ name: "locationCode", value: null }, { name: "languageCode", value: null }];
     const cell = { assetId: "meals.example", laneId: "dataforseo", declared: "needs-setup" as const, effective: "needs-setup" as const,
@@ -2956,7 +2639,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     openLane("DataForSEO");
     const block = container.querySelector('[data-lane-mapping="dataforseo"]') as HTMLElement;
     const market = within(block).getByLabelText("Market") as HTMLSelectElement;
-    // The baseline, named — no code, and no sentence explaining one.
     expect(market.selectedOptions[0]!.textContent).toBe("United States · English");
     expect(block.querySelectorAll("input")).toHaveLength(0);
     expect(block.textContent).not.toMatch(/location code/i);
@@ -2969,9 +2651,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     ]);
   });
 
-  // Bead ro-ujb9.96.7.24: a PostHog site's row picks its project and funnels
-  // from the connected account — the list the connect panel matched — and
-  // types them only when the account cannot be read.
   const SIGNUP = { id: "signup", name: "Signup", steps: [{ event: "$pageview" }, { event: "signed_up" }] };
   const CHECKOUT = { id: "checkout", name: "Checkout", steps: [{ event: "$pageview", path: "/pricing" }, { event: "purchase" }] };
   function posthogLane() {
@@ -3003,19 +2682,15 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     fireEvent.click(block.closest("details")!.querySelector("summary")!);
     const select = await within(block).findByLabelText("PostHog project") as HTMLSelectElement;
     await waitFor(() => expect(select.selectedOptions[0]!.textContent).toBe("Meal Planner · 596607 · US"));
-    // No project number, region or event name is typed anywhere on the row.
     expect(block.querySelectorAll("input")).toHaveLength(0);
     expect(within(block).queryByLabelText("PostHog project id")).toBeNull();
     const pick = within(block).getByLabelText("Add funnel") as HTMLSelectElement;
-    // Only what is not on the list yet.
     expect([...pick.options].map((option) => option.textContent)).toEqual(["Add funnel", "Checkout"]);
     fireEvent.change(pick, { target: { value: "checkout" } });
     await waitFor(() => expect(puts).toHaveLength(1));
     const funnelsOp = (puts[0] as unknown as { ops: { pointer: string; expect?: unknown; value: unknown }[] }).ops;
     expect(funnelsOp).toEqual([expect.objectContaining({ pointer: "/assets/meals.example/posthog/funnels", expect: [SIGNUP], value: [SIGNUP, CHECKOUT] })]);
-    // Saved at once, with the way back beside the list.
     expect(await within(block).findByRole("button", { name: "Undo" })).toBeTruthy();
-    // A second project is one pick: its region and number in one write.
     fireEvent.change(select, { target: { value: "eu:12" } });
     await waitFor(() => expect(puts).toHaveLength(2));
     const projectOps = (puts[1] as unknown as { ops: { pointer: string; value: unknown }[] }).ops;
@@ -3063,11 +2738,8 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     toasts.error.mockReset();
   });
 
-  /**
-   * `config/integrations.json` in the state every asset starts in: the lane row
-   * is there, its posture written down, and NO mapping field — because each one
-   * is absent until an operator maps the asset (bead `ro-j71v`).
-   */
+  /** `config/integrations.json` as every asset starts: the lane row with its
+   * posture and no mapping field. */
   function noMappingYet() {
     return {
       catalog: [{ id: "ga4", label: "Google Analytics 4" }],
@@ -3079,27 +2751,17 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     };
   }
 
-  /**
-   * The SAVE, not just the op the browser built.
-   *
-   * Asserting the request proves the browser; running it through
-   * `scripts/config-documents.mjs` — the one pipeline both write doors execute —
-   * proves the save, which is the half that was broken: a first mapping came
-   * back `409 expect_mismatch` while the op on the wire looked perfectly
-   * reasonable. Answers what the real lane answers: 200 with the applied
-   * document, or 409 with the mismatch list.
-   */
+  /** Runs the request through `scripts/config-documents.mjs`, the pipeline
+   * both write doors execute, and answers what the real lane answers: 200
+   * with the applied document, or 409 with the mismatch list. */
   async function applyThroughPipeline(
     doc: Record<string, unknown>,
     request: ConfigPut,
   ): Promise<Response> {
     const changeset = {
       version: 1 as const,
-      // THE SLUG THE BROWSER ACTUALLY SENT (bead `ro-6ygn`). Minting one here
-      // was a blind spot the size of the whole tab: an asset id carries a dot
-      // and a declared field a capital, `validateSchemaAndSafety` wants
-      // kebab-case, and every Save on this tab was refused 422 for its slug
-      // before the guard was ever consulted — while these cases stayed green.
+      // The slug the browser actually sent: the pipeline wants kebab-case and
+      // refuses an asset id's dot or a declared field's capital.
       slug: request.slug ?? "sources",
       createdAt: "2026-09-05T09:00:00.000Z",
       ops: request.ops as unknown as ChangesetOp[],
@@ -3136,9 +2798,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     });
     fireEvent.click(within(block).getByRole("button", { name: "Save" }));
 
-    // An absent key and an empty string are different facts, and the guard says
-    // which one it read — sending `""` here is what made this exact save come
-    // back as "changed elsewhere" on every asset in the portfolio.
+    // An absent key and an empty string are different facts to the guard.
     await waitFor(() => expect(puts).toHaveLength(1));
     expect(puts[0]?.ops).toEqual([
       {
@@ -3150,9 +2810,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
       },
     ]);
 
-    // And the pipeline took it: the key the row did not have is written, and
-    // nothing else in the row moved. Confirmed beside the field (bead
-    // ro-ujb9.96.7.12), with its Undo there.
     const undo = await within(block).findByRole("button", { name: "Undo" });
     expect(toasts.error).not.toHaveBeenCalled();
     expect(file.assets["meals.example"].ga4).toEqual({
@@ -3161,10 +2818,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
       since: "2026-07-29",
       propertyId: "313598867",
     });
-    // AND IT HAS A WAY BACK (bead `ro-pkpz`). Undoing a first write means taking
-    // the key away again — which a set cannot do, so until the pipeline licensed
-    // a delete at a declared optional field this was the one Save surface in the
-    // Tower with no Undo, against docs/15 principle 5.
     fireEvent.click(undo);
     await waitFor(() => expect(puts).toHaveLength(2));
     expect(puts[1]?.ops).toEqual([
@@ -3175,8 +2828,8 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
         expect: "313598867",
       },
     ]);
-    // Back to the row it started as: the key is GONE rather than blank, which is
-    // what the collector reads as "fall back to the Google credential".
+    // The key is gone rather than blank, which the collector reads as "fall
+    // back to the Google credential".
     expect(file.assets["meals.example"].ga4).toEqual({
       status: "live",
       note: "Collector proved it.",
@@ -3184,10 +2837,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     });
   });
 
-  // TAKING A MAPPING BACK OFF (bead `ro-pkpz`). Clearing the box was refused —
-  // a field rule reads `""` as a blank string rather than as "take this away" —
-  // so an asset mapped to the wrong property could be re-mapped but never handed
-  // back to the fallback source. Remove mapping is that door's other side.
   it("removes a mapping that is already there, and the Undo writes it back", async () => {
     const file = {
       catalog: [{ id: "ga4", label: "Google Analytics 4" }],
@@ -3213,8 +2862,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     fireEvent.click(within(block).getByRole("button", { name: "Remove mapping" }));
 
     await waitFor(() => expect(puts).toHaveLength(1));
-    // Guarded by the value being removed, so a removal that ran after somebody
-    // else re-mapped the asset is refused rather than taking away their value.
     expect(puts[0]?.ops).toEqual([
       {
         kind: "file-json-delete",
@@ -3252,8 +2899,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
-    // A field that is already absent is where Remove would leave it, so the
-    // control is not there rather than there and inert.
     expect(
       within(mappingBlock()).queryByRole("button", { name: "Remove mapping" }),
     ).toBeNull();
@@ -3282,19 +2927,11 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
       },
     ]);
 
-    // Undo over confirm (docs/15 principle 5): the way back sits beside the
-    // field (bead ro-ujb9.96.7.12), and it is the same write with the values
-    // swapped.
     fireEvent.click(await within(block).findByRole("button", { name: "Undo" }));
     await waitFor(() => expect(puts).toHaveLength(2));
     expect(puts[1]?.ops[0]).toMatchObject({ expect: "313598867", value: "111222333" });
   });
 
-  // THE PICKER (bead `ro-vu8d.17`). Typing a numeric property id off a browser
-  // URL is the most error-prone step in setting up an asset; the connected
-  // account already knows the list. What these assert is that picking writes
-  // exactly what typing writes, and that every way the list can be missing
-  // leaves the operator a box rather than a blocked field.
   function picker(): HTMLElement {
     const found = document.querySelector('[data-lane-picker="ga4"]');
     if (!(found instanceof HTMLElement)) throw new Error("no picker");
@@ -3309,13 +2946,9 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     openLane("Google Analytics");
     await waitFor(() => expect(picker().dataset.lanePickerState).toBe("ready"));
     const block = picker();
-    // The ref is what gets stored, so the ref is on screen beside the name.
-    expect(block.textContent).toContain("Meal Planner — Reindex Ventures (313598867)");
-    // The other lane's site is not on this card.
+    expect(block.textContent).toContain("Meal Planner — Example Ventures (313598867)");
     expect(block.textContent).not.toContain("sc-domain:meals.example");
 
-    // The picker and the typed box below it are two controls over ONE field:
-    // the list is the combobox, the fallback is the textbox.
     fireEvent.change(within(block).getByRole("combobox"), {
       target: { value: "313598867" },
     });
@@ -3331,7 +2964,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
         value: "313598867",
       },
     ]);
-    // Same write, so the same guard: this asset has no property id yet either.
     await waitFor(() =>
       expect(block.querySelector('[data-save-state="saved"]')).not.toBeNull(),
     );
@@ -3344,11 +2976,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     await findByText("Google Analytics");
     openLane("Google Analytics");
     await waitFor(() => expect(picker().dataset.lanePickerState).toBe("ready"));
-    // A service-account install, or a property shared with another login: it
-    // stays selected and says what it is rather than being quietly dropped.
     expect(picker().textContent).toContain("111222333 — not in the connected account");
-    // And the free-text box is still there, one disclosure down, for a value no
-    // list will ever carry.
     expect(document.querySelector('[data-lane-picker-typed="ga4"]')).not.toBeNull();
   });
 
@@ -3360,7 +2988,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     openLane("Google Analytics");
     await waitFor(() => expect(picker().dataset.lanePickerState).toBe("unavailable"));
     expect(picker().textContent).toContain("Google did not answer");
-    // The field still works: a failed discovery costs the operator nothing.
     expect(within(picker()).getByRole("textbox")).toBeInTheDocument();
     expect(within(picker()).queryByRole("combobox")).toBeNull();
   });
@@ -3382,7 +3009,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     await findByText("Google Analytics");
     openLane("Google Analytics");
     const block = mappingBlock();
-    // The whole `properties/…` path is the mistake the pattern exists to catch.
     fireEvent.change(within(block).getByLabelText(/GA4 property id/u), {
       target: { value: "properties/313598867" },
     });
@@ -3395,10 +3021,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
   });
 
   it("shows what reads the mapping, which differs per asset, and when a save gets there", async () => {
-    // UNMAPPED, and this deployment has not seeded: the lane is still on the
-    // source it had before the register existed and names it (bead
-    // `ro-vu8d.16`), and the timing is the honest restart — two chips, not two
-    // sentences (bead `ro-ujb9.96.6.4`).
     stubEditing(ga4Lane());
     const first = renderRoute("meals.example", "", "sources");
 
@@ -3411,10 +3033,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     expect(first.container.textContent).not.toContain("falls back to");
     first.unmount();
 
-    // MAPPED, and the document is in the store: the card says the collector asks
-    // for this value, and the timing is the next run (beads `ro-syok.7`,
-    // `ro-7xv2`). Both halves come off the same `/api/config` read the payload
-    // was built from, so the promise cannot outrun the behaviour.
     stubEditing(ga4Lane({ propertyId: "313598867" }), NOT_CONNECTED, {
       "config/integrations.json": "store",
     });
@@ -3425,17 +3043,12 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     const mapped = second.container.querySelector<HTMLElement>("[data-lane-mapping-state]")!;
     expect(mapped).toHaveAttribute("data-lane-mapping-state", "register");
     expect(mapped.textContent).toContain("Mapped here");
-    // Awaited, because the cautious chip is what renders until `/api/config`
-    // answers — see `useConfigWritable`: promising the next run to an operator
-    // who then does not restart is the one direction this pair may not guess in.
+    // Awaited: the cautious chip renders until `/api/config` answers (see
+    // `useConfigWritable`).
     await waitFor(() => expect(mapped.textContent).toContain("Applies on the next run"));
     expect(mapped.textContent).not.toContain("after a restart");
   });
 
-  // NOT USING IS ONE PRESS, THEN A REASON CHIP (bead `ro-ujb9.96.7.13`,
-  // operator answer A, 2026-09-23). The register's rule — every decline states
-  // its reason (`/reason/i`, config/integrations.README.md) — is kept: the chip
-  // IS the reason, and the product writes the prefix, never the operator.
   function declineChips(): HTMLElement {
     const group = document.querySelector("[data-decline-reasons]");
     if (!(group instanceof HTMLElement)) throw new Error("no reason chips");
@@ -3456,8 +3069,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     await findByText("Google Analytics");
     openLane("Google Analytics");
     fireEvent.click(screen.getByRole("button", { name: "Not using" }));
-    // The three reasons the operator chose to offer, and a line of their own —
-    // nothing preselected, and nothing written until one is pressed.
     const chips = declineChips();
     expect(within(chips).getAllByRole("button").map((button) => button.textContent)).toEqual([
       "Don't use this product",
@@ -3491,7 +3102,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     await waitFor(() => expect(toasts.success).toHaveBeenCalled());
     expect(String(toasts.success.mock.calls[0]?.[0])).toBe("Saved — Google Analytics: not using");
 
-    // Undo in the toast is the same write backwards, guarded by what was saved.
     await pressUndo();
     await waitFor(() => expect(puts).toHaveLength(2));
     expect(puts[1]?.ops).toEqual([
@@ -3512,8 +3122,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     ]);
   });
 
-  // Bead ro-ujb9.96.7.22: a new site's source has no note key, so the reason
-  // is a first write and the Undo takes the key off again — the exact inverse.
   it("declines a new site's source as a first write, and undoes it back to no note at all", async () => {
     const puts = stubEditing(ga4Lane({ note: null }));
     const { findByText } = renderRoute("meals.example", "", "sources");
@@ -3561,9 +3169,8 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
   });
 
   it("undoes a first decline by putting the posture back and keeping the reason as history", async () => {
-    // A cell written before bead ro-ujb9.96.7.22 carries a blank note, and the
-    // register refuses writing a blank one back — so that half of the Undo,
-    // which could not be written, is not offered.
+    // A blank note cannot be written back, so that half of the Undo is not
+    // offered.
     const puts = stubEditing(ga4Lane({ note: "" }));
     const { findByText } = renderRoute("meals.example", "", "sources");
 
@@ -3630,7 +3237,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     await findByText("Google Analytics");
     expect(container.querySelector("[data-lane-reason]")?.textContent).toBe("Replaced by another tool");
     openLane("Google Analytics");
-    // The prefix is the product's: nowhere on the tab.
     expect(container.textContent).not.toMatch(/REASON:/u);
     expect(screen.queryByRole("button", { name: "Not using" })).toBeNull();
 
@@ -3663,8 +3269,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
   });
 
   it("leaves the observed chip alone — the operator's choice is not a health toggle", async () => {
-    // The file says skipped; the collectors say the lane is working. The chip
-    // reports the OBSERVED state, and nothing on this card rewrites it.
     stubEditing(
       ga4Lane({ declared: "skipped", effective: "live", note: "REASON: declined." }),
       NOT_CONNECTED,
@@ -3678,16 +3282,9 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
-    // The whole ROW, not the expanded block: doc 14 puts the state chip on the
-    // row itself and the settings inside it (`ro-78qo.5`), so the `<li>` is what
-    // holds both halves of "one chip, and it is the observed one".
     const card = container.querySelector('[data-lane-config="ga4"]')!.closest("li")!;
-    // One chip, and it is the observed one.
     expect(card.querySelectorAll("[data-connection]")).toHaveLength(1);
     expect(card.querySelector("[data-connection]")).toHaveAttribute("data-connection", "working");
-    // The row's action still answers what the FILE holds — a declined source
-    // offers Use again — which is the other fact: a control and a chip saying
-    // different things because they answer different questions.
     expect(card.querySelector('[data-lane-use-again="ga4"]')).not.toBeNull();
   });
 
@@ -3697,8 +3294,6 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
-    // Bead ro-ujb9.96.7.4: the row's chip is the one status; the steps that
-    // restated it ("Provider account access: unverified") are gone.
     expect(container.querySelectorAll("[data-lane-step]")).toHaveLength(0);
     expect(container.querySelector('[data-lane-mapping="ga4"]')).not.toBeNull();
   });
@@ -3778,16 +3373,11 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     );
 
     await findByText("Also collected");
-    // Sessions is one of the four charts now (doc 14, bead `ro-78qo.4`), so its
-    // window total is the headline beside its own line rather than a card below.
     const sessions = container.querySelector('[data-growth-chart="Sessions"]')!;
     expect(sessions.textContent).toContain("1,400 visits");
-    // Average position stays context, in the strip, at its window average.
     const strip = container.querySelector("#also-collected")!;
     expect(strip.textContent).toContain("Average position");
     expect(strip.textContent).toContain("12.0");
-    // Position is lower-is-better, so the honest direction chip has to point UP
-    // on a series that fell. The tone is the comparative ramp, not severity.
     const position = strip.querySelector('[data-collected-delta="search-position"]')!;
     expect(
       position.querySelector("[data-tone]")?.getAttribute("data-tone"),
@@ -3795,17 +3385,9 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     expect(position.querySelector("[data-tone]")?.getAttribute("title")).toContain(
       "the last 7 days vs the 7 days before",
     );
-    // A series nobody collected stays absent rather than rendering an empty cell.
     expect(strip.textContent).not.toContain("Page views");
   });
 
-  /**
-   * Bead `ro-kukv.11`. These five small charts drew a day a reporting-timezone
-   * change distorted exactly like the twenty-odd ordinary ones around it, while
-   * the headline chart above them had marked it since `ro-kukv.8`. They could
-   * not be marked before the payload learned which provider each change belongs
-   * to: a GA4 property's clock is not evidence about a Search Console day.
-   */
   it("marks the distorted day on the GA4 supporting trends and leaves the Search Console ones ordinary", async () => {
     const data = payload();
     data.performance = {
@@ -3833,12 +3415,6 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     const { container, findByText } = renderRoute("meals.example", "", "growth");
 
     await findByText("Also collected");
-    // The mark moved onto the chart's own axis when Sessions became one of the
-    // four charts (doc 14, bead `ro-78qo.4`): `HeroChart` draws an annotation as
-    // a dashed line plus a glyph carrying the sentence, and the same two days
-    // are marked — the change day and the one before it, derived and never
-    // listed.
-    // Each marker owns its dated explanation; unrelated charts receive none.
     const sessions = container.querySelector('[data-growth-chart="Sessions"]')!;
     expect(within(sessions as HTMLElement).getByRole("list")).toHaveTextContent("7-day average");
     expect(sessions.textContent).not.toContain("reporting timezone moved");
@@ -3850,23 +3426,11 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     expect(event).toHaveTextContent("Jun 12, 2026");
     expect(event).toHaveTextContent("America/Los_Angeles → America/New_York");
     expect(event).toHaveTextContent("value unaltered, not comparable");
-    // The marker is the whole explanation: no paragraph restates it below the
-    // charts (bead `ro-ujb9.96.6.5`).
     expect(container.querySelector("[data-about]")).toBeNull();
-    // The Search Console series covers the same days and is marked nowhere: the
-    // GA4 property's clock changed, and a Search Console day is not measured by
-    // it.
     const position = container.querySelector("#also-collected")!;
     expect(position.textContent).not.toContain("⚠");
   });
 
-  /**
-   * Bead `ro-kukv.13`. The mark on the line said the DAY was distorted; the chip
-   * beside it went on colouring the week that contained it. Doc 14 (2026-09-04)
-   * withdraws that colour verdict on both sides — a clean week measured against
-   * a distorted one is not like-for-like either — and a 26px line has no
-   * per-day verdict to withdraw, so the chip is the only one there.
-   */
   it("withdraws the comparison when its own provider moved its clock", async () => {
     const data = payload();
     // Fifteen complete days: enough for a seven-day average and the one seven
@@ -3914,21 +3478,15 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
 
     await findByText("Also collected");
     const sessions = container.querySelector('[data-growth-chart="Sessions"]')!;
-    // Neither a percentage nor its color can claim a like-for-like result.
     expect(sessions.querySelector("[data-growth-delta]")?.textContent).toBe("Not comparable");
     expect(
       sessions.querySelector("[data-growth-delta] [data-tone]")?.getAttribute("data-tone"),
     ).toBe("neutral");
-    // The ⚠ is the SECTION's, not the chart's: one Google Analytics move lands
-    // on both charts in the pair, and a glyph per headline would be one fact
-    // wearing two (doc 14, bead `ro-jkp2`).
     expect(sessions.querySelector("[data-time-zone-caveat]")).toBeNull();
     const caveat = container.querySelector("#performance [data-time-zone-caveat]");
     expect(caveat?.getAttribute("data-time-zone-caveat")).toBe("2026-06-16");
     expect(caveat?.textContent).toContain("Timezone changed · Not comparable");
 
-    // Search Console never moved: its property's clock is not evidence about a
-    // GA4 day, and vice versa. The position cell keeps its verdict.
     const position = container.querySelector(
       '[data-collected-delta="search-position"]',
     )!;
@@ -3937,15 +3495,9 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     ).not.toBe("neutral");
     expect(position.querySelector("[data-time-zone-caveat]")).toBeNull();
 
-    // One withdrawn window, one ⚠ chip on the whole page.
     expect(container.querySelectorAll("[data-time-zone-caveat]")).toHaveLength(1);
   });
 
-  /**
-   * A reporting timezone is a setting on a whole property, so one Search Console
-   * move lands on the clicks headline AND the impressions headline. Doc 14's
-   * one-representation rule makes that one statement, not two glyphs.
-   */
   it("states the headline timezone caveat once when two headline series moved on the same change", async () => {
     const data = payload();
     const gscChange = {
@@ -3984,18 +3536,11 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     const caveats = container.querySelectorAll("[data-time-zone-caveat]");
     expect(caveats).toHaveLength(1);
     expect(caveats[0]?.getAttribute("data-time-zone-caveat")).toBe("2026-06-16");
-    // The verdict stays visible; the method is available beside it.
     const help = within(caveats[0]!.parentElement!).getByRole("button", { name: "About search charts" });
     fireEvent.click(help);
     expect(screen.getByRole("tooltip")).toHaveTextContent("Google and Bing added, one line each");
   });
 
-  /**
-   * Bead `ro-jkp2`. The supporting tiles went neutral at `ro-kukv.13` and the
-   * three headline charts above them kept their green, so one page answered the
-   * same question two ways. Doc 14's withdrawal is now portfolio-wide: every
-   * aggregate 7-vs-7 chip whose window straddles a change drops the tone.
-   */
   it("withdraws headline percentages per series across a distorted window", async () => {
     const data = payload();
     const change = {
@@ -4024,7 +3569,6 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
       },
       webSearchImpressions: {
         ...data.performance.webSearchImpressions,
-        // The same fifteen days with no change filed against this series.
         google: trend(
           [900, 1000, 1040, 1100, 1060, 940, 700, 990, 1010, 1080, 1120, 1160,
             1090, 1200, 1240],
@@ -4042,20 +3586,14 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
       container
         .querySelector(`[data-growth-chart="${chart}"] [data-growth-delta] [data-tone]`)
         ?.getAttribute("data-tone");
-    // The comparison itself is withheld, not just the color verdict.
     expect(
       container.querySelector('[data-growth-chart="Active users"] [data-growth-delta]')
         ?.textContent,
     ).toBe("Not comparable");
     expect(tone("Active users")).toBe("neutral");
     expect(tone("Clicks")).toBe("neutral");
-    // A clean series on the very same dates keeps its verdict: a reporting
-    // timezone is a setting on ONE provider's property.
     expect(tone("Impressions")).not.toBe("neutral");
 
-    // TWO ⚠, one per SECTION rather than one per chip: Audience carries the
-    // Google Analytics move and Search carries the Search Console one, and each
-    // is stated once over every chart it qualifies (doc 14, bead `ro-jkp2`).
     const caveats = [...container.querySelectorAll("[data-time-zone-caveat]")];
     expect(caveats).toHaveLength(2);
     expect(
@@ -4063,21 +3601,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     ).toEqual(["2026-06-16", "2026-06-16"]);
   });
 
-  /*
-   * THE SEARCH-CONTEXT CASES LEFT WITH THEIR SECTION (bead `ro-78qo.3`).
-   *
-   * Three cases lived here — the ranked dollar value leading the strip, the
-   * top-20 count and the gained/lost pair standing apart, and the backlink
-   * summary saying unavailable rather than printing zeros. doc 14 moves the
-   * whole DataForSEO strip off Overview and onto the Search tab, so the
-   * assertions belong to the surface that renders it: `ro-78qo.4` builds the
-   * strips and carries these three rules over. `ro-78qo.14` holds the handover
-   * until they are green there.
-   */
-
   it("waits for the nightly sweep: the hourly home-page check alone draws no Site health", async () => {
-    // Bead ro-ujb9.165: a new site's uptime check writes the home-page reading
-    // before the nightly sweep has read its robots.txt or sitemap.
     const reading = { date: "2026-07-05", observedAt: "2026-07-05T11:00:00.000Z", status: "ok" as const, value: 120 };
     stubFetch(200, payload({ hygiene: {
       windowDays: 90,
@@ -4091,7 +3615,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     expect(queryByText("Site health")).toBeNull();
   });
 
-  describe("Failed fetches — each failed nightly fetch, one line (ro-ujb9.220)", () => {
+  describe("Failed fetches — each failed nightly fetch, one line", () => {
     /** The same site, its report FETCHED by the OS. */
     function fetched(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
       const base = payload(over);
@@ -4126,7 +3650,6 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
       expect(rows[0]).toHaveTextContent(/\d+\S* ago$/);
       expect(rows[1]).toHaveTextContent("503 unconfigured");
       expect(rows[2]).toHaveTextContent("non-200 response (404)");
-      // The provider's whole sentence is one hover away, never a paragraph.
       expect(within(rows[1]!).getByTitle("503 unconfigured — set CF_ACCOUNT_ID")).toBeInTheDocument();
       expect(rows[0]!.querySelector("time")?.getAttribute("dateTime")).toBe("2026-07-05T02:30:00.000Z");
     });
@@ -4153,8 +3676,6 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
       { date: "2026-07-03", observedAt: "2026-07-03T04:00:00.000Z", status: "ok" as const, value: 200 },
       ...(count === 3 ? [{ date: "2026-07-05", observedAt: "2026-07-05T04:00:00.000Z", status: "ok" as const, value: 300 }] : []),
     ];
-    // The nightly sweep reads robots.txt with the home page; the section is
-    // that sweep's history and waits for it (bead ro-ujb9.165).
     const robots = { date: "2026-07-05", observedAt: "2026-07-05T04:00:00.000Z", status: "ok" as const, value: null };
     stubFetch(200, payload({ hygiene: {
       windowDays: 90,
@@ -4187,10 +3708,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     expect(screen.getByRole("status")).toHaveTextContent("No report");
   });
 
-  it("renders the nightly site-health history the OS already collects (bead ro-gct)", async () => {
-    // The three S5 guards write one row per (asset, check, day) and nothing read
-    // them back: the checks only reached a human when a rule fired, which is the
-    // wrong instrument for the slow declines they exist to catch.
+  it("renders the nightly site-health history the OS already collects", async () => {
     stubFetch(
       200,
       payload({
@@ -4275,26 +3793,18 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     const { container, findByText } = renderRoute("meals.example", "", "sources");
     await findByText("Site health");
 
-    // The word count and its history.
     expect(container.textContent).toContain("88");
     expect(container.textContent).toContain("words of visible text");
-    // Age is the one freshness representation. The old raw calendar date is
-    // gone from the tile rather than repeated beside the badge.
     expect(
       container.querySelector('[data-hygiene-check="html-depth"]')?.textContent,
     ).not.toContain("Jul 5, 2026");
-    // Per-bot access, in a glyph AND a word — never colour alone (doc 14).
     const blocked = container.querySelector('[data-hygiene-bot="ClaudeBot"]');
     expect(blocked?.textContent).toContain("blocked");
     expect(
       container.querySelector('[data-hygiene-bot="GPTBot"]')?.textContent,
     ).toContain("allowed");
-    // The four reading states are told apart in words, and 'error' and
-    // 'unreachable' never merge: the sitemap's origin answered badly, which is
-    // evidence about the asset, and the depth check merely matched its flag.
     expect(container.textContent).toContain("Bad response");
     expect(container.textContent).toContain("Flagged");
-    // A check with no number this night says so rather than printing a zero.
     expect(container.textContent).toContain("URLs listed");
   });
 
@@ -4352,10 +3862,6 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     stubFetch(200, payload({ hygiene: null }));
     const { container, findByText, queryByRole } = renderRoute("meals.example", "", "sources");
     await findByText("Daily metrics");
-    // The PANEL, not the words: doc 14's `About` names site health in the
-    // sentence that says what these numbers are, and that sentence is on the tab
-    // whether or not the guard has ever run (`ro-78qo.5`). A panel is a labelled
-    // region, so that is what is asserted absent.
     expect(queryByRole("region", { name: "Site health" })).toBeNull();
     expect(container.querySelector("[data-hygiene-check]")).toBeNull();
   });
@@ -4410,17 +3916,11 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     const { container, findByText } = renderRoute("meals.example", "", "activity");
 
     await findByText("Bets");
-    // The strip is doc 14's list now (`ro-78qo.5`): the series and its verdict
-    // are the row's title, the date it waits on is the row's value under its own
-    // micro label, and the ref and the reading count are the row's evidence —
-    // which is one press in, where the old run-on line printed the ref twice.
     expect(container.textContent).toContain("Google clicks");
     expect(container.textContent).toContain("Jul 4, 2026");
     expect(container.textContent).toContain("next check");
     expect(container.textContent).toContain("Analytics active users");
     expect(container.textContent).toContain("No clear change");
-    // Progress is drawn, not written (bead `ro-ujb9.96.6.6`): one ring
-    // segment per registered check, filled as each is read.
     const ring = container.querySelector("[data-watch-progress] [data-progress-ring]");
     expect(ring?.getAttribute("data-done")).toBe("1");
     expect(ring?.getAttribute("data-total")).toBe("3");
@@ -4440,9 +3940,6 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     ).toBe("ref spring-redesign");
   });
 
-  // Bead `ro-ujb9.96.6.30`: the verdict's note is the evaluator's figures only,
-  // and a check narrowed to one query names that query beside the series, so a
-  // query's win never reads as the whole site's.
   it("names a checked query beside its series and shows only the figures once opened", async () => {
     stubFetch(
       200,
@@ -4484,7 +3981,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     expect(container.textContent).not.toMatch(/at \+\d+d/);
   });
 
-  it("shows the originating bead on a watch without borrowing its verdict", async () => {
+  it("shows the originating task on a watch without borrowing its verdict", async () => {
     stubFetch(
       200,
       payload({
@@ -4525,7 +4022,6 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     const { container, findByText } = renderRoute("meals.example", "", "activity");
     await findByText("Bets");
 
-    // The ref is the row's evidence, so it is inside it (`ro-78qo.5`).
     openRow("Google clicks");
     const row = container.querySelector('[data-watch-id="watch-for-mp-1w2"]');
     const badge = row?.querySelector('[data-handoff-bead="closed"]');
@@ -4537,12 +4033,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     );
   });
 
-  // `ro-kukv.12`, doc 14 rule 6: the Timeline header's age slot is a labelled
-  // value beside a section title, so an em-dash there reads as a rendering
-  // failure rather than as "nothing has been recorded". `formatAge` still
-  // returns its dash — the WORD belongs to the component that knows it was
-  // handed no timestamp at all, which is the fix `AgeBadge` got in 42bed39.
-  it("says no change is logged once, in the answer, instead of an age badge (D45)", async () => {
+  it("says no change is logged once, in the answer, instead of an age badge", async () => {
     stubFetch(200, payload());
     const { container, findByText } = renderRoute("meals.example", "", "activity");
     await findByText("Timeline");
@@ -4551,9 +4042,6 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     expect(container.querySelector("[data-lane-age]")).toBeNull();
   });
 
-  // The third state stays distinct for rule 6's own reason: "never" would claim
-  // nothing ever arrived, which is untrue of a row that reported into a bad
-  // timestamp.
   it("tells an unreadable Timeline timestamp apart from one that never arrived", async () => {
     stubFetch(
       200,
@@ -4562,8 +4050,6 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     const { container, findByText } = renderRoute("meals.example", "", "activity");
     await findByText("Timeline");
 
-    // "No changes logged" would claim nothing ever arrived, which is untrue of
-    // a row that reported into a bad timestamp.
     expect(container.querySelector('[data-activity-answer="unreadable"] h2')).toHaveTextContent("Last change date unreadable");
   });
 
@@ -4592,11 +4078,11 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
           recent: [
             {
               id: 1,
-              domain: "nyc.cce.cornell.edu",
+              domain: "city.extension.example",
               status: "replied",
               statusAt: "2026-07-14",
             },
-            { id: 2, domain: "schoolnutrition.org", status: "queued", statusAt: null },
+            { id: 2, domain: "school-meals.example", status: "queued", statusAt: null },
           ],
         },
       }),
@@ -4604,22 +4090,15 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     const { container, findByText } = renderRoute("meals.example", "", "activity");
 
     await findByText("Link outreach");
-    // The funnel line reads as a sentence, with every stage named in words —
-    // the counts are never carried by color or glyph alone (doc 14).
     for (const stage of ["33", "to pitch", "6", "sent", "5", "opened", "4", "clicked", "1", "replied"]) {
       expect(container.textContent).toContain(stage);
     }
-    // A stage with no rows is omitted, not rendered as a zero.
     expect(container.textContent).not.toContain("link updated");
-    // Never-pitch hosts are a reference count, kept out of the funnel line.
     expect(container.textContent).toContain("10 never pitch");
     expect(container.textContent).toContain("59 targets in all");
-    expect(container.textContent).toContain("nyc.cce.cornell.edu");
+    expect(container.textContent).toContain("city.extension.example");
     expect(container.textContent).toContain("Jul 14, 2026");
-    // An untouched target says less rather than inventing a date.
-    expect(container.textContent).toContain("schoolnutrition.org");
-    // Read-only by construction: status moves through the import lane, so the
-    // panel offers no control at all — shown, not explained.
+    expect(container.textContent).toContain("school-meals.example");
     const outreach = screen.getByRole("region", { name: "Link outreach" });
     expect(within(outreach).queryAllByRole("button")).toHaveLength(0);
     expect(within(outreach).queryAllByRole("link")).toHaveLength(0);
@@ -4627,41 +4106,24 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
   });
 
   it("states the reconciled net and keeps the estimates out of it", async () => {
-    // The page grain of the 2026-07 audit's finding 4 (bead ro-jk7): a mixed month whose
-    // blended net would be $644.20. That number must appear nowhere — the tile
-    // states $498.10 booked, with $146.10 below the rule under its own chip.
+    // A mixed month whose blended net would be $644.20: that number must
+    // appear nowhere.
     stubFetch(200, payload({ ledger: MIXED_LEDGER }));
     const { findAllByText, findByText } = renderRoute("meals.example", "", "financials");
 
     const section = (await findByText("Monthly accounting")).closest(CARD)!;
-    // The months are one `SmallMultipleStrip` now (`ro-78qo.5`), so the cell is
-    // found through the month it is labelled with rather than by a hidden
-    // attribute — and the label is what the operator reads.
-    // The month names the strip's cell AND a row in the entries table below it,
-    // so this takes the strip's — the label is a span, the table cell a <td>.
+    // The month names the strip's cell and a row in the entries table below
+    // it; the label is a span, the table cell a <td>.
     const tile = (await findAllByText("June 2026"))
       .find((node) => node.tagName === "SPAN")!.parentElement!;
     expect(tile.textContent).toContain("$498.10");
     expect(tile.textContent).toContain("$146.10");
     expect(tile.textContent).not.toContain("$644.20");
-    // ONE MARKER FOR THE STRIP, not a chip per month (doc 14): six cells each
-    // wearing "Reconciled" said something true of all six, six times. The figure
-    // IS the booked one — the eyebrow says so once — and the estimate keeps its
-    // own word beside its own number so it can never be read into the net.
-    // One plain word for the strip (bead ro-ujb9.135): "booked", never "booked
-    // net · forecast named separately".
     expect(section.textContent).toContain("booked");
     expect(section.textContent).not.toContain("named separately");
     expect(tile.textContent).toContain("forecast $146.10");
     expect(section.textContent).not.toContain("estimated");
     expect(section.textContent).not.toContain("reconciled");
-    // THE BOOKED SIDE OWNS THE BREAKDOWN. The secondary line says what the
-    // stated net is made of — `ads $498.10` — and the estimate is one number
-    // under its own word. Its families are deliberately not there: the strip is
-    // six cells of one line each, and spelling out a forecast's composition
-    // beside a booked one is how the two got read as a single figure in the
-    // first place (the 2026-07 audit's finding 4). `$644.20` is the number that must appear
-    // nowhere, and it does not.
     expect(tile.textContent).toContain("ads $498.10");
     expect(tile.textContent).not.toContain("affiliate");
     expect(tile.textContent).not.toContain("inference");
@@ -4688,16 +4150,12 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     await findByText("Monthly accounting");
     const tile = (await findAllByText("June 2026"))
       .find((node) => node.tagName === "SPAN")!.parentElement!;
-    // An em dash where the booked net goes, and the forecast still named beside
-    // it — never promoted into the figure.
     expect(tile.textContent).toContain("—");
     expect(tile.textContent).toContain("forecast $146.10");
     expect(tile.textContent).not.toContain("$0.00");
   });
 
   it("states the panel-review obligation the card only marks", async () => {
-    // Bead ro-elf: the operator got here BECAUSE the card's badge was overdue,
-    // so the page has to name what is owed, when it was due, and what to close.
     stubFetch(
       200,
       payload({
@@ -4723,7 +4181,6 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
   });
 
   it("says nothing about a panel review for an asset with no panel", async () => {
-    // Nearly every asset. Not a dash, not an empty state — nothing.
     stubFetch(200, payload());
     const { container, findByText } = renderRoute("meals.example", "", "activity");
 
@@ -4732,8 +4189,6 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
   });
 
   it("keeps the obligation visible on an asset with no acquisition history", async () => {
-    // The weekly panel is owed whether or not there is anything to chart, so
-    // the row must not sit behind the charts' own empty state.
     stubFetch(
       200,
       payload({
@@ -4747,9 +4202,8 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         panelReview: {
           beadId: "mp-4a2",
           panelDate: "2026-07-01",
-          // The page reads the REAL clock (`useNow`), so a still-open deadline
-          // has to be stated relative to it or this asserts the wrong state
-          // every day after the fixture's.
+          // The page reads the real clock (`useNow`), so a still-open
+          // deadline must be stated relative to it.
           dueAt: new Date(Date.now() + 4 * 86_400_000).toISOString(),
           status: "open",
           closedAt: null,
@@ -4771,8 +4225,6 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     const { container, findByText, queryByRole } = renderRoute("meals.example", "", "activity");
 
     await findByText("Timeline");
-    // The PANEL, not the words: what must not appear is the section, and a
-    // panel is a labelled region (`ro-78qo.5`).
     expect(queryByRole("region", { name: "Link outreach" })).toBeNull();
     expect(container.textContent).not.toContain("targets in all");
   });
@@ -4840,7 +4292,6 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
       };
       expect(body.kind).toBe("config");
       expect(body.note).toBe("rotated the report token");
-      // The instant the operator picked, not the instant they typed it.
       expect(new Date(body.at).getUTCFullYear()).toBe(2026);
       expect(body.at).not.toBe("");
     });
@@ -4855,10 +4306,8 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
   });
 });
 
-// Pre-registration used to mean hand-writing a POST with the operator bearer,
-// which put the most friction in the OS on the one step that stops a verdict
-// being chosen after the numbers arrive (bead `ro-71r`). The change is dated
-// relative to the clock rather than pinned, so these read the same in any month.
+// The change is dated relative to the clock rather than pinned, so these read
+// the same in any month.
 describe("AssetDetailRoute — starting an outcome check without leaving the page", () => {
   const DAY_MS = 86_400_000;
   const changeMs = Date.now() - 20 * DAY_MS;
@@ -4933,8 +4382,6 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
           ship: { direction: "up", min_delta_pct: 10 },
           kill: { direction: "down", min_delta_pct: 10 },
         },
-        // The operator's own words for the change, so the pending list says
-        // what is being watched rather than an annotation id.
         note: "July title batch",
       });
     });
@@ -4950,10 +4397,8 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     const on = (offset: number) => day(Date.parse(`${today}T00:00:00.000Z`) + offset * DAY_MS);
     expect(plan.textContent).toContain("Win▲ +10%");
     expect(plan.textContent).toContain("Loss▼ −10%");
-    // The checks as dates, read 7 and 14 days out, and the verdict at 28.
     expect(plan.textContent).toContain(`Checks${formatSeriesDate(on(7))} · ${formatSeriesDate(on(14))}`);
     expect(plan.textContent).toContain(`Verdict${formatCalendarDate(on(28))}`);
-    // No sentence restating the fields above it.
     expect(plan.textContent).not.toMatch(/is the win|read again|days from today/);
   });
 
@@ -4971,14 +4416,12 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     expect(
       container.querySelector("[data-watch-refusal]")?.textContent,
     ).toContain("Baseline must end by");
-    // …and the picker itself stops at today, so only a typed date gets here.
     expect(await findByLabelText("Baseline to")).toHaveAttribute(
       "max",
       new Date(Date.now()).toISOString().slice(0, 10),
     );
     fireEvent.click(register);
 
-    // Nothing was sent: the composer prefills, it does not relax.
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some(
@@ -4988,22 +4431,16 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     });
   });
 
-  // The flipped predicate itself is pinned where the metric is registerable —
-  // on a query row, further down. Asset-wide, average position is not a bet
-  // the OS will take at all (ro-715c).
   it("refuses an asset-wide average in the UI, not only at the route", async () => {
     const fetchMock = stubFetch(200, withChange());
     const { container, findByRole, findByLabelText } = renderRoute("meals.example", "", "activity");
 
     await openComposer(findByRole, "watch");
-    // Averages are offered but disabled outside a query row: prevented, not
-    // explained.
     const picker = await findByLabelText("Which number");
     const averages = picker.querySelector("optgroup");
     expect(averages?.getAttribute("label")).toBe("One query only");
     expect(averages).toHaveProperty("disabled", true);
     expect(averages?.textContent).toContain("Google average position");
-    // A value forced past the disabled option still meets the guard.
     fireEvent.change(picker, {
       target: { value: "gsc:position" },
     });
@@ -5029,8 +4466,6 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     const { findByRole, findByLabelText } = renderRoute("meals.example", "", "activity");
 
     await openComposer(findByRole, "watch");
-    // No annotations at all: the only option is "Something else", and the
-    // Register button stays out of reach until the operator says what it is.
     expect(await findByRole("button", { name: "Register" })).toBeDisabled();
     fireEvent.change(await findByLabelText("What are you watching"), {
       target: { value: "moved the recipe hub" },
@@ -5045,13 +4480,8 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     });
   });
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Bead ro-5e8.2 — the threshold is calibrated, and the form says so.
-  // ───────────────────────────────────────────────────────────────────────────
-
-  /** An asset whose Google clicks sit flat at 100/day for the whole history:
-   * nothing to clear, so the floor is 0 and the smallest usable predicate is 1%
-   * rather than the README's 10. */
+  /** Google clicks flat at 100/day for the whole history: nothing to clear, so
+   * the floor is 0 and the smallest usable predicate is 1%. */
   function withFlatClicks() {
     const days = 120;
     const base = withChange();
@@ -5099,8 +4529,6 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     await openComposer(findByRole, "watch");
     const line = container.querySelector<HTMLElement>("[data-watch-calibration]")!;
     expect(line.getAttribute("data-watch-calibration-state")).toBe("calibrated");
-    // A chip names the basis; the noise bar and short figures are the
-    // evidence (bead `ro-ujb9.96.6.6`) — no sentence to parse.
     expect(line.textContent).toContain("Calibrated");
     expect(line.textContent).toContain("Typical move 0%");
     expect(line.textContent).toMatch(/\d+ comparisons · /);
@@ -5170,14 +4598,10 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     const line = container.querySelector("[data-watch-calibration]");
     expect(line?.getAttribute("data-watch-calibration-state")).toBe("historical");
     expect(line?.textContent).toContain("Changes not excluded");
-    // It never claims exclusions it could not make.
     expect(line?.textContent).not.toContain("skipped");
   });
 
   it("admits when it is showing the example instead of this asset's number", async () => {
-    // The default fixture has no history at all. The old form showed 10% here
-    // and said nothing; showing the same 10% without saying whose number it is
-    // was the whole defect.
     stubFetch(200, withChange());
     const { container, findByRole } = renderRoute("meals.example", "", "activity");
 
@@ -5189,15 +4613,6 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     expect(line?.textContent).toContain("Default 10%");
     expect(line?.querySelector("[data-watch-noise]")).toBeNull();
   });
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // Bead ro-5e8.5 — the door is not only on the timeline.
-  //
-  // "I deployed something, did it work" was the only question the composer
-  // could open on. "This query row says act — did acting help" is where the
-  // query table's whole point lands, and a finding card emitted a bd create
-  // handoff with no matching way to pre-register how the work would be judged.
-  // ───────────────────────────────────────────────────────────────────────────
 
   /** An asset whose query table has one row the panel walls on Google. */
   function withQueryRow() {
@@ -5291,22 +4706,15 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     fireEvent.click(
       await findByRole("button", { name: /watch the outcome for chipotle calories/i }),
     );
-    // The SAME form, in the section where watches are registered and reported —
-    // not a second composer inside the query table.
     expect(
       container.querySelectorAll("[aria-label='Register an outcome check']"),
     ).toHaveLength(1);
-    // The click left Growth for Activity, where the composer lives — the seed
-    // survives the tab switch because the route owns it (bead ro-pbzu.4).
     expect(
       container.querySelector('[role="tab"][aria-selected="true"]')?.textContent,
     ).toBe("Activity");
     fireEvent.click(await findByRole("button", { name: "Register" }));
 
     await waitFor(() => {
-      // Position #14 is a ranking-opportunity row, and that decision is about
-      // where the asset RANKS — so the composer opens on average position,
-      // with its predicate already flipped for a metric where better is smaller.
       expect(postedBody(fetchMock)).toMatchObject({
         metric_integration: "gsc",
         metric: "position",
@@ -5371,7 +4779,6 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     const scope = container.querySelector("[data-watch-scope]");
     expect(scope?.getAttribute("data-watch-scope")).toBe("widened");
     expect(scope?.textContent).toContain("Whole site");
-    // The fix is a button, not an instruction to go and choose a series.
     fireEvent.click(await findByRole("button", { name: "Follow “chipotle calories”" }));
     expect(container.querySelector("[data-watch-scope]")?.getAttribute("data-watch-scope")).toBe("query");
     fireEvent.click(await findByRole("button", { name: "Register" }));
@@ -5446,22 +4853,17 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     const fetchMock = stubFetch(200, withQueryRow());
     const { container, findByRole, findByText } = renderRoute("meals.example");
 
-    // The ranked list is behind "All findings" now (bead `ro-78qo.3`), and the
-    // seed it hands the composer is unchanged.
     fireEvent.click(await findByText(/All findings/));
     fireEvent.click(
       await findByRole("button", {
         name: /watch the outcome for twelve pages sit just off page one/i,
       }),
     );
-    // A finding is already a claim about the whole asset, so there is nothing
-    // narrower to warn about and the site-wide line stays off.
     expect(container.querySelector("[data-watch-scope]")).toBeNull();
     fireEvent.click(await findByRole("button", { name: "Register" }));
 
     await waitFor(() => {
       expect(postedBody(fetchMock)).toMatchObject({
-        // `gsc/page-query` — Search Console's headline outcome is clicks.
         metric_integration: "gsc",
         metric: "clicks",
         ref_kind: "manual",
@@ -5470,16 +4872,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     });
   });
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Bead ro-4ko — the change and the check name the task that caused them.
-  //
-  // annotations.ref and watch_windows.ref have accepted a bead id since the
-  // stores existed and nothing ever wrote one, so every join from "task filed"
-  // to "outcome measured" was an operator remembering to paste it — and an
-  // unjoined change is one whose effect can never be attributed.
-  // ───────────────────────────────────────────────────────────────────────────
-
-  /** The same query row, this time with a bead already filed from it. */
+  /** The same query row, this time with a task already filed from it. */
   function withFiledQueryRow() {
     const base = withQueryRow();
     return {
@@ -5496,7 +4889,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     };
   }
 
-  it("registers a check whose ref IS the bead the row was filed as", async () => {
+  it("registers a check whose ref is the task the row was filed as", async () => {
     const fetchMock = stubFetch(200, withFiledQueryRow());
     const { findByRole } = renderRoute("meals.example", "", "search");
 
@@ -5510,8 +4903,6 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
         ref_kind: "manual",
         ref: "mp-1w2",
       });
-      // The human words still travel — as the NOTE, so the pending list says
-      // what is being watched while the ref stays the id a reading joins on.
       expect(String(postedBody(fetchMock).note)).toContain("chipotle calories");
     });
   });
@@ -5524,9 +4915,6 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     fireEvent.change(await findByLabelText("Description"), {
       target: { value: "rewrote the chipotle opener" },
     });
-    // Not from a task is FIRST and default: most changes are not a filed task,
-    // and a chooser opening on one would attribute every deploy to whatever sat
-    // at the top of the list.
     const chooser = container.querySelector<HTMLSelectElement>(
       "[data-annotation-task]",
     )!;
@@ -5565,7 +4953,7 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     });
   });
 
-  it("renders a recorded event's bead as the task, without claiming it worked", async () => {
+  it("renders a recorded event's ref as the task, without claiming it worked", async () => {
     const base = withFiledQueryRow();
     stubFetch(200, {
       ...base,
@@ -5588,21 +4976,14 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
     const { container, findByText } = renderRoute("meals.example", "", "activity");
 
     await findByText("Timeline");
-    // The task the change came from is the row's evidence, so it is inside it.
     openRow("rewrote the chipotle opener");
     const badge = container.querySelector('[title*="mp-1w2"]');
     expect(badge?.textContent).toContain("mp-1w2");
-    // A CLOSED bead on the timeline does not prove shipment — the verdict comes
-    // from a watch window on the same id, never from the bead closing.
     expect(badge?.getAttribute("title")).toContain("not proof of shipment or outcome");
     expect(container.textContent).not.toMatch(/it worked|confirmed|resolved/i);
   });
 
   it("re-derives when the operator changes which number is watched", async () => {
-    // A percentage calibrated on clicks is not a statement about impressions,
-    // so switching the series drops an override and re-prefills. Here there is
-    // no `impressions` history, so the honest answer is the example — and the
-    // form says so.
     const fetchMock = stubFetch(200, withFlatClicks());
     const { container, findByRole, findByLabelText } = renderRoute("meals.example", "", "activity");
 
@@ -5628,14 +5009,6 @@ describe("AssetDetailRoute — starting an outcome check without leaving the pag
   });
 });
 
-// ───────────────────────────────────────────────────────────────────────────
-// Bead ro-pbzu.4 — the Settings tab MANAGES the asset.
-//
-// It was `WiringPanel`: a `<details>` collapsed at the bottom of a 3,600-line
-// scroll, and two of its four sub-cards edited PORTFOLIO-wide numbers from a
-// page about one asset. What is left is this asset's own operating state, plus
-// the two lifecycle moves nobody could make from the Tower at all.
-// ───────────────────────────────────────────────────────────────────────────
 describe("AssetDetailRoute — the Settings tab manages the asset", () => {
   /** The PATCH the store lane makes, or undefined when nothing was written. */
   function patchBody(fetchMock: ReturnType<typeof stubFetch>) {
@@ -5657,8 +5030,6 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
 
     const stage = await findByLabelText("Change lifecycle stage");
     fireEvent.change(stage, { target: { value: "baselining" } });
-    // The Lifecycle card's own Save — Automation has one too, which is the
-    // point of a form whose fields each save on their own.
     fireEvent.click(
       [...stage.parentElement!.querySelectorAll("button")].find(
         (b) => b.textContent === "Save",
@@ -5671,7 +5042,6 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
         body: { column: "status", value: "baselining", expect: "live" },
       });
     });
-    // D18: the save happens, and the way back is the toast — not a confirm.
     await waitFor(() => expect(toasts.success).toHaveBeenCalled());
     const [message, options] = toasts.success.mock.calls[0] as [
       string,
@@ -5695,7 +5065,6 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     expect(confirm.textContent).toContain("Data collection");
     expect(confirm.textContent).toContain("Alerts");
     expect(confirm.textContent).toContain("Its card on Home and the TV dashboard");
-    // Shown, not yet asked (doc 14 principle 1): nothing has been written.
     expect(patchBody(fetchMock)).toBeUndefined();
 
     fireEvent.click(getByRole("button", { name: "Archive site" }));
@@ -5713,7 +5082,6 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     const fetchMock = stubFetch(200, data);
     const { findByRole, queryByRole } = renderRoute("meals.example", "", "settings");
 
-    // Nothing records the stage it left, so the picker offers one, set to Live.
     const restore = await findByRole("button", { name: "Restore" });
     expect(queryByRole("button", { name: "Archive site…" })).toBeNull();
 
@@ -5726,9 +5094,6 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     });
   });
 
-  // --- lifecycle moves are recorded, so Restore reads instead of guessing ----
-  // Bead `ro-3085`. `assets.status` says where an asset IS; the timeline is what
-  // says where it has been, and a migration to add a column is operator-only.
   function annotationBody(fetchMock: ReturnType<typeof stubFetch>) {
     const call = fetchMock.mock.calls.find(
       ([input, init]) =>
@@ -5803,8 +5168,6 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     );
 
     const restore = await findByRole("button", { name: "Restore to Baselining" });
-    // The stage is a READ, so there is nothing to pick and no default to flag;
-    // the chip dates the move it read (bead `ro-ujb9.96.6.4`).
     expect(container.querySelector("[data-restore-default]")).toBeNull();
     expect(container.querySelector("[data-restore-stage]")).toBeNull();
     expect(queryByRole("button", { name: "Restore to Live" })).toBeNull();
@@ -5822,7 +5185,6 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
   it("reads the most recent archiving when the asset has been round the loop before", async () => {
     const data = payload();
     data.asset = { ...data.asset, status: "retired" };
-    // Newest first, exactly as the payload ships it.
     data.annotations = {
       items: [
         { id: 92, at: "2026-07-04T09:00:00.000Z", kind: "config", ref: "lifecycle:onboarding>retired", note: null },
@@ -5843,8 +5205,6 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     const fetchMock = stubFetch(200, data);
     const { container, findByRole } = renderRoute("meals.example", "", "settings");
 
-    // No record means no stage to name: a picker set to Live and a state chip,
-    // not a paragraph pointing at the Lifecycle card (bead `ro-ujb9.96.6.4`).
     const restore = await findByRole("button", { name: "Restore" });
     const picker = container.querySelector<HTMLSelectElement>("[data-restore-stage]")!;
     expect(picker.value).toBe("live");
@@ -5900,21 +5260,16 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     const { container, findByText } = renderRoute("meals.example", "", "settings");
 
     await findByText("Alert rules in force");
-    // The value still belongs on the asset page (doc 14 principle 10)…
     expect(container.textContent).toContain("False-positive rate");
-    // …but nothing here writes config/constants.json any more.
     const pointers = [...container.querySelectorAll("a")].map((a) =>
       a.getAttribute("href"),
     );
     expect(pointers).toContain("/settings#alert-rules");
     expect(container.textContent).not.toContain("Applies to every site");
-    // One link in the header's "All →" slot, not sentences pointing away (D44).
     expect(container.textContent).toContain("All sites' rules →");
     expect(container.textContent).not.toContain("Defaults live in Settings");
-    // One Save on this tab per this asset's own editable field: the display
-    // name, automation and whether it sends a nightly report at all (bead
-    // ro-ujb9.96.8 — this asset's own entry in a list, never a portfolio
-    // number). This fixture pushes, so neither pull knob renders.
+    // One Save per editable field: display name, automation, nightly report.
+    // This fixture pushes, so neither pull knob renders.
     expect(container.querySelectorAll("[data-knob-editor]")).toHaveLength(3);
   });
 
@@ -5931,8 +5286,6 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
       )!,
     );
 
-    // A store column, so it writes through the Worker and works in every
-    // deployment — no config lane involved (D18).
     await waitFor(() => {
       expect(patchBody(fetchMock)).toEqual({
         url: "/api/assets/meals.example",
@@ -5944,13 +5297,10 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
       });
     });
 
-    // Confirmed beside the field, not in a toast (bead ro-ujb9.96.7.12).
     const editor = field.closest("[data-knob-editor]") as HTMLElement;
     const undo = await within(editor).findByRole("button", { name: "Undo" });
     expect(toasts.success).not.toHaveBeenCalled();
 
-    // Undo is the same write with the values swapped, and `expect` is what was
-    // just saved — so it is refused in turn if somebody else moved the name.
     fireEvent.click(undo);
     await waitFor(() => {
       const patches = fetchMock.mock.calls.filter(
@@ -5969,9 +5319,6 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     const { container, findByText } = renderRoute("meals.example", "", "settings");
 
     await findByText("Identity");
-    // A field an operator cannot change says so where it sits: the value, a
-    // lock and "Fixed once added" — the words a register's locked column wears
-    // (bead `ro-ujb9.96.6.4`) — and no control to press.
     const fixed = [...container.querySelectorAll("[data-fixed-value]")];
     expect(fixed.map((node) => node.textContent)).toEqual([
       "meals.exampleFixed once added",
@@ -5981,8 +5328,6 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     expect(container.textContent).not.toContain("not a rename");
   });
 
-  // Bead ro-ujb9.77.10: the OS is the product, always called NoticeOS, so its
-  // row has no name to set. Its other settings stay.
   it("offers no name field on the OS's own row, and keeps the rest of its settings", async () => {
     const data = payload();
     data.asset = { ...data.asset, id: "root-os", displayName: "NoticeOS", domain: null, isOs: true };
@@ -5992,7 +5337,6 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     await findByText("Identity");
     expect(queryByLabelText("Display name")).toBeNull();
     expect(container.textContent).not.toContain("Display name");
-    // The id stays fixed, and the lifecycle and automation editors stay.
     expect([...container.querySelectorAll("[data-fixed-value]")].map((node) => node.textContent)).toContain(
       "root-osFixed once added",
     );
@@ -6037,14 +5381,6 @@ describe("AssetDetailRoute — failed detail read", () => {
     expect(container.textContent).toContain("Loading…");
   });
 });
-
-// ── the Tasks tab (bead `ro-l1ed.5`) ────────────────────────────────────────
-//
-// `/assets/:id/tasks` is the Tasks index with one prop set, so what is asserted
-// here is the SCOPING, not the board: that the project filter is pinned to this
-// asset, that the controls the page around it already answers are gone, and that
-// an asset with no spoke in `config/beads.json` says so instead of rendering an
-// empty queue nobody earned.
 
 /** The asset payload, the task-hub snapshot and the lane's own capability
  * answer, routed by URL — the Tasks tab reads all three. */
@@ -6138,17 +5474,11 @@ describe("AssetDetailRoute — Tasks tab", () => {
     const { container, findByText } = renderRoute("meals.example", "", "tasks");
 
     await findByText("Fix the recipe schema");
-    // Pinned, not filtered: the other project's row is not on this page at all,
-    // and there is no control offering to widen it back to the portfolio.
     expect(container.textContent).not.toContain("Somebody else's queue");
     expect(container.querySelector("#tasks-project")).toBeNull();
-    // The board is the index's, scoped — `data-tasks-board` carries which.
     expect(
       container.querySelector('[data-tasks-board="meals.example"]'),
     ).not.toBeNull();
-    // The asset's name is the page's header, so the board does not say it a
-    // second time (doc 14): the Project column is gone and every row's own id
-    // carries the prefix the header cannot give (bead `ro-78qo.12`).
     expect(
       [...container.querySelectorAll("th")].map((node) => node.textContent),
     ).not.toContain("Project");
@@ -6163,7 +5493,6 @@ describe("AssetDetailRoute — Tasks tab", () => {
 
     await findByText("Fix the recipe schema");
     const button = container.querySelector("[data-new-task]")!;
-    // The composer (`ro-l1ed.4`) takes its project from the board it opened on.
     expect(button.getAttribute("data-new-task-project")).toBe("meals.example");
   });
 
@@ -6183,21 +5512,15 @@ describe("AssetDetailRoute — Tasks tab", () => {
   });
 
   it("says how to wire a project rather than showing an empty queue", async () => {
-    // An asset the task hub has never heard of. "Nothing to do" and "nobody
-    // ever mapped this asset to a repo" are different facts, and only one of
-    // them is good news.
     stubFetchWithWork(payload(), workPayload([]));
     const { container, findByText } = renderRoute("meals.example", "", "tasks");
 
     await findByText("No task project for this site");
     expect(container.querySelector("[data-tasks-unwired]")).not.toBeNull();
-    // The fix is a door to the setting, not a paragraph about the projects
-    // file (bead `ro-ujb9.96.6.11`); still no register path on a view surface.
     const door = [...container.querySelectorAll("a")].find((a) => a.textContent?.startsWith("Add a task project"))!;
     expect(door.getAttribute("href")).toBe("/settings#task-hub");
     expect(container.textContent).not.toContain("config/beads.json");
     expect(container.querySelector("[data-tasks-filters]")).toBeNull();
-    // The tab stays quiet too: unknown is not zero.
     const tab = [...container.querySelectorAll('[role="tab"]')].find((t) =>
       t.textContent?.startsWith("Tasks"),
     )!;
@@ -6206,10 +5529,9 @@ describe("AssetDetailRoute — Tasks tab", () => {
 });
 
 describe("AssetDetailRoute — Settings manages the tracked panel", () => {
-  /** The detail read plus `GET /api/config` (can this deployment write files at
-   * all) and `PUT /api/config` (the write lane). The blanket stub above answers
-   * the payload to every URL, which makes the writability question say no — the
-   * exact opposite of what this surface is about. */
+  /** The detail read plus `GET /api/config` and `PUT /api/config`. The blanket
+   * stub answers the payload to every URL, which makes the writability
+   * question say no. */
   function stubPanelLanes(detail: AssetDetailPayload, writable = true) {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -6258,8 +5580,8 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     since: "2026-08-03",
   };
 
-  /** The portfolio cap the spend statement names. It is a KNOB the page already
-   * carries, not a second figure invented beside the control. */
+  /** The portfolio cap the spend statement names: a knob the page already
+   * carries. */
   const CAPPED = {
     owner: "config/constants.json" as const,
     note: "portfolio-wide",
@@ -6275,7 +5597,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     ],
   };
 
-  it("asks for a search source first when the site has none and tracks nothing (D44)", async () => {
+  it("asks for a search source first when the site has none and tracks nothing", async () => {
     const data = payload({ panelConfig: { trackedQueries: null, roster: null } });
     data.integrations = { ...data.integrations, lanes: [] };
     stubFetch(200, data);
@@ -6284,7 +5606,6 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     await findByText("Tracked search terms");
     const settings = container.querySelector<HTMLElement>("#tracked-panels")!;
     expect(settings.querySelector("[data-tracked-terms-needs-search]")).toHaveAttribute("href", "/assets/meals.example/sources");
-    // No meter, bill or refresh table over nothing.
     expect(settings.querySelector("[data-panel-spend]")).toBeNull();
     expect(settings.textContent).not.toContain("Panel refresh");
   });
@@ -6296,17 +5617,8 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     const { container, findByText } = renderRoute("meals.example", "", "settings");
 
     await findByText("Tracked search terms");
-    // ON SETTINGS IT OPENS OPEN (doc 14, bead `ro-78qo.25`). The closed state was
-    // the whole point on a VIEW surface; on the page whose job is the registers,
-    // a disclosure over a disclosure is one press for nothing. What the header
-    // states is unchanged, and it is the pair that costs money: the panel's own
-    // weekly bill and its size against the ceiling — the two figures that
-    // actually vary. 2 terms x 2 devices x $0.004 = $0.02.
+    // 2 terms x 2 devices x $0.004 = $0.02.
     const settings = container.querySelector<HTMLElement>("#tracked-panels")!;
-    // The PANEL is open — it is not a disclosure any more. What is behind one
-    // press is the term LIST inside it (`ro-78qo.25`), because 29 rows of two
-    // inputs and two Save buttons is the tail nobody edits daily; the two
-    // figures that cost money are on the face of the card either way.
     expect(settings.textContent).toContain("2 of 31 terms");
     expect(settings.textContent).toContain("$0.02 a week");
     const queries = settings.querySelector<HTMLDetailsElement>("details")!;
@@ -6314,15 +5626,12 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     expect(queries.querySelector("summary")!.textContent).toContain("Tracked queries");
     const spend = container.querySelector("[data-panel-spend]")!;
     expect(spend.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("2");
-    // The bill as facts (bead `ro-ujb9.96.6.4`): when, on how many devices, and
-    // the guard that already exists — a link to where it is edited.
     const bill = spend.querySelector("[data-panel-bill]")!;
     expect(bill.textContent).toContain("Weekly · Mondays");
     expect(bill.textContent).toContain("2 devices");
     expect(bill.querySelector('a[href="/settings#budget"]')!.textContent).toContain(
       "Data cap $25 / month",
     );
-    // …and no per-row price column, which would be one fact rendered twice.
     expect(container.textContent).not.toContain("$0.008");
   });
 
@@ -6355,11 +5664,8 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     );
   });
 
-  // ONE CLUSTER, ONE SPELLING (bead `ro-cnsj`). Grouping is an exact string
-  // match on the stored label, so relabelling one row of a cluster into a case
-  // variant makes two bets out of one — and the collector refuses this asset's
-  // WHOLE panel with `config_invalid` on the next Monday run. Loud, but a week
-  // late; the rule belongs where the label is typed.
+  // Grouping is an exact string match on the stored label, so a case variant
+  // would make two bets out of one and the collector would refuse the panel.
   it("refuses a relabel that would spell one cluster two ways", async () => {
     const fetchMock = stubPanelLanes(
       payload({
@@ -6393,11 +5699,6 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     expect(sentOps(fetchMock)).toBeUndefined();
   });
 
-  // AND THE SPELLING IS ONE CLICK AWAY (bead `ro-g318`). The refusal above is
-  // only fair if the operator can see the string they have to match: the Bet
-  // column offers the bets this panel already names, without any of them
-  // becoming a rule — naming a NEW bet is the common edit, and the register says
-  // this column's list is a suggestion rather than a value domain.
   it("offers the bets this panel already names as a picker, and still takes a new one", async () => {
     const fetchMock = stubPanelLanes(
       payload({
@@ -6422,13 +5723,11 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     ) as HTMLElement;
     const control = within(row).getByLabelText("Bet");
     const list = row.querySelector("datalist") as HTMLDataListElement;
-    // Each bet once, in file order — the labels already on screen.
     expect([...list.querySelectorAll("option")].map((o) => o.getAttribute("value"))).toEqual([
       "Item head",
     ]);
     expect(control).toHaveAttribute("list", list.id);
 
-    // A bet nobody has named yet is not refused: the list is a picker.
     fireEvent.change(control, { target: { value: "Chain calories" } });
     fireEvent.click(
       within(control.parentElement as HTMLElement).getByRole("button", { name: "Save" }),
@@ -6463,8 +5762,6 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
       within(control.parentElement as HTMLElement).getByRole("button", { name: "Save" }),
     );
 
-    // The row is stored as a bare string, so gaining a cluster rewrites the
-    // whole row — and the label it gains is the cluster's own spelling.
     await waitFor(() =>
       expect(sentOps(fetchMock)).toEqual([
         {
@@ -6486,8 +5783,6 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     const editor = container.querySelector(
       '[data-collection-editor="serp-panel-queries"]',
     ) as HTMLElement;
-    // Absence reads as the list's state beside its one next step, Add — never
-    // as an error, and never a sentence (bead ro-ujb9.96.6.22).
     expect(within(editor).getByText("None yet")).toBeInTheDocument();
     expect(editor.textContent).not.toContain("Add a term to start weekly tracking");
     fireEvent.click(within(editor).getByRole("button", { name: "Add" }));
@@ -6497,8 +5792,6 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     });
     fireEvent.click(within(form).getByRole("button", { name: "Add" }));
 
-    // The whole entry, at the holder's pointer: the wizard writes nothing here
-    // at birth, so the first term is what creates it.
     await waitFor(() =>
       expect(sentOps(fetchMock)).toEqual([
         {
@@ -6525,8 +5818,6 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
       within(editor).queryByRole("button", { name: "Remove meals.example…" }),
     ).not.toBeInTheDocument();
 
-    // The roster saves as it is picked (bead ro-ujb9.96.7.12): low risk and
-    // free, so there is no Save, and the outcome sits under the cell.
     const control = within(editor).getByLabelText("Daily refresh");
     expect(within(editor).queryByRole("button", { name: "Save" })).toBeNull();
     fireEvent.change(control, { target: { value: "false" } });
@@ -6544,11 +5835,8 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     );
   });
 
-  /**
-   * The asset's lanes as `config/integrations.json` holds them — `declared` is
-   * the file's own `status`, which is what the roster rule reads. Only the three
-   * search lanes matter to it.
-   */
+  /** The asset's lanes as `config/integrations.json` holds them; `declared` is
+   * the file's own `status`, which the roster rule reads. */
   function searchLanes(statuses: Record<string, string>) {
     return Object.entries(statuses).map(([id, declared]) => ({
       catalog: {
@@ -6572,10 +5860,6 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
         ref: null,
         since: "2026-07-06",
       },
-      // The per-asset mapping half (bead `ro-vu8d.4`) landed beside this
-      // fixture; these cases are about the roster rule, so the lane declares
-      // no mapping fields — and therefore nothing the register could answer
-      // for either (`ro-vu8d.16`).
       mapping: [],
         mappingSource: "fallback" as const,
     }));
@@ -6594,8 +5878,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     };
   }
 
-  /** Pick the roster's `enabled` cell — a pick is the save (bead
-   * ro-ujb9.96.7.12). */
+  /** Pick the roster's `enabled` cell; a pick is the save. */
   function saveRoster(container: HTMLElement, value: "true" | "false") {
     const editor = container.querySelector(
       '[data-collection-editor="signal-panels"]',
@@ -6605,12 +5888,8 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     return { editor, control };
   }
 
-  // TURNING THE ROW ON IS A CLAIM ABOUT ANOTHER FILE (bead `ro-uko8`).
-  // config/signal-panels.README.md's own validation fails a roster with this
-  // sentence, and until the Growth tab could write the row, a person reading
-  // that README beside the file was the check. A refresh over an asset with no
-  // live lane writes an EMPTY panel dir — indistinguishable on disk from a
-  // collapsed one (doc 20), the exact ambiguity the roster exists to prevent.
+  // A refresh over an asset with no live lane writes an empty panel dir,
+  // indistinguishable on disk from a collapsed one.
   it("refuses to switch the roster on for an asset with no live search lane", async () => {
     const fetchMock = stubPanelLanes(
       withLanes(
@@ -6627,7 +5906,6 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
       "enabled but no live search source in integrations.json",
     );
     expect(editor.textContent).toContain("gsc, ga4, bing-webmaster");
-    // Refused BEFORE it became a request — the whole point of checking here.
     expect(sentOps(fetchMock)).toBeUndefined();
   });
 
@@ -6690,45 +5968,12 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
       '[data-collection-editor="serp-panel-queries"]',
     ) as HTMLElement;
     expect(within(editor).queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
-    // The terms are still readable — read-only is a rendering, not a blank.
     expect(editor.textContent).toContain("big mac calories");
   });
 });
 
-// --- who owns this asset (bead `ro-aodz`) -----------------------------------
-//
-// It decides which accounts this asset's earnings are reported under (D5) and
-// whose paperwork covers it, and it used to be the first sentence of the
-// ad-network source's note — useful where it sat, and unfindable, because an
-// operator asking who owns an asset has no reason to open a revenue source.
-//
-// The fact is stored ONCE, as this asset's id on that entity's own list in
-// `config/entities.json`. So the picker does not write a copy of it: it MOVES
-// the id, which is why a change is two ops in one changeset.
-/**
- * THE THREE RULES THE SEARCH-CONTEXT STRIP CARRIES, FOLLOWING IT OFF OVERVIEW
- * (bead `ro-78qo.14`).
- *
- * doc 14 moved the DataForSEO strip from the asset Overview to the Search tab,
- * where the queries and pages it is context FOR already live, and the three
- * cases that guarded it were deleted with the surface they addressed. The rules
- * did not stop being true, so they are re-asserted here against the strip's new
- * shape: the money figure ranks above the counts, top 20 and the gained/lost
- * pair are stated separately rather than netted into one number, and a missing
- * link report reads as unavailable instead of as four zeros.
- */
-/**
- * ONE METRIC, ONE NUMBER, WHICHEVER TAB STATES IT (bead `ro-78qo.4`).
- *
- * The design review caught the asset page disagreeing with itself: the
- * Overview's strip said 25,452 search clicks over 28 days and Growth's chart
- * pair said 16,905, because Growth read Google alone where the strip added Bing
- * to it. Both were arithmetically fine and one of them was a lie.
- *
- * Both surfaces now render `metricWindow`. This renders the two tabs against the
- * SAME payload and asserts they print the same figure — the check the reviewer
- * had to do by eye, done by the suite.
- */
+/** Both tabs render `metricWindow`, so rendered against the same payload they
+ * must print the same figure. */
 describe("AssetDetailRoute — the Overview and Growth agree about a number", () => {
   /** Two providers, deliberately different sizes and different provisional
    * tails, so a tab reading only one of them lands on a visibly wrong figure. */
@@ -6778,8 +6023,6 @@ describe("AssetDetailRoute — the Overview and Growth agree about a number", ()
     expect(figure(growth.container, '[data-growth-chart="Clicks"]')).toContain(
       "1,001",
     );
-    // …and NOT Google's own 910, which is what it printed before the two
-    // surfaces shared one derivation.
     expect(figure(growth.container, '[data-growth-chart="Clicks"]')).not.toContain(
       "910",
     );
@@ -6796,9 +6039,7 @@ describe("AssetDetailRoute — the Overview and Growth agree about a number", ()
     await growth.findByText("Audience");
     const pair = figure(growth.container, '[data-growth-chart="Impressions"]');
 
-    // 9,100 + 910 = 10,010 -> "10K" on both. The FORMAT is part of the claim:
-    // one tab printing 10,010 beside another printing 10K is the same number
-    // twice and a reader who has to work that out.
+    // 9,100 + 910 = 10,010 -> "10K" on both; the format is part of the claim.
     expect(strip).toContain("10K");
     expect(pair).toContain("10K");
   });
@@ -6876,9 +6117,8 @@ describe("AssetDetailRoute — the Search tab's search context", () => {
 
   /** The cells of one strip, in the order the DOM draws them. */
   function cells(container: HTMLElement, strip: number): string[] {
-    // The strips themselves, not the cells inside them — a `SmallMultiple` is
-    // also a grid. Strip 0 is the one that stays visible; the rest live in the
-    // "More context" disclosure.
+    // The strips themselves, not the cells: a `SmallMultiple` is also a grid.
+    // Strip 0 stays visible; the rest are in the "More context" disclosure.
     const strips = [
       ...container.querySelectorAll(
         "#search-context > .grid, #search-context [data-context-more] > .grid",
@@ -6890,33 +6130,22 @@ describe("AssetDetailRoute — the Search tab's search context", () => {
   }
 
   it("leads the search context with the dollar value, above every count", async () => {
-    // The one figure here denominated in something the operator spends, and the
-    // question the counts beside it are evidence for: what are these rankings
-    // worth? It led the section on Overview and it leads the strip here.
     stubFetch(200, withIntelligence());
     const { container, findByText } = renderRoute("meals.example", "", "search");
 
     await findByText("Search context");
     const rankings = cells(container, 0);
-    // Ahrefs' word for it, and both halves of what it is on the line under it:
-    // no hover needed (bead `ro-ujb9.96.6.5`).
     expect(rankings[0]).toContain("Traffic value");
     expect(rankings[0]).toContain("$2,410");
     expect(rankings[0]).toContain("1,320 visits a month, priced as ads");
-    // …and the counts follow it rather than opening the strip.
     expect(rankings.slice(1).join(" ")).toContain("Keywords");
     expect(rankings.slice(1).join(" ")).toContain("184");
-    // "Modelled" and the snapshot's date are the caption; no explainer.
     const label = container.querySelector("#search-context h2")!.parentElement!;
     expect(label.textContent).toContain("Modelled · Jul 27, 2026");
     expect(label.querySelector("[data-info-tooltip-trigger]")).toBeNull();
   });
 
-  it("gives the top-20 count and the link movement cells of their own (bead ro-dqh)", async () => {
-    // Top 20 rode inside the Top 10 tile's string once, and gained/lost existed
-    // only as a derived net nobody could take apart. An asset that gained 11 and
-    // lost 4 is not an asset that gained 7, and the net was the only shape
-    // either number had.
+  it("gives the top-20 count and the link movement cells of their own", async () => {
     stubFetch(200, withIntelligence());
     const { container, findByText } = renderRoute("meals.example", "", "search");
 
@@ -6932,18 +6161,13 @@ describe("AssetDetailRoute — the Search tab's search context", () => {
     expect(links.some((cell) => cell.startsWith("Lost") && cell.includes("4"))).toBe(
       true,
     );
-    // Every metered figure the weekly pull retains has a cell of its own.
     for (const value of ["6", "21", "9", "3,480", "212", "27,000", "8,100"]) {
       expect(container.querySelector("#search-context")!.textContent).toContain(value);
     }
-    // Nothing nets the two movements together.
     expect(container.textContent).not.toContain("net referring");
   });
 
   it("says the link report is unavailable rather than printing zeros", async () => {
-    // `backlinks: null` is a report the asset has no retained pull for. Four
-    // zeros would be four claims: no linking domains, none gained, none lost,
-    // no links — and the honest answer to all four is that nobody looked.
     stubFetch(200, withIntelligence({ backlinks: null }));
     const { container, findByText } = renderRoute("meals.example", "", "search");
 
@@ -6959,9 +6183,7 @@ describe("AssetDetailRoute — the Search tab's search context", () => {
     }
   });
 
-  it("says an AI mention figure was not reported rather than printing zero (ro-8s5)", async () => {
-    // DataForSEO answered Google's platform row with no figures. A zero would
-    // claim nobody mentions the property there; nobody measured it.
+  it("says an AI mention figure was not reported rather than printing zero", async () => {
     stubFetch(
       200,
       withIntelligence({
@@ -6982,7 +6204,6 @@ describe("AssetDetailRoute — the Search tab's search context", () => {
       ),
     ].map((cell) => cell.textContent?.trim() ?? "");
     const cell = (label: string) => all.find((entry) => entry.startsWith(label))!;
-    // No total over an unknown half.
     expect(cell("AI mentions")).toContain("—");
     expect(cell("AI mentions")).toContain("Google not reported");
     expect(cell("AI mentions")).toContain("3 ChatGPT");
@@ -6995,7 +6216,7 @@ describe("AssetDetailRoute — the Search tab's search context", () => {
 
 describe("the Settings tab — the owning entity", () => {
   const ENTITIES = [
-    { slug: "reindex-ventures", name: "Reindex Ventures LLC", form: "LLC", assets: ["meals.example"] },
+    { slug: "example-ventures", name: "Example Ventures LLC", form: "LLC", assets: ["meals.example"] },
     { slug: "second-co", name: "Second Co" },
   ];
 
@@ -7038,10 +6259,10 @@ describe("the Settings tab — the owning entity", () => {
     renderRoute("meals.example", "", "settings");
 
     const picker = (await screen.findByLabelText("Owning entity")) as HTMLSelectElement;
-    expect(picker.value).toBe("reindex-ventures");
+    expect(picker.value).toBe("example-ventures");
     expect([...picker.options].map((o) => o.textContent)).toEqual([
       "Nobody has said",
-      "Reindex Ventures LLC · LLC",
+      "Example Ventures LLC · LLC",
       "Second Co",
     ]);
   });
@@ -7066,8 +6287,6 @@ describe("the Settings tab — the owning entity", () => {
           expect: ["meals.example"],
           value: [],
         },
-        // The entity that has never owned anything carries no list at all, so
-        // its first asset is the one set that says the key was absent.
         {
           kind: "file-json-set",
           file: "config/entities.json",
@@ -7079,8 +6298,6 @@ describe("the Settings tab — the owning entity", () => {
     );
   });
 
-  // Bead ro-ujb9.96.6.4: the empty row's value is the way to declare one, not
-  // a sentence saying where that is.
   it("offers no picker before any entity is declared; its value is the link that declares one", async () => {
     stubWithEntities([]);
     const { container } = renderRoute("meals.example", "", "settings");
@@ -7132,10 +6349,6 @@ describe("Growth headline and chart date scopes", () => {
     expect(scope).toHaveAttribute("data-window-end", day(-1));
     expect(within(chart).getByText(`Chart · ${dates(range)[1]}`)).toBeVisible();
 
-    // The chart help stays reachable by keyboard and touch, with one trigger.
-    // The headline period and the chart period are both printed above the
-    // plot, so the help adds only what is not: how many of the headline days
-    // each provider reported, as counts (bead `ro-ujb9.96.6.5`).
     const help = within(chart).getByRole("button", { name: /^About Chart/ });
     expect(chart.querySelectorAll("[data-info-tooltip-trigger]")).toHaveLength(1);
     fireEvent.focus(help);
@@ -7350,12 +6563,7 @@ describe("Growth provider annotations on the current chart", () => {
   });
 });
 
-/**
- * Bead ro-ujb9.136: with Bing's clicks collected and no tracked term, the
- * Search tab rendered "Analysis 0s ago · Not rechecked" over an empty page —
- * every section drew only from a tracked panel, decisions or search context.
- */
-describe("the Search tab before any tracked term (ro-ujb9.136)", () => {
+describe("the Search tab before any tracked term", () => {
   /** Twenty-eight days of Bing ending on the fixture's last reported day. */
   const bing = (value: number) => ({
     series: Array.from({ length: 28 }, (_, index) => ({
@@ -7387,23 +6595,19 @@ describe("the Search tab before any tracked term (ro-ujb9.136)", () => {
     [...panel.querySelectorAll<HTMLElement>("a, button")].filter((node) => !node.closest("[data-hero-chart]") && !node.closest("[role='tooltip']"));
 
   it("shows the site's clicks and impressions and one step to tracking terms", async () => {
-    // The reads answered: nothing is connected.
     connections.credentials = new Map();
     connections.items = [];
     stubFetch(200, untracked(true));
     const { container } = renderRoute("meals.example", "", "search");
     await waitFor(() => expect(container.querySelector('[data-search-start="numbers"]')).not.toBeNull());
     const start = container.querySelector<HTMLElement>('[data-search-start="numbers"]')!;
-    // Growth's own pair, so the clicks are one fact on both tabs: 28 × 20.
     expect(start.querySelector('[data-growth-chart="Clicks"]')).toHaveTextContent("560 from search");
     expect(start.querySelector('[data-growth-chart="Impressions"]')).not.toBeNull();
-    // One step: tracked terms are bought through DataForSEO, not connected yet.
     const next = start.querySelector<HTMLElement>("[data-search-next]")!;
     expect(next).toHaveTextContent("Tracked terms");
     expect(within(next).getByRole("link", { name: "Connect DataForSEO" }))
       .toHaveAttribute("href", "/integrations?connect=dataforseo&asset=meals.example");
     expect(within(next).getAllByRole("link")).toHaveLength(1);
-    // Nothing about an analysis that has nothing to say here.
     expect(container.textContent).not.toContain("Not rechecked");
   });
 
@@ -7415,7 +6619,6 @@ describe("the Search tab before any tracked term (ro-ujb9.136)", () => {
     await waitFor(() => expect(container.querySelector('[data-search-start="none"]')).not.toBeNull());
     const start = container.querySelector<HTMLElement>('[data-search-start="none"]')!;
     expect(start).toHaveTextContent("No search numbers yet");
-    // The first search source by name, the one its Data sources lead with.
     const connect = within(start).getByRole("link", { name: "Connect Bing Webmaster Tools" });
     expect(connect).toHaveAttribute("href", "/integrations?connect=bing-webmaster&asset=meals.example");
     expect(actions(start)).toEqual([connect]);

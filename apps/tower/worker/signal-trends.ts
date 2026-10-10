@@ -1,40 +1,21 @@
 // Signal trends — every asset's charted GA4, Search Console and Bing series,
-// read from the append-only log of collection runs and the values they changed
-// (on Postgres since bead ro-ujb9.76.5.3: `noticeos.signal_runs`,
-// `measurement_series` and `signal_observations`).
-//
-// ONE DERIVATION, TWO SURFACES (`ro-elf`). The Wall's asset cards and the asset
-// page's performance section both call `loadSignalTrends`; the asset page only
-// narrows the same SQL to one asset (`ro-48p.2`). Two copies of this read are
-// how two surfaces come to disagree about one asset, so neither page builder
-// owns it: both compose it from here. Pure over an injected store, so the
-// tests run this exact SQL against a Postgres copy: the series, and the dated
-// timezone changes (the annotations, on Postgres since bead ro-ujb9.76.5.7).
+// read from the append-only log of collection runs and the values they
+// changed (`noticeos.signal_runs`, `measurement_series`,
+// `signal_observations`). The Wall's asset cards and the asset page's
+// performance section both call `loadSignalTrends`; the asset page only
+// narrows the same SQL to one asset.
 
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import { signalEvidenceFloor } from "./integration-evidence";
 import type { SignalTrend, SignalTrendSet, TimeZoneChangePoint } from "../shared/wall";
 
 /** Compact asset cards keep four complete weeks legible at every viewport.
- * This is the DRAWN window and nothing else touches it — see below. */
+ * This is the drawn window. */
 export const WALL_SIGNAL_CHART_DAYS = 28;
-/**
- * The days carried BEFORE the drawn window, as `SignalTrend.contextSeries`.
- *
- * SEVEN UNTIL `ro-78qo.35`, WHEN IT BECAME SIXTY-TWO. Seven was enough for the
- * one job context had: a rolling seven-day average whose first visible point is
- * already an average rather than a stub. But /assets reads this same payload
- * and doc 14 gives every surface a 7 · 28 · 90 range, and there was no third
- * range to offer — a 90d button drawing 28 days of line would be the page lying
- * about its own window.
- *
- * SIXTY-TWO IS CHOSEN SO CONTEXT PLUS CHART IS NINETY. The split is what keeps
- * this safe: `series` is still exactly the Wall's four weeks, so the TV's card
- * chart, `wall:fit` and every existing reader are untouched by construction,
- * and a desk surface asking for ninety days reads `[...contextSeries,
- * ...series]` and windows it. Nothing needed a render change to stay correct,
- * because nothing has ever drawn `contextSeries` as chart days.
- */
+/** The days carried before the drawn window, as `SignalTrend.contextSeries`:
+ * sixty-two, so context plus chart is the desk's ninety-day range. `series`
+ * stays exactly the Wall's four weeks; a desk surface reads
+ * `[...contextSeries, ...series]` and windows it. */
 const SIGNAL_CHART_CONTEXT_DAYS = 62;
 
 type SignalSeriesRow = {
@@ -53,30 +34,20 @@ function toNum(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Options for the shared trend loader.
- *
- * Both exist because the two callers render different things and neither should
- * pay to read rows it would drop — the filter is in the SQL, not a post-pass.
- * `includeWebSearch`: the asset page charts Google/Bing clicks and
- * impressions; the Wall's asset card charts neither, since the card gave
- * that space to the work widget and search history lives on the asset page
- * (doc 10, 2026-08-01). `includeSecondarySeries`: the asset page's
- * supporting sparkline row is the only reader of the GA4 volume metrics and the
- * two Search Console rate metrics. */
+/** Options for the shared trend loader. The filters are in the SQL, not a
+ * post-pass, so neither caller pays to read rows it would drop.
+ * `includeWebSearch`: Google/Bing clicks and impressions.
+ * `includeSecondarySeries`: the GA4 volume metrics and the two Search Console
+ * rate metrics, which only the asset page's supporting row reads. */
 export interface SignalTrendOptions {
   includeWebSearch?: boolean;
   includeSecondarySeries?: boolean;
   includeSessions?: boolean;
-  /** One asset, narrowed IN THE SQL. The asset page draws one card and
-   * used to compute the whole portfolio's trend to get it (`ro-48p.2`); this is
-   * the same query with one more equality, deliberately not a second query —
-   * the Wall and the page share one derivation so they cannot disagree about a
-   * asset (`ro-elf`). Absent means the whole portfolio, as before. */
+  /** One asset, narrowed in the SQL: the same query with one more equality,
+   * deliberately not a second query. Absent means the whole portfolio. */
   asset?: string;
-  /** Several assets, narrowed the same way (bead `ro-ujb9.102`): the Wall's
-   * revenue projection needs traffic only for the assets that report daily
-   * revenue, and read the whole portfolio's to use one of them. Ignored when
-   * `asset` is given; an empty list reads nothing. */
+  /** Several assets, narrowed the same way. Ignored when `asset` is given; an
+   * empty list reads nothing. */
   assets?: readonly string[];
   /** When "now" is, for the evidence floor below. Defaults to the wall clock so
    * a caller that does not care need not thread it. */
@@ -104,8 +75,8 @@ export function emptySignalTrendSet(): SignalTrendSet {
   };
 }
 
-/** Which series one observation belongs to, or null when the caller did not ask
- * for that metric (the SQL filters it out, so this is the belt to that braces). */
+/** Which series one observation belongs to, or null when the caller did not
+ * ask for that metric. */
 function trendFor(
   set: SignalTrendSet,
   integration: SignalSeriesRow["integration"],
@@ -131,15 +102,9 @@ function trendFor(
 }
 
 /**
- * Every series in the set, each paired with the INTEGRATION that reported it.
- *
- * The pairing is `trendFor` read backwards, and it exists because some of what
- * a trend carries is filed against a PROVIDER rather than against the asset
- * (`ro-kukv.11`). A reporting timezone is a setting on one provider's property:
- * a GA4 property changing its clock changes what a GA4 day is and says nothing
- * whatsoever about what a Search Console day is. Stamping every series of an
- * asset with every change filed for it would paint a GA4 fact onto a GSC line —
- * a knowingly wrong mark, which is worse than an unmarked one.
+ * Every series in the set, each paired with the integration that reported it.
+ * A reporting timezone is a setting on one provider's property, so a change
+ * filed for GA4 must never be stamped onto a Search Console line.
  */
 function everyTrend(
   set: SignalTrendSet,
@@ -161,22 +126,11 @@ function everyTrend(
 /**
  * The reporting-timezone changes filed on a UTC day after `earliestPoint`
  * ($1), for the assets in $2 when the read is narrowed (`narrowedTo` > 0), or
- * for every asset (bead `ro-ujb9.102`).
- *
- * A change is kept for a series only when it is dated after that series' first
- * point, so nothing on or before the earliest first point of any series can
- * reach a chart. The read therefore starts there, and it is a range seek on
- * the annotations' (site, time) index per asset instead of a pass over every
- * annotation ever filed. On Postgres (bead ro-ujb9.76.5.7):
- *
- *  - "a day after" is an instant bound, the next UTC midnight, so the index
- *    seeks it; D1 compared the first ten characters of its text.
- *  - Driven from the site list, one seek per site (`LATERAL`), because the
- *    index leads with the site. `OFFSET 0` keeps each site's read its own:
- *    without it Postgres flattens the join into one pass over every site's
- *    changes since the bound, which the index cannot seek. An annotation's
- *    site is always a listed site.
- *  - The change's number breaks a tie between two filed at the same instant.
+ * for every asset. A change is kept for a series only when it is dated after
+ * that series' first point, so the read starts there as a range seek on the
+ * annotations' (site, time) index per site (`LATERAL`; `OFFSET 0` keeps each
+ * site's read its own, where Postgres would flatten the join into one pass).
+ * The change's number breaks a tie between two filed at the same instant.
  */
 export function timeZoneChangesSql(narrowedTo: number): string {
   return `SELECT a.asset_id AS asset, (n.at AT TIME ZONE 'UTC')::date AS "effectiveOn", n.ref AS ref
@@ -200,17 +154,15 @@ function timeZoneChangeKey(asset: string, integration: string): string {
 }
 
 /**
- * The trend read's statement, for the metrics a caller asked for. `$1` is the
- * evidence floor, `$2` the days before a lane's newest window end the read
- * reaches back, and `$3`, when `narrowed`, the sites it is narrowed to.
- *
- * The lanes are spelled out, the three the collectors write, so each (site,
- * lane) pair is one seek. The values come through the series of the latest
- * run's property, a seek per series on its (series, day) index, and each is
- * kept only when its run succeeded and finished inside the window. Each step
- * is LATERAL on the one before and fenced (`OFFSET 0`, which keeps Postgres
- * from flattening it), so that is the order Postgres takes them in whatever
- * its statistics say. Text is ordered byte by byte, as D1 ordered it.
+ * The trend read's statement, for the metrics a caller asked for. `$1` is
+ * the evidence floor, `$2` the days before a lane's newest window end the
+ * read reaches back, and `$3`, when `narrowed`, the sites it is narrowed to.
+ * The lanes are spelled out so each (site, lane) pair is one seek. The values
+ * come through the series of the latest run's property, a seek per series on
+ * its (series, day) index, kept only when the run succeeded and finished
+ * inside the window. Each step is LATERAL on the one before and fenced
+ * (`OFFSET 0`), so Postgres takes them in that order whatever its statistics
+ * say. Text is ordered byte by byte.
  */
 export function signalTrendsSql(options: {
   includeWebSearch: boolean;
@@ -279,44 +231,23 @@ SELECT DISTINCT ON (latest.asset COLLATE "C", latest.integration COLLATE "C", wr
 
 /**
  * Every asset's charted signal series, keyed by asset id — or one asset's,
- * when `asset` is given.
+ * when `asset` is given. Two bounds make this affordable over a log that only
+ * grows: the latest successful run per (asset, lane) is a `LIMIT 1` seek down
+ * `signal_runs_latest`, floored at `signalEvidenceFloor`; and the self-join
+ * back over that pair's prior runs (the change log) is floored at the day the
+ * observation window starts, which is exact, since a run's observations never
+ * cover dates after the day it finished.
  *
- * Two bounds make this affordable over an append-only log that only grows, and
- * they are different KINDS of bound (`ro-48p.1`):
+ * One provider resource per series: the self-join reads only prior runs of
+ * the latest successful run's `property_ref`, so an asset repointed at another
+ * property drops the old one's days rather than splicing them in.
+ * `credential_ref` is not part of this (rotating a key keeps the series), and
+ * neither is `time_zone` (a change stays one series, marked by the dated
+ * annotations).
  *
- *   - the latest successful run per (asset, lane) is a `LIMIT 1` seek per pair
- *     down the runs' latest-first index (`signal_runs_latest`), floored at
- *     `signalEvidenceFloor`. It used to be a ROW_NUMBER() ranking of every run
- *     ever written — a full index scan plus two sorts to keep at most eighteen
- *     rows;
- *   - the self-join back over that pair's PRIOR runs (the change log: a value
- *     unchanged since March was written by March's run) is floored at the same
- *     day the observation window starts. That bound is exact, not generous: a
- *     run's observations only ever cover dates up to its own `window_end`, which
- *     is never after the day it finished, so a run that finished before the
- *     window opened cannot hold a value inside it.
- *
- * ONE PROVIDER RESOURCE PER SERIES (`ro-ujb9.70`). The self-join reads only
- * prior runs of the latest successful run's `property_ref`. An asset repointed
- * at another GA4 property or Search Console site is measuring a different
- * resource, so days only the old one reported fall out of the chart instead of
- * being spliced in front of the new one's line. The collector records a
- * switched-to property's whole window on its first run, so the new line starts
- * as far back as the provider reports. `credential_ref` is not part of this:
- * rotating the key that reads the same resource keeps the whole series. Neither
- * is `time_zone`: a reporting-timezone change on one property stays one series,
- * and the dated annotations below mark where its day definition moved.
- *
- * THE NEWEST WRITE OF A DAY is the one whose run finished last, and between two
- * runs that finished in the same instant the one written last (its
- * observation's identity): `ORDER BY r.finished_at DESC, o.observation_id DESC`,
- * kept once per (asset, lane, day, metric) with `DISTINCT ON`, whose sort is
- * also the output order. On D1 `finished_at` was text and compared as text
- * (bead `ro-ujb9.110`); on Postgres it is an instant (bead ro-ujb9.76.5.3), so
- * two spellings of one instant are one instant.
- *
- * `store` is this call's Postgres store, where the runs and their values are,
- * and the dated timezone changes (the annotations, bead ro-ujb9.76.5.7).
+ * The newest write of a day is the one whose run finished last, then the one
+ * written last: `ORDER BY r.finished_at DESC, o.observation_id DESC`, kept
+ * once per (asset, lane, day, metric) with `DISTINCT ON`.
  */
 export async function loadSignalTrends(
   store: WorkspaceStore,
@@ -348,20 +279,11 @@ export async function loadSignalTrends(
     )
   ).map((row) => ({ ...row, finishedAt: javascriptInstant(row.finishedAt) }));
 
-  // The reporting-timezone changes the collector filed on the timeline
-  // (`ro-tzq`). The changes are read rather than the runs because
-  // that is where the change is DATED to the day the two day-definitions
-  // diverged; a run row only says what timezone that run used, which cannot
-  // tell a reader when the boundary moved.
-  //
-  // Keyed by asset AND integration (`ro-kukv.11`): the ref names the provider
-  // whose property moved, and that is the only series set the move is evidence
-  // about. Filing them all under the asset lost that, so every chart of the
-  // asset would have carried every provider's changes.
-  //
-  // Only changes AFTER a series' first point are ever kept (below), so the
-  // read starts at the earliest first point of any series (`ro-ujb9.102`).
-  // It used to read every annotation in the store, every poll.
+  // The reporting-timezone changes the collector filed on the timeline, read
+  // rather than the runs because that is where the change is dated to the day
+  // the two day-definitions diverged. Keyed by asset and integration: the ref
+  // names the provider whose property moved. Only changes after a series'
+  // first point are ever kept, so the read starts at the earliest first point.
   const timeZoneChanges = new Map<string, TimeZoneChangePoint[]>();
   const earliestPoint = rows.reduce<string | null>(
     (earliest, row) => (earliest === null || row.date < earliest ? row.date : earliest),
@@ -399,10 +321,8 @@ export async function loadSignalTrends(
   }
   for (const [assetId, entry] of map.entries()) {
     for (const { trend, integration } of everyTrend(entry)) {
-      // This provider's changes and no other's, then only the ones inside THIS
-      // series' own range: a change from before the first point cannot split a
-      // window that starts after it, and carrying it would mark comparisons
-      // that are entirely one-sided.
+      // This provider's changes and no other's, then only the ones inside
+      // this series' own range.
       const changes =
         timeZoneChanges.get(timeZoneChangeKey(assetId, integration)) ?? [];
       const first = trend.series[0]?.t;

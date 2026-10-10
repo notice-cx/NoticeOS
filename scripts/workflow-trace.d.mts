@@ -11,8 +11,8 @@ export interface WorkflowRecorder {
 }
 /**
  * `failed` hears each step's own error as it is recorded, so the caller can
- * write it where "Check the service logs" sends the operator (bead
- * ro-ujb9.173). The recorder itself still does no I/O and keeps no error.
+ * write it where "Check the service logs" sends the operator. The recorder
+ * itself still does no I/O and keeps no error.
  */
 export declare function createWorkflowRecorder({ now, changed, failed }?: {
     now?: () => number;

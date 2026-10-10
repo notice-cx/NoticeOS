@@ -19,13 +19,10 @@ import { emptyIntegrationsHistory } from "../shared/integrations";
 import { type TestStore, createTestStore, postgresUnavailable } from "./postgres-store";
 
 
-// The daily rollup behind /health's strip and its freshness chart (db/0033,
-// bead `ro-78qo.30`), on Postgres since bead ro-ujb9.76.5.6.
-//
-// The hourly tick's Tower step writes it (bead `ro-ujb9.96.7.31`; the step and
-// the read-only page build are pinned in integrations-payload.test.ts). These
-// cases are about the arithmetic and the upsert. A test that records takes a
-// Postgres copy of its own (test/sites.ts).
+// The daily rollup behind /health's strip and its freshness chart. The hourly
+// tick's Tower step writes it (the step and the read-only page build are
+// pinned in integrations-payload.test.ts); these cases are about the
+// arithmetic and the upsert. A test that records takes a Postgres copy of its own.
 
 const NOW = new Date("2026-09-05T09:00:00.000Z");
 const needsPostgres = describe.skipIf(postgresUnavailable() !== null);
@@ -195,7 +192,7 @@ needsPostgres("recording a day of the integrations matrix", () => {
     expect(connectionHistoryPayload(await loadConnectionHistory(await store())).states.degraded).toEqual([]);
   });
 
-  it("orders the day's data sources byte by byte, as D1 did", async () => {
+  it("orders the day's data sources byte by byte", async () => {
     await recordConnectionDay(
       await store(),
       matrix({ catalog: [{ ...matrix().catalog[0]!, id: "a-lower" }, { ...matrix().catalog[0]!, id: "Z-upper" }],
@@ -219,8 +216,7 @@ describe("what a lane's day says", () => {
   });
 
   it("carries no evidence date at all when nothing was dated", () => {
-    // Not "infinitely stale" and certainly not fresh — the lane gave nothing to
-    // date, which is a gap.
+    // Not "infinitely stale" and certainly not fresh: the lane gave nothing to date.
     expect(laneDay([cell("needs-setup")]).newestEvidenceAt).toBeNull();
   });
 });
@@ -269,8 +265,7 @@ needsPostgres("the payload shape", () => {
     await recordConnectionDay(await store(), matrix(), NOW);
 
     const payload = connectionHistoryPayload(await loadConnectionHistory(await store()));
-    // Two days, and zero would have been a third sentence again: it is there
-    // and holds nothing yet.
+    // Two days, and zero would be a third sentence: it is there and holds nothing yet.
     expect(payload.days).toBe(2);
     expect(payload.states.live.map((point) => point.t)).toEqual(["2026-09-03", "2026-09-05"]);
   });

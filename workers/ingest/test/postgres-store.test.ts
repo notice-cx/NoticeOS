@@ -1,7 +1,5 @@
-// THIS WORKER'S RUNTIME REACHES POSTGRES THE WAY THE DEPLOYED WORKER WILL
-// (epic ro-ujb9.76).
-//
-// Inside workerd, through the `POSTGRES` Hyperdrive binding (a local
+// This Worker's runtime reaches Postgres the way the deployed Worker will:
+// inside workerd, through the `POSTGRES` Hyperdrive binding (a local
 // Hyperdrive: a TCP pipe to the run's throwaway cluster, vitest.config.ts),
 // with the one helper every Worker and script uses (@noticeos/postgres): the
 // store names the installation's one workspace, a transaction runs as

@@ -1,10 +1,8 @@
-// A token per site, pasted on its row in the connect panel (Clarity, bead
-// `ro-ujb9.96.7.9`).
-//
-// WHAT IS PROTECTED: a pasted token is saved at once and leaves the screen;
-// typing waits for Enter or leaving the field; a refusal is said on its row;
-// held sites wear the connection model's status; and Run now says what it
-// spends and runs only for sites holding a token with calls to spare.
+// A token per site, pasted on its row in the connect panel (Clarity): a
+// pasted token is saved at once and leaves the screen; typing waits for Enter
+// or leaving the field; a refusal is said on its row; held sites wear the
+// connection model's status; and Run now says what it spends and runs only
+// for sites holding a token with calls to spare.
 
 import { act, fireEvent, render, screen, within } from "./render";
 import { describe, expect, it, vi } from "vitest";

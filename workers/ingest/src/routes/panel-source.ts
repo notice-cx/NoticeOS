@@ -1,14 +1,10 @@
-// GET /api/panel-source    — what the standing panel refresh needs from D1.
+// GET /api/panel-source    — what the standing panel refresh needs from the store.
 // GET /api/signal-archives — the same manifest, filtered the way an operator
 //                            asks for it by hand (`pnpm signals:download`).
 // GET /api/panel-object    — one archived provider response, decompressed.
 //
-// Operator-authed and READ-ONLY. The callers are `scripts/signal-panels-refresh.mjs`
-// and `scripts/signal-dumps-download.mjs` in the local runner, neither of which
-// can reach D1 or R2 without starting a second workerd over the store (see
-// ../panel-source.ts for why that is the thing being avoided). These three are
-// the seam: the Worker owns the store, the scripts own the filesystem, and
-// nothing under scripts/ opens the sqlite file twice.
+// Operator-authed and read-only: the Worker owns the store, the local runner's
+// scripts own the filesystem, and these three routes are the seam.
 
 import { authenticateOperator } from '../auth.js';
 import { json } from '../responses.js';
@@ -49,19 +45,11 @@ function filterParam(url: URL, name: string): string | null {
 }
 
 /**
- * The archive manifest, filtered — the read behind `pnpm signals:download`.
- *
- * Separate from `/api/panel-source` because the two questions differ in the one
- * way that matters. The refresh asks "what landed inside my window?" and gets
- * the trend series with it; an operator asks "give me GSC for July", names an
- * explicit range or none at all, and never wants the daily series. Folding both
- * into one route would mean either a window imposed on the hand lane — silently
- * dropping the history it asked for — or a trend query computed over the whole
- * archive for a caller that discards it.
- *
- * A malformed filter is a 400 rather than a filter quietly ignored: an operator
- * who mistyped `--from` must not be handed a wider answer than they asked for
- * and left to notice.
+ * The archive manifest, filtered. Separate from `/api/panel-source`: the
+ * refresh asks what landed inside its window and gets the trend series with
+ * it; an operator names an explicit range or none, and never wants the daily
+ * series. A malformed filter is a 400 rather than a filter quietly ignored, so
+ * a mistyped `--from` is never handed a wider answer than asked for.
  */
 export async function handleSignalArchives(
   request: Request,

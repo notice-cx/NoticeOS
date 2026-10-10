@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// SYNTHETIC PROVIDER ARCHIVES FOR THE ARCHIVE READERS' PROOFS (bead ro-ujb9.67.1).
+// Synthetic provider archives for the archive readers' proofs.
 //
 // Signal archives in the downloads layout `signals:refresh` and
 // `signals:download` write — `<integration>/<report>/<reportDate>.json` beside a
@@ -870,7 +870,7 @@ export async function writeGrowingArchive(dir, count, rows = 200) {
   }
 }
 
-/** The frozen value-event declarations every archive proof reads (bead ro-ujb9.97). */
+/** The frozen value-event declarations every archive proof reads. */
 export async function fixtureValueEvents() {
   return {
     body: JSON.parse(await fs.readFile(path.join(REPO_ROOT, 'scripts', 'fixture-config', 'value-events.json'), 'utf8')),

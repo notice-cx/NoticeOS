@@ -1,6 +1,6 @@
 // pnpm --filter @noticeos/tower run journey:install [--with-deps] [--dry-run]
 //
-// Installs the pinned Chromium the journeys run in (bead ro-ujb9.181) into
+// Installs the pinned Chromium the journeys run in into
 // JOURNEY_BROWSERS, an absolute path under this checkout, and says where, so
 // the install and the journeys agree from any checkout or worktree. Every
 // argument goes to `playwright install chromium`: --with-deps adds Linux

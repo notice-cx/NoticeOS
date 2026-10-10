@@ -1,9 +1,5 @@
-// Which month's money leads, and what to call it — the one rule Home's money
-// tile, the Assets page and the Wall's revenue figure read (bead `ro-pbzu.3`).
-// It lived in `components/bands/PortfolioBand.tsx` beside the old Wall's
-// portfolio card; since D28 took that card off the Wall (bead `ro-trai.11`) it
-// lives here, so the TV downloads the rule without the card, and the card is
-// gone (bead `ro-trai.20`).
+// Which month's money leads, and what to call it: the one rule Home's money
+// tile, the Assets page and the Wall's revenue figure read.
 
 import {
   figureHasMoney,
@@ -20,8 +16,8 @@ import {
  * different numbers for one month. `null` means the band has no ledger row at
  * all (`portfolioHasData`), which is a surface's reason to say so in one line.
  *
- * FORECAST LEADS whenever it carries money: a reconciled $0 for a month whose
- * estimates already carry money is the worse headline (see `PortfolioBand`).
+ * Forecast leads whenever it carries money: a reconciled $0 for a month whose
+ * estimates already carry money is the worse headline.
  */
 export function portfolioHeadline(
   band: PortfolioData,

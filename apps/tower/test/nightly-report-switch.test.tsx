@@ -1,7 +1,7 @@
-// The asset Settings switch that declares "sends no nightly report" (bead
-// ro-ujb9.96.8). What it writes is the whole contract with the rest of the
-// OS: one list at config/constants.json /no_nightly_report, guarded by exactly
-// what the page read, created by the first declaration and removed by its Undo.
+// The asset Settings switch that declares "sends no nightly report". What it
+// writes is the whole contract with the rest of the OS: one list at
+// config/constants.json /no_nightly_report, guarded by exactly what the page
+// read, created by the first declaration and removed by its Undo.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "./render";
 import { MemoryRouter } from "react-router-dom";
@@ -79,7 +79,6 @@ describe("NightlyReportSwitch", () => {
     const first = { kind: "file-json-set", file: FILE, pointer: POINTER, expectAbsent: true, value: [asset.id] };
     await waitFor(() => expect(mock.save).toHaveBeenCalledWith([first], "no-nightly-report"));
 
-    // The way back sits beside the switch (bead ro-ujb9.96.7.12), not in a toast.
     fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
     expect(mock.success).not.toHaveBeenCalled();
     await waitFor(() =>
@@ -90,9 +89,8 @@ describe("NightlyReportSwitch", () => {
     );
   });
 
-  // D29 amended (ro-ujb9.121): a site that has never sent a report expects
-  // none, so the undeclared side is a neutral "Not set up", and No report is
-  // still one press away.
+  // A site that has never sent a report expects none, so the undeclared side
+  // is a neutral "Not set up", and No report is still one press away.
   it("reads a site that has never sent a report as Not set up, neutral, with No report available", async () => {
     const { asset, wiring } = fixture(null);
     mount(asset, { ...wiring, lastPulseReceivedAt: null });
@@ -127,9 +125,9 @@ describe("NightlyReportSwitch", () => {
   });
 });
 
-// ro-ujb9.96.13 — the card the switch governs. With "No report" saved, the
-// switch is the Data collection card's one state; the rows about how the
-// report arrives come back when it is set to Expected.
+// The card the switch governs. With "No report" saved, the switch is the Data
+// collection card's one state; the rows about how the report arrives come
+// back when it is set to Expected.
 describe("the Data collection card under the switch", () => {
   function mountCard(declarations: string[] | null, wiring: Partial<Wiring> = {}) {
     const payload = everyTabPayload();
@@ -166,7 +164,6 @@ describe("the Data collection card under the switch", () => {
     expect(card.queryByText(/never read here/)).toBeNull();
   });
 
-  // Bead ro-ujb9.96.6.4: the calm state is a value, never a sentence.
   it("reads no open freshness alert as a value once a report has arrived", () => {
     const { card } = mountCard(null);
     expect(card.getByText("Freshness alerts")).toBeInTheDocument();

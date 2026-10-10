@@ -1,6 +1,6 @@
-// Bead `ro-trai.40`: a GA4 read that is merely in progress — another caller
-// holds it — says nothing new about a site, so the Wall's poll keeps what it
-// drew instead of replacing the LIVE figure and the TODAY chart with a dash.
+// A GA4 read that is merely in progress (another caller holds it) says
+// nothing new about a site, so the Wall's poll keeps what it drew instead of
+// replacing the live figure and the today chart with a dash.
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, renderHook, waitFor } from "./render";

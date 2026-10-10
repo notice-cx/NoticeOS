@@ -7,24 +7,13 @@ import {
 } from "@shared/surface";
 
 /**
- * THE PAGE-WIDE RANGE (doc 14, bead `ro-78qo.3`).
- *
- * One selector in the asset header drives every delta, sparkline and chart on
- * whichever tab is open, so the range has to be one value that outlives a tab
- * switch. It lives in the URL rather than in React state for three reasons: the
- * tabs are separate components mounted one at a time, a link an operator pastes
- * should open at the range they were looking at, and the browser's Back button
- * then has an opinion about it that we do not have to implement.
- *
- * 28 days is the operator's default (doc 14) and is written as an ABSENT
- * parameter rather than `?range=28`, so the ordinary URL stays clean and there
- * is only one URL for the page's default state. Every reader must come through
- * this hook: a component reading `searchParams` itself would render `?range=28`
- * and the bare path as two different things on that case alone.
- *
- * The set of ranges and the default are `shared/surface`'s — the same values
- * `RangeSelector` offers and `periodDelta` measures against. This module owns
- * only where the choice is KEPT.
+ * The page-wide range: one selector in the asset header drives every delta,
+ * sparkline and chart on whichever tab is open, so it lives in the URL, where
+ * it outlives a tab switch and a pasted link opens at the range the operator
+ * was looking at. The default is written as an absent parameter rather than
+ * `?range=28`, so there is only one URL for the page's default state; every
+ * reader must come through this hook. The set of ranges and the default are
+ * `shared/surface`'s; this module owns only where the choice is kept.
  */
 export const RANGES = SURFACE_RANGES;
 

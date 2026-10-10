@@ -1,6 +1,5 @@
-// What today's meetings ARE, before anything draws them (bead `ro-c0d2`): the
-// Wall's top strip reads it. It was the pure half of the meetings panel, which
-// left with the pre-D28 Wall (beads `ro-trai.11`, `ro-trai.20`).
+// What today's meetings are, before anything draws them: the Wall's top strip
+// reads it.
 //
 // Time math is entirely a function of the `nowMs` handed in, so a surface ages
 // between polls without refetching and every state is reachable in a test
@@ -23,8 +22,8 @@ export function calendarReadState(read: {
   return undefined;
 }
 
-/** How many meetings follow the hero. Three is what the panel's fixed height
- * can hold beside a hero at TV type size (bead `ro-wb5d`). */
+/** How many meetings follow the hero: what the panel's fixed height can hold
+ * beside a hero at TV type size. */
 export const MEETING_FOLLOWER_CAP = 3;
 
 /**

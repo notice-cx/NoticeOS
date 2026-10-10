@@ -1,20 +1,7 @@
-// THE TOWER'S SHARE OF A SCHEDULED TICK (bead `ro-ujb9.96.7.29`).
-//
-// Scheduled work is the ingest's (workers/ingest/src/dispatch.ts), except a
-// step that has to count with the Tower's own models: the ingest is a separate
-// build that cannot import them, and a count from a second implementation could
-// disagree with the number the screen states. Two such steps today, both on the
-// hourly tick (the Data freshness checks job), so every day the OS runs has a
-// point whether or not anyone opened a page:
-//   - System health's four connection counts (connection-status-daily.ts);
-//   - each data source's state and freshness for the Source history
-//     (connection-daily.ts, bead `ro-ujb9.96.7.31`), counted over the
-//     integrations matrix the page builds.
-//
-// TWO CALLERS, ONE FUNCTION, as the ingest's dispatch has: a deployed Tower's
-// own `scheduled()` handler (its cron trigger in wrangler.jsonc), and the local
-// runner's fire through the ingest door (runner-route.ts), which runs the
-// ingest's steps and then these, and records them as one run of the job.
+// The Tower's share of a scheduled tick: the steps that must count with the
+// Tower's own models so the recorded number matches the screen (the ingest
+// build cannot import them). Called by a deployed Tower's `scheduled()` and by
+// the local runner through runner-route.ts, as one run of the job.
 
 import type { WorkflowStepRun } from "@noticeos/contract";
 import type { WorkspaceStore } from "@noticeos/postgres";
@@ -29,13 +16,9 @@ import { type IntegrationsSettings, integrationsDeps, recordTodaysSourceHistory 
 export const HOURLY_TICK: string = SCHEDULED_JOBS.find((job) => job.id === "freshness")!.cron;
 
 export interface TowerCronEnv {
-  /** The call's store: the matrix reads the site list on Postgres (bead
-   * ro-ujb9.76.4.2), and both steps record their day there (ro-ujb9.76.5.6). */
   STORE: WorkspaceStore;
   INGEST: IntegrationHealthIngest;
-  /** The stored settings, as a request resolves them (config-source.ts
-   * `towerConfigResolver` over the compiled copy): the matrix is built from
-   * the register the page reads. */
+  /** Resolved as a request resolves them, so the matrix matches the page. */
   config: () => Promise<IntegrationsSettings>;
 }
 

@@ -1,8 +1,6 @@
-// The Growth tab's Product section, as arithmetic (beads ro-ghis.2 / ro-ghis.3).
-//
-// "What do people do once they arrive, and where does it break?" The numbers
-// come from the executive snapshot's `product` block; this module decides only
-// how they are ORDERED and WORDED, so the component draws and never judges.
+// The Growth tab's Product section, as arithmetic. The numbers come from the
+// executive snapshot's `product` block; this module decides only how they are
+// ordered and worded, so the component draws and never judges.
 
 import type {
   ProductException,
@@ -96,14 +94,10 @@ export const ERROR_WARN_PEOPLE = 100;
 const ERROR_LIST_LIMIT = 3;
 
 /**
- * Everything the product block says is broken, ordered for a three-row list.
- *
- * INTERLEAVED BY KIND. The first three rows are the worst slow segment, the
- * worst rage-click cluster and the most widespread real error — one of each —
- * because "where does it break" is answered by the spread of places, and three
- * slow segments of one page would hide a broken form under a second screen of
- * the same fact. The rest follow in the same rotation; probable third-party
- * noise goes last, because it is the one row that is not asking for a fix.
+ * Everything the product block says is broken, ordered for a three-row list:
+ * interleaved by kind (worst slow segment, worst rage cluster, most widespread
+ * error, then round again), so the head shows a spread of places. Probable
+ * third-party noise goes last: it is the one row not asking for a fix.
  */
 export function productIssues(product: ProductSnapshot): ProductIssue[] {
   const speed: ProductIssue[] = (product.vitals?.segments ?? []).flatMap((segment, index) => {
@@ -179,15 +173,9 @@ function issuePlace(issue: ProductIssue): ProductIssuePlace {
 }
 
 /**
- * THE SAME FINDINGS, GROUPED BY WHERE THEY HAPPEN (bead `ro-ujb9.96.6.5`).
- *
- * Five rows starting "/calculator · …" repeat one subject five times; grouped,
- * the page is said once and each row keeps only what differs. Groups are ranked
- * by their worst finding, then by where that page's first finding sits in
- * `productIssues`' interleaved rank — so the closed list, one row per group, is
- * still a spread of places rather than three rows about one page. Probable
- * third-party noise is its own group and always last: it is the one group not
- * asking for a fix.
+ * The same findings, grouped by where they happen, so a page is named once.
+ * Groups rank by their worst finding, then by their first finding's place in
+ * `productIssues`' interleaved rank; third-party noise is always last.
  */
 export function productIssueGroups(product: ProductSnapshot): ProductIssueGroup[] {
   const ranked = productIssues(product);

@@ -5,13 +5,10 @@ import { EGRESS_DOWN_CODE } from '../src/egress.js';
 import { WORKERD_TRANSPORT_ERROR, cutUplink, openEgressFlags, reset, storedCount, storedHealthStates } from './helpers.js';
 
 const NOW = Date.parse('2026-07-29T12:00:00.000Z');
-/**
- * The verified-site list Bing answers with, mirroring the seeded portfolio:
- * db/0002's five non-OS properties plus pullups.example (db/0019). Every
- * non-retired property is verified here, so the collector attempts six and
- * succeeds six — a site missing from this list would be a failure, not a
- * smaller run.
- */
+/** The verified-site list Bing answers with, mirroring the seeded portfolio.
+ * Every non-retired property is verified here, so the collector attempts six
+ * and succeeds six — a site missing from this list would be a failure, not a
+ * smaller run. */
 const PORTFOLIO_SITES = [
   'https://meals.example/',
   'https://nosh.example/',
@@ -225,7 +222,7 @@ describe('Bing Webmaster signal collector', () => {
     });
   });
 
-  describe('when the OS is what is down (ro-aed0.2)', () => {
+  describe('when the OS is what is down', () => {
     async function residue(): Promise<{ runs: number; health: number; egressFlags: number }> {
       return {
         runs: await storedCount(`SELECT count(*)::int AS n FROM noticeos.signal_runs`),

@@ -16,8 +16,8 @@ before(async () => {
   // setup does, so it holds the owner's way in (a refused reset, below).
   cluster = await startTestCluster();
   process.env[JOURNEY_POSTGRES] = JSON.stringify(cluster.handle);
-  // Started the one way every journey runner starts it (fixture-server.mjs,
-  // bead ro-ujb9.167): a free loopback port, PATH and that port only.
+  // Started the one way every journey runner starts it (fixture-server.mjs):
+  // a free loopback port, PATH and that port only.
   server = await startFixtureServer();
   base = server.origin;
 });
@@ -71,8 +71,8 @@ test("real handlers support an isolated fresh-install journey and exact task/gat
   assert.equal((await request("/api/assets", "POST", { id: asset, displayName: "Duplicate" })).status, 409);
   assert.equal((await request("/api/integrations/bing-webmaster/credential", "PUT", { fields: { BING_WEBMASTER_API_KEY: "journey-only-not-a-real-key" } })).status, 204);
   // The credential cards are the ingest's own read of the row the production
-  // store sealed (bead ro-ujb9.90): field names from that row, and no verdict
-  // until a test stamps one, exactly as a fresh Save reads on an install.
+  // store sealed: field names from that row, and no verdict until a test
+  // stamps one, exactly as a fresh Save reads on an install.
   const card = async (provider) => (await request("/api/integrations/providers")).body.providers
     .find((row) => row.provider.id === provider).credential;
   let bing = await card("bing-webmaster");
@@ -89,8 +89,8 @@ test("real handlers support an isolated fresh-install journey and exact task/gat
   assert.equal(untouched.credential.source, "none");
   assert.equal(untouched.credential.createdAt, null);
   assert.equal(untouched.credential.lastOkAt, null);
-  // Integration health is the ingest's own read over this store (bead
-  // ro-ujb9.86): the saved connection, the asset, and the test just recorded.
+  // Integration health is the ingest's own read over this store: the saved
+  // connection, the asset, and the test just recorded.
   let health = await request("/api/integrations/health");
   assert.equal(health.status, 200, JSON.stringify(health.body));
   assert.equal(health.body.available, true);
@@ -168,9 +168,9 @@ test("fixture rejects cross-origin writes and unsupported external operations", 
   assert.equal(state.assets.length, 1);
 });
 
-// The fixture's own clock, end to end (bead ro-ujb9.89). Its config store saves
-// UTC; the checkout this runs from may save anything. Provider report dates
-// retain their declared Pacific clock; neither clock comes from owner files.
+// The fixture's own clock, end to end. Its config store saves UTC; the
+// checkout this runs from may save anything. Provider report dates retain
+// their declared Pacific clock; neither clock comes from owner files.
 test("operator UTC and provider Pacific revenue clocks remain distinct without owner configuration", async () => {
   await request("/__journey/reset", "POST");
   assert.equal((await request("/api/assets", "POST", { id: asset, domain: asset, displayName: "Journey Example" })).status, 201);
@@ -191,9 +191,8 @@ test("operator UTC and provider Pacific revenue clocks remain distinct without o
 });
 
 // A refused reset says why, in the answer and on the one line the runner
-// attaches to the failing test (bead ro-ujb9.76.56), and never names an
-// address or the run's database password (what is withheld:
-// scripts/journey-handler-failure.test.mjs).
+// attaches to the failing test, and never names an address or the run's
+// database password (what is withheld: scripts/journey-handler-failure.test.mjs).
 test("a reset Postgres refuses answers 500 naming the refusal, and the server prints it on its marked line", async () => {
   const from = server.output().length;
   // The owner stops the application role logging in, so the reset's copy
@@ -226,10 +225,10 @@ test("a reset Postgres refuses answers 500 naming the refusal, and the server pr
 // and resolved a gate through the real task lane, saved config and read money
 // days on its clock. The server refuses and reports every read of `.dev.vars` /
 // `.dev.secrets.json`, every read of the checkout's `config/` (the owner's
-// settings, time zone included — bead ro-ujb9.89) and every attempt on an owner
-// port (e2e/isolation-guard.mjs; its own refusals are pinned by
+// settings, time zone included) and every attempt on an owner port
+// (e2e/isolation-guard.mjs; its own refusals are pinned by
 // scripts/journey-isolation-guard.test.mjs), so an armed guard with no
-// violation line proves the harness needed none of them (bead ro-ujb9.81).
+// violation line proves the harness needed none of them.
 test("the harness never reads the operator's secrets files or config, or contacts 5173/8791", () => {
   const output = server.output();
   assert.ok(output.includes(ARMED_MARK), `The isolation guard was not installed:\n${output}`);

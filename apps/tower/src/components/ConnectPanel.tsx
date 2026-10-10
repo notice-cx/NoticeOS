@@ -20,12 +20,9 @@ import { cn } from "@/lib/utils";
 /** The provider's accepted answer, as the panel's next step receives it. */
 export type AcceptedVerdict = Extract<ConnectVerdict, { verdict: "accepted" }>;
 
-/**
- * What the panel connects: a credential provider from the contract's catalog,
- * or any other connection drawn the same way — a task source (D32, bead
- * `ro-ujb9.152`), whose `setup` body saves a task project and has no fields of
- * its own. The panel reads only these parts.
- */
+/** What the panel connects: a credential provider, or any other connection
+ * drawn the same way, such as a task source whose `setup` body has no fields
+ * of its own. The panel reads only these parts. */
 export type ConnectSubject = Pick<IntegrationProvider, "label" | "fields" | "connect"> &
   Partial<Pick<IntegrationProvider, "test">> & { id: string };
 
@@ -39,57 +36,34 @@ export interface ConnectPanelProps {
    * Connect and Replace stop. Why is said once per screen — the page's banner
    * on /integrations, else `blocked`. */
   canConnect?: boolean;
-  /**
-   * Why Connect is off, drawn at the top of the panel (`ConnectBlockers`: each
-   * blocker's lead and the command that clears it, bead `ro-e70g`). Only where
-   * the page behind does not already say it — a site's Data sources; absent on
-   * /integrations, whose banner does.
-   */
+  /** Why Connect is off, drawn at the top of the panel (`ConnectBlockers`).
+   * Only where the page behind does not already say it. */
   blocked?: ReactNode;
-  /**
-   * What follows an accepted key, inside the panel: the account's sites
-   * matched to assets and Start collecting (bead `ro-ujb9.96.7.2`,
-   * `SitePicker`), which then owns the panel's footer. `answer` is null when
-   * the panel opened on an already-connected provider (`opened: "sites"`).
-   * Absent: the panel offers Done.
-   */
+  /** What follows an accepted key, inside the panel (`SitePicker`), which
+   * then owns the panel's footer. `answer` is null when the panel opened on an
+   * already-connected provider. Absent: the panel offers Done. */
   next?: (answer: AcceptedVerdict | null, close: () => void) => ReactNode;
-  /** `sites` opens a connected provider straight on `next` — the seam an
-   * asset's source row uses to add that asset (bead `ro-ujb9.96.7.4`), and
-   * what Manage opens; `replace` opens a connected provider's key form and
-   * ends on the provider's answer (bead `ro-ujb9.96.7.10`). */
+  /** `sites` opens a connected provider straight on `next`; `replace` opens
+   * its key form and ends on the provider's answer. */
   opened?: "form" | "sites" | "replace";
-  /** The header's status in place of the key's answer, drawn by the caller:
-   * a connected provider's own status, or `null` once the next step's rows
-   * carry each site's status (one status per subject per screen). */
+  /** The header's status in place of the key's answer, drawn by the caller,
+   * or `null` once the next step's rows carry each site's status. */
   status?: ReactNode | null;
   /** `inline` draws the same panel in place, for the component gallery. */
   presentation?: "sheet" | "inline";
-  /**
-   * The body in place of the key form, for a provider connected by signing in
-   * on its own consent screen (connect kind `sign-in`, Google — bead
-   * `ro-ujb9.96.7.7`, `GoogleSignInSetup`). The sign-in leaves the page and
-   * comes back to this panel on the account's sites.
-   */
+  /** The body in place of the key form, for a provider connected by signing
+   * in on its own consent screen. The sign-in leaves the page and comes back
+   * to this panel on the account's sites. */
   setup?: ReactNode;
-  /**
-   * The connection's own actions — Replace and Disconnect — for a provider
-   * that is already connected (bead `ro-ujb9.96.7.10`). Replace opens the key
-   * form in this panel and the new key is kept only once the provider accepts
-   * it, so the old one collects until then; Disconnect asks once, naming the
-   * sites that stop. Absent for a provider with nothing stored.
-   */
+  /** Replace and Disconnect for a connected provider. A replacement key is
+   * kept only once the provider accepts it, so the old one collects until
+   * then; Disconnect asks once, naming the sites that stop. */
   manage?: ConnectPanelManage;
-  /** What the connection carries, above its fields — Discord's notifications
-   * and whether they are sending (`WhatLands`, bead `ro-ujb9.96.7.14`). */
+  /** What the connection carries, above its fields (`WhatLands`). */
   carries?: ReactNode;
-  /**
-   * When the collections this connection feeds run, changed here (bead
-   * `ro-ujb9.96.7.28`): the sync frequency on the connection, as Fivetran and
-   * Airbyte place it. Drawn by the caller (`ScheduleRows`) and shown only on a
-   * connected provider's own view — under its actions, above its sites — never
-   * while a key is being replaced or a disconnect confirmed.
-   */
+  /** The sync frequency on the connection, drawn by the caller and shown only
+   * on a connected provider's own view, never while a key is being replaced or
+   * a disconnect confirmed. */
   schedule?: ReactNode;
 }
 
@@ -103,23 +77,11 @@ export interface ConnectPanelManage {
 }
 
 /**
- * ONE PANEL, ONE PRESS: connect a provider on `/integrations` (bead
- * `ro-ujb9.96.7.1`, epic `ro-ujb9.96.7`).
- *
- * The operator pastes what the provider issued and presses Connect. The ingest
- * shows it to the provider FIRST and stores it only if the provider accepts, so
- * the panel moves Checking → Key accepted, or shows the provider's refusal
- * under the field — never a green state ahead of the answer, and never a step
- * that asks nothing. What the answer proved (Bing's verified sites, DataForSEO's
- * credit) is drawn as the number it is.
- *
- * NOTHING IS SHOWN BACK. Fields open empty; a refused secret is cleared for the
- * next paste; an accepted one leaves the screen with the form. The only values
- * the panel ever holds are the ones typed into it in this session.
- *
- * Built for every provider kind the contract declares (`IntegrationConnect`);
- * `key` is the one implemented. Sign-in, per-site tokens and account discovery
- * are further kinds with their own beads under the epic.
+ * Connect a provider in one panel. The ingest shows the entered details to
+ * the provider first and stores them only if accepted, so the panel never
+ * shows a green state ahead of the answer. Nothing is shown back: fields open
+ * empty, a refused secret is cleared for the next paste, and an accepted one
+ * leaves the screen with the form.
  */
 export function ConnectPanel({
   provider,
@@ -159,8 +121,7 @@ export function ConnectPanel({
   // account key or its older per-site keys) shows only the one it asks for.
   const needed = fields.some((field) => field.required) ? fields.filter((field) => field.required) : fields;
   const complete = needed.every((field) => filled(field, values[field.name] ?? ""));
-  // A replaced key changes no site: once accepted the panel is done, rather
-  // than reading the account's sites a second time (doc 14 principle 3b).
+  // A replaced key changes no site: once accepted the panel is done.
   const rotated = opened !== "form";
 
   // Replace pressed: the form has just appeared, so its key field takes focus.
@@ -228,10 +189,8 @@ export function ConnectPanel({
         // The provider's answer is marked where it is shown, so it is visible
         // whichever facts follow it — a replaced key's answer included.
         <span className="ms-auto inline-flex" data-status-for={`integration:${provider.id}`} data-connect-state="accepted">
-          {/* The region that answered is part of the answer (PostHog, bead
-              ro-ujb9.96.7.8): found, never asked for. */}
-          {/* Named for what was given — a key, a sign-in, an address (bead
-              ro-ujb9.96.7.25): the connection model's one word for it. */}
+          {/* The region that answered is part of the answer: found, never
+              asked for. Named for what was given: a key, a sign-in, an address. */}
           <StateChip
             label={accepted.facts.region
               ? `${connectionLabel("key-accepted", acceptedAs(provider))} · ${accepted.facts.region.toUpperCase()}`
@@ -253,7 +212,6 @@ export function ConnectPanel({
     <ConnectionActions
       name={providerName(provider)}
       secret={secretNoun(provider)}
-      // A provider whose tokens are pasted per site replaces one on its row.
       // A token pasted per site is replaced on its row; a sign-in is made again.
       onReplace={opened === "sites" && provider.connect?.kind === "key" ? () => {
         setReplacing((open) => !open);
@@ -326,8 +284,7 @@ export function ConnectPanel({
           </p>
         ) : null}
       </div>
-      {/* A press with a side effect says so before it is made: Discord's
-          proof is one labelled message in the channel (bead ro-ujb9.96.7.14). */}
+      {/* A press with a side effect says so before it is made. */}
       {provider.test?.cost === "side-effect" ? (
         <span className="mt-auto inline-flex" data-connect-cost="side-effect">
           <StateChip tone="neutral" label="Posts a test message" glyph={<Send className="size-3" />} subject={`integration:${provider.id}`} />
@@ -416,8 +373,7 @@ function KeyField({
           </a>
         ) : null}
       </div>
-      {/* The access the key must carry, as chips — PostHog's own pattern for
-          a restricted key (bead ro-ujb9.96.7.8, mockup frame b2). */}
+      {/* The access the key must carry, as chips. */}
       {field.grants && field.grants.length > 0 ? (
         <ul className="flex flex-wrap items-center gap-1.5" aria-label={`${field.label} access`} data-field-grants={field.name}>
           {field.grants.map((grant) => (
@@ -454,12 +410,8 @@ function filled(field: IntegrationField, value: string): boolean {
     : value.trim() !== "";
 }
 
-/**
- * A list of named feeds, one row each — a name and the feed's secret URL — with
- * Add feed (calendar feeds, bead `ro-ujb9.96.7.14`). Rows, not a textarea of
- * `name = url` lines: nothing to learn before the first paste works, and an
- * unnamed feed is named by its position, as `parseUrlList` names it.
- */
+/** A list of named feeds, one row each, with Add feed. An unnamed feed is
+ * named by its position, as `parseUrlList` names it. */
 function FeedListField({
   field,
   value,

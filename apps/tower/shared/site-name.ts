@@ -1,13 +1,6 @@
-// A site's own name, read from its home page (bead `ro-ujb9.96.7.5`).
-//
-// The add screen asks for a domain and nothing else, so the name the asset is
-// saved under has to come from somewhere the operator did not type. The domain
-// gives a starting name at once (`siteNameFromDomain`), and the site itself
-// gives a better one when it answers: Ahrefs fills a new project's name from
-// the page's title the same way.
-//
-// PURE, so the rules are pinned without a network: the Worker route
-// (`worker/site-name-route.ts`) fetches the page and hands the HTML here.
+// A site's own name, read from its home page: the add screen asks only for a
+// domain, which gives a starting name, and the site gives a better one when it
+// answers. Pure; `worker/site-name-route.ts` fetches the page.
 
 import { DISPLAY_NAME_MAX } from "@noticeos/contract/configuration";
 

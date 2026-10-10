@@ -50,13 +50,10 @@ const HEALTH_KEYS = (Object.keys(HEALTH_RANK) as SiteHealthKey[]).sort((a, b) =>
 
 /**
  * `summary` is how the line above the table names the ordering; `null` on the
- * default, which the summary says nothing about because it is not a choice.
- *
- * THE SELECT AND THE HEADER ROW ARE ONE CONTROL (bead `ro-78qo.7`). The table's
- * header cells sort on a press, which is what a comparison table owes a pointer;
- * below `sm` that header row is hidden entirely (`Table stacked`), so this
- * `<select>` is the phone's only way to reorder — and both write the same
- * `?sort=`, so the two can never disagree about what the table is showing.
+ * default, which is not a choice. The select and the header row are one
+ * control: below `sm` the header row is hidden (`Table stacked`), so this
+ * `<select>` is the phone's only way to reorder, and both write the same
+ * `?sort=`.
  */
 const SORTS: { value: AssetSortKey; label: string; summary: string | null }[] = [
   { value: "seed", label: "Default order", summary: null },
@@ -65,21 +62,16 @@ const SORTS: { value: AssetSortKey; label: string; summary: string | null }[] = 
   { value: "work", label: "Most urgent work", summary: "urgent work" },
   { value: "users", label: "Most visitors", summary: "visitors" },
   // The move column follows the range, so the words that name it cannot be
-  // fixed at seven days any more (bead `ro-78qo.35`).
+  // fixed at seven days.
   { value: "trend", label: "Best move over the range", summary: "the move over the range" },
   { value: "net", label: "Most net", summary: "net" },
 ];
 
 /**
  * A fact the payload does not carry, sunk to the bottom of a descending sort.
- *
- * Finite on purpose: `-Infinity - -Infinity` is `NaN`, which makes a comparator
- * inconsistent and hands the operator an arbitrary order. Every real count here
- * is ≥ 0, so −1 sorts below all of them and subtracts from itself cleanly.
- *
- * It is also NOT a zero. "No beads snapshot for this asset" and "no urgent work"
- * are different claims, and a sort that ranked them together would put an
- * unmeasured asset among the calm ones.
+ * Finite on purpose: `-Infinity - -Infinity` is `NaN`, which makes a
+ * comparator inconsistent. Not a zero either: "no task snapshot" and "no
+ * urgent work" are different claims.
  */
 const UNKNOWN = -1;
 
@@ -118,17 +110,9 @@ function unknownLast(a: number | null, b: number | null): number {
 }
 
 /**
- * Every non-default ordering, each worst-first so the top of the table is the
- * asset the operator most likely came for. `Array.prototype.sort` is stable, so
- * ties fall back to the payload's seed order rather than to chance.
- *
- * IT TAKES THE RANGE, because one of them depends on it: the move column is the
- * range's own `periodDelta` since bead `ro-78qo.35`, and a table ordered by one
- * derivation while its column prints another is a table that disagrees with
- * itself (doc 14). At ninety days that comparison is null on every row — the
- * payload holds ninety days and cannot reach back a second ninety — so the
- * ordering falls to seed order there, which is what `unknownLast` already does
- * for a row nobody can rank.
+ * Every non-default ordering, each worst-first; the stable sort leaves ties in
+ * seed order. It takes the range because the move column is the range's own
+ * `periodDelta`, which is null on every row at ninety days.
  */
 function comparatorFor(
   sort: Exclude<AssetSortKey, "seed">,
@@ -180,8 +164,7 @@ export function AssetsRoute() {
 
   function setFilter(name: string, value: string) {
     const next = new URLSearchParams(params);
-    // The default never occupies the query string, so a cleared page is `/assets`
-    // and two operators who narrowed to the same view produce the same link.
+    // A default never occupies the query string: one view, one link.
     if (
       value === "all" ||
       (name === "sort" && value === "seed") ||
@@ -190,14 +173,13 @@ export function AssetsRoute() {
       next.delete(name);
     }
     else next.set(name, value);
-    // `replace`: a filter is a view of one page, not a place — the back button
-    // should leave Assets, not walk backwards through every control touched.
+    // `replace`: Back should leave Assets, not walk every control touched.
     setParams(next, { replace: true });
   }
 
   const assets = data?.assets ?? [];
-  // Each site's one health word (D44), from the same open problems Home and
-  // the site's own header read.
+  // Each site's one health word, from the same open problems Home and the
+  // site's own header read.
   const issues = useSiteIssues();
   const healthById = new Map(assets.map((card) => [card.id, siteHealth(card, issues)]));
   const healthOf = (card: AssetData): SiteHealthKey => healthById.get(card.id)?.key ?? "on-track";
@@ -213,23 +195,16 @@ export function AssetsRoute() {
   const narrowed = activeFilterCount > 0;
   const ordered = sort !== "seed";
 
-  /**
-   * Counts are over the WHOLE portfolio, not over what the other controls have
-   * already narrowed. "How many assets are live" is a fact about the portfolio
-   * and stays true whatever else is picked; a count that moved every time
-   * another control did would be a fourth number on a page whose summary line
-   * already reconciles the arithmetic.
-   */
+  /** Counts are over the whole portfolio, not over what the other controls
+   * have already narrowed: "how many assets are live" is a fact about the
+   * portfolio. */
   const statusCounts = new Map<string, number>();
   for (const card of assets) {
     statusCounts.set(card.status, (statusCounts.get(card.status) ?? 0) + 1);
   }
-  // The five canonical stages always appear, in lifecycle order, even at zero:
-  // the vocabulary is the asset lifecycle, not whatever this store happens to
-  // hold today. A status a migration added and the Tower has never seen is
-  // appended rather than dropped, the same stance `assetStatusLabel` takes —
-  // including one that arrives only in the URL, so a link can never leave the
-  // control showing nothing at all.
+  // The five canonical stages always appear, in lifecycle order, even at zero.
+  // An unknown status (from the store or only the URL) is appended rather than
+  // dropped, as `assetStatusLabel` does, so the control never shows nothing.
   const statusOptions = [
     ...Object.keys(ASSET_STATUS_LABEL),
     ...[
@@ -269,8 +244,8 @@ export function AssetsRoute() {
       <PageHeader
         title="Sites"
         actions={
-          // Opens Add a site over this page (bead `ro-ujb9.96.7.5`): adding a
-          // site is one question, not a page of its own.
+          // Opens Add a site over this page: adding a site is one question,
+          // not a page of its own.
           <AddSiteButton>
             <Plus aria-hidden /> Add a site
           </AddSiteButton>
@@ -284,12 +259,10 @@ export function AssetsRoute() {
         }
       />
 
-      {/* THE MACHINERY ARRIVES WITH SOMETHING TO COMPARE (bead
-          `ro-ujb9.128`). Filters, a sort, a range and a strip adding the
-          sites up are how two or more sites are compared; over none they are
-          twelve controls round an empty state, and over one they filter a
-          single row. So no sites is the header's Add a site and one empty
-          state, and one site is its row. */}
+      {/* The machinery arrives with something to compare: over no sites the
+          filters, sort, range and strip are twelve controls round an empty
+          state, and over one they filter a single row. So no sites is the
+          header's Add a site and one empty state, and one site is its row. */}
       {!data ? (
         isError ? (
           <ReadFailed title="Couldn't load your sites" subject="read:sites" error={error} retrying={isFetching} onRetry={() => void refetch()} />
@@ -306,10 +279,9 @@ export function AssetsRoute() {
         </section>
       ) : (
         <>
-        {/* ONE ANSWER FIRST (D44 bar, D45): which sites need you, by the
-            same health word Home and each site's page say, with the month's
-            pace and yesterday's visitors beside it — the same derivations as
-            Home, so September is one number everywhere. */}
+        {/* One answer first: which sites need you, by the same health word
+            Home and each site's page say, with the month's pace and
+            yesterday's visitors beside it, from the same derivations as Home. */}
         <PageAnswer
           answer={answer.line}
           detail={answer.detail}
@@ -319,8 +291,7 @@ export function AssetsRoute() {
         <FilterFold active={activeFilterCount} label="Filters & sort">
           {/* The fold's one press shares the range's row on a phone: the
               period stays in view (it changes what every number means), the
-              filters and the sort wait behind the button (doc 14's phone first
-              screen, bead `ro-ujb9.13`). */}
+              filters and the sort wait behind the button. */}
           <div className="flex flex-wrap items-end justify-between gap-2" data-assets-traffic-controls>
             <FilterToggle />
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
@@ -407,10 +378,8 @@ export function AssetsRoute() {
               sort={sort}
               onSort={(key) => setFilter("sort", key)}
               empty={
-                // Not "No sites yet": there are sites, and a control hides
-                // them. The line just above names those controls and holds
-                // Clear, the way back — so this says only that nothing
-                // matches, not a second copy of the filters with directions.
+                // Not "No sites yet": a control hides them, and the line above
+                // already names the controls and holds Clear.
                 <EmptyState title="No sites match these filters" />
               }
             />
@@ -422,15 +391,9 @@ export function AssetsRoute() {
   );
 }
 
-/**
- * ALL THREE WINDOWS, at last (bead `ro-78qo.35`).
- *
- * This page shipped offering 7 and 28 only, because the wall payload carried 28
- * days of each asset's daily series and a 90d button would have drawn 28 days of
- * line under a label claiming three months. The payload reaches back ninety now
- * — `contextSeries` is 62 days beside a 28-day `series` — so the selector is
- * doc 14's own `SURFACE_RANGES` and nothing here narrows it.
- */
+/** All three windows: the payload reaches back ninety days (`contextSeries`
+ * is 62 days beside a 28-day `series`), so the selector is `SURFACE_RANGES`
+ * and nothing here narrows it. */
 function readRange(value: string | null): number {
   const days = Number(value);
   return (SURFACE_RANGES as readonly number[]).includes(days)
@@ -438,15 +401,6 @@ function readRange(value: string | null): number {
     : DEFAULT_RANGE_DAYS;
 }
 
-/**
- * THE PORTFOLIO'S DAILY ACTIVE USERS: every asset's own series, summed by day.
- *
- * By DATE rather than by position, because the assets do not report in step — a
- * provider that missed Tuesday for one asset must not shift that asset's
- * Wednesday onto the portfolio's Tuesday. A day nobody reported is absent
- * entirely rather than zero, which is the same rule every series on this desk
- * keeps.
- */
 /** The page's answer: how many sites need the operator, by the one health
  * word, and which ones. */
 function sitesAnswer(assets: AssetData[], healthOf: (card: AssetData) => SiteHealthKey): { key: string; line: string; detail: ReactNode } {
@@ -523,13 +477,10 @@ interface FilterChipOption {
 }
 
 /**
- * One three-way filter, as chips carrying their glyph and their count.
- *
- * Route layout over a payload slice, not a registry component (doc 14's rule for
- * `AssetDetailRoute`'s strips): it exists to put the assets index's own counts
- * on screen, and a second surface wanting this would earn it an entry then. It
- * is not a rival to `KnobEditor`'s segmented control either — that one STAGES a
- * changeset op into the cart, this one narrows a view.
+ * One three-way filter, as chips carrying their glyph and their count. Route
+ * layout over a payload slice, not a registry component; not a rival to
+ * `KnobEditor`'s segmented control either, which stages a changeset op where
+ * this narrows a view.
  */
 function FilterChips({
   legend,
@@ -559,10 +510,8 @@ function FilterChips({
             type="button"
             aria-pressed={active}
             onClick={() => onPick(name, option.value)}
-            /* The choice dialect of `ui/pill.ts` (bead `ro-s4rg`) — the same
-               box and the same pair as /work's filter row and the asset
-               wizard's choices, which is what it was a third copy of. The
-               phone thumb floor arrives with it. */
+            /* The choice dialect of `ui/pill.ts`, the same box and pair as the
+               task board's filter row and the asset wizard's choices. */
             className={cn(pillChoiceClass, pillChoiceStateClass(active))}
           >
             {/* Hidden from the accessible name: the words beside it already

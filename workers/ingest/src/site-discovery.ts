@@ -1,21 +1,9 @@
-// WHAT A CONNECTED ACCOUNT CAN SEE (bead `ro-ujb9.96.7.2`, epic `ro-ujb9.96.7`).
-//
-// The connect panel's second screen: once a key is accepted, the account's
-// sites are listed and the Tower matches them to the portfolio's assets by
-// domain. This module is the listing half — it runs here because the
-// credential lives here and never leaves.
-//
-// ONE FREE READ, NOTHING STORED. A listing is not evidence: it records no
-// credential verdict and no health observation (the connect press and the
-// collectors do that), so opening the panel twice can never move a status.
-// What comes back are public identities — a site URL, an asset's domain — and
-// the register fields the asset's Data sources tab would write for each.
-//
-// ONE CASE PER PROVIDER, and every provider without one answers
-// `not-supported` rather than an empty list: "this account lists nothing" and
-// "this panel cannot ask" are different facts. PostHog joined under
-// `ro-ujb9.96.7.8`, Mediavine under `ro-ujb9.96.7.6`, Google (GA4 and Search
-// Console, two lanes on one row) under `ro-ujb9.96.7.7`.
+// What a connected account can see: the connect panel's second screen lists
+// the account's sites and the Tower matches them to assets by domain. It runs
+// here because the credential lives here and never leaves. One free read,
+// nothing stored: a listing records no credential verdict and no health
+// observation, so opening the panel twice can never move a status. Every
+// provider without a case answers `not-supported`, not an empty list.
 
 import type { DiscoveredSite, IntegrationProviderId, SiteDiscovery } from '@noticeos/contract';
 import { integrationProvider, siteHost } from '@noticeos/contract';
@@ -82,12 +70,10 @@ export async function discoverSites(
 const POSTHOG_MAX_KEYS = 10;
 
 /**
- * PostHog (bead `ro-ujb9.96.7.8`): the projects the connected key reads, in
- * the region that accepts it, each with the domain it records and its saved
- * funnels. An install still on a key per site is listed through each of its
- * keys (the first ten), merged by project, so its panel shows what those keys
- * can see rather than nothing. Every key refusing is `refused`; no key
- * answering at all is `unreachable`.
+ * PostHog: the projects the connected key reads, in the region that accepts
+ * it, each with the domain it records and its saved funnels. An install still
+ * on a key per site is listed through each of its keys (the first ten), merged
+ * by project. Every key refusing is `refused`; no key answering is `unreachable`.
  */
 async function posthogSites(
   fields: Record<string, string>,
@@ -110,9 +96,8 @@ async function posthogSites(
 }
 
 /**
- * Mediavine (bead `ro-ujb9.96.7.6`): the sites the login reads — straight
- * after Connect, the list its sign-in already fetched, so the panel asks
- * Mediavine nothing more; later, one call under the Mediavine lease. Each
+ * Mediavine: the sites the login reads. Straight after Connect, the list its
+ * sign-in already fetched; later, one call under the Mediavine lease. Each
  * site maps as its id, which is what the ad revenue entry stores.
  */
 async function mediavineSites(

@@ -3,17 +3,11 @@ import { RouteLoadFailure } from "@/components/RouteLoading";
 import { lazyPart } from "@/lib/lazy-route";
 
 /**
- * THE COMMAND PALETTE ARRIVES WHEN IT IS FIRST OPENED (bead `ro-ujb9.84`).
- *
- * The palette — cmdk, its dialog and the lists — used to ride in the desk
- * shell's own file, so every desk page downloaded it before anybody pressed ⌘K.
- * The shell now holds only what has to exist before the first press: the
- * shortcut test below and the button. Everything else is this lazy part, which
- * the shell draws from the first open onward (`AppShell`'s `PaletteLauncher`).
- *
- * This file must stay free of cmdk: it is what the shell imports. The palette
- * module is reached only through the dynamic import below, and the props type
- * is a type-only import that the build erases.
+ * The command palette arrives when it is first opened. The shell holds only
+ * what has to exist before the first press: the shortcut test below and the
+ * button. This file must stay free of cmdk: it is what the shell imports. The
+ * palette module is reached only through the dynamic import below, and the
+ * props type is a type-only import that the build erases.
  */
 
 /**

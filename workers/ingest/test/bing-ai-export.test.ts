@@ -131,8 +131,7 @@ describe('POST /api/bing-ai-export — the door', () => {
   });
 });
 
-// The whole reason this bead waited for a real file: a parser that maps columns
-// by position is how a silent corruption starts.
+// A parser that maps columns by position is how a silent corruption starts.
 describe('POST /api/bing-ai-export — what it refuses to guess', () => {
   it('refuses an unrecognized header and names the three it knows (422)', async () => {
     const { status, body } = await importExport({

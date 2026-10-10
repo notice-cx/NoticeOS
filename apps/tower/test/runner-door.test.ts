@@ -1,12 +1,9 @@
 // @vitest-environment node
-// The LAN boundary, at the unit level.
-//
-// One workerd runtime now serves both Workers (bead ro-mad), so the ingest has
-// no listener of its own and the Tower's listener is on the LAN. What keeps the
-// ingest's unauthenticated scheduled trigger off the LAN is the loopback door
-// plus the guard below — and the guard is the half a test can actually pin, so
-// this file pins it hard: every way a LAN request could try to look like a door
-// request has a case here.
+// The LAN boundary, at the unit level. One workerd runtime serves both
+// Workers, so the ingest has no listener of its own and the Tower's listener
+// is on the LAN. What keeps the ingest's unauthenticated scheduled trigger off
+// the LAN is the loopback door plus the guard below, and every way a LAN
+// request could try to look like a door request has a case here.
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
@@ -36,15 +33,10 @@ type FakeReq = {
 };
 
 /**
- * A fake request carries BOTH header representations, because the real one does
- * and only one of them is the wire.
- *
- * The first version of this helper had a `headers` map and nothing else. Every
- * assertion below passed against it while the shipped door was broken in
- * production: the Cloudflare plugin builds the Worker's `Request` from
- * `rawHeaders`, so a guard that edited only the map stamped nothing the Worker
- * could see and stripped nothing an attacker had sent. A fake that is missing
- * the field the system under test actually depends on is not a test.
+ * A fake request carries both header representations, because the real one
+ * does and only one of them is the wire: the Cloudflare plugin builds the
+ * Worker's `Request` from `rawHeaders`, so a guard that edited only the map
+ * would stamp nothing the Worker could see and strip nothing an attacker sent.
  */
 function req(url: string, headers: Record<string, string> = {}, remoteAddress = "127.0.0.1"): FakeReq {
   const rawHeaders: string[] = [];
@@ -52,8 +44,8 @@ function req(url: string, headers: Record<string, string> = {}, remoteAddress = 
   return { url, headers: { ...headers }, rawHeaders, socket: { remoteAddress } };
 }
 
-/** What the Cloudflare plugin will actually send to workerd: `rawHeaders`, read
- * as pairs. Assertions go through this, never through `req.headers`. */
+/** What the Cloudflare plugin will actually send to workerd: `rawHeaders`,
+ * read as pairs. Assertions go through this, never through `req.headers`. */
 function wireHeader(r: FakeReq, name: string): string | undefined {
   for (let i = 0; i < r.rawHeaders.length; i += 2) {
     if (r.rawHeaders[i]?.toLowerCase() === name) return r.rawHeaders[i + 1];
@@ -105,9 +97,8 @@ describe("the runner guard", () => {
   });
 
   // The Cloudflare plugin serves /cdn-cgi/handler/* unconditionally and the
-  // Tower binds the LAN — so the guard refuses every trigger path outright
-  // (ro-qfv). Door requests never present these paths: the door rewrites them
-  // to the runner lane before the stack sees them.
+  // Tower binds the LAN, so the guard refuses every trigger path outright.
+  // Door requests never present these paths: the door rewrites them first.
   it("refuses the plugin's trigger paths from anywhere — the door rewrites, so these are always foreign", () => {
     const guard = runnerGuard();
     for (const path of ["/cdn-cgi/handler/scheduled?cron=* * * * *", "/cdn-cgi/handler/email", "/cdn-cgi/mf/scheduled"]) {
@@ -120,9 +111,8 @@ describe("the runner guard", () => {
     }
   });
 
-  // The whole mechanism: a LAN client may send the header, so the header is
-  // deleted from every request BEFORE the door mark is consulted. Without this
-  // ordering the boundary would be one forged header wide.
+  // A LAN client may send the header, so the header is deleted from every
+  // request before the door mark is consulted.
   it("strips a forged door header off a LAN request — from the wire, not just the map", () => {
     const guard = runnerGuard();
     const next = vi.fn();
@@ -140,8 +130,7 @@ describe("the runner guard", () => {
     const next = vi.fn();
     const r = req(RUNNER_SCHEDULED_PATH, {}, "192.168.2.44");
     // Node lowercases `headers` but leaves `rawHeaders` exactly as sent, so a
-    // capitalised forgery is only visible on the wire — which is the copy that
-    // reaches the Worker.
+    // capitalised forgery is only visible on the wire.
     r.rawHeaders.push("X-NoticeOS-Runner-Door", "1");
     guard(r as unknown as IncomingMessage, res() as unknown as ServerResponse, next);
     expect(wireHeader(r, RUNNER_DOOR_HEADER)).toBeUndefined();
@@ -153,7 +142,7 @@ describe("the runner guard", () => {
     const r = req("/anything");
     const response = res();
 
-    // Send it through the door first — that is the only way the mark is set.
+    // Through the door first: that is the only way the mark is set.
     serveDoorRequest(
       r as unknown as IncomingMessage,
       response as unknown as ServerResponse,
@@ -162,8 +151,7 @@ describe("the runner guard", () => {
 
     expect(next).toHaveBeenCalledOnce();
     expect(r.headers[RUNNER_DOOR_HEADER]).toBe(RUNNER_DOOR_HEADER_VALUE);
-    // The assertion that would have caught the production failure: the plugin
-    // reads `rawHeaders`, so a mark that exists only in the map is no mark.
+    // The plugin reads `rawHeaders`, so a mark that exists only in the map is no mark.
     expect(wireHeader(r, RUNNER_DOOR_HEADER)).toBe(RUNNER_DOOR_HEADER_VALUE);
   });
 
@@ -224,9 +212,8 @@ describe("the ingest door", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Path vocabulary. These are the sentences `scripts/os-up.mjs`,
-// `scripts/pulse-relay.mjs` and workers/ingest/README.md already speak — the door
-// exists partly so none of them had to change.
+// Path vocabulary: the sentences `scripts/os-up.mjs`, `scripts/pulse-relay.mjs`
+// and workers/ingest/README.md speak.
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("door path rewriting", () => {
@@ -240,12 +227,11 @@ describe("door path rewriting", () => {
     ["/api/backup/cloudflare-d1?view=artifact", "/api/backup/cloudflare-d1?view=artifact"],
     ["/api/backup/cloudflare-d1/other", `${RUNNER_INGEST_PREFIX}/api/backup/cloudflare-d1/other`],
     ["/api/serp-panel-landings?asset=nom", `${RUNNER_INGEST_PREFIX}/api/serp-panel-landings?asset=nom`],
-    // The door is the ingest's address, not a second front door for the Tower:
-    // `/` gets the ingest's own 404, never the SPA.
+    // The door is the ingest's address, not a second front door for the
+    // Tower: `/` gets the ingest's own 404, never the SPA.
     ["/", `${RUNNER_INGEST_PREFIX}/`],
-    // …but a path that is already a runner path is left alone. Prefixing it
-    // again asked the ingest for `/api/runner/scheduled` and got its 404, which
-    // reads exactly like a broken door to whoever curled the canonical path.
+    // A path that is already a runner path is left alone: prefixing it again
+    // would ask the ingest for `/api/runner/scheduled` and get its 404.
     [RUNNER_SCHEDULED_PATH, RUNNER_SCHEDULED_PATH],
     [`${RUNNER_SCHEDULED_PATH}?cron=0+*+*+*+*`, `${RUNNER_SCHEDULED_PATH}?cron=0+*+*+*+*`],
     [`${RUNNER_INGEST_PREFIX}/healthz`, `${RUNNER_INGEST_PREFIX}/healthz`],
@@ -269,7 +255,6 @@ describe("runner target parsing", () => {
   it("refuses a runner path that is neither", () => {
     expect(runnerTarget("/api/runner/")).toBeNull();
     expect(runnerTarget("/api/runner/whatever")).toBeNull();
-    // A prefix that merely starts the same must not be read as the ingest lane.
     expect(runnerTarget("/api/runner/ingestible")).toBeNull();
   });
 });
@@ -291,8 +276,7 @@ describe("loopback recognition", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The port is os:up's CONFIG, passed in. A drift here would leave the runner
-// firing crons at a door nobody opened.
+// The port is os:up's config, passed in.
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("door address resolution", () => {

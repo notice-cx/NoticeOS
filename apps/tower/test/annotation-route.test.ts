@@ -10,18 +10,14 @@ import {
   type AnnotationWriter,
 } from "../worker/annotation-route";
 
-// The Tower no longer writes this row: it proxies to `createAnnotation()` on
-// the ingest WorkerEntrypoint over the private INGEST Service Binding (see the
-// header of worker/annotation-route.ts). So what is asserted here is the
-// boundary — what crosses it, and how each answer ingest can give is rendered
-// for the browser. The write rules themselves (kind vocabulary, backdating,
-// `(asset, at, kind, ref)` identity, field caps) are asserted against real D1
-// in workers/ingest/test/annotations.test.ts, which is now their only home.
+// The Tower proxies to `createAnnotation()` on the ingest WorkerEntrypoint
+// over the private INGEST Service Binding (see the header of
+// worker/annotation-route.ts), so what is asserted is the boundary: what
+// crosses it, and how each answer is rendered for the browser. The write
+// rules themselves are asserted in workers/ingest/test/annotations.test.ts.
 //
 // The binding is stubbed rather than bound: this project's Vitest runs in
-// node/jsdom with no workerd (vitest.config.ts), so a real WorkerEntrypoint
-// cannot be instantiated here. The stub is typed by the shared contract, so a
-// change to the RPC's shape breaks these tests at compile time.
+// node/jsdom with no workerd. The stub is typed by the shared contract.
 
 const REQUEST_URL = new URL(
   "https://tower.local/api/assets/meals.example/annotations",
@@ -98,7 +94,6 @@ describe("POST /api/assets/:id/annotations", () => {
       ingest,
     );
 
-    // The asset comes from the path, never from the body.
     expect(calls).toEqual([
       {
         asset: "meals.example",
@@ -233,7 +228,6 @@ describe("POST /api/assets/:id/annotations", () => {
       field: "body",
     });
 
-    // A guard that fails must not reach the capability at all.
     expect(calls).toEqual([]);
   });
 

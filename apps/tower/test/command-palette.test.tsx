@@ -5,8 +5,7 @@ import type { AssetCard, WallPayload } from "@shared/wall";
 
 const state = vi.hoisted(() => ({ assets: [] as AssetCard[] }));
 
-// Tasks, and a typed task id, are offered once a task source is connected
-// (D32, bead ro-ujb9.143): connected here, as this installation's is.
+// Tasks, and a typed task id, are offered once a task source is connected.
 vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 
 vi.mock("@/hooks/useWall", () => ({
@@ -17,9 +16,8 @@ vi.mock("@/hooks/useWall", () => ({
   }),
 }));
 
-// The Integrations entry wears a dot when a credential is about to expire (bead
-// `ro-vu8d.8`), which means the sidebar now reads the provider payload too.
-// Mocked for the same reason `useWall` is: nothing here is about the fetch.
+// The Integrations entry wears a dot when a credential is about to expire, so
+// the sidebar reads the provider payload too. Mocked for the same reason.
 vi.mock("@/hooks/useIntegrationProviders", () => ({
   INTEGRATION_PROVIDERS_KEY: ["integration-providers"],
   useIntegrationProviders: () => ({ data: undefined, isPending: true, isError: false }),
@@ -30,25 +28,18 @@ import { PALETTE_RECENT_KEY } from "@/components/CommandPalette";
 import { loadCommandPalette } from "./lazy-code";
 import { resetTaskSourceMock, taskSourceMock } from "./task-source-mock";
 
-// The palette's code arrives on first open (bead `ro-ujb9.84`). These cases are
-// about the palette once it is here; the first press before that is
-// `lazy-parts.test.tsx`'s.
+// The palette's code arrives on first open. These cases are about the
+// palette once it is here; the first press before that is `lazy-parts.test.tsx`'s.
 beforeAll(loadCommandPalette);
 
-// The command palette (bead `ro-d298`). doc 10 principle 4 has named ⌘K since
-// the Tower was a sketch; this is the navigation half of it. What these
-// assertions are really protecting: the shortcut reaches the operator wherever
-// they are on the desk, the two things they jump to (a page, an asset) are both
-// listed, Enter actually MOVES the router, and the palette exists nowhere near
-// `/wall` — the television renders outside the shell and stays read-only.
+// The command palette: the shortcut reaches the operator wherever they are on
+// the desk, a page and an asset are both listed, Enter actually moves the
+// router, and the palette exists nowhere near `/wall`.
 
 function asset(id: string, displayName: string, worstSeverity: AssetCard["worstSeverity"] = null) {
-  // `status` is here because the SIDEBAR now lists these same assets (bead
-  // `ro-pbzu.9`) and reads the lifecycle stage off every row. The store's column
-  // is NOT NULL, so a fixture without it was describing a payload that cannot
-  // exist.
-  // The reported-once fields decide where a site opens (`sitePath`, bead
-  // `ro-ujb9.96.7.4`): these have reported, so they open on their Overview.
+  // `status` is here because the sidebar lists these same assets and reads
+  // the lifecycle stage off every row; the store's column is NOT NULL. The
+  // reported-once fields decide where a site opens (`sitePath`).
   return {
     id, displayName, worstSeverity, status: "live",
     activeUsers: { series: [{ t: "2026-09-01", v: 12 }], provisionalFrom: null, collectedAt: null },
@@ -67,11 +58,8 @@ function CurrentPath() {
   return <span data-testid="path">{pathname}</span>;
 }
 
-/**
- * The desk shell over a page that prints where it is. `/wall` sits OUTSIDE the
- * layout route here exactly as it does in `App.tsx`, which is the whole point
- * of the last test in this file.
- */
+/** The desk shell over a page that prints where it is. `/wall` sits outside
+ * the layout route here exactly as it does in `App.tsx`. */
 function renderShell(path = "/") {
   return render(
     <MemoryRouter initialEntries={[path]}>
@@ -119,7 +107,6 @@ describe("opening and closing", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
 
-    // Ctrl is the same shortcut, for the operator who is not on the Mac.
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
     expect(screen.getByRole("dialog", { name: "Search pages and sites" })).toBeInTheDocument();
   });
@@ -135,7 +122,7 @@ describe("opening and closing", () => {
     renderShell();
 
     // Two sidebars are in the DOM by design (the desktop column and the
-    // small-screen drawer's source); either button is the same palette.
+    // small-screen drawer's source).
     fireEvent.click(screen.getAllByRole("button", { name: /Search/ })[0]!);
     expect(screen.getByRole("dialog", { name: "Search pages and sites" })).toBeInTheDocument();
   });
@@ -160,9 +147,8 @@ describe("opening and closing", () => {
     expect(document.activeElement).toBe(trigger);
 
     fireEvent.click(trigger);
-    // The palette takes focus for its own field — that is the point of a
-    // shortcut — and gives it back rather than dropping it on <body>, which
-    // would make the operator's next Tab restart at the top of the page.
+    // The palette takes focus for its own field and gives it back rather than
+    // dropping it on <body>, which would make the next Tab restart at the top.
     expect(document.activeElement).toBe(paletteInput());
 
     fireEvent.keyDown(window, { key: "Escape" });
@@ -189,7 +175,6 @@ describe("what it lists", () => {
       expect(shown.some((row) => row.includes(page))).toBe(true);
     }
     for (const { displayName, id } of ASSETS) {
-      // Name AND domain, because the operator knows a site by either.
       expect(shown.some((row) => row.includes(displayName) && row.includes(id))).toBe(true);
     }
   });
@@ -198,20 +183,17 @@ describe("what it lists", () => {
     renderShell();
     const dialog = openWithShortcut();
 
-    // Identity is the favicon; the dot is attention, exactly as on the cards.
     expect(within(dialog).getAllByRole("img", { name: /Warn|Error/ })).toHaveLength(1);
   });
 
-  // `ro-hou2`: the favicon is decoration beside a name that is always there,
-  // so it contributes nothing to the row's accessible name. Before the fix this
-  // row announced as "Meal Planner favicon Meal Planner meals.example".
+  // The favicon is decoration beside a name that is always there, so it
+  // contributes nothing to the row's accessible name.
   it("names an asset row by the asset, not by its favicon", () => {
     renderShell();
     const dialog = openWithShortcut();
 
-    // The accessible name is the row's own text — the display name and the
-    // domain, which is what the operator searched by. (jsdom concatenates the
-    // text nodes with no separator, so the assertion reads run together.)
+    // jsdom concatenates the text nodes with no separator, so the assertion
+    // reads run together.
     expect(
       within(dialog).getByRole("option", { name: "Fee Codesfees.example" }),
     ).toBeInTheDocument();
@@ -219,11 +201,10 @@ describe("what it lists", () => {
     expect(within(dialog).queryByTitle(/favicon/i)).toBeNull();
   });
 
-  it("says asset, never the older noun (D20)", () => {
+  it("says asset, never the older noun", () => {
     renderShell();
     const dialog = openWithShortcut();
 
-    // Once as the group heading, once as the page row.
     expect(within(dialog).getAllByText("Sites")).toHaveLength(2);
     expect(paletteInput()).toHaveAttribute("placeholder", "Search pages and sites…");
   });
@@ -286,10 +267,9 @@ describe("navigating", () => {
 
     fireEvent.change(paletteInput(), { target: { value: "ro-d298" } });
 
-    // A task has a page (`/tasks/:id`, D19); the row goes straight there.
     expect(rows()).toEqual(["Open task ro-d298Enter"]);
-    // A force-mounted row is the only thing left on screen, so the empty state
-    // would be a lie — it must not be here.
+    // A force-mounted row is the only thing left on screen, so the empty
+    // state must not be here.
     expect(screen.queryByText("No page or site matches.")).toBeNull();
 
     fireEvent.keyDown(paletteInput(), { key: "Enter" });
@@ -324,7 +304,6 @@ describe("recents", () => {
       "page:System health",
     ]);
 
-    // Reopen: the remembered page leads, and is NOT drawn twice.
     openWithShortcut();
     const first = rows()[0] ?? "";
     expect(first).toContain("System health");
@@ -337,7 +316,7 @@ describe("recents", () => {
     window.localStorage.setItem(PALETTE_RECENT_KEY, "{not json");
     renderShell();
 
-    // No throw, no empty palette: a broken convenience is not an outage.
+    // A broken convenience is not an outage.
     const dialog = openWithShortcut();
     expect(within(dialog).getByText("Home")).toBeInTheDocument();
   });
@@ -358,9 +337,8 @@ describe("the television has no palette", () => {
     renderShell("/wall");
 
     expect(screen.getByText("the television")).toBeInTheDocument();
-    // No sidebar, therefore no search button…
     expect(screen.queryByRole("button", { name: /Search/ })).toBeNull();
-    // …and no shortcut, because the handler is mounted by the shell.
+    // No shortcut either, because the handler is mounted by the shell.
     fireEvent.keyDown(window, { key: "k", metaKey: true });
     expect(screen.queryByRole("dialog")).toBeNull();
   });

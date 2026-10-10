@@ -5,33 +5,12 @@ import { useConfigWritable } from "@/hooks/useConfigWritable";
 import type { ConfigSource } from "@/lib/api";
 
 /**
- * WHICH READS A CONFIG SAVE INVALIDATES — declared ONCE (bead `ro-ina0`).
- *
- * `useConfigSave` (a setting) and `useCollectionSave` (a row) are two write
- * paths onto the same files, so they refresh the same pages. They used to keep
- * two copies of this list and the copies had already drifted: a save through the
- * setting path left `/financials` showing the cost it was just told to change.
- *
- * The rule for membership is mechanical — a key belongs here when its payload
- * is BUILT FROM A CONFIG FILE, which for the Tower means the Worker route
- * behind it reads one of `vite.config.ts`'s injected `__…__` constants. Anything
- * assembled from the store alone (`/api/work`, `/api/alerts/*`) does not, because
- * a config save cannot move it.
- *
- * Each key names what makes it config-backed, so the next person adding a route
- * can tell in one read whether it belongs:
- *
- *  - `wall`                  — counters, tower, integrations, pull, SERP panel
- *  - `asset-detail`          — the same set plus signal panels and value events
- *  - `settings`              — a PURE builder over config; nothing else
- *  - `financials`            — domain costs and recurring costs
- *  - `integrations`          — integrations, pull, caps, SERP panel
- *  - `integration-providers` — the provider inventory in `integrations.json`
- *  - `task-source`           — the task projects saved in `beads.json`
- *
- * A key that no read uses is harmless (invalidation of an absent key is a
- * no-op), which is the direction to err in: a missing key is a stale page the
- * operator has no reason to suspect.
+ * Which reads a config save invalidates, declared once for both write paths
+ * (`useConfigSave`, `useCollectionSave`). A key belongs here when its payload
+ * is built from a config file, which for the Tower means the Worker route
+ * behind it reads one of `vite.config.ts`'s injected `__…__` constants;
+ * anything assembled from the store alone does not. Err towards listing: an
+ * extra key is harmless, a missing one is a silently stale page.
  */
 export const CONFIG_BACKED_QUERIES = [
   "wall",
@@ -44,37 +23,15 @@ export const CONFIG_BACKED_QUERIES = [
   "task-source",
 ] as const;
 
-/**
- * Vite statically imports the editable config files, so a FILE save RESTARTS
+/** Vite statically imports the editable config files, so a file save restarts
  * the local Worker and the payload every page reads is rebuilt a beat later.
- * Refetching immediately would only re-read the old bundle.
- *
- * One constant rather than one per hook, for the same reason as the list: the
- * two write paths wait on the same restart.
- */
+ * Refetching immediately would only re-read the old bundle. */
 export const WORKER_RESTART_MS = 1500;
 
 /**
- * HOW LONG A SAVE WAITS BEFORE REFETCHING — declared once, beside the list it
- * refetches (bead `ro-ssgu`).
- *
- * Both write paths used to wait `WORKER_RESTART_MS` unconditionally, because
- * before D22 every save was a file save and every file save restarted Vite.
- * A store-backed save changes no file, restarts nothing, and has nothing to
- * wait for — so on a seeded install that second and a half was a second and a
- * half of stale figures on screen for no reason at all.
- *
- * THE ANSWER IS THE SOURCE, NOT THE DEPLOYMENT, and it is read from
- * `GET /api/config` rather than guessed: only when EVERY document the Tower is
- * reading came from the store is there no file in the loop. A mixed answer
- * waits, and so does an answer that has not arrived — the local dev lane does
- * not report sources at all, and it is the one deployment that really does
- * restart, because it exports each stored document back to its file after the
- * store takes the write.
- *
- * Erring toward the wait is the cheap direction: waiting when nothing restarted
- * costs a second, and refetching early costs the operator a figure that is
- * wrong with no sign that it is.
+ * How long a save waits before refetching: none only when `GET /api/config`
+ * says every document came from the store. A mixed or missing answer waits,
+ * because the local dev lane reports no sources and really does restart.
  */
 export function configSaveDelayMs(
   sources: Readonly<Record<string, ConfigSource>> | undefined,

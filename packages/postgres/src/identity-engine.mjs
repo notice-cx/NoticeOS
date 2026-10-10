@@ -35,7 +35,7 @@ function snake(name) {
 function model(modelName, fields) {
     return { modelName, fields: Object.fromEntries(fields.map(field => [field, snake(field)])) };
 }
-/** Agent sign-in's maintained tables (epic ro-cvl9; migration 0014): signing
+/** Agent sign-in's maintained tables: signing
  * keys, OAuth clients, the protected resources, tokens and consents. */
 export const AGENT_NAMES = {
     jwks: model('auth_jwks', ['publicKey', 'privateKey', 'createdAt', 'expiresAt', 'alg', 'crv']),

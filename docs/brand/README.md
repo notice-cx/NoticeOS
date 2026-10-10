@@ -1,11 +1,8 @@
 # NoticeOS — the Notice identity
 
-Adopted by the operator on September 23, 2026 (decision D35, bead
-`ro-ujb9.77.2`): the app wears the same identity as
-[www.notice.cx](https://www.notice.cx) — the Notice mark, a NoticeOS wordmark
-in Stack Sans Notch and the website's blue. It replaces the Signal `rx` mark
-and Signal accent approved on September 9, 2026, whose record stays in
-docs/artifacts/brand-2026-09-09 (private historical evidence).
+The app wears the same identity as [www.notice.cx](https://www.notice.cx) —
+the Notice mark, a NoticeOS wordmark in Stack Sans Notch and the website's
+blue.
 
 **Your startup. In clear view.** NoticeOS brings business evidence and the
 work it should drive into one operating view: health, traffic, revenue,
@@ -28,7 +25,7 @@ Its palette and fonts come from
 [brand/notice.css](../../apps/tower/public/brand/notice.css), the shared
 identity source. Product-specific state scales and application aliases live
 in [index.css](../../apps/tower/src/index.css). Do not copy color values into
-components. The [UI standards](../14-design.md#the-notice-identity-d35)
+components. The [UI standards](../14-design.md#tokens)
 define component reuse, operational meaning and the measured distances
 between the brand blue and every meaning-bearing colour.
 

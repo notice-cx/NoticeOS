@@ -1,15 +1,7 @@
-// A page whose first read fails says so (bead ro-ujb9.218; the 2026-07 audit's finding 15).
-//
-// Home, Sites, Alerts, the Wall and Tasks used to print "Waiting for the
-// store…" once their read (/api/wall; /api/work for Tasks) had failed: TanStack
-// holds no data and nothing is
-// pending, which is the error state and nothing else. Each route here is
-// rendered with its REAL read over a fetch that answers 503, and must draw the
-// shared failure — the error dot, what could not be loaded, the status, Try
-// again — never the patient wait. Integrations handled its failure already, in
-// a sentence of its own; it draws the same state now. So do Settings, the TV
-// layout editor and Workflows (bead ro-ujb9.242), which each said it in a
-// sentence — Workflows in the read's own error message.
+// A page whose first read fails says so. Each route here is rendered with its
+// real read over a fetch that answers 503, and must draw the shared failure
+// (the error dot, what could not be loaded, the status, Try again), never a
+// patient wait and never a sentence of its own.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "./render";
 import type { ReactElement } from "react";
@@ -55,8 +47,8 @@ function renderAt(path: string, element: ReactElement) {
   );
 }
 
-/** A DATA router: the TV layout editor's unsaved-changes guard is react-router's
- * own blocker, which only exists on one; `path` is the route's pattern. */
+/** A data router: the TV layout editor's unsaved-changes guard is
+ * react-router's own blocker, which only exists on one. */
 function renderRouted(at: string, pattern: string, element: ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retryDelay: 0 } } });
   const router = createMemoryRouter([{ path: pattern, element }], { initialEntries: [at] });
@@ -115,7 +107,7 @@ describe("Settings, the TV layout editor and Workflows draw it too, never a sent
     expect(failed).toHaveAttribute("data-status-for", subject);
     expect(failed).toHaveTextContent(title);
     expect(failed).toHaveTextContent("HTTP 503");
-    // The sentences it replaced, and the read's own error message.
+    // No page says it in a sentence of its own, or in the read's own error message.
     expect(container.textContent).not.toMatch(/could not be read|next poll retries|GET \/api/);
 
     const before = readsOf(fetchMock, read);

@@ -1,47 +1,14 @@
 #!/usr/bin/env node
-// creds-check.mjs — the CREDENTIAL VERIFICATION RAILS for the accounts pass.
+// Prove each credential the OS is using with one cheap real probe per lane.
 //
-// The operator connects a provider on the Tower's /integrations page, where it
-// lives encrypted in the store; workers/ingest/.dev.secrets.json (and legacy
-// .dev.vars behind it) is the fallback for installs that have not moved yet.
-// This proves each one the moment it lands (docs/15 flow C: "validation probe on
-// save — one cheap real call; success shows a live data sample — proof, not a
-// checkmark; failure shows the provider's actual error + the likely fix").
-//
-// IT ASKS THE RUNNING OS FIRST (beads ro-vu8d.10 / ro-vu8d.15). A store-held
-// credential has no env binding to read and its plaintext must never leave the
-// Worker, so for those lanes the OS is asked what it holds
-// (GET /api/integrations/providers) and asked to prove it
-// (POST /api/integrations/:provider/test — the card's own Test button). Every
-// row names which source answered. With the OS stopped this is the env-only
-// check and says so in one line, rather than reporting a working credential as
-// missing.
-//
-// For each lane with credentials PRESENT it makes ONE cheap real probe and prints
-// a scannable line: state glyph + lane + what the probe actually SAW (a live data
-// sample) or the provider's real error + the likely fix. Lanes with no creds
-// print a quiet "not configured yet" (not an error). It NEVER prints secret
-// values — only names, presence, and the data a probe returned.
-//
-// Two lanes are probe-on-request only, because a probe COSTS something:
-//   --lane clarity  — Clarity's 10-calls/project/DAY hard cap (doc 11); a probe
-//                     burns 1 of them, so it never runs unasked.
-//   --lane discord  — posts a real message to the operator channel (an external
-//                     side effect), so it only fires when explicitly asked.
-//
-// At the end it reads config/integrations.json and, for every lane a probe
-// actually PROVED for a property still marked needs-setup, prints the exact
-// `pnpm config:apply --stdin` heredoc that records that setup proof. It never
-// edits health status: collectors and their stored attempts own that truth. It
-// SUGGESTS; it never applies (config:apply owns the y/N write).
-//
-// Plain Node ESM — no TypeScript, no build step, no dependencies. House style of
-// os-up.mjs / config-apply.mjs: a tiny arg parser, plain logging, one job.
+// A credential connected in the product is read from and proved by the running
+// OS (its plaintext never leaves the Worker); one still in the environment file
+// is read and proved here. Never prints secret values. Clarity and Discord are
+// probe-on-request only, because a probe costs something. At the end it
+// suggests, never applies, the changeset recording a proved setup.
 //
 //   pnpm creds:check                # all configured non-explicit lanes
 //   pnpm creds:check --lane bing     # probe just one lane (incl. clarity/discord)
-//
-// See scripts/README.md § Credentials for the slot table and behavior.
 
 import crypto from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -59,11 +26,10 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
-// This installation's copies, else the product defaults (bead ro-ujb9.125).
+// This installation's copies, else the product defaults.
 const PULL_JSON = readablePath('config/pull.json', { root: REPO_ROOT });
 const INTEGRATIONS_JSON = readablePath('config/integrations.json', { root: REPO_ROOT });
 
-// ── tiny logging (plain, no timestamps — this is an interactive CLI) ──────────
 const c = process.stdout.isTTY
   ? {
       dim: (s) => `\x1b[2m${s}\x1b[0m`,
@@ -86,9 +52,7 @@ function out(line = '') {
   process.stdout.write(line + '\n');
 }
 
-// Row states → glyph. pass/fail/skip mirror flow C's proof / provider-error /
-// quiet-not-configured. warn is used for a probe that ran but couldn't fully
-// prove the lane (e.g. reachable but returned nothing to sample).
+// warn: a probe that ran but could not fully prove the lane.
 const GLYPH = {
   pass: () => c.green('✓'),
   fail: () => c.red('✘'),
@@ -125,10 +89,9 @@ function nonEmptyMap(v) {
 }
 
 /**
- * The asset the single-project Clarity token belongs to: the product's one rule
- * (`legacyBindingAsset`, bead `ro-ujb9.118`) over this checkout's own
- * data-source register — the first site with a Clarity lane. Null when the
- * register names none (or cannot be read), and then the token serves nobody.
+ * The asset the single-project Clarity token belongs to (`legacyBindingAsset`
+ * over this checkout's data-source register). Null when the register names
+ * none or cannot be read, and then the token serves nobody.
  */
 function claritySingleTokenAsset() {
   try {
@@ -139,16 +102,11 @@ function claritySingleTokenAsset() {
 }
 
 /**
- * Clarity issues a data-export token PER PROJECT, so the canonical slot is the
- * asset→token map. `CLARITY_PROJECT_API_TOKEN` is the single-project shape the
- * operator configured first; it is accepted as a documented fallback bound to
- * one asset so an existing secret is not reported as "not configured".
- *
- * Precedence matches the one rule the product reads (bead `ro-vu8d.24`,
- * `readEnvCredential` in packages/contract, declared as the map field's
- * `legacyAssetBinding`): the MAP wins, because it is the only shape that can
- * express the portfolio. Each entry carries the slot it came from so a failure
- * names the variable the operator actually has to edit.
+ * Clarity issues a data-export token per project, so the canonical slot is
+ * the asset→token map; `CLARITY_PROJECT_API_TOKEN` is the single-project
+ * fallback bound to one asset. The map wins, matching `readEnvCredential` in
+ * packages/contract. Each entry carries the slot it came from so a failure
+ * names the variable to edit.
  */
 function clarityTokens(vars) {
   const tokens = new Map();
@@ -227,8 +185,7 @@ function b64url(buf) {
     .replace(/=+$/, '');
 }
 
-// Normalize a site/property identifier to a bare host for comparison:
-// strips a leading `sc-domain:`, the scheme, `www.`, and any path/trailing slash.
+// A site/property identifier as a bare host for comparison.
 function normHost(s) {
   if (typeof s !== 'string') return '';
   let h = s.trim().toLowerCase();
@@ -264,9 +221,6 @@ function snippet(s, n = 160) {
     .slice(0, n);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Integrations register helpers (config/integrations.json).
-// ─────────────────────────────────────────────────────────────────────────────
 async function loadRegister() {
   try {
     return JSON.parse(await fs.readFile(INTEGRATIONS_JSON, 'utf8'));
@@ -285,29 +239,16 @@ function applicableAssets(register, integrationId) {
   return out;
 }
 
-// RFC 6901 escape for a pointer token (asset ids have none of these today, but
-// the pointer must be correct regardless).
+// RFC 6901 escape for a pointer token.
 function ptrEscape(tok) {
   return String(tok).replace(/~/g, '~0').replace(/\//g, '~1');
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The changeset SUGGESTION (pure, exported for the unit test).
-//
-// proofs: [{ integrationId, assets: [assetId, …] }] — a lane's probe passed and
-// PROVED those properties (Bing/GSC: verified-sites gate; GA4/Clarity: the one
-// probed property; Discord: the System row).
-//
-// HONESTY GATE: a passed preflight probe proves CREDENTIAL + ENROLLMENT, not
-// ongoing health. It may record that proof (note + since), but it never changes
-// a status. Collector-backed health is derived from the collectors' runs;
-// lanes without collectors remain needs-setup until end-to-end evidence exists.
-//
-// THE NOTE IS ONE LINE (bead `ro-ujb9.96.6.4`): the `asset-lane` register caps
-// it at 90 characters and the Sources tab shows it whole, so the proof REPLACES
-// the note — it is the newest thing that blocks nothing — rather than growing
-// it into a log. The earlier note stays in git history.
-// ─────────────────────────────────────────────────────────────────────────────
+// The changeset suggestion. `proofs` is `[{ integrationId, assets }]`: a
+// lane's probe passed and proved those properties. A passed probe proves
+// credential and enrollment, not ongoing health: it records the proof (note +
+// since) and never changes a status. The proof replaces the note rather than
+// growing it, because the `asset-lane` register caps a note at 90 characters.
 
 /** The one-line proof a passed probe records: setup proof only, never health. */
 export function probeMarker(day) {
@@ -356,11 +297,9 @@ export function suggestChangeset(proofs, register, nowIso) {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Probes. Each returns { rows: [Row], proofs: [{ integrationId, assets }] }.
-// A Row is { state, label, detail, sub?[] }. Probes never throw for a provider
-// error — they render it as a fail row; only a bug would escape.
-// ─────────────────────────────────────────────────────────────────────────────
+// Probes. Each returns { rows: [Row], proofs: [{ integrationId, assets }] };
+// a Row is { state, label, detail, sub?[] }. A provider error renders as a
+// fail row, never a throw.
 
 // Wrap fetch so a socket/DNS failure renders as a clean line, not a stack.
 async function probeFetch(url, init, fetchImpl = fetch) {
@@ -375,18 +314,15 @@ async function probeFetch(url, init, fetchImpl = fetch) {
     }
     return { ok: res.ok, status: res.status, text, json };
   } catch (err) {
-    // Node's fetch wraps the real cause (ECONNREFUSED, ENOTFOUND, a sandbox
-    // EPERM) as a generic "fetch failed" — surface the cause so the line is useful.
+    // Node's fetch wraps the real cause as a generic "fetch failed".
     const cause = err?.cause;
     return { networkError: cause?.code || cause?.message || err?.message || String(err) };
   }
 }
 
-// Self-report pull (ASSET_TOKENS): GET each enabled pull.json endpoint with that
-// property's own token — the same map the ingest Worker checks its pushes
-// against, because a property holds exactly one secret. Success = the counter
-// names it returned (a live sample). `pullFile` is for tests, which read a
-// fixture rather than the checkout's config (bead ro-ujb9.97).
+// Self-report pull (ASSET_TOKENS): GET each enabled pull.json endpoint with
+// that property's own token, the same map the ingest Worker checks its pushes
+// against. `pullFile` lets tests read a fixture.
 export async function probePull(vars, { pullFile = PULL_JSON } = {}) {
   const rows = [];
   const tokens = jsonMap(vars.ASSET_TOKENS);
@@ -400,7 +336,7 @@ export async function probePull(vars, { pullFile = PULL_JSON } = {}) {
     (e) => e && e.enabled !== false && has(tokens[e.asset]),
   );
   // ASSET_TOKENS is non-empty whenever any property can push, so "configured"
-  // no longer implies a pullable target. Say so rather than printing nothing.
+  // does not imply a pullable target.
   if (targets.length === 0) {
     return {
       rows: [
@@ -451,12 +387,9 @@ export async function probePull(vars, { pullFile = PULL_JSON } = {}) {
       });
       continue;
     }
-    // Success — pull a small live sample to show (proof, not a checkmark). The
-    // shape follows the entry's declared `format`: a JSON envelope's metric
-    // keys, or — for Prometheus — the COUNTER LABELS (e.g. table="profiles"),
-    // because those are what config/pull.json's metric mapping consumes; the
-    // bare metric names (d1_row_count) once read as a mapping mismatch to a
-    // reviewer when they weren't one.
+    // A small live sample: a JSON envelope's metric keys, or for Prometheus the
+    // counter labels, because those are what config/pull.json's metric mapping
+    // consumes.
     const kind = t.format === 'envelope' ? 'metrics' : 'counters';
     let names = [];
     if (t.format === 'envelope') {
@@ -474,7 +407,7 @@ export async function probePull(vars, { pullFile = PULL_JSON } = {}) {
           if (m && !names.includes(m[1])) names.push(m[1]);
         }
       } else {
-        // Name any mapped counter the body did NOT carry — that IS a real gap.
+        // A mapped counter the body did not carry is a real gap.
         const missing = [...mapped].filter((c) => c && !names.includes(c));
         if (missing.length > 0) {
           rows.push({
@@ -501,15 +434,12 @@ export async function probePull(vars, { pullFile = PULL_JSON } = {}) {
       detail: `${names.length} ${kind} — ${shown}${names.length > 3 ? ', …' : ''}`,
     });
   }
-  // The pull/self-report lane is the pulse pipeline, not a doc-11 catalog lane,
-  // so it has no integrations.json cell to flip — no proof entry.
+  // The pull lane has no integrations.json cell to flip, so no proof entry.
   return { rows, proofs: [] };
 }
 
-// Bing (BING_WEBMASTER_API_KEY): GetUserSites (apikey auth); success = verified
-// site URLs, and NAME the applicable properties that aren't verified yet.
-// Exported so the provider-error path can be exercised with a fake key without
-// touching the operator's real .dev.vars.
+// Bing (BING_WEBMASTER_API_KEY): GetUserSites; success = verified site URLs,
+// naming the applicable properties that are not verified yet.
 export async function probeBing(vars, register) {
   const key = vars.BING_WEBMASTER_API_KEY;
   const url = `https://ssl.bing.com/webmaster/api.svc/json/GetUserSites?apikey=${encodeURIComponent(key)}`;
@@ -571,8 +501,8 @@ export async function probeBing(vars, register) {
   };
 }
 
-// DataForSEO (login/password): the cheapest account-info endpoint (basic auth);
-// success = remaining balance — it's a metered account, so balance IS the sample.
+// DataForSEO (login/password): the cheapest account-info endpoint; the balance
+// is the sample.
 async function probeDataForSEO(vars) {
   const label = 'DataForSEO';
   const auth = Buffer.from(`${vars.DATAFORSEO_LOGIN}:${vars.DATAFORSEO_PASSWORD}`).toString('base64');
@@ -617,9 +547,8 @@ async function probeDataForSEO(vars) {
     };
   }
   const bal = typeof money.balance === 'number' ? money.balance.toFixed(2) : String(money.balance);
-  // The balance proves only that the shared credential works. Per-property
-  // health is derived from the five stored collector results, so this check
-  // deliberately does not write a file-backed proof or claim a property is live.
+  // The balance proves only the shared credential; per-property health comes
+  // from stored collector results, so no proof is offered.
   return {
     rows: [
       {
@@ -882,9 +811,8 @@ export async function probeGSC(vars) {
   return { rows, proofs: [{ integrationId: 'gsc', assets: proved }] };
 }
 
-// Clarity (CLARITY_TOKENS, or CLARITY_PROJECT_API_TOKEN as the single-project
-// fallback): explicit-only — the 10/project/DAY cap makes a probe expensive.
-// Probe ONLY the first configured project (burns 1 of its 10).
+// Clarity: explicit-only, because the 10 calls/project/day cap makes a probe
+// expensive. Probes only the first configured project.
 async function probeClarity(vars) {
   const label = 'Microsoft Clarity';
   const tokens = clarityTokens(vars);
@@ -959,11 +887,10 @@ async function probeClarity(vars) {
   };
 }
 
-// PostHog (POSTHOG_KEYS, bead ro-ghis.1): one project-settings read per keyed
-// asset — no query runs, so PostHog's hourly query budget is untouched. The
-// region and project are not secrets and come from config/integrations.json
-// (the asset's Sources tab), never from this file. No proof is offered for a
-// posture change: PostHog's health is derived from the daily archive's runs.
+// PostHog (POSTHOG_KEYS): one project-settings read per keyed asset, no query,
+// so the hourly query budget is untouched. The region and project come from
+// config/integrations.json. No proof: PostHog's health comes from the daily
+// archive's runs.
 async function probePosthog(vars) {
   const label = 'PostHog';
   const keys = Object.entries(jsonMap(vars.POSTHOG_KEYS)).filter(([, key]) => has(key));
@@ -1008,19 +935,14 @@ async function probePosthog(vars) {
   return { rows, proofs: [] };
 }
 
-// Discord (DISCORD_WEBHOOK_URL): explicit-only — posts ONE clearly-labeled test
-// message to the operator channel (an external side effect).
-//
-// THE SENTENCE IS MIRRORED, not invented here: `DISCORD_TEST_MESSAGE` in
-// workers/ingest/src/credential-probes.ts is the same line the card's Test
-// button posts, and this file cannot import that TypeScript. Two wordings would
-// be two things an operator has to recognize in their own channel.
+// Discord: explicit-only, since it posts one real message. Mirrors
+// `DISCORD_TEST_MESSAGE` in workers/ingest/src/credential-probes.ts, which this
+// file cannot import; keep the two identical.
 const DISCORD_TEST_MESSAGE =
   'NoticeOS connection test — nothing is wrong, you can ignore this.';
 
 /** The Discord webhook is portfolio-wide, so a delivered test proves the lane
- * on every row of the register that carries it — in practice the OS's own row.
- * Read from the register, never an asset id written here (bead ro-ujb9.120). */
+ * on every row of the register that carries it. */
 export async function probeDiscord(vars, register) {
   const label = 'Discord';
   out(c.yellow('  ⚠ ') + 'This posts one real message to the operator channel (labeled "ignore").');
@@ -1055,50 +977,26 @@ export async function probeDiscord(vars, register) {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Calendar feeds (CALENDAR_FEEDS): GET each configured secret ICS link and say,
-// per LABEL, whether it still answers with a calendar.
+// per label, whether it still answers with a calendar. A reset Google link
+// answers 404 or a sign-in page forever, and the Wall's meetings panel blanks
+// by design when `feedsOk` is 0, so a rotated link is silent everywhere else.
 //
-// WHY THIS LANE EXISTS. Every other credential here fails loudly somewhere. A
-// calendar link does not. Google's "secret address in iCal format" is revoked by
-// resetting it, after which the old address answers 404 — or 200 with a sign-in
-// page — forever; ingest reports that as one `calendar_feed_failed` line inside a
-// Worker log, and the Wall's meetings panel blanks BY DESIGN when `feedsOk` is 0.
-// So a rotated link is silent in every place the operator actually looks, until
-// they miss a meeting. This lane is the place that names it.
+// The URL is the credential. A row carries the operator's label and a failure
+// class and nothing else; `withoutFeedUrls` is the second lock on that. The
+// failure classes are ingest's own codes, so the checker and the running lane
+// describe one broken link the same way.
 //
-// THE URL IS THE CREDENTIAL. Whoever holds one of these links reads the whole
-// calendar, with no account, until it is reset. So a row carries the operator's
-// LABEL and a failure class and nothing else: not the address in a detail, not in
-// a fix, not out of an error object (see the catch in `fetchCalendarFeed`), and
-// not out of the raw slot value when that value turns out not to be JSON — a
-// bare url pasted into the slot is a common way to get there. `withoutFeedUrls`
-// is the second lock on that, in the same spirit as the calendar module's charset
-// check on a pinned color.
-//
-// THE FAILURE CLASSES ARE INGEST'S OWN CODES — `http_403`, `timeout`,
-// `not_calendar`, `too_large`, `invalid_url`, `config_missing_url`. The word this
-// lane prints is the word the Worker would log for the same feed, so the checker
-// and the running lane can never describe one broken link two ways.
-//
-// PARSED HERE RATHER THAN IMPORTED. workers/ingest/src/calendar.ts owns the
-// acceptance rules, but `parseFeedTargets` is not exported, the module is
-// TypeScript, and it imports `@noticeos/contract` and reads a Worker `env` —
-// pulling it into a plain-Node script with no build step would drag worker types
-// behind it, and exporting a shared helper would restructure a module another
-// bead owns. The few acceptance lines are therefore duplicated below and marked.
-// The REQUEST SHAPE is duplicated for the same reason and matters as much: an
-// origin that content-negotiates would answer a different `accept` differently,
-// and a tighter timeout than ingest's would call a slow-but-working feed dead.
-// ─────────────────────────────────────────────────────────────────────────────
+// The acceptance rules and the request shape mirror workers/ingest/src/calendar.ts,
+// which this plain-Node script cannot import; an origin that content-negotiates
+// would answer a different `accept` differently, and a tighter timeout would
+// call a slow-but-working feed dead. Keep them identical.
 
-/** Mirrors `CALENDAR_USER_AGENT` in workers/ingest/src/calendar.ts — the origin
- * must see the same reader this OS sends when it really reads the calendar. */
+/** Mirrors `CALENDAR_USER_AGENT` in workers/ingest/src/calendar.ts. */
 const CALENDAR_USER_AGENT =
   'NoticeOS-Calendar/1.0 (+https://www.notice.cx; operator dashboard read)';
 
-/** Mirrors that module's `REQUEST_TIMEOUT_MS`. Deliberately the SAME ceiling and
- * not a tighter one: a feed this check calls dead is a feed ingest calls dead. */
+/** Mirrors that module's `REQUEST_TIMEOUT_MS`. */
 const CALENDAR_TIMEOUT_MS = 10_000;
 
 /** Mirrors that module's `RESPONSE_BYTE_LIMIT`. */
@@ -1112,20 +1010,13 @@ function calendarFeedField(value, field) {
 }
 
 /**
- * What this report is allowed to call a feed.
- *
- * The label is the operator's own word for the calendar and, with the color, the
- * only part of an entry that ever travels — except when the map has been written
- * inside out (`{ "<url>": "<label>" }`), which puts the credential in the KEY,
- * and keys are the one thing this report prints. A label that looks like an
- * address is withheld and the feed is named by position instead.
- *
- * `quotable` is true only when the printable form IS the operator's key, so a
- * fix line naming `CALENDAR_FEEDS["…"]` never names a key that does not exist.
+ * What this report is allowed to call a feed. A map written inside out
+ * (`{ "<url>": "<label>" }`) puts the credential in the key, so a label that
+ * looks like an address is withheld and the feed is named by position.
+ * `quotable` is true only when the printable form is the operator's key.
  */
 function displayFeedLabel(key, index) {
-  // Control and format characters out, whitespace collapsed: a label is one
-  // line of a report, and a bidi override has no business steering it.
+  // Control and format characters out: a bidi override must not steer a line.
   const flat = key.replace(/\p{C}/gu, ' ').replace(/\s+/g, ' ').trim();
   if (flat === '') return { display: `feed #${index + 1} (unnamed)`, quotable: false };
   if (/[a-z][a-z0-9+.-]*:\/\//i.test(flat) || /private-[A-Za-z0-9_-]{10,}/.test(flat)) {
@@ -1139,18 +1030,11 @@ function displayFeedLabel(key, index) {
 }
 
 /**
- * Mirrors `parseFeedTargets` in workers/ingest/src/calendar.ts, so the checker
- * and the lane can never disagree about what is configured:
- *
- * - absent or blank → no calendars at all (the lane's quiet not-configured line).
- * - unparseable, or parsed to something that is not an object → zero configured
- *   feeds, which ingest logs as `config_unparseable` / `config_not_a_map`. Its
- *   own state: the operator DID set the slot, and the Wall cannot tell that from
- *   never having configured one.
- * - a bare string entry is exactly `{ url }`; unknown keys are ignored.
- * - a named entry with no usable url stays COUNTED — ingest puts it in
- *   `feedsConfigured` and never in `feedsOk`, so the typo is visible rather than
- *   indistinguishable from a calendar that was never configured.
+ * Mirrors `parseFeedTargets` in workers/ingest/src/calendar.ts: absent or
+ * blank is not configured; unparseable or not an object is zero feeds
+ * (`config_unparseable` / `config_not_a_map`); a bare string entry is
+ * `{ url }`; a named entry with no usable url stays counted, as ingest counts
+ * it in `feedsConfigured` and never in `feedsOk`.
  */
 function parseCalendarFeeds(raw) {
   if (!has(raw)) return { config: 'absent', targets: [] };
@@ -1183,11 +1067,7 @@ async function discardBody(response) {
   }
 }
 
-/**
- * One feed, one GET, one coarse verdict. Everything about the request — headers,
- * redirect handling, timeout, byte ceiling, and what counts as a calendar — is
- * ingest's, so that "this link works" means the same thing in both places.
- */
+/** One feed, one GET, one coarse verdict, with ingest's own request shape. */
 async function fetchCalendarFeed(url) {
   let target;
   try {
@@ -1210,9 +1090,8 @@ async function fetchCalendarFeed(url) {
       signal: AbortSignal.timeout(CALENDAR_TIMEOUT_MS),
     });
   } catch (error) {
-    // Deliberately NOT the message or the cause, unlike `probeFetch` above: a
-    // transport error may carry the request url, and here the url is the secret.
-    // The error's NAME is all that is read, and only to tell a timeout apart.
+    // Not the message or the cause: a transport error may carry the request
+    // url, and here the url is the secret.
     const name = error?.name;
     return { code: name === 'TimeoutError' || name === 'AbortError' ? 'timeout' : 'unreachable' };
   }
@@ -1235,9 +1114,8 @@ async function fetchCalendarFeed(url) {
   }
   if (text.length > CALENDAR_BYTE_LIMIT) return { code: 'too_large' };
 
-  // Ingest's own `sawCalendar` rule: a `BEGIN:VCALENDAR` property line. A folded
-  // continuation starts with a space and so cannot match, exactly as there. The
-  // sign-in page a reset link serves has no such line, which is the whole point.
+  // Ingest's own `sawCalendar` rule: a `BEGIN:VCALENDAR` property line (a
+  // folded continuation starts with a space and cannot match).
   const normalized = text.replace(/\r\n?/g, '\n');
   if (!/^BEGIN:VCALENDAR/im.test(normalized)) return { code: 'not_calendar' };
   return {
@@ -1254,11 +1132,7 @@ function feedSlot(feed) {
     : "that entry's url in CALENDAR_FEEDS";
 }
 
-/**
- * The only real remedy for a link that has been reset: hold the current one.
- * One line, because several feeds can carry this fix in the same report and the
- * WHY behind it is said once, on the lane's own row.
- */
+/** The only real remedy for a link that has been reset. */
 function freshLinkFix(feed) {
   return (
     `fix: put a current "Secret address in iCal format" in ${feedSlot(feed)} (Google` +
@@ -1361,12 +1235,8 @@ function describeFeed(result, feed) {
 
 /**
  * The second lock: every line this lane emits, with any configured address
- * removed. The rows are built not to contain one; this is what makes that a
- * property of the output rather than a promise about the code above.
- *
- * Only values carrying a scheme are scrubbed — a value without one was never
- * fetchable and is not an address, and blanket-replacing a short garbage value
- * would eat ordinary words out of the fix lines.
+ * removed. Only values carrying a scheme are scrubbed; blanket-replacing a
+ * short garbage value would eat ordinary words out of the fix lines.
  */
 function withoutFeedUrls(rows, urls) {
   const secrets = new Set();
@@ -1401,10 +1271,8 @@ export async function probeCalendar(vars) {
     };
   }
   if (config !== 'ok') {
-    // Set but unreadable, which is NOT the quiet not-configured line: ingest
-    // reads zero calendars and the Wall shows the same blank panel it shows for a
-    // calendar nobody ever configured. The raw value is never echoed — pasting a
-    // bare secret url into the slot is one of the ways to land here.
+    // Set but unreadable is not the quiet not-configured line. The raw value is
+    // never echoed: a bare secret url pasted into the slot lands here.
     return {
       rows: [
         {
@@ -1462,10 +1330,8 @@ export async function probeCalendar(vars) {
     });
   }
 
-  // The sentence that would have named the rotation. `feedsOk` 0 is the state the
-  // meetings panel renders as nothing at all, so it has to be said out loud here —
-  // and it is where the shared cause belongs, since one reset takes out every
-  // calendar whose address came from the same "Reset private URLs" click.
+  // `feedsOk` 0 is the state the meetings panel renders as nothing at all, so
+  // it is said out loud here.
   if (answered === 0) {
     rows.push({
       state: 'fail',
@@ -1485,45 +1351,25 @@ export async function probeCalendar(vars) {
     });
   }
 
-  // Calendars are current display state, not evidence: nothing writes signal_runs
-  // and there is no config/integrations.json cell to record — same reason the
-  // pull lane proves nothing. See "WHY AN RPC AND NOT A LANE" in calendar.ts.
+  // Calendars are display state, not evidence: no integrations.json cell.
   return { rows: withoutFeedUrls(rows, targets.map((feed) => feed.url)), proofs: [] };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// THE STORE HALF (beads ro-vu8d.10 / ro-vu8d.15).
-//
-// Since the credential store landed, a provider can be fully connected with NO
-// env binding at all — entered on the Tower's Integrations page and kept
-// encrypted in D1. Reading only `.dev.secrets.json` made this script report
-// exactly those as "not configured yet": a false red on the one tool the repo
-// tells an operator to trust, and the more the epic succeeds the more lanes it
-// misreports.
-//
-// So the checker ASKS THE RUNNING OS instead of re-deriving the answer. It never
-// learns to decrypt — `CREDENTIALS_KEY` must not leave the Worker — which means
-// a store-held credential is also PROVED by the OS: the same
-// `POST /api/integrations/:provider/test` the card's Test button presses, which
-// resolves the credential inside ingest and makes the provider's cheapest real
-// call. One answer for the page and for the terminal.
-//
-// When the OS is not running this falls back to the env-only check and SAYS SO
-// in one line, because silence there would be the same false red in a new place.
-// ─────────────────────────────────────────────────────────────────────────────
+// The store half. A provider connected on /integrations has no env binding,
+// and `CREDENTIALS_KEY` must not leave the Worker, so the checker asks the
+// running OS what it holds and asks it to prove it with the same
+// `POST /api/integrations/:provider/test` the card's Test button presses.
+// With the OS stopped it falls back to the env-only check and says so.
 
-/** How a credential's `auth` reads in a terminal row. Null for the providers
- * with one implicit way in — there is no choice to report. */
+/** How a credential's `auth` reads in a terminal row. */
 const AUTH_WORD = {
   oauth: 'signed in',
   'service-account': 'service account',
 };
 
 /**
- * What the running OS holds, per provider id — or why it could not be asked.
- *
- * Never throws: "the OS is not running" is an ANSWER this script has to render,
- * not a failure that should stop the env lanes from being probed.
+ * What the running OS holds, per provider id, or why it could not be asked.
+ * Never throws: "the OS is not running" is an answer to render.
  */
 export async function readStoreCredentials({
   origin = DEFAULT_TOWER_ORIGIN,
@@ -1536,9 +1382,8 @@ export async function readStoreCredentials({
       const id = entry.provider?.id ?? entry.provider;
       if (typeof id === 'string') byProvider.set(id, entry.credential ?? {});
     }
-    // `probes` memoizes one test per PROVIDER for the run: Google is one
-    // credential behind two lanes, and testing it twice would spend two real
-    // calls to answer one question.
+    // `probes` memoizes one test per provider: Google is one credential behind
+    // two lanes.
     return { reachable: true, origin, reason: null, byProvider, probes: new Map() };
   } catch (err) {
     return {
@@ -1552,14 +1397,10 @@ export async function readStoreCredentials({
 }
 
 /**
- * The credential this lane's provider holds IN THE STORE, or null.
- *
- * `source: 'store'` is the whole test, whichever way in it used: a Google
- * credential from a sign-in and one from a service-account paste are both
- * connected, and the bug this closes (`ro-vu8d.15`) was exactly a checker that
- * only knew the second. A store row still missing a required field is NOT
- * counted — half-configured is its own state, and the env fallback below is the
- * honest thing to report for it.
+ * The credential this lane's provider holds in the store, or null.
+ * `source: 'store'` is the whole test, whichever way in it used. A store row
+ * still missing a required field is not counted: half-configured is its own
+ * state, and the env fallback is the honest thing to report for it.
  */
 export function storeCredential(lane, store) {
   if (!lane.provider || !store?.reachable) return null;
@@ -1569,28 +1410,17 @@ export function storeCredential(lane, store) {
   return credential;
 }
 
-/**
- * Where this lane's credential comes from, by the SAME precedence the runtime
- * resolves with: the store wins over any binding, and `none` is the quiet line.
- */
+/** Where this lane's credential comes from, by the runtime's own precedence:
+ * the store wins over any binding. */
 export function laneSource(lane, vars, store) {
   if (storeCredential(lane, store) !== null) return 'store';
   return lane.configured(vars) ? 'env' : 'none';
 }
 
 /**
- * Prove a store-held credential by asking the OS to test it.
- *
- * The OS resolves the credential and makes the provider's own cheapest
- * authenticated read (workers/ingest/src/credential-probes.ts), so what comes
- * back is a live sample from the credential the collectors actually run with —
- * not from a copy of it this script decrypted, which it cannot and must not do.
- *
- * NO PROOFS. The env probes earn a config/integrations.json suggestion by
- * proving ENROLLMENT per property (a verified-sites gate, one probed property).
- * A provider-level test proves the credential and nothing about which properties
- * it reaches, so claiming those cells would be over-claiming — the honesty gate
- * this file already keeps for status applies here too.
+ * Prove a store-held credential by asking the OS to test it
+ * (workers/ingest/src/credential-probes.ts). No proofs: a provider-level test
+ * proves the credential and nothing about which properties it reaches.
  */
 export async function probeStoreLane(lane, store, { fetchImpl = fetch } = {}) {
   const url = `${store.origin}/api/integrations/${encodeURIComponent(lane.provider)}/test`;
@@ -1648,8 +1478,8 @@ export async function probeStoreLane(lane, store, { fetchImpl = fetch } = {}) {
   };
 }
 
-/** The one dim line under a lane's first row saying where its credential came
- * from — the fact `ro-vu8d.10` exists to stop an operator having to guess. */
+/** The dim line under a lane's first row saying where its credential came
+ * from. */
 export function sourceNote(lane, source, store, secretSource) {
   if (source === 'store') {
     const auth = AUTH_WORD[storeCredential(lane, store)?.auth] ?? null;
@@ -1661,25 +1491,17 @@ export function sourceNote(lane, source, store, secretSource) {
   return `source: env — ${lane.slots} in ${secretSource}`;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Lane registry — order is the print order. `explicit` lanes never run in a
-// default sweep. `configured` decides ENV probe vs the quiet not-configured
-// line; `provider` is this lane's row in the credential catalog, so the store
-// half above can ask the OS about it. Null only where the catalog genuinely has
-// no such provider — the OS's own pull tokens, which are a bootstrap secret
-// rather than a third-party account.
-//
-// Exported so a unit test can assert a lane is actually WIRED here: a probe that
-// exists but is not registered runs never and reports nothing, which is the same
-// silence the calendar lane was added to break.
-// ─────────────────────────────────────────────────────────────────────────────
+// Lane registry, in print order. `explicit` lanes never run in a default
+// sweep; `configured` decides env probe vs the quiet not-configured line;
+// `provider` is this lane's row in the credential catalog, null only where the
+// catalog has no such provider. A probe that exists but is not registered
+// here runs never.
 export const LANES = [
   {
     id: 'pull',
     label: 'Self-report (pull)',
     explicit: false,
-    // ASSET_TOKENS is the OS's OWN bootstrap secret, not a provider credential —
-    // it never moves into the store, so there is nothing to ask the OS about.
+    // ASSET_TOKENS is a bootstrap secret, never in the store.
     provider: null,
     slots: 'ASSET_TOKENS',
     configured: (v) => nonEmptyMap(v.ASSET_TOKENS),
@@ -1707,8 +1529,8 @@ export const LANES = [
     id: 'ga4',
     label: 'GA4 (Analytics)',
     explicit: false,
-    // Both Google lanes point at the ONE `google` credential, which is what makes
-    // `--lane google` select them together and one OS test serve both rows.
+    // Both Google lanes point at the one `google` credential, so `--lane
+    // google` selects them together and one OS test serves both rows.
     provider: 'google',
     slots: GOOGLE_SIGNAL_SLOT,
     configured: (v) => hasGoogleSignalTargets(v, 'ga4_property_id'),
@@ -1726,31 +1548,21 @@ export const LANES = [
   {
     id: 'calendar',
     label: 'Calendar feeds',
-    // Not explicit: a calendar read is free and has no side effect, and a rotated
-    // link is silent everywhere else — so this lane has to run unasked or it does
-    // not do its job.
     explicit: false,
     provider: 'calendar',
     slots: 'CALENDAR_FEEDS',
-    // `has` and not a parse check, on purpose: a set-but-mangled slot must reach
-    // the probe and be reported as broken. Reading it as "not configured yet"
-    // would hide the exact case this lane exists for.
+    // `has` and not a parse check: a set-but-mangled slot must reach the probe
+    // and be reported as broken.
     configured: (v) => has(v.CALENDAR_FEEDS),
     probe: (v) => probeCalendar(v),
   },
   {
     id: 'clarity',
     label: 'Microsoft Clarity',
-    // STILL EXPLICIT, and only half for the old reason (bead `ro-vu8d.9`). A
-    // credential in the STORE is proved by the OS, whose Clarity probe makes no
-    // call at all — there is no free one to make. A credential still in the
-    // environment file is proved HERE, by a real export call that costs one of
-    // that asset's ten for the day. The expensive half is why this lane never
-    // runs in a default sweep.
+    // Explicit: a credential still in the environment file is proved here by a
+    // real export call that costs one of that asset's ten for the day. (The
+    // OS's own Clarity probe makes no call at all.)
     provider: 'clarity',
-    // The map is canonical; the single-project token is the documented fallback
-    // the collector also accepts, so a configured secret is never reported as
-    // missing just because it uses the other shape.
     slots: 'CLARITY_TOKENS (or CLARITY_PROJECT_API_TOKEN for one project)',
     configured: (v) => clarityTokens(v).size > 0,
     probe: (v) => probeClarity(v),
@@ -1761,8 +1573,7 @@ export const LANES = [
   {
     id: 'posthog',
     label: 'PostHog',
-    // Not explicit: a project-settings read is free, runs no query and has no
-    // side effect (bead ro-ghis.1).
+    // A project-settings read is free, runs no query and has no side effect.
     explicit: false,
     provider: 'posthog',
     slots: 'POSTHOG_KEYS',
@@ -1773,11 +1584,8 @@ export const LANES = [
     id: 'discord',
     label: 'Discord',
     explicit: true,
-    // Connected in the product since bead `ro-vu8d.18`. It stays EXPLICIT on
-    // both sides of the move, because the probe posts a real message into the
-    // operator's channel either way — the store half asks the OS to press the
-    // same button its card offers, so one press is one message wherever it came
-    // from.
+    // Explicit whichever half answers: the probe posts a real message either
+    // way.
     provider: 'discord',
     slots: 'DISCORD_WEBHOOK_URL',
     configured: (v) => has(v.DISCORD_WEBHOOK_URL),
@@ -1786,9 +1594,6 @@ export const LANES = [
   },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Arg parsing.
-// ─────────────────────────────────────────────────────────────────────────────
 function parseArgs(argv) {
   const opts = { lane: null, help: false, origin: DEFAULT_TOWER_ORIGIN };
   for (let i = 0; i < argv.length; i++) {
@@ -1805,13 +1610,9 @@ function parseArgs(argv) {
 }
 
 /**
- * The lanes one `--lane` selector names: a lane id, or a PROVIDER id, which
- * selects every lane that credential powers.
- *
- * `--lane google` is the reason (bead `ro-vu8d.15`): Google is one credential
- * behind two lanes, and an operator who just connected it asks about *google*,
- * not about `ga4` and `gsc` separately. A provider selector picks both, and the
- * OS is asked to test that one credential once.
+ * The lanes one `--lane` selector names: a lane id, or a provider id, which
+ * selects every lane that credential powers (`--lane google` is `ga4` and
+ * `gsc`, and the OS tests that one credential once).
  */
 export function lanesFor(selector) {
   if (selector === null) return LANES;
@@ -1846,9 +1647,6 @@ stopped this is the env-only check and says so.
 Never prints secret values. See scripts/README.md § Credentials.`);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Main.
-// ─────────────────────────────────────────────────────────────────────────────
 async function main() {
   let opts;
   try {
@@ -1871,9 +1669,8 @@ async function main() {
     return;
   }
 
-  // The env half. A missing local secret source is no longer fatal: everything
-  // could be in the store, which is the whole direction of the epic. It is
-  // reported as one line and every lane still gets asked about.
+  // The env half. A missing local secret source is not fatal: everything
+  // could be in the store.
   let vars = {};
   let secretSource = null;
   let secretsError = null;
@@ -1885,8 +1682,7 @@ async function main() {
     secretsError = err.message;
   }
 
-  // The store half: what the running OS holds. Never throws — "the OS is not
-  // running" is an answer to render, not a reason to stop.
+  // The store half: what the running OS holds.
   const store = await readStoreCredentials({ origin: opts.origin });
 
   const register = await loadRegister();
@@ -1919,8 +1715,7 @@ async function main() {
   const allProofs = [];
   for (const lane of selected) {
     const source = laneSource(lane, vars, store);
-    // Nothing anywhere → quiet line, never an error. It names the product first
-    // and the binding second (D21): connecting is now the documented way.
+    // Nothing anywhere: a quiet line, never an error.
     if (source === 'none') {
       printRow({
         state: 'skip',
@@ -1932,7 +1727,7 @@ async function main() {
       continue;
     }
     const note = sourceNote(lane, source, store, secretSource ?? 'the local secret source');
-    // Configured but explicit-only and NOT explicitly selected → note, don't probe.
+    // Configured but explicit-only and not selected: note, do not probe.
     if (lane.explicit && opts.lane === null) {
       printRow({
         state: 'skip',
@@ -1946,14 +1741,13 @@ async function main() {
       source === 'store'
         ? await probeStoreLane(lane, store)
         : await lane.probe(vars, register);
-    // The source rides on the lane's FIRST row: one line per lane, so which
-    // half of the epic answered is read rather than assumed.
+    // The source rides on the lane's first row: one line per lane.
     if (rows.length > 0) rows[0].sub = [note, ...(rows[0].sub ?? [])];
     for (const row of rows) printRow(row);
     for (const p of proofs || []) allProofs.push(p);
   }
 
-  // ── changeset suggestion — SUGGEST, never apply ─────────────────────────────
+  // The changeset suggestion: suggest, never apply.
   out('');
   const suggestion = suggestChangeset(allProofs, register, new Date().toISOString());
   if (!suggestion) {
@@ -1981,7 +1775,7 @@ async function main() {
   );
 }
 
-// Run only when invoked directly — importing (the unit test) must not run main.
+// Run only when invoked directly.
 if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
   main().catch((err) => {
     out(c.red(`✘ unexpected: ${err?.stack || err?.message || err}`));

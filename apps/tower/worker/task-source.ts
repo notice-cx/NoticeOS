@@ -1,23 +1,9 @@
-// THE TASK SOURCE SEAM (decision D32, bead `ro-ujb9.143`).
-//
-// Every task screen asks a task source the same four things: is it connected
-// here, what tasks are there (the Tasks board), how many need the operator
-// (Needs you), and what is waiting on them for one site (the inbox). This file
-// is that question list — `TaskSourceAdapter` — and the registry of sources
-// that answer it. The actions a source allows are the other half of the seam
-// and stay where they are: the `/api/tasks/*` contract (`shared/tasks.ts`),
-// answered live by the beads lane in the local Tower (`vite/task-lane.ts`) and
-// read-only by `./tasks-route` everywhere else.
-//
-// THE REQUIRED BEADS HUB ADAPTER wraps what was already there
-// unchanged: the runner's once-a-minute snapshot (`./beads-snapshot`), the
-// board built from it (`./work-payload`), and the two inbox readings the Wall
-// and a site's page derive from it. Future external integrations feed this
-// core work model; they do not replace its authoritative hub.
-//
-// ONE READING PER REQUEST. `read` photographs the source once and every answer
-// is bound to that photograph, so a page can never show a count from one
-// minute beside a list from the next.
+// The task source seam. Every task screen asks a source the same four things:
+// is it connected, what tasks are there (the board), how many need the
+// operator, and what waits on them for one site. `TaskSourceAdapter` is that
+// question list and this file the registry; the actions are the
+// `/api/tasks/*` contract (`shared/tasks.ts`). `read` photographs the source
+// once per request so a count and a list always come from the same minute.
 
 import type { AssetOperatorPosture } from "../shared/asset-detail";
 import {
@@ -36,9 +22,7 @@ import { buildWorkPayload } from "./work-payload";
 /** What a source is read with: the call's store, and the saved settings it
  * counts its projects from. */
 export interface TaskSourceContext {
-  /** The call's store: the task photographs and daily counts (bead
-   * ro-ujb9.76.4.3), and the site list the board names each project's site
-   * from (bead ro-ujb9.76.4.2). */
+  /** Holds the task snapshots, daily counts and the site list. */
   store: WorkspaceStore;
   /** How many projects the operator saved for each source. Absent where the
    * caller has no settings to hand; a source then counts what its read saw. */
@@ -62,18 +46,14 @@ export interface TaskSourceAdapter {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Beads — the task hub of D19
+// Beads — the task hub
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Connected: the runner's newest snapshot read at least one task project.
- *
- * Both halves of "set up here and answering" are in that one fact. The runner
- * reads the SAVED task projects every minute and files a snapshot only when the
- * hub answered (`runBeadsPoll`, scripts/runner/task-snapshot.mjs); an installation with no
- * project files an empty one, which also clears a connection whose last project
- * was removed. A deployed Tower without the runner keeps the snapshot it was
- * given, which is D19's read-only board.
+ * Connected: the runner's newest snapshot read at least one task project. The
+ * runner files a snapshot only when the hub answered
+ * (scripts/runner/task-snapshot.mjs); with no saved project it files an empty
+ * one, which clears the connection.
  */
 export function beadsConnected(snapshot: BeadsSnapshot | null): boolean {
   return snapshot !== null && snapshot.projects.length > 0;
@@ -155,7 +135,7 @@ export function beadsInbox(snapshot: BeadsSnapshot | null, asset: string): Asset
 }
 
 /** A beads reading also carries its snapshot: the hub's own extras (a site's
- * review bead, the beads filed from a finding, each card's open work) are read
+ * review task, the tasks filed from a finding, each card's open work) are read
  * off the same photograph by the payloads that show them. */
 export interface BeadsTaskSourceReading extends TaskSourceReading {
   snapshot: BeadsSnapshot | null;

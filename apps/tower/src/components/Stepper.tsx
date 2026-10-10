@@ -20,9 +20,8 @@ export interface StepperProps {
 }
 
 /**
- * A horizontal lifecycle stepper (doc 14 principle 10: an asset's lifecycle
- * stage, made visible). Deliberately MONOCHROME — severity color is reserved for
- * needs-attention (doc 10 principle 3); progress is neutral. Done steps fill,
+ * A horizontal lifecycle stepper. Monochrome: severity colour is reserved for
+ * needs-attention, and progress is neutral. Done steps fill,
  * the current step gets a ring + bold label, upcoming steps stay muted. A
  * terminal state (retired) mutes the path and highlights its own chip.
  */
@@ -43,12 +42,8 @@ export function Stepper({ steps, activeIndex, terminal = null, className }: Step
             ) : null}
             <span
               aria-current={current ? "step" : undefined}
-              /* The pill box from `ui/pill.ts` and DELIBERATELY NOT its control
-                 contract (bead `ro-s4rg`): these are `<span>`s in an `<ol>`.
-                 There is nothing to press, so nothing to fit a thumb and no
-                 focus to ring — which is the answer to `ro-s4rg`'s observation
-                 that the tab strip carries the phone floor and this does not.
-                 Three states rather than two, so the pressed pair stays here. */
+              /* The pill box without its control contract: nothing here is
+                 pressable, so there is no thumb floor and no focus ring. */
               className={cn(
                 pillClass,
                 "rounded-full px-2.5 font-medium",
@@ -91,7 +86,7 @@ export function Stepper({ steps, activeIndex, terminal = null, className }: Step
   );
 }
 
-/** The asset onboarding lifecycle (db/0001 assets.status), as a stepper spec.
+/** The asset onboarding lifecycle (`assets.status`), as a stepper spec.
  * `retired` is off the happy path — rendered as a distinct terminal chip. */
 const LIFECYCLE: StepperStep[] = [
   { key: "pre-launch", label: "Pre-launch" },

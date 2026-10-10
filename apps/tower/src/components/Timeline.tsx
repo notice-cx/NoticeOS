@@ -23,26 +23,22 @@ export interface TimelineProps {
   items: TimelineItem[];
   nowMs: number;
   /**
-   * Beads filed against this asset, so an event whose `ref` IS one renders
-   * the task that caused it rather than an opaque id (bead `ro-4ko`).
-   *
-   * `null` — the register could not be asked — falls back to the plain ref,
-   * exactly as an unmatched one does. An event is never presented as
-   * task-less; it is presented as an event whose ref we could not resolve.
+   * Tasks filed against this asset, so an event whose `ref` is one renders the
+   * task rather than an opaque id. `null` (the hub could not be asked) falls
+   * back to the plain ref, as an unmatched one does.
    */
   beads?: HandoffBead[] | null;
   /** Older events the payload did not carry. Rendered as the last node, so a
    * timeline that stops early says so instead of passing itself off as the whole
-   * history (ro-5e8.1). Absent or 0 means these ARE all the events. */
+   * history. Absent or 0 means these are all the events. */
   olderCount?: number;
   className?: string;
 }
 
 /**
- * The annotation timeline (doc 10 asset-detail: the visual "did it help?"
- * surface — deploys, model changes, incidents, external events). Neutral by
- * design; the events are history, not attention. Times are relative with the
- * absolute on hover (doc 14 principle 7).
+ * The annotation timeline: deploys, model changes, incidents, external events.
+ * Neutral, because events are history, not attention. Times are relative with
+ * the absolute on hover.
  */
 export function Timeline({
   items,
@@ -67,10 +63,8 @@ export function Timeline({
         const meta = ANNOTATION_KIND[it.kind];
         const Icon = meta.icon;
         const isLast = !truncated && i === items.length - 1;
-        // A lifecycle move (bead `ro-3085`) stores the two stages in its `ref`,
-        // because that is the row's identity and the field Restore reads. The
-        // ref is MACHINE text, so the row renders the sentence instead of it —
-        // one representation of the move, in words (doc 14, doc 14).
+        // A lifecycle move stores its two stages in `ref` (the field Restore
+        // reads); the row renders the sentence instead of that machine text.
         const move = parseLifecycleMoveRef(it.ref);
         return (
           <li key={it.id} className="flex gap-3 pb-4 last:pb-0">
@@ -91,17 +85,9 @@ export function Timeline({
                 </span>
               </div>
               {it.note ? <span className="text-sm text-foreground">{it.note}</span> : null}
-              {/* ONE representation of the ref (doc 14). When it resolves to a
-                  bead, the badge IS the ref rendered richer — id plus filed or
-                  shipped — and never a second marker beside a mono string. A
-                  commit sha, or a bead this snapshot does not carry, stays the
-                  mono string it always was.
-
-                  A CLOSED bead here is still not a measured outcome: the badge
-                  says shipped-not-proven in its own hover, and the verdict comes
-                  from a watch window carrying the same id
-                  (the task-key chain). Nothing on this row may be
-                  read as "and it worked". */}
+              {/* One representation of the ref: a resolved task's badge, or
+                  the mono string. A closed task is not a measured outcome; the
+                  verdict comes from a watch window carrying the same id. */}
               {move ? (
                 <span className="text-sm text-foreground">{lifecycleMoveSentence(move)}</span>
               ) : it.ref && byId.has(it.ref) ? (
@@ -114,10 +100,8 @@ export function Timeline({
         );
       })}
       {truncated ? (
-        // The end of the read, said out loud. A history that simply stops reads
-        // as a history that ends — so the cut names its own size, on a dashed
-        // node that continues the line. "Not shown" already says the rows
-        // exist; the sentence that restated it is gone (doc 14 principle 3a).
+        // A history that simply stops reads as one that ends, so the cut
+        // names its own size.
         <li className="flex gap-3" data-timeline-older={olderCount}>
           <div className="flex flex-col items-center">
             <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground">

@@ -1,20 +1,11 @@
-// ONE SITE'S TOKEN, SAVED ON ITS OWN ROW (bead `ro-ujb9.96.7.9`, epic
-// `ro-ujb9.96.7`).
-//
-// Clarity issues one data-export token per project — per site — and offers no
-// call cheap enough to prove one (each export spends a tenth of that site's
-// day). So the connect panel lists the sites, the operator pastes each token
-// on its site's row, and it is saved the moment it is pasted; the proof is the
-// export, which the panel runs only on an explicit Run now.
-//
-// The credential is still ONE encrypted row holding a map of site → token
-// (the provider's `asset-map` field). A row's paste is merged into that map
-// here, inside the Worker that alone can open it, so a paste never replaces
-// the other sites' tokens and the browser never holds any of them. What the
-// map held before — from the store, or folded from the legacy environment
-// bindings — is carried into the write, so the first paste on an install
-// still reading its tokens from the environment moves them all into the store
-// rather than dropping them.
+// One site's token, saved on its own row. Clarity issues one data-export
+// token per project and offers no call cheap enough to prove one, so a token
+// is saved the moment it is pasted and the proof is the export, run only on an
+// explicit Run now. The credential is still one encrypted row holding a map of
+// site → token; a paste is merged into that map here, inside the Worker that
+// alone can open it, so it never replaces the other sites' tokens. What the
+// map held before, from the store or folded from the legacy environment
+// bindings, is carried into the write.
 
 import type { IntegrationProvider, PutSiteTokenInput, PutSiteTokenResult } from '@noticeos/contract';
 import { integrationProvider } from '@noticeos/contract';

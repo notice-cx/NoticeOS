@@ -4,24 +4,13 @@ import path from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
-// THE BROWSER NEVER DOWNLOADS ZOD (bead `ro-ujb9.83`). zod validates what the
-// Worker and the ingest receive; the Tower's browser code only reads what it is
-// sent. Two contract modules (`schema.ts`, `posthog.ts`) build zod schemas the
-// moment they load, and the package index re-exports both — so one import of a
-// constant from `@noticeos/contract` put zod (1.6 MB on the dev server the
-// operator runs every day) onto every screen. The production build hides that
-// with a treeshake setting in vite.config.ts; the dev server has no equivalent.
-//
-// So browser code imports the contract's zod-free modules by subpath
-// (`@noticeos/contract/create-watch-window`, `.../configuration`, ...), and
-// this test walks the real import graph from every file in `src/` — through
-// `@shared/*`, relative files, repo scripts and the contract's own files, lazy
-// routes included — and fails when any file the browser can load:
-//   - imports the package index `@noticeos/contract`, or
-//   - reaches `zod` by any path.
-// `import type` / `export type` declarations are skipped: every transformer
-// erases them. An `import { type X }` is NOT skipped — under
-// `verbatimModuleSyntax` it still loads the module.
+// The browser never downloads zod. Two contract modules (`schema.ts`,
+// `posthog.ts`) build zod schemas on load and the package index re-exports
+// both, so browser code imports the contract's zod-free subpaths. This walks
+// the real import graph from every file in `src/`, lazy routes included, and
+// fails on the package index or `zod` by any path. `import type` is erased and
+// skipped; `import { type X }` still loads the module under
+// `verbatimModuleSyntax`.
 
 const towerRoot = path.resolve(import.meta.dirname, "..");
 const repoRoot = path.resolve(towerRoot, "../..");
@@ -134,14 +123,9 @@ function walkClientGraph(roots: string[]): { files: Set<string>; violations: str
 
 /**
  * Every repo `config/*.json` the given modules import, as "importer → file".
- *
- * THE BROWSER READS NO OWNER CONFIG (bead `ro-ujb9.88`). Since D22 a setting is
- * SAVED in the store; a file compiled into the browser bundle is the value of
- * the last build, not the saved one. The operator's clock was the case that
- * bit: `packages/contract/src/os-time-zone.ts` compiles `config/constants.json`
- * in, and revenue days read it in the browser long after Settings had moved the
- * zone. Browser code now takes every clock from the payload the Worker built on
- * the saved value, and this holds it there.
+ * A setting is saved in the store; a file compiled into the browser bundle is
+ * the value of the last build, not the saved one, so browser code takes every
+ * clock from the payload the Worker built on the saved value.
  */
 function ownerConfigImports(files: Iterable<string>): string[] {
   const configDir = path.join(repoRoot, "config") + path.sep;
@@ -155,7 +139,7 @@ function ownerConfigImports(files: Iterable<string>): string[] {
   );
 }
 
-describe("browser code and the contract (bead ro-ujb9.83)", () => {
+describe("browser code and the contract", () => {
   const roots = sourceFiles(path.join(towerRoot, "src"));
   const graph = walkClientGraph(roots);
 
@@ -163,7 +147,7 @@ describe("browser code and the contract (bead ro-ujb9.83)", () => {
     expect(graph.violations).toEqual([]);
   });
 
-  it("never loads a repo config file, so no day is read on a compiled clock (ro-ujb9.88)", () => {
+  it("never loads a repo config file, so no day is read on a compiled clock", () => {
     expect(ownerConfigImports(graph.files)).toEqual([]);
     // The check can see the one module that does compile the clock in.
     expect(ownerConfigImports(walkClientGraph([path.join(contractSrc, "os-time-zone.ts")]).files)).toEqual([

@@ -1,13 +1,9 @@
 // @vitest-environment node
-// The data-source evidence reads, bounded (bead `ro-ujb9.104`).
-//
-// Every asset tab and every Wall refresh reads the newest archive manifest per
-// (asset, lane, report family) and each asset's latest Mediavine attempt. The
-// first ranked every manifest of the last 400 days with ROW_NUMBER() to keep a
-// handful; the second visited every attempt ever made and every stored day of
-// revenue. Both old statements are kept below VERBATIM as the specification:
-// the rows, and every payload built on them, must be the same. The
-// measurement is in docs/artifacts/tower-perf-2026-09-23/measurements.md.
+// The data-source evidence reads, bounded. Every asset tab and every Wall
+// refresh reads the newest archive manifest per (asset, lane, report family)
+// and each asset's latest Mediavine attempt. The unbounded statements are
+// kept below verbatim as the specification: the rows, and every payload built
+// on them, must be the same.
 
 import type { SqlValue, Transaction, WorkspaceStore } from "@noticeos/postgres";
 import { describe, expect, it } from "vitest";
@@ -33,9 +29,8 @@ const ARCHIVE = ["ga4", "gsc", "bing-webmaster"] as const;
 const COLLECTED = ["dataforseo", "posthog", "clarity"] as const;
 const ASSETS = ["a.example", "b.example", "c.example"] as const;
 
-/** The manifest read as it stood before this bead, on the Postgres store
- * (bead ro-ujb9.76.5.4): every run of the slice ranked, the one written last
- * winning a tie, as D1's rowid did; its order stated, as D1's window gave it. */
+/** The unbounded manifest read: every run of the slice ranked, the one
+ * written last winning a tie; its order stated. */
 function dumpSpec(integrations: readonly string[], oneAsset: boolean): string {
   const inList = integrations.map((id) => `'${id}'`).join(", ");
   return `SELECT asset, integration, report, "reportDate", "finishedAt", status,
@@ -61,9 +56,8 @@ function dumpSpec(integrations: readonly string[], oneAsset: boolean): string {
       ORDER BY asset COLLATE "C", integration COLLATE "C", report COLLATE "C"`;
 }
 
-/** The Mediavine read as it stood before this bead, on the Postgres store
- * (bead ro-ujb9.76.5.5): every attempt ever made, the one written last
- * winning a tie, as D1's rowid did. */
+/** The unbounded Mediavine read: every attempt ever made, the one written
+ * last winning a tie. */
 const MEDIAVINE_SPEC = `SELECT r.asset_id AS asset, r.attempted_at, r.outcome, r.message,
     (SELECT MAX(report_date) FROM noticeos.mediavine_current_daily d WHERE d.asset_id = r.asset_id) AS reported_through
     FROM noticeos.mediavine_runs r WHERE r.run_seq = (SELECT x.run_seq FROM noticeos.mediavine_runs x WHERE x.asset_id = r.asset_id ORDER BY attempted_at DESC, run_seq DESC LIMIT 1)`;
@@ -114,15 +108,13 @@ const daysBack = (n: number) => new Date(NOW.getTime() - n * 86_400_000).toISOSt
 /**
  * Manifests on every edge of "newest attempt per family, within the floor":
  *  - daily archive families over 500 days, so the floor cuts through them;
- *  - a BACKFILL: an old report date whose attempt finished last;
+ *  - a backfill: an old report date whose attempt finished last;
  *  - two attempts finishing in the same instant (the later row wins);
- *  - an attempt exactly AT the floor (kept) and one a millisecond before (not);
+ *  - an attempt exactly at the floor (kept) and one a millisecond before (not);
  *  - a family whose attempts are all older than the floor (absent);
  *  - family names that sort awkwardly: 'A-upper', 'a', 'a-b', 'b' (the store
- *    refuses an empty one, which D1's fixture also held);
+ *    refuses an empty one);
  *  - failures, lanes outside the read's list, and an asset with nothing.
- * On Postgres where the collectors write them (bead ro-ujb9.76.5.4), in the
- * order given.
  */
 function manifests(): TestArchiveRun[] {
   const runs: TestArchiveRun[] = [];
@@ -156,13 +148,8 @@ function manifests(): TestArchiveRun[] {
   return runs;
 }
 
-/**
- * Mediavine attempts and days, on Postgres (bead ro-ujb9.76.5.5), in the
- * store the reads take. D1's fixture also held a second site for one asset and
- * days of an asset with no attempt, with its foreign keys switched off; the
- * Postgres store refuses both (one Mediavine site per site of ours, and a day
- * belongs to an attempt of its own site), so neither can be stored.
- */
+/** Mediavine attempts and days. The store refuses a second Mediavine site for
+ * one asset and days of an asset with no attempt, so neither can be stored. */
 async function mediavine(store: WorkspaceStore): Promise<void> {
   const at = "2026-07-04T08:00:00.000Z";
   await writeMediavine(store, [
@@ -190,7 +177,7 @@ async function seed(ctx: TestStore): Promise<WorkspaceStore> {
 }
 
 /** The call's store with the shipped manifest and Mediavine reads answered by
- * the old ones (the same parameters, in the same order). */
+ * the unbounded ones (the same parameters, in the same order). */
 function storeAsBefore(store: WorkspaceStore, swapped: string[]): WorkspaceStore {
   const swap = new Map<string, string>([[MEDIAVINE_RUNS_SQL, MEDIAVINE_SPEC]]);
   for (const list of [ARCHIVE, COLLECTED]) {
@@ -215,7 +202,7 @@ function storeAsBefore(store: WorkspaceStore, swapped: string[]): WorkspaceStore
   };
 }
 
-describe("the data-source evidence reads seek instead of ranking history (ro-ujb9.104)", () => {
+describe("the data-source evidence reads seek instead of ranking history", () => {
   it("the newest manifest per family is the ranked read's row, in its order", async () => {
     const ctx = await createTestStore();
     const store = await seed(ctx);
@@ -286,7 +273,7 @@ describe("the data-source evidence reads seek instead of ranking history (ro-ujb
       for (const [one, params] of [[false, [FLOOR]], [true, [FLOOR, "a.example"]]] as const) {
         const text = await store.read(async (tx) => {
           // A copy is never analyzed; forbidding a scan shows the plan the
-          // indexes offer once the history grows (the port pattern, step 9).
+          // indexes offer once the history grows.
           await tx.query("SELECT set_config('enable_seqscan', 'off', true)");
           const rows = await tx.query<{ "QUERY PLAN": string }>(`EXPLAIN ${latestDumpRunsSql(list, one)}`, [...params]);
           return rows.map((row) => row["QUERY PLAN"]).join("\n");

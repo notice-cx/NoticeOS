@@ -1,8 +1,7 @@
-// A DOWNLOADS FOLDER AS THE ARCHIVE'S READERS SEE IT (beads ro-ujb9.67.1,
-// ro-ujb9.67.2).
+// A downloads folder as the archive's readers see it.
 //
 // `signals:download` and `signals:refresh` write one site's archives as
-// `<integration>/<report>/<reportDate>.json` beside a `manifest.json`. Two
+// `<integration>/<report>/<reportDate>.json` beside a `manifest.json`.
 // The analytical-file writer (scripts/signal-history.mjs) reads this folder
 // before the report analyzes a pinned history generation. It must find the
 // archives in the same order, because that order is part of the

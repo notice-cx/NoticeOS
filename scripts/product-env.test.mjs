@@ -7,14 +7,13 @@ import { installationDir } from './installation.mjs';
 import { HOME_ENV, resolveHomeRoot } from './os-runtime.mjs';
 import { PRODUCT_ENV, readProductEnv } from './product-env.mjs';
 
-// THE WORKING INSTALLATION KEEPS RUNNING THROUGH THE RENAME (bead
-// ro-ujb9.77.4). The owner's launchd plist was installed before the product
-// became NoticeOS and changing it is operator-only, so it still hands the
-// runner REINDEX_OS_MANAGED=1 and REINDEX_OS_HOME. These prove every legacy
+// The working installation keeps running through the rename. A launchd plist
+// installed before the product became NoticeOS is operator-only to change, so
+// it still hands the runner REINDEX_OS_MANAGED=1 and REINDEX_OS_HOME. These prove every legacy
 // name still reaches the same answer, and that the NoticeOS name wins.
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-/** What a plist installed before the rename sets (the template as of a24490d8). */
+/** What a plist installed before the rename sets. */
 const INSTALLED_PLIST_ENV = Object.freeze({ REINDEX_OS_MANAGED: '1', REINDEX_OS_HOME: '/Users/operator/dev/reindex-os' });
 
 test('product variables preserve their legacy aliases; new server inputs have none', () => {

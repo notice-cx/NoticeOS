@@ -17,20 +17,9 @@ import {
 } from "@shared/wall-layout";
 
 /**
- * `/wall/edit` — the Wall's composer (bead `ro-lzmq.2`).
- *
- * The GRAMMAR is tested without a DOM in `wall-editor.test.ts`; what is
- * asserted here is that this page is wired to it — one rendered case per kind
- * of interaction — plus the promises only the page can keep: the Save is
- * exactly one op with the right guard, a Revert is a save that leaves the
- * history alone, a layout saved before D28 opens as the default with one
- * warning (bead `ro-trai.11`), and the television itself never renders any of
- * this.
- *
- * The page opens on D28's default: the strip in row 1; row 2 a column —
- * revenue beside Needs you over the site rows — beside the live feed.
- *
- * Sonner is mocked because the toast is not the subject; the write is.
+ * `/wall/edit`, the Wall's composer. The grammar is tested without a DOM in
+ * `wall-editor.test.ts`; here, that this page is wired to it, plus what only
+ * the page can keep. Sonner is mocked because the toast is not the subject.
  */
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast: toasts }));
@@ -81,7 +70,7 @@ vi.mock("@/hooks/useGa4Realtime", () => ({
   }),
 }));
 
-// The feed widget's own poll (bead ro-trai.9): a quiet evening.
+// The feed widget's own poll: a quiet evening.
 vi.mock("@/hooks/useWallFeed", () => ({
   useWallFeed: () => ({
     data: { generatedAt: "2026-09-05T12:00:00.000Z", since: "2026-09-05T01:00:00.000Z", items: [], limit: 50 },
@@ -102,7 +91,7 @@ vi.mock("@/hooks/useConfigSave", () => ({
     return Promise.resolve(state.accept);
   },
   // The countdown's form reaches for it whether or not this page ever adds or
-  // removes the landmark (bead `ro-fqag`); the panel renders that exact form.
+  // removes the landmark; the panel renders that exact form.
   useLandmarkSave: () => () => Promise.resolve(state.accept),
   refusalMessage: (err: unknown) => String(err),
 }));
@@ -150,8 +139,8 @@ function assetCard(id: string, displayName: string): AssetCard {
 const ASSETS = [assetCard("meals.example", "Meal Planner"), assetCard("nosh.example", "Nosh")];
 
 /** The payload both routes read. `wall` is what `config/tower.json` holds at
- * `/wall`, which is `null` in a clone nobody has rearranged — or, for a layout
- * saved before D28, the raw value as the store holds it. */
+ * `/wall`, which is `null` in a clone nobody has rearranged, or the raw value
+ * as the store holds it. */
 function payload(wall: WallConfig | unknown | null = null): WallPayload {
   return {
     generatedAt: "2026-09-05T12:00:00.000Z",
@@ -200,7 +189,7 @@ function payload(wall: WallConfig | unknown | null = null): WallPayload {
 
 function renderEditor(wall: WallConfig | unknown | null = null) {
   state.wall = payload(wall);
-  // A DATA router, not `MemoryRouter`: the page's unsaved-changes guard is
+  // A data router, not `MemoryRouter`: the page's unsaved-changes guard is
   // react-router's own blocker, which only exists on one.
   const router = createMemoryRouter(
     [
@@ -245,11 +234,9 @@ function dragged(widgetId: string) {
 }
 
 /**
- * Take a widget out through its own chrome.
- *
- * The toolbar is drawn only over the widget being pointed at (five counter-
- * scaled toolbars would cover the television), so reaching its Remove means
- * hovering the widget first — which is what an operator does.
+ * Take a widget out through its own chrome. The toolbar is drawn only over
+ * the widget being pointed at, so reaching its Remove means hovering the
+ * widget first.
  */
 function removeFromChrome(widgetId: string, label: string) {
   fireEvent.mouseEnter(widget(widgetId));
@@ -298,7 +285,7 @@ const SITES_ONLY: WallConfig = {
   history: [],
 };
 
-/** What a store saved before D28 holds at `/wall`: only retired widgets. */
+/** A layout holding only retired widgets. */
 const PRE_D28 = {
   layout: {
     version: 1,
@@ -330,7 +317,7 @@ function layoutState(label: string): Element | null {
 }
 
 describe("the page it opens on", () => {
-  it("draws D28's default Wall when nothing has ever been saved", () => {
+  it("draws the default Wall when nothing has ever been saved", () => {
     renderEditor();
     expect(drawn()).toEqual(["strip", "revenue", "needs", "sites", "feed"]);
     expect(layoutState("On the TV")).not.toBeNull();
@@ -352,11 +339,10 @@ describe("the page it opens on", () => {
   });
 });
 
-// Bead ro-trai.45: a saved layout the Tower cannot read. The Worker draws the
-// default in its place and names the refusal beside it, with the value as
-// stored (`dashboard.refused.wall`). The editor says so as the Save's own
-// state — no paragraph — and a Save or a Revert from there is guarded by what
-// the store holds, so neither is refused as "Changed elsewhere".
+// A saved layout the Tower cannot read: the Worker draws the default in its
+// place and names the refusal beside it, with the value as stored
+// (`dashboard.refused.wall`). A Save or a Revert from there is guarded by what
+// the store holds.
 describe("a saved layout the Tower refused", () => {
   const BROKEN = {
     layout: { version: 1, rows: [] },
@@ -390,7 +376,6 @@ describe("a saved layout the Tower refused", () => {
     expect(chip?.getAttribute("title")).toBe(REASON);
     expect(layoutState("On the TV")).toBeNull();
     expect(document.querySelector("[data-wall-unreadable]")).toBeNull();
-    // The version that still reads is listed.
     expect(document.querySelectorAll("[data-wall-version]")).toHaveLength(1);
   });
 
@@ -423,9 +408,9 @@ describe("a saved layout the Tower refused", () => {
   });
 });
 
-// Bead ro-trai.45, the countdown's half: a countdown the Tower refused leaves
-// the saved layout beside it standing, is named once as the countdown's state,
-// and the strip's form saves over the value as stored.
+// A countdown the Tower refused leaves the saved layout beside it standing,
+// is named once as the countdown's state, and the strip's form saves over the
+// value as stored.
 describe("a saved countdown the Tower refused", () => {
   const STORED = { emoji: "", label: "Launch", targetAt: "2026-10-01T16:00:00.000Z" };
   const REASON = "config/tower.json countdown.emoji must contain one emoji";
@@ -449,7 +434,6 @@ describe("a saved countdown the Tower refused", () => {
     const chip = refusedChip("wall:countdown");
     expect(chip?.textContent).toBe("Saved countdown refused");
     expect(chip?.getAttribute("title")).toBe(REASON);
-    // Not "Not set": something is saved.
     fireEvent.click(document.querySelector("[data-wall-countdown-refused]") as HTMLElement);
     expect(document.querySelector('[data-wall-widget-panel="strip"]')).not.toBeNull();
     expect(document.querySelector("[data-wall-countdown-absent]")).toBeNull();
@@ -474,10 +458,10 @@ describe("a saved countdown the Tower refused", () => {
   });
 });
 
-// Bead ro-trai.11: a layout saved before D28 names widgets the Wall retired.
-// It opens — never refused, never blank — as the D28 default, with one
-// warning, and the first Save replaces it, guarded by the value the store holds.
-describe("a layout saved before D28", () => {
+// A layout naming widgets the Wall retired opens, never refused, never blank,
+// as the default with one warning, and the first Save replaces it, guarded by
+// the value the store holds.
+describe("a layout naming retired widgets", () => {
   for (const [name, wall] of [
     ["as the store holds it", PRE_D28],
     ["as the Worker parsed it", parseWallConfig(PRE_D28)],
@@ -486,20 +470,17 @@ describe("a layout saved before D28", () => {
       renderEditor(wall);
       expect(drawn()).toEqual(["strip", "revenue", "needs", "sites", "feed"]);
       expect(warnings()).toEqual([WALL_RETIRED_WARNING]);
-      // Retired is read, not refused: its own warning, never the refused state.
       expect(document.querySelector('[data-save-state="refused"]')).toBeNull();
-      // The version that only a retired widget could draw is not offered back.
       expect(document.querySelector("[data-wall-versions-empty]")).not.toBeNull();
 
       removeFromChrome("feed", "Live feed");
-      saveWith("D28 without the feed");
+      saveWith("Default without the feed");
       const op = state.saves[0]?.ops[0];
       expect(op && op.kind === "file-json-set" ? op.expect : null).toEqual(PRE_D28);
       const next = savedConfig();
       expect(next).not.toHaveProperty("retired");
-      // What the TV drew before this Save — the default — is the version kept.
       expect(next.history).toEqual([
-        { savedAt: expect.any(String), reason: "D28 without the feed", layout: DEFAULT_WALL_LAYOUT },
+        { savedAt: expect.any(String), reason: "Default without the feed", layout: DEFAULT_WALL_LAYOUT },
       ]);
     });
   }
@@ -510,7 +491,6 @@ describe("adding and removing", () => {
     renderEditor(SITES_ONLY);
     fireEvent.click(screen.getByRole("button", { name: "Add Live feed" }));
     expect(drawn()).toContain("feed");
-    // And the panel opened on it: the operator's next move is to size it.
     expect(document.querySelector('[data-wall-widget-panel="feed"]')).not.toBeNull();
   });
 
@@ -530,15 +510,14 @@ describe("adding and removing", () => {
 
   it("shows one toolbar at a time, over the widget being pointed at", () => {
     renderEditor();
-    // Five toolbars at full size cover the very television the preview exists
-    // to show, so the ring is the affordance until a widget is the subject.
+    // Five toolbars at full size cover the television the preview exists to
+    // show, so the ring is the affordance until a widget is the subject.
     expect(document.querySelectorAll("[data-wall-edit-chrome]")).toHaveLength(0);
     fireEvent.mouseEnter(widget("strip"));
     expect(document.querySelectorAll("[data-wall-edit-chrome]")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Remove Top strip" })).toBeTruthy();
     fireEvent.mouseLeave(widget("strip"));
     expect(document.querySelectorAll("[data-wall-edit-chrome]")).toHaveLength(0);
-    // A selected widget keeps its toolbar with the pointer somewhere else.
     fireEvent.click(widget("strip"));
     fireEvent.mouseLeave(widget("strip"));
     expect(document.querySelectorAll("[data-wall-edit-chrome]")).toHaveLength(1);
@@ -598,9 +577,6 @@ describe("arranging", () => {
     expect(screen.getByRole("button", { name: "Remove row 3" })).toHaveProperty("disabled", false);
   });
 
-  // Bead ro-trai.2: a widget goes into a column and back out in one press
-  // each, a drop on a column row joins it, and the column saves through the
-  // same one write with the operator's words.
   it("stacks a widget in a column, takes it back out, and saves a column", () => {
     renderEditor();
     fireEvent.click(widget("strip"));
@@ -611,7 +587,6 @@ describe("arranging", () => {
     fireEvent.click(screen.getByRole("button", { name: /Take out of column/u }));
     expect(document.querySelector("[data-wall-column='column']")).toBeNull();
     expect(drawn()).toEqual(["strip", "revenue", "needs", "sites", "feed"]);
-    // In and out again is the saved Wall: nothing to save.
     expect(saveButton()).toHaveProperty("disabled", true);
 
     fireEvent.click(screen.getByRole("button", { name: /Stack in column/u }));
@@ -632,9 +607,8 @@ describe("arranging", () => {
 
 describe("the selected widget's settings", () => {
   it("offers the widgets on the Wall to pick when nothing is selected, and says nothing else", () => {
-    // Bead ro-trai.15: nothing selected is a state, not an instruction. The
-    // panel's empty state is the widgets themselves, one press each, in the
-    // Wall's reading order; there is no hint line to read first.
+    // The panel's empty state is the widgets themselves, one press each, in
+    // the Wall's reading order; there is no hint line.
     renderEditor();
     const panel = document.querySelector('[data-wall-widget-panel="none"]') as HTMLElement;
     expect(within(panel).getAllByRole("button").map((button) => button.textContent)).toEqual([
@@ -698,16 +672,11 @@ describe("the selected widget's settings", () => {
   it("shows the countdown's OWN form for the strip rather than a second one", () => {
     renderEditor();
     fireEvent.click(widget("strip"));
-    // The very fields `/settings` shows: same labels, same one Save, same file.
     expect(screen.getByLabelText("Countdown emoji")).toHaveProperty("value", "🌁");
     expect(screen.getByLabelText("Countdown label")).toHaveProperty("value", "SF MOVE");
   });
 
   it("names that form once, not once per component that frames it", () => {
-    // Bead `ro-mgqo`. The panel heads every widget configured elsewhere, and the
-    // borrowed form used to head itself as well — the identical heading and the
-    // identical `config/tower.json` chip, one line apart, in a 19rem pane. One
-    // fact, one rendering (doc 14).
     renderEditor();
     fireEvent.click(widget("strip"));
     const panel = document.querySelector("[data-wall-widget-panel]") as HTMLElement;
@@ -728,8 +697,7 @@ describe("what the operator is told", () => {
 
   it("prints a warning beside a Save that still works", () => {
     renderEditor();
-    // Taking the site rows out of the column takes their row with them, and
-    // what is left is a drawable Wall with no sites on it.
+    // Taking the site rows out of the column takes their row with them.
     removeFromChrome("sites", "Sites");
     expect(document.querySelector("[data-wall-refusal]")).toBeNull();
     expect(warnings()).toContain("No sites on the TV");
@@ -738,8 +706,7 @@ describe("what the operator is told", () => {
 
   it("states how far past the TV the layout runs, from the box's own height", () => {
     // jsdom has no layout engine, so the one thing faked is the box's measured
-    // height; what is asserted is that the reading is taken and turned into the
-    // sentence. The number it is compared against is the television's 1080.
+    // height; the number it is compared against is the television's 1080.
     const measured = vi
       .spyOn(HTMLElement.prototype, "scrollHeight", "get")
       .mockReturnValue(WALL_TV_HEIGHT + 320);
@@ -763,7 +730,6 @@ describe("save", () => {
       kind: "file-json-set",
       file: "config/tower.json",
       pointer: WALL_LAYOUT_POINTER,
-      // Nothing was ever saved, so the file holds `null` there.
       expect: null,
     });
     expect(request?.slug).toBe("wall-layout");
@@ -788,12 +754,9 @@ describe("save", () => {
     expect(next.history[0]?.layout).toEqual(DEFAULT_WALL_LAYOUT);
   });
 
-  // Bead ro-ujb9.96.6.12: the note is optional, like Grafana's save message.
-  // Save is ONE press, and a version with no note is named by what changed.
   it("saves on one press, and names the version by what changed when there is no note", () => {
     renderEditor();
     removeFromChrome("feed", "Live feed");
-    // The note field says what the version will be called before anything is typed.
     expect(screen.getByLabelText("Version note")).toHaveProperty("placeholder", "Removed Live feed");
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(state.saves).toHaveLength(1);
@@ -817,13 +780,11 @@ describe("save", () => {
     await waitFor(() =>
       expect(layoutState("On the TV")).not.toBeNull(),
     );
-    // And what is on screen is what was saved, not the value the poll still holds.
     expect(drawn()).not.toContain("feed");
   });
 
-  // Bead ro-nuz9: the payload still holds the OLD document for a beat after a
-  // Save. A second Save in that beat built on it and guarded on it, so the
-  // operator's own first Save refused it as "Changed elsewhere".
+  // The payload still holds the old document for a beat after a Save, so a
+  // second Save in that beat must build on the one that just landed.
   it("builds the next Save on the one that just landed, and guards on it, before the payload catches up", async () => {
     renderEditor();
     removeFromChrome("feed", "Live feed");
@@ -882,10 +843,8 @@ describe("versions", () => {
     expect(state.saves).toHaveLength(1);
     const next = savedConfig();
     expect(next.layout).toEqual(earlier);
-    // The layout it replaced is now the newest version…
     expect(next.history[0]?.layout).toEqual(DEFAULT_WALL_LAYOUT);
     expect(next.history[0]?.reason).toContain("Reverted to the layout saved");
-    // …and the entry that was reverted TO is untouched behind it.
     expect(next.history[1]).toEqual(saved.history[0]);
   });
 
@@ -912,7 +871,6 @@ describe("configuration saves paused", () => {
     expect(within(paused).getByText("Saves paused")).toBeTruthy();
     expect(within(paused).getByRole("status")).toHaveTextContent("Saves paused · Config store unreachable");
     expect(document.querySelector("[data-wall-read-only]")).toBeNull();
-    // The layout is still readable — it is a page, not a form.
     expect(drawn()).toEqual(["sites"]);
     expect(screen.getByRole("button", { name: "Add Live feed" })).toHaveProperty("disabled", true);
     expect(screen.getByRole("button", { name: "Save" })).toHaveProperty("disabled", true);
@@ -939,7 +897,6 @@ describe("the three ways in", () => {
   it("answers at /wall/edit, inside the shell", async () => {
     const { deskRoutes, routes } = await import("@/App");
     expect(deskRoutes.map((route) => route.path)).toContain("/wall/edit");
-    // And the television is still the entry OUTSIDE the shell, on its own.
     expect(routes.some((route) => route.path === "/wall")).toBe(true);
   });
 
@@ -950,20 +907,15 @@ describe("the three ways in", () => {
     expect(NAV_ITEMS.map((item) => item.to)).not.toContain("/wall/edit");
   });
 
-  // The third way in is Settings' TV dashboard section, asserted where that
-  // page is tested (`settings-route.test.tsx`), and the television itself is
-  // deliberately NOT one — see the last block in this file.
+  // The third way in is Settings' TV dashboard section, asserted in
+  // `settings-route.test.tsx`; the television itself is deliberately not one.
 });
 
 describe("a phone", () => {
-  /**
-   * 390 wide (bead `ro-md80`'s reference screen). jsdom has no layout engine,
-   * so the measured width is faked and what is asserted is the two things that
-   * FOLLOW from it — the television scales down to whatever it is given, and
-   * the chrome stops being drawn once it would be wider than the widget it
-   * labels — plus the classes that stack the panes. The picture itself is
-   * Playwright's job.
-   */
+  /** jsdom has no layout engine, so the measured width is faked and what is
+   * asserted is what follows from it: the television scales down, the chrome
+   * stops being drawn once it would be wider than the widget it labels, and
+   * the classes that stack the panes. The picture itself is Playwright's job. */
   const PHONE_PANE = 358;
   let rect: ReturnType<typeof vi.spyOn> | null = null;
   const deskWidth = window.innerWidth;
@@ -994,7 +946,6 @@ describe("a phone", () => {
 
   it("scales the television to the width it is given", () => {
     renderEditor();
-    // 358 / 1920 — the whole TV, not a crop of it.
     expect(
       document.querySelector("[data-wall-preview]")?.getAttribute("data-wall-preview-scale"),
     ).toBe("0.186");
@@ -1003,9 +954,7 @@ describe("a phone", () => {
   it("drops the widget chrome that would be wider than its widget", () => {
     renderEditor();
     expect(document.querySelectorAll("[data-wall-edit-chrome]")).toHaveLength(0);
-    // Selecting still works by tapping the widget, and every action it lost is
-    // in the panel below — which is where a touch operator has to work anyway,
-    // since a touch never fires a drag.
+    // A touch never fires a drag, so every action the chrome lost is in the panel.
     fireEvent.click(widget("feed"));
     expect(document.querySelector('[data-wall-widget-panel="feed"]')).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
@@ -1013,10 +962,9 @@ describe("a phone", () => {
   });
 
   it("states the fit here too, because what it measures is still the television", () => {
-    // The box is 1920 wide on every screen AND is the `wall` query container
-    // every breakpoint now reads (bead `ro-lzmq.5`), so at 390 the widgets
-    // inside it draw the television's arrangement rather than the phone's and
-    // the height that comes back can be believed.
+    // The box is 1920 wide on every screen and is the `wall` query container
+    // every breakpoint reads, so at 390 the widgets inside it draw the
+    // television's arrangement and the height that comes back can be believed.
     const measured = vi
       .spyOn(HTMLElement.prototype, "scrollHeight", "get")
       .mockReturnValue(WALL_TV_HEIGHT + 320);
@@ -1028,7 +976,6 @@ describe("a phone", () => {
   it("stacks the three panes and keeps Save on the page", () => {
     renderEditor(SITES_ONLY);
     const panes = document.querySelector("[data-wall-library]")?.parentElement;
-    // One column by default; three only from `xl`.
     expect(panes?.className).toContain("flex-col");
     expect(panes?.className).toContain("xl:grid");
     fireEvent.click(screen.getByRole("button", { name: "Add Live feed" }));
@@ -1062,7 +1009,6 @@ describe("the television itself", () => {
     }
     expect(screen.queryByRole("button", { name: /Add / })).toBeNull();
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
-    // And no warning about a retired save reaches the TV either.
     expect(screen.queryByText(WALL_RETIRED_WARNING)).toBeNull();
   });
 });

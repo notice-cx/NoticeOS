@@ -508,8 +508,9 @@ test('joins tracked-panel AI Overview evidence onto the queries it covers, and o
     snapshot.searchQueries.dataforseo.caveat,
     /desktop panel/,
   );
-  // An archive that names no device is desktop, never blank: the collector had
-  // one device literal in it until 2026-08-04, so no stored row can be else.
+  // An archive that names no device is desktop, never blank: the collector
+  // wrote one device literal before it sent a device, so no stored row can be
+  // else.
   assert.deepEqual(
     snapshot.serpPanel.queries.find((row) => row.query === 'legacy term').device,
     'desktop',
@@ -548,9 +549,9 @@ test('carries the whole tracked panel in the snapshot, and no block without one'
         // An earlier run of the same panel: a weekly family is revised, never
         // added up, so only the latest snapshot describes the panel today.
         panelRow('cited term', { report_date: '2026-07-21', best_rank: 9 }),
-        // The cluster this query measures, as the collection recorded it
-        // (`ro-282.5`). A mixed panel is normal input: this one term carries a
-        // label and the rest do not, exactly like nom's cutover week.
+        // The cluster this query measures, as the collection recorded it. A
+        // mixed panel is normal input: this one term carries a label and the
+        // rest do not.
         panelRow('cited term', {
           query_label: '  Calculator seam ',
           best_rank: 3,
@@ -614,7 +615,7 @@ test('carries the whole tracked panel in the snapshot, and no block without one'
   });
   assert.equal(snapshot.serpPanel.reportDate, '2026-07-28');
   assert.equal(snapshot.serpPanel.trackedDepth, 20);
-  // A site that saved no market: the block names none (bead ro-ujb9.230).
+  // A site that saved no market: the block names none.
   assert.equal(snapshot.serpPanel.market, null);
   // A site that saved one: the block carries it, for the Tower's caption.
   const uk = { locationCode: 2826, languageCode: 'en' };
@@ -667,9 +668,9 @@ test('carries the whole tracked panel in the snapshot, and no block without one'
       providerStatus: 'Internal SE Server Error.',
       providerAttempts: 3,
     },
-    // One term, two devices, two rows — walled on the phone and clear on the
+    // One term, two devices, two rows: walled on the phone and clear on the
     // desktop. A block that kept one row per term would have reported whichever
-    // surface its tie-break landed on, which is the defect ro-14d.1 closed.
+    // surface its tie-break landed on.
     {
       query: 'split term',
       device: 'mobile',
@@ -899,7 +900,7 @@ test('Product use follows only the selected asset declaration over retained fact
   assert.equal(buildExecutiveSnapshot({ asset: 'example.com', families: new Map(), valueEvents: declaration, archives: [{}] }).productUse, null);
 });
 
-test('builds page decisions from two complete weeks, joining each page its leading query (ro-427)', () => {
+test('builds page decisions from two complete weeks, joining each page its leading query', () => {
   const dates = reportedDates(14);
   const pageRows = dates.flatMap((report_date, index) => {
     const week = index < 7 ? 'previous' : 'current';
@@ -1174,9 +1175,9 @@ test('keeps quoted-literal grounding queries out of both providers movers and sa
       avg_impression_position: index < 7 ? 9 : 7,
     },
     {
-      // Same signature, same lane, same treatment (`ro-pvl`). Bing's archive
-      // measures ~1/1000th of Google's rate for it, but a rate is not a
-      // guarantee, and the row is what proves the check ran on this run.
+      // Same signature, same lane, same treatment. Bing's archive measures
+      // ~1/1000th of Google's rate for it, but a rate is not a guarantee, and
+      // the row is what proves the check ran on this run.
       report_date: '2026-07-28',
       provider_date,
       query: '"1 medium banana" "3/4 cup" meals',
@@ -1207,7 +1208,7 @@ test('keeps quoted-literal grounding queries out of both providers movers and sa
   assert.deepEqual(
     trends.bing.movers.map((mover) => mover.query),
     ['weekly meal plan'],
-    'the Bing lane reads the same decontaminated series (ro-pvl)',
+    'the Bing lane reads the same decontaminated series',
   );
   assert.deepEqual(trends.bing.evidence, [
     {
@@ -1276,9 +1277,9 @@ test('the Bing exclusion is measured over the ranked snapshot, not the whole rev
 });
 
 // ---------------------------------------------------------------------------
-// Rules transferred from the meals.example manual-analysis history (2026-07-31).
-// Each rule is pinned firing, silent below its threshold, and silent when its
-// report family is absent.
+// Rules transferred from a site's manual-analysis history. Each rule is pinned
+// firing, silent below its threshold, and silent when its report family is
+// absent.
 // ---------------------------------------------------------------------------
 
 function acquisitionRows(split, date = '2026-07-28') {
@@ -1569,9 +1570,9 @@ test('warns when attribution is unreliable or a tracked event collapses', () => 
   );
 });
 
-// GA4 attribution rows as the analyzer writes them (ro-wo0j): provisional=1 on a
-// day GA4 was still attributing when it was collected, 0 once a collection two
-// days later confirmed it.
+// GA4 attribution rows as the analyzer writes them: provisional=1 on a day GA4
+// was still attributing when it was collected, 0 once a collection two days
+// later confirmed it.
 function markedRows(input, provisional) {
   return input.map((row) => ({ ...row, provisional }));
 }
@@ -1583,7 +1584,7 @@ function withoutMark(input) {
 const SETTLED_DATES = ['2026-09-17', '2026-09-18', '2026-09-19'];
 const UNSETTLED_DATES = ['2026-09-20', '2026-09-21'];
 const SETTLED_SPLIT = { 'Organic Search': 900, Direct: 60, Referral: 30, Unassigned: 10 };
-// meals.example's 2026-09-21 as read at D+1, the day that prompted ro-wo0j.
+// A day as read at D+1, while GA4 was still attributing.
 const UNSETTLED_SPLIT = {
   'Organic Search': 1_096,
   'Cross-network': 1_321,
@@ -1591,7 +1592,7 @@ const UNSETTLED_SPLIT = {
   Unassigned: 3_380,
 };
 
-test('a provisional-only attribution spike raises no finding, and settled findings are unchanged (ro-5e8.10)', () => {
+test('a provisional-only attribution spike raises no finding, and settled findings are unchanged', () => {
   const settled = SETTLED_DATES.flatMap((date) =>
     markedRows(acquisitionRows(SETTLED_SPLIT, date), 0),
   );
@@ -1660,7 +1661,7 @@ test('a provisional-only attribution spike raises no finding, and settled findin
   );
 });
 
-test('no attribution rule fires from unsettled days alone (ro-5e8.10)', () => {
+test('no attribution rule fires from unsettled days alone', () => {
   const targets = [{ domain: 'genesee.cce.cornell.edu', status: 'clicked' }];
   const unsettledFamilies = (mark) =>
     new Map([
@@ -1721,7 +1722,7 @@ test('no attribution rule fires from unsettled days alone (ro-5e8.10)', () => {
   }
 });
 
-test('a settled day’s (data not available) sessions count as unattributed, and nothing else moves (ro-5e8.11)', () => {
+test('a settled day’s (data not available) sessions count as unattributed, and nothing else moves', () => {
   // GA4 writes `(data not available)` in sessionSourceMedium where it could not
   // attach a source — docs/20 names it beside Unassigned as the settled-day
   // share that says the two-day settle rule is too short.
@@ -1733,8 +1734,8 @@ test('a settled day’s (data not available) sessions count as unattributed, and
   const settled = SETTLED_DATES.flatMap((date) =>
     markedRows(trafficSourceRows(settledSplit, date), 0),
   );
-  // meals.example's 2026-09-21 as read at D+1: 1,321 `(data not available)`
-  // sessions on a day GA4 was still attributing.
+  // A day as read at D+1: 1,321 `(data not available)` sessions on a day GA4
+  // was still attributing.
   const unsettled = UNSETTLED_DATES.flatMap((date) =>
     markedRows(
       trafficSourceRows(
@@ -2166,9 +2167,8 @@ test('caps the page at eight cards and keeps the most severe ones', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Fixes from the 2026-07-31 signal audit. Every guard below was
-// wrong in production on real archive rows, so each one is pinned firing, silent
-// on the artifact it now recognizes, and silent when its family is absent.
+// Guards found wrong on real archive rows. Each one is pinned firing, silent on
+// the artifact it recognizes, and silent when its family is absent.
 // ---------------------------------------------------------------------------
 
 /** One page/query row per reported date, the grain every GSC rule reads. */
@@ -2430,10 +2430,10 @@ test('withholds a striking-distance term whose tracked overview does not cite us
   assert.deepEqual(aiRow(unpanelled), unknownState);
   assert.deepEqual(unpanelled.sources, ['gsc/page-query']);
 
-  // 5. The devices DISAGREE (bead ro-14d.1): an overview consumes the click on
-  // the phone and the desktop page is clear. ANY uncited surface withholds — a
-  // clear desktop does not give a phone searcher's click back, and requiring
-  // both surfaces to agree would let the quieter one veto the evidence.
+  // 5. The devices DISAGREE: an overview consumes the click on the phone and
+  // the desktop page is clear. ANY uncited surface withholds; a clear desktop
+  // does not give a phone searcher's click back, and requiring both surfaces
+  // to agree would let the quieter one veto the evidence.
   const splitWalled = cardFor(
     panelled([
       panelRow('where to find free meal plans', false, false, 'desktop'),
@@ -2625,7 +2625,7 @@ test('states the decline, refuses a cross-locale join, and caps confidence on a 
   );
 });
 
-test('refuses a Bing landing-page join built on a single captured impression (ro-otv)', () => {
+test('refuses a Bing landing-page join built on a single captured impression', () => {
   // The F3 leftover: with the locale rule in place "dri" joined /dri-calculator
   // on ONE captured GSC impression, and nothing stopped the card naming it.
   const bingWeeks = (query, impressions, clicks) =>
@@ -2729,8 +2729,8 @@ test('warns when a declared value event is not a GA4 key event (F4)', () => {
       })),
     );
 
-  // meals.example before the operator's 2026-07-31 key-event change: the core
-  // value event at ~400/day counted zero, one declared event counted correctly.
+  // Before a key-event change: the core value event at ~400/day counted zero,
+  // one declared event counted correctly.
   const preChange = new Map([
     [
       'ga4-events',
@@ -3022,8 +3022,8 @@ test('surfaces high-demand clusters past the near-win band, one card per page (F
   silent([], 'a missing ranked-keyword family is not a demand finding');
 });
 
-// Bead ro-ujb9.207: a site's DataForSEO numbers are asked in the market its
-// settings save, so every finding that names a market names that one.
+// A site's DataForSEO numbers are asked in the market its settings save, so
+// every finding that names a market names that one.
 test('search findings name the site’s own saved market, and a neutral one when it saved none', () => {
   const ranked = (reportDate, keyword, page, volume, position, difficulty = 20) => ({
     report_date: reportDate,
@@ -3139,10 +3139,10 @@ test('names where the property sits among the domains each AI platform cites', (
   );
 });
 
-test('keeps a blank LLM-mention platform row unknown instead of reporting zero (ro-8s5)', () => {
-  // The 2026-08-05 areas.example archive: DataForSEO returned a platform row
-  // with no mentions and no search volume, and executive.json said 0 for both —
-  // negative evidence nobody measured. An explicit provider zero is a zero.
+test('keeps a blank LLM-mention platform row unknown instead of reporting zero', () => {
+  // DataForSEO returned a platform row with no mentions and no search volume,
+  // and executive.json said 0 for both: negative evidence nobody measured. An
+  // explicit provider zero is a zero.
   const blank = {
     report_date: '2026-08-03',
     row_grain: 'platform-summary',
@@ -3354,7 +3354,7 @@ test('reclamation matching accepts exported rows and quotes provider counts hone
 });
 
 // ---------------------------------------------------------------------------
-// Clarity vs GA4 on the worst page for JavaScript errors (`ro-d5c`)
+// Clarity vs GA4 on the worst page for JavaScript errors
 // ---------------------------------------------------------------------------
 // Fixture rows carry the real archive shapes: Clarity long by (metric, URL) with
 // `sub_total` as the metric's own total, and GA4 `page-events` with `js_error`
@@ -3604,7 +3604,7 @@ test('the disagreement must clear Clarity’s floors, beat the noise, and ignore
 });
 
 // ---------------------------------------------------------------------------
-// The triage half of the javascript-errors card (`ro-14d.3`)
+// The triage half of the javascript-errors card
 // ---------------------------------------------------------------------------
 // Fixture rows carry the real `ga4-js-errors` shape: one row per
 // (message × source × page) per reported date, with GA4's own `(not set)` token
@@ -3871,7 +3871,7 @@ test('the Clarity side reads one trailing snapshot, never overlapping collection
 });
 
 // ---------------------------------------------------------------------------
-// PostHog rules (bead ro-ghis.3). The end-to-end acceptance fixture lives in
+// PostHog rules. The end-to-end acceptance fixture lives in
 // posthog-panel.test.mjs; these pin each rule's four states on flattened rows.
 // ---------------------------------------------------------------------------
 

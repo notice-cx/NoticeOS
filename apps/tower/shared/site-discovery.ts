@@ -1,32 +1,23 @@
-// THE CONNECT PANEL'S SITE LIST: what the account holds, matched to the
+// The connect panel's site list: what the account holds, matched to the
 // portfolio's assets by domain, and the one press that saves the matches and
-// collects them (bead `ro-ujb9.96.7.2`, epic `ro-ujb9.96.7`).
+// collects them. Four rules decide a row:
 //
-// Pure, so the rules are tested without a browser. Three rules decide a row:
-//
-//   1. A MATCH IS A SUGGESTION. An account site whose host is the asset's own
+//   1. A match is a suggestion. An account site whose host is the asset's own
 //      domain (`siteHost`, the rule the Bing collector itself uses) is ticked,
-//      and nothing is written until the operator presses Start — which writes
-//      exactly what the ticked rows show.
-//   2. NOTHING IS DROPPED. An asset the account lists no site for is a row that
-//      says so; an account site no asset claims is listed under the rows; a
-//      site the provider will not serve yet (an unverified Bing site) is listed,
-//      never ticked; an asset the lane does not collect is a row saying why.
-//   3. THE WRITE IS THE DATA SOURCES TAB'S. Each confirmed site becomes the
-//      `asset-lane` field ops `laneFieldOp` builds for that tab
-//      (`shared/lane-mapping-ops.ts`), guarded by what the register holds now,
-//      and a field already holding the value is not written again.
-//   4. AN UNTICKED BOX IS NOT A DECISION (bead `ro-ujb9.96.7.18`). A row the
-//      scheduled job collects anyway (a domain match, a mapped site, a
-//      portfolio candidate) that the operator unticks is either given a
-//      reason — and saved as the Data sources row's own Not using in the same
-//      press — or it stays collected on schedule and the row says so. No
-//      reason is ever picked for the operator.
+//      and nothing is written until the operator presses Start.
+//   2. Nothing is dropped. An asset the account lists no site for is a row
+//      that says so; an account site no asset claims is listed under the rows;
+//      a site the provider will not serve yet is listed, never ticked; an
+//      asset the lane does not collect is a row saying why.
+//   3. The write is the Data sources tab's: each confirmed site becomes the
+//      `asset-lane` field ops `laneFieldOp` builds (`shared/lane-mapping-ops.ts`),
+//      guarded by what the register holds now.
+//   4. An unticked box is not a decision. A row the scheduled job collects
+//      anyway that the operator unticks is either given a reason and saved as
+//      Not using in the same press, or it stays collected and the row says so.
 //
-// Built for every provider kind the epic adds: a row is an ASSET with one entry
-// per lane the provider collects (Google's GA4 + Search Console arrive as two
-// lanes on one row), and a portfolio provider (DataForSEO) lists its own
-// candidates with the asset each one is.
+// A row is an asset with one entry per lane the provider collects; a
+// portfolio provider (DataForSEO) lists its own candidates.
 
 import type { DiscoveredSite, SiteDiscovery, SiteSpendPreview } from "@noticeos/contract/site-discovery";
 import { siteHost } from "@noticeos/contract/site-discovery";
@@ -46,10 +37,9 @@ export interface SitesAsset {
   /** Per lane the provider collects: the register's cell — its posture, its
    * note (null when the key is absent) and the mapping fields it already
    * holds — or null when the asset has no entry. The posture and note are the
-   * guards a "Not using" from this panel writes against (bead
-   * `ro-ujb9.96.7.18`). `funnels` is a PostHog entry's saved funnel list as
-   * held, absent when the key is (bead `ro-ujb9.96.7.8`): the guard a
-   * picked-up funnel list is written against, and never over. */
+   * guards a "Not using" from this panel writes against. `funnels` is a
+   * PostHog entry's saved funnel list as held, absent when the key is: the
+   * guard a picked-up funnel list is written against, and never over. */
   cells: Record<string, { status: string; note?: string | null; mapping: Record<string, string | number>; funnels?: JsonValue } | null>;
 }
 
@@ -98,12 +88,11 @@ export interface SiteRow {
   /** Ticked when the panel opens: a mapped or matched, collectable row — and
    * the asset the panel was opened from, whenever it can be collected. */
   checked: boolean;
-  /** The provider's scheduled job collects this asset WITHOUT anything being
-   * written here (bead `ro-ujb9.96.7.18`): the register maps a site the
-   * account lists, the account holds one on the asset's own domain (Bing's
-   * fallback), or the portfolio provider covers it (DataForSEO's weekly
-   * sweep). Unticking such a row does not stop it being collected — only
-   * "Not using", with a reason, does. */
+  /** The provider's scheduled job collects this asset without anything being
+   * written here: the register maps a site the account lists, the account
+   * holds one on the asset's own domain (Bing's fallback), or the portfolio
+   * provider covers it. Unticking such a row does not stop it being
+   * collected — only "Not using", with a reason, does. */
   scheduled: boolean;
   /** The asset the panel was opened from (an asset's source row). */
   preselected: boolean;
@@ -193,7 +182,7 @@ export function planSites(payload: SitesPayload, preselect: string | null = null
     const suggested = siteLanes.some((lane) => lane.state === "mapped" || lane.state === "matched" || lane.state === "listed");
     // Collected on schedule with nothing written: a saved mapping, the
     // portfolio's own membership, or a domain match on a lane that falls back
-    // to one (bead `ro-ujb9.96.7.6`: a Mediavine or PostHog match is not).
+    // to one (a Mediavine or PostHog match is not).
     const onSchedule = siteLanes.some((lane) => lane.state === "mapped" || lane.state === "listed" || (lane.state === "matched" && domainMatch.has(lane.lane)));
     const preselected = preselect === asset.id;
     return { asset, lanes: siteLanes, excluded, checked: collectable && (suggested || preselected), scheduled: excluded === null && onSchedule, preselected };
@@ -212,8 +201,8 @@ export interface SiteSelection {
   checked: ReadonlySet<string>;
   /** asset → lane → the picked site's ref. */
   picks: Readonly<Record<string, Readonly<Record<string, string>>>>;
-  /** asset → the reason the operator picked for an unticked scheduled row
-   * (bead `ro-ujb9.96.7.18`), in their words. Absent: nothing chosen yet. */
+  /** asset → the reason the operator picked for an unticked scheduled row, in
+   * their words. Absent: nothing chosen yet. */
   declined?: Readonly<Record<string, string>>;
 }
 
@@ -222,7 +211,7 @@ export function initialSelection(plan: SitePlan): SiteSelection {
 }
 
 /**
- * What one row will come to when Start is pressed (bead `ro-ujb9.96.7.18`):
+ * What one row will come to when Start is pressed:
  *  - `collect`    — ticked: its mapping saved and its first collection run now;
  *  - `not-using`  — unticked with a reason: saved as the Data sources row's own
  *                   Not using, so the scheduled job stops collecting it;
@@ -266,7 +255,7 @@ export interface StartPlan {
   ops: FileJsonSetOp[];
   /** The assets whose first collection runs now. */
   assets: string[];
-  /** The assets saved as Not using in the same press (bead `ro-ujb9.96.7.18`). */
+  /** The assets saved as Not using in the same press. */
   declined: string[];
 }
 
@@ -309,9 +298,8 @@ export function startPlan(plan: SitePlan, selection: SiteSelection): StartPlan {
         if (held === value) continue;
         ops.push(laneFieldOp(row.asset.id, lane.lane, field, held, value));
       }
-      // PostHog's saved funnels (bead `ro-ujb9.96.7.8`), picked up from the
-      // project — written only where the entry holds none, never over a list
-      // somebody already chose.
+      // PostHog's saved funnels, picked up from the project — written only
+      // where the entry holds none, never over a list somebody already chose.
       const held = row.asset.cells[lane.lane]?.funnels;
       if (site.funnels && site.funnels.length > 0 && (held === undefined || (Array.isArray(held) && held.length === 0))) {
         ops.push(laneFieldOp(row.asset.id, lane.lane, "funnels", held ?? null, site.funnels as unknown as JsonValue));

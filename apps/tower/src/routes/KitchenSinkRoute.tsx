@@ -187,12 +187,8 @@ import type { RevenueProjection } from "@shared/revenue-projection";
 import { yesterdayRevenue, type DailyRevenueSummary } from "@shared/daily-revenue";
 import { WallFeed } from "@/components/wall/WallFeed";
 import type { WallFeedItem, WallFeedPayload } from "@shared/wall-feed";
-// Imported rather than re-typed: the first-run copy is the one thing on this
-// page a reviewer is checking, and a second copy of it would drift (bead
-// `ro-vtf7`).
+// Imported rather than re-typed so the gallery reviews the shipped copy.
 import { FirstRun } from "@/routes/HomeRoute";
-// Same reason: the setup panel is route layout on the asset page, and a second
-// copy of its rows here would drift from the one the operator actually sees.
 import { SetupChecklistPanel } from "@/routes/asset-detail/SetupChecklist";
 import {
   ScheduledLanesPanel,
@@ -200,10 +196,9 @@ import {
 } from "@/components/ScheduledLanes";
 import { WorkflowStateLabel, WorkflowActivity, WorkflowStages, WorkflowScheduleTimeline, WorkflowStepOutputView } from '@/components/WorkflowVisuals';
 import { WORKFLOW_DEFINITIONS, type WorkflowState } from '@shared/workflows';
-// This page is the registry's one importer (doc 14): the contents below are
-// the registry's own inventory, so an entry added there appears here without
-// anybody editing this file, and `scripts/component-registry.test.mjs` fails
-// the build when a component, an entry or a demo on this page goes missing.
+// This page is the registry's one importer: an entry added there appears here
+// without editing this file, and `scripts/component-registry.test.mjs` fails
+// when a component, an entry or a demo on this page goes missing.
 import { COMPONENT_REGISTRY } from "@/components/registry";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -288,10 +283,8 @@ const isoAhead = (ms: number) => new Date(NOW + ms).toISOString();
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
 
-/** The eight-slot source inventory (doc 14) at its full width, one slot per
- * distinct look — so the Wall row is as wide as the widest one an asset card
- * ever draws, and every status can be told from every other without reading a
- * hover. Not checked wears Unknown's "?" and Key accepted Working's check. */
+/** The eight-slot source inventory at its full width, one slot per distinct
+ * look. Not checked wears Unknown's "?" and Key accepted Working's check. */
 const DATA_SOURCE_STATES: SourceReading[] = ([
   ["nightly-report", "Nightly report", "working"],
   ["gsc", "Google Search Console", "failing"],
@@ -318,12 +311,10 @@ function dailySeries(values: number[], startDate: string): SeriesPoint[] {
   }));
 }
 
-// Demo op factories for the KnobEditor showcase (target a fictional demo asset).
-// The gallery is a real page in the real app, so a KnobEditor left on its default
-// writer would apply a config change and commit it the moment somebody clicked
-// Save while browsing components. Every demo below is handed this instead: the
-// controls, the validation, the pending state and the toast are the shipped ones;
-// only the write is a promise that resolves.
+// Demo op factories for the KnobEditor showcase. The gallery is a real page in
+// the real app, so a KnobEditor left on its default writer would apply and
+// commit a config change on Save; every demo is handed this instead, and only
+// the write is a promise that resolves.
 const DEMO_FUNNELS: PosthogFunnel[] = [
   {
     id: "calculator",
@@ -345,9 +336,8 @@ const storeDemo =
   (column: "status" | "sense_only", expect: JsonValue) =>
   (value: JsonValue): SettingOp => ({ kind: "store-asset-set", asset: "demo.example", column, expect, value });
 
-// The same escape hatch, for the collection editor (bead `ro-x5gu.1`). A table
-// left on its default writer would add, edit and REMOVE rows of the operator's
-// real config — and commit each one — the moment somebody browsed components.
+// The same escape hatch for the collection editor, whose default writer would
+// edit the operator's real config.
 const demoCollectionSave = async (ops: FileOp[]): Promise<void> => {
   toast.success(`Demo only — nothing written (${ops.map((op) => op.kind).join(", ")})`);
 };
@@ -368,12 +358,8 @@ const DEMO_DOMAIN_COSTS = [
   },
 ];
 
-/** Past `NARROWS_FROM` rows, so the filter box and the sortable headers appear
- * (bead `ro-x5gu.11`). Two assets, so narrowing to one is the thing the demo is
- * for; the prices differ so a sort is visible. */
-/** Two legal entities (bead `ro-aodz`): one that owns an asset, and one that
- * owns nothing — which is the row with no `assets` key at all, and therefore the
- * one whose first asset is a FIRST write rather than an ordinary set. */
+/** Two legal entities: one that owns an asset, and one with no `assets` key at
+ * all, whose first asset is a first write rather than an ordinary set. */
 const DEMO_ENTITIES: EntityRow[] = [
   {
     slug: "demo-ventures",
@@ -385,6 +371,8 @@ const DEMO_ENTITIES: EntityRow[] = [
   { slug: "second-demo-co", name: "Second Demo Co" },
 ];
 
+/** Past `NARROWS_FROM` rows, so the filter box and the sortable headers appear;
+ * the prices differ so a sort is visible. */
 const DEMO_LONG_DOMAIN_COSTS = Array.from({ length: 10 }, (_, n) => ({
   domain: `demo-${n + 1}.example`,
   asset: n % 3 === 0 ? "menu.example.org" : "demo.example",
@@ -393,31 +381,22 @@ const DEMO_LONG_DOMAIN_COSTS = Array.from({ length: 10 }, (_, n) => ({
   paidOn: `2026-0${(n % 9) + 1}-14`,
 }));
 
-// The same escape hatch, for the task composer (bead `ro-l1ed.4`). The gallery
-// runs inside `os:up`, which HAS the task lane, so a File task left on its
-// default writer would file a real bead on the portfolio hub the moment somebody
-// pressed it while browsing components. This is the shipped form, the shipped
-// validation and the shipped toast; only `bd create` is a promise that resolves.
+// The same escape hatch for the task composer, whose default writer would file
+// a real task on the hub.
 const demoFileTask = async (input: NewTask): Promise<TaskCreated> => ({
   id: `${input.project === "plate.example.com" ? "mp" : "ro"}-demo`,
   project: input.project,
 });
 
-// The same escape hatch again, for `ProviderCard` (bead `ro-vu8d.2`). The
-// gallery is the real app, and these three handlers are the ONLY reason a
-// Connect / Test / Disconnect demo can be a live control rather than a
-// screenshot: the form, the validation, the spinner, the one confirmation and the
-// probe rendering are all shipped code; only the network call is a promise.
+// The same escape hatch for `ProviderCard`: only the network call is a promise.
 const demoConnect = async (fields: Record<string, string>): Promise<void> => {
   toast.success(`Demo only — nothing stored (${Object.keys(fields).join(", ")})`);
 };
 const demoDisconnect = async (): Promise<void> => {
   toast.success("Demo only — nothing removed");
 };
-/** The same escape hatch for the legacy credential's Import (bead `ro-vu8d.7`).
- * The button, its spinner and its refusal are shipped code; only the crossing
- * from the environment file to the store is a promise, because a press while
- * browsing components must not move the operator's real secrets. */
+/** The same escape hatch for the legacy credential's Import: a press here must
+ * not move the operator's real secrets. */
 const demoImportEnv = async (): Promise<void> => {
   await new Promise((resolve) => setTimeout(resolve, 600));
   toast.success("Demo only — nothing imported");
@@ -427,12 +406,8 @@ const demoSetExpiry = async (expiresAt: string | null): Promise<void> => {
     expiresAt === null ? "Demo only — recorded as never expiring" : `Demo only — ${expiresAt}`,
   );
 };
-/**
- * The connect panel's demos (bead `ro-ujb9.96.7.1`): one per answer a provider
- * can give, each after a beat so Checking is a state a reviewer sees. The
- * panel, its fields, its states and its refusals are the shipped code; only
- * the provider's answer is a promise.
- */
+/** The connect panel's demos: one per answer a provider can give, each after a
+ * beat so Checking is a state a reviewer sees. */
 const connectAnswer = (verdict: ConnectVerdict) => async (): Promise<ConnectVerdict> => {
   await new Promise((resolve) => setTimeout(resolve, 700));
   return verdict;
@@ -449,13 +424,13 @@ const CONNECT_PANEL_DEMOS: {
   { key: "dataforseo-accepts", provider: "dataforseo", answer: connectAnswer({ verdict: "accepted", checkedAt: CONNECT_DEMO_AT, facts: { creditUsd: "18.72" } }) },
   { key: "dataforseo-silent", provider: "dataforseo", answer: connectAnswer({ verdict: "unreachable", checkedAt: CONNECT_DEMO_AT }) },
   { key: "bing-blocked", provider: "bing-webmaster", canConnect: false, answer: connectAnswer({ verdict: "accepted", checkedAt: CONNECT_DEMO_AT, facts: { sites: 2 } }) },
-  // PostHog (bead ro-ujb9.96.7.8): one account key, its region found.
+  // PostHog: one account key, its region found.
   { key: "posthog-accepts", provider: "posthog", answer: connectAnswer({ verdict: "accepted", checkedAt: CONNECT_DEMO_AT, facts: { projects: 2, region: "eu" } }) },
 ];
 
-/** The site list's demos (bead ro-ujb9.96.7.2): an account whose sites match
- * two assets, lack one, and hold two nothing claims; and a portfolio provider
- * with its markets and spend. Start answers after a beat; nothing is sent. */
+/** The site list's demos: an account whose sites match two assets, lack one,
+ * and hold two nothing claims; and a portfolio provider with its markets and
+ * spend. Start answers after a beat; nothing is sent. */
 const SITE_DEMO_ASSETS: SitesPayload["assets"] = [
   { id: "journey.example", label: "Journey Example", domain: "journey.example", status: "live", cells: { "bing-webmaster": { status: "needs-setup", mapping: {} }, dataforseo: { status: "needs-setup", mapping: {} } } },
   { id: "second.example", label: "Second Example", domain: "second.example", status: "live", cells: { "bing-webmaster": { status: "needs-setup", mapping: {} }, dataforseo: { status: "needs-setup", mapping: { locationCode: 2826 } } } },
@@ -472,8 +447,8 @@ const SITE_PICKER_DEMOS: { key: string; provider: IntegrationProviderId; payload
       sites: ["journey.example", "second.example"].map((id) => ({ lane: "dataforseo", ref: id, label: id, host: id, mapping: {}, asset: id, ready: true })) } } },
   { key: "bing-no-answer", provider: "bing-webmaster", payload: { spend: null, assets: SITE_DEMO_ASSETS,
     discovery: { ok: false, provider: "bing-webmaster", checkedAt: CONNECT_DEMO_AT, reason: "unreachable" } } },
-  // PostHog (bead ro-ujb9.96.7.8): projects matched by the domain each
-  // records, with the saved funnels one brings; a staging project unclaimed.
+  // PostHog: projects matched by the domain each records, with the saved
+  // funnels one brings; a staging project unclaimed.
   { key: "posthog", provider: "posthog", payload: { spend: null,
     assets: SITE_DEMO_ASSETS.map((asset) => ({ ...asset, cells: { posthog: { status: "needs-setup", mapping: {} } } })),
     discovery: { ok: true, provider: "posthog", kind: "account", checkedAt: CONNECT_DEMO_AT, sites: [
@@ -488,8 +463,8 @@ const demoCollect = (provider: string, paused = false) => (plan: { assets: strin
     : { ok: true, provider, job: "pull", startedAt: CONNECT_DEMO_AT, finishedAt: CONNECT_DEMO_AT,
       sites: plan.assets.map((asset) => ({ asset, outcome: "collected" as const, code: null, ...(provider === "dataforseo" ? { reports: 8, costUsd: 0.09 } : {}) })) }), 800));
 
-/** A connected provider in the panel (bead ro-ujb9.96.7.10): working, then
- * failing, with the sites a Disconnect would stop. */
+/** A connected provider in the panel: working, then failing, with the sites a
+ * Disconnect would stop. */
 const CONNECTION_DEMO_SITES = [
   { id: "journey.example", label: "Journey Example", domain: "journey.example" },
   { id: "second.example", label: "Second Example", domain: "second.example" },
@@ -524,16 +499,8 @@ const demoProbe =
   ({ ok, result }: { ok: boolean; result: ProbeResult }) => (): Promise<CredentialProbe> =>
     new Promise((resolve) => setTimeout(() => resolve({ ok, result, message: probeLine(result), checkedAt: new Date(NOW).toISOString() }), 600));
 
-/**
- * The provider as the product actually ships it, from `packages/contract`.
- *
- * Deliberately NOT a hand-written fixture. This gallery is the review surface
- * for the component, and the thing most worth reviewing on a credential form is
- * the `help` sentence under each input — the one the operator reads while
- * hunting for an API key in somebody's console. An invented one here would
- * review a sentence nobody ships, which is the exact drift the registry rule
- * exists to prevent (bead `ro-vu8d.6`).
- */
+/** The provider as the product ships it, from `packages/contract`, so the
+ * `help` sentence under each input is the one the operator reads. */
 function realProvider(id: IntegrationProviderId): IntegrationProvider {
   const found = integrationProvider(id);
   if (!found) {
@@ -550,8 +517,7 @@ function demoCredential(
     provider,
     source: "none",
     fields: [],
-    // Only a per-asset provider has one (bead `ro-vu8d.9`); every demo below
-    // that needs one states it.
+    // Only a per-asset provider has one; every demo below that needs one states it.
     assetsHeld: [],
     missingFields: [],
     auth: null,
@@ -566,12 +532,8 @@ function demoCredential(
   };
 }
 
-/**
- * Credential and evidence cases use each provider's shipped field schema:
- * DataForSEO's two-field form, Google service-account JSON (paste or upload),
- * the calendar url-list without a credential, and Bing's failing key. Between them every field
- * kind in the schema is drawn at least once.
- */
+/** Credential and evidence cases use each provider's shipped field schema;
+ * between them every field kind in the schema is drawn at least once. */
 interface ProviderCardDemo {
   status: IntegrationProviderStatus;
   assets: ProviderCardAsset[];
@@ -589,11 +551,8 @@ const PROVIDER_CARD_CONNECTED: ProviderCardDemo = {
       updatedAt: iso(3 * DAY),
       lastUsedAt: iso(4 * HOUR),
       lastOkAt: iso(4 * HOUR),
-      // THE OTHER NUMBER ON THIS CARD (bead `ro-qpas`): the prepaid credit
-      // DataForSEO last reported, with the instant it said so. What a reviewer
-      // judges here is whether the amount and its age read as ONE fact — a
-      // figure whose age is easy to miss is a figure somebody will take for
-      // today's.
+      // The prepaid credit the provider last reported, with the instant it said
+      // so: the amount and its age must read as one fact.
       metadata: {
         account: null,
         scopes: [],
@@ -607,11 +566,7 @@ const PROVIDER_CARD_CONNECTED: ProviderCardDemo = {
       { id: "plate.example.com", lanes: ["dataforseo"] },
       { id: "menu.example.org", lanes: ["dataforseo"] },
     ],
-    // WHAT IS LEFT OF THE MONTH (bead `ro-qpas`) — the second window the same
-    // budget line draws, beside Clarity's per-asset day below. A reviewer is
-    // judging whether one line about dollars and a list of lines about calls
-    // read as the same component, and whether the note under it is legible as
-    // "this is the cap, NOT the credit on the account".
+    // What is left of the month: the cap, not the credit on the account.
     meter: {
       window: "portfolio-month",
       period: "2026-09",
@@ -626,20 +581,14 @@ const PROVIDER_CARD_CONNECTED: ProviderCardDemo = {
   probe: demoProbe({ ok: true, result: { outcome: "answered", facts: { creditUsd: "18.72" } } }),
 };
 
-/** The same card with the month spent out — the state that decides whether next
- * Monday's sweep runs at all, and the one a bar has to make legible at a
- * glance. It is a separate demo rather than a knob because the two ends of a
- * meter only get compared when they are on the screen together. */
+/** The same card with the month spent out, beside the untouched one so the two
+ * ends of the meter are compared on one screen. */
 const PROVIDER_CARD_CAP_REACHED: ProviderCardDemo = {
   ...PROVIDER_CARD_CONNECTED,
   status: {
     ...PROVIDER_CARD_CONNECTED.status,
-    // The other end of the credit line too (bead `ro-qpas`): an account nobody
-    // has read yet, which is what every card looks like until the first answer
-    // carries a figure. It is a SENTENCE rather than a blank, because a missing
-    // row reads as an account with no credit on it — and it belongs beside a
-    // spent-out cap, since that is the pair an operator meets when they are
-    // deciding whether Monday's sweep can run at all.
+    // An account nobody has read yet: a sentence rather than a blank, because a
+    // missing row reads as an account with no credit on it.
     credential: demoCredential("dataforseo", {
       source: "store",
       fields: ["DATAFORSEO_LOGIN", "DATAFORSEO_PASSWORD"],
@@ -656,12 +605,8 @@ const PROVIDER_CARD_CAP_REACHED: ProviderCardDemo = {
   },
 };
 
-/** The same card with a credit sighting TOO OLD TO ACT ON (bead `ro-vu8d.27`):
- * the weekly refresh is silent when refused, so a figure that quietly ages is
- * the failure mode, and past two missed weeks the age is said in warn ink
- * rather than left as a muted timestamp. What a reviewer judges here is that
- * the amount is still legible (hiding it would invent "no credit") while the
- * sentence, not the number, is what the eye lands on. */
+/** The same card with a credit sighting too old to act on: past two missed
+ * weeks the age is said in warn ink, and the amount stays legible. */
 const PROVIDER_CARD_CREDIT_STALE: ProviderCardDemo = {
   ...PROVIDER_CARD_CONNECTED,
   status: {
@@ -684,17 +629,8 @@ const PROVIDER_CARD_CREDIT_STALE: ProviderCardDemo = {
   },
 };
 
-/**
- * What the sidebar's Integrations entry reads its expiry dot from (bead
- * `ro-vu8d.8`).
- *
- * `ro-vu8d.19` decided on 2026-09-05 that this dot, plus the provider card
- * behind it, is the WHOLE ceiling for an expiring portfolio-shared credential —
- * the Wall carries nothing and Home's Alerts list carries nothing — so this is
- * the one place the state is reviewable, and it had none. Passing the payload
- * also keeps the gallery off the live credential read, exactly as `assets`
- * keeps it off the wall.
- */
+/** What the sidebar's Integrations entry reads its expiry dot from. Passing
+ * the payload keeps the gallery off the live credential read. */
 const SIDEBAR_CREDENTIALS: IntegrationCredentialsPayload = {
   generatedAt: new Date(NOW).toISOString(),
   keyPresent: true,
@@ -755,14 +691,9 @@ const PROVIDER_CARD_LEGACY_ENV: ProviderCardDemo = {
   probe: demoProbe({ ok: true, result: { outcome: "answered", facts: { sites: 3, account: "robot@demo-project.iam.gserviceaccount.com" } } }),
 };
 
-/**
- * The countdown's whole ramp on one screen (bead `ro-vu8d.8`).
- *
- * Real providers again, because which sentence a card can honestly print is a
- * per-provider FACT: DataForSEO offers the operator a date field, Bing the
- * same, and the calendar feed states no lifetime at all — so the last card here
- * is the one that proves the design refuses to invent one.
- */
+/** The countdown's whole ramp on one screen. Real providers, because which
+ * sentence a card can print is a per-provider fact: the calendar feed states
+ * no lifetime at all, and its card must not invent one. */
 const PROVIDER_CARD_EXPIRY_DEMOS: IntegrationProviderStatus[] = [
   {
     provider: realProvider("dataforseo"),
@@ -831,15 +762,9 @@ const PROVIDER_CARD_EXPIRY_DEMOS: IntegrationProviderStatus[] = [
   },
 ];
 
-/**
- * THE PROPERTY MAP RETIRING ITSELF (bead `ro-90mr`) — the same Google card in
- * both of its sentences.
- *
- * Worth two cards rather than one: what a reviewer is judging is whether the
- * unfinished one is ACTIONABLE (does it name which asset and which data source,
- * and does each link somewhere) and whether the finished one is precise enough
- * to act on, since what it licenses is deleting ids out of a stored secret.
- */
+/** The property map retiring itself: the same Google card in both of its
+ * sentences, since the finished one licenses deleting ids out of a stored
+ * secret. */
 const PROVIDER_CARD_PROPERTY_MAP_DEMOS: IntegrationProviderStatus[] = [
   {
     ...PROVIDER_CARD_LEGACY_ENV.status,
@@ -849,11 +774,8 @@ const PROVIDER_CARD_PROPERTY_MAP_DEMOS: IntegrationProviderStatus[] = [
         needed: true,
         answersFor: [
           { asset: "menu.example.org", id: "ga4", label: "GA4 Data API" },
-          // An ORPHAN (bead `ro-vu8d.22`): an asset the credential's own account
-          // map names that `config/integrations.json` has no entry for at all.
-          // It is the case the Tower's old derivation could not see, and the one
-          // where getting the sentence wrong tells the operator to delete an id
-          // a run is still reading.
+          // An orphan: an asset the credential's own account map names that
+          // `config/integrations.json` has no entry for.
           { asset: "codes.example.com", id: "gsc", label: "Google Search Console (GSC API)" },
         ],
       },
@@ -898,10 +820,8 @@ const PROVIDER_CARD_DEMOS: ProviderCardDemo[] = [
     assets: [{ id: "plate.example.com", displayName: "plate.example.com", domain: "plate.example.com" }],
     probe: demoProbe({ ok: false, result: { outcome: "refused", status: 401, fix: { kind: "replace" } } }),
   },
-  // Discord, which is the ONLY card whose Test button reaches the operator's own
-  // channel (bead `ro-vu8d.18`). It is here so the sentence that warns about
-  // that gets reviewed beside the button it belongs to — and so the `url` field
-  // kind, the one address that is itself a credential, is drawn somewhere.
+  // Discord: the only card whose Test button reaches the operator's own channel,
+  // and the one `url` field kind.
   {
     status: {
       provider: realProvider("discord"),
@@ -917,10 +837,8 @@ const PROVIDER_CARD_DEMOS: ProviderCardDemo[] = [
     assets: [{ id: "home-os", displayName: "home-os", domain: null }],
     probe: demoProbe({ ok: true, result: { outcome: "answered" } }),
   },
-  // Clarity, the only PER-ASSET credential (bead `ro-vu8d.9`), shown in the
-  // state that is normal for one: partly covered. Two facts are only visible
-  // here — the served-assets list becomes a checklist, and the Test button
-  // carries the sentence saying it will not call Clarity at all.
+  // Clarity, the only per-asset credential, partly covered: the served-assets
+  // list becomes a checklist and Test says it will not call Clarity at all.
   {
     status: {
       provider: realProvider("clarity"),
@@ -937,10 +855,7 @@ const PROVIDER_CARD_DEMOS: ProviderCardDemo[] = [
         { id: "menu.example.org", lanes: ["clarity"] },
         { id: "finance.example.org", lanes: ["clarity"] },
       ],
-      // WHAT IS LEFT OF TODAY (bead `ro-vu8d.25`), on the one provider that
-      // declares a meter. It is here because doc 14 flow C step 3 asked for this
-      // number in prose for months, and what a reviewer is judging is whether a
-      // partly-spent day and an untouched one read differently at a glance.
+      // What is left of today, on the one provider that declares a meter.
       meter: {
         window: "asset-day",
         day: "2026-09-05",
@@ -954,12 +869,8 @@ const PROVIDER_CARD_DEMOS: ProviderCardDemo[] = [
     ],
     probe: demoProbe({ ok: true, result: { outcome: "not-checked", facts: { tokens: 1 }, fix: { kind: "run-now" } } }),
   },
-  // The same per-asset credential still on the OLDER single-asset binding (bead
-  // `ro-vu8d.24`) — an environment credential with one asset covered, and the only card that
-  // names a binding the form has no input for. It is here because the sentence
-  // is what stops a self-hoster deleting a value that is doing work, and because
-  // this is the state that used to render Not connected over a data source that
-  // was collecting every night.
+  // The same per-asset credential on the single-asset environment binding: the
+  // only card that names a binding the form has no input for.
   {
     status: {
       provider: realProvider("clarity"),
@@ -986,7 +897,7 @@ const PROVIDER_CARD_DEMOS: ProviderCardDemo[] = [
   },
 ];
 
-// --- ProviderCard, the Google sign-in half (bead ro-vu8d.3) ----------------
+// --- ProviderCard, the Google sign-in half ---------------------------------
 
 /** The `google-oauth-app` companion, in the two states that matter: entered, or
  * not. It never gets a card of its own — `/integrations` filters it out on
@@ -1024,9 +935,8 @@ const GOOGLE_SIGNED_IN: IntegrationProviderStatus = {
         "https://www.googleapis.com/auth/webmasters.readonly",
       ],
       connectedAt: iso(6 * HOUR),
-      // The Testing-mode countdown the OAuth exchange records (bead
-      // `ro-vu8d.8`): six hours in, so the chip is inside the T-14d window and
-      // the gallery shows the warn-toned state rather than the quiet one.
+      // The Testing-mode countdown the OAuth exchange records: six hours in, so
+      // the chip is inside the T-14d window and shows the warn-toned state.
       expiresAt: isoAhead(GOOGLE_TESTING_GRANT_DAYS * DAY - 6 * HOUR),
       expirySource: "flow",
     },
@@ -1040,14 +950,8 @@ const GOOGLE_SIGNED_IN: IntegrationProviderStatus = {
   ],
 };
 
-/**
- * The same grant after Google stopped accepting it (bead `ro-vu8d.14`).
- *
- * The state this card used to be UNABLE to show: a tick and "Signed in as
- * ops@example.com" while the nightly pull failed underneath. `lastError` is the
- * exact constant the ingest raises, so what is reviewed here is the sentence an
- * operator actually meets.
- */
+/** The same grant after Google stopped accepting it. `lastError` is the exact
+ * constant the ingest raises. */
 const GOOGLE_GRANT_REVOKED: IntegrationProviderStatus = {
   ...GOOGLE_SIGNED_IN,
   credential: {
@@ -1137,14 +1041,14 @@ const GOOGLE_OAUTH_DEMOS: {
   {
     key: "connected",
     note:
-      "Signed in: whose account, what the grant covers in words rather than scope URLs, and — on demand — what that account can actually see. The list is read-only; which asset each GA4 property or Search Console site belongs to is the operator's answer and gets its own surface (ro-vu8d.4).",
+      "Signed in: whose account, what the grant covers in words rather than scope URLs, and — on demand — what that account can actually see. The list is read-only; which asset each GA4 property or Search Console site belongs to is the operator's answer and gets its own surface.",
     status: GOOGLE_SIGNED_IN,
     panel: demoPanel(GOOGLE_SIGNED_IN, demoOAuthApp(true), "http://127.0.0.1:5173"),
   },
   {
     key: "revoked",
     note:
-      "And the state this card could not show until ro-vu8d.14: Google has stopped accepting the sign-in — a Testing-mode consent screen expires every grant after seven days. The identity is still printed, because it is what says WHICH account to sign back in as, but the tick is gone, the scopes go neutral (they describe access that no longer exists), and Sign in again is the loudest control on the card instead of a muted link. The verdict slot carries the constant the ingest stamps; both ways out are presses: Sign in again, or Publish app on the expiry line so it stops recurring.",
+      "Google has stopped accepting the sign-in — a Testing-mode consent screen expires every grant after seven days. The identity is still printed, because it is what says WHICH account to sign back in as, but the tick is gone, the scopes go neutral (they describe access that no longer exists), and Sign in again is the loudest control on the card instead of a muted link. The verdict slot carries the constant the ingest stamps; both ways out are presses: Sign in again, or Publish app on the expiry line so it stops recurring.",
     status: GOOGLE_GRANT_REVOKED,
     panel: demoPanel(GOOGLE_GRANT_REVOKED, demoOAuthApp(true), "http://127.0.0.1:5173"),
   },
@@ -1157,9 +1061,8 @@ const DEMO_SPOKES: TaskHubSpoke[] = [
   { asset: "home-os", prefix: "ro", database: "ro", repo: "." },
 ];
 
-/** A finding's handoff, as data — the very object `ExecutiveInsightRow` hands
- * its own File task button, so the gallery shows the real locked labels and the
- * real `noticeos_*` metadata rather than a plausible-looking imitation. */
+/** A finding's handoff, as data: the object `ExecutiveInsightRow` hands its own
+ * File task button. */
 const DEMO_HANDOFF_PREFILL = taskHandoffPrefill({
   asset: "plate.example.com",
   kind: "finding",
@@ -1197,8 +1100,8 @@ const insightDemo: ExecutiveInsight = {
 };
 
 // --- asset-detail chart + decision demos -----------------------------------
-// 28 visible days from Thursday 2026-07-02, preceded by seven calculation-only
-// dates so the first visible day still has a prior-week reference.
+// 28 visible days, preceded by seven calculation-only dates so the first
+// visible day still has a prior-week reference.
 const DAU_CONTEXT = dailySeries([61, 58, 66, 72, 69, 74, 70], "2026-06-25");
 const DAU_VISIBLE = dailySeries(
   [
@@ -1209,14 +1112,10 @@ const DAU_VISIBLE = dailySeries(
 );
 const DAU_PROVISIONAL_FROM = DAU_VISIBLE.at(-1)!.t;
 
-// A reporting-timezone change inside the visible window (`ro-kukv.8`). The
-// marked days are DERIVED from it — the change day and the one before it — so
-// this fixture names an event, never a pair of dates.
-/**
- * The zones the gallery demonstrates a move between, read from the runtime's
- * own tz database rather than written into the product (bead `ro-ujb9.118`).
- * UTC stands in where the runtime lists none.
- */
+// A reporting-timezone change inside the visible window; the marked days are
+// derived from it.
+/** The zones the gallery demonstrates a move between, read from the runtime's
+ * own tz database. UTC stands in where the runtime lists none. */
 const [DEMO_ZONE_WEST, DEMO_ZONE_EAST] = demoZones();
 function demoZones(): [string, string] {
   const zones = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [];
@@ -1232,9 +1131,8 @@ const DAU_TIME_ZONE_CHANGE = [
   },
 ];
 
-// The fourteen days a 7-vs-7 chip over the visible window really compares — the
-// latest complete day back thirteen. The change above sits inside it, which is
-// what withdraws the tile's color verdict (`ro-kukv.13`).
+// The fourteen days a 7-vs-7 chip over the visible window compares. The change
+// above sits inside it, which withdraws the tile's color verdict.
 const DISTORTED_WEEKLY_WINDOW = { start: "2026-07-15", end: "2026-07-28" };
 
 const demoProperty = {
@@ -1243,10 +1141,8 @@ const demoProperty = {
   domain: "plate.example.com",
 };
 
-/** One fixture per PAGE decision lane (bead `ro-427`): a page that lost clicks,
- * one shown far more than it is taken, one walled by an overview on its largest
- * query, one that overview cites, one gaining, and one genuinely flat — which
- * stays in the table, because flat is a finding and a missing row is not. */
+/** One fixture per page decision lane, including a genuinely flat page, which
+ * stays in the table because flat is a finding and a missing row is not. */
 const pageTrendsDemo: SearchPageTrends = {
   provider: "google",
   currentStart: "2026-07-23",
@@ -1464,8 +1360,8 @@ const pageTrendsDemo: SearchPageTrends = {
     "Search Console page exports are top rows: a page reported in only one of the two weeks is unknown rather than zero and is left out.",
 };
 
-/** The page rows' real task-register states (bead `ro-e46.4`). The absolute URL
- * is the join key; the shorter path is presentation only. */
+/** The page rows' task-register states. The absolute URL is the join key; the
+ * shorter path is presentation only. */
 const pageHandoffBeadsDemo: HandoffBead[] = [
   {
     kind: "page",
@@ -1556,11 +1452,9 @@ const queryTrendsDemo: SearchQueryTrends = {
         positionImprovement: 1.6,
       },
     ],
-    // Both states of the proof row on one page: Google excluded something, Bing
-    // excluded nothing and says so. The zero row is the one worth looking at —
-    // it is what "the check ran and came back clean" has to look like, and it
-    // must never be mistaken for a lane that was never checked (which renders
-    // no row at all).
+    // Both states of the proof row: Google excluded something, Bing excluded
+    // nothing and says so. A zero row is "checked and clean"; a lane never
+    // checked renders no row at all.
     evidence: [
       {
         label: "Grounding queries excluded",
@@ -1615,8 +1509,7 @@ const queryTrendsDemo: SearchQueryTrends = {
         intent: "informational",
         aiOverview: "cited",
         aiCitationPosition: 2,
-        // Not on the tracked panel: the two panel rules must leave this row
-        // exactly as it was before the panel existed.
+        // Not on the tracked panel: the two panel rules leave this row alone.
         aioDevices: [],
       },
       {
@@ -1639,9 +1532,9 @@ const queryTrendsDemo: SearchQueryTrends = {
         ],
       },
       {
-        // Tracked and walled ON THE PHONE ONLY — the split ro-o1n bought the
-        // second device for. The demotion still fires: an overview that
-        // consumes the click on the phone is not undone by a clear desktop.
+        // Tracked and walled on the phone only. The demotion still fires: an
+        // overview that consumes the click on the phone is not undone by a
+        // clear desktop.
         query: "how many calories should i eat",
         monthlySearches: 74000,
         organicPosition: 6,
@@ -1738,9 +1631,8 @@ const queryTrendsDemo: SearchQueryTrends = {
   },
 };
 
-/** What the register holds for those queries (bead `ro-5e8.3`). Keys are the
- * normalized query — lowercased and trimmed — because that is the `noticeos_key`
- * the copied `bd create` carries and the poller reads back off the bead. */
+/** What the register holds for those queries. Keys are the normalized query,
+ * lowercased and trimmed, which is the `noticeos_key` the poller reads back. */
 const queryHandoffBeadsDemo: HandoffBead[] = [
   { kind: "query", key: "macro calculator", beadId: "mp-1w2", status: "open", closedAt: null },
   {
@@ -1750,28 +1642,17 @@ const queryHandoffBeadsDemo: HandoffBead[] = [
     status: "closed",
     closedAt: iso(30 * HOUR),
   },
-  // A finding's bead under a key that reads like a query: filtered out, never
+  // A finding's task under a key that reads like a query: filtered out, never
   // borrowed by the row that happens to share the string.
   { kind: "finding", key: "portion size guide", beadId: "mp-9zz", status: "open", closedAt: null },
 ];
 
-/** One weekly tracked panel, shaped like menu.example.org's real 2026-08-03 collection:
- * a couple of top-3 terms, a mid-page cluster, several with no result inside the
- * pull's depth at all, and every AI-Overview state including unknown. Small
- * enough to read on one screen, wide enough that all four rank tiers and both
- * AI denominators are non-trivial.
- *
- * ONE ROW PER (TERM, DEVICE) since `ro-14d.1`. Nine terms, and `macro
- * calculator` is deliberately the disagreeing pair — walled on the phone, clear
- * on the desktop — so the registry's rendered reference contains the case the
- * second device was bought to find. Ten rows, nine tracked: the scoreboard
- * counts terms, and a demo that let a split double a denominator would be the
- * bug rendered as documentation.
- *
- * CLUSTER-LABELLED since `ro-282.5`, and deliberately MIXED: two named bets
- * plus two terms from a pre-label collection. A demo where everything carries a
- * label would never show the trailing ungrouped run, which is the case both
- * plate.example.com and the other site's own history depend on. */
+/** One weekly tracked panel: a couple of top-3 terms, a mid-page cluster,
+ * several with no result inside the pull's depth, and every AI-Overview state
+ * including unknown. One row per (term, device): `macro calculator` is the
+ * disagreeing pair, walled on the phone and clear on the desktop, so ten rows
+ * count as nine tracked terms. Cluster labels are deliberately mixed so the
+ * trailing ungrouped run is drawn. */
 const panelComposition = (
   top3Domains: string[],
   overrides: Partial<NonNullable<SerpPanelQuery["composition"]>> = {},
@@ -1789,19 +1670,18 @@ const panelDemo: SerpPanelSnapshot = {
   trackedDepth: 20,
   market: null,
   queries: [
-    { query: "calorie calculator", device: "desktop", label: "Calculator seam", bestRank: 2, bestUrl: "https://menu.example.org/calories", aioPresent: true, aioCitesUs: true, composition: panelComposition(["calculator.net", "menu.example.org", "omnicalculator.com"], { secondRank: 8, secondUrl: "https://menu.example.org/tdee" }) },
-    { query: "macro calculator", device: "mobile", label: "Calculator seam", bestRank: 3, bestUrl: "https://menu.example.org/macros", aioPresent: true, aioCitesUs: false, composition: panelComposition(["calculator.net", "omnicalculator.com", "menu.example.org"], { serpFeatures: ["ai_overview", "people_also_ask", "related_searches"] }) },
-    { query: "macro calculator", device: "desktop", label: "Calculator seam", bestRank: 3, bestUrl: "https://menu.example.org/macros", aioPresent: false, aioCitesUs: false, composition: panelComposition(["omnicalculator.com", "calculator.net", "menu.example.org"]) },
-    { query: "tdee calculator", device: "desktop", label: "Calculator seam", bestRank: 7, bestUrl: "https://menu.example.org/tdee", aioPresent: false, aioCitesUs: false, composition: panelComposition(["tdeecalculator.net", "calculator.net", "forbes.com"], { organicResults: 18 }) },
-    { query: "protein calculator", device: "desktop", label: "Calculator seam", bestRank: 9, bestUrl: "https://menu.example.org/protein", aioPresent: true, aioCitesUs: false, composition: panelComposition(["calculator.net", "promixnutrition.com", "healthline.com"], { serpFeatures: ["ai_overview", "images", "people_also_ask"] }) },
-    { query: "bmr calculator", device: "desktop", label: "Calculator seam", bestRank: 14, bestUrl: "https://menu.example.org/bmr", aioPresent: false, aioCitesUs: false, composition: panelComposition(["calculator.net", "omnicalculator.com", "verywellfit.com"]) },
-    // Checked, and the overview did not load — unknown, which draws no glyph
-    // rather than the ghosted "checked and clear" one. Also unlabelled: a
-    // collection older than ro-282.2, which is normal input and stays in the
-    // trailing ungrouped run rather than becoming a seventh bet.
-    { query: "meal calorie counter", device: "desktop", label: null, bestRank: 18, bestUrl: "https://menu.example.org/counter", aioPresent: null, aioCitesUs: null, composition: panelComposition(["myfitnesspal.com", "calorieking.com", "fatsecret.com"]) },
-    { query: "chipotle calorie calculator", device: "desktop", label: "Item head", bestRank: null, bestUrl: null, aioPresent: false, aioCitesUs: false, composition: panelComposition(["chipotle.com", "chipotlenutrition.org", "womeninbalance.org"], { organicResults: 19, serpFeatures: ["related_searches"] }) },
-    { query: "starbucks calorie calculator", device: "desktop", label: "Item head", bestRank: null, bestUrl: null, aioPresent: true, aioCitesUs: false, composition: panelComposition(["cheatdaydesign.com", "starbucks.com", "calculator.net"], { serpFeatures: ["ai_overview", "related_searches"] }) },
+    { query: "calorie calculator", device: "desktop", label: "Calculator seam", bestRank: 2, bestUrl: "https://menu.example.org/calories", aioPresent: true, aioCitesUs: true, composition: panelComposition(["calc-one.example.com", "menu.example.org", "calc-two.example.com"], { secondRank: 8, secondUrl: "https://menu.example.org/tdee" }) },
+    { query: "macro calculator", device: "mobile", label: "Calculator seam", bestRank: 3, bestUrl: "https://menu.example.org/macros", aioPresent: true, aioCitesUs: false, composition: panelComposition(["calc-one.example.com", "calc-two.example.com", "menu.example.org"], { serpFeatures: ["ai_overview", "people_also_ask", "related_searches"] }) },
+    { query: "macro calculator", device: "desktop", label: "Calculator seam", bestRank: 3, bestUrl: "https://menu.example.org/macros", aioPresent: false, aioCitesUs: false, composition: panelComposition(["calc-two.example.com", "calc-one.example.com", "menu.example.org"]) },
+    { query: "tdee calculator", device: "desktop", label: "Calculator seam", bestRank: 7, bestUrl: "https://menu.example.org/tdee", aioPresent: false, aioCitesUs: false, composition: panelComposition(["calc-three.example.net", "calc-one.example.com", "magazine.example.com"], { organicResults: 18 }) },
+    { query: "protein calculator", device: "desktop", label: "Calculator seam", bestRank: 9, bestUrl: "https://menu.example.org/protein", aioPresent: true, aioCitesUs: false, composition: panelComposition(["calc-one.example.com", "supplements.example.com", "health.example.com"], { serpFeatures: ["ai_overview", "images", "people_also_ask"] }) },
+    { query: "bmr calculator", device: "desktop", label: "Calculator seam", bestRank: 14, bestUrl: "https://menu.example.org/bmr", aioPresent: false, aioCitesUs: false, composition: panelComposition(["calc-one.example.com", "calc-two.example.com", "wellness.example.com"]) },
+    // Checked, and the overview did not load: unknown, which draws no glyph
+    // rather than the ghosted "checked and clear" one. Also unlabelled, so it
+    // stays in the trailing ungrouped run rather than becoming a seventh bet.
+    { query: "meal calorie counter", device: "desktop", label: null, bestRank: 18, bestUrl: "https://menu.example.org/counter", aioPresent: null, aioCitesUs: null, composition: panelComposition(["tracker-one.example.com", "tracker-two.example.com", "tracker-three.example.com"]) },
+    { query: "chain one calorie calculator", device: "desktop", label: "Item head", bestRank: null, bestUrl: null, aioPresent: false, aioCitesUs: false, composition: panelComposition(["chain-one.example.com", "chain-one-nutrition.example.org", "balance.example.org"], { organicResults: 19, serpFeatures: ["related_searches"] }) },
+    { query: "chain two calorie calculator", device: "desktop", label: "Item head", bestRank: null, bestUrl: null, aioPresent: true, aioCitesUs: false, composition: panelComposition(["recipes.example.com", "chain-two.example.com", "calc-one.example.com"], { serpFeatures: ["ai_overview", "related_searches"] }) },
     // Provider-unread: the whole neighborhood is absent, never a confident
     // empty top three or a claim that the page had zero organic results.
     { query: "restaurant nutrition lookup", device: "desktop", label: null, bestRank: null, bestUrl: null, aioPresent: null, aioCitesUs: null, composition: null },
@@ -1999,14 +1879,14 @@ const REST_OF_DAY: UpcomingMeeting[] = [
 const REGISTRY_GROUPS: Record<string, string> = {
   "components/": "Composite",
   "components/ui/": "Primitives (vendored)",
-  "components/surface/": "Surface (doc 14)",
+  "components/surface/": "Surface",
   "components/bands/": "Bands",
   "components/wall/": "Wall",
 };
 
 /**
  * The registry's inventory, read straight out of `components/registry.ts` —
- * this page is that file's one importer (doc 14). Nothing below is typed by
+ * this page is that file's one importer. Nothing below is typed by
  * hand: a component that enters the registry appears here, and
  * `scripts/component-registry.test.mjs` fails the build for a component that
  * never entered it, an entry naming a file that is gone, or an entry with no
@@ -2136,9 +2016,7 @@ const SCHEDULED_MATRIX: ScheduledLane[] = [
 const systemNormal: SystemData = {
   assetId: "home-os",
   hasPulse: true,
-  // The data cap alone, which is the portfolio's only cap since the inference
-  // ceiling was withdrawn (beads `ro-uj7x`, `ro-rggc`): $25/mo over a 31-day
-  // month is 81 cents a day.
+  // The data cap alone: $25/mo over a 31-day month is 81 cents a day.
   spendTodayUsd: 0.48,
   dailyCapUsd: 0.81,
   ingest: { fresh: 3, stale: 0, notExpected: 1, expected: 3 },
@@ -2169,8 +2047,8 @@ const cardLive: AssetData = { netByMonthCurrency: 'USD',
   forecast: { currency: 'USD', revenue: 48, cost: 0, net: 48 },
   netPeriod: "2026-06",
   pulseReceivedAt: iso(4 * HOUR),
-  // Nine days of nightly reports — an onboarding card whose setup ring reads
-  // 2 of 4 with nineteen baseline days left (bead `ro-28ma`).
+  // Nine days of nightly reports: an onboarding card whose setup ring reads
+  // 2 of 4 with nineteen baseline days left.
   firstReportAt: iso(9 * DAY),
   reportDays: 9,
   dataSources: [
@@ -2185,9 +2063,8 @@ const cardLive: AssetData = { netByMonthCurrency: 'USD',
     timeZoneChanges: [],
     collectedAt: iso(5 * 60_000),
   },
-  // /assets' comparison columns (bead `ro-78qo.35`). The CARD draws neither —
-  // it charts active users and nothing else — so they are the designed-empty
-  // shape here until that table is built.
+  // /assets' comparison columns. The card draws neither, so they are the
+  // designed-empty shape here.
   searchClicks: { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] },
   netByMonth: [],
   netByMonthProvisionalFrom: null,
@@ -2200,9 +2077,8 @@ const cardLive: AssetData = { netByMonthCurrency: 'USD',
     priorities: [1, 2, 8, 3, 1],
     capturedAt: iso(20_000),
   },
-  // REVIEWED: the review is about the SAME panel day the archive holds as this
-  // asset's newest, so it still covers it. Quiet clipboard glyph, muted
-  // tone, the age of the review.
+  // Reviewed: the review is about the same panel day the archive holds as this
+  // asset's newest, so it still covers it.
   panelReview: {
     beadId: "mp-4a2",
     panelDate: "2026-06-26",
@@ -2241,10 +2117,8 @@ const cardWarn: AssetData = {
     priorities: [0, 0, 0, 0, 0],
     capturedAt: iso(20_000),
   },
-  // OVERDUE: a real failure — a panel collected and left unread.
-  // The bead is open and three days past its deadline, so the badge takes the
-  // error tone and the warning glyph: the one panel state that has to read as a
-  // problem from across the room.
+  // Overdue: a panel collected and left unread, three days past its deadline,
+  // so the badge takes the error tone and the warning glyph.
   panelReview: {
     beadId: "menu-f1c",
     panelDate: "2026-06-25",
@@ -2275,11 +2149,9 @@ const cardSetup: AssetData = {
   // an empty queue. This is also the card that has no nightly report yet, which
   // is exactly why the work widget still renders here.
   work: null,
-  // PENDING, and in the OTHER noun: fitness.example.net buys no tracked
-  // panel (no config/serp-panel.json entry) yet collects five report families
-  // every Monday, so it owes the same weekly read and its marker says signal
-  // collection — the word its own bead title carries (bead `ro-z0g`). Quiet
-  // hourglass, muted tone, the time still left.
+  // Pending, in the other noun: this asset buys no tracked panel yet collects
+  // five report families every Monday, so it owes the same weekly read and its
+  // marker says signal collection.
   panelReview: {
     beadId: "fit-90c",
     panelDate: "2026-07-02",
@@ -2291,10 +2163,9 @@ const cardSetup: AssetData = {
   latestPanelDate: "2026-07-02",
 };
 
-// --- setup checklist (bead `ro-28ma`) --------------------------------------
-// Built through the real derivation rather than hand-written, so the panel
-// below demonstrates the FUNCTION as well as the rendering: change a rule in
-// `shared/asset-setup` and this page moves with it.
+// --- setup checklist -------------------------------------------------------
+// Built through the real derivation, so a rule change in `shared/asset-setup`
+// moves this page with it.
 const SETUP_PART_DONE = assetSetupChecklist({
   id: "fitness.example.net",
   displayName: "Fitness",
@@ -2336,20 +2207,15 @@ const cardThin: AssetData = {
   booked: { currency: 'USD', revenue: 43, cost: 0, net: 43 },
   forecast: { currency: 'USD', revenue: 0, cost: 0, net: 0 },
   netPeriod: "2026-01",
-  // NO PANEL: this asset buys no tracked SERP panel, so it owes no review
-  // and its header carries no marker at all — the absence is the state, and it
-  // is what nearly every card in the portfolio looks like.
+  // No panel: this asset buys no tracked SERP panel, so it owes no review and
+  // its header carries no marker at all.
   panelReview: null,
   latestPanelDate: null,
 };
 
-/**
- * The Wall card whose 7-vs-7 comparison straddles a reporting-timezone change
- * (bead `ro-jkp2`). Twenty-eight visible days with the change on Jul 22 and a
- * provisional Jul 29: the comparison runs Jul 15–28, so the change is inside it
- * and the verdict is withdrawn — while the card's own headline still reads
- * today so far.
- */
+/** The Wall card whose 7-vs-7 comparison straddles a reporting-timezone
+ * change: the verdict is withdrawn while the headline still reads today so
+ * far. */
 const cardDistortedWindow: AssetData = {
   ...cardLive,
   id: "plate.example.com",
@@ -2369,12 +2235,9 @@ const cardCleanWindow: AssetData = {
   activeUsers: { ...cardDistortedWindow.activeUsers, timeZoneChanges: [] },
 };
 
-/**
- * The sidebar's asset list (bead `ro-pbzu.9`), one card per state it can draw:
- * live and quiet (no glyph at all), an open warning, mid-lifecycle, and retired
- * — which the nav sinks to the foot whatever order it arrives in, so the fixture
- * deliberately hands it in second place.
- */
+/** The sidebar's asset list, one card per state it can draw. Retired sinks to
+ * the foot whatever order it arrives in, so the fixture hands it in second
+ * place. */
 const sidebarAssets: AssetData[] = [
   { ...cardLive, status: "live" },
   { ...cardThin, status: "retired" },
@@ -2399,7 +2262,7 @@ const realtimeLive: Ga4RealtimeAsset = {
         9, 7, 5, 4, 2,
       ][hour]!,
   })),
-  // The minute pulse (bead ro-trai.27): a quiet half hour picking up.
+  // The minute pulse: a quiet half hour picking up.
   activeUsersByMinute: [1, 0, 2, 1, 1, 0, 3, 2, 1, 2, 0, 1, 2, 3, 2, 1, 2, 4, 3, 2, 3, 2, 4, 3, 5, 4, 6, 5, 7, 6],
   observedAt: iso(12_000),
   timeZone: DEMO_ZONE_WEST,
@@ -2432,8 +2295,8 @@ const deployAnnotation: AnnotationItem = {
 // One per translated shape: a pre-registered kill threshold, a plain drop, a
 // zero (rule-specific next step), and a wiring failure — each with the
 // rule_inputs its rule really writes.
-/** One alert row per state `AlertRow` can be in (bead `ro-ju7f`). Built off one
- * base so the only thing that differs between them is the state being shown. */
+/** One alert row per state `AlertRow` can be in, built off one base so only the
+ * state being shown differs. */
 const alertRowFlag = (overrides: Partial<FlagRecord> = {}): FlagRecord => ({
   id: 8100,
   firedAt: iso(3 * DAY),
@@ -2501,10 +2364,8 @@ const alertRowFlags = {
     resolvedAt: iso(20 * DAY),
     liveness: { state: "historical" },
   }),
-  // AN ERROR THE OS ALREADY SENT (bead `ro-vu8d.23`). Only an error qualifies,
-  // so this is the one demo where the notified mark can appear at all — and it
-  // is drawn beside the age, in the same muted ink, because being notified is
-  // one more dated fact about the row rather than a severity or a decision.
+  // An error the OS already sent: only an error qualifies, so this is the one
+  // demo where the notified mark can appear.
   notified: alertRowFlag({
     id: 8107,
     severity: "error",
@@ -2515,11 +2376,8 @@ const alertRowFlags = {
     firstFiredAt: iso(5 * HOUR),
     notifiedAt: iso(5 * HOUR - 12 * 60_000),
   }),
-  // The row that used to lose its tune (bead `ro-bkcl`): tuned, then marked
-  // read. `disposition` says `ack` and the note carries the setting that moved
-  // behind `shared/tune.ts`'s mark, so the footer says both — the badge for
-  // what the operator did with the firing, the chip for what they did to the
-  // rule — and the quoted reason is the ack's half alone.
+  // Tuned, then marked read: the footer says both, and the quoted reason is
+  // the ack's half alone.
   tunedThenRead: alertRowFlag({
     id: 8106,
     message: "0 signups in last24h (avg7d 6.2)",
@@ -2589,9 +2447,8 @@ const attentionItems: AttentionItem[] = [
       pLowerTail: 0.0000041,
     },
     correlatedChanges: [],
-    // The recurring-condition state (bead ro-kukv.1): one row standing for a
-    // month of nightly re-readings of ONE standing condition, carrying the
-    // `Recurrence` chip the asset page's Current signals renders too. Every
+    // The recurring-condition state: one row standing for a month of nightly
+    // re-readings of one condition, carrying the `Recurrence` chip. Every
     // other row here is a single firing and shows no chip at all.
     occurrences: 16,
     firstFiredAt: iso(26 * DAY),
@@ -2719,8 +2576,8 @@ const demoDerivedLane: DerivedLaneRow = {
 };
 
 // The L0 row, in the state worth previewing: an outage the OS has attributed to
-// its own uplink (bead `ro-034`). One real cell, on asset #0's column — a
-// asset's own host is not this machine, so the scope rule blanks the rest.
+// its own uplink. One real cell, on asset #0's column; the scope rule blanks
+// the rest.
 const demoEgressLane: DerivedLaneRow = {
   catalog: {
     id: EGRESS_LANE_ID,
@@ -2795,8 +2652,7 @@ const demoMatrix: IntegrationsMatrix = {
     spentUsd: 8.4, unknownPrices: 0,
     capUsd: 25,
     unattributedUsd: 0, unattributedUnknownPrices: 0,
-    // The split the cap above cannot supply (bead ro-4cm): the total is the sum
-    // of these, biggest spender first.
+    // The total is the sum of these, biggest spender first.
     byAsset: [
       { asset: "plate.example.com", spentUsd: 6.2, unknownPrices: 0 },
       { asset: "menu.example.org", spentUsd: 2.2, unknownPrices: 0 },
@@ -2804,13 +2660,8 @@ const demoMatrix: IntegrationsMatrix = {
   },
 };
 
-/**
- * ONE WALL PAYLOAD, assembled from the fixtures above — the same portfolio,
- * system, alert and asset-card data every other section on this page renders.
- * `WallCanvas` takes the payload whole and each widget takes its own slice, so
- * a canvas demo built from anything else would be a second set of facts about
- * the same portfolio.
- */
+/** One Wall payload, assembled from the fixtures above so the canvas and the
+ * widget demos share one set of facts. */
 const wallFixture: WallPayload = {
   generatedAt: new Date(NOW).toISOString(),
   portfolio: portfolioNormal,
@@ -2836,11 +2687,8 @@ const wallFixture: WallPayload = {
   ledgerRecordedAt: iso(2 * DAY),
 };
 
-/**
- * A ready month projection for the revenue widget's demos (bead `ro-trai.4`):
- * evenly earned through `reportedDay`, the rest of June at the same pace.
- * Invented figures on `portfolioNormal`'s month.
- */
+/** A ready month projection for the revenue widget's demos: evenly earned
+ * through `reportedDay`, the rest of the month at the same pace. */
 function demoMonthProjection(projectedMinor: number, earnedMinor: number, previousMonthMinor: number | null, reportedDay = 20): RevenueProjection {
   const days = 30;
   const perDay = earnedMinor / reportedDay;
@@ -2857,8 +2705,8 @@ function demoMonthProjection(projectedMinor: number, earnedMinor: number, previo
   };
 }
 
-/** A site's saved estimate for yesterday on the gallery's clock (bead
- * `ro-trai.32`); `null` is a report not in yet. */
+/** A site's saved estimate for yesterday on the gallery's clock; `null` is a
+ * report not in yet. */
 const demoYesterday = (amountMinor: number | null): DailyRevenueSummary => ({
   ...yesterdayRevenue(new Date(NOW), "UTC", []),
   amountMinor,
@@ -2885,15 +2733,14 @@ const revenueLearning: { revenueProjection: RevenueProjection; dailyRevenue: Dai
   },
 ];
 
-/** The reads the demo cards' source marks come from, as the TV would see
- * them for these assets (bead `ro-ujb9.96.7.16`). */
+/** The reads the demo cards' source marks come from, as the TV would see them. */
 const DEMO_CONNECTIONS = demoConnections(
   [cardLive, cardWarn, cardSetup, cardThin, cardDistortedWindow, cardCleanWindow],
   NOW,
 );
 
-/** The layout a Wall nobody has rearranged draws — D28 (docs/14-design.md):
- * the strip, revenue beside Needs you over the site rows, the feed beside. */
+/** The layout a Wall nobody has rearranged draws: the strip, revenue beside
+ * Needs you over the site rows, the feed beside. */
 const wallDefaultLayout = DEFAULT_WALL_LAYOUT;
 
 /** And one the operator arranged: the site rows first and taller beside the
@@ -2944,7 +2791,7 @@ export function KitchenSinkRoute() {
               <h1 className="text-2xl font-semibold">Kitchen sink</h1>
               <p className="text-sm text-muted-foreground">
                 Every component in every state — the visual reference and review
-                surface (doc 14). Dev-only route.
+                surface. Dev-only route.
               </p>
             </div>
             <Button variant="outline" size="sm" onClick={() => setLight((v) => !v)}>
@@ -2952,7 +2799,7 @@ export function KitchenSinkRoute() {
             </Button>
           </header>
 
-          <Section title="HighlightCard (the Morning Brief's card, D44)">
+          <Section title="HighlightCard (the Morning Brief's card)">
             <div className="grid w-full gap-3.5 lg:grid-cols-3">
               <HighlightCard
                 kind="alert"
@@ -2995,7 +2842,7 @@ export function KitchenSinkRoute() {
               <HighlightCard kind="bet" site="Example" title="Navigation change: verdict in 3 days" detail="predicted +$40 a month · not yet significant" />
             </div>
           </Section>
-          <Section title="PageAnswer and FinishLine (a screen's answer and a list's end, D45)">
+          <Section title="PageAnswer and FinishLine (a screen's answer and a list's end)">
             <div className="flex w-full flex-col gap-4">
               <PageAnswer answer="1 of 7 sites at risk" detail="Plate Planner · since 2h ago" figures={[{ label: "Visitors yesterday", value: "2,497" }, { label: "October pace", value: "$1,310", note: "↑ 16%" }]} />
               <PageAnswer answer="All 7 sites on track" mark={<StateChip label="On track" tone="affirmative" subject="asset:example.com" />} />
@@ -3019,7 +2866,7 @@ export function KitchenSinkRoute() {
           <Section title="IntegrationHealthPanel">
             <IntegrationHealthPanel nowMs={Date.parse('2026-09-12T12:00:00Z')} data={{ generatedAt: '2026-09-12T12:00:00Z', available: true, events: [], items: (['failing', 'healthy', 'stale', 'unknown', 'never-run', 'unmonitored', 'idle', 'paused', 'disconnected'] as const).map((state, index) => ({ id: state, provider: 'google', capability: 'ga4-daily', label: ['Live active users', 'Daily traffic', 'Search report', 'Hourly traffic', 'New asset', 'Coverage gap', 'Connection test', 'Paused export', 'Disconnected tool'][index]!, state, asset: `${state}.example`, detail: null, report: null, reportDate: null, lastAttemptAt: state === 'never-run' ? null : '2026-09-12T11:59:00Z', lastSuccessAt: state === 'healthy' ? '2026-09-12T11:59:00Z' : null, nextAttemptAt: null, failure: state === 'failing' ? 'rate-limit' : null, code: state === 'failing' ? 'rate-limit-daily' : null, action: 'Review the connection in Integrations.', coverage: 'monitored' })) }} />
             <IntegrationHealthPanel nowMs={Date.parse('2026-09-12T12:00:00Z')} isError provider="google" data={{ generatedAt: '2026-09-12T11:00:00Z', available: true, events: [], items: [{ id: 'kept', provider: 'google', capability: 'ga4-daily', label: 'Analytics daily reports', state: 'healthy', asset: 'example.test', detail: null, report: null, reportDate: null, lastAttemptAt: '2026-09-12T10:59:00Z', lastSuccessAt: '2026-09-12T10:59:00Z', nextAttemptAt: null, failure: null, code: null, action: 'Review the Analytics connection.', coverage: 'monitored' }] }} />
-            {/* The strip with a week of its daily record (bead ro-ujb9.96.7.26). */}
+            {/* The strip with a week of its daily record. */}
             <IntegrationHealthPanel nowMs={Date.parse('2026-09-12T12:00:00Z')} providers={[{ provider: integrationProvider('google')!, assets: [], meter: null, credential: { provider: 'google', source: 'store', fields: ['GOOGLE_OAUTH_REFRESH_TOKEN'], assetsHeld: [], missingFields: [], auth: null, metadata: null, keyVersion: 1, createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z', lastUsedAt: '2026-09-12T11:59:00Z', lastOkAt: '2026-09-12T11:59:00Z', lastError: null } as CredentialSummary }]} data={{ generatedAt: '2026-09-12T12:00:00Z', available: true, events: [], countsHistory: demoCountsHistory(Date.parse('2026-09-12T12:00:00Z')), items: (['healthy', 'healthy', 'failing'] as const).map((state, index) => ({ id: `history-${index}`, provider: 'google', capability: 'ga4-daily', label: 'Daily traffic', state, asset: `site-${index + 1}.example`, detail: null, report: null, reportDate: null, lastAttemptAt: '2026-09-12T11:59:00Z', lastSuccessAt: state === 'healthy' ? '2026-09-12T11:59:00Z' : null, nextAttemptAt: null, failure: state === 'failing' ? 'access' : null, code: state === 'failing' ? 'access' : null, action: 'Review the connection in Integrations.', coverage: 'monitored' })) }} />
           </Section>
           <Section title="IntegrationLogo">
@@ -3049,14 +2896,13 @@ export function KitchenSinkRoute() {
           </Section>
           <Section title="WhatLands (notification channel)">
             {/* What Discord's channel carries: before it is connected, once it
-                is, and connected while the OS is sending nothing (bead
-                ro-ujb9.96.7.14 draws it in the connect panel too). */}
+                is, and connected while the OS is sending nothing. */}
             <div className="grid gap-4 md:grid-cols-3">
               <WhatLands connected={false} />
               <WhatLands connected />
             </div>
           </Section>
-          <Section title="TaskSourceRows / TaskHubUnavailable (D32)">
+          <Section title="TaskSourceRows / TaskHubUnavailable">
             {/* Core hub readings and the unavailable-project state. */}
             <div className="flex flex-col gap-4">
               {([
@@ -3160,16 +3006,15 @@ export function KitchenSinkRoute() {
               <code className="font-mono">.light</code> on the document and
               persists the choice. Below <code className="font-mono">md</code> the
               same content is a drawer behind a menu button — and that bar wears
-              the Integrations dot too (bead{" "}
-              <code className="font-mono">ro-vu8d.19</code>), because a ceiling
-              the operator cannot see on their phone is not a ceiling.
+              the Integrations dot too, because a ceiling the operator cannot
+              see on their phone is not a ceiling.
             </p>
             <p className="max-w-sm text-xs text-muted-foreground">
               Integrations carries a warn dot: this fixture's DataForSEO password
               is nine days from expiry. That dot and the provider card behind it
               are the WHOLE ceiling for an expiring portfolio-shared credential —
               the Wall and Home&rsquo;s Alerts list deliberately carry nothing,
-              because the action list owns the fact (D15) and nobody can reconnect
+              because the action list owns the fact and nobody can reconnect
               from a television. It turns <code className="font-mono">error</code>
               {" "}once a date has actually passed; no fourth severity.
             </p>
@@ -3199,7 +3044,7 @@ export function KitchenSinkRoute() {
               </div>
               <div className="w-full max-w-sm">
                 <p className="pb-2 text-xs text-muted-foreground">
-                  A bead id: the one row that is not a place.
+                  A task id: the one row that is not a place.
                 </p>
                 <CommandPalette
                   inline
@@ -3272,9 +3117,8 @@ export function KitchenSinkRoute() {
                 lastGood
               />
             </Labeled>
-            {/* The two absent cases are DIFFERENT facts and read differently
-                (bead `ro-kukv.10`): nothing ever arrived on this lane, versus a
-                timestamp we were handed and cannot parse. Neither is a dash. */}
+            {/* The two absent cases are different facts: nothing ever arrived on
+                this lane, versus a timestamp we cannot parse. Neither is a dash. */}
             <Labeled name="never reported">
               <AgeBadge iso={null} cadenceHours={CADENCE_HOURS.pulse} nowMs={NOW} />
             </Labeled>
@@ -3288,7 +3132,7 @@ export function KitchenSinkRoute() {
             <Labeled name="P&L fresh">
               <AgeBadge iso={iso(2 * DAY)} cadenceHours={CADENCE_HOURS.ledger} nowMs={NOW} />
             </Labeled>
-            {/* The third absence (bead `ro-ujb9.96.8`): none is owed. */}
+            {/* The third absence: none is owed. */}
             <Labeled name="no report owed (NoNightlyReport)">
               <NoNightlyReport />
             </Labeled>
@@ -3343,7 +3187,7 @@ export function KitchenSinkRoute() {
             <ProgressRing done={1} total={1} title="1 of 1 done" size="md" />
           </Section>
 
-          <Section title="Setup checklist panel (the asset page's Overview, bead ro-28ma)">
+          <Section title="Setup checklist panel (the asset page's Overview)">
             <div className="w-full max-w-2xl">
               <SetupChecklistPanel setup={SETUP_PART_DONE} open />
             </div>
@@ -3419,7 +3263,7 @@ export function KitchenSinkRoute() {
             </div>
           </Section>
 
-          <Section title="EmptyState · NoSitesYet (an empty site list's door, bead ro-ujb9.96.6.18)">
+          <Section title="EmptyState · NoSitesYet (an empty site list's door)">
             <EmptyState
               title="P&L starts with the first reconciled month — 6 days in."
               hint="Revenue and cost book on reconciliation; estimates don't count yet."
@@ -3466,11 +3310,9 @@ export function KitchenSinkRoute() {
                   openUpdated={GALLERY_NO_OPEN}
                 />
               </div>
-              {/* An asset TAB's code (bead `ro-ujb9.84`): the same two frames
-                  in the tab panel, under a header and tab bar that did load.
-                  The palette's frames are not drawn here: its loading frame is
-                  nothing at all, and its failure is a box over the whole page,
-                  which on this page would cover the gallery. */}
+              {/* An asset tab's code: the same two frames in the tab panel, under
+                  a header and tab bar that did load. The palette's failure
+                  frame is a box over the whole page, so it is not drawn here. */}
               <div className="h-48 overflow-hidden rounded-md border border-border p-4">
                 <RouteLoading surface="panel" />
               </div>
@@ -3484,9 +3326,8 @@ export function KitchenSinkRoute() {
           </Section>
 
           <Section title="Home · first run (an empty store: no tiles, no table)">
-            {/* The whole page, not a fragment of it: what is being reviewed here
-                is that a fresh install says what to connect first instead of
-                showing four zeros (bead `ro-vtf7`). */}
+            {/* The whole page: a fresh install says what to connect first instead
+                of showing four zeros. */}
             <div className="w-full">
               <FirstRun />
             </div>
@@ -3573,9 +3414,8 @@ export function KitchenSinkRoute() {
               Demo-only controls update this mounted gallery state. A real
               asset writes the same reversible decisions to the OS.
             </p>
-            {/* Two of the four findings carry a bead and two do not, which is
-                the state to look at: the marker has to be findable on the rows
-                that have one and completely absent on the rows that do not. */}
+            {/* Two of the four findings carry a task and two do not: the marker
+                must be findable on the rows that have one and absent on the rest. */}
             <div className="w-full">
               <ExecutiveFindingsList
                 snapshot={findingsSnapshotDemo}
@@ -3731,13 +3571,12 @@ export function KitchenSinkRoute() {
 
           <Section title="TuneRate (how often the operator answered a rule by tuning it)">
             <p className="w-full text-xs text-muted-foreground">
-              docs/15 flow E's false-positive rate, per rule: the amber share is
+              The false-positive rate, per rule: the amber share is
               the settled alerts the operator answered by making the rule
               quieter, the rest is every other way they finished with one. The
               bar is the shape and the figures live beside it; a rule with
               nothing settled says so rather than drawing a measured zero. The
-              first card also carries the PROPOSAL (bead{" "}
-              <code className="font-mono">ro-bgny</code>): 4 of 9 settled is over
+              first card also carries the proposal: 4 of 9 settled is over
               the 40% line on more than the 5 settled alerts the OS waits for, so
               it says so and offers two answers. Live form, fake writer — File
               task is given an <code className="font-mono">onFile</code> that
@@ -3830,12 +3669,10 @@ export function KitchenSinkRoute() {
               </Table>
             </div>
 
-            {/* The stacked variant (bead `ro-md80`). Its whole behaviour is a
-                breakpoint, so at gallery width this renders as the table above
-                — which is the point: `stacked` costs the desk nothing. Narrow
-                the window past 640px to see the rows become labelled cards,
-                the header go, and the chrome-only cell drop — and each row
-                that `opens` draw its › on the card instead (bead ro-ujb9.13). */}
+            {/* The stacked variant: at gallery width it renders as the table
+                above. Narrow the window past 640px to see the rows become
+                labelled cards, the header go, the chrome-only cell drop, and
+                each row that `opens` draw its › on the card instead. */}
             <div className="w-full">
               <Table stacked>
                 <TableHeader>
@@ -3893,8 +3730,8 @@ export function KitchenSinkRoute() {
               The footer is the part with the fewest callers, so it is drawn once
               here rather than hunted for. */}
           <Section title="Card (+ Header / Title / Content / Footer)">
-            {/* D44's four tints on the one shape: the card's SUBJECT, never its
-                verdict (doc 14 § Surface kinds). */}
+            {/* The four tints on the one shape: the card's subject, never its
+                verdict. */}
             <Card kind="money" className="w-72">
               <CardHeader>
                 <CardTitle>Money</CardTitle>
@@ -3961,12 +3798,9 @@ export function KitchenSinkRoute() {
             </Card>
           </Section>
 
-          {/* Every panel-review state side by side, which is the only way to
-              check the thing that matters: that the three are told apart by
-              glyph and tone alone, with no status word anywhere, and that the
-              fourth renders literally nothing. The pending one is also the
-              second NOUN — fitness.example.net buys no panel, so its hover
-              says signal collection (bead ro-z0g). */}
+          {/* Every panel-review state side by side: the three are told apart by
+              glyph and tone alone, and the fourth renders nothing. The pending
+              one buys no panel, so its hover says signal collection. */}
           <Section title="PanelReviewBadge (reviewed / pending, no panel / overdue / nothing to review)">
             <PanelReviewBadge
               review={cardLive.panelReview}
@@ -3983,10 +3817,8 @@ export function KitchenSinkRoute() {
               latestPanelDate={cardWarn.latestPanelDate}
               nowMs={NOW}
             />
-            {/* A NEWER panel day than the one the finished review was about:
-                the obligation is outstanding again even though no bead has been
-                filed for it yet, so it falls back to pending rather than
-                claiming the newest panel was read. */}
+            {/* A newer panel day than the one the finished review was about: the
+                obligation is outstanding again, so it falls back to pending. */}
             <PanelReviewBadge
               review={cardLive.panelReview}
               latestPanelDate="2026-07-03"
@@ -3996,10 +3828,8 @@ export function KitchenSinkRoute() {
           </Section>
 
           {/* The same four states one surface down, where the page has room the
-              card does not: which panel day is owed, the deadline while it is
-              still the operator's, and the bead to close. Only the overdue row
-              leaves the quiet surface, and the absent one is still literally
-              nothing (bead ro-elf). */}
+              card does not. Only the overdue row leaves the quiet surface, and
+              the absent one is still nothing. */}
           <Section title="PanelReviewLine (the page's statement: reviewed / pending, no panel / overdue / nothing to review)">
             <div className="w-[28rem]">
               <PanelReviewLine
@@ -4073,12 +3903,9 @@ export function KitchenSinkRoute() {
             </div>
           </Section>
 
-          {/* The glyph both surfaces above draw, on its own, because the whole
-              point of extracting it (bead `ro-glf`) is that a token change or a
-              fourth state has ONE place to land. The row that matters is the
-              last pair: the same unknown reading, held as a blank slot for a
-              caller with a column to align to and drawn as nothing at all for a
-              caller without one. */}
+          {/* The glyph both surfaces above draw, on its own. The last pair is
+              the same unknown reading, held as a blank slot for a caller with a
+              column to align to and drawn as nothing for a caller without one. */}
           <Section title="AiOverviewGlyphs (three weights / pair / unknown blank vs omitted)">
             <div className="flex flex-col gap-2 text-xs text-muted-foreground">
               <GlyphRow label="Cites us — solid">
@@ -4162,7 +3989,7 @@ export function KitchenSinkRoute() {
                 closedAt: "2026-08-01T09:30:00.000Z",
               }}
             />
-            {/* A closed bead whose close time did not survive the poller: the
+            {/* A closed task whose close time did not survive the poller: the
                 marker keeps the state it can prove and drops only the date. */}
             <HandoffBeadBadge
               bead={{
@@ -4176,9 +4003,8 @@ export function KitchenSinkRoute() {
             <HandoffBeadBadge bead={null} />
           </Section>
 
-          {/* D28's one top line (bead ro-trai.3): the same OS report in four
-              states, the meeting and countdown from the gallery's own fixed
-              clock. */}
+          {/* The Wall's one top line: the same OS report in four states, the
+              meeting and countdown from the gallery's own fixed clock. */}
           <Section title="WallStrip (healthy / a source failing / OS report missing / clear day, no countdown)">
             <div className="wall-root flex w-full flex-col gap-2 bg-background p-2">
               <WallStrip
@@ -4267,10 +4093,9 @@ export function KitchenSinkRoute() {
             )}
           </Section>
 
-          {/* Add a site (bead ro-ujb9.96.7.5), which retired the five-step
-              Wizard layout: the one screen in each of its states, drawn in
-              place, plus the button that opens the real sheet. */}
-          <Section title="AddSitePanel / AddSiteButton — add a site in one screen (bead ro-ujb9.96.7.5)">
+          {/* Add a site: the one screen in each of its states, drawn in place,
+              plus the button that opens the real sheet. */}
+          <Section title="AddSitePanel / AddSiteButton — add a site in one screen">
             <div className="flex w-full flex-wrap items-start gap-4">
               <AddSiteButton />
               {ADD_SITE_DEMOS.map((demo) => (
@@ -4295,15 +4120,10 @@ export function KitchenSinkRoute() {
           </Section>
 
           {/* The tab bar the asset page is built on. The tabs are links, so the
-              demo needs a router — the gallery already runs inside one — and the
-              "active" tab here is whichever `to` matches the gallery's own URL.
-              What is worth reviewing is the STATE slots: a count, a count with a
-              severity dot, and the segmented working/degraded/not-set-up ratio,
-              beside plain tabs that carry nothing.
-
-              The last bar is the query-carrying variant (bead `ro-clz8`): every
-              `to` here hands a filter across the switch, and Overview still
-              lights, because selection is decided by the PATH. */}
+              "active" tab is whichever `to` matches the gallery's own URL. The
+              last bar is the query-carrying variant: every `to` hands a filter
+              across the switch, and Overview still lights, because selection
+              is decided by the path. */}
           <Section title="Tabs (plain · count · glyph + count · segmented ratio · link with a query)">
             <div className="flex w-full flex-col gap-6">
               <Tabs
@@ -4430,10 +4250,8 @@ export function KitchenSinkRoute() {
             <span className="tabular-nums">$4.49<UnknownPriceCount count={0} subject="spend:demo-priced" /></span>
           </Section>
 
-          {/* The `glyph` face (bead ro-l1ed.3): the task lifecycle already owns
-              five shapes on the cards, the Wall and the board, so on a chip it
-              keeps them. An anonymous dot here would have said the tone twice
-              and the state not at all. */}
+          {/* The `glyph` face: the task lifecycle already owns five shapes on
+              the cards, the Wall and the board, so on a chip it keeps them. */}
           <Section title="StateChip glyph face (the task lifecycle, on /tasks/:id and the board)">
             <TaskStatusChip subject="demo:task-open" status="open" />
             <TaskStatusChip subject="demo:task-in-progress" status="in_progress" />
@@ -4443,13 +4261,9 @@ export function KitchenSinkRoute() {
             <TaskStatusChip subject="demo:task-marinating" status="marinating" />
           </Section>
 
-          {/* The pair, side by side, which is the only way to check what it is
-              for: booked and forecast money are told apart by FILL and TONE, so
-              the split survives a glance across a room and a grayscale screen.
-              Three surfaces wear it — the portfolio headline, every asset
-              card, and the asset page's P&L and recent-entries table — and
-              the last of those reached it by having its own lowercase-word
-              badge deleted (bead ro-jk7). */}
+          {/* The pair, side by side: booked and forecast money are told apart
+              by fill and tone, so the split survives a glance across a room
+              and a grayscale screen. */}
           <Section title="BookingChip (reconciled / forecast — the ledger's honesty split)">
             <BookingChip subject="demo:booking-booked" state="booked" />
             <BookingChip subject="demo:booking-forecast" state="forecast" />
@@ -4584,9 +4398,8 @@ export function KitchenSinkRoute() {
               </div>
             ))}
             <p className="w-full text-xs text-muted-foreground">
-              And the countdown (bead <code>ro-vu8d.8</code>, doc 14 flow C
-              step 4). Three steps and no fourth severity: quiet while the date
-              is far off, warn-toned inside the fourteen days doc 14 named, red
+              And the countdown. Three steps and no fourth severity: quiet while
+              the date is far off, warn-toned inside the last fourteen days, red
               once it has passed — and a card whose provider states no lifetime
               says so in the provider's own sentence rather than showing an
               invented date. The chip sits BESIDE the state chip because they
@@ -4608,8 +4421,8 @@ export function KitchenSinkRoute() {
               </div>
             ))}
             <p className="w-full text-xs text-muted-foreground">
-              The same legacy credential in both import modes
-              (bead <code>ro-vu8d.7</code>). Where the OS is running the move is
+              The same legacy credential in both import modes. Where the OS is
+              running the move is
               a <em>button</em> — the dev server has the operator's secrets file
               beside it. Everywhere else it stays a command with the
               deployment's own sentence under it, because a button that cannot
@@ -4642,13 +4455,10 @@ export function KitchenSinkRoute() {
               />
             </div>
             <p className="w-full text-xs text-muted-foreground">
-              The property map a Google credential still has to carry (bead{" "}
-              <code>ro-90mr</code>). Each asset's GA4 property and Search Console
-              site is saved on that asset's own Sources tab, and the collectors
-              stop reading the credential's copy the moment nothing needs it — so
-              the card names what is still waiting, and says so when the answer
-              becomes none. No tone either way: it is neither a fault nor
-              connectivity, just one more thing the credential does, or one fewer.
+              The GA4 property map a Google credential still carries. Each
+              site's GA4 property and Search Console site is saved on its own
+              Sources tab; the card names what is still waiting, and says so
+              when nothing is. No tone: it is neither a fault nor connectivity.
             </p>
             {PROVIDER_CARD_PROPERTY_MAP_DEMOS.map((demo, index) => (
               <div className="w-full" key={`credential-map-${index}`}>
@@ -4699,7 +4509,7 @@ export function KitchenSinkRoute() {
             </div>
           </Section>
 
-          <Section title="ConnectPanel — one panel, save and test (bead ro-ujb9.96.7.1)">
+          <Section title="ConnectPanel — one panel, save and test">
             <p className="w-full text-xs text-muted-foreground">
               The panel drawn in place; on the desk it slides over
               /integrations as a sheet. Each demo answers after a beat so
@@ -4717,7 +4527,7 @@ export function KitchenSinkRoute() {
                 provider={realProvider(demo.provider)}
                 canConnect={demo.canConnect}
                 // Opened from a site's Data sources, which has no banner of its
-                // own: why Connect is off leads the panel (bead ro-e70g).
+                // own: why Connect is off leads the panel.
                 blocked={demo.canConnect === false ? <ConnectBlockers blockers={connectBlockers({ blockers: ["key-missing"], keyPresent: false })} /> : undefined}
                 onConnect={demo.answer}
                 onClose={() => toast.success("Demo only — the panel would close")}
@@ -4725,7 +4535,7 @@ export function KitchenSinkRoute() {
             ))}
           </Section>
 
-          <Section title="SiteTokens — a token pasted per site, saved on paste, Run now (bead ro-ujb9.96.7.9)">
+          <Section title="SiteTokens — a token pasted per site, saved on paste, Run now">
             {/* Clarity's panel body: one site holds a token and works, one
                 waits for its paste; the second demo has three calls left
                 today. Saving and running answer after a beat; nothing is
@@ -4754,7 +4564,7 @@ export function KitchenSinkRoute() {
             ))}
           </Section>
 
-          <Section title="ConnectBlockers / CopyCommand — why nothing can be connected yet, and its one command (beads ro-ujb9.96.6.19, ro-e70g)">
+          <Section title="ConnectBlockers / CopyCommand — why nothing can be connected yet, and its one command">
             {/* No credentials table (the command alone), then no encryption
                 key (its binding beside the command). The same banners sit at
                 the top of the connect panel's last demo above. */}
@@ -4763,7 +4573,7 @@ export function KitchenSinkRoute() {
             </div>
           </Section>
 
-          <Section title="GoogleSignInSetup — Google connected by signing in, in the panel (bead ro-ujb9.96.7.7)">
+          <Section title="GoogleSignInSetup — Google connected by signing in, in the panel">
             {/* Self-hosted with no client yet (three console steps and the
                 file), hosted (one button), and an address Google will not
                 return to (the loopback press). Nothing is stored or opened. */}
@@ -4792,14 +4602,13 @@ export function KitchenSinkRoute() {
             ))}
           </Section>
 
-          <Section title="ConnectionActions — Replace and Disconnect on the connection (bead ro-ujb9.96.7.10)">
+          <Section title="ConnectionActions — Replace and Disconnect on the connection">
             {/* A connected provider's panel: its status, Replace (the key form,
                 tested before it is kept) and Disconnect (one confirmation
                 naming the sites that stop). The second is failing, so Replace
                 leads; the third is the actions alone, as a provider's page
                 draws them. The working one carries its collection's schedule
-                (`schedule`, bead ro-ujb9.96.7.28), locked here so the gallery
-                writes nothing. Nothing is sent or removed. */}
+                (`schedule`), locked here so the gallery writes nothing. */}
             {CONNECTION_DEMOS.map((demo) => (
               <ConnectPanel
                 key={demo.key}
@@ -4829,7 +4638,7 @@ export function KitchenSinkRoute() {
             </div>
           </Section>
 
-          <Section title="SitePicker — the account's sites, matched, and Start (bead ro-ujb9.96.7.2)">
+          <Section title="SitePicker — the account's sites, matched, and Start">
             {SITE_PICKER_DEMOS.map((demo, index) => (
               <div key={demo.key} className="flex min-h-96 w-full max-w-[430px] flex-col rounded-xl border border-border bg-card p-5">
                 <SitePicker
@@ -4846,7 +4655,7 @@ export function KitchenSinkRoute() {
             </div>
           </Section>
 
-          <Section title="DeclineReasons — Not using, one press and a reason (beads ro-ujb9.96.7.13, .18)">
+          <Section title="DeclineReasons — Not using, one press and a reason">
             <div className="flex w-full flex-col gap-3">
               <DeclineReasons subject="Microsoft Clarity" onChoose={(reason) => { toast.success(`Demo only — ${reason}`); }} onCancel={() => toast.success("Demo only — closed")} />
               <DeclineReasons subject="Second Example" selected="Replaced by another tool" onChoose={(reason) => { toast.success(`Demo only — ${reason}`); }} />
@@ -4908,22 +4717,16 @@ export function KitchenSinkRoute() {
             ))}
           </Section>
 
-          {/* The Wall is a DOCUMENT now (epic ro-lzmq): same payload, same
-              widgets, two arrangements. `wall-root` is what puts the gallery's
-              copy of it on the TV's true-black ground, and the fixed height is
-              what makes the `fill` row's behaviour visible — the assets grid
-              takes whatever the other rows leave.
-
-              These boxes are NOT the television's 1920 (bead `ro-lzmq.5`):
-              `wall-root` is a query container, so each draws the arrangement
-              its own width earns rather than the one this browser window earns.
-              That is the point — a gallery box is a box, and what it shows is
-              what a Wall that size shows. The editor's preview at `/wall/edit`
-              is where the real geometry is reviewed. */}
+          {/* Same payload, same widgets, two arrangements. `wall-root` puts the
+              gallery's copy on the TV's true-black ground, and the fixed height
+              makes the `fill` row's behaviour visible. `wall-root` is a query
+              container, so each box draws the arrangement its own width earns;
+              the editor's preview at `/wall/edit` is where the real geometry is
+              reviewed. */}
           <Section title="WallCanvas (the default · a rearranged one with a site filter)">
             <p className="w-full text-xs text-muted-foreground">
               With nothing saved in <code>config/tower.json</code> at{" "}
-              <code>/wall</code>, this is what the television draws — D28.
+              <code>/wall</code>, this is what the television draws.
             </p>
             <div className="wall-root h-[34rem] w-full overflow-hidden rounded-lg border border-border bg-background p-2">
               <WallCanvas
@@ -4969,8 +4772,8 @@ export function KitchenSinkRoute() {
             </div>
           </Section>
 
-          {/* The live feed column (bead ro-trai.9). A gallery box holds one
-              payload, so an arrival's slide and tint are proven by
+          {/* The live feed column. A gallery box holds one payload, so an
+              arrival's slide and tint are proven by
               test/wall-feed-column.test.tsx and the Wall feed journey. */}
           <Section title="WallFeed (live rows · reconnecting · empty window)">
             <div className="wall-root grid h-[40rem] w-full grid-cols-1 gap-3 rounded-lg border border-border bg-background p-2 md:grid-cols-3">
@@ -5069,8 +4872,8 @@ export function KitchenSinkRoute() {
                 makeOp={(value) => ({ kind: "file-json-set", file: "config/integrations.json", pointer: "/assets/demo.example/posthog/funnels", expectAbsent: true, value: value as unknown as JsonValue })}
                 onSave={demoSave}
               />
-              {/* Picked from the project's saved funnels (bead ro-ujb9.96.7.24):
-                  Add funnel offers what is not on the list; each change saves. */}
+              {/* Picked from the project's saved funnels: Add funnel offers what is
+                  not on the list; each change saves. */}
               <FunnelListEditor
                 label="Funnels (picked from PostHog)"
                 assetId="demo.example"
@@ -5151,7 +4954,7 @@ export function KitchenSinkRoute() {
               />
               <KnobEditor
                 label="Automation"
-                explain="Store column — the toggle IS the state display: the selected segment carries the meaning color + dot (doc 14 one-representation)."
+                explain="Store column — the toggle IS the state display: the selected segment carries the meaning color + dot."
                 assetId="demo.example"
                 current={1}
                 format={(v) => (v === 1 ? "Monitor only" : "Automation enabled")}
@@ -5169,7 +4972,7 @@ export function KitchenSinkRoute() {
               />
               <KnobEditor
                 label="Owning entity"
-                explain="One setting, TWO ops (bead ro-aodz): which entity owns an asset is stored as the asset's id on that entity's own list, so choosing another takes it off one row and puts it on the other — in one changeset, with an Undo that reverses both."
+                explain="One setting, two ops: which entity owns an asset is stored as the asset's id on that entity's own list, so choosing another takes it off one row and puts it on the other — in one changeset, with an Undo that reverses both."
                 assetId="demo.example"
                 current="demo-ventures"
                 format={(v) =>
@@ -5189,7 +4992,7 @@ export function KitchenSinkRoute() {
               />
               <KnobEditor
                 label="Time zone"
-                explain="confirm=inline + autosave (bead ro-ujb9.96.6.3): picking a zone IS the save, and Saved · Undo appears beside the picker instead of in a toast — /settings' pattern for one low-risk choice."
+                explain="confirm=inline + autosave: picking a zone IS the save, and Saved · Undo appears beside the picker instead of in a toast — /settings' pattern for one low-risk choice."
                 current={DEMO_ZONE_WEST}
                 format={(v) => String(v)}
                 makeOp={fileDemo("config/constants.json", "/os_time_zone", DEMO_ZONE_WEST)}
@@ -5211,7 +5014,7 @@ export function KitchenSinkRoute() {
               />
               <KnobEditor
                 label="Time zone (refused)"
-                explain="confirm=inline, refused (bead ro-ujb9.96.7.12): the writer says no, so the pick goes back to the stored zone and 'Not saved' with the refusal's own words sits beside the picker — no toast."
+                explain="confirm=inline, refused: the writer says no, so the pick goes back to the stored zone and 'Not saved' with the refusal's own words sits beside the picker — no toast."
                 current={DEMO_ZONE_WEST}
                 format={(v) => String(v)}
                 makeOp={fileDemo("config/constants.json", "/os_time_zone", DEMO_ZONE_WEST)}
@@ -5239,7 +5042,7 @@ export function KitchenSinkRoute() {
 
           <Section title="InlineSaveState (saving · saved with Undo · not saved with the refusal · idle draws nothing)">
             <p className="w-full text-xs text-muted-foreground">
-              A save's outcome beside the field that made it (bead ro-ujb9.96.7.12): KnobEditor inline,
+              A save's outcome beside the field that made it: KnobEditor inline,
               a CollectionEditor cell inline and a Settings schedule row all draw this one state.
             </p>
             <div className="flex w-full flex-col gap-3" data-demo-inline-save>
@@ -5361,9 +5164,9 @@ export function KitchenSinkRoute() {
                 <CollectionEditor
                   register="task-hub-spokes"
                   title="Projects (commit auto: no Save in any cell)"
-                  // /settings' Task projects and Ownership tables
-                  // (bead ro-ujb9.96.7.12): a cell saves when it is left or its
-                  // choice is picked, and says Saved · Undo or Not saved beneath.
+                  // /settings' Task projects and Ownership tables: a cell saves
+                  // when it is left or its choice is picked, and says Saved ·
+                  // Undo or Not saved beneath.
                   rows={[
                     { asset: "demo.example", prefix: "dem", database: "dem" },
                     { asset: "other.example", prefix: "oth", database: "oth" },
@@ -5381,11 +5184,10 @@ export function KitchenSinkRoute() {
                   { asset: "demo.example", prefix: "dem", database: "dem", repo: "../demo" },
                   { asset: "other.example", prefix: "oth", database: "typo", repo: "../other" },
                 ]}
-                // The state /settings#task-hub renders (bead `ro-eb7z`): the OS
-                // files a task about a project whose database does not exist,
-                // and the page marks THAT row. An agreeing row is blank rather
-                // than ticked — the board carries a bounded head of each list,
-                // so absence can only ever mean "nothing says otherwise".
+                // The state /settings#task-hub renders: a project whose
+                // database does not exist is marked. An agreeing row is blank
+                // rather than ticked, because the board carries a bounded head
+                // of each list and absence only means "nothing says otherwise".
                 derived={[
                   {
                     name: "found",
@@ -5412,11 +5214,9 @@ export function KitchenSinkRoute() {
                 // `EntityRow` names the fields a reader wants, `CollectionSource`
                 // is the same rows as the JSON an op guards itself with.
                 rows={DEMO_ENTITIES as unknown as JsonValue[]}
-                // What /settings shows (bead `ro-aodz`): the entity, and never
-                // its `assets` list. An asset belongs to one entity, no field of
-                // one row can see another, and a list typed into two rows would
-                // claim the same asset twice — so that column is edited on the
-                // asset's own page, where the move is one change.
+                // The entity, never its `assets` list: a list typed into two
+                // rows would claim the same asset twice, so that column is
+                // edited on the asset's own page.
                 columns={["slug", "name", "form", "jurisdiction"]}
                 describe="one legal entity behind the portfolio"
                 onSave={demoCollectionSave}
@@ -5490,7 +5290,7 @@ export function KitchenSinkRoute() {
               Live form, fake writer: every demo here is given an{" "}
               <code className="font-mono">onFile</code> that returns a fabricated
               id and resolves, so the gallery exercises the real fields, the real
-              refusals and the real toast without filing a bead on the portfolio
+              refusals and the real toast without filing a task on the portfolio
               task hub. The handoff prefill is built by{" "}
               <code className="font-mono">taskHandoffPrefill</code> — the same
               function the copied <code className="font-mono">bd create</code> is
@@ -5538,10 +5338,9 @@ export function KitchenSinkRoute() {
                 nowMs={NOW}
               />
             </div>
-            {/* The join (bead `ro-4ko`): the first two refs ARE beads and render
-                as the task that caused the change, the third is a commit sha and
-                stays the mono string it always was. The shipped one is the case
-                to look at hardest — it must not read as "and it worked". */}
+            {/* The join: the first two refs are tasks and render as the task that
+                caused the change, the third is a commit sha and stays mono. The
+                shipped one must not read as "and it worked". */}
             <div className="w-80">
               <Timeline
                 items={[
@@ -5572,10 +5371,10 @@ export function KitchenSinkRoute() {
                 nowMs={NOW}
               />
             </div>
-            {/* A lifecycle move (bead `ro-3085`): the ref is machine text, so
-                the row reads as a sentence and the mono string is dropped. The
-                second one only LOOKS like a move — an unknown stage — and stays
-                mono, exactly like an unresolved bead id. */}
+            {/* A lifecycle move: the ref is machine text, so the row reads as a
+                sentence and the mono string is dropped. The second only looks
+                like a move, an unknown stage, and stays mono like an unresolved
+                task id. */}
             <div className="w-80">
               <Timeline
                 items={[
@@ -5607,11 +5406,10 @@ export function KitchenSinkRoute() {
           </Section>
 
           <Section title="AlertRow (open / settled with span / portfolio row with asset / milestone)">
-            {/* Since bead `ro-78qo.17` the row is a `ListRow`, so it renders an
-                `<li>` and every run of rows sits in an `AlertList`. PRESS ONE:
-                closed it is a mark, a headline, one caption and an age, and the
-                evidence, the dated facts and the verbs are all revealed in
-                place. */}
+            {/* The row is a `ListRow`, so it renders an `<li>` and every run of
+                rows sits in an `AlertList`. Press one: closed it is a mark, a
+                headline, one caption and an age; the evidence, the dated facts
+                and the verbs are revealed in place. */}
             <div className="flex w-full flex-col gap-2">
               <span className="text-xs text-muted-foreground">
                 open — the four verbs and the evidence are inside the row
@@ -5754,19 +5552,12 @@ export function KitchenSinkRoute() {
 }
 
 /**
- * The Wall's editor, live (bead `ro-lzmq.2`).
- *
- * It carries its own reducer because these five components are only honest
- * TOGETHER: the library goes dark as a unique widget is placed, the panel
- * becomes the inspector for whatever is clicked in the preview, the rows list
- * follows what the preview shows, and a drag moves a widget in all three at
- * once. Five static copies would show five snapshots and never the thing.
- *
- * It renders the COMPONENTS and not the route, so there is no Save anywhere in
- * it and no gallery visit can rearrange the operator's television. For the same
- * reason the selected widget starts on the assets grid rather than the
- * countdown, whose panel is the live `CountdownEditor` and would write
- * `config/tower.json` for real.
+ * The Wall's editor, live, with its own reducer so the library, inspector,
+ * rows list and preview move together. It renders the components and not the
+ * route, so there is no Save and no gallery visit can rearrange the operator's
+ * television; the selected widget starts on the assets grid rather than the
+ * countdown, whose panel is the live `CountdownEditor` and would write config
+ * for real.
  */
 function WallEditorDemo() {
   const [state, dispatch] = useReducer(
@@ -5911,11 +5702,8 @@ function GlyphRow({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/**
- * `AddSitePanel` in each of its states (bead `ro-ujb9.96.7.5`). Static on
- * purpose: every state is one set of props, and the real sheet — the one
- * behaviour a picture cannot show — is one press away on `AddSiteButton`.
- */
+/** `AddSitePanel` in each of its states, static; the real sheet is one press
+ * away on `AddSiteButton`. */
 const ADD_SITE_DEMOS: {
   key: string;
   domain: string;
@@ -5949,7 +5737,7 @@ const ADD_SITE_DEMOS: {
   },
 ];
 
-// --- the rule-tuning demos (bead `ro-u072`) --------------------------------
+// --- the rule-tuning demos -------------------------------------------------
 /** The three portfolio alert-rule settings, exactly as `/api/settings` sends
  * them. The gallery reads no payload, so it states the same fields the Worker's
  * own `buildRules` produces rather than inventing a different vocabulary. */
@@ -6056,11 +5844,8 @@ const TUNE_PREVIEWS: [string, RuleTunePreview][] = [
   ],
 ];
 
-/**
- * The five things a rule's tune record can say (bead `ro-ayxy`). The counts are
- * demo figures — the gallery has no store — but every state the shipped
- * component can reach is here, including the two that refuse to draw a bar.
- */
+/** The five things a rule's tune record can say, including the two states that
+ * refuse to draw a bar. */
 const TUNE_RATES: [string, AlertRuleStat | null][] = [
   [
     "a rule the operator keeps quietening",
@@ -6072,8 +5857,7 @@ const TUNE_RATES: [string, AlertRuleStat | null][] = [
       tunedOpen: 0,
       acknowledged: 3,
       resolved: 2,
-      // The store that HAS db/0030 applied: six saves behind four tuned
-      // alerts, which is the whole point of the row per tune (bead `ro-6d1t`).
+      // A store that records tunes: six saves behind four tuned alerts.
       tunes: 6,
     },
   ],
@@ -6119,9 +5903,8 @@ const TUNE_RATES: [string, AlertRuleStat | null][] = [
       tunes: 0,
     },
   ],
-  // 75% and the OS says nothing (bead `ro-bgny`): four settled alerts is under
-  // the minimum the proposal waits for, and one more click either way would
-  // move this share 25 points.
+  // 75% and the OS says nothing: four settled alerts is under the minimum the
+  // proposal waits for.
   [
     "over the line, too little settled to act on",
     {
@@ -6146,16 +5929,10 @@ const TUNE_RATE_PAYLOAD: AlertRuleStatsPayload = {
   rules: [TUNE_RATES[0]![1]!],
 };
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   DOC 21'S SURFACE VOCABULARY
-
-   The fixture is plate.example.com's REAL 90-day series, 2026-06-08 → 2026-09-05,
-   copied from the 2026-09-05 reference mockup beside doc 14. Real data because the
-   thing being reviewed here is whether a shape reads: a synthetic sine wave
-   makes every chart look competent, and this series has the two facts that
-   actually test the vocabulary — a reporting-timezone change on Sep 1 and a
-   provisional last day that is a fifth of its neighbour.
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* --- the surface vocabulary ------------------------------------------------
+   An irregular 90-day series rather than a synthetic wave, because a sine wave
+   makes every chart look competent; this one has a reporting-timezone change
+   and a provisional last day that is a fifth of its neighbour. */
 
 const PLATE_FIRST_DAY = "2026-06-08";
 
@@ -6189,9 +5966,9 @@ const PLATE_BING_CLICKS = [
   137, 208, 466, 501, 479, 494, 342, 185, 275, 472, 573, 520,
 ];
 
-/** Sessions and impressions: the last 30 days are the real reported figures;
- * the 60 before them are scaled from users and clicks, exactly as the mockup
- * did — they are shape, and the shape is what this gallery reviews. */
+/** Sessions and impressions: the last 30 days are fixed figures; the 60 before
+ * them are scaled from users and clicks, because shape is what this gallery
+ * reviews. */
 const PLATE_SESSIONS = [
   ...PLATE_USERS.slice(0, 60).map((v) => Math.round(v * 1.32)),
   1293, 911, 1055, 2552, 1901, 2803, 1782, 1520, 838, 1052, 2245, 2613, 3015, 2374, 2430, 1143,
@@ -6239,22 +6016,16 @@ const NET_BY_MONTH: SeriesPoint[] = [
   { t: "2026-09", v: 200 },
 ];
 
-/**
- * THE SAME LEDGER, SIGNED (bead `ro-78qo.28`). plate.example.com's real months: June
- * spent $224 and earned nothing, July was still $70 under, and August is the
- * first month in the black. A zero-based scale can only draw this by dropping
- * two of the three months under the floor of the plot, which is why the chart
- * takes its bottom from the data whenever a series goes negative.
- */
+/** The same ledger, signed: two months under and the third in the black, so
+ * the chart takes its bottom from the data. */
 const NET_BY_MONTH_SIGNED: SeriesPoint[] = [
   { t: "2026-06", v: -224.42 },
   { t: "2026-07", v: -69.87 },
   { t: "2026-08", v: 240.94 },
 ];
 
-/** The same three months' two sides, so the Financials trio — revenue cyan
- * solid, cost violet dashed, net ink dotted — draws with its legend as the
- * toggles (bead `ro-ujb9.12`). */
+/** The same three months' two sides, so the Financials trio draws with its
+ * legend as the toggles. */
 const REVENUE_BY_MONTH: SeriesPoint[] = [
   { t: "2026-06", v: 212.18 },
   { t: "2026-07", v: 431.5 },
@@ -6349,11 +6120,8 @@ function windowTotal(metric: SurfaceMetric, range: number): number {
   );
 }
 
-/**
- * The fused hero exactly as doc 14's Overview composes it: one `Card`, the
- * strip across the top, the chart the selected KPI chooses underneath, and one
- * range driving every figure on both.
- */
+/** The fused hero as the Overview composes it: one `Card`, the strip across
+ * the top, the chart the selected KPI chooses underneath, one range for both. */
 function SurfaceHero({ range }: { range: number }) {
   const [metric, setMetric] = useState<SurfaceMetric>("users");
   const chosen = SURFACE_METRICS[metric];
@@ -6375,8 +6143,8 @@ function SurfaceHero({ range }: { range: number }) {
                 isMonthly ? one.series[0]!.points.at(-1)!.v : windowTotal(key, range),
               )}
               valueTone={key === "alerts" ? "healthy" : "default"}
-              // doc 14: down is good for open alerts and errors; Net's movement
-              // carries no verdict at all and shows its composition instead.
+              // Down is good for open alerts and errors; Net's movement carries
+              // no verdict at all and shows its composition instead.
               improvement={key === "alerts" ? "down" : key === "net" ? "none" : "up"}
               delta={key === "alerts" ? null : delta}
               caption={key === "alerts" ? "last one 4d ago" : undefined}
@@ -6403,7 +6171,7 @@ function SurfaceHero({ range }: { range: number }) {
   );
 }
 
-/** doc 14's vocabulary, every state it names, over one real asset's series. */
+/** The chart vocabulary, every state it names, over one real series. */
 function SurfaceSections() {
   const [range, setRange] = useState<number>(DEFAULT_RANGE_DAYS);
   const usersDelta = periodDelta(USERS, range);
@@ -6415,7 +6183,7 @@ function SurfaceSections() {
 
   return (
     <>
-      <Section title="doc 14 · the page's range drives everything under it (RangeSelector)">
+      <Section title="The page's range drives everything under it (RangeSelector)">
         <div className="flex w-full flex-col gap-4">
           <div className="flex flex-wrap items-center gap-4">
             <RangeSelector value={range} onChange={setRange} />
@@ -6487,8 +6255,8 @@ function SurfaceSections() {
           <SectionLabel title="Identity" caption="the asset's own row">
             <OwnerChip path="db · assets row" />
           </SectionLabel>
-          {/* A disclosure keeps its own control chrome and wraps this header
-              (bead `ro-78qo.39`): `SectionLabel` never renders a summary. */}
+          {/* A disclosure keeps its own control chrome and wraps this header:
+              `SectionLabel` never renders a summary. */}
           <details className="group">
             <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
               <ChevronRight
@@ -6513,7 +6281,7 @@ function SurfaceSections() {
         </div>
       </Section>
 
-      <Section title="doc 14 · KpiStrip fused to HeroChart (the asset Overview's first screen)">
+      <Section title="KpiStrip fused to HeroChart (the asset Overview's first screen)">
         <SurfaceHero range={range} />
       </Section>
 
@@ -6548,11 +6316,8 @@ function SurfaceSections() {
             improvement="none"
             delta={null}
             caption="ads $441 · costs $5"
-            // A MONTHLY series is not smoothed over seven of anything (bead
-            // `ro-78qo.18`): seven periods here is seven MONTHS, and the mean
-            // of a six-month ledger is a near-straight line with the only
-            // interesting month averaged out of it. The last month is the one
-            // still being lived in, so its cap stays hollow.
+            // A monthly series is not smoothed over seven of anything. The last
+            // month is the one still being lived in, so its cap stays hollow.
             spark={NET_BY_MONTH}
             sparkAverage={false}
             sparkProvisionalFrom={NET_BY_MONTH.at(-1)!.t}
@@ -6579,11 +6344,8 @@ function SurfaceSections() {
             value={24}
             valueTone="warn"
             caption="urgent · 67 more waiting"
-            // A COMPOSITION, not a hand-rolled bar. The inbox posture has no
-            // history to draw, and what it has instead is how the total
-            // divides — so it is the registry's `SegmentBar`, which carries
-            // `data-composition` and is therefore the answer the surface audit
-            // accepts (bead `ro-78qo.6`).
+            // The inbox posture has no history to draw, only how the total
+            // divides, so it is the registry's `SegmentBar`.
             footer={
               <SegmentBar
                 className="mt-2"
@@ -6595,7 +6357,7 @@ function SurfaceSections() {
               />
             }
           />
-          {/* THE THIRD ANSWER: not yet. A payload that keeps no history has
+          {/* The third answer: not yet. A payload that keeps no history has
               neither a series nor a composition, and six grey "no series"
               placards in a strip say nothing — so the KPI draws nothing where
               the line would be and declares the gap, on itself, in words. */}
@@ -6760,15 +6522,15 @@ function SurfaceSections() {
         </div>
       </Section>
 
-      <Section title="ChartLine / ChartArea / ChartDot — the charts' one language (bead ro-trai.19)">
+      <Section title="ChartLine / ChartArea / ChartDot — the charts' one language">
         <ChartMarksDemo />
       </Section>
 
-      <Section title="MinutePulse — a site's live users minute by minute (bead ro-trai.27)">
+      <Section title="MinutePulse — a site's live users minute by minute">
         <MinutePulseDemo />
       </Section>
 
-      <Section title="LiveUsers — fresh / stale with its age / failed, last pulse kept / pulse refused / no GA4 (bead ro-trai.27)">
+      <Section title="LiveUsers — fresh / stale with its age / failed, last pulse kept / pulse refused / no GA4">
         <LiveUsersDemo />
       </Section>
 
@@ -6805,8 +6567,7 @@ function SurfaceSections() {
           <Labeled name="single point">
             <Sparkline data={[{ t: PLATE_LAST_DAY, v: 12 }]} size="cell" />
           </Labeled>
-          {/* A month nobody booked is a HOLE, not a zero and not an absent
-              period: the line breaks over it (bead `ro-78qo.37`). */}
+          {/* A month nobody booked is a hole, not a zero: the line breaks over it. */}
           <Labeled name="series with a hole">
             <Sparkline
               data={[
@@ -6821,7 +6582,7 @@ function SurfaceSections() {
             />
           </Labeled>
           {/* The empty state at all three sizes: one dash inside the box the
-              size declares, with the reason on its hover (bead `ro-78qo.24`). */}
+              size declares, with the reason on its hover. */}
           <Labeled name="empty · kpi 64×22">
             <Sparkline data={[]} emptyReason="GA4 has reported nothing yet" />
           </Labeled>
@@ -6973,8 +6734,8 @@ function SurfaceSections() {
             />
           </ListPanel>
 
-          {/* Decisions on the row (bead ro-ujb9.96.7.11): Approve on a gate,
-              Answer and Dismiss on an ask, and the answer box Answer opens. */}
+          {/* Decisions on the row: Approve on a gate, Answer and Dismiss on an
+              ask, and the answer box Answer opens. */}
           <ListPanel title="Waiting on you" count="2 asks · 1 gate">
             <ListRow
               tone="warn"
@@ -7013,9 +6774,9 @@ function SurfaceSections() {
             <ListRow tone="ok" title="Every source answered this morning" caption="7 of 7 fresh" />
           </ListPanel>
 
-          {/* The row action as a source Connect (bead ro-ujb9.96.7.5): a new asset's Data
-              sources, each still-unconnected source pressed straight to its
-              connect panel without opening the row; the first is the primary. */}
+          {/* The row action as a source Connect: a new asset's Data sources,
+              each still-unconnected source pressed straight to its connect
+              panel without opening the row; the first is the primary. */}
           <ListPanel title="Data sources" count="0 of 3 working" limit={3}>
             <ListRow
               title="Bing Webmaster Tools"
@@ -7032,8 +6793,8 @@ function SurfaceSections() {
             <ListRow tone="info" title="Microsoft Clarity" value="Not using" />
           </ListPanel>
 
-          {/* Grouped by subject (bead ro-ujb9.96.6.5): the page is the heading,
-              said once; closed, the worst row of each of the three worst pages. */}
+          {/* Grouped by subject: the page is the heading, said once; closed, the
+              worst row of each of the three worst pages. */}
           <ListPanel
             title="Where it breaks"
             count="6 found"
@@ -7142,10 +6903,9 @@ function SurfaceSections() {
   );
 }
 
-/** The product block `scripts/signal-insights.mjs` emits for the PostHog
- * acceptance read (plate.example.com, 2026-09-08 → 09-22), run through the same
- * parser the asset payload uses. `scripts/posthog-panel.test.mjs` fails when the
- * producer's output and this file drift apart. */
+/** The product block `scripts/signal-insights.mjs` emits, run through the same
+ * parser the asset payload uses. `scripts/posthog-panel.test.mjs` fails when
+ * the producer's output and this file drift apart. */
 const POSTHOG_PRODUCT: ProductSnapshot = parseProductSnapshot(posthogProductJson)!;
 
 /** A read too thin to judge: every rule states which floor it missed. */

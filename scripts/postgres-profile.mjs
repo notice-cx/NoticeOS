@@ -1,4 +1,4 @@
-// THE MARK A DEVELOPMENT DATABASE CARRIES (beads ro-ujb9.76.3, ro-ujb9.76.57).
+// The mark a development database carries.
 //
 // A database made for development says so itself: `ALTER DATABASE … SET
 // noticeos.profile = 'development'`. The development profile's tools use only

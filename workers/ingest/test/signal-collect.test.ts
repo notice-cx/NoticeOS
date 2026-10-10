@@ -13,27 +13,23 @@ import { ARCHIVE_RUNS, call, pgAll, pgCount, pgFirst, reset, storeArchiveRun } f
 
 const NOW = Date.parse('2026-08-04T09:12:00.000Z');
 const SERP_PATH = '/serp/google/organic/live/advanced';
-/** nosh.example's own panel, from the suite's frozen copy of config/serp-panel.json
- * — the document the route's compiled fallback reads here, never the
- * checkout's own (bead ro-ujb9.92) — the property whose Tuesday
- * baseline this route exists for. Read as the KEYWORDS alone: an entry may also
- * carry the cluster it measures (`ro-282.2`), and that rides in the archive
- * rather than in the provider call this suite counts. */
+/** nosh.example's own panel, from the suite's frozen copy of
+ * config/serp-panel.json — never the checkout's own. Read as the keywords
+ * alone: an entry may also carry the cluster it measures, and that rides in
+ * the archive rather than in the provider call this suite counts. */
 const NOM_QUERIES = (
   serpPanelConfig.assets['nosh.example']!.queries as (
     | string
     | { query: string; label?: string }
   )[]
 ).map((entry) => (typeof entry === 'string' ? entry : entry.query));
-/** One call per tracked query PER DEVICE (ro-o1n): what the on-demand door buys
- * when somebody asks for the panel alone. The label costs nothing — it is never
- * transmitted — so only the device multiplies this. */
+/** One call per tracked query per device: what the on-demand door buys when
+ * somebody asks for the panel alone. The label is never transmitted, so only
+ * the device multiplies this. */
 const NOM_PANEL_CALLS = NOM_QUERIES.length * SERP_PANEL_DEVICES.length;
-/** The single-call families nosh.example is due — DERIVED from the shipped registry,
- * never counted by hand. A hand-set 5 turned red the day ro-cda6.1 registered
- * the two named-backlink families, for no defect; ro-cda6.2 then made the count
- * property-dependent, since `keyword-ideas` is owed only where a tracked panel
- * supplies its seeds. */
+/** The single-call families nosh.example is due — derived from the shipped
+ * registry, never counted by hand: the count is property-dependent, since
+ * `keyword-ideas` is owed only where a tracked panel supplies its seeds. */
 const DOMAIN_FAMILIES = dataForSeoFamiliesFor('nosh.example').filter(
   (family) => family !== 'serp-panel',
 ).length;
@@ -45,8 +41,8 @@ interface FetchCall {
   task: Record<string, unknown>;
 }
 
-/** A provider that answers everything, so the only thing under test is WHAT was
- * asked for. `failPath`/`failTimes` reproduce the 2026-08-03 backlinks blip. */
+/** A provider that answers everything, so the only thing under test is what
+ * was asked for. `failPath`/`failTimes` reproduce a transient backlinks blip. */
 function providerFetch({
   failPath = null,
   failTimes = Number.POSITIVE_INFINITY,
@@ -219,12 +215,10 @@ describe('POST /api/signal-collect — refusing before anything is billed', () =
     ).toBe(0);
   });
 
-  /**
-   * The bead's sharpest rule: asking for a panel a property has no config for is
-   * a 422 pointing at the file, NOT a run that attempts nothing and reports a
-   * $0.00 success. `appliesTo` would have filtered it silently — which is right
-   * for a portfolio sweep and wrong for a request somebody typed.
-   */
+  /** Asking for a panel a property has no config for is a 422 pointing at the
+   * file, not a run that attempts nothing and reports a $0.00 success.
+   * `appliesTo` would have filtered it silently — right for a portfolio sweep
+   * and wrong for a request somebody typed. */
   it('refuses a panel family for a property config/serp-panel.json does not name', async () => {
     const { status, body } = await refused({
       asset: 'pacer.example',
@@ -233,12 +227,11 @@ describe('POST /api/signal-collect — refusing before anything is billed', () =
     expect(status).toBe(422);
     expect(body).toMatchObject({ error: 'family_unavailable', families: ['serp-panel'] });
     expect(body.detail).toContain('config/serp-panel.json');
-    // The route offers exactly the families this property CAN be asked for —
+    // The route offers exactly the families this property can be asked for —
     // the weekly set plus any periodic family it is due, panel excluded because
     // config/serp-panel.json does not name it. `keyword-ideas` is absent for the
-    // same reason: it seeds from that panel, so a property without one is not
-    // due it (ro-cda6.2). Derived, so a new family shows up here as coverage
-    // rather than as a red test.
+    // same reason: it seeds from that panel. Derived, so a new family shows up
+    // here as coverage rather than as a red test.
     expect(body.available).toEqual(
       dataForSeoFamiliesFor('pacer.example'),
     );
@@ -265,8 +258,7 @@ describe('POST /api/signal-collect — one property, on the day it launched', ()
       failed: 0,
       retried: [],
     });
-    // Every provider call names nosh.example — no other property's calls exist. That
-    // is the whole point: ~$0.13 of new data instead of ~$1.66 of re-billing.
+    // Every provider call names nosh.example — no other property's calls exist.
     expect(calls).toHaveLength(DOMAIN_FAMILIES + NOM_PANEL_CALLS);
     expect(
       calls.every((c) => String(c.task.tag ?? '').startsWith('nosh.example:')),
@@ -401,8 +393,8 @@ describe('POST /api/signal-collect — one property, on the day it launched', ()
 });
 
 // ---------------------------------------------------------------------------
-// PostHog on demand (bead ro-ghis.1): `families: ["posthog-*"]` routes to the
-// PostHog collector, optionally with a fixed start/end window.
+// PostHog on demand: `families: ["posthog-*"]` routes to the PostHog collector,
+// optionally with a fixed start/end window.
 // ---------------------------------------------------------------------------
 
 const PH_KEYS = JSON.stringify({ 'meals.example': 'phx_route_test_key' });
@@ -509,7 +501,7 @@ describe('POST /api/signal-collect — PostHog families', () => {
     expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS}`)).toBe(0);
   });
 
-  // Bead ro-ghis.5: one PostHog run per asset, whichever door it came through.
+  // One PostHog run per asset, whichever door it came through.
   it('runs one of two on-demand requests for the same asset and refuses the other with a plain 409', async () => {
     const nowMs = Date.parse('2026-09-23T12:30:00Z');
     const first = gatedPosthogProvider();
@@ -528,7 +520,7 @@ describe('POST /api/signal-collect — PostHog families', () => {
     expect(res.status).toBe(409);
     const body = JSON.parse(text) as CollectBody & { inFlight?: { startedAt: string; leaseExpiresAt: string } };
     expect(body).toMatchObject({ error: 'collection_in_flight', asset: 'meals.example', families: ['posthog-events'] });
-    // One line: what runs, that nothing was asked, when it frees (bead ro-ujb9.96.6.27).
+    // One line: what runs, that nothing was asked, when it frees.
     expect(body.detail).toMatch(/^Already running for meals\.example · started \d+s ago · nothing asked · /);
     expect(body.detail).toContain(`free at ${body.inFlight?.leaseExpiresAt}`);
     // `pnpm signals:collect` prints the first 400 characters of the body: the
@@ -571,7 +563,7 @@ describe('POST /api/signal-collect — PostHog families', () => {
     expect(await dailyRun).toMatchObject({ attempted: 6, succeeded: 6 });
   });
 
-  it('reports the earlier windows it asked again, as the daily run counts them (ro-aed0.11)', async () => {
+  it('reports the earlier windows it asked again, as the daily run counts them', async () => {
     // A window PostHog never answered the day before: owed a re-collection.
     await storeArchiveRun({
       id: 'owed-events', asset: 'meals.example', integration: 'posthog', report: 'events', credential_ref: 'POSTHOG_KEYS',

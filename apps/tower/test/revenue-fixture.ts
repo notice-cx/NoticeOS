@@ -21,10 +21,9 @@ export function syntheticRevenueDay(date: string, holidays: ReadonlySet<string>)
 }
 
 /** Synthetic daily traffic and money for SQL and browser checks, in `store`:
- * Mediavine's daily revenue (bead ro-ujb9.76.5.5) and GA4's sessions and
- * active users (bead ro-ujb9.76.5.3) are on Postgres; the site must be there
- * first. `traffic: false` seeds the money alone — a site whose first source
- * is ad revenue. */
+ * Mediavine's daily revenue and GA4's sessions and active users; the site
+ * must be there first. `traffic: false` seeds the money alone, a site whose
+ * first source is ad revenue. */
 export async function seedRevenueHistory(store: WorkspaceStore, asset: string, at: string, through: string,
   calendar: RevenueHolidayCalendar = 'none', { traffic = true }: { traffic?: boolean } = {}) {
   const start = shiftRevenueDate(through, -83);

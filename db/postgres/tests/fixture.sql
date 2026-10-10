@@ -108,7 +108,7 @@ INSERT INTO noticeos.ledger_entries (workspace_id, kind, asset_id, period_month,
 VALUES (:'ws', 'revenue', :'site', '2026-08-01', 'ads', 12345, 'USD', 'csv', 'estimated', 'csv:1');
 
 -- A shipped change: its class, its id and the prediction it shipped with, and
--- no money (D36, D38). Both workspaces use the id 'change-1'; a change id is
+-- no money. Both workspaces use the id 'change-1'; a change id is
 -- its own workspace's.
 INSERT INTO noticeos.ledger_entries (workspace_id, kind, asset_id, period_month, family, ref, currency,
   predicted_monthly_value_minor, predicted_success_chance, predicted_cost_minor, predicted_days_to_signal, source, note)

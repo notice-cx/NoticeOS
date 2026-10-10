@@ -14,15 +14,12 @@ import { laneRepoRoot } from "../vite/lane";
 import { parseDashboardConfig } from "../shared/dashboard";
 import { DEFAULT_WALL_LAYOUT } from "../shared/wall-layout";
 
-// The Tower's ONE direct write to the repo (D18, bead ro-pbzu.5). It runs in the
-// dev server's Node process, it edits files an operator committed, and it makes
-// commits — so what is asserted here is every way it can refuse, and the exact
-// state of a temp repo after it accepts.
-//
-// The last case is the one that matters most: it runs BOTH entry points — this
-// lane and `pnpm config:apply` — over identical throwaway repos and compares
-// what each left behind. They share scripts/config-apply-core.mjs, and this is
-// what keeps that true rather than merely intended.
+// The Tower's one direct write to the repo: it runs in the dev server's Node
+// process, edits files an operator committed, and makes commits, so what is
+// asserted is every way it can refuse and the exact state of a temp repo after
+// it accepts. The last case runs both entry points, this lane and
+// `pnpm config:apply`, over identical throwaway repos and compares what each
+// left behind; they share scripts/config-apply-core.mjs.
 
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -30,17 +27,15 @@ const REPO_ROOT = path.resolve(
 );
 const CLI = path.join(REPO_ROOT, "scripts/config-apply.mjs");
 /** The ceiling for a test that runs both entry points: two throwaway checkouts
- * and a cold Node start of the CLI, about twenty child processes. That is 0.3 s
- * on an idle Mac and went past Vitest's 5 s default on a loaded one (bead
- * ro-ujb9.234), so the ceiling is sized to the work, not to the default. */
+ * and a cold Node start of the CLI, about twenty child processes. Sized to the
+ * work, not to Vitest's 5 s default. */
 const CLI_COMPARISON_MS = 60_000;
 /** Where a document's file lives in a checkout: this installation's own
- * folder, never the product default in config/ (bead ro-ujb9.125). */
+ * folder, never the product default in config/. */
 const installed = (rel: string) => rel.replace(/^config\//, "installation/");
 
-// `inference_usd` is deliberately still here though the real file dropped it
-// (D6, bead `ro-uj7x`): a store or checkout seeded before 2026-09-05 carries the
-// retired key, and the lane must edit such a document without tripping over it.
+// `inference_usd` is a retired key an older store or checkout still carries;
+// the lane must edit such a document without tripping over it.
 const CONSTANTS = {
   monthly_caps: { data_usd: 25, inference_usd: 10 },
   flag_defaults: { alpha: 0.01, min_baseline_per_day: 3 },
@@ -91,9 +86,8 @@ const REGISTERS = {
     { asset: "meals.example", url: "https://meals.example/m", enabled: true },
     { asset: "nosh.example", url: "https://nosh.example/o", enabled: true },
   ],
-  // The two panel registers (bead ro-sk7q). Both carry file-level metadata
-  // beside their `/assets` map — the roster's `refresh` block is what a pass
-  // costs — which is what the one-container rule keeps an asset write away from.
+  // Both panel registers carry file-level metadata beside their `/assets` map,
+  // which is what the one-container rule keeps an asset write away from.
   signalPanels: {
     version: 1,
     refresh: { windowDays: 35, freshnessMaxAgeDays: 7, providerCostUsdPerPass: 0 },
@@ -107,16 +101,15 @@ const REGISTERS = {
     },
   },
   serpPanel: { assets: { "meals.example": { queries: ["meals", "meals calculator"] } } },
-  // The portfolio's legal entities (bead ro-aodz). An asset's membership is a
-  // STRING ON ANOTHER ROW, so a delete reaches it with a guarded set rather than
-  // by removing anything — the entity outlives the assets it owns (ro-xzxg).
+  // An asset's membership is a string on another row, so a delete reaches it
+  // with a guarded set rather than by removing anything.
   entities: {
     version: 1,
     entities: [
       { slug: "first-co", name: "First Co" },
       {
-        slug: "reindex-ventures",
-        name: "Reindex Ventures LLC",
+        slug: "example-ventures",
+        name: "Example Ventures LLC",
         assets: ["meals.example", "fees.example"],
       },
     ],
@@ -169,25 +162,22 @@ async function readJson(root: string, rel: string): Promise<unknown> {
 }
 
 describe("the config write lane", () => {
-  // Vite bundles the config file and everything it imports before executing it,
-  // so where this module thinks it lives is the bundler's business. A root off
-  // by one directory would mean a Save writing into `apps/`, or writing nothing
-  // — so the default is walked to the workspace manifest, and pinned here.
+  // Vite bundles the config file and everything it imports before executing
+  // it, so where this module thinks it lives is the bundler's business. The
+  // default is walked to the workspace manifest, and pinned here.
   it("edits the checkout it is serving, not wherever the bundler put it", () => {
     expect(DEFAULT_REPO_ROOT).toBe(REPO_ROOT);
   });
 
   // The managed service runs this dev server from a runtime copy of the code
-  // (bead ro-ujb9.113) and names the operator's checkout in NOTICEOS_HOME (a
-  // plist installed before the rename says REINDEX_OS_HOME, still read). A
-  // Save must still commit THERE — a commit inside the runtime copy would never
-  // reach main, and would dirty the copy the next deploy has to move.
+  // and names the operator's checkout in NOTICEOS_HOME (an older plist says
+  // REINDEX_OS_HOME, still read). A Save must commit there; a commit inside
+  // the runtime copy would never reach main.
   it("commits in the home checkout the runner names, not in the runtime copy", () => {
     const runtimeCopy = path.join(REPO_ROOT, ".local", "runtime", "runtime-a", "apps", "tower", "vite");
     expect(laneRepoRoot({ NOTICEOS_HOME: "/Users/operator/reindex-os" }, runtimeCopy)).toBe(
       "/Users/operator/reindex-os",
     );
-    // The installed plist's legacy name, and the new name winning over it.
     expect(laneRepoRoot({ REINDEX_OS_HOME: "/Users/operator/reindex-os" }, runtimeCopy)).toBe(
       "/Users/operator/reindex-os",
     );
@@ -204,9 +194,9 @@ describe("the config write lane", () => {
     expect(reply.body).toMatchObject({ writable: true });
   });
 
-  // There is no authentication on the Tower and there must not be (docs/10), so
-  // same-origin IS the boundary: what it stops is a page on another site
-  // steering the operator's own browser into a config write.
+  // There is no authentication on the Tower, so same-origin is the boundary:
+  // it stops a page on another site steering the operator's own browser into
+  // a config write.
   it("refuses a write whose origin is not this server", async () => {
     const root = await tempRepo();
     const reply = await handleConfigRequest(
@@ -237,8 +227,7 @@ describe("the config write lane", () => {
     expect(garbage.status).toBe(400);
   });
 
-  // The allowlist is the reason a same-origin write is safe to accept at all:
-  // four named files, named pointers, and nothing else is reachable.
+  // The allowlist is the reason a same-origin write is safe to accept at all.
   it("refuses a file outside the allowlist, and writes nothing", async () => {
     const root = await tempRepo();
     const reply = await handleConfigRequest(
@@ -261,11 +250,8 @@ describe("the config write lane", () => {
     expect(git(root, "log", "--oneline").split("\n")).toHaveLength(1);
   });
 
-  // A DECLARED KNOB is the narrowest permission the lane has (bead
-  // `ro-x5gu.8`): one exact scalar pointer in a file that is otherwise
-  // unreachable. The pair below is the whole rule — the pointer writes and
-  // commits like any other setting; the block above it and the cards beside it
-  // are refused, naming the pointers that would have worked.
+  // A declared knob is the narrowest permission the lane has: one exact scalar
+  // pointer in a file that is otherwise unreachable.
   it("writes a declared knob, and refuses everything else in the same file", async () => {
     const root = await tempRepoWithRegisters();
 
@@ -290,8 +276,7 @@ describe("the config write lane", () => {
     });
 
     // One level up, and an undeclared number beside it: both refused, and the
-    // refusal names the knobs rather than the wholesale allowlist the writer
-    // never wanted.
+    // refusal names the knobs.
     for (const pointer of ["/refresh", "/refresh/providerCostUsdPerPass"]) {
       const refused = await handleConfigRequest(
         put({
@@ -305,7 +290,6 @@ describe("the config write lane", () => {
       expect(String(refused.body.detail)).toContain("/refresh/windowDays");
     }
 
-    // A value the knob's own rule refuses never reaches the file either.
     const tooSmall = await handleConfigRequest(
       put({
         ops: [
@@ -341,8 +325,8 @@ describe("the config write lane", () => {
     expect(await readJson(root, "config/constants.json")).toEqual(CONSTANTS);
   });
 
-  // One stale op refuses the whole set. A settings page left open while the file
-  // moved must not win, and it must not half-win either.
+  // One stale op refuses the whole set: a settings page left open while the
+  // file moved must not win, and must not half-win either.
   it("refuses the whole changeset on a stale expect, and leaves the file untouched", async () => {
     const root = await tempRepo();
     const reply = await handleConfigRequest(
@@ -393,7 +377,7 @@ describe("the config write lane", () => {
     ]);
   });
 
-  it("applies, archives and commits — the three things the terminal step used to do", async () => {
+  it("applies, archives and commits", async () => {
     const root = await tempRepo();
     const logged: string[] = [];
     const reply = await handleConfigRequest(put({ ops: [alphaOp(0.01, 0.05)], slug: "anomaly-sensitivity" }), {
@@ -409,19 +393,18 @@ describe("the config write lane", () => {
     });
     expect(typeof reply.body.commit).toBe("string");
 
-    // the file
     expect(await readJson(root, "config/constants.json")).toEqual({
       ...CONSTANTS,
       flag_defaults: { ...CONSTANTS.flag_defaults, alpha: 0.05 },
     });
-    // the archive — the audit artifact, byte-shaped like the CLI's
+    // the archive, byte-shaped like the CLI's
     expect(await readJson(root, "installation/changesets/0001_anomaly-sensitivity.json")).toEqual({
       version: 1,
       createdAt: "2026-09-04T12:00:00.000Z",
       slug: "anomaly-sensitivity",
       ops: [alphaOp(0.01, 0.05)],
     });
-    // the commit, carrying both, and NOTHING else
+    // the commit, carrying both, and nothing else
     expect(git(root, "log", "--oneline").split("\n")).toHaveLength(2);
     expect(git(root, "log", "-1", "--pretty=%s")).toBe("config: anomaly-sensitivity via Tower");
     expect(git(root, "show", "--name-only", "--pretty=", "HEAD").split("\n").sort()).toEqual([
@@ -432,8 +415,7 @@ describe("the config write lane", () => {
     expect(logged).toHaveLength(1);
   });
 
-  // An operator's checkout usually has other work in it. A settings Save must
-  // commit its own two files and leave that work exactly where it was.
+  // An operator's checkout usually has other work in it.
   it("commits only its own files, even with unrelated work staged beside them", async () => {
     const root = await tempRepo();
     await fs.writeFile(path.join(root, "notes.md"), "half-written\n", "utf8");
@@ -461,9 +443,7 @@ describe("the config write lane", () => {
     expect(commands.some((argv) => argv.includes("push"))).toBe(false);
   });
 
-  // Both entry points, the same edit, two identical repos. If the extraction ever
-  // drifts — a different archive shape, a different number, a re-serialized file
-  // — this is where it is caught.
+  // Both entry points, the same edit, two identical repos.
   it("leaves exactly what `pnpm config:apply --yes` leaves", async () => {
     const viaLane = await tempRepo();
     const viaCli = await tempRepo();
@@ -502,10 +482,9 @@ describe("the config write lane", () => {
   }, CLI_COMPARISON_MS);
 });
 
-// The file half of "an asset was created" (bead ro-z349.1). `file-json-set` was
-// the lane's only op because a changeset never created structure; adding an
-// asset needs exactly that, so these two kinds have their own tighter allowlist
-// in the shared core — one container per file, addressed by asset id.
+// `file-json-set` never creates structure; adding an asset needs exactly that,
+// so these two kinds have their own tighter allowlist in the shared core: one
+// container per file, addressed by asset id.
 describe("adding and removing an asset's config entries", () => {
   it("appends to pull.json, adds the two register keys, archives and commits", async () => {
     const root = await tempRepoWithRegisters();
@@ -553,7 +532,6 @@ describe("adding and removing an asset's config entries", () => {
       ...REGISTERS.pull,
       { asset: "brandnew.test", url: "https://brandnew.test/m", enabled: true },
     ]);
-    // Every touched file plus the archive, in one commit, and nothing else.
     expect(git(root, "show", "--name-only", "--pretty=", "HEAD").split("\n").sort()).toEqual([
       "installation/changesets/0001_add-brandnew.json",
       "installation/counters.json",
@@ -594,9 +572,6 @@ describe("adding and removing an asset's config entries", () => {
     expect(await readJson(root, "config/pull.json")).toEqual([REGISTERS.pull[1]]);
   });
 
-  // Bead ro-sk7q. Until this, a delete could not reach either panel register:
-  // the asset left the store and the file that decides what the weekly collector
-  // buys went on naming it, silently, since the confirmation never said so.
   it("removes the asset from both panel registers as well, in the same changeset", async () => {
     const root = await tempRepoWithRegisters();
 
@@ -626,7 +601,6 @@ describe("adding and removing an asset's config entries", () => {
       applied: 2,
       archive: "installation/changesets/0001_remove-meals-panels.json",
     });
-    // The `/assets` key goes; everything the file says about itself stays.
     expect(await readJson(root, "config/signal-panels.json")).toEqual({
       ...REGISTERS.signalPanels,
       assets: {},
@@ -639,10 +613,8 @@ describe("adding and removing an asset's config entries", () => {
     ]);
   });
 
-  // Bead ro-xzxg. The store row went and the id stayed on the entity that owned
-  // it — a ghost visible on /settings under Entities and nowhere else, because
-  // an asset's membership is a string in another row rather than an entry of its
-  // own, and no `file-json-delete` can address it.
+  // An asset's membership is a string in another row rather than an entry of
+  // its own, so no `file-json-delete` can address it.
   it("takes the asset off its entity's list, in the same changeset as its entries", async () => {
     const root = await tempRepoWithRegisters();
 
@@ -669,15 +641,15 @@ describe("adding and removing an asset's config entries", () => {
     );
 
     expect(reply.status).toBe(200);
-    // The row is untouched but for the id: the entity is a legal person and
-    // outlives every asset it owns, and the assets it still owns stay owned.
+    // The entity outlives every asset it owns, and the assets it still owns
+    // stay owned.
     expect(await readJson(root, "config/entities.json")).toEqual({
       version: 1,
       entities: [
         { slug: "first-co", name: "First Co" },
         {
-          slug: "reindex-ventures",
-          name: "Reindex Ventures LLC",
+          slug: "example-ventures",
+          name: "Example Ventures LLC",
           assets: ["fees.example"],
         },
       ],
@@ -694,7 +666,6 @@ describe("adding and removing an asset's config entries", () => {
             kind: "file-json-set",
             file: "config/entities.json",
             pointer: "/entities/1/assets",
-            // What the page rendered before somebody else added an asset.
             expect: ["meals.example"],
             value: [],
           },
@@ -718,7 +689,6 @@ describe("adding and removing an asset's config entries", () => {
             kind: "file-json-delete",
             file: "config/serp-panel.json",
             pointer: "/assets/meals.example",
-            // A panel somebody grew since the page read it.
             expect: { queries: ["meals"] },
           },
         ],
@@ -741,10 +711,8 @@ describe("adding and removing an asset's config entries", () => {
     const root = await tempRepoWithRegisters();
 
     for (const [file, pointer] of [
-      // What a refresh pass costs and how far back it reads is not an asset,
-      // and no register names it — it is reachable from nowhere at all.
+      // What a refresh pass costs is not an asset, and no register names it.
       ["config/signal-panels.json", "/refresh"],
-      // The container is not one of its own rows.
       ["config/serp-panel.json", "/assets/meals.example/queries"],
     ] as const) {
       const reply = await handleConfigRequest(
@@ -756,11 +724,8 @@ describe("adding and removing an asset's config entries", () => {
       expect(String(reply.body.detail)).toContain("/assets/<asset-id>");
     }
 
-    // ONE QUERY, on the other hand, IS a row now (bead ro-x5gu.1): the asset's
-    // Growth tab removes a tracked term, so `serp-panel-queries` declares that
-    // container and the pointer is legal. It still refuses here — on the
-    // `expect` guard, which is a different refusal saying a different thing:
-    // the file is what it always was, and the caller named the wrong value.
+    // One query is a row (`serp-panel-queries` declares that container), so the
+    // pointer is legal. It still refuses here, on the `expect` guard.
     const oneQuery = await handleConfigRequest(
       put({
         ops: [
@@ -780,8 +745,8 @@ describe("adding and removing an asset's config entries", () => {
     expect(await readJson(root, "config/serp-panel.json")).toEqual(REGISTERS.serpPanel);
   });
 
-  // An insert's guard is fixed at absence. A wizard re-submitted, or an id typed
-  // twice, must never silently replace whatever was configured under that key.
+  // An insert's guard is fixed at absence: a wizard re-submitted must never
+  // silently replace whatever was configured under that key.
   it("refuses to overwrite an asset that is already configured, and says it expected nothing", async () => {
     const root = await tempRepoWithRegisters();
 
@@ -811,22 +776,19 @@ describe("adding and removing an asset's config entries", () => {
       },
     ]);
     expect(await readJson(root, "config/integrations.json")).toEqual(REGISTERS.integrations);
-    // A refused changeset commits nothing: the two here are the fixture's own.
     expect(git(root, "log", "--oneline").split("\n")).toHaveLength(2);
   });
 
-  // The allowlist for these kinds is its own, and narrower: only the per-asset
-  // register, only one token past it, and only in the three register files.
+  // The allowlist for these kinds is narrower: only the per-asset register,
+  // only one token past it, and only in the three register files.
   it("refuses a pointer outside the per-asset register, and a file that is not one", async () => {
     const root = await tempRepoWithRegisters();
     const refuse = async (op: Record<string, unknown>) =>
       handleConfigRequest(put({ ops: [op] }), { repoRoot: root });
 
-    // One lane inside an asset's entry became a declared row when `asset-lane`
-    // landed (bead `ro-vu8d.4`), so the pointer is legal and the VALUE decides:
-    // a cell missing the date every cell carries is refused by name. (A note
-    // is optional since bead ro-ujb9.96.7.22 — absent until there is
-    // something to say — but a blank one is still refused.)
+    // One lane inside an asset's entry is a declared row, so the pointer is
+    // legal and the value decides: a cell missing the date every cell carries
+    // is refused by name. A note is optional, but a blank one is refused.
     const insideAnEntry = await refuse({
       kind: "file-json-insert",
       file: "config/integrations.json",
@@ -865,9 +827,8 @@ describe("adding and removing an asset's config entries", () => {
     expect(git(root, "log", "--oneline").split("\n")).toHaveLength(2);
   });
 
-  // The equivalence test above covers `file-json-set`; these kinds get their own
-  // run because the CLI has a second surface for them — the printed diff, which
-  // has one side rather than two ("+ add" / "- remove" instead of a `→`).
+  // The equivalence test above covers `file-json-set`; these kinds get their
+  // own run because the CLI's printed diff has one side rather than two.
   it("leaves exactly what `pnpm config:apply --yes` leaves, for an add and a removal", async () => {
     const viaLane = await tempRepoWithRegisters();
     const viaCli = await tempRepoWithRegisters();
@@ -905,7 +866,6 @@ describe("adding and removing an asset's config entries", () => {
       env: { ...process.env, CONFIG_APPLY_REPO_ROOT: viaCli },
     });
     expect(cli.status).toBe(0);
-    // The diff reads as an addition and a removal, not as a value moving.
     expect(cli.stdout).toContain("+ add");
     expect(cli.stdout).toContain("- remove");
 
@@ -921,15 +881,9 @@ describe("adding and removing an asset's config entries", () => {
   }, CLI_COMPARISON_MS);
 });
 
-// A FIRST WRITE INTO A FIELD NOTHING HAS WRITTEN YET (bead `ro-j71v`).
-//
-// Every mapping field in `config/integrations.json` is sparse — the key is
-// absent until an operator maps the asset — so a guard that can only name a
-// JSON value has nothing honest to say about one. `expectAbsent: true` is that
-// word, and these are the four things it has to be true of: the write lands, the
-// guard still refuses a field somebody else already filled in, it cannot be used
-// to invent anything but that one declared optional key, and both entry points
-// leave the same bytes behind.
+// Every mapping field in `config/integrations.json` is sparse, so a guard that
+// can only name a JSON value has nothing honest to say about an absent key.
+// `expectAbsent: true` is that word.
 describe("a first write into a declared optional field", () => {
   const siteOp = (guard: Record<string, unknown>) => ({
     kind: "file-json-set",
@@ -953,9 +907,8 @@ describe("a first write into a declared optional field", () => {
     });
   });
 
-  // The bug itself: an empty string is a value somebody wrote down, and the file
-  // holds no such value — so it stays a mismatch, and the field that means "no
-  // value here" is the one that works.
+  // An empty string is a value somebody wrote down, and the file holds no
+  // such value, so it stays a mismatch.
   it("still refuses an empty string as the guard for an absent key", async () => {
     const root = await tempRepoWithRegisters();
     const reply = await handleConfigRequest(put({ ops: [siteOp({ expect: "" })] }), {
@@ -1001,11 +954,10 @@ describe("a first write into a declared optional field", () => {
     const root = await tempRepoWithRegisters();
     const before = await readJson(root, "config/integrations.json");
     for (const pointer of [
-      // A lane that is not in the file: the ROW is `file-json-insert`'s job.
+      // A lane that is not in the file: the row is `file-json-insert`'s job.
       "/assets/meals.example/clarity",
-      // A required field — a row missing one is broken, not new.
+      // A required field: a row missing one is broken, not new.
       "/assets/meals.example/gsc/status",
-      // Two levels down, inside a key that is not there either.
       "/assets/meals.example/gsc/nested/siteUrl",
     ]) {
       const reply = await handleConfigRequest(
@@ -1061,14 +1013,9 @@ describe("a first write into a declared optional field", () => {
   }, CLI_COMPARISON_MS);
 });
 
-// TAKING THAT FIELD BACK OFF (bead `ro-pkpz`).
-//
-// The mirror of the block above, and the reason it had to exist: emptying the
-// box is refused — a field rule reads `""` as a blank string rather than as
-// "take this away" — so a mapping written once could be replaced and never
-// removed, and an asset that should go back to its fallback source could not be
-// put back there from the Tower. It is also what makes the FIRST save undoable:
-// the way back from writing a key is taking the key away.
+// The mirror of the block above: a field rule reads `""` as a blank string
+// rather than as "take this away", so removal is its own op. It is also what
+// makes the first save undoable.
 describe("taking a declared optional field back off", () => {
   const siteUrl = "sc-domain:meals.example";
   const write = {
@@ -1096,8 +1043,7 @@ describe("taking a declared optional field back off", () => {
       { repoRoot: root },
     );
     expect(reply.status).toBe(200);
-    // The key is GONE, not blank — absent is what the collector reads as "fall
-    // back", and a blank string would be a value nobody meant to write.
+    // The key is gone, not blank: absent is what the collector reads as "fall back".
     expect(await readJson(root, "config/integrations.json")).toEqual(REGISTERS.integrations);
   });
 
@@ -1124,9 +1070,8 @@ describe("taking a declared optional field back off", () => {
     const root = await tempRepoWithRegisters();
     const before = await readJson(root, "config/integrations.json");
     for (const pointer of [
-      // A required field — a row missing one is broken, not unmapped.
+      // A required field: a row missing one is broken, not unmapped.
       "/assets/meals.example/gsc/status",
-      // Two levels down, inside a key that is not there at all.
       "/assets/meals.example/gsc/nested/siteUrl",
     ]) {
       const reply = await handleConfigRequest(
@@ -1175,7 +1120,6 @@ describe("taking a declared optional field back off", () => {
       env: { ...process.env, CONFIG_APPLY_REPO_ROOT: viaCli },
     });
     expect(cli.status).toBe(0);
-    // The diff reads as a removal, which is what it is.
     expect(cli.stdout).toContain("- remove");
 
     for (const rel of ["config/integrations.json", "installation/changesets/0002_unmap-the-site.json"]) {
@@ -1186,10 +1130,8 @@ describe("taking a declared optional field back off", () => {
   }, CLI_COMPARISON_MS);
 });
 
-// The list-shaped registers (bead ro-x5gu.1). What the lane may do to them is
-// declared in scripts/config-registers.mjs, and the point of these cases is that
-// the DECLARATION is what decides — the lane holds no list of its own, so a
-// register gains a surface without this file changing.
+// What the lane may do to the list-shaped registers is declared in
+// scripts/config-registers.mjs; the lane holds no list of its own.
 const DOMAIN_COSTS = {
   domains: [
     { domain: "fees.example", asset: "fees.example", kind: "registration", paidUsd: 36.32, paidOn: "2026-06-28" },
@@ -1226,8 +1168,7 @@ describe("a declared collection register", () => {
       paidOn: "2026-06-28",
     };
 
-    // Each action is its OWN changeset — one op, one archive, one commit —
-    // because that is what makes each one separately undoable.
+    // Each action is its own changeset, which is what makes each separately undoable.
     const add = await handleConfigRequest(
       put({
         ops: [{ kind: "file-json-insert", file: "config/domain-costs.json", pointer: "/domains/-", value: added }],
@@ -1313,7 +1254,6 @@ describe("a declared collection register", () => {
     expect(undeclared.status).toBe(422);
     expect(String((undeclared.body as { detail: string }).detail)).toContain("not a declared field");
 
-    // Nothing was written by either refusal.
     expect(await readJson(root, "config/domain-costs.json")).toEqual(before);
   });
 
@@ -1338,8 +1278,8 @@ describe("a declared collection register", () => {
       assets: { "meals.example": { valueEvents: ["sign_up", "plan_save_click"] } },
     });
 
-    // An asset with no entry has no list to append to, and a pointer never
-    // creates structure — so the refusal is about the pointer, not the value.
+    // A pointer never creates structure, so the refusal is about the pointer,
+    // not the value.
     const missing = await handleConfigRequest(
       put({
         ops: [
@@ -1415,8 +1355,7 @@ describe("a declared collection register", () => {
 });
 
 /** A throwaway checkout holding `config/tower.json` as a fresh install has it:
- * a countdown and no `/wall` at all, because the default layout lives in the
- * code and a file that restated it would be a second copy of the same Wall. */
+ * a countdown and no `/wall` at all, because the default layout lives in the code. */
 async function tempRepoWithTower(): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "config-lane-wall-"));
   created.push(root);
@@ -1445,17 +1384,10 @@ async function tempRepoWithTower(): Promise<string> {
   return root;
 }
 
-// `config/tower.json` may be SET at any pointer — every value in it is a setting
-// the Tower renders — so nothing in the safety allowlist has an opinion about
-// `/wall`. The Wall's OWN validator supplies one, and refuses in the validator's
-// own words, because the alternative is committing a layout whose first reader
-// is the television (epic `ro-lzmq`).
-//
-// THE RULE IS NO LONGER THIS LANE'S (bead `ro-lzmq.3`). It lives in
-// `scripts/wall-layout.mjs`, which `validateSchemaAndSafety` runs — so
-// `pnpm config:apply`, the Worker's `PUT /api/config` and the ingest's
-// `applyConfigOps` refuse the identical layout in the identical sentence, and
-// these cases assert this door's share of one answer rather than its own.
+// `config/tower.json` may be set at any pointer, so nothing in the safety
+// allowlist has an opinion about `/wall`. The Wall's own validator in
+// `scripts/wall-layout.mjs` supplies one, run by `validateSchemaAndSafety`, so
+// every write door refuses the identical layout in the identical sentence.
 describe("a layout the Wall could not draw", () => {
   const savesWall = (value: unknown) => ({
     kind: "file-json-insert",
@@ -1477,7 +1409,6 @@ describe("a layout the Wall could not draw", () => {
     expect(reply.status).toBe(422);
     expect(reply.body).toMatchObject({ error: "invalid_changeset" });
     expect(detail(reply.body)).toContain("A layout needs at least one row.");
-    // Nothing written, nothing committed.
     expect(await readJson(root, "config/tower.json")).not.toHaveProperty("wall");
     expect(git(root,"rev-list", "--count", "HEAD")).toBe("1");
   });
@@ -1506,7 +1437,6 @@ describe("a layout the Wall could not draw", () => {
     expect(detail(reply.body)).toContain("at least one row");
   });
 
-  // Bead ro-trai.2: the column slot is part of the one rule this lane runs.
   it("refuses a column inside a column, in the validator's words", async () => {
     const root = await tempRepoWithTower();
     const inner = { id: "deeper", type: "column", width: 1, rows: [{ id: "x", height: "auto", widgets: [{ id: "strip", type: "strip", width: 1 }] }] };
@@ -1536,11 +1466,11 @@ describe("a layout the Wall could not draw", () => {
     expect(await readJson(root, "config/tower.json")).not.toHaveProperty("wall");
   });
 
-  // Bead ro-trai.11: a layout saved before D28 names retired widgets. It still
-  // reads (as the default), so an Undo that puts one back is not refused — but
-  // a fresh `/wall/layout` naming one is, and the read-side `retired` marker is
-  // never written into the store.
-  it("takes back a pre-D28 layout whole, refuses one piece of it, and never stores the retired marker", async () => {
+  // A layout saved under an older design names retired widgets. It still
+  // reads (as the default), so an Undo that puts one back is not refused, but
+  // a fresh `/wall/layout` naming one is, and the read-side `retired` marker
+  // is never written into the store.
+  it("takes back an old layout whole, refuses one piece of it, and never stores the retired marker", async () => {
     const old = { version: 1, rows: [{ id: "assets", height: "fill", widgets: [{ id: "assets", type: "assets", width: 1 }] }] };
     const root = await tempRepoWithTower();
     const whole = await handleConfigRequest(
@@ -1611,7 +1541,6 @@ describe("a layout the Wall could not draw", () => {
     const saved = await readJson(root, "config/tower.json");
     expect(saved).toMatchObject({ wall: { layout: DEFAULT_WALL_LAYOUT, history: [] } });
     expect(git(root,"log", "-1", "--format=%s")).toBe("config: wall-layout via Tower");
-    // And the file still parses as the display config the Worker is built from.
     expect(parseDashboardConfig(saved).wall?.layout).toEqual(DEFAULT_WALL_LAYOUT);
   });
 
@@ -1643,20 +1572,12 @@ describe("a layout the Wall could not draw", () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Since 2026-09-05 the lane is a THIN CLIENT of the store (epic `ro-syok`).
-//
-// db/0029 holds a document per config file, so a Save goes there first and this
-// process's remaining job is the CHECKOUT: write what the store wrote, archive
-// the changeset, commit. Three properties hold that up, and each has a case:
-// the store's refusals are passed through rather than second-guessed, a store
-// that cannot take the write never falls back to files, and a checkout
-// that could not be updated never reports the Save as failed.
-//
-// Every case injects its store. There is deliberately NO default door — a test
-// run in any checkout must not be able to write to whatever OS is listening on
-// the machine running it.
-// ─────────────────────────────────────────────────────────────────────────────
+// The lane is a thin client of the store: a Save goes there first and this
+// process's remaining job is the checkout. The store's refusals are passed
+// through, a store that cannot take the write never falls back to files, and
+// a checkout that could not be updated never reports the Save as failed.
+// Every case injects its store; there is deliberately no default door, so a
+// test run in any checkout cannot write to whatever OS is listening.
 
 /** A store that answers what the case wants and records what it was sent. */
 function fakeStore(reply: { status: number; body: Record<string, unknown> }) {
@@ -1700,8 +1621,7 @@ describe("the lane with a config store behind it", () => {
     expect(store.applied).toEqual([
       { ops: [alphaOp(0.01, 0.05)], slug: "sensitivity", actor: "operator" },
     ]);
-    // The file is the export: the checkout holds what the store holds, and the
-    // archive plus the commit are the audit trail the repo has always carried.
+    // The file is the export: the checkout holds what the store holds.
     expect(await readJson(root, "config/constants.json")).toMatchObject({
       flag_defaults: { alpha: 0.05 },
     });
@@ -1711,9 +1631,8 @@ describe("the lane with a config store behind it", () => {
     expect(git(root, "log", "--oneline", "-1")).toContain("config: sensitivity via Tower");
   });
 
-  // `pnpm start` (bead ro-ujb9.126) runs an installation out of a plain folder,
-  // usually one inside somebody's checkout: git run there would find THAT
-  // repository. The Save still lands in the store and in the folder's exports.
+  // `pnpm start` runs an installation out of a plain folder, usually one inside
+  // somebody's checkout: git run there would find that repository.
   it("runs no git at all when its home is a plain folder rather than a checkout", async () => {
     const home = await fs.mkdtemp(path.join(os.tmpdir(), "config-lane-folder-"));
     created.push(home);
@@ -1761,13 +1680,12 @@ describe("the lane with a config store behind it", () => {
 
     expect(reply.status).toBe(409);
     expect(reply.body).toMatchObject({ error: "expect_mismatch" });
-    // The store is the source of truth once seeded; the lane must not re-run
-    // the same ops against the file and reach a different answer.
+    // The lane must not re-run the same ops against the file and reach a
+    // different answer.
     expect(await readJson(root, "config/constants.json")).toEqual(CONSTANTS);
   });
 
   it("refuses a missing store rather than silently changing the fallback file", async () => {
-    // A missing table is not proof that a store was never authoritative.
     const root = await tempRepo();
     const store = fakeStore({
       status: 503,
@@ -1812,8 +1730,8 @@ describe("the lane with a config store behind it", () => {
     expect(String(unknown.body.detail)).toBe("Save not confirmed — refresh before trying again");
     expect(git(root, "status", "--porcelain")).toBe("");
 
-    // The store committed before its response was lost. A retry after a fresh
-    // lane instance is still checked against the store, never the stale file.
+    // The store committed before its response was lost. A retry is still
+    // checked against the store, never the stale file.
     const recovered = await handleConfigRequest(request, {
       repoRoot: root,
       store: fakeStore({ status: 409, body: { ok: false, error: "expect_mismatch", mismatches: [{ current: 0.05 }] } }).lane,
@@ -1846,7 +1764,6 @@ describe("the lane with a config store behind it", () => {
       },
     });
 
-    // A file where the installation folder belongs: the export cannot be written.
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "config-lane-no-export-"));
     created.push(root);
     await fs.writeFile(path.join(root, "installation"), "not a folder\n", "utf8");
@@ -1855,8 +1772,7 @@ describe("the lane with a config store behind it", () => {
       store: store.lane,
     });
 
-    // The value MOVED. Reporting the Save as failed would be a lie, and the
-    // operator's next action — `pnpm config:export` — is not "press Save again".
+    // The value moved, so reporting the Save as failed would be a lie.
     expect(reply.status).toBe(200);
     expect(reply.body).toMatchObject({ archive: null, commit: null, exported: false });
   });
