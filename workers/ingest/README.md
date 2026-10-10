@@ -322,8 +322,7 @@ keeps the rule unarmed; no code falls back to the envelope's `avg7d`. Each new
 metric reading resolves the prior open central flow event before the current
 one is evaluated, so recovered metrics stop contributing to property health.
 Each fired flag stores `rule_id` + `rule_inputs` (including comparison dates)
-for auditability. (`flow-pct-drop` remains an available, non-default
-alternative; running it alongside Poisson would double-fire.)
+for auditability.
 
 ## Annotations (the timeline writer)
 
@@ -398,7 +397,7 @@ cron is what reads it back out.
     "ship": { "direction": "up",   "min_delta_pct": 10 },
     "kill": { "direction": "down", "min_delta_pct": 10 }
   },
-  "scope": { "query": "my plate" },  // optional; exact GSC query grain only
+  "scope": { "query": "my plume" },  // optional; exact GSC query grain only
   "note": "July title batch"
 }
 ```
@@ -569,7 +568,7 @@ one.
 
 ```jsonc
 "panelReview": {
-  "beadId": "nom-4q2",
+  "beadId": "nw-4q2",
   "panelDate": "2026-08-02",          // the collection's report_date
   "dueAt": "2026-08-09T00:00:00.000Z",
   "status": "open",                   // open | closed — never bd's vocabulary
@@ -1058,9 +1057,11 @@ nothing is the worst outcome available.
 ### Two ways in for Google
 
 Google can be connected by **signing in** as well as by pasting a
-service-account map, and both stay valid. The operator-facing half is
-[doc 11](../../docs/11-integrations.md#connecting-google); what lives here is
-how it is built.
+service-account map, and both stay valid. This section is how the sign-in is
+built; the operator's steps are the
+[Connect Google](../../docs/guides/connect-google.md) guide, and its cost,
+quota and failure modes are in
+[doc 11](../../docs/11-integrations.md#connecting-google).
 
 - **`google-auth.ts` is the one door.** `googleAccessToken(auth, scope, …)`
   either signs a JWT assertion (service account) or spends the refresh token
@@ -1071,17 +1072,70 @@ how it is built.
     difference stays in that module.
   - `refreshGoogleAccessToken` raises **`google_oauth_revoked`** on Google's
     `invalid_grant` rather than a generic HTTP failure, because "reconnect the
-    card" and "check the property grant" are different instructions.
+    card" and "check the property grant" are different instructions. The
+    sentence that reaches `last_error` and the card is
+    `GOOGLE_OAUTH_REVOKED_MESSAGE`, a constant, never text derived from a
+    request that held a refresh token; `probeCredential` keeps it a refusal
+    with a sign-in fix rather than rewording it as an unreachable network.
   - A provider 401 is retried **once** with a fresh token, and the fresh token
     is shared by the rest of that account's properties. A pull over a large
     portfolio can outlive an hour-long token; anything that answers 401 twice is
     a credential problem, and retrying again would be a burst against Google.
+- **The round trip.** `GET /api/integrations/google/oauth/start` → 302 to
+  Google · `GET /api/integrations/google/oauth/callback` → 302 back to
+  `/integrations?connect=google&google=<result>`, the connect panel
+  (`apps/tower/worker/integrations-oauth-route.ts`; a hosted build's start is a
+  POST that answers the consent URL as JSON). The Tower carries an origin in
+  and a redirect out: the authorization URL is built here (it needs the client
+  id), the code is exchanged here (it needs the secret), and the refresh token
+  is sealed into the store here. No token, secret or signing key crosses the
+  Service Binding. A self-hosted install's `client_secret.json` is checked in
+  the Tower (`apps/tower/shared/google-client-file.ts`: anything but a web
+  client is refused, and a redirect list without this address is named) before
+  its id and secret are stored as `google-oauth-app`.
+- **The redirect URI is derived from the origin the browser is on**
+  (`googleOAuthRedirectUri`, `packages/contract/src/google-oauth.ts`), never
+  configured: a configured copy would be a second answer, and the one that lost
+  would produce `redirect_uri_mismatch`. Google refuses plain http on any host
+  but loopback, so `googleRedirectVerdict` answers `redirect_unusable` for a
+  LAN address before Google can, and the panel offers `googleLoopbackOrigin`.
 - **`google-oauth.ts` owns the flow** — the signed state, the authorization URL,
   the code exchange, the revoke, and the two free list calls behind
-  `discoverGoogleProperties()`. The state is an HMAC over a nonce, a
-  ten-minute expiry and *the redirect URI it was minted for*, keyed by an HKDF
-  of `CREDENTIALS_KEY` (`credentialSigningKey`, domain-separated from the
-  encryption key rather than reusing it).
+  `discoverGoogleProperties()`. The state is signed, not stored (a nonce table
+  would be a migration): an HMAC over a nonce, a ten-minute expiry
+  (`GOOGLE_OAUTH_STATE_TTL_MS`) and *the redirect URI it was minted for*, so a
+  state minted at one origin cannot be replayed at another. It is keyed by an
+  HKDF of `CREDENTIALS_KEY` (`credentialSigningKey`, domain-separated from the
+  encryption key rather than reusing it). A state that does not check out never
+  reaches Google's token endpoint.
+- **Start refuses another page's navigation; the callback cannot.** Start
+  answers 403 to a `cross-site` or `same-site` `sec-fetch-site` (login CSRF is
+  how an attacker connects *their* Google account to somebody else's OS); the
+  callback arrives from accounts.google.com and is defended by the state.
+- **`access_type=offline` + `prompt=consent`**, together, are what guarantee a
+  refresh token: Google issues one only on a fresh consent. A grant missing
+  either read scope (`analytics.readonly`, `webmasters.readonly`) is refused as
+  `scope_incomplete` and nothing is stored, because the consent screen lets an
+  operator untick a box and a half-scoped credential would fail one lane a day
+  later with a 403.
+- **The seven-day assumption.** A Testing-mode consent screen expires every
+  refresh token seven days after it is granted, and Google publishes no API that
+  says whether a screen is published. The exchange therefore records
+  `expires_at = connected_at + GOOGLE_TESTING_GRANT_DAYS` with
+  `expiry_source = 'flow'` on `noticeos.integration_connections`; the
+  operator's *it does not expire* sets `expiry_source = 'operator'`, and
+  `carriedExpiry` (`credentials.ts`) keeps that answer through every later
+  sign-in.
+- **Discovery is a listing, not evidence.** `discoverGoogleSites`
+  (`credential-probes.ts`) lists every GA4 property, matched to a host by its
+  web data stream's default address (one free Admin API read for each of the
+  first fifty), and every Search Console site; an unverified Search Console
+  site is listed, never ticked. **Start** writes each site's own mapping, which
+  one resolver reads (`lane-mapping.ts`), and runs the Google step for the
+  named sites. A sign-in with nothing mapped collects nothing and logs
+  `google_signals_no_properties_mapped` once per pull; how the older account
+  map is shadowed by the mappings is under
+  [Google signals](#google-signals-ga4--gsc).
 - **The public facts.** The Google account, granted scopes and sign-in time
   are columns of `noticeos.integration_connections`; field names and covered
   site ids are on the current `noticeos.connection_secrets` version
@@ -1096,10 +1150,12 @@ how it is built.
   map on a signed-in card would silently orphan a live grant at Google that
   this OS could no longer revoke.
 - **`disconnectCredential` (credential-probes.ts) revokes, then deletes.** The
-  order matters: a network failure leaves the token still stored and still
-  revocable. It lives beside the probes rather than in `credentials.ts` for the
-  same reason the probes do — the store knows nothing about providers, and a
-  Google client imported back into it would be an import cycle.
+  order matters: once the row is gone there is no token left to revoke with.
+  The revoke is best effort and never blocks the delete, so a revoke that fails
+  leaves the grant for the operator to remove at Google. It lives
+  beside the probes rather than in `credentials.ts` for the same reason the
+  probes do — the store knows nothing about providers, and a Google client
+  imported back into it would be an import cycle.
 
 ## On-demand collection (a baseline on the day the bet launches)
 
@@ -1874,6 +1930,9 @@ one asset this secret names is unmapped there. Once all of them are mapped,
 those two fields are not read at all: what the secret still has to carry is the
 routing — which account authenticates which asset — plus each entry's
 `time_zone`. `/integrations` prints which of the two states this install is in.
+An account entry that names no service-account key authenticates with the
+operator's sign-in instead, so an install can keep the map for its routing and
+sign in for its auth.
 
 The formatted local source keeps `service_account_b64` in that account entry;
 `pnpm dev:secrets:sync` extracts it to the named per-account binding before
@@ -1929,10 +1988,21 @@ The Tower's active-user glance is an on-demand path, not another scheduled
 collector. `IngestWorker.ga4Realtime()` is callable only through Tower's private
 Service Binding. It parses the same account-centric
 `GOOGLE_SIGNAL_ACCOUNTS`, reuses each read-only Google access token for at most
-50 minutes, and sends two concurrent bounded requests per configured property:
-one `runRealtimeReport` containing the overlapping 0–29-minute and 0–4-minute
-windows, plus one Core `runReport` grouped by hour with `today` and `7daysAgo`
-date ranges.
+50 minutes, and makes these bounded reads per configured property
+(`src/ga4-realtime.ts`):
+
+- two `runRealtimeReport` requests: one with the overlapping 0–29-minute and
+  0–4-minute windows, and one grouped by `minutesAgo` over the last 30 minutes
+  (the Wall's minute pulse, placed on the clock by `ga4MinuteBuckets`: a minute
+  with no row is 0, a minute the reading did not cover is `null`). The pair is
+  one reading, shared by every open display for one minute;
+- one Core `runReport` grouped by `dateHour` over `yesterday…today` and
+  `8daysAgo…6daysAgo`, cached for 15 minutes and re-bucketed from the property's
+  reporting time zone into `OS_TIME_ZONE`, so every property's today-line
+  shares one x-axis. Each row converts with the zone in effect on its own date,
+  read from the `reporting-time-zone-changed` annotations, because GA4 does not
+  reprocess history.
+
 The method returns normalized values/error codes only; it never exposes a
 credential, raw provider body, or access token.
 
@@ -1943,10 +2013,10 @@ two legitimate zeroes; HTTP, timeout, authentication, and malformed-response
 failures become null-valued errors so the UI cannot report a false zero. The
 hourly response always preserves the prior day's 24-hour shape, but today
 becomes null after the newest reported non-zero hour so provider-supplied future
-zero rows cannot look like a forecast. The Tower polls every 30 seconds and
-keeps its last-good snapshot during a later failure.
+zero rows cannot look like a forecast. The Tower polls every 30 seconds, stops
+in a hidden tab, and keeps its last-good snapshot during a later failure.
 
-Both provider requests set `returnPropertyQuota`, and each response's
+Every provider request sets `returnPropertyQuota`, and each response's
 `propertyQuota` is parsed onto the successful asset result as
 `quota: { realtime, core }` — `tokensPerDay` and `tokensPerHour` per pool, the
 two budgets that bound this poll rate. Realtime and Core requests draw on
@@ -2079,9 +2149,9 @@ Discover switching on is visible the next day at the cost of one request.
 Manifest semantics are unchanged — a probe run writes a report-run row
 exactly like any other attempt. A narrowed window is a smaller request, never a
 skipped one, so "we asked and there was nothing" stays distinguishable from "we
-did not ask". Only `discover-page` is opted in; the flag lives on the shared
-report spec so another family that proves always-empty can join it without new
-machinery.
+did not ask". `discover-page` and `js-errors` are opted in; the flag lives on
+the shared report spec so another family that proves always-empty can join it
+without new machinery.
 
 ### Weekly families on a daily cron
 

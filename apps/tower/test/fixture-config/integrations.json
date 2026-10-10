@@ -137,17 +137,17 @@
         "since": "2026-07-06"
       }
     },
-    "meals.example": {
+    "meadow.example": {
       "gsc": {
         "status": "live",
         "note": "Central collection proved end to end for Search Console; the latest reported day stays provisional until the provider finalizes it.",
-        "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> sc-domain:meals.example",
+        "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> sc-domain:meadow.example",
         "since": "2026-07-29"
       },
       "bing-webmaster": {
         "status": "live",
         "note": "Central collection proved end to end for Bing Webmaster Tools; the latest reported day stays provisional until the provider finalizes it.",
-        "ref": "BING_WEBMASTER_API_KEY -> https://meals.example/",
+        "ref": "BING_WEBMASTER_API_KEY -> https://meadow.example/",
         "since": "2026-07-29"
       },
       "ga4": {
@@ -165,7 +165,7 @@
       "dataforseo": {
         "status": "needs-setup",
         "note": "DataForSEO is not set up for this site yet; connect it on /integrations.",
-        "ref": "DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD -> meals.example",
+        "ref": "DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD -> meadow.example",
         "since": "2026-07-30"
       },
       "uptime": {
@@ -202,16 +202,16 @@
       "github-app": {
         "status": "needs-setup",
         "note": "The GitHub App is not set up for this site yet; connect it on /integrations.",
-        "ref": "GitHub App install on the meals.example repo (unverified)",
+        "ref": "GitHub App install on the meadow.example repo (unverified)",
         "since": "2026-07-06"
       },
       "posthog": {
         "status": "needs-setup",
         "note": "PostHog is not set up for this site yet; connect it on /integrations.",
-        "ref": "POSTHOG_KEYS -> meals.example (us, project 596607)",
+        "ref": "POSTHOG_KEYS -> meadow.example (us, project 424242)",
         "since": "2026-09-22",
         "host": "us",
-        "projectId": "596607",
+        "projectId": "424242",
         "funnels": [
           {
             "id": "calculator",
@@ -232,17 +232,17 @@
         ]
       }
     },
-    "nosh.example": {
+    "northwind.example": {
       "gsc": {
         "status": "live",
         "note": "Central collection proved end to end for Search Console; the latest reported day stays provisional until the provider finalizes it.",
-        "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> sc-domain:nosh.example",
+        "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> sc-domain:northwind.example",
         "since": "2026-07-30"
       },
       "bing-webmaster": {
         "status": "live",
         "note": "Central collection proved end to end for Bing Webmaster Tools; the latest reported day stays provisional until the provider finalizes it.",
-        "ref": "BING_WEBMASTER_API_KEY -> https://nosh.example/",
+        "ref": "BING_WEBMASTER_API_KEY -> https://northwind.example/",
         "since": "2026-07-29"
       },
       "ga4": {
@@ -259,7 +259,7 @@
       "dataforseo": {
         "status": "needs-setup",
         "note": "DataForSEO is not set up for this site yet; connect it on /integrations.",
-        "ref": "DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD -> nosh.example",
+        "ref": "DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD -> northwind.example",
         "since": "2026-07-30"
       },
       "uptime": {
@@ -293,7 +293,7 @@
       "github-app": {
         "status": "needs-setup",
         "note": "The GitHub App is not set up for this site yet; connect it on /integrations.",
-        "ref": "GitHub App install on the nosh.example repo (unverified)",
+        "ref": "GitHub App install on the northwind.example repo (unverified)",
         "since": "2026-07-06"
       },
       "posthog": {
@@ -302,17 +302,17 @@
         "since": "2026-09-22"
       }
     },
-    "pacer.example": {
+    "pebble.example": {
       "gsc": {
         "status": "live",
         "note": "Central collection proved end to end for Search Console; the latest reported day stays provisional until the provider finalizes it.",
-        "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> sc-domain:pacer.example",
+        "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> sc-domain:pebble.example",
         "since": "2026-07-30"
       },
       "bing-webmaster": {
         "status": "live",
         "note": "Central collection proved end to end for Bing Webmaster Tools; the latest reported day stays provisional until the provider finalizes it.",
-        "ref": "BING_WEBMASTER_API_KEY -> https://pacer.example/",
+        "ref": "BING_WEBMASTER_API_KEY -> https://pebble.example/",
         "since": "2026-07-29"
       },
       "ga4": {
@@ -329,7 +329,7 @@
       "dataforseo": {
         "status": "needs-setup",
         "note": "DataForSEO is not set up for this site yet; connect it on /integrations.",
-        "ref": "DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD -> pacer.example",
+        "ref": "DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD -> pebble.example",
         "since": "2026-07-30"
       },
       "uptime": {
@@ -361,7 +361,7 @@
       "github-app": {
         "status": "needs-setup",
         "note": "The GitHub App is not set up for this site yet; connect it on /integrations.",
-        "ref": "GitHub App install on the pacer.example repo (unverified)",
+        "ref": "GitHub App install on the pebble.example repo (unverified)",
         "since": "2026-07-06"
       },
       "posthog": {
@@ -370,17 +370,17 @@
         "since": "2026-09-22"
       }
     },
-    "pullups.example": {
+    "puffin.example": {
       "gsc": {
         "status": "needs-setup",
         "note": "Search Console is not set up for this site yet; connect it on /integrations.",
-        "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> sc-domain:pullups.example (to be verified)",
+        "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> sc-domain:puffin.example (to be verified)",
         "since": "2026-08-02"
       },
       "bing-webmaster": {
         "status": "needs-setup",
         "note": "Bing Webmaster Tools is not set up for this site yet; connect it on /integrations.",
-        "ref": "BING_WEBMASTER_API_KEY -> https://pullups.example/ (to be verified)",
+        "ref": "BING_WEBMASTER_API_KEY -> https://puffin.example/ (to be verified)",
         "since": "2026-08-02"
       },
       "ga4": {
@@ -396,7 +396,7 @@
       "dataforseo": {
         "status": "needs-setup",
         "note": "DataForSEO is not set up for this site yet; connect it on /integrations.",
-        "ref": "DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD -> pullups.example",
+        "ref": "DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD -> puffin.example",
         "since": "2026-08-02"
       },
       "uptime": {
@@ -435,17 +435,17 @@
         "since": "2026-09-22"
       }
     },
-    "areas.example": {
+    "acorn.example": {
       "gsc": {
         "status": "live",
         "note": "Central collection proved end to end for Search Console; the latest reported day stays provisional until the provider finalizes it.",
-        "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> sc-domain:areas.example",
+        "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> sc-domain:acorn.example",
         "since": "2026-07-30"
       },
       "bing-webmaster": {
         "status": "live",
         "note": "Central collection proved end to end for Bing Webmaster Tools; the latest reported day stays provisional until the provider finalizes it.",
-        "ref": "BING_WEBMASTER_API_KEY -> https://areas.example/",
+        "ref": "BING_WEBMASTER_API_KEY -> https://acorn.example/",
         "since": "2026-07-29"
       },
       "ga4": {
@@ -462,7 +462,7 @@
       "dataforseo": {
         "status": "needs-setup",
         "note": "DataForSEO is not set up for this site yet; connect it on /integrations.",
-        "ref": "DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD -> areas.example",
+        "ref": "DATAFORSEO_LOGIN + DATAFORSEO_PASSWORD -> acorn.example",
         "since": "2026-07-30"
       },
       "uptime": {
@@ -495,7 +495,7 @@
       "github-app": {
         "status": "needs-setup",
         "note": "The GitHub App is not set up for this site yet; connect it on /integrations.",
-        "ref": "GitHub App install on the areas.example repo (unverified)",
+        "ref": "GitHub App install on the acorn.example repo (unverified)",
         "since": "2026-07-06"
       },
       "posthog": {
@@ -504,17 +504,17 @@
         "since": "2026-09-22"
       }
     },
-    "fees.example": {
+    "ferns.example": {
       "gsc": {
         "status": "live",
         "note": "Central collection proved end to end for Search Console; the latest reported day stays provisional until the provider finalizes it.",
-        "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> sc-domain:fees.example",
+        "ref": "GOOGLE_SIGNAL_ACCOUNTS example-signals -> sc-domain:ferns.example",
         "since": "2026-07-30"
       },
       "bing-webmaster": {
         "status": "live",
         "note": "Central collection proved end to end for Bing Webmaster Tools; the latest reported day stays provisional until the provider finalizes it.",
-        "ref": "BING_WEBMASTER_API_KEY -> https://fees.example/",
+        "ref": "BING_WEBMASTER_API_KEY -> https://ferns.example/",
         "since": "2026-07-30"
       },
       "ga4": {
@@ -526,13 +526,13 @@
       "clarity": {
         "status": "needs-setup",
         "note": "Clarity is not set up for this site yet; connect it on /integrations.",
-        "ref": "CLARITY_TOKENS['fees.example'] (unprovisioned)",
+        "ref": "CLARITY_TOKENS['ferns.example'] (unprovisioned)",
         "since": "2026-08-05"
       },
       "dataforseo": {
         "status": "live",
         "note": "Central collection proved end to end for DataForSEO; the latest reported day stays provisional until the provider finalizes it.",
-        "ref": "DATAFORSEO_LOGIN/DATAFORSEO_PASSWORD -> fees.example + config/serp-panel.json",
+        "ref": "DATAFORSEO_LOGIN/DATAFORSEO_PASSWORD -> ferns.example + config/serp-panel.json",
         "since": "2026-08-05"
       },
       "uptime": {
@@ -548,7 +548,7 @@
       "affiliate-cj": {
         "status": "needs-setup",
         "note": "The CJ affiliate program is not set up for this site yet; connect it on /integrations.",
-        "ref": "CJ PAT+CID -> central store (unprovisioned for fees.example)",
+        "ref": "CJ PAT+CID -> central store (unprovisioned for ferns.example)",
         "since": "2026-08-05"
       },
       "affiliate-amazon": {
@@ -564,7 +564,7 @@
       "github-app": {
         "status": "needs-setup",
         "note": "The GitHub App is not set up for this site yet; connect it on /integrations.",
-        "ref": "GitHub App install on the fees.example repo (unverified)",
+        "ref": "GitHub App install on the ferns.example repo (unverified)",
         "since": "2026-07-06"
       },
       "posthog": {

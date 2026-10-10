@@ -19,8 +19,8 @@ function daysAgo(days: number): string {
 
 function facts(over: Partial<SetupChecklistFacts> = {}): SetupChecklistFacts {
   return {
-    id: "pacer.example",
-    displayName: "Pacer Test",
+    id: "pebble.example",
+    displayName: "Pebble Works",
     status: "onboarding",
     sources: [
       { id: "nightly-report", kind: "working" },
@@ -100,18 +100,18 @@ describe("item 1 — identity", () => {
   it("is done when the asset carries a name of its own", () => {
     const identity = item(checklist(), "identity");
     expect(identity.state).toBe("done");
-    expect(identity.note).toContain("Pacer Test");
-    expect(identity.href).toBe("/assets/pacer.example/settings");
+    expect(identity.note).toContain("Pebble Works");
+    expect(identity.href).toBe("/assets/pebble.example/settings");
   });
 
   it("is pending when the display name is only the id echoed back", () => {
     const identity = item(
-      checklist({ displayName: "pacer.example" }),
+      checklist({ displayName: "pebble.example" }),
       "identity",
     );
     expect(identity.state).toBe("pending");
     // The state, not a sentence: no name, and what it shows as instead.
-    expect(identity.note).toBe("No name · shows as pacer.example");
+    expect(identity.note).toBe("No name · shows as pebble.example");
   });
 
   it("is pending on a blank name", () => {
@@ -136,7 +136,7 @@ describe("item 2 — data sources (read from each source's one status)", () => {
     expect(sources.state).toBe("pending");
     expect(sources.note).toBe("1 of 2 connected, off or not applicable");
     expect(sources.progress).toEqual({ done: 1, total: 2 });
-    expect(sources.href).toBe("/assets/pacer.example/sources");
+    expect(sources.href).toBe("/assets/pebble.example/sources");
   });
 
   it("counts a connected source whatever its health, and an off or inapplicable one, as settled", () => {

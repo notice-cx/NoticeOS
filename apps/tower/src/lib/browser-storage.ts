@@ -2,15 +2,11 @@ import { browserOwnerKey, captureBrowserOwner } from './browser-owner';
 
 // What one browser remembers for the desk, under the product's name. Every
 // key is namespaced `noticeos:` so it cannot collide with anything else the
-// origin stores. A read falls back once to the older `reindex-os:` key and
-// moves the value to the new one, and forgetting a value forgets both.
-// Storage can refuse (private mode, a locked-down profile): every call here
+// origin stores. Storage can refuse (private mode, a locked-down profile): every call here
 // swallows that and answers as if nothing were stored.
 
 /** The namespace every key the desk stores carries. */
 export const STORAGE_PREFIX = "noticeos:";
-/** The namespace the same keys carried before the rename. */
-export const LEGACY_STORAGE_PREFIX = "reindex-os:";
 
 type KeyValueStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
@@ -19,37 +15,21 @@ export function storageKey(name: string): string {
   return `${STORAGE_PREFIX}${name}`;
 }
 
-/**
- * The value stored for `name`, or null. A value found only under the
- * pre-rename key is moved to the new key on the way out, so the next read (and
- * every write) sees one key.
- */
+/** The value stored for `name`, or null. */
 export function readStored(storage: KeyValueStorage | null | undefined, name: string): string | null {
   if (!storage) return null;
   try {
-    const current = storage.getItem(storageKey(name));
-    if (current !== null) return current;
-    const legacyKey = `${LEGACY_STORAGE_PREFIX}${name}`;
-    const legacy = storage.getItem(legacyKey);
-    if (legacy === null) return null;
-    try {
-      storage.setItem(storageKey(name), legacy);
-      storage.removeItem(legacyKey);
-    } catch {
-      // A storage that reads but will not write keeps answering from the old key.
-    }
-    return legacy;
+    return storage.getItem(storageKey(name));
   } catch {
     return null;
   }
 }
 
-/** Forget `name` under both its keys, so an old value cannot come back. */
+/** Forget `name`. */
 export function forgetStored(storage: KeyValueStorage | null | undefined, name: string): void {
   if (!storage) return;
   try {
     storage.removeItem(storageKey(name));
-    storage.removeItem(`${LEGACY_STORAGE_PREFIX}${name}`);
   } catch {
     // Nothing stored is nothing to forget.
   }

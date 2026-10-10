@@ -14,7 +14,7 @@ import { bookEntry, call, credentialVerdict, reset, emptyTables, storedCount, st
 import { OPERATOR_TOKEN } from './fixtures.js';
 
 const NOW = Date.parse('2026-09-09T13:10:00Z');
-const ASSET = 'meals.example';
+const ASSET = 'meadow.example';
 const SITE = { id: 'synthetic-site', title: 'Test publisher', domain: 'example.test' };
 const SECRET = 'synthetic-private-password';
 const reportPeriod = (value: string) => `${value.slice(6)}-${value.slice(0, 2)}-${value.slice(3, 5)}`;
@@ -262,11 +262,11 @@ describe('daily accounting', () => {
     const config = await getConfigDocument(env, 'config/integrations.json');
     const changed = structuredClone(config.body) as { assets: Record<string, Record<string, { mediavineSiteId?: string; mediavineEnabled?: boolean }>> };
     delete changed.assets[ASSET]!['ad-network']!.mediavineSiteId;
-    changed.assets['nosh.example']!['ad-network']!.mediavineSiteId = SITE.id;
-    changed.assets['nosh.example']!['ad-network']!.mediavineEnabled = true;
+    changed.assets['northwind.example']!['ad-network']!.mediavineSiteId = SITE.id;
+    changed.assets['northwind.example']!['ad-network']!.mediavineEnabled = true;
     await env.STORE.write((tx) => tx.execute("UPDATE noticeos.config_documents SET body = $1::json WHERE document_key = 'integrations'", [JSON.stringify(changed)]));
     const fetchImpl = transport();
-    const result = await syncMediavine(env, { asset: 'nosh.example' }, { fetchImpl, nowMs: NOW + 3_600_000 });
+    const result = await syncMediavine(env, { asset: 'northwind.example' }, { fetchImpl, nowMs: NOW + 3_600_000 });
     expect(result.ok).toBe(false); expect(fetchImpl).not.toHaveBeenCalled();
   });
   it('books current-month coverage once, then fetches only the next yesterday after a refresh', async () => {
@@ -384,7 +384,7 @@ describe('request budget and scheduling', () => {
 describe('Mediavine in the connect panel', () => {
   const LOGIN = { MEDIAVINE_USER: 'fake@example.test', MEDIAVINE_PASSWORD: SECRET };
   // A site the older switch never touched: its entry holds no Mediavine field.
-  const SITE_ASSET = 'nosh.example';
+  const SITE_ASSET = 'northwind.example';
   /** What the panel's Start writes — the site id, and nothing else — through
    * the store's own guarded write; `extra` adds the row's own Not using. */
   async function mapSite(asset = SITE_ASSET, extra: Record<string, string> = {}) {

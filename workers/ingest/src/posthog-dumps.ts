@@ -55,10 +55,12 @@ import { failureWords } from './integration-health-store.js';
 import { POSTHOG_ACCOUNT_KEY_SLOT } from './posthog-account.js';
 import { laneDeclined, posthogSettings, type LaneRegister } from './lane-mapping.js';
 import { type ConfigSourceMap, configSourceLine } from './config-store.js';
-import { normalizeSignalError, SignalError } from './signal-store.js';
+import { boundedResponseJson, normalizeSignalError, SignalError } from './signal-store.js';
 import { dateInTimeZone, isValidTimeZone, shiftCalendarDate } from './time-zone.js';
 import { javascriptInstant, type WorkspaceStore } from '@noticeos/postgres';
-import { SITE_ORDER } from './asset-registry.js';
+import { SITE_ORDER } from '@noticeos/contract';
+import { asRecord, stringField } from './shared.js';
+import { claimLease } from './integration-leases.js';
 
 /** The credential field: asset id → that asset's read-only personal API key. */
 export const POSTHOG_KEY_SLOT = 'POSTHOG_KEYS';
@@ -78,6 +80,8 @@ export const POSTHOG_RETRY_LIMIT = POSTHOG_FAMILIES.length;
  */
 export const POSTHOG_LEASE_MS = 30 * 60_000;
 const RESPONSE_BYTE_LIMIT = 8 * 1024 * 1024;
+/** A refusal page that is not JSON still has a status worth reporting. */
+const POSTHOG_RESPONSE = { invalidJsonCode: 'posthog_invalid_response', refusalMayBeText: true };
 const BUDGET_HEADER = 'x-posthog-query-budget-remaining-bytes';
 const BYTES_READ_HEADER = 'x-posthog-query-bytes-read';
 /** An explicit window may be at most this long: the web-daily bound. */
@@ -728,16 +732,8 @@ export async function claimPosthogLease(
   // Twice at most: a holder that releases between our upsert and our read
   // leaves no row to report, and the second upsert then takes the lease.
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const claimed = await store.write((tx) =>
-      tx.execute(
-        `INSERT INTO noticeos.integration_leases AS l (workspace_id, lease_key, owner, expires_at)
-         VALUES ($1::uuid, $2, $3, $4::timestamptz)
-         ON CONFLICT (workspace_id, lease_key) DO UPDATE SET owner = excluded.owner, expires_at = excluded.expires_at
-          WHERE l.expires_at <= $5::timestamptz`,
-        [tx.workspaceId, key, owner, new Date(nowMs + POSTHOG_LEASE_MS), new Date(nowMs)],
-      ),
-    );
-    if (claimed > 0) return { owner, heldBy: null };
+    const claimed = await claimLease(store, { key, owner, nowMs, expiresAtMs: nowMs + POSTHOG_LEASE_MS });
+    if (claimed) return { owner, heldBy: null };
     const [held] = await store.read((tx) =>
       tx.query<{ expires_at: string }>('SELECT expires_at FROM noticeos.integration_leases WHERE lease_key = $1', [key]),
     );
@@ -1019,7 +1015,7 @@ async function collectFamily(env: IngestEnv, run: FamilyRun): Promise<SignalDump
       signal: AbortSignal.timeout(POSTHOG_REQUEST_TIMEOUT_MS),
     });
     readBudget(response, state);
-    const payload = await boundedResponseJson(response);
+    const payload = await boundedResponseJson(response, 'PostHog', RESPONSE_BYTE_LIMIT, POSTHOG_RESPONSE);
     if (!response.ok) throw posthogProviderError(response.status, payload, state);
 
     const results = queryResults(payload, query.columns);
@@ -1098,7 +1094,7 @@ async function readProjectTimeZone(
     headers: { authorization: `Bearer ${key}` },
     signal: AbortSignal.timeout(POSTHOG_REQUEST_TIMEOUT_MS),
   });
-  const payload = await boundedResponseJson(response);
+  const payload = await boundedResponseJson(response, 'PostHog', RESPONSE_BYTE_LIMIT, POSTHOG_RESPONSE);
   if (!response.ok) {
     if (response.status === 404) {
       throw new SignalError(
@@ -1547,51 +1543,4 @@ function day(value: unknown): string {
     throw new SignalError('posthog_invalid_response', `PostHog returned ${JSON.stringify(value)} where a date belongs.`);
   }
   return s;
-}
-
-async function boundedResponseJson(response: Response): Promise<unknown> {
-  const declaredLength = Number(response.headers.get('content-length'));
-  if (Number.isFinite(declaredLength) && declaredLength > RESPONSE_BYTE_LIMIT) {
-    await response.body?.cancel();
-    throw new SignalError('response_too_large', `PostHog response exceeded ${RESPONSE_BYTE_LIMIT} bytes.`);
-  }
-  if (!response.body) return {};
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let bytes = 0;
-  let body = '';
-  try {
-    while (true) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      bytes += chunk.value.byteLength;
-      if (bytes > RESPONSE_BYTE_LIMIT) {
-        await reader.cancel();
-        throw new SignalError('response_too_large', `PostHog response exceeded ${RESPONSE_BYTE_LIMIT} bytes.`);
-      }
-      body += decoder.decode(chunk.value, { stream: true });
-    }
-    body += decoder.decode();
-  } finally {
-    reader.releaseLock();
-  }
-  if (!body) return {};
-  try {
-    return JSON.parse(body);
-  } catch {
-    // A refusal page that is not JSON still has a status worth reporting.
-    if (!response.ok) return {};
-    throw new SignalError('posthog_invalid_response', 'PostHog returned invalid JSON.');
-  }
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function stringField(record: Record<string, unknown> | null, field: string): string | null {
-  const value = record?.[field];
-  return typeof value === 'string' && value.length > 0 ? value : null;
 }

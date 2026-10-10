@@ -55,7 +55,7 @@ function renderTab(tab: AssetTab) {
   return render(
     <QueryClientProvider client={testClient()}>
       <MemoryRouter
-        initialEntries={[`/assets/meals.example${tab === "overview" ? "" : `/${tab}`}`]}
+        initialEntries={[`/assets/meadow.example${tab === "overview" ? "" : `/${tab}`}`]}
       >
         <Routes>
           <Route path="/assets/:id/:tab?" element={<AssetDetailRoute />} />

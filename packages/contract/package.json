@@ -14,6 +14,10 @@
       "types": "./src/product-use.d.mts",
       "default": "./src/product-use.mjs"
     },
+    "./provider-requests": {
+      "types": "./src/provider-requests.d.mts",
+      "default": "./src/provider-requests.mjs"
+    },
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
@@ -45,6 +49,10 @@
     "./watch-series": {
       "types": "./src/watch-series.d.mts",
       "default": "./src/watch-series.mjs"
+    },
+    "./signal-families": {
+      "types": "./src/signal-families.d.mts",
+      "default": "./src/signal-families.mjs"
     }
   },
   "scripts": {

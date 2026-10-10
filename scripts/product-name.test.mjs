@@ -30,7 +30,6 @@ export const LEGACY_NAMES = Object.freeze(['com.reindexos.local']);
 export const HISTORICAL_PATHS = Object.freeze({
   'docs/reports/': 'Dated reports: a record of what was found under the name of the day.',
   'docs/artifacts/': 'Dated evidence: captures, measurements and the scripts that took them.',
-  'docs/briefs/': 'Dated briefs handed to agents, kept as written.',
 });
 
 /** Blocks that name the old product on purpose. */
@@ -130,8 +129,8 @@ export const LEGACY_LITERALS = Object.freeze([
   }),
   Object.freeze({
     pattern: /["']reindex-os:/,
-    registry: ['apps/tower/src/lib/browser-storage.ts'],
-    what: 'a pre-rename browser storage key',
+    registry: [],
+    what: 'a retired browser storage key',
   }),
   Object.freeze({
     pattern: /["'](?:reindex_(?:source|asset|kind|rule|key|panel_asset|panel_date|push_asset|task_map_asset)|reindex-handoff)["']/,
@@ -202,7 +201,7 @@ test('every historical entry still names a tracked record', () => {
   for (const prefix of Object.keys(HISTORICAL_PATHS)) {
     // The public source deliberately omits private reports and evidence, so a
     // dated folder may be absent from a checkout; a named file may not.
-    if (/^docs\/(?:reports|artifacts|briefs)\/$/u.test(prefix) && !FILES.some((file) => file.startsWith(prefix))) continue;
+    if (/^docs\/(?:reports|artifacts)\/$/u.test(prefix) && !FILES.some((file) => file.startsWith(prefix))) continue;
     assert.ok(FILES.some((file) => file.startsWith(prefix)), `${prefix} matches no tracked file; remove it from HISTORICAL_PATHS`);
   }
 });
@@ -244,7 +243,6 @@ test('the code-name rule sees every retired name, and lets the registries and th
     assert.equal(codeNameProblems('scripts/example.mjs', line).length, 1, line);
   }
   assert.deepEqual(codeNameProblems('scripts/product-env.mts', 'home: { name: "NOTICEOS_HOME", legacy: "REINDEX_OS_HOME" },'), []);
-  assert.deepEqual(codeNameProblems('apps/tower/src/lib/browser-storage.ts', 'export const LEGACY_STORAGE_PREFIX = "reindex-os:";'), []);
   // Prose about the legacy names, and ids that stay ids, pass.
   for (const line of ['// a bead filed before the rename carries `reindex_*` and `reindex-handoff`', "asset: 'reindex-os'", 'reindex-os-central',
     '<string>com.reindexos.local</string>', 'Reindex Ventures LLC']) {

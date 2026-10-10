@@ -11,7 +11,7 @@ import {
 } from "../worker/rule-backtest-route";
 
 const BACKTEST: RuleBacktest = {
-  asset: "nosh.example",
+  asset: "northwind.example",
   ruleId: "flow-poisson-low",
   metric: "signups",
   config: { alpha: 0.01, minBaselinePerDay: 3, lowVolumeWindowHours: 72 },
@@ -34,7 +34,7 @@ const BACKTEST: RuleBacktest = {
 };
 
 const BODY = {
-  asset: "nosh.example",
+  asset: "northwind.example",
   ruleId: "flow-poisson-low",
   metric: "signups",
   config: { alpha: 0.01, minBaselinePerDay: 3, lowVolumeWindowHours: 72 },
@@ -69,7 +69,7 @@ describe("POST /api/alerts/backtest", () => {
 
     expect(res.status).toBe(200);
     expect(api.backtestRule).toHaveBeenCalledWith({
-      asset: "nosh.example",
+      asset: "northwind.example",
       ruleId: "flow-poisson-low",
       metric: "signups",
       config: { alpha: 0.01, minBaselinePerDay: 3, lowVolumeWindowHours: 72 },
@@ -108,7 +108,7 @@ describe("POST /api/alerts/backtest", () => {
   it("refuses a body with no asset or no rule before crossing the boundary", async () => {
     const api = ingest();
     expect((await call(request({ ruleId: "flow-poisson-low" }), api)).status).toBe(422);
-    expect((await call(request({ asset: "nosh.example" }), api)).status).toBe(422);
+    expect((await call(request({ asset: "northwind.example" }), api)).status).toBe(422);
     expect(api.backtestRule).not.toHaveBeenCalled();
   });
 

@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import net from 'node:net';
 import { test } from 'node:test';
 
-import * as osUp from './os-up.mjs';
 import { bdBin, gitBin, lsofBin, probeTcp, resolveBin } from './runner/host-tools.mjs';
 
 // scripts/runner/host-tools.mjs: finding bd, git and lsof
@@ -46,10 +45,4 @@ test('the probe says yes to a listener and no once it is gone', async () => {
     await new Promise((resolve) => server.close(resolve));
   }
   assert.equal(await probeTcp('127.0.0.1', PORT, 500), false);
-});
-
-test('os-up.mjs still offers the same resolveBin, bdBin and probeTcp', () => {
-  assert.equal(osUp.resolveBin, resolveBin);
-  assert.equal(osUp.bdBin, bdBin);
-  assert.equal(osUp.probeTcp, probeTcp);
 });

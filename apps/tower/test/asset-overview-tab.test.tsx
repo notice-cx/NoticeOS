@@ -58,9 +58,9 @@ function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
     generatedAt: "2026-07-06T11:00:00.000Z",
     osTimeZone: "America/Los_Angeles",
     asset: {
-      id: "meals.example",
-      displayName: "Meal Planner",
-      domain: "meals.example",
+      id: "meadow.example",
+      displayName: "Meadow Board",
+      domain: "meadow.example",
       status: "live",
       senseOnly: false,
       isOs: false,
@@ -112,7 +112,7 @@ function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
     },
     executive: {
       schemaVersion: 1,
-      asset: "meals.example",
+      asset: "meadow.example",
       generatedAt: "2026-07-06T10:00:00.000Z",
       windowStart: "2026-07-01",
       windowEnd: "2026-07-05",
@@ -206,10 +206,10 @@ function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
       waiting: 4,
       urgent: 2,
       items: [
-        workItem("mp-1", "Move every recurring charge off the closing card", 0),
-        workItem("mp-2", "File the dissolution before Sept 10", 1),
-        workItem("mp-3", "Apply to the ad network when the domain turns six months old", 2),
-        workItem("mp-4", "Write the sitemap regression check", 3),
+        workItem("md-1", "Move every recurring charge off the closing card", 0),
+        workItem("md-2", "File the dissolution before Sept 10", 1),
+        workItem("md-3", "Apply to the ad network when the domain turns six months old", 2),
+        workItem("md-4", "Write the sitemap regression check", 3),
       ],
     },
     annotations: {
@@ -293,7 +293,7 @@ function renderOverview() {
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
-      <MemoryRouter initialEntries={["/assets/meals.example"]}>
+      <MemoryRouter initialEntries={["/assets/meadow.example"]}>
         <Routes>
           <Route path="/tasks/:id" element={<LocationProbe />} />
           <Route
@@ -359,7 +359,7 @@ describe("Asset Overview — the strip drives the chart", () => {
     expect(alerts.querySelector("[data-spark]")).toBeNull();
     expect(alerts.querySelector("[data-hero-chart]")).toBeNull();
     expect(alerts.querySelector("[data-info-tooltip-trigger]")).toBeNull();
-    expect(within(alerts).getByRole("link", { name: /None open/ })).toHaveAttribute("href", "/assets/meals.example/alerts");
+    expect(within(alerts).getByRole("link", { name: /None open/ })).toHaveAttribute("href", "/assets/meadow.example/alerts");
   });
 
   it("states the open alerts as the split the operator acts on", async () => {
@@ -376,7 +376,7 @@ describe("Asset Overview — the strip drives the chart", () => {
     await screen.findByRole("tablist");
     const alerts = container.querySelector<HTMLElement>("[data-alert-current]")!;
     const row = within(alerts).getByRole("link", { name: /1 error · 2 warnings/ });
-    expect(row).toHaveAttribute("href", "/assets/meals.example/alerts");
+    expect(row).toHaveAttribute("href", "/assets/meadow.example/alerts");
     expect(row).toHaveTextContent("last fired");
   });
 
@@ -584,7 +584,7 @@ describe("Asset Overview — leads with the number the site has", () => {
 
   const clarity = { source: "clarity" as const, reportDate: LAST_DAY,
     collectedAt: "2026-07-05T11:00:00.000Z", windowHours: 72 as const, truncated: false,
-    page: { url: "https://meals.example/planner", sessions: 114, scriptErrors: 19 }, unattributedSessions: null };
+    page: { url: "https://meadow.example/planner", sessions: 114, scriptErrors: 19 }, unattributedSessions: null };
 
   it("opens Clarity on its named reported page and fixed72-hour facts, without a daily chart", async () => {
     const body = noTraffic();
@@ -595,7 +595,7 @@ describe("Asset Overview — leads with the number the site has", () => {
     expect(kpiLabels(container).slice(0, 2)).toEqual(["Page sessions", "Script errors"]);
     expect(kpi(lead, "Page sessions")).toHaveTextContent("114");
     expect(kpi(lead, "Script errors")).toHaveTextContent("19");
-    expect(within(lead).getByRole("link", { name: "meals.example/planner" })).toHaveAttribute("href", clarity.page.url);
+    expect(within(lead).getByRole("link", { name: "meadow.example/planner" })).toHaveAttribute("href", clarity.page.url);
     expect(lead).toHaveTextContent("Collected Jul 5, 2026");
     expect(lead).toHaveTextContent("Limited export");
     expect(lead).not.toHaveTextContent("No previous period");
@@ -740,7 +740,7 @@ describe("Asset Overview — the range controls traffic, not independent snapsho
       expect.stringContaining("28 days"),
     );
     // The default is the bare URL, not `?range=28`: one page, one address.
-    expect(getByTestId("url").textContent).toBe("/assets/meals.example");
+    expect(getByTestId("url").textContent).toBe("/assets/meadow.example");
 
     fireEvent.click(screen.getByRole("button", { name: "7d" }));
 
@@ -751,7 +751,7 @@ describe("Asset Overview — the range controls traffic, not independent snapsho
       "aria-label",
       expect.stringContaining("7 days"),
     );
-    expect(getByTestId("url").textContent).toBe("/assets/meals.example?range=7");
+    expect(getByTestId("url").textContent).toBe("/assets/meadow.example?range=7");
   });
 
   it("groups four traffic metrics separately from the accounting month and recorded alert status", async () => {
@@ -769,7 +769,7 @@ describe("Asset Overview — the range controls traffic, not independent snapsho
     expect(traffic.compareDocumentPosition(alerts) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     const net = kpi(financials, "Net").textContent;
     expect(net).toContain("436");
-    expect(within(financials).getByRole("link", { name: "View financials" })).toHaveAttribute("href", "/assets/meals.example/financials");
+    expect(within(financials).getByRole("link", { name: "View financials" })).toHaveAttribute("href", "/assets/meadow.example/financials");
     expect(container.querySelector("#product-report")).toHaveTextContent("Product use");
     expect(container.querySelector("#product-use")).toBeNull();
     expect(screen.getByRole("region", { name: "Product use" })).toHaveTextContent("Latest reported 24 hours");
@@ -779,8 +779,8 @@ describe("Asset Overview — the range controls traffic, not independent snapsho
     expect(kpi(container, "Sessions")).toHaveTextContent("1,400");
     expect(kpi(financials, "Net").textContent).toBe(net);
     expect(screen.getByRole("region", { name: "Money · July 2026" })).toBe(financials);
-    expect(within(alerts).getByRole("link", { name: /None open/ })).toHaveAttribute("href", "/assets/meals.example/alerts?range=7");
-    expect(within(financials).getByRole("link", { name: "View financials" })).toHaveAttribute("href", "/assets/meals.example/financials");
+    expect(within(alerts).getByRole("link", { name: /None open/ })).toHaveAttribute("href", "/assets/meadow.example/alerts?range=7");
+    expect(within(financials).getByRole("link", { name: "View financials" })).toHaveAttribute("href", "/assets/meadow.example/financials");
   });
 
   it("keeps net history available as accounting months outside the traffic selector", async () => {
@@ -894,7 +894,7 @@ describe("Asset Overview — the setup banner", () => {
     expect(banner.textContent).not.toContain("—");
     expect(
       within(banner).getByRole("link", { name: /Review data setup/ }),
-    ).toHaveAttribute("href", "/assets/meals.example/sources");
+    ).toHaveAttribute("href", "/assets/meadow.example/sources");
     expect(container.querySelector('#setup [role="status"]')).not.toBeNull();
   });
 
@@ -914,10 +914,10 @@ describe("Asset Overview — the two lists", () => {
     fireEvent.click(screen.getByRole("button", { name: "7d" }));
     const needs = within(container.querySelector<HTMLElement>('section[aria-label="Needs you"]')!);
     const task = needs.getByRole("link", { name: /Move every recurring charge off the closing card/ });
-    expect(task).toHaveAttribute("href", "/tasks/mp-1");
+    expect(task).toHaveAttribute("href", "/tasks/md-1");
     fireEvent.click(task);
-    expect(await screen.findByTestId("url")).toHaveTextContent("/tasks/mp-1");
-    expect(screen.getByTestId("url")).toHaveAttribute("data-return-to", "/assets/meals.example?range=7");
+    expect(await screen.findByTestId("url")).toHaveTextContent("/tasks/md-1");
+    expect(screen.getByTestId("url")).toHaveAttribute("data-return-to", "/assets/meadow.example?range=7");
   });
 
   it("ranks the operator's queue urgent first and discloses the rest", async () => {
@@ -937,7 +937,7 @@ describe("Asset Overview — the two lists", () => {
     expect(needs.getByRole("button", { name: "Show 1 more" })).toBeTruthy();
     expect(needs.getByRole("link", { name: /All tasks/ })).toHaveAttribute(
       "href",
-      "/assets/meals.example/tasks",
+      "/assets/meadow.example/tasks",
     );
   });
 
@@ -947,9 +947,9 @@ describe("Asset Overview — the two lists", () => {
       operator: {
         ...base.operator,
         items: [
-          workItem("mp-1", "Move every recurring charge off the closing card", 0),
-          { ...workItem("mp-g", "Approve the spend cap", 1), issueType: "gate" },
-          workItem("mp-3", "Apply to the ad network when the domain turns six months old", 2),
+          workItem("md-1", "Move every recurring charge off the closing card", 0),
+          { ...workItem("md-g", "Approve the spend cap", 1), issueType: "gate" },
+          workItem("md-3", "Apply to the ad network when the domain turns six months old", 2),
         ],
       },
     }));

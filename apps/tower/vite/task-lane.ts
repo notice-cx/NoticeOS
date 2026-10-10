@@ -23,7 +23,6 @@ import type {
 } from "../shared/tasks";
 import { isTaskId, TASKS_CLOSED_WINDOW_DAYS } from "../shared/tasks";
 import { toLiveTask, toEpic, toComment, taskRowText as text } from "../../../scripts/task-row.mjs";
-export { toLiveTask } from "../../../scripts/task-row.mjs";
 import {
   DEFAULT_REPO_ROOT,
   crossOrigin,

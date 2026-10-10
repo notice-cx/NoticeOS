@@ -73,8 +73,8 @@ const DERIVED_LANE: DerivedLaneRow = {
     derived: true,
   },
   cells: {
-    "meals.example": {
-      assetId: "meals.example",
+    "meadow.example": {
+      assetId: "meadow.example",
       laneId: NIGHTLY_REPORT_LANE_ID,
       effective: "live",
       evidence: [
@@ -115,8 +115,8 @@ const EGRESS_LANE: DerivedLaneRow = {
         },
       ],
     },
-    "meals.example": {
-      assetId: "meals.example",
+    "meadow.example": {
+      assetId: "meadow.example",
       laneId: EGRESS_LANE_ID,
       effective: "not-applicable",
       evidence: [],
@@ -125,7 +125,7 @@ const EGRESS_LANE: DerivedLaneRow = {
 };
 
 const DECLARED_CELL: IntegrationCell = {
-  assetId: "meals.example",
+  assetId: "meadow.example",
   laneId: "gsc",
   declared: "needs-setup",
   effective: "needs-setup",
@@ -142,9 +142,9 @@ const MATRIX: IntegrationsMatrix = {
   catalog: [CATALOG_LANE],
   undeclared: [],
   derivedLanes: [DERIVED_LANE],
-  assets: [{ id: "meals.example", displayName: "Meal Planner", isOs: false }],
-  cells: { "meals.example": [DECLARED_CELL] },
-  summary: summarize([DECLARED_CELL, DERIVED_LANE.cells["meals.example"]!]),
+  assets: [{ id: "meadow.example", displayName: "Meadow Board", isOs: false }],
+  cells: { "meadow.example": [DECLARED_CELL] },
+  summary: summarize([DECLARED_CELL, DERIVED_LANE.cells["meadow.example"]!]),
   sharedCredential: { lanes: 0, cells: 0 },
   dataSpend: {
     period: "2026-07",
@@ -184,7 +184,7 @@ describe("IntegrationMatrix — the derived lane leads and reads as derived", ()
     const { container } = renderMatrix();
     const table = container.querySelector("table")!;
     const links = [...table.querySelectorAll("a")].map((a) => a.getAttribute("href"));
-    expect(links).toEqual(["/assets/meals.example/sources"]);
+    expect(links).toEqual(["/assets/meadow.example/sources"]);
     expect(within(table).getByText("Working").closest("a")).toBeNull();
   });
 
@@ -214,9 +214,9 @@ describe("IntegrationMatrix — the derived lane leads and reads as derived", ()
             ...MATRIX,
             assets: [
               { id: "root-os", displayName: "NoticeOS", isOs: true },
-              { id: "meals.example", displayName: "Meal Planner", isOs: false },
+              { id: "meadow.example", displayName: "Meadow Board", isOs: false },
             ],
-            cells: { "root-os": [], "meals.example": [DECLARED_CELL] },
+            cells: { "root-os": [], "meadow.example": [DECLARED_CELL] },
             derivedLanes: [...MATRIX.derivedLanes, EGRESS_LANE],
           }}
           nowMs={Date.parse("2026-07-05T12:00:00.000Z")}
@@ -330,8 +330,8 @@ describe("HealthRoute — month-to-date data spend", () => {
         capUsd: 25,
         unattributedUsd: 0, unattributedUnknownPrices: 0,
         byAsset: [
-          { asset: "meals.example", spentUsd: 6.2, unknownPrices: 0 },
-          { asset: "nosh.example", spentUsd: 2.2, unknownPrices: 0 },
+          { asset: "meadow.example", spentUsd: 6.2, unknownPrices: 0 },
+          { asset: "northwind.example", spentUsd: 2.2, unknownPrices: 0 },
         ],
       },
     });
@@ -356,8 +356,8 @@ describe("HealthRoute — month-to-date data spend", () => {
     const { container, findByText, findByRole } = renderRoute({
       ...MATRIX,
       assets: [
-        { id: "meals.example", displayName: "Meal Planner", isOs: false },
-        { id: "nosh.example", displayName: "Nosh", isOs: false },
+        { id: "meadow.example", displayName: "Meadow Board", isOs: false },
+        { id: "northwind.example", displayName: "Northwind", isOs: false },
       ],
       dataSpend: {
         period: "2026-07",
@@ -365,8 +365,8 @@ describe("HealthRoute — month-to-date data spend", () => {
         capUsd: 25,
         unattributedUsd: 0, unattributedUnknownPrices: 0,
         byAsset: [
-          { asset: "meals.example", spentUsd: 6.2, unknownPrices: 0 },
-          { asset: "nosh.example", spentUsd: 2.2, unknownPrices: 0 },
+          { asset: "meadow.example", spentUsd: 6.2, unknownPrices: 0 },
+          { asset: "northwind.example", spentUsd: 2.2, unknownPrices: 0 },
         ],
       },
     });
@@ -375,7 +375,7 @@ describe("HealthRoute — month-to-date data spend", () => {
     openSpend();
     await findByText("$8.40");
     const rows = [...openSpend().querySelectorAll("[data-spend-asset]")];
-    expect(rows.map((row) => row.textContent)).toEqual(["Meal Planner$6.20", "Nosh$2.20"]);
+    expect(rows.map((row) => row.textContent)).toEqual(["Meadow Board$6.20", "Northwind$2.20"]);
     expect(container.textContent).toContain("of $25 in Jul");
   });
 
@@ -384,13 +384,13 @@ describe("HealthRoute — month-to-date data spend", () => {
   it("names the research that belongs to no one asset, so the split adds up", async () => {
     const { container, findByText, findByRole } = renderRoute({
       ...MATRIX,
-      assets: [{ id: "meals.example", displayName: "Meal Planner", isOs: false }],
+      assets: [{ id: "meadow.example", displayName: "Meadow Board", isOs: false }],
       dataSpend: {
         period: "2026-07",
         spentUsd: 6.5, unknownPrices: 0,
         capUsd: 25,
         unattributedUsd: 0.3, unattributedUnknownPrices: 0,
-        byAsset: [{ asset: "meals.example", spentUsd: 6.2, unknownPrices: 0 }],
+        byAsset: [{ asset: "meadow.example", spentUsd: 6.2, unknownPrices: 0 }],
       },
     });
 
@@ -431,7 +431,7 @@ describe("HealthRoute — month-to-date data spend", () => {
         spentUsd: 25, unknownPrices: 0,
         capUsd: 25,
         unattributedUsd: 0, unattributedUnknownPrices: 0,
-        byAsset: [{ asset: "meals.example", spentUsd: 25, unknownPrices: 0 }],
+        byAsset: [{ asset: "meadow.example", spentUsd: 25, unknownPrices: 0 }],
       },
     });
 

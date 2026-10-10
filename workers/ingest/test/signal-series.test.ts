@@ -23,7 +23,7 @@ const WINDOW: SignalDateWindow = { start: '2026-09-01', end: '2026-09-03' };
 
 function target(overrides: Partial<SignalTarget> = {}): SignalTarget {
   return {
-    asset: 'meals.example',
+    asset: 'meadow.example',
     integration: 'ga4',
     credentialRef: 'account-a',
     propertyRef: 'properties/111',
@@ -119,7 +119,7 @@ describe('recordSignalSuccess — one series per provider resource and day defin
   it('matches a provider that states no zone only against runs that stated none', async () => {
     // Bing reports no timezone (NULL). `=` would never match NULL and re-record
     // the whole window every run; `IS` keeps the series change-only.
-    const bing = target({ integration: 'bing-webmaster', propertyRef: 'https://meals.example/' });
+    const bing = target({ integration: 'bing-webmaster', propertyRef: 'https://meadow.example/' });
     await record({ '2026-09-01': 25 }, { to: bing, timeZone: null, metric: 'clicks' });
     const unchanged = await record({ '2026-09-01': 25 }, { to: bing, timeZone: null, metric: 'clicks' });
     expect(await written(unchanged)).toEqual({});
@@ -140,7 +140,7 @@ describe('recordSignalSuccess — one series per provider resource and day defin
     expect(await written(reverted)).toEqual({ '2026-09-01': 25 });
 
     const aggregate = await aggregateMetric(
-      env.STORE, 'meals.example', 'ga4', 'sessions', '2026-09-01', '2026-09-01',
+      env.STORE, 'meadow.example', 'ga4', 'sessions', '2026-09-01', '2026-09-01',
     );
     expect(aggregate).toMatchObject({ days: 1, total: 25, properties: ['properties/111'] });
   });
@@ -159,7 +159,7 @@ describe('recordSignalSuccess — one series per provider resource and day defin
     expect(stored).toBe(0);
 
     const aggregate = await aggregateMetric(
-      env.STORE, 'meals.example', 'ga4', 'sessions', WINDOW.start, WINDOW.end,
+      env.STORE, 'meadow.example', 'ga4', 'sessions', WINDOW.start, WINDOW.end,
     );
     expect(aggregate).toMatchObject({ days: 2, span_days: 3, total: 55 });
   });
@@ -180,7 +180,7 @@ describe('recordSignalSuccess — one series per provider resource and day defin
     expect(await written(switched)).toEqual({ '2026-09-01': 0 });
 
     const aggregate = await aggregateMetric(
-      env.STORE, 'meals.example', 'ga4', 'sessions', '2026-09-02', WINDOW.end,
+      env.STORE, 'meadow.example', 'ga4', 'sessions', '2026-09-02', WINDOW.end,
     );
     expect(aggregate).toMatchObject({ days: 2, span_days: 2, total: 0, per_day: 0 });
   });

@@ -409,7 +409,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
         // Digits only. The Data API addresses a property as `properties/<id>`,
         // and pasting that whole string is the mistake this pattern catches.
         pattern: '^[1-9][0-9]{4,14}$',
-        describe: 'digits only, e.g. 313598867',
+        describe: 'digits only, e.g. 123456789',
       },
       {
         name: 'siteUrl',
@@ -457,7 +457,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
         required: false,
         maxLength: 12,
         pattern: POSTHOG_PROJECT_ID_SOURCE,
-        describe: "the number in the project's URL (us.posthog.com/project/596607), digits only",
+        describe: "the number in the project's URL (us.posthog.com/project/424242), digits only",
       },
       {
         name: 'funnels',
@@ -1201,7 +1201,7 @@ export function matchKnob(file: string, pointer: string): KnobMatch | null {
 }
 
 /** Escape a literal for embedding in a RegExp source. */
-function escapeRegExp(text: string): string {
+export function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
@@ -1321,8 +1321,8 @@ export function legalRowPointer(register: ConfigRegister, kind: string): string 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH_RE = /^\d{4}-(?:0[1-9]|1[0-2])$/;
 
-/** A calendar date that exists (2026-02-30 parses and is not a date). */
-function realDate(value: string): boolean {
+/** A `YYYY-MM-DD` calendar date that exists (2026-02-30 parses and is not a date). */
+export function isCalendarDate(value: string): boolean {
   if (!DATE_RE.test(value)) return false;
   const d = new Date(`${value}T00:00:00Z`);
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === value;
@@ -1364,7 +1364,7 @@ export function fieldRefusal(field: RegisterField, value: unknown): string | nul
       if (field.type === 'enum' && !field.values!.includes(value)) {
         return `${label} must be one of ${field.values!.join(' | ')}`;
       }
-      if (field.type === 'date' && !realDate(value)) return `${label} must be a date, YYYY-MM-DD`;
+      if (field.type === 'date' && !isCalendarDate(value)) return `${label} must be a date, YYYY-MM-DD`;
       if (field.type === 'month' && !MONTH_RE.test(value)) return `${label} must be a month, YYYY-MM`;
       if (field.type === 'asset-id' && !new RegExp(`^${ASSET_ID_SOURCE}$`).test(value)) {
         return `${label} must be a site id`;

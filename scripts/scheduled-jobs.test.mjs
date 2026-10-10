@@ -4,7 +4,9 @@ import test from 'node:test';
 import { Cron } from 'croner';
 import { SCHEDULED_JOBS, cronIntervalMinutes, scheduleFor, schedulesRefusal, jobRunName } from './scheduled-jobs.mjs';
 import { createScheduledJobRunner, readStoredSchedules } from './scheduled-job-runner.mjs';
-import { CONFIG, STARTUP_CATCHUP_POLICIES, scheduledCatchupPolicies, startupCatchupPlan } from './os-up.mjs';
+import { scheduledCatchupPolicies } from './job-runs.mjs';
+import { CONFIG } from './runner/config.mjs';
+import { STARTUP_CATCHUP_POLICIES, startupCatchupPlan } from './runner/scheduler.mjs';
 import { validateSchemaAndSafety, resolveOps, applyDocumentOps } from './config-documents.mjs';
 import { WORKFLOW_DEFINITIONS } from './workflow-definitions.mjs';
 

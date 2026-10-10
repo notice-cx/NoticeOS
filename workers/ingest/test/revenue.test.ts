@@ -54,7 +54,7 @@ describe('POST /api/revenue — JSON', () => {
     const rows = [
       {
         kind: 'revenue',
-        asset: 'meals.example',
+        asset: 'meadow.example',
         period: '2026-06',
         family: 'ads',
         amount: 412.5,
@@ -88,7 +88,7 @@ describe('POST /api/revenue — CSV', () => {
   it('parses a CSV export and inserts the rows (200)', async () => {
     const csv = [
       'kind,asset,period,family,amount,source,ref,booking_state,note',
-      'revenue,meals.example,2026-06,ads,412.50,raptive-report,,reconciled,June ads',
+      'revenue,meadow.example,2026-06,ads,412.50,raptive-report,,reconciled,June ads',
       'cost,root-os,2026-06,inference,18.20,,os-overhead,estimated,',
     ].join('\n');
     const res = await call(revenueRequest(csv, { token: OPERATOR_TOKEN, csv: true }));
@@ -104,7 +104,7 @@ describe('POST /api/revenue — constraint rejection', () => {
     const rows = [
       {
         kind: 'revenue',
-        asset: 'meals.example',
+        asset: 'meadow.example',
         period: '2026-06',
         family: 'inference', // cost family, not a revenue family
         amount: 1,
@@ -140,7 +140,7 @@ describe('POST /api/revenue — constraint rejection', () => {
     const rows = [
       {
         kind: 'revenue',
-        asset: 'meals.example',
+        asset: 'meadow.example',
         period: '2026-06',
         family: 'ads',
         amount: 100,
@@ -148,7 +148,7 @@ describe('POST /api/revenue — constraint rejection', () => {
       },
       {
         kind: 'revenue',
-        asset: 'meals.example',
+        asset: 'meadow.example',
         period: 'bad-period',
         family: 'ads',
         amount: 1,
@@ -175,8 +175,8 @@ describe('POST /api/revenue — constraint rejection', () => {
 
 const JUNE_EXPORT = [
   'kind,asset,period,family,amount,source,ref,booking_state,note',
-  'revenue,meals.example,2026-06,ads,560.00,raptive-report,,estimated,June ads',
-  'revenue,meals.example,2026-06,affiliate,168.20,cj-export,,estimated,CJ June',
+  'revenue,meadow.example,2026-06,ads,560.00,raptive-report,,estimated,June ads',
+  'revenue,meadow.example,2026-06,affiliate,168.20,cj-export,,estimated,CJ June',
   'cost,root-os,2026-06,inference,78.90,,os-overhead,estimated,',
 ].join('\n');
 
@@ -214,8 +214,8 @@ describe('POST /api/revenue — a re-uploaded file does not count the money twic
   it('collapses a row doubled inside one upload', async () => {
     const doubled = [
       'kind,asset,period,family,amount,source,ref,booking_state,note',
-      'revenue,meals.example,2026-06,ads,560.00,raptive-report,,estimated,June ads',
-      'revenue,meals.example,2026-06,ads,560.00,raptive-report,,estimated,June ads',
+      'revenue,meadow.example,2026-06,ads,560.00,raptive-report,,estimated,June ads',
+      'revenue,meadow.example,2026-06,ads,560.00,raptive-report,,estimated,June ads',
     ].join('\n');
     const res = await call(revenueRequest(doubled, { token: OPERATOR_TOKEN, csv: true }));
     expect(res.status).toBe(200);
@@ -228,7 +228,7 @@ describe('POST /api/revenue — a re-uploaded file does not count the money twic
     const rows = [
       {
         kind: 'revenue',
-        asset: 'meals.example',
+        asset: 'meadow.example',
         period: '2026-06',
         family: 'affiliate',
         amount: 40,
@@ -238,7 +238,7 @@ describe('POST /api/revenue — a re-uploaded file does not count the money twic
       },
       {
         kind: 'revenue',
-        asset: 'meals.example',
+        asset: 'meadow.example',
         period: '2026-06',
         family: 'affiliate',
         amount: 128.2,
@@ -265,7 +265,7 @@ describe('POST /api/revenue — a re-uploaded file does not count the money twic
   it('refuses a replay that restates the figure, and says how to book it', async () => {
     const row = {
       kind: 'revenue',
-      asset: 'meals.example',
+      asset: 'meadow.example',
       period: '2026-06',
       family: 'ads',
       amount: 560,
@@ -310,11 +310,11 @@ describe('POST /api/revenue — a re-uploaded file does not count the money twic
 });
 
 describe('POST /api/revenue — reconciliation references the estimate by id', () => {
-  const ESTIMATE_ID = 'raptive-report:auto/revenue/meals.example/2026-05/ads/estimated';
+  const ESTIMATE_ID = 'raptive-report:auto/revenue/meadow.example/2026-05/ads/estimated';
 
   const estimate = {
     kind: 'revenue',
-    asset: 'meals.example',
+    asset: 'meadow.example',
     period: '2026-05',
     family: 'ads',
     amount: 512.4,
@@ -372,7 +372,7 @@ describe('POST /api/revenue — reconciliation references the estimate by id', (
           {
             ...estimate,
             booking_state: 'reconciled',
-            supersedes_external_id: 'raptive-report:auto/revenue/meals.example/1999-01/ads/estimated',
+            supersedes_external_id: 'raptive-report:auto/revenue/meadow.example/1999-01/ads/estimated',
           },
         ],
         { token: OPERATOR_TOKEN },
@@ -455,7 +455,7 @@ describe('POST /api/revenue — a correction replaces one current entry of the s
   const EST = 'raptive-report:est-may';
   const estimate = {
     kind: 'revenue',
-    asset: 'meals.example',
+    asset: 'meadow.example',
     period: '2026-05',
     family: 'ads',
     amount: 100,
@@ -473,7 +473,7 @@ describe('POST /api/revenue — a correction replaces one current entry of the s
   });
 
   it.each([
-    ['another asset', { asset: 'nosh.example' }, 'asset'],
+    ['another asset', { asset: 'northwind.example' }, 'asset'],
     ['another period', { period: '2026-06' }, 'period'],
     ['another kind', { kind: 'cost', family: 'infra' }, 'kind, family'],
     ['another family', { family: 'affiliate' }, 'family'],
@@ -497,7 +497,7 @@ describe('POST /api/revenue — a correction replaces one current entry of the s
     // The upload carries no currency (the lane is USD-only), so a non-USD entry
     // can only have been written by hand — which is exactly the row to protect.
     await bookEntry({
-      kind: 'revenue', asset: 'meals.example', period: '2026-05', family: 'ads', amountMinor: 10000,
+      kind: 'revenue', asset: 'meadow.example', period: '2026-05', family: 'ads', amountMinor: 10000,
       currency: 'EUR', externalId: 'fx-report:eur-1', source: 'fx-report', bookingState: 'estimated',
     });
     const { status, body } = await upload([correction('fix-1', 200, 'fx-report:eur-1')]);
@@ -574,7 +574,7 @@ describe('POST /api/revenue — a correction replaces one current entry of the s
   it('checks identity against an estimate uploaded in the same batch', async () => {
     const { status, body } = await upload([
       estimate,
-      correction('fix-1', 200, EST, { asset: 'nosh.example' }),
+      correction('fix-1', 200, EST, { asset: 'northwind.example' }),
     ]);
     expect(status).toBe(200);
     expect(body.results[0]).toMatchObject({ ok: true, imported: true });
@@ -605,7 +605,7 @@ describe('POST /api/revenue — a correction replaces one current entry of the s
 describe('POST /api/revenue — a replay must match the stored link and currency too', () => {
   const estimate = (externalId: string) => ({
     kind: 'revenue',
-    asset: 'meals.example',
+    asset: 'meadow.example',
     period: '2026-05',
     family: 'ads',
     amount: 100,
@@ -661,7 +661,7 @@ describe('POST /api/revenue — a replay must match the stored link and currency
 
   it('refuses a replay of a key the store holds in another currency', async () => {
     await bookEntry({
-      kind: 'revenue', asset: 'meals.example', period: '2026-05', family: 'ads', amountMinor: 10000,
+      kind: 'revenue', asset: 'meadow.example', period: '2026-05', family: 'ads', amountMinor: 10000,
       currency: 'EUR', externalId: 'raptive-report:est-a', source: 'raptive-report', bookingState: 'estimated',
     });
     const { status, body } = await upload([estimate('est-a')]);
@@ -674,7 +674,7 @@ describe('POST /api/revenue — a replay must match the stored link and currency
 
 describe('POST /api/revenue — coverage is data, not note wording', () => {
   const note = 'Mediavine Journey, 7/30 days — PARTIAL, covers 2026-06-01..2026-06-07';
-  const row = { kind: 'revenue', asset: 'meals.example', period: '2026-06', family: 'ads', amount: 9, source: 'mediavine-journey', booking_state: 'estimated', note };
+  const row = { kind: 'revenue', asset: 'meadow.example', period: '2026-06', family: 'ads', amount: 9, source: 'mediavine-journey', booking_state: 'estimated', note };
   const explicit = { coverage_start: '2026-06-01', coverage_end: '2026-06-07', coverage_complete: false };
   const coverage = async () => env.STORE.read((tx) => tx.query<{
     start: string | null; end: string | null; complete: boolean | null;
@@ -686,7 +686,7 @@ describe('POST /api/revenue — coverage is data, not note wording', () => {
     const again = await upload([{ ...row, ...explicit, note: 'Updated dashboard description' }]);
     expect(again.body).toMatchObject({ inserted: 0, alreadyImported: 1, failed: 0, reviewRequired: 0 });
     expect(await coverage()).toEqual([{ start: '2026-06-01', end: '2026-06-07', complete: false }]);
-    expect(await effectiveRevenueMinor('meals.example')).toBe(900);
+    expect(await effectiveRevenueMinor('meadow.example')).toBe(900);
   });
 
   it('retains the legacy note rule only when no structured fields are supplied', async () => {
@@ -738,7 +738,7 @@ describe('POST /api/revenue — coverage is data, not note wording', () => {
 
   it('reads CSV coverage_complete=false literally and writes complete coverage fields', async () => {
     const csv = 'kind,asset,period,family,amount,source,booking_state,coverage_start,coverage_end,coverage_complete,note\n' +
-      'revenue,meals.example,2026-06,ads,9,mediavine-journey,estimated,2026-06-01,2026-06-07,false,Display text';
+      'revenue,meadow.example,2026-06,ads,9,mediavine-journey,estimated,2026-06-01,2026-06-07,false,Display text';
     const result = await call(revenueRequest(csv, { token: OPERATOR_TOKEN, csv: true }));
     expect(result.status).toBe(200);
     expect(await coverage()).toEqual([{ start: '2026-06-01', end: '2026-06-07', complete: false }]);
@@ -747,7 +747,7 @@ describe('POST /api/revenue — coverage is data, not note wording', () => {
 
 
 describe('POST /api/revenue — stated currency', () => {
-  const row = { kind: 'revenue', asset: 'meals.example', period: '2026-06', family: 'ads', amount: 12.345, source: 'currency-upload', booking_state: 'estimated', external_id: 'entry' };
+  const row = { kind: 'revenue', asset: 'meadow.example', period: '2026-06', family: 'ads', amount: 12.345, source: 'currency-upload', booking_state: 'estimated', external_id: 'entry' };
   it('books supported currency precision in the actual Worker and preserves it on replay', async () => {
     for (const [currency, minor] of [['EUR', 1235], ['JPY', 12], ['KWD', 12345]] as const) {
       const entry = { ...row, currency, external_id: currency };

@@ -7,7 +7,7 @@
 import { authenticateOperator } from '../auth.js';
 import { type BeadsSnapshotInput, writeBeadsSnapshot } from '../beads-snapshots.js';
 import { json } from '../responses.js';
-import { asObject } from './validate.js';
+import { readJsonObject } from './validate.js';
 
 export async function handleBeadsSnapshot(
   request: Request,
@@ -18,16 +18,8 @@ export async function handleBeadsSnapshot(
     return json({ error: 'unauthorized' }, 401);
   }
 
-  let parsed: unknown;
-  try {
-    parsed = await request.json();
-  } catch (err) {
-    return json({ error: 'bad_request', detail: `could not parse body: ${String(err)}` }, 400);
-  }
-  const body = asObject(parsed);
-  if (!body) {
-    return json({ error: 'bad_request', detail: 'body must be a JSON object' }, 400);
-  }
+  const body = await readJsonObject(request);
+  if (body instanceof Response) return body;
 
   // A claim, not a check: `writeBeadsSnapshot` validates every field of it.
   const result = await writeBeadsSnapshot(env, body as unknown as BeadsSnapshotInput, nowMs);

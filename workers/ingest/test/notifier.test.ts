@@ -56,7 +56,7 @@ async function insertFlag(over: {
   resolvedAt?: string | null;
 }): Promise<number> {
   return storeFlag({
-    asset: over.asset ?? 'meals.example',
+    asset: over.asset ?? 'meadow.example',
     firedAt: over.firedAt ?? new Date(NOW - HOUR).toISOString(),
     severity: over.severity ?? 'error',
     kind: 'anomaly',
@@ -92,7 +92,7 @@ describe('what the OS interrupts the operator about', () => {
     expect(discord.posts).toHaveLength(1);
     expect(discord.posts[0]!.url).toBe(WEBHOOK);
     // The site by the name the Tower shows.
-    expect(discord.posts[0]!.content).toContain('Meal Planner — pulse: no report received in 26h');
+    expect(discord.posts[0]!.content).toContain('Meadow Board — pulse: no report received in 26h');
     expect(await notified()).toEqual([
       { subject: 'alert', ref: String(id), condition: 'open-error' },
     ]);
@@ -112,10 +112,10 @@ describe('what the OS interrupts the operator about', () => {
   it('says nothing about an alert a same-day report retry replaced', async () => {
     await connectDiscord();
     const at = (hoursAgo: number) => new Date(NOW - hoursAgo * HOUR).toISOString();
-    const first = await insertPulse({ asset: 'meals.example', date: at(2).slice(0, 10), receivedAt: at(2) });
-    const retry = await insertPulse({ asset: 'meals.example', date: at(2).slice(0, 10), receivedAt: at(1) });
+    const first = await insertPulse({ asset: 'meadow.example', date: at(2).slice(0, 10), receivedAt: at(2) });
+    const retry = await insertPulse({ asset: 'meadow.example', date: at(2).slice(0, 10), receivedAt: at(1) });
     await storeFlag({
-      asset: 'meals.example', firedAt: at(2), severity: 'error', kind: 'anomaly', metric: 'signups',
+      asset: 'meadow.example', firedAt: at(2), severity: 'error', kind: 'anomaly', metric: 'signups',
       message: 'replaced by the retry', ruleId: 'flow-poisson-low', pulseId: first, replacedByPulseId: retry,
     });
     const discord = discordFetch();
@@ -247,6 +247,38 @@ describe('what the OS interrupts the operator about', () => {
     expect(result).toMatchObject({ found: 1, sent: 1 });
     expect(retried.posts[0]!.content).not.toContain('discord stopped working');
     expect((await notified()).map((row) => row.subject)).toEqual(['alert']);
+  });
+
+  it('stands down, and says so, when it cannot read what it already said', async () => {
+    await connectDiscord();
+    await insertFlag({});
+    const memoryless = new Proxy(env.STORE, {
+      get(target, property) {
+        if (property === 'read') {
+          return (work: Parameters<typeof target.read>[0]) =>
+            target.read((tx) => work(new Proxy(tx, {
+              get(inner, name) {
+                const value = Reflect.get(inner, name, inner) as unknown;
+                if (name !== 'query' || typeof value !== 'function') {
+                  return typeof value === 'function' ? value.bind(inner) : value;
+                }
+                return (sql: string, ...rest: unknown[]) => {
+                  if (sql.includes('noticeos.notifications')) throw new Error('fixture: notifications unreadable');
+                  return value.call(inner, sql, ...rest);
+                };
+              },
+            })));
+        }
+        const value = Reflect.get(target, property, target) as unknown;
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const discord = discordFetch();
+
+    const result = await runNotifier(Object.assign({}, env, { STORE: memoryless }), { nowMs: NOW, fetchImpl: discord.fetchImpl });
+    expect(result).toEqual({ found: 1, fresh: 0, sent: 0, skipped: 'store-unavailable' });
+    expect(discord.posts).toHaveLength(0);
+    expect(await notified()).toEqual([]);
   });
 
   it('says nothing at all when no credential is held', async () => {

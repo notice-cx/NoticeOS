@@ -23,7 +23,7 @@ vi.mock("@/hooks/useWallFeed", () => ({
       limit: 50,
       items: [{
         id: "task-1", at: "2026-09-05T11:40:00.000Z", kind: "task-done", label: "Task done",
-        asset: "meals.example", site: "Meal Planner", text: "Recipe cards load faster", count: 1, tone: "healthy",
+        asset: "meadow.example", site: "Meadow Board", text: "Recipe cards load faster", count: 1, tone: "healthy",
       }],
     },
     isError: false,
@@ -114,12 +114,12 @@ const PAYLOAD: WallPayload = {
   dashboard: {
     countdown: { emoji: "🌁", label: "Team offsite", targetAt: "2026-10-01T07:00:00.000Z" },
   },
-  assets: [asset("meals.example", "Meal Planner"), asset("nosh.example", "Nosh")],
+  assets: [asset("meadow.example", "Meadow Board"), asset("northwind.example", "Northwind")],
   attention: [
     {
       id: 1,
-      asset: "meals.example",
-      assetDisplayName: "Meal Planner",
+      asset: "meadow.example",
+      assetDisplayName: "Meadow Board",
       severity: "error",
       kind: "anomaly",
       message: "Pulse missing",
@@ -133,8 +133,8 @@ const PAYLOAD: WallPayload = {
     },
     {
       id: 2,
-      asset: "nosh.example",
-      assetDisplayName: "Nosh",
+      asset: "northwind.example",
+      assetDisplayName: "Northwind",
       severity: "warn",
       kind: "anomaly",
       message: "Clicks down",
@@ -174,7 +174,7 @@ const PRE_D28_SAVE = {
         { id: "meetings", type: "meetings", width: 0.9 },
         { id: "countdown", type: "countdown", width: 1.3 },
       ] },
-      { id: "assets", height: "fill", widgets: [{ id: "assets", type: "assets", width: 1, settings: { assets: ["nosh.example"] } }] },
+      { id: "assets", height: "fill", widgets: [{ id: "assets", type: "assets", width: 1, settings: { assets: ["northwind.example"] } }] },
     ],
   },
   history: [],
@@ -356,7 +356,7 @@ describe("a rearranged layout", () => {
         id: "body",
         height: "fill",
         widgets: [
-          { id: "sites", type: "sites", width: 2, settings: { assets: ["nosh.example"] } },
+          { id: "sites", type: "sites", width: 2, settings: { assets: ["northwind.example"] } },
           { id: "feed", type: "feed", width: 1 },
         ],
       },
@@ -365,7 +365,7 @@ describe("a rearranged layout", () => {
         height: "auto",
         widgets: [
           { id: "revenue", type: "revenue", width: 1 },
-          { id: "needs", type: "needs", width: 2.5, settings: { assets: ["nosh.example"] } },
+          { id: "needs", type: "needs", width: 2.5, settings: { assets: ["northwind.example"] } },
         ],
       },
     ],
@@ -396,9 +396,9 @@ describe("a rearranged layout", () => {
     both.unmount();
 
     const view = canvas(rearranged);
-    expect([...view.container.querySelectorAll("[data-site-row]")].map((row) => row.getAttribute("data-site-row"))).toEqual(["nosh.example"]);
+    expect([...view.container.querySelectorAll("[data-site-row]")].map((row) => row.getAttribute("data-site-row"))).toEqual(["northwind.example"]);
     const needs = view.container.querySelector("[data-wall-needs]")!;
-    expect(needs.textContent).not.toMatch(/Meal Planner/u);
+    expect(needs.textContent).not.toMatch(/Meadow Board/u);
   });
 });
 

@@ -118,7 +118,7 @@ function backtest(
     };
   });
   return {
-    asset: "nosh.example",
+    asset: "northwind.example",
     ruleId: "flow-poisson-low",
     metric: "signups",
     config: { alpha: 0.01, minBaselinePerDay: 3, lowVolumeWindowHours: 72 },
@@ -221,7 +221,7 @@ describe("BacktestStrip", () => {
 
 describe("TuneRuleAction", () => {
   it("offers no trigger for a rule a pulse replay cannot serve", () => {
-    render(wrap(<TuneRuleAction asset="nosh.example" ruleId="ingest-freshness" />));
+    render(wrap(<TuneRuleAction asset="northwind.example" ruleId="ingest-freshness" />));
     expect(screen.queryByRole("button", { name: "Tune rule" })).toBeNull();
   });
 
@@ -230,7 +230,7 @@ describe("TuneRuleAction", () => {
       wrap(
         <FlagActions
           flagId={12}
-          assetId="nosh.example"
+          assetId="northwind.example"
           ruleId="flow-poisson-low"
           metric="signups"
         />,
@@ -242,7 +242,7 @@ describe("TuneRuleAction", () => {
   });
 
   it("adds nothing to a row that was given no rule", () => {
-    render(wrap(<FlagActions flagId={12} assetId="nosh.example" />));
+    render(wrap(<FlagActions flagId={12} assetId="northwind.example" />));
     expect(screen.queryByRole("button", { name: "Tune rule" })).toBeNull();
   });
 
@@ -279,7 +279,7 @@ describe("TuneRuleAction", () => {
     );
 
     render(
-      wrap(<TuneRuleAction asset="nosh.example" ruleId="flow-poisson-low" metric="signups" />),
+      wrap(<TuneRuleAction asset="northwind.example" ruleId="flow-poisson-low" metric="signups" />),
     );
     fireEvent.click(screen.getByRole("button", { name: "Tune rule" }));
 
@@ -289,7 +289,7 @@ describe("TuneRuleAction", () => {
     await waitFor(() => {
       expect(asked).toEqual([
         {
-          asset: "nosh.example",
+          asset: "northwind.example",
           ruleId: "flow-poisson-low",
           metric: "signups",
           config: { alpha: 0.01, minBaselinePerDay: 3, lowVolumeWindowHours: 72 },
@@ -318,7 +318,7 @@ describe("RuleTunePanel", () => {
     render(
       wrap(
         <RuleTunePanel
-          asset="nosh.example"
+          asset="northwind.example"
           ruleId="flow-poisson-low"
           metric="signups"
           knobs={KNOBS}
@@ -392,7 +392,7 @@ describe("RuleTunePanel", () => {
     const { unmount } = render(
       wrap(
         <RuleTunePanel
-          asset="nosh.example"
+          asset="northwind.example"
           ruleId="flow-poisson-low"
           metric="signups"
           knobs={KNOBS}
@@ -408,7 +408,7 @@ describe("RuleTunePanel", () => {
     render(
       wrap(
         <RuleTunePanel
-          asset="nosh.example"
+          asset="northwind.example"
           ruleId="flow-poisson-low"
           metric="signups"
           knobs={KNOBS}
@@ -519,7 +519,7 @@ describe("a saved tune is recorded on the alert it was tuned from", () => {
     const patched = stubPanelStore();
     await tuneAlpha(
       <TuneRuleAction
-        asset="nosh.example"
+        asset="northwind.example"
         ruleId="flow-poisson-low"
         metric="signups"
         flagId={12}
@@ -543,7 +543,7 @@ describe("a saved tune is recorded on the alert it was tuned from", () => {
 
   it("records nothing when the panel was opened with no alert in front of it", async () => {
     const patched = stubPanelStore();
-    await tuneAlpha(<TuneRuleAction asset="nosh.example" ruleId="flow-poisson-low" />);
+    await tuneAlpha(<TuneRuleAction asset="northwind.example" ruleId="flow-poisson-low" />);
 
     // The setting still saves; there is simply no flag to disposition, and one
     // is never invented (`TuneRuleActionProps.flagId`).
@@ -571,7 +571,7 @@ describe("a tuned alert stays open and says it was tuned", () => {
   it("wears the chip among the actions it still has", () => {
     const { container } = render(
       wrap(
-        <AlertRow flag={openFlag(TUNED)} nowMs={NOW_MS} assetId="nosh.example" />,
+        <AlertRow flag={openFlag(TUNED)} nowMs={NOW_MS} assetId="northwind.example" />,
       ),
     );
     expect(container.querySelector("[data-alert-tuned]")).toBeNull();
@@ -596,7 +596,7 @@ describe("a tuned alert stays open and says it was tuned", () => {
             notifiedAt: "2026-09-04T11:45:00.000Z",
           })}
           nowMs={NOW_MS}
-          assetId="nosh.example"
+          assetId="northwind.example"
         />,
       ),
     );
@@ -610,14 +610,14 @@ describe("a tuned alert stays open and says it was tuned", () => {
     // Three cases that mean the same thing to the operator: the alert did not
     // qualify, the delivery failed, or the OS has nowhere to record what it sent.
     const { container } = render(
-      wrap(<AlertRow flag={openFlag()} nowMs={NOW_MS} assetId="nosh.example" />),
+      wrap(<AlertRow flag={openFlag()} nowMs={NOW_MS} assetId="northwind.example" />),
     );
     expect(container.querySelector("[data-notified-at]")).toBeNull();
   });
 
   it("says nothing at all on a row nobody has tuned", () => {
     const { container } = render(
-      wrap(<AlertRow flag={openFlag()} nowMs={NOW_MS} assetId="nosh.example" />),
+      wrap(<AlertRow flag={openFlag()} nowMs={NOW_MS} assetId="northwind.example" />),
     );
     expect(container.querySelector("[data-alert-tuned]")).toBeNull();
   });
@@ -636,7 +636,7 @@ describe("a tuned alert stays open and says it was tuned", () => {
               "Marked read by operator · rule tuned: Anomaly sensitivity (alpha) 0.01 → 0.05",
           })}
           nowMs={NOW_MS}
-          assetId="nosh.example"
+          assetId="northwind.example"
           history
         />,
       ),
@@ -659,7 +659,7 @@ describe("a tuned alert stays open and says it was tuned", () => {
     render(
       wrap(
         <TuneRuleAction
-          asset="nosh.example"
+          asset="northwind.example"
           ruleId="flow-poisson-low"
           metric="signups"
           flagId={12}
@@ -693,7 +693,7 @@ describe("a tuned alert stays open and says it was tuned", () => {
     const { container } = render(
       wrap(
         <RuleTunePanel
-          asset="nosh.example"
+          asset="northwind.example"
           ruleId="flow-poisson-low"
           metric="signups"
           knobs={KNOBS}
@@ -740,7 +740,7 @@ describe("a tuned alert stays open and says it was tuned", () => {
     const { container } = render(
       wrap(
         <RuleTunePanel
-          asset="nosh.example"
+          asset="northwind.example"
           ruleId="flow-poisson-low"
           metric="signups"
           knobs={KNOBS}
@@ -765,7 +765,7 @@ describe("a tuned alert stays open and says it was tuned", () => {
             liveness: { state: "historical" },
           })}
           nowMs={NOW_MS}
-          assetId="nosh.example"
+          assetId="northwind.example"
           history
         />,
       ),

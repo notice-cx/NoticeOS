@@ -19,7 +19,7 @@ describe('emptyTablesHoldingRows', () => {
     await env.STORE.write((tx) =>
       tx.execute(
         `INSERT INTO noticeos.mediavine_runs (workspace_id, run_id, asset_id, site_id, start_date, end_date, attempted_at, outcome)
-         VALUES ($1::uuid, 'run-1', 'meals.example', 'site-1', '2026-09-01', '2026-09-01', '2026-09-02T00:00:00Z', 'failed')`,
+         VALUES ($1::uuid, 'run-1', 'meadow.example', 'site-1', '2026-09-01', '2026-09-01', '2026-09-02T00:00:00Z', 'failed')`,
         [tx.workspaceId],
       ),
     );

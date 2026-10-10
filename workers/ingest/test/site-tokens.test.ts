@@ -27,7 +27,7 @@ function clarity(known = [FIRST, SECOND]): { fetchImpl: typeof fetch; calls: str
     const authorization = new Headers(init?.headers).get('authorization') ?? '';
     calls.push(authorization.replace(/^Bearer /, ''));
     if (!known.some((token) => authorization === `Bearer ${token}`)) return Response.json({ message: 'Unauthorized' }, { status: 401 });
-    return Response.json([{ metricName: 'Traffic', information: [{ sessionsCount: '12', Url: 'https://meals.example/' }] }]);
+    return Response.json([{ metricName: 'Traffic', information: [{ sessionsCount: '12', Url: 'https://meadow.example/' }] }]);
   }) as typeof fetch;
   return { fetchImpl, calls };
 }
@@ -43,41 +43,41 @@ describe('one site’s token, saved on its row', () => {
   });
 
   it('merges each paste into the per-site map, never replacing another site’s token', async () => {
-    const first = await putSiteToken(env, { provider: 'clarity', asset: 'meals.example', token: `  ${FIRST}  ` });
+    const first = await putSiteToken(env, { provider: 'clarity', asset: 'meadow.example', token: `  ${FIRST}  ` });
     expect(first.ok).toBe(true);
-    expect(await tokens()).toEqual({ 'meals.example': FIRST });
+    expect(await tokens()).toEqual({ 'meadow.example': FIRST });
 
-    await putSiteToken(env, { provider: 'clarity', asset: 'nosh.example', token: SECOND });
-    expect(await tokens()).toEqual({ 'meals.example': FIRST, 'nosh.example': SECOND });
+    await putSiteToken(env, { provider: 'clarity', asset: 'northwind.example', token: SECOND });
+    expect(await tokens()).toEqual({ 'meadow.example': FIRST, 'northwind.example': SECOND });
     // A new paste for a site replaces its own token only.
-    await putSiteToken(env, { provider: 'clarity', asset: 'meals.example', token: SECOND });
-    expect(await tokens()).toEqual({ 'meals.example': SECOND, 'nosh.example': SECOND });
+    await putSiteToken(env, { provider: 'clarity', asset: 'meadow.example', token: SECOND });
+    expect(await tokens()).toEqual({ 'meadow.example': SECOND, 'northwind.example': SECOND });
     // What comes back is the summary: names, never a value.
     expect(JSON.stringify(first)).not.toContain(FIRST);
   });
 
   it('refuses a blank token, a site that is not the installation’s own, and a provider with one key', async () => {
-    expect(await putSiteToken(env, { provider: 'clarity', asset: 'meals.example', token: '   ' })).toMatchObject({ ok: false, error: 'validation', issues: [{ path: 'token' }] });
+    expect(await putSiteToken(env, { provider: 'clarity', asset: 'meadow.example', token: '   ' })).toMatchObject({ ok: false, error: 'validation', issues: [{ path: 'token' }] });
     expect(await putSiteToken(env, { provider: 'clarity', asset: 'nobody.example', token: FIRST })).toMatchObject({ ok: false, error: 'validation', issues: [{ path: 'asset' }] });
-    expect(await putSiteToken(env, { provider: 'bing-webmaster', asset: 'meals.example', token: FIRST })).toEqual({ ok: false, error: 'not_supported', provider: 'bing-webmaster' });
-    expect(await putSiteToken(env, { provider: 'nope', asset: 'meals.example', token: FIRST })).toMatchObject({ ok: false, error: 'unknown_provider' });
+    expect(await putSiteToken(env, { provider: 'bing-webmaster', asset: 'meadow.example', token: FIRST })).toEqual({ ok: false, error: 'not_supported', provider: 'bing-webmaster' });
+    expect(await putSiteToken(env, { provider: 'nope', asset: 'meadow.example', token: FIRST })).toMatchObject({ ok: false, error: 'unknown_provider' });
     expect(await storedCredential('clarity')).toBeNull();
   });
 
   it('runs the export now for the named site only, spending one call there and none elsewhere', async () => {
-    await putSiteToken(env, { provider: 'clarity', asset: 'meals.example', token: FIRST });
-    await putSiteToken(env, { provider: 'clarity', asset: 'nosh.example', token: SECOND });
+    await putSiteToken(env, { provider: 'clarity', asset: 'meadow.example', token: FIRST });
+    await putSiteToken(env, { provider: 'clarity', asset: 'northwind.example', token: SECOND });
     const { fetchImpl, calls } = clarity();
-    const result = await runCollectNow(env, { provider: 'clarity', assets: ['meals.example'] }, { fetchImpl, nowMs: NOW });
-    expect(result).toMatchObject({ ok: true, provider: 'clarity', job: 'clarity', sites: [{ asset: 'meals.example', outcome: 'collected', code: null }] });
+    const result = await runCollectNow(env, { provider: 'clarity', assets: ['meadow.example'] }, { fetchImpl, nowMs: NOW });
+    expect(result).toMatchObject({ ok: true, provider: 'clarity', job: 'clarity', sites: [{ asset: 'meadow.example', outcome: 'collected', code: null }] });
     expect(calls).toEqual([FIRST]);
-    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'clarity' AND asset = 'nosh.example'`)).toBe(0);
+    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'clarity' AND asset = 'northwind.example'`)).toBe(0);
   });
 
   it('says a refused token failed, with Clarity’s own code', async () => {
-    await putSiteToken(env, { provider: 'clarity', asset: 'meals.example', token: FIRST });
-    const result = await runCollectNow(env, { provider: 'clarity', assets: ['meals.example'] }, { fetchImpl: clarity([]).fetchImpl, nowMs: NOW });
-    expect(result.ok && result.sites[0]).toMatchObject({ asset: 'meals.example', outcome: 'failed' });
+    await putSiteToken(env, { provider: 'clarity', asset: 'meadow.example', token: FIRST });
+    const result = await runCollectNow(env, { provider: 'clarity', assets: ['meadow.example'] }, { fetchImpl: clarity([]).fetchImpl, nowMs: NOW });
+    expect(result.ok && result.sites[0]).toMatchObject({ asset: 'meadow.example', outcome: 'failed' });
     expect(result.ok && result.sites[0]!.code).not.toBeNull();
   });
 });

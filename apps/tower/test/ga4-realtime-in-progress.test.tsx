@@ -20,7 +20,7 @@ vi.mock("@/lib/api", async (importOriginal) => ({
 }));
 
 const NOW = Date.parse(WALL_FIXTURE_NOW);
-const SITE = "menus.example";
+const SITE = "mosaic.example";
 const iso = (ms: number) => new Date(ms).toISOString();
 
 type Reading = Extract<Ga4RealtimeAsset, { status: "success" }>;

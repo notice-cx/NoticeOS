@@ -1,11 +1,10 @@
-import { BEADS_ERROR_MAX, beadsText, beadsInstant, beadsFailure } from '../task-snapshot-values.mjs';
-export { BEADS_ERROR_MAX, beadsText, beadsInstant, beadsFailure } from '../task-snapshot-values.mjs';
+import { beadsText, beadsFailure } from '../task-snapshot-values.mjs';
+export { BEADS_ERROR_MAX, beadsText, beadsInstant, beadsFailure, beadsLabelListArgs } from '../task-snapshot-values.mjs';
 // runner/task-hub.mjs — the local runner's side of the beads task hub: its
 // health line (the hub is hosted by `brew services`, never by the runner), the
 // one way to run `bd`, the saved task projects as the lanes read them, and the
-// small readers every bead lane shares for `bd`'s JSON and failures.
+// list, file, close and read-back steps every filing lane shares.
 
-import { skipIsNew } from '../job-runs.mjs';
 import { runCommand } from '../run-command.mjs';
 import { beadsDatabaseName } from '../task-project-config.mjs';
 import { BEADS_DOLT_DIR, CONFIG, REPO_ROOT } from './config.mjs';
@@ -156,41 +155,17 @@ export async function checkBeadsHub({ force = false } = {}) {
   return reachable;
 }
 
-/** Databases worth backing up. A missing or malformed config degrades to [] —
- * a broken task map must never cost us the operational backup. Which names are usable is
- * `beadsDatabaseName`'s to say, and only its. */
-export function parseBeadsSpokes(raw) {
-  let cfg;
-  try {
-    cfg = JSON.parse(raw);
-  } catch {
-    return [];
-  }
-  if (!Array.isArray(cfg?.spokes)) return [];
-  const seen = new Set();
-  const databases = [];
-  for (const spoke of cfg.spokes) {
-    const db = beadsDatabaseName(spoke?.database);
-    if (db === null) continue;
-    if (seen.has(db)) continue;
-    seen.add(db);
-    databases.push(db);
-  }
-  return databases;
-}
-
 /** A hung `bd` must not stall the tick into the next one. */
 const BEADS_CALL_TIMEOUT_MS = 20_000;
 
 /**
- * The spokes, fully resolved. `parseBeadsSpokes` above answers a narrower
- * question (which databases to back up); this one keeps the asset id and repo
- * path, which the poller cannot work without. A spoke missing `asset`,
+ * The saved task projects (config/beads.json's `spokes`), as every lane reads
+ * them. A missing or malformed document is []. A spoke missing `asset`,
  * `prefix` or `repo` is dropped rather than half-polled.
  *
  * `database` is carried rather than required: the poll never uses it (`bd`
  * resolves the database from the repo's own `.beads/config.yaml`), so a
- * project's board is not dropped over a field only the backup reads. It
+ * project's board is not dropped over a field only the drift check reads. It
  * travels as `null` when it is not usable, and `beadsDatabaseName` is the
  * single answer to what that means.
  *
@@ -241,18 +216,106 @@ export async function runBd(argv, timeoutMs = BEADS_CALL_TIMEOUT_MS) {
   return result;
 }
 
+/** The saved projects, or the skip reason a lane logs when the store could not
+ * be read. An empty list is an answer, not a failure: each lane names it. */
+export async function readBeadsProjects(readConfig) {
+  try {
+    return { projects: parseBeadsProjects(await readConfig()) };
+  } catch (err) {
+    return { unreadable: `the task map is unreadable (${err.message})` };
+  }
+}
+
+// ── How the filing lanes (push-state, task-map, panel-review) list, file,
+// close and read back their tasks ───────────────────────────────────────────
+
+/** What puts a task in `bd human list`, the operator's inbox. */
+export const HUMAN_LABEL = 'human';
+
 /**
- * A skip is worth a line only when it is NEW. Pure so the no-spam rule is a
- * test rather than a hope: the same reason twice logs once, and a different
- * reason always logs.
+ * A lane's task as `bd create` argv. Type and priority are always stated: a
+ * default that changes upstream must not quietly re-grade every task a lane
+ * has filed.
  */
-export function beadsSkipDecision(state, reason) {
-  return skipIsNew(state, reason);
+export function beadsCreateArgs(
+  repoDir,
+  { actor, title, type, priority, labels, due = null, metadata, description, acceptance },
+) {
+  return [
+    '-C',
+    repoDir,
+    '--actor',
+    actor,
+    'create',
+    title,
+    '--type',
+    type,
+    '--priority',
+    String(priority),
+    '--labels',
+    labels.join(','),
+    ...(due === null ? [] : ['--due', due]),
+    '--metadata',
+    JSON.stringify(metadata),
+    '--description',
+    description,
+    '--acceptance',
+    acceptance,
+    '--json',
+  ];
+}
+
+export function beadsCloseArgs(repoDir, actor, beadId, reason) {
+  return ['-C', repoDir, '--actor', actor, 'close', beadId, '-r', reason];
+}
+
+/** The open rows of a `bd list` answer, each with its id; null when the
+ * answer is not a list, which forbids both filing and closing. Closed rows
+ * are dropped again here whatever the query asked for. */
+export function beadsOpenRows(rows) {
+  if (!Array.isArray(rows)) return null;
+  const open = [];
+  for (const row of rows) {
+    const beadId = beadsText(row?.id);
+    if (beadId === '' || beadsText(row?.status) === 'closed') continue;
+    open.push({ beadId, row });
+  }
+  return open;
+}
+
+/**
+ * Run one `bd` step of a filing lane. `{ result }` on exit 0; otherwise
+ * `{ failure }`, the one line the lane logs: `bd <verb> could not run` when no
+ * process started (no `result`), `beadsFailure(key, …)` when it exited
+ * non-zero.
+ */
+export async function runBeadsStep(run, argv, verb, key) {
+  let result;
+  try {
+    result = await run(argv);
+  } catch (err) {
+    return { failure: `bd ${verb} could not run: ${err.message}` };
+  }
+  if (result.code !== 0) return { failure: beadsFailure(key, result), result };
+  return { result };
+}
+
+/** A `bd list` step: `runBeadsStep`, then its JSON as `rows`, or
+ * `unparseable` with the result when the exit was 0 and the output was not
+ * JSON. */
+export async function readBeadsList(run, argv, key) {
+  const step = await runBeadsStep(run, argv, 'list', key);
+  if (step.failure) return step;
+  try {
+    return { rows: JSON.parse(step.result.stdout), result: step.result };
+  } catch {
+    return { unparseable: true, result: step.result };
+  }
 }
 
 /** The id `bd create` reports back, for the log line. Null is not a failure —
- * the bead exists either way, and the exit code already said so. Shared by both
- * filing lanes: `bd create --json` answers the same shape whatever was filed. */
+ * the bead exists either way, and the exit code already said so: `bd create
+ * --json` answers the same shape whatever was filed. */
 export function beadsCreatedId(stdout) {
   try {
     const parsed = JSON.parse(stdout);

@@ -2,6 +2,7 @@ packages:
   - "apps/*"
   - "workers/*"
   - "packages/*"
+  - "docs"
 # Preparing dependencies is explicit; running a script must never reinstall them.
 verifyDepsBeforeRun: error
 allowBuilds:

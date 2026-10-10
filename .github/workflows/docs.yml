@@ -1,13 +1,15 @@
-# Build the documentation site (apps/docs, VitePress) and publish it to GitHub
-# Pages on every push to main. Enabling Pages for the repository (Settings →
-# Pages → Source: GitHub Actions) is a one-time choice the owner makes; until
-# then the deploy step is skipped and the build still proves the site is sound.
+# Build the documentation site (docs/, VitePress) on every pull request that
+# touches it, and publish it to GitHub Pages on every push to main. Pages must
+# use GitHub Actions as its source (Settings → Pages); a branch source would
+# only serve raw files from the root or docs/.
 name: docs
 
 on:
   push:
     branches: [main]
-    paths: ['apps/docs/**', 'scripts/scripts-index.mjs', 'scripts/config-docs.mjs', '.github/workflows/docs.yml']
+    paths: ['docs/**', 'scripts/scripts-index.mjs', 'scripts/config-docs.mjs', 'pnpm-lock.yaml', '.github/workflows/docs.yml']
+  pull_request:
+    paths: ['docs/**', 'scripts/scripts-index.mjs', 'scripts/config-docs.mjs', 'pnpm-lock.yaml', '.github/workflows/docs.yml']
   workflow_dispatch:
 
 permissions:
@@ -16,7 +18,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: docs-pages
+  group: docs-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -33,9 +35,10 @@ jobs:
       - run: pnpm --filter @noticeos/docs run build
         env:
           DOCS_BASE: /NoticeOS/
-      - uses: actions/upload-pages-artifact@v3
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
         with:
-          path: apps/docs/.vitepress/dist
+          path: docs/.vitepress/dist
 
   deploy:
     needs: build

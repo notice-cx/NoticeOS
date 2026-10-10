@@ -68,15 +68,15 @@ function assetCard(overrides: Partial<AssetCard> & { id: string }): AssetCard {
  * Four assets that differ on every axis the page filters and sorts by, in the
  * payload's seed order. Read the fixture as the answer key:
  *
- *   Meal Planner    live         automation enabled  1 error   P1×2   900 users  11:00
- *   Nosh        live         monitor only        2 warns   P1×0   500 users  10:00
+ *   Meadow Board    live         automation enabled  1 error   P1×2   900 users  11:00
+ *   Northwind        live         monitor only        2 warns   P1×0   500 users  10:00
  *   Areas   baselining   automation enabled  clear     none   100 users  Jul 30
  *   Fin        onboarding   automation enabled  clear     P1×1   no users   never
  */
 const ASSETS: AssetCard[] = [
   assetCard({
-    id: "meals.example",
-    displayName: "Meal Planner",
+    id: "meadow.example",
+    displayName: "Meadow Board",
     status: "live",
     worstSeverity: "error",
     openError: 1,
@@ -98,8 +98,8 @@ const ASSETS: AssetCard[] = [
     pulseReceivedAt: "2026-08-01T11:00:00.000Z",
   }),
   assetCard({
-    id: "nosh.example",
-    displayName: "Nosh",
+    id: "northwind.example",
+    displayName: "Northwind",
     status: "live",
     senseOnly: true,
     worstSeverity: "warn",
@@ -122,7 +122,7 @@ const ASSETS: AssetCard[] = [
     pulseReceivedAt: "2026-08-01T10:00:00.000Z",
   }),
   assetCard({
-    id: "areas.example",
+    id: "acorn.example",
     displayName: "Areas",
     status: "baselining",
     activeUsers: {
@@ -134,7 +134,7 @@ const ASSETS: AssetCard[] = [
     pulseReceivedAt: "2026-07-30T10:00:00.000Z",
   }),
   assetCard({
-    id: "fees.example",
+    id: "ferns.example",
     displayName: "Fin",
     status: "onboarding",
     work: {
@@ -239,12 +239,12 @@ describe("/assets — the portfolio index", () => {
       <Route path="/assets/:id" element={<p>Asset destination</p>} />
     </Routes></MemoryRouter></QueryClientProvider>);
     const health = (id: string) => container.querySelector(`[data-asset-row="${id}"] td[data-label="Health"] [data-status-for="asset:${id}"]`);
-    expect(health("meals.example")).toHaveTextContent("Off track");
-    expect(health("nosh.example")).toHaveTextContent("At risk");
-    expect(health("areas.example")).toHaveTextContent("Setting up");
+    expect(health("meadow.example")).toHaveTextContent("Off track");
+    expect(health("northwind.example")).toHaveTextContent("At risk");
+    expect(health("acorn.example")).toHaveTextContent("Setting up");
     expect(container.querySelector("[data-source]")).toBeNull();
     expect(container.querySelector("button button, a button")).toBeNull();
-    fireEvent.click(container.querySelector('[data-asset-row="meals.example"]')!);
+    fireEvent.click(container.querySelector('[data-asset-row="meadow.example"]')!);
     expect(screen.getByText("Asset destination")).toBeVisible();
   });
 
@@ -253,7 +253,7 @@ describe("/assets — the portfolio index", () => {
     const { container } = render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={["/assets"]}>
       <AssetsTable assets={ASSETS} nowMs={Date.parse("2026-08-01T12:00:00.000Z")} />
     </MemoryRouter></QueryClientProvider>);
-    const row = container.querySelector<HTMLElement>('[data-asset-row="meals.example"]')!;
+    const row = container.querySelector<HTMLElement>('[data-asset-row="meadow.example"]')!;
     expect(row).toHaveAttribute("data-row-opens");
     expect(row).toHaveClass("cursor-pointer");
     const table = container.querySelector("table")!;
@@ -271,10 +271,10 @@ describe("/assets — the portfolio index", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "Sites" })).toBeInTheDocument();
     expect(shown(container)).toEqual([
-      "meals.example",
-      "nosh.example",
-      "areas.example",
-      "fees.example",
+      "meadow.example",
+      "northwind.example",
+      "acorn.example",
+      "ferns.example",
     ]);
     expect(screen.getByText("4 sites")).toBeInTheDocument();
     expect(screen.getByLabelText("Sort")).toHaveValue("seed");
@@ -316,7 +316,7 @@ describe("/assets — the portfolio index", () => {
   it("reads its filters from the URL, so a narrowed grid is a link", () => {
     const { container } = renderAssets("/assets?status=live&health=at-risk");
 
-    expect(shown(container)).toEqual(["nosh.example"]);
+    expect(shown(container)).toEqual(["northwind.example"]);
     expect(screen.getByLabelText("Status")).toHaveValue("live");
     expect(chip("Health", /At risk/)).toHaveAttribute("aria-pressed", "true");
     expect(
@@ -330,7 +330,7 @@ describe("/assets — the portfolio index", () => {
 
     fireEvent.click(chip("Health", /Off track/));
 
-    expect(shown(container)).toEqual(["meals.example"]);
+    expect(shown(container)).toEqual(["meadow.example"]);
     expect(chip("Health", /Off track/)).toHaveAttribute("aria-pressed", "true");
     expect(
       screen.getByText("1 of 4 sites · health: off track"),
@@ -341,10 +341,10 @@ describe("/assets — the portfolio index", () => {
     const { container } = renderAssets("/assets?sort=health");
 
     expect(shown(container)).toEqual([
-      "meals.example",
-      "nosh.example",
-      "areas.example",
-      "fees.example",
+      "meadow.example",
+      "northwind.example",
+      "acorn.example",
+      "ferns.example",
     ]);
     expect(screen.getByLabelText("Sort")).toHaveValue("health");
     expect(screen.getByText("4 sites · sorted by health")).toBeInTheDocument();
@@ -353,10 +353,10 @@ describe("/assets — the portfolio index", () => {
   it("orders by name, urgent work and visitors", () => {
     const byName = renderAssets("/assets?sort=name");
     expect(shown(byName.container)).toEqual([
-      "areas.example",
-      "fees.example",
-      "meals.example",
-      "nosh.example",
+      "acorn.example",
+      "ferns.example",
+      "meadow.example",
+      "northwind.example",
     ]);
     byName.unmount();
 
@@ -364,19 +364,19 @@ describe("/assets — the portfolio index", () => {
     // below the measured zero rather than joining it.
     const byWork = renderAssets("/assets?sort=work");
     expect(shown(byWork.container)).toEqual([
-      "meals.example",
-      "fees.example",
-      "nosh.example",
-      "areas.example",
+      "meadow.example",
+      "ferns.example",
+      "northwind.example",
+      "acorn.example",
     ]);
     byWork.unmount();
 
     const byUsers = renderAssets("/assets?sort=users");
     expect(shown(byUsers.container)).toEqual([
-      "meals.example",
-      "nosh.example",
-      "areas.example",
-      "fees.example",
+      "meadow.example",
+      "northwind.example",
+      "acorn.example",
+      "ferns.example",
     ]);
   });
 
@@ -384,10 +384,10 @@ describe("/assets — the portfolio index", () => {
     const { container } = renderAssets("/assets?sort=whatever-an-old-bookmark-said");
 
     expect(shown(container)).toEqual([
-      "meals.example",
-      "nosh.example",
-      "areas.example",
-      "fees.example",
+      "meadow.example",
+      "northwind.example",
+      "acorn.example",
+      "ferns.example",
     ]);
     expect(screen.getByText("4 sites")).toBeInTheDocument();
   });
@@ -395,15 +395,15 @@ describe("/assets — the portfolio index", () => {
   it("clears every filter and the ordering at once", () => {
     const { container } = renderAssets("/assets?status=live&health=off-track&sort=name");
 
-    expect(shown(container)).toEqual(["meals.example"]);
+    expect(shown(container)).toEqual(["meadow.example"]);
 
     fireEvent.click(screen.getByRole("link", { name: "Clear" }));
 
     expect(shown(container)).toEqual([
-      "meals.example",
-      "nosh.example",
-      "areas.example",
-      "fees.example",
+      "meadow.example",
+      "northwind.example",
+      "acorn.example",
+      "ferns.example",
     ]);
     expect(screen.getByText("4 sites")).toBeInTheDocument();
     expect(screen.getByLabelText("Status")).toHaveValue("all");
@@ -479,9 +479,9 @@ describe("/assets — the comparison arrives with a second site", () => {
     expect(machinery(container)).toEqual({
       range: null, filters: null, chips: 0, sort: null, status: null, answer: null, summary: null, about: null, sortableHeaders: 0,
     });
-    expect(shown(container)).toEqual(["meals.example"]);
-    expect(within(container.querySelector<HTMLElement>('[data-asset-row="meals.example"]')!)
-      .getByRole("link", { name: "Meal Planner" }).getAttribute("href")).toMatch(/^\/assets\/meals\.example/);
+    expect(shown(container)).toEqual(["meadow.example"]);
+    expect(within(container.querySelector<HTMLElement>('[data-asset-row="meadow.example"]')!)
+      .getByRole("link", { name: "Meadow Board" }).getAttribute("href")).toMatch(/^\/assets\/meadow\.example/);
     expect(container.querySelector("[data-assets-age]")).toHaveTextContent("updated");
     renderAssets("/assets?status=retired&health=at-risk", [ASSETS[0]!]);
     expect(screen.queryByText("No sites match these filters")).toBeNull();
@@ -499,7 +499,7 @@ describe("/assets — the comparison arrives with a second site", () => {
     expect(shownMachinery.summary).toHaveTextContent("2 sites");
     expect(shownMachinery.about).toBeNull();
     expect(shownMachinery.sortableHeaders).toBeGreaterThan(0);
-    expect(shown(container)).toEqual(["meals.example", "nosh.example"]);
+    expect(shown(container)).toEqual(["meadow.example", "northwind.example"]);
   });
 
   // jsdom has no layout, so the mechanism is what is pinned: the arrow is
@@ -533,7 +533,7 @@ describe("/assets", () => {
     expect(answer).toHaveAttribute("data-surface-hero");
     expect(answer).toHaveAttribute("data-sites-answer", "needs-you");
     expect(within(answer).getByRole("heading", { level: 2 })).toHaveTextContent("2 of 4 sites need you");
-    expect([...answer.querySelectorAll("a[data-sites-answer-site]")].map((link) => link.textContent)).toEqual(["Meal Planner", "Nosh"]);
+    expect([...answer.querySelectorAll("a[data-sites-answer-site]")].map((link) => link.textContent)).toEqual(["Meadow Board", "Northwind"]);
     expect(container.querySelector("[data-kpi-strip]")).toBeNull();
     expect(screen.getByRole("button", { name: "Filters & sort" })).toHaveAttribute("aria-expanded", "false");
   });
@@ -604,7 +604,7 @@ describe("/assets", () => {
 
     // A task's priority is not a severity: "2 urgent" wears the foreground ink
     // and the strip's urgent share is the same ramp as the table's bars.
-    const urgent = container.querySelector<HTMLElement>('[data-asset-row="meals.example"] [data-urgent-count]')!;
+    const urgent = container.querySelector<HTMLElement>('[data-asset-row="meadow.example"] [data-urgent-count]')!;
     expect(urgent.textContent).toBe("2 urgent");
     expect(urgent.className).toContain("text-foreground");
     expect(urgent.className).not.toMatch(/\btext-(error|warn|info)\b/);
@@ -615,20 +615,20 @@ describe("/assets", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^Site/ }));
     expect(shown(container)).toEqual([
-      "areas.example",
-      "fees.example",
-      "meals.example",
-      "nosh.example",
+      "acorn.example",
+      "ferns.example",
+      "meadow.example",
+      "northwind.example",
     ]);
     expect(screen.getByLabelText("Sort")).toHaveValue("name");
     expect(screen.getByText("4 sites · sorted by name")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /^Site/ }));
     expect(shown(container)).toEqual([
-      "meals.example",
-      "nosh.example",
-      "areas.example",
-      "fees.example",
+      "meadow.example",
+      "northwind.example",
+      "acorn.example",
+      "ferns.example",
     ]);
     expect(screen.getByLabelText("Sort")).toHaveValue("seed");
   });
@@ -864,19 +864,19 @@ describe("/assets", () => {
     expect(container.querySelector("[data-property-card]")).toBeNull();
     expect(screen.queryByText(/All-time totals/)).toBeNull();
     expect(container.querySelectorAll("[data-asset-row]")).toHaveLength(4);
-    expect(within(container.querySelector<HTMLElement>('[data-asset-row="meals.example"]')!).getByRole("link", { name: "Meal Planner" })).toHaveAttribute(
+    expect(within(container.querySelector<HTMLElement>('[data-asset-row="meadow.example"]')!).getByRole("link", { name: "Meadow Board" })).toHaveAttribute(
       "href",
-      "/assets/meals.example",
+      "/assets/meadow.example",
     );
   });
 
   /** A site with no number yet has an empty Overview, so its row opens its
    * Data sources. */
   it("opens a site with no number yet on its Data sources", () => {
-    renderAssets("/assets", [assetCard({ id: "meals.example", displayName: "Meal Planner" }), QUIET]);
+    renderAssets("/assets", [assetCard({ id: "meadow.example", displayName: "Meadow Board" }), QUIET]);
 
     expect(screen.getByRole("link", { name: "quiet.example" })).toHaveAttribute("href", "/assets/quiet.example/sources");
-    expect(screen.getByRole("link", { name: "Meal Planner" })).toHaveAttribute("href", "/assets/meals.example");
+    expect(screen.getByRole("link", { name: "Meadow Board" })).toHaveAttribute("href", "/assets/meadow.example");
   });
 
   it("needs no About", () => {

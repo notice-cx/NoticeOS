@@ -28,6 +28,7 @@ import {
   pastInstant,
   requiredString,
 } from './routes/validate.js';
+import { isRecord } from './shared.js';
 
 /** How much history the table keeps. The Tower reads the newest row; the one
  * reader of older rows is the Wall's feed, which reaches at most
@@ -54,8 +55,8 @@ export function supersededPayload(payload: string): string {
   } catch {
     return payload;
   }
-  if (!isPlainRecord(parsed) || !Array.isArray(parsed.projects)) return payload;
-  const projects = parsed.projects.filter(isPlainRecord).map((project) => {
+  if (!isRecord(parsed) || !Array.isArray(parsed.projects)) return payload;
+  const projects = parsed.projects.filter(isRecord).map((project) => {
     const closed = Array.isArray(project.recentlyClosed) ? project.recentlyClosed : [];
     const created = Array.isArray(project.recentlyCreated) ? project.recentlyCreated : undefined;
     return {
@@ -63,22 +64,18 @@ export function supersededPayload(payload: string): string {
       ok: project.ok,
       counts: project.counts,
       recentlyClosed: closed
-        .filter(isPlainRecord)
+        .filter(isRecord)
         .map((item) => ({ id: item.id, title: item.title, closedAt: item.closedAt ?? null })),
       ...(created === undefined
         ? {}
         : {
             recentlyCreated: created
-              .filter(isPlainRecord)
+              .filter(isRecord)
               .map((item) => ({ id: item.id, title: item.title, createdAt: item.createdAt ?? null })),
           }),
     };
   });
   return JSON.stringify({ projects });
-}
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 /** A sanity bound on a malformed body, not a portfolio limit. */

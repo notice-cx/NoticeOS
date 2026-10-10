@@ -18,5 +18,5 @@ profile for synthetic data. It requires an HTTPS reverse proxy and keeps its
 database ports private. Do not place customer data or provider credentials in
 that deployment. Customer account hosting is outside the preview release.
 
-See the [release and upgrade policy](docs/release-policy.md) for supported
+See the [release and upgrade policy](docs/reference/release-policy.md) for supported
 installation paths, verification and database maintenance.

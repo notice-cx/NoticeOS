@@ -10,12 +10,11 @@
 // re-importing the same file replaces its archive, and a repeated snapshot is a
 // revision, never an increment.
 
+import { BING_AI_INTEGRATION, type BingAiReport } from '@noticeos/contract/signal-families';
 import { parseCsv } from './csv.js';
 import type { CollectedDump } from './signal-dumps.js';
 
-/** These rows are Bing Webmaster Tools (same account, same verified site), so
- * they share the integration and are told apart by report family. */
-export const BING_AI_INTEGRATION = 'bing-webmaster';
+export { BING_AI_INTEGRATION, type BingAiReport };
 
 /** No credential crosses this lane: a human signed in and clicked Export. */
 export const BING_AI_CREDENTIAL_REF = 'operator-export';
@@ -29,8 +28,6 @@ export const BING_AI_PARSER_VERSION = 'bing-ai-export/1';
  * door instead of being base64'd into R2.
  */
 export const BING_AI_EXPORT_MAX_BYTES = 4 * 1024 * 1024;
-
-export type BingAiReport = 'ai-overview' | 'ai-queries' | 'ai-pages';
 
 /** A refusal an operator can act on: the code names the fault, the message says
  * which file, which row and what was expected. */
@@ -284,13 +281,6 @@ export function decodeBase64(value: string): Uint8Array {
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
   return bytes;
-}
-
-export async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const owned = new Uint8Array(new ArrayBuffer(bytes.byteLength));
-  owned.set(bytes);
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', owned));
-  return [...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 export interface BingAiDumpInput {

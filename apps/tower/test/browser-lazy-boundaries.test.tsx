@@ -34,6 +34,6 @@ it('a missing validation chunk refuses both writes before any mutation is sent',
   const api = createApi(fetch);
   await expect(api.saveConfig([{ kind: 'file-json-set', file: 'config/constants.json',
     pointer: '/operator_rate_usd_per_min', expect: 2, value: 0 }])).rejects.toThrow('validation');
-  await expect(api.moveAsset('meals.example', 'nosh.example')).rejects.toThrow('validation');
+  await expect(api.moveAsset('meadow.example', 'northwind.example')).rejects.toThrow('validation');
   expect(fetch).not.toHaveBeenCalled();
 });

@@ -184,7 +184,7 @@ describe('zero offenders in generic source', () => {
     assert.ok(files.filter((file) => file.startsWith('scripts/')).length > 40, 'the gate read the scripts');
     // The operator documents that ship are read too, and the
     // dated records are not.
-    for (const doc of ['docs/06-operations.md', 'docs/project-setup.md', 'scripts/README.md', 'workers/ingest/README.md',
+    for (const doc of ['docs/06-operations.md', 'docs/guides/connect-a-task-project.md', 'scripts/README.md', 'workers/ingest/README.md',
       'db/README.md', 'apps/tower/README.md']) {
       assert.ok(files.includes(doc), `the gate read ${doc}`);
     }
@@ -386,12 +386,12 @@ describe('it fails on a planted name', () => {
   // the product with example names. Dated records keep the
   // words they were written in; the owner's context pack is its own.
   test('the READMEs and the operator docs are held to it, the dated records are not', () => {
-    for (const file of ['README.md', 'docs/README.md', 'docs/09-onboarding-a-site.md', 'docs/release-policy.md',
-      'docs/runbooks/one-runtime-cutover.md', 'scripts/README.md', 'workers/ingest/README.md', 'workers/ingest/.dev.vars.example',
+    for (const file of ['README.md', 'docs/README.md', 'docs/09-onboarding-a-site.md', 'docs/reference/release-policy.md',
+      'docs/operate/troubleshooting.md', 'scripts/README.md', 'workers/ingest/README.md', 'workers/ingest/.dev.vars.example',
       'workers/ingest/.dev.secrets.example.json', 'apps/tower/README.md', 'db/README.md', 'CONTEXT.md']) {
       assert.equal(isProductFile(file), true, file);
     }
-    for (const file of ['docs/reports/2026-09-14-open-source-readiness.html', 'docs/reports/x.md', 'docs/briefs/2026-10-05-remote-panel-review.md',
+    for (const file of ['docs/reports/2026-09-14-open-source-readiness.html', 'docs/reports/x.md',
       'docs/artifacts/first-run-2026-09-23/README.md', 'AGENTS.md', 'installation/notes.md']) {
       assert.equal(isProductFile(file), false, file);
     }

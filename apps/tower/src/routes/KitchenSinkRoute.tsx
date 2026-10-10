@@ -253,7 +253,7 @@ const NOW = Date.now();
 const FEED_DEMO_ITEMS: WallFeedItem[] = (
   [
     [6, "task-done", "Task done", "Recipes", "Recipe cards load faster", "healthy"],
-    [19, "task-filed", "New task", "Menus", "Menu import skips closed restaurants", "neutral"],
+    [19, "task-filed", "New task", "Medley", "Catalog import skips closed stores", "neutral"],
     [31, "collected", "Collected", null, "Google · 5 sites, none failed", "neutral"],
     [52, "source-failed", "Source failed", "Codes", "Analytics daily reports: access denied", "error"],
     [120, "alert", "Alert", "Recipes", "Plans saved well below normal", "warn"],
@@ -375,7 +375,7 @@ const DEMO_ENTITIES: EntityRow[] = [
  * the prices differ so a sort is visible. */
 const DEMO_LONG_DOMAIN_COSTS = Array.from({ length: 10 }, (_, n) => ({
   domain: `demo-${n + 1}.example`,
-  asset: n % 3 === 0 ? "menu.example.org" : "demo.example",
+  asset: n % 3 === 0 ? "monarch.example.org" : "demo.example",
   kind: n % 2 === 0 ? "registration" : "renewal",
   paidUsd: Number((6.5 + n * 3.17).toFixed(2)),
   paidOn: `2026-0${(n % 9) + 1}-14`,
@@ -384,7 +384,7 @@ const DEMO_LONG_DOMAIN_COSTS = Array.from({ length: 10 }, (_, n) => ({
 // The same escape hatch for the task composer, whose default writer would file
 // a real task on the hub.
 const demoFileTask = async (input: NewTask): Promise<TaskCreated> => ({
-  id: `${input.project === "plate.example.com" ? "mp" : "ro"}-demo`,
+  id: `${input.project === "plume.example.com" ? "md" : "ro"}-demo`,
   project: input.project,
 });
 
@@ -452,7 +452,7 @@ const SITE_PICKER_DEMOS: { key: string; provider: IntegrationProviderId; payload
   { key: "posthog", provider: "posthog", payload: { spend: null,
     assets: SITE_DEMO_ASSETS.map((asset) => ({ ...asset, cells: { posthog: { status: "needs-setup", mapping: {} } } })),
     discovery: { ok: true, provider: "posthog", kind: "account", checkedAt: CONNECT_DEMO_AT, sites: [
-      { lane: "posthog", ref: "eu:596607", label: "Journey Example", host: "journey.example", mapping: { host: "eu", projectId: "596607" }, ready: true,
+      { lane: "posthog", ref: "eu:424242", label: "Journey Example", host: "journey.example", mapping: { host: "eu", projectId: "424242" }, ready: true,
         funnels: [{ id: "signup", name: "Signup", steps: [{ event: "$pageview" }, { event: "signed_up" }] }, { id: "checkout", name: "Checkout", steps: [{ event: "checkout_started" }, { event: "purchase" }] }] },
       { lane: "posthog", ref: "eu:12", label: "Staging", host: null, mapping: { host: "eu", projectId: "12" }, ready: true },
     ] } } },
@@ -563,8 +563,8 @@ const PROVIDER_CARD_CONNECTED: ProviderCardDemo = {
       },
     }),
     assets: [
-      { id: "plate.example.com", lanes: ["dataforseo"] },
-      { id: "menu.example.org", lanes: ["dataforseo"] },
+      { id: "plume.example.com", lanes: ["dataforseo"] },
+      { id: "monarch.example.org", lanes: ["dataforseo"] },
     ],
     // What is left of the month: the cap, not the credit on the account.
     meter: {
@@ -575,8 +575,8 @@ const PROVIDER_CARD_CONNECTED: ProviderCardDemo = {
     },
   },
   assets: [
-    { id: "plate.example.com", displayName: "plate.example.com", domain: "plate.example.com" },
-    { id: "menu.example.org", displayName: "menu.example.org", domain: "menu.example.org" },
+    { id: "plume.example.com", displayName: "plume.example.com", domain: "plume.example.com" },
+    { id: "monarch.example.org", displayName: "monarch.example.org", domain: "monarch.example.org" },
   ],
   probe: demoProbe({ ok: true, result: { outcome: "answered", facts: { creditUsd: "18.72" } } }),
 };
@@ -650,7 +650,7 @@ const SIDEBAR_CREDENTIALS: IntegrationCredentialsPayload = {
           expirySource: "operator",
         },
       }),
-      assets: [{ id: "plate.example.com", lanes: ["dataforseo"] }],
+      assets: [{ id: "plume.example.com", lanes: ["dataforseo"] }],
     },
   ],
 };
@@ -678,14 +678,14 @@ const PROVIDER_CARD_LEGACY_ENV: ProviderCardDemo = {
       lastOkAt: iso(35 * 60_000),
     }),
     assets: [
-      { id: "plate.example.com", lanes: ["ga4", "gsc"] },
-      { id: "menu.example.org", lanes: ["ga4", "gsc"] },
+      { id: "plume.example.com", lanes: ["ga4", "gsc"] },
+      { id: "monarch.example.org", lanes: ["ga4", "gsc"] },
       { id: "finance.example.org", lanes: ["gsc"] },
     ],
   },
   assets: [
-    { id: "plate.example.com", displayName: "plate.example.com", domain: "plate.example.com" },
-    { id: "menu.example.org", displayName: "menu.example.org", domain: "menu.example.org" },
+    { id: "plume.example.com", displayName: "plume.example.com", domain: "plume.example.com" },
+    { id: "monarch.example.org", displayName: "monarch.example.org", domain: "monarch.example.org" },
     { id: "finance.example.org", displayName: "finance.example.org", domain: "finance.example.org" },
   ],
   probe: demoProbe({ ok: true, result: { outcome: "answered", facts: { sites: 3, account: "robot@demo-project.iam.gserviceaccount.com" } } }),
@@ -773,7 +773,7 @@ const PROVIDER_CARD_PROPERTY_MAP_DEMOS: IntegrationProviderStatus[] = [
       propertyMap: {
         needed: true,
         answersFor: [
-          { asset: "menu.example.org", id: "ga4", label: "GA4 Data API" },
+          { asset: "monarch.example.org", id: "ga4", label: "GA4 Data API" },
           // An orphan: an asset the credential's own account map names that
           // `config/integrations.json` has no entry for.
           { asset: "codes.example.com", id: "gsc", label: "Google Search Console (GSC API)" },
@@ -815,9 +815,9 @@ const PROVIDER_CARD_DEMOS: ProviderCardDemo[] = [
         lastOkAt: iso(31 * DAY),
         lastError: "The API key was rejected — it may have been rotated in the Bing console.",
       }),
-      assets: [{ id: "plate.example.com", lanes: ["bing-webmaster"] }],
+      assets: [{ id: "plume.example.com", lanes: ["bing-webmaster"] }],
     },
-    assets: [{ id: "plate.example.com", displayName: "plate.example.com", domain: "plate.example.com" }],
+    assets: [{ id: "plume.example.com", displayName: "plume.example.com", domain: "plume.example.com" }],
     probe: demoProbe({ ok: false, result: { outcome: "refused", status: 401, fix: { kind: "replace" } } }),
   },
   // Discord: the only card whose Test button reaches the operator's own channel,
@@ -845,26 +845,26 @@ const PROVIDER_CARD_DEMOS: ProviderCardDemo[] = [
       credential: demoCredential("clarity", {
         source: "store",
         fields: ["CLARITY_TOKENS"],
-        assetsHeld: ["plate.example.com"],
+        assetsHeld: ["plume.example.com"],
         updatedAt: iso(21 * DAY),
         lastUsedAt: iso(11 * HOUR),
         lastOkAt: iso(11 * HOUR),
       }),
       assets: [
-        { id: "plate.example.com", lanes: ["clarity"] },
-        { id: "menu.example.org", lanes: ["clarity"] },
+        { id: "plume.example.com", lanes: ["clarity"] },
+        { id: "monarch.example.org", lanes: ["clarity"] },
         { id: "finance.example.org", lanes: ["clarity"] },
       ],
       // What is left of today, on the one provider that declares a meter.
       meter: {
         window: "asset-day",
         day: "2026-09-05",
-        assets: [{ asset: "plate.example.com", spent: 3 }],
+        assets: [{ asset: "plume.example.com", spent: 3 }],
       },
     },
     assets: [
-      { id: "plate.example.com", displayName: "plate.example.com", domain: "plate.example.com" },
-      { id: "menu.example.org", displayName: "menu.example.org", domain: "menu.example.org" },
+      { id: "plume.example.com", displayName: "plume.example.com", domain: "plume.example.com" },
+      { id: "monarch.example.org", displayName: "monarch.example.org", domain: "monarch.example.org" },
       { id: "finance.example.org", displayName: "finance.example.org", domain: "finance.example.org" },
     ],
     probe: demoProbe({ ok: true, result: { outcome: "not-checked", facts: { tokens: 1 }, fix: { kind: "run-now" } } }),
@@ -877,21 +877,21 @@ const PROVIDER_CARD_DEMOS: ProviderCardDemo[] = [
       credential: demoCredential("clarity", {
         source: "env",
         fields: [],
-        assetsHeld: ["plate.example.com"],
+        assetsHeld: ["plume.example.com"],
         lastUsedAt: iso(11 * HOUR),
         lastOkAt: iso(11 * HOUR),
       }),
       assets: [
-        { id: "plate.example.com", lanes: ["clarity"] },
-        { id: "menu.example.org", lanes: ["clarity"] },
+        { id: "plume.example.com", lanes: ["clarity"] },
+        { id: "monarch.example.org", lanes: ["clarity"] },
       ],
       // A day nothing has spent yet, beside the partly-spent one above — the
       // two ends of the same meter.
       meter: { window: "asset-day", day: "2026-09-05", assets: [] },
     },
     assets: [
-      { id: "plate.example.com", displayName: "plate.example.com", domain: "plate.example.com" },
-      { id: "menu.example.org", displayName: "menu.example.org", domain: "menu.example.org" },
+      { id: "plume.example.com", displayName: "plume.example.com", domain: "plume.example.com" },
+      { id: "monarch.example.org", displayName: "monarch.example.org", domain: "monarch.example.org" },
     ],
     probe: demoProbe({ ok: true, result: { outcome: "not-checked", facts: { tokens: 1 }, fix: { kind: "run-now" } } }),
   },
@@ -945,8 +945,8 @@ const GOOGLE_SIGNED_IN: IntegrationProviderStatus = {
     lastOkAt: iso(20 * 60_000),
   }),
   assets: [
-    { id: "plate.example.com", lanes: ["ga4", "gsc"] },
-    { id: "menu.example.org", lanes: ["ga4", "gsc"] },
+    { id: "plume.example.com", lanes: ["ga4", "gsc"] },
+    { id: "monarch.example.org", lanes: ["ga4", "gsc"] },
   ],
 };
 
@@ -968,7 +968,7 @@ const GOOGLE_NOT_CONNECTED: IntegrationProviderStatus = {
   credential: demoCredential("google", {
     missingFields: ["GOOGLE_OAUTH_REFRESH_TOKEN"],
   }),
-  assets: [{ id: "plate.example.com", lanes: ["ga4", "gsc"] }],
+  assets: [{ id: "plume.example.com", lanes: ["ga4", "gsc"] }],
 };
 
 /** What the account can see. Takes a beat, so the spinner is a state somebody
@@ -984,10 +984,10 @@ const demoDiscovery = (): Promise<GooglePropertyDiscovery> =>
           account: "ops@example.com",
           auth: "oauth",
           properties: [
-            { lane: "ga4", ref: "412330001", label: "Plate", detail: "Example Ventures" },
-            { lane: "ga4", ref: "412330002", label: "Menu", detail: "Example Ventures" },
-            { lane: "gsc", ref: "sc-domain:plate.example.com", label: "sc-domain:plate.example.com", detail: "siteOwner" },
-            { lane: "gsc", ref: "sc-domain:menu.example.org", label: "sc-domain:menu.example.org", detail: "siteOwner" },
+            { lane: "ga4", ref: "412330001", label: "Plume", detail: "Example Ventures" },
+            { lane: "ga4", ref: "412330002", label: "Monarch", detail: "Example Ventures" },
+            { lane: "gsc", ref: "sc-domain:plume.example.com", label: "sc-domain:plume.example.com", detail: "siteOwner" },
+            { lane: "gsc", ref: "sc-domain:monarch.example.org", label: "sc-domain:monarch.example.org", detail: "siteOwner" },
             { lane: "gsc", ref: "https://finance.example.org/", label: "https://finance.example.org/", detail: "siteFullUser" },
           ],
         }),
@@ -1057,20 +1057,20 @@ const GOOGLE_OAUTH_DEMOS: {
 /** The spokes the demo composer offers, so the gallery does not depend on
  * `/api/settings` answering. Two is enough to show the select doing its job. */
 const DEMO_SPOKES: TaskHubSpoke[] = [
-  { asset: "plate.example.com", prefix: "mp", database: "mp", repo: "../plate.example.com" },
+  { asset: "plume.example.com", prefix: "md", database: "md", repo: "../plume.example.com" },
   { asset: "home-os", prefix: "ro", database: "ro", repo: "." },
 ];
 
 /** A finding's handoff, as data: the object `ExecutiveInsightRow` hands its own
  * File task button. */
 const DEMO_HANDOFF_PREFILL = taskHandoffPrefill({
-  asset: "plate.example.com",
+  asset: "plume.example.com",
   kind: "finding",
   key: "query-cannibalization",
   rule: "query-cannibalization",
-  title: "Two pages compete for “high protein breakfast”",
+  title: "Two pages compete for “shade tolerant herbs”",
   summary:
-    "From the NoticeOS finding for plate.example.com (Warning sign): two pages split the impressions for one query.",
+    "From the NoticeOS finding for plume.example.com (Warning sign): two pages split the impressions for one query.",
   priority: 1,
 });
 
@@ -1136,9 +1136,9 @@ const DAU_TIME_ZONE_CHANGE = [
 const DISTORTED_WEEKLY_WINDOW = { start: "2026-07-15", end: "2026-07-28" };
 
 const demoProperty = {
-  id: "plate.example.com",
-  displayName: "Plate",
-  domain: "plate.example.com",
+  id: "plume.example.com",
+  displayName: "Plume",
+  domain: "plume.example.com",
 };
 
 /** One fixture per page decision lane, including a genuinely flat page, which
@@ -1152,8 +1152,8 @@ const pageTrendsDemo: SearchPageTrends = {
   daysPerWindow: 7,
   pages: [
     {
-      page: "https://plate.example.com/dri-calculator",
-      path: "/dri-calculator",
+      page: "https://plume.example.com/sizing-calculator",
+      path: "/sizing-calculator",
       currentClicks: 21,
       previousClicks: 84,
       clickDelta: -63,
@@ -1168,7 +1168,7 @@ const pageTrendsDemo: SearchPageTrends = {
       currentCtr: 0.0075,
       previousCtr: 0.03,
       leadingQuery: {
-        query: "dri calculator",
+        query: "sizing calculator",
         impressions: 1900,
         clicks: 14,
         position: 5.4,
@@ -1176,7 +1176,7 @@ const pageTrendsDemo: SearchPageTrends = {
       },
     },
     {
-      page: "https://plate.example.com/worksheets",
+      page: "https://plume.example.com/worksheets",
       path: "/worksheets",
       currentClicks: 6,
       previousClicks: 6,
@@ -1192,7 +1192,7 @@ const pageTrendsDemo: SearchPageTrends = {
       currentCtr: 0.0025,
       previousCtr: 0.0067,
       leadingQuery: {
-        query: "plate worksheets",
+        query: "plume worksheets",
         impressions: 1200,
         clicks: 4,
         position: 12.9,
@@ -1200,7 +1200,7 @@ const pageTrendsDemo: SearchPageTrends = {
       },
     },
     {
-      page: "https://plate.example.com/calculator",
+      page: "https://plume.example.com/calculator",
       path: "/calculator",
       currentClicks: 34,
       previousClicks: 37,
@@ -1216,7 +1216,7 @@ const pageTrendsDemo: SearchPageTrends = {
       currentCtr: 0.0081,
       previousCtr: 0.009,
       leadingQuery: {
-        query: "plate calculator",
+        query: "plume calculator",
         impressions: 3100,
         clicks: 28,
         position: 6.2,
@@ -1224,7 +1224,7 @@ const pageTrendsDemo: SearchPageTrends = {
       },
     },
     {
-      page: "https://plate.example.com/recipes",
+      page: "https://plume.example.com/recipes",
       path: "/recipes",
       currentClicks: 8,
       previousClicks: 9,
@@ -1251,8 +1251,8 @@ const pageTrendsDemo: SearchPageTrends = {
       },
     },
     {
-      page: "https://plate.example.com/food-groups",
-      path: "/food-groups",
+      page: "https://plume.example.com/field-guides",
+      path: "/field-guides",
       currentClicks: 44,
       previousClicks: 121,
       clickDelta: -77,
@@ -1267,7 +1267,7 @@ const pageTrendsDemo: SearchPageTrends = {
       currentCtr: 0.024,
       previousCtr: 0.047,
       leadingQuery: {
-        query: "5 food groups",
+        query: "5 field guides",
         impressions: 1400,
         clicks: 33,
         position: 4.1,
@@ -1278,7 +1278,7 @@ const pageTrendsDemo: SearchPageTrends = {
       },
     },
     {
-      page: "https://plate.example.com/meal-plans",
+      page: "https://plume.example.com/meal-plans",
       path: "/meal-plans",
       currentClicks: 96,
       previousClicks: 61,
@@ -1305,8 +1305,8 @@ const pageTrendsDemo: SearchPageTrends = {
       },
     },
     {
-      page: "https://plate.example.com/food-groups/vegetables",
-      path: "/food-groups/vegetables",
+      page: "https://plume.example.com/field-guides/ferns",
+      path: "/field-guides/ferns",
       currentClicks: 41,
       previousClicks: 45,
       clickDelta: -4,
@@ -1329,7 +1329,7 @@ const pageTrendsDemo: SearchPageTrends = {
       },
     },
     {
-      page: "https://plate.example.com/about",
+      page: "https://plume.example.com/about",
       path: "/about",
       currentClicks: 12,
       previousClicks: 14,
@@ -1365,15 +1365,15 @@ const pageTrendsDemo: SearchPageTrends = {
 const pageHandoffBeadsDemo: HandoffBead[] = [
   {
     kind: "page",
-    key: "https://plate.example.com/dri-calculator",
-    beadId: "mp-7aa",
+    key: "https://plume.example.com/sizing-calculator",
+    beadId: "md-7aa",
     status: "open",
     closedAt: null,
   },
   {
     kind: "page",
-    key: "https://plate.example.com/food-groups",
-    beadId: "mp-3fd",
+    key: "https://plume.example.com/field-guides",
+    beadId: "md-3fd",
     status: "closed",
     closedAt: iso(28 * HOUR),
   },
@@ -1402,7 +1402,7 @@ const queryTrendsDemo: SearchQueryTrends = {
         positionImprovement: 1.3,
       },
       {
-        query: "macro calculator",
+        query: "mulch calculator",
         currentImpressions: 164,
         previousImpressions: 1640,
         impressionDelta: -1476,
@@ -1412,7 +1412,7 @@ const queryTrendsDemo: SearchQueryTrends = {
         positionImprovement: -8.8,
       },
       {
-        query: "portion size guide",
+        query: "spacing guide",
         currentImpressions: 220,
         previousImpressions: 210,
         impressionDelta: 10,
@@ -1422,7 +1422,7 @@ const queryTrendsDemo: SearchQueryTrends = {
         positionImprovement: 0.2,
       },
       {
-        query: "meal prep containers",
+        query: "seed starting trays",
         currentImpressions: 31,
         previousImpressions: 30,
         impressionDelta: 1,
@@ -1515,7 +1515,7 @@ const queryTrendsDemo: SearchQueryTrends = {
       {
         // Tracked and clear: the panel read the result page and found no
         // overview, so this stays an act-lane ranking opportunity.
-        query: "high protein lunch ideas",
+        query: "balcony garden ideas",
         monthlySearches: 4400,
         organicPosition: 14,
         previousOrganicPosition: null,
@@ -1535,7 +1535,7 @@ const queryTrendsDemo: SearchQueryTrends = {
         // Tracked and walled on the phone only. The demotion still fires: an
         // overview that consumes the click on the phone is not undone by a
         // clear desktop.
-        query: "how many calories should i eat",
+        query: "how much paint for a room",
         monthlySearches: 74000,
         organicPosition: 6,
         previousOrganicPosition: 6,
@@ -1553,14 +1553,14 @@ const queryTrendsDemo: SearchQueryTrends = {
       },
       {
         // Tracked and cited: protected regardless of where the rank is going.
-        query: "what is plate",
+        query: "what is a plume",
         monthlySearches: 9900,
         organicPosition: 12,
         previousOrganicPosition: 9,
         positionImprovement: -3,
         keywordDifficulty: 19,
         estimatedVisits: 46,
-        page: "/what-is-plate",
+        page: "/what-is-a-plume",
         intent: "informational",
         aiOverview: "cited",
         aiCitationPosition: 1,
@@ -1570,7 +1570,7 @@ const queryTrendsDemo: SearchQueryTrends = {
         ],
       },
       {
-        query: "portion size guide",
+        query: "spacing guide",
         monthlySearches: 720,
         organicPosition: 2,
         previousOrganicPosition: 2,
@@ -1584,7 +1584,7 @@ const queryTrendsDemo: SearchQueryTrends = {
         aioDevices: [],
       },
       {
-        query: "calorie deficit meals",
+        query: "small garden layout",
         monthlySearches: 2900,
         organicPosition: 34,
         previousOrganicPosition: null,
@@ -1634,22 +1634,22 @@ const queryTrendsDemo: SearchQueryTrends = {
 /** What the register holds for those queries. Keys are the normalized query,
  * lowercased and trimmed, which is the `noticeos_key` the poller reads back. */
 const queryHandoffBeadsDemo: HandoffBead[] = [
-  { kind: "query", key: "macro calculator", beadId: "mp-1w2", status: "open", closedAt: null },
+  { kind: "query", key: "mulch calculator", beadId: "md-1w2", status: "open", closedAt: null },
   {
     kind: "query",
-    key: "what is plate",
-    beadId: "mp-4qd",
+    key: "what is a plume",
+    beadId: "md-4qd",
     status: "closed",
     closedAt: iso(30 * HOUR),
   },
   // A finding's task under a key that reads like a query: filtered out, never
   // borrowed by the row that happens to share the string.
-  { kind: "finding", key: "portion size guide", beadId: "mp-9zz", status: "open", closedAt: null },
+  { kind: "finding", key: "spacing guide", beadId: "md-9zz", status: "open", closedAt: null },
 ];
 
 /** One weekly tracked panel: a couple of top-3 terms, a mid-page cluster,
  * several with no result inside the pull's depth, and every AI-Overview state
- * including unknown. One row per (term, device): `macro calculator` is the
+ * including unknown. One row per (term, device): `mulch calculator` is the
  * disagreeing pair, walled on the phone and clear on the desktop, so ten rows
  * count as nine tracked terms. Cluster labels are deliberately mixed so the
  * trailing ungrouped run is drawn. */
@@ -1670,21 +1670,21 @@ const panelDemo: SerpPanelSnapshot = {
   trackedDepth: 20,
   market: null,
   queries: [
-    { query: "calorie calculator", device: "desktop", label: "Calculator seam", bestRank: 2, bestUrl: "https://menu.example.org/calories", aioPresent: true, aioCitesUs: true, composition: panelComposition(["calc-one.example.com", "menu.example.org", "calc-two.example.com"], { secondRank: 8, secondUrl: "https://menu.example.org/tdee" }) },
-    { query: "macro calculator", device: "mobile", label: "Calculator seam", bestRank: 3, bestUrl: "https://menu.example.org/macros", aioPresent: true, aioCitesUs: false, composition: panelComposition(["calc-one.example.com", "calc-two.example.com", "menu.example.org"], { serpFeatures: ["ai_overview", "people_also_ask", "related_searches"] }) },
-    { query: "macro calculator", device: "desktop", label: "Calculator seam", bestRank: 3, bestUrl: "https://menu.example.org/macros", aioPresent: false, aioCitesUs: false, composition: panelComposition(["calc-two.example.com", "calc-one.example.com", "menu.example.org"]) },
-    { query: "tdee calculator", device: "desktop", label: "Calculator seam", bestRank: 7, bestUrl: "https://menu.example.org/tdee", aioPresent: false, aioCitesUs: false, composition: panelComposition(["calc-three.example.net", "calc-one.example.com", "magazine.example.com"], { organicResults: 18 }) },
-    { query: "protein calculator", device: "desktop", label: "Calculator seam", bestRank: 9, bestUrl: "https://menu.example.org/protein", aioPresent: true, aioCitesUs: false, composition: panelComposition(["calc-one.example.com", "supplements.example.com", "health.example.com"], { serpFeatures: ["ai_overview", "images", "people_also_ask"] }) },
-    { query: "bmr calculator", device: "desktop", label: "Calculator seam", bestRank: 14, bestUrl: "https://menu.example.org/bmr", aioPresent: false, aioCitesUs: false, composition: panelComposition(["calc-one.example.com", "calc-two.example.com", "wellness.example.com"]) },
+    { query: "paint calculator", device: "desktop", label: "Calculator seam", bestRank: 2, bestUrl: "https://monarch.example.org/paint", aioPresent: true, aioCitesUs: true, composition: panelComposition(["calc-one.example.com", "monarch.example.org", "calc-two.example.com"], { secondRank: 8, secondUrl: "https://monarch.example.org/tile" }) },
+    { query: "mulch calculator", device: "mobile", label: "Calculator seam", bestRank: 3, bestUrl: "https://monarch.example.org/mulch", aioPresent: true, aioCitesUs: false, composition: panelComposition(["calc-one.example.com", "calc-two.example.com", "monarch.example.org"], { serpFeatures: ["ai_overview", "people_also_ask", "related_searches"] }) },
+    { query: "mulch calculator", device: "desktop", label: "Calculator seam", bestRank: 3, bestUrl: "https://monarch.example.org/mulch", aioPresent: false, aioCitesUs: false, composition: panelComposition(["calc-two.example.com", "calc-one.example.com", "monarch.example.org"]) },
+    { query: "tile calculator", device: "desktop", label: "Calculator seam", bestRank: 7, bestUrl: "https://monarch.example.org/tile", aioPresent: false, aioCitesUs: false, composition: panelComposition(["calc-three.example.net", "calc-one.example.com", "magazine.example.com"], { organicResults: 18 }) },
+    { query: "gravel calculator", device: "desktop", label: "Calculator seam", bestRank: 9, bestUrl: "https://monarch.example.org/gravel", aioPresent: true, aioCitesUs: false, composition: panelComposition(["calc-one.example.com", "supplements.example.com", "health.example.com"], { serpFeatures: ["ai_overview", "images", "people_also_ask"] }) },
+    { query: "fence calculator", device: "desktop", label: "Calculator seam", bestRank: 14, bestUrl: "https://monarch.example.org/fence", aioPresent: false, aioCitesUs: false, composition: panelComposition(["calc-one.example.com", "calc-two.example.com", "wellness.example.com"]) },
     // Checked, and the overview did not load: unknown, which draws no glyph
     // rather than the ghosted "checked and clear" one. Also unlabelled, so it
     // stays in the trailing ungrouped run rather than becoming a seventh bet.
-    { query: "meal calorie counter", device: "desktop", label: null, bestRank: 18, bestUrl: "https://menu.example.org/counter", aioPresent: null, aioCitesUs: null, composition: panelComposition(["tracker-one.example.com", "tracker-two.example.com", "tracker-three.example.com"]) },
-    { query: "chain one calorie calculator", device: "desktop", label: "Item head", bestRank: null, bestUrl: null, aioPresent: false, aioCitesUs: false, composition: panelComposition(["chain-one.example.com", "chain-one-nutrition.example.org", "balance.example.org"], { organicResults: 19, serpFeatures: ["related_searches"] }) },
-    { query: "chain two calorie calculator", device: "desktop", label: "Item head", bestRank: null, bestUrl: null, aioPresent: true, aioCitesUs: false, composition: panelComposition(["recipes.example.com", "chain-two.example.com", "calc-one.example.com"], { serpFeatures: ["ai_overview", "related_searches"] }) },
+    { query: "project cost counter", device: "desktop", label: null, bestRank: 18, bestUrl: "https://monarch.example.org/counter", aioPresent: null, aioCitesUs: null, composition: panelComposition(["tracker-one.example.com", "tracker-two.example.com", "tracker-three.example.com"]) },
+    { query: "chain one paint calculator", device: "desktop", label: "Item head", bestRank: null, bestUrl: null, aioPresent: false, aioCitesUs: false, composition: panelComposition(["chain-one.example.com", "chain-one-nutrition.example.org", "balance.example.org"], { organicResults: 19, serpFeatures: ["related_searches"] }) },
+    { query: "chain two paint calculator", device: "desktop", label: "Item head", bestRank: null, bestUrl: null, aioPresent: true, aioCitesUs: false, composition: panelComposition(["recipes.example.com", "chain-two.example.com", "calc-one.example.com"], { serpFeatures: ["ai_overview", "related_searches"] }) },
     // Provider-unread: the whole neighborhood is absent, never a confident
     // empty top three or a claim that the page had zero organic results.
-    { query: "restaurant nutrition lookup", device: "desktop", label: null, bestRank: null, bestUrl: null, aioPresent: null, aioCitesUs: null, composition: null },
+    { query: "store paint lookup", device: "desktop", label: null, bestRank: null, bestUrl: null, aioPresent: null, aioCitesUs: null, composition: null },
   ],
 };
 
@@ -1753,21 +1753,21 @@ const findingsHandoffBeadsDemo: HandoffBead[] = [
   {
     kind: "finding",
     key: "demo-findings-warning",
-    beadId: "mp-1w2",
+    beadId: "md-1w2",
     status: "open",
     closedAt: null,
   },
   {
     kind: "finding",
     key: "demo-findings-discovery",
-    beadId: "mp-4kq",
+    beadId: "md-4kq",
     status: "closed",
     closedAt: iso(48 * HOUR),
   },
   {
     kind: "query",
     key: "demo-findings-insight",
-    beadId: "mp-9zz",
+    beadId: "md-9zz",
     status: "open",
     closedAt: null,
   },
@@ -2034,8 +2034,8 @@ const systemNoPulse: SystemData = {
 };
 
 const cardLive: AssetData = { netByMonthCurrency: 'USD',
-  id: "plate.example.com",
-  displayName: "Plate",
+  id: "plume.example.com",
+  displayName: "Plume",
   status: "onboarding",
   senseOnly: false,
   worstSeverity: null,
@@ -2080,7 +2080,7 @@ const cardLive: AssetData = { netByMonthCurrency: 'USD',
   // Reviewed: the review is about the same panel day the archive holds as this
   // asset's newest, so it still covers it.
   panelReview: {
-    beadId: "mp-4a2",
+    beadId: "md-4a2",
     panelDate: "2026-06-26",
     dueAt: iso(2 * DAY),
     status: "closed",
@@ -2092,8 +2092,8 @@ const cardLive: AssetData = { netByMonthCurrency: 'USD',
 
 const cardWarn: AssetData = {
   ...cardLive,
-  id: "menu.example.org",
-  displayName: "Menu",
+  id: "monarch.example.org",
+  displayName: "Monarch",
   worstSeverity: "warn",
   openWarn: 1,
   // Nothing reconciled yet: the booked line holds an em dash so the only number
@@ -2120,7 +2120,7 @@ const cardWarn: AssetData = {
   // Overdue: a panel collected and left unread, three days past its deadline,
   // so the badge takes the error tone and the warning glyph.
   panelReview: {
-    beadId: "menu-f1c",
+    beadId: "mon-f1c",
     panelDate: "2026-06-25",
     dueAt: iso(3 * DAY),
     status: "open",
@@ -2132,8 +2132,8 @@ const cardWarn: AssetData = {
 
 const cardSetup: AssetData = {
   ...cardLive,
-  id: "fitness.example.net",
-  displayName: "Fitness",
+  id: "lantern.example.net",
+  displayName: "Lantern",
   senseOnly: true,
   // No ledger row of either kind — the accounting block is absent entirely.
   booked: { currency: 'USD', revenue: 0, cost: 0, net: 0 },
@@ -2167,8 +2167,8 @@ const cardSetup: AssetData = {
 // Built through the real derivation, so a rule change in `shared/asset-setup`
 // moves this page with it.
 const SETUP_PART_DONE = assetSetupChecklist({
-  id: "fitness.example.net",
-  displayName: "Fitness",
+  id: "lantern.example.net",
+  displayName: "Lantern",
   status: "baselining",
   sources: [
     { id: "nightly-report", kind: "working" },
@@ -2184,8 +2184,8 @@ const SETUP_PART_DONE = assetSetupChecklist({
 })!;
 
 const SETUP_READY = assetSetupChecklist({
-  id: "plate.example.com",
-  displayName: "Plate",
+  id: "plume.example.com",
+  displayName: "Plume",
   status: "baselining",
   sources: [
     { id: "nightly-report", kind: "working" },
@@ -2218,8 +2218,8 @@ const cardThin: AssetData = {
  * far. */
 const cardDistortedWindow: AssetData = {
   ...cardLive,
-  id: "plate.example.com",
-  displayName: "Plate",
+  id: "plume.example.com",
+  displayName: "Plume",
   activeUsers: {
     series: DAU_VISIBLE,
     contextSeries: DAU_CONTEXT,
@@ -2246,7 +2246,7 @@ const sidebarAssets: AssetData[] = [
 ];
 
 const realtimeLive: Ga4RealtimeAsset = {
-  asset: "plate.example.com",
+  asset: "plume.example.com",
   status: "success",
   activeUsers5m: 7,
   activeUsers30m: 26,
@@ -2407,8 +2407,8 @@ const alertRowFlags = {
 const attentionItems: AttentionItem[] = [
   {
     id: 9000,
-    asset: "plate.example.com",
-    assetDisplayName: "Plate",
+    asset: "plume.example.com",
+    assetDisplayName: "Plume",
     severity: "warn",
     kind: "anomaly",
     message: "watch window kill_confirmed — gsc/clicks at +7d: 10/day → 7/day (-30%)",
@@ -2418,7 +2418,7 @@ const attentionItems: AttentionItem[] = [
     ruleInputs: {
       outcome: "kill_confirmed",
       refKind: "bead",
-      ref: "mp-123",
+      ref: "md-123",
       integration: "gsc",
       metric: "clicks",
       registeredAt: iso(8 * DAY),
@@ -2431,8 +2431,8 @@ const attentionItems: AttentionItem[] = [
   },
   {
     id: 9001,
-    asset: "menu.example.org",
-    assetDisplayName: "Menu",
+    asset: "monarch.example.org",
+    assetDisplayName: "Monarch",
     severity: "warn",
     kind: "anomaly",
     message: "19 in last24h (avg7d 58.2, P(<=19)~=0.0000)",
@@ -2455,8 +2455,8 @@ const attentionItems: AttentionItem[] = [
   },
   {
     id: 9002,
-    asset: "plate.example.com",
-    assetDisplayName: "Plate",
+    asset: "plume.example.com",
+    assetDisplayName: "Plume",
     severity: "warn",
     kind: "opportunity",
     message: "0 in last24h (avg7d 6.5, P(<=0)~=0.0015)",
@@ -2476,8 +2476,8 @@ const attentionItems: AttentionItem[] = [
   },
   {
     id: 9003,
-    asset: "plate.example.com",
-    assetDisplayName: "Plate",
+    asset: "plume.example.com",
+    assetDisplayName: "Plume",
     severity: "error",
     kind: "anomaly",
     message: "no pulse in 53h (> 48h threshold)",
@@ -2551,8 +2551,8 @@ const demoCatalog = [
 
 const demoCells: Record<string, IntegrationCell[]> = {
   "home-os": [icell("home-os", "gsc", "not-applicable"), icell("home-os", "uptime", "needs-setup"), icell("home-os", "clarity", "not-applicable"), icell("home-os", "affiliate-cj", "not-applicable")],
-  "plate.example.com": [icell("plate.example.com", "gsc", "needs-setup"), icell("plate.example.com", "uptime", "needs-setup"), icell("plate.example.com", "clarity", "needs-setup"), icell("plate.example.com", "affiliate-cj", "needs-setup", "needs-setup", evSupporting)],
-  "menu.example.org": [icell("menu.example.org", "gsc", "needs-setup"), icell("menu.example.org", "uptime", "live", "degraded", evAgainst), icell("menu.example.org", "clarity", "needs-setup"), icell("menu.example.org", "affiliate-cj", "not-applicable")],
+  "plume.example.com": [icell("plume.example.com", "gsc", "needs-setup"), icell("plume.example.com", "uptime", "needs-setup"), icell("plume.example.com", "clarity", "needs-setup"), icell("plume.example.com", "affiliate-cj", "needs-setup", "needs-setup", evSupporting)],
+  "monarch.example.org": [icell("monarch.example.org", "gsc", "needs-setup"), icell("monarch.example.org", "uptime", "live", "degraded", evAgainst), icell("monarch.example.org", "clarity", "needs-setup"), icell("monarch.example.org", "affiliate-cj", "not-applicable")],
 };
 
 // The derived row: no declared value anywhere, state read from the store.
@@ -2570,8 +2570,8 @@ const demoDerivedLane: DerivedLaneRow = {
   },
   cells: {
     "home-os": { assetId: "home-os", laneId: NIGHTLY_REPORT_LANE_ID, effective: "live", evidence: evReported },
-    "plate.example.com": { assetId: "plate.example.com", laneId: NIGHTLY_REPORT_LANE_ID, effective: "live", evidence: evReported },
-    "menu.example.org": { assetId: "menu.example.org", laneId: NIGHTLY_REPORT_LANE_ID, effective: "degraded", evidence: evAgainst },
+    "plume.example.com": { assetId: "plume.example.com", laneId: NIGHTLY_REPORT_LANE_ID, effective: "live", evidence: evReported },
+    "monarch.example.org": { assetId: "monarch.example.org", laneId: NIGHTLY_REPORT_LANE_ID, effective: "degraded", evidence: evAgainst },
   },
 };
 
@@ -2607,19 +2607,19 @@ const demoEgressLane: DerivedLaneRow = {
           polarity: "against",
           source: "Assets left unmeasured",
           detail:
-            "plate.example.com, menu.example.org — the lanes checked nothing there, so nothing about them was concluded either way.",
+            "plume.example.com, monarch.example.org — the lanes checked nothing there, so nothing about them was concluded either way.",
           at: iso(6 * HOUR),
         },
       ],
     },
-    "plate.example.com": {
-      assetId: "plate.example.com",
+    "plume.example.com": {
+      assetId: "plume.example.com",
       laneId: EGRESS_LANE_ID,
       effective: "not-applicable",
       evidence: [],
     },
-    "menu.example.org": {
-      assetId: "menu.example.org",
+    "monarch.example.org": {
+      assetId: "monarch.example.org",
       laneId: EGRESS_LANE_ID,
       effective: "not-applicable",
       evidence: [],
@@ -2637,8 +2637,8 @@ const demoMatrix: IntegrationsMatrix = {
   derivedLanes: [demoEgressLane, demoDerivedLane],
   assets: [
     { id: "home-os", displayName: "NoticeOS", isOs: true },
-    { id: "plate.example.com", displayName: "Plate", isOs: false },
-    { id: "menu.example.org", displayName: "Menu", isOs: false },
+    { id: "plume.example.com", displayName: "Plume", isOs: false },
+    { id: "monarch.example.org", displayName: "Monarch", isOs: false },
   ],
   cells: demoCells,
   summary: summarize([
@@ -2654,8 +2654,8 @@ const demoMatrix: IntegrationsMatrix = {
     unattributedUsd: 0, unattributedUnknownPrices: 0,
     // The total is the sum of these, biggest spender first.
     byAsset: [
-      { asset: "plate.example.com", spentUsd: 6.2, unknownPrices: 0 },
-      { asset: "menu.example.org", spentUsd: 2.2, unknownPrices: 0 },
+      { asset: "plume.example.com", spentUsd: 6.2, unknownPrices: 0 },
+      { asset: "monarch.example.org", spentUsd: 2.2, unknownPrices: 0 },
     ],
   },
 };
@@ -2757,7 +2757,7 @@ const wallArrangedLayout: WallLayout = {
           id: "sites",
           type: "sites",
           width: 2,
-          settings: { assets: ["menu.example.org", "plate.example.com"] },
+          settings: { assets: ["monarch.example.org", "plume.example.com"] },
         },
         { id: "feed", type: "feed", width: 1 },
       ],
@@ -2771,7 +2771,7 @@ const wallArrangedLayout: WallLayout = {
           id: "needs",
           type: "needs",
           width: 1,
-          settings: { assets: ["menu.example.org", "plate.example.com"] },
+          settings: { assets: ["monarch.example.org", "plume.example.com"] },
         },
       ],
     },
@@ -2844,7 +2844,7 @@ export function KitchenSinkRoute() {
           </Section>
           <Section title="PageAnswer and FinishLine (a screen's answer and a list's end)">
             <div className="flex w-full flex-col gap-4">
-              <PageAnswer answer="1 of 7 sites at risk" detail="Plate Planner · since 2h ago" figures={[{ label: "Visitors yesterday", value: "2,497" }, { label: "October pace", value: "$1,310", note: "↑ 16%" }]} />
+              <PageAnswer answer="1 of 7 sites at risk" detail="Plume Studio · since 2h ago" figures={[{ label: "Visitors yesterday", value: "2,497" }, { label: "October pace", value: "$1,310", note: "↑ 16%" }]} />
               <PageAnswer answer="All 7 sites on track" mark={<StateChip label="On track" tone="affirmative" subject="asset:example.com" />} />
               <PageAnswer answer="Nothing waits on you" detail="read 1m ago" />
               <FinishLine line="That's every open alert." age="data as of 4m ago" />
@@ -2963,14 +2963,14 @@ export function KitchenSinkRoute() {
                   title={
                     <>
                       <PropertyFavicon
-                        domain="plate.example.com"
-                        displayName="Plate"
+                        domain="plume.example.com"
+                        displayName="Plume"
                         className="size-7"
                       />
-                      Plate
+                      Plume
                       <SeverityDot severity="warn" />
                       <span className="font-mono text-sm font-normal text-muted-foreground">
-                        plate.example.com
+                        plume.example.com
                       </span>
                       <Badge variant="outline">Live</Badge>
                       <Badge variant="secondary">Monitor only</Badge>
@@ -3075,7 +3075,7 @@ export function KitchenSinkRoute() {
 
           <Section title="PropertyFavicon">
             <Labeled name="ico">
-              <PropertyFavicon domain="plate.example.com" displayName="Plate" />
+              <PropertyFavicon domain="plume.example.com" displayName="Plume" />
             </Labeled>
             <Labeled name="svg + detail size">
               <PropertyFavicon
@@ -3488,7 +3488,7 @@ export function KitchenSinkRoute() {
 
           <Section title="Drill (real route / static)">
             <Labeled name="interactive + route">
-              <Drill interactive to="/assets/plate.example.com">
+              <Drill interactive to="/assets/plume.example.com">
                 <span className="tabular-nums">3 open alerts</span>
               </Drill>
             </Labeled>
@@ -3507,18 +3507,18 @@ export function KitchenSinkRoute() {
               and a date — and Escape closes them again.
             </p>
             <Labeled name="open alert">
-              <FlagActions flagId={9001} assetId="menu.example.org" />
+              <FlagActions flagId={9001} assetId="monarch.example.org" />
             </Labeled>
             <Labeled name="rule-driven open alert (Tune too)">
               <FlagActions
                 flagId={9003}
-                assetId="menu.example.org"
+                assetId="monarch.example.org"
                 ruleId="flow-poisson-low"
                 metric="signups"
               />
             </Labeled>
             <Labeled name="already snoozed (Unsnooze alone)">
-              <FlagActions flagId={9002} assetId="menu.example.org" snoozed />
+              <FlagActions flagId={9002} assetId="monarch.example.org" snoozed />
             </Labeled>
           </Section>
 
@@ -3614,7 +3614,7 @@ export function KitchenSinkRoute() {
                 <Labeled key={name} name={name}>
                   <div className="w-[360px] rounded-lg border border-border p-3">
                     <RuleTunePanel
-                      asset="menu.example.org"
+                      asset="monarch.example.org"
                       ruleId="flow-poisson-low"
                       metric="signups"
                       knobs={TUNE_KNOBS}
@@ -3685,7 +3685,7 @@ export function KitchenSinkRoute() {
                 </TableHeader>
                 <TableBody>
                   <TableRow opens>
-                    <TableCell className="font-medium">Plate</TableCell>
+                    <TableCell className="font-medium">Plume</TableCell>
                     <TableCell label="Status" className="text-xs text-muted-foreground">
                       Onboarding · Automation on
                     </TableCell>
@@ -3975,7 +3975,7 @@ export function KitchenSinkRoute() {
               bead={{
                 kind: "finding",
                 key: "item-openers",
-                beadId: "mp-1w2",
+                beadId: "md-1w2",
                 status: "open",
                 closedAt: null,
               }}
@@ -3984,7 +3984,7 @@ export function KitchenSinkRoute() {
               bead={{
                 kind: "finding",
                 key: "gsc-decline-1",
-                beadId: "mp-4kq",
+                beadId: "md-4kq",
                 status: "closed",
                 closedAt: "2026-08-01T09:30:00.000Z",
               }}
@@ -3995,7 +3995,7 @@ export function KitchenSinkRoute() {
               bead={{
                 kind: "finding",
                 key: "brand-drift",
-                beadId: "menu-7bd",
+                beadId: "mon-7bd",
                 status: "closed",
                 closedAt: null,
               }}
@@ -4074,7 +4074,7 @@ export function KitchenSinkRoute() {
               { id: 'record', attempt: 1, startedAt: new Date(NOW + 2900).toISOString(), finishedAt: new Date(NOW + 3000).toISOString(), state: 'succeeded', summary: 'Execution recorded.' },
             ] }} /></div>
             <div className="w-full"><WorkflowStages definition={WORKFLOW_DEFINITIONS.find((w) => w.id === 'backup')!} run={null} /></div>
-            <div className="w-full"><WorkflowStepOutputView output={{ version: 1, metrics: [{ key: 'attempted', label: 'Attempted', value: 2 }, { key: 'succeeded', label: 'Succeeded', value: 1 }, { key: 'failed', label: 'Failed', value: 1 }], fields: [], totalItems: 2, truncated: false, items: [{ label: 'plate.example.com', state: 'succeeded', fields: [{ key: 'written', label: 'Rows written', value: 12 }] }, { label: 'menu.example.org', state: 'failed', fields: [{ key: 'status', label: 'HTTP status', value: 503 }] }] }} /></div>
+            <div className="w-full"><WorkflowStepOutputView output={{ version: 1, metrics: [{ key: 'attempted', label: 'Attempted', value: 2 }, { key: 'succeeded', label: 'Succeeded', value: 1 }, { key: 'failed', label: 'Failed', value: 1 }], fields: [], totalItems: 2, truncated: false, items: [{ label: 'plume.example.com', state: 'succeeded', fields: [{ key: 'written', label: 'Rows written', value: 12 }] }, { label: 'monarch.example.org', state: 'failed', fields: [{ key: 'status', label: 'HTTP status', value: 503 }] }] }} /></div>
             <WorkflowStepOutputView /><WorkflowStepOutputView pending />
             <div className="w-full"><WorkflowScheduleTimeline cron="*/15 * * * *" now={NOW} enabled name="Example schedule" /></div>
           </Section>
@@ -4194,14 +4194,14 @@ export function KitchenSinkRoute() {
                 tabs={[
                   {
                     key: "overview",
-                    to: "/dev/kitchen-sink?asset=menu.example.org",
+                    to: "/dev/kitchen-sink?asset=monarch.example.org",
                     label: "Overview",
                     end: true,
                     title: "Keeps the asset filter on the way across",
                   },
                   {
                     key: "growth",
-                    to: "/dev/kitchen-sink/growth?asset=menu.example.org",
+                    to: "/dev/kitchen-sink/growth?asset=monarch.example.org",
                     label: "Growth",
                     title: "Keeps the asset filter on the way across",
                   },
@@ -4311,11 +4311,11 @@ export function KitchenSinkRoute() {
           <Section title="EvidencePopover (why this state — against / supporting)">
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">against (a declared-live lane failing):</span>
-              <EvidencePopover evidence={evAgainst} nowMs={NOW} contextLabel="Uptime · menu.example.org" />
+              <EvidencePopover evidence={evAgainst} nowMs={NOW} contextLabel="Uptime · monarch.example.org" />
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">supporting (needs-setup, delivering manually):</span>
-              <EvidencePopover evidence={evSupporting} nowMs={NOW} contextLabel="Affiliate — CJ · plate.example.com" />
+              <EvidencePopover evidence={evSupporting} nowMs={NOW} contextLabel="Affiliate — CJ · plume.example.com" />
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">labelled trigger (an opened alert row):</span>
@@ -4702,9 +4702,9 @@ export function KitchenSinkRoute() {
                   status={demo.status}
                   assets={[
                     {
-                      id: "plate.example.com",
-                      displayName: "plate.example.com",
-                      domain: "plate.example.com",
+                      id: "plume.example.com",
+                      displayName: "plume.example.com",
+                      domain: "plume.example.com",
                     },
                   ]}
                   nowMs={NOW}
@@ -4750,7 +4750,7 @@ export function KitchenSinkRoute() {
               The same payload under a layout somebody arranged: the site rows
               first beside the feed, money under them, no strip, and both
               per-site widgets narrowed to two sites — in the layout's order,
-              so Menu leads.
+              so Monarch leads.
             </p>
             <div className="wall-root h-[34rem] w-full overflow-hidden rounded-lg border border-border bg-background p-2">
               <WallCanvas
@@ -5113,7 +5113,7 @@ export function KitchenSinkRoute() {
               <CollectionEditor
                 register="serp-panel-queries"
                 params={{ asset: "demo.example" }}
-                rows={["big mac calories", { query: "whopper calories", label: "Item head" }]}
+                rows={["anvil specs", { query: "rocket skates specs", label: "Item head" }]}
                 // The SAME prop as the asset picker two editors down, meaning
                 // the other thing: this column's domain is open, so the bets
                 // already in use are offered and a new one is still accepted.
@@ -5155,7 +5155,7 @@ export function KitchenSinkRoute() {
                 // The three things a page supplies that the declaration cannot:
                 // the ids that actually exist, the row's own glyph, and the fact
                 // that a landed row is not always the whole job.
-                fieldOptions={{ asset: ["menu.example.org", "finance.example.org"] }}
+                fieldOptions={{ asset: ["monarch.example.org", "finance.example.org"] }}
                 rowGlyph={(row) => <PropertyFavicon domain={row.key} displayName={row.key} />}
                 onAdded={(row) => toast.success(`Mapped ${String(row.asset)} — three steps left`)}
                 onSave={demoCollectionSave}
@@ -5344,16 +5344,16 @@ export function KitchenSinkRoute() {
             <div className="w-80">
               <Timeline
                 items={[
-                  { id: 1, at: iso(2 * HOUR), kind: "deploy", ref: "mp-1w2", note: "rewrote the chipotle opener" },
-                  { id: 2, at: iso(9 * DAY), kind: "deploy", ref: "mp-33j", note: "July title batch — 240 recipe titles" },
+                  { id: 1, at: iso(2 * HOUR), kind: "deploy", ref: "md-1w2", note: "rewrote the anvil opener" },
+                  { id: 2, at: iso(9 * DAY), kind: "deploy", ref: "md-33j", note: "July title batch — 240 recipe titles" },
                   { id: 3, at: iso(21 * DAY), kind: "config", ref: "a1b2c3d", note: "raise alpha" },
                 ]}
                 beads={[
-                  { kind: "query", key: "chipotle calories", beadId: "mp-1w2", status: "open", closedAt: null },
+                  { kind: "query", key: "anvil specs", beadId: "md-1w2", status: "open", closedAt: null },
                   {
                     kind: "finding",
                     key: "search-striking-distance",
-                    beadId: "mp-33j",
+                    beadId: "md-33j",
                     status: "closed",
                     closedAt: "2026-07-29T00:00:00.000Z",
                   },
@@ -5415,21 +5415,21 @@ export function KitchenSinkRoute() {
                 open — the four verbs and the evidence are inside the row
               </span>
               <AlertList label="Open alert demo">
-                <AlertRow flag={alertRowFlags.open} nowMs={NOW} assetId="plate.example.com" />
+                <AlertRow flag={alertRowFlags.open} nowMs={NOW} assetId="plume.example.com" />
               </AlertList>
               <span className="mt-2 text-xs text-muted-foreground">
                 settled — the resolved mark, the disposition on the caption, and
                 the span rule that grows with how long it stayed open
               </span>
               <AlertList label="Settled alert demo">
-                <AlertRow flag={alertRowFlags.resolvedFast} nowMs={NOW} assetId="plate.example.com" history />
-                <AlertRow flag={alertRowFlags.resolvedSlow} nowMs={NOW} assetId="plate.example.com" history />
+                <AlertRow flag={alertRowFlags.resolvedFast} nowMs={NOW} assetId="plume.example.com" history />
+                <AlertRow flag={alertRowFlags.resolvedSlow} nowMs={NOW} assetId="plume.example.com" history />
               </AlertList>
               <span className="mt-2 text-xs text-muted-foreground">
                 acknowledged — its note and expiry are behind the row
               </span>
               <AlertList label="Acknowledged alert demo">
-                <AlertRow flag={alertRowFlags.acknowledged} nowMs={NOW} assetId="menu.example.org" history />
+                <AlertRow flag={alertRowFlags.acknowledged} nowMs={NOW} assetId="monarch.example.org" history />
               </AlertList>
               <span className="mt-2 text-xs text-muted-foreground">
                 portfolio row — names the asset with its favicon and links to
@@ -5439,8 +5439,8 @@ export function KitchenSinkRoute() {
                 <AlertRow
                   flag={alertRowFlags.resolvedSlow}
                   nowMs={NOW}
-                  assetId="menu.example.org"
-                  asset={{ id: "menu.example.org", domain: "menu.example.org", displayName: "Menu" }}
+                  assetId="monarch.example.org"
+                  asset={{ id: "monarch.example.org", domain: "monarch.example.org", displayName: "Monarch" }}
                   history
                 />
                 <AlertRow
@@ -5457,14 +5457,14 @@ export function KitchenSinkRoute() {
                 says they have not
               </span>
               <AlertList label="Notified alert demo">
-                <AlertRow flag={alertRowFlags.notified} nowMs={NOW} assetId="menu.example.org" />
+                <AlertRow flag={alertRowFlags.notified} nowMs={NOW} assetId="monarch.example.org" />
               </AlertList>
               <span className="mt-2 text-xs text-muted-foreground">
                 tuned, then marked read — the rule change outlives the decision
                 about the firing
               </span>
               <AlertList label="Tuned alert demo">
-                <AlertRow flag={alertRowFlags.tunedThenRead} nowMs={NOW} assetId="plate.example.com" history />
+                <AlertRow flag={alertRowFlags.tunedThenRead} nowMs={NOW} assetId="plume.example.com" history />
               </AlertList>
               <span className="mt-2 text-xs text-muted-foreground">
                 settled with no closing time recorded — the span renders nothing
@@ -5796,7 +5796,7 @@ function backtestDemo(
     };
   });
   return {
-    asset: "menu.example.org",
+    asset: "monarch.example.org",
     ruleId: "flow-poisson-low",
     metric: "signups",
     config: { alpha: 0.01, minBaselinePerDay: 3, lowVolumeWindowHours: 72 },
@@ -5934,14 +5934,14 @@ const TUNE_RATE_PAYLOAD: AlertRuleStatsPayload = {
    makes every chart look competent; this one has a reporting-timezone change
    and a provisional last day that is a fifth of its neighbour. */
 
-const PLATE_FIRST_DAY = "2026-06-08";
+const PLUME_FIRST_DAY = "2026-06-08";
 
 /** Consecutive days from the asset's first reported one, through the helper the
  * chart fixtures above already use — one date walker, not two. */
-const plateDays = (values: number[], start = PLATE_FIRST_DAY): SeriesPoint[] =>
+const plumeDays = (values: number[], start = PLUME_FIRST_DAY): SeriesPoint[] =>
   dailySeries(values, start);
 
-const PLATE_USERS = [
+const PLUME_USERS = [
   552, 691, 572, 505, 390, 273, 353, 625, 567, 592, 629, 428, 369, 495, 728, 777, 754, 680, 570,
   352, 517, 810, 711, 729, 625, 479, 378, 578, 1142, 1118, 1112, 973, 906, 612, 693, 1164, 2059,
   1117, 1038, 1081, 843, 942, 1253, 1274, 1483, 1148, 1048, 636, 841, 1935, 1432, 1161, 1093, 930,
@@ -5950,7 +5950,7 @@ const PLATE_USERS = [
   3660, 2652, 340,
 ];
 
-const PLATE_GOOGLE_CLICKS = [
+const PLUME_GOOGLE_CLICKS = [
   165, 227, 156, 151, 122, 135, 149, 191, 196, 221, 195, 145, 130, 179, 250, 275, 238, 281, 196,
   167, 211, 336, 294, 314, 229, 198, 150, 210, 426, 387, 396, 392, 347, 252, 266, 484, 498, 426,
   338, 328, 283, 327, 503, 485, 472, 522, 398, 348, 414, 543, 557, 579, 473, 369, 374, 430, 568,
@@ -5958,7 +5958,7 @@ const PLATE_GOOGLE_CLICKS = [
   448, 1010, 978, 835, 811, 648, 380, 428, 744, 788, 971, 620, 537, 24,
 ];
 
-const PLATE_BING_CLICKS = [
+const PLUME_BING_CLICKS = [
   96, 57, 73, 147, 189, 162, 137, 112, 59, 106, 170, 166, 185, 190, 137, 103, 120, 246, 233, 235,
   206, 166, 91, 108, 196, 184, 172, 171, 114, 75, 123, 248, 276, 245, 232, 227, 102, 168, 274, 295,
   258, 250, 196, 119, 127, 277, 346, 319, 256, 181, 112, 120, 287, 301, 299, 275, 220, 104, 131,
@@ -5969,21 +5969,21 @@ const PLATE_BING_CLICKS = [
 /** Sessions and impressions: the last 30 days are fixed figures; the 60 before
  * them are scaled from users and clicks, because shape is what this gallery
  * reviews. */
-const PLATE_SESSIONS = [
-  ...PLATE_USERS.slice(0, 60).map((v) => Math.round(v * 1.32)),
+const PLUME_SESSIONS = [
+  ...PLUME_USERS.slice(0, 60).map((v) => Math.round(v * 1.32)),
   1293, 911, 1055, 2552, 1901, 2803, 1782, 1520, 838, 1052, 2245, 2613, 3015, 2374, 2430, 1143,
   1285, 3656, 3692, 3179, 4951, 3244, 1432, 1882, 3910, 4319, 5893, 5092, 3468, 418,
 ];
 
-const PLATE_GOOGLE_IMPRESSIONS = [
-  ...PLATE_GOOGLE_CLICKS.slice(0, 60).map((v) => v * 92),
+const PLUME_GOOGLE_IMPRESSIONS = [
+  ...PLUME_GOOGLE_CLICKS.slice(0, 60).map((v) => v * 92),
   40462, 42915, 42090, 48537, 44780, 50657, 46680, 49196, 42852, 49049, 60502, 53745, 47876, 40285,
   35097, 31398, 41491, 43232, 47752, 45095, 38258, 36899, 33090, 33021, 31634, 32522, 29250, 26979,
   30405, 3256,
 ];
 
-const PLATE_BING_IMPRESSIONS = [
-  ...PLATE_BING_CLICKS.slice(0, 60).map((v) => v * 34),
+const PLUME_BING_IMPRESSIONS = [
+  ...PLUME_BING_CLICKS.slice(0, 60).map((v) => v * 34),
   8904, 8851, 9584, 8277, 6175, 6382, 11521, 11521, 11908, 11043, 8820, 7806, 7596, 13896, 11765,
   11387, 12152, 10948, 6941, 8454, 13188, 12754, 11884, 12389, 9312, 5700, 7697, 13458, 14460,
   13011,
@@ -5991,22 +5991,22 @@ const PLATE_BING_IMPRESSIONS = [
 
 /** The asset's own nightly self-report — 30 days, so the product strip and the
  * search charts genuinely differ in length the way they do on the real page. */
-const PLATE_SIGNUPS = [
+const PLUME_SIGNUPS = [
   26, 28, 31, 31, 48, 41, 51, 43, 50, 33, 26, 48, 81, 55, 74, 45, 32, 36, 63, 98, 78, 102, 53, 43,
   67, 145, 126, 275, 144, 59,
 ];
 
-const USERS = plateDays(PLATE_USERS);
-const SESSIONS = plateDays(PLATE_SESSIONS);
-const GOOGLE_CLICKS = plateDays(PLATE_GOOGLE_CLICKS);
-const BING_CLICKS = plateDays(PLATE_BING_CLICKS);
-const GOOGLE_IMPRESSIONS = plateDays(PLATE_GOOGLE_IMPRESSIONS);
-const BING_IMPRESSIONS = plateDays(PLATE_BING_IMPRESSIONS);
-const SIGNUPS = plateDays(PLATE_SIGNUPS, "2026-08-07");
+const USERS = plumeDays(PLUME_USERS);
+const SESSIONS = plumeDays(PLUME_SESSIONS);
+const GOOGLE_CLICKS = plumeDays(PLUME_GOOGLE_CLICKS);
+const BING_CLICKS = plumeDays(PLUME_BING_CLICKS);
+const GOOGLE_IMPRESSIONS = plumeDays(PLUME_GOOGLE_IMPRESSIONS);
+const BING_IMPRESSIONS = plumeDays(PLUME_BING_IMPRESSIONS);
+const SIGNUPS = plumeDays(PLUME_SIGNUPS, "2026-08-07");
 
 /** The last reported day. Every fixture below anchors on it rather than on
  * `Date.now()`, so the gallery draws the same picture in every capture. */
-const PLATE_LAST_DAY = "2026-09-05";
+const PLUME_LAST_DAY = "2026-09-05";
 
 /** The ledger's own grain: three months of net, the newest still open. */
 const NET_BY_MONTH: SeriesPoint[] = [
@@ -6037,7 +6037,7 @@ const COST_BY_MONTH: SeriesPoint[] = REVENUE_BY_MONTH.map((point, index) => ({
 }));
 
 /** A count that only changes when something happens — the step form. */
-const OPEN_ALERTS = plateDays(
+const OPEN_ALERTS = plumeDays(
   Array.from({ length: 90 }, (_, i) => (i < 30 ? 2 : i < 57 ? 3 : i < 86 ? 1 : 0)),
 );
 
@@ -6164,7 +6164,7 @@ function SurfaceHero({ range }: { range: number }) {
           variant={chosen.variant}
           format={chosen.format}
           annotations={monthly ? [] : TIMEZONE_MARK}
-          provisionalFrom={monthly ? null : PLATE_LAST_DAY}
+          provisionalFrom={monthly ? null : PLUME_LAST_DAY}
         />
       </div>
     </Card>
@@ -6176,7 +6176,7 @@ function SurfaceSections() {
   const [range, setRange] = useState<number>(DEFAULT_RANGE_DAYS);
   const usersDelta = periodDelta(USERS, range);
   const impressionsDelta = periodDelta(GOOGLE_IMPRESSIONS, range);
-  const flatDelta = periodDelta(plateDays(Array.from({ length: 60 }, () => 40)), range);
+  const flatDelta = periodDelta(plumeDays(Array.from({ length: 60 }, () => 40)), range);
   const straddledDelta = periodDelta(USERS, range, [
     { effectiveOn: "2026-09-01", from: "UTC", to: DEMO_ZONE_EAST },
   ]);
@@ -6397,7 +6397,7 @@ function SurfaceSections() {
               series={SURFACE_METRICS.users.series}
               range={range}
               height={180}
-              provisionalFrom={PLATE_LAST_DAY}
+              provisionalFrom={PLUME_LAST_DAY}
               annotations={TIMEZONE_MARK}
             />
           </Card>
@@ -6454,7 +6454,7 @@ function SurfaceSections() {
               ]}
               range={range}
               height={180}
-              provisionalFrom={PLATE_LAST_DAY}
+              provisionalFrom={PLUME_LAST_DAY}
             />
           </Card>
           <Card className="p-4">
@@ -6480,7 +6480,7 @@ function SurfaceSections() {
               ]}
               range={range}
               height={180}
-              provisionalFrom={PLATE_LAST_DAY}
+              provisionalFrom={PLUME_LAST_DAY}
             />
           </Card>
           <Card className="p-4">
@@ -6549,7 +6549,7 @@ function SurfaceSections() {
             <Sparkline
               data={windowSeries(USERS, 28)}
               size="cell"
-              provisionalFrom={PLATE_LAST_DAY}
+              provisionalFrom={PLUME_LAST_DAY}
             />
           </Labeled>
           <Labeled name="Google">
@@ -6565,7 +6565,7 @@ function SurfaceSections() {
             <Sparkline data={kpiSpark("impressions", 28)} size="cell" tone="negative" />
           </Labeled>
           <Labeled name="single point">
-            <Sparkline data={[{ t: PLATE_LAST_DAY, v: 12 }]} size="cell" />
+            <Sparkline data={[{ t: PLUME_LAST_DAY, v: 12 }]} size="cell" />
           </Labeled>
           {/* A month nobody booked is a hole, not a zero: the line breaks over it. */}
           <Labeled name="series with a hole">
@@ -6741,7 +6741,7 @@ function SurfaceSections() {
               tone="warn"
               glyph="△"
               title="Approve the launch ad spend"
-              caption="Plate · mp-gate"
+              caption="Plume · md-gate"
               value="2h"
               valueLabel="waiting"
               rowActions={<Button size="sm">Approve</Button>}
@@ -6751,7 +6751,7 @@ function SurfaceSections() {
             <ListRow
               tone="warn"
               title="Decide the Korea trip"
-              caption="Plate · mp-9k1"
+              caption="Plume · md-9k1"
               value="1d"
               valueLabel="waiting"
               rowActions={
@@ -6962,7 +6962,7 @@ const POSTHOG_FUNNELS: ProductSnapshot = (() => {
 function ProductJourneyDemos() {
   return (
     <div className="flex w-full flex-col gap-8">
-      <ProductDemo name="the acceptance read (plate.example.com, Sep 8–22) — every rule fired">
+      <ProductDemo name="the acceptance read (plume.example.com, Sep 8–22) — every rule fired">
         <ProductJourney product={POSTHOG_PRODUCT} connection="connected" className="w-full" />
       </ProductDemo>
       <ProductDemo name="a thin read — each rule names the floor it missed">

@@ -10,6 +10,7 @@
 
 import { type ExactUsd, type IntegrationProviderId, exactUsd } from '@noticeos/contract';
 import { setCredentialBalance } from './credentials.js';
+import { asRecord } from './shared.js';
 
 /** DataForSEO's free account endpoint — no money, no metered quota. */
 const ACCOUNT_URL = 'https://api.dataforseo.com/v3/appendix/user_data';
@@ -110,12 +111,6 @@ function readBalance(body: unknown): ExactUsd | null {
     }
   }
   return null;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
 }
 
 /** The `balance` of a `money` object, as the digits the provider sent. */

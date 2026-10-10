@@ -38,16 +38,16 @@ const MARKER = `Setup probe passed ${DAY} (creds:check)`;
 // A register mirroring config/integrations.json's shape, with mixed states.
 const register = {
   assets: {
-    'meals.example': {
+    'meadow.example': {
       gsc: { status: 'needs-setup', note: 'central pull not built', since: '2026-07-06' },
       'bing-webmaster': { status: 'needs-setup', note: 'unverified', since: '2026-07-09' },
       ga4: { status: 'needs-setup', note: '', since: '2026-07-06' },
     },
-    'nosh.example': {
+    'northwind.example': {
       gsc: { status: 'live' }, // already live — must not be touched
       'bing-webmaster': { status: 'needs-setup', note: 'unverified', since: '2026-07-09' },
     },
-    'areas.example': {
+    'acorn.example': {
       gsc: { status: 'not-applicable' }, // never applicable — must be skipped
     },
     'root-os': {
@@ -58,12 +58,12 @@ const register = {
 
 test('records proof (one-line note + since) and does not edit status', () => {
   const r = suggestChangeset(
-    [{ integrationId: 'gsc', assets: ['meals.example', 'nosh.example', 'areas.example'] }],
+    [{ integrationId: 'gsc', assets: ['meadow.example', 'northwind.example', 'acorn.example'] }],
     register,
     NOW,
   );
   assert.ok(r, 'a suggestion is produced');
-  assert.equal(r.recorded, 1, 'only meals.example/gsc qualifies');
+  assert.equal(r.recorded, 1, 'only meadow.example/gsc qualifies');
   const cs = r.changeset;
   assert.equal(cs.version, 1);
   assert.equal(cs.createdAt, NOW);
@@ -72,7 +72,7 @@ test('records proof (one-line note + since) and does not edit status', () => {
   assert.deepEqual(cs.ops[0], {
     kind: 'file-json-set',
     file: 'config/integrations.json',
-    pointer: '/assets/meals.example/gsc/note',
+    pointer: '/assets/meadow.example/gsc/note',
     expect: 'central pull not built',
     // One line replaces the note; it never grows a log.
     value: MARKER,
@@ -80,7 +80,7 @@ test('records proof (one-line note + since) and does not edit status', () => {
   assert.deepEqual(cs.ops[1], {
     kind: 'file-json-set',
     file: 'config/integrations.json',
-    pointer: '/assets/meals.example/gsc/since',
+    pointer: '/assets/meadow.example/gsc/since',
     expect: '2026-07-06',
     value: DAY,
   });
@@ -88,7 +88,7 @@ test('records proof (one-line note + since) and does not edit status', () => {
 });
 
 test('empty existing note gets the marker too', () => {
-  const r = suggestChangeset([{ integrationId: 'ga4', assets: ['meals.example'] }], register, NOW);
+  const r = suggestChangeset([{ integrationId: 'ga4', assets: ['meadow.example'] }], register, NOW);
   assert.ok(r);
   const noteOp = r.changeset.ops.find((o) => o.pointer.endsWith('/note'));
   assert.equal(noteOp.value, MARKER);
@@ -97,28 +97,28 @@ test('empty existing note gets the marker too', () => {
 test('already-recorded proof is not re-appended (idempotent re-runs)', () => {
   const recorded = {
     assets: {
-      'meals.example': {
+      'meadow.example': {
         gsc: { status: 'needs-setup', note: `x ${MARKER}`, since: DAY },
       },
     },
   };
-  assert.equal(suggestChangeset([{ integrationId: 'gsc', assets: ['meals.example'] }], recorded, NOW), null);
+  assert.equal(suggestChangeset([{ integrationId: 'gsc', assets: ['meadow.example'] }], recorded, NOW), null);
 });
 
 test('proved property that is already live yields no op', () => {
-  assert.equal(suggestChangeset([{ integrationId: 'gsc', assets: ['nosh.example'] }], register, NOW), null);
+  assert.equal(suggestChangeset([{ integrationId: 'gsc', assets: ['northwind.example'] }], register, NOW), null);
 });
 
 test('proved property that is not-applicable yields no op', () => {
-  assert.equal(suggestChangeset([{ integrationId: 'gsc', assets: ['areas.example'] }], register, NOW), null);
+  assert.equal(suggestChangeset([{ integrationId: 'gsc', assets: ['acorn.example'] }], register, NOW), null);
 });
 
 test('aggregates multiple lanes and dedupes repeated (asset,lane) proofs', () => {
   const r = suggestChangeset(
     [
-      { integrationId: 'bing-webmaster', assets: ['meals.example', 'nosh.example'] },
-      { integrationId: 'ga4', assets: ['meals.example'] },
-      { integrationId: 'bing-webmaster', assets: ['meals.example'] }, // duplicate
+      { integrationId: 'bing-webmaster', assets: ['meadow.example', 'northwind.example'] },
+      { integrationId: 'ga4', assets: ['meadow.example'] },
+      { integrationId: 'bing-webmaster', assets: ['meadow.example'] }, // duplicate
       { integrationId: 'discord-webhooks', assets: ['root-os'] },
     ],
     register,
@@ -128,9 +128,9 @@ test('aggregates multiple lanes and dedupes repeated (asset,lane) proofs', () =>
   assert.equal(r.recorded, 4, 'four distinct proved cells');
   const notePointers = r.changeset.ops.filter((o) => o.pointer.endsWith('/note')).map((o) => o.pointer).sort();
   assert.deepEqual(notePointers, [
-    '/assets/meals.example/bing-webmaster/note',
-    '/assets/meals.example/ga4/note',
-    '/assets/nosh.example/bing-webmaster/note',
+    '/assets/meadow.example/bing-webmaster/note',
+    '/assets/meadow.example/ga4/note',
+    '/assets/northwind.example/bing-webmaster/note',
     '/assets/root-os/discord-webhooks/note',
   ]);
 });
@@ -192,13 +192,13 @@ const signalVars = {
     'portfolio-signals': {
       service_account_b64: serviceAccountB64,
       properties: {
-        'meals.example': {
+        'meadow.example': {
           ga4_property_id: '123456789',
-          gsc_site_url: 'sc-domain:meals.example',
+          gsc_site_url: 'sc-domain:meadow.example',
         },
-        'nosh.example': {
+        'northwind.example': {
           ga4_property_id: '987654321',
-          gsc_site_url: 'https://Nosh.example/Recipes',
+          gsc_site_url: 'https://Northwind.example/Recipes',
         },
       },
     },
@@ -247,7 +247,7 @@ test('GA4 mints one scoped token per service account and reuses it across proper
   assert.equal(calls.filter((call) => call.url === serviceAccount.token_uri).length, 1);
   assert.equal(calls.filter((call) => call.url.includes(':runReport')).length, 2);
   assert.deepEqual(result.proofs, [
-    { integrationId: 'ga4', assets: ['meals.example', 'nosh.example'] },
+    { integrationId: 'ga4', assets: ['meadow.example', 'northwind.example'] },
   ]);
   assert.deepEqual(
     result.rows.map((row) => row.state),
@@ -262,7 +262,7 @@ test('GA4 probe resolves the compiled per-account credential binding', async () 
       'portfolio-signals': {
         service_account_binding: 'GOOGLE_SERVICE_ACCOUNT_PORTFOLIO_SIGNALS',
         properties: {
-          'meals.example': { ga4_property_id: '123456789' },
+          'meadow.example': { ga4_property_id: '123456789' },
         },
       },
     }),
@@ -280,7 +280,7 @@ test('GA4 probe resolves the compiled per-account credential binding', async () 
   );
 
   assert.deepEqual(result.proofs, [
-    { integrationId: 'ga4', assets: ['meals.example'] },
+    { integrationId: 'ga4', assets: ['meadow.example'] },
   ]);
   assert.equal(result.rows[0].state, 'pass');
 });
@@ -301,8 +301,8 @@ test('GSC mints one scoped token and proves every exact property assigned to the
       return new Response(
         JSON.stringify({
           siteEntry: [
-            { siteUrl: 'sc-domain:meals.example', permissionLevel: 'siteFullUser' },
-            { siteUrl: 'https://nosh.example/Recipes/', permissionLevel: 'siteFullUser' },
+            { siteUrl: 'sc-domain:meadow.example', permissionLevel: 'siteFullUser' },
+            { siteUrl: 'https://northwind.example/Recipes/', permissionLevel: 'siteFullUser' },
           ],
         }),
         { status: 200 },
@@ -314,7 +314,7 @@ test('GSC mints one scoped token and proves every exact property assigned to the
   assert.equal(calls.filter((call) => call.url === serviceAccount.token_uri).length, 1);
   assert.equal(calls.filter((call) => call.url.endsWith('/webmasters/v3/sites')).length, 1);
   assert.deepEqual(result.proofs, [
-    { integrationId: 'gsc', assets: ['meals.example', 'nosh.example'] },
+    { integrationId: 'gsc', assets: ['meadow.example', 'northwind.example'] },
   ]);
   assert.deepEqual(
     result.rows.map((row) => row.state),
@@ -327,11 +327,11 @@ test('a property assigned to two service accounts fails closed before authentica
     GOOGLE_SIGNAL_ACCOUNTS: JSON.stringify({
       first: {
         service_account_b64: serviceAccountB64,
-        properties: { 'meals.example': { ga4_property_id: '123456789' } },
+        properties: { 'meadow.example': { ga4_property_id: '123456789' } },
       },
       second: {
         service_account_b64: serviceAccountB64,
-        properties: { 'meals.example': { ga4_property_id: '123456789' } },
+        properties: { 'meadow.example': { ga4_property_id: '123456789' } },
       },
     }),
   };
@@ -404,6 +404,25 @@ test('a rejected token names ASSET_TOKENS in the fix, and untokened properties a
   assert.equal(result.rows.length, 1);
   assert.equal(result.rows[0].state, 'fail');
   assert.match(result.rows[0].sub[0], /ASSET_TOKENS\["/);
+});
+
+test('a mapped counter the endpoint no longer serves warns by name, beside the sample', async () => {
+  const prometheus = enabledPullEntries.find((e) => e.format === 'prometheus');
+  const mapped = Object.values(prometheus.metrics).map((m) => m.counter);
+  const [served, ...gone] = mapped;
+  const probeWith = (body) =>
+    withMockFetch(
+      async () => new Response(body, { status: 200 }),
+      () => probeFixturePull({ ASSET_TOKENS: JSON.stringify({ [prometheus.asset]: 't' }) }),
+    );
+
+  const result = await probeWith(`d1_row_count{table="${served}"} 5\nd1_row_count{table="extra"} 1\n`);
+  assert.deepEqual(result.rows.map((row) => row.state), ['warn', 'pass']);
+  assert.equal(result.rows[0].detail, `mapped counters absent from the response: ${gone.join(', ')}`);
+
+  // A body with no table or counter labels samples metric names and judges no mapping.
+  const unlabelled = await probeWith('process_uptime_seconds 12\n');
+  assert.deepEqual(unlabelled.rows.map((row) => [row.state, row.detail]), [['pass', '1 counters — process_uptime_seconds']]);
 });
 
 test('no pullable property yet → one quiet skip row, nothing fetched', async () => {

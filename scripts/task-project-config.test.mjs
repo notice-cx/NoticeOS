@@ -3,8 +3,10 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { readTaskHost, readTaskProjects, readTaskProjectConfig, resolveTaskProjects } from './task-project-config.mjs';
-import { collectBeadsSnapshot, parseBeadsProjects, parseBeadsSpokes, runBeadsPoll, runWatchReadbackFiler } from './os-up.mjs';
+import { beadsDatabaseName, readTaskHost, readTaskProjects, readTaskProjectConfig, resolveTaskProjects } from './task-project-config.mjs';
+import { parseBeadsProjects } from './runner/task-hub.mjs';
+import { collectBeadsSnapshot, runBeadsPoll } from './runner/task-snapshot.mjs';
+import { runWatchReadbackFiler } from './runner/watch-readbacks.mjs';
 
 const old = { asset: 'old.example', prefix: 'old', database: 'old', repo: '../old' };
 const current = { asset: 'current.example', prefix: 'cur', database: 'cur', repo: '../untrusted-request' };
@@ -87,7 +89,7 @@ test('physical backup inventory remains available without the workspace store an
   assert.equal(active.length, 1);
   assert.equal(local.repositories.length, 2);
   const brokenCheckout = await readTaskHost({ readHost: async () => JSON.stringify({ repositories: [old, { ...current, repo: null }, { database: 'bad;sql' }] }) });
-  assert.deepEqual(parseBeadsSpokes(JSON.stringify({ spokes: brokenCheckout.repositories })), ['old', 'cur']);
+  assert.deepEqual(brokenCheckout.repositories.map((row) => beadsDatabaseName(row?.database)), ['old', 'cur', null]);
   await assert.rejects(readTaskHost({ readHost: async () => JSON.stringify({ repositories: null }) }));
 });
 

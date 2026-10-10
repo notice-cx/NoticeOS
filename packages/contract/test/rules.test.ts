@@ -6,7 +6,6 @@ import {
   firedFlags,
   flowLowVolumeAnomaly,
   flowPoissonAnomaly,
-  percentageDropAnomaly,
 } from '../src/rules.js';
 
 describe('flowPoissonAnomaly (normal-volume drop)', () => {
@@ -78,33 +77,9 @@ describe('flowLowVolumeAnomaly (multi-day window)', () => {
   });
 });
 
-describe('percentageDropAnomaly (gated on min absolute count)', () => {
-  it('stands down below the absolute-count gate', () => {
-    // default minAbsoluteCount = 5; a 4/day metric never trips this rule
-    expect(percentageDropAnomaly('x', 0, 4).outcome).toBe('not-applicable');
-  });
-
-  it('fires on a large relative drop above the gate', () => {
-    const v = percentageDropAnomaly('x', 2, 10);
-    expect(v.outcome).toBe('fired');
-    expect(v.inputs.dropFraction as number).toBeCloseTo(0.8, 10);
-    expect(v.flag?.message).toContain('80% below');
-  });
-
-  it('does not fire on a modest drop', () => {
-    expect(percentageDropAnomaly('x', 8, 10).outcome).toBe('ok');
-  });
-
-  it('respects custom gate/threshold options', () => {
-    const v = percentageDropAnomaly('x', 0, 4, { minAbsoluteCount: 3, minDropFraction: 0.5 });
-    expect(v.outcome).toBe('fired');
-    expect(v.inputs.dropFraction).toBe(1);
-  });
-});
-
 describe('evaluatePulse (per-metric regime routing)', () => {
   const envelope: PulseEnvelope = {
-    asset: 'meals.example',
+    asset: 'meadow.example',
     generatedAt: '2026-07-05T03:00:00.000Z',
     capabilities: ['signups', 'plansSaved', 'leads'],
     metrics: {

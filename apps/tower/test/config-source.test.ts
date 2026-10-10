@@ -95,8 +95,8 @@ describe("assets that send no nightly report", () => {
     };
   }
   it("reads the saved list, and a saved document without one declares none", async () => {
-    const withList = await resolveTowerConfig(constantsReader({ flag_defaults: {}, no_nightly_report: ["fees.example"] }), { ...fallback(), noNightlyReport: ["compiled.test"] });
-    expect(withList.noNightlyReport).toEqual(["fees.example"]);
+    const withList = await resolveTowerConfig(constantsReader({ flag_defaults: {}, no_nightly_report: ["ferns.example"] }), { ...fallback(), noNightlyReport: ["compiled.test"] });
+    expect(withList.noNightlyReport).toEqual(["ferns.example"]);
     const without = await resolveTowerConfig(constantsReader({ flag_defaults: {} }), { ...fallback(), noNightlyReport: ["compiled.test"] });
     expect(without.noNightlyReport).toBeNull();
   });

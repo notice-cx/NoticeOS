@@ -53,13 +53,13 @@ function testGoogleAccounts(): string {
     'test-signals': {
       service_account_b64: Buffer.from(JSON.stringify(serviceAccount)).toString('base64'),
       properties: {
-        'meals.example': {
+        'meadow.example': {
           ga4_property_id: '123456',
-          gsc_site_url: 'sc-domain:meals.example',
+          gsc_site_url: 'sc-domain:meadow.example',
         },
-        'nosh.example': {
+        'northwind.example': {
           ga4_property_id: '654321',
-          gsc_site_url: 'sc-domain:nosh.example',
+          gsc_site_url: 'sc-domain:northwind.example',
         },
       },
     },

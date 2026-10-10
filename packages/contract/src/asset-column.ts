@@ -8,6 +8,7 @@
  */
 
 import type { AssetStatus, StoreColumn } from './configuration.mjs';
+import type { ValidationIssue } from './validation-issue.js';
 export type { AssetStatus, StoreColumn } from './configuration.mjs';
 export { ASSET_STATUSES, STORE_COLUMNS, DISPLAY_NAME_MAX } from './configuration.mjs';
 
@@ -37,14 +38,6 @@ export interface WriteAssetColumnInput {
   expect?: string | number | boolean | null;
 }
 
-/** One rejected field, in the `{path, code, message}` shape every ingest lane
- * reports. */
-export interface AssetColumnIssue {
-  path: string;
-  code: string;
-  message: string;
-}
-
 /**
  * The outcome of one column write. A rejected value and an unknown asset are
  * results, not thrown errors; only an infrastructure failure throws. `value`
@@ -60,7 +53,7 @@ export type AssetStateWriteResult =
     }
   | { ok: false; error: 'unknown_asset'; asset: string }
   | { ok: false; error: 'expect_mismatch'; column: StoreColumn; current: string | number }
-  | { ok: false; error: 'validation'; issues: AssetColumnIssue[] };
+  | { ok: false; error: 'validation'; issues: ValidationIssue[] };
 
 
 // Creating and deleting an asset row: operator actions over same-origin Tower
@@ -101,7 +94,7 @@ export interface AssetRowSummary {
 export type CreateAssetResult =
   | { ok: true; asset: AssetRowSummary }
   | { ok: false; error: 'asset_exists'; asset: string; existingStatus: AssetStatus | null }
-  | { ok: false; error: 'validation'; issues: AssetColumnIssue[] };
+  | { ok: false; error: 'validation'; issues: ValidationIssue[] };
 
 // The order of sites: every list follows each site's stored place
 // (site-order.ts), and the operator sets it by moving one site at a time.
@@ -126,4 +119,4 @@ export type MoveAssetResult =
   | { ok: true; asset: string; order: string[]; revision: string; undoTo: string | null }
   | { ok: false; error: 'expect_mismatch' }
   | { ok: false; error: 'unknown_asset'; asset: string }
-  | { ok: false; error: 'validation'; issues: AssetColumnIssue[] };
+  | { ok: false; error: 'validation'; issues: ValidationIssue[] };

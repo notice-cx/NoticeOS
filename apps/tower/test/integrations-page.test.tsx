@@ -455,18 +455,26 @@ describe("what state a credential is in", () => {
     expect(document.querySelector("[data-disconnect-open]")).toBeNull();
   });
 
+  it("links the setup guide to the provider's section in the public source repository", () => {
+    renderCard(status("dataforseo", DATAFORSEO_FIELDS, {}));
+    expect(screen.getByRole("link", { name: "Setup guide" })).toHaveAttribute(
+      "href",
+      "https://github.com/notice-cx/NoticeOS/blob/main/docs/11-integrations.md#the-catalog",
+    );
+  });
+
   it("names the assets a shared credential serves, linking to their sources", () => {
     renderCard(
       status("google", [field({ name: "GOOGLE_SIGNAL_ACCOUNTS", kind: "json" })], { source: "env" }, [
-        { id: "meals.example", lanes: ["ga4", "gsc"] },
-        { id: "nosh.example", lanes: ["gsc"] },
+        { id: "meadow.example", lanes: ["ga4", "gsc"] },
+        { id: "northwind.example", lanes: ["gsc"] },
       ]),
     );
     const served = document.querySelector("[data-served-assets]");
     expect(served).toHaveTextContent("Used by 2 sites");
     expect(
-      within(served as HTMLElement).getByRole("link", { name: /meals\.example/ }),
-    ).toHaveAttribute("href", "/assets/meals.example/sources");
+      within(served as HTMLElement).getByRole("link", { name: /meadow\.example/ }),
+    ).toHaveAttribute("href", "/assets/meadow.example/sources");
   });
 
   it("names each data source that is not mapped yet", () => {
@@ -481,8 +489,8 @@ describe("what state a credential is in", () => {
         propertyMap: {
           needed: true,
           answersFor: [
-            { asset: "meals.example", id: "ga4", label: "GA4 Data API" },
-            { asset: "nosh.example", id: "gsc", label: "Search Console" },
+            { asset: "meadow.example", id: "ga4", label: "GA4 Data API" },
+            { asset: "northwind.example", id: "gsc", label: "Search Console" },
           ],
         },
       },
@@ -490,8 +498,8 @@ describe("what state a credential is in", () => {
     const note = document.querySelector('[data-property-map="needed"]');
     expect(note).toHaveTextContent("2 data sources are not mapped yet");
     expect(
-      within(note as HTMLElement).getByRole("link", { name: /meals\.example/ }),
-    ).toHaveAttribute("href", "/assets/meals.example/sources");
+      within(note as HTMLElement).getByRole("link", { name: /meadow\.example/ }),
+    ).toHaveAttribute("href", "/assets/meadow.example/sources");
     expect(note).toHaveTextContent("Search Console");
     expect(document.querySelector('[data-property-map="retired"]')).toBeNull();
   });
@@ -531,7 +539,7 @@ describe("what state a credential is in", () => {
         }).credential,
         propertyMap: {
           needed: true,
-          answersFor: [{ asset: "nosh.example", id: "ga4", label: "GA4" }],
+          answersFor: [{ asset: "northwind.example", id: "ga4", label: "GA4" }],
         },
       },
     });
@@ -580,14 +588,14 @@ describe("a metered data source says how much budget is left today", () => {
       {
         source: "store",
         fields: ["CLARITY_TOKENS"],
-        assetsHeld: ["meals.example", "nosh.example"],
+        assetsHeld: ["meadow.example", "northwind.example"],
         lastOkAt: iso(6 * HOUR),
         lastUsedAt: iso(6 * HOUR),
       },
       [
-        { id: "meals.example", lanes: ["clarity"] },
-        { id: "nosh.example", lanes: ["clarity"] },
-        { id: "fees.example", lanes: ["clarity"] },
+        { id: "meadow.example", lanes: ["clarity"] },
+        { id: "northwind.example", lanes: ["clarity"] },
+        { id: "ferns.example", lanes: ["clarity"] },
       ],
       {
         scope: "per-asset",
@@ -604,32 +612,32 @@ describe("a metered data source says how much budget is left today", () => {
   });
 
   it("prints what is left per asset, because the cap is per asset", () => {
-    renderCard(meteredStatus([{ asset: "meals.example", spent: 3 }]));
+    renderCard(meteredStatus([{ asset: "meadow.example", spent: 3 }]));
     const block = document.querySelector("[data-provider-meter]");
     expect(block).toHaveTextContent("7 of 10 calls left today");
     expect(
-      document.querySelector('[data-meter-line="nosh.example"]'),
+      document.querySelector('[data-meter-line="northwind.example"]'),
     ).toHaveTextContent("10 of 10 calls left today");
   });
 
   it("lists only the assets that hold a key, because only they can spend", () => {
     renderCard(meteredStatus([]));
-    // fees.example declares the data source and has no token: a full bar
+    // ferns.example declares the data source and has no token: a full bar
     // beside it would read as budget it does not have.
-    expect(document.querySelector('[data-meter-line="fees.example"]')).toBeNull();
+    expect(document.querySelector('[data-meter-line="ferns.example"]')).toBeNull();
     expect(document.querySelectorAll("[data-meter-line]")).toHaveLength(2);
   });
 
   it("draws no account-credit line, because a daily call cap is not prepaid", () => {
     // Only a prepaid account has a credit to report.
-    renderCard(meteredStatus([{ asset: "meals.example", spent: 3 }]));
+    renderCard(meteredStatus([{ asset: "meadow.example", spent: 3 }]));
     expect(document.querySelector("[data-account-credit]")).toBeNull();
   });
 
   it("says the day is gone rather than a negative budget", () => {
-    renderCard(meteredStatus([{ asset: "meals.example", spent: 12 }]));
+    renderCard(meteredStatus([{ asset: "meadow.example", spent: 12 }]));
     expect(
-      document.querySelector('[data-meter-line="meals.example"]'),
+      document.querySelector('[data-meter-line="meadow.example"]'),
     ).toHaveAttribute("data-meter-left", "0");
   });
 
@@ -663,7 +671,7 @@ describe("the metered provider says how much of the month's cap is left", () => 
           balance,
         },
       },
-      [{ id: "meals.example", lanes: ["dataforseo"] }],
+      [{ id: "meadow.example", lanes: ["dataforseo"] }],
       {
         meter: {
           window: "portfolio-month",
@@ -780,13 +788,13 @@ describe("a per-asset credential says which assets it actually covers", () => {
       {
         source: "store",
         fields: ["CLARITY_TOKENS"],
-        assetsHeld: ["meals.example", "stray.example"],
+        assetsHeld: ["meadow.example", "stray.example"],
         lastOkAt: iso(6 * HOUR),
         lastUsedAt: iso(6 * HOUR),
       },
       [
-        { id: "meals.example", lanes: ["clarity"] },
-        { id: "nosh.example", lanes: ["clarity"] },
+        { id: "meadow.example", lanes: ["clarity"] },
+        { id: "northwind.example", lanes: ["clarity"] },
       ],
       { scope: "per-asset" },
     );
@@ -795,17 +803,17 @@ describe("a per-asset credential says which assets it actually covers", () => {
     // Partial coverage is the normal state: Clarity issues a token per project.
     renderCard(clarityStatus(), {
       assets: [
-        { id: "meals.example", displayName: "meals.example", domain: "meals.example" },
-        { id: "nosh.example", displayName: "nosh.example", domain: "nosh.example" },
+        { id: "meadow.example", displayName: "meadow.example", domain: "meadow.example" },
+        { id: "northwind.example", displayName: "northwind.example", domain: "northwind.example" },
       ],
     });
     const list = document.querySelector("[data-served-assets]");
     expect(list).toHaveTextContent("2 of 3 sites have a key");
-    expect(document.querySelector('[data-served-asset="meals.example"]')).toHaveAttribute(
+    expect(document.querySelector('[data-served-asset="meadow.example"]')).toHaveAttribute(
       "data-asset-key",
       "set",
     );
-    expect(document.querySelector('[data-served-asset="nosh.example"]')).toHaveAttribute(
+    expect(document.querySelector('[data-served-asset="northwind.example"]')).toHaveAttribute(
       "data-asset-key",
       "missing",
     );
@@ -823,11 +831,11 @@ describe("a per-asset credential says which assets it actually covers", () => {
         "dataforseo",
         DATAFORSEO_FIELDS,
         { source: "store", fields: ["DATAFORSEO_LOGIN", "DATAFORSEO_PASSWORD"] },
-        [{ id: "meals.example", lanes: ["dataforseo"] }],
+        [{ id: "meadow.example", lanes: ["dataforseo"] }],
       ),
     );
     expect(document.querySelector("[data-served-assets]")).toHaveTextContent("Used by");
-    expect(document.querySelector('[data-served-asset="meals.example"]')).not.toHaveAttribute(
+    expect(document.querySelector('[data-served-asset="meadow.example"]')).not.toHaveAttribute(
       "data-asset-key",
     );
   });
@@ -838,9 +846,9 @@ describe("a per-asset credential says which assets it actually covers", () => {
       credential: credential("clarity", {
         source: "store",
         fields: ["CLARITY_TOKENS"],
-        assetsHeld: ["meals.example"],
+        assetsHeld: ["meadow.example"],
       }),
-      assets: [{ id: "meals.example", lanes: ["clarity"] }],
+      assets: [{ id: "meadow.example", lanes: ["clarity"] }],
     });
     const button = document.querySelector('[data-test-connection][data-test-cost="none"]');
     expect(button).toHaveTextContent("Check keys");
@@ -935,32 +943,32 @@ describe("the connect form is generated from the field schema", () => {
   it("describes a required key map without making every site's key mandatory", async () => {
     api.save.mockResolvedValue(undefined);
     openForm(status("clarity", [field({ name: "CLARITY_TOKENS", label: "Project tokens", kind: "asset-map" })], {}, [
-      { id: "meals.example", lanes: ["clarity"] },
-      { id: "nosh.example", lanes: ["clarity"] },
+      { id: "meadow.example", lanes: ["clarity"] },
+      { id: "northwind.example", lanes: ["clarity"] },
     ], { scope: "per-asset" }));
     const group = screen.getByRole("group", { name: "Project tokens" });
     expect(group).toHaveAccessibleDescription("At least one key is required.");
-    const first = screen.getByLabelText("Project tokens — meals.example");
-    const second = screen.getByLabelText("Project tokens — nosh.example");
+    const first = screen.getByLabelText("Project tokens — meadow.example");
+    const second = screen.getByLabelText("Project tokens — northwind.example");
     expect(first).not.toBeRequired();
     expect(second).not.toBeRequired();
     expect(first).toHaveAccessibleDescription("At least one key is required.");
     fireEvent.change(first, { target: { value: "synthetic-key" } });
     fireEvent.click(screen.getByRole("button", { name: "Save credential" }));
     await waitFor(() => expect(api.save).toHaveBeenCalledWith("clarity", {
-      CLARITY_TOKENS: '{"meals.example":"synthetic-key"}',
+      CLARITY_TOKENS: '{"meadow.example":"synthetic-key"}',
     }));
   });
 
   it("leaves a nonrequired key map plain and permits an empty map", async () => {
     api.save.mockResolvedValue(undefined);
     openForm(status("clarity", [field({ name: "CLARITY_TOKENS", label: "Project tokens", kind: "asset-map", required: false })], {}, [
-      { id: "meals.example", lanes: ["clarity"] },
+      { id: "meadow.example", lanes: ["clarity"] },
     ], { scope: "per-asset" }));
     const group = screen.getByRole("group", { name: "Project tokens" });
     expect(group).not.toHaveAccessibleDescription();
     expect(screen.getByText("Project tokens").textContent).toBe("Project tokens");
-    expect(screen.getByLabelText("Project tokens — meals.example")).not.toBeRequired();
+    expect(screen.getByLabelText("Project tokens — meadow.example")).not.toBeRequired();
     expect(screen.queryByText(/\(optional\)/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Save credential" }));
     await waitFor(() => expect(api.save).toHaveBeenCalledWith("clarity", {}));
@@ -1012,14 +1020,14 @@ describe("the connect form is generated from the field schema", () => {
     const upload = document.querySelector(
       '[data-field-upload="GOOGLE_SIGNAL_ACCOUNTS"]',
     ) as HTMLInputElement;
-    const file = new File(['{"acct":{"properties":["meals.example"]}}'], "key.json", {
+    const file = new File(['{"acct":{"properties":["meadow.example"]}}'], "key.json", {
       type: "application/json",
     });
     fireEvent.change(upload, { target: { files: [file] } });
 
     await waitFor(() =>
       expect(document.querySelector('[data-field="GOOGLE_SIGNAL_ACCOUNTS"]')).toHaveValue(
-        '{"acct":{"properties":["meals.example"]}}',
+        '{"acct":{"properties":["meadow.example"]}}',
       ),
     );
   });
@@ -1087,33 +1095,33 @@ describe("the connect form is generated from the field schema", () => {
       status(
         "clarity",
         [field({ name: "CLARITY_TOKENS", kind: "asset-map" })],
-        { source: "store", fields: ["CLARITY_TOKENS"], assetsHeld: ["meals.example"] },
+        { source: "store", fields: ["CLARITY_TOKENS"], assetsHeld: ["meadow.example"] },
         [
-          { id: "meals.example", lanes: ["clarity"] },
-          { id: "nosh.example", lanes: ["clarity"] },
+          { id: "meadow.example", lanes: ["clarity"] },
+          { id: "northwind.example", lanes: ["clarity"] },
         ],
         { scope: "per-asset" },
       ),
     );
     const mine = document.querySelector(
-      '[data-asset-key-input="meals.example"]',
+      '[data-asset-key-input="meadow.example"]',
     ) as HTMLInputElement;
     expect(mine).toHaveValue("");
-    expect(document.querySelector('[data-asset-key-input="nosh.example"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-asset-key-input="northwind.example"]')).toBeInTheDocument();
     // A save replaces the map rather than merging.
     expect(document.querySelector('[data-asset-map-replaces]')).toHaveTextContent(
       "Blank keys are removed on save",
     );
 
-    fireEvent.change(mine, { target: { value: " mp-token " } });
-    fireEvent.change(document.querySelector('[data-asset-key-input="nosh.example"]') as HTMLElement, {
-      target: { value: "nom-token" },
+    fireEvent.change(mine, { target: { value: " md-token " } });
+    fireEvent.change(document.querySelector('[data-asset-key-input="northwind.example"]') as HTMLElement, {
+      target: { value: "nw-token" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Save credential" }));
 
     await waitFor(() =>
       expect(api.save).toHaveBeenCalledWith("clarity", {
-        CLARITY_TOKENS: '{"meals.example":"mp-token","nosh.example":"nom-token"}',
+        CLARITY_TOKENS: '{"meadow.example":"md-token","northwind.example":"nw-token"}',
       }),
     );
   });
@@ -1124,7 +1132,7 @@ describe("the connect form is generated from the field schema", () => {
         "clarity",
         [field({ name: "CLARITY_TOKENS", kind: "asset-map" })],
         {},
-        [{ id: "meals.example", lanes: ["clarity"] }],
+        [{ id: "meadow.example", lanes: ["clarity"] }],
         { scope: "per-asset" },
       ),
     );
@@ -1270,7 +1278,7 @@ describe("disconnecting", () => {
       "dataforseo",
       DATAFORSEO_FIELDS,
       { source: "store", fields: ["DATAFORSEO_LOGIN", "DATAFORSEO_PASSWORD"] },
-      [{ id: "meals.example", lanes: ["dataforseo"] }],
+      [{ id: "meadow.example", lanes: ["dataforseo"] }],
     );
 
   it("sits on the connection, on every step, and names what stops before anything is removed", () => {
@@ -1279,7 +1287,7 @@ describe("disconnecting", () => {
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
 
     const confirm = screen.getByRole("group", { name: "Disconnect dataforseo" });
-    expect(within(confirm).getByRole("list", { name: "Sites that stop" })).toHaveTextContent("meals.example");
+    expect(within(confirm).getByRole("list", { name: "Sites that stop" })).toHaveTextContent("meadow.example");
     expect(document.querySelector("[data-disconnect-effects]")).toHaveTextContent("Login deleted · no undo");
     expect(confirm.querySelector("input")).toBeNull();
     expect(api.remove).not.toHaveBeenCalled();
@@ -1639,8 +1647,8 @@ describe("the Google card offers a sign-in", () => {
     account: "ops@example.test",
     auth: "oauth",
     properties: [
-      { lane: "ga4", ref: "412330001", label: "Meal Planner", detail: "Example Ventures" },
-      { lane: "gsc", ref: "sc-domain:nosh.example", label: "sc-domain:nosh.example", detail: "siteOwner" },
+      { lane: "ga4", ref: "412330001", label: "Meadow Board", detail: "Example Ventures" },
+      { lane: "gsc", ref: "sc-domain:northwind.example", label: "sc-domain:northwind.example", detail: "siteOwner" },
     ],
   };
 
@@ -1853,9 +1861,9 @@ describe("the Google card offers a sign-in", () => {
       expect(document.querySelector("[data-oauth-discovery]")).toBeInTheDocument(),
     );
     const list = document.querySelector("[data-oauth-discovery]")!;
-    expect(list).toHaveTextContent("Meal Planner");
+    expect(list).toHaveTextContent("Meadow Board");
     expect(list).toHaveTextContent("412330001");
-    expect(list).toHaveTextContent("sc-domain:nosh.example");
+    expect(list).toHaveTextContent("sc-domain:northwind.example");
     expect(document.querySelectorAll("[data-discovered]")).toHaveLength(2);
   });
 

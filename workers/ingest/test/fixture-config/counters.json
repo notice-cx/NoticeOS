@@ -1,9 +1,9 @@
 {
   "assets": {
-    "meals.example": {
+    "meadow.example": {
       "source": {
         "kind": "prometheus",
-        "url": "https://meals.example/api/internal/metrics",
+        "url": "https://meadow.example/api/internal/metrics",
         "enabled": true
       },
       "cards": [
@@ -11,7 +11,7 @@
         { "metric": "leads", "counter": "leads", "label": "Leads" }
       ]
     },
-    "nosh.example": {
+    "northwind.example": {
       "heading": "Current catalog",
       "cards": [
         { "metric": "catalogItems", "label": "Items rated" },

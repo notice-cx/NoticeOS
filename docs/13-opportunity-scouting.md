@@ -166,14 +166,10 @@ filled by `scripts/reclamation-import.mjs`, read as the property page's Link
 outreach funnel, and watched by the `reclamation-match` rule — a campaign with
 no conversion rate cannot run the abandonment rule it documents.
 
-## Integrations this adds ([doc 11](11-integrations.md) rows)
+## Integrations this adds
 
-Web search API (grounded scouting), deep-research tooling (bounded, budgeted
-runs for lane-1/3/5 investigations), Google Trends (demand timing), Wayback /
-End-of-Term archives (orphaned-demand mining), update/volatility trackers,
-marketplace feeds (acquisition watch — low cadence). Each with the standard
-catalog entry: cost model, quota, degradation, and the rule that scouts cite
-what they fetched.
+Each scout data source is a row of [doc 11's catalog](11-integrations.md#the-catalog),
+with its cost, quota and degradation; scouts cite what they fetched.
 
 ## Cadence & phase fit
 

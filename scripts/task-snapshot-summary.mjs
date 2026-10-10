@@ -1,11 +1,7 @@
 // Pure task snapshot reads and derivation; shared unchanged with the standalone poller.
 import { gateReason, gateTitle } from '../packages/contract/src/task-gate.mjs';
-import {
-  HANDOFF_LABEL as TASK_HANDOFF_LABEL,
-  HANDOFF_LABELS,
-  TASK_METADATA,
-  taskMetadataValue,
-} from '../packages/contract/src/task-metadata.mjs';
+import { HANDOFF_LABELS, TASK_METADATA, taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
+import { BEADS_HANDOFF_KINDS } from '../packages/contract/src/task-snapshot.mjs';
 import { panelReviewEntry, panelReviewListArgs } from "./panel-review-summary.mjs";
 import { BEADS_ERROR_MAX, beadsFailure, beadsInstant, beadsText } from "./task-snapshot-values.mjs";
 
@@ -18,10 +14,9 @@ import { BEADS_ERROR_MAX, beadsFailure, beadsInstant, beadsText } from "./task-s
 // filtered query per spoke, not a slice of the capped lists this poller
 // captures, because a task filed a month ago falls outside all of them.
 
-/** The label every Tower handoff task carries — `HANDOFF_SOURCE_LABEL` in
- * apps/tower/src/lib/task-handoff.ts; `--label-any` also finds the older
- * `reindex-handoff` label. */
-export const HANDOFF_LABEL = TASK_HANDOFF_LABEL;
+/** The label every Tower handoff task carries; `--label-any` also finds the
+ * older `reindex-handoff` label. */
+export { HANDOFF_LABEL } from '../packages/contract/src/task-metadata.mjs';
 /** The finding/query identity, byte-exact. Read from metadata and never from
  * the `key:` label: `bd` splits label values on commas, and the label carries
  * a lossy slug. */
@@ -31,11 +26,9 @@ export const HANDOFF_KEY_FIELD = TASK_METADATA.key.name;
 export const HANDOFF_KIND_FIELD = TASK_METADATA.kind.name;
 /** Which property it was raised for. */
 export const HANDOFF_ASSET_FIELD = TASK_METADATA.asset.name;
-/** The only four surfaces that emit a handoff. Kept in step with
- * `BEADS_HANDOFF_KINDS` (workers/ingest/src/beads-snapshots.ts) and the
- * emitter's own list (apps/tower/src/lib/task-handoff.ts); the ingest
- * validator drops an unrecognized kind's row, not the project. */
-export const HANDOFF_KINDS = ['query', 'finding', 'page', 'alert'];
+/** The surfaces that emit a handoff: the contract's list, which the ingest
+ * validator reads too. */
+export const HANDOFF_KINDS = BEADS_HANDOFF_KINDS;
 /**
  * How many filed tasks one spoke may report — a rendering bound, not a truth
  * bound (the ingest route's own ceiling is 50 items). The read is unlimited so

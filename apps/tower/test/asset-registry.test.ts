@@ -34,7 +34,7 @@ const unavailable = postgresUnavailable();
 /** One real store with one site. */
 async function namedSite() {
   const ctx = await createTestStore();
-  await addSites(ctx, [{ id: "meals.example", displayName: "Meal Planner", status: "live", senseOnly: 0, createdAt: "2026-07-01T00:00:00.000Z" }]);
+  await addSites(ctx, [{ id: "meadow.example", displayName: "Meadow Board", status: "live", senseOnly: 0, createdAt: "2026-07-01T00:00:00.000Z" }]);
 
   return ctx;
 }
@@ -59,7 +59,7 @@ describe.skipIf(unavailable !== null)(`the site list is read on Postgres${unavai
   it("every reader lists sites that share one instant in the order they were placed", async () => {
     const ctx = await createTestStore();
     const at = "2026-07-05T00:00:00.000Z";
-    const placed = ["root.example", "meals.example", "nosh.example", "pacer.example", "areas.example", "fees.example"];
+    const placed = ["root.example", "meadow.example", "northwind.example", "pebble.example", "acorn.example", "ferns.example"];
     await addSites(ctx, placed.map((id, index) => ({
       id, displayName: id, status: "live", createdAt: at, ...(index === 0 ? { isOs: 1, domain: null } : {}),
     })));
@@ -101,41 +101,41 @@ describe.skipIf(unavailable !== null)(`the site list is read on Postgres${unavai
   it("the Wall's cards, the asset page and the integrations matrix name the site from Postgres", async () => {
     const ctx = await namedSite();
     const store = ctx.call;
-    expect((await buildWallPayload(store, WALL)).assets.map((card) => card.displayName)).toEqual(["Meal Planner"]);
-    expect((await buildAssetDetailPayload(store, "meals.example", DETAIL))!.asset.displayName).toBe("Meal Planner");
+    expect((await buildWallPayload(store, WALL)).assets.map((card) => card.displayName)).toEqual(["Meadow Board"]);
+    expect((await buildAssetDetailPayload(store, "meadow.example", DETAIL))!.asset.displayName).toBe("Meadow Board");
     const matrix = await buildIntegrationsMatrix(store, {
-      now: NOW, integrations: { catalog: [], assets: { "meals.example": {} } }, pullConfig: [], monthlyCaps: { dataUsd: 25 }, serpPanel: { assets: {} },
+      now: NOW, integrations: { catalog: [], assets: { "meadow.example": {} } }, pullConfig: [], monthlyCaps: { dataUsd: 25 }, serpPanel: { assets: {} },
     });
-    expect(matrix.assets.map((asset) => asset.displayName)).toEqual(["Meal Planner"]);
+    expect(matrix.assets.map((asset) => asset.displayName)).toEqual(["Meadow Board"]);
   });
 
   it("the task board, the alert history and the Wall feed name the site from Postgres", async () => {
     const ctx = await namedSite();
     const store = ctx.call;
     const board = await buildWorkPayload(store, { now: NOW, snapshot: { capturedAt: NOW.toISOString(), projects: [workProject()] } as never });
-    expect(board.projects.map((project) => project.name)).toEqual(["Meal Planner"]);
+    expect(board.projects.map((project) => project.name)).toEqual(["Meadow Board"]);
 
     await storeAlert(store, {
-      asset: "meals.example", firedAt: "2026-09-22T10:00:00.000Z", severity: "warn", kind: "anomaly",
+      asset: "meadow.example", firedAt: "2026-09-22T10:00:00.000Z", severity: "warn", kind: "anomaly",
       message: "moved", ruleId: "volume-anomaly", resolvedAt: "2026-09-22T11:00:00.000Z",
     });
     const history = await buildAlertHistoryPayload(store,
       { asset: null, severity: null, offset: 0, limit: ALERT_HISTORY_PAGE, malformed: null }, { now: NOW });
-    expect(history.rows.map((row) => row.asset.displayName)).toEqual(["Meal Planner"]);
+    expect(history.rows.map((row) => row.asset.displayName)).toEqual(["Meadow Board"]);
 
     const feed = await buildWallFeed(store, { now: NOW, osTimeZone: ZONE });
-    const named = feed.items.filter((item) => item.asset === "meals.example").map((item) => item.site);
+    const named = feed.items.filter((item) => item.asset === "meadow.example").map((item) => item.site);
     expect(named.length).toBeGreaterThan(0);
-    expect(new Set(named)).toEqual(new Set(["Meal Planner"]));
+    expect(new Set(named)).toEqual(new Set(["Meadow Board"]));
   });
 
   it("an asset page, a decision and the connect panel know a site by Postgres alone", async () => {
     const ctx = await createTestStore();
-    await addSites(ctx, [{ id: "meals.example", displayName: "Meal Planner", status: "live" }]);
+    await addSites(ctx, [{ id: "meadow.example", displayName: "Meadow Board", status: "live" }]);
 
     const store = ctx.call;
     // A live site is listed by the connect panel.
-    expect((await loadSitesAssets(store, { catalog: [], assets: {} }, [])).map((site) => site.id)).toEqual(["meals.example"]);
+    expect((await loadSitesAssets(store, { catalog: [], assets: {} }, [])).map((site) => site.id)).toEqual(["meadow.example"]);
 
     // An unknown site is refused by both its page and its write route.
     expect(await buildAssetDetailPayload(store, "unknown.example", DETAIL)).toBeNull();

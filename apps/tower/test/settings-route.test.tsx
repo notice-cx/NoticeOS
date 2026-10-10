@@ -155,8 +155,8 @@ function payload(overrides: Partial<SettingsPayload> = {}): SettingsPayload {
       pullOwner: "config/pull.json",
       schedules: null,
       pullAssets: [
-        { asset: "meals.example", url: "https://meals.example/api/internal/metrics", enabled: true },
-        { asset: "nosh.example", url: "https://nosh.example/api/admin/overview", enabled: false },
+        { asset: "meadow.example", url: "https://meadow.example/api/internal/metrics", enabled: true },
+        { asset: "northwind.example", url: "https://northwind.example/api/admin/overview", enabled: false },
       ],
     },
     sources: {
@@ -180,7 +180,7 @@ function payload(overrides: Partial<SettingsPayload> = {}): SettingsPayload {
           name: "Example Ventures LLC",
           form: "LLC",
           jurisdiction: "US-DE",
-          assets: ["meals.example"],
+          assets: ["meadow.example"],
         },
       ],
     },
@@ -188,7 +188,7 @@ function payload(overrides: Partial<SettingsPayload> = {}): SettingsPayload {
       owner: "config/beads.json",
       spokes: [
         { asset: "root-os", prefix: "ro", database: "ro", repo: "." },
-        { asset: "meals.example", prefix: "mp", database: "mp", repo: "../meals.example" },
+        { asset: "meadow.example", prefix: "md", database: "md", repo: "../meadow.example" },
       ],
       hub: { host: "127.0.0.1", port: 3308, user: "root", dataDir: ".local/beads-dolt" },
     },
@@ -698,11 +698,11 @@ describe("/settings", () => {
     expect(screen.queryByRole("spinbutton", { name: /Counter read interval/ })).toBeNull();
     expect(screen.getByRole("combobox", { name: "Nightly reports · how often" })).toHaveValue("daily");
     expect(screen.getByRole("spinbutton", { name: /Panel history window/ })).toHaveValue(35);
-    expect(within(document.querySelector('[data-pull-asset="meals.example"]') as HTMLElement).getByText("Enabled")).toBeTruthy();
-    expect(within(document.querySelector('[data-pull-asset="nosh.example"]') as HTMLElement).getByText("Paused")).toBeTruthy();
+    expect(within(document.querySelector('[data-pull-asset="meadow.example"]') as HTMLElement).getByText("Enabled")).toBeTruthy();
+    expect(within(document.querySelector('[data-pull-asset="northwind.example"]') as HTMLElement).getByText("Paused")).toBeTruthy();
     pickSection("task-hub");
-    const project = document.querySelector('[data-collection-row="meals.example"]') as HTMLElement;
-    expect(within(project).getByLabelText("Task prefix")).toHaveValue("mp");
+    const project = document.querySelector('[data-collection-row="meadow.example"]') as HTMLElement;
+    expect(within(project).getByLabelText("Task prefix")).toHaveValue("md");
     expect(within(project).queryByLabelText("Repo")).toBeNull();
   });
 
@@ -828,7 +828,7 @@ function addForm(): HTMLElement {
 }
 
 /** The steps that outlive the write, once they have rendered. */
-async function findChecklist(asset = "nosh.example"): Promise<HTMLElement> {
+async function findChecklist(asset = "northwind.example"): Promise<HTMLElement> {
   const at = () => document.querySelector(`[data-project-checklist='${asset}']`);
   await waitFor(() => expect(at()).not.toBeNull());
   return at() as HTMLElement;
@@ -903,17 +903,17 @@ function fillProject(fields: { asset: string; prefix: string }) {
 describe("/settings — the task-hub project map", () => {
   beforeEach(() => { initialSection = "task-hub"; });
   it("adds a project as one insert, and the Undo takes it out again", async () => {
-    state.integrations = matrix(11.4, "2026-09", assetRefs("nosh.example", "meals.example"));
+    state.integrations = matrix(11.4, "2026-09", assetRefs("northwind.example", "meadow.example"));
     const calls = stubFetch();
     renderPage();
 
     fireEvent.click(within(taskHub()).getByRole("button", { name: "Add" }));
     expect(within(addForm()).queryByLabelText("Repository")).toBeNull();
-    fillProject({ asset: "nosh.example", prefix: "nom" });
+    fillProject({ asset: "northwind.example", prefix: "nw" });
     fireEvent.click(within(addForm()).getByRole("button", { name: "Add" }));
 
     await waitFor(() => expect(calls.some((c) => c.method === "PUT")).toBe(true));
-    const added = { asset: "nosh.example", prefix: "nom", database: "nom" };
+    const added = { asset: "northwind.example", prefix: "nw", database: "nw" };
     expect(calls.find((c) => c.method === "PUT")!.body).toMatchObject({
       ops: [{ kind: "file-json-insert", file: "config/beads.json", pointer: "/spokes/-", value: added }],
     });
@@ -938,10 +938,10 @@ describe("/settings — the task-hub project map", () => {
     const calls = stubFetch();
     renderPage();
 
-    expect(within(projectRow("meals.example")).queryByLabelText("Repo")).toBeNull();
+    expect(within(projectRow("meadow.example")).queryByLabelText("Repo")).toBeNull();
     expect(within(taskHub()).queryByRole("button", { name: "Save" })).toBeNull();
-    const field = within(projectRow("meals.example")).getByLabelText("Database");
-    fireEvent.change(field, { target: { value: "meals" } });
+    const field = within(projectRow("meadow.example")).getByLabelText("Database");
+    fireEvent.change(field, { target: { value: "meadow" } });
     fireEvent.blur(field);
 
     await waitFor(() => expect(calls.some((c) => c.method === "PUT")).toBe(true));
@@ -951,13 +951,13 @@ describe("/settings — the task-hub project map", () => {
           kind: "file-json-set",
           file: "config/beads.json",
           pointer: "/spokes/1/database",
-          expect: "mp",
-          value: "meals",
+          expect: "md",
+          value: "meadow",
         },
       ],
     });
     const saved = await waitFor(() => {
-      const found = projectRow("meals.example").querySelector('[data-save-state="saved"]');
+      const found = projectRow("meadow.example").querySelector('[data-save-state="saved"]');
       expect(found).not.toBeNull();
       return found as HTMLElement;
     });
@@ -970,14 +970,14 @@ describe("/settings — the task-hub project map", () => {
     renderPage();
 
     fireEvent.click(
-      within(projectRow("meals.example")).getByRole("button", { name: "Remove meals.example…" }),
+      within(projectRow("meadow.example")).getByRole("button", { name: "Remove meadow.example…" }),
     );
     expect(calls.some((c) => c.method === "PUT")).toBe(false);
     fireEvent.click(
-      within(projectRow("meals.example")).getByRole("button", { name: "Remove meals.example" }),
+      within(projectRow("meadow.example")).getByRole("button", { name: "Remove meadow.example" }),
     );
 
-    const gone = { asset: "meals.example", prefix: "mp", database: "mp", repo: "../meals.example" };
+    const gone = { asset: "meadow.example", prefix: "md", database: "md", repo: "../meadow.example" };
     await waitFor(() => expect(calls.some((c) => c.method === "PUT")).toBe(true));
     expect(calls.find((c) => c.method === "PUT")!.body).toMatchObject({
       ops: [
@@ -995,32 +995,32 @@ describe("/settings — the task-hub project map", () => {
   });
 
   it("refuses a prefix another project already uses, naming the field", async () => {
-    state.integrations = matrix(11.4, "2026-09", assetRefs("nosh.example", "meals.example"));
+    state.integrations = matrix(11.4, "2026-09", assetRefs("northwind.example", "meadow.example"));
     const calls = stubFetch();
     renderPage();
 
-    // A second project on `mp-` would make every task id ambiguous, and the
+    // A second project on `md-` would make every task id ambiguous, and the
     // asset is free, so the key field cannot catch this one.
     fireEvent.click(within(taskHub()).getByRole("button", { name: "Add" }));
-    fillProject({ asset: "nosh.example", prefix: "mp" });
+    fillProject({ asset: "northwind.example", prefix: "md" });
     fireEvent.click(within(addForm()).getByRole("button", { name: "Add" }));
 
     expect(await within(addForm()).findByRole("alert")).toHaveTextContent(
-      'Task prefix "mp" is already in this list',
+      'Task prefix "md" is already in this list',
     );
     expect(calls.some((c) => c.method === "PUT")).toBe(false);
   });
 
   it("refuses an asset this OS does not have, and offers the ones no project has claimed", async () => {
-    state.integrations = matrix(11.4, "2026-09", assetRefs("nosh.example", "meals.example", "fees.example"));
+    state.integrations = matrix(11.4, "2026-09", assetRefs("northwind.example", "meadow.example", "ferns.example"));
     const calls = stubFetch();
     renderPage();
 
     fireEvent.click(within(taskHub()).getByRole("button", { name: "Add" }));
     const list = addForm().querySelector("datalist") as HTMLDataListElement;
     expect([...list.querySelectorAll("option")].map((o) => o.getAttribute("value"))).toEqual([
-      "nosh.example",
-      "fees.example",
+      "northwind.example",
+      "ferns.example",
     ]);
 
     fillProject({ asset: "typo.example", prefix: "typo" });
@@ -1031,21 +1031,21 @@ describe("/settings — the task-hub project map", () => {
   });
 
   it("answers an Add with the steps the file cannot do, as text to paste", async () => {
-    state.integrations = matrix(11.4, "2026-09", assetRefs("nosh.example"));
+    state.integrations = matrix(11.4, "2026-09", assetRefs("northwind.example"));
     stubFetch();
     renderPage();
 
     expect(document.querySelector("[data-project-checklist]")).toBeNull();
 
     fireEvent.click(within(taskHub()).getByRole("button", { name: "Add" }));
-    fillProject({ asset: "nosh.example", prefix: "nom" });
+    fillProject({ asset: "northwind.example", prefix: "nw" });
     fireEvent.click(within(addForm()).getByRole("button", { name: "Add" }));
 
     const checklist = await findChecklist();
     // The command carries the hub's real host and port, never a typed copy.
     expect(checklist.textContent).toContain(
       "bd init --server --external --server-host 127.0.0.1 --server-port 3308 " +
-        "--server-user root --prefix nom --non-interactive --skip-agents --skip-hooks",
+        "--server-user root --prefix nw --non-interactive --skip-agents --skip-hooks",
     );
     const yaml = within(checklist)
       .getByText("File · the project checkout/.beads/config.yaml")
@@ -1062,17 +1062,17 @@ describe("/settings — the task-hub project map", () => {
   });
 
   it("names the database in the command only when it differs from the prefix", async () => {
-    state.integrations = matrix(11.4, "2026-09", assetRefs("nosh.example"));
+    state.integrations = matrix(11.4, "2026-09", assetRefs("northwind.example"));
     stubFetch();
     renderPage();
 
     fireEvent.click(within(taskHub()).getByRole("button", { name: "Add" }));
-    fillProject({ asset: "nosh.example", prefix: "nom" });
-    fireEvent.change(within(addForm()).getByLabelText("Database"), { target: { value: "nomnow" } });
+    fillProject({ asset: "northwind.example", prefix: "nw" });
+    fireEvent.change(within(addForm()).getByLabelText("Database"), { target: { value: "nwnow" } });
     fireEvent.click(within(addForm()).getByRole("button", { name: "Add" }));
 
     const checklist = await findChecklist();
-    expect(checklist.textContent).toContain("--prefix nom --database nomnow");
+    expect(checklist.textContent).toContain("--prefix nw --database nwnow");
   });
 
   it("shows the connection as the fixed fact it is, never as a field", () => {
@@ -1092,13 +1092,13 @@ describe("/settings — the task-hub project map", () => {
   // the board, so both states are staged by moving one item in and out of the
   // work payload.
   it("marks the project whose database does not exist, and names both fixes", () => {
-    state.work = workBoard(driftTask("meals.example"));
+    state.work = workBoard(driftTask("meadow.example"));
     stubFetch();
     renderPage();
 
     expect(
-      within(projectRow("meals.example")).getByRole("img", {
-        name: "No database named mp where the tasks live",
+      within(projectRow("meadow.example")).getByRole("img", {
+        name: "No database named md where the tasks live",
       }),
     ).toBeTruthy();
     // The agreeing project carries no mark at all, never an all-clear, because
@@ -1108,13 +1108,13 @@ describe("/settings — the task-hub project map", () => {
     ).toBeNull();
 
     const note = document.querySelector("[data-database-not-found]") as HTMLElement;
-    expect(note.textContent).toContain("meals.example is not being backed up");
-    expect(note.textContent).toContain("No database named mp");
+    expect(note.textContent).toContain("meadow.example is not being backed up");
+    expect(note.textContent).toContain("No database named md");
     expect(note.textContent).not.toMatch(/Tasks board keeps working/u);
     fireEvent.click(within(note).getByRole("button", { name: "Edit name" }));
-    expect(document.activeElement).toBe(within(projectRow("meals.example")).getByLabelText("Database"));
-    expect(within(note).getByText("Keep mp")).toBeTruthy();
-    expect(note.textContent).toContain("--prefix mp --database mp");
+    expect(document.activeElement).toBe(within(projectRow("meadow.example")).getByLabelText("Database"));
+    expect(within(note).getByText("Keep md")).toBeTruthy();
+    expect(note.textContent).toContain("--prefix md --database md");
   });
 
   it("takes the mark off once the task is gone, and offers nothing when nothing answered", () => {
@@ -1124,7 +1124,7 @@ describe("/settings — the task-hub project map", () => {
 
     expect(document.querySelector("[data-database-not-found]")).toBeNull();
     expect(
-      within(projectRow("meals.example")).queryByRole("img", { name: /No database/u }),
+      within(projectRow("meadow.example")).queryByRole("img", { name: /No database/u }),
     ).toBeNull();
     expect(within(taskHub()).getByText("Found")).toBeTruthy();
     unmount();
@@ -1141,7 +1141,7 @@ describe("/settings — the task-hub project map", () => {
     const refused = "bd list exited 1: dial tcp 127.0.0.1:3308: connect: connection refused";
     const board = workBoard();
     const failed = { ...board.projects[0]!, ok: false, error: refused };
-    state.work = { ...board, projects: [failed, { ...failed, asset: "meals.example", prefix: "mp", name: "Meal Planner" }] };
+    state.work = { ...board, projects: [failed, { ...failed, asset: "meadow.example", prefix: "md", name: "Meadow Board" }] };
     stubFetch();
     renderPage();
 
@@ -1153,13 +1153,13 @@ describe("/settings — the task-hub project map", () => {
     expect(connection.textContent).toContain("127.0.0.1:3308");
 
     expect(within(taskHub()).getByText("Found")).toBeTruthy();
-    expect(projectRow("meals.example").querySelector("[data-found-unknown]")).toHaveTextContent("Unknown");
+    expect(projectRow("meadow.example").querySelector("[data-found-unknown]")).toHaveTextContent("Unknown");
     expect(projectRow("root-os").querySelector("[data-found-unknown]")).toHaveTextContent("Unknown");
   });
 
   it("draws no server state while any project reads", () => {
     const board = workBoard();
-    state.work = { ...board, projects: [...board.projects, { ...board.projects[0]!, asset: "meals.example", ok: false, error: "no repo" }] };
+    state.work = { ...board, projects: [...board.projects, { ...board.projects[0]!, asset: "meadow.example", ok: false, error: "no repo" }] };
     stubFetch();
     renderPage();
     const connection = document.querySelector("[data-task-hub-connection]") as HTMLElement;
@@ -1174,11 +1174,11 @@ describe("/settings — the task-hub project map", () => {
     renderPage();
     const section = taskHub();
     expect(section.querySelector("[data-task-projects-read-only]")).toBeTruthy();
-    expect(within(section).getByText("meals.example")).toBeTruthy();
+    expect(within(section).getByText("meadow.example")).toBeTruthy();
     expect(within(section).queryByRole("button", { name: "Add" })).toBeNull();
     expect(within(section).queryByRole("button", { name: /Remove/ })).toBeNull();
     expect(within(section).queryByRole("textbox")).toBeNull();
-    expect(section.textContent).not.toContain("../meals.example");
+    expect(section.textContent).not.toContain("../meadow.example");
     expect(section.textContent).not.toContain(".local/beads-dolt");
   });
 
@@ -1192,8 +1192,8 @@ describe("/settings — the task-hub project map", () => {
     expect(taskHub().querySelector("[data-collection-locked]")).not.toBeNull();
     expect(within(taskHub()).queryByRole("button", { name: "Add" })).toBeNull();
     expect(within(taskHub()).queryByLabelText("Repo")).toBeNull();
-    expect(within(taskHub()).getAllByText("mp").length).toBeGreaterThan(0);
-    expect(within(taskHub()).queryByText("../meals.example")).toBeNull();
+    expect(within(taskHub()).getAllByText("md").length).toBeGreaterThan(0);
+    expect(within(taskHub()).queryByText("../meadow.example")).toBeNull();
   });
 });
 
@@ -1202,8 +1202,8 @@ describe("/settings — the task-hub project map", () => {
  * deployment that cannot save still shows it. */
 function assetCard(overrides: Partial<AssetCard>): AssetCard {
   return {
-    id: "meals.example",
-    displayName: "Meal Planner",
+    id: "meadow.example",
+    displayName: "Meadow Board",
     openError: 0,
     openWarn: 0,
     pulseReceivedAt: "2026-09-04T02:00:00.000Z",
@@ -1271,14 +1271,14 @@ describe("/settings#alert-rules — the replay the fields are edited against", (
   beforeEach(() => { initialSection = "alert-rules"; });
   it("draws the strip in the section, against the asset with the most open alerts", async () => {
     state.wall = wall([
-      assetCard({ id: "meals.example", displayName: "Meal Planner", openWarn: 1 }),
-      assetCard({ id: "nosh.example", displayName: "Nosh", openWarn: 2, openError: 1 }),
+      assetCard({ id: "meadow.example", displayName: "Meadow Board", openWarn: 1 }),
+      assetCard({ id: "northwind.example", displayName: "Northwind", openWarn: 2, openError: 1 }),
     ]);
     const asked = stubReplay();
     const { container } = renderPage();
 
     await waitFor(() => expect(asked).toHaveLength(1));
-    expect(asked[0]).toMatchObject({ asset: "nosh.example", ruleId: "flow-poisson-low" });
+    expect(asked[0]).toMatchObject({ asset: "northwind.example", ruleId: "flow-poisson-low" });
     await waitFor(() => {
       expect(screen.getByText(/Would have fired/)).toHaveTextContent(
         "Would have fired 1 time in the last 30 days",
@@ -1291,29 +1291,29 @@ describe("/settings#alert-rules — the replay the fields are edited against", (
 
   it("replays against the asset the picker names, and says which one it is", async () => {
     state.wall = wall([
-      assetCard({ id: "nosh.example", displayName: "Nosh", openWarn: 2 }),
-      assetCard({ id: "meals.example", displayName: "Meal Planner" }),
+      assetCard({ id: "northwind.example", displayName: "Northwind", openWarn: 2 }),
+      assetCard({ id: "meadow.example", displayName: "Meadow Board" }),
     ]);
     const asked = stubReplay();
     const { container } = renderPage();
 
     await waitFor(() => expect(asked).toHaveLength(1));
-    expect(container.querySelector("[data-replay-caption]")).toHaveTextContent(/^Nosh · last 30 days/);
+    expect(container.querySelector("[data-replay-caption]")).toHaveTextContent(/^Northwind · last 30 days/);
 
     fireEvent.click(
-      container.querySelector('[data-replay-asset="meals.example"]') as HTMLElement,
+      container.querySelector('[data-replay-asset="meadow.example"]') as HTMLElement,
     );
 
     await waitFor(() => {
-      expect(asked[asked.length - 1]).toMatchObject({ asset: "meals.example" });
+      expect(asked[asked.length - 1]).toMatchObject({ asset: "meadow.example" });
     });
     expect(container.querySelector("[data-replay-caption]")).toHaveTextContent(
-      /^Meal Planner · last 30 days/,
+      /^Meadow Board · last 30 days/,
     );
   });
 
   it("names the values it replayed, and follows the field as it is typed into", async () => {
-    state.wall = wall([assetCard({ id: "nosh.example", displayName: "Nosh" })]);
+    state.wall = wall([assetCard({ id: "northwind.example", displayName: "Northwind" })]);
     const asked = stubReplay();
     const { container } = renderPage();
 
@@ -1338,7 +1338,7 @@ describe("/settings#alert-rules — the replay the fields are edited against", (
   });
 
   it("replays the other rule when the operator picks it", async () => {
-    state.wall = wall([assetCard({ id: "nosh.example", displayName: "Nosh" })]);
+    state.wall = wall([assetCard({ id: "northwind.example", displayName: "Northwind" })]);
     const asked = stubReplay();
     const { container } = renderPage();
 
@@ -1356,8 +1356,8 @@ describe("/settings#alert-rules — the replay the fields are edited against", (
    * it is `max-sm:`. */
   it("gives both replay pickers the phone's thumb floor and leaves the desk alone", async () => {
     state.wall = wall([
-      assetCard({ id: "nosh.example", displayName: "Nosh" }),
-      assetCard({ id: "meals.example", displayName: "Meal Planner" }),
+      assetCard({ id: "northwind.example", displayName: "Northwind" }),
+      assetCard({ id: "meadow.example", displayName: "Meadow Board" }),
     ]);
     stubReplay();
     const { container } = renderPage();
@@ -1379,7 +1379,7 @@ describe("/settings#alert-rules — the replay the fields are edited against", (
 
   it("still shows the preview where nothing can be saved", async () => {
     state.writable = { writable: false, reason: READ_ONLY_REASON };
-    state.wall = wall([assetCard({ id: "nosh.example", displayName: "Nosh" })]);
+    state.wall = wall([assetCard({ id: "northwind.example", displayName: "Northwind" })]);
     const asked = stubReplay();
     const { container } = renderPage();
 
@@ -1396,7 +1396,7 @@ describe("/settings#alert-rules — the replay the fields are edited against", (
   });
 
   it("says there is nothing to replay against rather than drawing an empty strip", () => {
-    state.wall = wall([assetCard({ id: "nosh.example", pulseReceivedAt: null })]);
+    state.wall = wall([assetCard({ id: "northwind.example", pulseReceivedAt: null })]);
     stubReplay();
     const { container } = renderPage();
 
@@ -1956,19 +1956,19 @@ describe("/settings — who owns what", () => {
     state.integrations = matrix(
       11.4,
       "2026-09",
-      assetRefs("meals.example", "nosh.example", "areas.example"),
+      assetRefs("meadow.example", "northwind.example", "acorn.example"),
     );
     stubFetch();
     renderPage();
 
     const map = entities().querySelector("[data-entity-ownership]") as HTMLElement;
     expect(within(map).getByText("Example Ventures LLC")).toBeTruthy();
-    expect(within(map).getByText("meals.example")).toBeTruthy();
+    expect(within(map).getByText("meadow.example")).toBeTruthy();
 
     const unclaimed = map.querySelector("[data-entity-unowned]") as HTMLElement;
     expect(unclaimed.getAttribute("data-entity-unowned")).toBe("2");
-    expect(within(unclaimed).getByText("nosh.example").closest("a")?.getAttribute("href")).toBe(
-      "/assets/nosh.example/settings",
+    expect(within(unclaimed).getByText("northwind.example").closest("a")?.getAttribute("href")).toBe(
+      "/assets/northwind.example/settings",
     );
   });
 

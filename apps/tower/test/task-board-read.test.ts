@@ -7,7 +7,7 @@ import { askVerb, catalogScope, inboxAsk, readTaskBoard, taskCatalogProjects, ty
 
 function item(overrides: Partial<WorkItem> = {}): WorkItem {
   return {
-    id: "mp-1w2",
+    id: "md-1w2",
     title: "Fix the recipe schema",
     status: "open",
     priority: 2,
@@ -23,9 +23,9 @@ function item(overrides: Partial<WorkItem> = {}): WorkItem {
 
 function project(overrides: Partial<WorkProject> = {}): WorkProject {
   return {
-    asset: "meals.example",
-    prefix: "mp",
-    name: "Meal Planner",
+    asset: "meadow.example",
+    prefix: "md",
+    name: "Meadow Board",
     ok: true,
     error: null,
     counts: {
@@ -42,9 +42,9 @@ function project(overrides: Partial<WorkProject> = {}): WorkProject {
     epics: null,
     deferred: [],
     waiting: [],
-    ready: [item(), item({ id: "mp-88x", title: "Rewrite the FAQ", priority: 0 })],
+    ready: [item(), item({ id: "md-88x", title: "Rewrite the FAQ", priority: 0 })],
     inProgress: [
-      item({ id: "mp-33j", title: "Ship the sitemap fix", status: "in_progress", assignee: "agent-x" }),
+      item({ id: "md-33j", title: "Ship the sitemap fix", status: "in_progress", assignee: "agent-x" }),
     ],
     recentlyClosed: [],
     history: emptyWorkHistory(),
@@ -85,12 +85,12 @@ function liveTask(overrides: Partial<LiveTask> = {}): LiveTask {
 function board(
   tasks: LiveTask[],
   epics: LiveTasksPayload["epics"] = null,
-  asset = "meals.example",
+  asset = "meadow.example",
 ): LiveTasksPayload {
   return {
     project: asset,
-    prefix: "mp",
-    repo: "../meals.example",
+    prefix: "md",
+    repo: "../meadow.example",
     readAt: "2026-08-01T11:59:30.000Z",
     tasks,
     epics,
@@ -106,7 +106,7 @@ function success(data: LiveTasksPayload): ProjectTaskRead { return { data, isErr
 
 describe("task board read", () => {
   it('retains live rows, filtering and read provenance when writes are unavailable', () => {
-    const reads = new Map([['meals.example', success(board([liveTask()]))]]);
+    const reads = new Map([['meadow.example', success(board([liveTask()]))]]);
     const ordinary = read({ reads });
     const viewer = read({ reads, capabilities: { live: true, writable: false, reason: null } });
     expect(viewer.rows).toEqual(ordinary.rows); expect(viewer.totals).toEqual(ordinary.totals);
@@ -120,7 +120,7 @@ describe("task board read", () => {
     expect(pending.totals.open).toBe(3);
     expect(pending.counts.closed).toBeNull();
     expect(pending.closedHistoryState).toBe("loading");
-    const reads = new Map([["meals.example", success(board([liveTask({ labels: ["review"], description: "Full context" })]))]]);
+    const reads = new Map([["meadow.example", success(board([liveTask({ labels: ["review"], description: "Full context" })]))]]);
     const live = read({ reads });
     expect(live.complete).toBe(true);
     expect(live.projects[0]).toMatchObject({ source: "live", actionable: true });
@@ -134,27 +134,27 @@ describe("task board read", () => {
   });
 
   it("keeps one failing project sampled and uses the oldest displayed source for the age", () => {
-    const snapshot = payload({ projects: [project(), project({ asset: "nosh.example", name: "Nosh", prefix: "nom", ready: [item({ id: "nom-saved" })], inProgress: [] })] });
+    const snapshot = payload({ projects: [project(), project({ asset: "northwind.example", name: "Northwind", prefix: "nw", ready: [item({ id: "nw-saved" })], inProgress: [] })] });
     const reads = new Map<string, ProjectTaskRead>([
-      ["meals.example", success(board([liveTask({ id: "mp-live" })]))],
-      ["nosh.example", { data: board([liveTask({ id: "nom-cached" })], null, "nosh.example"), isError: true, error: new Error("Unavailable") }],
+      ["meadow.example", success(board([liveTask({ id: "md-live" })]))],
+      ["northwind.example", { data: board([liveTask({ id: "nw-cached" })], null, "northwind.example"), isError: true, error: new Error("Unavailable") }],
     ]);
     const view = read({ snapshot, reads });
-    expect(view.rows.map(row => row.id)).toEqual(["mp-live", "nom-saved"]);
-    expect(view.byId.get("meals.example")?.actionable).toBe(true);
-    expect(view.byId.get("nosh.example")).toMatchObject({ source: "snapshot", actionable: false, laneError: "Unavailable" });
+    expect(view.rows.map(row => row.id)).toEqual(["md-live", "nw-saved"]);
+    expect(view.byId.get("meadow.example")?.actionable).toBe(true);
+    expect(view.byId.get("northwind.example")).toMatchObject({ source: "snapshot", actionable: false, laneError: "Unavailable" });
     expect(view.complete).toBe(false);
     expect(view.shownAt).toBe(snapshot.capturedAt);
     expect(view.counts.closed).toBeNull();
-    reads.set("nosh.example", success(board([liveTask({ id: "nom-current" })], null, "nosh.example")));
+    reads.set("northwind.example", success(board([liveTask({ id: "nw-current" })], null, "northwind.example")));
     const recovered = read({ snapshot, reads });
     expect(recovered.complete).toBe(true);
-    expect(recovered.rows.map(row => row.id)).toEqual(["mp-live", "nom-current"]);
+    expect(recovered.rows.map(row => row.id)).toEqual(["md-live", "nw-current"]);
     expect(recovered.shownAt).toBe("2026-08-01T11:59:30.000Z");
   });
 
   it("keeps complete reported snapshot counts distinct from its limited rows", () => {
-    const snapshot = payload({ projects: [project({ counts: { ...project().counts, closedRecent: 60 }, recentlyClosed: [item({ id: "mp-closed", status: "closed" })] })] });
+    const snapshot = payload({ projects: [project({ counts: { ...project().counts, closedRecent: 60 }, recentlyClosed: [item({ id: "md-closed", status: "closed" })] })] });
     const view = read({ snapshot, capabilities: { live: false, reason: null }, filters: { ...filters, status: "closed" } });
     expect(view.counts.closed).toBe(60);
     expect(view.rows).toHaveLength(1);
@@ -164,7 +164,7 @@ describe("task board read", () => {
   });
 
   it("does not turn an unavailable project into an empty actionable queue", () => {
-    const view = read({ snapshot: payload({ projects: [project({ ok: false, error: "Snapshot failed" })] }), reads: new Map([["meals.example", { isError: true, error: new Error("Live failed") }]]) });
+    const view = read({ snapshot: payload({ projects: [project({ ok: false, error: "Snapshot failed" })] }), reads: new Map([["meadow.example", { isError: true, error: new Error("Live failed") }]]) });
     expect(view.projects[0]).toMatchObject({ source: "unavailable", actionable: false, tasks: [], readAt: null });
     expect(view.broken).toHaveLength(1);
     expect(view.counts.closed).toBeNull();
@@ -175,21 +175,21 @@ describe("task board read", () => {
   });
 
   it("rejects a local payload for another project instead of granting its actions", () => {
-    const view = read({ reads: new Map([["meals.example", success(board([liveTask({ id: "nom-wrong" })], null, "nosh.example"))]]) });
+    const view = read({ reads: new Map([["meadow.example", success(board([liveTask({ id: "nw-wrong" })], null, "northwind.example"))]]) });
     expect(view.projects[0]).toMatchObject({ source: "snapshot", actionable: false });
     expect(view.broken[0]?.laneError).toContain("different project");
-    expect(view.rows.some(row => row.id === "nom-wrong")).toBe(false);
+    expect(view.rows.some(row => row.id === "nw-wrong")).toBe(false);
   });
 
   it("keeps scoped reads, filters, full counts, readiness and human gates together", () => {
-    const tasks = [liveTask({ id: "mp-ask", ready: true, labels: ["human"], priority: 0 }), liveTask({ id: "mp-gate", issueType: "gate", awaitType: "human" }), liveTask({ id: "mp-timer", issueType: "gate", awaitType: "timer" }), liveTask({ id: "mp-epic", issueType: "epic" }), liveTask({ id: "mp-working", status: "in_progress", assignee: "agent" })];
-    const view = read({ scope: "meals.example", snapshot: payload({ projects: [project(), project({ asset: "nosh.example" })] }), reads: new Map([["meals.example", success(board(tasks))]]), filters: { ...filters, project: "nosh.example", label: "human" } });
+    const tasks = [liveTask({ id: "md-ask", ready: true, labels: ["human"], priority: 0 }), liveTask({ id: "md-gate", issueType: "gate", awaitType: "human" }), liveTask({ id: "md-timer", issueType: "gate", awaitType: "timer" }), liveTask({ id: "md-epic", issueType: "epic" }), liveTask({ id: "md-working", status: "in_progress", assignee: "agent" })];
+    const view = read({ scope: "meadow.example", snapshot: payload({ projects: [project(), project({ asset: "northwind.example" })] }), reads: new Map([["meadow.example", success(board(tasks))]]), filters: { ...filters, project: "northwind.example", label: "human" } });
     expect(view.spokes).toHaveLength(1);
     // The ask is listed once: in the inbox, not again in the table below it.
     expect(view.rows.map(row => row.id)).toEqual([]);
     expect(view.allTasks).toHaveLength(3);
     expect(view.totals.waiting).toBe(2);
-    expect(view.inbox.map(row => row.task.id)).toEqual(["mp-ask"]);
+    expect(view.inbox.map(row => row.task.id)).toEqual(["md-ask"]);
     expect(view.statusCounts.get("in-progress")).toBe(1);
     expect(view.assigneeCounts.get("agent")).toBe(1);
   });

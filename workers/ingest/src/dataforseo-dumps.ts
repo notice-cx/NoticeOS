@@ -24,14 +24,15 @@ import {
   watchTransport,
 } from './egress.js';
 import {
+  boundedResponseJson,
   normalizeSignalError,
+  reportDateOffset,
   SignalError,
 } from './signal-store.js';
 import {
   DATAFORSEO_MONTHLY_CADENCE_DAYS,
   DATAFORSEO_WEEKLY_CADENCE_DAYS,
   MAX_REPORT_COST_USD,
-  SERP_PANEL_CALL_USD,
   SERP_PANEL_DEVICES,
   SERP_PANEL_QUERY_LIMIT,
   dataForSeoReportsFor,
@@ -55,10 +56,11 @@ import {
 } from './lane-mapping.js';
 import { type ConfigSourceMap, configSourceLine } from './config-store.js';
 import type { WorkspaceStore } from '@noticeos/postgres';
-import { SITE_ORDER } from './asset-registry.js';
+import { SITE_ORDER } from '@noticeos/contract';
 import constants from '../../../config/constants.json';
 import serpPanelConfigJson from '../../../config/serp-panel.json';
 import { isolateState } from './isolate-state.js';
+import { arrayField, asRecord, sha256Hex, stringField, wholeUtcDaysBetween } from './shared.js';
 
 const API_BASE = 'https://api.dataforseo.com/v3';
 const CREDENTIAL_REF = 'DATAFORSEO_LOGIN+DATAFORSEO_PASSWORD';
@@ -78,14 +80,6 @@ const SERP_COMPETITORS_LIMIT = 20;
 /** `keyword_ideas` expands by category, not string: without a ceiling the
  * internet's biggest queries fill every slot. */
 const KEYWORD_IDEAS_VOLUME_CEILING = 500_000;
-// Re-exported from the contract so existing importers keep working; the
-// collector is still the only thing that enforces them.
-export {
-  MAX_REPORT_COST_USD,
-  SERP_PANEL_CALL_USD,
-  SERP_PANEL_DEVICES,
-  SERP_PANEL_QUERY_LIMIT,
-};
 const DATA_MONTHLY_CAP_USD = constants.monthly_caps.data_usd;
 /** Two pages. A property below this records no rank: "not inside the tracked
  * depth", never "not ranking". */
@@ -343,12 +337,12 @@ const REPORTS: ReportSpec[] = [
     requests: (target, reportDate) => {
       // This endpoint accepts completed days only: the archive says when we
       // observed, the request ends yesterday.
-      const completedThrough = isoDateOffset(reportDate, -1);
+      const completedThrough = reportDateOffset(reportDate, -1);
       return [
         {
           body: {
             target: target.propertyRef,
-            date_from: isoDateOffset(completedThrough, -(HISTORY_DAYS - 1)),
+            date_from: reportDateOffset(completedThrough, -(HISTORY_DAYS - 1)),
             date_to: completedThrough,
             group_range: 'week',
             tag: `${target.asset}:backlinks-new-lost`,
@@ -1042,7 +1036,7 @@ async function dueDataForSeoPlan(
     );
     if (
       latest === undefined ||
-      wholeDaysBetween(latest, reportDate) >= item.report.cadenceDays
+      wholeUtcDaysBetween(latest, reportDate) >= item.report.cadenceDays
     ) {
       due.push(item);
       continue;
@@ -1051,7 +1045,7 @@ async function dueDataForSeoPlan(
       asset: item.target.asset,
       report: item.report.name,
       latestReportDate: latest,
-      nextDueDate: isoDateOffset(latest, item.report.cadenceDays),
+      nextDueDate: reportDateOffset(latest, item.report.cadenceDays),
     });
   }
   return { due, skippedFresh };
@@ -1059,18 +1053,6 @@ async function dueDataForSeoPlan(
 
 function planKey(asset: string, report: string): string {
   return `${asset}\u0000${report}`;
-}
-
-/** Whole UTC days from `from` to `to`. Unreadable stored evidence is treated as
- * infinitely old: collect visibly instead of letting a malformed date suppress
- * a paid lane forever. */
-function wholeDaysBetween(from: string, to: string): number {
-  const start = Date.parse(`${from}T00:00:00.000Z`);
-  const end = Date.parse(`${to}T00:00:00.000Z`);
-  if (!Number.isFinite(start) || !Number.isFinite(end)) {
-    return Number.POSITIVE_INFINITY;
-  }
-  return Math.round((end - start) / 86_400_000);
 }
 
 /** The families this property owns, in declaration order. A family whose config
@@ -1387,12 +1369,7 @@ export async function dataForSeoCheckpointKey(
 ): Promise<string> {
   const objects = await signalObjectScope(env);
   const identity = JSON.stringify({ path: spec.path, body, label: label ?? null });
-  const digest = new Uint8Array(
-    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(identity)),
-  );
-  const hash = [...digest]
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
+  const hash = await sha256Hex(identity);
   return objects.key([
     DATAFORSEO_CHECKPOINT_PREFIX,
     encodeURIComponent(target.asset),
@@ -1507,7 +1484,7 @@ async function callProvider(
         response.status === 429 ? response.headers.get('retry-after') : null,
         Date.now(),
       );
-      const body = await boundedResponseJson(response);
+      const body = await boundedResponseJson(response, 'DataForSEO', RESPONSE_BYTE_LIMIT);
       if (!isTransientResponse(response.status, body)) {
         return { status: response.status, body, attempts };
       }
@@ -1751,50 +1728,6 @@ function providerFailureMessage(
   return fallback;
 }
 
-async function boundedResponseJson(response: Response): Promise<unknown> {
-  const declaredLength = Number(response.headers.get('content-length'));
-  if (Number.isFinite(declaredLength) && declaredLength > RESPONSE_BYTE_LIMIT) {
-    await response.body?.cancel();
-    throw new SignalError(
-      'response_too_large',
-      `DataForSEO response exceeded ${RESPONSE_BYTE_LIMIT} bytes.`,
-    );
-  }
-  if (!response.body) return {};
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let bytes = 0;
-  let text = '';
-  try {
-    while (true) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      bytes += chunk.value.byteLength;
-      if (bytes > RESPONSE_BYTE_LIMIT) {
-        await reader.cancel();
-        throw new SignalError(
-          'response_too_large',
-          `DataForSEO response exceeded ${RESPONSE_BYTE_LIMIT} bytes.`,
-        );
-      }
-      text += decoder.decode(chunk.value, { stream: true });
-    }
-    text += decoder.decode();
-  } finally {
-    reader.releaseLock();
-  }
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new SignalError(
-      'response_invalid_json',
-      'DataForSEO returned invalid JSON.',
-    );
-  }
-}
-
 function basicAuthorization(login: string, password: string): string {
   const bytes = new TextEncoder().encode(`${login}:${password}`);
   let binary = '';
@@ -1816,40 +1749,10 @@ function normalizeDomain(value: string): string {
   }
 }
 
-function isoDateOffset(date: string, days: number): string {
-  const time = Date.parse(`${date}T00:00:00.000Z`);
-  if (!Number.isFinite(time)) {
-    throw new SignalError('config_invalid', `Invalid report date "${date}".`);
-  }
-  return new Date(time + days * 86_400_000).toISOString().slice(0, 10);
-}
-
 function providerCost(error: unknown): number {
   if (!error || typeof error !== 'object') return 0;
   const value = (error as { costUsd?: unknown }).costUsd;
   return finiteNumber(value) ?? 0;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function arrayField(
-  record: Record<string, unknown> | null,
-  field: string,
-): unknown[] {
-  const value = record?.[field];
-  return Array.isArray(value) ? value : [];
-}
-
-function stringField(
-  record: Record<string, unknown> | null,
-  field: string,
-): string | null {
-  const value = record?.[field];
-  return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
 function finiteNumber(value: unknown): number | null {

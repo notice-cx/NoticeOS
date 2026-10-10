@@ -61,22 +61,22 @@ const CATALOG: SourceSetting[] = [
  * one that owns nothing, whose first asset is a first write because it
  * carries no `assets` key at all. */
 const ENTITIES: EntityRow[] = [
-  { slug: "example-ventures", name: "Example Ventures LLC", assets: ["nosh.example"] },
+  { slug: "example-ventures", name: "Example Ventures LLC", assets: ["northwind.example"] },
   { slug: "second-co", name: "Second Co" },
 ];
 
 const AT = new Date("2026-09-04T12:00:00.000Z");
 
 function filled(over: Partial<AssetDraft> = {}): AssetDraft {
-  return { ...emptyDraft(), displayName: "Meal Planner", domain: "meals.example", ...over };
+  return { ...emptyDraft(), displayName: "Meadow Board", domain: "meadow.example", ...over };
 }
 
 describe("the id is derived from the domain, never typed", () => {
   it("strips everything that is not the host", () => {
-    expect(assetIdFromDomain("https://www.Meals.example/api/metrics?x=1")).toBe("meals.example");
-    expect(assetIdFromDomain("  nosh.example  ")).toBe("nosh.example");
-    expect(assetIdFromDomain("http://pullups.example:8080/")).toBe("pullups.example");
-    expect(assetIdFromDomain("areas.example.")).toBe("areas.example");
+    expect(assetIdFromDomain("https://www.Meadow.example/api/metrics?x=1")).toBe("meadow.example");
+    expect(assetIdFromDomain("  northwind.example  ")).toBe("northwind.example");
+    expect(assetIdFromDomain("http://puffin.example:8080/")).toBe("puffin.example");
+    expect(assetIdFromDomain("acorn.example.")).toBe("acorn.example");
   });
 
   it("returns nothing when nothing usable is left", () => {
@@ -128,10 +128,10 @@ describe("the refusals are short states beside the field that can fix them", () 
   });
 
   it("refuses a domain the portfolio already holds and names the asset to open", () => {
-    expect(domainIssue("https://www.Meals.example/", { existingIds: ["meals.example"] })).toEqual({
+    expect(domainIssue("https://www.Meadow.example/", { existingIds: ["meadow.example"] })).toEqual({
       field: "domain",
       message: "Already added",
-      existing: "meals.example",
+      existing: "meadow.example",
     });
   });
 
@@ -143,11 +143,11 @@ describe("the refusals are short states beside the field that can fix them", () 
   });
 
   it("a pull endpoint has to be a URL the OS could fetch", () => {
-    const bare = filled({ collection: "pull", pullUrl: "meals.example/metrics" });
+    const bare = filled({ collection: "pull", pullUrl: "meadow.example/metrics" });
     expect(validateDraft(bare, { existingIds: [] })).toEqual([
       { field: "pullUrl", message: "A full https:// URL" },
     ]);
-    const full = filled({ collection: "pull", pullUrl: "https://meals.example/metrics" });
+    const full = filled({ collection: "pull", pullUrl: "https://meadow.example/metrics" });
     expect(validateDraft(full, { existingIds: [] })).toEqual([]);
     // A push asset is asked for no endpoint at all, so an empty one is the
     // field not existing, not a refusal.
@@ -164,12 +164,12 @@ describe("the refusals are short states beside the field that can fix them", () 
   });
 
   it("a complete draft refuses nothing", () => {
-    expect(validateDraft(filled(), { existingIds: ["nosh.example"] })).toEqual([]);
+    expect(validateDraft(filled(), { existingIds: ["northwind.example"] })).toEqual([]);
   });
 });
 
 describe("the writes Create will make", () => {
-  it.each(["meals.example", "journey.example", "sub.example-site.test"])("produces a changeset the real validator accepts for %s without changing its identity", (domain) => {
+  it.each(["meadow.example", "journey.example", "sub.example-site.test"])("produces a changeset the real validator accepts for %s without changing its identity", (domain) => {
     const plan = planWrites(filled({ domain }), CATALOG, ENTITIES, AT);
     expect(plan.id).toBe(domain);
     expect(plan.row.domain).toBe(domain);
@@ -180,12 +180,12 @@ describe("the writes Create will make", () => {
   it("names the store row and the config entries, in that order", () => {
     const plan = planWrites(filled(), CATALOG, ENTITIES, AT);
 
-    expect(plan.id).toBe("meals.example");
-    expect(plan.slug).toBe("add-asset-meals-example");
+    expect(plan.id).toBe("meadow.example");
+    expect(plan.slug).toBe("add-asset-meadow-example");
     expect(plan.row).toEqual({
-      id: "meals.example",
-      displayName: "Meal Planner",
-      domain: "meals.example",
+      id: "meadow.example",
+      displayName: "Meadow Board",
+      domain: "meadow.example",
       status: "onboarding",
       senseOnly: 1,
     });
@@ -197,7 +197,7 @@ describe("the writes Create will make", () => {
       {
         kind: "file-json-insert",
         file: "config/integrations.json",
-        pointer: "/assets/meals.example",
+        pointer: "/assets/meadow.example",
         value: {
           gsc: { status: "needs-setup", since: "2026-09-04" },
           "ad-network": { status: "needs-setup", since: "2026-09-04" },
@@ -207,7 +207,7 @@ describe("the writes Create will make", () => {
       {
         kind: "file-json-insert",
         file: "config/signal-panels.json",
-        pointer: "/assets/meals.example",
+        pointer: "/assets/meadow.example",
         value: {
           enabled: false,
           reason: "no-lane-yet",
@@ -271,8 +271,8 @@ describe("the writes Create will make", () => {
       kind: "file-json-set",
       file: "config/entities.json",
       pointer: "/entities/0/assets",
-      expect: ["nosh.example"],
-      value: ["nosh.example", "meals.example"],
+      expect: ["northwind.example"],
+      value: ["northwind.example", "meadow.example"],
     });
   });
 
@@ -286,7 +286,7 @@ describe("the writes Create will make", () => {
       file: "config/entities.json",
       pointer: "/entities/1/assets",
       expectAbsent: true,
-      value: ["meals.example"],
+      value: ["meadow.example"],
     });
   });
 
@@ -299,7 +299,7 @@ describe("the writes Create will make", () => {
     const plan = planWrites(
       filled({
         collection: "pull",
-        pullUrl: " https://meals.example/api/internal/metrics ",
+        pullUrl: " https://meadow.example/api/internal/metrics ",
         pullFormat: "prometheus",
         counters: [{ metric: " signups ", label: " Accounts " }],
       }),
@@ -315,7 +315,7 @@ describe("the writes Create will make", () => {
       "config/pull.json",
     ]);
     expect(plan.ops[2]).toMatchObject({
-      pointer: "/assets/meals.example",
+      pointer: "/assets/meadow.example",
       value: { cards: [{ metric: "signups", label: "Accounts" }] },
     });
     // RFC 6902's append token, and the entry carries its own `asset` id so a
@@ -325,8 +325,8 @@ describe("the writes Create will make", () => {
       file: "config/pull.json",
       pointer: "/-",
       value: {
-        asset: "meals.example",
-        url: "https://meals.example/api/internal/metrics",
+        asset: "meadow.example",
+        url: "https://meadow.example/api/internal/metrics",
         enabled: true,
         format: "prometheus",
       },
@@ -369,13 +369,13 @@ describe("the writes Create will make", () => {
 
   it("the Settings tab adds totals and an endpoint with the very ops Add would have sent", () => {
     const plan = planWrites(
-      filled({ collection: "pull", pullUrl: "https://nosh.example/api/admin/overview", counters: [{ metric: "signups", label: "Accounts" }] }),
+      filled({ collection: "pull", pullUrl: "https://northwind.example/api/admin/overview", counters: [{ metric: "signups", label: "Accounts" }] }),
       CATALOG,
       ENTITIES,
       AT,
     );
-    expect(plan.ops).toContainEqual(countersEntryOp("meals.example", [{ metric: "signups", label: "Accounts" }]));
-    expect(plan.ops).toContainEqual(pullEntryOp("meals.example", "https://nosh.example/api/admin/overview", "envelope"));
-    expect(countersEntryOp("meals.example", [{ metric: " ", label: "" }])).toBeNull();
+    expect(plan.ops).toContainEqual(countersEntryOp("meadow.example", [{ metric: "signups", label: "Accounts" }]));
+    expect(plan.ops).toContainEqual(pullEntryOp("meadow.example", "https://northwind.example/api/admin/overview", "envelope"));
+    expect(countersEntryOp("meadow.example", [{ metric: " ", label: "" }])).toBeNull();
   });
 });

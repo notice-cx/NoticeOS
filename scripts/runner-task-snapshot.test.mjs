@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import * as osUp from './os-up.mjs';
 import {
   BEADS_OPTIONAL_READS,
   beadsPollArgs,
@@ -94,11 +93,4 @@ test('a snapshot is filed at the given door, and a down runtime is one line, not
   assert.equal(posted[0].url, 'http://127.0.0.1:8857/api/beads-snapshot');
   assert.deepEqual(posted[0].body.projects.map((entry) => entry.asset), ['shop.example']);
   assert.match(lines[1], /beads snapshot resumed/u);
-});
-
-test('os-up.mjs still offers the same snapshot names', () => {
-  assert.equal(osUp.runBeadsPoll, runBeadsPoll);
-  assert.equal(osUp.collectBeadsSnapshot, collectBeadsSnapshot);
-  assert.equal(osUp.summarizeBeadsProject, summarizeBeadsProject);
-  assert.equal(osUp.handoffEntries, handoffEntries);
 });

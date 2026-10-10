@@ -143,51 +143,6 @@ export function flowLowVolumeAnomaly(
   return { ruleId, outcome: 'ok', inputs };
 }
 
-/**
- * Percentage-drop tripwire, gated on a minimum absolute count (docs/02:
- * "percentage-drop rules gate on minimum absolute counts" — so a 1->0 day on a
- * tiny metric never reads as a "100% drop"). Available as a per-asset-configured
- * alternative to the Poisson rule; it is NOT wired into the default evaluator,
- * because at the volume where it is meaningful the Poisson tail already
- * subsumes it and running both would double-fire the same metric.
- */
-export function percentageDropAnomaly(
-  metric: string,
-  observed: number,
-  baselinePerDay: number,
-  opts: { minDropFraction?: number; minAbsoluteCount?: number } = {},
-): RuleVerdict {
-  const ruleId = 'flow-pct-drop';
-  const minDropFraction = opts.minDropFraction ?? 0.5;
-  const minAbsoluteCount = opts.minAbsoluteCount ?? 5;
-  const inputs: Record<string, unknown> = {
-    metric,
-    observed,
-    baselinePerDay,
-    minDropFraction,
-    minAbsoluteCount,
-  };
-  if (baselinePerDay < minAbsoluteCount) {
-    return { ruleId, outcome: 'not-applicable', inputs };
-  }
-  const dropFraction = (baselinePerDay - observed) / baselinePerDay;
-  inputs.dropFraction = dropFraction;
-  if (dropFraction >= minDropFraction) {
-    return {
-      ruleId,
-      outcome: 'fired',
-      inputs,
-      flag: {
-        severity: 'warn',
-        kind: 'anomaly',
-        metric,
-        message: `${observed} in last24h is ${Math.round(dropFraction * 100)}% below avg7d ${baselinePerDay.toFixed(1)}`,
-      },
-    };
-  }
-  return { ruleId, outcome: 'ok', inputs };
-}
-
 export interface EvaluateOptions {
   config?: RuleConfig;
   /**

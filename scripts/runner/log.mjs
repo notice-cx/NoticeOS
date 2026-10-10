@@ -5,6 +5,7 @@
 
 import { createWriteStream } from 'node:fs';
 import fs from 'node:fs/promises';
+import { skipIsNew } from '../job-runs.mjs';
 import { redactLogText } from '../os-log.mjs';
 import { LOG_FILE } from './config.mjs';
 
@@ -37,6 +38,27 @@ export function writeLine(tag, line) {
 
 export function log(level, msg) {
   writeLine('[os-up]', `${level} ${msg}`);
+}
+
+/**
+ * How a lane says it is not running: one WARN when a skip reason starts,
+ * silence while the same reason repeats, and one INFO when the lane runs again,
+ * so an afternoon's outage is two lines rather than one per tick.
+ * `state.skipping` holds the reason being suppressed. `skip` returns null so a
+ * lane can `return skip(…)`.
+ */
+export function laneSkips(lane, state, emit = log) {
+  return {
+    skip(reason) {
+      if (skipIsNew(state, reason)) emit('WARN', `${lane} skipped — ${reason} (silent until it changes)`);
+      return null;
+    },
+    resume() {
+      if (state.skipping === null) return;
+      emit('INFO', `${lane} resumed (was skipped: ${state.skipping})`);
+      state.skipping = null;
+    },
+  };
 }
 
 export async function rotateLogFile(file = LOG_FILE, { maxBytes = LOG_MAX_BYTES, keep = LOG_ROTATIONS } = {}) {

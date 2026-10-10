@@ -51,17 +51,17 @@ const NOW = new Date("2026-07-05T12:00:00.000Z");
 const NOW_MS = NOW.getTime();
 const HOUR = 3_600_000;
 
-// config/pull.json shape: meals and nosh are fetched nightly, areas is
+// config/pull.json shape: meadow and northwind are fetched nightly, areas is
 // configured but switched off. Everything else pushes (or nothing).
 const PULL_CONFIG: PullConfigEntry[] = [
-  { asset: "meals.example", url: "https://meals.example/api/internal/metrics", enabled: true, format: "prometheus" },
-  { asset: "nosh.example", url: "https://nosh.example/api/admin/overview", enabled: true, format: "envelope" },
-  { asset: "areas.example", url: "https://areas.example/api/metrics", enabled: false, format: "envelope" },
+  { asset: "meadow.example", url: "https://meadow.example/api/internal/metrics", enabled: true, format: "prometheus" },
+  { asset: "northwind.example", url: "https://northwind.example/api/admin/overview", enabled: true, format: "envelope" },
+  { asset: "acorn.example", url: "https://acorn.example/api/metrics", enabled: false, format: "envelope" },
 ];
 
-// config/serp-panel.json's key set: meals.example is the one asset with a
+// config/serp-panel.json's key set: meadow.example is the one asset with a
 // tracked panel, so the one asset due six weekly DataForSEO families.
-const SERP_PANEL = { assets: { "meals.example": {} } };
+const SERP_PANEL = { assets: { "meadow.example": {} } };
 
 const deps = (
   integrations: IntegrationsConfig,
@@ -100,28 +100,28 @@ const INTEGRATIONS: IntegrationsConfig = {
       "affiliate-cj": cell("not-applicable"),
       "affiliate-amazon": cell("not-applicable"),
     },
-    "meals.example": {
+    "meadow.example": {
       gsc: cell("needs-setup"),
       uptime: cell("needs-setup"),
       "ad-network": cell("needs-setup"),
       "affiliate-cj": cell("needs-setup"),
       "affiliate-amazon": cell("skipped", { note: "REASON: Amazon program off" }),
     },
-    "nosh.example": {
+    "northwind.example": {
       gsc: cell("needs-setup"),
       uptime: cell("live"), // synthetic: its failing home-page check exercises declared-live → degraded
       "ad-network": cell("needs-setup"),
       "affiliate-cj": cell("needs-setup"),
       "affiliate-amazon": cell("not-applicable"),
     },
-    "areas.example": {
+    "acorn.example": {
       gsc: cell("needs-setup"),
       uptime: cell("needs-setup"),
       "ad-network": cell("needs-setup"),
       "affiliate-cj": cell("needs-setup"),
       "affiliate-amazon": cell("not-applicable"),
     },
-    "fees.example": {
+    "ferns.example": {
       gsc: cell("not-applicable"),
       uptime: cell("not-applicable"),
       "ad-network": cell("not-applicable"),
@@ -212,11 +212,11 @@ async function insertHomeCheck(
   );
 }
 
-/** nosh's home page answering 503 to the OS's own check twenty minutes ago:
+/** northwind's home page answering 503 to the OS's own check twenty minutes ago:
  * its uptime's own evidence, never the report's alert. */
 async function insertNomDown(ctx: TestStore) {
-  await insertHomeCheck(ctx, "nosh.example", new Date(NOW_MS - 20 * 60_000).toISOString(), "error", {
-    url: "https://nosh.example/", http_status: 503, error: "non-200 response (503)",
+  await insertHomeCheck(ctx, "northwind.example", new Date(NOW_MS - 20 * 60_000).toISOString(), "error", {
+    url: "https://northwind.example/", http_status: 503, error: "non-200 response (503)",
   });
 }
 
@@ -252,49 +252,49 @@ async function insertRevenue(
 async function seed(raw: TestStore) {
   // The OS row's stored name is one the Health page never shows.
   await insertAsset(raw, "root-os", "ReindexOS", 1);
-  await insertAsset(raw, "meals.example", "Meal Planner", 0);
-  await insertAsset(raw, "nosh.example", "Nosh", 0);
-  await insertAsset(raw, "areas.example", "Area Lookup", 0);
-  await insertAsset(raw, "fees.example", "Fee Codes", 0);
+  await insertAsset(raw, "meadow.example", "Meadow Board", 0);
+  await insertAsset(raw, "northwind.example", "Northwind", 0);
+  await insertAsset(raw, "acorn.example", "Acorn Atlas", 0);
+  await insertAsset(raw, "ferns.example", "Fern Index", 0);
 }
 
 /** The seed's revenue, booked by the tests that read revenue evidence. */
 async function seedRevenue(ctx: TestStore) {
-  // meals: recent ads + affiliate(CJ) revenue, supporting evidence for both lanes.
-  await insertRevenue(ctx, 1, "meals.example", "2026-06", "ads", 498.1, "raptive-report");
-  await insertRevenue(ctx, 2, "meals.example", "2026-06", "affiliate", 168.2, "cj-export");
+  // meadow: recent ads + affiliate(CJ) revenue, supporting evidence for both lanes.
+  await insertRevenue(ctx, 1, "meadow.example", "2026-06", "ads", 498.1, "raptive-report");
+  await insertRevenue(ctx, 2, "meadow.example", "2026-06", "affiliate", 168.2, "cj-export");
   // areas: only old revenue (before the 3-month window), so it must not support.
-  await insertRevenue(ctx, 3, "areas.example", "2026-01", "ads", 50, "adsense-report");
+  await insertRevenue(ctx, 3, "acorn.example", "2026-01", "ads", 50, "adsense-report");
 }
 
-/** `seed`'s nightly reports and nosh's open ingest-freshness alert, written by
+/** `seed`'s nightly reports and northwind's open ingest-freshness alert, written by
  * the tests that read them. */
 async function seedReports(ctx: TestStore) {
   const store = ctx.call;
   await storeAlert(store, {
-    asset: "nosh.example",
+    asset: "northwind.example",
     firedAt: "2026-07-05T04:00:00.000Z",
     severity: "error",
     kind: "anomaly",
     message: "0 pulses in 36h",
     ruleId: "ingest-freshness",
   });
-  // Nightly reports: root-os and meals reported inside the cadence (live);
-  // nosh's last one is 3 days old (degraded); areas + fees.example have never
+  // Nightly reports: root-os and meadow reported inside the cadence (live);
+  // northwind's last one is 3 days old (degraded); areas + ferns.example have never
   // reported (needs-setup).
   const report = (asset: string, date: string, receivedAt: string) => ({ asset, date, receivedAt, envelope: '{"metrics":{}}' });
   await storeReports(store, [
     report("root-os", "2026-07-05", new Date(NOW_MS - 2 * HOUR).toISOString()),
-    report("meals.example", "2026-07-05", new Date(NOW_MS - 4 * HOUR).toISOString()),
-    report("nosh.example", "2026-07-01", new Date(NOW_MS - 72 * HOUR).toISOString()),
-    report("nosh.example", "2026-07-02", new Date(NOW_MS - 71 * HOUR).toISOString()),
+    report("meadow.example", "2026-07-05", new Date(NOW_MS - 4 * HOUR).toISOString()),
+    report("northwind.example", "2026-07-01", new Date(NOW_MS - 72 * HOUR).toISOString()),
+    report("northwind.example", "2026-07-02", new Date(NOW_MS - 71 * HOUR).toISOString()),
   ]);
 }
 
 const NO_EVIDENCE: LaneEvidence = { revenueRows: [] };
 
 const GSC_SUCCESS: LatestSignalRun = {
-  asset: "meals.example",
+  asset: "meadow.example",
   integration: "gsc",
   status: "success",
   finishedAt: new Date(NOW_MS - 15 * 60_000).toISOString(),
@@ -434,7 +434,7 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
       signalRuns: [GSC_SUCCESS],
       archiveRuns: [
         {
-          asset: "meals.example",
+          asset: "meadow.example",
           integration: "gsc",
           reportDate: "2026-07-01",
           finishedAt: new Date(NOW_MS - 3 * HOUR).toISOString(),
@@ -457,7 +457,7 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
       signalRuns: [GSC_SUCCESS],
       archiveRuns: [
         {
-          asset: "meals.example",
+          asset: "meadow.example",
           integration: "gsc",
           reportDate: "2026-07-04",
           finishedAt: new Date(NOW_MS - 3 * HOUR).toISOString(),
@@ -485,7 +485,7 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
       signalRuns: [GSC_SUCCESS],
       archiveRuns: [
         {
-          asset: "meals.example",
+          asset: "meadow.example",
           integration: "gsc",
           reportDate: "2026-07-01",
           finishedAt: new Date(NOW_MS - 3 * HOUR).toISOString(),
@@ -701,7 +701,7 @@ describe("nightlyReportState — the derived lane, pure over store evidence", ()
 describe("buildCardDataSources — compact working/degraded/unconfigured inputs", () => {
   it("leads with nightly, keeps relevant setup, and omits skipped/N/A lanes", () => {
     const sources = buildCardDataSources({
-      assetId: "meals.example",
+      assetId: "meadow.example",
       integrations: INTEGRATIONS,
       latestReportAt: new Date(NOW_MS - 4 * HOUR).toISOString(),
       pull: PULL_CONFIG[0]!,
@@ -716,7 +716,7 @@ describe("buildCardDataSources — compact working/degraded/unconfigured inputs"
 
   it("turns a setup-colored collector icon green from fresh success evidence", () => {
     const sources = buildCardDataSources({
-      assetId: "meals.example",
+      assetId: "meadow.example",
       integrations: INTEGRATIONS,
       latestReportAt: null,
       pull: null,
@@ -743,14 +743,14 @@ describe("buildCardDataSources — compact working/degraded/unconfigured inputs"
       ],
       assets: {
         ...INTEGRATIONS.assets,
-        "meals.example": {
-          ...INTEGRATIONS.assets["meals.example"],
+        "meadow.example": {
+          ...INTEGRATIONS.assets["meadow.example"],
           "bing-webmaster": cell("needs-setup"),
         },
       },
     };
     const sources = buildCardDataSources({
-      assetId: "meals.example",
+      assetId: "meadow.example",
       integrations: withBing,
       latestReportAt: null,
       pull: null,
@@ -765,7 +765,7 @@ describe("buildCardDataSources — compact working/degraded/unconfigured inputs"
 
   it("uses the same effective-state adjustment as the full register", () => {
     const sources = buildCardDataSources({
-      assetId: "nosh.example",
+      assetId: "northwind.example",
       integrations: INTEGRATIONS,
       latestReportAt: new Date(NOW_MS - 72 * HOUR).toISOString(),
       pull: PULL_CONFIG[1]!,
@@ -798,32 +798,32 @@ describe("buildIntegrationsMatrix", () => {
     const m = await buildIntegrationsMatrix(ctx.call, deps(INTEGRATIONS));
     expect(m.assets.map((a) => a.id)).toEqual([
       "root-os",
-      "meals.example",
-      "nosh.example",
-      "areas.example",
-      "fees.example",
+      "meadow.example",
+      "northwind.example",
+      "acorn.example",
+      "ferns.example",
     ]);
     expect(m.assets[0]!.isOs).toBe(true);
     expect(m.assets[0]!.displayName).toBe("NoticeOS");
-    expect(m.assets[1]!.displayName).toBe("Meal Planner");
+    expect(m.assets[1]!.displayName).toBe("Meadow Board");
     expect(JSON.stringify(m)).not.toContain("ReindexOS");
   });
 
   it("aligns each asset's cells with the catalog order (cells[a][i] ↔ catalog[i])", async () => {
     const m = await buildIntegrationsMatrix(ctx.call, deps(INTEGRATIONS));
     expect(m.catalog.map((c) => c.id)).toEqual(["gsc", "uptime", "ad-network", "affiliate-cj", "affiliate-amazon"]);
-    const meals = m.cells["meals.example"]!;
-    expect(meals).toHaveLength(5);
-    expect(meals.map((c) => c.laneId)).toEqual(m.catalog.map((c) => c.id));
+    const meadow = m.cells["meadow.example"]!;
+    expect(meadow).toHaveLength(5);
+    expect(meadow.map((c) => c.laneId)).toEqual(m.catalog.map((c) => c.id));
   });
 
-  it("merges store evidence: nom uptime degrades, meals revenue lanes gain supporting notes", async () => {
+  it("merges store evidence: northwind uptime degrades, meadow revenue lanes gain supporting notes", async () => {
     await seedRevenue(ctx);
     await insertNomDown(ctx);
     await seedReports(ctx);
     const m = await buildIntegrationsMatrix(ctx.call, deps(INTEGRATIONS));
 
-    const nomUptime = m.cells["nosh.example"]![1]!;
+    const nomUptime = m.cells["northwind.example"]![1]!;
     expect(nomUptime.declared).toBe("live");
     expect(nomUptime.effective).toBe("degraded");
     // Its own check, not the overdue report.
@@ -832,7 +832,7 @@ describe("buildIntegrationsMatrix", () => {
       at: new Date(NOW_MS - 20 * 60_000).toISOString(),
     }]);
 
-    const nomGsc = m.cells["nosh.example"]![0]!;
+    const nomGsc = m.cells["northwind.example"]![0]!;
     expect(nomGsc.effective).toBe("needs-setup");
     expect(nomGsc.evidence[0]).toMatchObject({
       polarity: "against",
@@ -840,14 +840,14 @@ describe("buildIntegrationsMatrix", () => {
       at: null,
     });
 
-    const myAd = m.cells["meals.example"]![2]!;
+    const myAd = m.cells["meadow.example"]![2]!;
     expect(myAd.effective).toBe("needs-setup");
     expect(myAd.evidence[0]!.polarity).toBe("supporting");
 
-    const myCj = m.cells["meals.example"]![3]!;
+    const myCj = m.cells["meadow.example"]![3]!;
     expect(myCj.evidence[0]!.polarity).toBe("supporting");
 
-    const myAmazon = m.cells["meals.example"]![4]!;
+    const myAmazon = m.cells["meadow.example"]![4]!;
     expect(myAmazon.declared).toBe("skipped");
     expect(myAmazon.evidence).toEqual([]);
   });
@@ -862,10 +862,10 @@ describe("buildIntegrationsMatrix", () => {
   it("keeps a lane dormant for over a year in the matrix, its old failure intact", async () => {
     // Integration health uses the latest attempt, so an old failure has to
     // stay visible. A year of silence is inside the floor.
-    await insertSignalRun(ctx, "gsc-dormant", "meals.example", "gsc", daysBeforeNow(399));
+    await insertSignalRun(ctx, "gsc-dormant", "meadow.example", "gsc", daysBeforeNow(399));
     const m = await buildIntegrationsMatrix(ctx.call, deps(INTEGRATIONS));
 
-    const gsc = m.cells["meals.example"]![0]!;
+    const gsc = m.cells["meadow.example"]![0]!;
     expect(gsc.laneId).toBe("gsc");
     expect(gsc.effective).toBe("degraded");
     expect(gsc.evidence[0]).toMatchObject({
@@ -877,11 +877,11 @@ describe("buildIntegrationsMatrix", () => {
   });
 
   it("names the floor when a lane's last attempt predates it, rather than dropping the lane", async () => {
-    await insertSignalRun(ctx, "gsc-ancient", "meals.example", "gsc", daysBeforeNow(401));
+    await insertSignalRun(ctx, "gsc-ancient", "meadow.example", "gsc", daysBeforeNow(401));
     const m = await buildIntegrationsMatrix(ctx.call, deps(INTEGRATIONS));
 
-    expect(m.cells["meals.example"]).toHaveLength(m.catalog.length);
-    const gsc = m.cells["meals.example"]![0]!;
+    expect(m.cells["meadow.example"]).toHaveLength(m.catalog.length);
+    const gsc = m.cells["meadow.example"]![0]!;
     expect(gsc.laneId).toBe("gsc");
     expect(gsc.evidence[0]).toMatchObject({
       polarity: "against",
@@ -895,18 +895,18 @@ describe("buildIntegrationsMatrix", () => {
     // The evidence line is added in `amount_minor`: 498.10 + 574.15 + 271.20
     // = $1,343.45.
     await seedRevenue(ctx);
-    await insertRevenue(ctx, 20, "meals.example", "2026-06", "ads", 574.15, "raptive-report");
-    await insertRevenue(ctx, 21, "meals.example", "2026-06", "ads", 271.2, "raptive-report");
+    await insertRevenue(ctx, 20, "meadow.example", "2026-06", "ads", 574.15, "raptive-report");
+    await insertRevenue(ctx, 21, "meadow.example", "2026-06", "ads", 271.2, "raptive-report");
 
     const m = await buildIntegrationsMatrix(ctx.call, deps(INTEGRATIONS));
-    const myAd = m.cells["meals.example"]![2]!;
+    const myAd = m.cells["meadow.example"]![2]!;
     expect(myAd.evidence[0]!.detail).toContain("$1,343.45");
   });
 
   it("excludes out-of-window revenue from supporting evidence", async () => {
     await seedRevenue(ctx);
     const m = await buildIntegrationsMatrix(ctx.call, deps(INTEGRATIONS));
-    const areasAd = m.cells["areas.example"]![2]!;
+    const areasAd = m.cells["acorn.example"]![2]!;
     expect(areasAd.effective).toBe("needs-setup");
     expect(areasAd.evidence).toEqual([]); // the 2026-01 row is older than the cutoff
   });
@@ -926,11 +926,11 @@ describe("buildIntegrationsMatrix", () => {
       m.summary.counts.skipped +
       m.summary.counts["not-applicable"];
     expect(sum).toBe(35);
-    // No declared lane is live (nosh's uptime degraded); the three live cells
-    // are derived: root-os and meals reported inside the cadence, and no lane
+    // No declared lane is live (northwind's uptime degraded); the three live cells
+    // are derived: root-os and meadow reported inside the cadence, and no lane
     // run has ever had to check whether the OS could get out.
     expect(m.summary.counts.live).toBe(3);
-    // nosh uptime (declared) + nosh's stale nightly report (derived).
+    // northwind uptime (declared) + northwind's stale nightly report (derived).
     expect(m.summary.counts.degraded).toBe(2);
     expect(m.summary.needsAttention).toBe(m.summary.counts["needs-setup"] + m.summary.counts.degraded);
   });
@@ -953,17 +953,17 @@ describe("buildIntegrationsMatrix", () => {
     expect(Object.keys(lane.cells)).toEqual(m.assets.map((a) => a.id));
 
     expect(lane.cells["root-os"]!.effective).toBe("live");
-    expect(lane.cells["meals.example"]!.effective).toBe("live");
-    expect(lane.cells["nosh.example"]!.effective).toBe("degraded");
+    expect(lane.cells["meadow.example"]!.effective).toBe("live");
+    expect(lane.cells["northwind.example"]!.effective).toBe("degraded");
     // Never sent a report, so none is expected.
-    expect(lane.cells["areas.example"]!.effective).toBe("not-applicable");
-    expect(lane.cells["fees.example"]!.effective).toBe("not-applicable");
+    expect(lane.cells["acorn.example"]!.effective).toBe("not-applicable");
+    expect(lane.cells["ferns.example"]!.effective).toBe("not-applicable");
 
-    // The evidence is the last accepted report: nosh's newest, not its oldest.
-    expect(lane.cells["nosh.example"]!.evidence[0]!.at).toBe(new Date(NOW_MS - 71 * HOUR).toISOString());
-    // areas is in config/pull.json but switched off; fees.example is not in it at all.
-    expect(lane.cells["areas.example"]!.evidence[0]!.detail).toMatch(/^Nightly fetch off · /);
-    expect(lane.cells["fees.example"]!.evidence[0]!.detail).toBe("No nightly fetch set up");
+    // The evidence is the last accepted report: northwind's newest, not its oldest.
+    expect(lane.cells["northwind.example"]!.evidence[0]!.at).toBe(new Date(NOW_MS - 71 * HOUR).toISOString());
+    // areas is in config/pull.json but switched off; ferns.example is not in it at all.
+    expect(lane.cells["acorn.example"]!.evidence[0]!.detail).toMatch(/^Nightly fetch off · /);
+    expect(lane.cells["ferns.example"]!.evidence[0]!.detail).toBe("No nightly fetch set up");
   });
 
   it("counts a live derived cell as live, never as a lane wanting attention", async () => {
@@ -979,9 +979,9 @@ describe("buildIntegrationsMatrix", () => {
     expect(m.summary.total).toBe(
       declaredCells.length + derivedCells.length + egressCells.length,
     );
-    // needsAttention counts the 1 unhealthy derived cell (nosh degraded) and
+    // needsAttention counts the 1 unhealthy derived cell (northwind degraded) and
     // not the 2 live ones, nor the sites that never sent a report (areas,
-    // fees.example).
+    // ferns.example).
     const derivedAttention = derivedCells.filter(
       (c) => c.effective === "needs-setup" || c.effective === "degraded",
     ).length;
@@ -1062,8 +1062,8 @@ describe("the Source history, recorded by the hourly tick", () => {
   });
 
   it("takes the matrix's inputs from the resolved settings, and nothing else", () => {
-    const settings = { ...deps(INTEGRATIONS), noNightlyReport: ["areas.example"], osTimeZone: "UTC", entities: [] };
-    expect(integrationsDeps(settings, NOW)).toEqual({ ...deps(INTEGRATIONS), noNightlyReport: ["areas.example"], now: NOW });
+    const settings = { ...deps(INTEGRATIONS), noNightlyReport: ["acorn.example"], osTimeZone: "UTC", entities: [] };
+    expect(integrationsDeps(settings, NOW)).toEqual({ ...deps(INTEGRATIONS), noNightlyReport: ["acorn.example"], now: NOW });
   });
 });
 
@@ -1088,7 +1088,7 @@ describe("the L0 egress lane", () => {
       { url: "https://www.cloudflare.com/cdn-cgi/trace", error: "internal error; reference = 9f2a" },
       { url: "https://www.google.com/generate_204", error: "internal error; reference = 3b71" },
     ],
-    unmeasuredAssets: ["meals.example", "nosh.example"],
+    unmeasuredAssets: ["meadow.example", "northwind.example"],
     failureCount: 3,
     lastFailedAt: "2026-07-05T04:00:00.000Z",
     evaluatedAt: "2026-07-05T04:00:00.000Z",
@@ -1113,7 +1113,7 @@ describe("the L0 egress lane", () => {
     expect(cell.evidence[1]).toMatchObject({
       polarity: "against",
       source: "Sites not measured",
-      detail: "meals.example · nosh.example",
+      detail: "meadow.example · northwind.example",
     });
   });
 
@@ -1122,7 +1122,7 @@ describe("the L0 egress lane", () => {
     // has re-run; the uplink is this row's subject, and the uplink is fine.
     await insertEgressFlag(ctx, "root-os", "2026-07-04T02:30:00.000Z", {
       ...OUTAGE_INPUTS,
-      unmeasuredAssets: ["nosh.example"],
+      unmeasuredAssets: ["northwind.example"],
       connectionBackAt: "2026-07-05T12:15:00.000Z",
     });
     const cell = (await lane()).cells["root-os"]!;
@@ -1134,7 +1134,7 @@ describe("the L0 egress lane", () => {
       source: "Connection answered again",
       at: "2026-07-05T12:15:00.000Z",
     });
-    expect(cell.evidence[0]!.detail).toBe("Waiting on nosh.example");
+    expect(cell.evidence[0]!.detail).toBe("Waiting on northwind.example");
     const m = await buildIntegrationsMatrix(ctx.call, deps(INTEGRATIONS));
     expect(matrixUnblockers(m).some((u) => u.key === EGRESS_LANE_ID)).toBe(false);
   });
@@ -1235,13 +1235,13 @@ describe("the L0 egress lane", () => {
 
     expect(Object.keys(l.cells)).toEqual([
       "root-os",
-      "meals.example",
-      "nosh.example",
-      "areas.example",
-      "fees.example",
+      "meadow.example",
+      "northwind.example",
+      "acorn.example",
+      "ferns.example",
     ]);
     // Only asset #0 has an uplink of the OS's to report on.
-    for (const assetId of ["meals.example", "nosh.example", "areas.example", "fees.example"]) {
+    for (const assetId of ["meadow.example", "northwind.example", "acorn.example", "ferns.example"]) {
       expect(l.cells[assetId]!.effective).toBe("not-applicable");
       expect(l.cells[assetId]!.evidence).toEqual([]);
     }
@@ -1281,8 +1281,8 @@ describe("what to unblock next", () => {
     { id: "dataforseo", label: "DataForSEO", docRef: "docs/11", scope: "property" as const, layer: "provider" as const, usage: { cost: "free" as const }, onFailure: "keeps-last-data" as const, credential: "shared" as const, derived: false },
   ];
   const assets = [
-    { id: "meals.example", displayName: "Meal Planner", isOs: false },
-    { id: "nosh.example", displayName: "Nosh", isOs: false },
+    { id: "meadow.example", displayName: "Meadow Board", isOs: false },
+    { id: "northwind.example", displayName: "Northwind", isOs: false },
   ];
   const at = (assetId: string, laneId: string, effective: string) => ({
     assetId, laneId, effective: effective as never, evidence: [],
@@ -1293,8 +1293,8 @@ describe("what to unblock next", () => {
       catalog,
       assets,
       cells: {
-        "meals.example": [at("meals.example", "gsc", "needs-setup")],
-        "nosh.example": [at("nosh.example", "gsc", "needs-setup")],
+        "meadow.example": [at("meadow.example", "gsc", "needs-setup")],
+        "northwind.example": [at("northwind.example", "gsc", "needs-setup")],
       },
     });
     expect(list).toHaveLength(1);
@@ -1304,7 +1304,7 @@ describe("what to unblock next", () => {
       action: "Connect Google Search Console once",
       cells: 2,
     });
-    expect(list[0]!.unlocks).toEqual(["Meal Planner", "Nosh"]);
+    expect(list[0]!.unlocks).toEqual(["Meadow Board", "Northwind"]);
   });
 
   it("puts a regression first, then leverage, then the tail", () => {
@@ -1312,15 +1312,15 @@ describe("what to unblock next", () => {
       catalog,
       assets,
       cells: {
-        "meals.example": [
-          at("meals.example", "gsc", "needs-setup"),
-          at("meals.example", "clarity", "needs-setup"),
-          at("meals.example", "uptime", "live"),
+        "meadow.example": [
+          at("meadow.example", "gsc", "needs-setup"),
+          at("meadow.example", "clarity", "needs-setup"),
+          at("meadow.example", "uptime", "live"),
         ],
-        "nosh.example": [
-          at("nosh.example", "gsc", "needs-setup"),
-          at("nosh.example", "clarity", "needs-setup"),
-          at("nosh.example", "uptime", "degraded"),
+        "northwind.example": [
+          at("northwind.example", "gsc", "needs-setup"),
+          at("northwind.example", "clarity", "needs-setup"),
+          at("northwind.example", "uptime", "degraded"),
         ],
       },
     });
@@ -1333,21 +1333,21 @@ describe("what to unblock next", () => {
     expect(list[0]).toMatchObject({ key: "uptime", action: "Site down", cells: 1 });
     // A per-property install is grouped by the asset, the unit of the visit,
     // and names the lanes.
-    expect(list[2]).toMatchObject({ kind: "property-setup", key: "meals.example", cells: 1 });
+    expect(list[2]).toMatchObject({ kind: "property-setup", key: "meadow.example", cells: 1 });
     expect(list[2]!.unlocks).toEqual(["Microsoft Clarity"]);
   });
 
   /** A source no provider card on Integrations connects is no to-do while it
    * is only Not set up; one in use is still listed. */
   it("offers a source only when something on Integrations connects it, or it is in use", () => {
-    expect(withoutConnectPath(at("meals.example", "uptime", "needs-setup"))).toBe(true);
-    expect(withoutConnectPath(at("meals.example", "uptime", "degraded"))).toBe(false);
-    expect(withoutConnectPath(at("meals.example", "uptime", "skipped"))).toBe(false);
-    expect(withoutConnectPath(at("meals.example", "gsc", "needs-setup"))).toBe(false);
-    expect(withoutConnectPath(at("meals.example", "clarity", "needs-setup"))).toBe(false);
-    expect(unusedWithoutConnectPath(at("meals.example", "uptime", "needs-setup"))).toBe(true);
+    expect(withoutConnectPath(at("meadow.example", "uptime", "needs-setup"))).toBe(true);
+    expect(withoutConnectPath(at("meadow.example", "uptime", "degraded"))).toBe(false);
+    expect(withoutConnectPath(at("meadow.example", "uptime", "skipped"))).toBe(false);
+    expect(withoutConnectPath(at("meadow.example", "gsc", "needs-setup"))).toBe(false);
+    expect(withoutConnectPath(at("meadow.example", "clarity", "needs-setup"))).toBe(false);
+    expect(unusedWithoutConnectPath(at("meadow.example", "uptime", "needs-setup"))).toBe(true);
     expect(unusedWithoutConnectPath({
-      ...at("meals.example", "uptime", "needs-setup"),
+      ...at("meadow.example", "uptime", "needs-setup"),
       evidence: [{ polarity: "supporting", source: "Affiliate revenue added by hand", detail: "$12.00", at: null }],
     })).toBe(false);
 
@@ -1355,8 +1355,8 @@ describe("what to unblock next", () => {
       catalog,
       assets,
       cells: {
-        "meals.example": [at("meals.example", "gsc", "needs-setup"), at("meals.example", "uptime", "needs-setup")],
-        "nosh.example": [at("nosh.example", "gsc", "needs-setup"), at("nosh.example", "uptime", "needs-setup")],
+        "meadow.example": [at("meadow.example", "gsc", "needs-setup"), at("meadow.example", "uptime", "needs-setup")],
+        "northwind.example": [at("northwind.example", "gsc", "needs-setup"), at("northwind.example", "uptime", "needs-setup")],
       },
     });
     expect(list.map((u) => u.key)).toEqual(["gsc"]);
@@ -1368,8 +1368,8 @@ describe("what to unblock next", () => {
         catalog,
         assets,
         cells: {
-          "meals.example": [at("meals.example", "gsc", "live")],
-          "nosh.example": [at("nosh.example", "clarity", "not-applicable"), at("nosh.example", "gsc", "skipped")],
+          "meadow.example": [at("meadow.example", "gsc", "live")],
+          "northwind.example": [at("northwind.example", "clarity", "not-applicable"), at("northwind.example", "gsc", "skipped")],
         },
       }),
     ).toEqual([]);
@@ -1380,8 +1380,8 @@ describe("what to unblock next", () => {
       catalog,
       assets,
       cells: {
-        "meals.example": [at("meals.example", "gsc", "needs-setup"), at("meals.example", "dataforseo", "needs-setup")],
-        "nosh.example": [at("nosh.example", "gsc", "needs-setup")],
+        "meadow.example": [at("meadow.example", "gsc", "needs-setup"), at("meadow.example", "dataforseo", "needs-setup")],
+        "northwind.example": [at("northwind.example", "gsc", "needs-setup")],
       },
     });
     expect(list.map((u) => [u.key, u.cells])).toEqual([["gsc", 2], ["dataforseo", 1]]);
@@ -1498,11 +1498,11 @@ describe("a full register renders completely", () => {
     ];
     const assets = [
       { id: "root-os", isOs: true },
-      { id: "meals.example", isOs: false },
+      { id: "meadow.example", isOs: false },
       { id: "brandnew.test", isOs: false },
     ];
     expect(
-      undeclaredLanes(catalog, assets, { "meals.example": { ga4: { status: "live" } } }),
+      undeclaredLanes(catalog, assets, { "meadow.example": { ga4: { status: "live" } } }),
     ).toEqual([
       { laneId: "discord-webhooks", label: "Discord", assets: ["root-os"] },
       { laneId: "ga4", label: "GA4", assets: ["brandnew.test"] },
@@ -1550,10 +1550,10 @@ describe("a full register renders completely", () => {
     await seedAssets(ctx);
     // Two calls this month, one last month, and one GA4 archive that costs
     // nothing: only the first two may reach the meter.
-    await insertDump(ctx, "dfs-jul-1", "meals.example", "dataforseo", "ranked-keywords", "2026-07-05", "2026-07-05T10:00:00.000Z", 1.25);
-    await insertDump(ctx, "dfs-jul-2", "nosh.example", "dataforseo", "backlinks-summary", "2026-07-05", "2026-07-05T10:05:00.000Z", 0.75);
-    await insertDump(ctx, "dfs-jun", "meals.example", "dataforseo", "ranked-keywords", "2026-06-28", "2026-06-28T10:00:00.000Z", 4);
-    await insertDump(ctx, "ga4-jul", "meals.example", "ga4", "daily-traffic", "2026-07-05", "2026-07-05T12:15:00.000Z", 0);
+    await insertDump(ctx, "dfs-jul-1", "meadow.example", "dataforseo", "ranked-keywords", "2026-07-05", "2026-07-05T10:00:00.000Z", 1.25);
+    await insertDump(ctx, "dfs-jul-2", "northwind.example", "dataforseo", "backlinks-summary", "2026-07-05", "2026-07-05T10:05:00.000Z", 0.75);
+    await insertDump(ctx, "dfs-jun", "meadow.example", "dataforseo", "ranked-keywords", "2026-06-28", "2026-06-28T10:00:00.000Z", 4);
+    await insertDump(ctx, "ga4-jul", "meadow.example", "ga4", "daily-traffic", "2026-07-05", "2026-07-05T12:15:00.000Z", 0);
 
     const m = await buildIntegrationsMatrix(ctx.call, deps(fullRegister));
     expect(m.dataSpend).toEqual({
@@ -1562,8 +1562,8 @@ describe("a full register renders completely", () => {
       capUsd: 25,
       unattributedUsd: 0, unattributedUnknownPrices: 0,
       byAsset: [
-        { asset: "meals.example", spentUsd: 1.25, unknownPrices: 0 },
-        { asset: "nosh.example", spentUsd: 0.75, unknownPrices: 0 },
+        { asset: "meadow.example", spentUsd: 1.25, unknownPrices: 0 },
+        { asset: "northwind.example", spentUsd: 0.75, unknownPrices: 0 },
       ],
     });
   });
@@ -1571,22 +1571,22 @@ describe("a full register renders completely", () => {
   it("says WHICH asset the month's data budget went on", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
-    await insertDump(ctx, "dfs-a", "nosh.example", "dataforseo", "ranked-keywords", "2026-07-05", "2026-07-05T10:00:00.000Z", 0.4);
-    await insertDump(ctx, "dfs-b", "meals.example", "dataforseo", "ranked-keywords", "2026-07-05", "2026-07-05T10:01:00.000Z", 1.1);
-    await insertDump(ctx, "dfs-c", "meals.example", "dataforseo", "serp-panel", "2026-07-05", "2026-07-05T10:02:00.000Z", 2.35);
-    await insertDump(ctx, "dfs-jun", "nosh.example", "dataforseo", "ranked-keywords", "2026-06-28", "2026-06-28T10:00:00.000Z", 9);
-    await insertDump(ctx, "ga4-jul", "areas.example", "ga4", "daily-traffic", "2026-07-05", "2026-07-05T12:15:00.000Z", 0);
+    await insertDump(ctx, "dfs-a", "northwind.example", "dataforseo", "ranked-keywords", "2026-07-05", "2026-07-05T10:00:00.000Z", 0.4);
+    await insertDump(ctx, "dfs-b", "meadow.example", "dataforseo", "ranked-keywords", "2026-07-05", "2026-07-05T10:01:00.000Z", 1.1);
+    await insertDump(ctx, "dfs-c", "meadow.example", "dataforseo", "serp-panel", "2026-07-05", "2026-07-05T10:02:00.000Z", 2.35);
+    await insertDump(ctx, "dfs-jun", "northwind.example", "dataforseo", "ranked-keywords", "2026-06-28", "2026-06-28T10:00:00.000Z", 9);
+    await insertDump(ctx, "ga4-jul", "acorn.example", "ga4", "daily-traffic", "2026-07-05", "2026-07-05T12:15:00.000Z", 0);
 
     const spend = (await buildIntegrationsMatrix(ctx.call, deps(fullRegister))).dataSpend;
     expect(spend.byAsset).toEqual([
-      { asset: "meals.example", spentUsd: 3.45, unknownPrices: 0 },
-      { asset: "nosh.example", spentUsd: 0.4, unknownPrices: 0 },
+      { asset: "meadow.example", spentUsd: 3.45, unknownPrices: 0 },
+      { asset: "northwind.example", spentUsd: 0.4, unknownPrices: 0 },
     ]);
     expect(spend.byAsset.reduce((total, row) => total + row.spentUsd, 0)).toBe(
       spend.spentUsd,
     );
     expect(spend.spentUsd).toBeCloseTo(3.85, 10);
-    expect(spend.byAsset.map((row) => row.asset)).not.toContain("areas.example");
+    expect(spend.byAsset.map((row) => row.asset)).not.toContain("acorn.example");
   });
 
   it("reports zero spend rather than nothing when the metered lane has not run", async () => {
@@ -1606,14 +1606,14 @@ describe("a full register renders completely", () => {
   it("folds nightly archive health into the GA4/GSC/Bing lanes it belongs to", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
-    await insertDump(ctx, "ga4-arch-1", "meals.example", "ga4", "daily-traffic", "2026-07-04", "2026-07-04T12:15:00.000Z", 0);
-    await insertDump(ctx, "ga4-arch-2", "meals.example", "ga4", "daily-events", "2026-07-04", "2026-07-04T12:16:00.000Z", 0);
-    await insertDump(ctx, "bwt-arch", "meals.example", "bing-webmaster", "rank-and-traffic", "2026-07-04", "2026-07-04T12:20:00.000Z", 0);
+    await insertDump(ctx, "ga4-arch-1", "meadow.example", "ga4", "daily-traffic", "2026-07-04", "2026-07-04T12:15:00.000Z", 0);
+    await insertDump(ctx, "ga4-arch-2", "meadow.example", "ga4", "daily-events", "2026-07-04", "2026-07-04T12:16:00.000Z", 0);
+    await insertDump(ctx, "bwt-arch", "meadow.example", "bing-webmaster", "rank-and-traffic", "2026-07-04", "2026-07-04T12:20:00.000Z", 0);
 
     const m = await buildIntegrationsMatrix(ctx.call, deps(fullRegister));
     const laneEvidence = (laneId: string) => {
       const index = m.catalog.findIndex((lane) => lane.id === laneId);
-      return m.cells["meals.example"]![index]!.evidence;
+      return m.cells["meadow.example"]![index]!.evidence;
     };
     // No collector run in the fixture, but the archive itself is evidence.
     expect(laneEvidence("ga4")[1]).toMatchObject({
@@ -1634,12 +1634,12 @@ describe("a full register renders completely", () => {
     await seedAssets(ctx);
     const families = ["web-daily", "events", "exceptions", "rageclicks", "web-vitals", "funnels"];
     for (const [index, report] of families.entries()) {
-      await insertDump(ctx, `ph-${report}`, "meals.example", "posthog", report, "2026-07-04", `2026-07-05T11:3${index}:00.000Z`, 0);
+      await insertDump(ctx, `ph-${report}`, "meadow.example", "posthog", report, "2026-07-04", `2026-07-05T11:3${index}:00.000Z`, 0);
     }
     const index = (m: Awaited<ReturnType<typeof buildIntegrationsMatrix>>) => m.catalog.findIndex((lane) => lane.id === "posthog");
 
     let m = await buildIntegrationsMatrix(ctx.call, deps(fullRegister));
-    let cell = m.cells["meals.example"]![index(m)]!;
+    let cell = m.cells["meadow.example"]![index(m)]!;
     expect(cell.declared).toBe("needs-setup");
     expect(cell.effective).toBe("live");
     expect(cell.evidence[0]).toMatchObject({
@@ -1647,17 +1647,17 @@ describe("a full register renders completely", () => {
       source: "PostHog collector succeeded",
       detail: "6 report families · 60 rows · to 2026-07-04",
     });
-    expect(m.cells["nosh.example"]![index(m)]!.effective).toBe("needs-setup");
+    expect(m.cells["northwind.example"]![index(m)]!.effective).toBe("needs-setup");
 
     await writeArchiveRun(ctx.call, {
-      id: "ph-exceptions-429", asset: "meals.example", integration: "posthog", report: "exceptions",
-      credential_ref: "POSTHOG_KEYS", property_ref: "us:596607", report_date: "2026-07-05",
+      id: "ph-exceptions-429", asset: "meadow.example", integration: "posthog", report: "exceptions",
+      credential_ref: "POSTHOG_KEYS", property_ref: "us:424242", report_date: "2026-07-05",
       requested_at: "2026-07-05T11:50:00.000Z", finished_at: "2026-07-05T11:50:01.000Z", status: "error",
       error_code: "posthog_query_budget_exceeded",
       error_message: "PostHog refused the query (HTTP 429, hourly query budget used up).",
     });
     m = await buildIntegrationsMatrix(ctx.call, deps(fullRegister));
-    cell = m.cells["meals.example"]![index(m)]!;
+    cell = m.cells["meadow.example"]![index(m)]!;
     expect(cell.effective).toBe("degraded");
     expect(cell.evidence[0]).toMatchObject({ polarity: "against", source: "PostHog collector failed",
     });
@@ -1669,11 +1669,11 @@ describe("a full register renders completely", () => {
   it("derives Clarity health from its daily export's own manifests", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
-    await insertDump(ctx, "clarity-ok", "meals.example", "clarity", "url-3d", "2026-07-04", "2026-07-04T04:30:00.000Z", 0);
+    await insertDump(ctx, "clarity-ok", "meadow.example", "clarity", "url-3d", "2026-07-04", "2026-07-04T04:30:00.000Z", 0);
     const index = (m: Awaited<ReturnType<typeof buildIntegrationsMatrix>>) => m.catalog.findIndex((lane) => lane.id === "clarity");
 
     let m = await buildIntegrationsMatrix(ctx.call, deps(fullRegister));
-    let cell = m.cells["meals.example"]![index(m)]!;
+    let cell = m.cells["meadow.example"]![index(m)]!;
     expect(cell.declared).toBe("needs-setup");
     expect(cell.effective).toBe("live");
     expect(cell.evidence).toHaveLength(1);
@@ -1683,17 +1683,17 @@ describe("a full register renders completely", () => {
       detail: "10 behavior rows · 3 days to 2026-07-04",
       verification: { kind: "collection-success", laneId: "clarity" },
     });
-    expect(m.cells["nosh.example"]![index(m)]!.effective).toBe("needs-setup");
+    expect(m.cells["northwind.example"]![index(m)]!.effective).toBe("needs-setup");
 
     await writeArchiveRun(ctx.call, {
-      id: "clarity-401", asset: "meals.example", integration: "clarity", report: "url-3d",
+      id: "clarity-401", asset: "meadow.example", integration: "clarity", report: "url-3d",
       credential_ref: "store:CLARITY_TOKENS", report_date: "2026-07-05",
       requested_at: "2026-07-05T04:30:00.000Z", finished_at: "2026-07-05T04:30:01.000Z", status: "error",
       request_count: 1, error_code: "clarity_token_rejected",
       error_message: "Clarity rejected the project token (HTTP 401).",
     });
     m = await buildIntegrationsMatrix(ctx.call, deps(fullRegister));
-    cell = m.cells["meals.example"]![index(m)]!;
+    cell = m.cells["meadow.example"]![index(m)]!;
     expect(cell.effective).toBe("degraded");
     expect(cell.evidence).toEqual([
       {
@@ -1704,14 +1704,14 @@ describe("a full register renders completely", () => {
       },
     ]);
 
-    const runs = await loadLatestSignalRuns(ctx.call, { panelAssets: new Set(), nowMs: NOW.getTime() }, "meals.example");
+    const runs = await loadLatestSignalRuns(ctx.call, { panelAssets: new Set(), nowMs: NOW.getTime() }, "meadow.example");
     const strip = buildCardDataSources({
-      assetId: "meals.example",
+      assetId: "meadow.example",
       integrations: fullRegister,
       latestReportAt: null,
       pull: null,
       now: NOW,
-      signalRuns: runs.get("meals.example") ?? [],
+      signalRuns: runs.get("meadow.example") ?? [],
     });
     expect(strip.find((source) => source.id === "clarity")).toMatchObject({
       state: "degraded",
@@ -1722,9 +1722,9 @@ describe("a full register renders completely", () => {
     // A lane the operator switched off keeps that decision; the last attempt
     // stays readable as evidence.
     const retired = structuredClone(fullRegister);
-    retired.assets["meals.example"]!.clarity = { status: "skipped", note: "Replaced by PostHog.", since: "2026-09-07" };
+    retired.assets["meadow.example"]!.clarity = { status: "skipped", note: "Replaced by PostHog.", since: "2026-09-07" };
     m = await buildIntegrationsMatrix(ctx.call, deps(retired));
-    cell = m.cells["meals.example"]![index(m)]!;
+    cell = m.cells["meadow.example"]![index(m)]!;
     expect(cell.effective).toBe("skipped");
   });
 
@@ -1737,15 +1737,15 @@ describe("a full register renders completely", () => {
     await seedAssets(ctx);
     const daily = ["rank-traffic", "crawl-stats", "crawl-issues", "feeds"];
     for (const [index, report] of daily.entries()) {
-      await insertDump(ctx, `bwt-${report}`, "meals.example", "bing-webmaster", report, "2026-07-05", `2026-07-05T11:0${index}:00.000Z`, 0);
+      await insertDump(ctx, `bwt-${report}`, "meadow.example", "bing-webmaster", report, "2026-07-05", `2026-07-05T11:0${index}:00.000Z`, 0);
     }
     for (const report of ["queries", "pages"]) {
-      await insertDump(ctx, `bwt-${report}`, "meals.example", "bing-webmaster", report, "2026-06-29", "2026-06-29T11:10:00.000Z", 0);
+      await insertDump(ctx, `bwt-${report}`, "meadow.example", "bing-webmaster", report, "2026-06-29", "2026-06-29T11:10:00.000Z", 0);
     }
 
     const m = await buildIntegrationsMatrix(ctx.call, deps(fullRegister));
     const index = m.catalog.findIndex((lane) => lane.id === "bing-webmaster");
-    const archive = m.cells["meals.example"]![index]!.evidence[1]!;
+    const archive = m.cells["meadow.example"]![index]!.evidence[1]!;
 
     // A weekly family trailing by six days is the cadence working, so the line
     // is still supporting.
@@ -1761,12 +1761,12 @@ describe("a full register renders completely", () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
     for (const report of ["rank-traffic", "crawl-stats", "crawl-issues", "feeds", "queries", "pages"]) {
-      await insertDump(ctx, `bwt-${report}`, "meals.example", "bing-webmaster", report, "2026-07-05", "2026-07-05T11:00:00.000Z", 0);
+      await insertDump(ctx, `bwt-${report}`, "meadow.example", "bing-webmaster", report, "2026-07-05", "2026-07-05T11:00:00.000Z", 0);
     }
 
     const m = await buildIntegrationsMatrix(ctx.call, deps(fullRegister));
     const index = m.catalog.findIndex((lane) => lane.id === "bing-webmaster");
-    expect(m.cells["meals.example"]![index]!.evidence[1]!.detail).toBe(
+    expect(m.cells["meadow.example"]![index]!.evidence[1]!.detail).toBe(
       "6 report families · 2026-07-05",
     );
   });
@@ -1819,15 +1819,15 @@ describe("a full register renders completely", () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
     // Five families, one snapshot date, nothing stale. The panel is absent,
-    // which for meals.example is a family never collected, not a full week.
+    // which for meadow.example is a family never collected, not a full week.
     await insertDataForSeo(ctx,
-      "meals.example",
+      "meadow.example",
       whole(DOMAIN_REPORTS, "2026-07-05", "2026-07-05T10:01:00.000Z"),
     );
 
     const cell = dataForSeoCell(
       await buildIntegrationsMatrix(ctx.call, deps(fullRegister)),
-      "meals.example",
+      "meadow.example",
     );
     expect(cell.effective).toBe("degraded");
     expect(cell.evidence[0]).toMatchObject({
@@ -1843,12 +1843,12 @@ describe("a full register renders completely", () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
     await insertDataForSeo(ctx,
-      "nosh.example",
+      "northwind.example",
       whole(DOMAIN_REPORTS, "2026-07-05", "2026-07-05T10:01:00.000Z"),
     );
-    // A panel row from before the operator removed nosh.example from
+    // A panel row from before the operator removed northwind.example from
     // config/serp-panel.json: not a family this asset is due any more.
-    await insertDataForSeo(ctx, "nosh.example", [
+    await insertDataForSeo(ctx, "northwind.example", [
       {
         report: "serp-panel",
         reportDate: "2026-06-01",
@@ -1858,7 +1858,7 @@ describe("a full register renders completely", () => {
 
     const cell = dataForSeoCell(
       await buildIntegrationsMatrix(ctx.call, deps(fullRegister)),
-      "nosh.example",
+      "northwind.example",
     );
     expect(cell.effective).toBe("live");
     expect(cell.evidence[0]).toMatchObject({
@@ -1873,7 +1873,7 @@ describe("a full register renders completely", () => {
     await seedAssets(ctx);
     // Monday, two minutes ago: the five domain families carry this week's
     // date and the panel is still running, so its newest attempt is last week's.
-    await insertDataForSeo(ctx, "meals.example", [
+    await insertDataForSeo(ctx, "meadow.example", [
       ...whole(DOMAIN_REPORTS, "2026-07-05", "2026-07-05T11:58:00.000Z"),
       {
         report: "serp-panel",
@@ -1883,7 +1883,7 @@ describe("a full register renders completely", () => {
 
     const cell = dataForSeoCell(
       await buildIntegrationsMatrix(ctx.call, deps(fullRegister)),
-      "meals.example",
+      "meadow.example",
     );
     expect(cell.effective).toBe("live");
     // The success line counts only what belongs to its date: the five that
@@ -1899,7 +1899,7 @@ describe("a full register renders completely", () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
     // Two hours later: the sweep is long finished, so the panel is missing, not late.
-    await insertDataForSeo(ctx, "meals.example", [
+    await insertDataForSeo(ctx, "meadow.example", [
       ...whole(DOMAIN_REPORTS, "2026-07-05", "2026-07-05T09:58:00.000Z"),
       {
         report: "serp-panel",
@@ -1909,7 +1909,7 @@ describe("a full register renders completely", () => {
 
     const cell = dataForSeoCell(
       await buildIntegrationsMatrix(ctx.call, deps(fullRegister)),
-      "meals.example",
+      "meadow.example",
     );
     expect(cell.effective).toBe("degraded");
     expect(cell.evidence[0]).toMatchObject({
@@ -1922,7 +1922,7 @@ describe("a full register renders completely", () => {
   it("names the exact failed family before the provider message", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
-    await insertDataForSeo(ctx, "meals.example", [
+    await insertDataForSeo(ctx, "meadow.example", [
       ...whole(DOMAIN_REPORTS, "2026-07-05", "2026-07-05T09:58:00.000Z"),
       {
         report: "serp-panel",
@@ -1935,7 +1935,7 @@ describe("a full register renders completely", () => {
 
     const cell = dataForSeoCell(
       await buildIntegrationsMatrix(ctx.call, deps(fullRegister)),
-      "meals.example",
+      "meadow.example",
     );
     expect(cell.effective).toBe("degraded");
     expect(cell.evidence[0]).toMatchObject({
@@ -1949,7 +1949,7 @@ describe("a full register renders completely", () => {
   it("names every failed family deterministically and dates the newest failure", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
-    await insertDataForSeo(ctx, "meals.example", [
+    await insertDataForSeo(ctx, "meadow.example", [
       ...whole(DOMAIN_REPORTS, "2026-07-05", "2026-07-05T09:58:00.000Z"),
       {
         report: "backlinks-summary",
@@ -1970,7 +1970,7 @@ describe("a full register renders completely", () => {
 
     const cell = dataForSeoCell(
       await buildIntegrationsMatrix(ctx.call, deps(fullRegister)),
-      "meals.example",
+      "meadow.example",
     );
     expect(cell.evidence[0]).toMatchObject({
       detail:
@@ -1979,9 +1979,9 @@ describe("a full register renders completely", () => {
     });
   });
 
-  it("renders every data source a provider connects as an obligation after fees.example goes live, and no nightly slot before its first report", () => {
+  it("renders every data source a provider connects as an obligation after ferns.example goes live, and no nightly slot before its first report", () => {
     const sources = buildCardDataSources({
-      assetId: "fees.example",
+      assetId: "ferns.example",
       integrations: fullRegister,
       latestReportAt: null,
       pull: null,
@@ -2006,7 +2006,7 @@ describe("buildAssetIntegrations", () => {
     const ev: LaneEvidence = {
       revenueRows: [{ currency: 'USD', family: "ads", source: "raptive-report", note: null, amountMinor: 49810, period: "2026-06" }],
     };
-    const section = buildAssetIntegrations("meals.example", INTEGRATIONS, ev);
+    const section = buildAssetIntegrations("meadow.example", INTEGRATIONS, ev);
     expect(section).not.toHaveProperty("owner");
     // Uptime and CJ are Not set up and nothing on Integrations connects them:
     // no row to answer. The declined Amazon row stays.
@@ -2026,15 +2026,15 @@ describe("buildAssetIntegrations", () => {
       catalog: CATALOG,
       assets: {
         ...INTEGRATIONS.assets,
-        "meals.example": {
-          ...INTEGRATIONS.assets["meals.example"]!,
-          gsc: cell("needs-setup", { siteUrl: "sc-domain:meals.example" }),
+        "meadow.example": {
+          ...INTEGRATIONS.assets["meadow.example"]!,
+          gsc: cell("needs-setup", { siteUrl: "sc-domain:meadow.example" }),
         },
       },
     };
-    const section = buildAssetIntegrations("meals.example", withMapping, ev);
+    const section = buildAssetIntegrations("meadow.example", withMapping, ev);
     const gsc = section.lanes.find((l) => l.cell.laneId === "gsc")!;
-    expect(gsc.mapping).toEqual([{ name: "siteUrl", value: "sc-domain:meals.example" }]);
+    expect(gsc.mapping).toEqual([{ name: "siteUrl", value: "sc-domain:meadow.example" }]);
     expect(gsc.mappingSource).toBe("register");
     expect(section.lanes.find((l) => l.cell.laneId === "affiliate-amazon")!.mapping).toEqual([]);
     expect(gsc).not.toHaveProperty("mappingReads");
@@ -2049,23 +2049,23 @@ describe("buildAssetIntegrations", () => {
       catalog: CATALOG,
       assets: {
         ...INTEGRATIONS.assets,
-        "meals.example": {
-          ...INTEGRATIONS.assets["meals.example"]!,
-          gsc: cell("needs-setup", { siteUrl: "sc-domain:meals.example" }),
+        "meadow.example": {
+          ...INTEGRATIONS.assets["meadow.example"]!,
+          gsc: cell("needs-setup", { siteUrl: "sc-domain:meadow.example" }),
         },
       },
     };
-    const withValue = buildAssetIntegrations("meals.example", mapped, ev).lanes.find(
+    const withValue = buildAssetIntegrations("meadow.example", mapped, ev).lanes.find(
       (l) => l.cell.laneId === "gsc",
     )!;
     expect(withValue.mappingSource).toBe("register");
 
-    const without = buildAssetIntegrations("meals.example", INTEGRATIONS, ev).lanes.find(
+    const without = buildAssetIntegrations("meadow.example", INTEGRATIONS, ev).lanes.find(
       (l) => l.cell.laneId === "gsc",
     )!;
     expect(without.mappingSource).toBe("fallback");
 
-    const amazon = buildAssetIntegrations("meals.example", INTEGRATIONS, ev).lanes.find(
+    const amazon = buildAssetIntegrations("meadow.example", INTEGRATIONS, ev).lanes.find(
       (l) => l.cell.laneId === "affiliate-amazon",
     )!;
     expect(amazon.mappingSource).toBe("fallback");
@@ -2075,7 +2075,7 @@ describe("buildAssetIntegrations", () => {
   // An unmapped lane reads as unmapped rather than as an empty string.
   it("reads an unmapped field as unmapped, with no setup checklist beside it", () => {
     const ev: LaneEvidence = { revenueRows: [] };
-    const section = buildAssetIntegrations("meals.example", INTEGRATIONS, ev);
+    const section = buildAssetIntegrations("meadow.example", INTEGRATIONS, ev);
     const gsc = section.lanes.find((l) => l.cell.laneId === "gsc")!;
     expect(gsc.mapping).toEqual([{ name: "siteUrl", value: null }]);
     expect(gsc).not.toHaveProperty("setup");
@@ -2109,17 +2109,17 @@ describe("loadMeteredCallsToday", () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
     await insertClarity(ctx, [
-      { asset: "meals.example", requestedAt: "2026-09-05T04:30:00.000Z" },
-      { asset: "meals.example", requestedAt: "2026-09-05T06:00:00.000Z" },
-      { asset: "nosh.example", requestedAt: "2026-09-05T04:30:00.000Z" },
-      { asset: "nosh.example", requestedAt: "2026-09-04T04:30:00.000Z" },
+      { asset: "meadow.example", requestedAt: "2026-09-05T04:30:00.000Z" },
+      { asset: "meadow.example", requestedAt: "2026-09-05T06:00:00.000Z" },
+      { asset: "northwind.example", requestedAt: "2026-09-05T04:30:00.000Z" },
+      { asset: "northwind.example", requestedAt: "2026-09-04T04:30:00.000Z" },
     ]);
 
     const reading = await loadMeteredCallsToday(ctx.call, "clarity", NOW);
     expect(reading.day).toBe("2026-09-05");
     expect(reading.assets).toEqual([
-      { asset: "meals.example", spent: 2 },
-      { asset: "nosh.example", spent: 1 },
+      { asset: "meadow.example", spent: 2 },
+      { asset: "northwind.example", spent: 1 },
     ]);
   });
 
@@ -2127,11 +2127,11 @@ describe("loadMeteredCallsToday", () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
     await insertClarity(ctx, [
-      { asset: "meals.example", requestedAt: "2026-09-05T04:30:00.000Z", status: "error" },
+      { asset: "meadow.example", requestedAt: "2026-09-05T04:30:00.000Z", status: "error" },
     ]);
     // Summing `request_count` would report this as budget still available.
     expect((await loadMeteredCallsToday(ctx.call, "clarity", NOW)).assets).toEqual([
-      { asset: "meals.example", spent: 1 },
+      { asset: "meadow.example", spent: 1 },
     ]);
   });
 
@@ -2165,9 +2165,9 @@ describe("loadMeteredCallsToday", () => {
   it("reads the month's dollars through the SAME sum the budget meter reads", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
-    await insertReport(ctx, "dfs-1", "meals.example", "2026-09-01T12:45:00.000Z", 1.122_772);
-    await insertReport(ctx, "dfs-2", "nosh.example", "2026-09-03T12:45:00.000Z", 0.41);
-    await insertReport(ctx, "dfs-old", "meals.example", "2026-08-30T12:45:00.000Z", 9);
+    await insertReport(ctx, "dfs-1", "meadow.example", "2026-09-01T12:45:00.000Z", 1.122_772);
+    await insertReport(ctx, "dfs-2", "northwind.example", "2026-09-03T12:45:00.000Z", 0.41);
+    await insertReport(ctx, "dfs-old", "meadow.example", "2026-08-30T12:45:00.000Z", 9);
 
     const reading = await loadProviderMeter(ctx.call, SPEND_METER, NOW, 25);
     const spend = await loadDataForSeoSpend(ctx.call, NOW);
@@ -2185,15 +2185,15 @@ describe("loadMeteredCallsToday", () => {
   it("windows the same sum to a day for the Wall's pace", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
-    await insertReport(ctx, "dfs-today", "meals.example", "2026-09-05T01:00:00.000Z", 0.4);
-    await insertReport(ctx, "dfs-today-2", "nosh.example", "2026-09-05T08:59:00.000Z", 0.15);
-    await insertReport(ctx, "dfs-yesterday", "meals.example", "2026-09-04T23:59:59.000Z", 7);
+    await insertReport(ctx, "dfs-today", "meadow.example", "2026-09-05T01:00:00.000Z", 0.4);
+    await insertReport(ctx, "dfs-today-2", "northwind.example", "2026-09-05T08:59:00.000Z", 0.15);
+    await insertReport(ctx, "dfs-yesterday", "meadow.example", "2026-09-04T23:59:59.000Z", 7);
 
     const day = await loadDataForSeoSpend(ctx.call, NOW, "day");
     expect(day.spentUsd).toBeCloseTo(0.55, 10);
     expect(day.byAsset).toEqual([
-      { asset: "meals.example", spentUsd: 0.4, unknownPrices: 0 },
-      { asset: "nosh.example", spentUsd: 0.15, unknownPrices: 0 },
+      { asset: "meadow.example", spentUsd: 0.4, unknownPrices: 0 },
+      { asset: "northwind.example", spentUsd: 0.15, unknownPrices: 0 },
     ]);
     const month = await loadDataForSeoSpend(ctx.call, NOW);
     expect(month.spentUsd).toBeCloseTo(7.55, 10);
@@ -2222,19 +2222,19 @@ describe("loadMeteredCallsToday", () => {
   it("counts the ad-hoc research the cap gate counts, not just the collected reports", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
-    await insertReport(ctx, "dfs-1", "meals.example", "2026-09-01T12:45:00.000Z", 1.1);
-    await insertResearch(ctx, "r1", "meals.example", "2026-09-02T09:00:00.000Z", 0.24);
-    await insertResearch(ctx, "r2", "nosh.example", "2026-09-02T09:30:00.000Z", 0.4);
+    await insertReport(ctx, "dfs-1", "meadow.example", "2026-09-01T12:45:00.000Z", 1.1);
+    await insertResearch(ctx, "r1", "meadow.example", "2026-09-02T09:00:00.000Z", 0.24);
+    await insertResearch(ctx, "r2", "northwind.example", "2026-09-02T09:30:00.000Z", 0.4);
     // Portfolio-level research names no property.
     await insertResearch(ctx, "r3", null, "2026-09-03T09:00:00.000Z", 0.06);
-    await insertResearch(ctx, "r4", "meals.example", "2026-09-03T10:00:00.000Z", 5, "collector");
-    await insertResearch(ctx, "r5", "meals.example", "2026-08-31T23:59:59.000Z", 9);
+    await insertResearch(ctx, "r4", "meadow.example", "2026-09-03T10:00:00.000Z", 5, "collector");
+    await insertResearch(ctx, "r5", "meadow.example", "2026-08-31T23:59:59.000Z", 9);
 
     const spend = await loadDataForSeoSpend(ctx.call, NOW);
     expect(spend.spentUsd).toBeCloseTo(1.8, 10);
     expect(spend.byAsset).toEqual([
-      { asset: "meals.example", spentUsd: 1.34, unknownPrices: 0 },
-      { asset: "nosh.example", spentUsd: 0.4, unknownPrices: 0 },
+      { asset: "meadow.example", spentUsd: 1.34, unknownPrices: 0 },
+      { asset: "northwind.example", spentUsd: 0.4, unknownPrices: 0 },
     ]);
     expect(spend.unattributedUsd).toBeCloseTo(0.06, 10);
     expect(
@@ -2249,8 +2249,8 @@ describe("loadMeteredCallsToday", () => {
   it("gives /health, /settings, the provider card and the Wall one figure", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
-    await insertReport(ctx, "dfs-1", "meals.example", "2026-09-05T02:00:00.000Z", 1.1);
-    await insertResearch(ctx, "r1", "nosh.example", "2026-09-05T09:00:00.000Z", 0.24);
+    await insertReport(ctx, "dfs-1", "meadow.example", "2026-09-05T02:00:00.000Z", 1.1);
+    await insertResearch(ctx, "r1", "northwind.example", "2026-09-05T09:00:00.000Z", 0.24);
 
     const matrix = await buildIntegrationsMatrix(ctx.call, {
       ...deps(INTEGRATIONS),
@@ -2291,20 +2291,20 @@ describe("loadMeteredCallsToday", () => {
   it("counts unknown prices by window and site without counting collector research twice", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
-    await insertReport(ctx, "known", "meals.example", "2026-09-05T02:00:00.000Z", 1.25);
-    await insertReport(ctx, "unknown", "nosh.example", "2026-09-05T03:00:00.000Z", 0);
-    await insertResearch(ctx, "unpriced", "nosh.example", "2026-09-05T04:00:00.000Z", 0);
+    await insertReport(ctx, "known", "meadow.example", "2026-09-05T02:00:00.000Z", 1.25);
+    await insertReport(ctx, "unknown", "northwind.example", "2026-09-05T03:00:00.000Z", 0);
+    await insertResearch(ctx, "unpriced", "northwind.example", "2026-09-05T04:00:00.000Z", 0);
     await insertResearch(ctx, "unattributed", null, "2026-09-05T05:00:00.000Z", 0);
-    await insertResearch(ctx, "collector", "nosh.example", "2026-09-05T06:00:00.000Z", 0, "collector");
-    await insertReport(ctx, "yesterday", "meals.example", "2026-09-04T03:00:00.000Z", 0);
-    await insertReport(ctx, "last-month", "meals.example", "2026-08-31T03:00:00.000Z", 0);
+    await insertResearch(ctx, "collector", "northwind.example", "2026-09-05T06:00:00.000Z", 0, "collector");
+    await insertReport(ctx, "yesterday", "meadow.example", "2026-09-04T03:00:00.000Z", 0);
+    await insertReport(ctx, "last-month", "meadow.example", "2026-08-31T03:00:00.000Z", 0);
     const store = ctx.call;
     const day = await loadDataForSeoSpend(store, NOW, "day");
     expect(day).toEqual({
       spentUsd: 1.25, unknownPrices: 3,
       byAsset: [
-        { asset: "meals.example", spentUsd: 1.25, unknownPrices: 0 },
-        { asset: "nosh.example", spentUsd: 0, unknownPrices: 2 },
+        { asset: "meadow.example", spentUsd: 1.25, unknownPrices: 0 },
+        { asset: "northwind.example", spentUsd: 0, unknownPrices: 2 },
       ],
       unattributedUsd: 0, unattributedUnknownPrices: 1,
     });
@@ -2315,7 +2315,7 @@ describe("loadMeteredCallsToday", () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
     await insertClarity(ctx, [
-      { asset: "meals.example", requestedAt: "2026-09-05T04:30:00.000Z" },
+      { asset: "meadow.example", requestedAt: "2026-09-05T04:30:00.000Z" },
     ]);
     // The declaration decides which reading comes back, so a second metered
     // provider is not a second `if` in the route.
@@ -2328,7 +2328,7 @@ describe("loadMeteredCallsToday", () => {
     ).toEqual({
       window: "asset-day",
       day: "2026-09-05",
-      assets: [{ asset: "meals.example", spent: 1 }],
+      assets: [{ asset: "meadow.example", spent: 1 }],
     });
   });
 });
@@ -2342,19 +2342,19 @@ describe("one integration evidence read for compact and detailed views", () => {
     expect(mergeLane("live", "gsc", { revenueRows: [] }).effective).toBe("live");
     const full = await loadIntegrationEvidence(ctx.call, { ...deps(INTEGRATIONS), presentation: "full" });
     const compact = await loadIntegrationEvidence(ctx.call, { ...deps(INTEGRATIONS), presentation: "compact" });
-    expect(full.cells("meals.example", false).find(c => c.laneId === "gsc")?.effective).toBe("needs-setup");
-    expect(full.asset("meals.example", context).lanes.find(l => l.catalog.id === "gsc")?.cell.effective).toBe("needs-setup");
-    expect(compact.cards("meals.example", context).find(c => c.id === "gsc")?.state).toBe("needs-setup");
+    expect(full.cells("meadow.example", false).find(c => c.laneId === "gsc")?.effective).toBe("needs-setup");
+    expect(full.asset("meadow.example", context).lanes.find(l => l.catalog.id === "gsc")?.cell.effective).toBe("needs-setup");
+    expect(compact.cards("meadow.example", context).find(c => c.id === "gsc")?.state).toBe("needs-setup");
   });
 
   it.each(["success", "error"] as const)("uses one %s observation in each presentation, including successful zero rows", async (status) => {
-    await insertSignalRun(ctx, "same-run", "meals.example", "gsc", NOW.toISOString(), status);
+    await insertSignalRun(ctx, "same-run", "meadow.example", "gsc", NOW.toISOString(), status);
     const full = await loadIntegrationEvidence(ctx.call, { ...deps(INTEGRATIONS), presentation: "full" });
     const compact = await loadIntegrationEvidence(ctx.call, { ...deps(INTEGRATIONS), presentation: "compact" });
     const expected = status === "success" ? "live" : "degraded";
-    expect(full.cells("meals.example", false).find(c => c.laneId === "gsc")?.effective).toBe(expected);
-    expect(full.asset("meals.example", context).lanes.find(l => l.catalog.id === "gsc")?.cell.effective).toBe(expected);
-    expect(compact.cards("meals.example", context).find(c => c.id === "gsc")?.state).toBe(expected);
+    expect(full.cells("meadow.example", false).find(c => c.laneId === "gsc")?.effective).toBe(expected);
+    expect(full.asset("meadow.example", context).lanes.find(l => l.catalog.id === "gsc")?.cell.effective).toBe(expected);
+    expect(compact.cards("meadow.example", context).find(c => c.id === "gsc")?.state).toBe(expected);
     expect(full.cells("root-os", true).find(c => c.laneId === "gsc")?.effective).toBe("not-applicable");
   });
 
@@ -2362,25 +2362,25 @@ describe("one integration evidence read for compact and detailed views", () => {
     // Every statement is read on Postgres.
     const queries: string[] = [];
     const compact = await loadIntegrationEvidence(recordingStore(ctx.call, queries), { ...deps(INTEGRATIONS), presentation: "compact" });
-    compact.cards("meals.example", context);
-    compact.cards("nosh.example", context);
+    compact.cards("meadow.example", context);
+    compact.cards("northwind.example", context);
     // The signal runs, the report runs, and each site's newest home-page check.
     expect(queries).toHaveLength(3);
     // No statement names the alerts either.
     expect(queries.join("\n")).not.toMatch(/financial_ledger|mediavine|flags/);
     queries.length = 0;
-    const full = await loadIntegrationEvidence(recordingStore(ctx.call, queries), { ...deps(INTEGRATIONS), presentation: "full", assetId: "meals.example", reuse: { revenueRows: new Map() } });
+    const full = await loadIntegrationEvidence(recordingStore(ctx.call, queries), { ...deps(INTEGRATIONS), presentation: "full", assetId: "meadow.example", reuse: { revenueRows: new Map() } });
     const count = queries.length;
-    full.asset("meals.example", context);
-    full.cells("meals.example", false);
-    full.cards("meals.example", context);
+    full.asset("meadow.example", context);
+    full.cells("meadow.example", false);
+    full.cards("meadow.example", context);
     expect(queries).toHaveLength(count);
     expect(queries.join("\n")).not.toMatch(/financial_ledger|flags/);
-    expect(() => full.asset("nosh.example", context)).toThrow("loaded for meals.example");
-    expect(() => full.cells("nosh.example", false)).toThrow("loaded for meals.example");
-    expect(() => full.cards("nosh.example", context)).toThrow("loaded for meals.example");
-    const scopedCompact = await loadIntegrationEvidence(recordingStore(ctx.call, queries), { ...deps(INTEGRATIONS), presentation: "compact", assetId: "meals.example" });
-    expect(() => scopedCompact.cards("nosh.example", context)).toThrow("loaded for meals.example");
+    expect(() => full.asset("northwind.example", context)).toThrow("loaded for meadow.example");
+    expect(() => full.cells("northwind.example", false)).toThrow("loaded for meadow.example");
+    expect(() => full.cards("northwind.example", context)).toThrow("loaded for meadow.example");
+    const scopedCompact = await loadIntegrationEvidence(recordingStore(ctx.call, queries), { ...deps(INTEGRATIONS), presentation: "compact", assetId: "meadow.example" });
+    expect(() => scopedCompact.cards("northwind.example", context)).toThrow("loaded for meadow.example");
   });
 });
 
@@ -2409,9 +2409,9 @@ describe("uptime — the site's own home-page check", () => {
 
   it("reads the failed try off the reading the ingest stored", async () => {
     const db = await createTestStore();
-    await insertAsset(db, "meals.example", "Meal Planner", 0);
-    await insertHomeCheck(db, "meals.example", AT, "ok", { url: "https://meals.example/", http_status: 200, failed_tries: 1, first_try_http_status: 502 });
-    expect((await loadHomeChecks(db.call, "meals.example")).get("meals.example"))
+    await insertAsset(db, "meadow.example", "Meadow Board", 0);
+    await insertHomeCheck(db, "meadow.example", AT, "ok", { url: "https://meadow.example/", http_status: 200, failed_tries: 1, first_try_http_status: 502 });
+    expect((await loadHomeChecks(db.call, "meadow.example")).get("meadow.example"))
       .toMatchObject({ observedAt: AT, status: "ok", httpStatus: 200, failedTries: 1 });
   });
 
@@ -2426,7 +2426,7 @@ describe("uptime — the site's own home-page check", () => {
     const offline = uptimeState("live", { ...up, status: "unreachable", httpStatus: null, egressDown: true });
     expect(offline.effective).toBe("live");
     expect(offline.evidence[0]!.verification).toBeUndefined();
-    const cell = { assetId: "nosh.example", laneId: "uptime", ...offline };
+    const cell = { assetId: "northwind.example", laneId: "uptime", ...offline };
     expect(connectionHealthState(cell, Date.parse("2026-07-05T12:00:00.000Z"))).toBe("unverified");
   });
 

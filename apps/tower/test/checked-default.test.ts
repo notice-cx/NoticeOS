@@ -8,14 +8,14 @@ import { checkedDefault } from "../vite/checked-default";
 // scripts/config-registers.test.mjs's. Synthetic documents only.
 describe("checkedDefault — the build boundary for a compiled default", () => {
   it("hands a well-formed document back unchanged", () => {
-    const pull = [{ asset: "meals.example", url: "https://meals.example/m", enabled: true }];
+    const pull = [{ asset: "meadow.example", url: "https://meadow.example/m", enabled: true }];
     expect(checkedDefault("config/pull.json", pull)).toBe(pull);
-    const counters = { assets: { "meals.example": { cards: [] } } };
+    const counters = { assets: { "meadow.example": { cards: [] } } };
     expect(checkedDefault("config/counters.json", counters)).toBe(counters);
   });
 
   it("fails naming the file and where, instead of compiling a malformed default in", () => {
-    expect(() => checkedDefault("config/pull.json", { asset: "meals.example" })).toThrow(
+    expect(() => checkedDefault("config/pull.json", { asset: "meadow.example" })).toThrow(
       "config/pull.json: the document must be a JSON array",
     );
     expect(() => checkedDefault("config/counters.json", {})).toThrow("config/counters.json: /assets is missing");

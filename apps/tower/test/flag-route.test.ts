@@ -22,10 +22,10 @@ let URL_: URL;
 
 beforeEach(async () => {
   testDb = await createTestStore();
-  await addSites(testDb, [{ id: "meals.example", domain: null, displayName: "Meal Planner", status: "live", senseOnly: 0, createdAt: NOW }]);
+  await addSites(testDb, [{ id: "meadow.example", domain: null, displayName: "Meadow Board", status: "live", senseOnly: 0, createdAt: NOW }]);
   store = testDb.call;
   ID = await storeAlert(store, {
-    asset: "meals.example",
+    asset: "meadow.example",
     firedAt: "2026-07-29T20:00:00.000Z",
     severity: "warn",
     kind: "anomaly",
@@ -69,7 +69,7 @@ describe("PATCH /api/flags/:id — the alert lifecycle over HTTP", () => {
       json: {
         ok: true,
         id: ID,
-        asset: "meals.example",
+        asset: "meadow.example",
         action: "snooze",
         changedAt: NOW,
         snoozeUntil: until,
@@ -182,7 +182,7 @@ describe("PATCH /api/flags/:id — recording a tune", () => {
       json: {
         ok: true,
         id: ID,
-        asset: "meals.example",
+        asset: "meadow.example",
         action: "tune",
         changedAt: NOW,
         snoozeUntil: null,

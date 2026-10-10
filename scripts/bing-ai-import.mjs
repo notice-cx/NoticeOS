@@ -17,6 +17,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isCalendarDate } from './config-registers.mjs';
 import { DEFAULT_DOOR, doorRequest, doorUrl, operatorToken } from './ingest-door.mjs';
 import {
   parseArgs as parsePanelArgs,
@@ -97,12 +98,6 @@ export function parseArgs(argv) {
     );
   }
   return options;
-}
-
-export function isCalendarDate(value) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const parsed = new Date(`${value}T00:00:00.000Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
 /** What Bing's filename says this file is, or null when it says nothing. */

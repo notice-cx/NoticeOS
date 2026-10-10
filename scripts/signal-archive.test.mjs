@@ -27,7 +27,7 @@ const NO_MANIFEST = new Map();
 function envelope(integration, report, reportDate, pages, fields = {}) {
   return {
     schemaVersion: 1,
-    asset: 'meals.example',
+    asset: 'meadow.example',
     integration,
     report,
     reportDate,
@@ -40,7 +40,7 @@ function envelope(integration, report, reportDate, pages, fields = {}) {
 }
 
 function read(archive, confirmations = NO_MANIFEST) {
-  const checked = parseArchive(JSON.stringify(archive), { asset: 'meals.example', source: 'test' });
+  const checked = parseArchive(JSON.stringify(archive), { asset: 'meadow.example', source: 'test' });
   return archiveRows(checked, confirmations);
 }
 
@@ -222,7 +222,7 @@ test('missing and truncated reads stay unknown rather than becoming zero', () =>
   const [unanswered] = read(envelope('dataforseo', 'serp-panel', '2026-09-14', [{
     request: { attempts: 3, body: { keyword: 'meal plan', depth: 20 } },
     response: { cost: 0.004, tasks: [{ status_message: 'Invalid Field: keyword.', result: null }] },
-  }], { propertyRef: 'meals.example' }));
+  }], { propertyRef: 'meadow.example' }));
   assert.deepEqual(
     [unanswered.best_rank, unanswered.aio_present, unanswered.aio_cites_us, unanswered.provider_status],
     ['', '', '', 'Invalid Field: keyword.'],
@@ -338,8 +338,8 @@ test('a report day is one (integration, report, report date), for an archive and
 test('an archive the rules cannot read is refused by name', () => {
   const good = gscQuery('2026-09-20', []);
   const refusal = (value, source = 'raw/gsc/query/2026-09-20.json') => () =>
-    parseArchive(typeof value === 'string' ? value : JSON.stringify(value), { asset: 'meals.example', source });
-  assert.throws(refusal({ ...good, asset: 'nosh.example' }), { message: 'Unsupported or wrong-property signal archive: raw/gsc/query/2026-09-20.json' });
+    parseArchive(typeof value === 'string' ? value : JSON.stringify(value), { asset: 'meadow.example', source });
+  assert.throws(refusal({ ...good, asset: 'northwind.example' }), { message: 'Unsupported or wrong-property signal archive: raw/gsc/query/2026-09-20.json' });
   assert.throws(refusal({ ...good, schemaVersion: 2 }), /Unsupported or wrong-property/);
   assert.throws(refusal([good]), /Unsupported or wrong-property/);
   assert.throws(refusal({ ...good, integration: 'matomo' }), { message: 'Malformed signal archive: raw/gsc/query/2026-09-20.json' });

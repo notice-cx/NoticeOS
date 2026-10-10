@@ -22,6 +22,15 @@ import {
   fetchIntegrationProviders,
   readDevSecretBindings,
 } from './dev-secrets.mjs';
+import { ansi as c } from './ansi.mjs';
+import {
+  CALENDAR_ACCEPT,
+  CALENDAR_REQUEST_TIMEOUT_MS,
+  CALENDAR_RESPONSE_BYTE_LIMIT,
+  CALENDAR_USER_AGENT,
+  DISCORD_TEST_MESSAGE,
+  calendarFeedField,
+} from '../packages/contract/src/provider-requests.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,24 +38,6 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 // This installation's copies, else the product defaults.
 const PULL_JSON = readablePath('config/pull.json', { root: REPO_ROOT });
 const INTEGRATIONS_JSON = readablePath('config/integrations.json', { root: REPO_ROOT });
-
-const c = process.stdout.isTTY
-  ? {
-      dim: (s) => `\x1b[2m${s}\x1b[0m`,
-      bold: (s) => `\x1b[1m${s}\x1b[0m`,
-      red: (s) => `\x1b[31m${s}\x1b[0m`,
-      green: (s) => `\x1b[32m${s}\x1b[0m`,
-      yellow: (s) => `\x1b[33m${s}\x1b[0m`,
-      cyan: (s) => `\x1b[36m${s}\x1b[0m`,
-    }
-  : {
-      dim: (s) => s,
-      bold: (s) => s,
-      red: (s) => s,
-      green: (s) => s,
-      yellow: (s) => s,
-      cyan: (s) => s,
-    };
 
 function out(line = '') {
   process.stdout.write(line + '\n');
@@ -935,14 +926,9 @@ async function probePosthog(vars) {
   return { rows, proofs: [] };
 }
 
-// Discord: explicit-only, since it posts one real message. Mirrors
-// `DISCORD_TEST_MESSAGE` in workers/ingest/src/credential-probes.ts, which this
-// file cannot import; keep the two identical.
-const DISCORD_TEST_MESSAGE =
-  'NoticeOS connection test — nothing is wrong, you can ignore this.';
-
-/** The Discord webhook is portfolio-wide, so a delivered test proves the lane
- * on every row of the register that carries it. */
+/** Discord is explicit-only, since it posts one real message. The webhook is
+ * portfolio-wide, so a delivered test proves the lane on every row of the
+ * register that carries it. */
 export async function probeDiscord(vars, register) {
   const label = 'Discord';
   out(c.yellow('  ⚠ ') + 'This posts one real message to the operator channel (labeled "ignore").');
@@ -987,27 +973,9 @@ export async function probeDiscord(vars, register) {
 // failure classes are ingest's own codes, so the checker and the running lane
 // describe one broken link the same way.
 //
-// The acceptance rules and the request shape mirror workers/ingest/src/calendar.ts,
-// which this plain-Node script cannot import; an origin that content-negotiates
-// would answer a different `accept` differently, and a tighter timeout would
-// call a slow-but-working feed dead. Keep them identical.
-
-/** Mirrors `CALENDAR_USER_AGENT` in workers/ingest/src/calendar.ts. */
-const CALENDAR_USER_AGENT =
-  'NoticeOS-Calendar/1.0 (+https://www.notice.cx; operator dashboard read)';
-
-/** Mirrors that module's `REQUEST_TIMEOUT_MS`. */
-const CALENDAR_TIMEOUT_MS = 10_000;
-
-/** Mirrors that module's `RESPONSE_BYTE_LIMIT`. */
-const CALENDAR_BYTE_LIMIT = 4 * 1024 * 1024;
-
-/** Mirrors `feedField`: a string field of an object entry, or null. */
-function calendarFeedField(value, field) {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
-  const read = value[field];
-  return typeof read === 'string' ? read : null;
-}
+// The request shape is the ingest calendar lane's own
+// (packages/contract/src/provider-requests.mts), and the acceptance rules
+// below follow workers/ingest/src/calendar.ts.
 
 /**
  * What this report is allowed to call a feed. A map written inside out
@@ -1083,11 +1051,11 @@ async function fetchCalendarFeed(url) {
   try {
     response = await fetch(target.href, {
       headers: {
-        accept: 'text/calendar, text/plain;q=0.5',
+        accept: CALENDAR_ACCEPT,
         'user-agent': CALENDAR_USER_AGENT,
       },
       redirect: 'follow',
-      signal: AbortSignal.timeout(CALENDAR_TIMEOUT_MS),
+      signal: AbortSignal.timeout(CALENDAR_REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
     // Not the message or the cause: a transport error may carry the request
@@ -1101,7 +1069,7 @@ async function fetchCalendarFeed(url) {
     return { code: `http_${response.status}` };
   }
   const declared = Number(response.headers.get('content-length'));
-  if (Number.isFinite(declared) && declared > CALENDAR_BYTE_LIMIT) {
+  if (Number.isFinite(declared) && declared > CALENDAR_RESPONSE_BYTE_LIMIT) {
     await discardBody(response);
     return { code: 'too_large' };
   }
@@ -1112,7 +1080,7 @@ async function fetchCalendarFeed(url) {
   } catch {
     return { code: 'unreachable' };
   }
-  if (text.length > CALENDAR_BYTE_LIMIT) return { code: 'too_large' };
+  if (text.length > CALENDAR_RESPONSE_BYTE_LIMIT) return { code: 'too_large' };
 
   // Ingest's own `sawCalendar` rule: a `BEGIN:VCALENDAR` property line (a
   // folded continuation starts with a space and cannot match).
@@ -1155,7 +1123,7 @@ function describeFeed(result, feed) {
   if (code === 'timeout') {
     return {
       state: 'fail',
-      detail: `timeout — no answer within ${CALENDAR_TIMEOUT_MS / 1000}s, the same ceiling ingest gives a feed`,
+      detail: `timeout — no answer within ${CALENDAR_REQUEST_TIMEOUT_MS / 1000}s, the same ceiling ingest gives a feed`,
       fix:
         'fix: retry. Google serves these links out of its own cache, so a good one' +
         ' answers fast; one that keeps timing out is throttled or its host is down.',

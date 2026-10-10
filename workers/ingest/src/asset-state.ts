@@ -25,11 +25,11 @@ import { recordMutation, type MutationActor } from '@noticeos/postgres/mutation-
 import {
   Issues,
   SITE_ROW_FIELDS,
-  asObject,
   declaredNumber,
   declaredString,
   enumValue,
 } from './routes/validate.js';
+import { asRecord, sha256Hex } from './shared.js';
 
 /** The enum, the allowlist and the result shapes are the cross-Worker contract;
  * re-exported here because this is where they are enforced, and `UPDATE_SQL`
@@ -158,7 +158,7 @@ export async function writeAssetColumn(
   nowMs: number = Date.now(),
   actor: MutationActor | null = null,
 ): Promise<AssetStateWriteResult> {
-  const raw = asObject(body);
+  const raw = asRecord(body);
   if (!raw) {
     return {
       ok: false,
@@ -257,7 +257,7 @@ export async function moveAsset(
   nowMs: number = Date.now(),
   actor: MutationActor | null = null,
 ): Promise<MoveAssetResult> {
-  const raw = asObject(body);
+  const raw = asRecord(body);
   if (!raw) {
     return {
       ok: false,
@@ -337,8 +337,7 @@ export async function moveAsset(
 
 /** A compact compare-and-set token for the ordered identities, not a credential. */
 async function orderRevision(order: readonly string[]): Promise<string> {
-  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(order)));
-  return [...new Uint8Array(bytes)].map(byte => byte.toString(16).padStart(2, '0')).join('');
+  return sha256Hex(JSON.stringify(order));
 }
 
 // ---------------------------------------------------------------------------
@@ -372,7 +371,7 @@ export async function createAsset(
   nowMs: number = Date.now(),
   actor: MutationActor | null = null,
 ): Promise<CreateAssetResult> {
-  const raw = asObject(body);
+  const raw = asRecord(body);
   if (!raw) {
     return {
       ok: false,

@@ -28,9 +28,9 @@ const ROSTER = JSON.stringify({
   refresh: { windowDays: 35, freshnessMaxAgeDays: 7 },
   assets: {
     'root-os': { enabled: false, reason: 'not-applicable' },
-    'nosh.example': { enabled: true, reason: 'live-lanes' },
-    'fees.example': { enabled: true, reason: 'live-lanes' },
-    'pullups.example': { enabled: false, reason: 'no-lane-yet' },
+    'northwind.example': { enabled: true, reason: 'live-lanes' },
+    'ferns.example': { enabled: true, reason: 'live-lanes' },
+    'puffin.example': { enabled: false, reason: 'no-lane-yet' },
   },
 });
 
@@ -64,9 +64,9 @@ test('parseRoster: reads the roster the config declares', () => {
     roster.assets.map((entry) => [entry.asset, entry.enabled]),
     [
       ['root-os', false],
-      ['nosh.example', true],
-      ['fees.example', true],
-      ['pullups.example', false],
+      ['northwind.example', true],
+      ['ferns.example', true],
+      ['puffin.example', false],
     ],
   );
 });
@@ -84,7 +84,7 @@ test('parseRoster: a broken or empty roster degrades to the defaults', () => {
 
 test('selectAssets: only the enabled entries by default', () => {
   const chosen = selectAssets(parseRoster(ROSTER), { asset: null, all: false });
-  assert.deepEqual(chosen.map((entry) => entry.asset), ['nosh.example', 'fees.example']);
+  assert.deepEqual(chosen.map((entry) => entry.asset), ['northwind.example', 'ferns.example']);
 });
 
 test('selectAssets: --all includes the deliberately skipped ones', () => {
@@ -94,14 +94,14 @@ test('selectAssets: --all includes the deliberately skipped ones', () => {
 
 // An operator naming a property means that property, roster flag or not.
 test('selectAssets: --asset overrides the enabled flag', () => {
-  const chosen = selectAssets(parseRoster(ROSTER), { asset: 'pullups.example', all: false });
-  assert.deepEqual(chosen.map((entry) => entry.asset), ['pullups.example']);
+  const chosen = selectAssets(parseRoster(ROSTER), { asset: 'puffin.example', all: false });
+  assert.deepEqual(chosen.map((entry) => entry.asset), ['puffin.example']);
 });
 
 test('archivePath: writes where signal-dumps-download writes', () => {
   assert.equal(
-    archivePath('/root', 'nosh.example', { integration: 'gsc', report: 'query', reportDate: '2026-08-01' }),
-    path.join('/root', 'nosh.example', 'gsc', 'query', '2026-08-01.json'),
+    archivePath('/root', 'northwind.example', { integration: 'gsc', report: 'query', reportDate: '2026-08-01' }),
+    path.join('/root', 'northwind.example', 'gsc', 'query', '2026-08-01.json'),
   );
 });
 
@@ -148,7 +148,7 @@ test('dayAge: whole days between report date and now', () => {
 
 test('freshnessReport: per-integration, newest report date wins', () => {
   const report = freshnessReport({
-    asset: 'nosh.example',
+    asset: 'northwind.example',
     refreshedAt: '2026-08-03T13:10:00.000Z',
     maxAgeDays: 7,
     manifest: [
@@ -194,7 +194,7 @@ test('freshnessReport: per-integration, newest report date wins', () => {
 // they carry their own age.
 test('freshnessReport: a hand-dropped family is aged on its own export, not its integration', () => {
   const report = freshnessReport({
-    asset: 'meals.example',
+    asset: 'meadow.example',
     refreshedAt: '2026-08-03T13:10:00.000Z',
     maxAgeDays: 7,
     manifest: [
@@ -251,7 +251,7 @@ test('freshnessReport: a hand-dropped family is aged on its own export, not its 
 // make last night's API collection look fresher than it is.
 test('freshnessReport: a fresh hand-drop does not vouch for its integration', () => {
   const report = freshnessReport({
-    asset: 'meals.example',
+    asset: 'meadow.example',
     refreshedAt: '2026-08-03T13:10:00.000Z',
     maxAgeDays: 7,
     manifest: [
@@ -271,7 +271,7 @@ test('freshnessReport: a fresh hand-drop does not vouch for its integration', ()
 // that does not exist.
 test('freshnessReport: a family never dropped is absent, not stale', () => {
   const report = freshnessReport({
-    asset: 'fees.example',
+    asset: 'ferns.example',
     refreshedAt: '2026-08-03T13:10:00.000Z',
     maxAgeDays: 7,
     manifest: [{ integration: 'gsc', report: 'query', reportDate: '2026-08-01' }],
@@ -285,7 +285,7 @@ test('freshnessReport: a family never dropped is absent, not stale', () => {
 // answer; one boolean would throw away the half that still works.
 test('freshnessReport: names the integration that went stale', () => {
   const report = freshnessReport({
-    asset: 'nosh.example',
+    asset: 'northwind.example',
     refreshedAt: '2026-08-03T13:10:00.000Z',
     maxAgeDays: 7,
     manifest: [
@@ -301,7 +301,7 @@ test('freshnessReport: names the integration that went stale', () => {
 // nothing to measure would be the exact lie the contract forbids.
 test('freshnessReport: nothing collected is not fresh', () => {
   const report = freshnessReport({
-    asset: 'pullups.example',
+    asset: 'puffin.example',
     refreshedAt: '2026-08-03T13:10:00.000Z',
     maxAgeDays: 7,
     manifest: [],
@@ -348,7 +348,7 @@ const MANIFEST_ROW = {
   report: 'query',
   reportDate: '2026-08-01',
   finishedAt: '2026-08-02T12:15:00.000Z',
-  objectKey: 'signals/nosh.example/aaa.json.gz',
+  objectKey: 'signals/northwind.example/aaa.json.gz',
   contentSha256: 'a'.repeat(64),
   providerRows: 31,
   providerTruncated: 0,
@@ -364,11 +364,11 @@ test('refreshAsset: writes the archive, the trend csv and the freshness stamp', 
         { date: '2026-08-01', integration: 'gsc', metric: 'clicks', value: 12, provisional: 0 },
       ],
     },
-    { 'signals/nosh.example/aaa.json.gz': { schemaVersion: 1, pages: [] } },
+    { 'signals/northwind.example/aaa.json.gz': { schemaVersion: 1, pages: [] } },
   );
 
   let analyzed = null;
-  const result = await refreshAsset('nosh.example', options, {
+  const result = await refreshAsset('northwind.example', options, {
     get,
     token: 'op',
     windowDays: 35,
@@ -381,22 +381,22 @@ test('refreshAsset: writes the archive, the trend csv and the freshness stamp', 
 
   assert.equal(result.archivesFetched, 1);
   assert.equal(result.trendRows, 1);
-  assert.equal(analyzed.asset, 'nosh.example');
-  assert.equal(analyzed.history, path.join(dir, 'history', 'nosh.example'));
+  assert.equal(analyzed.asset, 'northwind.example');
+  assert.equal(analyzed.history, path.join(dir, 'history', 'northwind.example'));
   assert.equal(analyzed.generation, 1);
-  assert.equal(analyzed.output, path.join(options.analysisRoot, 'nosh.example'));
+  assert.equal(analyzed.output, path.join(options.analysisRoot, 'northwind.example'));
 
   const archive = await fs.readFile(
-    path.join(options.downloadsRoot, 'nosh.example', 'gsc', 'query', '2026-08-01.json'),
+    path.join(options.downloadsRoot, 'northwind.example', 'gsc', 'query', '2026-08-01.json'),
     'utf8',
   );
   assert.deepEqual(JSON.parse(archive), { schemaVersion: 1, pages: [] });
 
-  const trend = await fs.readFile(path.join(options.analysisRoot, 'nosh.example', TREND_FILE), 'utf8');
+  const trend = await fs.readFile(path.join(options.analysisRoot, 'northwind.example', TREND_FILE), 'utf8');
   assert.match(trend, /2026-08-01,gsc,clicks,12,0/);
 
   const freshness = JSON.parse(
-    await fs.readFile(path.join(options.analysisRoot, 'nosh.example', FRESHNESS_FILE), 'utf8'),
+    await fs.readFile(path.join(options.analysisRoot, 'northwind.example', FRESHNESS_FILE), 'utf8'),
   );
   assert.equal(freshness.fresh, true);
   assert.equal(freshness.sources[0].integration, 'gsc');
@@ -408,7 +408,7 @@ test('refreshAsset: writes the archive, the trend csv and the freshness stamp', 
 // therefore what makes a daily cadence free.
 test('refreshAsset: does not re-fetch an archive it already holds', async () => {
   const { dir, options } = await scratch();
-  const objects = { 'signals/nosh.example/aaa.json.gz': { schemaVersion: 1, pages: [] } };
+  const objects = { 'signals/northwind.example/aaa.json.gz': { schemaVersion: 1, pages: [] } };
   const source = { from: '2026-06-29', manifest: [MANIFEST_ROW], trend: [] };
   const deps = {
     token: 'op',
@@ -419,10 +419,10 @@ test('refreshAsset: does not re-fetch an archive it already holds', async () => 
   };
 
   const first = stubDoor(source, objects);
-  await refreshAsset('nosh.example', options, { ...deps, get: first.get });
+  await refreshAsset('northwind.example', options, { ...deps, get: first.get });
 
   const second = stubDoor(source, objects);
-  const result = await refreshAsset('nosh.example', options, { ...deps, get: second.get });
+  const result = await refreshAsset('northwind.example', options, { ...deps, get: second.get });
   assert.equal(result.archivesFetched, 0);
   assert.deepEqual(
     second.calls.filter((url) => url.includes('/api/panel-object')),
@@ -446,20 +446,20 @@ test('refreshAsset: re-fetches a report day the collector revised', async () => 
 
   const first = stubDoor(
     { from: '2026-06-29', manifest: [MANIFEST_ROW], trend: [] },
-    { 'signals/nosh.example/aaa.json.gz': { revision: 1 } },
+    { 'signals/northwind.example/aaa.json.gz': { revision: 1 } },
   );
-  await refreshAsset('nosh.example', options, { ...deps, get: first.get });
+  await refreshAsset('northwind.example', options, { ...deps, get: first.get });
 
-  const revised = { ...MANIFEST_ROW, objectKey: 'signals/nosh.example/bbb.json.gz' };
+  const revised = { ...MANIFEST_ROW, objectKey: 'signals/northwind.example/bbb.json.gz' };
   const second = stubDoor(
     { from: '2026-06-29', manifest: [revised], trend: [] },
-    { 'signals/nosh.example/bbb.json.gz': { revision: 2 } },
+    { 'signals/northwind.example/bbb.json.gz': { revision: 2 } },
   );
-  const result = await refreshAsset('nosh.example', options, { ...deps, get: second.get });
+  const result = await refreshAsset('northwind.example', options, { ...deps, get: second.get });
   assert.equal(result.archivesFetched, 1);
 
   const archive = await fs.readFile(
-    path.join(options.downloadsRoot, 'nosh.example', 'gsc', 'query', '2026-08-01.json'),
+    path.join(options.downloadsRoot, 'northwind.example', 'gsc', 'query', '2026-08-01.json'),
     'utf8',
   );
   assert.deepEqual(JSON.parse(archive), { revision: 2 });
@@ -474,22 +474,22 @@ test('refreshAsset: the record file keeps earlier report days and takes this pas
   const { dir, options } = await scratch();
   const settled = {
     integration: 'ga4', report: 'traffic-acquisition', reportDate: '2026-07-01',
-    finishedAt: '2026-07-03T12:16:02.000Z', objectKey: 'signals/nosh.example/ga4.json.gz',
+    finishedAt: '2026-07-03T12:16:02.000Z', objectKey: 'signals/northwind.example/ga4.json.gz',
     contentSha256: 'c'.repeat(64), providerRows: 4, providerTruncated: 0,
   };
   const revised = {
     ...MANIFEST_ROW, finishedAt: '2026-08-03T12:15:00.000Z',
-    objectKey: 'signals/nosh.example/bbb.json.gz', contentSha256: 'b'.repeat(64),
+    objectKey: 'signals/northwind.example/bbb.json.gz', contentSha256: 'b'.repeat(64),
   };
   const deps = { token: 'op', windowDays: 35, freshnessMaxAgeDays: 7, analyze: async () => {} };
   const objects = {
     [settled.objectKey]: { revision: 0 }, [MANIFEST_ROW.objectKey]: { revision: 1 }, [revised.objectKey]: { revision: 2 },
   };
-  await refreshAsset('nosh.example', options, {
+  await refreshAsset('northwind.example', options, {
     ...deps, get: stubDoor({ from: '2026-06-29', manifest: [settled, MANIFEST_ROW], trend: [] }, objects).get,
     now: () => '2026-08-03T13:10:00.000Z',
   });
-  await refreshAsset('nosh.example', options, {
+  await refreshAsset('northwind.example', options, {
     ...deps, get: stubDoor({ from: '2026-07-05', manifest: [revised], trend: [] }, objects).get,
     now: () => '2026-08-04T13:10:00.000Z',
   });
@@ -497,12 +497,12 @@ test('refreshAsset: the record file keeps earlier report days and takes this pas
   const expected = {
     downloadedAt: '2026-08-04T13:10:00.000Z',
     source: 'panel-refresh',
-    asset: 'nosh.example',
+    asset: 'northwind.example',
     filters: { from: '2026-07-05', to: null, integration: null, report: null },
-    objects: [{ ...settled, asset: 'nosh.example' }, { ...revised, asset: 'nosh.example' }],
+    objects: [{ ...settled, asset: 'northwind.example' }, { ...revised, asset: 'northwind.example' }],
   };
   assert.equal(
-    await fs.readFile(path.join(options.downloadsRoot, 'nosh.example', 'manifest.json'), 'utf8'),
+    await fs.readFile(path.join(options.downloadsRoot, 'northwind.example', 'manifest.json'), 'utf8'),
     `${JSON.stringify(expected, null, 2)}\n`,
   );
   await fs.rm(dir, { recursive: true, force: true });
@@ -517,13 +517,13 @@ test('refreshAsset: refuses to write an archive that is not JSON', async () => {
       return {
         ok: true,
         status: 200,
-        json: async () => ({ asset: 'nosh.example', from: '2026-06-29', manifest: [MANIFEST_ROW], trend: [] }),
+        json: async () => ({ asset: 'northwind.example', from: '2026-06-29', manifest: [MANIFEST_ROW], trend: [] }),
       };
     }
     return { ok: true, status: 200, text: async () => '{"pages": [' };
   };
   await assert.rejects(
-    refreshAsset('nosh.example', options, {
+    refreshAsset('northwind.example', options, {
       get,
       token: 'op',
       windowDays: 35,
@@ -532,7 +532,7 @@ test('refreshAsset: refuses to write an archive that is not JSON', async () => {
     }),
   );
   await assert.rejects(
-    fs.access(path.join(options.downloadsRoot, 'nosh.example', 'gsc', 'query', '2026-08-01.json')),
+    fs.access(path.join(options.downloadsRoot, 'northwind.example', 'gsc', 'query', '2026-08-01.json')),
   );
   await fs.rm(dir, { recursive: true, force: true });
 });
@@ -541,7 +541,7 @@ test('refreshAsset: a non-200 from the door fails loudly', async () => {
   const { dir, options } = await scratch();
   const get = async () => ({ ok: false, status: 503 });
   await assert.rejects(
-    refreshAsset('nosh.example', options, {
+    refreshAsset('northwind.example', options, {
       get,
       token: 'op',
       windowDays: 35,
@@ -560,7 +560,7 @@ test('refreshPanels: keeps going past a property that failed', async () => {
   const get = async (url) => {
     const parsed = new URL(url);
     if (parsed.pathname === '/api/panel-source') {
-      if (parsed.searchParams.get('asset') === 'nosh.example') return { ok: false, status: 500 };
+      if (parsed.searchParams.get('asset') === 'northwind.example') return { ok: false, status: 500 };
       return { ok: true, status: 200, json: async () => ({ asset: parsed.searchParams.get('asset'), from: '2026-06-29', manifest: [], trend: [] }) };
     }
     return { ok: false, status: 404 };
@@ -570,9 +570,9 @@ test('refreshPanels: keeps going past a property that failed', async () => {
     { ...options, asset: null, all: false, windowDays: null },
     { fetchImpl: savedRoster(JSON.parse(ROSTER)), token: 'op', get, analyze: async () => {}, now: () => '2026-08-03T13:10:00.000Z' },
   );
-  assert.deepEqual(failures.map((entry) => entry.asset), ['nosh.example']);
-  assert.deepEqual(results.map((entry) => entry.asset), ['fees.example']);
-  // Nothing collected for fees.example in this stub, so its panel must say so.
+  assert.deepEqual(failures.map((entry) => entry.asset), ['northwind.example']);
+  assert.deepEqual(results.map((entry) => entry.asset), ['ferns.example']);
+  // Nothing collected for ferns.example in this stub, so its panel must say so.
   assert.equal(results[0].freshness.fresh, false);
 
   await fs.rm(dir, { recursive: true, force: true });
@@ -600,10 +600,10 @@ test('refreshPanels: each site’s analysis gets the search market its saved set
     {
       token: 'op',
       fetchImpl: async () => Response.json({ ready: true, documents: [
-        { file: 'config/signal-panels.json', version: 8, body: { assets: { 'nosh.example': { enabled: true }, 'fees.example': { enabled: true } } } },
+        { file: 'config/signal-panels.json', version: 8, body: { assets: { 'northwind.example': { enabled: true }, 'ferns.example': { enabled: true } } } },
         { file: 'config/integrations.json', version: 3, body: { assets: {
-          'nosh.example': { dataforseo: { locationCode: 2276, languageCode: 'de' } },
-          'fees.example': { ga4: { propertyId: '123' } },
+          'northwind.example': { dataforseo: { locationCode: 2276, languageCode: 'de' } },
+          'ferns.example': { ga4: { propertyId: '123' } },
         } } },
       ] }),
       get: async (url) => Response.json({ asset: new URL(url).searchParams.get('asset'), manifest: [], trend: [] }),
@@ -612,7 +612,7 @@ test('refreshPanels: each site’s analysis gets the search market its saved set
     },
   );
   assert.deepEqual(failures, []);
-  assert.deepEqual(markets, { 'nosh.example': { locationCode: 2276, languageCode: 'de' }, 'fees.example': null });
+  assert.deepEqual(markets, { 'northwind.example': { locationCode: 2276, languageCode: 'de' }, 'ferns.example': null });
 });
 
 test('refreshPanels: stored targets, history and freshness win over a stale export', async (t) => {

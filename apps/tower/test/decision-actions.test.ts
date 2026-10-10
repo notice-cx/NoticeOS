@@ -13,14 +13,14 @@ import { addSites } from "./sites";
 
 const T1 = "2026-07-30T09:00:00.000Z";
 const T2 = "2026-07-30T11:30:00.000Z";
-const URL_ORIGIN = new URL("https://tower.local/api/assets/meals.example/decisions");
+const URL_ORIGIN = new URL("https://tower.local/api/assets/meadow.example/decisions");
 
 let testDb: TestStore;
 
 beforeEach(async () => {
   testDb = await createTestStore();
   // A test that writes a disposition has a copy of its own (test/sites.ts).
-  await addSites(testDb, [{ id: "meals.example", domain: null, displayName: "Meal Planner", status: "live", senseOnly: 0, createdAt: T1 }]);
+  await addSites(testDb, [{ id: "meadow.example", domain: null, displayName: "Meadow Board", status: "live", senseOnly: 0, createdAt: T1 }]);
 });
 
 /** This test's store, as a Worker call gets one. */
@@ -44,7 +44,7 @@ function post(body: unknown, init: RequestInit = {}): Request {
   });
 }
 
-async function handle(request: Request, asset = "meals.example", now = T1) {
+async function handle(request: Request, asset = "meadow.example", now = T1) {
   return handleDecisionsRequest(request, URL_ORIGIN, await store(), asset, now);
 }
 
@@ -52,7 +52,7 @@ describe("decision records", () => {
   it("records one decision and repeats it idempotently", async () => {
     const first = await recordDecision(
       await store(),
-      "meals.example",
+      "meadow.example",
       { kind: "finding", key: "gsc-decline-1", status: "marked" },
       T1,
     );
@@ -68,7 +68,7 @@ describe("decision records", () => {
     expect(
       await recordDecision(
         await store(),
-        "meals.example",
+        "meadow.example",
         { kind: "finding", key: "gsc-decline-1", status: "marked" },
         T2,
       ),
@@ -80,14 +80,14 @@ describe("decision records", () => {
   it("keeps the first decision time when the status changes", async () => {
     await recordDecision(
       await store(),
-      "meals.example",
+      "meadow.example",
       { kind: "finding", key: "gsc-decline-1", status: "marked" },
       T1,
     );
     expect(
       await recordDecision(
         await store(),
-        "meals.example",
+        "meadow.example",
         { kind: "finding", key: "gsc-decline-1", status: "dismissed" },
         T2,
       ),
@@ -101,12 +101,12 @@ describe("decision records", () => {
   });
 
   it("moves the change time when only the note changes, and not when a note repeats", async () => {
-    await recordDecision(await store(), "meals.example", { kind: "query", key: "q", status: "marked", note: "later" }, T1);
+    await recordDecision(await store(), "meadow.example", { kind: "query", key: "q", status: "marked", note: "later" }, T1);
     expect(
-      await recordDecision(await store(), "meals.example", { kind: "query", key: "q", status: "marked", note: "later" }, T2),
+      await recordDecision(await store(), "meadow.example", { kind: "query", key: "q", status: "marked", note: "later" }, T2),
     ).toMatchObject({ updatedAt: T1 });
     expect(
-      await recordDecision(await store(), "meals.example", { kind: "query", key: "q", status: "marked", note: null }, T2),
+      await recordDecision(await store(), "meadow.example", { kind: "query", key: "q", status: "marked", note: null }, T2),
     ).toMatchObject({ decidedAt: T1, updatedAt: T2,
     });
   });
@@ -114,33 +114,33 @@ describe("decision records", () => {
   it("separates the two kinds under one key", async () => {
     await recordDecision(
       await store(),
-      "meals.example",
+      "meadow.example",
       { kind: "query", key: "shared", status: "marked" },
       T1,
     );
     await recordDecision(
       await store(),
-      "meals.example",
+      "meadow.example",
       { kind: "finding", key: "shared", status: "marked" },
       T1,
     );
-    expect(await loadDecisions(await store(), "meals.example")).toHaveLength(2);
+    expect(await loadDecisions(await store(), "meadow.example")).toHaveLength(2);
   });
 
   it("clears a decision, and clearing an untouched item is not an error", async () => {
     await recordDecision(
       await store(),
-      "meals.example",
+      "meadow.example",
       { kind: "finding", key: "gsc-decline-1", status: "dismissed" },
       T1,
     );
     expect(
-      await clearDecision(await store(), "meals.example", "finding", "gsc-decline-1"),
+      await clearDecision(await store(), "meadow.example", "finding", "gsc-decline-1"),
     ).toEqual({ removed: true });
     expect(
-      await clearDecision(await store(), "meals.example", "finding", "gsc-decline-1"),
+      await clearDecision(await store(), "meadow.example", "finding", "gsc-decline-1"),
     ).toEqual({ removed: false });
-    expect(await loadDecisions(await store(), "meals.example")).toEqual([]);
+    expect(await loadDecisions(await store(), "meadow.example")).toEqual([]);
   });
 
   // Whether a row was handed off is answered by the task somebody filed, never
@@ -159,7 +159,7 @@ describe("decision records", () => {
         (await store()).write((tx) =>
           tx.execute(
             `INSERT INTO noticeos.item_dispositions (workspace_id, asset_id, kind, item_key, status, decided_at, updated_at)
-             VALUES ($1, 'meals.example', 'query', 'weekly meal plan', 'handed_off', $2::timestamptz, $2::timestamptz)`,
+             VALUES ($1, 'meadow.example', 'query', 'weekly meal plan', 'handed_off', $2::timestamptz, $2::timestamptz)`,
             [tx.workspaceId, T1],
           ),
         ),
@@ -172,11 +172,11 @@ describe("decision records", () => {
       // vocabulary is the module's and not whatever the column holds.
       await recordDecision(
         await store(),
-        "meals.example",
+        "meadow.example",
         { kind: "finding", key: "gsc-decline-1", status: "dismissed" },
         T1,
       );
-      expect(await loadDecisions(await store(), "meals.example")).toEqual([
+      expect(await loadDecisions(await store(), "meadow.example")).toEqual([
         {
           kind: "finding",
           key: "gsc-decline-1",
@@ -209,7 +209,7 @@ describe("POST/DELETE /api/assets/:id/decisions", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       ok: true,
-      asset: "meals.example",
+      asset: "meadow.example",
       kind: "finding",
       key: "gsc-decline-1",
       status: "marked",
@@ -225,7 +225,7 @@ describe("POST/DELETE /api/assets/:id/decisions", () => {
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ok: true, removed: true });
-    expect(await loadDecisions(await store(), "meals.example")).toEqual([]);
+    expect(await loadDecisions(await store(), "meadow.example")).toEqual([]);
   });
 
   it("refuses a cross-origin write", async () => {
@@ -276,7 +276,7 @@ describe("POST/DELETE /api/assets/:id/decisions", () => {
       expect(res.status).toBe(422);
       expect(await res.json()).toEqual({ error: "invalid_decision", field });
     }
-    expect(await loadDecisions(await store(), "meals.example")).toEqual([]);
+    expect(await loadDecisions(await store(), "meadow.example")).toEqual([]);
   });
 
   it("rejects an unknown asset instead of failing the foreign key", async () => {

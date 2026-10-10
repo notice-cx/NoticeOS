@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import * as osUp from './os-up.mjs';
 import { runWatchReadbackFiler, watchReadbacksUrl } from './runner/watch-readbacks.mjs';
 
 // scripts/runner/watch-readbacks.mjs: a closed bet's
@@ -59,9 +58,4 @@ test('no bearer, no reads', async () => {
   assert.deepEqual(result, { posted: [], failed: [] });
   assert.deepEqual(requests, []);
   assert.match(lines[0], /no operator token/u);
-});
-
-test('os-up.mjs still offers the readback lane', () => {
-  assert.equal(osUp.runWatchReadbackFiler, runWatchReadbackFiler);
-  assert.equal(osUp.watchReadbacksUrl, watchReadbacksUrl);
 });

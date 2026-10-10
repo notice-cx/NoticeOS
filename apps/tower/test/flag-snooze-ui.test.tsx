@@ -55,14 +55,14 @@ const DAY = 86_400_000;
 
 describe("FlagActions — the snooze menu", () => {
   it("offers Snooze beside the two actions it always had", () => {
-    render(withClient(<FlagActions flagId={7} assetId="nosh.example" />));
+    render(withClient(<FlagActions flagId={7} assetId="northwind.example" />));
     expect(screen.getByRole("button", { name: "Mark alert read" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Snooze alert" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Resolve alert" })).toBeInTheDocument();
   });
 
   it("opens the horizons in place, and Escape puts the row back", () => {
-    render(withClient(<FlagActions flagId={7} assetId="nosh.example" />));
+    render(withClient(<FlagActions flagId={7} assetId="northwind.example" />));
     fireEvent.click(screen.getByRole("button", { name: "Snooze alert" }));
 
     for (const label of ["1 day", "3 days", "1 week"]) {
@@ -77,7 +77,7 @@ describe("FlagActions — the snooze menu", () => {
 
   it("writes the preset the operator picked, as a date the store can hold", async () => {
     const calls = stubFetch();
-    render(withClient(<FlagActions flagId={7} assetId="nosh.example" />));
+    render(withClient(<FlagActions flagId={7} assetId="northwind.example" />));
     fireEvent.click(screen.getByRole("button", { name: "Snooze alert" }));
     fireEvent.click(screen.getByRole("button", { name: "3 days" }));
 
@@ -90,7 +90,7 @@ describe("FlagActions — the snooze menu", () => {
   });
 
   it("bounds the date picker to the horizon the Worker enforces", () => {
-    render(withClient(<FlagActions flagId={7} assetId="nosh.example" />));
+    render(withClient(<FlagActions flagId={7} assetId="northwind.example" />));
     fireEvent.click(screen.getByRole("button", { name: "Snooze alert" }));
     const picker = screen.getByLabelText("Snooze until date") as HTMLInputElement;
 
@@ -104,7 +104,7 @@ describe("FlagActions — the snooze menu", () => {
 
   it("refuses a past date without sending it, and says what is allowed", async () => {
     const calls = stubFetch();
-    render(withClient(<FlagActions flagId={7} assetId="nosh.example" />));
+    render(withClient(<FlagActions flagId={7} assetId="northwind.example" />));
     fireEvent.click(screen.getByRole("button", { name: "Snooze alert" }));
     fireEvent.change(screen.getByLabelText("Snooze until date"), {
       target: { value: "2020-01-01" },
@@ -117,7 +117,7 @@ describe("FlagActions — the snooze menu", () => {
 
   it("hands back an Undo that is the real inverse, not a second snooze", async () => {
     const calls = stubFetch();
-    render(withClient(<FlagActions flagId={7} assetId="nosh.example" />));
+    render(withClient(<FlagActions flagId={7} assetId="northwind.example" />));
     fireEvent.click(screen.getByRole("button", { name: "Snooze alert" }));
     fireEvent.click(screen.getByRole("button", { name: "1 day" }));
 
@@ -134,7 +134,7 @@ describe("FlagActions — the snooze menu", () => {
 
   it("gives a parked row Unsnooze alone", async () => {
     const calls = stubFetch();
-    render(withClient(<FlagActions flagId={7} assetId="nosh.example" snoozed />));
+    render(withClient(<FlagActions flagId={7} assetId="northwind.example" snoozed />));
     // Mark read and Resolve on a row nobody is being shown are decisions made
     // blind, so the parked variant does not offer them.
     expect(screen.queryByRole("button", { name: "Mark alert read" })).toBeNull();
@@ -150,7 +150,7 @@ describe("FlagActions — the snooze menu", () => {
       "fetch",
       vi.fn(async () => new Response("{}", { status: 409 })),
     );
-    render(withClient(<FlagActions flagId={7} assetId="nosh.example" />));
+    render(withClient(<FlagActions flagId={7} assetId="northwind.example" />));
     fireEvent.click(screen.getByRole("button", { name: "Snooze alert" }));
     fireEvent.click(screen.getByRole("button", { name: "1 day" }));
 
@@ -178,7 +178,7 @@ describe("FlagActions — every outcome re-reads the settled archive", () => {
   const renderWith = (client: QueryClient, snoozed = false) =>
     render(
       <QueryClientProvider client={client}>
-        <FlagActions flagId={7} assetId="nosh.example" snoozed={snoozed} />
+        <FlagActions flagId={7} assetId="northwind.example" snoozed={snoozed} />
       </QueryClientProvider>,
     );
 
@@ -207,7 +207,7 @@ describe("FlagActions — every outcome re-reads the settled archive", () => {
       const keys = await invalidatedAfter(click);
       expect(keys).toContainEqual([...ALERT_HISTORY_KEY]);
       expect(keys).toContainEqual(["wall"]);
-      expect(keys).toContainEqual(["asset-detail", "nosh.example"]);
+      expect(keys).toContainEqual(["asset-detail", "northwind.example"]);
     });
   }
 });

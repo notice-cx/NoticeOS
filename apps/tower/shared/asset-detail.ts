@@ -25,6 +25,7 @@ import type { WatchSeriesHistory } from "./watch-windows";
 import type { WorkItem } from "./work";
 import type { WatchScopeInput } from "@noticeos/contract/create-watch-window";
 import type { SearchMarket } from "@noticeos/contract/dataforseo";
+import { LIFECYCLE_ANNOTATION_KIND, LIFECYCLE_REF_PREFIX } from "@noticeos/contract/configuration";
 
 export type { AnnotationItem, AnnotationKind, AnnotationTimeline };
 
@@ -63,32 +64,10 @@ export function assetStatusLabel(status: string): string {
 // Lifecycle moves
 // ---------------------------------------------------------------------------
 
-/**
- * A lifecycle move is recorded as a timeline row because `assets.status` holds
- * only where an asset is, never where it has been; Restore reads the previous
- * stage from the timeline instead of guessing. It uses the existing `config`
- * kind: a stage is a stored setting on the asset, and `annotations.kind` is a
- * CHECK constraint.
- */
-export const LIFECYCLE_ANNOTATION_KIND: AnnotationKind = "config";
-
-/** What a lifecycle-move `ref` starts with. Prefixed rather than bare so an
- * operator-written ref can never be mistaken for one. */
-export const LIFECYCLE_REF_PREFIX = "lifecycle:";
-
 /** The two ends of one recorded move. */
 export interface LifecycleMove {
   from: AssetStatus;
   to: AssetStatus;
-}
-
-/**
- * The `ref` a stage move is stored under (`lifecycle:baselining>retired`). It
- * is part of the row's `(asset, at, kind, ref)` identity, so two moves in the
- * same second stay two rows and a retried write collapses into one.
- */
-export function lifecycleMoveRef(move: LifecycleMove): string {
-  return `${LIFECYCLE_REF_PREFIX}${move.from}>${move.to}`;
 }
 
 /** The move a `ref` records, or null when it is not one. Both stages are checked

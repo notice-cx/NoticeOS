@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import * as osUp from './os-up.mjs';
 import {
   PUSH_STATE_LABEL,
   parseRevListCounts,
@@ -91,10 +90,4 @@ test('an unread remote files and closes nothing, and the run says why', async ()
   assert.deepEqual(result.failed, [{ asset: 'shop.example', reason: 'remote-sign-in-refused' }]);
   assert.deepEqual([result.filed, result.closed], [[], []]);
   assert.deepEqual(bd.map((argv) => argv[2]), ['gate'], 'only the gate check ran');
-});
-
-test('os-up.mjs still offers the same push-state names', () => {
-  assert.equal(osUp.runPushStateFiler, runPushStateFiler);
-  assert.equal(osUp.pushStateDecision, pushStateDecision);
-  assert.equal(osUp.PUSH_STATE_LABEL, PUSH_STATE_LABEL);
 });

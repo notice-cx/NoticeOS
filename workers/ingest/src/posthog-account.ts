@@ -16,12 +16,11 @@ import {
   type PosthogHost,
 } from '@noticeos/contract';
 import { POSTHOG_FUNNEL_ID_SOURCE } from '@noticeos/contract/configuration';
+import { asRecord, WATCHED_REQUEST_TIMEOUT_MS } from './shared.js';
 
 /** The credential field that holds the account's one personal API key. */
 export const POSTHOG_ACCOUNT_KEY_SLOT = 'POSTHOG_API_KEY';
 
-/** How long one PostHog read may take while a person watches a spinner. */
-export const POSTHOG_ACCOUNT_TIMEOUT_MS = 10_000;
 /** The most projects one discovery reads the details and funnels of. */
 export const POSTHOG_DISCOVERY_MAX_PROJECTS = 20;
 /** A project list or an insight list larger than this is not read. */
@@ -54,7 +53,7 @@ export type PosthogAccountRead =
 export async function readPosthogAccount(
   key: string,
   fetchImpl: typeof fetch,
-  timeoutMs = POSTHOG_ACCOUNT_TIMEOUT_MS,
+  timeoutMs = WATCHED_REQUEST_TIMEOUT_MS,
 ): Promise<PosthogAccountRead> {
   if (key.trim() === '') return { verdict: 'refused' };
   const answers = await Promise.all(POSTHOG_HOSTS.map(async (region) => ({ region, answer: await listProjects(region, key, fetchImpl, timeoutMs) })));
@@ -94,7 +93,7 @@ async function listProjects(region: PosthogHost, key: string, fetchImpl: typeof 
 export async function discoverPosthogProjects(
   key: string,
   fetchImpl: typeof fetch,
-  timeoutMs = POSTHOG_ACCOUNT_TIMEOUT_MS,
+  timeoutMs = WATCHED_REQUEST_TIMEOUT_MS,
 ): Promise<{ ok: true; region: PosthogHost; sites: DiscoveredSite[] } | { ok: false; reason: 'refused' | 'unreachable' }> {
   const account = await readPosthogAccount(key, fetchImpl, timeoutMs);
   if (account.verdict !== 'accepted') return { ok: false, reason: account.verdict };
@@ -263,8 +262,4 @@ async function getJson(url: string, key: string, fetchImpl: typeof fetch, timeou
   } catch {
     return { kind: 'unreachable' };
   }
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }

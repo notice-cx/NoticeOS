@@ -96,9 +96,9 @@
 // A family's schema is its columns and their types; `schema_id` is their hash,
 // so a new column or a changed type is a new schema id, and every file of the
 // family in that generation is rewritten under it. `derivation_id` hashes the
-// files that decide what a row is (DERIVATION_FILES) and the period, so a
-// changed rule rebuilds everything, and an old generation names the code that
-// produced it.
+// files that decide what a row is and which period file holds it
+// (DERIVATION_FILES), so a changed rule rebuilds everything, and an old
+// generation names the code that produced it.
 //
 // Nothing here schedules itself or reads the running OS.
 //
@@ -183,14 +183,6 @@ export const LINEAGE_COLUMNS = [
   'derivation_id',
 ];
 
-/** How report dates are grouped into files. */
-export const PARTITIONS = {
-  day: (reportDate) => reportDate,
-  month: (reportDate) => reportDate.slice(0, 7),
-  year: (reportDate) => reportDate.slice(0, 4),
-};
-export const DEFAULT_PARTITION = 'month';
-
 /** The one file of a dataset resolved whole. */
 const WHOLE = 'all';
 /** The period of a report date that is not a YYYY-MM-DD day. */
@@ -226,8 +218,9 @@ function posixPath(relative) {
   return relative.split(path.sep).join('/');
 }
 
-function periodOf(reportDate, partitionBy) {
-  return ISO_DAY.test(reportDate) ? PARTITIONS[partitionBy](reportDate) : UNDATED;
+/** The period file a report date's rows go to: its month, YYYY-MM. */
+function periodOf(reportDate) {
+  return ISO_DAY.test(reportDate) ? reportDate.slice(0, 7) : UNDATED;
 }
 
 /** The type one value is written as; null for an empty value. */
@@ -308,8 +301,8 @@ function archiveRow(schema, derivation) {
 }
 
 /** The files that decide what a row is, hashed: the derivation id. */
-export async function derivationOf(partitionBy = DEFAULT_PARTITION) {
-  return derivationFrom(DERIVATION_FILES, { partitionBy });
+export async function derivationOf() {
+  return derivationFrom(DERIVATION_FILES);
 }
 
 /** The downloads manifest's say about each report day: when it was last
@@ -544,9 +537,6 @@ async function removeAbandonedSpills(output) {
  * `output`, or nothing when nothing changed, then remove what the history no
  * longer keeps (KEEP_GENERATIONS_DAYS). Returns what it did.
  *
- * `partitionBy` groups report dates into files: `month`, the command's only
- * choice; `day` and `year` exist for the measurements that chose it.
- *
  * `deps.writeFile(connection, table, target, metadata)` replaces the step that
  * turns a filled table into a Parquet file (tests interrupt a run with it);
  * `deps.beforeRemove(relative)` sees each removal before it happens (tests
@@ -554,14 +544,11 @@ async function removeAbandonedSpills(output) {
  * the clock the kept generations are judged by.
  */
 export async function publishSignalHistory(
-  { asset, input, output, partitionBy = DEFAULT_PARTITION },
+  { asset, input, output },
   deps = {},
 ) {
   if (typeof asset !== 'string' || !/^[a-z0-9.-]+$/.test(asset)) {
     throw new Error('asset must be a site id such as example.com.');
-  }
-  if (!Object.hasOwn(PARTITIONS, partitionBy)) {
-    throw new Error(`partition must be one of ${Object.keys(PARTITIONS).join(', ')}.`);
   }
   const from = path.resolve(input);
   const to = path.resolve(output);
@@ -577,7 +564,7 @@ export async function publishSignalHistory(
     ? `Another signals:history run took ${output} first; nothing was changed.`
     : `Another signals:history run (process ${holder}) is writing ${output}; nothing was changed.`));
   try {
-    const result = await publishGeneration({ asset, from, to, output, partitionBy, now, writeFile: deps.writeFile ?? copyToParquet });
+    const result = await publishGeneration({ asset, from, to, output, now, writeFile: deps.writeFile ?? copyToParquet });
     let retention;
     try {
       retention = await pruneHistory(to, now(), deps.beforeRemove);
@@ -592,8 +579,8 @@ export async function publishSignalHistory(
 }
 
 /** One run's publication, under the history's lock. */
-async function publishGeneration({ asset, from, to, output, partitionBy, now, writeFile }) {
-  const derivation = await derivationOf(partitionBy);
+async function publishGeneration({ asset, from, to, output, now, writeFile }) {
+  const derivation = await derivationOf();
   const previous = await readCurrentGeneration(to);
   // A history the importer wrote first (only its tables) names no site yet.
   if (previous && previous.asset !== null && previous.asset !== asset) {
@@ -639,7 +626,7 @@ async function publishGeneration({ asset, from, to, output, partitionBy, now, wr
       const sameSchema = before?.schema.id === schema.id;
       const periods = new Map();
       for (const record of records) {
-        const period = whole ? WHOLE : periodOf(record.reportDate, derivation.partitionBy);
+        const period = whole ? WHOLE : periodOf(record.reportDate);
         if (!periods.has(period)) periods.set(period, []);
         periods.get(period).push(record);
       }
@@ -699,7 +686,7 @@ async function publishGeneration({ asset, from, to, output, partitionBy, now, wr
     // The register of sources, one file per period of report dates.
     const register = new Map();
     for (const row of sourceRecords(scan)) {
-      const period = row.state === 'unreadable' ? UNREADABLE : periodOf(row.report_date, derivation.partitionBy);
+      const period = row.state === 'unreadable' ? UNREADABLE : periodOf(row.report_date);
       if (!register.has(period)) register.set(period, []);
       register.get(period).push(row);
     }

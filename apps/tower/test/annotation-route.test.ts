@@ -20,13 +20,13 @@ import {
 // node/jsdom with no workerd. The stub is typed by the shared contract.
 
 const REQUEST_URL = new URL(
-  "https://tower.local/api/assets/meals.example/annotations",
+  "https://tower.local/api/assets/meadow.example/annotations",
 );
 
 function row(overrides: Partial<AnnotationRow> = {}): AnnotationRow {
   return {
     id: 41,
-    asset: "meals.example",
+    asset: "meadow.example",
     at: "2026-07-12T18:04:00.000Z",
     kind: "deploy",
     ref: null,
@@ -77,7 +77,7 @@ function post(body: unknown, init: RequestInit = {}): Request {
 function handle(
   request: Request,
   ingest: AnnotationWriter,
-  asset = "meals.example",
+  asset = "meadow.example",
 ) {
   return handleAnnotationRequest(request, REQUEST_URL, ingest, asset);
 }
@@ -96,7 +96,7 @@ describe("POST /api/assets/:id/annotations", () => {
 
     expect(calls).toEqual([
       {
-        asset: "meals.example",
+        asset: "meadow.example",
         kind: "deploy",
         at: "2026-07-12T18:04:00.000Z",
         ref: undefined,
@@ -108,7 +108,7 @@ describe("POST /api/assets/:id/annotations", () => {
     // `created_at` do not leak into it.
     expect(await response.json()).toEqual({
       ok: true,
-      asset: "meals.example",
+      asset: "meadow.example",
       created: true,
       annotation: {
         id: 41,

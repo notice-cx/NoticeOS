@@ -42,8 +42,8 @@ import {
   runtimeLayout,
   samePath,
   statePaths,
-  stripJsonc,
 } from './os-runtime.mjs';
+import { stripJsonc } from './jsonc.mjs';
 
 /** A fresh runtime copy's first start may pre-bundle dependencies, so a deploy
  * waits longer for health than a plain restart of warm code does. */

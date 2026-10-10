@@ -49,8 +49,9 @@
 //   - Arrange the Wall: edit straight from the TV entry, move, then Save; the
 //     reason is optional (Grafana); versions are the safety net.
 
+import { JOURNEY_ASSET as ASSET, JOURNEY_KEY as KEY, JOURNEY_SITE as SITE } from "./fixtures.ts";
 import {
-  ASSET, KEY, SAVED, SITE, assetTab, awaitSaved, connectFromSource, connectInPanel, knobSave, nav, openAsset,
+  SAVED, assetTab, awaitSaved, connectFromSource, connectInPanel, knobSave, nav, openAsset,
   openSourceRow, settle,
 } from "./ux-walk.mjs";
 import { DEFAULT_WALL_LAYOUT, wallLayoutWidgets } from "../../../scripts/wall-layout.mjs";

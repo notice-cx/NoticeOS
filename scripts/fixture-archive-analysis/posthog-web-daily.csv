@@ -1,6 +1,6 @@
 asset,report_date,collected_at,data_state,provider_truncated,date,pageviews,people,project_time_zone,row_grain,row_limit,sessions,window_end,window_start
-meals.example,2026-09-20,2026-09-21T12:30:04.120Z,provider-snapshot,false,2026-09-17,913,326,America/Los_Angeles,day,100,459,2026-09-20,2026-08-24
-meals.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,2026-09-18,925,338,America/Los_Angeles,day,100,471,2026-09-21,2026-08-25
-meals.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,2026-09-19,932,305,America/Los_Angeles,day,100,428,2026-09-21,2026-08-25
-meals.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,2026-09-20,939,312,America/Los_Angeles,day,100,435,2026-09-21,2026-08-25
-meals.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,2026-09-21,946,319,America/Los_Angeles,day,100,442,2026-09-21,2026-08-25
+meadow.example,2026-09-20,2026-09-21T12:30:04.120Z,provider-snapshot,false,2026-09-17,913,326,America/Los_Angeles,day,100,459,2026-09-20,2026-08-24
+meadow.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,2026-09-18,925,338,America/Los_Angeles,day,100,471,2026-09-21,2026-08-25
+meadow.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,2026-09-19,932,305,America/Los_Angeles,day,100,428,2026-09-21,2026-08-25
+meadow.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,2026-09-20,939,312,America/Los_Angeles,day,100,435,2026-09-21,2026-08-25
+meadow.example,2026-09-21,2026-09-22T12:30:04.120Z,provider-snapshot,false,2026-09-21,946,319,America/Los_Angeles,day,100,442,2026-09-21,2026-08-25

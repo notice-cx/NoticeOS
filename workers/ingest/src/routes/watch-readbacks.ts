@@ -12,7 +12,8 @@ import {
   markWatchReadbacksPosted,
   readPendingWatchReadbacks,
 } from '../watch-readbacks.js';
-import { asObject } from './validate.js';
+import { asRecord } from '../shared.js';
+import { readJsonBody } from './validate.js';
 
 export async function handleWatchReadbacks(
   request: Request,
@@ -27,13 +28,9 @@ export async function handleWatchReadbacks(
     return json({ pending: await readPendingWatchReadbacks(env) }, 200);
   }
 
-  let parsed: unknown;
-  try {
-    parsed = await request.json();
-  } catch (err) {
-    return json({ error: 'bad_request', detail: `could not parse body: ${String(err)}` }, 400);
-  }
-  const body = asObject(parsed);
+  const read = await readJsonBody(request);
+  if (read instanceof Response) return read;
+  const body = asRecord(read.value);
   const ids = body?.posted;
   if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string')) {
     return json({ error: 'bad_request', detail: 'posted must be an array of window ids' }, 400);

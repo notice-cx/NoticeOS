@@ -9,7 +9,7 @@ const base: AssetOperatorPosture = {
   capturedAt: "2026-09-05T23:59:30Z", waiting: 0, urgent: 0, items: [],
 };
 function view(over: Partial<AssetOperatorPosture> = {}) {
-  return render(<MemoryRouter><NeedsYou assetId="meals.example" operator={{ ...base, ...over }} nowMs={nowMs} /></MemoryRouter>);
+  return render(<MemoryRouter><NeedsYou assetId="meadow.example" operator={{ ...base, ...over }} nowMs={nowMs} /></MemoryRouter>);
 }
 describe("asset operator inbox evidence", () => {
   it("states the scope of a fresh empty inbox", () => {
@@ -40,14 +40,14 @@ describe("asset operator inbox evidence", () => {
   });
   it("discloses missing preview rows and links to complete task details", () => {
     view({ waiting: 20, urgent: 2, items: [{
-      id: "mp-example", title: "Confirm the current release", priority: 1, status: "open",
+      id: "md-example", title: "Confirm the current release", priority: 1, status: "open",
       issueType: "task", assignee: null, updatedAt: "2026-08-06T00:00:00Z",
       closedAt: null, parent: null, deferUntil: null,
     }] });
     expect(screen.getByText(/2 urgent · 20 waiting · 1 shown/)).toBeVisible();
     expect(screen.getByText("updated")).toBeVisible();
-    expect(screen.getByRole("link", { name: /Confirm the current release/ })).toHaveAttribute("href", "/tasks/mp-example");
-    expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/assets/meals.example/tasks");
+    expect(screen.getByRole("link", { name: /Confirm the current release/ })).toHaveAttribute("href", "/tasks/md-example");
+    expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/assets/meadow.example/tasks");
   });
   it("does not call a nonempty count clear when row details are missing", () => {
     view({ waiting: 4, urgent: 1 });
@@ -56,7 +56,7 @@ describe("asset operator inbox evidence", () => {
   });
   it("keeps known requests visible when one inbox source fails", () => {
     view({ waiting: null, urgent: null, items: [{
-      id: "mp-known", title: "Approve the proposed change", priority: 1, status: "open",
+      id: "md-known", title: "Approve the proposed change", priority: 1, status: "open",
       issueType: "task", assignee: null, updatedAt: "2026-08-06T00:00:00Z",
       closedAt: null, parent: null, deferUntil: null,
     }] });
@@ -66,7 +66,7 @@ describe("asset operator inbox evidence", () => {
   });
   it("marks retained partial requests as last known when outdated", () => {
     view({ waiting: null, urgent: null, capturedAt: "2026-09-05T23:00:00Z", items: [{
-      id: "mp-known", title: "Approve the proposed change", priority: 1, status: "open",
+      id: "md-known", title: "Approve the proposed change", priority: 1, status: "open",
       issueType: "task", assignee: null, updatedAt: "2026-08-06T00:00:00Z",
       closedAt: null, parent: null, deferUntil: null,
     }] });

@@ -21,13 +21,13 @@ import {
 // The binding is stubbed rather than bound: this project's Vitest runs in
 // node/jsdom with no workerd. The stub is typed by the shared contract.
 
-const REQUEST_URL = new URL("https://tower.local/api/assets/meals.example");
+const REQUEST_URL = new URL("https://tower.local/api/assets/meadow.example");
 
 function state(overrides: Partial<AssetStateRead> = {}): AssetStateRead {
   return {
-    asset: "meals.example",
+    asset: "meadow.example",
     known: true,
-    columns: { status: "onboarding", sense_only: 1, display_name: "Meal Planner" },
+    columns: { status: "onboarding", sense_only: 1, display_name: "Meadow Board" },
     updatedAt: "2026-09-01T00:00:00.000Z",
     ...overrides,
   };
@@ -44,7 +44,7 @@ function stubIngest(
   read: AssetStateRead | Error,
   write: AssetStateWriteResult | Error = {
     ok: true,
-    asset: "meals.example",
+    asset: "meadow.example",
     column: "status",
     value: "live",
     updatedAt: "2026-09-04T12:00:00.000Z",
@@ -80,7 +80,7 @@ function patch(body: unknown, init: RequestInit = {}): Request {
   });
 }
 
-function handle(request: Request, ingest: AssetColumnWriter, asset = "meals.example") {
+function handle(request: Request, ingest: AssetColumnWriter, asset = "meadow.example") {
   return handleAssetColumnRequest(request, REQUEST_URL, ingest, asset);
 }
 
@@ -93,10 +93,10 @@ describe("PATCH /api/assets/:id", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(writes).toEqual([{ asset: "meals.example", column: "status", value: "live", expect: "onboarding" }]);
+    expect(writes).toEqual([{ asset: "meadow.example", column: "status", value: "live", expect: "onboarding" }]);
     await expect(res.json()).resolves.toEqual({
       ok: true,
-      asset: "meals.example",
+      asset: "meadow.example",
       column: "status",
       value: "live",
       updatedAt: "2026-09-04T12:00:00.000Z",
@@ -106,7 +106,7 @@ describe("PATCH /api/assets/:id", () => {
   it("writes the automation mode as the 0/1 the row holds", async () => {
     const { ingest, writes } = stubIngest(state(), {
       ok: true,
-      asset: "meals.example",
+      asset: "meadow.example",
       column: "sense_only",
       value: 0,
       updatedAt: "2026-09-04T12:00:00.000Z",
@@ -114,13 +114,13 @@ describe("PATCH /api/assets/:id", () => {
     const res = await handle(patch({ column: "sense_only", value: 0, expect: 1 }), ingest);
 
     expect(res.status).toBe(200);
-    expect(writes).toEqual([{ asset: "meals.example", column: "sense_only", value: 0, expect: 1 }]);
+    expect(writes).toEqual([{ asset: "meadow.example", column: "sense_only", value: 0, expect: 1 }]);
   });
 
   // Two browsers, or a `config:apply` in a terminal: the second save hears
   // what is actually there instead of silently winning.
   it("refuses a save whose expect no longer matches the row, and names what is there", async () => {
-    const { ingest, writes } = stubIngest(state({ columns: { status: "live", sense_only: 1, display_name: "Meal Planner" } }));
+    const { ingest, writes } = stubIngest(state({ columns: { status: "live", sense_only: 1, display_name: "Meadow Board" } }));
     const res = await handle(
       patch({ column: "status", value: "retired", expect: "onboarding" }),
       ingest,
@@ -142,7 +142,7 @@ describe("PATCH /api/assets/:id", () => {
     const res = await handle(patch({ column: "status", value: "live", expect: "onboarding" }), ingest);
     expect(res.status).toBe(409);
     await expect(res.json()).resolves.toEqual({ error: "expect_mismatch", column: "status", current: "retired" });
-    expect(writes).toEqual([{ asset: "meals.example", column: "status", value: "live", expect: "onboarding" }]);
+    expect(writes).toEqual([{ asset: "meadow.example", column: "status", value: "live", expect: "onboarding" }]);
   });
 
   it("treats an asset the store does not have as a 404, before writing anything", async () => {
@@ -153,7 +153,7 @@ describe("PATCH /api/assets/:id", () => {
     );
 
     expect(res.status).toBe(404);
-    await expect(res.json()).resolves.toEqual({ error: "asset_not_found", id: "meals.example" });
+    await expect(res.json()).resolves.toEqual({ error: "asset_not_found", id: "meadow.example" });
     expect(writes).toEqual([]);
   });
 
@@ -175,19 +175,19 @@ describe("PATCH /api/assets/:id", () => {
   it("renames an asset through the same guarded lane", async () => {
     const { ingest, writes } = stubIngest(state(), {
       ok: true,
-      asset: "meals.example",
+      asset: "meadow.example",
       column: "display_name",
-      value: "Menu Plate",
+      value: "Mosaic Desk",
       updatedAt: "2026-09-04T12:00:00.000Z",
     });
     const res = await handle(
-      patch({ column: "display_name", value: "Menu Plate", expect: "Meal Planner" }),
+      patch({ column: "display_name", value: "Mosaic Desk", expect: "Meadow Board" }),
       ingest,
     );
 
     expect(res.status).toBe(200);
     expect(writes).toEqual([
-      { asset: "meals.example", column: "display_name", value: "Menu Plate", expect: "Meal Planner" },
+      { asset: "meadow.example", column: "display_name", value: "Mosaic Desk", expect: "Meadow Board" },
     ]);
   });
 
@@ -196,7 +196,7 @@ describe("PATCH /api/assets/:id", () => {
       state({ columns: { status: "onboarding", sense_only: 1, display_name: "Renamed" } }),
     );
     const res = await handle(
-      patch({ column: "display_name", value: "Menu Plate", expect: "Meal Planner" }),
+      patch({ column: "display_name", value: "Mosaic Desk", expect: "Meadow Board" }),
       ingest,
     );
 

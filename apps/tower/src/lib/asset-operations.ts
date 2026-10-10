@@ -1,5 +1,5 @@
 import type { AssetStatus } from '@shared/asset-detail';
-import { LIFECYCLE_ANNOTATION_KIND, lifecycleMoveRef } from '@shared/asset-detail';
+import { LIFECYCLE_ANNOTATION_KIND, lifecycleMoveRef } from '@noticeos/contract/configuration';
 import type { PlannedWrites } from '@shared/asset-wizard';
 import { buildChangeset } from '@shared/changeset';
 import type { SaveRequest } from '@/hooks/useConfigSave';

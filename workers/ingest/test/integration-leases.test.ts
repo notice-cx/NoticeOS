@@ -74,8 +74,8 @@ describe('a PostHog site lease', () => {
     for (let round = 0; round < ROUNDS; round += 1) {
       const at = NOW + round * 1000;
       const claims = await Promise.all([
-        claimPosthogLease(env.STORE, 'meals.example', at),
-        claimPosthogLease(env.STORE, 'meals.example', at),
+        claimPosthogLease(env.STORE, 'meadow.example', at),
+        claimPosthogLease(env.STORE, 'meadow.example', at),
       ]);
       const owners = claims.filter((claim) => claim.owner !== null);
       expect(owners).toHaveLength(1);
@@ -83,25 +83,25 @@ describe('a PostHog site lease', () => {
         leaseExpiresAt: new Date(at + POSTHOG_LEASE_MS).toISOString(),
       });
       // Given back, so the next round's two runs find no row at all.
-      await releasePosthogLease(env.STORE, 'meals.example', owners[0]!.owner!);
+      await releasePosthogLease(env.STORE, 'meadow.example', owners[0]!.owner!);
     }
   });
 
   it('goes to exactly one of two runs taking over the same expired lease', async () => {
     for (let round = 0; round < ROUNDS; round += 1) {
-      await leftBehind(posthogLeaseKey('meals.example'), NOW);
+      await leftBehind(posthogLeaseKey('meadow.example'), NOW);
       const claims = await Promise.all([
-        claimPosthogLease(env.STORE, 'meals.example', NOW),
-        claimPosthogLease(env.STORE, 'meals.example', NOW),
+        claimPosthogLease(env.STORE, 'meadow.example', NOW),
+        claimPosthogLease(env.STORE, 'meadow.example', NOW),
       ]);
       expect(claims.filter((claim) => claim.owner !== null)).toHaveLength(1);
     }
   });
 
   it('can be taken once it has expired, and not a millisecond before', async () => {
-    await leftBehind(posthogLeaseKey('meals.example'), NOW + 1);
-    expect((await claimPosthogLease(env.STORE, 'meals.example', NOW)).owner).toBeNull();
-    expect((await claimPosthogLease(env.STORE, 'meals.example', NOW + 1)).owner).not.toBeNull();
+    await leftBehind(posthogLeaseKey('meadow.example'), NOW + 1);
+    expect((await claimPosthogLease(env.STORE, 'meadow.example', NOW)).owner).toBeNull();
+    expect((await claimPosthogLease(env.STORE, 'meadow.example', NOW + 1)).owner).not.toBeNull();
   });
 });
 

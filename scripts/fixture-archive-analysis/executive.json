@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "asset": "meals.example",
+  "asset": "meadow.example",
   "generatedAt": "2026-09-22T06:00:00.000Z",
   "windowStart": "2026-08-04",
   "windowEnd": "latest",
@@ -490,7 +490,7 @@
     "daysPerWindow": 7,
     "pages": [
       {
-        "page": "https://meals.example/recipes/soup",
+        "page": "https://meadow.example/recipes/soup",
         "path": "/recipes/soup",
         "currentClicks": 74,
         "previousClicks": 88,
@@ -508,7 +508,7 @@
         "leadingQuery": null
       },
       {
-        "page": "https://meals.example/planner",
+        "page": "https://meadow.example/planner",
         "path": "/planner",
         "currentClicks": 68,
         "previousClicks": 82,
@@ -538,7 +538,7 @@
         }
       },
       {
-        "page": "https://meals.example/",
+        "page": "https://meadow.example/",
         "path": "/",
         "currentClicks": 79,
         "previousClicks": 76,
@@ -556,7 +556,7 @@
         "leadingQuery": null
       },
       {
-        "page": "https://meals.example/guides/protein",
+        "page": "https://meadow.example/guides/protein",
         "path": "/guides/protein",
         "currentClicks": 80,
         "previousClicks": 77,
@@ -683,18 +683,18 @@
         "device": "mobile",
         "label": "Head terms",
         "bestRank": 2,
-        "bestUrl": "https://meals.example/",
+        "bestUrl": "https://meadow.example/",
         "aioPresent": true,
         "aioCitesUs": true,
         "composition": {
           "top3Domains": [
             "reference.example",
-            "meals.example",
+            "meadow.example",
             "recipes.example"
           ],
           "organicResults": 4,
           "secondRank": 5,
-          "secondUrl": "https://meals.example/planner",
+          "secondUrl": "https://meadow.example/planner",
           "serpFeatures": [
             "ai_overview"
           ]
@@ -705,12 +705,12 @@
         "device": "desktop",
         "label": "Head terms",
         "bestRank": 3,
-        "bestUrl": "https://meals.example/",
+        "bestUrl": "https://meadow.example/",
         "aioPresent": false,
         "aioCitesUs": false,
         "composition": {
           "top3Domains": [
-            "meals.example"
+            "meadow.example"
           ],
           "organicResults": 1,
           "secondRank": null,
@@ -1053,7 +1053,7 @@
     "windowHours": 72,
     "truncated": false,
     "page": {
-      "url": "https://meals.example/planner",
+      "url": "https://meadow.example/planner",
       "sessions": 115,
       "scriptErrors": 19
     },

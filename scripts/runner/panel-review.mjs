@@ -12,17 +12,18 @@ import { PANEL_FRESHNESS_FILE, panelReportPath, panelReportRelativePath } from '
 import { readTaskProjectConfig } from '../task-project-config.mjs';
 import { CONFIG, HOME_ROOT, OS_CHECKOUT } from './config.mjs';
 import { isShuttingDown } from './lifecycle.mjs';
-import { log } from './log.mjs';
+import { laneSkips, log } from './log.mjs';
 import { operatorToken } from './operator-token.mjs';
 import {
+  beadsCreateArgs,
   beadsCreatedId,
-  beadsFailure,
   beadsInstant,
-  beadsSkipDecision,
   beadsText,
   checkBeadsHub,
-  parseBeadsProjects,
+  readBeadsList,
+  readBeadsProjects,
   runBd,
+  runBeadsStep,
 } from './task-hub.mjs';
 
 // Panel-review filer — one of the two lanes here that write a bead (the
@@ -277,53 +278,37 @@ export function panelReviewAcceptance(hasPanel) {
 /**
  * The bead, as argv.
  *
- * Type and priority are stated rather than left to `bd`'s defaults: this argv
- * is what every property's tracker will fill up with, and a default that
- * changes upstream must not quietly re-grade a year of review beads.
- *
  * A panel day we cannot turn into a due date files WITHOUT one rather than
  * failing — a review with no deadline still beats no review — but
  * `parsePanelLandings` has already made that unreachable.
  */
 export function panelReviewCreateArgs(repoDir, landing) {
-  const due = panelReviewDueDate(landing.panelDate);
-  return [
-    '-C',
-    repoDir,
-    '--actor',
-    PANEL_REVIEW_ACTOR,
-    'create',
-    panelReviewTitle(landing.asset, landing.panelDate, landing.panel !== false),
-    '--type',
-    'task',
-    '--priority',
-    '2',
-    '--labels',
-    PANEL_REVIEW_LABEL,
-    ...(due === null ? [] : ['--due', due]),
+  return beadsCreateArgs(repoDir, {
+    actor: PANEL_REVIEW_ACTOR,
+    title: panelReviewTitle(landing.asset, landing.panelDate, landing.panel !== false),
+    type: 'task',
+    priority: 2,
+    labels: [PANEL_REVIEW_LABEL],
+    due: panelReviewDueDate(landing.panelDate),
     // The identity, and the ONLY part of this bead that is a contract: the same
     // two keys whether or not a panel landed, so the label + metadata pair a
     // reader (the poller, the Tower) matches on never depends on the wording.
-    '--metadata',
-    JSON.stringify({
+    metadata: {
       [PANEL_REVIEW_ASSET_KEY]: landing.asset,
       [PANEL_REVIEW_DATE_KEY]: landing.panelDate,
-    }),
-    '--description',
-    panelReviewDescription(landing),
-    '--acceptance',
-    panelReviewAcceptance(landing.panel !== false),
-    '--json',
-  ];
+    },
+    description: panelReviewDescription(landing),
+    acceptance: panelReviewAcceptance(landing.panel !== false),
+  });
 }
 
 /** The panel filer's name for the same reader, kept because this lane's
  * vocabulary block is a contract other readers navigate by name. */
 export const panelReviewCreatedId = beadsCreatedId;
 
-// One WARN per outage, like the poller's. `unmapped` is separate and per-asset:
-// a property with a panel and no spoke is a config gap somebody has to close
-// once, not an hourly event. `waiting` is per collection, for the same reason.
+// `unmapped` is per-asset: a property with a panel and no spoke is a config
+// gap somebody has to close once, not an hourly event. `waiting` is per
+// collection, for the same reason.
 const panelFilerState = { skipping: null, unmapped: new Set(), waiting: new Set() };
 
 /**
@@ -344,61 +329,30 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     stopped = () => isShuttingDown(),
   } = deps;
 
-  const skip = (reason) => {
-    if (beadsSkipDecision(state, reason)) {
-      emit('WARN', `panel review filer skipped — ${reason} (silent until it changes)`);
-    }
-  };
+  const { skip, resume } = laneSkips('panel review filer', state, emit);
 
   if (stopped()) return null;
   // The tower's child hosts both Workers, so its readiness is the ingest's.
-  if (!runtime.running || !runtime.ready) {
-    skip('ingest is down/restarting');
-    return null;
-  }
-  if (!(await probe())) {
-    skip('the beads task hub is unreachable');
-    return null;
-  }
-
-  let raw;
-  try {
-    raw = await readConfig();
-  } catch (err) {
-    skip(`the task map is unreadable (${err.message})`);
-    return null;
-  }
-  const projects = parseBeadsProjects(raw);
-  if (projects.length === 0) {
-    skip('no beads spokes are configured');
-    return null;
-  }
+  if (!runtime.running || !runtime.ready) return skip('ingest is down/restarting');
+  if (!(await probe())) return skip('the beads task hub is unreachable');
+  const { projects, unreadable } = await readBeadsProjects(readConfig);
+  if (unreadable) return skip(unreadable);
+  if (projects.length === 0) return skip('no beads spokes are configured');
 
   const token = await readToken().catch(() => null);
-  if (!token) {
-    skip('no OPERATOR_TOKEN is configured for the ingest worker');
-    return null;
-  }
+  if (!token) return skip('no OPERATOR_TOKEN is configured for the ingest worker');
 
   let landings;
   try {
     const res = await get(serpPanelLandingsUrl(CONFIG), {
       headers: { authorization: `Bearer ${token}` },
     });
-    if (!res.ok) {
-      skip(`the panel landings read returned HTTP ${res.status}`);
-      return null;
-    }
+    if (!res.ok) return skip(`the panel landings read returned HTTP ${res.status}`);
     landings = parsePanelLandings(await res.json());
   } catch (err) {
-    skip(`the panel landings read failed (${err.message})`);
-    return null;
+    return skip(`the panel landings read failed (${err.message})`);
   }
-
-  if (state.skipping !== null) {
-    emit('INFO', `panel review filer resumed (was skipped: ${state.skipping})`);
-    state.skipping = null;
-  }
+  resume();
 
   const spokes = new Map(projects.map((project) => [project.asset, project]));
   const filed = [];
@@ -426,29 +380,17 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     }
     const repoDir = path.resolve(HOME_ROOT, project.repo);
 
-    let existing;
-    try {
-      existing = await run(panelReviewListArgs(repoDir));
-    } catch (err) {
-      emit('ERROR', `panel review: ${landing.asset} — bd list could not run: ${err.message}`);
+    const existing = await readBeadsList(run, panelReviewListArgs(repoDir), 'panel review list');
+    if (existing.failure) {
+      emit('ERROR', `panel review: ${landing.asset} — ${existing.failure}`);
       continue;
     }
-    if (existing.code !== 0) {
-      emit('ERROR', `panel review: ${landing.asset} — ${beadsFailure('panel review list', existing)}`);
-      continue;
-    }
-    let rows;
-    try {
-      rows = JSON.parse(existing.stdout);
-    } catch {
-      emit(
-        'ERROR',
-        `panel review: ${landing.asset} — bd returned unparseable JSON; filing nothing`,
-      );
+    if (existing.unparseable) {
+      emit('ERROR', `panel review: ${landing.asset} — bd returned unparseable JSON; filing nothing`);
       continue;
     }
     checked += 1;
-    if (panelReviewAlreadyFiled(rows, landing.panelDate)) continue;
+    if (panelReviewAlreadyFiled(existing.rows, landing.panelDate)) continue;
 
     let gap;
     try {
@@ -472,18 +414,17 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     }
     waiting.delete(collection);
 
-    let created;
-    try {
-      created = await run(panelReviewCreateArgs(repoDir, landing));
-    } catch (err) {
-      emit('ERROR', `panel review: ${landing.asset} — bd create could not run: ${err.message}`);
+    const created = await runBeadsStep(
+      run,
+      panelReviewCreateArgs(repoDir, landing),
+      'create',
+      'panel review create',
+    );
+    if (created.failure) {
+      emit('ERROR', `panel review: ${landing.asset} — ${created.failure}`);
       continue;
     }
-    if (created.code !== 0) {
-      emit('ERROR', `panel review: ${landing.asset} — ${beadsFailure('panel review create', created)}`);
-      continue;
-    }
-    const beadId = panelReviewCreatedId(created.stdout);
+    const beadId = panelReviewCreatedId(created.result.stdout);
     filed.push({ asset: landing.asset, panelDate: landing.panelDate, beadId });
     emit(
       'INFO',

@@ -164,9 +164,9 @@ describe('os-egress-down flag', () => {
     const gate = new EgressGate(env, { lane: 'hygiene', fetchImpl, at: AT });
 
     await gate.isDown();
-    gate.recordUnmeasured('meals.example');
-    gate.recordUnmeasured('nosh.example');
-    gate.recordUnmeasured('meals.example'); // one property, however many checks
+    gate.recordUnmeasured('meadow.example');
+    gate.recordUnmeasured('northwind.example');
+    gate.recordUnmeasured('meadow.example'); // one property, however many checks
     const outcome = await gate.finalize();
 
     expect(outcome).toMatchObject({
@@ -174,7 +174,7 @@ describe('os-egress-down flag', () => {
       up: false,
       fired: 1,
       refreshed: 0,
-      unmeasuredAssets: ['meals.example', 'nosh.example'],
+      unmeasuredAssets: ['meadow.example', 'northwind.example'],
     });
 
     const flag = await egressFlag();
@@ -183,7 +183,7 @@ describe('os-egress-down flag', () => {
     expect(flag!.message).toBe('OS egress down — 2 properties unmeasured');
     expect(JSON.parse(flag!.rule_inputs)).toMatchObject({
       rule: EGRESS_DOWN_RULE_ID,
-      unmeasuredAssets: ['meals.example', 'nosh.example'],
+      unmeasuredAssets: ['meadow.example', 'northwind.example'],
       failureCount: 1,
       lastFailedAt: AT,
     });
@@ -193,14 +193,14 @@ describe('os-egress-down flag', () => {
     const { fetchImpl } = stub({});
     const first = new EgressGate(env, { lane: 'hygiene', fetchImpl, at: AT });
     await first.isDown();
-    first.recordUnmeasured('meals.example');
+    first.recordUnmeasured('meadow.example');
     await first.finalize();
 
     const later = '2026-08-09T04:00:00.000Z';
     const second = new EgressGate(env, { lane: 'hygiene', fetchImpl, at: later });
     await second.isDown();
-    second.recordUnmeasured('meals.example');
-    second.recordUnmeasured('nosh.example');
+    second.recordUnmeasured('meadow.example');
+    second.recordUnmeasured('northwind.example');
     expect(await second.finalize()).toMatchObject({ fired: 0, refreshed: 1 });
 
     const flag = await egressFlag();
@@ -218,7 +218,7 @@ describe('os-egress-down flag', () => {
   it('retracts the flag the moment a beacon answers again', async () => {
     const down = new EgressGate(env, { lane: 'hygiene', fetchImpl: stub({}).fetchImpl, at: AT });
     await down.isDown();
-    down.recordUnmeasured('meals.example');
+    down.recordUnmeasured('meadow.example');
     await down.finalize();
 
     const later = '2026-08-09T04:00:00.000Z';
@@ -242,7 +242,7 @@ describe('os-egress-down flag', () => {
     // withdraw it.
     const down = new EgressGate(env, { lane: 'hygiene', fetchImpl: stub({}).fetchImpl, at: AT });
     await down.isDown();
-    down.recordUnmeasured('meals.example');
+    down.recordUnmeasured('meadow.example');
     await down.finalize();
 
     const later = '2026-08-09T04:00:00.000Z';
@@ -294,25 +294,25 @@ describe('os-egress-down across collectors — one outage, every gap counted', (
   }
 
   it('counts every collector\'s unmeasured properties, not whichever ran last', async () => {
-    await darkRun('pull', NIGHT, ['meals.example', 'nosh.example']);
-    await darkRun('hygiene', AT, ['nosh.example', 'fees.example']);
+    await darkRun('pull', NIGHT, ['meadow.example', 'northwind.example']);
+    await darkRun('hygiene', AT, ['northwind.example', 'ferns.example']);
 
     const flag = await egressFlag();
     // Three distinct properties went dark across the two, not hygiene's two.
     expect(flag!.message).toBe('OS egress down — 3 properties unmeasured');
     const inputs = await inputsOf();
-    expect(inputs.unmeasuredAssets).toEqual(['meals.example', 'nosh.example', 'fees.example']);
+    expect(inputs.unmeasuredAssets).toEqual(['meadow.example', 'northwind.example', 'ferns.example']);
     expect(inputs.lanes).toMatchObject({
-      pull: { unmeasuredAssets: ['meals.example', 'nosh.example'] },
-      hygiene: { unmeasuredAssets: ['nosh.example', 'fees.example'] },
+      pull: { unmeasuredAssets: ['meadow.example', 'northwind.example'] },
+      hygiene: { unmeasuredAssets: ['northwind.example', 'ferns.example'] },
     });
     expect(inputs).toMatchObject({ failureCount: 2, connectionBackAt: null });
     expect(await openEgressFlags()).toBe(1);
   });
 
   it('stays open when one collector recovers first, and clears only when the last one has', async () => {
-    await darkRun('pull', NIGHT, ['meals.example', 'nosh.example']);
-    await darkRun('hygiene', AT, ['nosh.example', 'fees.example']);
+    await darkRun('pull', NIGHT, ['meadow.example', 'northwind.example']);
+    await darkRun('hygiene', AT, ['northwind.example', 'ferns.example']);
 
     // The pull collector gets through again and measures everything it owes.
     const pull = new EgressGate(env, { lane: 'pull', fetchImpl: stub(UP).fetchImpl, at: MORNING });
@@ -325,7 +325,7 @@ describe('os-egress-down across collectors — one outage, every gap counted', (
     expect(open!.message).toBe('OS connection back — 2 properties not yet re-checked');
     const inputs = await inputsOf();
     expect(Object.keys(inputs.lanes)).toEqual(['hygiene']);
-    expect(inputs.unmeasuredAssets).toEqual(['nosh.example', 'fees.example']);
+    expect(inputs.unmeasuredAssets).toEqual(['northwind.example', 'ferns.example']);
     expect(inputs.connectionBackAt).toBe(MORNING);
 
     // Hygiene re-runs with nothing failing: it asks once (it is owed a
@@ -337,7 +337,7 @@ describe('os-egress-down across collectors — one outage, every gap counted', (
   });
 
   it('a collector that missed nothing asks once until the connection is seen back, then costs nothing', async () => {
-    await darkRun('hygiene', AT, ['meals.example']);
+    await darkRun('hygiene', AT, ['meadow.example']);
 
     // First run after recovery from a collector with no entry: it still asks,
     // because nothing has yet written the up reading that closes the dark span.
@@ -359,19 +359,19 @@ describe('os-egress-down across collectors — one outage, every gap counted', (
     ['no flag is open yet', false],
     ['the flag is already open', true],
   ])('keeps every entry when two collectors settle the flag at the same moment (%s)', async (_, opened) => {
-    if (opened) await darkRun('hygiene', '2026-08-08T01:00:00.000Z', ['fees.example']);
+    if (opened) await darkRun('hygiene', '2026-08-08T01:00:00.000Z', ['ferns.example']);
     // The 02:30 tick runs pull and Bing together; both rewrite one row, and
     // neither may overwrite the other's entry with what it read before.
     const pull = new EgressGate(env, { lane: 'pull', fetchImpl: stub({}).fetchImpl, at: NIGHT });
     const bing = new EgressGate(env, { lane: 'bing-signals', fetchImpl: stub({}).fetchImpl, at: NIGHT });
     await Promise.all([pull.isDown(), bing.isDown()]);
-    pull.recordUnmeasured('meals.example');
-    bing.recordUnmeasured('nosh.example');
+    pull.recordUnmeasured('meadow.example');
+    bing.recordUnmeasured('northwind.example');
     await Promise.all([pull.finalize(), bing.finalize()]);
 
     const inputs = await inputsOf();
     const lanes = opened ? ['bing-signals', 'hygiene', 'pull'] : ['bing-signals', 'pull'];
-    const assets = opened ? ['fees.example', 'meals.example', 'nosh.example'] : ['meals.example', 'nosh.example'];
+    const assets = opened ? ['ferns.example', 'meadow.example', 'northwind.example'] : ['meadow.example', 'northwind.example'];
     expect(Object.keys(inputs.lanes).sort()).toEqual(lanes);
     expect([...inputs.unmeasuredAssets].sort()).toEqual(assets);
     expect(await openEgressFlags()).toBe(1);
@@ -380,27 +380,27 @@ describe('os-egress-down across collectors — one outage, every gap counted', (
   it('lets a scoped run clear only the slice it covered', async () => {
     const dark = new EgressGate(env, { lane: 'dataforseo', fetchImpl: stub({}).fetchImpl, at: AT });
     await dark.isDown();
-    dark.recordUnmeasured('meals.example', 'ranked-keywords');
-    dark.recordUnmeasured('meals.example', 'backlinks-summary');
-    dark.recordUnmeasured('nosh.example', 'ranked-keywords');
+    dark.recordUnmeasured('meadow.example', 'ranked-keywords');
+    dark.recordUnmeasured('meadow.example', 'backlinks-summary');
+    dark.recordUnmeasured('northwind.example', 'ranked-keywords');
     await dark.finalize();
     expect((await inputsOf()).lanes.dataforseo).toMatchObject({
-      unmeasuredAssets: ['meals.example', 'nosh.example'],
+      unmeasuredAssets: ['meadow.example', 'northwind.example'],
       parts: {
-        'meals.example': ['ranked-keywords', 'backlinks-summary'],
-        'nosh.example': ['ranked-keywords'],
+        'meadow.example': ['ranked-keywords', 'backlinks-summary'],
+        'northwind.example': ['ranked-keywords'],
       },
     });
 
     // An on-demand collection of one family for one property, connection back.
     const scoped = new EgressGate(env, { lane: 'dataforseo', fetchImpl: stub(UP).fetchImpl, at: MORNING });
     await scoped.finalize({
-      covers: (asset, part) => asset === 'meals.example' && part === 'ranked-keywords',
+      covers: (asset, part) => asset === 'meadow.example' && part === 'ranked-keywords',
     });
 
     expect((await inputsOf()).lanes.dataforseo).toMatchObject({
-      unmeasuredAssets: ['meals.example', 'nosh.example'],
-      parts: { 'meals.example': ['backlinks-summary'], 'nosh.example': ['ranked-keywords'] },
+      unmeasuredAssets: ['meadow.example', 'northwind.example'],
+      parts: { 'meadow.example': ['backlinks-summary'], 'northwind.example': ['ranked-keywords'] },
     });
     expect((await egressFlag())!.resolved_at).toBeNull();
   });

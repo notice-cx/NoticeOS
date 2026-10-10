@@ -3,7 +3,7 @@ import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import { test } from 'node:test';
 
-import * as osUp from './os-up.mjs';
+import { CONFIG as RUNNER_CONFIG } from './runner/config.mjs';
 import {
   cronFireDecision,
   doorOwnershipDecision,
@@ -30,7 +30,7 @@ test('a runner with no child refuses the first and repeated ticks without a list
       const ownership = await runtimeDoorOwnership(child);
       assert.deepEqual(ownership, {
         owns: false,
-        reason: `this runner has no ingest child holding ${osUp.CONFIG.ingestHost}:${osUp.CONFIG.ingestPort}`,
+        reason: `this runner has no ingest child holding ${RUNNER_CONFIG.ingestHost}:${RUNNER_CONFIG.ingestPort}`,
       });
       const tick = cronFireDecision({ running: true, ready: true, ownership }, '0 * * * *');
       assert.equal(tick.fire, false);
@@ -78,13 +78,4 @@ test('a tick fires on an owned or unprovable door and stands down on a foreign o
   assert.deepEqual([unproven.fire, unproven.level], [true, 'WARN']);
   const owned = cronFireDecision({ running: true, ready: true, ownership: { owns: true, reason: 'ours' } }, '0 * * * *');
   assert.deepEqual(owned, { fire: true, outcome: 'ran', detail: null, level: null, text: null });
-});
-
-test('os-up.mjs still offers the same door-ownership decisions', () => {
-  assert.equal(osUp.cronFireDecision, cronFireDecision);
-  assert.equal(osUp.doorOwnershipDecision, doorOwnershipDecision);
-  assert.equal(osUp.isDescendantOf, isDescendantOf);
-  assert.equal(osUp.listenerOwnersArgs, listenerOwnersArgs);
-  assert.equal(osUp.parseListenerOwners, parseListenerOwners);
-  assert.equal(osUp.parseProcessParents, parseProcessParents);
 });

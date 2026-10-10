@@ -13,6 +13,7 @@ import {
   writeGrowingArchive,
 } from './signal-archive-fixture.mjs';
 import { resolvesAcrossReportDays } from './signal-archive.mjs';
+import { readJsonFile } from './json-file.mjs';
 import { createHash } from 'node:crypto';
 import { RETENTION, datasetFiles, publishSignalHistory, readCurrentGeneration } from './signal-history.mjs';
 import {
@@ -80,14 +81,10 @@ async function leftovers(ws) {
   return (await fs.readdir(reportsFolder(ws.output))).filter((name) => name.startsWith('.'));
 }
 
-async function readJson(file) {
-  return JSON.parse(await fs.readFile(file, 'utf8'));
-}
-
 /** One more GSC query day, so the next history run publishes a new generation
  * (at `now`, when given). */
 async function addQueryDay(ws, reportDate = '2026-09-21', now = null) {
-  const archive = await readJson(path.join(ws.input, 'gsc', 'query', '2026-09-20.json'));
+  const archive = await readJsonFile(path.join(ws.input, 'gsc', 'query', '2026-09-20.json'));
   archive.reportDate = reportDate;
   for (const row of archive.pages[0].response.rows) row.clicks += 3;
   await fs.writeFile(path.join(ws.input, 'gsc', 'query', `${reportDate}.json`), `${JSON.stringify(archive)}\n`);
@@ -105,7 +102,7 @@ test('every report file matches the frozen retired-analyzer reference over one r
 
   // Captured from the retired analyzer at the exact reference commit, before
   // deletion, over the same canonical one-copy-per-report-day archive.
-  const reference = await readJson(path.join(REPO_ROOT, 'scripts', 'fixture-history-analysis.json'));
+  const reference = await readJsonFile(path.join(REPO_ROOT, 'scripts', 'fixture-history-analysis.json'));
   assert.equal(reference.asset, FIXTURE_ASSET);
   assert.equal(reference.analyzedAt, FIXTURE_ANALYZED_AT);
   const ours = await readFolder(ws.output, { output: ws.output, input: ws.input });
@@ -117,8 +114,8 @@ test('every report file matches the frozen retired-analyzer reference over one r
 
   // What it returns is what it wrote, as the analyzer's return is.
   const { executiveSnapshot, report, cost, ...summary } = JSON.parse(JSON.stringify(result));
-  assert.deepEqual(summary, await readJson(path.join(ws.output, 'summary.json')));
-  assert.deepEqual(executiveSnapshot, await readJson(path.join(ws.output, 'executive.json')));
+  assert.deepEqual(summary, await readJsonFile(path.join(ws.output, 'summary.json')));
+  assert.deepEqual(executiveSnapshot, await readJsonFile(path.join(ws.output, 'executive.json')));
   assert.deepEqual(report.files, 48);
   assert.ok(cost.bytesRead > 0 && cost.peakMb > 0 && cost.secondsTotal > 0);
   assert.match(describeReport(result, ws.output), /^Generation 1 → .+: 48 files, 345 rows, 8 findings\. Read \d+\.\d MB in \d+\.\d s, peak \d+ MB\.$/);
@@ -134,7 +131,7 @@ test('retained Clarity generations preserve empty newest revision provenance wit
   const write = async (name, fields, information) => fs.writeFile(path.join(input, `${name}.json`), JSON.stringify({ ...envelope, ...fields,
     providerRows: information.length, pages: [{ request: { numOfDays: 3, dimension1: 'URL' },
       response: [{ metricName: 'ScriptErrorCount', information }] }] }));
-  const page = [{ Url: 'https://meals.example/planner', sessionsCount: '114', subTotal: '19' }];
+  const page = [{ Url: 'https://meadow.example/planner', sessionsCount: '114', subTotal: '19' }];
   await write('old-day', { reportDate: '2026-09-20', collectedAt: '2026-09-20T04:30:00.000Z' }, page);
   await write('current', { collectedAt: '2026-09-21T04:30:00.000Z' }, page);
   await publishSignalHistory({ asset: FIXTURE_ASSET, input, output: ws.history });
@@ -257,7 +254,7 @@ test('a file changed or missing since its generation was published, or a generat
   await fs.writeFile(path.join(ws.history, 'generations', '00000002.json'), `${JSON.stringify(other)}\n`);
   await assert.rejects(analyze(ws), /^Error: Generation 2 was written by other archive rules \(derivation another-rule; this checkout's is [0-9a-f]{16}\)\. Run pnpm signals:history/);
   await assert.rejects(analyze(ws, { generation: 3 }), /has no generation 3\.$/);
-  await assert.rejects(analyze(ws, { asset: 'other.example' }), /holds meals\.example's history, not other\.example's\.$/);
+  await assert.rejects(analyze(ws, { asset: 'other.example' }), /holds meadow\.example's history, not other\.example's\.$/);
   assert.deepEqual(await published(ws), before);
   // The generation the other rules did not write still reads.
   assert.equal((await analyze(ws, { generation: 1 })).report.generation, 1);

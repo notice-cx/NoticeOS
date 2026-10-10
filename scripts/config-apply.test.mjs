@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { lifecycleMoveRef } from './config-apply-core.mjs';
+import { lifecycleMoveRef } from '../packages/contract/src/configuration.mjs';
 import test from 'node:test';
 import {
   MISSING,
@@ -20,7 +20,7 @@ import { DEFAULT_DOOR } from './ingest-door.mjs';
  * tell. `rows` is the store: absent keys are assets the store does not have,
  * and `annotations` is the timeline the move is recorded on.
  */
-function stubDoor(rows = { 'meals.example': { status: 'onboarding', sense_only: 0, display_name: 'Meal Planner' } }, options = {}) {
+function stubDoor(rows = { 'meadow.example': { status: 'onboarding', sense_only: 0, display_name: 'Meadow Board' } }, options = {}) {
   const calls = [];
   const annotations = [];
   const store = { ...rows };
@@ -82,7 +82,7 @@ function callsTo(calls, pathname, method = 'POST') {
 function storeOp(overrides = {}) {
   return {
     kind: 'store-asset-set',
-    asset: 'meals.example',
+    asset: 'meadow.example',
     column: 'status',
     expect: 'onboarding',
     value: 'baselining',
@@ -115,13 +115,13 @@ test('the expect guard reads the store through the operator-authed door', async 
   const { fetchImpl, calls } = stubDoor();
   const store = storeLane({ door: 'http://door.test', fetchImpl, token: 'op' });
 
-  assert.equal(await store.column('meals.example', 'status'), 'onboarding');
-  assert.equal(await store.column('meals.example', 'sense_only'), 0);
+  assert.equal(await store.column('meadow.example', 'status'), 'onboarding');
+  assert.equal(await store.column('meadow.example', 'sense_only'), 0);
 
   // One asset, one read: the second column comes out of the row already fetched.
   assert.equal(calls.length, 1);
   const [{ url, init }] = calls;
-  assert.equal(url, 'http://door.test/api/asset-state?asset=meals.example');
+  assert.equal(url, 'http://door.test/api/asset-state?asset=meadow.example');
   assert.equal(init.headers.authorization, 'Bearer op');
 });
 
@@ -135,8 +135,8 @@ test('the apply writes one edit per op through the door', async () => {
   const { fetchImpl, calls, store: rows } = stubDoor();
   const store = storeLane({ door: 'http://door.test', fetchImpl, token: 'op' });
 
-  await store.set('meals.example', 'status', 'baselining');
-  await store.set('meals.example', 'sense_only', 1);
+  await store.set('meadow.example', 'status', 'baselining');
+  await store.set('meadow.example', 'sense_only', 1);
 
   const edits = callsTo(calls, '/api/asset-state');
   assert.equal(edits.length, 2);
@@ -154,18 +154,18 @@ test('the apply writes one edit per op through the door', async () => {
         method: 'POST',
         auth: 'Bearer op',
         type: 'application/json',
-        body: { asset: 'meals.example', column: 'status', value: 'baselining', expect: 'onboarding' },
+        body: { asset: 'meadow.example', column: 'status', value: 'baselining', expect: 'onboarding' },
       },
       {
         url: 'http://door.test/api/asset-state',
         method: 'POST',
         auth: 'Bearer op',
         type: 'application/json',
-        body: { asset: 'meals.example', column: 'sense_only', value: 1, expect: 0 },
+        body: { asset: 'meadow.example', column: 'sense_only', value: 1, expect: 0 },
       },
     ],
   );
-  assert.deepEqual(rows['meals.example'], { status: 'baselining', sense_only: 1, display_name: 'Meal Planner' });
+  assert.deepEqual(rows['meadow.example'], { status: 'baselining', sense_only: 1, display_name: 'Meadow Board' });
   // The whole point: every call went through the door, the one runtime that
   // owns the store.
   assert.ok(calls.every(({ url }) => url.startsWith('http://door.test/')));
@@ -185,12 +185,12 @@ test('a stage moved through the door is recorded on the timeline beside it', asy
 
   // The expect guard reads the row first, exactly as a real run does — which is
   // where `<from>` comes from.
-  assert.equal(await store.column('meals.example', 'status'), 'onboarding');
-  const recorded = await store.set('meals.example', 'status', 'retired');
+  assert.equal(await store.column('meadow.example', 'status'), 'onboarding');
+  const recorded = await store.set('meadow.example', 'status', 'retired');
 
   assert.deepEqual(
     annotations.map(({ asset, kind, ref }) => ({ asset, kind, ref })),
-    [{ asset: 'meals.example', kind: 'config', ref: 'lifecycle:onboarding>retired' }],
+    [{ asset: 'meadow.example', kind: 'config', ref: 'lifecycle:onboarding>retired' }],
   );
   assert.equal(recorded.ref, 'lifecycle:onboarding>retired');
   assert.equal(recorded.error, null);
@@ -209,27 +209,27 @@ test('only the stage is an event — the other two columns record nothing', asyn
   const { fetchImpl, annotations } = stubDoor();
   const store = storeLane({ door: 'http://door.test', fetchImpl, token: 'op' });
 
-  assert.equal(await store.set('meals.example', 'sense_only', 1), null);
-  assert.equal(await store.set('meals.example', 'display_name', 'Meal Planner'), null);
+  assert.equal(await store.set('meadow.example', 'sense_only', 1), null);
+  assert.equal(await store.set('meadow.example', 'display_name', 'Meadow Board'), null);
   assert.deepEqual(annotations, []);
 });
 
 test('the cached changeset guard reaches the writer and a concurrent edit records no lifecycle move', async () => {
   const { fetchImpl, store: rows, annotations } = stubDoor();
   const store = storeLane({ door: 'http://door.test', fetchImpl, token: 'op' });
-  assert.equal(await store.column('meals.example', 'status'), 'onboarding');
-  rows['meals.example'].status = 'retired';
-  await assert.rejects(store.set('meals.example', 'status', 'live'), /HTTP 409.*expect_mismatch/);
-  assert.equal(rows['meals.example'].status, 'retired');
+  assert.equal(await store.column('meadow.example', 'status'), 'onboarding');
+  rows['meadow.example'].status = 'retired';
+  await assert.rejects(store.set('meadow.example', 'status', 'live'), /HTTP 409.*expect_mismatch/);
+  assert.equal(rows['meadow.example'].status, 'retired');
   assert.deepEqual(annotations, []);
 });
 
 test('successive operations use the value returned by this runs previous write', async () => {
   const { fetchImpl, store: rows, annotations } = stubDoor();
   const store = storeLane({ door: 'http://door.test', fetchImpl, token: 'op' });
-  await store.set('meals.example', 'status', 'baselining');
-  await store.set('meals.example', 'status', 'live');
-  assert.equal(rows['meals.example'].status, 'live');
+  await store.set('meadow.example', 'status', 'baselining');
+  await store.set('meadow.example', 'status', 'live');
+  assert.equal(rows['meadow.example'].status, 'live');
   assert.equal(annotations.length, 2);
   assert.equal(annotations[1].ref, lifecycleMoveRef({ from: 'baselining', to: 'live' }));
 });
@@ -238,7 +238,7 @@ test('a stage set to the stage it is already in is not a move', async () => {
   const { fetchImpl, annotations } = stubDoor();
   const store = storeLane({ door: 'http://door.test', fetchImpl, token: 'op' });
 
-  assert.equal(await store.set('meals.example', 'status', 'onboarding'), null);
+  assert.equal(await store.set('meadow.example', 'status', 'onboarding'), null);
   assert.deepEqual(annotations, []);
 });
 
@@ -246,13 +246,13 @@ test('a refused record does not undo the move it describes', async () => {
   const { fetchImpl, calls, store: rows } = stubDoor(undefined, { refuseAnnotations: true });
   const store = storeLane({ door: 'http://door.test', fetchImpl, token: 'op' });
 
-  const recorded = await store.set('meals.example', 'status', 'retired');
+  const recorded = await store.set('meadow.example', 'status', 'retired');
 
   // The column moved; only the record of it did not — so the refusal comes back
   // to be printed rather than thrown, the same posture as the Tower's `record`
   // hook. Failing the run here would archive nothing and report a change that
   // happened as a change that did not.
-  assert.equal(rows['meals.example'].status, 'retired');
+  assert.equal(rows['meadow.example'].status, 'retired');
   assert.equal(callsTo(calls, '/api/asset-state').length, 1);
   assert.equal(recorded.ref, 'lifecycle:onboarding>retired');
   assert.match(recorded.error, /\/api\/annotations answered HTTP 422/);
@@ -266,7 +266,7 @@ test('a rejected edit surfaces the ingest’s own words', async () => {
   });
   const store = storeLane({ door: 'http://door.test', fetchImpl, token: 'op' });
   await assert.rejects(
-    store.set('meals.example', 'display_name', 'nope'),
+    store.set('meadow.example', 'display_name', 'nope'),
     /\/api\/asset-state answered HTTP 422 — .*validation/,
   );
 });
@@ -276,7 +276,7 @@ test('a door that does not answer names the fix', async () => {
     throw new Error('connect ECONNREFUSED 127.0.0.1:8791');
   };
   const store = storeLane({ door: 'http://door.test', fetchImpl, token: 'op' });
-  await assert.rejects(store.column('meals.example', 'status'), /Is `pnpm os:up` running\?/);
+  await assert.rejects(store.column('meadow.example', 'status'), /Is `pnpm os:up` running\?/);
 });
 
 test('resolve: a store op that still matches reality passes the guard', async () => {
@@ -289,7 +289,7 @@ test('resolve: a store op that still matches reality passes the guard', async ()
 });
 
 test('resolve: a store op staged against a stale value is refused', async () => {
-  const { fetchImpl } = stubDoor({ 'meals.example': { status: 'live', sense_only: 0 } });
+  const { fetchImpl } = stubDoor({ 'meadow.example': { status: 'live', sense_only: 0 } });
   const store = storeLane({ door: 'http://door.test', fetchImpl, token: 'op' });
   const { mismatches } = await resolve(changeset([storeOp()]), store);
 

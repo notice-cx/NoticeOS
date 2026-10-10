@@ -493,17 +493,6 @@ export async function insertFlag(flag: {
   return row!.id;
 }
 
-/** A report's identity in the store, for an alert that cites it: the newest
- * revision of that site's report for that day. */
-export async function reportId(asset: string, date: string): Promise<bigint> {
-  const [row] = await pgRows<{ pulse_id: bigint }>(
-    `SELECT pulse_id FROM noticeos.current_pulses WHERE asset_id = $1 AND pulse_date = $2::date`,
-    [asset, date],
-  );
-  if (!row) throw new Error(`no report for ${asset} on ${date}`);
-  return row.pulse_id;
-}
-
 /** One stored report, as a site sends it: a new revision of its day. */
 export async function insertPulse(report: {
   asset: string;

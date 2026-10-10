@@ -1,3 +1,3 @@
 asset,report_date,collected_at,data_state,provider_truncated,lost_backlinks,lost_referring_domains,lost_referring_main_domains,new_backlinks,new_referring_domains,new_referring_main_domains,provider_cost_usd,provider_date,row_grain
-meals.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,false,5,2,,9,6,,0.02,2026-09-07,backlink-period
-meals.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,false,3,1,,12,8,,0.02,2026-09-14,backlink-period
+meadow.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,false,5,2,,9,6,,0.02,2026-09-07,backlink-period
+meadow.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,false,3,1,,12,8,,0.02,2026-09-14,backlink-period

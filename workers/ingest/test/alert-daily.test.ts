@@ -41,7 +41,7 @@ async function flag(overrides: {
   snoozeUntil?: string | null;
 }): Promise<void> {
   await insertFlag({
-    asset: overrides.asset ?? 'meals.example',
+    asset: overrides.asset ?? 'meadow.example',
     firedAt: overrides.firedAt ?? '2026-09-04T03:00:00.000Z',
     severity: overrides.severity ?? 'error',
     kind: 'anomaly',
@@ -69,16 +69,16 @@ async function portfolio(): Promise<DailyRow | null> {
 
 describe('the nightly alert rollup', () => {
   it('counts tonight per asset and once for the portfolio', async () => {
-    await flag({ asset: 'meals.example', severity: 'error' });
-    await flag({ asset: 'meals.example', severity: 'warn' });
-    await flag({ asset: 'nosh.example', severity: 'error' });
+    await flag({ asset: 'meadow.example', severity: 'error' });
+    await flag({ asset: 'meadow.example', severity: 'warn' });
+    await flag({ asset: 'northwind.example', severity: 'error' });
 
     const outcome = await rollUpAlertDay(env, NOW_MS);
 
     expect(outcome).toEqual({ assets: 2, pruned: 0 });
     const stored = await rows();
     // Two assets plus the portfolio row.
-    expect(stored.map((row) => row.asset)).toEqual(['*', 'meals.example', 'nosh.example']);
+    expect(stored.map((row) => row.asset)).toEqual(['*', 'meadow.example', 'northwind.example']);
     expect(await portfolio()).toMatchObject({ open: 3, errors: 2, warnings: 1 });
   });
 
@@ -112,10 +112,10 @@ describe('the nightly alert rollup', () => {
     // 3h; the median of the two per-asset medians would be 3.5h — which is why
     // the portfolio is observed rather than summed.
     const at = (hoursAgo: number) => new Date(NOW_MS - hoursAgo * 3_600_000).toISOString();
-    await flag({ asset: 'meals.example', firedAt: at(1) });
-    await flag({ asset: 'meals.example', firedAt: at(2) });
-    await flag({ asset: 'meals.example', firedAt: at(4) });
-    await flag({ asset: 'nosh.example', firedAt: at(6) });
+    await flag({ asset: 'meadow.example', firedAt: at(1) });
+    await flag({ asset: 'meadow.example', firedAt: at(2) });
+    await flag({ asset: 'meadow.example', firedAt: at(4) });
+    await flag({ asset: 'northwind.example', firedAt: at(6) });
 
     await rollUpAlertDay(env, NOW_MS);
 
@@ -147,7 +147,7 @@ describe('the nightly alert rollup', () => {
     await env.STORE.write((tx) =>
       tx.execute(
         `INSERT INTO noticeos.alert_daily_counts (workspace_id, asset_id, day, observed_at, open, errors, warnings)
-         VALUES ($1, 'meals.example', '2020-01-01', '2020-01-01T03:00:00.000Z', 4, 4, 0)`,
+         VALUES ($1, 'meadow.example', '2020-01-01', '2020-01-01T03:00:00.000Z', 4, 4, 0)`,
         [tx.workspaceId],
       ),
     );

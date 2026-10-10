@@ -9,7 +9,7 @@ import { devNull } from 'node:os';
 
 const MAX_BYTES = 256 * 1024 * 1024;
 const FREE_FLOOR = 8 * 1024 * 1024 * 1024;
-const ROOT_FILES = new Set(['.gitignore', '.githooks/pre-commit', '.github/workflows/ci.yml',
+const ROOT_FILES = new Set(['.gitignore', '.githooks/pre-commit', '.github/workflows/ci.yml', '.github/workflows/docs.yml',
   'AGENTS.md', 'CLAUDE.md', 'CONTEXT.md', 'CONTRIBUTING.md', 'LICENSE', 'README.md', 'SECURITY.md',
   'THIRD_PARTY_NOTICES.md', 'db/README.md',
   'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json',
@@ -21,6 +21,8 @@ const PRIVATE_FILE = /(?:^|\/)(?:[^/]*\.(?:pem|key|sqlite(?:3)?|db|dump|tar|gz|z
 // Public download referenced by the shipped brand page. Review its contents
 // and scan nested archives as part of release qualification; no general ZIP rule.
 const PUBLIC_ARCHIVES = new Set(['apps/tower/public/brand/notice-design-system.zip']);
+// The documentation site's own config folder; every other dot-folder stays private.
+const PUBLIC_DOT_TREES = ['docs/.vitepress/'];
 const SETTINGS = 'scripts/public-source.settings.json';
 const REQUIRED = [...ROOT_FILES, SETTINGS, 'scripts/script-tests-setup.mjs',
   'apps/tower/package.json', 'workers/ingest/package.json', 'db/postgres/tables.json',
@@ -30,11 +32,20 @@ function validPath(file) {
   return typeof file === 'string' && !/[\\\x00-\x1f\x7f]/u.test(file)
     && !file.split('/').some(part => !part || part === '.' || part === '..');
 }
+function privatePath(file) {
+  const tree = PUBLIC_DOT_TREES.find(prefix => file.startsWith(prefix));
+  return PRIVATE_SEGMENTS.test(tree ? file.slice(tree.length) : file)
+    || (PRIVATE_FILE.test(file) && !PUBLIC_ARCHIVES.has(file));
+}
+/** Whether the document inventory lists a file, by its own path or a listed folder ending in `/`. */
+export function inventoryCovers(inventory, file) {
+  return [...inventory].some(entry => (entry.endsWith('/') ? file.startsWith(entry) : entry === file));
+}
 function publicPath(file, documents) {
   if (!validPath(file)) return false;
   if (ROOT_FILES.has(file)) return true;
-  if (PRIVATE_SEGMENTS.test(file) || (PRIVATE_FILE.test(file) && !PUBLIC_ARCHIVES.has(file))) return false;
-  return documents.has(file) || TREES.some(prefix => file.startsWith(prefix));
+  if (privatePath(file)) return false;
+  return inventoryCovers(documents, file) || TREES.some(prefix => file.startsWith(prefix));
 }
 function git(root, args, input) {
   const result = spawnSync('git', ['--no-replace-objects', '-C', root, ...args], {
@@ -59,8 +70,8 @@ function documents(root, entries) {
   }
   const settings = JSON.parse(git(root, ['cat-file', 'blob', entry.object]).toString('utf8'));
   if (settings.schema !== 'noticeos-public-documents/1' || !Array.isArray(settings.files)
-    || settings.files.some(file => !validPath(file) || !file.startsWith('docs/')
-      || PRIVATE_SEGMENTS.test(file) || PRIVATE_FILE.test(file))
+    || settings.files.some(file => !validPath(file.replace(/\/$/u, '')) || !file.startsWith('docs/')
+      || privatePath(file.endsWith('/') ? `${file}x` : file))
     || new Set(settings.files).size !== settings.files.length) {
     throw new Error('Public document inventory is invalid.');
   }
@@ -90,7 +101,8 @@ export function preparePublicSource({ root, commit, destination } = {}) {
   const docs = documents(root, entries);
   const selected = entries.filter(row => publicPath(row.file, docs)).sort((a, b) => a.file < b.file ? -1 : a.file > b.file ? 1 : 0);
   const names = new Set(selected.map(row => row.file));
-  if ([...REQUIRED, ...docs].some(file => !names.has(file))) throw new Error('A required public source file is missing.');
+  const present = (entry) => (entry.endsWith('/') ? [...names].some(file => file.startsWith(entry)) : names.has(entry));
+  if ([...REQUIRED, ...docs].some(entry => !present(entry))) throw new Error('A required public source file is missing.');
   if (selected.some(row => row.type !== 'blob' || !['100644', '100755'].includes(row.mode))) {
     throw new Error('Public source must contain regular files only.');
   }

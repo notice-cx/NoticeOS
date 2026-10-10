@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import * as osUp from './os-up.mjs';
+import { hostLanes } from './os-up.mjs';
 import { SCHEDULED_JOBS } from './scheduled-jobs.mjs';
 import { CONFIG } from './runner/config.mjs';
 import {
@@ -31,7 +31,7 @@ test('the startup catch-up pays exactly four host lanes, each looked up by its j
 });
 
 test("the coordinator's lane table has one body for every local job, and nothing else", () => {
-  const lanes = osUp.hostLanes({ running: false, ready: false });
+  const lanes = hostLanes({ running: false, ready: false });
   assert.deepEqual(Object.keys(lanes).sort(), LOCAL_JOBS);
   for (const [id, lane] of Object.entries(lanes)) {
     assert.equal(typeof lane.run, 'function', `${id} has no body`);
@@ -72,9 +72,4 @@ test('a tracked interval never fires after the scheduler stops', async () => {
   stopScheduler();
   await new Promise((resolve) => setTimeout(resolve, 80));
   assert.equal(fired, 0);
-});
-
-test('os-up.mjs still offers the catch-up policies and plan', () => {
-  assert.equal(osUp.STARTUP_CATCHUP_POLICIES, STARTUP_CATCHUP_POLICIES);
-  assert.equal(osUp.startupCatchupPlan, startupCatchupPlan);
 });

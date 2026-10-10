@@ -7,15 +7,15 @@ import {
   dataForSeoReportsFor,
 } from '../src/dataforseo.js';
 
-const PANEL_ASSETS = new Set(['meals.example', 'nosh.example']);
+const PANEL_ASSETS = new Set(['meadow.example', 'northwind.example']);
 const NO_PANEL = new Set<string>();
 
 describe('the DataForSEO family vocabulary', () => {
   it('owes a panel property one more family than a domain-only one', () => {
-    expect(dataForSeoReportsFor('nosh.example', PANEL_ASSETS)).toContain(
+    expect(dataForSeoReportsFor('northwind.example', PANEL_ASSETS)).toContain(
       DATAFORSEO_PANEL_REPORT,
     );
-    expect(dataForSeoReportsFor('areas.example', NO_PANEL)).not.toContain(
+    expect(dataForSeoReportsFor('acorn.example', NO_PANEL)).not.toContain(
       DATAFORSEO_PANEL_REPORT,
     );
   });
@@ -42,7 +42,7 @@ describe('the DataForSEO family vocabulary', () => {
    */
   describe('what was due is a question about a date', () => {
     it('excludes a family from collections that predate it', () => {
-      const before = dataForSeoReportsFor('nosh.example', PANEL_ASSETS, '2026-08-04');
+      const before = dataForSeoReportsFor('northwind.example', PANEL_ASSETS, '2026-08-04');
       expect(before).not.toContain('backlinks-referring-domains');
       expect(before).not.toContain('backlinks-anchors');
       // …and still owes everything that DID exist that day, so the exclusion is
@@ -53,7 +53,7 @@ describe('the DataForSEO family vocabulary', () => {
 
     it('includes it from its first collectable date onward', () => {
       const on = dataForSeoReportsFor(
-        'nosh.example',
+        'northwind.example',
         PANEL_ASSETS,
         DATAFORSEO_REPORT_AVAILABLE_FROM['backlinks-anchors'],
       );
@@ -69,7 +69,7 @@ describe('the DataForSEO family vocabulary', () => {
      */
     it('still owes the founding families at any date', () => {
       for (const early of ['2026-01-01', '2026-07-05', '1999-12-31']) {
-        const due = dataForSeoReportsFor('nosh.example', PANEL_ASSETS, early);
+        const due = dataForSeoReportsFor('northwind.example', PANEL_ASSETS, early);
         expect(due).toContain('ranked-keywords');
         expect(due).toContain('backlinks-summary');
         expect(due).toContain(DATAFORSEO_PANEL_REPORT);
@@ -80,7 +80,7 @@ describe('the DataForSEO family vocabulary', () => {
     it('asks what is due NOW when no date is given', () => {
       // The collector's sweep plan and the on-demand route both want this: they
       // are deciding what to collect, not grading something already stored.
-      expect(dataForSeoReportsFor('nosh.example', PANEL_ASSETS)).toEqual([
+      expect(dataForSeoReportsFor('northwind.example', PANEL_ASSETS)).toEqual([
         ...DATAFORSEO_BASE_REPORTS,
         DATAFORSEO_PANEL_REPORT,
       ]);
@@ -93,7 +93,7 @@ describe('the DataForSEO family vocabulary', () => {
      */
     it('falls back to the full set on an unusable date', () => {
       for (const bad of ['', 'yesterday', '2026-8-4', '2026-08-04T00:00:00Z']) {
-        expect(dataForSeoReportsFor('nosh.example', PANEL_ASSETS, bad)).toEqual([
+        expect(dataForSeoReportsFor('northwind.example', PANEL_ASSETS, bad)).toEqual([
           ...DATAFORSEO_BASE_REPORTS,
           DATAFORSEO_PANEL_REPORT,
         ]);
@@ -116,7 +116,7 @@ describe('the DataForSEO family vocabulary', () => {
 
     it('never owes a periodic family on any date', () => {
       for (const date of ['2026-07-05', '2026-09-01', '2027-01-01', null]) {
-        const due = dataForSeoReportsFor('nosh.example', PANEL_ASSETS, date);
+        const due = dataForSeoReportsFor('northwind.example', PANEL_ASSETS, date);
         for (const report of DATAFORSEO_PERIODIC_REPORTS) {
           expect(due).not.toContain(report);
         }

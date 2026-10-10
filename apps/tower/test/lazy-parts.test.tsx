@@ -106,7 +106,7 @@ vi.mock("@/components/CommandPalette", async (importOriginal) => {
 // The shell reads the wall and the provider list for its sidebar; neither is
 // what this file is about.
 const ASSETS = [{
-  id: "meals.example", displayName: "Meal Planner", worstSeverity: null, status: "live",
+  id: "meadow.example", displayName: "Meadow Board", worstSeverity: null, status: "live",
   // A site that has reported, so its links open its Overview (`sitePath`).
   activeUsers: { series: [{ t: "2026-09-01", v: 12 }], provisionalFrom: null, collectedAt: null },
 } as AssetCard];
@@ -334,9 +334,9 @@ describe("the asset page's tabs", () => {
     code.hold("activity");
 
     // 1. A deep link into a tab whose code is still on its way.
-    renderAssetPage("/assets/meals.example#timeline");
+    renderAssetPage("/assets/meadow.example#timeline");
     const panel = await screen.findByRole("tabpanel");
-    expect(screen.getByTestId("path")).toHaveTextContent("/assets/meals.example/activity#timeline");
+    expect(screen.getByTestId("path")).toHaveTextContent("/assets/meadow.example/activity#timeline");
     expect(code.requested).toEqual(["activity"]);
     const frame = within(panel).getByRole("status");
     expect(frame).toHaveAttribute("data-route-loading", "panel");
@@ -410,7 +410,7 @@ describe("the asset page's tabs", () => {
     expect(alert).toHaveAttribute("data-route-load-failure", "panel");
     expect(alert).toHaveTextContent("This section didn't load");
     expect(within(alert).getByRole("heading", { level: 2 })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Meal Planner");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Meadow Board");
     expect(tab("Alerts")).toHaveAttribute("aria-selected", "true");
 
     expect([...code.requested].sort()).toEqual(

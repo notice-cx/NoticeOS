@@ -27,7 +27,7 @@
   {
     "args": [
       "--asset",
-      "meals.example",
+      "meadow.example",
       "--bogus",
       "x"
     ],

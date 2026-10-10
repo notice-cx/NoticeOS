@@ -4,9 +4,9 @@
 // AGENTS.md, The CI bar: documentation and image changes need their own
 // checks, not runtime suites. So a pull request that changes only
 // documentation skips the Tower and ingest unit jobs and the browser
-// journeys. The root script suite still runs: it reads every tracked
-// Markdown file (product-name.test.mjs, grep-visible.test.mjs,
-// docs-index.test.mjs), and a change to a file a test reads runs that test.
+// journeys; the docs workflow builds the site instead. The root script suite
+// still runs: it reads every tracked Markdown file (product-name.test.mjs,
+// grep-visible.test.mjs, docs-index.test.mjs), and a change to a file a test reads runs that test.
 // A push to main runs everything.
 //
 // Documentation here is what those three jobs never read: docs/ and a

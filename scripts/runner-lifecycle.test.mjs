@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import * as osUp from './os-up.mjs';
+import { runPanelRefresh } from './runner/panel-refresh.mjs';
 import {
   EXIT_ALREADY_RUNNING,
   EXIT_RUNTIME_COPY,
@@ -74,21 +74,12 @@ test('live source needs the same checkout and shared state inodes before startup
   rows['/code/.wrangler']=3;rows['/source']=5;assert.match(await check(),/state mounts do not match/);
 });
 
-test('os-up.mjs still offers the same lifecycle guards', () => {
-  for (const name of ['EXIT_ALREADY_RUNNING', 'EXIT_RUNTIME_COPY', 'MANAGED_ORPHAN_MAX_AGE_MS', 'ingestDoorEnv',
-    'managedOrphanDecision', 'runnerArmDecision', 'runtimeCopyRefusal']) {
-    assert.ok(osUp[name] !== undefined, `os-up.mjs no longer exports ${name}`);
-  }
-  assert.equal(osUp.runnerArmDecision, runnerArmDecision);
-  assert.equal(osUp.runtimeCopyRefusal, runtimeCopyRefusal);
-});
-
 // Last, because it cannot be undone inside this process.
 test('one shutdown flag stops every lane that did not name its own stop signal', async () => {
   assert.equal(isShuttingDown(), false);
   beginShutdown();
   assert.equal(isShuttingDown(), true);
-  const refused = await osUp.runPanelRefresh({ running: true, ready: true }, {
+  const refused = await runPanelRefresh({ running: true, ready: true }, {
     run: () => assert.fail('a lane ran after shutdown began'),
     emit: () => {},
     state: { skipping: null, running: false },

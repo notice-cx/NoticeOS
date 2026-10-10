@@ -17,6 +17,7 @@ import {
   seedConfigDocuments,
 } from '../config-store.js';
 import { json } from '../responses.js';
+import { readJsonBody } from './validate.js';
 
 /** Every path this module answers, so index.ts can test one prefix. */
 export const CONFIG_DOCUMENTS_PREFIX = '/api/config-documents';
@@ -57,30 +58,22 @@ export async function handleConfigDocuments(
   }
 
   if (request.method === 'POST' && url.pathname === `${CONFIG_DOCUMENTS_PREFIX}/seed`) {
-    let parsed: unknown;
-    try {
-      parsed = await request.json();
-    } catch (err) {
-      return json({ error: 'bad_request', detail: `could not parse body: ${String(err)}` }, 400);
-    }
+    const read = await readJsonBody(request);
+    if (read instanceof Response) return read;
     const result = await seedConfigDocuments(
       env,
-      parsed as Parameters<typeof seedConfigDocuments>[1],
+      read.value as Parameters<typeof seedConfigDocuments>[1],
       nowMs,
     );
     return json(result, result.error === 'store_unavailable' ? 503 : result.ok ? 200 : 422);
   }
 
   if (request.method === 'POST' && url.pathname === `${CONFIG_DOCUMENTS_PREFIX}/apply`) {
-    let parsed: unknown;
-    try {
-      parsed = await request.json();
-    } catch (err) {
-      return json({ error: 'bad_request', detail: `could not parse body: ${String(err)}` }, 400);
-    }
+    const read = await readJsonBody(request);
+    if (read instanceof Response) return read;
     const result = await applyConfigOps(
       env,
-      parsed as Parameters<typeof applyConfigOps>[1],
+      read.value as Parameters<typeof applyConfigOps>[1],
       nowMs,
     );
     if (result.ok) return json(result, 200);

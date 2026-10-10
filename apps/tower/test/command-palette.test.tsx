@@ -47,9 +47,9 @@ function asset(id: string, displayName: string, worstSeverity: AssetCard["worstS
 }
 
 const ASSETS = [
-  asset("meals.example", "Meal Planner", "warn"),
-  asset("fees.example", "Fee Codes"),
-  asset("areas.example", "Area Lookup"),
+  asset("meadow.example", "Meadow Board", "warn"),
+  asset("ferns.example", "Fern Index"),
+  asset("acorn.example", "Acorn Atlas"),
 ];
 
 /** The one path in the app that answers by moving. */
@@ -195,7 +195,7 @@ describe("what it lists", () => {
     // jsdom concatenates the text nodes with no separator, so the assertion
     // reads run together.
     expect(
-      within(dialog).getByRole("option", { name: "Fee Codesfees.example" }),
+      within(dialog).getByRole("option", { name: "Fern Indexferns.example" }),
     ).toBeInTheDocument();
     expect(within(dialog).queryAllByRole("option", { name: /favicon/i })).toHaveLength(0);
     expect(within(dialog).queryByTitle(/favicon/i)).toBeNull();
@@ -216,8 +216,8 @@ describe("what it lists", () => {
     fireEvent.change(paletteInput(), { target: { value: "fee" } });
 
     const shown = rows();
-    expect(shown.some((row) => row.includes("Fee Codes"))).toBe(true);
-    expect(shown.some((row) => row.includes("Meal Planner"))).toBe(false);
+    expect(shown.some((row) => row.includes("Fern Index"))).toBe(true);
+    expect(shown.some((row) => row.includes("Meadow Board"))).toBe(false);
     expect(shown.some((row) => row.includes("TV dashboard"))).toBe(false);
   });
 
@@ -245,10 +245,10 @@ describe("navigating", () => {
     renderShell();
     openWithShortcut();
 
-    fireEvent.change(paletteInput(), { target: { value: "meal planner" } });
+    fireEvent.change(paletteInput(), { target: { value: "meadow board" } });
     fireEvent.keyDown(paletteInput(), { key: "Enter" });
 
-    expect(screen.getByTestId("path")).toHaveTextContent("/assets/meals.example");
+    expect(screen.getByTestId("path")).toHaveTextContent("/assets/meadow.example");
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 

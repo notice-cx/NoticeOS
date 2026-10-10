@@ -53,5 +53,6 @@ test-results/
 # bv (beads viewer) local config and caches
 .bv/
 
-# the documentation site's build cache (apps/docs, VitePress)
-/apps/docs/.vitepress/cache/
+# the documentation site's build cache (docs/, VitePress)
+/docs/.vitepress/cache/
+/docs/.vitepress/dist/

@@ -6,13 +6,14 @@
 // returned to callers or written into an archive request descriptor.
 
 import type { WorkspaceStore } from '@noticeos/postgres';
-import { SITE_ORDER } from './asset-registry.js';
-import { SignalError, type SignalTarget } from './signal-store.js';
+import { SITE_ORDER } from '@noticeos/contract';
+import { SignalError, boundedResponseJson, type SignalTarget } from './signal-store.js';
 import {
   type LaneRegister,
   type ResolvedMapping,
   resolveLaneRef,
 } from './lane-mapping.js';
+import { asRecord, stringField, utcDay } from './shared.js';
 
 const API_BASE = 'https://ssl.bing.com/webmaster/api.svc/json';
 const REQUEST_TIMEOUT_MS = 20_000;
@@ -125,7 +126,7 @@ export async function bingRequest(
     headers: { accept: 'application/json' },
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
-  const body = await boundedResponseJson(response);
+  const body = await boundedResponseJson(response, 'Bing Webmaster', RESPONSE_BYTE_LIMIT);
   if (!response.ok || hasProviderError(body)) {
     throw bingProviderError(response.status, body);
   }
@@ -154,11 +155,11 @@ export function parseBingDate(
     const legacy = /^\/Date\((-?\d+)(?:[+-]\d{4})?\)\/$/.exec(value);
     if (legacy) {
       const time = Number(legacy[1]);
-      return Number.isFinite(time) ? formatDate(new Date(time)) : null;
+      return Number.isFinite(time) ? utcDay(new Date(time)) : null;
     }
   }
   if (typeof value === 'number' && Number.isFinite(value)) {
-    return formatDate(new Date(value));
+    return utcDay(new Date(value));
   }
   throw new SignalError(
     errorCode,
@@ -174,50 +175,6 @@ export function normalizeBingHost(value: string): string {
     return new URL(withProtocol).hostname.toLowerCase().replace(/^www\./, '');
   } catch {
     return '';
-  }
-}
-
-async function boundedResponseJson(response: Response): Promise<unknown> {
-  const declaredLength = Number(response.headers.get('content-length'));
-  if (Number.isFinite(declaredLength) && declaredLength > RESPONSE_BYTE_LIMIT) {
-    await response.body?.cancel();
-    throw new SignalError(
-      'response_too_large',
-      `Bing Webmaster response exceeded ${RESPONSE_BYTE_LIMIT} bytes.`,
-    );
-  }
-  if (!response.body) return {};
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let bytes = 0;
-  let text = '';
-  try {
-    while (true) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      bytes += chunk.value.byteLength;
-      if (bytes > RESPONSE_BYTE_LIMIT) {
-        await reader.cancel();
-        throw new SignalError(
-          'response_too_large',
-          `Bing Webmaster response exceeded ${RESPONSE_BYTE_LIMIT} bytes.`,
-        );
-      }
-      text += decoder.decode(chunk.value, { stream: true });
-    }
-    text += decoder.decode();
-  } finally {
-    reader.releaseLock();
-  }
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new SignalError(
-      'response_invalid_json',
-      'Bing Webmaster returned invalid JSON.',
-    );
   }
 }
 
@@ -241,22 +198,4 @@ function bingProviderError(status: number, body: unknown): SignalError {
     stringField(nested, 'message') ??
     `Bing Webmaster request failed with HTTP ${status}.`;
   return new SignalError(`bwt_http_${status}`, message.slice(0, 500));
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function stringField(
-  record: Record<string, unknown> | null,
-  field: string,
-): string | null {
-  const value = record?.[field];
-  return typeof value === 'string' && value.length > 0 ? value : null;
-}
-
-function formatDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
 }

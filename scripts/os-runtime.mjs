@@ -207,8 +207,6 @@ export function linkConflictLines(conflicts, codeRoot) {
   );
 }
 
-export { stripJsonc };
-
 /**
  * The cron expressions a Worker config schedules (`triggers.crons`), in order;
  * [] when it names none. Throws when the text is not JSON(C), so a caller can

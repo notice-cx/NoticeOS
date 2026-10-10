@@ -1,6 +1,6 @@
 {
   "schema": "noticeos-public-documents/1",
-  "about": "Explicit public design and operations documents. Private operational artifacts, reports and installation records are excluded. Review additions before exporting a release.",
+  "about": "Explicit public documents: each file, or each folder ending in /, was reviewed for publication. Private operational artifacts, reports and installation records are excluded. Review additions before exporting a release.",
   "files": [
     "docs/00-objective-and-roi.md",
     "docs/01-architecture.md",
@@ -23,13 +23,17 @@
     "docs/24-integration-monitoring.md",
     "docs/26-storage-capacity.md",
     "docs/README.md",
-    "docs/brand/README.md",
-    "docs/briefs/2026-10-05-remote-panel-review.md",
-    "docs/briefs/2026-10-08-home-overview-redesign.md",
-    "docs/images/noticeos-bay-window.png",
-    "docs/images/noticeos-overview.svg",
-    "docs/project-setup.md",
-    "docs/release-policy.md",
-    "docs/runbooks/one-runtime-cutover.md"
+    "docs/brand.md",
+    "docs/index.md",
+    "docs/package.json",
+    "docs/.vitepress/",
+    "docs/concepts/",
+    "docs/guides/",
+    "docs/images/",
+    "docs/operate/",
+    "docs/public/",
+    "docs/reference/",
+    "docs/start/",
+    "docs/tower/"
   ]
 }

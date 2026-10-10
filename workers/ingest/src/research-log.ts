@@ -5,6 +5,7 @@
 
 import { storedProviderCost } from '@noticeos/contract';
 import { javascriptInstant, type WorkspaceStore } from '@noticeos/postgres';
+import { sha256Hex } from './shared.js';
 
 export const RESEARCH_PROVIDERS = ['dataforseo'] as const;
 export type ResearchProvider = (typeof RESEARCH_PROVIDERS)[number];
@@ -65,11 +66,7 @@ export function canonicalJson(value: unknown): string {
 }
 
 export async function researchParamsHash(params: unknown): Promise<string> {
-  const bytes = new TextEncoder().encode(canonicalJson(params));
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
+  return sha256Hex(canonicalJson(params));
 }
 
 /**
@@ -114,16 +111,7 @@ export async function findPriorResearch(
   );
   if (!found) return null;
   const row = { ...found, costUsd: Number(found.costUsd), boughtAt: javascriptInstant(found.boughtAt) };
-  const boughtMs = Date.parse(row.boughtAt);
-  return {
-    ...row,
-    // An unparseable stamp must not read as "bought today" and win a reuse it
-    // did not earn. NaN floors to 0 through Math.max, so it is clamped to the
-    // other end: treated as ancient, and the caller re-buys.
-    ageDays: Number.isFinite(boughtMs)
-      ? Math.floor((nowMs - boughtMs) / MS_PER_DAY)
-      : windowDays,
-  };
+  return { ...row, ageDays: Math.floor((nowMs - Date.parse(row.boughtAt)) / MS_PER_DAY) };
 }
 
 /** Record a paid call. Every path that spends provider money writes one. */
@@ -159,9 +147,3 @@ export async function recordResearch(
     ),
   );
 }
-
-/**
- * Re-exported rather than declared: the exclusion it drives lives beside the
- * one metered-spend sum in `@noticeos/contract`.
- */
-export { RESEARCH_COLLECTOR_ACTOR as COLLECTOR_ACTOR } from '@noticeos/contract';

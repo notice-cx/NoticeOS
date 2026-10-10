@@ -9,13 +9,13 @@ beforeEach(reset);
 
 // A fixed clock so the pulse day and the seeded prior days are deterministic.
 const NOW = Date.parse('2026-07-05T02:30:00.000Z'); // pulse day 2026-07-05
-const MEALS_URL = 'https://meals.example/api/internal/metrics';
-const NOM_URL = 'https://nosh.example/api/internal/metrics';
-const NOM_OVERVIEW_URL = 'https://nosh.example/api/admin/overview';
+const MEADOW_URL = 'https://meadow.example/api/internal/metrics';
+const NOM_URL = 'https://northwind.example/api/internal/metrics';
+const NOM_OVERVIEW_URL = 'https://northwind.example/api/admin/overview';
 
-const MEALS_ENTRY: PullAssetConfig = {
-  asset: 'meals.example',
-  url: MEALS_URL,
+const MEADOW_ENTRY: PullAssetConfig = {
+  asset: 'meadow.example',
+  url: MEADOW_URL,
   enabled: true,
   format: 'prometheus',
   metrics: {
@@ -27,10 +27,10 @@ const MEALS_ENTRY: PullAssetConfig = {
   },
 };
 
-// nosh.example speaks the contract directly: GET /api/admin/overview returns the
+// northwind.example speaks the contract directly: GET /api/admin/overview returns the
 // envelope verbatim, so the pull entry carries no metric mapping.
 const NOM_ENVELOPE_ENTRY: PullAssetConfig = {
-  asset: 'nosh.example',
+  asset: 'northwind.example',
   url: NOM_OVERVIEW_URL,
   enabled: true,
   format: 'envelope',
@@ -42,7 +42,7 @@ interface EnvMetric {
   total: number;
 }
 
-/** The exact contract envelope nosh.example's overview endpoint emits; overrides swap a metric. */
+/** The exact contract envelope northwind.example's overview endpoint emits; overrides swap a metric. */
 function nomBody(overrides: Record<string, EnvMetric> = {}): Record<string, unknown> {
   const metrics: Record<string, EnvMetric> = {
     // avg7d remains part of the wire contract, but the central rule deliberately
@@ -54,7 +54,7 @@ function nomBody(overrides: Record<string, EnvMetric> = {}): Record<string, unkn
     ...overrides,
   };
   return {
-    asset: 'nosh.example',
+    asset: 'northwind.example',
     generatedAt: '2026-07-05T02:00:00.000Z',
     capabilities: Object.keys(metrics),
     metrics,
@@ -62,8 +62,8 @@ function nomBody(overrides: Record<string, EnvMetric> = {}): Record<string, unkn
   };
 }
 
-/** A body where every configured meals.example counter is present; `signupsH24` varies. */
-function mealsBody(signupsH24: number): string {
+/** A body where every configured meadow.example counter is present; `signupsH24` varies. */
+function meadowBody(signupsH24: number): string {
   return promBody({
     profiles: { total: 5000, h24: signupsH24, d7: signupsH24 * 7 },
     saved_calculator_results: { total: 1880, h24: 4, d7: 30 },
@@ -80,13 +80,13 @@ async function seedSignupsHistory(dailyLast24h: number[]): Promise<void> {
     const date = new Date(dayMs).toISOString().slice(0, 10);
     const value = dailyLast24h[i]!;
     const envelope = JSON.stringify({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       generatedAt: new Date(dayMs).toISOString(),
       capabilities: ['signups'],
       metrics: { signups: { last24h: value, avg7d: value, total: 5000 } },
     });
     await insertPulse({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       date,
       generatedAt: new Date(dayMs).toISOString(),
       receivedAt: new Date(dayMs).toISOString(),
@@ -153,25 +153,25 @@ describe('pull adapter — successful pull', () => {
     await seedSignupsHistory(Array.from({ length: 28 }, () => 10));
 
     const result = await runPullAdapter(env, {
-      entries: [MEALS_ENTRY],
+      entries: [MEADOW_ENTRY],
       nowMs: NOW,
-      fetchImpl: stubFetch({ [MEALS_URL]: () => new Response(mealsBody(0), { status: 200 }) }),
+      fetchImpl: stubFetch({ [MEADOW_URL]: () => new Response(meadowBody(0), { status: 200 }) }),
     });
 
     expect(result).toMatchObject({ attempted: 1, succeeded: 1, failed: 0 });
 
     // one pulse row for the pull day
     expect(
-      await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'meals.example' AND pulse_date = '2026-07-05'`),
+      await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'meadow.example' AND pulse_date = '2026-07-05'`),
     ).toBe(1);
 
     // counters mapped: total from d1_row_count, last24h from the 24h window
-    const env0 = await storedEnvelope('meals.example');
+    const env0 = await storedEnvelope('meadow.example');
     expect(env0?.metrics.signups).toMatchObject({ last24h: 0, total: 5000 });
     expect(env0?.metrics.leads).toMatchObject({ last24h: 3, total: 620 });
 
     // central rule fired on the drop, stamped with rule_id + inputs
-    const [central] = await flagRows(`asset_id = 'meals.example' AND rule_id = 'flow-poisson-low'`);
+    const [central] = await flagRows(`asset_id = 'meadow.example' AND rule_id = 'flow-poisson-low'`);
     expect(central).toMatchObject({ metric: 'signups', severity: 'warn' });
     expect(JSON.parse(central!.rule_inputs!)).toMatchObject({
       observed: 0,
@@ -184,28 +184,28 @@ describe('pull adapter — successful pull', () => {
     await seedSignupsHistory([8, 9, 10, 11, 12, 13, 14]); // mean 11
 
     await runPullAdapter(env, {
-      entries: [MEALS_ENTRY],
+      entries: [MEADOW_ENTRY],
       nowMs: NOW,
-      fetchImpl: stubFetch({ [MEALS_URL]: () => new Response(mealsBody(5), { status: 200 }) }),
+      fetchImpl: stubFetch({ [MEADOW_URL]: () => new Response(meadowBody(5), { status: 200 }) }),
     });
 
-    const env0 = await storedEnvelope('meals.example');
+    const env0 = await storedEnvelope('meadow.example');
     expect(env0?.metrics.signups?.avg7d).toBe(11);
     expect(env0?.metrics.signups?.last24h).toBe(5);
   });
 
   it('falls back avg7d to the current value when there is no stored history', async () => {
     await runPullAdapter(env, {
-      entries: [MEALS_ENTRY],
+      entries: [MEADOW_ENTRY],
       nowMs: NOW,
-      fetchImpl: stubFetch({ [MEALS_URL]: () => new Response(mealsBody(7), { status: 200 }) }),
+      fetchImpl: stubFetch({ [MEADOW_URL]: () => new Response(meadowBody(7), { status: 200 }) }),
     });
 
-    const env0 = await storedEnvelope('meals.example');
+    const env0 = await storedEnvelope('meadow.example');
     // avg7d == last24h => the drop rule is a no-op until a baseline accumulates
     expect(env0?.metrics.signups).toMatchObject({ last24h: 7, avg7d: 7 });
     expect(
-      await pgCount(`SELECT count(*) AS n FROM noticeos.current_flags WHERE asset_id = 'meals.example' AND rule_id = 'flow-poisson-low'`),
+      await pgCount(`SELECT count(*) AS n FROM noticeos.current_flags WHERE asset_id = 'meadow.example' AND rule_id = 'flow-poisson-low'`),
     ).toBe(0);
   });
 
@@ -222,11 +222,11 @@ describe('pull adapter — successful pull', () => {
         authorization: headers.get('authorization'),
         accept: headers.get('accept'),
       });
-      return new Response(mealsBody(3), { status: 200 });
+      return new Response(meadowBody(3), { status: 200 });
     }) as typeof fetch;
 
     const result = await runPullAdapter(env, {
-      entries: [MEALS_ENTRY],
+      entries: [MEADOW_ENTRY],
       nowMs: NOW,
       fetchImpl: recordingFetch,
     });
@@ -234,30 +234,56 @@ describe('pull adapter — successful pull', () => {
     expect(result).toMatchObject({ attempted: 1, succeeded: 1, failed: 0 });
     expect(seen).toEqual([
       {
-        url: MEALS_URL,
-        authorization: `Bearer ${ASSET_TOKENS['meals.example']}`,
+        url: MEADOW_URL,
+        authorization: `Bearer ${ASSET_TOKENS['meadow.example']}`,
         accept: 'text/plain',
       },
     ]);
+  });
+
+  it('reads no PULL_TOKENS binding a deployed worker may still carry', async () => {
+    const legacy = Object.assign({}, env, {
+      PULL_TOKENS: JSON.stringify({ 'meadow.example': 'legacy-meadow-token', 'ferns.example': 'legacy-ferns-token' }),
+    });
+    const presented: Array<string | null> = [];
+    const recordingFetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      presented.push(new Headers(init?.headers).get('authorization'));
+      return new Response(meadowBody(3), { status: 200 });
+    }) as typeof fetch;
+    const feesEntry: PullAssetConfig = {
+      ...MEADOW_ENTRY,
+      asset: 'ferns.example',
+      url: 'https://ferns.example/api/internal/metrics',
+    };
+
+    const result = await runPullAdapter(legacy, {
+      entries: [MEADOW_ENTRY, feesEntry],
+      nowMs: NOW,
+      fetchImpl: recordingFetch,
+    });
+
+    expect(presented).toEqual([`Bearer ${ASSET_TOKENS['meadow.example']}`]);
+    expect(result.outcomes.map((outcome) => outcome.ok)).toEqual([true, false]);
+    expect(result.outcomes[1]?.error).toContain('no pull token');
   });
 });
 
 describe('pull adapter — failure handling', () => {
   it('fires an asset-pull-failed flag once, not twice, while it stays open', async () => {
-    const fetchImpl = stubFetch({ [MEALS_URL]: () => new Response('nope', { status: 500 }) });
+    const fetchImpl = stubFetch({ [MEADOW_URL]: () => new Response('nope', { status: 500 }) });
 
-    const first = await runPullAdapter(env, { entries: [MEALS_ENTRY], nowMs: NOW, fetchImpl });
+    const first = await runPullAdapter(env, { entries: [MEADOW_ENTRY], nowMs: NOW, fetchImpl });
     expect(first).toMatchObject({ succeeded: 0, failed: 1 });
     expect(first.outcomes[0]).toMatchObject({ ok: false, status: 500, fired: 1 });
-    expect(await openPullFailures('meals.example')).toBe(1);
+    expect(await openPullFailures('meadow.example')).toBe(1);
 
-    const second = await runPullAdapter(env, { entries: [MEALS_ENTRY], nowMs: NOW, fetchImpl });
+    const second = await runPullAdapter(env, { entries: [MEADOW_ENTRY], nowMs: NOW, fetchImpl });
     expect(second.outcomes[0]).toMatchObject({ ok: false, fired: 0, refreshed: 1 });
-    expect(await openPullFailures('meals.example')).toBe(1); // still exactly one
+    expect(await openPullFailures('meadow.example')).toBe(1); // still exactly one
 
-    const [flag] = await flagRows(`asset_id = 'meals.example' AND rule_id = $1`, [PULL_FAILED_RULE_ID]);
+    const [flag] = await flagRows(`asset_id = 'meadow.example' AND rule_id = $1`, [PULL_FAILED_RULE_ID]);
     expect(flag).toMatchObject({ severity: 'warn', kind: 'anomaly', pulse_id: null });
-    expect(JSON.parse(flag!.rule_inputs!)).toMatchObject({ url: MEALS_URL, status: 500 });
+    expect(JSON.parse(flag!.rule_inputs!)).toMatchObject({ url: MEADOW_URL, status: 500 });
   });
 
   // A persistent outage keeps one flag, but it must speak for tonight, not
@@ -286,9 +312,9 @@ describe('pull adapter — failure handling', () => {
     expect(second.outcomes[0]).toMatchObject({ ok: false, status: 401, fired: 0, refreshed: 1 });
 
     // rewritten in place — a nightly outage still owns exactly one open flag
-    expect(await openPullFailures('nosh.example')).toBe(1);
+    expect(await openPullFailures('northwind.example')).toBe(1);
 
-    const flag = await pullFailureFlag('nosh.example');
+    const flag = await pullFailureFlag('northwind.example');
     expect(flag?.message).toBe('pull failed: 401 unauthorized');
     // fired_at still dates the START of the outage, not tonight's attempt
     expect(flag?.fired_at).toBe(new Date(NOW).toISOString());
@@ -312,7 +338,7 @@ describe('pull adapter — failure handling', () => {
       nowMs: NOW + 24 * 3_600_000,
       fetchImpl: down,
     });
-    expect(JSON.parse((await pullFailureFlag('nosh.example'))!.rule_inputs).failureCount).toBe(2);
+    expect(JSON.parse((await pullFailureFlag('northwind.example'))!.rule_inputs).failureCount).toBe(2);
 
     const recovery = await runPullAdapter(env, {
       entries: [NOM_ENVELOPE_ENTRY],
@@ -322,7 +348,7 @@ describe('pull adapter — failure handling', () => {
       }),
     });
     expect(recovery.outcomes[0]).toMatchObject({ ok: true, resolved: 1 });
-    expect(await openPullFailures('nosh.example')).toBe(0);
+    expect(await openPullFailures('northwind.example')).toBe(0);
 
     // the next outage is a NEW flag with its own count, not a continuation
     const relapse = await runPullAdapter(env, {
@@ -331,7 +357,7 @@ describe('pull adapter — failure handling', () => {
       fetchImpl: down,
     });
     expect(relapse.outcomes[0]).toMatchObject({ fired: 1, refreshed: 0 });
-    const flag = await pullFailureFlag('nosh.example');
+    const flag = await pullFailureFlag('northwind.example');
     expect(flag?.fired_at).toBe(new Date(NOW + 72 * 3_600_000).toISOString());
     expect(JSON.parse(flag!.rule_inputs).failureCount).toBe(1);
   });
@@ -354,7 +380,7 @@ describe('pull adapter — failure handling', () => {
       expect(run.outcomes[0]).toMatchObject({ ok: false, evidence: 'recorded' });
     }
 
-    const flag = { results: await flagRows(`asset_id = 'nosh.example' AND rule_id = $1`, [PULL_FAILED_RULE_ID]) };
+    const flag = { results: await flagRows(`asset_id = 'northwind.example' AND rule_id = $1`, [PULL_FAILED_RULE_ID]) };
     expect(flag.results).toHaveLength(1);
     const readings = {
       results: (
@@ -398,7 +424,7 @@ describe('pull adapter — failure handling', () => {
         `SELECT f.flag_number::int AS id, f.resolved_at AS "resolvedAt", count(e.flag_id)::int AS readings
            FROM noticeos.flags f
            LEFT JOIN noticeos.flag_evidence e ON e.workspace_id = f.workspace_id AND e.flag_id = f.flag_id
-          WHERE f.asset_id = 'nosh.example' AND f.rule_id = $1
+          WHERE f.asset_id = 'northwind.example' AND f.rule_id = $1
           GROUP BY f.flag_id, f.flag_number, f.resolved_at, f.fired_at ORDER BY f.fired_at`,
         [PULL_FAILED_RULE_ID],
       ),
@@ -412,32 +438,32 @@ describe('pull adapter — failure handling', () => {
   it('treats an unmappable body (missing counter) as a failure', async () => {
     const body = promBody({ profiles: { total: 10, h24: 1, d7: 5 } }); // missing the other 4 counters
     const result = await runPullAdapter(env, {
-      entries: [MEALS_ENTRY],
+      entries: [MEADOW_ENTRY],
       nowMs: NOW,
-      fetchImpl: stubFetch({ [MEALS_URL]: () => new Response(body, { status: 200 }) }),
+      fetchImpl: stubFetch({ [MEADOW_URL]: () => new Response(body, { status: 200 }) }),
     });
 
     expect(result).toMatchObject({ succeeded: 0, failed: 1 });
-    expect(await openPullFailures('meals.example')).toBe(1);
-    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'meals.example'`)).toBe(0);
+    expect(await openPullFailures('meadow.example')).toBe(1);
+    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'meadow.example'`)).toBe(0);
   });
 
   it('auto-resolves the open pull-failure flag on the next successful pull', async () => {
     await runPullAdapter(env, {
-      entries: [MEALS_ENTRY],
+      entries: [MEADOW_ENTRY],
       nowMs: NOW,
-      fetchImpl: stubFetch({ [MEALS_URL]: () => new Response('down', { status: 503 }) }),
+      fetchImpl: stubFetch({ [MEADOW_URL]: () => new Response('down', { status: 503 }) }),
     });
-    expect(await openPullFailures('meals.example')).toBe(1);
+    expect(await openPullFailures('meadow.example')).toBe(1);
 
     const recovery = await runPullAdapter(env, {
-      entries: [MEALS_ENTRY],
+      entries: [MEADOW_ENTRY],
       nowMs: NOW,
-      fetchImpl: stubFetch({ [MEALS_URL]: () => new Response(mealsBody(6), { status: 200 }) }),
+      fetchImpl: stubFetch({ [MEADOW_URL]: () => new Response(meadowBody(6), { status: 200 }) }),
     });
     expect(recovery.outcomes[0]).toMatchObject({ ok: true, resolved: 1 });
-    expect(await openPullFailures('meals.example')).toBe(0);
-    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'meals.example'`)).toBe(1);
+    expect(await openPullFailures('meadow.example')).toBe(0);
+    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'meadow.example'`)).toBe(1);
   });
 });
 
@@ -455,7 +481,7 @@ describe('pull adapter — the OS is what is down', () => {
 
   it('files no pull-failure flag on either property, and one on the OS row instead', async () => {
     const result = await runPullAdapter(env, {
-      entries: [MEALS_ENTRY, NOM_ENVELOPE_ENTRY],
+      entries: [MEADOW_ENTRY, NOM_ENVELOPE_ENTRY],
       nowMs: NOW,
       fetchImpl: stubFetch({}), // nothing answers, the beacons included
     });
@@ -465,15 +491,15 @@ describe('pull adapter — the OS is what is down', () => {
     for (const outcome of result.outcomes) {
       expect(outcome).toMatchObject({ ok: false, status: null, egressDown: true, fired: 0, refreshed: 0 });
     }
-    expect(await openPullFailures('meals.example')).toBe(0);
-    expect(await openPullFailures('nosh.example')).toBe(0);
+    expect(await openPullFailures('meadow.example')).toBe(0);
+    expect(await openPullFailures('northwind.example')).toBe(0);
 
     // One question asked for the whole run, one flag written.
     expect(result.egress).toMatchObject({
       up: false,
       probes: 1,
       fired: 1,
-      unmeasuredAssets: ['meals.example', 'nosh.example'],
+      unmeasuredAssets: ['meadow.example', 'northwind.example'],
     });
     const [flag] = await flagRows(`rule_id = $1`, [EGRESS_DOWN_RULE_ID]);
     expect(flag).toMatchObject({
@@ -486,26 +512,26 @@ describe('pull adapter — the OS is what is down', () => {
   it('still flags an endpoint that never answers when the OS can reach the world', async () => {
     // The regression guard: this is the case the gate must never make quieter.
     const result = await runPullAdapter(env, {
-      entries: [MEALS_ENTRY],
+      entries: [MEADOW_ENTRY],
       nowMs: NOW,
       fetchImpl: stubFetch(BEACON_UP), // the property is routed nowhere
     });
 
     expect(result.outcomes[0]).toMatchObject({ ok: false, status: null, fired: 1 });
     expect(result.outcomes[0]?.egressDown).toBeUndefined();
-    expect(await openPullFailures('meals.example')).toBe(1);
+    expect(await openPullFailures('meadow.example')).toBe(1);
     expect(result.egress).toMatchObject({ up: true, fired: 0 });
     expect(await openEgressFlags()).toBe(0);
   });
 
   it('still flags a missing pull token — that failure never reached the network', async () => {
-    // fees.example has no entry in ASSET_TOKENS, so the pull throws before any
+    // ferns.example has no entry in ASSET_TOKENS, so the pull throws before any
     // request goes out. A statusless failure is not automatically a connectivity
     // failure, and a config error must not hide behind an outage.
     const unconfigured: PullAssetConfig = {
-      ...MEALS_ENTRY,
-      asset: 'fees.example',
-      url: 'https://fees.example/api/internal/metrics',
+      ...MEADOW_ENTRY,
+      asset: 'ferns.example',
+      url: 'https://ferns.example/api/internal/metrics',
     };
     const result = await runPullAdapter(env, {
       entries: [unconfigured],
@@ -515,22 +541,22 @@ describe('pull adapter — the OS is what is down', () => {
 
     expect(result.outcomes[0]).toMatchObject({ ok: false, status: null, fired: 1 });
     expect(result.outcomes[0]?.error).toContain('no pull token');
-    expect(await openPullFailures('fees.example')).toBe(1);
+    expect(await openPullFailures('ferns.example')).toBe(1);
     expect(result.egress).toMatchObject({ checked: false, probes: 0 });
   });
 
   it('retracts the OS egress flag on the next run that gets through', async () => {
-    await runPullAdapter(env, { entries: [MEALS_ENTRY], nowMs: NOW, fetchImpl: stubFetch({}) });
+    await runPullAdapter(env, { entries: [MEADOW_ENTRY], nowMs: NOW, fetchImpl: stubFetch({}) });
     expect(await openEgressFlags()).toBe(1);
 
     // A successful pull never consults the gate, so the retraction is owed at the
     // end of the run — and it needs a beacon to prove itself with.
     const back = await runPullAdapter(env, {
-      entries: [MEALS_ENTRY],
+      entries: [MEADOW_ENTRY],
       nowMs: NOW + 24 * 3_600_000,
       fetchImpl: stubFetch({
         ...BEACON_UP,
-        [MEALS_URL]: () => new Response(mealsBody(4), { status: 200 }),
+        [MEADOW_URL]: () => new Response(meadowBody(4), { status: 200 }),
       }),
     });
 
@@ -542,7 +568,7 @@ describe('pull adapter — the OS is what is down', () => {
 
 describe('pull adapter — isolation', () => {
   it('skips a disabled asset entirely (no fetch, no pulse, no flag)', async () => {
-    const disabled: PullAssetConfig = { ...MEALS_ENTRY, enabled: false };
+    const disabled: PullAssetConfig = { ...MEADOW_ENTRY, enabled: false };
     const result = await runPullAdapter(env, {
       entries: [disabled],
       nowMs: NOW,
@@ -551,13 +577,13 @@ describe('pull adapter — isolation', () => {
     });
 
     expect(result).toMatchObject({ attempted: 0, succeeded: 0, failed: 0 });
-    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'meals.example'`)).toBe(0);
-    expect(await openPullFailures('meals.example')).toBe(0);
+    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'meadow.example'`)).toBe(0);
+    expect(await openPullFailures('meadow.example')).toBe(0);
   });
 
   it("one asset's failure does not block another asset's pull", async () => {
     const nomEntry: PullAssetConfig = {
-      asset: 'nosh.example',
+      asset: 'northwind.example',
       url: NOM_URL,
       enabled: true,
       format: 'prometheus',
@@ -565,26 +591,26 @@ describe('pull adapter — isolation', () => {
     };
 
     const result = await runPullAdapter(env, {
-      entries: [nomEntry, MEALS_ENTRY], // failing asset first
+      entries: [nomEntry, MEADOW_ENTRY], // failing asset first
       nowMs: NOW,
       fetchImpl: stubFetch({
         [NOM_URL]: () => new Response('boom', { status: 500 }),
-        [MEALS_URL]: () => new Response(mealsBody(9), { status: 200 }),
+        [MEADOW_URL]: () => new Response(meadowBody(9), { status: 200 }),
       }),
     });
 
     expect(result).toMatchObject({ attempted: 2, succeeded: 1, failed: 1 });
-    // nosh.example failed and got flagged
-    expect(await openPullFailures('nosh.example')).toBe(1);
-    // meals.example still succeeded despite nosh.example failing first
-    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'meals.example'`)).toBe(1);
-    expect(await openPullFailures('meals.example')).toBe(0);
+    // northwind.example failed and got flagged
+    expect(await openPullFailures('northwind.example')).toBe(1);
+    // meadow.example still succeeded despite northwind.example failing first
+    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'meadow.example'`)).toBe(1);
+    expect(await openPullFailures('meadow.example')).toBe(0);
   });
 });
 
 describe('pull adapter — envelope format', () => {
   it('writes the pulse verbatim, runs the central rules, and preserves the source avg7d', async () => {
-    await seedEnvelopeWeekdays('nosh.example', {
+    await seedEnvelopeWeekdays('northwind.example', {
       affiliateClicks: { last24h: 12, avg7d: 100, total: 3300 },
       receiptsHosted: { last24h: 5, avg7d: 100, total: 880 },
       receiptVisits: { last24h: 40, avg7d: 100, total: 11900 },
@@ -602,17 +628,17 @@ describe('pull adapter — envelope format', () => {
 
     // one pulse row for the pull day
     expect(
-      await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'nosh.example' AND pulse_date = '2026-07-05'`),
+      await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'northwind.example' AND pulse_date = '2026-07-05'`),
     ).toBe(1);
 
     // the source's own avg7d is authoritative — stored verbatim, NOT recomputed
-    const env0 = await storedEnvelope('nosh.example');
+    const env0 = await storedEnvelope('northwind.example');
     expect(env0?.metrics.affiliateClicks).toMatchObject({ last24h: 0, avg7d: 12.5, total: 3400 });
     expect(env0?.metrics.apiRequests).toMatchObject({ last24h: 800, avg7d: 790.4 });
 
     // central rule uses the stored matching-Sunday baseline (0 vs 12), not the
     // source's point-in-time avg7d (12.5).
-    const [central] = await flagRows(`asset_id = 'nosh.example' AND rule_id = 'flow-poisson-low'`);
+    const [central] = await flagRows(`asset_id = 'northwind.example' AND rule_id = 'flow-poisson-low'`);
     expect(central).toMatchObject({ metric: 'affiliateClicks', severity: 'warn' });
     expect(JSON.parse(central!.rule_inputs!)).toMatchObject({
       observed: 0,
@@ -622,7 +648,7 @@ describe('pull adapter — envelope format', () => {
   });
 
   it('rejects a body whose asset id does not match the config (no silent cross-write)', async () => {
-    const mismatched = { ...nomBody(), asset: 'meals.example' };
+    const mismatched = { ...nomBody(), asset: 'meadow.example' };
     const result = await runPullAdapter(env, {
       entries: [NOM_ENVELOPE_ENTRY],
       nowMs: NOW,
@@ -633,10 +659,10 @@ describe('pull adapter — envelope format', () => {
 
     expect(result).toMatchObject({ succeeded: 0, failed: 1 });
     expect(result.outcomes[0]?.error).toContain('asset mismatch');
-    expect(await openPullFailures('nosh.example')).toBe(1);
+    expect(await openPullFailures('northwind.example')).toBe(1);
     // nothing written under EITHER asset id
-    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'nosh.example'`)).toBe(0);
-    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'meals.example'`)).toBe(0);
+    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'northwind.example'`)).toBe(0);
+    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'meadow.example'`)).toBe(0);
   });
 
   it("surfaces the provider's own words on a 503 unconfigured body", async () => {
@@ -653,13 +679,13 @@ describe('pull adapter — envelope format', () => {
 
     expect(result.outcomes[0]).toMatchObject({ ok: false, status: 503, fired: 1 });
 
-    const flag = await pullFailureFlag('nosh.example');
+    const flag = await pullFailureFlag('northwind.example');
     // the alert message carries the status, the provider's error name, and its
     // message — but not the property name (the flag's asset column owns that fact).
     expect(flag?.message).toBe(`pull failed: 503 unconfigured — ${message}`);
     const inputs = JSON.parse(flag!.rule_inputs);
     expect(inputs).toMatchObject({ status: 503, providerError: 'unconfigured', providerMessage: message });
-    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'nosh.example'`)).toBe(0);
+    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'northwind.example'`)).toBe(0);
   });
 
   it('fires the pull-failure flag on a 401 unauthorized', async () => {
@@ -672,12 +698,12 @@ describe('pull adapter — envelope format', () => {
     });
 
     expect(result.outcomes[0]).toMatchObject({ ok: false, status: 401, fired: 1 });
-    expect(await openPullFailures('nosh.example')).toBe(1);
+    expect(await openPullFailures('northwind.example')).toBe(1);
 
-    const flag = await pullFailureFlag('nosh.example');
+    const flag = await pullFailureFlag('northwind.example');
     expect(flag?.message).toBe('pull failed: 401 unauthorized');
     expect(JSON.parse(flag!.rule_inputs)).toMatchObject({ status: 401, providerError: 'unauthorized' });
-    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'nosh.example'`)).toBe(0);
+    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'northwind.example'`)).toBe(0);
   });
 
   it('treats a 200 body that fails contract validation as a failure, not a throw', async () => {
@@ -693,7 +719,7 @@ describe('pull adapter — envelope format', () => {
 
     expect(result).toMatchObject({ succeeded: 0, failed: 1 });
     expect(result.outcomes[0]?.error).toContain('contract validation');
-    expect(await openPullFailures('nosh.example')).toBe(1);
-    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'nosh.example'`)).toBe(0);
+    expect(await openPullFailures('northwind.example')).toBe(1);
+    expect(await pgCount(`SELECT count(*) AS n FROM noticeos.current_pulses WHERE asset_id = 'northwind.example'`)).toBe(0);
   });
 });

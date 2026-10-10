@@ -1,6 +1,6 @@
 {
   "assets": {
-    "meals.example": {
+    "meadow.example": {
       "valueEvents": [
         "calculation_complete",
         "printable_download",

@@ -15,7 +15,6 @@ import { connectCredential } from '../src/credential-connect.js';
 import { putCredential, resolveCredential } from '../src/credentials.js';
 import { runCollectNow } from '../src/dispatch.js';
 import {
-  POSTHOG_ACCOUNT_TIMEOUT_MS,
   discoverPosthogProjects,
   insightFunnel,
   projectHost,
@@ -23,6 +22,7 @@ import {
   savedFunnels,
 } from '../src/posthog-account.js';
 import { runPosthogDumps } from '../src/posthog-dumps.js';
+import { WATCHED_REQUEST_TIMEOUT_MS } from '../src/shared.js';
 import { discoverSites } from '../src/site-discovery.js';
 import { ARCHIVE_RUNS, emptyTables, forgetCredentials, pgCount, reset } from './helpers.js';
 
@@ -41,7 +41,7 @@ interface Call { url: string; method: string; authorization: string | null; time
 
 /**
  * A PostHog account in one region: `/api/projects/` lists two projects, the
- * first records meals.example as its app URL and holds a funnel of each kind
+ * first records meadow.example as its app URL and holds a funnel of each kind
  * and a trend; the second records nothing. The other region refuses the key
  * the way PostHog does, and the query endpoint answers with no rows.
  */
@@ -54,12 +54,12 @@ function posthog({ region = 'us', details = true, insights = true }: { region?: 
     if (url.origin !== `https://${region}.posthog.com` || authorization !== `Bearer ${KEY}`) {
       return Response.json({ detail: 'Invalid personal API key.' }, { status: 401 });
     }
-    if (url.pathname === '/api/projects/') return Response.json({ results: [{ id: 596607, name: 'Meal Planner' }, { id: 12, name: 'Staging' }] });
-    if (url.pathname === '/api/projects/596607/') {
-      return details ? Response.json({ id: 596607, name: 'Meal Planner', timezone: 'UTC', app_urls: ['https://www.meals.example/app'] }) : new Response('', { status: 500 });
+    if (url.pathname === '/api/projects/') return Response.json({ results: [{ id: 424242, name: 'Meadow Board' }, { id: 12, name: 'Staging' }] });
+    if (url.pathname === '/api/projects/424242/') {
+      return details ? Response.json({ id: 424242, name: 'Meadow Board', timezone: 'UTC', app_urls: ['https://www.meadow.example/app'] }) : new Response('', { status: 500 });
     }
     if (url.pathname === '/api/projects/12/') return Response.json({ id: 12, name: 'Staging', timezone: 'UTC', app_urls: [] });
-    if (url.pathname === '/api/projects/596607/insights/') {
+    if (url.pathname === '/api/projects/424242/insights/') {
       return insights ? Response.json({ results: [SIGNUP, CHECKOUT, TREND] }) : Response.json({ detail: 'Missing scope insight:read' }, { status: 403 });
     }
     if (url.pathname === '/api/projects/12/insights/') return Response.json({ results: [] });
@@ -75,11 +75,11 @@ describe('the key alone finds its region and projects', () => {
   it('asks both regions at once, keeps the one that accepts, and never guesses the other', async () => {
     const { fetchImpl, calls } = posthog({ region: 'eu' });
     const read = await readPosthogAccount(KEY, fetchImpl);
-    expect(read).toEqual({ verdict: 'accepted', region: 'eu', projects: [{ id: 596607, name: 'Meal Planner' }, { id: 12, name: 'Staging' }] });
+    expect(read).toEqual({ verdict: 'accepted', region: 'eu', projects: [{ id: 424242, name: 'Meadow Board' }, { id: 12, name: 'Staging' }] });
     expect(calls.map((call) => call.url).sort()).toEqual(['https://eu.posthog.com/api/projects/?limit=100', 'https://us.posthog.com/api/projects/?limit=100']);
     // Every call is bounded and carries the key only as the bearer.
     expect(calls.every((call) => call.timed && call.authorization === `Bearer ${KEY}`)).toBe(true);
-    expect(POSTHOG_ACCOUNT_TIMEOUT_MS).toBeLessThanOrEqual(10_000);
+    expect(WATCHED_REQUEST_TIMEOUT_MS).toBeLessThanOrEqual(10_000);
   });
 
   it('is a refusal when both clouds refuse, and no answer when one of them cannot be reached', async () => {
@@ -95,7 +95,7 @@ describe('the key alone finds its region and projects', () => {
     const { fetchImpl, calls } = posthog();
     const found = await discoverPosthogProjects(KEY, fetchImpl);
     expect(found).toEqual({ ok: true, region: 'us', sites: [
-      { lane: 'posthog', ref: 'us:596607', label: 'Meal Planner', host: 'meals.example', mapping: { host: 'us', projectId: '596607' }, ready: true, funnels: [
+      { lane: 'posthog', ref: 'us:424242', label: 'Meadow Board', host: 'meadow.example', mapping: { host: 'us', projectId: '424242' }, ready: true, funnels: [
         { id: 'signup', name: 'Signup', steps: [{ event: '$pageview' }, { event: 'signed_up' }] },
         { id: 'checkout', name: 'Checkout', steps: [{ event: '$pageview', path: '/pricing' }, { event: 'checkout_started' }, { event: 'purchase' }] },
       ] },
@@ -108,7 +108,7 @@ describe('the key alone finds its region and projects', () => {
 
   it('keeps a project whose details or funnels cannot be read, with what it could read', async () => {
     const found = await discoverPosthogProjects(KEY, posthog({ details: false, insights: false }).fetchImpl);
-    expect(found.ok && found.sites[0]).toEqual({ lane: 'posthog', ref: 'us:596607', label: 'Meal Planner', host: null, mapping: { host: 'us', projectId: '596607' }, ready: true });
+    expect(found.ok && found.sites[0]).toEqual({ lane: 'posthog', ref: 'us:424242', label: 'Meadow Board', host: null, mapping: { host: 'us', projectId: '424242' }, ready: true });
     expect(await discoverPosthogProjects('phx_wrong', posthog().fetchImpl)).toEqual({ ok: false, reason: 'refused' });
   });
 });
@@ -147,7 +147,7 @@ describe('a saved insight is a funnel only when the archive can count it as Post
 
 async function seedPosthogMapping() {
   const integrations = structuredClone(integrationsJson) as unknown as { assets: Record<string, Record<string, Record<string, unknown>>> };
-  integrations.assets['meals.example']!.posthog = { status: 'needs-setup', host: 'us', projectId: '596607', funnels: [] };
+  integrations.assets['meadow.example']!.posthog = { status: 'needs-setup', host: 'us', projectId: '424242', funnels: [] };
   const seeded = await seedConfigDocuments(env, { documents: { 'config/integrations.json': integrations as unknown as Record<string, unknown> }, actor: 'config:seed' }, NOW);
   expect(seeded.ok, JSON.stringify(seeded)).toBe(true);
 }
@@ -182,7 +182,7 @@ describe('connected with the account key', () => {
     await putCredential(env, { provider: 'posthog', fields: { POSTHOG_API_KEY: KEY } });
     const listed = await discoverSites(env, 'posthog', { fetchImpl: posthog().fetchImpl, nowMs: NOW });
     expect(listed).toMatchObject({ ok: true, provider: 'posthog', kind: 'account' });
-    expect(listed.ok && listed.sites.map((site) => [site.ref, site.host, site.funnels?.length ?? 0])).toEqual([['us:596607', 'meals.example', 2], ['us:12', null, 0]]);
+    expect(listed.ok && listed.sites.map((site) => [site.ref, site.host, site.funnels?.length ?? 0])).toEqual([['us:424242', 'meadow.example', 2], ['us:12', null, 0]]);
   });
 
   it('archives a mapped site with the account key, recorded as that key', async () => {
@@ -190,10 +190,10 @@ describe('connected with the account key', () => {
     await putCredential(env, { provider: 'posthog', fields: { POSTHOG_API_KEY: KEY } });
     const { fetchImpl, calls } = posthog();
     const run = await runPosthogDumps(env, {
-      nowMs: NOW, fetchImpl, scope: { asset: 'meals.example' },
-      laneRegister: { assets: { 'meals.example': { posthog: { status: 'needs-setup', host: 'us', projectId: '596607', funnels: [] } } } },
+      nowMs: NOW, fetchImpl, scope: { asset: 'meadow.example' },
+      laneRegister: { assets: { 'meadow.example': { posthog: { status: 'needs-setup', host: 'us', projectId: '424242', funnels: [] } } } },
     });
-    expect(run.skipped.filter((skip) => skip.asset === 'meals.example')).toEqual([
+    expect(run.skipped.filter((skip) => skip.asset === 'meadow.example')).toEqual([
       expect.objectContaining({ family: 'funnels', reason: 'no-funnels' }),
     ]);
     expect(run.succeeded).toBe(5);
@@ -204,7 +204,7 @@ describe('connected with the account key', () => {
   it('collects now through the product analytics job for the confirmed site', async () => {
     await seedPosthogMapping();
     await putCredential(env, { provider: 'posthog', fields: { POSTHOG_API_KEY: KEY } });
-    const result = await runCollectNow(env, { provider: 'posthog', assets: ['meals.example'] }, { fetchImpl: posthog().fetchImpl, nowMs: NOW });
-    expect(result).toMatchObject({ ok: true, provider: 'posthog', job: 'posthog', sites: [{ asset: 'meals.example', outcome: 'collected', code: null }] });
+    const result = await runCollectNow(env, { provider: 'posthog', assets: ['meadow.example'] }, { fetchImpl: posthog().fetchImpl, nowMs: NOW });
+    expect(result).toMatchObject({ ok: true, provider: 'posthog', job: 'posthog', sites: [{ asset: 'meadow.example', outcome: 'collected', code: null }] });
   });
 });

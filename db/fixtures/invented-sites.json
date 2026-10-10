@@ -7,32 +7,32 @@
   },
   "sites": [
     {
-      "id": "meals.example", "domain": "meals.example", "displayName": "Meal Planner",
+      "id": "meadow.example", "domain": "meadow.example", "displayName": "Meadow Board",
       "status": "onboarding", "senseOnly": 0, "isOs": 0,
       "createdAt": "2026-07-05T00:00:00.000Z", "updatedAt": "2026-07-05T00:00:00.000Z"
     },
     {
-      "id": "nosh.example", "domain": "nosh.example", "displayName": "Nosh",
+      "id": "northwind.example", "domain": "northwind.example", "displayName": "Northwind",
       "status": "onboarding", "senseOnly": 0, "isOs": 0,
       "createdAt": "2026-07-05T00:00:00.000Z", "updatedAt": "2026-07-05T00:00:00.000Z"
     },
     {
-      "id": "pacer.example", "domain": "pacer.example", "displayName": "Pacer Test",
+      "id": "pebble.example", "domain": "pebble.example", "displayName": "Pebble Works",
       "status": "onboarding", "senseOnly": 1, "isOs": 0,
       "createdAt": "2026-07-05T00:00:00.000Z", "updatedAt": "2026-07-05T00:00:00.000Z"
     },
     {
-      "id": "areas.example", "domain": "areas.example", "displayName": "Area Lookup",
+      "id": "acorn.example", "domain": "acorn.example", "displayName": "Acorn Atlas",
       "status": "onboarding", "senseOnly": 1, "isOs": 0,
       "createdAt": "2026-07-05T00:00:00.000Z", "updatedAt": "2026-07-05T00:00:00.000Z"
     },
     {
-      "id": "fees.example", "domain": "fees.example", "displayName": "Fee Codes",
+      "id": "ferns.example", "domain": "ferns.example", "displayName": "Fern Index",
       "status": "pre-launch", "senseOnly": 1, "isOs": 0,
       "createdAt": "2026-07-05T00:00:00.000Z", "updatedAt": "2026-07-05T00:00:00.000Z"
     },
     {
-      "id": "pullups.example", "domain": "pullups.example", "displayName": "Pull-up Standards",
+      "id": "puffin.example", "domain": "puffin.example", "displayName": "Puffin Post",
       "status": "onboarding", "senseOnly": 1, "isOs": 0,
       "createdAt": "2026-08-02T00:00:00.000Z", "updatedAt": "2026-08-02T00:00:00.000Z"
     }

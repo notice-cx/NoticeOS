@@ -33,14 +33,14 @@ function annotationRequest(body: unknown, opts: { token?: string; raw?: string }
 
 describe('POST /api/annotations — auth', () => {
   it('rejects a request without the operator token (401)', async () => {
-    const res = await call(annotationRequest({ asset: 'meals.example', kind: 'deploy' }));
+    const res = await call(annotationRequest({ asset: 'meadow.example', kind: 'deploy' }));
     expect(res.status).toBe(401);
     expect(await pgCount(`SELECT COUNT(*) AS n FROM noticeos.annotations`)).toBe(0);
   });
 
   it('rejects a wrong operator token (401)', async () => {
     const res = await call(
-      annotationRequest({ asset: 'meals.example', kind: 'deploy' }, { token: 'nope' }),
+      annotationRequest({ asset: 'meadow.example', kind: 'deploy' }, { token: 'nope' }),
     );
     expect(res.status).toBe(401);
   });
@@ -51,7 +51,7 @@ describe('POST /api/annotations — writes', () => {
     const res = await call(
       annotationRequest(
         {
-          asset: 'meals.example',
+          asset: 'meadow.example',
           kind: 'deploy',
           at: '2026-07-12T18:04:00.000Z',
           ref: 'a1b2c3d',
@@ -64,7 +64,7 @@ describe('POST /api/annotations — writes', () => {
     const body = (await res.json()) as AnnotationBody;
     expect(body).toMatchObject({ created: true, duplicate: false });
     expect(body.annotation).toMatchObject({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       at: '2026-07-12T18:04:00.000Z',
       kind: 'deploy',
       ref: 'a1b2c3d',
@@ -77,7 +77,7 @@ describe('POST /api/annotations — writes', () => {
   it('defaults `at` to now when it is omitted', async () => {
     const before = Date.now();
     const res = await call(
-      annotationRequest({ asset: 'nosh.example', kind: 'config' }, { token: OPERATOR_TOKEN }),
+      annotationRequest({ asset: 'northwind.example', kind: 'config' }, { token: OPERATOR_TOKEN }),
     );
     expect(res.status).toBe(201);
     const body = (await res.json()) as AnnotationBody;
@@ -93,7 +93,7 @@ describe('POST /api/annotations — writes', () => {
   it('accepts a backdated `at`', async () => {
     const res = await call(
       annotationRequest(
-        { asset: 'meals.example', kind: 'deploy', at: '2026-07-02T09:00:00.000Z' },
+        { asset: 'meadow.example', kind: 'deploy', at: '2026-07-02T09:00:00.000Z' },
         { token: OPERATOR_TOKEN },
       ),
     );
@@ -110,7 +110,7 @@ describe('POST /api/annotations — validation', () => {
   });
 
   it('rejects a non-object body (400)', async () => {
-    const res = await call(annotationRequest([{ asset: 'meals.example' }], { token: OPERATOR_TOKEN }));
+    const res = await call(annotationRequest([{ asset: 'meadow.example' }], { token: OPERATOR_TOKEN }));
     expect(res.status).toBe(400);
   });
 
@@ -125,7 +125,7 @@ describe('POST /api/annotations — validation', () => {
 
   it('rejects a kind outside the schema CHECK set (422)', async () => {
     const res = await call(
-      annotationRequest({ asset: 'meals.example', kind: 'refactor' }, { token: OPERATOR_TOKEN }),
+      annotationRequest({ asset: 'meadow.example', kind: 'refactor' }, { token: OPERATOR_TOKEN }),
     );
     expect(res.status).toBe(422);
     const body = (await res.json()) as { error: string; issues: { path: string; code: string }[] };
@@ -137,7 +137,7 @@ describe('POST /api/annotations — validation', () => {
   it('rejects a future `at` (422)', async () => {
     const at = new Date(Date.now() + 86_400_000).toISOString();
     const res = await call(
-      annotationRequest({ asset: 'meals.example', kind: 'deploy', at }, { token: OPERATOR_TOKEN }),
+      annotationRequest({ asset: 'meadow.example', kind: 'deploy', at }, { token: OPERATOR_TOKEN }),
     );
     expect(res.status).toBe(422);
     const body = (await res.json()) as { issues: { path: string; message: string }[] };
@@ -149,7 +149,7 @@ describe('POST /api/annotations — validation', () => {
   it('rejects a note past the length cap (422)', async () => {
     const res = await call(
       annotationRequest(
-        { asset: 'meals.example', kind: 'deploy', note: 'x'.repeat(1001) },
+        { asset: 'meadow.example', kind: 'deploy', note: 'x'.repeat(1001) },
         { token: OPERATOR_TOKEN },
       ),
     );
@@ -173,7 +173,7 @@ describe('POST /api/annotations — validation', () => {
 
 describe('POST /api/annotations — idempotence', () => {
   const row = {
-    asset: 'meals.example',
+    asset: 'meadow.example',
     kind: 'deploy',
     at: '2026-07-12T18:04:00.000Z',
     ref: 'a1b2c3d',
@@ -207,7 +207,7 @@ describe('POST /api/annotations — idempotence', () => {
   });
 
   it('collapses two ref-less events at the same instant, but keeps distinct refs apart', async () => {
-    const refless = { asset: 'nosh.example', kind: 'incident', at: '2026-07-12T18:04:00.000Z' };
+    const refless = { asset: 'northwind.example', kind: 'incident', at: '2026-07-12T18:04:00.000Z' };
     await call(annotationRequest(refless, { token: OPERATOR_TOKEN }));
     await call(annotationRequest(refless, { token: OPERATOR_TOKEN }));
     expect(await pgCount(`SELECT COUNT(*) AS n FROM noticeos.annotations`)).toBe(1);
@@ -252,7 +252,7 @@ describe('createAnnotation() RPC', () => {
 
   it('writes the row a caller with the binding asks for (created)', async () => {
     const result = await ingest.createAnnotation({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       kind: 'deploy',
       at: '2026-07-12T18:04:00.000Z',
       ref: 'a1b2c3d',
@@ -263,7 +263,7 @@ describe('createAnnotation() RPC', () => {
     if (!result.ok) throw new Error('expected a written annotation');
     expect(result.created).toBe(true);
     expect(result.annotation).toMatchObject({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       at: '2026-07-12T18:04:00.000Z',
       kind: 'deploy',
       ref: 'a1b2c3d',
@@ -275,7 +275,7 @@ describe('createAnnotation() RPC', () => {
 
   it('defaults `at` to now and leaves an omitted ref null', async () => {
     const before = Date.now();
-    const result = await ingest.createAnnotation({ asset: 'nosh.example', kind: 'config' });
+    const result = await ingest.createAnnotation({ asset: 'northwind.example', kind: 'config' });
     if (!result.ok) throw new Error('expected a written annotation');
     const at = Date.parse(result.annotation.at);
     expect(at).toBeGreaterThanOrEqual(before - 1000);
@@ -288,7 +288,7 @@ describe('createAnnotation() RPC', () => {
     // untrusted as an HTTP body and is validated the same way — the cast is
     // how a caller with a bad `kind` reaches the method at all.
     const result = await ingest.createAnnotation({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       kind: 'refactor',
       note: 'x'.repeat(1001),
     } as unknown as CreateAnnotationInput);
@@ -302,7 +302,7 @@ describe('createAnnotation() RPC', () => {
 
   it('rejects a future `at` and an unknown asset without writing', async () => {
     const future = await ingest.createAnnotation({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       kind: 'deploy',
       at: new Date(Date.now() + 86_400_000).toISOString(),
     });
@@ -317,7 +317,7 @@ describe('createAnnotation() RPC', () => {
 
   it('returns the existing row for a re-post instead of duplicating it', async () => {
     const input = {
-      asset: 'meals.example',
+      asset: 'meadow.example',
       kind: 'deploy',
       at: '2026-07-12T18:04:00.000Z',
       ref: 'a1b2c3d',
@@ -346,7 +346,7 @@ describe('createAnnotation() RPC', () => {
   // are the same row, not two.
   it('shares its identity rule with the operator HTTP lane', async () => {
     const written = await ingest.createAnnotation({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       kind: 'incident',
       at: '2026-07-20T08:00:00.000Z',
     });
@@ -354,7 +354,7 @@ describe('createAnnotation() RPC', () => {
 
     const res = await call(
       annotationRequest(
-        { asset: 'meals.example', kind: 'incident', at: '2026-07-20T08:00:00.000Z' },
+        { asset: 'meadow.example', kind: 'incident', at: '2026-07-20T08:00:00.000Z' },
         { token: OPERATOR_TOKEN },
       ),
     );

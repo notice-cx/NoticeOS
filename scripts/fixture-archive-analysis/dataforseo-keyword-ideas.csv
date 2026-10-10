@@ -1,3 +1,3 @@
 asset,report_date,collected_at,data_state,provider_truncated,competition_level,cpc,keyword,keyword_difficulty,main_intent,provider_cost_usd,row_grain,search_volume
-meals.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,false,LOW,0.9,meal plan for two,12,commercial,0.03,keyword-idea,880
-meals.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,false,,,cheap meal plan,,,0.03,keyword-idea,1300
+meadow.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,false,LOW,0.9,meal plan for two,12,commercial,0.03,keyword-idea,880
+meadow.example,2026-09-14,2026-09-15T12:45:00.000Z,provider-snapshot,false,,,cheap meal plan,,,0.03,keyword-idea,1300

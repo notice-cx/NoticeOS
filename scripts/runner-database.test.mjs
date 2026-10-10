@@ -27,7 +27,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { codeMigrationVersions, LOCAL_CONNECTION_VARIABLE } from './database-address.mjs';
 import { doorIsHeld } from './ingest-door.mjs';
 import { statePaths } from './os-runtime.mjs';
-import { CONFIG, EXIT_NO_DATABASE, towerChild } from './os-up.mjs';
+import { towerChild } from './os-up.mjs';
+import { CONFIG } from './runner/config.mjs';
+import { EXIT_NO_DATABASE } from './runner/lifecycle.mjs';
 import { doorOwnershipDecision, listListenerOwners } from './runner/door-ownership.mjs';
 import { postgresRequired, startTestCluster, unavailableReason } from './postgres-test-cluster.mjs';
 import { MANAGED_PORTS } from './start.mjs';
@@ -172,10 +174,10 @@ async function freePair() {
 const REHEARSAL = `
 import { mkdirSync } from 'node:fs';
 import { syncDevVarsIfPresent } from ${JSON.stringify(moduleUrl('dev-secrets.mjs'))};
-import { CONFIG, EXIT_NO_DATABASE, killChild, startChild, towerChild } from ${JSON.stringify(moduleUrl('os-up.mjs'))};
-import { HOME_ROOT, LOGS_DIR, SECRET_FILES } from ${JSON.stringify(moduleUrl('runner/config.mjs'))};
+import { killChild, startChild, towerChild } from ${JSON.stringify(moduleUrl('os-up.mjs'))};
+import { CONFIG, HOME_ROOT, LOGS_DIR, SECRET_FILES } from ${JSON.stringify(moduleUrl('runner/config.mjs'))};
 import { runnerDatabase } from ${JSON.stringify(moduleUrl('runner/database.mjs'))};
-import { beginShutdown, runtimeCopyRefusal } from ${JSON.stringify(moduleUrl('runner/lifecycle.mjs'))};
+import { EXIT_NO_DATABASE, beginShutdown, runtimeCopyRefusal } from ${JSON.stringify(moduleUrl('runner/lifecycle.mjs'))};
 import { closeLog, log, openLog } from ${JSON.stringify(moduleUrl('runner/log.mjs'))};
 mkdirSync(LOGS_DIR, { recursive: true });
 await openLog();

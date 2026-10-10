@@ -11,6 +11,7 @@ import { persistCollectionAttempt, type CollectionMonitoring } from './collectio
 // part of the series: rotating the credential does not change what is measured.
 
 import type { Ga4PropertyQuota } from '@noticeos/contract';
+import { shiftUtcDay, utcDayStartMs } from './shared.js';
 
 export type SignalIntegration = 'ga4' | 'gsc' | 'bing-webmaster';
 
@@ -65,6 +66,65 @@ export class SignalError extends Error {
   ) {
     super(message);
   }
+}
+
+export interface ResponseJsonOptions {
+  /** The code for a body that is not JSON. */
+  invalidJsonCode?: string;
+  /** A refusal (non-2xx) whose body is not JSON reads as `{}`, so its status
+   * is still the thing reported. */
+  refusalMayBeText?: boolean;
+}
+
+/** A provider's JSON answer, read no further than `maxBytes`: a declared or
+ * streamed body past the bound is cancelled and refused. An empty body is `{}`. */
+export async function boundedResponseJson(
+  response: Response,
+  provider: string,
+  maxBytes: number,
+  options: ResponseJsonOptions = {},
+): Promise<unknown> {
+  const declaredLength = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    await response.body?.cancel();
+    throw new SignalError('response_too_large', `${provider} response exceeded ${maxBytes} bytes.`);
+  }
+  if (!response.body) return {};
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let text = '';
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      bytes += chunk.value.byteLength;
+      if (bytes > maxBytes) {
+        await reader.cancel();
+        throw new SignalError('response_too_large', `${provider} response exceeded ${maxBytes} bytes.`);
+      }
+      text += decoder.decode(chunk.value, { stream: true });
+    }
+    text += decoder.decode();
+  } finally {
+    reader.releaseLock();
+  }
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    if (options.refusalMayBeText && !response.ok) return {};
+    throw new SignalError(options.invalidJsonCode ?? 'response_invalid_json', `${provider} returned invalid JSON.`);
+  }
+}
+
+/** A report date moved by whole days; a date that is not one is a config error. */
+export function reportDateOffset(date: string, days: number): string {
+  if (!Number.isFinite(utcDayStartMs(date))) {
+    throw new SignalError('config_invalid', `Invalid report date "${date}".`);
+  }
+  return shiftUtcDay(date, days);
 }
 
 /** The run and its changed values go to this call's store; its monitoring

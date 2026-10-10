@@ -10,6 +10,7 @@
 // instead (`@noticeos/contract/<module>`, the `./*` entry in package.json);
 // apps/tower/test/client-contract-imports.test.ts fails if it stops doing so.
 export * from './schema.js';
+export * from './validation-issue.js';
 export * from './rules.js';
 export * from './rule-backtest.js';
 export * from './poisson.js';

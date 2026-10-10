@@ -3,8 +3,7 @@
 //
 // This is the runner's own constants block, not the config store: a setting an
 // operator saves lives in the store (scripts/config-documents.mts). Every
-// runner module reads these, and scripts/os-up.mjs re-exports `CONFIG`,
-// `runnerPaths` and `osCheckoutName` so their importers keep working.
+// runner module reads these.
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

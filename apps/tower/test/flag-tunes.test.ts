@@ -24,7 +24,7 @@ async function insertFlag(
   spec: { ruleId: string; firedAt: string; asset?: string },
 ): Promise<number> {
   return storeAlert(store, {
-    asset: spec.asset ?? "nosh.example",
+    asset: spec.asset ?? "northwind.example",
     firedAt: spec.firedAt,
     severity: "warn",
     kind: "anomaly",
@@ -52,7 +52,7 @@ let store: WorkspaceStore;
 
 beforeEach(async () => {
   test = await createTestStore();
-  await addSites(test, [{ id: "nosh.example", displayName: "Nosh", status: "live", senseOnly: 0 }]);
+  await addSites(test, [{ id: "northwind.example", displayName: "Northwind", status: "live", senseOnly: 0 }]);
   store = test.call;
 });
 

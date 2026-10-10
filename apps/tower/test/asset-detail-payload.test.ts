@@ -48,12 +48,12 @@ const INTEGRATIONS = {
     { id: "affiliate-cj", label: "Affiliate — CJ", docRef: "docs/11-integrations.md#the-catalog", credential: "shared" as const },
   ],
   assets: {
-    "meals.example": {
+    "meadow.example": {
       gsc: { status: "needs-setup" as const, note: "central collector not built", since: "2026-07-06" },
       "ad-network": { status: "needs-setup" as const, note: "ingestion not built", since: "2026-07-06" },
       "affiliate-cj": { status: "needs-setup" as const, note: "manual CSV interim", since: "2026-07-06" },
     },
-    "fees.example": {
+    "ferns.example": {
       gsc: { status: "not-applicable" as const, note: "pre-launch", since: "2026-07-06" },
       "ad-network": { status: "not-applicable" as const, note: "pre-launch", since: "2026-07-06" },
       "affiliate-cj": { status: "not-applicable" as const, note: "pre-launch", since: "2026-07-06" },
@@ -64,15 +64,15 @@ const INTEGRATIONS = {
 // its metric→counter map, and an envelope entry with no `metrics` key at all.
 const PULL_CONFIG: PullConfigEntry[] = [
   {
-    asset: "meals.example",
-    url: "https://meals.example/api/internal/metrics",
+    asset: "meadow.example",
+    url: "https://meadow.example/api/internal/metrics",
     enabled: true,
     format: "prometheus",
     metrics: { signups: { counter: "profiles" }, plansSaved: { counter: "saved" } },
   },
   {
-    asset: "nosh.example",
-    url: "https://nosh.example/api/admin/overview",
+    asset: "northwind.example",
+    url: "https://northwind.example/api/admin/overview",
     enabled: true,
     format: "envelope",
   },
@@ -80,19 +80,19 @@ const PULL_CONFIG: PullConfigEntry[] = [
 
 // A minority of assets buy a tracked panel. Membership picks the marker's
 // words only; it does not gate the marker.
-const SERP_PANEL = { assets: { "meals.example": { queries: ["meals"] } } };
+const SERP_PANEL = { assets: { "meadow.example": { queries: ["meadow"] } } };
 
 // config/signal-panels.json: every asset has a row, including the ones that
 // are off. The payload reads it for what a Delete would have to remove.
 const SIGNAL_PANELS = {
   assets: {
-    "meals.example": {
+    "meadow.example": {
       enabled: true,
       reason: "live-lanes",
       note: "GSC + GA4 live.",
       since: "2026-08-03",
     },
-    "nosh.example": {
+    "northwind.example": {
       enabled: false,
       reason: "no-lane-yet",
       note: "Enable when a search lane goes live.",
@@ -105,26 +105,26 @@ const SIGNAL_PANELS = {
 // payload reads it for what a Delete would have to remove.
 const COUNTERS = {
   assets: {
-    "meals.example": {
+    "meadow.example": {
       cards: [{ metric: "signups", counter: "profiles", label: "Accounts" }],
     },
   },
 };
 
-// The GA4 lane's two declarations. meals.example declares value events and
-// nothing else; nosh.example has registered dimensions and declares no value
+// The GA4 lane's two declarations. meadow.example declares value events and
+// nothing else; northwind.example has registered dimensions and declares no value
 // event; every other asset is absent from both, which the payload has to keep
 // distinct from an empty list.
 const VALUE_EVENTS = {
   assets: {
-    "meals.example": { valueEvents: ["calculation_complete", "sign_up"] },
-    "nosh.example": { valueEvents: [] },
+    "meadow.example": { valueEvents: ["calculation_complete", "sign_up"] },
+    "northwind.example": { valueEvents: [] },
   },
 };
 
 const GA4_EVENT_PARAMS = {
   assets: {
-    "nosh.example": { eventParams: ["message", "source"] },
+    "northwind.example": { eventParams: ["message", "source"] },
   },
 };
 
@@ -339,7 +339,7 @@ const PRODUCT_USE = {
 function executiveSnapshot() {
   return {
     schemaVersion: 1,
-    asset: "meals.example",
+    asset: "meadow.example",
     generatedAt: "2026-07-05T11:30:00.000Z",
     windowStart: "2026-07-01",
     windowEnd: "2026-07-04",
@@ -392,7 +392,7 @@ async function insertSnapshot(
   };
   await writeInsightSnapshots(raw.call, [{
     id,
-    asset: "meals.example",
+    asset: "meadow.example",
     generated_at: snapshot.generatedAt,
     window_start: windowColumns ? windowColumns.start : snapshot.windowStart,
     window_end: windowColumns ? windowColumns.end : snapshot.windowEnd,
@@ -402,29 +402,29 @@ async function insertSnapshot(
   }]);
 }
 
-/** meals' ledger: id1 estimate superseded by id2 reconciled; + affiliate rev +
+/** meadow' ledger: id1 estimate superseded by id2 reconciled; + affiliate rev +
  * cost. Written by the tests that read it. */
 async function seedLedger(ctx: TestStore) {
-  await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-06", family: "ads", amount: 560, booking_state: "estimated", source: "raptive-report", recorded_at: "2026-06-30T00:00:00.000Z" });
-  await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meals.example", period: "2026-06", family: "ads", amount: 498.1, booking_state: "reconciled", source: "raptive-report", supersedes_id: 1, recorded_at: "2026-07-03T00:00:00.000Z" });
-  await insertLedger(ctx, { id: 3, kind: "revenue", asset: "meals.example", period: "2026-06", family: "affiliate", amount: 168.2, booking_state: "estimated", source: "cj-export", recorded_at: "2026-06-30T00:00:00.000Z" });
-  await insertLedger(ctx, { id: 4, kind: "cost", asset: "meals.example", period: "2026-06", family: "inference", amount: 22.1, booking_state: "estimated", ref: "chg-0421", recorded_at: "2026-06-30T00:00:00.000Z" });
+  await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meadow.example", period: "2026-06", family: "ads", amount: 560, booking_state: "estimated", source: "raptive-report", recorded_at: "2026-06-30T00:00:00.000Z" });
+  await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meadow.example", period: "2026-06", family: "ads", amount: 498.1, booking_state: "reconciled", source: "raptive-report", supersedes_id: 1, recorded_at: "2026-07-03T00:00:00.000Z" });
+  await insertLedger(ctx, { id: 3, kind: "revenue", asset: "meadow.example", period: "2026-06", family: "affiliate", amount: 168.2, booking_state: "estimated", source: "cj-export", recorded_at: "2026-06-30T00:00:00.000Z" });
+  await insertLedger(ctx, { id: 4, kind: "cost", asset: "meadow.example", period: "2026-06", family: "inference", amount: 22.1, booking_state: "estimated", ref: "chg-0421", recorded_at: "2026-06-30T00:00:00.000Z" });
 }
 
 async function seed(raw: TestStore) {
   // The OS row with a stored name no payload shows.
   await insertAsset(raw, "root-os", "ReindexOS", "live", 0, 1, null);
-  await insertAsset(raw, "meals.example", "Meal Planner", "onboarding", 0, 0);
-  await insertAsset(raw, "nosh.example", "Nosh", "onboarding", 0, 0);
-  await insertAsset(raw, "fees.example", "Fee Codes", "pre-launch", 1, 0);
+  await insertAsset(raw, "meadow.example", "Meadow Board", "onboarding", 0, 0);
+  await insertAsset(raw, "northwind.example", "Northwind", "onboarding", 0, 0);
+  await insertAsset(raw, "ferns.example", "Fern Index", "pre-launch", 1, 0);
 
 }
 
-/** `seed`'s changes for meals, written by the tests that read them. */
+/** `seed`'s changes for meadow, written by the tests that read them. */
 async function seedChanges(ctx: TestStore): Promise<void> {
   await storeChanges(ctx.call, [
-    { asset: "meals.example", at: "2026-07-04T18:30:00.000Z", kind: "deploy", ref: "a1b2c3d", note: "ship CJ product cards" },
-    { asset: "meals.example", at: "2026-06-05T00:00:00.000Z", kind: "external", ref: "google-core-update", note: "core update" },
+    { asset: "meadow.example", at: "2026-07-04T18:30:00.000Z", kind: "deploy", ref: "a1b2c3d", note: "ship CJ product cards" },
+    { asset: "meadow.example", at: "2026-06-05T00:00:00.000Z", kind: "external", ref: "google-core-update", note: "core update" },
   ]);
 }
 
@@ -432,26 +432,26 @@ async function seedChanges(ctx: TestStore): Promise<void> {
 async function seedReportsAndAlerts(ctx: TestStore) {
   const store = ctx.call;
   await storeReports(store, [
-    // meals: two days of pulses (pull mode), signups + plansSaved.
-    report("meals.example", "2026-07-04", new Date(NOW_MS - 34 * HOUR).toISOString(), {
+    // meadow: two days of pulses (pull mode), signups + plansSaved.
+    report("meadow.example", "2026-07-04", new Date(NOW_MS - 34 * HOUR).toISOString(), {
       signups: { last24h: 12, avg7d: 9.4, total: 4223 },
       plansSaved: { last24h: 9, avg7d: 6.6, total: 1907 },
     }),
-    report("meals.example", "2026-07-05", new Date(NOW_MS - 10 * HOUR).toISOString(), {
+    report("meadow.example", "2026-07-05", new Date(NOW_MS - 10 * HOUR).toISOString(), {
       signups: { last24h: 10, avg7d: 10, total: 4233 },
       plansSaved: { last24h: 0, avg7d: 6, total: 1907 },
     }),
 
     // nom: one stale pulse (envelope pull) + an open ingest-freshness error.
-    report("nosh.example", "2026-07-02", new Date(NOW_MS - 3 * DAY).toISOString(), {
+    report("northwind.example", "2026-07-02", new Date(NOW_MS - 3 * DAY).toISOString(), {
       items: { last24h: 47, avg7d: 42, total: 12954 },
     }),
   ]);
   await storeAlerts(store, [
-    // meals flags: open warn + open milestone(info) + open pull-failure(warn),
+    // meadow flags: open warn + open milestone(info) + open pull-failure(warn),
     // plus a dispositioned (ack) and a resolved one (history).
     alertRow({
-      asset: "meals.example",
+      asset: "meadow.example",
       fired_at: "2026-07-05T02:06:00.000Z",
       severity: "warn",
       kind: "anomaly",
@@ -467,7 +467,7 @@ async function seedReportsAndAlerts(ctx: TestStore) {
       },
     }),
     alertRow({
-      asset: "meals.example",
+      asset: "meadow.example",
       fired_at: "2026-07-01T02:06:00.000Z",
       severity: "info",
       kind: "milestone",
@@ -476,7 +476,7 @@ async function seedReportsAndAlerts(ctx: TestStore) {
       rule_id: "asset-declared",
     }),
     alertRow({
-      asset: "meals.example",
+      asset: "meadow.example",
       fired_at: "2026-07-05T02:30:00.000Z",
       severity: "warn",
       kind: "anomaly",
@@ -484,7 +484,7 @@ async function seedReportsAndAlerts(ctx: TestStore) {
       rule_id: "asset-pull-failed",
       rule_inputs: {
         rule: "asset-pull-failed",
-        url: "https://meals.example/api/os/report",
+        url: "https://meadow.example/api/os/report",
         status: 503,
         error: "503 upstream_unavailable — try again later",
         providerError: "upstream_unavailable",
@@ -493,7 +493,7 @@ async function seedReportsAndAlerts(ctx: TestStore) {
       },
     }),
     alertRow({
-      asset: "meals.example",
+      asset: "meadow.example",
       fired_at: "2026-06-28T02:06:00.000Z",
       severity: "warn",
       kind: "anomaly",
@@ -505,7 +505,7 @@ async function seedReportsAndAlerts(ctx: TestStore) {
       ack_expiry: "2026-07-12T00:00:00.000Z",
     }),
     alertRow({
-      asset: "meals.example",
+      asset: "meadow.example",
       fired_at: "2026-06-20T02:06:00.000Z",
       severity: "error",
       kind: "anomaly",
@@ -517,7 +517,7 @@ async function seedReportsAndAlerts(ctx: TestStore) {
 
     // nom: open ingest-freshness error (push asset went silent).
     alertRow({
-      asset: "nosh.example",
+      asset: "northwind.example",
       fired_at: "2026-07-05T04:00:00.000Z",
       severity: "error",
       kind: "anomaly",
@@ -668,10 +668,10 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it("resolves PULL mode from config/pull.json, with url + metric mapping", async () => {
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.wiring.mode).toBe("pull");
     expect(p.wiring.push).toBeNull();
-    expect(p.wiring.pull?.url).toBe("https://meals.example/api/internal/metrics");
+    expect(p.wiring.pull?.url).toBe("https://meadow.example/api/internal/metrics");
     expect(p.wiring.pull?.enabled).toBe(true);
     expect(p.wiring.pull?.metricMap).toContainEqual({ metric: "signups", counter: "profiles" });
     expect(p.wiring.pull?.auth).toBe("Site token");
@@ -687,15 +687,15 @@ describe("buildAssetDetailPayload", () => {
     // Once the operator moves the pull job in Settings → Data collection, the
     // asset page says the new time too.
     const saved = { pull: { enabled: true, cron: "15 9 * * *", timezone: "America/Los_Angeles" } };
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", { ...DEPS, schedules: saved }))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", { ...DEPS, schedules: saved }))!;
     expect(p.wiring.schedule).toEqual({ job: "pull", ...saved.pull });
     const paused = { pull: { enabled: false, cron: "30 2 * * *" } };
-    const q = (await buildAssetDetailPayload(ctx.call, "meals.example", { ...DEPS, schedules: paused }))!;
+    const q = (await buildAssetDetailPayload(ctx.call, "meadow.example", { ...DEPS, schedules: paused }))!;
     expect(q.wiring.schedule).toMatchObject({ job: "pull", enabled: false });
   });
 
   it("resolves PUSH mode for assets absent from pull.json, auth named as the site's token", async () => {
-    const p = (await buildAssetDetailPayload(ctx.call, "fees.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "ferns.example", DEPS))!;
     expect(p.wiring.mode).toBe("push");
     expect(p.wiring.pull).toBeNull();
     expect(p.wiring.push?.endpoint).toBe("POST /api/pulse");
@@ -707,10 +707,10 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it("ENVELOPE-format pull entry has no metric map (config carries no `metrics`)", async () => {
-    const p = (await buildAssetDetailPayload(ctx.call, "nosh.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "northwind.example", DEPS))!;
     expect(p.wiring.mode).toBe("pull");
     expect(p.wiring.pull?.format).toBe("envelope");
-    expect(p.wiring.pull?.url).toBe("https://nosh.example/api/admin/overview");
+    expect(p.wiring.pull?.url).toBe("https://northwind.example/api/admin/overview");
     // null, not [] — the page drops the mapping block rather than rendering an
     // empty one, and reading the absent `metrics` key must not throw (→ 500).
     expect(p.wiring.pull?.metricMap).toBeNull();
@@ -719,8 +719,8 @@ describe("buildAssetDetailPayload", () => {
 
   // The Settings tab's Card totals shows this entry and guards its removal on it.
   it("carries the site's card totals entry as config/counters.json holds it", async () => {
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
-    expect(p.countersConfig).toEqual(COUNTERS.assets["meals.example"]);
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
+    expect(p.countersConfig).toEqual(COUNTERS.assets["meadow.example"]);
   });
 
   it("says a site declares no totals rather than guessing an entry", async () => {
@@ -732,22 +732,22 @@ describe("buildAssetDetailPayload", () => {
     const os = (await buildAssetDetailPayload(ctx.call, "root-os", DEPS))!;
     expect(os.asset).toMatchObject({ isOs: true, displayName: "NoticeOS" });
     expect(JSON.stringify(os)).not.toContain("ReindexOS");
-    const site = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
-    expect(site.asset.displayName).toBe("Meal Planner");
+    const site = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
+    expect(site.asset.displayName).toBe("Meadow Board");
   });
 
   // Three states stay three states: a declared list, an entry that declares
   // nothing, and no entry at all, which decides whether the Tower's first Add
   // appends or files.
   it("carries the GA4 declarations this asset has made", async () => {
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.ga4Config.valueEvents).toEqual(["calculation_complete", "sign_up"]);
     // Declaring value events says nothing about registered dimensions.
     expect(p.ga4Config.eventParams).toBeNull();
   });
 
   it("keeps an empty declaration apart from no declaration at all", async () => {
-    const nom = (await buildAssetDetailPayload(ctx.call, "nosh.example", DEPS))!;
+    const nom = (await buildAssetDetailPayload(ctx.call, "northwind.example", DEPS))!;
     expect(nom.ga4Config.valueEvents).toEqual([]);
     expect(nom.ga4Config.eventParams).toEqual(["message", "source"]);
 
@@ -757,24 +757,24 @@ describe("buildAssetDetailPayload", () => {
 
   it("carries only the selected asset's validated Product use presentation", async () => {
     const stages = [{ eventName: "document_open", label: "Opened a document", group: "primary" }];
-    const valueEvents = { assets: { "meals.example": { valueEvents: ["purchase"], productUseStages: stages }, "nosh.example": { productUseStages: [] } } };
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", { ...DEPS, valueEvents }))!;
+    const valueEvents = { assets: { "meadow.example": { valueEvents: ["purchase"], productUseStages: stages }, "northwind.example": { productUseStages: [] } } };
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", { ...DEPS, valueEvents }))!;
     expect(p.ga4Config.productUseStages).toEqual(stages);
     expect(p.ga4Config.valueEventsEntryExists).toBe(true);
     expect(p.ga4Config.valueEvents).toEqual(["purchase"]);
-    const other = (await buildAssetDetailPayload(ctx.call, "nosh.example", { ...DEPS, valueEvents }))!;
+    const other = (await buildAssetDetailPayload(ctx.call, "northwind.example", { ...DEPS, valueEvents }))!;
     expect(other.ga4Config.productUseStages).toEqual([]);
     expect(other.ga4Config.valueEventsEntryExists).toBe(true);
-    const invalid = (await buildAssetDetailPayload(ctx.call, "meals.example", { ...DEPS, valueEvents: { assets: {"meals.example": {productUseStages:[{...stages[0],group:"conversion"}]}}} }))!;
+    const invalid = (await buildAssetDetailPayload(ctx.call, "meadow.example", { ...DEPS, valueEvents: { assets: {"meadow.example": {productUseStages:[{...stages[0],group:"conversion"}]}}} }))!;
     expect(invalid.ga4Config.productUseStages).toBeNull();
   });
 
   it("reads a malformed list as no declaration rather than repairing it", async () => {
     // These files are hand-maintained claims about GA4. A surface that quietly
     // normalized one would hide the drift the register test exists to catch.
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", {
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", {
       ...DEPS,
-      valueEvents: { assets: { "meals.example": { valueEvents: "sign_up" } } },
+      valueEvents: { assets: { "meadow.example": { valueEvents: "sign_up" } } },
     }))!;
     expect(p.ga4Config.valueEvents).toBeNull();
   });
@@ -783,24 +783,24 @@ describe("buildAssetDetailPayload", () => {
   // consequence: on `config/serp-panel.json` an entry holding `[]` is a config
   // error, so `null` is also what the last removal leaves.
   it("carries this asset's tracked terms and its refresh roster row", async () => {
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.panelConfig).toEqual({
-      trackedQueries: ["meals"],
-      roster: SIGNAL_PANELS.assets["meals.example"],
+      trackedQueries: ["meadow"],
+      roster: SIGNAL_PANELS.assets["meadow.example"],
     });
   });
 
   it("keeps an asset that buys no panel apart from one whose panel lists nothing", async () => {
-    // nosh.example is on the refresh roster and in no tracked panel: `null`,
+    // northwind.example is on the refresh roster and in no tracked panel: `null`,
     // not `[]`, since absence from that file is the common, valid state and
     // decides whether the Tower's first Add appends or files the entry.
-    const nom = (await buildAssetDetailPayload(ctx.call, "nosh.example", DEPS))!;
+    const nom = (await buildAssetDetailPayload(ctx.call, "northwind.example", DEPS))!;
     expect(nom.panelConfig.trackedQueries).toBeNull();
-    expect(nom.panelConfig.roster).toEqual(SIGNAL_PANELS.assets["nosh.example"]);
+    expect(nom.panelConfig.roster).toEqual(SIGNAL_PANELS.assets["northwind.example"]);
 
-    const empty = (await buildAssetDetailPayload(ctx.call, "nosh.example", {
+    const empty = (await buildAssetDetailPayload(ctx.call, "northwind.example", {
       ...DEPS,
-      serpPanel: { assets: { "nosh.example": { queries: [] } } },
+      serpPanel: { assets: { "northwind.example": { queries: [] } } },
     }))!;
     expect(empty.panelConfig.trackedQueries).toEqual([]);
   });
@@ -813,17 +813,17 @@ describe("buildAssetDetailPayload", () => {
   it("surfaces open ingest-freshness / pull-failure flags on the wiring panel", async () => {
 
     await seedReportsAndAlerts(ctx);
-    const meals = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
-    expect(meals.wiring.pullFailure?.ruleId).toBe("asset-pull-failed");
-    expect(meals.wiring.ingestFreshness).toBeNull();
+    const meadow = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
+    expect(meadow.wiring.pullFailure?.ruleId).toBe("asset-pull-failed");
+    expect(meadow.wiring.ingestFreshness).toBeNull();
 
-    const nom = (await buildAssetDetailPayload(ctx.call, "nosh.example", DEPS))!;
+    const nom = (await buildAssetDetailPayload(ctx.call, "northwind.example", DEPS))!;
     expect(nom.wiring.ingestFreshness?.ruleId).toBe("ingest-freshness");
     expect(nom.wiring.pullFailure).toBeNull();
   });
 
   it("exposes flag_defaults as portfolio-default knobs owned by config/constants.json", async () => {
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.rules.scope).toBe("portfolio-default");
     expect(p.rules.hasOverride).toBe(false);
     expect(p.rules.knobs).toHaveLength(3);
@@ -838,7 +838,7 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it("surfaces editable portfolio-wide spend caps + operator rate (config/constants.json)", async () => {
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.portfolio.owner).toBe("config/constants.json");
     const keys = p.portfolio.knobs.map((k) => k.key);
     expect(keys).toContain("monthly_caps.data_usd");
@@ -856,7 +856,7 @@ describe("buildAssetDetailPayload", () => {
   it("builds latest pulse metrics + per-metric series (chronological)", async () => {
 
     await seedReportsAndAlerts(ctx);
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     const signups = p.metrics.find((m) => m.name === "signups")!;
     expect(signups.last24h).toBe(10); // from the latest (07-05) pulse
     expect(signups.avg7d).toBe(10);
@@ -873,7 +873,7 @@ describe("buildAssetDetailPayload", () => {
     await seedReportsAndAlerts(ctx);
     // The totals view is on the asset cards; the data stays here because that
     // resolution falls back to this number when the fast lane has no reading.
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.metrics.find((m) => m.name === "plansSaved")!.total).toBe(1907);
   });
 
@@ -883,12 +883,12 @@ describe("buildAssetDetailPayload", () => {
     await insertSnapshot(ctx, "newer-generation", newer, undefined, "2026-07-05T11:01:00.000Z");
     await insertSnapshot(ctx, "late-older-generation", older, undefined, "2026-07-05T11:02:00.000Z");
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.executive?.generatedAt).toBe(newer.generatedAt);
     const history = await (ctx.call).read((tx) =>
       tx.query<{ payload: string }>(
         "SELECT payload FROM noticeos.asset_insight_snapshots WHERE asset_id = $1 ORDER BY generated_at",
-        ["meals.example"],
+        ["meadow.example"],
       ),
     );
     expect(history.map((row) => JSON.parse(row.payload))).toEqual([older, newer]);
@@ -897,19 +897,19 @@ describe("buildAssetDetailPayload", () => {
   it("reuses the provider trends and reads the latest compact executive snapshot", async () => {
     const store = ctx.call;
     await writeSignalRun(store, {
-      id: "ga4-run", asset: "meals.example", integration: "ga4", credentialRef: "google-primary", propertyRef: "assets/1",
+      id: "ga4-run", asset: "meadow.example", integration: "ga4", credentialRef: "google-primary", propertyRef: "assets/1",
       startedAt: "2026-07-05T11:00:00.000Z", finishedAt: "2026-07-05T11:01:00.000Z",
       windowStart: "2026-06-28", windowEnd: "2026-07-05", provisionalFrom: "2026-07-05", providerRows: 8, observationCount: 2,
     }, valuesOf("active_users", { "2026-07-04": 80, "2026-07-05": 97 }));
     await writeSignalRun(store, {
-      id: "gsc-run", asset: "meals.example", integration: "gsc", credentialRef: "google-primary", propertyRef: "sc-domain:meals.example",
+      id: "gsc-run", asset: "meadow.example", integration: "gsc", credentialRef: "google-primary", propertyRef: "sc-domain:meadow.example",
       startedAt: "2026-07-05T11:02:00.000Z", finishedAt: "2026-07-05T11:03:00.000Z",
       windowStart: "2026-06-28", windowEnd: "2026-07-05", provisionalFrom: "2026-07-05", providerRows: 8, observationCount: 2,
     }, valuesOf("impressions", { "2026-07-04": 800, "2026-07-05": 920 }));
 
     await insertSnapshot(ctx, "snapshot-1", executiveSnapshot());
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.performance.activeUsers.series).toEqual([
       { t: "2026-07-04", v: 80 },
       { t: "2026-07-05", v: 97 },
@@ -937,11 +937,11 @@ describe("buildAssetDetailPayload", () => {
     const store = ctx.call;
     const secondary = (id: string, integration: "ga4" | "gsc", propertyRef: string, startedAt: string, finishedAt: string) =>
       writeSignalRun(store, {
-        id, asset: "meals.example", integration, credentialRef: "google-primary", propertyRef, startedAt, finishedAt,
+        id, asset: "meadow.example", integration, credentialRef: "google-primary", propertyRef, startedAt, finishedAt,
         windowStart: "2026-07-04", windowEnd: "2026-07-05", provisionalFrom: "2026-07-05", providerRows: 4, observationCount: 4,
       });
     await secondary("ga4-secondary", "ga4", "assets/1", "2026-07-05T11:00:00.000Z", "2026-07-05T11:01:00.000Z");
-    await secondary("gsc-secondary", "gsc", "sc-domain:meals.example", "2026-07-05T11:02:00.000Z", "2026-07-05T11:03:00.000Z");
+    await secondary("gsc-secondary", "gsc", "sc-domain:meadow.example", "2026-07-05T11:02:00.000Z", "2026-07-05T11:03:00.000Z");
     for (const [date, sessions, views, events] of [
       ["2026-07-04", 120, 380, 900],
       ["2026-07-05", 64, 205, 470],
@@ -962,7 +962,7 @@ describe("buildAssetDetailPayload", () => {
       ]);
     }
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.performance.sessions.series).toEqual([
       { t: "2026-07-04", v: 120 },
       { t: "2026-07-05", v: 64 },
@@ -996,7 +996,7 @@ describe("buildAssetDetailPayload", () => {
         google: { ...GOOGLE_TREND, movers: "not-an-array" },
         dataforseo: DATAFORSEO_SNAPSHOT } });
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.executive?.searchQueries?.google).toBeNull();
     expect(p.executive?.searchQueries?.bing).toBeNull();
     expect(p.executive?.searchQueries?.dataforseo?.queries[0]?.query).toBe(
@@ -1016,7 +1016,7 @@ describe("buildAssetDetailPayload", () => {
         daysPerWindow: 7,
         pages: [
           {
-            page: "https://meals.example/calculator",
+            page: "https://meadow.example/calculator",
             path: "/calculator",
             currentClicks: 21,
             previousClicks: 84,
@@ -1044,7 +1044,7 @@ describe("buildAssetDetailPayload", () => {
           // One garbled row costs exactly itself: a page decision is an
           // independent row, unlike the panel's all-or-nothing query list.
           {
-            page: "https://meals.example/broken",
+            page: "https://meadow.example/broken",
             path: "/broken",
             currentClicks: "twenty",
             previousClicks: 1,
@@ -1074,7 +1074,7 @@ describe("buildAssetDetailPayload", () => {
       },
     });
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     const pages = p.executive?.searchPages;
     expect(pages?.pages.map((row) => row.path)).toEqual(["/calculator"]);
     expect(pages?.pages[0]?.clickDeltaPercent).toBe(-75);
@@ -1090,14 +1090,14 @@ describe("buildAssetDetailPayload", () => {
     // both render nothing rather than an empty comparison, and neither may
     // take the page down.
     await insertSnapshot(ctx, "snapshot-no-pages", executiveSnapshot());
-    const legacy = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const legacy = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(legacy.executive?.searchPages).toBeNull();
 
     await insertSnapshot(ctx, "snapshot-bad-pages", {
       ...executiveSnapshot(),
       searchPages: { provider: "google", pages: "not-an-array" },
     });
-    const malformed = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const malformed = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(malformed.executive?.searchPages).toBeNull();
     // The rest of the snapshot is untouched by its neighbour's corruption.
     expect(malformed.executive?.items[0]?.key).toBe("opportunity");
@@ -1112,7 +1112,7 @@ describe("buildAssetDetailPayload", () => {
       searchQueries: { google: null, bing: null, dataforseo: DATAFORSEO_SNAPSHOT },
     });
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     const row = p.executive?.searchQueries?.dataforseo?.queries[0];
     expect(row?.query).toBe("weekly meal plan");
     expect(row?.aioDevices).toEqual([]);
@@ -1138,7 +1138,7 @@ describe("buildAssetDetailPayload", () => {
         },
       },
     });
-    const kept = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const kept = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(kept.executive?.searchQueries?.dataforseo?.queries[0]?.aioDevices).toEqual([
       { device: "desktop", aioPresent: true, aioCitesUs: false },
     ]);
@@ -1164,7 +1164,7 @@ describe("buildAssetDetailPayload", () => {
         },
       },
     });
-    const kept = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const kept = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     // Walled on the phone, clear on the desktop — two states, not one folded
     // verdict, and neither reading is allowed to stand for the other.
     expect(kept.executive?.searchQueries?.dataforseo?.queries[0]?.aioDevices).toEqual([
@@ -1189,7 +1189,7 @@ describe("buildAssetDetailPayload", () => {
         },
       },
     });
-    const dropped = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const dropped = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(dropped.executive?.searchQueries).toBeNull();
   });
 
@@ -1201,7 +1201,7 @@ describe("buildAssetDetailPayload", () => {
       searchQueries: { google: GOOGLE_TREND, bing: null, dataforseo: null },
     });
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.executive?.searchQueries?.google?.evidence).toEqual([]);
   });
 
@@ -1226,7 +1226,7 @@ describe("buildAssetDetailPayload", () => {
       },
     });
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.executive?.searchQueries?.google?.evidence).toEqual([
       {
         label: "Grounding queries excluded",
@@ -1245,7 +1245,7 @@ describe("buildAssetDetailPayload", () => {
         bing: null,
         dataforseo: DATAFORSEO_SNAPSHOT } });
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.executive?.searchQueries?.google).toBeNull();
     expect(p.executive?.searchQueries?.dataforseo?.queries[0]?.query).toBe(
       "weekly meal plan",
@@ -1258,7 +1258,7 @@ describe("buildAssetDetailPayload", () => {
       searchQueries: { google: null, bing: null, dataforseo: { observedAt: 7 } },
     });
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.executive).not.toBeNull();
     expect(p.executive?.searchQueries).toBeNull();
   });
@@ -1274,7 +1274,7 @@ describe("buildAssetDetailPayload", () => {
       methodology: ["Missing rows remain unknown.", 42],
     });
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.executive?.items).toHaveLength(1);
     expect(p.executive?.items[0]?.title).toBe("Review a near-ranking query");
     // Same rule for the methodology lines: drop the row, keep the analysis.
@@ -1286,7 +1286,7 @@ describe("buildAssetDetailPayload", () => {
   it("normalizes the suppressed list an older snapshot never carried", async () => {
     await insertSnapshot(ctx, "snapshot-no-suppressed", executiveSnapshot());
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.executive?.items).toHaveLength(1);
     expect(p.executive?.suppressedItems).toEqual([]);
   });
@@ -1301,7 +1301,7 @@ describe("buildAssetDetailPayload", () => {
       ],
     });
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.executive?.suppressedItems).toEqual([
       { key: "llm-grounding-traffic", kind: "discovery", title: "Machine grounding" },
     ]);
@@ -1310,10 +1310,10 @@ describe("buildAssetDetailPayload", () => {
   it("still rejects a snapshot whose top-level shape does not match this asset", async () => {
     await insertSnapshot(ctx, "snapshot-other-asset", {
       ...executiveSnapshot(),
-      asset: "nosh.example",
+      asset: "northwind.example",
     });
     expect(
-      (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!.executive,
+      (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!.executive,
     ).toBeNull();
   });
 
@@ -1328,7 +1328,7 @@ describe("buildAssetDetailPayload", () => {
       },
     });
     expect(
-      (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!.executive
+      (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!.executive
         ?.searchIntelligence,
     ).toBeNull();
   });
@@ -1341,7 +1341,7 @@ describe("buildAssetDetailPayload", () => {
       searchIntelligence: { ...SEARCH_INTELLIGENCE, backlinks: undefined },
     });
 
-    const intelligence = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!
+    const intelligence = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!
       .executive?.searchIntelligence;
     expect(intelligence?.backlinks).toBeNull();
     expect(intelligence?.rankings.keywords).toBe(184);
@@ -1358,7 +1358,7 @@ describe("buildAssetDetailPayload", () => {
         ai: { googleMentions: null, googleSearchVolume: null, chatgptMentions: 0, chatgptSearchVolume: 0 },
       },
     });
-    const intelligence = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!
+    const intelligence = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!
       .executive?.searchIntelligence;
     expect(intelligence?.rankings.keywords).toBe(184);
     expect(intelligence?.ai).toEqual({
@@ -1378,7 +1378,7 @@ describe("buildAssetDetailPayload", () => {
       },
     });
     expect(
-      (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!.executive
+      (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!.executive
         ?.searchIntelligence,
     ).toBeNull();
   });
@@ -1396,7 +1396,7 @@ describe("buildAssetDetailPayload", () => {
       },
     });
 
-    const executive = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!
+    const executive = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!
       .executive;
     expect(executive).not.toBeNull();
     expect(executive).not.toHaveProperty("operatorEmail");
@@ -1417,7 +1417,7 @@ describe("buildAssetDetailPayload", () => {
       { start: null, end: null },
     );
 
-    const executive = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!
+    const executive = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!
       .executive;
     expect(executive).not.toBeNull();
     expect(executive?.windowStart).toBeNull();
@@ -1429,10 +1429,10 @@ describe("buildAssetDetailPayload", () => {
     // A late estimate corrected by a backfilled reconciliation: the superseded
     // row is the newest recorded_at in the table but is no longer this
     // asset's ledger, so it cannot claim the lane is fresher than it is.
-    await insertLedger(ctx, { id: 10, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 120, booking_state: "estimated", recorded_at: "2026-07-04T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 11, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 96, booking_state: "reconciled", supersedes_id: 10, recorded_at: "2026-07-03T12:00:00.000Z" });
+    await insertLedger(ctx, { id: 10, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 120, booking_state: "estimated", recorded_at: "2026-07-04T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 11, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 96, booking_state: "reconciled", supersedes_id: 10, recorded_at: "2026-07-03T12:00:00.000Z" });
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.freshness.ledgerRecordedAt).toBe("2026-07-03T12:00:00.000Z");
   });
 
@@ -1440,7 +1440,7 @@ describe("buildAssetDetailPayload", () => {
     const start = Date.parse("2026-04-02T00:00:00.000Z");
     const store = ctx.call;
     await writeSignalRun(store, {
-      id: "ga4-95-day-run", asset: "meals.example", integration: "ga4", credentialRef: "google-primary", propertyRef: "assets/1",
+      id: "ga4-95-day-run", asset: "meadow.example", integration: "ga4", credentialRef: "google-primary", propertyRef: "assets/1",
       startedAt: "2026-07-05T11:00:00.000Z", finishedAt: "2026-07-05T11:01:00.000Z",
       windowStart: "2026-04-02", windowEnd: "2026-07-05", provisionalFrom: "2026-07-05", providerRows: 95, observationCount: 95,
     }, Array.from({ length: 95 }, (_, index) => ({
@@ -1448,7 +1448,7 @@ describe("buildAssetDetailPayload", () => {
     })));
 
     const detail = (await buildAssetDetailPayload(ctx.call,
-      "meals.example",
+      "meadow.example",
       DEPS,
     ))!;
     expect(detail.performance.activeUsers.series).toHaveLength(90);
@@ -1469,7 +1469,7 @@ describe("buildAssetDetailPayload", () => {
     ]);
 
     // `series` is what the card charts, and it did not move when the payload grew.
-    const compact = (await loadSignalTrends(store)).get("meals.example")!;
+    const compact = (await loadSignalTrends(store)).get("meadow.example")!;
     expect(compact.activeUsers.series).toHaveLength(28);
     expect(compact.activeUsers.series[0]).toEqual({
       t: "2026-06-08",
@@ -1489,7 +1489,7 @@ describe("buildAssetDetailPayload", () => {
   it("splits open flags from dispositioned/resolved history; open ordered by severity", async () => {
 
     await seedReportsAndAlerts(ctx);
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     // The central firing has no linked valid report and the pull failure has
     // no evaluatedAt: neither proves confirmation or recovery.
     expect(p.flags.open).toHaveLength(2);
@@ -1520,7 +1520,7 @@ describe("buildAssetDetailPayload", () => {
   it("every flag carries its parsed rule_inputs — the translator's raw material", async () => {
 
     await seedReportsAndAlerts(ctx);
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
 
     const plans = [...p.flags.open, ...p.flags.notCurrent].find(
       (f) => f.metric === "plansSaved",
@@ -1539,7 +1539,7 @@ describe("buildAssetDetailPayload", () => {
 
     await seedReportsAndAlerts(ctx);
     await seedChanges(ctx);
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
 
     // The plansSaved alert fired 2026-07-05T02:06Z; the deploy landed 7h before.
     const plans = [...p.flags.open, ...p.flags.notCurrent].find(
@@ -1559,10 +1559,10 @@ describe("buildAssetDetailPayload", () => {
 
   it("ledger slice excludes superseded rows and splits the period's rollup by booking state", async () => {
     await seedLedger(ctx);
-    // Mixed: meals's June is one reconciled row and two estimated ones. A net
+    // Mixed: meadow's June is one reconciled row and two estimated ones. A net
     // summed over both states (644.20) would be a booked-P&L claim over
     // $146.10 nobody has confirmed.
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.ledger.empty).toBe(false);
     expect(p.ledger.recentRows.some((r) => r.amount === 560)).toBe(false);
     expect(p.ledger.recentRows.some((r) => r.amount === 498.1)).toBe(true);
@@ -1590,10 +1590,10 @@ describe("buildAssetDetailPayload", () => {
   it("a period with nothing reconciled books nothing, and says so in its own field", async () => {
     // Forecast only. `booked` is three zeroes rather than a null, so the tile
     // has a shape to render; `figureHasMoney` turns the stated net into a dash.
-    await insertLedger(ctx, { id: 40, kind: "revenue", asset: "meals.example", period: "2026-05", family: "ads", amount: 210.4, booking_state: "estimated", recorded_at: "2026-05-31T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 41, kind: "cost", asset: "meals.example", period: "2026-05", family: "infra", amount: 10.4, booking_state: "estimated", recorded_at: "2026-05-31T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 40, kind: "revenue", asset: "meadow.example", period: "2026-05", family: "ads", amount: 210.4, booking_state: "estimated", recorded_at: "2026-05-31T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 41, kind: "cost", asset: "meadow.example", period: "2026-05", family: "infra", amount: 10.4, booking_state: "estimated", recorded_at: "2026-05-31T00:00:00.000Z" });
 
-    const may = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!.ledger.periods.find(
+    const may = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!.ledger.periods.find(
       (x) => x.period === "2026-05",
     )!;
     expect(may.booked.figure).toEqual({ currency: 'USD', revenue: 0, cost: 0, net: 0 });
@@ -1606,9 +1606,9 @@ describe("buildAssetDetailPayload", () => {
 
   it("a fully reconciled period carries no forecast at all", async () => {
     // Booked only: the estimates side is empty, so the tile draws no second block.
-    await insertLedger(ctx, { id: 42, kind: "revenue", asset: "meals.example", period: "2026-05", family: "ads", amount: 300, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 42, kind: "revenue", asset: "meadow.example", period: "2026-05", family: "ads", amount: 300, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
 
-    const may = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!.ledger.periods.find(
+    const may = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!.ledger.periods.find(
       (x) => x.period === "2026-05",
     )!;
     expect(figureHasMoney(may.booked.figure)).toBe(true);
@@ -1621,11 +1621,11 @@ describe("buildAssetDetailPayload", () => {
     // Two zero cases the tile must tell apart: reconciled revenue that exactly
     // cancels reconciled cost is a confirmed $0 and renders; rows worth
     // nothing at all are three zeroes nobody asked about and render the dash.
-    await insertLedger(ctx, { id: 43, kind: "revenue", asset: "meals.example", period: "2026-05", family: "ads", amount: 88.5, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 44, kind: "cost", asset: "meals.example", period: "2026-05", family: "infra", amount: 88.5, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
-    await insertLedger(ctx, { id: 45, kind: "revenue", asset: "meals.example", period: "2026-04", family: "ads", amount: 0, booking_state: "reconciled", recorded_at: "2026-04-30T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 43, kind: "revenue", asset: "meadow.example", period: "2026-05", family: "ads", amount: 88.5, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 44, kind: "cost", asset: "meadow.example", period: "2026-05", family: "infra", amount: 88.5, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
+    await insertLedger(ctx, { id: 45, kind: "revenue", asset: "meadow.example", period: "2026-04", family: "ads", amount: 0, booking_state: "reconciled", recorded_at: "2026-04-30T00:00:00.000Z" });
 
-    const periods = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!.ledger.periods;
+    const periods = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!.ledger.periods;
     const may = periods.find((x) => x.period === "2026-05")!;
     expect(may.booked.figure).toEqual({ currency: 'USD', revenue: 88.5, cost: 88.5, net: 0 });
     expect(figureHasMoney(may.booked.figure)).toBe(true);
@@ -1650,10 +1650,10 @@ describe("buildAssetDetailPayload", () => {
       [35, "cost", "inference", 421.3],
     ] as const;
     for (const [id, kind, family, amount] of rows) {
-      await insertLedger(ctx, { id, kind, asset: "meals.example", period: "2026-08", family, amount, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
+      await insertLedger(ctx, { id, kind, asset: "meadow.example", period: "2026-08", family, amount, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
     }
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", {
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", {
       ...DEPS,
       now: new Date("2026-08-05T12:00:00.000Z"),
     }))!;
@@ -1675,7 +1675,7 @@ describe("buildAssetDetailPayload", () => {
 
   it("returns the annotation timeline, most recent first", async () => {
     await seedChanges(ctx);
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.annotations.items.map((a) => a.kind)).toEqual(["deploy", "external"]);
     expect(p.annotations.olderCount).toBe(0);
   });
@@ -1686,17 +1686,17 @@ describe("buildAssetDetailPayload", () => {
     await seedChanges(ctx);
     const anchor = await insertAnnotation(
       ctx,
-      "meals.example",
+      "meadow.example",
       "2026-06-01T03:02:58.000Z",
       "deploy",
       "23bceb0",
       "title surgery, first batch",
     );
-    await insertDailyDeploys(ctx, "meals.example", 18, "2026-06-10T00:00:00.000Z");
+    await insertDailyDeploys(ctx, "meadow.example", 18, "2026-06-10T00:00:00.000Z");
     for (const metric of ["clicks", "impressions"]) {
       await insertWatchWindow(ctx, {
         id: `watch-titles-${metric}`,
-        asset: "meals.example",
+        asset: "meadow.example",
         metric_integration: "gsc",
         metric,
         registered_at: "2026-06-02T09:00:00.000Z",
@@ -1707,7 +1707,7 @@ describe("buildAssetDetailPayload", () => {
       });
     }
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.annotations.items).toHaveLength(21);
     expect(p.annotations.olderCount).toBe(0);
     const oldest = p.annotations.items.at(-1)!;
@@ -1720,9 +1720,9 @@ describe("buildAssetDetailPayload", () => {
     // 250 daily deploys is past what one page renders. The read stops and
     // names the size of the stop.
     await seedChanges(ctx);
-    await insertDailyDeploys(ctx, "meals.example", 250, "2025-06-01T00:00:00.000Z");
+    await insertDailyDeploys(ctx, "meadow.example", 250, "2025-06-01T00:00:00.000Z");
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.annotations.items).toHaveLength(200);
     expect(p.annotations.olderCount).toBe(52); // 250 + the 2 seeded rows
     const times = p.annotations.items.map((a) => a.at);
@@ -1732,13 +1732,13 @@ describe("buildAssetDetailPayload", () => {
 
   it("reaches past the cap for a change a watch window is anchored to", async () => {
     await seedChanges(ctx);
-    const ids = await insertDailyDeploys(ctx, "meals.example", 250, "2025-06-01T00:00:00.000Z");
+    const ids = await insertDailyDeploys(ctx, "meadow.example", 250, "2025-06-01T00:00:00.000Z");
     // The 210th-newest change: past the cap, so a plain read would drop the
     // one row this window exists to explain.
     const anchor = ids[250 - 210];
     await insertWatchWindow(ctx, {
       id: "watch-anchored",
-      asset: "meals.example",
+      asset: "meadow.example",
       metric_integration: "gsc",
       metric: "clicks",
       registered_at: "2026-06-20T09:00:00.000Z",
@@ -1751,7 +1751,7 @@ describe("buildAssetDetailPayload", () => {
     // read down to the oldest row in the store.
     await insertWatchWindow(ctx, {
       id: "watch-manual",
-      asset: "meals.example",
+      asset: "meadow.example",
       metric_integration: "ga4",
       metric: "sessions",
       registered_at: "2026-06-20T09:00:00.000Z",
@@ -1760,7 +1760,7 @@ describe("buildAssetDetailPayload", () => {
       ref: String(ids[0]),
     });
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.annotations.items).toHaveLength(212);
     expect(p.annotations.olderCount).toBe(40);
     expect(p.annotations.items.at(-1)!.id).toBe(anchor);
@@ -1769,7 +1769,7 @@ describe("buildAssetDetailPayload", () => {
   it("reads open watch windows: what is measured, when it is next due, how much is read", async () => {
     await insertWatchWindow(ctx, {
       id: "watch-open",
-      asset: "meals.example",
+      asset: "meadow.example",
       metric_integration: "gsc",
       metric: "clicks",
       registered_at: "2026-06-20T09:00:00.000Z",
@@ -1779,7 +1779,7 @@ describe("buildAssetDetailPayload", () => {
     });
     await insertWatchWindow(ctx, {
       id: "watch-other",
-      asset: "nosh.example",
+      asset: "northwind.example",
       metric_integration: "ga4",
       metric: "sessions",
       registered_at: "2026-06-20T09:00:00.000Z",
@@ -1787,7 +1787,7 @@ describe("buildAssetDetailPayload", () => {
       readings: [],
     });
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.watches.open).toHaveLength(1);
     expect(p.watches.open[0]).toMatchObject({
       id: "watch-open",
@@ -1808,15 +1808,15 @@ describe("buildAssetDetailPayload", () => {
     const store = ctx.call;
     const run = (id: string, startedAt: string, finishedAt: string, count: number, values: Record<string, number>) =>
       writeSignalRun(store, {
-        id, asset: "meals.example", integration: "gsc", credentialRef: "google-primary", propertyRef: "sc-domain:meals.example",
+        id, asset: "meadow.example", integration: "gsc", credentialRef: "google-primary", propertyRef: "sc-domain:meadow.example",
         startedAt, finishedAt, windowStart: "2026-06-01", windowEnd: "2026-07-04", providerRows: count, observationCount: count,
       }, valuesOf("clicks", values));
     await run("gsc-cal", "2026-07-05T11:00:00.000Z", "2026-07-05T11:01:00.000Z", 3, { "2026-07-02": 100, "2026-07-04": 120 });
     // A revision for the same day: the evaluator takes the latest run's value.
     await run("gsc-cal-2", "2026-07-05T11:30:00.000Z", "2026-07-05T11:31:00.000Z", 1, { "2026-07-04": 140 });
-    await insertAnnotation(ctx, "meals.example", "2026-07-03T18:00:00.000Z", "deploy", "calibration-fixture", "level-changing deploy");
+    await insertAnnotation(ctx, "meadow.example", "2026-07-03T18:00:00.000Z", "deploy", "calibration-fixture", "level-changing deploy");
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     const clicks = p.watches.history.find(
       (entry) => entry.integration === "gsc" && entry.metric === "clicks",
     );
@@ -1852,15 +1852,15 @@ describe("buildAssetDetailPayload", () => {
     const store = ctx.call;
     const run = (id: string, propertyRef: string, startedAt: string, finishedAt: string, windowEnd: string, values: Record<string, number>) =>
       writeSignalRun(store, {
-        id, asset: "meals.example", integration: "gsc", credentialRef: "google-primary", propertyRef, startedAt, finishedAt,
+        id, asset: "meadow.example", integration: "gsc", credentialRef: "google-primary", propertyRef, startedAt, finishedAt,
         windowStart: "2026-06-01", windowEnd, providerRows: 2, observationCount: 2,
       }, valuesOf("clicks", values));
-    await run("old-site", "https://meals.example/", "2026-07-03T11:00:00.000Z", "2026-07-03T11:01:00.000Z", "2026-07-03",
+    await run("old-site", "https://meadow.example/", "2026-07-03T11:00:00.000Z", "2026-07-03T11:01:00.000Z", "2026-07-03",
       { "2026-07-01": 500, "2026-07-02": 510 });
-    await run("new-site", "sc-domain:meals.example", "2026-07-05T11:00:00.000Z", "2026-07-05T11:01:00.000Z", "2026-07-04",
+    await run("new-site", "sc-domain:meadow.example", "2026-07-05T11:00:00.000Z", "2026-07-05T11:01:00.000Z", "2026-07-04",
       { "2026-07-03": 100, "2026-07-04": 120 });
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     const clicks = p.watches.history.find(
       (entry) => entry.integration === "gsc" && entry.metric === "clicks",
     );
@@ -1878,7 +1878,7 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it.each([
-    ["mp-abc.2", "mp-abc.2"],
+    ["md-abc.2", "md-abc.2"],
     ["gt--a1", "gt--a1"],
     [null, undefined],
     ["../tasks", undefined],
@@ -1886,7 +1886,7 @@ describe("buildAssetDetailPayload", () => {
   ])("keeps a closed watch outcome and its valid recorded readback %s", async (readback, expected) => {
     await insertWatchWindow(ctx, {
       id: "watch-closed",
-      asset: "meals.example",
+      asset: "meadow.example",
       metric_integration: "ga4",
       metric: "active_users",
       registered_at: "2026-05-01T09:00:00.000Z",
@@ -1899,7 +1899,7 @@ describe("buildAssetDetailPayload", () => {
       readback_bead: readback,
     });
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.watches.open).toEqual([]);
     expect(p.watches.closed[0]?.readbackTaskId).toBe(expected);
     expect(p.watches.closed[0]).toMatchObject({
@@ -1919,7 +1919,7 @@ describe("buildAssetDetailPayload", () => {
   it("reads a closed watch's stored note as the evaluator's figures, and its scope as a field", async () => {
     await insertWatchWindow(ctx, {
       id: "watch-query",
-      asset: "meals.example",
+      asset: "meadow.example",
       metric_integration: "gsc",
       metric: "clicks",
       registered_at: "2026-05-01T09:00:00.000Z",
@@ -1933,7 +1933,7 @@ describe("buildAssetDetailPayload", () => {
     });
     await insertWatchWindow(ctx, {
       id: "watch-split",
-      asset: "meals.example",
+      asset: "meadow.example",
       metric_integration: "gsc",
       metric: "clicks",
       registered_at: "2026-05-02T09:00:00.000Z",
@@ -1946,7 +1946,7 @@ describe("buildAssetDetailPayload", () => {
       closed_at: "2026-05-30T03:30:00.000Z",
     });
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     const byId = new Map(p.watches.closed.map((watch) => [watch.id, watch]));
     expect(byId.get("watch-query")).toMatchObject({
       scope: { query: "high protein meal plan" },
@@ -1959,25 +1959,25 @@ describe("buildAssetDetailPayload", () => {
   });
 
   it("has no link-outreach section for an asset that runs no campaign", async () => {
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     // null, not an empty slice: the Tower has no way to start a campaign here.
     expect(p.reclamation).toBeNull();
   });
 
   it("counts the link-outreach funnel and lists the targets that moved most recently", async () => {
     await insertReclamationTargets(ctx.call, [
-      { asset: "meals.example", domain: "county-a.extension.example", page: "https://county-a.extension.example/food-nutrition/meals", status: "clicked", statusAt: "2026-07-14" },
-      { asset: "meals.example", domain: "county-b.extension.example", page: "https://county-b.extension.example/snap-ed", status: "clicked", statusAt: "2026-07-02" },
-      { asset: "meals.example", domain: "city.extension.example", page: "https://city.extension.example/tips", status: "replied", statusAt: "2026-07-16" },
-      { asset: "meals.example", domain: "county-c.extension.example", page: "https://county-c.extension.example/snap-ed", status: "sent", statusAt: "2026-06-16" },
-      { asset: "meals.example", domain: "health-resource.example", page: "https://health-resource.example/resource/5907", status: "won", statusAt: "2026-07-20" },
-      { asset: "meals.example", domain: "school-meals.example", page: "https://school-meals.example/resource/x", status: "queued", statusAt: null },
-      { asset: "meals.example", domain: "agency.example", page: "", status: "skip", statusAt: null },
-      { asset: "meals.example", domain: "nih.gov", page: "", status: "skip", statusAt: null },
-      { asset: "nosh.example", domain: "elsewhere.example", page: "https://elsewhere.example/a", status: "sent", statusAt: "2026-07-10" },
+      { asset: "meadow.example", domain: "county-a.extension.example", page: "https://county-a.extension.example/home-garden/guides", status: "clicked", statusAt: "2026-07-14" },
+      { asset: "meadow.example", domain: "county-b.extension.example", page: "https://county-b.extension.example/snap-ed", status: "clicked", statusAt: "2026-07-02" },
+      { asset: "meadow.example", domain: "city.extension.example", page: "https://city.extension.example/tips", status: "replied", statusAt: "2026-07-16" },
+      { asset: "meadow.example", domain: "county-c.extension.example", page: "https://county-c.extension.example/snap-ed", status: "sent", statusAt: "2026-06-16" },
+      { asset: "meadow.example", domain: "health-resource.example", page: "https://health-resource.example/resource/5907", status: "won", statusAt: "2026-07-20" },
+      { asset: "meadow.example", domain: "school-meadow.example", page: "https://school-meadow.example/resource/x", status: "queued", statusAt: null },
+      { asset: "meadow.example", domain: "agency.example", page: "", status: "skip", statusAt: null },
+      { asset: "meadow.example", domain: "institute.example", page: "", status: "skip", statusAt: null },
+      { asset: "northwind.example", domain: "elsewhere.example", page: "https://elsewhere.example/a", status: "sent", statusAt: "2026-07-10" },
     ]);
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     const reclamation = p.reclamation!;
     expect(reclamation.total).toBe(8);
     // Funnel order; a stage with no rows is absent rather than a zero.
@@ -1997,7 +1997,7 @@ describe("buildAssetDetailPayload", () => {
       "county-a.extension.example",
       "county-b.extension.example",
       "county-c.extension.example",
-      "school-meals.example",
+      "school-meadow.example",
     ]);
     expect(reclamation.recent[0]).toMatchObject({
       domain: "health-resource.example",
@@ -2012,7 +2012,7 @@ describe("buildAssetDetailPayload", () => {
     await insertReclamationTargets(
       ctx.call,
       Array.from({ length: 14 }, (_, index) => ({
-        asset: "meals.example",
+        asset: "meadow.example",
         domain: `target-${String(index).padStart(2, "0")}.example`,
         page: `https://target-${index}.example/page`,
         status: "sent",
@@ -2020,7 +2020,7 @@ describe("buildAssetDetailPayload", () => {
       })),
     );
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.reclamation!.recent).toHaveLength(10);
     expect(p.reclamation!.counts).toEqual([{ status: "sent", count: 14 }]);
     expect(p.reclamation!.total).toBe(14);
@@ -2042,23 +2042,23 @@ describe("buildAssetDetailPayload", () => {
 
   it("has no site-health section before the guard's first night", async () => {
     // null, not three empty series: the Tower cannot run a check.
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.hygiene).toBeNull();
   });
 
   it("reads back the nightly site-health history the guard has been writing", async () => {
-    await insertHygiene("meals.example", "html-depth", "2026-07-03", "ok", 880);
-    await insertHygiene("meals.example", "html-depth", "2026-07-04", "ok", 640);
-    await insertHygiene("meals.example", "html-depth", "2026-07-05", "warn", 88);
-    await insertHygiene("meals.example", "sitemap", "2026-07-04", "ok", 4120);
-    await insertHygiene("meals.example", "sitemap", "2026-07-05", "ok", 4118);
-    await insertHygiene("meals.example", "robots-ai-access", "2026-07-05", "warn", null, {
+    await insertHygiene("meadow.example", "html-depth", "2026-07-03", "ok", 880);
+    await insertHygiene("meadow.example", "html-depth", "2026-07-04", "ok", 640);
+    await insertHygiene("meadow.example", "html-depth", "2026-07-05", "warn", 88);
+    await insertHygiene("meadow.example", "sitemap", "2026-07-04", "ok", 4120);
+    await insertHygiene("meadow.example", "sitemap", "2026-07-05", "ok", 4118);
+    await insertHygiene("meadow.example", "robots-ai-access", "2026-07-05", "warn", null, {
       present: true,
       bots: { GPTBot: true, ClaudeBot: false, Bingbot: true },
     });
-    await insertHygiene("nosh.example", "html-depth", "2026-07-05", "ok", 2000);
+    await insertHygiene("northwind.example", "html-depth", "2026-07-05", "ok", 2000);
 
-    const hygiene = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!
+    const hygiene = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!
       .hygiene!;
     expect(hygiene.htmlDepth.readings).toEqual([
       {
@@ -2104,16 +2104,16 @@ describe("buildAssetDetailPayload", () => {
   it("keeps the crawler map it still knows after a night it could not look", async () => {
     // An unreachable origin stores no bot map, so the newest reading that has
     // a map is the answer.
-    await insertHygiene("meals.example", "robots-ai-access", "2026-07-03", "ok", null, {
+    await insertHygiene("meadow.example", "robots-ai-access", "2026-07-03", "ok", null, {
       present: true,
       bots: { GPTBot: true, ClaudeBot: true },
     });
-    await insertHygiene("meals.example", "robots-ai-access", "2026-07-05", "unreachable", null, {
+    await insertHygiene("meadow.example", "robots-ai-access", "2026-07-05", "unreachable", null, {
       present: false,
       bots: {},
     });
 
-    const hygiene = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!
+    const hygiene = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!
       .hygiene!;
     expect(hygiene.robots.latest?.status).toBe("unreachable");
     expect(hygiene.bots).toEqual([
@@ -2124,11 +2124,11 @@ describe("buildAssetDetailPayload", () => {
 
   it("drops readings older than the window and never plots a missing number as zero", async () => {
     const old = new Date(NOW_MS - 120 * DAY).toISOString().slice(0, 10);
-    await insertHygiene("meals.example", "html-depth", old, "ok", 5000);
-    await insertHygiene("meals.example", "html-depth", "2026-07-04", "unreachable", null);
-    await insertHygiene("meals.example", "html-depth", "2026-07-05", "ok", 900);
+    await insertHygiene("meadow.example", "html-depth", old, "ok", 5000);
+    await insertHygiene("meadow.example", "html-depth", "2026-07-04", "unreachable", null);
+    await insertHygiene("meadow.example", "html-depth", "2026-07-05", "ok", 900);
 
-    const depth = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!
+    const depth = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!
       .hygiene!.htmlDepth;
     expect(depth.readings.map((r) => r.date)).toEqual(["2026-07-04", "2026-07-05"]);
     // A night the fetch failed measured nothing: null, never zero.
@@ -2152,11 +2152,11 @@ describe("buildAssetDetailPayload", () => {
   }
 
   it("carries this asset's decisions and no other asset's", async () => {
-    await insertDisposition("meals.example", "search-opportunity", "marked", "2026-07-04T08:00:00.000Z", "2026-07-04T08:00:00.000Z");
-    await insertDisposition("meals.example", "gsc-decline-1", "dismissed", "2026-07-01T08:00:00.000Z", "2026-07-05T08:00:00.000Z");
-    await insertDisposition("nosh.example", "gsc-decline-1", "marked", "2026-07-04T08:00:00.000Z", "2026-07-04T08:00:00.000Z");
+    await insertDisposition("meadow.example", "search-opportunity", "marked", "2026-07-04T08:00:00.000Z", "2026-07-04T08:00:00.000Z");
+    await insertDisposition("meadow.example", "gsc-decline-1", "dismissed", "2026-07-01T08:00:00.000Z", "2026-07-05T08:00:00.000Z");
+    await insertDisposition("northwind.example", "gsc-decline-1", "marked", "2026-07-04T08:00:00.000Z", "2026-07-04T08:00:00.000Z");
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.decisions).toEqual([
       {
         kind: "finding",
@@ -2179,10 +2179,10 @@ describe("buildAssetDetailPayload", () => {
   it("cannot be handed a legacy handed_off row any more", async () => {
     // The store's CHECK refuses the value.
     await expect(
-      insertDisposition("meals.example", "weekly meal plan", "handed_off", "2026-07-04T08:00:00.000Z", "2026-07-04T08:00:00.000Z"),
+      insertDisposition("meadow.example", "weekly meal plan", "handed_off", "2026-07-04T08:00:00.000Z", "2026-07-04T08:00:00.000Z"),
     ).rejects.toThrow(/check constraint/);
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.decisions).toEqual([]);
   });
 
@@ -2192,8 +2192,8 @@ describe("buildAssetDetailPayload", () => {
   describe("handoff tasks", () => {
     function beadsProject(overrides: Record<string, unknown> = {}) {
       return {
-        asset: "meals.example",
-        prefix: "mp",
+        asset: "meadow.example",
+        prefix: "md",
         ok: true,
         error: null,
         counts: { open: 1, ready: 1, inProgress: 0, blocked: 0, closedRecent: 0 },
@@ -2208,64 +2208,64 @@ describe("buildAssetDetailPayload", () => {
       await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [
         beadsProject({
           handoffs: [
-            { kind: "finding", key: "gsc-decline-1", beadId: "mp-1w2", status: "open", closedAt: null },
+            { kind: "finding", key: "gsc-decline-1", beadId: "md-1w2", status: "open", closedAt: null },
             {
               kind: "finding",
               key: "item-openers",
-              beadId: "mp-4kq",
+              beadId: "md-4kq",
               status: "closed",
               closedAt: "2026-07-04T18:00:00.000Z",
             },
-            { kind: "query", key: "weekly meal plan", beadId: "mp-88x", status: "open", closedAt: null },
+            { kind: "query", key: "weekly meal plan", beadId: "md-88x", status: "open", closedAt: null },
             {
               kind: "page",
-              key: "https://meals.example/recipes",
-              beadId: "mp-page",
+              key: "https://meadow.example/recipes",
+              beadId: "md-page",
               status: "open",
               closedAt: null,
             },
             // The alert kind: its key is the flag id, and the reader has no
             // per-kind allowlist beyond the union itself.
-            { kind: "alert", key: "flag-8812", beadId: "mp-alrt", status: "open", closedAt: null },
+            { kind: "alert", key: "flag-8812", beadId: "md-alrt", status: "open", closedAt: null },
           ],
         }),
         // Another asset's filed work on the same snapshot row. A finding key
         // is a rule id, so the same string exists on every asset.
         beadsProject({
-          asset: "nosh.example",
-          prefix: "nom",
+          asset: "northwind.example",
+          prefix: "nw",
           handoffs: [
-            { kind: "finding", key: "gsc-decline-1", beadId: "nom-9zz", status: "open", closedAt: null },
+            { kind: "finding", key: "gsc-decline-1", beadId: "nw-9zz", status: "open", closedAt: null },
           ],
         }),
       ]);
 
-      const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+      const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
       expect(p.handoffBeads).toEqual([
-        { kind: "finding", key: "gsc-decline-1", beadId: "mp-1w2", status: "open", closedAt: null },
+        { kind: "finding", key: "gsc-decline-1", beadId: "md-1w2", status: "open", closedAt: null },
         {
           kind: "finding",
           key: "item-openers",
-          beadId: "mp-4kq",
+          beadId: "md-4kq",
           status: "closed",
           closedAt: "2026-07-04T18:00:00.000Z",
         },
-        { kind: "query", key: "weekly meal plan", beadId: "mp-88x", status: "open", closedAt: null },
+        { kind: "query", key: "weekly meal plan", beadId: "md-88x", status: "open", closedAt: null },
         {
           kind: "page",
-          key: "https://meals.example/recipes",
-          beadId: "mp-page",
+          key: "https://meadow.example/recipes",
+          beadId: "md-page",
           status: "open",
           closedAt: null,
         },
-        { kind: "alert", key: "flag-8812", beadId: "mp-alrt", status: "open", closedAt: null },
+        { kind: "alert", key: "flag-8812", beadId: "md-alrt", status: "open", closedAt: null },
       ]);
     });
 
     it("reports an empty list when the poller asked and nothing is filed", async () => {
       await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [beadsProject({ handoffs: [] })]);
 
-      const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+      const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
       // Not null: a measurement, the only thing that lets a finding card
       // present itself as untouched work.
       expect(p.handoffBeads).toEqual([]);
@@ -2274,27 +2274,27 @@ describe("buildAssetDetailPayload", () => {
     it("degrades a snapshot written before the field existed to null, never to empty", async () => {
       await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [beadsProject()]);
 
-      const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+      const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
       expect(p.handoffBeads).toBeNull();
     });
 
     it("is null when the register cannot be asked at all", async () => {
-      let p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+      let p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
       expect(p.handoffBeads).toBeNull();
 
       // A snapshot that names other projects but not this one.
       await seedSnapshot(ctx, "2026-07-05T11:58:00.000Z", [
-        beadsProject({ asset: "nosh.example", prefix: "nom", handoffs: [],
+        beadsProject({ asset: "northwind.example", prefix: "nw", handoffs: [],
         }),
       ]);
-      p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+      p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
       expect(p.handoffBeads).toBeNull();
 
       // A project the poller could not read: "did not ask", never "none filed".
       await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [
         {
-          asset: "meals.example",
-          prefix: "mp",
+          asset: "meadow.example",
+          prefix: "md",
           ok: false,
           error: "bd active exited 1: no such directory",
           counts: { open: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0 },
@@ -2303,7 +2303,7 @@ describe("buildAssetDetailPayload", () => {
           recentlyClosed: [],
         },
       ]);
-      p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+      p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
       expect(p.handoffBeads).toBeNull();
     });
 
@@ -2311,36 +2311,36 @@ describe("buildAssetDetailPayload", () => {
       await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [
         beadsProject({
           handoffs: [
-            { kind: "finding", key: "gsc-decline-1", beadId: "mp-1w2", status: "open", closedAt: null },
-            { kind: "finding", key: "", beadId: "mp-nokey", status: "open", closedAt: null },
-            { kind: "epic", key: "item-openers", beadId: "mp-badkind", status: "open", closedAt: null },
-            { kind: "finding", key: "item-openers", beadId: "mp-badstatus", status: "in_progress", closedAt: null },
+            { kind: "finding", key: "gsc-decline-1", beadId: "md-1w2", status: "open", closedAt: null },
+            { kind: "finding", key: "", beadId: "md-nokey", status: "open", closedAt: null },
+            { kind: "epic", key: "item-openers", beadId: "md-badkind", status: "open", closedAt: null },
+            { kind: "finding", key: "item-openers", beadId: "md-badstatus", status: "in_progress", closedAt: null },
           ],
         }),
       ]);
 
-      const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
-      expect(p.handoffBeads!.map((b) => b.beadId)).toEqual(["mp-1w2"]);
+      const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
+      expect(p.handoffBeads!.map((b) => b.beadId)).toEqual(["md-1w2"]);
     });
 
     it("reads only the newest snapshot", async () => {
       await seedSnapshot(ctx, "2026-07-04T11:00:00.000Z", [
         beadsProject({
           handoffs: [
-            { kind: "finding", key: "stale", beadId: "mp-old", status: "open", closedAt: null },
+            { kind: "finding", key: "stale", beadId: "md-old", status: "open", closedAt: null },
           ],
         }),
       ]);
       await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [beadsProject({ handoffs: [] })]);
 
-      const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+      const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
       expect(p.handoffBeads).toEqual([]);
     });
 
     it("carries the corrected exact operator inbox from that same snapshot", async () => {
       const waiting = [
         {
-          id: "mp-gate",
+          id: "md-gate",
           title: "Approve the nutrition-source change",
           status: "open",
           priority: 2,
@@ -2352,7 +2352,7 @@ describe("buildAssetDetailPayload", () => {
           deferUntil: null,
         },
         {
-          id: "mp-p1",
+          id: "md-p1",
           title: "Choose the homepage experiment",
           status: "open",
           priority: 1,
@@ -2380,7 +2380,7 @@ describe("buildAssetDetailPayload", () => {
         }),
       ]);
 
-      const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+      const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
       expect(p.operator).toEqual({
         capturedAt: "2026-07-05T11:59:00.000Z",
         waiting: 6,
@@ -2393,13 +2393,13 @@ describe("buildAssetDetailPayload", () => {
       await seedSnapshot(ctx, "2026-07-05T11:59:00.000Z", [
         beadsProject({
           counts: { open: 8, ready: 5, inProgress: 1, blocked: 2, closedRecent: 3 },
-          waiting: [{ id: "mp-gate", title: "Approve the next release", status: "open", priority: 2, issueType: "gate" }],
+          waiting: [{ id: "md-gate", title: "Approve the next release", status: "open", priority: 2, issueType: "gate" }],
           handoffs: [],
         }),
       ]);
-      const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+      const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
       expect(p.operator).toMatchObject({ capturedAt: "2026-07-05T11:59:00.000Z", waiting: null, urgent: null });
-      expect(p.operator.items.map((item) => item.id)).toEqual(["mp-gate"]);
+      expect(p.operator.items.map((item) => item.id)).toEqual(["md-gate"]);
     });
 
     it("suppresses a legacy human list when corrected urgency was not measured", async () => {
@@ -2415,7 +2415,7 @@ describe("buildAssetDetailPayload", () => {
           },
           waiting: [
             {
-              id: "mp-stale",
+              id: "md-stale",
               title: "This legacy row must not become an instruction",
               status: "blocked",
               priority: 2,
@@ -2426,7 +2426,7 @@ describe("buildAssetDetailPayload", () => {
         }),
       ]);
 
-      const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+      const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
       expect(p.operator).toEqual({
         capturedAt: "2026-07-05T11:59:00.000Z",
         waiting: null,
@@ -2438,10 +2438,10 @@ describe("buildAssetDetailPayload", () => {
 
   it("carries the integrations section, merging store evidence over declared state", async () => {
     await seedLedger(ctx);
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.integrations).not.toHaveProperty("owner");
     expect(p.integrations.lanes).toHaveLength(3);
-    // meals has recent CJ + ads revenue in the fixture, so the needs-setup
+    // meadow has recent CJ + ads revenue in the fixture, so the needs-setup
     // revenue lanes carry supporting "manual lane" evidence.
     const cj = p.integrations.lanes.find((l) => l.cell.laneId === "affiliate-cj")!;
     expect(cj.cell.effective).toBe("needs-setup");
@@ -2459,7 +2459,7 @@ describe("buildAssetDetailPayload", () => {
   it("pre-launch asset renders designed empties (no pulse/ledger/flags)", async () => {
 
     await seedReportsAndAlerts(ctx);
-    const p = (await buildAssetDetailPayload(ctx.call, "fees.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "ferns.example", DEPS))!;
     expect(p.asset.status).toBe("pre-launch");
     expect(p.metrics).toEqual([]);
     expect(p.wiring.mode).toBe("push"); // absent from pull.json
@@ -2504,19 +2504,19 @@ describe("buildAssetDetailPayload — the tracked SERP panel", () => {
       {
         query: "calorie calculator",
         bestRank: 2,
-        bestUrl: "https://meals.example/calories",
+        bestUrl: "https://meadow.example/calories",
         aioPresent: true,
         aioCitesUs: true,
         composition: {
-          top3Domains: ["usda.gov", "meals.example", "healthline.com"],
+          top3Domains: ["agency.example", "meadow.example", "rival-guide.example"],
           organicResults: 18,
           secondRank: 8,
-          secondUrl: "https://meals.example/second",
+          secondUrl: "https://meadow.example/second",
           serpFeatures: ["images", "people_also_ask"],
         },
       },
       {
-        query: "chipotle calorie calculator",
+        query: "tornado kit calculator",
         bestRank: null,
         bestUrl: null,
         aioPresent: false,
@@ -2534,7 +2534,7 @@ describe("buildAssetDetailPayload — the tracked SERP panel", () => {
 
   const panelOf = async (payload: unknown) => {
     await insertSnapshot(ctx, "panel", payload);
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     return p.executive?.serpPanel ?? null;
   };
 
@@ -2568,7 +2568,7 @@ describe("buildAssetDetailPayload — the tracked SERP panel", () => {
         trackedDepth: 20,
         queries: [
           { query: "macro calculator", device: "mobile", bestRank: null, bestUrl: null, aioPresent: true, aioCitesUs: false },
-          { query: "macro calculator", device: "desktop", bestRank: 3, bestUrl: "https://meals.example/macros", aioPresent: false, aioCitesUs: false },
+          { query: "macro calculator", device: "desktop", bestRank: 3, bestUrl: "https://meadow.example/macros", aioPresent: false, aioCitesUs: false },
           { query: "restaurant nutrition lookup", device: "mobile", bestRank: null, bestUrl: null, aioPresent: null, aioCitesUs: null },
           { query: "restaurant nutrition lookup", device: "desktop", bestRank: null, bestUrl: null, aioPresent: null, aioCitesUs: null },
         ],
@@ -2678,12 +2678,12 @@ describe("buildAssetDetailPayload — the tracked SERP panel", () => {
       serpPanel: panelBlock(),
     });
 
-    const payload = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const payload = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     const current = payload.executive!.serpPanel!.queries[0]!;
     expect(current.composition!.top3Domains).toEqual([
-      "usda.gov",
-      "meals.example",
-      "healthline.com",
+      "agency.example",
+      "meadow.example",
+      "rival-guide.example",
     ]);
     // One retained collection can say who is there now and nothing about how
     // they got there.
@@ -2692,14 +2692,14 @@ describe("buildAssetDetailPayload — the tracked SERP panel", () => {
   });
 
   it("keeps current panel evidence and its review obligation without a future-feature list", async () => {
-    await insertDataForSeoCollection(ctx, "meals.example", "2026-08-03", "2026-08-03T06:00:00.000Z", { panel: true });
+    await insertDataForSeoCollection(ctx, "meadow.example", "2026-08-03", "2026-08-03T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-08-03T11:59:30.000Z", [
       workProject({ panelReview: panelReviewBead({ panelDate: "2026-08-03" }) }),
     ]);
     await insertSnapshot(ctx, "panel", { ...executiveSnapshot(), serpPanel: panelBlock(),
     });
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.panelReview).not.toBeNull();
     expect(p.executive?.serpPanel).not.toBeNull();
     expect(p).not.toHaveProperty("laterPhase");
@@ -2720,14 +2720,14 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
     (await buildAssetDetailPayload(ctx.call, asset, DEPS))!;
 
   it("carries the review task and the panel day it has to be about", async () => {
-    await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
+    await insertDataForSeoCollection(ctx, "meadow.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ panelReview: panelReviewBead() }),
     ]);
 
-    const page = await pageFor("meals.example");
+    const page = await pageFor("meadow.example");
     expect(page.panelReview).toEqual({
-      beadId: "mp-4a2",
+      beadId: "md-4a2",
       panelDate: "2026-07-01",
       dueAt: "2026-07-08T06:00:00.000Z",
       status: "open",
@@ -2741,34 +2741,34 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
   it("marks an asset with no config/serp-panel.json entry as panel-less, not as review-less", async () => {
     // The same answer the card gives (wall-payload's twin test): one key set,
     // so the row and the badge cannot use two different nouns.
-    await insertDataForSeoCollection(ctx, "nosh.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: false });
+    await insertDataForSeoCollection(ctx, "northwind.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: false });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
-      workProject({ asset: "nosh.example", prefix: "nom", panelReview: panelReviewBead({ beadId: "nom-f1c" }) }),
+      workProject({ asset: "northwind.example", prefix: "nw", panelReview: panelReviewBead({ beadId: "nw-f1c" }) }),
     ]);
 
-    const page = await pageFor("nosh.example");
+    const page = await pageFor("northwind.example");
     expect(page.panelReview?.panel).toBe(false);
-    expect(page.panelReview?.beadId).toBe("nom-f1c");
+    expect(page.panelReview?.beadId).toBe("nw-f1c");
     expect(panelReviewState(page.panelReview, page.latestPanelDate, NOW_MS)).toBe("pending");
   });
 
   it("is overdue on the page exactly when it is overdue on the card", async () => {
     // Past the deadline with the panel still untriaged: the error-toned state.
-    await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
+    await insertDataForSeoCollection(ctx, "meadow.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ panelReview: panelReviewBead({ dueAt: "2026-07-04T06:00:00.000Z" }) }),
     ]);
 
-    const page = await pageFor("meals.example");
+    const page = await pageFor("meadow.example");
     expect(panelReviewState(page.panelReview, page.latestPanelDate, NOW_MS)).toBe("overdue");
     // The page has room the card does not: the task to close, and the
     // deadline it is past.
-    expect(page.panelReview!.beadId).toBe("mp-4a2");
+    expect(page.panelReview!.beadId).toBe("md-4a2");
     expect(page.panelReview!.dueAt).toBe("2026-07-04T06:00:00.000Z");
   });
 
   it("is reviewed once the task for the newest panel day is closed", async () => {
-    await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
+    await insertDataForSeoCollection(ctx, "meadow.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({
         panelReview: panelReviewBead({
@@ -2776,15 +2776,15 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
           closedAt: "2026-07-03T09:00:00.000Z" }) }),
     ]);
 
-    const page = await pageFor("meals.example");
+    const page = await pageFor("meadow.example");
     expect(panelReviewState(page.panelReview, page.latestPanelDate, NOW_MS)).toBe("reviewed");
   });
 
   it("falls back to pending when a NEWER panel day has landed", async () => {
     // A fresh result page nobody has opened, behind a finished review about
     // last week's.
-    await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
-    await insertDataForSeoCollection(ctx, "meals.example", "2026-07-04", "2026-07-04T06:00:00.000Z", { panel: true });
+    await insertDataForSeoCollection(ctx, "meadow.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
+    await insertDataForSeoCollection(ctx, "meadow.example", "2026-07-04", "2026-07-04T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({
         panelReview: panelReviewBead({
@@ -2792,7 +2792,7 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
           closedAt: "2026-07-03T09:00:00.000Z" }) }),
     ]);
 
-    const page = await pageFor("meals.example");
+    const page = await pageFor("meadow.example");
     expect(page.latestPanelDate).toBe("2026-07-04");
     expect(panelReviewState(page.panelReview, page.latestPanelDate, NOW_MS)).toBe("pending");
   });
@@ -2800,13 +2800,13 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
   it("shows the review of an asset that buys a collection but no panel", async () => {
     // nom is absent from the panel config and still owes the read: the review
     // is about the weekly collection, not the panel family inside it.
-    await insertDataForSeoCollection(ctx, "nosh.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: false });
+    await insertDataForSeoCollection(ctx, "northwind.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: false });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
-      workProject({ asset: "nosh.example", prefix: "nom", panelReview: panelReviewBead({ beadId: "nom-f1c" }) }),
+      workProject({ asset: "northwind.example", prefix: "nw", panelReview: panelReviewBead({ beadId: "nw-f1c" }) }),
     ]);
 
-    const page = await pageFor("nosh.example");
-    expect(page.panelReview!.beadId).toBe("nom-f1c");
+    const page = await pageFor("northwind.example");
+    expect(page.panelReview!.beadId).toBe("nw-f1c");
     expect(page.latestPanelDate).toBe("2026-07-01");
     expect(panelReviewState(page.panelReview, page.latestPanelDate, NOW_MS)).toBe("pending");
   });
@@ -2816,20 +2816,20 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
     // sitting there as a finished-looking marker forever. This landing is one
     // day past the window the runner's filer works in.
     const stopped = new Date(NOW_MS - 22 * DAY).toISOString();
-    await insertDataForSeoCollection(ctx, "nosh.example", stopped.slice(0, 10), stopped, { panel: false });
+    await insertDataForSeoCollection(ctx, "northwind.example", stopped.slice(0, 10), stopped, { panel: false });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({
-        asset: "nosh.example",
-        prefix: "nom",
+        asset: "northwind.example",
+        prefix: "nw",
         panelReview: panelReviewBead({
-          beadId: "nom-f1c",
+          beadId: "nw-f1c",
           status: "closed",
           closedAt: "2026-06-20T09:00:00.000Z",
         }),
       }),
     ]);
 
-    const page = await pageFor("nosh.example");
+    const page = await pageFor("northwind.example");
     expect(page.panelReview).toBeNull();
     expect(page.latestPanelDate).toBeNull();
     expect(panelReviewState(page.panelReview, page.latestPanelDate, NOW_MS)).toBe("none");
@@ -2838,10 +2838,10 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
   it("degrades a snapshot written before the field existed to absence", async () => {
     // An older writer's payload renders nothing rather than an unmet
     // obligation nobody has.
-    await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
+    await insertDataForSeoCollection(ctx, "meadow.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [workProject()]);
 
-    const page = await pageFor("meals.example");
+    const page = await pageFor("meadow.example");
     expect(page.panelReview).toBeNull();
     // The landing is still readable; it is the review that is unknown.
     expect(page.latestPanelDate).toBe("2026-07-01");
@@ -2851,7 +2851,7 @@ describe("buildAssetDetailPayload — the page's panel-review slice", () => {
   it("says nothing when the panel is configured but has never landed", async () => {
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [workProject()]);
 
-    const page = await pageFor("meals.example");
+    const page = await pageFor("meadow.example");
     expect(page.panelReview).toBeNull();
     expect(page.latestPanelDate).toBeNull();
     expect(panelReviewState(page.panelReview, page.latestPanelDate, NOW_MS)).toBe("none");
@@ -2914,10 +2914,10 @@ describe("buildAssetDetailPayload — self-declared liveness", () => {
   it("keeps a flag the newest pulse still declares", async () => {
 
     await seedReportsAndAlerts(ctx);
-    await declaredFlag(ctx, "meals.example", "apiRequests");
-    await pulse(ctx, "meals.example", "2026-07-06", ["apiRequests"]);
+    await declaredFlag(ctx, "meadow.example", "apiRequests");
+    await pulse(ctx, "meadow.example", "2026-07-06", ["apiRequests"]);
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", deps))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", deps))!;
     const row = p.flags.open.find((f) => f.ruleId === "asset-declared")!;
     expect(row.liveness.state).toBe("live");
     expect(row.verification).toMatchObject({
@@ -2932,10 +2932,10 @@ describe("buildAssetDetailPayload — self-declared liveness", () => {
   it("marks it stale when the newest pulse no longer declares it", async () => {
 
     await seedReportsAndAlerts(ctx);
-    await declaredFlag(ctx, "meals.example", "apiRequests");
-    await pulse(ctx, "meals.example", "2026-07-06", ["signups"]);
+    await declaredFlag(ctx, "meadow.example", "apiRequests");
+    await pulse(ctx, "meadow.example", "2026-07-06", ["signups"]);
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", deps))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", deps))!;
     expect(p.flags.open.some((f) => f.ruleId === "asset-declared")).toBe(false);
     const row = p.flags.notCurrent.find((f) => f.ruleId === "asset-declared")!;
     expect(row.liveness).toMatchObject({ state: "stale" });
@@ -2974,11 +2974,11 @@ describe("buildAssetDetailPayload — self-declared liveness", () => {
   it("keeps flags open but unverified when the newest envelope cannot be read", async () => {
 
     await seedReportsAndAlerts(ctx);
-    await declaredFlag(ctx, "meals.example", "apiRequests");
+    await declaredFlag(ctx, "meadow.example", "apiRequests");
     // The store takes only a JSON object for a report, so the unreadable part
     // is its flags.
     await storeReport(ctx.call, {
-      asset: "meals.example",
+      asset: "meadow.example",
       date: "2026-07-06",
       generatedAt: "2026-07-06T02:00:00.000Z",
       receivedAt: "2026-07-06T02:05:00.000Z",
@@ -2986,7 +2986,7 @@ describe("buildAssetDetailPayload — self-declared liveness", () => {
       envelope: { flags: "not a list at all" },
     });
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", deps))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", deps))!;
     const row = p.flags.open.find((f) => f.ruleId === "asset-declared")!;
     expect(row.liveness.state).toBe("last-known");
     expect(row.verification).toMatchObject({
@@ -2999,7 +2999,7 @@ describe("buildAssetDetailPayload — self-declared liveness", () => {
 
     await seedReportsAndAlerts(ctx);
     await storeAlert(ctx.call, {
-      asset: "meals.example",
+      asset: "meadow.example",
       firedAt: "2026-07-05T02:00:00.000Z",
       severity: "warn",
       kind: "anomaly",
@@ -3008,9 +3008,9 @@ describe("buildAssetDetailPayload — self-declared liveness", () => {
       ruleId: "flow-poisson-low",
       ruleInputs: "{}",
     });
-    await pulse(ctx, "meals.example", "2026-07-06", []);
+    await pulse(ctx, "meadow.example", "2026-07-06", []);
 
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", deps))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", deps))!;
     // The central evaluator owns recovery: a later report is neither a linked
     // confirmation nor permission for the read model to run that rule again.
     const row = p.flags.open.find((f) => f.ruleId === "flow-poisson-low" && f.metric === "apiRequests")!;
@@ -3029,12 +3029,12 @@ describe("a snoozed alert leaves the hero and returns on its date", () => {
   let ctx: TestStore;
   beforeEach(async () => {
     ctx = await createTestStore();
-    await insertAsset(ctx, "meals.example", "Meal Planner", "live", 0, 0);
+    await insertAsset(ctx, "meadow.example", "Meadow Board", "live", 0, 0);
   });
 
   async function snoozedFlag(until: string): Promise<void> {
     await insertFlag(ctx, {
-      asset: "meals.example",
+      asset: "meadow.example",
       fired_at: "2026-07-04T02:00:00.000Z",
       severity: "warn",
       kind: "anomaly",
@@ -3049,7 +3049,7 @@ describe("a snoozed alert leaves the hero and returns on its date", () => {
 
   it("is absent from open and counted nowhere while it is quiet", async () => {
     await snoozedFlag("2026-07-09T12:00:00.000Z"); // four days after NOW
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
 
     expect(p.flags.open).toEqual([]);
     expect(p.flags.notCurrent).toEqual([]);
@@ -3071,7 +3071,7 @@ describe("a snoozed alert leaves the hero and returns on its date", () => {
     // names the condition once.
     for (const firedAt of ["2026-07-02T02:00:00.000Z", "2026-07-03T02:00:00.000Z"]) {
       await insertFlag(ctx, {
-        asset: "meals.example",
+        asset: "meadow.example",
         fired_at: firedAt,
         severity: "warn",
         kind: "anomaly",
@@ -3083,7 +3083,7 @@ describe("a snoozed alert leaves the hero and returns on its date", () => {
         snooze_until: "2026-07-09T12:00:00.000Z",
       });
     }
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
 
     expect(p.flags.snoozed).toHaveLength(1);
     expect(p.flags.snoozed[0]).toMatchObject({ ruleId: "asset-declared", occurrences: 2 });
@@ -3092,7 +3092,7 @@ describe("a snoozed alert leaves the hero and returns on its date", () => {
 
   it("is back in Current signals once the date has passed, as the same row", async () => {
     await snoozedFlag("2026-07-04T12:00:00.000Z"); // a day BEFORE NOW
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
 
     expect(p.flags.open).toHaveLength(1);
     // The snooze stays on the record, so the row explains its own reappearance.
@@ -3116,11 +3116,11 @@ describe("buildAssetDetailPayload — latest Clarity observation", () => {
   let ctx: TestStore;
   beforeEach(async () => { ctx = await createTestStore(); await seed(ctx); });
   const clarity = { source: "clarity", reportDate: "2026-07-04", collectedAt: "2026-07-04T11:00:00.000Z",
-    windowHours: 72, truncated: true, page: { url: "https://meals.example/planner", sessions: null, scriptErrors: 0 },
+    windowHours: 72, truncated: true, page: { url: "https://meadow.example/planner", sessions: null, scriptErrors: 0 },
     unattributedSessions: 7 };
   const read = async (block: unknown) => {
     await insertSnapshot(ctx, "clarity", { ...executiveSnapshot(), clarity: block });
-    return (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!.executive;
+    return (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!.executive;
   };
   it("copies actual page-scoped facts, explicit zero, unknown and provenance without arbitrary keys", async () => {
     const result = await read({ ...clarity, injected: "not forwarded", page: { ...clarity.page, sitewide: true } });
@@ -3141,7 +3141,7 @@ describe("buildAssetDetailPayload — latest Clarity observation", () => {
   });
   it("reads old snapshots as no Clarity block", async () => {
     await insertSnapshot(ctx, "old", executiveSnapshot());
-    expect((await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!.executive?.clarity).toBeNull();
+    expect((await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!.executive?.clarity).toBeNull();
   });
 });
 
@@ -3154,7 +3154,7 @@ describe("buildAssetDetailPayload — the PostHog product block", () => {
 
   const productOf = async (payload: unknown) => {
     await insertSnapshot(ctx, "product", payload);
-    const p = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     return p.executive?.product;
   };
 
@@ -3234,7 +3234,7 @@ async function seedEverySection(ctx: TestStore) {
   await seedChanges(ctx);
   await insertWatchWindow(ctx, {
     id: "w-views",
-    asset: "meals.example",
+    asset: "meadow.example",
     metric_integration: "gsc",
     metric: "clicks",
     registered_at: "2026-07-01T00:00:00.000Z",
@@ -3243,7 +3243,7 @@ async function seedEverySection(ctx: TestStore) {
   });
   // The rest is on Postgres: `writeViewSignals`, `seedEveryMoneySection` and
   // `seedEverySectionOnPostgres`.
-  await insertPullFailure(ctx, "meals.example", null, [
+  await insertPullFailure(ctx, "meadow.example", null, [
     { at: "2026-07-05T02:30:00.000Z", status: 503, providerError: "unconfigured", error: "503 unconfigured — set CF_ACCOUNT_ID" },
   ]);
 }
@@ -3252,7 +3252,7 @@ async function seedEverySection(ctx: TestStore) {
  * on Postgres), written by the tests that compare what the views carry. */
 async function seedEveryMoneySection(ctx: TestStore) {
   await seedLedger(ctx);
-  await writeMediavine(ctx.call, [{ id: "mv-1", asset: "meals.example", siteId: "site-mp", start: "2026-07-03", end: "2026-07-03",
+  await writeMediavine(ctx.call, [{ id: "mv-1", asset: "meadow.example", siteId: "site-mp", start: "2026-07-03", end: "2026-07-03",
     attemptedAt: "2026-07-04T08:00:00.000Z", days: [["2026-07-03", 1234]] }]);
 }
 
@@ -3261,21 +3261,21 @@ async function seedEveryMoneySection(ctx: TestStore) {
 async function seedEverySectionOnPostgres(ctx: TestStore): Promise<void> {
   await seedSnapshot(ctx, "2026-07-05T11:55:00.000Z", [workProject({ handoffs: [] })]);
   await insertSnapshot(ctx, "snap-views", executiveSnapshot());
-  await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-02T05:00:00.000Z", { panel: true });
+  await insertDataForSeoCollection(ctx, "meadow.example", "2026-07-01", "2026-07-02T05:00:00.000Z", { panel: true });
   const store = ctx.call;
   await insertReclamationTargets(store, [
-    { asset: "meals.example", domain: "extension.example", page: "/links", status: "sent", statusAt: "2026-07-02T00:00:00.000Z" },
+    { asset: "meadow.example", domain: "extension.example", page: "/links", status: "sent", statusAt: "2026-07-02T00:00:00.000Z" },
   ]);
   await insertHygieneReading(store, {
-    asset: "meals.example", check: "html-depth", day: "2026-07-04", status: "ok", value: 1800, at: "2026-07-04T06:00:00.000Z",
+    asset: "meadow.example", check: "html-depth", day: "2026-07-04", status: "ok", value: 1800, at: "2026-07-04T06:00:00.000Z",
   });
 }
 
 /** A Search Console run with two days, written by the tests that read it. */
 async function writeViewSignals(ctx: TestStore): Promise<void> {
   await writeSignalRun(ctx.call, {
-    id: "gsc-views", asset: "meals.example", integration: "gsc", credentialRef: "google-primary",
-    propertyRef: "sc-domain:meals.example", startedAt: "2026-07-05T11:00:00.000Z", finishedAt: "2026-07-05T11:01:00.000Z",
+    id: "gsc-views", asset: "meadow.example", integration: "gsc", credentialRef: "google-primary",
+    propertyRef: "sc-domain:meadow.example", startedAt: "2026-07-05T11:00:00.000Z", finishedAt: "2026-07-05T11:01:00.000Z",
     windowStart: "2026-07-01", windowEnd: "2026-07-04", providerRows: 2, observationCount: 2,
   }, valuesOf("clicks", { "2026-07-03": 40, "2026-07-04": 44 }));
 }
@@ -3317,13 +3317,13 @@ describe("failed nightly fetches keep their own records", () => {
     const ctx = await createTestStore();
     await seed(ctx);
     await seedReportsAndAlerts(ctx);
-    const past = await insertPullFailure(ctx, "meals.example", "2026-07-01T02:30:00.000Z", [
+    const past = await insertPullFailure(ctx, "meadow.example", "2026-07-01T02:30:00.000Z", [
       { at: "2026-06-30T02:30:00.000Z", status: 404, error: "non-200 response (404)" },
     ]);
-    const open = await insertPullFailure(ctx, "meals.example", null, NIGHTS);
-    await insertPullFailure(ctx, "nosh.example", null, [NIGHTS[0]!]);
+    const open = await insertPullFailure(ctx, "meadow.example", null, NIGHTS);
+    await insertPullFailure(ctx, "northwind.example", null, [NIGHTS[0]!]);
 
-    const sources = (await buildAssetDetailView(ctx.call, "meals.example", DEPS, "sources"))! as AssetDetailFor<"sources">;
+    const sources = (await buildAssetDetailView(ctx.call, "meadow.example", DEPS, "sources"))! as AssetDetailFor<"sources">;
     expect(sources.fetchFailures?.map(({ at, ongoing }) => ({ at, ongoing }))).toEqual([
       { at: NIGHTS[2]!.at, ongoing: true },
       { at: NIGHTS[1]!.at, ongoing: true },
@@ -3332,7 +3332,7 @@ describe("failed nightly fetches keep their own records", () => {
     ]);
     expect(sources.fetchFailures?.[1]?.ruleInputs).toMatchObject({ status: 401, providerError: "unauthorized" });
 
-    const alerts = (await buildAssetDetailView(ctx.call, "meals.example", DEPS, "alerts"))!;
+    const alerts = (await buildAssetDetailView(ctx.call, "meadow.example", DEPS, "alerts"))!;
     const openAlert = [...alerts.flags.open, ...alerts.flags.notCurrent].find((flag) => flag.id === open)!;
     expect(openAlert.readings?.map((reading) => reading.at)).toEqual([NIGHTS[2]!.at, NIGHTS[1]!.at, NIGHTS[0]!.at]);
     const settled = alerts.flags.history.find((flag) => flag.id === past)!;
@@ -3343,9 +3343,9 @@ describe("failed nightly fetches keep their own records", () => {
     const ctx = await createTestStore();
     await seed(ctx);
     await seedReportsAndAlerts(ctx);
-    const sources = (await buildAssetDetailView(ctx.call, "meals.example", DEPS, "sources"))! as AssetDetailFor<"sources">;
+    const sources = (await buildAssetDetailView(ctx.call, "meadow.example", DEPS, "sources"))! as AssetDetailFor<"sources">;
     expect(sources.fetchFailures).toEqual([]);
-    const alerts = (await buildAssetDetailView(ctx.call, "meals.example", DEPS, "alerts"))!;
+    const alerts = (await buildAssetDetailView(ctx.call, "meadow.example", DEPS, "alerts"))!;
     for (const flag of [...alerts.flags.open, ...alerts.flags.notCurrent, ...alerts.flags.history]) {
       expect(flag).not.toHaveProperty("readings");
     }
@@ -3370,7 +3370,7 @@ describe("buildAssetDetailView — one read per tab", () => {
     await seedEveryMoneySection(ctx);
     await seedEverySectionOnPostgres(ctx);
     await writeViewSignals(ctx);
-    const full = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS)) as unknown as Record<string, unknown>;
+    const full = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS)) as unknown as Record<string, unknown>;
     expect(full.hygiene).not.toBeNull();
     expect(full.reclamation).not.toBeNull();
     expect(full).not.toHaveProperty("view");
@@ -3379,7 +3379,7 @@ describe("buildAssetDetailView — one read per tab", () => {
     const coreFields = Object.keys(full).filter((key) => !sectionFields.has(key));
 
     for (const view of ASSET_DETAIL_VIEWS) {
-      const part = (await buildAssetDetailView(ctx.call, "meals.example", DEPS, view)) as unknown as Record<string, unknown>;
+      const part = (await buildAssetDetailView(ctx.call, "meadow.example", DEPS, view)) as unknown as Record<string, unknown>;
       const own = ASSET_VIEW_SECTIONS[view].flatMap((section) => SECTION_FIELD_SPEC[section]!);
       expect(part.view, view).toBe(view);
       expect(part, view).not.toHaveProperty("laterPhase");
@@ -3403,7 +3403,7 @@ describe("buildAssetDetailView — one read per tab", () => {
 
   it("leaves a section it does not draw ABSENT, so no tab can mistake it for empty", async () => {
     await seedEveryMoneySection(ctx);
-    const alerts =(await buildAssetDetailView(ctx.call, "meals.example", DEPS, "alerts"))!;
+    const alerts =(await buildAssetDetailView(ctx.call, "meadow.example", DEPS, "alerts"))!;
     for (const key of ["performance", "executive", "metrics", "ledger", "annotations", "handoffBeads", "hygiene"]) {
       expect(alerts).not.toHaveProperty(key);
     }
@@ -3412,7 +3412,7 @@ describe("buildAssetDetailView — one read per tab", () => {
     for (const other of ["overview", "growth", "financials", "search", "activity", "sources", "settings"] as const) {
       expect(viewCovers(response, other), other).toBe(false);
     }
-    const overview = (await buildAssetDetailView(ctx.call, "meals.example", DEPS, "overview"))! as AssetDetailResponse;
+    const overview = (await buildAssetDetailView(ctx.call, "meadow.example", DEPS, "overview"))! as AssetDetailResponse;
     expect(viewCovers(overview, "search")).toBe(true);
     expect(viewCovers(overview, "growth")).toBe(true);
     // A revenue-first site leads with its daily revenue, so everything
@@ -3424,9 +3424,9 @@ describe("buildAssetDetailView — one read per tab", () => {
   it("does not read the tables only other tabs draw", async () => {
     await writeViewSignals(ctx);
     const fullSql: string[] = [];
-    await buildAssetDetailPayload(recordingStore(ctx.call, fullSql), "meals.example", DEPS);
+    await buildAssetDetailPayload(recordingStore(ctx.call, fullSql), "meadow.example", DEPS);
     const tasksSql: string[] = [];
-    await buildAssetDetailView(recordingStore(ctx.call, tasksSql), "meals.example", DEPS, "tasks");
+    await buildAssetDetailView(recordingStore(ctx.call, tasksSql), "meadow.example", DEPS, "tasks");
     // The Site health history (Sources only). Every tab's header reads each
     // site's newest home-page check for its uptime mark, a read of the same
     // readings aliased `x`, not this one.
@@ -3465,28 +3465,28 @@ describe("buildAssetDetailView — the site's all-time totals", () => {
   it("resolves each configured total for the Overview, with the lane's cadence", async () => {
 
     await seedReportsAndAlerts(ctx);
-    await insertReading("meals.example", "signups", 1284, "2026-07-06T11:50:00.000Z");
-    const overview = (await buildAssetDetailView(ctx.call, "meals.example", DEPS, "overview"))!;
+    await insertReading("meadow.example", "signups", 1284, "2026-07-06T11:50:00.000Z");
+    const overview = (await buildAssetDetailView(ctx.call, "meadow.example", DEPS, "overview"))!;
     expect(overview.counters).toEqual({
       heading: "All-time totals",
       cadenceHours: 0.25,
       cards: [{ metric: "signups", label: "Accounts", value: 1284, observedAt: "2026-07-06T11:50:00.000Z", source: "counters" }],
     });
-    expect(await buildAssetDetailView(ctx.call, "meals.example", DEPS, "alerts")).not.toHaveProperty("counters");
+    expect(await buildAssetDetailView(ctx.call, "meadow.example", DEPS, "alerts")).not.toHaveProperty("counters");
   });
 
   it("ages the totals against the counters job's saved schedule, the one place it is written", async () => {
 
     await seedReportsAndAlerts(ctx);
-    await insertReading("meals.example", "signups", 1284, "2026-07-06T11:50:00.000Z");
+    await insertReading("meadow.example", "signups", 1284, "2026-07-06T11:50:00.000Z");
     const hourly = { ...DEPS, schedules: { counters: { enabled: true, cron: "5 * * * *" } } };
-    const overview = (await buildAssetDetailView(ctx.call, "meals.example", hourly, "overview"))!;
+    const overview = (await buildAssetDetailView(ctx.call, "meadow.example", hourly, "overview"))!;
     expect(overview.counters?.cadenceHours).toBe(1);
   });
 
   it("is null for a site the register configures no totals for, and reads nothing for it", async () => {
     const sql: string[] = [];
-    const overview = (await buildAssetDetailView(recordingStore(ctx.call, sql), "nosh.example", DEPS, "overview"))!;
+    const overview = (await buildAssetDetailView(recordingStore(ctx.call, sql), "northwind.example", DEPS, "overview"))!;
     expect(overview.counters).toBeNull();
     expect(sql.some((statement) => /noticeos\.assets/.test(statement))).toBe(true);
     expect(sql.some((statement) => /counter_readings/.test(statement))).toBe(false);
@@ -3511,7 +3511,7 @@ describe("the asset ledger in one statement", () => {
   /** The specification's rows, read as the page reads a row: numbers and cents exact, instants as JavaScript writes them. */
   async function specRows(ctx: TestStore): Promise<SpecRow[]> {
     const rows = await (ctx.call).read((tx) =>
-      tx.query<Omit<SpecRow, "id" | "amountMinor"> & { id: bigint; amountMinor: bigint }>(ROWS_SPEC, ["meals.example"]));
+      tx.query<Omit<SpecRow, "id" | "amountMinor"> & { id: bigint; amountMinor: bigint }>(ROWS_SPEC, ["meadow.example"]));
     return rows.map((row) => ({ ...row, id: Number(row.id), amountMinor: Number(row.amountMinor), recordedAt: javascriptInstant(row.recordedAt) }));
   }
 
@@ -3563,24 +3563,24 @@ describe("the asset ledger in one statement", () => {
    * month, estimates corrected by reconciliations, every row recorded at its
    * own instant so the listing order has one right answer. */
   async function seedBusyLedger(ctx: TestStore) {
-    await insertAsset(ctx, "meals.example", "Meal Planner", "live", 0, 0);
+    await insertAsset(ctx, "meadow.example", "Meadow Board", "live", 0, 0);
     let id = 100;
     let minute = 0;
     const at = () => new Date(Date.UTC(2025, 5, 1) + (minute += 37) * 60_000).toISOString();
     for (let month = 0; month < 14; month += 1) {
       const period = new Date(Date.UTC(2025, 5 + month, 1)).toISOString().slice(0, 7);
       const estimate = id++;
-      await insertLedger(ctx, { id: estimate, kind: "revenue", asset: "meals.example", period, family: "ads", amount: 100 + month, booking_state: "estimated", source: "raptive-report", recorded_at: at() });
+      await insertLedger(ctx, { id: estimate, kind: "revenue", asset: "meadow.example", period, family: "ads", amount: 100 + month, booking_state: "estimated", source: "raptive-report", recorded_at: at() });
       if (month < 12) {
-        await insertLedger(ctx, { id: id++, kind: "revenue", asset: "meals.example", period, family: "ads", amount: 97.35 + month, booking_state: "reconciled", source: "raptive-report", supersedes_id: estimate, recorded_at: at() });
+        await insertLedger(ctx, { id: id++, kind: "revenue", asset: "meadow.example", period, family: "ads", amount: 97.35 + month, booking_state: "reconciled", source: "raptive-report", supersedes_id: estimate, recorded_at: at() });
       }
-      await insertLedger(ctx, { id: id++, kind: "revenue", asset: "meals.example", period, family: "affiliate", amount: 12.5, booking_state: "estimated", source: "cj-export", recorded_at: at() });
-      await insertLedger(ctx, { id: id++, kind: "revenue", asset: "meals.example", period, family: "subs", amount: 12.5, booking_state: "reconciled", recorded_at: at() });
+      await insertLedger(ctx, { id: id++, kind: "revenue", asset: "meadow.example", period, family: "affiliate", amount: 12.5, booking_state: "estimated", source: "cj-export", recorded_at: at() });
+      await insertLedger(ctx, { id: id++, kind: "revenue", asset: "meadow.example", period, family: "subs", amount: 12.5, booking_state: "reconciled", recorded_at: at() });
       // The same amount as `subs` on the same side, booked later: two families
       // tied on amount keep the order their newest rows were booked in.
-      await insertLedger(ctx, { id: id++, kind: "revenue", asset: "meals.example", period, family: "licensing", amount: 12.5, booking_state: "reconciled", recorded_at: at() });
-      await insertLedger(ctx, { id: id++, kind: "cost", asset: "meals.example", period, family: "infra", amount: 20.01, booking_state: "reconciled", recorded_at: at() });
-      await insertLedger(ctx, { id: id++, kind: "cost", asset: "meals.example", period, family: "inference", amount: 3.3 + month / 10, booking_state: "estimated", ref: `chg-${month}`, recorded_at: at() });
+      await insertLedger(ctx, { id: id++, kind: "revenue", asset: "meadow.example", period, family: "licensing", amount: 12.5, booking_state: "reconciled", recorded_at: at() });
+      await insertLedger(ctx, { id: id++, kind: "cost", asset: "meadow.example", period, family: "infra", amount: 20.01, booking_state: "reconciled", recorded_at: at() });
+      await insertLedger(ctx, { id: id++, kind: "cost", asset: "meadow.example", period, family: "inference", amount: 3.3 + month / 10, booking_state: "estimated", ref: `chg-${month}`, recorded_at: at() });
     }
   }
 
@@ -3590,11 +3590,11 @@ describe("the asset ledger in one statement", () => {
     const rows = await specRows(ctx);
     expect(rows.length).toBeGreaterThan(40);
 
-    const page = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    const page = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(page.ledger).toEqual(specLedger(rows));
     expect(page.ledger.recentRows).toHaveLength(20);
     expect(page.ledger.periods).toHaveLength(14);
-    const [age] = await (ctx.call).read((tx) => tx.query<{ ts: string }>(AGE_SPEC, ["meals.example"]));
+    const [age] = await (ctx.call).read((tx) => tx.query<{ ts: string }>(AGE_SPEC, ["meadow.example"]));
     expect(page.freshness.ledgerRecordedAt).toBe(javascriptInstant(age!.ts));
   });
 
@@ -3602,9 +3602,9 @@ describe("the asset ledger in one statement", () => {
     const ctx = await createTestStore();
     await seedBusyLedger(ctx);
     for (const read of [
-      async (store: WorkspaceStore) => buildAssetDetailPayload(store, "meals.example", DEPS),
-      async (store: WorkspaceStore) => buildAssetDetailView(store, "meals.example", DEPS, "financials"),
-      async (store: WorkspaceStore) => buildAssetDetailView(store, "meals.example", DEPS, "settings"),
+      async (store: WorkspaceStore) => buildAssetDetailPayload(store, "meadow.example", DEPS),
+      async (store: WorkspaceStore) => buildAssetDetailView(store, "meadow.example", DEPS, "financials"),
+      async (store: WorkspaceStore) => buildAssetDetailView(store, "meadow.example", DEPS, "settings"),
     ]) {
       const sql: string[] = [];
       await read(recordingStore(ctx.call, sql));
@@ -3614,8 +3614,8 @@ describe("the asset ledger in one statement", () => {
 
   it("states an empty ledger as empty, with no age", async () => {
     const ctx = await createTestStore();
-    await insertAsset(ctx, "meals.example", "Meal Planner", "live", 0, 0);
-    const page = (await buildAssetDetailPayload(ctx.call, "meals.example", DEPS))!;
+    await insertAsset(ctx, "meadow.example", "Meadow Board", "live", 0, 0);
+    const page = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(page.ledger).toEqual({ periods: [], recentRows: [], empty: true, currency: "USD" });
     expect(page.freshness.ledgerRecordedAt).toBeNull();
   });
@@ -3624,13 +3624,13 @@ describe("the asset ledger in one statement", () => {
     // The id a row shows is the number the store handed its entry, in the
     // order entries were booked. Booked 7, 9, 8.
     const ctx = await createTestStore();
-    await insertAsset(ctx, "meals.example", "Meal Planner", "live", 0, 0);
+    await insertAsset(ctx, "meadow.example", "Meadow Board", "live", 0, 0);
     for (const id of [7, 9, 8]) {
-      await insertLedger(ctx, { id, kind: "revenue", asset: "meals.example", period: "2026-06", family: "ads", amount: id, booking_state: "estimated", recorded_at: "2026-06-30T00:00:00.000Z",
+      await insertLedger(ctx, { id, kind: "revenue", asset: "meadow.example", period: "2026-06", family: "ads", amount: id, booking_state: "estimated", recorded_at: "2026-06-30T00:00:00.000Z",
       });
     }
     const store = ctx.call;
-    const page = (await buildAssetDetailPayload(store, "meals.example", DEPS))!;
+    const page = (await buildAssetDetailPayload(store, "meadow.example", DEPS))!;
     expect(page.ledger.recentRows.map((row) => row.id)).toEqual([8, 9, 7].map((name) => bookedNumber(store, name)));
     expect(page.ledger.recentRows.map((row) => row.id)).toEqual([...page.ledger.recentRows.map((row) => row.id)].sort((a, b) => b - a));
   });

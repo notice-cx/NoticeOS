@@ -9,14 +9,14 @@ import { createTestViteServer } from "../../../scripts/test-vite-server.mjs";
 import { installIsolationGuard } from "./isolation-guard.mjs";
 import { journeyPostgres } from "./fixture-server.mjs";
 import { HANDLER_FAILURE_MARK, handlerFailureText } from "./handler-failure.mjs";
+import { checkedPort } from "./journey-port.mjs";
 
 // Before Vite or any fixture module loads: this process never reads the
 // operator's secrets files or the checkout's config/, and never opens a
 // socket to an owner port.
 const isolation = installIsolationGuard();
 const root = fileURLToPath(new URL("../", import.meta.url));
-const port = Number(process.env.JOURNEY_PORT ?? 4187);
-if (!Number.isInteger(port) || port < 1024 || [5173, 8791, 3308].includes(port)) throw new Error("Unsafe journey port");
+const port = checkedPort(Number(process.env.JOURNEY_PORT ?? 4187));
 let dispatch;
 let fixedNow;
 // The ingest modules and the contract package import this repo's own config

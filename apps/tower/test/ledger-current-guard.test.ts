@@ -21,7 +21,7 @@ const SPEC_ROWS = `SELECT v.* FROM noticeos.financial_ledger v
   WHERE NOT EXISTS (SELECT 1 FROM noticeos.financial_ledger s WHERE s.supersedes_id = v.entry_id)`;
 
 const NOW = new Date("2026-07-05T12:00:00.000Z");
-const CARDS = ["meals.example", "nosh.example", "fees.example"] as const;
+const CARDS = ["meadow.example", "northwind.example", "ferns.example"] as const;
 const INTEGRATIONS: IntegrationsConfig = { catalog: [], assets: {} };
 const COUNTERS = { assets: {} };
 
@@ -106,37 +106,37 @@ async function sites(raw: TestStore) {
 async function seedLedger(store: WorkspaceStore) {
   // Correction chains.
   await bookLedger(store, [
-    entry({ id: 1, kind: "revenue", asset: "meals.example", period: "2026-05", family: "ads", amount: 10_000, state: "estimated", source: "raptive-report" }),
-    entry({ id: 2, kind: "revenue", asset: "meals.example", period: "2026-05", family: "ads", amount: 9_800, state: "reconciled", supersedes: 1, source: "raptive-report" }),
-    entry({ id: 3, kind: "revenue", asset: "meals.example", period: "2026-05", family: "ads", amount: 9_850, state: "reconciled", supersedes: 2, source: "raptive-report" }),
-    entry({ id: 4, kind: "revenue", asset: "meals.example", period: "2026-06", family: "affiliate", amount: 3_000, state: "estimated", source: "cj-export" }),
-    entry({ id: 5, kind: "cost", asset: "meals.example", period: "2026-06", family: "infra", amount: 2_000, state: "reconciled" }),
-    entry({ id: 30, kind: "revenue", asset: "nosh.example", period: "2026-06", family: "affiliate", amount: 700, state: "estimated", source: "cj-export" }),
-    entry({ id: 31, kind: "revenue", asset: "nosh.example", period: "2026-06", family: "affiliate", amount: 650, state: "reconciled", supersedes: 30, source: "cj-export" }),
+    entry({ id: 1, kind: "revenue", asset: "meadow.example", period: "2026-05", family: "ads", amount: 10_000, state: "estimated", source: "raptive-report" }),
+    entry({ id: 2, kind: "revenue", asset: "meadow.example", period: "2026-05", family: "ads", amount: 9_800, state: "reconciled", supersedes: 1, source: "raptive-report" }),
+    entry({ id: 3, kind: "revenue", asset: "meadow.example", period: "2026-05", family: "ads", amount: 9_850, state: "reconciled", supersedes: 2, source: "raptive-report" }),
+    entry({ id: 4, kind: "revenue", asset: "meadow.example", period: "2026-06", family: "affiliate", amount: 3_000, state: "estimated", source: "cj-export" }),
+    entry({ id: 5, kind: "cost", asset: "meadow.example", period: "2026-06", family: "infra", amount: 2_000, state: "reconciled" }),
+    entry({ id: 30, kind: "revenue", asset: "northwind.example", period: "2026-06", family: "affiliate", amount: 700, state: "estimated", source: "cj-export" }),
+    entry({ id: 31, kind: "revenue", asset: "northwind.example", period: "2026-06", family: "affiliate", amount: 650, state: "reconciled", supersedes: 30, source: "cj-export" }),
   ]);
 
   // Mediavine: June complete (usable, hides its estimate), April reconciled
   // (not usable), July partial (not usable, the estimate stays).
   await bookLedger(store, [
-    entry({ id: 6, kind: "revenue", asset: "meals.example", period: "2026-06", family: "ads", amount: 11_000, state: "estimated", source: "mediavine" }),
-    entry({ id: 8, kind: "revenue", asset: "meals.example", period: "2026-04", family: "ads", amount: 12_000, state: "estimated", source: "mediavine" }),
-    entry({ id: 9, kind: "revenue", asset: "meals.example", period: "2026-04", family: "ads", amount: 11_900, state: "reconciled", supersedes: 8, source: "mediavine" }),
-    entry({ id: 7, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 1_600, state: "estimated", source: "mediavine" }),
+    entry({ id: 6, kind: "revenue", asset: "meadow.example", period: "2026-06", family: "ads", amount: 11_000, state: "estimated", source: "mediavine" }),
+    entry({ id: 8, kind: "revenue", asset: "meadow.example", period: "2026-04", family: "ads", amount: 12_000, state: "estimated", source: "mediavine" }),
+    entry({ id: 9, kind: "revenue", asset: "meadow.example", period: "2026-04", family: "ads", amount: 11_900, state: "reconciled", supersedes: 8, source: "mediavine" }),
+    entry({ id: 7, kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", amount: 1_600, state: "estimated", source: "mediavine" }),
   ]);
   await writeMediavine(store, [
-    daily("meals.example", "mv-site", "2026-06-01", "2026-06-30"),
-    daily("meals.example", "mv-site", "2026-04-01", "2026-04-30"),
-    daily("meals.example", "mv-site", "2026-07-01", "2026-07-04"),
+    daily("meadow.example", "mv-site", "2026-06-01", "2026-06-30"),
+    daily("meadow.example", "mv-site", "2026-04-01", "2026-04-30"),
+    daily("meadow.example", "mv-site", "2026-07-01", "2026-07-04"),
   ]);
 
   // Current month, future month, overhead, and one more three-link chain.
   await bookLedger(store, [
-    entry({ id: 10, kind: "revenue", asset: "nosh.example", period: "2026-07", family: "ads", amount: 500, state: "estimated", source: "raptive-report" }),
-    entry({ id: 11, kind: "cost", asset: "nosh.example", period: "2026-08", family: "infra", amount: 100, state: "reconciled" }),
+    entry({ id: 10, kind: "revenue", asset: "northwind.example", period: "2026-07", family: "ads", amount: 500, state: "estimated", source: "raptive-report" }),
+    entry({ id: 11, kind: "cost", asset: "northwind.example", period: "2026-08", family: "infra", amount: 100, state: "reconciled" }),
     entry({ id: 20, kind: "cost", asset: "root-os", period: "2026-06", family: "infra", amount: 4_000, state: "reconciled" }),
-    entry({ id: 100, kind: "revenue", asset: "nosh.example", period: "2026-03", family: "affiliate", amount: 900, state: "estimated", source: "cj-export" }),
-    entry({ id: 12, kind: "revenue", asset: "nosh.example", period: "2026-03", family: "affiliate", amount: 950, state: "estimated", supersedes: 100, source: "cj-export" }),
-    entry({ id: 13, kind: "revenue", asset: "nosh.example", period: "2026-03", family: "affiliate", amount: 925, state: "reconciled", supersedes: 12, source: "cj-export" }),
+    entry({ id: 100, kind: "revenue", asset: "northwind.example", period: "2026-03", family: "affiliate", amount: 900, state: "estimated", source: "cj-export" }),
+    entry({ id: 12, kind: "revenue", asset: "northwind.example", period: "2026-03", family: "affiliate", amount: 950, state: "estimated", supersedes: 100, source: "cj-export" }),
+    entry({ id: 13, kind: "revenue", asset: "northwind.example", period: "2026-03", family: "affiliate", amount: 925, state: "reconciled", supersedes: 12, source: "cj-export" }),
   ]);
 }
 
@@ -224,10 +224,10 @@ describe("the money view keeps only current entries, as the explicit guard does"
     // Replaced links, and the Mediavine estimate June's daily rows stand in for.
     for (const gone of [1, 2, 6, 8, 12, 30, 100]) expect(named.has(`fixture:${gone}`), `${gone}`).toBe(false);
     // June's month of daily estimates stands in, under minus its first day's number.
-    const june = view.find((row) => row.external_id === "mediavine:daily/meals.example/2026-06");
+    const june = view.find((row) => row.external_id === "mediavine:daily/meadow.example/2026-06");
     expect(june?.entry_number).toBeLessThan(0n);
     // April (reconciled) and July (partial) daily rows are not usable months.
-    expect(named.has("mediavine:daily/meals.example/2026-04") || named.has("mediavine:daily/meals.example/2026-07")).toBe(false);
+    expect(named.has("mediavine:daily/meadow.example/2026-04") || named.has("mediavine:daily/meadow.example/2026-07")).toBe(false);
   });
 
   it("every builder that reads the ledger returns the explicit guard's payload", async () => {

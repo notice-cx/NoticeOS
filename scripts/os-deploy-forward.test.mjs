@@ -145,3 +145,17 @@ test('the note is how the feed tells the three apart, and nothing else reads as 
   assert.equal(osDeployAnnotation(LOG[0], 'os.example.com'), null);
   assert.equal(osDeployAnnotation(LOG[3], ''), null);
 });
+
+test('a deploy the store refuses as unprocessable is not re-sent, while a server error is', async () => {
+  const state = createDeployForwardState();
+  const posts = [];
+  const refusing = (status) => async (url, init) => {
+    posts.push(JSON.parse(init.body).at);
+    return { ok: false, status };
+  };
+  assert.deepEqual(await forwardOsDeploys(base({ post: refusing(500) }, state)), { sent: 0, pending: 3 });
+  assert.deepEqual(await forwardOsDeploys(base({ post: refusing(422) }, state)), { sent: 0, pending: 0 });
+  assert.equal(posts.length, 6);
+  assert.deepEqual(await forwardOsDeploys(base({ post: refusing(422) }, state)), { sent: 0, pending: 0 });
+  assert.equal(posts.length, 6);
+});

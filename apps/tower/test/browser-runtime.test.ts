@@ -105,9 +105,8 @@ describe('an explicit browser lifetime', () => {
     expect(receivedInit?.signal?.aborted).toBe(true);
   });
 
-  it('never imports standalone or legacy preferences into hosted/demo ownership, while device theme still migrates', () => {
-    localStorage.setItem('reindex-os:theme', 'light');
-    localStorage.setItem('reindex-os:nav-assets', 'private legacy names');
+  it('never imports standalone preferences into hosted/demo ownership, while device theme stays readable', () => {
+    localStorage.setItem('noticeos:theme', 'light');
     localStorage.setItem('noticeos:nav-assets', 'private standalone names');
     const a = runtime();
     const demo = runtime({ mode: 'demo', workspaceId: A.workspaceId, clientGeneration: 1 });
@@ -116,7 +115,6 @@ describe('an explicit browser lifetime', () => {
     a.preferences.forget('nav-assets');
     expect(localStorage.getItem('noticeos:nav-assets')).toBe('private standalone names');
     expect(readStored(localStorage, 'theme')).toBe('light');
-    expect(localStorage.getItem('noticeos:theme')).toBe('light');
   });
 
   it('session or permission refresh receives a fresh instance/generation, not old cache or drafts', () => {

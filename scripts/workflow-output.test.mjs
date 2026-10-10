@@ -5,8 +5,8 @@ import { createWorkflowRecorder } from './workflow-trace.mjs';
 
 test('captures actual collector counts and per-asset results, excluding raw responses', () => {
   const output = captureWorkflowOutput({ attempted: 2, succeeded: 1, failed: 1, response: { body: 'private response' }, outcomes: [
-    { asset: 'meals.example', ok: true, status: 200, written: 12 },
-    { asset: 'nosh.example', ok: false, status: 503, error: 'private response' },
+    { asset: 'meadow.example', ok: true, status: 200, written: 12 },
+    { asset: 'northwind.example', ok: false, status: 503, error: 'private response' },
   ] });
   assert.ok(isWorkflowStepOutput(output));
   assert.deepEqual(output.metrics.map((m) => m.value), [2, 1, 1]);
@@ -26,7 +26,7 @@ test('captures project task counts and config provenance without task bodies or 
 });
 
 test('keeps archive unchanged distinct from skipped and preserves exact measured cost', () => {
-  const output = captureWorkflowOutput({ costUsd: 0.000153, outcomes: [{ asset: 'nosh.example', status: 'unchanged', providerRows: 10, costUsd: 0.000153 }] });
+  const output = captureWorkflowOutput({ costUsd: 0.000153, outcomes: [{ asset: 'northwind.example', status: 'unchanged', providerRows: 10, costUsd: 0.000153 }] });
   assert.equal(output.items[0].state, 'succeeded');
   assert.equal(output.items[0].fields.find((f) => f.key === 'dataState').value, 'Unchanged');
   assert.equal(output.metrics[0].value, 0.000153);
@@ -34,10 +34,10 @@ test('keeps archive unchanged distinct from skipped and preserves exact measured
 
 test('separates health findings from check execution and retains failed checks', () => {
   const output = captureWorkflowOutput({ assets: 1, checks: 2, outcomes: [
-    { asset: 'nosh.example', check: 'sitemap', status: 'ok', value: 25 },
-    { asset: 'nosh.example', check: 'html-depth', status: 'warn', value: 120 },
-    { asset: 'nosh.example', check: 'robots-ai-access', status: 'unreachable', value: null },
-  ], failed: [{ asset: 'nosh.example', check: 'page-structure', error: 'private error' }] });
+    { asset: 'northwind.example', check: 'sitemap', status: 'ok', value: 25 },
+    { asset: 'northwind.example', check: 'html-depth', status: 'warn', value: 120 },
+    { asset: 'northwind.example', check: 'robots-ai-access', status: 'unreachable', value: null },
+  ], failed: [{ asset: 'northwind.example', check: 'page-structure', error: 'private error' }] });
   assert.deepEqual(output.items.map((item) => item.state), ['succeeded', 'succeeded', 'succeeded', 'failed']);
   assert.equal(output.items[1].fields.find((field) => field.key === 'finding').value, 'warn');
   assert.equal(output.items[1].fields.find((field) => field.key === 'value').value, 120);
@@ -65,7 +65,7 @@ test('captures pulse results and closed measurement windows with their actual id
   const pulse = captureWorkflowOutput({ pulseId: 42, date: '2026-09-09', envelopeFlags: 2, centralFlags: 0, resolvedAnomalies: 1, resolvedFreshness: 0 });
   assert.ok(isWorkflowStepOutput(pulse));
   assert.equal(pulse.metrics.find((metric) => metric.key === 'pulseId').value, 42);
-  const windows = captureWorkflowOutput({ scanned: 1, evaluated: 1, readings: 1, closed: [{ id: 'window-1', asset: 'nosh.example', outcome: 'inconclusive', note: 'private note' }], failed: [], overdue: [] });
+  const windows = captureWorkflowOutput({ scanned: 1, evaluated: 1, readings: 1, closed: [{ id: 'window-1', asset: 'northwind.example', outcome: 'inconclusive', note: 'private note' }], failed: [], overdue: [] });
   assert.ok(isWorkflowStepOutput(windows));
   assert.equal(windows.items[0].fields.find((field) => field.key === 'verdict').value, 'inconclusive');
   assert.ok(!JSON.stringify(windows).includes('private note'));

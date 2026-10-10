@@ -74,9 +74,9 @@ function flag(overrides: Partial<FlagRecord> = {}): FlagRecord {
 function row(
   overrides: Partial<FlagRecord> = {},
   asset: AlertHistoryRow["asset"] = {
-    id: "meals.example",
-    domain: "meals.example",
-    displayName: "Meal Planner",
+    id: "meadow.example",
+    domain: "meadow.example",
+    displayName: "Meadow Board",
   },
 ): AlertHistoryRow {
   return { flag: flag(overrides), asset };
@@ -128,7 +128,7 @@ function wall(): WallPayload {
     dashboard: {
       countdown: { emoji: "🌁", label: "SF", targetAt: "2026-10-01T07:00:00.000Z" },
     },
-    assets: [assetCard("meals.example", "Meal Planner"), assetCard("nosh.example", "Nosh")],
+    assets: [assetCard("meadow.example", "Meadow Board"), assetCard("northwind.example", "Northwind")],
     attention: [],
     snoozed: [],
     operator: {
@@ -238,15 +238,15 @@ describe("/alerts — the Open | History switch", () => {
   });
 
   it("keeps the filters while it corrects a mistyped tab", () => {
-    renderAlerts("/alerts/nonsence?asset=nosh.example");
+    renderAlerts("/alerts/nonsence?asset=northwind.example");
 
-    expect(screen.getByLabelText("Site")).toHaveValue("nosh.example");
+    expect(screen.getByLabelText("Site")).toHaveValue("northwind.example");
   });
 
   it("keeps the Open view's filters working under the tabs", () => {
-    renderAlerts("/alerts?asset=nosh.example&severity=error");
+    renderAlerts("/alerts?asset=northwind.example&severity=error");
 
-    expect(screen.getByLabelText("Site")).toHaveValue("nosh.example");
+    expect(screen.getByLabelText("Site")).toHaveValue("northwind.example");
     expect(screen.getByLabelText("Severity")).toHaveValue("error");
     // Nothing matches, and the page says so as an empty state; the strip
     // above owns the portfolio's counts.
@@ -259,11 +259,11 @@ describe("/alerts — the Open | History switch", () => {
    * question asked twice, so the narrowing crosses the switch. */
   it("hands the asset and severity narrowing from Open to History", () => {
     state.history = history([]);
-    renderAlerts("/alerts?asset=nosh.example&severity=error");
+    renderAlerts("/alerts?asset=northwind.example&severity=error");
 
     expect(screen.getByRole("tab", { name: "History" })).toHaveAttribute(
       "href",
-      "/alerts/history?asset=nosh.example&severity=error",
+      "/alerts/history?asset=northwind.example&severity=error",
     );
 
     fireEvent.click(screen.getByRole("tab", { name: "History" }));
@@ -272,17 +272,17 @@ describe("/alerts — the Open | History switch", () => {
       "aria-selected",
       "true",
     );
-    expect(screen.getByLabelText("Site")).toHaveValue("nosh.example");
+    expect(screen.getByLabelText("Site")).toHaveValue("northwind.example");
     expect(screen.getByLabelText("Severity")).toHaveValue("error");
   });
 
   it("hands it back from History to Open", () => {
     state.history = history([]);
-    renderAlerts("/alerts/history?asset=nosh.example&severity=error");
+    renderAlerts("/alerts/history?asset=northwind.example&severity=error");
 
     expect(screen.getByRole("tab", { name: "Open" })).toHaveAttribute(
       "href",
-      "/alerts?asset=nosh.example&severity=error",
+      "/alerts?asset=northwind.example&severity=error",
     );
 
     fireEvent.click(screen.getByRole("tab", { name: "Open" }));
@@ -291,37 +291,37 @@ describe("/alerts — the Open | History switch", () => {
       "aria-selected",
       "true",
     );
-    expect(screen.getByLabelText("Site")).toHaveValue("nosh.example");
+    expect(screen.getByLabelText("Site")).toHaveValue("northwind.example");
     expect(screen.getByLabelText("Severity")).toHaveValue("error");
   });
 
   /** A tab carries only what the destination can honour. */
   it("drops the kind filter History has no answer for", () => {
-    renderAlerts("/alerts?asset=nosh.example&kind=anomaly");
+    renderAlerts("/alerts?asset=northwind.example&kind=anomaly");
 
     expect(screen.getByRole("tab", { name: "History" })).toHaveAttribute(
       "href",
-      "/alerts/history?asset=nosh.example",
+      "/alerts/history?asset=northwind.example",
     );
   });
 
   it("drops an info severity Open's list can never hold", () => {
     state.history = history([]);
-    renderAlerts("/alerts/history?asset=nosh.example&severity=info");
+    renderAlerts("/alerts/history?asset=northwind.example&severity=info");
 
     expect(screen.getByRole("tab", { name: "Open" })).toHaveAttribute(
       "href",
-      "/alerts?asset=nosh.example",
+      "/alerts?asset=northwind.example",
     );
   });
 
   it("leaves History's page number behind", () => {
     state.history = history([], { offset: 25 });
-    renderAlerts("/alerts/history?asset=nosh.example&offset=25");
+    renderAlerts("/alerts/history?asset=northwind.example&offset=25");
 
     expect(screen.getByRole("tab", { name: "Open" })).toHaveAttribute(
       "href",
-      "/alerts?asset=nosh.example",
+      "/alerts?asset=northwind.example",
     );
   });
 });
@@ -331,21 +331,21 @@ describe("/alerts/history — what already closed", () => {
     state.history = history([
       row({ id: 11 }),
       row({ id: 12, message: "Search clicks fell off a cliff" }, {
-        id: "nosh.example",
-        domain: "nosh.example",
-        displayName: "Nosh",
+        id: "northwind.example",
+        domain: "northwind.example",
+        displayName: "Northwind",
       }),
     ]);
     renderAlerts("/alerts/history");
 
     expect(screen.getByText("Signups well below normal")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Meal Planner/ })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Meadow Board/ })).toHaveAttribute(
       "href",
-      "/assets/meals.example/alerts",
+      "/assets/meadow.example/alerts",
     );
-    expect(screen.getByRole("link", { name: /Nosh/ })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /Northwind/ })).toHaveAttribute(
       "href",
-      "/assets/nosh.example/alerts",
+      "/assets/northwind.example/alerts",
     );
   });
 
@@ -355,9 +355,9 @@ describe("/alerts/history — what already closed", () => {
     state.history = history([row({ id: 11 })]);
     renderAlerts("/alerts/history");
 
-    expect(screen.getByRole("link", { name: "Meal Planner" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Meadow Board" })).toHaveAttribute(
       "href",
-      "/assets/meals.example/alerts",
+      "/assets/meadow.example/alerts",
     );
     expect(screen.queryByTitle(/favicon/i)).toBeNull();
   });
@@ -435,11 +435,11 @@ describe("/alerts/history — what already closed", () => {
 
   it("reads its filters from the URL and hands them to the read", () => {
     state.history = history([row()]);
-    renderAlerts("/alerts/history?asset=nosh.example&severity=error");
+    renderAlerts("/alerts/history?asset=northwind.example&severity=error");
 
-    expect(screen.getByLabelText("Site")).toHaveValue("nosh.example");
+    expect(screen.getByLabelText("Site")).toHaveValue("northwind.example");
     expect(screen.getByLabelText("Severity")).toHaveValue("error");
-    expect(state.lastQuery).toMatchObject({ asset: "nosh.example", severity: "error" });
+    expect(state.lastQuery).toMatchObject({ asset: "northwind.example", severity: "error" });
   });
 
   it("offers Info, which the open list never can", () => {
@@ -457,10 +457,10 @@ describe("/alerts/history — what already closed", () => {
     renderAlerts("/alerts/history?offset=50");
 
     fireEvent.change(screen.getByLabelText("Site"), {
-      target: { value: "nosh.example" },
+      target: { value: "northwind.example" },
     });
 
-    expect(state.lastQuery).toMatchObject({ asset: "nosh.example", offset: 0 });
+    expect(state.lastQuery).toMatchObject({ asset: "northwind.example", offset: 0 });
   });
 
   it("states which slice of what, once", () => {
@@ -493,7 +493,7 @@ describe("/alerts/history — what already closed", () => {
 
   it("never calls a filtered blank an empty archive", () => {
     state.history = history([], { total: 0 });
-    renderAlerts("/alerts/history?asset=nosh.example");
+    renderAlerts("/alerts/history?asset=northwind.example");
 
     expect(
       screen.getByText("No settled alerts match these filters"),
@@ -541,12 +541,12 @@ describe("/alerts/history — what already closed", () => {
 
   it("offers the first page as the way out, dropping both page params", () => {
     state.historyError = new AlertHistoryPageError(400, 4, 25);
-    renderAlerts("/alerts/history?asset=nosh.example&offset=nonsense&limit=abc");
+    renderAlerts("/alerts/history?asset=northwind.example&offset=nonsense&limit=abc");
 
     fireEvent.click(screen.getByRole("button", { name: "First page" }));
 
     expect(state.lastQuery).toMatchObject({
-      asset: "nosh.example",
+      asset: "northwind.example",
       offset: 0,
       malformed: null,
     });

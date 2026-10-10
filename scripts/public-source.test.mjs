@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { preparePublicSource } from './public-source.mjs';
+import { inventoryCovers, preparePublicSource } from './public-source.mjs';
 
 test('every local README image belongs to the public source inventory', () => {
   const root = new URL('../', import.meta.url);
@@ -16,7 +16,7 @@ test('every local README image belongs to the public source inventory', () => {
     .map(match => match[1]).filter(file => !/^[a-z]+:/iu.test(file));
   assert.ok(images.length > 0);
   for (const image of images) {
-    assert.ok(settings.files.includes(image), `README image missing from the public inventory: ${image}`);
+    assert.ok(inventoryCovers(settings.files, image), `README image missing from the public inventory: ${image}`);
     assert.ok(fs.statSync(new URL(image, root)).isFile(), `README image missing from source: ${image}`);
   }
 });
@@ -37,7 +37,7 @@ test('README documentation links and application Markdown imports survive public
     }
   }
   for (const document of documents) {
-    assert.ok(inventory.has(document), `Public document missing from the inventory: ${document}`);
+    assert.ok(inventoryCovers(inventory, document), `Public document missing from the inventory: ${document}`);
     assert.ok(fs.statSync(path.join(root, document)).isFile(), `Public document missing from source: ${document}`);
   }
 });
@@ -63,7 +63,7 @@ function fixture(t) {
     fs.writeFileSync(target, text);
   }
   git('init', '--quiet');
-  for (const file of ['.gitignore', '.githooks/pre-commit', '.github/workflows/ci.yml',
+  for (const file of ['.gitignore', '.githooks/pre-commit', '.github/workflows/ci.yml', '.github/workflows/docs.yml',
     'AGENTS.md', 'CLAUDE.md', 'CONTEXT.md', 'CONTRIBUTING.md', 'LICENSE', 'README.md', 'SECURITY.md',
     'THIRD_PARTY_NOTICES.md', 'db/README.md',
     'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json',
@@ -108,6 +108,18 @@ test('export uses the immutable commit, includes required tests and excludes pri
   assert.deepEqual(second.manifest, result.manifest);
   assert.deepEqual(fs.readFileSync(path.join(second.directory, 'public-source.json')),
     fs.readFileSync(path.join(result.directory, 'public-source.json')));
+});
+
+test('a listed folder ships every file under it, the site config included, and nothing private', t => {
+  const f = fixture(t);
+  for (const file of ['docs/guides/first.md', 'docs/.vitepress/config.mts', 'docs/.vitepress/theme/index.ts']) f.write(file);
+  f.write('docs/.vitepress/.env', 'private fixture\n');
+  f.write('scripts/public-source.settings.json', JSON.stringify({ schema: 'noticeos-public-documents/1',
+    files: ['docs/README.md', 'docs/images/overview.svg', 'docs/guides/', 'docs/.vitepress/'] }));
+  const result = preparePublicSource({ root: f.root, commit: f.commit(), destination: f.destination('folders') });
+  const names = result.manifest.files.map(row => row.file);
+  for (const wanted of ['docs/guides/first.md', 'docs/.vitepress/config.mts', 'docs/.vitepress/theme/index.ts']) assert.ok(names.includes(wanted), wanted);
+  for (const denied of ['docs/.vitepress/.env', 'docs/unreviewed.md', 'docs/reports/private.md']) assert.equal(names.includes(denied), false, denied);
 });
 
 test('refuses mutable revisions, existing destinations, missing inputs and invalid document inventories', t => {

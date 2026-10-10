@@ -46,7 +46,7 @@ async function insertAsset(id: string, displayName: string): Promise<void> {
  * its number. */
 async function insertOpenWarning(message: string, hoursAgo: number): Promise<number> {
   return storeAlert(store.call, {
-    asset: "meals.example",
+    asset: "meadow.example",
     firedAt: new Date(Date.now() - hoursAgo * HOUR).toISOString(),
     severity: "warn",
     kind: "anomaly",
@@ -60,8 +60,8 @@ function openItem(id: number, message: string): AttentionItem {
   const firedAt = new Date(Date.now() - 2 * HOUR).toISOString();
   return {
     id,
-    asset: "meals.example",
-    assetDisplayName: "Meal Planner",
+    asset: "meadow.example",
+    assetDisplayName: "Meadow Board",
     severity: "warn",
     kind: "anomaly",
     message,
@@ -154,7 +154,7 @@ beforeEach(async () => {
   store = await createTestStore();
   calls = [];
   answers = [];
-  await insertAsset("meals.example", "Meal Planner");
+  await insertAsset("meadow.example", "Meadow Board");
   signupsId = await insertOpenWarning("Signups well below normal", 3);
   clicksId = await insertOpenWarning("Clicks fell off a cliff", 2);
   wall.data = {
@@ -213,7 +213,7 @@ describe("History's range badge while the next page loads", () => {
   it("never pairs the new offset with the old page's rows or total", async () => {
     const resolved = new Date(Date.now() - HOUR).toISOString();
     await storeAlerts(store.call, Array.from({ length: 30 }, (_, n) => ({
-      asset: "meals.example",
+      asset: "meadow.example",
       firedAt: new Date(Date.now() - 3 * HOUR).toISOString(),
       severity: "warn",
       kind: "anomaly",

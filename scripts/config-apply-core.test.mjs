@@ -151,7 +151,7 @@ test('resolve reads current values off disk and reports every stale op at once',
 test('a store op cannot be applied by a lane that has no store', async () => {
   const root = await tempRepo({ 'config/constants.json': CONSTANTS });
   const cs = changeset([
-    { kind: 'store-asset-set', asset: 'meals.example', column: 'status', expect: 'live', value: 'retired' },
+    { kind: 'store-asset-set', asset: 'meadow.example', column: 'status', expect: 'live', value: 'retired' },
   ]);
   await assert.rejects(resolve(cs, null, { repoRoot: root }), ChangesetError);
   await assert.rejects(
@@ -235,12 +235,12 @@ test('the archive takes the next four-digit number, migration-style', async () =
 const INTEGRATIONS = {
   version: 1,
   catalog: [{ id: 'gsc', label: 'Google Search Console' }],
-  assets: { 'meals.example': { gsc: { status: 'live' } } },
+  assets: { 'meadow.example': { gsc: { status: 'live' } } },
 };
-const COUNTERS = { assets: { 'meals.example': { cards: [] } } };
+const COUNTERS = { assets: { 'meadow.example': { cards: [] } } };
 const PULL = [
-  { asset: 'meals.example', url: 'https://meals.example/m', enabled: true },
-  { asset: 'nosh.example', url: 'https://nosh.example/o', enabled: true },
+  { asset: 'meadow.example', url: 'https://meadow.example/m', enabled: true },
+  { asset: 'northwind.example', url: 'https://northwind.example/o', enabled: true },
 ];
 // The two panel registers. Both carry file-level metadata beside their
 // `/assets` map (the roster's refresh block is what a pass costs), which is
@@ -249,7 +249,7 @@ const SIGNAL_PANELS = {
   version: 1,
   refresh: { windowDays: 35, freshnessMaxAgeDays: 7, providerCostUsdPerPass: 0 },
   assets: {
-    'meals.example': {
+    'meadow.example': {
       enabled: true,
       reason: 'live-lanes',
       task: 'ex-12.5',
@@ -262,7 +262,7 @@ const SIGNAL_PANELS = {
 };
 const SERP_PANEL = {
   assets: {
-    'meals.example': { queries: ['meals', 'meals calculator'] },
+    'meadow.example': { queries: ['meadow', 'meadow calculator'] },
   },
 };
 // The portfolio's legal entities. An asset's owner is a string on one of these
@@ -275,7 +275,7 @@ const ENTITIES = {
     {
       slug: 'second-co',
       name: 'Second Co LLC',
-      assets: ['meals.example', 'fees.example'],
+      assets: ['meadow.example', 'ferns.example'],
     },
   ],
 };
@@ -294,8 +294,8 @@ function deleteOp(overrides = {}) {
   return {
     kind: 'file-json-delete',
     file: 'config/integrations.json',
-    pointer: '/assets/meals.example',
-    expect: INTEGRATIONS.assets['meals.example'],
+    pointer: '/assets/meadow.example',
+    expect: INTEGRATIONS.assets['meadow.example'],
     ...overrides,
   };
 }
@@ -391,14 +391,14 @@ test('the add/remove allowlist names one container per file, and nothing else', 
   // it. So the pointer is legal and the VALUE is what decides: a lane cell
   // needs the fields a lane cell has, and the refusal names them.
   assert.throws(
-    () => validateSchemaAndSafety(changeset([insertOp({ pointer: '/assets/meals.example/gsc' })])),
+    () => validateSchemaAndSafety(changeset([insertOp({ pointer: '/assets/meadow.example/gsc' })])),
     /is not a field here — this one declares/,
   );
   assert.doesNotThrow(() =>
     validateSchemaAndSafety(
       changeset([
         insertOp({
-          pointer: '/assets/meals.example/gsc',
+          pointer: '/assets/meadow.example/gsc',
           value: { status: 'needs-setup', note: 'Nobody has decided it yet.', since: '2026-09-05' },
         }),
       ]),
@@ -413,7 +413,7 @@ test('the add/remove allowlist names one container per file, and nothing else', 
     () =>
       validateSchemaAndSafety(
         changeset([
-          insertOp({ file: 'config/serp-panel.json', pointer: '/assets/meals.example/queries/0' }),
+          insertOp({ file: 'config/serp-panel.json', pointer: '/assets/meadow.example/queries/0' }),
         ]),
       ),
     /is not a field here — this one declares query, label/,
@@ -423,8 +423,8 @@ test('the add/remove allowlist names one container per file, and nothing else', 
       changeset([
         insertOp({
           file: 'config/serp-panel.json',
-          pointer: '/assets/meals.example/queries/0',
-          value: 'big mac calories',
+          pointer: '/assets/meadow.example/queries/0',
+          value: 'anvil specs',
         }),
       ]),
     ),
@@ -435,8 +435,8 @@ test('the add/remove allowlist names one container per file, and nothing else', 
   // panel's terms.
   for (const [file, pointer] of [
     ['config/signal-panels.json', '/refresh'],
-    ['config/signal-panels.json', '/assets/meals.example/enabled'],
-    ['config/serp-panel.json', '/assets/meals.example/queries'],
+    ['config/signal-panels.json', '/assets/meadow.example/enabled'],
+    ['config/serp-panel.json', '/assets/meadow.example/queries'],
   ]) {
     assert.throws(
       () => validateSchemaAndSafety(changeset([insertOp({ file, pointer })])),
@@ -500,7 +500,7 @@ test('config/pull.json is an ARRAY: an insert appends, a delete names an index',
   assert.throws(
     () =>
       validateSchemaAndSafety(
-        changeset([deleteOp({ file: 'config/pull.json', pointer: '/nosh.example', expect: PULL[1] })]),
+        changeset([deleteOp({ file: 'config/pull.json', pointer: '/northwind.example', expect: PULL[1] })]),
       ),
     /must be \/<index>/,
   );
@@ -523,13 +523,13 @@ test('only one array entry may be spliced in or out per changeset', () => {
 
 test('an insert onto a key that is already taken resolves as a mismatch, and writes nothing', async () => {
   const root = await tempRepo({ 'config/integrations.json': INTEGRATIONS });
-  const cs = changeset([insertOp({ pointer: '/assets/meals.example' })]);
+  const cs = changeset([insertOp({ pointer: '/assets/meadow.example' })]);
 
   const { mismatches, fileCache } = await resolve(cs, null, { repoRoot: root });
   assert.equal(mismatches.length, 1);
   // The guard on an insert is absence, so that is what it "expected".
   assert.equal(mismatches[0].expect, MISSING);
-  assert.deepEqual(mismatches[0].current, INTEGRATIONS.assets['meals.example']);
+  assert.deepEqual(mismatches[0].current, INTEGRATIONS.assets['meadow.example']);
 
   // Nothing was applied — the caller refuses the whole set on any mismatch.
   assert.deepEqual(await applyFileOps([], fileCache, { repoRoot: root }), []);
@@ -545,7 +545,7 @@ test('a delete whose expect no longer matches the entry is a mismatch', async ()
 
   const { mismatches } = await resolve(cs, null, { repoRoot: root });
   assert.equal(mismatches.length, 1);
-  assert.deepEqual(mismatches[0].current, INTEGRATIONS.assets['meals.example']);
+  assert.deepEqual(mismatches[0].current, INTEGRATIONS.assets['meadow.example']);
 });
 
 test('an asset is added to all three registers, and removed from them again', async () => {
@@ -579,7 +579,7 @@ test('an asset is added to all three registers, and removed from them again', as
   assert.deepEqual(integrations.assets['brandnew.test'], { uptime: { status: 'needs-setup' } });
   // The rest of the file is untouched: this is a read-modify-write of one key.
   assert.deepEqual(integrations.catalog, INTEGRATIONS.catalog);
-  assert.ok('meals.example' in integrations.assets);
+  assert.ok('meadow.example' in integrations.assets);
   assert.equal((await readBack('config/pull.json')).length, 3);
   assert.equal((await readBack('config/pull.json'))[2].asset, 'brandnew.test');
 
@@ -642,7 +642,7 @@ test('the two panel registers grow and shrink by one asset, and nothing else mov
   // The refresh block is what a panel pass costs and how far back it reads. An
   // asset being added must not be able to reach it.
   assert.deepEqual(roster.refresh, SIGNAL_PANELS.refresh);
-  assert.ok('meals.example' in roster.assets);
+  assert.ok('meadow.example' in roster.assets);
   assert.deepEqual((await readBack('config/serp-panel.json')).assets['brandnew.test'], panel);
 
   const remove = changeset([
@@ -682,8 +682,8 @@ test("an asset's id leaves the entity that owned it, and the row itself stays", 
       kind: 'file-json-set',
       file: 'config/entities.json',
       pointer: '/entities/1/assets',
-      expect: ['meals.example', 'fees.example'],
-      value: ['fees.example'],
+      expect: ['meadow.example', 'ferns.example'],
+      value: ['ferns.example'],
     },
   ]);
   validateSchemaAndSafety(remove);
@@ -700,7 +700,7 @@ test("an asset's id leaves the entity that owned it, and the row itself stays", 
   assert.deepEqual(entities.entities[1], {
     slug: 'second-co',
     name: 'Second Co LLC',
-    assets: ['fees.example'],
+    assets: ['ferns.example'],
   });
   assert.deepEqual(entities.entities[0], ENTITIES.entities[0]);
 });
@@ -713,7 +713,7 @@ test('a list that moved since the delete was offered is a mismatch, and nothing 
       file: 'config/entities.json',
       pointer: '/entities/1/assets',
       // What the page rendered before a second asset was claimed.
-      expect: ['meals.example'],
+      expect: ['meadow.example'],
       value: [],
     },
   ]);
@@ -815,7 +815,7 @@ test('flipping a roster row dates the decision, in both directions', async () =>
   const flip = (expect_, value) => ({
     kind: 'file-json-set',
     file: 'config/signal-panels.json',
-    pointer: '/assets/meals.example/enabled',
+    pointer: '/assets/meadow.example/enabled',
     expect: expect_,
     value,
   });
@@ -829,17 +829,17 @@ test('flipping a roster row dates the decision, in both directions', async () =>
   // OFF. Nothing in the changeset names `since`; the pipeline moves it.
   await apply(changeset([flip(true, false)], { createdAt: '2026-09-05T11:00:00.000Z' }));
   let roster = await readBack();
-  assert.equal(roster.assets['meals.example'].enabled, false);
-  assert.equal(roster.assets['meals.example'].since, '2026-09-05');
+  assert.equal(roster.assets['meadow.example'].enabled, false);
+  assert.equal(roster.assets['meadow.example'].since, '2026-09-05');
   // The rest of the row is the operator's and is left alone.
-  assert.equal(roster.assets['meals.example'].note, SIGNAL_PANELS.assets['meals.example'].note);
+  assert.equal(roster.assets['meadow.example'].note, SIGNAL_PANELS.assets['meadow.example'].note);
 
   // BACK ON — the undo's own op, and the same rule. The row dates the decision
   // standing in it now, which is the one taken on the day of the undo.
   await apply(changeset([flip(false, true)], { createdAt: '2026-09-08T11:00:00.000Z' }));
   roster = await readBack();
-  assert.equal(roster.assets['meals.example'].enabled, true);
-  assert.equal(roster.assets['meals.example'].since, '2026-09-08');
+  assert.equal(roster.assets['meadow.example'].enabled, true);
+  assert.equal(roster.assets['meadow.example'].since, '2026-09-08');
 });
 
 test('a roster write that decides nothing new moves no date', async () => {
@@ -855,8 +855,8 @@ test('a roster write that decides nothing new moves no date', async () => {
       {
         kind: 'file-json-set',
         file: 'config/signal-panels.json',
-        pointer: '/assets/meals.example/task',
-        expect: SIGNAL_PANELS.assets['meals.example'].task,
+        pointer: '/assets/meadow.example/task',
+        expect: SIGNAL_PANELS.assets['meadow.example'].task,
         value: 'ex-12.7',
       },
     ],
@@ -868,7 +868,7 @@ test('a roster write that decides nothing new moves no date', async () => {
   await applyFileOps(resolved, fileCache, { repoRoot: root, at: cs.createdAt });
 
   const roster = await readBack();
-  assert.equal(roster.assets['meals.example'].since, '2026-08-03');
+  assert.equal(roster.assets['meadow.example'].since, '2026-08-03');
   assert.equal(roster.updated, '2026-09-09');
 });
 
@@ -881,7 +881,7 @@ test('a roster write that decides nothing new moves no date', async () => {
 const POSTURED_INTEGRATIONS = {
   ...INTEGRATIONS,
   assets: {
-    'meals.example': {
+    'meadow.example': {
       gsc: { status: 'live', note: 'GSC pull live since the property was verified.', since: '2026-08-03' },
     },
   },
@@ -900,7 +900,7 @@ test("changing a data source's posture dates the cell; changing its reason does 
   const cell = (field, expect_, value) => ({
     kind: 'file-json-set',
     file: 'config/integrations.json',
-    pointer: `/assets/meals.example/gsc/${field}`,
+    pointer: `/assets/meadow.example/gsc/${field}`,
     expect: expect_,
     value,
   });
@@ -908,20 +908,20 @@ test("changing a data source's posture dates the cell; changing its reason does 
   // Declining the source is a new posture: the pipeline dates it, nothing in
   // the changeset names `since`.
   await apply(changeset([cell('status', 'live', 'skipped')], { createdAt: '2026-09-05T11:00:00.000Z' }));
-  let lane = (await readBack()).assets['meals.example'].gsc;
+  let lane = (await readBack()).assets['meadow.example'].gsc;
   assert.equal(lane.status, 'skipped');
   assert.equal(lane.since, '2026-09-05');
-  assert.equal(lane.note, POSTURED_INTEGRATIONS.assets['meals.example'].gsc.note);
+  assert.equal(lane.note, POSTURED_INTEGRATIONS.assets['meadow.example'].gsc.note);
 
   // Rewording the reason is not a decision, so the day the posture was taken
   // stands.
   await apply(
     changeset(
-      [cell('note', POSTURED_INTEGRATIONS.assets['meals.example'].gsc.note, 'Declined: the property was sold on 2026-09-04.')],
+      [cell('note', POSTURED_INTEGRATIONS.assets['meadow.example'].gsc.note, 'Declined: the property was sold on 2026-09-04.')],
       { createdAt: '2026-09-09T11:00:00.000Z' },
     ),
   );
-  lane = (await readBack()).assets['meals.example'].gsc;
+  lane = (await readBack()).assets['meadow.example'].gsc;
   assert.equal(lane.status, 'skipped');
   assert.equal(lane.since, '2026-09-05');
 });
@@ -951,25 +951,25 @@ test('a panel delete whose expect has moved is refused rather than applied', asy
   const cs = changeset([
     deleteOp({
       file: 'config/serp-panel.json',
-      pointer: '/assets/meals.example',
+      pointer: '/assets/meadow.example',
       // A panel somebody grew since this was read.
-      expect: { queries: ['meals'] },
+      expect: { queries: ['meadow'] },
     }),
   ]);
   const { mismatches } = await resolve(cs, null, { repoRoot: root });
   assert.equal(mismatches.length, 1);
-  assert.deepEqual(mismatches[0].current, SERP_PANEL.assets['meals.example']);
+  assert.deepEqual(mismatches[0].current, SERP_PANEL.assets['meadow.example']);
 });
 
 test('display_name is a store column now, bounded at 80 characters', () => {
   const rename = (value) => ({
     kind: 'store-asset-set',
-    asset: 'meals.example',
+    asset: 'meadow.example',
     column: 'display_name',
-    expect: 'Meal Planner',
+    expect: 'Meadow Board',
     value,
   });
-  validateSchemaAndSafety(changeset([rename('My Plate')]));
+  validateSchemaAndSafety(changeset([rename('My Plume')]));
   assert.throws(() => validateSchemaAndSafety(changeset([rename('  ')])), /1–80 characters/);
   assert.throws(
     () => validateSchemaAndSafety(changeset([rename('x'.repeat(81))])),
@@ -986,8 +986,8 @@ test('display_name is a store column now, bounded at 80 characters', () => {
 
 const DOMAIN_COSTS = {
   domains: [
-    { domain: 'fees.example', asset: 'fees.example', kind: 'registration', paidUsd: 36.32, paidOn: '2026-06-28' },
-    { domain: 'nosh.example', asset: 'nosh.example', kind: 'registration', paidUsd: 109.69, paidOn: '2026-06-19' },
+    { domain: 'ferns.example', asset: 'ferns.example', kind: 'registration', paidUsd: 36.32, paidOn: '2026-06-28' },
+    { domain: 'northwind.example', asset: 'northwind.example', kind: 'registration', paidUsd: 109.69, paidOn: '2026-06-19' },
   ],
 };
 const RECURRING_COSTS = {
@@ -1002,7 +1002,7 @@ const RECURRING_COSTS = {
     },
   ],
 };
-const VALUE_EVENTS = { assets: { 'meals.example': { valueEvents: ['sign_up', 'auth_complete'] } } };
+const VALUE_EVENTS = { assets: { 'meadow.example': { valueEvents: ['sign_up', 'auth_complete'] } } };
 // `SIGNAL_PANELS` and `SERP_PANEL` are declared at the top of this file: they
 // are the same two files a whole-asset add/remove touches, and the same two an
 // operator edits row by row.
@@ -1025,7 +1025,7 @@ test('a declared register takes an insert, a set inside a row, and a delete', as
       pointer: '/domains/-',
       value: {
         domain: 'teller.example',
-        asset: 'fees.example',
+        asset: 'ferns.example',
         kind: 'registration',
         paidUsd: 6.69,
         paidOn: '2026-06-28',
@@ -1073,7 +1073,7 @@ test('a declared register takes an insert, a set inside a row, and a delete', as
   await applyFileOps(gone.resolved, gone.fileCache, { repoRoot: root });
   assert.deepEqual(
     (await readBack('config/domain-costs.json')).domains.map((d) => d.domain),
-    ['fees.example', 'teller.example'],
+    ['ferns.example', 'teller.example'],
   );
 });
 
@@ -1096,7 +1096,7 @@ test('an array insert may name a position, and puts a removed row back in it', a
   const gone = await resolve(out, null, { repoRoot: root });
   assert.deepEqual(gone.mismatches, []);
   await applyFileOps(gone.resolved, gone.fileCache, { repoRoot: root });
-  assert.deepEqual((await readBack()).map((d) => d.domain), ['nosh.example']);
+  assert.deepEqual((await readBack()).map((d) => d.domain), ['northwind.example']);
 
   // The undo names the index the row was spliced out of.
   const back = changeset([
@@ -1106,7 +1106,7 @@ test('an array insert may name a position, and puts a removed row back in it', a
   const restored = await resolve(back, null, { repoRoot: root });
   assert.deepEqual(restored.mismatches, [], 'an indexed insert asks about a POSITION, not absence');
   await applyFileOps(restored.resolved, restored.fileCache, { repoRoot: root });
-  assert.deepEqual((await readBack()).map((d) => d.domain), ['fees.example', 'nosh.example']);
+  assert.deepEqual((await readBack()).map((d) => d.domain), ['ferns.example', 'northwind.example']);
 
   // Past the end is a claim about a list that has moved — refused, loudly,
   // rather than quietly appended as if the pointer had said "-".
@@ -1166,7 +1166,7 @@ test('a read-only field is refused a rename, at its own pointer and inside a who
             kind: 'file-json-set',
             file: 'config/domain-costs.json',
             pointer: '/domains/0/domain',
-            expect: 'fees.example',
+            expect: 'ferns.example',
             value: 'fin.dev',
           },
         ]),
@@ -1265,14 +1265,14 @@ test('a row naming an asset the roster does not have is refused, by both entry p
   });
 
   // The shape check passes it — which is exactly the hole.
-  validateSchemaAndSafety(changeset([cost('meals.fod')]));
+  validateSchemaAndSafety(changeset([cost('meadow.exmple')]));
   await assert.rejects(
-    () => resolve(changeset([cost('meals.fod')]), null, { repoRoot: root }),
-    /asset "meals\.fod" is not one of meals\.example/,
+    () => resolve(changeset([cost('meadow.exmple')]), null, { repoRoot: root }),
+    /asset "meadow\.exmple" is not one of meadow\.example/,
   );
 
   // An asset the roster HAS goes through untouched.
-  const ok = await resolve(changeset([cost('meals.example')]), null, { repoRoot: root });
+  const ok = await resolve(changeset([cost('meadow.example')]), null, { repoRoot: root });
   assert.deepEqual(ok.mismatches, []);
 
   // A field set is checked the same way, at the field's own pointer.
@@ -1284,7 +1284,7 @@ test('a row naming an asset the roster does not have is refused, by both entry p
             kind: 'file-json-set',
             file: 'config/domain-costs.json',
             pointer: '/domains/0/asset',
-            expect: 'fees.example',
+            expect: 'ferns.example',
             value: 'fin.code',
           },
         ]),
@@ -1363,7 +1363,7 @@ test('the wholesale four keep their freedom, and gain field checks where a regis
   // the file still passes on the file's own permission rather than being newly
   // refused. A catalog field is the product's own definition: every one is
   // fixed, so a set is refused.
-  validateSchemaAndSafety(changeset([set('config/integrations.json', '/assets/meals.example/gsc/status', 'live')]));
+  validateSchemaAndSafety(changeset([set('config/integrations.json', '/assets/meadow.example/gsc/status', 'live')]));
   validateSchemaAndSafety(changeset([set('config/integrations.json', '/states/0/anything', 1)]));
   for (const [pointer, value] of [['/catalog/0/label', 'Search Console'], ['/catalog/0/layer', 'os'], ['/catalog/0/docRef', 'docs/x.md']]) {
     assert.throws(
@@ -1402,15 +1402,15 @@ test('a per-asset register carries the asset in its container', async () => {
     {
       kind: 'file-json-insert',
       file: 'config/value-events.json',
-      pointer: '/assets/meals.example/valueEvents/-',
+      pointer: '/assets/meadow.example/valueEvents/-',
       value: 'plan_save_click',
     },
     {
       kind: 'file-json-set',
       file: 'config/serp-panel.json',
-      pointer: '/assets/meals.example/queries/1',
-      expect: 'meals calculator',
-      value: { query: 'meals calculator', label: 'Calculator seam' },
+      pointer: '/assets/meadow.example/queries/1',
+      expect: 'meadow calculator',
+      value: { query: 'meadow calculator', label: 'Calculator seam' },
     },
   ]);
   validateSchemaAndSafety(cs);
@@ -1418,15 +1418,15 @@ test('a per-asset register carries the asset in its container', async () => {
   assert.deepEqual(mismatches, []);
   await applyFileOps(resolved, fileCache, { repoRoot: root });
 
-  assert.deepEqual((await readBack('config/value-events.json')).assets['meals.example'].valueEvents, [
+  assert.deepEqual((await readBack('config/value-events.json')).assets['meadow.example'].valueEvents, [
     'sign_up',
     'auth_complete',
     'plan_save_click',
   ]);
   // A bare tracked query gaining its cluster is one value replacing another at
   // the row's own pointer — the mixed shape the panel README sanctions.
-  assert.deepEqual((await readBack('config/serp-panel.json')).assets['meals.example'].queries[1], {
-    query: 'meals calculator',
+  assert.deepEqual((await readBack('config/serp-panel.json')).assets['meadow.example'].queries[1], {
+    query: 'meadow calculator',
     label: 'Calculator seam',
   });
 
@@ -1438,7 +1438,7 @@ test('a per-asset register carries the asset in its container', async () => {
           {
             kind: 'file-json-insert',
             file: 'config/value-events.json',
-            pointer: '/assets/meals.example/valueEvents/-',
+            pointer: '/assets/meadow.example/valueEvents/-',
             value: 'Calculation Complete',
           },
         ]),
@@ -1452,7 +1452,7 @@ test('a per-asset register carries the asset in its container', async () => {
       {
         kind: 'file-json-insert',
         file: 'config/value-events.json',
-        pointer: '/assets/nosh.example',
+        pointer: '/assets/northwind.example',
         value: { valueEvents: [] },
       },
     ]),
@@ -1465,7 +1465,7 @@ test('a per-asset register carries the asset in its container', async () => {
     {
       kind: 'file-json-insert',
       file: 'config/value-events.json',
-      pointer: '/assets/nosh.example',
+      pointer: '/assets/northwind.example',
       value: { valueEvents: ['calculation_complete'] },
     },
   ]);
@@ -1473,7 +1473,7 @@ test('a per-asset register carries the asset in its container', async () => {
   const seeded = await resolve(seed, null, { repoRoot: root });
   assert.deepEqual(seeded.mismatches, []);
   await applyFileOps(seeded.resolved, seeded.fileCache, { repoRoot: root });
-  assert.deepEqual((await readBack('config/value-events.json')).assets['nosh.example'], {
+  assert.deepEqual((await readBack('config/value-events.json')).assets['northwind.example'], {
     valueEvents: ['calculation_complete'],
   });
 
@@ -1482,7 +1482,7 @@ test('a per-asset register carries the asset in its container', async () => {
     {
       kind: 'file-json-delete',
       file: 'config/value-events.json',
-      pointer: '/assets/nosh.example',
+      pointer: '/assets/northwind.example',
       expect: { valueEvents: ['calculation_complete'] },
     },
   ]);
@@ -1490,7 +1490,7 @@ test('a per-asset register carries the asset in its container', async () => {
   const reverted = await resolve(undo, null, { repoRoot: root });
   assert.deepEqual(reverted.mismatches, []);
   await applyFileOps(reverted.resolved, reverted.fileCache, { repoRoot: root });
-  assert.equal((await readBack('config/value-events.json')).assets['nosh.example'], undefined);
+  assert.equal((await readBack('config/value-events.json')).assets['northwind.example'], undefined);
 });
 
 test('an object register keyed by asset id takes rows and field sets', async () => {
@@ -1502,13 +1502,13 @@ test('an object register keyed by asset id takes rows and field sets', async () 
     {
       kind: 'file-json-insert',
       file: 'config/signal-panels.json',
-      pointer: '/assets/nosh.example',
+      pointer: '/assets/northwind.example',
       value: { enabled: false, reason: 'no-lane-yet' },
     },
     {
       kind: 'file-json-set',
       file: 'config/signal-panels.json',
-      pointer: '/assets/meals.example/enabled',
+      pointer: '/assets/meadow.example/enabled',
       expect: true,
       value: false,
     },
@@ -1519,8 +1519,8 @@ test('an object register keyed by asset id takes rows and field sets', async () 
   await applyFileOps(resolved, fileCache, { repoRoot: root });
 
   const doc = await readBack();
-  assert.deepEqual(doc.assets['nosh.example'], { enabled: false, reason: 'no-lane-yet' });
-  assert.equal(doc.assets['meals.example'].enabled, false);
+  assert.deepEqual(doc.assets['northwind.example'], { enabled: false, reason: 'no-lane-yet' });
+  assert.equal(doc.assets['meadow.example'].enabled, false);
 
   assert.throws(
     () =>
@@ -1529,7 +1529,7 @@ test('an object register keyed by asset id takes rows and field sets', async () 
           {
             kind: 'file-json-insert',
             file: 'config/signal-panels.json',
-            pointer: '/assets/nosh.example',
+            pointer: '/assets/northwind.example',
             value: { enabled: true },
           },
         ]),
@@ -1547,11 +1547,11 @@ test('a tracked query may not be relabelled into a second spelling of one cluste
   const root = await tempRepo({
     'config/serp-panel.json': {
       assets: {
-        'meals.example': {
+        'meadow.example': {
           queries: [
-            'big mac calories',
-            { query: 'whopper calories', label: 'Item head' },
-            { query: 'mcchicken calories', label: 'Item head' },
+            'anvil specs',
+            { query: 'rocket skates specs', label: 'Item head' },
+            { query: 'magnet specs', label: 'Item head' },
           ],
         },
       },
@@ -1560,7 +1560,7 @@ test('a tracked query may not be relabelled into a second spelling of one cluste
   const relabel = (index, value, expect) => ({
     kind: 'file-json-set',
     file: 'config/serp-panel.json',
-    pointer: `/assets/meals.example/queries/${index}/label`,
+    pointer: `/assets/meadow.example/queries/${index}/label`,
     expect,
     value,
   });
@@ -1577,8 +1577,8 @@ test('a tracked query may not be relabelled into a second spelling of one cluste
           {
             kind: 'file-json-insert',
             file: 'config/serp-panel.json',
-            pointer: '/assets/meals.example/queries/-',
-            value: { query: 'quarter pounder calories', label: 'ITEM HEAD' },
+            pointer: '/assets/meadow.example/queries/-',
+            value: { query: 'catapult specs', label: 'ITEM HEAD' },
           },
         ]),
         null,
@@ -1601,9 +1601,9 @@ test('a tracked query may not be relabelled into a second spelling of one cluste
       {
         kind: 'file-json-set',
         file: 'config/serp-panel.json',
-        pointer: '/assets/meals.example/queries/0',
-        expect: 'big mac calories',
-        value: { query: 'big mac calories', label: 'Item head' },
+        pointer: '/assets/meadow.example/queries/0',
+        expect: 'anvil specs',
+        value: { query: 'anvil specs', label: 'Item head' },
       },
     ]),
     null,
@@ -1625,8 +1625,8 @@ test('a roster row is only enabled when integrations.json shows a live search la
     'config/integrations.json': {
       ...INTEGRATIONS,
       assets: {
-        'meals.example': { gsc: { status: 'live' } },
-        'nosh.example': { gsc: { status: 'needs-setup' }, ga4: { status: 'needs-setup' } },
+        'meadow.example': { gsc: { status: 'live' } },
+        'northwind.example': { gsc: { status: 'needs-setup' }, ga4: { status: 'needs-setup' } },
       },
     },
   });
@@ -1638,9 +1638,9 @@ test('a roster row is only enabled when integrations.json shows a live search la
     value: true,
   });
 
-  // nosh.example has lanes, and none of them is a live search lane.
+  // northwind.example has lanes, and none of them is a live search lane.
   await assert.rejects(
-    () => resolve(changeset([enable('nosh.example', false)]), null, { repoRoot: root }),
+    () => resolve(changeset([enable('northwind.example', false)]), null, { repoRoot: root }),
     /enabled but no live search source in integrations\.json/,
   );
   // The same refusal for a whole ROW arriving with `enabled: true` — the shape
@@ -1652,7 +1652,7 @@ test('a roster row is only enabled when integrations.json shows a live search la
           {
             kind: 'file-json-insert',
             file: 'config/signal-panels.json',
-            pointer: '/assets/nosh.example',
+            pointer: '/assets/northwind.example',
             value: { enabled: true, reason: 'live-lanes', since: '2026-09-05' },
           },
         ]),
@@ -1668,7 +1668,7 @@ test('a roster row is only enabled when integrations.json shows a live search la
       {
         kind: 'file-json-set',
         file: 'config/signal-panels.json',
-        pointer: '/assets/meals.example/enabled',
+        pointer: '/assets/meadow.example/enabled',
         expect: true,
         value: false,
       },
@@ -1679,7 +1679,7 @@ test('a roster row is only enabled when integrations.json shows a live search la
   assert.deepEqual(off.mismatches, []);
 
   // And an asset WITH a live lane goes through: the same row, the other answer.
-  const on = await resolve(changeset([enable('meals.example', true)]), null, { repoRoot: root });
+  const on = await resolve(changeset([enable('meadow.example', true)]), null, { repoRoot: root });
   assert.deepEqual(on.mismatches, []);
 });
 
@@ -1693,7 +1693,7 @@ test('a roster row is left alone when nothing can answer about its lanes', async
       {
         kind: 'file-json-set',
         file: 'config/signal-panels.json',
-        pointer: '/assets/meals.example/enabled',
+        pointer: '/assets/meadow.example/enabled',
         expect: true,
         value: true,
       },
@@ -1706,7 +1706,7 @@ test('a roster row is left alone when nothing can answer about its lanes', async
 
 test('the task-hub spokes are a register, and the hub itself is not', async () => {
   const root = await tempRepo({ 'config/beads.json': BEADS });
-  const spoke = { asset: 'nosh.example', prefix: 'nom', database: 'nom', repo: '../nom' };
+  const spoke = { asset: 'northwind.example', prefix: 'nw', database: 'nw', repo: '../nw' };
   const cs = changeset([
     { kind: 'file-json-insert', file: 'config/beads.json', pointer: '/spokes/-', value: spoke },
   ]);
@@ -1763,8 +1763,8 @@ test('one spliced array entry per changeset is per CONTAINER, not per file', () 
     () =>
       validateSchemaAndSafety(
         changeset([
-          remove('/assets/meals.example/queries/0', 'meals'),
-          remove('/assets/meals.example/queries/1', 'meals calculator'),
+          remove('/assets/meadow.example/queries/0', 'meadow'),
+          remove('/assets/meadow.example/queries/1', 'meadow calculator'),
         ]),
       ),
     /only one entry may be spliced in or out per changeset/,
@@ -1772,8 +1772,8 @@ test('one spliced array entry per changeset is per CONTAINER, not per file', () 
   // Two assets' lists are two different arrays, and do not.
   validateSchemaAndSafety(
     changeset([
-      remove('/assets/meals.example/queries/0', 'my plate'),
-      remove('/assets/nosh.example/queries/0', { query: 'big mac calories', label: 'Item head' }),
+      remove('/assets/meadow.example/queries/0', 'my plume'),
+      remove('/assets/northwind.example/queries/0', { query: 'anvil specs', label: 'Item head' }),
     ]),
   );
 });
@@ -2044,14 +2044,14 @@ test('documentRefusal names what is wrong with a malformed document, and where',
   assert.equal(documentRefusal('config/pull.json', []), null);
   assert.equal(documentRefusal('config/counters.json', { assets: {} }), null);
   const cases = [
-    ['config/pull.json', { asset: 'meals.example' }, /must be a JSON array/],
+    ['config/pull.json', { asset: 'meadow.example' }, /must be a JSON array/],
     ['config/pull.json', [42], /^\/0 — /],
     ['config/counters.json', {}, /\/assets is missing/],
-    ['config/counters.json', { assets: { 'meals.example': [] } }, /\/assets\/meals\.example — /],
+    ['config/counters.json', { assets: { 'meadow.example': [] } }, /\/assets\/meadow\.example — /],
     ['config/counters.json', { assets: { 'Not A Site': {} } }, /is not a valid key/],
     ['config/integrations.json', { catalog: {}, assets: {} }, /\/catalog must be a JSON array/],
     ['config/integrations.json', { catalog: [{ id: 'gsc' }], assets: {} }, /\/catalog\/0 — Label is required/],
-    ['config/integrations.json', { catalog: [], assets: { 'meals.example': { gsc: { status: 'on' } } } }, /\/assets\/meals\.example\/gsc — Posture must be one of/],
+    ['config/integrations.json', { catalog: [], assets: { 'meadow.example': { gsc: { status: 'on' } } } }, /\/assets\/meadow\.example\/gsc — Posture must be one of/],
     ['config/signal-panels.json', { assets: {}, refresh: { windowDays: 0, freshnessMaxAgeDays: 7 } }, /\/refresh\/windowDays — Panel history window must be at least 1/],
   ];
   for (const [file, doc, rule] of cases) {

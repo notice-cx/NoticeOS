@@ -30,7 +30,7 @@ interface ValidationBody {
 
 function issue(overrides: Record<string, unknown> = {}) {
   return {
-    id: 'mp-1w2',
+    id: 'md-1w2',
     title: 'Fix the recipe schema',
     status: 'open',
     priority: 1,
@@ -46,14 +46,14 @@ function issue(overrides: Record<string, unknown> = {}) {
 
 function project(overrides: Record<string, unknown> = {}) {
   return {
-    asset: 'meals.example',
-    prefix: 'mp',
+    asset: 'meadow.example',
+    prefix: 'md',
     ok: true,
     error: null,
     counts: { open: 2, highPriority: 1, ready: 1, inProgress: 1, blocked: 0, closedRecent: 0 },
     priorities: [0, 1, 2, 0, 0],
     ready: [issue()],
-    inProgress: [issue({ id: 'mp-33j', status: 'in_progress', assignee: 'agent-x' })],
+    inProgress: [issue({ id: 'md-33j', status: 'in_progress', assignee: 'agent-x' })],
     recentlyClosed: [],
     ...overrides,
   };
@@ -171,8 +171,8 @@ describe('POST /api/beads-snapshot — writes', () => {
     const stored = JSON.parse(row!.payload) as { projects: Record<string, unknown>[] };
     expect(stored.projects).toHaveLength(1);
     expect(stored.projects[0]).toMatchObject({
-      asset: 'meals.example',
-      prefix: 'mp',
+      asset: 'meadow.example',
+      prefix: 'md',
       ok: true,
       counts: { open: 2, highPriority: 1, ready: 1, inProgress: 1, blocked: 0, closedRecent: 0 },
     });
@@ -200,8 +200,8 @@ describe('POST /api/beads-snapshot — writes', () => {
       projects: [
         project(),
         project({
-          asset: 'nosh.example',
-          prefix: 'nom',
+          asset: 'northwind.example',
+          prefix: 'nw',
           ok: false,
           error: 'bd ready exited 1: no beads project found',
           counts: { open: 0, highPriority: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0 },
@@ -217,8 +217,8 @@ describe('POST /api/beads-snapshot — writes', () => {
       projects: { asset: string; ok: boolean; error: string | null }[];
     };
     expect(stored.projects.map((p) => [p.asset, p.ok])).toEqual([
-      ['meals.example', true],
-      ['nosh.example', false],
+      ['meadow.example', true],
+      ['northwind.example', false],
     ]);
     expect(stored.projects[1]!.error).toMatch(/no beads project found/);
   });
@@ -455,7 +455,7 @@ describe('POST /api/beads-snapshot — validation', () => {
 
   it('bounds how much one snapshot may carry (422)', async () => {
     const tooManyItems = Array.from({ length: BEADS_MAX_ITEMS + 1 }, (_, i) =>
-      issue({ id: `mp-${i}` }),
+      issue({ id: `md-${i}` }),
     );
     const res = await post({ projects: [project({ ready: tooManyItems })] });
     expect(res.status).toBe(422);
@@ -585,8 +585,8 @@ const RECORDED_POLLER_BODY = {
       ],
     },
     {
-      asset: 'nosh.example',
-      prefix: 'nom',
+      asset: 'northwind.example',
+      prefix: 'nw',
       ok: false,
       error:
         'bd active exited 1: Error: cannot use -C directory "/Users/operator/dev/does-not-exist": stat /Users/operator/dev/does-not-exist: no such file or directory',
@@ -612,7 +612,7 @@ describe('POST /api/beads-snapshot — the poller contract', () => {
       projects: { asset: string; ok: boolean; ready: unknown[] }[];
     };
     // Nothing is lost or reordered on the way through.
-    expect(stored.projects.map((p) => p.asset)).toEqual(['root-os', 'nosh.example']);
+    expect(stored.projects.map((p) => p.asset)).toEqual(['root-os', 'northwind.example']);
     expect(stored.projects[0]!.ready).toHaveLength(2);
     expect(stored.projects[1]!.ok).toBe(false);
   });
@@ -734,8 +734,8 @@ describe('POST /api/beads-snapshot — the poller contract', () => {
           ],
         },
         {
-          asset: 'nosh.example',
-          prefix: 'nom',
+          asset: 'northwind.example',
+          prefix: 'nw',
           ok: false,
           error:
             'bd active exited 1: Error: cannot use -C directory "/Users/operator/dev/does-not-exist": stat /Users/operator/dev/does-not-exist: no such file or directory',
@@ -755,7 +755,7 @@ describe('POST /api/beads-snapshot — the poller contract', () => {
 // mean different things.
 describe('POST /api/beads-snapshot — panel review', () => {
   const REVIEW = {
-    beadId: 'nom-4q2',
+    beadId: 'nw-4q2',
     panelDate: '2026-08-02',
     dueAt: '2026-08-09T00:00:00.000Z',
     status: 'open',
@@ -779,7 +779,7 @@ describe('POST /api/beads-snapshot — panel review', () => {
       projects: [
         project({
           panelReview: {
-            beadId: 'nom-4q2',
+            beadId: 'nw-4q2',
             panelDate: '2026-08-02',
             dueAt: '2026-08-09T00:00:00.000Z',
             status: 'closed',
@@ -859,7 +859,7 @@ describe('POST /api/beads-snapshot — handoff beads', () => {
   const HANDOFF = {
     kind: 'finding',
     key: 'item-openers',
-    beadId: 'mp-1w2',
+    beadId: 'md-1w2',
     status: 'open',
     closedAt: null,
   };
@@ -924,15 +924,15 @@ describe('POST /api/beads-snapshot — handoff beads', () => {
       projects: [
         project({
           handoffs: [
-            { ...HANDOFF, kind: 'page', key: 'https://meals.example/recipes', beadId: 'mp-pg1' },
-            { ...HANDOFF, kind: 'alert', key: 'flag-8812', beadId: 'mp-al1' },
+            { ...HANDOFF, kind: 'page', key: 'https://meadow.example/recipes', beadId: 'md-pg1' },
+            { ...HANDOFF, kind: 'alert', key: 'flag-8812', beadId: 'md-al1' },
           ],
         }),
       ],
     });
     expect(stored.handoffs).toEqual([
-      { kind: 'page', key: 'https://meals.example/recipes', beadId: 'mp-pg1', status: 'open', closedAt: null },
-      { kind: 'alert', key: 'flag-8812', beadId: 'mp-al1', status: 'open', closedAt: null },
+      { kind: 'page', key: 'https://meadow.example/recipes', beadId: 'md-pg1', status: 'open', closedAt: null },
+      { kind: 'alert', key: 'flag-8812', beadId: 'md-al1', status: 'open', closedAt: null },
     ]);
   });
 
@@ -943,7 +943,7 @@ describe('POST /api/beads-snapshot — handoff beads', () => {
     const stored = await storedProject({
       projects: [
         project({
-          handoffs: [HANDOFF, { ...HANDOFF, kind: 'sitemap', beadId: 'mp-zz9', key: 'whatever' }],
+          handoffs: [HANDOFF, { ...HANDOFF, kind: 'sitemap', beadId: 'md-zz9', key: 'whatever' }],
         }),
       ],
     });
@@ -991,14 +991,14 @@ describe('POST /api/beads-snapshot — handoff beads', () => {
   it('names the dropped kind and bead in one line per snapshot', () => {
     expect(
       droppedHandoffEvent([
-        { asset: 'meals.example', kind: 'sitemap', beadId: 'mp-zz9' },
-        { asset: 'nosh.example', kind: 'sitemap', beadId: 'nom-4b1' },
+        { asset: 'meadow.example', kind: 'sitemap', beadId: 'md-zz9' },
+        { asset: 'northwind.example', kind: 'sitemap', beadId: 'nw-4b1' },
       ]),
     ).toEqual({
       event: 'beads_handoff_kind_unknown',
       dropped: [
-        { asset: 'meals.example', kind: 'sitemap', beadId: 'mp-zz9' },
-        { asset: 'nosh.example', kind: 'sitemap', beadId: 'nom-4b1' },
+        { asset: 'meadow.example', kind: 'sitemap', beadId: 'md-zz9' },
+        { asset: 'northwind.example', kind: 'sitemap', beadId: 'nw-4b1' },
       ],
     });
   });
@@ -1108,7 +1108,7 @@ describe('POST /api/beads-snapshot — bounded history', () => {
 // that is all a replaced photograph keeps.
 describe('POST /api/beads-snapshot — keeps only what is read', () => {
   const HOUR_MS = 3_600_000;
-  const FILED = { kind: 'finding', key: 'item-openers', beadId: 'mp-1w2', status: 'open', closedAt: null };
+  const FILED = { kind: 'finding', key: 'item-openers', beadId: 'md-1w2', status: 'open', closedAt: null };
 
   /** A board that differs from every other one, as a busy portfolio's does. */
   function board(n: number) {
@@ -1116,10 +1116,10 @@ describe('POST /api/beads-snapshot — keeps only what is read', () => {
       projects: [
         project({
           counts: { open: n, highPriority: 1, ready: 1, inProgress: 1, blocked: 0, closedRecent: 1 },
-          recentlyClosed: [issue({ id: `mp-c${n}`, status: 'closed', closedAt: '2026-08-01T10:00:00Z' })],
-          recentlyCreated: [issue({ id: `mp-n${n}`, createdAt: '2026-08-01T09:00:00Z' })],
+          recentlyClosed: [issue({ id: `md-c${n}`, status: 'closed', closedAt: '2026-08-01T10:00:00Z' })],
+          recentlyCreated: [issue({ id: `md-n${n}`, createdAt: '2026-08-01T09:00:00Z' })],
           epics: [],
-          deferred: [issue({ id: `mp-d${n}`, status: 'deferred' })],
+          deferred: [issue({ id: `md-d${n}`, status: 'deferred' })],
           handoffs: [FILED],
         }),
       ],
@@ -1164,29 +1164,29 @@ describe('POST /api/beads-snapshot — keeps only what is read', () => {
     const [newest, replaced] = await storedRows();
     expect(JSON.parse(newest!.payload).projects[0]).toMatchObject({
       counts: { open: 2 },
-      ready: [{ id: 'mp-1w2' }],
-      deferred: [{ id: 'mp-d2' }],
+      ready: [{ id: 'md-1w2' }],
+      deferred: [{ id: 'md-d2' }],
       handoffs: [{ beadId: FILED.beadId }],
     });
     const kept = JSON.parse(replaced!.payload) as { projects: Record<string, unknown>[] };
     expect(kept).toEqual({
       projects: [
         {
-          asset: 'meals.example',
+          asset: 'meadow.example',
           ok: true,
           counts: { open: 1, highPriority: 1, ready: 1, inProgress: 1, blocked: 0, closedRecent: 1 },
-          recentlyClosed: [{ id: 'mp-c1', title: 'Fix the recipe schema', closedAt: '2026-08-01T10:00:00.000Z' }],
-          recentlyCreated: [{ id: 'mp-n1', title: 'Fix the recipe schema', createdAt: '2026-08-01T09:00:00.000Z' }],
+          recentlyClosed: [{ id: 'md-c1', title: 'Fix the recipe schema', closedAt: '2026-08-01T10:00:00.000Z' }],
+          recentlyCreated: [{ id: 'md-n1', title: 'Fix the recipe schema', createdAt: '2026-08-01T09:00:00.000Z' }],
         },
       ],
     });
     // The daily rollup's backfill still reads a replaced photograph.
     expect(readSnapshotProjects(replaced!.payload)).toEqual([
       {
-        asset: 'meals.example',
+        asset: 'meadow.example',
         ok: true,
         counts: { open: 1, inProgress: 1, blocked: 0, highPriority: 1, waiting: undefined },
-        recentlyClosed: [{ id: 'mp-c1', closedAt: '2026-08-01T10:00:00.000Z' }],
+        recentlyClosed: [{ id: 'md-c1', closedAt: '2026-08-01T10:00:00.000Z' }],
       },
     ]);
   });
@@ -1230,7 +1230,7 @@ describe('POST /api/beads-snapshot — newly filed work', () => {
   }
 
   it('stores the filing time and the newest-filed list as the feed will read them', async () => {
-    const filed = issue({ id: 'mp-new', createdAt: '2026-08-01T08:59:00Z' });
+    const filed = issue({ id: 'md-new', createdAt: '2026-08-01T08:59:00Z' });
     const stored = await storedProject({ projects: [project({ recentlyCreated: [filed], ready: [filed] })] });
     expect(stored.recentlyCreated).toEqual([{ ...filed, createdAt: '2026-08-01T08:59:00.000Z' }]);
     expect((stored.ready as Record<string, unknown>[])[0]!.createdAt).toBe('2026-08-01T08:59:00.000Z');
@@ -1250,7 +1250,7 @@ describe('POST /api/beads-snapshot — newly filed work', () => {
   });
 
   it('bounds the list like every other list (422)', async () => {
-    const many = Array.from({ length: BEADS_MAX_ITEMS + 1 }, (_, i) => issue({ id: `mp-${i}` }));
+    const many = Array.from({ length: BEADS_MAX_ITEMS + 1 }, (_, i) => issue({ id: `md-${i}` }));
     const res = await post({ projects: [project({ recentlyCreated: many })] });
     expect(res.status).toBe(422);
   });

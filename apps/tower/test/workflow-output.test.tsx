@@ -7,11 +7,11 @@ afterEach(cleanup);
 describe('visual step output', () => {
   it('renders actual counts and per-asset outcomes before the optional data disclosure', () => {
     render(<WorkflowStepOutputView output={captureWorkflowOutput({ attempted: 2, succeeded: 1, failed: 1, outcomes: [
-      { asset: 'meals.example', ok: true, status: 200, written: 12 }, { asset: 'nosh.example', ok: false, status: 503 },
+      { asset: 'meadow.example', ok: true, status: 200, written: 12 }, { asset: 'northwind.example', ok: false, status: 503 },
     ] })} />);
     expect(screen.getByText('Attempted')).toBeInTheDocument();
     const table = screen.getByRole('table', { name: 'Output results' });
-    expect(within(table).getByText('meals.example')).toBeInTheDocument();
+    expect(within(table).getByText('meadow.example')).toBeInTheDocument();
     expect(within(table).getByText('12')).toBeInTheDocument();
     expect(within(table).getByText('503')).toBeInTheDocument();
     const disclosure = screen.getByText('Captured data').closest('details')!;

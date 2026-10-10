@@ -15,9 +15,9 @@ has a budget line on the asset-#0 ledger and a fail-closed posture in
 
 | Integration | Provides | Consumed by | Access | Cost model | Quota / limit reality | On failure |
 |---|---|---|---|---|---|---|
-| **GSC API** | live collector: daily Google-search clicks, impressions, CTR, average position; daily archive: web page/query/country/device, page-level search appearance, image page×query, and Discover page responses | Sense (S2), Attribute | service account; Full-user grant per property; read-only API scope | Free | live total query runs 96/day/site; the archive adds 40 base requests/day/property (ten report families × four dates), search-appearance expansion, and pagination. Search Analytics exposes at most 50k rows/day/search type and does not guarantee every row, so an archive is analysis-grade evidence, not a complete log | retain last good snapshot/archive, record the failed report manifest, suppress dependent flags |
-| **GA4 Data API** | live collector: daily active users, sessions, page views, events; on-demand display read: exact distinct users in trailing 30- and 5-minute windows, users per minute over the last 30, plus today-by-hour against the same weekday last week; daily archive: pages/screens, landing pages, acquisition, source/campaign, events, page×event, `js_error` message×source×page, landing-page×source/channel, and an exact rolling 28-day event-user aggregate | Sense, Attribute | service account; Viewer grant per property; read-only API scope | Free tier (separate token quotas per property and request category) | daily-series query runs 96/day/property; open Tower displays share two Realtime requests/property per minute (both minute ranges, and the per-minute rows of the Wall's minute pulse), and one bounded Core hourly request/property per 15 minutes for today plus seven days ago; a display whose cache was emptied (a deploy, eviction, a new day or clock) reads at once instead of waiting out that cadence, at most one extra read per window; hidden tabs stop polling, and refused requests enter a shared cooldown; archive adds 33 base requests/day/property (eight daily families × four revision dates plus one rolling aggregate), plus pagination, and caps each report at 250k rows. Data API is aggregate/modelled reporting, not raw event/session export. **Event parameters** (`customEvent:*`) answer only after an operator registers them as custom dimensions, and are never backfilled. Every lane sends `returnPropertyQuota`, so token spend is measured rather than inferred from request counts | retain last good daily/display snapshot and archive; record a failed durable report manifest; never turn a provider failure or a future hour into zero; today remains visibly incomplete; an unregistered custom dimension is its own manifest state (`ga4_custom_dimension_unregistered`), never an empty success; scheduled collection names an exhausted token budget `ga4_quota_exhausted`; display reads return a safe quota category and next permitted attempt, and a bucket under 20% remaining raises `ga4-quota-pressure` before the failures start |
-| **Bing Webmaster Tools API** | live: site-level daily clicks/impressions; archive: rank traffic, top queries/pages, crawl stats/issues, and feeds. The separate AI Performance UI report is not exposed by the documented API | Sense (S2 complement), Attribute | user-level API key on one central BWT account; sites verified per property (GSC import supported) | Free | one live request/site/day plus one shared site-list request and four archive requests/verified site/day — six on the day the two weekly families come due. Microsoft publishes no read-quota figure; query/page reports update weekly, are collected weekly, and can trail the wall clock | retain last good live snapshot; record each failed archive family independently; never fill an absent trailing day with zero or relabel undifferentiated impressions as AI citations |
+| **GSC API** | live collector: daily Google-search clicks, impressions, CTR, average position; daily archive: ten report families ([doc 02](02-signal-contract.md#central-signals)) | Sense (S2), Attribute | service account; Full-user grant per property; read-only API scope | Free | live total query runs 96/day/site; the archive adds 40 base requests/day/property (ten report families × four dates), search-appearance expansion, and pagination. Search Analytics exposes at most 50k rows/day/search type and does not guarantee every row, so an archive is analysis-grade evidence, not a complete log | retain last good snapshot/archive, record the failed report manifest, suppress dependent flags |
+| **GA4 Data API** | live collector: daily active users, sessions, page views, events; on-demand display read: exact distinct users in trailing 30- and 5-minute windows, users per minute over the last 30, plus today-by-hour against the same weekday last week; daily archive: eight report families plus an exact rolling 28-day event-user aggregate ([doc 02](02-signal-contract.md#central-signals)) | Sense, Attribute | service account; Viewer grant per property; read-only API scope | Free tier (separate token quotas per property and request category) | daily-series query runs 96/day/property; open Tower displays share two Realtime requests/property per minute (both minute ranges, and the per-minute rows of the Wall's minute pulse), and one bounded Core hourly request/property per 15 minutes for today plus seven days ago; a display whose cache was emptied (a deploy, eviction, a new day or clock) reads at once instead of waiting out that cadence, at most one extra read per window; hidden tabs stop polling, and refused requests enter a shared cooldown; archive adds 33 base requests/day/property (eight daily families × four revision dates plus one rolling aggregate), plus pagination, and caps each report at 250k rows. Data API is aggregate/modelled reporting, not raw event/session export. **Event parameters** (`customEvent:*`) answer only after an operator registers them as custom dimensions, and are never backfilled. Every lane sends `returnPropertyQuota`, so token spend is measured rather than inferred from request counts | retain last good daily/display snapshot and archive; record a failed durable report manifest; never turn a provider failure or a future hour into zero; today remains visibly incomplete; an unregistered custom dimension is its own manifest state (`ga4_custom_dimension_unregistered`), never an empty success; scheduled collection names an exhausted token budget `ga4_quota_exhausted`; display reads return a safe quota category and next permitted attempt, and a bucket under 20% remaining raises `ga4-quota-pressure` before the failures start |
+| **Bing Webmaster Tools API** | live: site-level daily clicks/impressions; archive: six report families ([doc 02](02-signal-contract.md#central-signals)). The separate AI Performance UI report is not exposed by the documented API | Sense (S2 complement), Attribute | user-level API key on one central BWT account; sites verified per property (GSC import supported) | Free | one live request/site/day plus one shared site-list request and four archive requests/verified site/day — six on the day the two weekly families come due. Microsoft publishes no read-quota figure; query/page reports update weekly, are collected weekly, and can trail the wall clock | retain last good live snapshot; record each failed archive family independently; never fill an absent trailing day with zero or relabel undifferentiated impressions as AI citations |
 | **MS Clarity data-export API** | session behavior aggregates (rage/dead clicks, quickbacks, script errors, scroll) | Sense (UX signals), hypothesis grounding | API token per project | Free, but **10 calls/project/DAY hard cap**; trailing 72h only; ≤3 dims; 1,000 rows, no pagination | one call returns ALL metric blocks per dimension split, so URL + Device = full read in 2 calls; ALWAYS snapshot to store and analyze from disk; counts only — element detail needs dashboard replays; `clarity.ms` is adblock-DNS-listed (undercounts ~15–25%, rankings hold; can also blackhole the OS's own probes) | optional lane — degrade silently, flag staleness |
 | **PostHog query API** ([below](#posthog)) | product behaviour: daily visits, event taxonomy, errors, rage clicks, real-visitor page speed (LCP/INP/CLS/FCP p75), declared funnels | Sense (UX and product signals), Decide (hypothesis grounding) | one read-only personal API key for the account (Project, Insight and Query read), connected on `/integrations`; region, projects and saved funnels discovered | Free per query | 2,400 requests/hour, 240/minute, 3 concurrent queries, a 10-second execution cap and an hourly bytes-read budget per project; six bounded, server-aggregated queries per asset per day, run one at a time | keep the last archive, mark the source degraded, name the refused or skipped family; a 429 stops the run; missing rows are not zeros |
 | **DataForSEO** | top ranked keywords with demand/difficulty/CPC/SERP features, backlink stock + 90-day new/lost movement, Google/ChatGPT mention metrics, and live result pages for an operator-chosen head-term panel | Sense (S1/S1b/S3/S4), Decide (opportunity sizing, the AI-Overview gate) | one shared API login/password; launched domains are discovered from Postgres; tracked terms from `config/serp-panel.json` | Metered: roughly $0.26–$0.29 per property per weekly run, plus ~$0.004 per tracked panel term per device; each report records exact provider cost | five bounded calls/week/launched property plus one per tracked query **per device**; the site's saved market (United States · English by default), phone and desktop; 200-row ranked-keyword cap, a 31-term panel ceiling and a 20-result panel depth. A $0.25/report reserve makes the $25/month portfolio data cap fail closed before a call, and the provider card renders how much of that cap is left this month, counted from the costs the reports themselves recorded, plus the prepaid account credit as a dated sighting — refreshed by ONE free `appendix/user_data` read at the end of every sweep that worked, which is metered spend of zero and is never retried | retain the latest stored snapshot, mark the lane degraded, and never interpolate missing rankings, links, AI mentions, or AI-Overview state |
@@ -152,16 +152,15 @@ not promises of payment.
 
 ## How to connect one
 
-Every provider with a portfolio credential is connected **in the product**, on
-the Tower's `/integrations` page — `/health` remains the observability view of
-what each data source is producing.
+Every provider is connected in the product, on the Tower's `/integrations`
+page; `/health` shows what each data source is producing. How the credential
+store works (encryption, store before environment, what a run records, the
+legacy environment fallback and **Import from this machine**) is written once,
+in the [ingest README](../workers/ingest/README.md#credential-store-one-key-every-provider).
 
-**What *Test connection* costs is declared, not assumed.** Five of the probes
-below are the free read-only call a Test button is taken to be, and the card
-says nothing about them. Two are not, and the card prints the sentence in the
-last column **before** the press: Discord's posts a real message into the
-operator's channel, and the OAuth app's calls nobody at all. A button that
-surprises somebody once is a button they stop pressing.
+What **Test connection** costs is declared on the card. Five probes are a free
+read-only call. Two are not, and the card says so before the press: Discord's
+posts a real message, and the OAuth app's calls nobody.
 
 | Provider (id) | Fields | Probe the *Test connection* button makes |
 |---|---|---|
@@ -173,331 +172,106 @@ surprises somebody once is a button they stop pressing.
 | Calendar feeds (`calendar`) | `CALENDAR_FEEDS` — name → secret ICS url | one bounded GET per feed, reported **by label**; the url is the credential and never appears in a verdict |
 | Discord (`discord`) | `DISCORD_WEBHOOK_URL` — the whole `https://discord.com/api/webhooks/…` address | **posts one labelled message to the channel, and the card says so before the press.** Discord does offer a read of the webhook object and it would prove the wrong thing: the catalog row above defines this data source as live when the OS *can deliver a notification* — "not merely that a webhook URL exists" — and a webhook whose channel the operator lost still answers a read. The url is the credential and never appears in a verdict, and Discord's own error body is never reflected back |
 
-### What the notification channel actually carries
+### What the notification channel carries
 
-- **Two conditions, declared once.** `NOTIFIED_CONDITIONS` in
-  `packages/contract` is what the notifier decides from AND what the card prints
-  before you connect it, so the promise and the delivery are one list: a **new
-  open error alert** (error only — `warn` is what the desk is for, and a
-  notifier that forwarded every alert would be `/alerts` again, at 3am), and a
-  **data source that turns Failing**, read through the same `connectionState`
-  the card's own chip is derived from. Nothing else. Alert fatigue is this
-  channel's documented failure mode, and the shortest honest list is the design.
-- **Once per condition, and that needs a memory.** The lane runs hourly at
-  `:05`, so a notifier with no record of what it had already said would re-send
-  every open condition every hour. `notifications` is that record, and it is
-  written **only on a successful delivery** — a failed send is retried on
-  the next tick, and the Alerts row's *notified* mark therefore means a message
-  actually landed rather than that one was attempted.
-- **A real delivery stamps the credential.** The card's verdict now comes from
-  the channel doing its job, not only from a Test press — the same rule the
-  04:30 Clarity export follows.
-- **Where the `notifications` table is absent, nothing is sent, and the card
-  says so.** Migrations are operator-only ([AGENTS.md](../AGENTS.md)). Silence
-  with a sentence and the apply command is the honest degradation; sending
-  without being able to record would be the fatigue this whole design avoids.
-- **A horizon, so the first tick is not a replay.** Only conditions that arose
-  in the last 24 hours qualify, and one message carries at most ten lines with a
-  count of the rest — if more than ten things need attention the volume is
-  itself the finding.
+- **Two conditions.** `NOTIFIED_CONDITIONS` in `packages/contract` is both what
+  the notifier sends and what the card promises: a new open **error** alert,
+  and a data source that turns **Failing** (read through the same
+  `connectionState` as the card's chip). Nothing else.
+- **Once per condition.** The lane runs hourly at `:05`. The `notifications`
+  table records each condition only after a successful delivery, so a failed
+  send is retried next tick and the Alerts row's *notified* mark means a
+  message landed.
+- **A real delivery stamps the credential**, like the Clarity export does.
+- **No `notifications` table, nothing sent**, and the card says so; migrations
+  are operator-only.
+- **A 24-hour horizon**, so the first tick is not a replay, and at most ten
+  lines per message with a count of the rest.
 
-**Clarity is the one `per-asset` credential**:
+### Clarity: the one per-asset credential
 
-- **One row, one map.** Clarity issues a data-export token per project, so the
-  credential is an `asset-map` field — `asset id → that asset's token` — inside
-  the single `credentials` row keyed on the provider. A compound
-  `(provider, asset)` key would have been a migration, and migrations are
-  operator-only; what *per-asset* actually changes is the FORM (one input per
-  asset) and the CARD (which assets have a key), not the store.
-- **The older single-project binding is one entry of that map.**
-  `CLARITY_PROJECT_API_TOKEN` is **kept, not retired**, and it is declared on
-  the map field (`legacyAssetBinding` in `packages/contract`) rather
-  than read separately by the collector. One declaration, three readers: the
-  card counts it as the first Clarity asset's key so an install running on it stops
-  reading *Not connected* over a data source that is collecting, **Import from
-  this machine** moves it into the store as that one map entry, and the nightly
-  export still records `CLARITY_PROJECT_API_TOKEN` on the manifest row it
-  answered for, so *which slot held this token* stays a fact you read. **The map
-  wins wherever both name the asset**, and there is deliberately **no form input
-  for it**: the product teaches the map, because a field offering "the token,
-  but only for one asset" would teach the shape it replaced.
-- **Its cap is a number on the card, not a sentence**, and so is DataForSEO's
-  — see below. *"Clarity: 7/10 calls left today"* is rendered per asset, and it costs nothing to read: the export writes one
-  manifest row per call it makes, so calls-spent-today is a COUNT of
-  `archive_runs` rows this OS wrote — never a provider call, which on a
-  ten-a-day cap would be the meter spending what it measures. It counts ROWS
-  rather than `request_count`, because a failed call archives no pages and
-  summing that column would report a rejected token as budget still available.
-  Days are UTC, like the metered spend figure beside it: the OS cannot know
-  Clarity's own reset clock, and the card says which calendar it counted in
-  rather than implying it does.
-- **Its test calls nobody, and says so.** Ten calls per project per day and no
-  free metadata endpoint means the cheapest available probe would spend a tenth
-  of one asset's daily budget. So *Test connection* reports which assets hold a
-  token, states plainly that it did not call Clarity, and — because it proved
-  nothing — leaves `last_ok_at` alone. **The 04:30 export is the proof**: that
-  run stamps the credential, so the verdict on the card comes from a real
-  collection rather than from a button.
+- **One connection, one map.** Clarity issues a token per project, so its
+  credential is an `asset-map` field (asset id → that asset's token) on the
+  provider's one connection. *Per-asset* changes the form (one input per asset)
+  and the card (which assets have a key), not the store.
+- **The single-project `CLARITY_PROJECT_API_TOKEN` is one entry of that map**,
+  declared as `legacyAssetBinding` in `packages/contract`. The card counts it,
+  **Import from this machine** moves it into the map, and the export records
+  which slot answered. The map wins wherever both name the asset, and the form
+  offers no input for the single token.
+- **Calls left today, per asset**, counted from the `archive_runs` rows the
+  export wrote (one per call, a failed call included) in UTC days. Reading it
+  costs no provider call.
+- **Test connection calls nobody.** With ten calls a day and no free endpoint,
+  the test reports which assets hold a token and leaves `last_ok_at` alone; the
+  04:30 export is the proof that stamps it.
 
-**DataForSEO's card says how much of the month's data cap is left**, on the
-same budget line Clarity's card carries. It is the second and last provider with a ceiling this OS can count, and the two
-ceilings are different in kind, which is what the design turns on:
+### DataForSEO: the month's cap and the account's credit
 
-- **The bar is the CAP, not the account.** DataForSEO is prepaid, and the two
-  numbers are different in kind: the cap is a ceiling this OS enforces and can
-  count, the credit is the vendor's own figure. The bar draws the one that
-  actually decides whether next Monday's sweep runs — month-to-date spend
-  against `monthly_caps.data_usd`, the $25 portfolio reserve that **fails
-  closed** before a call.
-- **The credit sits beside it as a dated sighting.** It is recorded from the free
-  `appendix/user_data` read — the one behind *Test connection*, and the SAME
-  ONE CALL the weekly sweep makes at the end of a run that worked. That second
-  half is what stops the figure from ageing for months: the report endpoints
-  never carry a `money` object, so only a free read can stamp it. Asking the
-  free endpoint once is the cheapest honest fix — no money, no metered quota, outside the cap guard
-  because there is nothing to cap, and **never retried**, since a courtesy read
-  has nothing to lose. A sweep that failed or had nothing due asks nothing at
-  all, and a read that is refused or times out leaves the run green and the card
-  on its last sighting with its age. The run's `dataforseo_dumps_complete` line
-  says `refreshed` or `not refreshed` — the word, never the figure. The sighting
-  is stored as a non-secret fact in `credentials.fields_json`
-  beside the ciphertext (`CredentialMetadata.balance`, the same public half the
-  expiry uses, so no migration, no re-seal and no `CREDENTIALS_KEY`). The card
-  reads *Account credit $18.72 · seen 2h ago*, with the exact instant on hover.
-  **The amount and its age are one sentence**, because a stale balance drawn as
-  a live one is the failure this task existed to prevent; a sighting whose
-  stored instant will not parse is dropped rather than shown undated. **And a
-  sighting older than fourteen days — two missed weekly refreshes — is said to
-  be too old to act on**: the free refresh is silent when it is
-  refused, so the age turns warn-toned and says so instead of leaving the
-  operator to do arithmetic on a timestamp; the amount stays, dimmed. It is
-  **not drawn as a bar** — a balance has no ceiling to draw against — and an
-  account nobody has read yet says so in words rather than leaving the line out,
-  which would read as an account with no credit on it. **A rotation drops it**:
-  what was just pasted may name a different account, so the figure goes and the
-  next answer replaces it. One writer (`setCredentialBalance`), one caller-shared
-  account read and one wire parse (`workers/ingest/src/dataforseo-balance.ts`),
-  one reader (`credentialBalance` in `packages/contract`).
-- **One representation, no second sum — and the same sum the gate enforces.**
-  The card reads `loadDataForSeoSpend`, which is the Tower's name for
-  `loadMeteredDataSpend` in [`packages/contract`](../packages/contract/src/metered-spend.ts) —
-  the one body `/health`'s spend summary, `/settings`' budget meter, the Wall's
-  daily pace **and the collector's own cap gate** all read. A second aggregate
-  over the same rows would be free to disagree by a float, and three surfaces
-  quoting three different months is worse than one surface quoting none.
-- **The figure includes ad-hoc research.** Metered spend is two tables,
-  because the portfolio spends this account two ways: the `provider_cost_usd`
-  column every collected report writes on its own manifest row, **plus**
-  [`research_log`](../db/postgres/migrations/0001_baseline.sql) — what an
-  agent or the operator bought one question at a time on the same credentials.
-  The gate and every desk meter count both; a budget display that errs low is
-  the one error it must not make. The two halves are disjoint by
-  `actor` — research rows the collector wrote for itself are already in its
-  manifest rows — and research bought about no single property is stated as its
-  own line rather than pinned onto an asset that did not spend it.
-- **One line, not one per asset.** Clarity's cap is per asset, so it draws a line
-  per asset; this cap is portfolio-wide, so drawing it five times would say the
-  same thing five times against a ceiling none of them individually has. Which
-  asset the month's money went on is already a per-asset list on `/health`.
-- **The ceiling is not in the catalog.** `monthly_caps.data_usd` is edited in
-  `/settings`, so the provider declaration carries no copy of it; the cap rides
-  on the reading, and a card with no cap to draw against draws nothing.
-
-The rules the implementation keeps, each test-pinned
-([`workers/ingest/test/credentials.test.ts`](../workers/ingest/test/credentials.test.ts)):
-
-- **Connect it on `/integrations`; env is the legacy fallback.** Every provider
-  below is connected, tested and disconnected in the product, and its credential
-  lives AES-GCM-encrypted in [`credentials`](../db/postgres/README.md). An
-  install still holding a binding keeps working, and moves when it wants to.
-  Which secrets stay in the environment and why is written once, in
-  [doc 06 § Bootstrap secrets vs. integration credentials](06-operations.md#bootstrap-secrets-vs-integration-credentials).
-- **One env secret for this.** `CREDENTIALS_KEY`, 32 bytes base64
-  (`openssl rand -base64 32`), in `.dev.vars` locally or
-  `wrangler secret put CREDENTIALS_KEY` deployed.
-- **Store first, env second, all or nothing.** A provider with a stored row is
-  served entirely from the store; one without falls back entirely to its legacy
-  binding. `signal_runs.credential_ref` records which — `store:` prefixed when
-  the product's credential ran the pull — so "the collector is still on
-  `.dev.vars`" is a fact you read rather than one you assume.
-- **The plaintext never leaves the ingest Worker.** The Tower asks over a
-  private Service Binding for the *answer* — is this connected, when did it last
-  work — and receives field NAMES and metadata. A PUT answers `204` with no
-  body: there is nothing safe to echo.
-- **Nothing about a probe is persisted.** A connection test is not evidence; it
-  writes no observation, no manifest and no R2 object, and it stamps only the
-  credential's own `last_ok_at` / `last_error`.
-- **Moving without retyping:** a provider still reading its binding wears the
-  *Legacy env* chip on `/integrations`, and the card carries **Import from this
-  machine** — one press reads the operator's existing `.dev.secrets.json` and
-  PUTs every complete provider through the running Tower. It is the same code `pnpm dev:secrets:import` runs, which is what a deployed
-  Tower shows instead: there is no secrets file beside a Worker to read. The
-  bindings stay as the fallback either way; the store wins.
+- **The bar is the cap**: month-to-date metered spend against
+  `monthly_caps.data_usd`, the reserve that fails closed before a call. One bar
+  for the portfolio, not one per asset; the cap is edited in `/settings`.
+- **The credit is a dated sighting beside it**, from the free
+  `appendix/user_data` read that **Test connection** makes and the weekly sweep
+  repeats once after a run that worked (never retried). It is stored as
+  `balance_usd` and `balance_seen_at` on `noticeos.integration_connections` and
+  shown as *Account credit $18.72 · seen 2h ago*. A sighting older than
+  fourteen days turns warn-toned; an unparseable one is dropped; a rotation
+  clears it.
+- **One sum.** The card, `/health`, `/settings`, the Wall's pace and the
+  collector's own cap gate all read `loadMeteredDataSpend` in
+  [`packages/contract`](../packages/contract/src/metered-spend.ts): each
+  collected report's `provider_cost_usd` plus the
+  [`research_log`](../db/postgres/migrations/0001_baseline.sql) rows bought one
+  question at a time, disjoint by `actor`.
 
 ## Connecting Google
 
-**Both ways in stay valid** — an install running on a service account is not
-asked to move.
+Google is the one provider with two ways in, and **both stay valid**: an
+install running on a service account is not asked to move. The service-account
+path asks an operator to create a robot in a cloud console, download a JSON
+key and grant that robot on every property one at a time; signing in does the
+same job with one consent screen. The card shows which is in force.
 
-Google is the one provider with two ways in, because the service-account path
-asks an operator to create a robot in a cloud console, download a JSON key,
-base64 it, and then grant that robot on every property one at a time. Signing in
-does the same job with a consent screen. The card shows which is in force.
+The operator's steps are the [Connect Google](guides/connect-google.md) guide;
+how the round trip, the signed state, the expiry and the revoke are built is in
+[the ingest README](../workers/ingest/README.md#two-ways-in-for-google).
 
-**What the OS asks for, and nothing more** — two read-only scopes plus the
-operator's address:
+**What it costs.** Nothing at Google: the sign-in, *Test connection* and the
+property listing are free read calls, and no reporting token is spent until a
+collector runs (the [catalog](#the-catalog) rows carry those quotas). The OS
+asks for exactly two read-only scopes plus the operator's address:
+`analytics.readonly`, `webmasters.readonly` (deliberately **not**
+`webmasters`, which can also verify and delete sites) and `openid` + `email`,
+so the card can say *Connected as ops@example.com*, the only version that
+catches signing in with the wrong Google account.
 
-| Scope | Why |
-|---|---|
-| `.../auth/analytics.readonly` | the Data API the collectors read, and the Admin API that lists which properties the account can see |
-| `.../auth/webmasters.readonly` | Search Console's read scope. Deliberately **not** `webmasters`, which can also verify and delete sites |
-| `openid` + `email` | so the card can say *Connected as ops@example.com* rather than just *Connected* — the only version that catches signing in with the wrong Google account |
+**How it fails, and what the operator sees:**
 
-A grant that comes back missing either read scope is **refused, not stored**:
-Google's consent screen lets an operator untick a box, and a credential that
-reads Analytics but not Search Console would look connected and then fail one
-lane a day later with a 403 nobody could trace back to a checkbox.
-
-### Connecting in the panel
-
-Google connects in the same panel as every key provider (connect kind
-`sign-in`, `GoogleSignInSetup`), never on a page of instructions. Connect Google
-on `/integrations` or on a site's Data sources row opens it.
-
-- **Hosted** — the installation's sign-in app is the host's, already
-  registered — the panel is the two read-only grants and **Continue with
-  Google**. Where a hosted deployment keeps that app, and its verification by
-  Google, is the operator's decision; the panel treats a client from the
-  environment binding as the host's.
-- **Self-hosted** — the installation registers its own app once — the panel is
-  three presses and a file: **Open** turns on the three APIs in one console
-  confirmation (Analytics Data, Analytics Admin, Search Console); **Open**
-  creates a web client, with this Tower's redirect address and Copy beside it;
-  then the `client_secret.json` Google hands back is dropped on the panel. Its
-  id and secret are stored as `google-oauth-app` (encrypted like any other
-  credential); a desktop or service-account file is refused and nothing is
-  stored; a client whose redirect list lacks this address says *Redirect address
-  not in the client* before Google would refuse it
-  (`apps/tower/shared/google-client-file.ts`). The consent screen stays in
-  Testing until it is published, so the panel keeps the seven-day chip with
-  Publish beside it ([below](#the-seven-day-clock-on-a-testing-consent-screen)).
-
-After consent Google returns to the panel (`/integrations?connect=google`), not
-to a page: the sign-in itself is the proof (it stamps the credential's last
-good answer), and the panel lists the account's GA4 properties — each matched by
-its web stream's address, or a property named for its domain — and its Search
-Console sites, both on the site's one row (`discoverGoogleSites`,
-`workers/ingest/src/credential-probes.ts`; an unverified Search Console site is
-listed, never ticked). **Start** writes the Data sources rows' own mappings and
-runs the quarter-hourly Google step for the named sites only.
-
-The service-account way in keeps its page (*Service account instead*).
-
-### The redirect URI, and the loopback dance
-
-The redirect URI is **derived from the origin the browser is on**, never
-configured — a configured copy would be a second answer, and the one that lost
-would produce `redirect_uri_mismatch`, the single most common way an OAuth setup
-fails. The card prints the exact string with a Copy button.
-
-**Google refuses every plain-http redirect that is not loopback.** `pnpm os:up`
-binds `0.0.0.0` by default, so the normal way to reach this Tower is a LAN
-address — and that address cannot be registered. The dance:
-
-- Register `http://127.0.0.1:5173/api/integrations/google/oauth/callback` and
-  `http://localhost:5173/api/integrations/google/oauth/callback`.
-- **Connect once from `http://127.0.0.1:5173`** on the machine running the OS.
-- Every other device then reads the card from the LAN as usual: the credential
-  is stored, and the card keeps saying *Connected* from any address. Only
-  *starting* a sign-in needs the loopback one, and the card says so with the
-  address to use when it is opened somewhere Google would refuse.
-- A deployed Tower on https needs neither dance — register that origin's
-  callback path instead.
-
-### What the round trip does
-
-`GET /api/integrations/google/oauth/start` → 302 to Google ·
-`GET /api/integrations/google/oauth/callback` → 302 back to
-`/integrations?google=…`
-
-- **The Tower holds nothing.** It carries an origin in and a redirect out; the
-  authorization URL is built inside the ingest Worker (it needs the client id),
-  the code is exchanged there (it needs the secret), and the refresh token is
-  sealed into the store there. No token, no secret and no signing key crosses
-  the Service Binding in either direction.
-- **The state is signed, not stored.** A nonce table would be a migration, and
-  migrations are operator-only — so the state is a ten-minute HMAC over a random
-  nonce, an expiry, and *the redirect URI it was minted for*, keyed by an HKDF
-  of `CREDENTIALS_KEY`. Binding the redirect in is what stops a state minted at
-  one origin being replayed at another. A state that does not check out never
-  reaches Google's token endpoint at all.
-- **Start is same-site; the callback cannot be.** A cross-site link into
-  `…/oauth/start` is refused (login CSRF is how an attacker gets *their* Google
-  account connected to somebody else's OS); the callback arrives from
-  accounts.google.com and is defended by the state instead.
-- **`access_type=offline` + `prompt=consent`**, together, are what guarantee a
-  refresh token. Google issues one only on a fresh consent, so a reconnect
-  without them would return an hour-long access token and a card that dies
-  overnight.
-- **Disconnect revokes at Google first, then deletes.** In that order: a network
-  failure leaves the token still stored and still revocable, never a live grant
-  on the operator's Google account that this OS can no longer name. The revoke
-  is best effort and never blocks the delete.
-
-### The seven-day clock on a Testing consent screen
-
-**A consent screen left in Testing expires every refresh token seven days after
-it is granted.** The console steps above produce exactly that — External, plus
-yourself as a test user — so a first sign-in is on a clock, and without a
-countdown the first sign of it would be a nightly pull failing.
-
-- The OAuth exchange records `expiresAt = connectedAt + 7 days` in the
-  credential's public metadata (`credentials.fields_json`, no new column), and
-  the card counts down, turning warn-toned at T-14d — which for a seven-day
-  grant means from the moment it is made.
-- **Google publishes no API that reports whether a consent screen is
-  published**, so the card states the assumption rather than hiding it, and
-  offers one press — *it does not expire* — recorded as the **operator's**
-  answer. `carriedExpiry` in `workers/ingest/src/credentials.ts` keeps that
-  answer through every later sign-in; nothing else would, and a correction that
-  has to be re-made after each reconnect is a warning people learn to dismiss.
-- **Publishing the app is the real fix.** Google Cloud console → OAuth consent
-  screen → *Publish app*. A published screen issues refresh tokens with no
-  seven-day limit; the read-only scopes this OS asks for are not sensitive
-  enough to need verification for a standalone install.
-- **After the fact, the sentence names the cause.** A revoked or expired
-  grant answers `invalid_grant` at the token endpoint; `refreshGoogleAccessToken`
-  raises `google_oauth_revoked` carrying `GOOGLE_OAUTH_REVOKED_MESSAGE`, which
-  is what reaches `credentials.last_error` and the card. It is a **constant
-  this repo wrote**, never anything derived from a request that held a refresh
-  token: `probeCredential` must not rewrite it as *"Google could not be
-  reached"* (blaming the operator's network), and the nightly pull must not
-  stamp a raw enum where a person reads. The per-property outcomes carry the
-  code; the operator-facing column carries the sentence.
-
-### What a sign-in does not decide
-
-It tells the OS which GA4 properties and Search Console sites the account can
-see — the card lists them on demand, and
-`GET /api/integrations/google/properties` is the payload — but **which asset each
-one belongs to is the operator's answer**: the asset's own Sources tab, written to `config/integrations.json` and read by one
-resolver (`workers/ingest/src/lane-mapping.ts`); a sign-in plus a mapping is a
-whole setup, with no account map to paste. An OAuth-only install that has mapped
-nothing collects nothing and says so once per pull
-(`google_signals_no_properties_mapped`) rather than failing.
-
-**And the account map is not a second home for that fact.**
-`GOOGLE_SIGNAL_ACCOUNTS` still carries a `ga4_property_id` /
-`gsc_site_url` per asset for installs that predate the mapping, and the collector
-reads them **per data source, and only while at least one asset it names has no
-mapping of its own**. Once all of them do, those two fields are not read at all
-and the entry is down to what it always had to be: which account authenticates
-which asset, plus that entry's `time_zone`. No migration and no operator step —
-the day it flips, the value the collector stops reading was already being
-shadowed. The Google card on `/integrations` says which of the two states holds
-and names each asset × data source still waiting. An install that pastes the map
-for its *properties* and signs in for its *auth* holds both, and each account
-entry that names no `service_account_b64` authenticates with the sign-in.
+- **A box unticked on the consent screen.** A grant missing either read scope
+  is refused, not stored; otherwise a credential that reads Analytics but not
+  Search Console would look connected and fail one lane a day later.
+- **`redirect_uri_mismatch` or a refused http address.** The redirect URI is
+  derived from the address the browser is on, never configured, and Google
+  refuses plain http except on loopback. A Tower reached by a LAN address
+  offers its `127.0.0.1` address instead; a deployed Tower on https needs
+  neither.
+- **The seven-day clock.** A consent screen left in Testing expires every
+  refresh token seven days after it is granted, and Google publishes no API
+  that says whether a screen is published. The card counts down (warn-toned
+  inside 14 days, so from the moment a seven-day grant is made) and offers
+  *it does not expire* as the operator's answer. **Publishing the app is the
+  real fix**; the read-only scopes are not sensitive enough to need
+  verification for a standalone install.
+- **A revoked or expired grant** answers `invalid_grant`; the card and
+  `last_error` say *Google revoked this sign-in* in one fixed sentence rather
+  than blaming the network, and the fix is to sign in again.
+- **Signed in, nothing mapped.** A sign-in says which GA4 properties and
+  Search Console sites the account can see; **which site each belongs to is the
+  operator's answer**, on the site's Data sources tab. Until one is mapped the
+  collector collects nothing and says so once per pull rather than failing.
+- **Disconnect** revokes the grant at Google first, best effort, then deletes
+  it.
 
 ## Grounding rules (why this doc exists)
 
@@ -612,267 +386,92 @@ in its fix messages when a property rejects the OS's bearer.
 
 ## Central Google signal collector
 
-`workers/ingest/src/google-signals.ts` runs on the existing 15-minute Sense
-tick. The readable `GOOGLE_SIGNAL_ACCOUNTS` source stores each base64
-service-account JSON once and maps that account alias to the properties it
-supports. Local compilation extracts each encoded key to its own bounded
-`GOOGLE_SERVICE_ACCOUNT_*` secret and leaves only account/property routing in
-the runtime `GOOGLE_SIGNAL_ACCOUNTS` binding. The Worker resolves the named
-credential, mints one read-only token per account/scope, and reuses it across
-that account's property targets.
+What the 15-minute GA4 and GSC lane collects is the
+[signal contract](02-signal-contract.md#central-signals); how it is built
+(the account map, token reuse, provisional days, append-only runs) is
+[the ingest README](../workers/ingest/README.md#google-signals-ga4--gsc).
 
-The local editing source is the formatted, gitignored
-`workers/ingest/.dev.secrets.json`; its `GOOGLE_SIGNAL_ACCOUNTS` member is a
-normal nested object. `os:up` compiles it to the routing plus per-account string
-bindings Wrangler expects in `.dev.vars`. Production uses the same split as
-encrypted Cloudflare secrets—no filesystem read is introduced into the Worker.
+**What it costs.** One GA4 and one GSC request per property every 15 minutes,
+96 a day per provider, whatever the date range: the 97-day window adds no
+requests. That is far below GSC's 1,200 queries/min/site and GA4's
+200,000 tokens/day and 40,000/hour per property (most of these requests cost
+fewer than ten tokens). Every request asks GA4 for its quota state, so spend is
+measured rather than inferred
+([GA4 quota](../workers/ingest/README.md#ga4-quota--what-the-heavy-lanes-are-spending)).
 
-Each pull requests a bounded 97-day, date-only dataset. The Tower exposes 90
-dates on property detail and retains the preceding seven out of view so
-same-weekday comparisons and rolling lines can start on the first visible day.
-GA4 returns `activeUsers`, `sessions`, `screenPageViews`, and `eventCount`; GSC
-returns property-total `clicks`, `impressions`, `ctr`, and `position` with
-`dataState=all`. Today is the only visually incomplete GA4 day. GSC also treats
-today as provisional when response metadata is absent; the provider's
-`first_incomplete_date`, when earlier, expands the provisional tail.
-GA4's day boundary comes from each map entry's IANA `time_zone` (PT default),
-matching [GA4 property reporting-timezone
-semantics](https://support.google.com/analytics/answer/9744165); GSC dates use
-the Search Analytics API's [documented PT
-boundary](https://developers.google.com/webmaster-tools/v1/searchanalytics/query).
-The collector never uses UTC rollover to open a tomorrow bucket before the
-provider's reporting day does.
-The append-only store records every run, including errors, but appends metric
-rows only when a value is new or revised. This preserves provider revisions
-without copying an unchanged 97-day snapshot 96 times a day. The larger date
-range does not add requests: cadence remains one GA4 and one GSC request per
-property every 15 minutes.
-
-The Tower never calls Google. It reads the latest run for red/green source
-health and reconstructs the latest successful values for the charts. A failed
-pull therefore turns the icon red while leaving the last-good chart visible.
-Both charts overlay the same weekday from the prior week and compute their
-growth delta from the latest completed day. GA4 still headlines today's
-frequently refreshed provisional value; GSC headlines the latest completed
-day so a partial current day cannot masquerade as a collapse. A
-credential-label rename is prospective: rows under the old label's
-`credential_ref` remain immutable historical evidence, while new runs use
-the new label. A permission-denied attempt before a property's grant likewise
-remains in the append-only history; the latest successful attempt drives
-green health.
+**How it fails.** The Tower never calls Google; it reads the latest run for
+source health and the latest successful values for the charts, so a failed
+pull turns the source red while the last-good chart stays. GSC headlines the
+latest completed day, so a partial current day cannot masquerade as a
+collapse. A permission-denied
+attempt before a property's grant stays in the append-only history; the latest
+success drives health. A credential-label rename is prospective: rows under the
+old label stay as historical evidence.
 
 ### GA4 realtime read path
 
-Realtime active users are intentionally separate from the durable 15-minute
-daily-series collector. The Tower browser polls its own
-`GET /api/ga4/realtime` endpoint every 30 seconds. The Tower Worker reaches
-ingest through a private Cloudflare
-[Service Binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/)
-RPC method, so `GOOGLE_SIGNAL_ACCOUNTS` and Google access tokens remain owned by
-ingest. Ingest reuses the read-only OAuth access token for at most 50 minutes
-and makes these concurrent, bounded reads per configured property:
+The live visitor glance is a display read, never a ledger or analysis dataset,
+and the one Google lane whose cost is set by a screen's poll rate rather than a
+schedule. One
+realtime request costs a property about 46–49 tokens; polled every 30 seconds
+by a Wall left on all day, that is roughly two thirds of the 200k-token daily
+realtime budget. So every open display shares **one reading a minute** (the two
+realtime requests behind it, both minute windows and the Wall's per-minute
+pulse), the today-by-hour Core read is refreshed every 15 minutes, hidden tabs
+stop polling, and refused requests enter a shared cooldown. Any future cadence
+or multi-display expansion must be justified against the token use GA4 reports
+back, not a request count. How it is built is
+[the ingest README](../workers/ingest/README.md#ga4-realtime-rpc).
 
-- one
-  [`runRealtimeReport`](https://developers.google.com/analytics/devguides/reporting/data/v1/realtime-basics)
-  with named inclusive 0–29-minute and 0–4-minute ranges, beside a second one
-  grouped by `minutesAgo` over GA4's default last 30 minutes — the Wall's
-  minute pulse. The two are one reading, shared by every open display for
-  **one minute**: the pulse is per-minute, and two realtime requests a minute
-  spend what a single request every 30 seconds would (one costs a property
-  ~46–49 tokens; at 30 seconds a Wall left on all day spends roughly two
-  thirds of the 200k-token daily realtime budget, so doubling the requests at
-  that cadence would run it out).
-  The per-minute rows are parsed as strictly as the windows; refused or
-  failed, the reading stands without a pulse. `ga4MinuteBuckets`
-  (`packages/contract`) places them on the clock the snapshot is served at:
-  a minute with no row is 0, a minute the reading did not cover is `null`; and
-- one Core `runReport`, grouped by `dateHour` over `yesterday…today` and
-  `8daysAgo…6daysAgo`, which ingest re-buckets from the property's reporting
-  timezone (the response's `metadata.timeZone`) into `OS_TIME_ZONE` — the
-  operator's clock, configured as `config/constants.json` `os_time_zone` and
-  read once by `packages/contract` — so every property's
-  today-line shares one x-axis. An Eastern property's OS day starts at its 3 AM; the two neighbouring
-  property days are requested because the OS day straddles them.
-
-Each row converts with the reporting timezone in effect on its own date, read
-from the `reporting-time-zone-changed` annotations, because GA4 does
-not reprocess history: after a PT→ET move, last week's hours are PT-bucketed
-and today's ET-bucketed, and both land on the same OS hours. The pace chip
-therefore compares the same real hours across a change; only the two distorted
-days around it are marked.
-
-The card presents **30 min** before **5 min** because the broader window is the
-more stable glance value. Above the historical daily chart, it draws today's
-reported hourly shape, on the operator's clock, over a dotted full-day
-same-weekday reference. Future today hours are `null`, not forecast zeros,
-while the prior day retains all 24 hours. The pace delta compares only the hours reported for both days. Hourly
-active-user observations are not added into the large DAU headline because a
-person may appear in multiple hours; that headline remains the exact distinct
-daily value from the durable 15-minute collector.
-
-This read is current state, not a ledger or analysis dataset: it writes neither
-Postgres nor R2 and does not participate in anomaly rules. Provider/property failures
-are isolated. A valid empty report is zero; a failed or malformed report is an
-explicit unavailable state with null values. React Query retains the last good
-snapshot during a later failed poll and labels it “Reconnecting,” while the
-independent `/api/wall` payload and property cards continue rendering. Each
-provider read asks GA4 to return its property-quota state; any future cadence or
-multi-display expansion must be justified against that measured token use
-rather than assuming a request count equals token cost.
-
-The two lanes that actually spend — the 12:15 archive and the 15-minute
-collector — ask as well. The archive keeps each collection's quota in its R2
-envelope beside the pages (never inside the hashed bytes, or the
-unchanged-detection would retire itself); both lanes log it and raise one
-`ga4-quota-pressure` flag on the property while a bucket is under 20%
-remaining; and an exhausted budget is `ga4_quota_exhausted` on the run row
-rather than a generic 429. Shared vocabulary: `workers/ingest/src/ga4-quota.ts`.
+**How it fails.** A valid empty report is zero; a failed or malformed one is an
+explicit unavailable state with null values, never a false zero. The Tower keeps
+the last good snapshot during a failed poll and labels it *Reconnecting*.
 
 ## Daily provider analysis archive
 
-`workers/ingest/src/signal-dumps.ts` runs at 12:15 UTC, when the prior UTC date
-is also complete in the portfolio's continental-US property timezones. It
-re-fetches the previous four completed dates to retain provider revisions.
-GSC requests `dataState=final` for ten durable families:
+Which GSC, GA4 and Bing Webmaster report families the 12:15 UTC archive keeps,
+and what each may be used to conclude, is the
+[signal contract](02-signal-contract.md#central-signals); how the lane is built
+(revision window, probe mode, weekly families, content-hash dedupe) is
+[the ingest README](../workers/ingest/README.md#analysis-grade-provider-signal-dumps);
+the commands that collect and read it back are in
+[`scripts/README.md`](../scripts/README.md); what a property repo may conclude
+from the panel files is [doc 20](20-signal-panels.md).
 
-- Web Search: `page-query`, `page`, `query`, `country`, `device`,
-  `page-country`, and `page-device`.
-- Search result treatments: `search-appearance-pages` first discovers the
-  available appearance types, then follows Google's required second-query
-  pattern to retain the page attached to each type.
-- Other surfaces: `image-page-query` and `discover-page`.
+**What it costs.** Every call is free; the limits are request and row counts:
 
-GA4 archives eight completed-day families: `pages-screens`, `landing-pages`,
-`traffic-acquisition`, `traffic-sources`, `events`, `page-events`, `js-errors`,
-and `landing-page-acquisition`, plus one `events-28d` aggregate ending on the
-newest completed date. The rolling family runs once per archive job, not once for each
-revision date, and supplies exact per-step unique-user counts without summing
-daily uniques. The last two daily families close the most important decision
-joins: which on-page events happened on which URL, and which landing URL earned
-engaged sessions/key events from each source and channel (including identifiable
-`AI Assistant` referrals).
+- **GSC:** 40 base requests a day per property (ten families × four revision
+  dates), plus the search-appearance expansion and pagination. Discover runs in
+  probe mode, so a property Google never shows in Discover costs one request a
+  day rather than four.
+- **GA4:** 33 base requests a day per property (eight daily families × four
+  dates, plus one rolling 28-day aggregate), plus pagination; `js-errors` runs
+  in probe mode too, so a property whose pages never throw costs one request a
+  day for it. The archive keeps each collection's quota beside the pages, never
+  inside the hashed bytes, and a bucket under 20% raises `ga4-quota-pressure`
+  before the failures start.
+- **Bing Webmaster:** one shared site-list request, then four requests per
+  verified property a day, six on the property's own seventh day, because the
+  top-query and top-page reports are weekly snapshots.
+- **Ceilings:** 8 MiB per provider response, 32 MiB per archive, 50k rows per
+  GSC report/day and 250k per GA4 report/day. A capped report is stored as
+  `provider_truncated=1`, never described as complete. The ceilings follow
+  Google's
+  [Search Analytics extraction guidance](https://developers.google.com/webmaster-tools/v1/how-tos/all-your-data)
+  and the [GA4 Data API pagination contract](https://developers.google.com/analytics/devguides/reporting/data/v1/basics).
 
-`js-errors` is the one family that reads GA4 **event parameters** rather than
-built-in dimensions — `customEvent:message` and `customEvent:source` beside
-the page, filtered to `eventName = js_error` — because a card that names the
-worst page but not the error leaves out the only part an engineer can act on.
+**One operator step.** The GA4 `js-errors` family reads event parameters, which
+answer only after an operator registers them as custom dimensions in GA4 admin
+and are never backfilled. Registration is operator work (the analytics pipeline
+is operator-only per [AGENTS.md](../AGENTS.md#hard-invariants)), recorded in
+[`config/ga4-custom-dimensions.json`](../config/ga4-custom-dimensions.json);
+until then the family is skipped or reads `ga4_custom_dimension_unregistered`
+([details](../workers/ingest/README.md#ga4-event-parameters-need-operator-registration)).
 
-Two operator facts ride with it. The Data API refuses to answer for a parameter
-nobody has registered as a custom dimension in GA4 admin, and GA4 backfills
-**nothing** — data begins at registration, so earlier dates are permanently
-unknown. Registration is operator work; the analytics pipeline is
-`forbidden`-class per AGENTS.md. Until it happens the collector records
-`ga4_custom_dimension_unregistered` on the manifest, which is deliberately
-neither a generic HTTP failure (which would send the operator to check
-credentials) nor a zero-row success (which would state that the property throws
-no JavaScript errors). The family also runs in probe mode, so a property whose
-pages never throw costs one request a day rather than four.
-
-[`config/ga4-custom-dimensions.json`](../config/ga4-custom-dimensions.json)
-records which properties have `message` and `source` registered as
-event-scoped custom dimensions. The family is offered only to the properties
-that file covers — the rest are skipped silently, no request and no manifest
-row, because a permanent known gap must not generate a daily error row. Three
-states result: a registered property with rows, a registered property with
-**0 rows** (a **true zero**), and an unregistered property (`error`,
-`ga4_custom_dimension_unregistered`, never answerable). Without the distinct
-error code the honest zero and the unregistered property would be the same
-empty row.
-
-The gate does **not** retire the unregistered state. Registration is
-forward-only, so a listed property can still be asked for a date before its
-dimensions existed; and the file is a hand-maintained claim about a system it
-cannot inspect, so a wrong entry has to fail loudly rather than read as zero.
-Absent is per-date, and it is never an error-free day. Two dimensions
-registered on different dates show up as one parameter populated and the
-other `(not set)` on every earlier row; GA4 admin does not display a
-dimension's creation date, so treat every `(not set)` before the registration
-an operator remembers as permanent.
-
-Responses are paginated and bounded before parsing: 8 MiB per provider
-response, 32 MiB per archive, 50k rows per GSC report/day and 250k per GA4
-report/day. Hitting a provider cap is stored as `provider_truncated=1`; it is
-never silently described as complete. Those ceilings follow Google's
-[Search Analytics extraction guidance](https://developers.google.com/webmaster-tools/v1/how-tos/all-your-data)
-and [GA4 Data API pagination contract](https://developers.google.com/analytics/devguides/reporting/data/v1/basics).
-Every gzip JSON object contains the exact request bodies and provider response
-pages but no Authorization header, JWT, service-account key, or access token.
-
-The same cron lists verified BWT sites once, then archives six independently
-failure-isolated families per launched property — but not all six every day.
-Four are genuine daily provider series, each gaining a day of history every
-day, and are archived daily: `GetRankAndTrafficStats`, `GetCrawlStats`,
-`GetCrawlIssues`, and `GetFeeds`. The other two, `GetQueryStats` and
-`GetPageStats`, are current top-result snapshots that Microsoft rebuilds
-weekly, not guaranteed complete daily exports, so asking daily would
-re-download the same snapshot six times out of seven; each is collected once
-every seven days. The analyzer treats them that way too: it uses only the
-latest downloaded BWT snapshot for findings and never adds rows from repeated
-collection runs.
-
-Due-ness is measured from **the property's own archives**, not from a calendar
-anchor: before it calls anything the run asks that property's
-`archive_runs` history for the newest date each family has archived, and
-collects a weekly family only once that date is seven or more days behind the
-date being collected. So a missed run leaves the family overdue the next day
-instead of pushing it a further week out; a failed fetch never satisfies a
-cadence; and a family that was not due is not asked on any path, including the
-credential-failure one. **A day nobody asked writes no manifest row at all** —
-`status` is a closed vocabulary of attempts, so "we asked and it was the same"
-(`unchanged`) stays distinguishable from "we did not ask". On an ordinary day
-the 12:15 UTC run therefore requests four BWT families per property, and six on
-each property's own seventh day. Mechanics and the three properties that follow
-from them: [`workers/ingest/README.md`](../workers/ingest/README.md#weekly-families-on-a-daily-cron).
-
-Lane health survives the split cadence because the Tower rolls the lane up
-across its families (`aggregateArchiveRuns` in
-[`apps/tower/worker/integration-evidence.ts`](../apps/tower/worker/integration-evidence.ts)):
-the four daily families carry the lane's freshness to today, and only a family's
-failed manifest reddens it — which a skip cannot produce. The archive evidence
-line counts only the families the date it names covers ("4 of 6 … archived for
-2026-08-04. Last archived earlier: pages (2026-07-29) and queries (2026-07-29)"),
-so a correctly-working weekly family reads as a cadence rather than as a gap.
-
-The `RAW_SIGNALS` R2 binding is private. Wrangler uses local R2 by default and
-persists it under the repo's shared `.wrangler/state`. The archive tools use
-the installation's ingest API. Postgres's `archive_runs` table is the
-append-only evidence index. A content hash
-deduplicates unchanged re-fetches while preserving an `unchanged` attempt row
-that proves the job ran.
-
-Operator workflow:
-
-```bash
-pnpm os:cron -- "15 12 * * *"                    # collect into local R2
-pnpm signals:download -- --asset example.com     # latest local object per report/day
-pnpm signals:history -- --asset example.com --in .local/signal-dumps/downloads/example.com --out .local/signal-dumps/history/example.com
-pnpm signals:analyze-history -- --asset example.com --history .local/signal-dumps/history/example.com --out .local/signal-dumps/reports/example.com
-pnpm signals:publish-insights -- --asset example.com --file .local/signal-dumps/reports/example.com/executive.json # compact snapshot → Postgres
-```
-
-`os:cron` fires a WHOLE lane, every property. To baseline one property the day it
-launches — without re-billing the others — ask for it by name instead; it runs
-the same collector, scoped, so what lands is what the
-weekly lane would have landed for that property:
-
-```bash
-pnpm signals:collect -- --asset example.com --families serp-panel
-```
-
-All four run **beside a live `pnpm os:up`** and none of them opens the store: the
-local halves read and write through the ingest's operator-authed routes on the
-loopback door (`GET /api/signal-archives`, `GET /api/panel-object`,
-`POST /api/insight-snapshot`), so one workerd runtime owns the sqlite file.
-`--remote` still uses wrangler, where there is no local file to share.
-
-Those four commands are the **hand** path. The download + flatten half also
-runs on its own cadence for every property on the roster in
-[`config/signal-panels.json`](../config/signal-panels.json), so the panel dir a
-property repo reads is standing data rather than whatever an operator last
-pulled. The refresh makes **zero** provider calls — it materializes archives the
-crons above already bought — so it moves nothing against the monthly data cap at
-any cadence. What a consumer may conclude from those files, and the honesty rules
-that bind them, is [doc 20](20-signal-panels.md).
+**How it fails.** Each family fails on its own manifest row; the Tower rolls the
+Bing lane up across its families, so a weekly family that was not due never
+reddens it. A refresh of the local panel files makes **zero** provider calls: it
+materializes archives the crons already bought.
 
 ## Microsoft Clarity export
 

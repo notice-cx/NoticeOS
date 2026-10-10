@@ -23,13 +23,13 @@ beforeEach(async () => {
   await addSites(store, [
     // The OS row's stored name is one no payload shows.
     { id: "root-os", domain: null, displayName: "ReindexOS", status: "live", senseOnly: 1, isOs: 1, createdAt: "2026-07-01T00:00:00.000Z" },
-    { id: "meals.example", displayName: "Meal Planner", status: "live", senseOnly: 0, createdAt: "2026-07-01T00:00:00.000Z" },
+    { id: "meadow.example", displayName: "Meadow Board", status: "live", senseOnly: 0, createdAt: "2026-07-01T00:00:00.000Z" },
   ]);
 });
 
 function issue(overrides: Record<string, unknown> = {}) {
   return {
-    id: "mp-1w2",
+    id: "md-1w2",
     title: "Fix the recipe schema",
     status: "open",
     priority: 1,
@@ -45,15 +45,15 @@ function issue(overrides: Record<string, unknown> = {}) {
 
 function project(overrides: Record<string, unknown> = {}) {
   return {
-    asset: "meals.example",
-    prefix: "mp",
+    asset: "meadow.example",
+    prefix: "md",
     ok: true,
     error: null,
     counts: { open: 4, highPriority: 2, ready: 2, inProgress: 1, blocked: 2, closedRecent: 1, deferred: 0, waiting: 0 },
-    ready: [issue(), issue({ id: "mp-88x", priority: 3 })],
-    inProgress: [issue({ id: "mp-33j", status: "in_progress", assignee: "agent-x" })],
+    ready: [issue(), issue({ id: "md-88x", priority: 3 })],
+    inProgress: [issue({ id: "md-33j", status: "in_progress", assignee: "agent-x" })],
     recentlyClosed: [
-      issue({ id: "mp-0pb", status: "closed", closedAt: "2026-07-31T18:00:00.000Z" }),
+      issue({ id: "md-0pb", status: "closed", closedAt: "2026-07-31T18:00:00.000Z" }),
     ],
     ...overrides,
   };
@@ -85,14 +85,14 @@ describe("buildWorkPayload", () => {
     expect(payload.pollCadenceHours).toBe(WORK_POLL_CADENCE_HOURS);
     expect(payload.projects).toHaveLength(1);
     expect(payload.projects[0]).toMatchObject({
-      asset: "meals.example",
-      prefix: "mp",
-      name: "Meal Planner",
+      asset: "meadow.example",
+      prefix: "md",
+      name: "Meadow Board",
       ok: true,
       error: null,
       counts: { open: 4, highPriority: 2, ready: 2, inProgress: 1, blocked: 2, closedRecent: 1, deferred: 0, waiting: 0 },
     });
-    expect(payload.projects[0]!.ready.map((i) => i.id)).toEqual(["mp-1w2", "mp-88x"]);
+    expect(payload.projects[0]!.ready.map((i) => i.id)).toEqual(["md-1w2", "md-88x"]);
     expect(payload.projects[0]!.inProgress[0]!.assignee).toBe("agent-x");
     expect(payload.projects[0]!.recentlyClosed[0]!.closedAt).toBe("2026-07-31T18:00:00.000Z");
   });
@@ -102,12 +102,12 @@ describe("buildWorkPayload", () => {
   it("reads only the latest snapshot, never a merge of the week", async () => {
     await seed("2026-07-30T09:00:00.000Z", [project({ counts: { open: 99, highPriority: 0, ready: 99, inProgress: 99, blocked: 99, closedRecent: 99, deferred: 0, waiting: 0 } })]);
     await seed("2026-08-01T11:59:00.000Z", [project()]);
-    await seed("2026-07-31T09:00:00.000Z", [project({ asset: "nosh.example", prefix: "nom" })]);
+    await seed("2026-07-31T09:00:00.000Z", [project({ asset: "northwind.example", prefix: "nw" })]);
 
     const payload = await buildWorkPayload(store.call, { now: NOW });
 
     expect(payload.capturedAt).toBe("2026-08-01T11:59:00.000Z");
-    expect(payload.projects.map((p) => p.asset)).toEqual(["meals.example"]);
+    expect(payload.projects.map((p) => p.asset)).toEqual(["meadow.example"]);
     expect(payload.projects[0]!.counts.ready).toBe(2);
   });
 
@@ -119,7 +119,7 @@ describe("buildWorkPayload", () => {
 
     const payload = await buildWorkPayload(store.call, { now: NOW });
 
-    expect(payload.projects.map((p) => p.asset)).toEqual(["root-os", "meals.example"]);
+    expect(payload.projects.map((p) => p.asset)).toEqual(["root-os", "meadow.example"]);
   });
 
   it("names a project the store has never heard of by its own id", async () => {
@@ -181,17 +181,17 @@ describe("buildWorkPayload", () => {
 
     const payload = await buildWorkPayload(store.call, { now: NOW });
 
-    expect(payload.projects.map((p) => p.asset)).toEqual(["meals.example"]);
+    expect(payload.projects.map((p) => p.asset)).toEqual(["meadow.example"]);
   });
 
   it("fills in what an older poller did not send", async () => {
     await seed("2026-08-01T11:59:00.000Z", [
-      { asset: "meals.example", ok: true, ready: [{ id: "mp-999" }] },
+      { asset: "meadow.example", ok: true, ready: [{ id: "md-999" }] },
     ]);
 
     const payload = await buildWorkPayload(store.call, { now: NOW });
 
-    expect(payload.projects[0]).toMatchObject({ prefix: "?", name: "Meal Planner" });
+    expect(payload.projects[0]).toMatchObject({ prefix: "?", name: "Meadow Board" });
     // The status counts default to 0: a missing one means an unreadable row.
     // `highPriority` is the exception: its absence is an ordinary fact about
     // an older poller, and it stays null all the way to the chip.
@@ -206,8 +206,8 @@ describe("buildWorkPayload", () => {
       waiting: null,
     });
     expect(payload.projects[0]!.ready[0]).toMatchObject({
-      id: "mp-999",
-      title: "mp-999",
+      id: "md-999",
+      title: "md-999",
       status: "open",
       priority: 2,
       issueType: "task",
@@ -325,8 +325,8 @@ const STORED_BY_THE_ROUTE = {
       ],
     },
     {
-      asset: "nosh.example",
-      prefix: "nom",
+      asset: "northwind.example",
+      prefix: "nw",
       ok: false,
       error:
         'bd active exited 1: Error: cannot use -C directory "/Users/operator/dev/does-not-exist": stat /Users/operator/dev/does-not-exist: no such file or directory',
@@ -366,7 +366,7 @@ describe("buildWorkPayload over a real stored row", () => {
       deferred: STORED_BY_THE_ROUTE.projects[0]!.deferred,
       waiting: STORED_BY_THE_ROUTE.projects[0]!.waiting,
     });
-    expect(nom).toMatchObject({ asset: "nosh.example", name: "nosh.example", ok: false,
+    expect(nom).toMatchObject({ asset: "northwind.example", name: "northwind.example", ok: false,
     });
     expect(nom!.error).toMatch(/no such file or directory/);
   });
@@ -378,14 +378,14 @@ describe("buildWorkPayload over a real stored row", () => {
       {
         ...project(),
         panelReview: {
-          beadId: "mp-pnl",
+          beadId: "md-pnl",
           panelDate: "2026-07-28",
           dueAt: "2026-08-04T00:00:00.000Z",
           status: "open",
           closedAt: null,
         },
         handoffs: [
-          { kind: "finding", key: "gsc-decline-1", beadId: "mp-1w2", status: "open", closedAt: null,
+          { kind: "finding", key: "gsc-decline-1", beadId: "md-1w2", status: "open", closedAt: null,
         },
         ],
       },
@@ -395,7 +395,7 @@ describe("buildWorkPayload over a real stored row", () => {
 
     expect(payload.projects[0]).not.toHaveProperty("panelReview");
     expect(payload.projects[0]).not.toHaveProperty("handoffs");
-    expect(payload.projects[0]!.ready.map((i) => i.id)).toEqual(["mp-1w2", "mp-88x"]);
+    expect(payload.projects[0]!.ready.map((i) => i.id)).toEqual(["md-1w2", "md-88x"]);
   });
 });
 
@@ -479,21 +479,21 @@ async function seedDay(
 describe("the daily history the strip's six numbers ride", () => {
   it("carries a point per day beside every count", async () => {
     await seed("2026-08-01T11:59:00.000Z", [project()]);
-    await seedDay("meals.example", "2026-07-30", {
+    await seedDay("meadow.example", "2026-07-30", {
       waiting: 1,
       urgent: 2,
       open: 5,
       inProgress: 1,
       blocked: 0,
-      closed: ["mp-a", "mp-b"],
+      closed: ["md-a", "md-b"],
     });
-    await seedDay("meals.example", "2026-07-31", {
+    await seedDay("meadow.example", "2026-07-31", {
       waiting: 0,
       urgent: 1,
       open: 4,
       inProgress: 2,
       blocked: 1,
-      closed: ["mp-c"],
+      closed: ["md-c"],
     });
 
     const payload = await buildWorkPayload(store.call, { now: NOW });
@@ -519,7 +519,7 @@ describe("the daily history the strip's six numbers ride", () => {
     await seed("2026-08-01T11:59:00.000Z", [project()]);
     // A day an older poller measured neither the inbox nor urgency, and whose
     // closings were never observable.
-    await seedDay("meals.example", "2026-07-30", {
+    await seedDay("meadow.example", "2026-07-30", {
       waiting: null,
       urgent: null,
       open: 5,
@@ -527,7 +527,7 @@ describe("the daily history the strip's six numbers ride", () => {
       blocked: 0,
       closed: null,
     });
-    await seedDay("meals.example", "2026-07-31", {
+    await seedDay("meadow.example", "2026-07-31", {
       waiting: 3,
       urgent: 1,
       open: 4,
@@ -545,12 +545,12 @@ describe("the daily history the strip's six numbers ride", () => {
   });
 
   it("gives a project the rollup has never seen an empty history rather than dropping it", async () => {
-    await seed("2026-08-01T11:59:00.000Z", [project(), project({ asset: "nosh.example", prefix: "nom" })]);
-    await seedDay("meals.example", "2026-07-31", { open: 4, inProgress: 1, blocked: 0 });
+    await seed("2026-08-01T11:59:00.000Z", [project(), project({ asset: "northwind.example", prefix: "nw" })]);
+    await seedDay("meadow.example", "2026-07-31", { open: 4, inProgress: 1, blocked: 0 });
 
     const payload = await buildWorkPayload(store.call, { now: NOW });
 
-    expect(payload.projects.map((one) => one.asset)).toEqual(["meals.example", "nosh.example"]);
+    expect(payload.projects.map((one) => one.asset)).toEqual(["meadow.example", "northwind.example"]);
     expect(payload.projects[1]!.history.open).toEqual([]);
   });
 

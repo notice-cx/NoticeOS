@@ -623,7 +623,7 @@ describe('using the grant', () => {
       fields: {
         GOOGLE_SIGNAL_ACCOUNTS: JSON.stringify({
           // No `service_account_b64`, so this entry authenticates with the sign-in.
-          portfolio: { properties: { 'meals.example': { ga4_property_id: '123456' } } },
+          portfolio: { properties: { 'meadow.example': { ga4_property_id: '123456' } } },
         }),
       },
     });
@@ -657,7 +657,7 @@ describe('using the grant', () => {
         return Response.json({ access_token: 'ya29.access-token', expires_in: 3599 });
       }
       if (url.includes('/webmasters/v3/sites')) {
-        return Response.json({ siteEntry: [{ siteUrl: 'sc-domain:meals.example' }] });
+        return Response.json({ siteEntry: [{ siteUrl: 'sc-domain:meadow.example' }] });
       }
       return Response.json({}, { status: 200 });
     }) as typeof fetch;
@@ -706,10 +706,10 @@ describe('using the grant', () => {
         return Response.json({
           accountSummaries: [
             {
-              displayName: 'Reindex Ventures',
+              displayName: 'Example Ventures',
               propertySummaries: [
-                { property: 'properties/412330001', displayName: 'Meal Planner' },
-                { property: 'properties/412330002', displayName: 'Nosh' },
+                { property: 'properties/412330001', displayName: 'Meadow Board' },
+                { property: 'properties/412330002', displayName: 'Northwind' },
               ],
             },
           ],
@@ -717,7 +717,7 @@ describe('using the grant', () => {
       }
       if (url.includes('/webmasters/v3/sites')) {
         return Response.json({
-          siteEntry: [{ siteUrl: 'sc-domain:meals.example', permissionLevel: 'siteOwner' }],
+          siteEntry: [{ siteUrl: 'sc-domain:meadow.example', permissionLevel: 'siteOwner' }],
         });
       }
       return Response.json({}, { status: 200 });
@@ -730,12 +730,12 @@ describe('using the grant', () => {
     // The GA4 ref is the BARE id — what a collector stores as `propertyRef` —
     // not the `properties/123` resource name the Admin API answers with.
     expect(found.properties).toEqual([
-      { lane: 'ga4', ref: '412330001', label: 'Meal Planner', detail: 'Reindex Ventures' },
-      { lane: 'ga4', ref: '412330002', label: 'Nosh', detail: 'Reindex Ventures' },
+      { lane: 'ga4', ref: '412330001', label: 'Meadow Board', detail: 'Example Ventures' },
+      { lane: 'ga4', ref: '412330002', label: 'Northwind', detail: 'Example Ventures' },
       {
         lane: 'gsc',
-        ref: 'sc-domain:meals.example',
-        label: 'sc-domain:meals.example',
+        ref: 'sc-domain:meadow.example',
+        label: 'sc-domain:meadow.example',
         detail: 'siteOwner',
       },
     ]);
@@ -751,14 +751,14 @@ describe('using the grant', () => {
       if (url.includes('analyticsadmin.googleapis.com')) {
         return Response.json({ error: { message: 'disabled' } }, { status: 403 });
       }
-      return Response.json({ siteEntry: [{ siteUrl: 'sc-domain:nosh.example' }] });
+      return Response.json({ siteEntry: [{ siteUrl: 'sc-domain:northwind.example' }] });
     }) as typeof fetch;
 
     const found = await discoverGoogleProperties(bare(), { fetchImpl: partial, nowMs: NOW });
     expect(found.ok).toBe(false);
     expect(found.message).toContain('Analytics');
     // One API being down must not hide what the other answered.
-    expect(found.properties.map((entry) => entry.ref)).toEqual(['sc-domain:nosh.example']);
+    expect(found.properties.map((entry) => entry.ref)).toEqual(['sc-domain:northwind.example']);
   });
 
   it('says there is nothing to list before anything is connected', async () => {
@@ -929,17 +929,17 @@ describe('Google in the connect panel', () => {
     if (url === TOKEN_URL) return Response.json({ access_token: 'ya29.access-token', expires_in: 3599 });
     if (url.endsWith('/v1beta/accountSummaries?pageSize=200')) {
       return Response.json({ accountSummaries: [{ displayName: 'Example Co', propertySummaries: [
-        { property: 'properties/412330001', displayName: 'Plate — web' },
-        { property: 'properties/412330002', displayName: 'menu.example.org' },
+        { property: 'properties/412330001', displayName: 'Plume — web' },
+        { property: 'properties/412330002', displayName: 'monarch.example.org' },
       ] }] });
     }
     if (url.endsWith('/properties/412330001/dataStreams')) {
-      return Response.json({ dataStreams: [{ type: 'WEB_DATA_STREAM', webStreamData: { defaultUri: 'https://www.plate.example.com' } }] });
+      return Response.json({ dataStreams: [{ type: 'WEB_DATA_STREAM', webStreamData: { defaultUri: 'https://www.plume.example.com' } }] });
     }
     if (url.includes('/dataStreams')) return Response.json({ dataStreams: [] });
     if (url.endsWith('/webmasters/v3/sites')) {
       return Response.json({ siteEntry: [
-        { siteUrl: 'sc-domain:plate.example.com', permissionLevel: 'siteOwner' },
+        { siteUrl: 'sc-domain:plume.example.com', permissionLevel: 'siteOwner' },
         { siteUrl: 'https://unverified.example/', permissionLevel: 'siteUnverifiedUser' },
       ] });
     }
@@ -969,10 +969,10 @@ describe('Google in the connect panel', () => {
     expect(found).toMatchObject({ ok: true, kind: 'account' });
     if (!found.ok) return;
     expect(found.sites).toEqual([
-      { lane: 'ga4', ref: '412330001', label: 'Plate — web', host: 'plate.example.com', mapping: { propertyId: '412330001' }, ready: true },
+      { lane: 'ga4', ref: '412330001', label: 'Plume — web', host: 'plume.example.com', mapping: { propertyId: '412330001' }, ready: true },
       // No web stream: a property named for its domain answers for it.
-      { lane: 'ga4', ref: '412330002', label: 'menu.example.org', host: 'menu.example.org', mapping: { propertyId: '412330002' }, ready: true },
-      { lane: 'gsc', ref: 'sc-domain:plate.example.com', label: 'sc-domain:plate.example.com', host: 'plate.example.com', mapping: { siteUrl: 'sc-domain:plate.example.com' }, ready: true },
+      { lane: 'ga4', ref: '412330002', label: 'monarch.example.org', host: 'monarch.example.org', mapping: { propertyId: '412330002' }, ready: true },
+      { lane: 'gsc', ref: 'sc-domain:plume.example.com', label: 'sc-domain:plume.example.com', host: 'plume.example.com', mapping: { siteUrl: 'sc-domain:plume.example.com' }, ready: true },
       // Listed, never ticked: Google will not serve an unverified site.
       { lane: 'gsc', ref: 'https://unverified.example/', label: 'https://unverified.example/', host: 'unverified.example', mapping: { siteUrl: 'https://unverified.example/' }, ready: false },
     ]);
@@ -991,14 +991,14 @@ describe('Google in the connect panel', () => {
     await connect();
     const calls: string[] = [];
     const register = { assets: {
-      'meals.example': { ga4: { status: 'needs-setup', propertyId: '412330001' } },
-      'nosh.example': { ga4: { status: 'needs-setup', propertyId: '412330009' } },
+      'meadow.example': { ga4: { status: 'needs-setup', propertyId: '412330001' } },
+      'northwind.example': { ga4: { status: 'needs-setup', propertyId: '412330009' } },
     } };
     await emptyTables(['config_documents']);
     forgetConfigCache();
     const seeded = await seedConfigDocuments(env, { documents: { 'config/integrations.json': register }, actor: 'config:seed' }, NOW);
     expect(seeded.ok, JSON.stringify(seeded)).toBe(true);
-    const run = await runCollectNow(bare(), { provider: 'google', assets: ['meals.example'] }, { fetchImpl: account(calls), nowMs: NOW });
+    const run = await runCollectNow(bare(), { provider: 'google', assets: ['meadow.example'] }, { fetchImpl: account(calls), nowMs: NOW });
     expect(run, JSON.stringify(run)).toMatchObject({ ok: true, job: 'counters' });
     // The named site's property only — never the other site's.
     expect(calls.some((url) => url.includes('412330001:runReport'))).toBe(true);

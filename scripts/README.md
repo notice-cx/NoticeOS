@@ -101,7 +101,7 @@ are omitted, and `public-source.json` records the commit, file hashes and
 executable modes. This prepares files only: it does not sanitize contents,
 initialize a public repository, publish or deploy. Review the export for
 private data and run the
-[release qualification](../docs/release-policy.md#qualify-a-release-candidate)
+[release qualification](../docs/reference/release-policy.md#qualify-a-release-candidate)
 against that exact source before publication, which needs its own operator
 approval.
 
@@ -168,7 +168,7 @@ runner's host lanes runs only the task board refresh and the backup
 
 # Prepare an asset repository's context
 
-Follow [the project setup guide](../docs/project-setup.md), then from the
+Follow [the task project guide](../docs/guides/connect-a-task-project.md), then from the
 NoticeOS checkout:
 
 ```sh
@@ -329,8 +329,8 @@ persistence and one runner fires schedules.
   needs the store reaches it via `scripts/ingest-door.mjs`;
   `scripts/no-second-runtime.test.mjs` fails on a script that grows the habit.
 
-The checks that prove one runtime, and what to do when one fails:
-[`docs/runbooks/one-runtime-cutover.md`](../docs/runbooks/one-runtime-cutover.md).
+What to do when one of these checks fails:
+[Runtime log lines](../docs/operate/troubleshooting.md#runtime-log-lines).
 
 Standalone has no user login: anyone who can reach the Tower can read and
 change its data. The default is `127.0.0.1`; `--host` or `OS_UP_HOST=true`
@@ -1233,8 +1233,8 @@ account each source's `ref` in `integrations.json` routes through.
 `workers/ingest/src`, `packages/contract/src`), the product defaults in
 `config/` and the prose beside them, `scripts/` (a generated `.mjs` is judged
 as its authored `.mts`), every operator document that ships (`docs/**/*.md`,
-the READMEs, `CONTEXT.md`) except the dated records in `docs/reports/`,
-`docs/briefs/` and `docs/artifacts/`, and the test code, judged for names
+the READMEs, `CONTEXT.md`) except the dated records in `docs/reports/` and
+`docs/artifacts/`, and the test code, judged for names
 only. `-- --files <paths>` judges each named file by the rule it falls under.
 
 **How a name matches.** A domain, an asset id or an account matches wherever

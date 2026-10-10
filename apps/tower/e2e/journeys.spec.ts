@@ -690,12 +690,12 @@ test.describe(() => {
       // So only the first site's reading is old, as the fixture means: every other
       // site's live users are fresh, beside the one out-of-date row.
       await expect(page.locator('[data-site-row] [data-live="stale"]')).toHaveCount(1);
-      await expect(page.locator('[data-site-row="plate.example"] [data-live="stale"]')).toBeVisible();
-      await expect(page.locator('[data-site-row="menus.example"] [data-live="stale"]')).toHaveCount(0);
+      await expect(page.locator('[data-site-row="plume.example"] [data-live="stale"]')).toBeVisible();
+      await expect(page.locator('[data-site-row="mosaic.example"] [data-live="stale"]')).toHaveCount(0);
       // Each live figure over its minute pulse: thirty bars on a fresh
       // reading, the old one dimmed.
-      await expect(page.locator('[data-site-row="menus.example"] [data-minute-pulse="live"] [data-minute-bar]')).toHaveCount(30);
-      await expect(page.locator('[data-site-row="plate.example"] [data-minute-pulse="dimmed"]')).toBeVisible();
+      await expect(page.locator('[data-site-row="mosaic.example"] [data-minute-pulse="live"] [data-minute-bar]')).toHaveCount(30);
+      await expect(page.locator('[data-site-row="plume.example"] [data-minute-pulse="dimmed"]')).toBeVisible();
       // Measure the type the TV shows: Inter swaps in, and a fallback face is wider.
       await page.evaluate(() => document.fonts.ready);
       const found = await page.evaluate(wallLegibility, "[data-wall-sites] [role='columnheader']:not(.sr-only)");
@@ -709,7 +709,7 @@ test.describe(() => {
       })));
       expect(waiting, `the waiting site's line at ${width}×${height}`).toEqual([{ text: "No data yet", cut: 0 }]);
       await page.locator('[data-site-state="waiting"]').screenshot({ path: testInfo.outputPath(`wall-waiting-site-${width}.png`) });
-      await page.locator('[data-site-row="plate.example"]').screenshot({ path: testInfo.outputPath(`wall-first-site-stale-${width}.png`) });
+      await page.locator('[data-site-row="plume.example"]').screenshot({ path: testInfo.outputPath(`wall-first-site-stale-${width}.png`) });
       await page.screenshot({ path: testInfo.outputPath(`wall-${width}.png`) });
     }
   });
@@ -1111,19 +1111,19 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
 
   await page.locator('[data-wall-edit-widget="sites"]').click();
   const panel = page.locator('[data-wall-widget-panel="sites"]');
-  const plate = panel.locator('[data-wall-pulse-picker="plate.example"]');
-  const menu = panel.locator('[data-wall-pulse-picker="menus.example"]');
-  await plate.getByRole("checkbox", { name: /Accounts/ }).uncheck();
-  await plate.getByRole("checkbox", { name: /Plans saved/ }).check();
+  const plume = panel.locator('[data-wall-pulse-picker="plume.example"]');
+  const menu = panel.locator('[data-wall-pulse-picker="mosaic.example"]');
+  await plume.getByRole("checkbox", { name: /Accounts/ }).uncheck();
+  await plume.getByRole("checkbox", { name: /Plans saved/ }).check();
   await menu.getByRole("checkbox", { name: /Restaurants/ }).uncheck();
-  await panel.getByRole("checkbox", { name: "Fitness Test", exact: true }).uncheck();
-  const chosen = { assets: ["plate.example", "menus.example"], pulseMetrics: { "plate.example": ["leads", "plansSaved"], "menus.example": ["itemsRated"] } };
+  await panel.getByRole("checkbox", { name: "Lantern Works", exact: true }).uncheck();
+  const chosen = { assets: ["plume.example", "mosaic.example"], pulseMetrics: { "plume.example": ["leads", "plansSaved"], "mosaic.example": ["itemsRated"] } };
   const preview = page.locator('[data-wall-preview]');
   await expect(preview.locator('[data-site-total="accounts"]')).toHaveCount(0);
   await expect(preview.locator('[data-site-total="plansSaved"] dd')).toHaveText("41,280");
   await expect(preview.locator('[data-site-total="leads"] dd')).toHaveText("0");
   await expect(preview.locator('[data-site-total="itemsRated"] dd')).toHaveText("13,904");
-  await expect(preview.locator('[data-site-row="fitness.example"]')).toHaveCount(0);
+  await expect(preview.locator('[data-site-row="lantern.example"]')).toHaveCount(0);
 
   // Create: the first Save of a layout nobody has saved.
   await page.getByRole("button", { name: "Move row 1 down", exact: true }).click();
@@ -1142,11 +1142,11 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   // Update: the next Save, guarded by the layout the first one wrote.
   await menu.getByRole("checkbox", { name: /Items rated/ }).uncheck();
   // Hiding and restoring an asset retains its pulse choices.
-  await panel.getByRole("checkbox", { name: "Menu Finder", exact: true }).uncheck();
-  await panel.getByRole("checkbox", { name: "Menu Finder", exact: true }).check();
+  await panel.getByRole("checkbox", { name: "Mosaic Finder", exact: true }).uncheck();
+  await panel.getByRole("checkbox", { name: "Mosaic Finder", exact: true }).check();
   await expect(menu.getByRole("checkbox", { name: /Items rated/ })).not.toBeChecked();
   await expect(menu.getByRole("checkbox", { name: /Restaurants/ })).not.toBeChecked();
-  await expect(preview.locator('[data-site-totals="menus.example"]')).toHaveCount(0);
+  await expect(preview.locator('[data-site-totals="mosaic.example"]')).toHaveCount(0);
   await page.getByRole("button", { name: "Move row 1 down", exact: true }).click();
   await expect(layoutState("unsaved")).toHaveText("Unsaved changes");
   await bar.getByRole("button", { name: "Save", exact: true }).click();
@@ -1154,7 +1154,7 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   await expect(layoutState("saved")).toHaveText("On the TV");
   await expect(refusal).toHaveCount(0);
   const updated = (await wall())!;
-  expect(settings(updated)).toEqual({ ...chosen, pulseMetrics: { ...chosen.pulseMetrics, "menus.example": [] } });
+  expect(settings(updated)).toEqual({ ...chosen, pulseMetrics: { ...chosen.pulseMetrics, "mosaic.example": [] } });
   expect(updated.layout.rows.map((row: { id: string }) => row.id)).toEqual(["strip", "body"]);
   expect(updated.history.map((version: { layout: { rows: { id: string }[] } }) => version.layout.rows.map((row) => row.id)))
     .toEqual([["body", "strip"], ["strip", "body"]]);
@@ -1166,7 +1166,7 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   await expect(layoutState("saved")).toHaveText("On the TV");
   await expect(page.locator("[data-wall-version]")).toHaveCount(2);
   await expect(preview.locator('[data-site-total="plansSaved"] dd')).toHaveText("41,280");
-  await expect(preview.locator('[data-site-totals="menus.example"]')).toHaveCount(0);
+  await expect(preview.locator('[data-site-totals="mosaic.example"]')).toHaveCount(0);
 
   // The newest history entry is the previous saved layout, including choices.
   await page.locator('[data-wall-version]').first().getByRole("button", { name: "Revert", exact: true }).click();
@@ -1181,13 +1181,13 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   missingSelectedMetric = true;
   await page.reload();
   await page.locator('[data-wall-edit-widget="sites"]').click();
-  await expect(plate.getByRole("checkbox", { name: /plansSaved.*No reading/ })).toBeChecked();
+  await expect(plume.getByRole("checkbox", { name: /plansSaved.*No reading/ })).toBeChecked();
   await expect(preview.locator('[data-site-total="plansSaved"]')).toHaveCount(0);
   await expect(preview.locator('[data-site-total="leads"] dd')).toHaveText("0");
   // Clicking removes the now-unselected placeholder itself; an uncheck()
   // verification cannot reread a control deliberately removed by the action.
-  await plate.getByRole("checkbox", { name: /plansSaved.*No reading/ }).click();
-  await expect(plate.getByRole("checkbox", { name: /plansSaved.*No reading/ })).toHaveCount(0);
+  await plume.getByRole("checkbox", { name: /plansSaved.*No reading/ }).click();
+  await expect(plume.getByRole("checkbox", { name: /plansSaved.*No reading/ })).toHaveCount(0);
   await expect(layoutState("unsaved")).toHaveText("Unsaved changes");
   await page.screenshot({ path: testInfo.outputPath("wall-layout-missing-total-editable.png") });
 });
@@ -1343,19 +1343,19 @@ test("Wall feedback keeps the brand large, pace compact and each stored task nam
   const stored = await (await request.get("/api/wall/feed")).json() as WallFeedPayload;
   const tasks = stored.items.filter((item) => item.kind === "task-done" || item.kind === "task-filed");
   expect(tasks.map((item) => item.text)).toEqual([
-    "Recipe cards load faster", "Menu import skips closed restaurants", "Lookup page shows the local time",
+    "Recipe cards load faster", "Catalog import skips closed stores", "Lookup page shows the local time",
     "Pantry list keeps its order", "Map loads on phones", "Delivery zones show on the map",
   ]);
   expect(tasks.every((item) => item.count === 1)).toBe(true);
   for (const [width, height] of [[1507, 1237], [1920, 1080], [390, 844]] as const) {
     await wallAt(page, [width, height]);
-    await expect(page.locator('[data-site-row="menus.example"] [data-pace-window]')).toHaveText("to 12 PM");
+    await expect(page.locator('[data-site-row="mosaic.example"] [data-pace-window]')).toHaveText("to 12 PM");
     await expect(page.locator('[data-wall-feed] [data-feed-item]').first()).toContainText("Recipe cards load faster");
     await page.evaluate(() => document.fonts.ready);
     const found = await page.evaluate(() => {
       const brand = document.querySelector('[data-strip-home] .brand-mark')!.getBoundingClientRect();
       const clock = document.querySelector('[data-strip-clock-group]')!.getBoundingClientRect();
-      const today = document.querySelector('[data-site-row="menus.example"] [data-site-today]')!;
+      const today = document.querySelector('[data-site-row="mosaic.example"] [data-site-today]')!;
       const cutoff = today.querySelector('[data-pace-window]')!;
       const chip = today.querySelector('[aria-label*="completed hours"]')!;
       const cell = today.getBoundingClientRect();
@@ -1866,9 +1866,9 @@ test("PostHog connects with one key: the region found, the project matched by do
   await expect(panel.locator('[data-connect-state="accepted"]')).toHaveText("Key accepted · US");
   const row = panel.locator(`[data-site-row="${JOURNEY_ASSET}"]`);
   await expect(row).toHaveAttribute("data-site-state", "matched");
-  await expect(row.locator("[data-site-detail]")).toHaveText("Journey Example · 596607");
+  await expect(row.locator("[data-site-detail]")).toHaveText("Journey Example · 424242");
   await expect(row).toContainText("2 funnels");
-  await expect(panel.locator('[data-other-site="us:596608"]')).toContainText("Staging");
+  await expect(panel.locator('[data-other-site="us:424243"]')).toContainText("Staging");
   await assertNoPageOverflow(page);
   await panel.locator("[data-sites-start]").click();
   await expect(row.locator("[data-connection]")).toHaveAttribute("data-connection", "working", { timeout: 60_000 });
@@ -1876,7 +1876,7 @@ test("PostHog connects with one key: the region found, the project matched by do
   // project's saved funnels — never typed.
   const state = await (await page.request.get("/__journey/status")).json();
   const saved = state.documents["config/integrations.json"].assets[JOURNEY_ASSET].posthog;
-  expect(saved).toMatchObject({ host: "us", projectId: "596607" });
+  expect(saved).toMatchObject({ host: "us", projectId: "424242" });
   expect(saved.funnels.map((funnel: { id: string }) => funnel.id)).toEqual(["signup", "checkout"]);
   expect(saved.funnels[1].steps[0]).toEqual({ event: "$pageview", path: "/pricing" });
   expect(state.requests.filter((request: { method: string; path: string }) => request.method === "GET" && request.path === "/api/integrations/posthog/sites")).toHaveLength(1);
@@ -1924,15 +1924,15 @@ test("Google connects in the panel: the client file dropped, signed in, GA4 and 
   const back = page.getByRole("dialog", { name: "Google" });
   const row = back.locator(`[data-site-row="${JOURNEY_ASSET}"]`);
   await expect(row).toHaveAttribute("data-site-state", "matched matched", { timeout: 15_000 });
-  await expect(row.locator("[data-site-detail]")).toHaveText(`GA4 313598867 · sc-domain:${JOURNEY_ASSET}`);
-  await expect(back.locator('[data-other-site="402211876"]')).toContainText("Another site");
+  await expect(row.locator("[data-site-detail]")).toHaveText(`GA4 123456789 · sc-domain:${JOURNEY_ASSET}`);
+  await expect(back.locator('[data-other-site="987654321"]')).toContainText("Another site");
   await expect(back.locator('[data-status-for="integration:google"]').first()).toContainText("Signed in");
   await back.locator("[data-sites-start]").click();
   await expect(row.locator("[data-connection]")).toHaveAttribute("data-connection", "working", { timeout: 60_000 });
   // Start wrote what the Data sources rows would, on both lanes.
   const state = await (await page.request.get("/__journey/status")).json();
   const assets = state.documents["config/integrations.json"].assets[JOURNEY_ASSET];
-  expect(assets.ga4).toMatchObject({ propertyId: "313598867" });
+  expect(assets.ga4).toMatchObject({ propertyId: "123456789" });
   expect(assets.gsc).toMatchObject({ siteUrl: `sc-domain:${JOURNEY_ASSET}` });
   expect(pageErrors).toEqual([]);
 });
@@ -2002,7 +2002,7 @@ test("a refused property id shows the format to enter", async ({ page }, testInf
   await expect(input).toHaveAttribute("aria-invalid", "true");
   await input.scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath("refused-property-id.png") });
-  await expect(mapping.getByText("GA4 property id: digits only, e.g. 313598867", { exact: true })).toBeVisible();
+  await expect(mapping.getByText("GA4 property id: digits only, e.g. 123456789", { exact: true })).toBeVisible();
   await assertNoPageOverflow(page);
   const state = await (await page.request.get("/__journey/status")).json();
   expect(state.documents["config/integrations.json"].assets[JOURNEY_ASSET].ga4.propertyId).not.toBe("G-123");
@@ -2019,7 +2019,7 @@ test("every Sources row opens on a phone without widening the page, and long ref
     ok: true, message: "The synthetic account listed its properties.", checkedAt: "2026-09-06T12:00:00.000Z",
     account: "journey-operator@example.test", auth: "oauth",
     properties: [
-      { lane: "ga4", ref: "313598867", label: "Journey Example — production web stream (all traffic)", detail: "Journey Example Holdings International" },
+      { lane: "ga4", ref: "123456789", label: "Journey Example — production web stream (all traffic)", detail: "Journey Example Holdings International" },
       { lane: "gsc", ref: "sc-domain:journey-example-with-a-long-subdomain.example", label: "sc-domain:journey-example-with-a-long-subdomain.example", detail: "siteFullUser" },
     ],
   } }));
@@ -2508,7 +2508,7 @@ test("each main address loads its own screen and no other", async ({ page }) => 
 
   // The synthetic store is empty, so the asset page answers with its own
   // not-found state — which is the asset page's code, loaded and drawing.
-  const asset = await openAndList(page, "/assets/plate.example", async (p) => {
+  const asset = await openAndList(page, "/assets/plume.example", async (p) => {
     await expect(p.getByText("No such site", { exact: true })).toBeVisible();
   });
   expect(asset.screens).toEqual(["components/AppShell", "routes/AssetDetailRoute"]);

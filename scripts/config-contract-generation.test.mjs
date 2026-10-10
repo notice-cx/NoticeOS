@@ -109,8 +109,8 @@ test('plain Node preserves the distinct asset and configuration-reference vocabu
   assert.equal(CONFIG_ASSET_KEY_RE.test('asset_name'), true);
   assert.equal(ASSET_ID_RE.test('-asset'), true);
   assert.equal(CONFIG_ASSET_KEY_RE.test('-asset'), false);
-  assert.equal(ASSET_ID_RE.test('nosh.example'), true);
-  assert.equal(CONFIG_ASSET_KEY_RE.test('nosh.example'), true);
+  assert.equal(ASSET_ID_RE.test('northwind.example'), true);
+  assert.equal(CONFIG_ASSET_KEY_RE.test('northwind.example'), true);
 });
 
 test('generation checks reject stale runtime, stale types, and missing output without repairing them', async () => {

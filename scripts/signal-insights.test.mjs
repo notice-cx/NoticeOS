@@ -7,23 +7,23 @@ import {
   buildSearchQueryTrends,
 } from './signal-insights.mjs';
 
-const clarityRow = (over = {}) => ({ asset: 'meals.example', report_date: '2026-09-21',
+const clarityRow = (over = {}) => ({ asset: 'meadow.example', report_date: '2026-09-21',
   collected_at: '2026-09-21T12:00:00.000Z', provider_truncated: false,
-  metric: 'ScriptErrorCount', url: 'https://meals.example/planner', sessions_count: '114', sub_total: '19', ...over });
-const clarityOf = (input, archives = []) => claritySnapshot('meals.example', new Map([['clarity-url-3d', input]]), archives);
+  metric: 'ScriptErrorCount', url: 'https://meadow.example/planner', sessions_count: '114', sub_total: '19', ...over });
+const clarityOf = (input, archives = []) => claritySnapshot('meadow.example', new Map([['clarity-url-3d', input]]), archives);
 
 test('Clarity Overview keeps one named page and one unattributed bucket, never an inferred site audience', () => {
-  const block = clarityOf([clarityRow(), clarityRow({ url: 'https://meals.example/recipes', sub_total: '4', sessions_count: '12' }),
+  const block = clarityOf([clarityRow(), clarityRow({ url: 'https://meadow.example/recipes', sub_total: '4', sessions_count: '12' }),
     clarityRow({ metric: 'Traffic', url: '', total_session_count: '0' }),
-    clarityRow({ metric: 'Traffic', url: 'https://meals.example/planner', total_session_count: '400' })]);
+    clarityRow({ metric: 'Traffic', url: 'https://meadow.example/planner', total_session_count: '400' })]);
   assert.deepEqual(block, { source: 'clarity', reportDate: '2026-09-21', collectedAt: '2026-09-21T12:00:00.000Z',
-    windowHours: 72, truncated: false, page: { url: 'https://meals.example/planner', sessions: 114, scriptErrors: 19 }, unattributedSessions: 0 });
+    windowHours: 72, truncated: false, page: { url: 'https://meadow.example/planner', sessions: 114, scriptErrors: 19 }, unattributedSessions: 0 });
 });
 
 test('Clarity Overview selects one latest collection, not overlapping snapshots or same-day revisions added together', () => {
   const block = clarityOf([clarityRow({ report_date: '2026-09-20', sub_total: '999' }), clarityRow({ sub_total: '900' }),
     clarityRow({ collected_at: '2026-09-21T15:00:00.000Z', sessions_count: '0', sub_total: '0', provider_truncated: true })]);
-  assert.deepEqual(block.page, { url: 'https://meals.example/planner', sessions: 0, scriptErrors: 0 });
+  assert.deepEqual(block.page, { url: 'https://meadow.example/planner', sessions: 0, scriptErrors: 0 });
   assert.equal(block.collectedAt, '2026-09-21T15:00:00.000Z');
   assert.equal(block.truncated, true);
 });
@@ -52,7 +52,7 @@ test('Clarity Overview withholds duplicate rows, malformed counts and unsafe pag
   }
   const block = clarityOf([clarityRow(), clarityRow(), clarityRow({ metric: 'Traffic', url: '', total_session_count: '7' }),
     clarityRow({ metric: 'Traffic', url: '', total_session_count: '7' }), clarityRow({ url: 'javascript:alert(1)' }),
-    clarityRow({ url: 'https://user:password@meals.example/planner' }), clarityRow({ asset: 'other.example' })]);
+    clarityRow({ url: 'https://user:password@meadow.example/planner' }), clarityRow({ asset: 'other.example' })]);
   assert.equal(block.page, null); assert.equal(block.unattributedSessions, null);
   assert.equal(clarityOf([]), null);
   assert.equal(clarityOf([clarityRow({ report_date: '2026-99-99' })]), null);
@@ -60,7 +60,7 @@ test('Clarity Overview withholds duplicate rows, malformed counts and unsafe pag
 
 test('Clarity Overview preserves a missing metric as unknown beside an explicitly reported zero', () => {
   const block = clarityOf([clarityRow({ sessions_count: '', sub_total: '0' })]);
-  assert.deepEqual(block.page, { url: 'https://meals.example/planner', sessions: null, scriptErrors: 0 });
+  assert.deepEqual(block.page, { url: 'https://meadow.example/planner', sessions: null, scriptErrors: 0 });
 });
 
 /** Consecutive reported dates, the grain every flattened family carries. */
@@ -70,7 +70,7 @@ function reportedDates(count, start = 1) {
   );
 }
 
-function cardFor(families, key, asset = 'meals.example') {
+function cardFor(families, key, asset = 'meadow.example') {
   return buildExecutiveSnapshot({
     asset,
     families,
@@ -89,7 +89,7 @@ test('builds bounded evidence findings and never treats missing reports as depre
       [
         {
           ...base,
-          page: 'https://meals.example/meal-plan',
+          page: 'https://meadow.example/meal-plan',
           query: 'weekly meal plan',
           impressions: 700,
           clicks: 21,
@@ -114,7 +114,7 @@ test('builds bounded evidence findings and never treats missing reports as depre
           ...base,
           row_grain: 'page',
           searchAppearance: 'RECIPE_FEATURE',
-          page: 'https://meals.example/recipes/soup',
+          page: 'https://meadow.example/recipes/soup',
           impressions: 8000,
           clicks: 800,
           ctr: 0.1,
@@ -169,7 +169,7 @@ test('builds bounded evidence findings and never treats missing reports as depre
       [
         {
           ...base,
-          url: 'https://meals.example/old-plan',
+          url: 'https://meadow.example/old-plan',
           http_code: 404,
           issues: 4,
           issue_names: 'Code4xx',
@@ -180,7 +180,7 @@ test('builds bounded evidence findings and never treats missing reports as depre
   ]);
 
   const snapshot = buildExecutiveSnapshot({
-    asset: 'meals.example',
+    asset: 'meadow.example',
     families,
     archives: [{}, {}, {}],
     generatedAt: '2026-07-29T13:00:00.000Z',
@@ -250,7 +250,7 @@ test('uses only the latest Bing snapshot instead of adding repeated weekly rows'
     ],
   ]);
   const snapshot = buildExecutiveSnapshot({
-    asset: 'meals.example',
+    asset: 'meadow.example',
     families,
     archives: [{}, {}],
   });
@@ -270,7 +270,7 @@ test('compares stored DataForSEO snapshots and summarizes current search intelli
         {
           report_date: '2026-07-21',
           keyword: 'weekly meal plan',
-          url: 'https://meals.example/meal-plan',
+          url: 'https://meadow.example/meal-plan',
           result_type: 'organic',
           rank_group: 14,
           search_volume: 500,
@@ -282,7 +282,7 @@ test('compares stored DataForSEO snapshots and summarizes current search intelli
         {
           report_date: '2026-07-28',
           keyword: 'weekly meal plan',
-          url: 'https://meals.example/meal-plan',
+          url: 'https://meadow.example/meal-plan',
           result_type: 'organic',
           rank_group: 7,
           search_volume: 500,
@@ -296,7 +296,7 @@ test('compares stored DataForSEO snapshots and summarizes current search intelli
         {
           report_date: '2026-07-28',
           keyword: 'healthy meal ideas',
-          url: 'https://meals.example/healthy-meals',
+          url: 'https://meadow.example/healthy-meadow',
           result_type: 'ai_overview_reference',
           rank_group: 2,
           search_volume: 900,
@@ -356,7 +356,7 @@ test('compares stored DataForSEO snapshots and summarizes current search intelli
     ],
   ]);
   const snapshot = buildExecutiveSnapshot({
-    asset: 'meals.example',
+    asset: 'meadow.example',
     families,
     archives: [{}, {}, {}, {}, {}, {}],
   });
@@ -387,7 +387,7 @@ test('compares stored DataForSEO snapshots and summarizes current search intelli
       positionImprovement: null,
       keywordDifficulty: 38,
       estimatedVisits: null,
-      page: '/healthy-meals',
+      page: '/healthy-meadow',
       intent: 'informational',
       aiOverview: 'cited',
       aiCitationPosition: 2,
@@ -415,7 +415,7 @@ test('joins tracked-panel AI Overview evidence onto the queries it covers, and o
   const rankedRow = (keyword, searchVolume) => ({
     report_date: '2026-07-28',
     keyword,
-    url: `https://meals.example/${keyword.replaceAll(' ', '-')}`,
+    url: `https://meadow.example/${keyword.replaceAll(' ', '-')}`,
     result_type: 'organic',
     rank_group: 6,
     search_volume: searchVolume,
@@ -472,7 +472,7 @@ test('joins tracked-panel AI Overview evidence onto the queries it covers, and o
   ]);
 
   const snapshot = buildExecutiveSnapshot({
-    asset: 'meals.example',
+    asset: 'meadow.example',
     families,
     archives: [{}, {}],
   });
@@ -555,12 +555,12 @@ test('carries the whole tracked panel in the snapshot, and no block without one'
         panelRow('cited term', {
           query_label: '  Calculator seam ',
           best_rank: 3,
-          best_url: 'https://meals.example/cited',
+          best_url: 'https://meadow.example/cited',
           second_rank: 8,
-          second_url: 'https://meals.example/second',
+          second_url: 'https://meadow.example/second',
           aio_present: true,
           aio_cites_us: true,
-          top3_domains: 'usda.gov|meals.example|healthline.com',
+          top3_domains: 'agency.example|meadow.example|rival-guide.example',
           organic_results: 18,
           serp_features: 'images|people_also_ask',
         }),
@@ -569,7 +569,7 @@ test('carries the whole tracked panel in the snapshot, and no block without one'
         panelRow('walled term', {
           aio_present: true,
           aio_cites_us: false,
-          top3_domains: 'reddit.com|nih.gov|wikipedia.org',
+          top3_domains: 'reddit.com|institute.example|wikipedia.org',
           organic_results: 20,
           serp_features: 'ai_overview|people_also_ask',
         }),
@@ -587,17 +587,17 @@ test('carries the whole tracked panel in the snapshot, and no block without one'
           best_rank: '',
           aio_present: true,
           aio_cites_us: false,
-          top3_domains: 'calculator.net|omnicalculator.com|meals.gov',
+          top3_domains: 'calc-hub.example|calc-world.example|registry.example',
           organic_results: 19,
           serp_features: 'ai_overview',
         }),
         panelRow('split term', {
           device: 'desktop',
           best_rank: 4,
-          best_url: 'https://meals.example/split',
+          best_url: 'https://meadow.example/split',
           aio_present: false,
           aio_cites_us: false,
-          top3_domains: 'meals.example|calculator.net|healthline.com',
+          top3_domains: 'meadow.example|calc-hub.example|rival-guide.example',
           organic_results: 20,
           serp_features: 'images',
         }),
@@ -609,7 +609,7 @@ test('carries the whole tracked panel in the snapshot, and no block without one'
   ]);
 
   const snapshot = buildExecutiveSnapshot({
-    asset: 'meals.example',
+    asset: 'meadow.example',
     families,
     archives: [{}],
   });
@@ -620,7 +620,7 @@ test('carries the whole tracked panel in the snapshot, and no block without one'
   // A site that saved one: the block carries it, for the Tower's caption.
   const uk = { locationCode: 2826, languageCode: 'en' };
   assert.deepEqual(
-    buildExecutiveSnapshot({ asset: 'meals.example', families, archives: [{}], market: uk }).serpPanel.market,
+    buildExecutiveSnapshot({ asset: 'meadow.example', families, archives: [{}], market: uk }).serpPanel.market,
     uk,
   );
   assert.deepEqual(snapshot.serpPanel.queries, [
@@ -629,14 +629,14 @@ test('carries the whole tracked panel in the snapshot, and no block without one'
       device: 'desktop',
       label: 'Calculator seam',
       bestRank: 3,
-      bestUrl: 'https://meals.example/cited',
+      bestUrl: 'https://meadow.example/cited',
       aioPresent: true,
       aioCitesUs: true,
       composition: {
-        top3Domains: ['usda.gov', 'meals.example', 'healthline.com'],
+        top3Domains: ['agency.example', 'meadow.example', 'rival-guide.example'],
         organicResults: 18,
         secondRank: 8,
-        secondUrl: 'https://meals.example/second',
+        secondUrl: 'https://meadow.example/second',
         serpFeatures: ['images', 'people_also_ask'],
       },
     },
@@ -649,7 +649,7 @@ test('carries the whole tracked panel in the snapshot, and no block without one'
       aioPresent: true,
       aioCitesUs: false,
       composition: {
-        top3Domains: ['reddit.com', 'nih.gov', 'wikipedia.org'],
+        top3Domains: ['reddit.com', 'institute.example', 'wikipedia.org'],
         organicResults: 20,
         secondRank: null,
         secondUrl: null,
@@ -680,7 +680,7 @@ test('carries the whole tracked panel in the snapshot, and no block without one'
       aioPresent: true,
       aioCitesUs: false,
       composition: {
-        top3Domains: ['calculator.net', 'omnicalculator.com', 'meals.gov'],
+        top3Domains: ['calc-hub.example', 'calc-world.example', 'registry.example'],
         organicResults: 19,
         secondRank: null,
         secondUrl: null,
@@ -692,11 +692,11 @@ test('carries the whole tracked panel in the snapshot, and no block without one'
       device: 'desktop',
       label: null,
       bestRank: 4,
-      bestUrl: 'https://meals.example/split',
+      bestUrl: 'https://meadow.example/split',
       aioPresent: false,
       aioCitesUs: false,
       composition: {
-        top3Domains: ['meals.example', 'calculator.net', 'healthline.com'],
+        top3Domains: ['meadow.example', 'calc-hub.example', 'rival-guide.example'],
         organicResults: 20,
         secondRank: null,
         secondUrl: null,
@@ -708,7 +708,7 @@ test('carries the whole tracked panel in the snapshot, and no block without one'
   assert.equal(
     'serpPanel' in
       buildExecutiveSnapshot({
-        asset: 'meals.example',
+        asset: 'meadow.example',
         families: new Map([['gsc-page-query', []]]),
         archives: [{}],
       }),
@@ -742,7 +742,7 @@ test('excludes GA4 not-set values from the leading AI landing-page claim', () =>
     ],
   ]);
   const snapshot = buildExecutiveSnapshot({
-    asset: 'meals.example',
+    asset: 'meadow.example',
     families,
     archives: [{}],
   });
@@ -908,7 +908,7 @@ test('builds page decisions from two complete weeks, joining each page its leadi
       // Lost clicks with impressions holding: the recover shape.
       {
         report_date,
-        page: 'https://meals.example/calculator',
+        page: 'https://meadow.example/calculator',
         clicks: week === 'previous' ? 12 : 3,
         impressions: 400,
         position: 5,
@@ -916,7 +916,7 @@ test('builds page decisions from two complete weeks, joining each page its leadi
       // Shown far more and taken no more: the harvest shape.
       {
         report_date,
-        page: 'https://meals.example/recipes',
+        page: 'https://meadow.example/recipes',
         clicks: 1,
         impressions: week === 'previous' ? 100 : 300,
         position: week === 'previous' ? 9 : 7,
@@ -927,7 +927,7 @@ test('builds page decisions from two complete weeks, joining each page its leadi
         ? [
             {
               report_date,
-              page: 'https://meals.example/new-page',
+              page: 'https://meadow.example/new-page',
               clicks: 40,
               impressions: 900,
               position: 4,
@@ -943,7 +943,7 @@ test('builds page decisions from two complete weeks, joining each page its leadi
       dates.slice(7).flatMap((report_date) => [
         {
           report_date,
-          page: 'https://meals.example/recipes',
+          page: 'https://meadow.example/recipes',
           query: 'free meal plans',
           impressions: 30,
           clicks: 0,
@@ -951,7 +951,7 @@ test('builds page decisions from two complete weeks, joining each page its leadi
         },
         {
           report_date,
-          page: 'https://meals.example/recipes',
+          page: 'https://meadow.example/recipes',
           query: 'recipe ideas',
           impressions: 5,
           clicks: 1,
@@ -961,8 +961,8 @@ test('builds page decisions from two complete weeks, joining each page its leadi
         // lane states what it removed rather than dropping it in silence.
         {
           report_date,
-          page: 'https://meals.example/recipes',
-          query: '"1 medium banana" meals',
+          page: 'https://meadow.example/recipes',
+          query: '"1 medium banana" meadow',
           impressions: 900,
           clicks: 0,
           position: 3,
@@ -1059,7 +1059,7 @@ test('builds page decisions from two complete weeks, joining each page its leadi
         'gsc-page-query',
         dates.slice(7).map((report_date) => ({
           report_date,
-          page: 'https://meals.example/recipes',
+          page: 'https://meadow.example/recipes',
           query: 'free meal plans',
           impressions: 30,
           clicks: 0,
@@ -1159,7 +1159,7 @@ test('keeps quoted-literal grounding queries out of both providers movers and sa
       // The largest absolute mover in the series by an order of magnitude, and
       // it never took a click: a machine re-verifying a retrieved claim.
       report_date,
-      query: '"1 medium banana" "3/4 cup" meals',
+      query: '"1 medium banana" "3/4 cup" meadow',
       impressions: index < 7 ? 100 : 300,
       clicks: 0,
       position: 4,
@@ -1180,7 +1180,7 @@ test('keeps quoted-literal grounding queries out of both providers movers and sa
       // the row is what proves the check ran on this run.
       report_date: '2026-07-28',
       provider_date,
-      query: '"1 medium banana" "3/4 cup" meals',
+      query: '"1 medium banana" "3/4 cup" meadow',
       impressions: index < 7 ? 40 : 120,
       clicks: 0,
       avg_impression_position: 3,
@@ -1254,7 +1254,7 @@ test('the Bing exclusion is measured over the ranked snapshot, not the whole rev
       {
         report_date,
         provider_date,
-        query: '"1 medium banana" "3/4 cup" meals',
+        query: '"1 medium banana" "3/4 cup" meadow',
         impressions: 10 * factor,
         clicks: 0,
         avg_impression_position: 3,
@@ -1361,8 +1361,8 @@ test('recommends consolidating a query only when two pages each hold a fifth of 
     [
       'gsc-page-query',
       pageQueryRows([
-        ['https://meals.example/', 60],
-        ['https://meals.example/meal-plan', 40],
+        ['https://meadow.example/', 60],
+        ['https://meadow.example/meal-plan', 40],
       ]),
     ],
   ]);
@@ -1382,8 +1382,8 @@ test('recommends consolidating a query only when two pages each hold a fifth of 
         [
           'gsc-page-query',
           pageQueryRows([
-            ['https://meals.example/', 95],
-            ['https://meals.example/meal-plan', 5],
+            ['https://meadow.example/', 95],
+            ['https://meadow.example/meal-plan', 5],
           ]),
         ],
       ]),
@@ -1398,8 +1398,8 @@ test('recommends consolidating a query only when two pages each hold a fifth of 
         [
           'gsc-page-query',
           pageQueryRows([
-            ['https://meals.example/', 15],
-            ['https://meals.example/meal-plan', 10],
+            ['https://meadow.example/', 15],
+            ['https://meadow.example/meal-plan', 10],
           ]),
         ],
       ]),
@@ -1430,8 +1430,8 @@ test('reports page-grain click movers from two complete weeks and only above the
     [
       'gsc-page',
       pageRows({
-        'https://meals.example/recipes': [1, 5],
-        'https://meals.example/calculator': [6, 2],
+        'https://meadow.example/recipes': [1, 5],
+        'https://meadow.example/calculator': [6, 2],
       }),
     ],
   ]);
@@ -1456,7 +1456,7 @@ test('reports page-grain click movers from two complete weeks and only above the
 
   assert.equal(
     cardFor(
-      new Map([['gsc-page', pageRows({ 'https://meals.example/recipes': [2, 3] })]]),
+      new Map([['gsc-page', pageRows({ 'https://meadow.example/recipes': [2, 3] })]]),
       'page-movers',
     ),
     undefined,
@@ -1465,7 +1465,7 @@ test('reports page-grain click movers from two complete weeks and only above the
   const oneWeek = new Map([
     [
       'gsc-page',
-      pageRows({ 'https://meals.example/recipes': [1, 5] }).filter(
+      pageRows({ 'https://meadow.example/recipes': [1, 5] }).filter(
         (row) => row.report_date <= '2026-07-10',
       ),
     ],
@@ -1662,7 +1662,7 @@ test('a provisional-only attribution spike raises no finding, and settled findin
 });
 
 test('no attribution rule fires from unsettled days alone', () => {
-  const targets = [{ domain: 'genesee.cce.cornell.edu', status: 'clicked' }];
+  const targets = [{ domain: 'county-b.extension.example', status: 'clicked' }];
   const unsettledFamilies = (mark) =>
     new Map([
       [
@@ -1677,7 +1677,7 @@ test('no attribution rule fires from unsettled days alone', () => {
               {
                 'google / organic': 1_096,
                 '(not set)': 3_380,
-                'genesee.cce.cornell.edu / referral': 12,
+                'county-b.extension.example / referral': 12,
               },
               date,
             ),
@@ -1700,7 +1700,7 @@ test('no attribution rule fires from unsettled days alone', () => {
     ]);
   const snapshot = (families) =>
     buildExecutiveSnapshot({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       families,
       archives: [{}],
       reclamationTargets: targets,
@@ -1876,7 +1876,7 @@ test('recommends a locale review for a country clicking at half the rest-of-prop
           report_date: '2026-07-28',
           row_grain: 'page+country',
           country: 'kor',
-          page: 'https://meals.example/ko/calculator',
+          page: 'https://meadow.example/ko/calculator',
           impressions: 1500,
           clicks: 14,
         },
@@ -1990,7 +1990,7 @@ test('lists prune candidates only for a property with enough pages and enough wi
     reportedDates(dateCount).flatMap((report_date, dateIndex) =>
       Array.from({ length: pageCount }, (_, index) => ({
         report_date,
-        page: `https://meals.example/page-${String(index).padStart(3, '0')}`,
+        page: `https://meadow.example/page-${String(index).padStart(3, '0')}`,
         impressions: index < 40 ? (dateIndex < thinDates ? 1 : 0) : 50,
         clicks: index < 40 ? 0 : 2,
       })),
@@ -2063,7 +2063,7 @@ test('caps the page at eight cards and keeps the most severe ones', () => {
       [
         {
           report_date: '2026-07-28',
-          page: 'https://meals.example/',
+          page: 'https://meadow.example/',
           query: 'weekly meal plan',
           impressions: 400,
           clicks: 4,
@@ -2071,7 +2071,7 @@ test('caps the page at eight cards and keeps the most severe ones', () => {
         },
         {
           report_date: '2026-07-28',
-          page: 'https://meals.example/meal-plan',
+          page: 'https://meadow.example/meal-plan',
           query: 'weekly meal plan',
           impressions: 300,
           clicks: 3,
@@ -2098,7 +2098,7 @@ test('caps the page at eight cards and keeps the most severe ones', () => {
       [
         {
           report_date: '2026-07-28',
-          page: 'https://meals.example/recipes/soup',
+          page: 'https://meadow.example/recipes/soup',
           query: 'soup',
           impressions: 900,
           clicks: 0,
@@ -2120,7 +2120,7 @@ test('caps the page at eight cards and keeps the most severe ones', () => {
     ],
   ]);
   const snapshot = buildExecutiveSnapshot({
-    asset: 'meals.example',
+    asset: 'meadow.example',
     families,
     archives: [{}],
   });
@@ -2193,9 +2193,9 @@ test('sets aside one-SERP-block queries rather than recommending consolidation (
     [
       'gsc-page-query',
       pageQueryRows('where to find free diet plans', [
-        ['https://meals.example/', 142, 0, 1.2],
-        ['https://meals.example/calculator', 138, 0, 1.0],
-        ['https://meals.example/recipes', 138, 0, 1.0],
+        ['https://meadow.example/', 142, 0, 1.2],
+        ['https://meadow.example/calculator', 138, 0, 1.0],
+        ['https://meadow.example/recipes', 138, 0, 1.0],
       ]),
     ],
   ]);
@@ -2214,8 +2214,8 @@ test('sets aside one-SERP-block queries rather than recommending consolidation (
         [
           'gsc-page-query',
           pageQueryRows('where to find free meal plans', [
-            ['https://meals.example/meal-plans', 200, 0, 5.5],
-            ['https://meals.example/', 60, 0, 11],
+            ['https://meadow.example/meal-plans', 200, 0, 5.5],
+            ['https://meadow.example/', 60, 0, 11],
           ]),
         ],
       ]),
@@ -2230,8 +2230,8 @@ test('sets aside one-SERP-block queries rather than recommending consolidation (
     [
       'gsc-page-query',
       pageQueryRows('weekly meal plan', [
-        ['https://meals.example/meal-plan', 200, 6, 3],
-        ['https://meals.example/recipes', 100, 2, 9],
+        ['https://meadow.example/meal-plan', 200, 6, 3],
+        ['https://meadow.example/recipes', 100, 2, 9],
       ]),
     ],
   ]);
@@ -2249,12 +2249,12 @@ test('sets aside one-SERP-block queries rather than recommending consolidation (
       'gsc-page-query',
       [
         ...pageQueryRows('where to find free diet plans', [
-          ['https://meals.example/', 142, 0, 1.2],
-          ['https://meals.example/calculator', 138, 0, 1.0],
+          ['https://meadow.example/', 142, 0, 1.2],
+          ['https://meadow.example/calculator', 138, 0, 1.0],
         ]),
         ...pageQueryRows('weekly meal plan', [
-          ['https://meals.example/meal-plan', 60, 6, 3],
-          ['https://meals.example/recipes', 40, 2, 9],
+          ['https://meadow.example/meal-plan', 60, 6, 3],
+          ['https://meadow.example/recipes', 40, 2, 9],
         ]),
       ],
     ],
@@ -2275,11 +2275,11 @@ test('excludes quoted-literal grounding queries from the CTR rules and says so (
     [
       'gsc-page-query',
       [
-        ...pageQueryRows('"1 medium banana" "3/4 cup" meals', [
-          ['https://meals.example/recipes/ambrosia', 400, 0, 4.3],
+        ...pageQueryRows('"1 medium banana" "3/4 cup" meadow', [
+          ['https://meadow.example/recipes/ambrosia', 400, 0, 4.3],
         ]),
-        ...pageQueryRows('my plate', [
-          ['https://meals.example/', 200, 12, 5.9],
+        ...pageQueryRows('my plume', [
+          ['https://meadow.example/', 200, 12, 5.9],
         ]),
       ],
     ],
@@ -2287,7 +2287,7 @@ test('excludes quoted-literal grounding queries from the CTR rules and says so (
   const item = cardFor(families, 'search-striking-distance');
   assert.match(
     item?.title ?? '',
-    /Move “my plate” into the top results/,
+    /Move “my plume” into the top results/,
     'the quoted query outranks it on impressions and must not be the recommendation',
   );
   assert.ok(
@@ -2303,7 +2303,7 @@ test('excludes quoted-literal grounding queries from the CTR rules and says so (
   // Nothing excluded still states the check ran, at zero.
   const clean = cardFor(
     new Map([
-      ['gsc-page-query', pageQueryRows('my plate', [['https://meals.example/', 200, 12, 5.9]])],
+      ['gsc-page-query', pageQueryRows('my plume', [['https://meadow.example/', 200, 12, 5.9]])],
     ]),
     'search-striking-distance',
   );
@@ -2329,9 +2329,9 @@ test('withholds a striking-distance term whose tracked overview does not cite us
   // no clicks at all, which is exactly what the rule rewards.
   const pageQueries = [
     ...pageQueryRows('where to find free meal plans', [
-      ['https://meals.example/meal-plans', 500, 0, 5],
+      ['https://meadow.example/meal-plans', 500, 0, 5],
     ]),
-    ...pageQueryRows('my plate', [['https://meals.example/', 200, 12, 5.9]]),
+    ...pageQueryRows('my plume', [['https://meadow.example/', 200, 12, 5.9]]),
   ];
   const panelled = (panelRows) =>
     new Map([
@@ -2349,7 +2349,7 @@ test('withholds a striking-distance term whose tracked overview does not cite us
   );
   assert.match(
     walled?.title ?? '',
-    /Move “my plate” into the top results/,
+    /Move “my plume” into the top results/,
     'a click consumed inside the block is not an opportunity a title rewrite can take',
   );
   assert.ok(
@@ -2443,7 +2443,7 @@ test('withholds a striking-distance term whose tracked overview does not cite us
   );
   assert.match(
     splitWalled?.title ?? '',
-    /Move “my plate” into the top results/,
+    /Move “my plume” into the top results/,
     'walled on the phone is walled',
   );
   const splitWithheld = splitWalled.evidence.find(
@@ -2473,11 +2473,11 @@ test('withholds a striking-distance term whose tracked overview does not cite us
 
 test('surfaces grounding traffic as its own discovery above the share and volume floors (F2)', () => {
   const grounded = (impressions) =>
-    pageQueryRows('"1 medium banana" "3/4 cup" meals', [
-      ['https://meals.example/recipes/ambrosia', impressions, 0, 4.3],
+    pageQueryRows('"1 medium banana" "3/4 cup" meadow', [
+      ['https://meadow.example/recipes/ambrosia', impressions, 0, 4.3],
     ]);
   const human = (impressions) =>
-    pageQueryRows('my plate', [['https://meals.example/', impressions, 12, 5.9]]);
+    pageQueryRows('my plume', [['https://meadow.example/', impressions, 12, 5.9]]);
 
   const families = new Map([
     [
@@ -2569,7 +2569,7 @@ test('states the decline, refuses a cross-locale join, and caps confidence on a 
     ['bing-webmaster-queries', bingSeries('dri', declining, 5)],
     [
       'gsc-page-query',
-      pageQueryRows('dri', [['https://meals.example/es/calculadora-dri', 20, 0, 8]]),
+      pageQueryRows('dri', [['https://meadow.example/es/calculadora-dri', 20, 0, 8]]),
     ],
   ]);
   const item = cardFor(families, 'bing-search-opportunity');
@@ -2608,8 +2608,8 @@ test('states the decline, refuses a cross-locale join, and caps confidence on a 
     [
       'gsc-page-query',
       pageQueryRows('meal plan', [
-        ['https://meals.example/es/planes', 900, 0, 8],
-        ['https://meals.example/meal-plans', 300, 9, 6],
+        ['https://meadow.example/es/planes', 900, 0, 8],
+        ['https://meadow.example/meal-plans', 300, 9, 6],
       ]),
     ],
   ]);
@@ -2641,7 +2641,7 @@ test('refuses a Bing landing-page join built on a single captured impression', (
     ['bing-webmaster-queries', bingWeeks('dri', 500, 40)],
     [
       'gsc-page-query',
-      pageQueryRows('dri', [['https://meals.example/dri-calculator', 1, 0, 8]], 1),
+      pageQueryRows('dri', [['https://meadow.example/dri-calculator', 1, 0, 8]], 1),
     ],
   ]);
   const declined = cardFor(thin, 'bing-search-opportunity');
@@ -2675,7 +2675,7 @@ test('refuses a Bing landing-page join built on a single captured impression', (
     ['bing-webmaster-queries', bingWeeks('dri', 500, 40)],
     [
       'gsc-page-query',
-      pageQueryRows('dri', [['https://meals.example/dri-calculator', 4, 1, 8]], 3),
+      pageQueryRows('dri', [['https://meadow.example/dri-calculator', 4, 1, 8]], 3),
     ],
   ]);
   const joined = cardFor(solid, 'bing-search-opportunity');
@@ -2694,7 +2694,7 @@ test('refuses a Bing landing-page join built on a single captured impression', (
 });
 
 /** The value-events declaration the operator owns (config/value-events.json). */
-function valueEventCard(families, valueEvents, asset = 'meals.example') {
+function valueEventCard(families, valueEvents, asset = 'meadow.example') {
   return buildExecutiveSnapshot({
     asset,
     families,
@@ -2703,9 +2703,9 @@ function valueEventCard(families, valueEvents, asset = 'meals.example') {
   }).items.find((item) => item.key === 'value-event-not-key-event');
 }
 
-const MEALS_VALUE_EVENTS = {
+const MEADOW_VALUE_EVENTS = {
   assets: {
-    'meals.example': {
+    'meadow.example': {
       valueEvents: [
         'calculation_complete',
         'printable_download',
@@ -2742,7 +2742,7 @@ test('warns when a declared value event is not a GA4 key event (F4)', () => {
       }),
     ],
   ]);
-  const item = valueEventCard(preChange, MEALS_VALUE_EVENTS);
+  const item = valueEventCard(preChange, MEADOW_VALUE_EVENTS);
   assert.equal(item?.kind, 'warning');
   assert.equal(item.title, '2 declared value events are not GA4 key events');
   assert.equal(item.primary.value, '1,990');
@@ -2778,7 +2778,7 @@ test('warns when a declared value event is not a GA4 key event (F4)', () => {
           }),
         ],
       ]),
-      MEALS_VALUE_EVENTS,
+      MEADOW_VALUE_EVENTS,
     ),
     undefined,
     'the fixed configuration is the silence this card is asking for',
@@ -2786,7 +2786,7 @@ test('warns when a declared value event is not a GA4 key event (F4)', () => {
   assert.equal(
     valueEventCard(
       new Map([['ga4-events', eventRows({ calculation_complete: [8, 0] })]]),
-      MEALS_VALUE_EVENTS,
+      MEADOW_VALUE_EVENTS,
     ),
     undefined,
     'eight events a day is not enough volume to call a settings gap',
@@ -2794,7 +2794,7 @@ test('warns when a declared value event is not a GA4 key event (F4)', () => {
   assert.equal(
     valueEventCard(
       new Map([['ga4-events', eventRows({ recipe_save: [400, 0] })]]),
-      MEALS_VALUE_EVENTS,
+      MEADOW_VALUE_EVENTS,
     ),
     undefined,
     'an undeclared event is not this rule’s business, however large',
@@ -2810,14 +2810,14 @@ test('warns when a declared value event is not a GA4 key event (F4)', () => {
   assert.equal(
     valueEventCard(
       new Map([['ga4-events', eventRows({ calculation_complete: [398, 0] })]]),
-      MEALS_VALUE_EVENTS,
-      'nosh.example',
+      MEADOW_VALUE_EVENTS,
+      'northwind.example',
     ),
     undefined,
     'a property with no declaration of its own stays silent',
   );
   assert.equal(
-    valueEventCard(new Map(), MEALS_VALUE_EVENTS),
+    valueEventCard(new Map(), MEADOW_VALUE_EVENTS),
     undefined,
     'a missing GA4 events family is not a configuration finding',
   );
@@ -2877,8 +2877,8 @@ test('reports a device CTR gap in either direction, on the decontaminated series
       position: 8,
     }));
   const grounding = (impressions) =>
-    pageQueryRows('"1 medium banana" "3/4 cup" meals', [
-      ['https://meals.example/recipes/ambrosia', impressions, 0, 4.3],
+    pageQueryRows('"1 medium banana" "3/4 cup" meadow', [
+      ['https://meadow.example/recipes/ambrosia', impressions, 0, 4.3],
     ]);
 
   // The gap the mobile-only rule could not see: desktop at a quarter of mobile's
@@ -2935,7 +2935,7 @@ test('surfaces high-demand clusters past the near-win band, one card per page (F
   const rankedRow = (keyword, page, volume, difficulty, position) => ({
     report_date: '2026-07-30',
     keyword,
-    url: `https://meals.example${page}`,
+    url: `https://meadow.example${page}`,
     relative_url: page,
     result_type: 'organic',
     intent: 'informational',
@@ -2956,7 +2956,7 @@ test('surfaces high-demand clusters past the near-win band, one card per page (F
     ],
   ]);
   const snapshot = buildExecutiveSnapshot({
-    asset: 'meals.example',
+    asset: 'meadow.example',
     families,
     archives: [{}],
   });
@@ -2987,7 +2987,7 @@ test('surfaces high-demand clusters past the near-win band, one card per page (F
   const silent = (rows, reason) =>
     assert.equal(
       buildExecutiveSnapshot({
-        asset: 'meals.example',
+        asset: 'meadow.example',
         families: new Map([['dataforseo-ranked-keywords', rows]]),
         archives: [{}],
       }).items.filter((item) => item.key.startsWith('distant-demand-cluster')).length,
@@ -3007,7 +3007,7 @@ test('surfaces high-demand clusters past the near-win band, one card per page (F
     'position 15 belongs to the near-win rule and must not be reported twice',
   );
   silent(
-    [rankedRow('meals', '/', 110000, 10, 26)],
+    [rankedRow('meadow', '/', 110000, 10, 26)],
     'a homepage cluster is a brand-term artifact, not a content decision',
   );
   silent(
@@ -3028,7 +3028,7 @@ test('search findings name the site’s own saved market, and a neutral one when
   const ranked = (reportDate, keyword, page, volume, position, difficulty = 20) => ({
     report_date: reportDate,
     keyword,
-    url: `https://meals.example${page}`,
+    url: `https://meadow.example${page}`,
     relative_url: page,
     result_type: 'organic',
     intent: 'informational',
@@ -3051,7 +3051,7 @@ test('search findings name the site’s own saved market, and a neutral one when
     ['dataforseo-llm-mentions-google', [platform(7)]],
     ['dataforseo-llm-mentions-chatgpt', [platform(4)]],
   ]);
-  const findings = (market) => buildExecutiveSnapshot({ asset: 'meals.example', families, archives: [{}], market });
+  const findings = (market) => buildExecutiveSnapshot({ asset: 'meadow.example', families, archives: [{}], market });
   const ASSUMED_US = /US\/English|\bUS searches|United States/;
   const namedCards = ['dataforseo-ranking-gain', 'dataforseo-ranking-opportunity', 'dataforseo-llm-visibility', 'distant-demand-cluster/water-intake-calculator'];
 
@@ -3091,7 +3091,7 @@ test('names where the property sits among the domains each AI platform cites', (
       'dataforseo-llm-mentions-google',
       [
         platform(177, 67600),
-        sourceDomain('meals.example', 177),
+        sourceDomain('meadow.example', 177),
         sourceDomain('www.youtube.com', 70),
       ],
     ],
@@ -3099,9 +3099,9 @@ test('names where the property sits among the domains each AI platform cites', (
       'dataforseo-llm-mentions-chatgpt',
       [
         platform(159, 8819),
-        sourceDomain('www.healthline.com', 42),
-        sourceDomain('diabetes.org', 31),
-        sourceDomain('meals.example', 27),
+        sourceDomain('www.rival-guide.example', 42),
+        sourceDomain('foundation.example', 31),
+        sourceDomain('meadow.example', 27),
       ],
     ],
   ]);
@@ -3123,7 +3123,7 @@ test('names where the property sits among the domains each AI platform cites', (
       (row) =>
         row.label === 'Rank among ChatGPT-cited domains' &&
         row.value === '#3 of 3' &&
-        row.detail.includes('behind healthline.com 42, diabetes.org 31'),
+        row.detail.includes('behind rival-guide.example 42, foundation.example 31'),
     ),
     'who is ahead is the competitive fact; the count alone is not',
   );
@@ -3163,7 +3163,7 @@ test('keeps a blank LLM-mention platform row unknown instead of reporting zero',
     },
   ];
   const intelligence = (families) =>
-    buildExecutiveSnapshot({ asset: 'areas.example', families, archives: [{}] }).searchIntelligence;
+    buildExecutiveSnapshot({ asset: 'acorn.example', families, archives: [{}] }).searchIntelligence;
 
   assert.deepEqual(
     intelligence(
@@ -3188,7 +3188,7 @@ test('keeps a blank LLM-mention platform row unknown instead of reporting zero',
       ['dataforseo-llm-mentions-chatgpt', [{ ...zero, mentions: 5, ai_search_volume: 300 }]],
     ]),
     'dataforseo-llm-visibility',
-    'areas.example',
+    'acorn.example',
   );
   const evidenceValue = (label) => card.evidence.find((row) => row.label === label)?.value;
   assert.equal(evidenceValue('Google mentions'), 'not reported');
@@ -3208,18 +3208,18 @@ function trafficSourceRows(bySourceMedium, date = '2026-07-28') {
 
 const OPEN_TARGETS = [
   {
-    domain: 'genesee.cce.cornell.edu',
+    domain: 'county-b.extension.example',
     status: 'clicked',
-    referring_page: 'https://genesee.cce.cornell.edu/food-nutrition/meals',
-    replace_with: 'https://meals.example/food-groups',
+    referring_page: 'https://county-b.extension.example/home-garden/guides',
+    replace_with: 'https://meadow.example/field-guides',
   },
-  { domain: 'schoolnutrition.org', status: 'queued', referring_page: '' },
-  { domain: 'wichealth.org', status: 'sent', referring_page: '' },
+  { domain: 'association.example', status: 'queued', referring_page: '' },
+  { domain: 'program.example', status: 'sent', referring_page: '' },
 ];
 
 function reclamationCard(families, reclamationTargets) {
   return buildExecutiveSnapshot({
-    asset: 'meals.example',
+    asset: 'meadow.example',
     families,
     archives: [{}],
     reclamationTargets,
@@ -3232,15 +3232,15 @@ test('flags an open reclamation target that starts sending referral traffic', ()
       'ga4-traffic-sources',
       trafficSourceRows({
         'google / organic': 400,
-        'genesee.cce.cornell.edu / referral': 12,
-        'blog.schoolnutrition.org / referral': 3,
+        'county-b.extension.example / referral': 12,
+        'blog.association.example / referral': 3,
         'unrelated.example.com / referral': 90,
       }),
     ],
   ]);
   const item = reclamationCard(families, OPEN_TARGETS);
   assert.equal(item?.kind, 'discovery');
-  assert.match(item.title, /Reclamation match: genesee\.cce\.cornell\.edu is sending visitors/);
+  assert.match(item.title, /Reclamation match: county-b\.extension\.example is sending visitors/);
   assert.equal(item.primary.value, '12');
   assert.match(item.summary, /last recorded state: clicked/);
   assert.match(
@@ -3267,7 +3267,7 @@ test('reclamation matching is silent without the operator-supplied export', () =
   const families = new Map([
     [
       'ga4-traffic-sources',
-      trafficSourceRows({ 'genesee.cce.cornell.edu / referral': 12 }),
+      trafficSourceRows({ 'county-b.extension.example / referral': 12 }),
     ],
   ]);
   assert.equal(
@@ -3292,23 +3292,23 @@ test('reclamation matching ignores resolved targets and non-referral traffic', (
     [
       'ga4-traffic-sources',
       trafficSourceRows({
-        'genesee.cce.cornell.edu / referral': 12,
-        'schoolnutrition.org / organic': 40,
+        'county-b.extension.example / referral': 12,
+        'association.example / organic': 40,
       }),
     ],
   ]);
   assert.equal(
     reclamationCard(families, [
-      { domain: 'genesee.cce.cornell.edu', status: 'won' },
-      { domain: 'schoolnutrition.org', status: 'queued' },
+      { domain: 'county-b.extension.example', status: 'won' },
+      { domain: 'association.example', status: 'queued' },
     ]),
     undefined,
     'a won target has nothing left to verify, and organic traffic is not a referral',
   );
   assert.equal(
     reclamationCard(
-      new Map([['ga4-traffic-sources', trafficSourceRows({ 'cornell.edu / referral': 30 })]]),
-      [{ domain: 'genesee.cce.cornell.edu', status: 'queued' }],
+      new Map([['ga4-traffic-sources', trafficSourceRows({ 'extension.example / referral': 30 })]]),
+      [{ domain: 'county-b.extension.example', status: 'queued' }],
     ),
     undefined,
     'traffic from the parent domain is a different office, never evidence about the pitched subdomain',
@@ -3324,7 +3324,7 @@ test('reclamation matching accepts exported rows and quotes provider counts hone
   const families = new Map([
     [
       'ga4-traffic-sources',
-      trafficSourceRows({ 'wichealth.org / referral': 7 }),
+      trafficSourceRows({ 'program.example / referral': 7 }),
     ],
     [
       'dataforseo-backlinks-new-lost',
@@ -3403,8 +3403,8 @@ test('names the disagreement when Clarity and GA4 rank different worst pages for
     [
       'clarity-url-3d',
       clarityScriptErrorRows([
-        { url: 'https://meals.example/recipes', errors: 203, viewsWithError: 43, sessions: 238, sessionPercent: 2.94 },
-        { url: 'https://meals.example/calculator', errors: 24, viewsWithError: 17, sessions: 717, sessionPercent: 2.09 },
+        { url: 'https://meadow.example/recipes', errors: 203, viewsWithError: 43, sessions: 238, sessionPercent: 2.94 },
+        { url: 'https://meadow.example/calculator', errors: 24, viewsWithError: 17, sessions: 717, sessionPercent: 2.09 },
       ]),
     ],
   ]);
@@ -3455,7 +3455,7 @@ test('names the disagreement when Clarity and GA4 rank different worst pages for
   assert.deepEqual(errors.sources, ['ga4/page-events', 'clarity/url-3d']);
 
   // Divergence outranks the finding it bounds.
-  const snapshot = buildExecutiveSnapshot({ asset: 'meals.example', families, archives: [{}] });
+  const snapshot = buildExecutiveSnapshot({ asset: 'meadow.example', families, archives: [{}] });
   const keys = snapshot.items.map((card) => card.key);
   assert.ok(
     keys.indexOf('error-observer-disagreement') < keys.indexOf('javascript-errors'),
@@ -3474,8 +3474,8 @@ test('agreement between the two observers is stated, not silence', () => {
     [
       'clarity-url-3d',
       clarityScriptErrorRows([
-        { url: 'https://meals.example/calculator', errors: 203, viewsWithError: 43, sessions: 238, sessionPercent: 2.94 },
-        { url: 'https://meals.example/recipes', errors: 24, viewsWithError: 17, sessions: 717, sessionPercent: 2.09 },
+        { url: 'https://meadow.example/calculator', errors: 203, viewsWithError: 43, sessions: 238, sessionPercent: 2.94 },
+        { url: 'https://meadow.example/recipes', errors: 24, viewsWithError: 17, sessions: 717, sessionPercent: 2.09 },
       ]),
     ],
   ]);
@@ -3511,7 +3511,7 @@ test('one observer cannot disagree, and a silent observer is never read as agree
     [
       'clarity-url-3d',
       clarityScriptErrorRows([
-        { url: 'https://meals.example/recipes', errors: 203, viewsWithError: 43, sessions: 238, sessionPercent: 2.94 },
+        { url: 'https://meadow.example/recipes', errors: 203, viewsWithError: 43, sessions: 238, sessionPercent: 2.94 },
       ]),
     ],
   ]);
@@ -3527,8 +3527,8 @@ test('the disagreement must clear Clarity’s floors, beat the noise, and ignore
     [
       'clarity-url-3d',
       clarityScriptErrorRows([
-        { url: 'https://meals.example/foods/low-sugar-cereal', errors: 8, viewsWithError: 1, sessions: 6, sessionPercent: 16.67 },
-        { url: 'https://meals.example/calculator', errors: 4, viewsWithError: 2, sessions: 574, sessionPercent: 1.22 },
+        { url: 'https://meadow.example/foods/low-sugar-cereal', errors: 8, viewsWithError: 1, sessions: 6, sessionPercent: 16.67 },
+        { url: 'https://meadow.example/calculator', errors: 4, viewsWithError: 2, sessions: 574, sessionPercent: 1.22 },
       ]),
     ],
   ]);
@@ -3550,8 +3550,8 @@ test('the disagreement must clear Clarity’s floors, beat the noise, and ignore
     [
       'clarity-url-3d',
       clarityScriptErrorRows([
-        { url: 'https://meals.example/recipes', errors: 40, viewsWithError: 12, sessions: 800, sessionPercent: 2.94 },
-        { url: 'https://meals.example/calculator', errors: 40, viewsWithError: 12, sessions: 717, sessionPercent: 2.09 },
+        { url: 'https://meadow.example/recipes', errors: 40, viewsWithError: 12, sessions: 800, sessionPercent: 2.94 },
+        { url: 'https://meadow.example/calculator', errors: 40, viewsWithError: 12, sessions: 717, sessionPercent: 2.09 },
       ]),
     ],
   ]);
@@ -3564,8 +3564,8 @@ test('the disagreement must clear Clarity’s floors, beat the noise, and ignore
     [
       'clarity-url-3d',
       clarityScriptErrorRows([
-        { url: 'https://meals.example/recipes', errors: 41, viewsWithError: 12, sessions: 800, sessionPercent: 2.94 },
-        { url: 'https://meals.example/calculator', errors: 40, viewsWithError: 12, sessions: 717, sessionPercent: 2.09 },
+        { url: 'https://meadow.example/recipes', errors: 41, viewsWithError: 12, sessions: 800, sessionPercent: 2.94 },
+        { url: 'https://meadow.example/calculator', errors: 40, viewsWithError: 12, sessions: 717, sessionPercent: 2.09 },
       ]),
     ],
   ]);
@@ -3575,8 +3575,8 @@ test('the disagreement must clear Clarity’s floors, beat the noise, and ignore
     [
       'clarity-url-3d',
       clarityScriptErrorRows([
-        { url: 'https://meals.example/recipes', errors: 80, viewsWithError: 12, sessions: 800, sessionPercent: 2.94 },
-        { url: 'https://meals.example/calculator', errors: 40, viewsWithError: 12, sessions: 717, sessionPercent: 2.09 },
+        { url: 'https://meadow.example/recipes', errors: 80, viewsWithError: 12, sessions: 800, sessionPercent: 2.94 },
+        { url: 'https://meadow.example/calculator', errors: 40, viewsWithError: 12, sessions: 717, sessionPercent: 2.09 },
       ]),
     ],
   ]);
@@ -3590,7 +3590,7 @@ test('the disagreement must clear Clarity’s floors, beat the noise, and ignore
       'clarity-url-3d',
       clarityScriptErrorRows([
         { url: 'https://Electron', errors: 900, viewsWithError: 300, sessions: 400, sessionPercent: 50 },
-        { url: 'https://meals.example/calculator', errors: 24, viewsWithError: 17, sessions: 717, sessionPercent: 2.09 },
+        { url: 'https://meadow.example/calculator', errors: 24, viewsWithError: 17, sessions: 717, sessionPercent: 2.09 },
       ]),
     ],
   ]);
@@ -3703,13 +3703,13 @@ test('a property whose triage family is absent gets exactly the card it had befo
     [
       'clarity-url-3d',
       clarityScriptErrorRows([
-        { url: 'https://meals.example/calculator', errors: 203, viewsWithError: 43, sessions: 238, sessionPercent: 2.94 },
+        { url: 'https://meadow.example/calculator', errors: 203, viewsWithError: 43, sessions: 238, sessionPercent: 2.94 },
       ]),
     ],
   ];
   const withoutFamily = cardFor(new Map(base), 'javascript-errors');
 
-  // nosh.example's honest zero: registered, queryable, and genuinely no js_error row.
+  // northwind.example's honest zero: registered, queryable, and genuinely no js_error row.
   // The family is present and empty, and that must read exactly like absence
   // here — the card has nothing to triage either way.
   const emptyFamily = cardFor(
@@ -3748,7 +3748,7 @@ test('messages are counted as masked buckets, and one position is never named tw
       ga4JsErrorRows([
         {
           date: '2026-07-28',
-          message: 'Failed to fetch dynamically imported module: https://meals.example/assets/foods-detail-Bek69ZS2.js',
+          message: 'Failed to fetch dynamically imported module: https://meadow.example/assets/foods-detail-Bek69ZS2.js',
           bucket: 'Failed to fetch dynamically imported module: <url>',
           events: 16,
           users: 13,
@@ -3757,7 +3757,7 @@ test('messages are counted as masked buckets, and one position is never named tw
         },
         {
           date: '2026-07-29',
-          message: 'Failed to fetch dynamically imported module: https://meals.example/assets/auth-tracker-Fs3_p54o.js',
+          message: 'Failed to fetch dynamically imported module: https://meadow.example/assets/auth-tracker-Fs3_p54o.js',
           bucket: 'Failed to fetch dynamically imported module: <url>',
           events: 14,
           users: 11,
@@ -3844,11 +3844,11 @@ test('the Clarity side reads one trailing snapshot, never overlapping collection
         // to the live one would count the same sessions twice and could invert
         // the ranking the operator is shown.
         ...clarityScriptErrorRows(
-          [{ url: 'https://meals.example/portions', errors: 500, viewsWithError: 90, sessions: 300, sessionPercent: 5 }],
+          [{ url: 'https://meadow.example/portions', errors: 500, viewsWithError: 90, sessions: 300, sessionPercent: 5 }],
           '2026-07-31',
         ),
         ...clarityScriptErrorRows([
-          { url: 'https://meals.example/meal-plans', errors: 203, viewsWithError: 43, sessions: 238, sessionPercent: 2.94 },
+          { url: 'https://meadow.example/meal-plans', errors: 203, viewsWithError: 43, sessions: 238, sessionPercent: 2.94 },
         ]),
       ],
     ],
@@ -3878,7 +3878,7 @@ test('the Clarity side reads one trailing snapshot, never overlapping collection
 /** Flattened PostHog rows the way signal-history-analyze.mjs writes them. */
 function posthogRows(rowsIn, { reportDate = '2026-09-22', start = '2026-09-09', end = reportDate } = {}) {
   return rowsIn.map((row) => ({
-    asset: 'meals.example',
+    asset: 'meadow.example',
     report_date: reportDate,
     collected_at: '2026-09-23T12:30:04.120Z',
     data_state: 'provider-snapshot',
@@ -3890,7 +3890,7 @@ function posthogRows(rowsIn, { reportDate = '2026-09-22', start = '2026-09-09', 
 }
 
 function productOf(families) {
-  return buildExecutiveSnapshot({ asset: 'meals.example', families, archives: [{}] });
+  return buildExecutiveSnapshot({ asset: 'meadow.example', families, archives: [{}] });
 }
 
 function checkState(snapshot, key) {

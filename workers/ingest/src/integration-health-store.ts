@@ -1,5 +1,6 @@
 import { INTEGRATION_MONITORS, integrationFailureMessage, integrationScopeKey, type IntegrationFailureKind, type IntegrationHealthScope, type IntegrationObservation } from '@noticeos/contract';
 import { javascriptInstant, type Transaction, type WorkspaceStore } from '@noticeos/postgres';
+import { sha256Hex } from './shared.js';
 
 export type HealthCode = IntegrationFailureKind | 'rate-limit-daily' | 'rate-limit-hourly';
 export function healthFailure(code: unknown): { failure: IntegrationFailureKind; code: HealthCode } {
@@ -37,9 +38,7 @@ export function countOf(part: number, whole: number, one: string, many: string):
 }
 
 export async function healthId(parts: unknown): Promise<string> {
-  const bytes = new TextEncoder().encode(JSON.stringify(parts));
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  return sha256Hex(JSON.stringify(parts));
 }
 function instant(value: string): string {
   if (!Number.isFinite(Date.parse(value))) throw new Error('Invalid monitoring timestamp');

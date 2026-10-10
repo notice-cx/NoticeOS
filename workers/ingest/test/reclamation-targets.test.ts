@@ -19,7 +19,7 @@ import { call, reset } from './helpers.js';
 
 beforeEach(reset);
 
-const SITE = 'meals.example';
+const SITE = 'meadow.example';
 const LIST = { ...request, asset: SITE };
 
 function post(body: unknown, token: string | null = OPERATOR_TOKEN): Request {
@@ -77,7 +77,7 @@ describe('POST /api/reclamation-targets', () => {
 
     const rows = await stored();
     expect(rows.map((row) => [row.domain, row.referring_page, row.status])).toEqual([
-      ['county.example.edu', 'https://county.example.edu/food/meals', 'clicked'],
+      ['county.example.edu', 'https://county.example.edu/food/meadow', 'clicked'],
       ['guides.example.edu', 'https://guides.example.edu/nutrition', 'queued'],
       ['news.example.com', 'https://news.example.com/articles/protein', 'queued'],
       ['one.example.gov', '', 'skip'],

@@ -9,23 +9,23 @@ import {
 } from './bing-ai-import.mjs';
 
 // Three files named exactly as Bing's Export button writes them.
-const OVERVIEW = 'meals.example_AIPerformanceOverviewStats_8_4_2026.csv';
-const QUERIES = 'meals.example_AISearchQueriesReport_8_4_2026.csv';
-const PAGES = 'meals.example_AIPageStatsReport_8_4_2026.csv';
+const OVERVIEW = 'meadow.example_AIPerformanceOverviewStats_8_4_2026.csv';
+const QUERIES = 'meadow.example_AISearchQueriesReport_8_4_2026.csv';
+const PAGES = 'meadow.example_AIPageStatsReport_8_4_2026.csv';
 
 test('reads the property, the export and the date off Bing’s filename', () => {
   assert.deepEqual(describeExportFile(OVERVIEW), {
-    asset: 'meals.example',
+    asset: 'meadow.example',
     exportName: 'AIPerformanceOverviewStats',
     exportDate: '2026-08-04',
   });
   assert.deepEqual(describeExportFile(QUERIES), {
-    asset: 'meals.example',
+    asset: 'meadow.example',
     exportName: 'AISearchQueriesReport',
     exportDate: '2026-08-04',
   });
   assert.deepEqual(describeExportFile(PAGES), {
-    asset: 'meals.example',
+    asset: 'meadow.example',
     exportName: 'AIPageStatsReport',
     exportDate: '2026-08-04',
   });
@@ -35,7 +35,7 @@ test('reads the property, the export and the date off Bing’s filename', () => 
 // writes 12/25. Both are the same filename shape and both must read.
 test('reads single- and double-digit month/day the same way', () => {
   assert.equal(
-    describeExportFile('fees.example_AIPageStatsReport_12_25_2026.csv').exportDate,
+    describeExportFile('ferns.example_AIPageStatsReport_12_25_2026.csv').exportDate,
     '2026-12-25',
   );
 });
@@ -43,9 +43,9 @@ test('reads single- and double-digit month/day the same way', () => {
 test('a filename that is not Bing’s is not read at all', () => {
   // The browser's duplicate-download suffix, a re-save, and a date that is not a
   // date. Each returns null rather than a best guess.
-  assert.equal(describeExportFile('meals.example_AIPageStatsReport_8_4_2026 (1).csv'), null);
+  assert.equal(describeExportFile('meadow.example_AIPageStatsReport_8_4_2026 (1).csv'), null);
   assert.equal(describeExportFile('ai-pages.csv'), null);
-  assert.equal(describeExportFile('meals.example_AIPageStatsReport_2_30_2026.csv'), null);
+  assert.equal(describeExportFile('meadow.example_AIPageStatsReport_2_30_2026.csv'), null);
 });
 
 test('resolveImport takes the filename when the operator names nothing', () => {
@@ -56,7 +56,7 @@ test('resolveImport takes the filename when the operator names nothing', () => {
   assert.deepEqual(resolved, {
     file: `/Users/operator/Downloads/${QUERIES}`,
     basename: QUERIES,
-    asset: 'meals.example',
+    asset: 'meadow.example',
     exportDate: '2026-08-04',
     exportName: 'AISearchQueriesReport',
   });
@@ -64,10 +64,10 @@ test('resolveImport takes the filename when the operator names nothing', () => {
 
 test('an operator’s flags win over the filename', () => {
   const resolved = resolveImport(`/tmp/${QUERIES}`, {
-    asset: 'fees.example',
+    asset: 'ferns.example',
     exportDate: '2026-07-12',
   });
-  assert.equal(resolved.asset, 'fees.example');
+  assert.equal(resolved.asset, 'ferns.example');
   assert.equal(resolved.exportDate, '2026-07-12');
 });
 
@@ -83,7 +83,7 @@ test('an unreadable filename is refused with the flags that fix it', () => {
     },
   );
   assert.throws(
-    () => resolveImport('/tmp/export (1).csv', { asset: 'meals.example', exportDate: null }),
+    () => resolveImport('/tmp/export (1).csv', { asset: 'meadow.example', exportDate: null }),
     (error) => {
       assert.match(error.message, /--export-date <YYYY-MM-DD>/);
       assert.doesNotMatch(error.message, /--asset/);
@@ -113,7 +113,7 @@ test('parseArgs refuses what it cannot honestly do', () => {
 });
 
 test('the file crosses the door as base64, with its name and date', async () => {
-  const bytes = Buffer.from('﻿"Page","Citations"\n"https://meals.example/","33099"\n', 'utf8');
+  const bytes = Buffer.from('﻿"Page","Citations"\n"https://meadow.example/","33099"\n', 'utf8');
   const calls = [];
   const get = async (url, init) => {
     calls.push({ url, init });
@@ -122,13 +122,13 @@ test('the file crosses the door as base64, with its name and date', async () => 
       status: 201,
       json: async () => ({
         imported: true,
-        asset: 'meals.example',
+        asset: 'meadow.example',
         file: PAGES,
         report: 'ai-pages',
         exportDate: '2026-08-04',
         status: 'success',
         rows: 1,
-        objectKey: 'raw/microsoft/bing-webmaster/meals.example/ai-pages/2026-08-04/x.json.gz',
+        objectKey: 'raw/microsoft/bing-webmaster/meadow.example/ai-pages/2026-08-04/x.json.gz',
       }),
     };
   };
@@ -143,7 +143,7 @@ test('the file crosses the door as base64, with its name and date', async () => 
   assert.equal(calls[0].init.method, 'POST');
   assert.equal(calls[0].init.headers.authorization, 'Bearer operator-token');
   const sent = JSON.parse(calls[0].init.body);
-  assert.equal(sent.asset, 'meals.example');
+  assert.equal(sent.asset, 'meadow.example');
   assert.equal(sent.file, PAGES);
   assert.equal(sent.exportDate, '2026-08-04');
   // Byte-identical: the BOM the export opens with survives the trip.
@@ -172,11 +172,11 @@ test('a door refusal is raised, not swallowed', async () => {
 test('the operator line separates a new archive from one already held', () => {
   const base = {
     file: PAGES,
-    asset: 'meals.example',
+    asset: 'meadow.example',
     report: 'ai-pages',
     exportDate: '2026-08-04',
     rows: 199,
-    objectKey: 'raw/microsoft/bing-webmaster/meals.example/ai-pages/2026-08-04/x.json.gz',
+    objectKey: 'raw/microsoft/bing-webmaster/meadow.example/ai-pages/2026-08-04/x.json.gz',
   };
   assert.match(importLine({ ...base, status: 'success' }), /archived 199 row\(s\) as ai-pages/);
   assert.match(importLine({ ...base, status: 'unchanged' }), /already held 199 row\(s\)/);

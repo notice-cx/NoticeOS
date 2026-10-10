@@ -46,7 +46,7 @@ interface FlagSpec {
 
 async function insertFlag(spec: FlagSpec): Promise<number> {
   return storeAlert(test.call, {
-    asset: spec.asset ?? "nosh.example",
+    asset: spec.asset ?? "northwind.example",
     firedAt: spec.firedAt,
     severity: "warn",
     kind: "anomaly",
@@ -66,7 +66,7 @@ let test: TestStore;
 
 beforeEach(async () => {
   test = await createTestStore();
-  await addSites(test, [{ id: "nosh.example", displayName: "Nosh", status: "live", senseOnly: 0 }]);
+  await addSites(test, [{ id: "northwind.example", displayName: "Northwind", status: "live", senseOnly: 0 }]);
 });
 
 const build = async () => buildAlertRuleStatsPayload(test.call, { now: NOW });
@@ -239,15 +239,15 @@ describe("the per-rule tune counts", () => {
     // fired once that day.
     const store = test.call;
     const [first, second] = await storeReports(store, [
-      { asset: "nosh.example", date: at(3).slice(0, 10), receivedAt: at(3), envelope: {} },
-      { asset: "nosh.example", date: at(3).slice(0, 10), receivedAt: at(3), envelope: {} },
+      { asset: "northwind.example", date: at(3).slice(0, 10), receivedAt: at(3), envelope: {} },
+      { asset: "northwind.example", date: at(3).slice(0, 10), receivedAt: at(3), envelope: {} },
     ]);
     await storeAlert(store, {
-      asset: "nosh.example", firedAt: at(3), severity: "warn", kind: "anomaly", ruleId: "flow-poisson-low",
+      asset: "northwind.example", firedAt: at(3), severity: "warn", kind: "anomaly", ruleId: "flow-poisson-low",
       pulseId: first!.pulseId, replacedByPulseId: second!.pulseId,
     });
     await storeAlert(store, {
-      asset: "nosh.example", firedAt: at(3), severity: "warn", kind: "anomaly", ruleId: "flow-poisson-low",
+      asset: "northwind.example", firedAt: at(3), severity: "warn", kind: "anomaly", ruleId: "flow-poisson-low",
       pulseId: second!.pulseId,
     });
 

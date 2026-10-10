@@ -175,7 +175,7 @@ describe("validateWallLayout refuses, in the operator's words", () => {
     expect(
       validateWallLayout(
         layoutWith((l) => {
-          (stacked(l, 0, 0) as { settings: unknown }).settings = { assets: ["meals.example"] };
+          (stacked(l, 0, 0) as { settings: unknown }).settings = { assets: ["meadow.example"] };
         }),
       ),
     ).toMatchObject({ ok: false, reason: 'Revenue has no "assets" setting.' });
@@ -192,7 +192,7 @@ describe("validateWallLayout refuses, in the operator's words", () => {
     expect(
       validateWallLayout(
         layoutWith((l) => {
-          stacked(l, 1, 0).settings = { assets: ["meals.example", "meals.example"] };
+          stacked(l, 1, 0).settings = { assets: ["meadow.example", "meadow.example"] };
         }),
       ),
     ).toMatchObject({ ok: false, reason: expect.stringContaining("twice") });
@@ -201,32 +201,32 @@ describe("validateWallLayout refuses, in the operator's words", () => {
   it("accepts an asset filter on the two per-site widgets and keeps its order", () => {
     const check = validateWallLayout(
       layoutWith((l) => {
-        stacked(l, 0, 1).settings = { assets: ["nosh.example", "meals.example"] };
-        stacked(l, 1, 0).settings = { assets: ["meals.example"] };
+        stacked(l, 0, 1).settings = { assets: ["northwind.example", "meadow.example"] };
+        stacked(l, 1, 0).settings = { assets: ["meadow.example"] };
       }),
     );
     expect(check).toMatchObject({ ok: true });
     if (check.ok) {
-      expect(stacked(check.layout, 0, 1).settings).toEqual({ assets: ["nosh.example", "meals.example"] });
+      expect(stacked(check.layout, 0, 1).settings).toEqual({ assets: ["northwind.example", "meadow.example"] });
     }
   });
 
   it("validates and serializes per-site pulse choices, including none", () => {
-    const choices = { "meals.example": ["leads", "accounts"], "nosh.example": [] };
-    const layout = layoutWith((l) => { stacked(l, 1, 0).settings = { assets: ["meals.example"], pulseMetrics: choices }; });
+    const choices = { "meadow.example": ["leads", "accounts"], "northwind.example": [] };
+    const layout = layoutWith((l) => { stacked(l, 1, 0).settings = { assets: ["meadow.example"], pulseMetrics: choices }; });
     const check = validateWallLayout(layout);
     expect(check.ok).toBe(true);
-    if (check.ok) expect(stacked(check.layout, 1, 0).settings).toEqual({ assets: ["meals.example"], pulseMetrics: choices });
+    if (check.ok) expect(stacked(check.layout, 1, 0).settings).toEqual({ assets: ["meadow.example"], pulseMetrics: choices });
     const roundTrip = validateWallLayout(JSON.parse(JSON.stringify(layout)));
     expect(roundTrip).toEqual(check);
   });
 
   it("refuses malformed pulse choices and refuses them on unrelated widgets", () => {
-    for (const pulseMetrics of [[], { "meals.example": "accounts" }, { "meals.example": [""] }, { "meals.example": ["leads", "leads"] }, { "bad id": ["leads"] }]) {
+    for (const pulseMetrics of [[], { "meadow.example": "accounts" }, { "meadow.example": [""] }, { "meadow.example": ["leads", "leads"] }, { "bad id": ["leads"] }]) {
       const layout = layoutWith((l) => { (stacked(l, 1, 0) as { settings: unknown }).settings = { pulseMetrics }; });
       expect(validateWallLayout(layout).ok).toBe(false);
     }
-    const layout = layoutWith((l) => { stacked(l, 0, 1).settings = { pulseMetrics: { "meals.example": ["leads"] } }; });
+    const layout = layoutWith((l) => { stacked(l, 0, 1).settings = { pulseMetrics: { "meadow.example": ["leads"] } }; });
     expect(validateWallLayout(layout)).toMatchObject({ ok: false, reason: 'Needs you has no "pulseMetrics" setting.' });
   });
 });
@@ -449,7 +449,7 @@ describe("a column slot", () => {
             id: "top",
             height: "auto",
             widgets: [
-              { id: "needs", type: "needs", width: 2, settings: { assets: ["nosh.example"] } },
+              { id: "needs", type: "needs", width: 2, settings: { assets: ["northwind.example"] } },
               { id: "revenue", type: "revenue", width: 0.75 },
             ],
           },

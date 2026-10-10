@@ -2,134 +2,134 @@
   "$comment": "See config/domain-costs.README.md.",
   "domains": [
     {
-      "domain": "areas.example",
-      "asset": "areas.example",
+      "domain": "acorn.example",
+      "asset": "acorn.example",
       "kind": "registration",
       "paidUsd": 5.66,
       "paidOn": "2026-06-19"
     },
     {
       "domain": "phonenumber.example",
-      "asset": "areas.example",
+      "asset": "acorn.example",
       "kind": "registration",
       "paidUsd": 8.47,
       "paidOn": "2026-07-04"
     },
     {
       "domain": "phone-number.example",
-      "asset": "areas.example",
+      "asset": "acorn.example",
       "kind": "registration",
       "paidUsd": 5.66,
       "paidOn": "2026-07-04"
     },
     {
       "domain": "teller.example",
-      "asset": "fees.example",
+      "asset": "ferns.example",
       "kind": "registration",
       "paidUsd": 6.69,
       "paidOn": "2026-06-28"
     },
     {
-      "domain": "fees.example",
-      "asset": "fees.example",
+      "domain": "ferns.example",
+      "asset": "ferns.example",
       "kind": "registration",
       "paidUsd": 36.32,
       "paidOn": "2026-06-28"
     },
     {
       "domain": "numbers.example",
-      "asset": "fees.example",
+      "asset": "ferns.example",
       "kind": "registration",
       "paidUsd": 6.69,
       "paidOn": "2026-06-28"
     },
     {
       "domain": "deals.example",
-      "asset": "fees.example",
+      "asset": "ferns.example",
       "kind": "registration",
       "paidUsd": 3.6,
       "paidOn": "2026-06-28"
     },
     {
       "domain": "bankcodes.example",
-      "asset": "fees.example",
+      "asset": "ferns.example",
       "kind": "registration",
       "paidUsd": 5.66,
       "paidOn": "2026-06-28"
     },
     {
-      "domain": "meals.example",
-      "asset": "meals.example",
+      "domain": "meadow.example",
+      "asset": "meadow.example",
       "kind": "registration",
       "paidUsd": 4.63,
       "paidOn": "2026-03-18"
     },
     {
       "domain": "plans-kitchen.example",
-      "asset": "meals.example",
+      "asset": "meadow.example",
       "kind": "registration",
       "paidUsd": 8.24,
       "paidOn": "2026-07-11"
     },
     {
-      "domain": "meals-kitchen.example",
-      "asset": "meals.example",
+      "domain": "meadow-kitchen.example",
+      "asset": "meadow.example",
       "kind": "registration",
       "paidUsd": 8.24,
       "paidOn": "2026-07-11"
     },
     {
       "domain": "plato.example",
-      "asset": "meals.example",
+      "asset": "meadow.example",
       "kind": "registration",
       "paidUsd": 4.63,
       "paidOn": "2026-08-19"
     },
     {
-      "domain": "nosh.example",
-      "asset": "nosh.example",
+      "domain": "northwind.example",
+      "asset": "northwind.example",
       "kind": "registration",
       "paidUsd": 109.69,
       "paidOn": "2026-01-09"
     },
     {
-      "domain": "pacer.example",
-      "asset": "pullups.example",
+      "domain": "pebble.example",
+      "asset": "puffin.example",
       "kind": "registration",
       "paidUsd": 5.66,
       "paidOn": "2026-06-19"
     },
     {
-      "domain": "pacer-short.example",
-      "asset": "pullups.example",
+      "domain": "pebble-short.example",
+      "asset": "puffin.example",
       "kind": "registration",
       "paidUsd": 2.06,
       "paidOn": "2026-06-20"
     },
     {
       "domain": "drill.example",
-      "asset": "pullups.example",
+      "asset": "puffin.example",
       "kind": "registration",
       "paidUsd": 2.06,
       "paidOn": "2026-06-20"
     },
     {
       "domain": "drill-test.example",
-      "asset": "pullups.example",
+      "asset": "puffin.example",
       "kind": "registration",
       "paidUsd": 5.66,
       "paidOn": "2026-06-20"
     },
     {
       "domain": "drill-tests.example",
-      "asset": "pullups.example",
+      "asset": "puffin.example",
       "kind": "registration",
       "paidUsd": 5.66,
       "paidOn": "2026-06-29"
     },
     {
-      "domain": "pullups.example",
-      "asset": "pullups.example",
+      "domain": "puffin.example",
+      "asset": "puffin.example",
       "kind": "registration",
       "paidUsd": 11.08,
       "paidOn": "2026-08-02"

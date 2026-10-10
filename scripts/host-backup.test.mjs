@@ -11,7 +11,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { createHash, randomUUID } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { runBackup, backupRunOutcome, hostBackupFile, readOffsiteBackupDir } from './host-backup.mjs';
-import { runJobLane } from './os-up.mjs';
+import { runJobLane } from './runner/job-record.mjs';
 import { createWorkflowRecorder } from './workflow-trace.mjs';
 import { isWorkflowStepOutput } from './workflow-output.mjs';
 import { heldHistory, heldRows } from './test-fixtures/analytical-history.mjs';
@@ -44,7 +44,7 @@ async function fixture(t, prefix = 'host-backup-') {
   await write(path.join(r2, 'metadata.sqlite'), 'R2 metadata');
   await write(path.join(r2, 'metadata.sqlite-shm'), 'must not copy sidecars');
   await write(path.join(r2, 'blobs/archive'), 'raw archive');
-  await host([{ database: 'ro', repo: '/missing/checkout' }, { database: 'mp' }]);
+  await host([{ database: 'ro', repo: '/missing/checkout' }, { database: 'md' }]);
   await fs.mkdir(syncParent);
   const calls = [];
   const control = { fail: () => false, spawnError: false, timeout: false };
@@ -620,7 +620,7 @@ test('a complete operation copies all physical stores, instructions and handoff,
   assert.equal(result.stages.postgres.copied, 1);
   assert.equal(result.stages.r2.copied, 2);
   assert.equal(result.stages.taskHub.copied, 2);
-  assert.deepEqual(f.calls.filter((call) => call.database).map((call) => call.database), ['ro', 'mp']);
+  assert.deepEqual(f.calls.filter((call) => call.database).map((call) => call.database), ['ro', 'md']);
   assert.equal(await fs.readFile(path.join(f.destination, 'r2/blobs/archive'), 'utf8'), 'raw archive');
   assert.equal((await fs.stat(path.join(f.destination, 'postgres/noticeos.dump'))).mode & 0o777, 0o600);
   await absent(path.join(f.destination, 'central.sqlite'));
@@ -672,12 +672,12 @@ async function composeHubFixture(f, { failure, doltHome = f.repoRoot } = {}) {
     if (command[0] === 'exec' && command.includes('/etc/noticeos/capture.sh')) {
       stage = command[5];
       assert.match(stage, /^\/tmp\/noticeos-backup-[a-f0-9]{32}$/u);
-      assert.deepEqual(command.slice(6), ['ro', 'mp']);
+      assert.deepEqual(command.slice(6), ['ro', 'md']);
       if (failure === 'capture') return { code: 1, stdout: '', stderr: password };
     } else if (command[0] === 'cp') {
       assert.equal(command[1], `dolt:${stage}/.`);
       const output = command[2];
-      for (const database of ['ro', 'mp']) {
+      for (const database of ['ro', 'md']) {
         await f.write(path.join(output, 'databases', database, 'manifest'), `snapshot ${database}`);
         await f.write(path.join(output, 'status', `${database}.json`), JSON.stringify({ rows: [{ status: failure === 'status' ? 1 : 0 }] }));
         for (const name of ['config.json', 'repo_state.json']) {
@@ -729,12 +729,12 @@ test('Compose task backups publish online snapshots and private recovery metadat
     const root = path.join(base, 'beads');
     const manifest = JSON.parse(await fs.readFile(path.join(root, 'backup.json'), 'utf8'));
     assert.equal(manifest.complete, true);
-    assert.deepEqual(manifest.databases, ['ro', 'mp']);
+    assert.deepEqual(manifest.databases, ['ro', 'md']);
     const relative = 'metadata/secrets/noticeos';
     assert.equal(manifest.files[relative].sha256, createHash('sha256').update(`${hub.password}\n`).digest('hex'));
     assert.equal((await fs.stat(path.join(root, relative))).mode & 0o777, 0o600);
     assert.equal((await fs.stat(path.join(root, 'metadata/beads-credentials'))).mode & 0o777, 0o600);
-    assert.equal(await fs.readFile(path.join(root, 'databases/mp/manifest'), 'utf8'), 'snapshot mp');
+    assert.equal(await fs.readFile(path.join(root, 'databases/md/manifest'), 'utf8'), 'snapshot md');
     const instructions = await fs.readFile(path.join(base, 'RESTORE.md'), 'utf8');
     assert.match(instructions, /db\/dolt\/host\/README.md/);
     assert.match(instructions, /not one transaction across all projects/);
@@ -897,12 +897,12 @@ test('malformed task inventory fails only that store', async (t) => {
 
 test('invalid task names fail the inventory while valid deduplicated names are still copied', async (t) => {
   const f = await fixture(t);
-  await f.host([{ database: ' ro ' }, { database: 'ro' }, { database: 'bad;name' }, { database: 'mp' }]);
+  await f.host([{ database: ' ro ' }, { database: 'ro' }, { database: 'bad;name' }, { database: 'md' }]);
   const result = await f.run();
   assert.equal(result.stages.taskHub.status, 'failed');
   assert.equal(result.stages.taskHub.expected, 3);
   assert.equal(result.stages.taskHub.copied, 2);
-  assert.deepEqual(f.calls.filter((call) => call.database).map((call) => call.database), ['ro', 'mp']);
+  assert.deepEqual(f.calls.filter((call) => call.database).map((call) => call.database), ['ro', 'md']);
 });
 
 test('an unconfigured offsite handoff is explicit and optional', async (t) => {
@@ -1006,7 +1006,7 @@ test('a failed same-day rerun retains both completed sets and cannot prune the l
   await f.write(path.join(f.destination, 'previous'), 'last completed set');
   await f.write(path.join(f.backupRoot, '2026-08-01', 'last-good'));
   await fs.rm(f.r2, { recursive: true });
-  await f.host([{ database: 'mp' }]);
+  await f.host([{ database: 'md' }]);
   const result = await f.run();
   assert.equal(result.ok, false);
   assert.deepEqual(result.backupSet, { path: null, complete: false });
@@ -1024,7 +1024,7 @@ test('a complete same-day rerun replaces the whole set without stale files', asy
   const f = await fixture(t);
   assert.equal((await f.run()).ok, true);
   await f.write(path.join(f.destination, 'stale'));
-  await f.host([{ database: 'mp' }]);
+  await f.host([{ database: 'md' }]);
   assert.equal((await f.run()).ok, true);
   for (const base of [f.destination, path.join(f.offsite, DAY)]) {
     await absent(path.join(base, 'stale'));

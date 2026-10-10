@@ -126,31 +126,31 @@ function insight(id: string, a: string, generatedAt: string, findings: [string, 
  * The fixture, newest first as the feed must state it (UTC; PDT is −7h):
  *
  *   19:24 task done      Recipes   (seen in two photographs)
- *   19:11 new task       Menus     (filed; in two photographs)
+ *   19:11 new task       Medley     (filed; in two photographs)
  *   18:59 collected      Google · 3 sites, none failed (18:44 run superseded)
  *   18:40 source failed  Codes (health event + its failed run: one line)
  *   18:38 task done      Codes
  *   18:15 new finding    Recipes   (the newest analysis's new key)
  *   18:15 insights       refreshed for 2 sites
- *   18:00 collected      Bing · Menus (the run that brought it back)
- *   18:00 source back    Menus
+ *   18:00 collected      Bing · Medley (the run that brought it back)
+ *   18:00 source back    Medley
  *   17:30 alert          Recipes
  *   16:15 revenue        2 sites reported $55.25 for Sep 21
  *   16:14 collected      Mediavine · 2 sites, none failed
- *   16:00 resolved       Menus
+ *   16:00 resolved       Medley
  *   15:30 cost           DataForSEO · $0.12 for 1 lookup
  *   15:02 collected      DataForSEO · 2 sites, none failed
  *   15:02 cost           DataForSEO · $0.41 for 2 reports
  *   14:25 task done      Feed reads the store
  *   14:20 task done      Feed folds runs
- *   14:15 task done      Standards table loads
+ *   14:15 task done      Score table loads
  *   14:00 source failed  Money (a failed PostHog report, no health event)
  *   13:00 cost           Booked $12.00 infra cost (NoticeOS)
  *   12:00 setting saved
  *   11:05 job failed     Backups
  *   11:00 collected      Site checks · Recipes
  *   10:00 nightly report 4 sites
- *   03:00 change         Menus (an incident annotation)
+ *   03:00 change         Medley (an incident annotation)
  *   02:40 deployed       NoticeOS (7:40 PM yesterday, inside the window)
  *
  * And outside it (00:30, before 6 PM PDT yesterday): an alert, a task, a
@@ -160,8 +160,8 @@ async function seed(raw: TestStore): Promise<void> {
   // The OS row's stored name is one every line still reads as NoticeOS.
   await asset(raw, "os.example.com", "ReindexOS", 1);
   await asset(raw, "recipes.example.com", "Recipes");
-  await asset(raw, "menus.example.com", "Menus");
-  await asset(raw, "fitness.example.com", "Fitness");
+  await asset(raw, "medley.example.com", "Medley");
+  await asset(raw, "lantern.example.com", "Lantern");
   await asset(raw, "codes.example.com", "Codes");
   await asset(raw, "money.example.com", "Money");
 
@@ -171,7 +171,7 @@ async function seed(raw: TestStore): Promise<void> {
  * sites reported Sep 21 (and revised Sep 20, which is not news), and the OS
  * booked its infra cost. */
 async function seedMoney(store: WorkspaceStore): Promise<void> {
-  await writeMediavine(store, ([["mv-mp", "recipes.example.com", 4110], ["mv-nom", "menus.example.com", 1415]] as const).map(([site, a, cents]) => ({
+  await writeMediavine(store, ([["mv-mp", "recipes.example.com", 4110], ["mv-nom", "medley.example.com", 1415]] as const).map(([site, a, cents]) => ({
     id: `run-${site}`, asset: a, siteId: site, start: "2026-09-15", end: "2026-09-21", attemptedAt: at("16:14"),
     days: [["2026-09-20", 999], ["2026-09-21", cents]] as [string, number][], recordedAt: at("16:15"),
   })));
@@ -186,18 +186,18 @@ async function seedProviderReports(store: WorkspaceStore): Promise<void> {
   // transition recorded — still its own line.
   await writeArchiveRuns(store, [
     dump("d-mp", "recipes.example.com", "dataforseo", at("15:02"), 0.2),
-    dump("d-nom", "menus.example.com", "dataforseo", at("15:01"), 0.21),
+    dump("d-nom", "medley.example.com", "dataforseo", at("15:01"), 0.21),
     dump("p-fin", "money.example.com", "posthog", at("14:00"), 0, false),
   ]);
   await writeResearch(store, [{
     asset: "recipes.example.com", endpoint: "labs/overview", params_sha256: "a".repeat(64), question: "overview",
     cost_usd: 0.12, actor: "collector", bought_at: at("15:30"),
   }]);
-  // Insights: Recipes's newest analysis adds one finding; Menus's first ever.
+  // Insights: Recipes's newest analysis adds one finding; Medley's first ever.
   await writeInsightSnapshots(store, [
     insight("i-mp-old", "recipes.example.com", at("06:00", "2026-09-20"), [["k-a", "Sitemap steady"]]),
     insight("i-mp", "recipes.example.com", at("18:15"), [["k-a", "Sitemap steady"], ["k-b", "Recipe pages gained 40 clicks"]]),
-    insight("i-nom", "menus.example.com", at("18:14"), [["k-c", "First look"]]),
+    insight("i-nom", "medley.example.com", at("18:14"), [["k-c", "First look"]]),
   ]);
 }
 
@@ -206,12 +206,12 @@ async function seedAlertsAndReports(store: WorkspaceStore): Promise<void> {
   // Alerts: one fired, one resolved, one fired before the window.
   await storeAlerts(store, [
     flag("recipes.example.com", at("17:30"), "Plans saved well below normal — 19 vs ~58/day"),
-    flag("menus.example.com", at("10:00", "2026-09-21"), "Menu imports stalled", "error", at("16:00")),
-    flag("menus.example.com", at("00:30"), "Old news from before the window"),
+    flag("medley.example.com", at("10:00", "2026-09-21"), "Catalog imports stalled", "error", at("16:00")),
+    flag("medley.example.com", at("00:30"), "Old news from before the window"),
   ]);
   // Nightly reports for Sep 21 from four sites, and one from before the window.
   await storeReports(store, [
-    ...["recipes.example.com", "menus.example.com", "codes.example.com", "os.example.com"].map((a) => ({
+    ...["recipes.example.com", "medley.example.com", "codes.example.com", "os.example.com"].map((a) => ({
       asset: a, date: "2026-09-21", receivedAt: at("10:00"), envelope: {},
     })),
     { asset: "money.example.com", date: "2026-09-20", receivedAt: at("00:30"), envelope: {} },
@@ -219,16 +219,16 @@ async function seedAlertsAndReports(store: WorkspaceStore): Promise<void> {
 }
 
 /** The fixture's collection runs: Google, two runs for Recipes (the older is
- * superseded), one each for Menus and Money, and Codes's failure; Bing, the
- * run that brought Menus back. */
+ * superseded), one each for Medley and Money, and Codes's failure; Bing, the
+ * run that brought Medley back. */
 async function seedSignalRuns(store: WorkspaceStore): Promise<void> {
   await signalRun(store, "g-mp-old", "recipes.example.com", "ga4", at("18:44"));
   await signalRun(store, "g-mp", "recipes.example.com", "ga4", at("18:59"));
   await signalRun(store, "g-mp-gsc", "recipes.example.com", "gsc", at("18:58"));
-  await signalRun(store, "g-nom", "menus.example.com", "ga4", at("18:59"));
+  await signalRun(store, "g-nom", "medley.example.com", "ga4", at("18:59"));
   await signalRun(store, "g-fin", "money.example.com", "ga4", at("18:58"));
   await signalRun(store, "g-ac-fail", "codes.example.com", "ga4", at("18:40"), false);
-  await signalRun(store, "b-nom", "menus.example.com", "bing-webmaster", at("18:00"));
+  await signalRun(store, "b-nom", "medley.example.com", "bing-webmaster", at("18:00"));
 }
 
 /** The seed's rows on Postgres: the collection runs, the paid reports and
@@ -242,26 +242,26 @@ async function seedPostgres(pg: TestStore): Promise<void> {
   // longer does (five later ones pushed them out); ro-9 is in two.
   await snapshot(pg.call, at("14:30"), {
     "os.example.com": [["ro-9", "Feed reads the store", at("14:25")], ["ro-10", "Feed folds runs", at("14:20")], ["ro-0", "Before the window", at("00:30")]],
-    "fitness.example.com": [["pft-1", "Standards table loads", at("14:15")]],
+    "lantern.example.com": [["pb-1", "Score table loads", at("14:15")]],
   });
   await snapshot(pg.call, at("16:00"), { "os.example.com": [["ro-9", "Feed reads the store", at("14:25")]] });
   // Newly filed work: one task inside the window, in two photographs; one
   // filed before it.
-  await snapshot(pg.call, at("19:15"), {}, { "menus.example.com": [["mn-7", "Menu import skips closed restaurants", at("19:11")]] });
+  await snapshot(pg.call, at("19:15"), {}, { "medley.example.com": [["mn-7", "Catalog import skips closed stores", at("19:11")]] });
   await snapshot(pg.call, at("19:25"), {
-    "recipes.example.com": [["mp-1", "Recipe cards load faster", at("19:24")]],
+    "recipes.example.com": [["md-1", "Recipe cards load faster", at("19:24")]],
     "codes.example.com": [["ac-1", "Lookup page shows the local time", at("18:38")]],
   }, {
-    "menus.example.com": [["mn-7", "Menu import skips closed restaurants", at("19:11")], ["mn-1", "Filed long ago", at("00:10")]],
+    "medley.example.com": [["mn-7", "Catalog import skips closed stores", at("19:11")], ["mn-1", "Filed long ago", at("00:10")]],
   });
   await health(pg, "ev-ac", "google", "ga4-daily", "codes.example.com", at("18:40"), "failed", "signal_runs", "g-ac-fail");
-  await health(pg, "ev-nom", "bing-webmaster", "bing-daily", "menus.example.com", at("18:00"), "recovered", "signal_runs", "b-nom");
+  await health(pg, "ev-nom", "bing-webmaster", "bing-daily", "medley.example.com", at("18:00"), "recovered", "signal_runs", "b-nom");
   await seedAlertsAndReports(pg.call);
   // Deploys and changes: one before the window.
   await storeChanges(pg.call, [
     { asset: "os.example.com", at: at("02:40"), kind: "deploy", ref: "abc1234def" },
-    { asset: "menus.example.com", at: at("03:00"), kind: "incident", note: "Checkout outage" },
-    { asset: "menus.example.com", at: at("00:30"), kind: "deploy", ref: "old" },
+    { asset: "medley.example.com", at: at("03:00"), kind: "incident", note: "Checkout outage" },
+    { asset: "medley.example.com", at: at("00:30"), kind: "deploy", ref: "old" },
   ]);
   await pg.store.inWorkspace(pg.workspaceId, (tx) =>
     tx.execute(
@@ -353,31 +353,31 @@ needsPostgres("buildWallFeed", () => {
     expect(feed.since).toBe(SINCE);
     expect(lines(feed.items)).toEqual([
       "19:24 task-done Recipes · Recipe cards load faster",
-      "19:11 task-filed Menus · Menu import skips closed restaurants",
+      "19:11 task-filed Medley · Catalog import skips closed stores",
       "18:59 collected - · Google · 3 sites, none failed",
       "18:40 source-failed Codes · Analytics daily reports: access denied",
       "18:38 task-done Codes · Lookup page shows the local time",
       "18:15 insights Recipes · Recipe pages gained 40 clicks",
       "18:15 insights - · Insights refreshed for 2 sites",
-      "18:00 collected Menus · Bing · 1 site, none failed",
-      "18:00 source-back Menus · Bing daily reports working again",
+      "18:00 collected Medley · Bing · 1 site, none failed",
+      "18:00 source-back Medley · Bing daily reports working again",
       "17:30 alert Recipes · Plans saved well below normal",
       "16:15 revenue - · 2 sites reported $55.25 for Sep 21",
       "16:14 collected - · Mediavine · 2 sites, none failed",
-      "16:00 resolved Menus · Menu imports stalled",
+      "16:00 resolved Medley · Catalog imports stalled",
       "15:30 cost Recipes · DataForSEO · $0.12 for 1 lookup",
       "15:02 collected - · DataForSEO · 2 sites, none failed",
       "15:02 cost - · DataForSEO · $0.41 for 2 reports",
       "14:25 task-done NoticeOS · Feed reads the store",
       "14:20 task-done NoticeOS · Feed folds runs",
-      "14:15 task-done Fitness · Standards table loads",
+      "14:15 task-done Lantern · Score table loads",
       "14:00 source-failed Money · PostHog report failed",
       "13:00 cost NoticeOS · Booked $12.00 infra cost for September",
       "12:00 setting-saved - · Moved the feed to the right",
       "11:05 job-failed - · Backups failed",
       "11:00 collected Recipes · Site checks · 1 site, none failed",
       "10:00 report - · Nightly reports from 4 sites",
-      "03:00 change Menus · Checkout outage",
+      "03:00 change Medley · Checkout outage",
       "02:40 deployed NoticeOS · New version abc1234def is live",
     ]);
     expect(new Set(feed.items.map((item) => item.kind))).toEqual(new Set(WALL_FEED_KINDS));
@@ -392,8 +392,8 @@ needsPostgres("buildWallFeed", () => {
     const filed = items.filter((item) => item.kind === "task-filed");
     expect(filed).toEqual([
       {
-        id: "task-filed:mn-7", at: at("19:11"), kind: "task-filed", label: "New task", asset: "menus.example.com",
-        site: "Menus", text: "Menu import skips closed restaurants", count: 1, tone: "neutral",
+        id: "task-filed:mn-7", at: at("19:11"), kind: "task-filed", label: "New task", asset: "medley.example.com",
+        site: "Medley", text: "Catalog import skips closed stores", count: 1, tone: "neutral",
       },
     ]);
     await snapshot(pg.call, at("19:28"), {}, { "unknown.example.com": [["un-1", "Stray task", at("19:27")]] });
@@ -403,29 +403,29 @@ needsPostgres("buildWallFeed", () => {
 
   it("keeps adjacent created and completed tasks individually named, once per event", async () => {
     const created: Record<string, [string, string, string][]> = {
-      "menus.example.com": [
-        ["mn-8", "Menus show opening hours", at("19:27")],
-        ["mn-9", "Menus show delivery prices", at("19:26")],
+      "medley.example.com": [
+        ["mn-8", "Listings show opening hours", at("19:27")],
+        ["mn-9", "Listings show delivery prices", at("19:26")],
       ],
     };
     const closed: Record<string, [string, string, string][]> = {
-      "recipes.example.com": [["mp-1", "Recipe cards load faster", at("19:24")]],
+      "recipes.example.com": [["md-1", "Recipe cards load faster", at("19:24")]],
       "codes.example.com": [["ac-1", "Lookup page shows the local time", at("18:38")]],
     };
     await snapshot(pg.call, at("19:28"), closed, created);
     await snapshot(pg.call, at("19:29"), closed, created);
     const { items } = await buildWallFeed(pg.call, DEPS);
     expect(items.filter((item) => item.kind === "task-filed").map((item) => [item.text, item.count, item.asset])).toEqual([
-      ["Menus show opening hours", 1, "menus.example.com"],
-      ["Menus show delivery prices", 1, "menus.example.com"],
-      ["Menu import skips closed restaurants", 1, "menus.example.com"],
+      ["Listings show opening hours", 1, "medley.example.com"],
+      ["Listings show delivery prices", 1, "medley.example.com"],
+      ["Catalog import skips closed stores", 1, "medley.example.com"],
     ]);
     expect(items.filter((item) => item.kind === "task-done").map((item) => [item.text, item.count, item.asset])).toEqual([
       ["Recipe cards load faster", 1, "recipes.example.com"],
       ["Lookup page shows the local time", 1, "codes.example.com"],
       ["Feed reads the store", 1, "os.example.com"],
       ["Feed folds runs", 1, "os.example.com"],
-      ["Standards table loads", 1, "fitness.example.com"],
+      ["Score table loads", 1, "lantern.example.com"],
     ]);
   });
 
@@ -460,7 +460,7 @@ needsPostgres("buildWallFeed", () => {
       ...([["04:00", "1"], ["12:30", "2"], ["16:05", "3"], ["19:26", "4"]] as const).map(([hhmm, commit]) =>
         osDeployAnnotation({ at: at(hhmm), action: "deploy", from: "0".repeat(40), to: commit.repeat(40), result: "healthy" }, "os.example.com")!),
       { asset: "os.example.com", at: at("00:30"), kind: "deploy", ref: "0123456789ab" },
-      { asset: "menus.example.com", at: at("17:00"), kind: "deploy", ref: "aaaaaaaaaaaa" },
+      { asset: "medley.example.com", at: at("17:00"), kind: "deploy", ref: "aaaaaaaaaaaa" },
       { asset: "recipes.example.com", at: at("18:20"), kind: "deploy", ref: "bbbbbbbbbbbb" },
     ]);
 
@@ -469,7 +469,7 @@ needsPostgres("buildWallFeed", () => {
     expect(deploys.map((item) => [item.at.slice(11, 16), item.site, item.text, item.count])).toEqual([
       ["19:26", "NoticeOS", "5 times since last night", 5],
       ["18:20", "Recipes", "New version bbbbbbbbbbbb is live", 1],
-      ["17:00", "Menus", "New version aaaaaaaaaaaa is live", 1],
+      ["17:00", "Medley", "New version aaaaaaaaaaaa is live", 1],
     ]);
     expect(items[0]).toMatchObject({ kind: "deployed", asset: "os.example.com", label: "Deployed", tone: "neutral", count: 5 });
     expect(items[1]!.text).toBe("Recipe cards load faster");
@@ -509,7 +509,7 @@ needsPostgres("buildWallFeed", () => {
 
   it("keeps every line to twelve words and names the site whenever the line is about one", async () => {
     await storeChanges(pg.call, [{
-      asset: "menus.example.com", at: at("19:00"), kind: "external",
+      asset: "medley.example.com", at: at("19:00"), kind: "external",
       note: "A very long note that goes on and on well past the twelve word budget for a line",
     }]);
     const { items } = await buildWallFeed(pg.call, DEPS);
@@ -517,7 +517,7 @@ needsPostgres("buildWallFeed", () => {
       expect(feedWordCount(item.text), item.text).toBeLessThanOrEqual(12);
       if (item.asset) expect(item.site).toBeTruthy();
     }
-    const names = new Map([["recipes.example.com", "Recipes"], ["menus.example.com", "Menus"], ["codes.example.com", "Codes"], ["money.example.com", "Money"], ["os.example.com", "NoticeOS"], ["fitness.example.com", "Fitness"]]);
+    const names = new Map([["recipes.example.com", "Recipes"], ["medley.example.com", "Medley"], ["codes.example.com", "Codes"], ["money.example.com", "Money"], ["os.example.com", "NoticeOS"], ["lantern.example.com", "Lantern"]]);
     for (const item of items.filter((i) => i.asset)) expect(item.site).toBe(names.get(item.asset!));
   });
 

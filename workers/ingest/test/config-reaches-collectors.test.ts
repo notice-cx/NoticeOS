@@ -26,9 +26,9 @@ import { runCron } from '../src/dispatch.js';
 import { reset, emptyTables } from './helpers.js';
 
 const NOW = Date.parse('2026-09-05T09:00:00.000Z');
-const DOMAIN_MATCHED = 'https://meals.example/';
-const SEEDED = 'https://seeded.meals.example/';
-const SAVED = 'https://www.meals.example/';
+const DOMAIN_MATCHED = 'https://meadow.example/';
+const SEEDED = 'https://seeded.meadow.example/';
+const SAVED = 'https://www.meadow.example/';
 
 /**
  * Every seeded property, as Bing spells its verified sites — and NOTHING the
@@ -40,12 +40,12 @@ const SAVED = 'https://www.meals.example/';
  * So the site a run asked for says unambiguously which of the two answered.
  */
 const SITES = [
-  'https://meals.example/',
-  'https://nosh.example/',
-  'https://pacer.example/',
-  'https://pullups.example/',
-  'https://areas.example/',
-  'https://fees.example/',
+  'https://meadow.example/',
+  'https://northwind.example/',
+  'https://pebble.example/',
+  'https://puffin.example/',
+  'https://acorn.example/',
+  'https://ferns.example/',
 ];
 
 /**
@@ -101,7 +101,7 @@ function seedableIntegrations(): Record<string, unknown> {
   const document = structuredClone(integrationsJson) as unknown as {
     assets: Record<string, Record<string, Record<string, unknown>>>;
   };
-  document.assets['meals.example']!['bing-webmaster']!.siteUrl = SEEDED;
+  document.assets['meadow.example']!['bing-webmaster']!.siteUrl = SEEDED;
   return document as unknown as Record<string, unknown>;
 }
 
@@ -159,13 +159,13 @@ describe('a saved mapping reaches the collectors without a restart', () => {
           {
             kind: 'file-json-set',
             file: 'config/integrations.json',
-            pointer: '/assets/meals.example/bing-webmaster/siteUrl',
+            pointer: '/assets/meadow.example/bing-webmaster/siteUrl',
             expect: SEEDED,
             value: SAVED,
           },
         ],
         actor: 'operator',
-        slug: 'meals-bing-site',
+        slug: 'meadow-bing-site',
       },
       NOW + 1000,
     );

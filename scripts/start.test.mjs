@@ -29,8 +29,9 @@ import { ADDRESS_FILE, DEFAULT_PORT as POSTGRES_PORT, SECRETS_DIR_VARIABLE, comp
 import { findPostgres } from './postgres-dev.mjs';
 import { postgresRequired, startTestCluster, unavailableReason } from './postgres-test-cluster.mjs';
 import { answersHolding, filesHolding, plantedDatabase, processTree, saveClockThroughTower, storedClock, storedJobs } from './test-planted-address.mjs';
-import { statePaths, stripJsonc, workerCrons } from './os-runtime.mjs';
-import { CONFIG } from './os-up.mjs';
+import { stripJsonc } from './jsonc.mjs';
+import { statePaths, workerCrons } from './os-runtime.mjs';
+import { CONFIG } from './runner/config.mjs';
 import { runCommand } from './run-command.mjs';
 import { schedulePaths, startedJobs } from './start-schedule.mjs';
 import { databaseEmpty, prepareFreshPostgres, startPostgresPlan } from './start-postgres.mjs';
@@ -1060,7 +1061,7 @@ test('two developer commands seed a real Tower on its own new database, then sto
     const response = await fetch(`${plan.url}api/wall`, { signal: AbortSignal.timeout(30_000) });
     const wall = await response.json();
     assert.equal(response.status, 200);
-    assert.deepEqual(wall.assets.map(asset => asset.id), ['meals.example', 'nosh.example']);
+    assert.deepEqual(wall.assets.map(asset => asset.id), ['meadow.example', 'northwind.example']);
     const money = await fetch(`${plan.url}api/financials?period=2026-05`, { signal: AbortSignal.timeout(30_000) });
     assert.equal(money.status, 200);
     assert.ok((await money.json()).properties.length === 2);

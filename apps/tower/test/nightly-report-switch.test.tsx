@@ -47,24 +47,24 @@ afterEach(() => {
 
 describe("noNightlyReportOps — the one write", () => {
   it("creates the list when nobody has declared yet", () => {
-    expect(noNightlyReportOps("fees.example", null, true)).toEqual([
-      { kind: "file-json-set", file: FILE, pointer: POINTER, expectAbsent: true, value: ["fees.example"] },
+    expect(noNightlyReportOps("ferns.example", null, true)).toEqual([
+      { kind: "file-json-set", file: FILE, pointer: POINTER, expectAbsent: true, value: ["ferns.example"] },
     ]);
   });
 
   it("adds to and takes from the saved list, guarded by it", () => {
-    expect(noNightlyReportOps("fees.example", ["areas.example"], true)).toEqual([
-      { kind: "file-json-set", file: FILE, pointer: POINTER, expect: ["areas.example"], value: ["areas.example", "fees.example"] },
+    expect(noNightlyReportOps("ferns.example", ["acorn.example"], true)).toEqual([
+      { kind: "file-json-set", file: FILE, pointer: POINTER, expect: ["acorn.example"], value: ["acorn.example", "ferns.example"] },
     ]);
-    expect(noNightlyReportOps("areas.example", ["areas.example", "fees.example"], false)).toEqual([
-      { kind: "file-json-set", file: FILE, pointer: POINTER, expect: ["areas.example", "fees.example"], value: ["fees.example"] },
+    expect(noNightlyReportOps("acorn.example", ["acorn.example", "ferns.example"], false)).toEqual([
+      { kind: "file-json-set", file: FILE, pointer: POINTER, expect: ["acorn.example", "ferns.example"], value: ["ferns.example"] },
     ]);
   });
 
   it("writes nothing when the list already says so", () => {
-    expect(noNightlyReportOps("fees.example", ["fees.example"], true)).toEqual([]);
-    expect(noNightlyReportOps("fees.example", null, false)).toEqual([]);
-    expect(noNightlyReportOps("fees.example", ["areas.example"], false)).toEqual([]);
+    expect(noNightlyReportOps("ferns.example", ["ferns.example"], true)).toEqual([]);
+    expect(noNightlyReportOps("ferns.example", null, false)).toEqual([]);
+    expect(noNightlyReportOps("ferns.example", ["acorn.example"], false)).toEqual([]);
   });
 });
 
@@ -110,15 +110,15 @@ describe("NightlyReportSwitch", () => {
   });
 
   it("reads a declared asset as No report and switches it back to Expected", async () => {
-    const { asset, wiring } = fixture(["areas.example", "meals.example"]);
-    mount({ ...asset, id: "meals.example" }, wiring);
+    const { asset, wiring } = fixture(["acorn.example", "meadow.example"]);
+    mount({ ...asset, id: "meadow.example" }, wiring);
     expect(screen.getByRole("button", { name: "No report" })).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(screen.getByRole("button", { name: "Expected" }));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() =>
       expect(mock.save).toHaveBeenCalledWith(
-        [{ kind: "file-json-set", file: FILE, pointer: POINTER, expect: ["areas.example", "meals.example"], value: ["areas.example"] }],
+        [{ kind: "file-json-set", file: FILE, pointer: POINTER, expect: ["acorn.example", "meadow.example"], value: ["acorn.example"] }],
         "no-nightly-report",
       ),
     );
@@ -145,8 +145,8 @@ describe("the Data collection card under the switch", () => {
   }
 
   it("shows only No report while it is saved: no delivery chip, endpoint, auth, schedule or freshness rows", () => {
-    const { card, id } = mountCard(["meals.example"]);
-    expect(id).toBe("meals.example");
+    const { card, id } = mountCard(["meadow.example"]);
+    expect(id).toBe("meadow.example");
     expect(card.getByRole("button", { name: "No report" })).toHaveAttribute("aria-pressed", "true");
     for (const gone of ["The site sends it", "Report endpoint", "Auth source", "Schedule", "Last report"]) {
       expect(card.queryByText(gone)).toBeNull();

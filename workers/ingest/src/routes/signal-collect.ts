@@ -28,7 +28,7 @@ import {
 import { readCollectorConfigs } from '../config-store.js';
 import { type LaneRegister, laneDeclined } from '../lane-mapping.js';
 import { json } from '../responses.js';
-import { Issues, SITE_ROW_FIELDS, asObject, declaredString, isoDate } from './validate.js';
+import { Issues, SITE_ROW_FIELDS, declaredString, isoDate, readJsonObject } from './validate.js';
 import {
   POSTHOG_FAMILIES,
   posthogFamilyFromTag,
@@ -54,16 +54,8 @@ export async function handleSignalCollect(
     return json({ error: 'unauthorized' }, 401);
   }
 
-  let parsed: unknown;
-  try {
-    parsed = await request.json();
-  } catch (err) {
-    return json({ error: 'bad_request', detail: `could not parse body: ${String(err)}` }, 400);
-  }
-  const body = asObject(parsed);
-  if (!body) {
-    return json({ error: 'bad_request', detail: 'body must be a JSON object' }, 400);
-  }
+  const body = await readJsonObject(request);
+  if (body instanceof Response) return body;
 
   // PostHog families are named `posthog-<family>` (or `posthog-*`) and go to
   // the PostHog collector; everything else is DataForSEO's. One request, one

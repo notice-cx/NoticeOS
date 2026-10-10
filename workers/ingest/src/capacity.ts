@@ -8,6 +8,7 @@
 
 import { javascriptInstant, type WorkspaceStore } from '@noticeos/postgres';
 import tableCatalog from '../../../db/postgres/tables.json';
+import { utcDay } from './shared.js';
 
 /** Rows accumulate and are kept; rows are bounded by the number of things;
  * rows accumulate but a retention sweep removes old ones. */
@@ -155,10 +156,6 @@ type ListedObject = {
   name: string;
   type: string;
 };
-
-function dayString(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10);
-}
 
 /** Whole days the long window really covers for a table whose first row is
  * `firstAt`: a table born ten days ago grew for ten days, not thirty. */
@@ -541,8 +538,8 @@ export async function readCapacityInventory(
   env: Pick<IngestEnv, 'RAW_SIGNALS' | 'STORE'>,
   nowMs: number = Date.now(),
 ): Promise<CapacityInventory> {
-  const shortSince = dayString(nowMs - CAPACITY_SHORT_DAYS * 86_400_000);
-  const longSince = dayString(nowMs - CAPACITY_LONG_DAYS * 86_400_000);
+  const shortSince = utcDay(nowMs - CAPACITY_SHORT_DAYS * 86_400_000);
+  const longSince = utcDay(nowMs - CAPACITY_LONG_DAYS * 86_400_000);
   const { objects, bytes: storeBytes } = await listObjects(env.STORE);
   const tableNames = objects.filter((o) => o.type === 'table').map((o) => o.name).sort();
   const present = new Set(tableNames);

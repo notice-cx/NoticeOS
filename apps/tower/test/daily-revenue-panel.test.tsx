@@ -7,7 +7,7 @@ describe('daily revenue bars', () => {
   it('marks incomplete portfolio subtotals visually and discloses the missing asset', async () => {
     const { container } = render(<DailyRevenuePanel range={2} history={{ from: '2026-09-08', to: '2026-09-09', reportedThrough: '2026-09-09', days: [
       { date: '2026-09-08', amountMinor: 1735 }, { date: '2026-09-09', amountMinor: 0 },
-    ] }} partialDates={['2026-09-09']} notesByDate={{ '2026-09-09': '1 of 2 daily sources reported · Missing: Nosh' }} />);
+    ] }} partialDates={['2026-09-09']} notesByDate={{ '2026-09-09': '1 of 2 daily sources reported · Missing: Northwind' }} />);
     expect(container.querySelectorAll('[data-hero-bar][data-partial]')).toHaveLength(1);
     expect(screen.getByText('Reported subtotal')).toBeInTheDocument();
     // Ad revenue, not the network; the reporting clock is one press away
@@ -19,10 +19,10 @@ describe('daily revenue bars', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.getByText('Incomplete site coverage')).toBeInTheDocument();
     fireEvent.keyDown(screen.getByRole('group', { name: 'Explore Estimated ad revenue values' }), { key: 'End' });
-    expect(screen.getByRole('status')).toHaveTextContent('Missing: Nosh');
+    expect(screen.getByRole('status')).toHaveTextContent('Missing: Northwind');
     expect(screen.getByRole('status')).toHaveTextContent('$0.00');
     fireEvent.click(screen.getByText('View data · 2 days'));
-    expect(await screen.findByRole('region', { name: 'Chart data table' })).toHaveTextContent('Missing: Nosh');
+    expect(await screen.findByRole('region', { name: 'Chart data table' })).toHaveTextContent('Missing: Northwind');
   });
   it('keeps zero, gaps and the missing final date distinct for keyboard and table readers', async () => {
     const { container } = render(<DailyRevenuePanel range={4} history={{ from: '2026-09-06', to: '2026-09-09', reportedThrough: '2026-09-08', days: [

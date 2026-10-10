@@ -6,7 +6,7 @@ import {
   SERP_PANEL_CALL_USD as CALL_USD,
   SERP_PANEL_DEVICES,
   SERP_PANEL_QUERY_LIMIT as PANEL_CEILING,
-} from '../src/dataforseo-dumps.js';
+} from '@noticeos/contract';
 import shippedSerpPanel from '../../../config/serp-panel.json';
 
 describe('the committed config files', () => {

@@ -1,24 +1,21 @@
 import { env } from 'cloudflare:test';
-import { DATAFORSEO_BASE_REPORTS } from '@noticeos/contract';
+import { DATAFORSEO_BASE_REPORTS, SERP_PANEL_DEVICES } from '@noticeos/contract';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleSignalCollect } from '../src/routes/signal-collect.js';
 import { runPosthogDumps } from '../src/posthog-dumps.js';
-import {
-  SERP_PANEL_DEVICES,
-  dataForSeoFamiliesFor,
-} from '../src/dataforseo-dumps.js';
+import { dataForSeoFamiliesFor } from '../src/dataforseo-dumps.js';
 import serpPanelConfig from './fixture-config/serp-panel.json';
 import { OPERATOR_TOKEN } from './fixtures.js';
 import { ARCHIVE_RUNS, call, pgAll, pgCount, pgFirst, reset, storeArchiveRun } from './helpers.js';
 
 const NOW = Date.parse('2026-08-04T09:12:00.000Z');
 const SERP_PATH = '/serp/google/organic/live/advanced';
-/** nosh.example's own panel, from the suite's frozen copy of
+/** northwind.example's own panel, from the suite's frozen copy of
  * config/serp-panel.json — never the checkout's own. Read as the keywords
  * alone: an entry may also carry the cluster it measures, and that rides in
  * the archive rather than in the provider call this suite counts. */
 const NOM_QUERIES = (
-  serpPanelConfig.assets['nosh.example']!.queries as (
+  serpPanelConfig.assets['northwind.example']!.queries as (
     | string
     | { query: string; label?: string }
   )[]
@@ -27,10 +24,10 @@ const NOM_QUERIES = (
  * somebody asks for the panel alone. The label is never transmitted, so only
  * the device multiplies this. */
 const NOM_PANEL_CALLS = NOM_QUERIES.length * SERP_PANEL_DEVICES.length;
-/** The single-call families nosh.example is due — derived from the shipped
+/** The single-call families northwind.example is due — derived from the shipped
  * registry, never counted by hand: the count is property-dependent, since
  * `keyword-ideas` is owed only where a tracked panel supplies its seeds. */
-const DOMAIN_FAMILIES = dataForSeoFamiliesFor('nosh.example').filter(
+const DOMAIN_FAMILIES = dataForSeoFamiliesFor('northwind.example').filter(
   (family) => family !== 'serp-panel',
 ).length;
 /** The same two retries the collector ships with, without the four seconds. */
@@ -84,8 +81,8 @@ function providerFetch({
                   keyword: task.keyword,
                   items_count: 2,
                   items: [
-                    { type: 'ai_overview', references: [{ domain: 'nosh.example' }] },
-                    { type: 'organic', rank_group: 4, domain: 'nosh.example' },
+                    { type: 'ai_overview', references: [{ domain: 'northwind.example' }] },
+                    { type: 'organic', rank_group: 4, domain: 'northwind.example' },
                   ],
                 }
               : { items_count: 1, items: [{ ok: true }] },
@@ -162,8 +159,8 @@ beforeEach(reset);
 
 describe('POST /api/signal-collect — refusing before anything is billed', () => {
   it('is operator-authed, and wired into the router', async () => {
-    expect((await refused({ asset: 'nosh.example' }, null)).status).toBe(401);
-    expect((await refused({ asset: 'nosh.example' }, 'not-the-token')).status).toBe(401);
+    expect((await refused({ asset: 'northwind.example' }, null)).status).toBe(401);
+    expect((await refused({ asset: 'northwind.example' }, 'not-the-token')).status).toBe(401);
     // Not a 404: the route exists and the bearer is the only thing missing.
     expect(
       (await call(new Request('https://ingest.local/api/signal-collect', { method: 'GET' })))
@@ -173,7 +170,7 @@ describe('POST /api/signal-collect — refusing before anything is billed', () =
 
   it('rejects an unparseable or non-object body', async () => {
     expect((await refused('{')).status).toBe(400);
-    expect((await refused([{ asset: 'nosh.example' }])).status).toBe(400);
+    expect((await refused([{ asset: 'northwind.example' }])).status).toBe(400);
   });
 
   it('names every bad field at once rather than the first', async () => {
@@ -188,7 +185,7 @@ describe('POST /api/signal-collect — refusing before anything is billed', () =
 
   it('rejects a repeated family instead of quietly billing it once', async () => {
     const { status, body } = await refused({
-      asset: 'nosh.example',
+      asset: 'northwind.example',
       families: ['serp-panel', 'serp-panel'],
     });
     expect(status).toBe(422);
@@ -204,8 +201,8 @@ describe('POST /api/signal-collect — refusing before anything is billed', () =
     expect(unknown.body.detail).toBe('not-a-property is not a property in the store.');
 
     // Seeded, but pre-launch: a different mistake, and a different sentence.
-    expect((await refused({ asset: 'fees.example' })).body.detail).toBe(
-      'fees.example is pre-launch; the DataForSEO lane collects launched properties only.',
+    expect((await refused({ asset: 'ferns.example' })).body.detail).toBe(
+      'ferns.example is pre-launch; the DataForSEO lane collects launched properties only.',
     );
     expect((await refused({ asset: 'root-os' })).body.detail).toBe(
       'root-os is the OS itself and has no public search surface.',
@@ -221,7 +218,7 @@ describe('POST /api/signal-collect — refusing before anything is billed', () =
    * and wrong for a request somebody typed. */
   it('refuses a panel family for a property config/serp-panel.json does not name', async () => {
     const { status, body } = await refused({
-      asset: 'pacer.example',
+      asset: 'pebble.example',
       families: ['serp-panel'],
     });
     expect(status).toBe(422);
@@ -233,7 +230,7 @@ describe('POST /api/signal-collect — refusing before anything is billed', () =
     // same reason: it seeds from that panel. Derived, so a new family shows up
     // here as coverage rather than as a red test.
     expect(body.available).toEqual(
-      dataForSeoFamiliesFor('pacer.example'),
+      dataForSeoFamiliesFor('pebble.example'),
     );
     expect(body.available).toContain('serp-competitors');
     expect(body.available).not.toContain('keyword-ideas');
@@ -246,22 +243,22 @@ describe('POST /api/signal-collect — refusing before anything is billed', () =
 describe('POST /api/signal-collect — one property, on the day it launched', () => {
   it('bills the named property alone', async () => {
     const { fetchImpl, calls } = providerFetch();
-    const { status, body } = await collect({ asset: 'nosh.example' }, { fetchImpl });
+    const { status, body } = await collect({ asset: 'northwind.example' }, { fetchImpl });
 
     expect(status).toBe(200);
     expect(body).toMatchObject({
       collected: true,
-      asset: 'nosh.example',
+      asset: 'northwind.example',
       attempted: DOMAIN_FAMILIES + 1,
       succeeded: DOMAIN_FAMILIES + 1,
       unchanged: 0,
       failed: 0,
       retried: [],
     });
-    // Every provider call names nosh.example — no other property's calls exist.
+    // Every provider call names northwind.example — no other property's calls exist.
     expect(calls).toHaveLength(DOMAIN_FAMILIES + NOM_PANEL_CALLS);
     expect(
-      calls.every((c) => String(c.task.tag ?? '').startsWith('nosh.example:')),
+      calls.every((c) => String(c.task.tag ?? '').startsWith('northwind.example:')),
     ).toBe(true);
     expect(body.costUsd).toBeCloseTo(DOMAIN_FAMILIES * 0.011 + NOM_PANEL_CALLS * 0.004);
 
@@ -269,13 +266,13 @@ describe('POST /api/signal-collect — one property, on the day it launched', ()
       await pgAll<{ asset: string; n: number }>(`SELECT asset, count(*)::int AS n FROM ${ARCHIVE_RUNS}
           WHERE integration = 'dataforseo' GROUP BY asset`)
     ).results;
-    expect(rows).toEqual([{ asset: 'nosh.example', n: DOMAIN_FAMILIES + 1 }]);
+    expect(rows).toEqual([{ asset: 'northwind.example', n: DOMAIN_FAMILIES + 1 }]);
   });
 
   it('collects one family when one family is what was asked for', async () => {
     const { fetchImpl, calls } = providerFetch();
     const { body } = await collect(
-      { asset: 'nosh.example', families: ['serp-panel'] },
+      { asset: 'northwind.example', families: ['serp-panel'] },
       { fetchImpl },
     );
 
@@ -315,7 +312,7 @@ describe('POST /api/signal-collect — one property, on the day it launched', ()
   it('refuses at the monthly cap without calling the provider, and says so', async () => {
     const { fetchImpl, calls } = providerFetch();
     const { status, body } = await collect(
-      { asset: 'nosh.example', families: ['serp-panel'] },
+      { asset: 'northwind.example', families: ['serp-panel'] },
       { fetchImpl, monthlyCapUsd: 0.24 },
     );
 
@@ -345,7 +342,7 @@ describe('POST /api/signal-collect — one property, on the day it launched', ()
       failTimes: 1,
     });
     const { body } = await collect(
-      { asset: 'nosh.example', families: ['backlinks-summary'] },
+      { asset: 'northwind.example', families: ['backlinks-summary'] },
       { fetchImpl, retryBackoffMs: FAST_RETRY },
     );
 
@@ -361,7 +358,7 @@ describe('POST /api/signal-collect — one property, on the day it launched', ()
   it('gives up where the sweep gives up, and the row says how many attempts', async () => {
     const { fetchImpl, calls } = providerFetch({ failPath: '/backlinks/summary/live' });
     const { body } = await collect(
-      { asset: 'nosh.example', families: ['backlinks-summary'] },
+      { asset: 'northwind.example', families: ['backlinks-summary'] },
       { fetchImpl, retryBackoffMs: FAST_RETRY },
     );
 
@@ -380,9 +377,9 @@ describe('POST /api/signal-collect — one property, on the day it launched', ()
    * archive — `archiveCollectedDump` stores identical content as `unchanged`. */
   it('reports a same-day re-fire as unchanged rather than a second archive', async () => {
     const { fetchImpl } = providerFetch();
-    await collect({ asset: 'nosh.example', families: ['ranked-keywords'] }, { fetchImpl });
+    await collect({ asset: 'northwind.example', families: ['ranked-keywords'] }, { fetchImpl });
     const { body } = await collect(
-      { asset: 'nosh.example', families: ['ranked-keywords'] },
+      { asset: 'northwind.example', families: ['ranked-keywords'] },
       { fetchImpl },
     );
 
@@ -397,13 +394,13 @@ describe('POST /api/signal-collect — one property, on the day it launched', ()
 // optionally with a fixed start/end window.
 // ---------------------------------------------------------------------------
 
-const PH_KEYS = JSON.stringify({ 'meals.example': 'phx_route_test_key' });
+const PH_KEYS = JSON.stringify({ 'meadow.example': 'phx_route_test_key' });
 const PH_REGISTER = {
   assets: {
-    'meals.example': {
+    'meadow.example': {
       posthog: {
         host: 'us',
-        projectId: '596607',
+        projectId: '424242',
         funnels: [{ id: 'calculator', name: 'Calculator', steps: [{ event: '$pageview', path: '/calculator' }, { event: 'form_start' }] }],
       },
     },
@@ -421,7 +418,7 @@ function posthogProvider(): { fetchImpl: typeof fetch; queries: string[] } {
     funnels: ['funnel_1_step_1', 'funnel_1_step_2'],
   };
   const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    if (init?.method !== 'POST') return Response.json({ id: 596607, timezone: 'America/New_York' });
+    if (init?.method !== 'POST') return Response.json({ id: 424242, timezone: 'America/New_York' });
     const body = JSON.parse(String(init.body)) as { name: string; query: { query: string } };
     queries.push(body.query.query);
     const family = body.name.slice('noticeos:posthog-'.length);
@@ -453,13 +450,13 @@ describe('POST /api/signal-collect — PostHog families', () => {
   it('collects every PostHog family for one asset over a fixed window', async () => {
     const { fetchImpl, queries } = posthogProvider();
     const { status, body } = await collect(
-      { asset: 'meals.example', families: ['posthog-*'], start: '2026-09-08', end: '2026-09-22' },
+      { asset: 'meadow.example', families: ['posthog-*'], start: '2026-09-08', end: '2026-09-22' },
       { posthog: { fetchImpl, rawKeys: PH_KEYS, laneRegister: PH_REGISTER, nowMs: Date.parse('2026-09-23T12:30:00Z') } },
     );
     expect(status).toBe(200);
     expect(body).toMatchObject({
       collected: true,
-      asset: 'meals.example',
+      asset: 'meadow.example',
       families: ['posthog-web-daily', 'posthog-events', 'posthog-exceptions', 'posthog-rageclicks', 'posthog-web-vitals', 'posthog-funnels'],
       attempted: 6,
       succeeded: 6,
@@ -473,7 +470,7 @@ describe('POST /api/signal-collect — PostHog families', () => {
   it('collects only the named PostHog families, and DataForSEO is never asked', async () => {
     const { fetchImpl, queries } = posthogProvider();
     const { status, body } = await collect(
-      { asset: 'meals.example', families: ['posthog-events', 'posthog-funnels'] },
+      { asset: 'meadow.example', families: ['posthog-events', 'posthog-funnels'] },
       { posthog: { fetchImpl, rawKeys: PH_KEYS, laneRegister: PH_REGISTER, nowMs: Date.parse('2026-09-23T12:30:00Z') } },
     );
     expect(status).toBe(200);
@@ -484,14 +481,15 @@ describe('POST /api/signal-collect — PostHog families', () => {
 
   it('refuses mixed providers, bad windows and repeats before any request', async () => {
     const cases: [Record<string, unknown>, string][] = [
-      [{ asset: 'meals.example', families: ['posthog-events', 'serp-panel'] }, 'one provider per request'],
-      [{ asset: 'meals.example', families: ['posthog-*', 'posthog-events'] }, 'name it alone'],
-      [{ asset: 'meals.example', families: ['posthog-nope'] }, 'posthog-web-daily'],
-      [{ asset: 'meals.example', families: ['posthog-events', 'posthog-events'] }, 'must not repeat'],
-      [{ asset: 'meals.example', families: ['posthog-*'], start: '2026-09-08' }, 'together'],
-      [{ asset: 'meals.example', families: ['posthog-*'], start: '2026-09-22', end: '2026-09-08' }, 'not be after'],
-      [{ asset: 'meals.example', families: ['posthog-*'], start: '2026-08-01', end: '2026-09-22' }, 'at most 28 days'],
-      [{ asset: 'nosh.example', families: ['ranked-keywords'], start: '2026-09-08', end: '2026-09-22' }, 'PostHog families only'],
+      [{ asset: 'meadow.example', families: ['posthog-events', 'serp-panel'] }, 'one provider per request'],
+      [{ asset: 'meadow.example', families: ['posthog-*', 'posthog-events'] }, 'name it alone'],
+      [{ asset: 'meadow.example', families: ['posthog-nope'] }, 'posthog-web-daily'],
+      [{ asset: 'meadow.example', families: ['posthog-events', 'posthog-events'] }, 'must not repeat'],
+      [{ asset: 'meadow.example', families: ['posthog-*'], start: '2026-09-08' }, 'together'],
+      [{ asset: 'meadow.example', families: ['posthog-*'], start: '2026-09-22', end: '2026-09-08' }, 'not be after'],
+      [{ asset: 'meadow.example', families: ['posthog-*'], start: '2026-08-01', end: '2026-09-22' }, 'at most 28 days'],
+      [{ asset: 'meadow.example', families: ['posthog-*'], start: '2999-01-01', end: '2999-01-02' }, 'not be in the future'],
+      [{ asset: 'northwind.example', families: ['ranked-keywords'], start: '2026-09-08', end: '2026-09-22' }, 'PostHog families only'],
     ];
     for (const [request, message] of cases) {
       const { status, body } = await refused(request);
@@ -506,22 +504,22 @@ describe('POST /api/signal-collect — PostHog families', () => {
     const nowMs = Date.parse('2026-09-23T12:30:00Z');
     const first = gatedPosthogProvider();
     const firstRun = collect(
-      { asset: 'meals.example', families: ['posthog-*'] },
+      { asset: 'meadow.example', families: ['posthog-*'] },
       { posthog: { fetchImpl: first.fetchImpl, rawKeys: PH_KEYS, laneRegister: PH_REGISTER, nowMs } },
     );
     await first.started;
 
     const second = gatedPosthogProvider();
     second.open();
-    const res = await handleSignalCollect(collectRequest({ asset: 'meals.example', families: ['posthog-events'] }), env, {
+    const res = await handleSignalCollect(collectRequest({ asset: 'meadow.example', families: ['posthog-events'] }), env, {
       posthog: { fetchImpl: second.fetchImpl, rawKeys: PH_KEYS, laneRegister: PH_REGISTER, nowMs },
     });
     const text = await res.text();
     expect(res.status).toBe(409);
     const body = JSON.parse(text) as CollectBody & { inFlight?: { startedAt: string; leaseExpiresAt: string } };
-    expect(body).toMatchObject({ error: 'collection_in_flight', asset: 'meals.example', families: ['posthog-events'] });
+    expect(body).toMatchObject({ error: 'collection_in_flight', asset: 'meadow.example', families: ['posthog-events'] });
     // One line: what runs, that nothing was asked, when it frees.
-    expect(body.detail).toMatch(/^Already running for meals\.example · started \d+s ago · nothing asked · /);
+    expect(body.detail).toMatch(/^Already running for meadow\.example · started \d+s ago · nothing asked · /);
     expect(body.detail).toContain(`free at ${body.inFlight?.leaseExpiresAt}`);
     // `pnpm signals:collect` prints the first 400 characters of the body: the
     // whole sentence must be in them.
@@ -538,7 +536,7 @@ describe('POST /api/signal-collect — PostHog families', () => {
     const third = gatedPosthogProvider();
     third.open();
     const again = await collect(
-      { asset: 'meals.example', families: ['posthog-events'] },
+      { asset: 'meadow.example', families: ['posthog-events'] },
       { posthog: { fetchImpl: third.fetchImpl, rawKeys: PH_KEYS, laneRegister: PH_REGISTER, nowMs } },
     );
     expect(again.status).toBe(200);
@@ -553,7 +551,7 @@ describe('POST /api/signal-collect — PostHog families', () => {
     const onDemand = gatedPosthogProvider();
     onDemand.open();
     const { status, body } = await collect(
-      { asset: 'meals.example', families: ['posthog-*'] },
+      { asset: 'meadow.example', families: ['posthog-*'] },
       { posthog: { fetchImpl: onDemand.fetchImpl, rawKeys: PH_KEYS, laneRegister: PH_REGISTER, nowMs } },
     );
     expect(status).toBe(409);
@@ -566,15 +564,15 @@ describe('POST /api/signal-collect — PostHog families', () => {
   it('reports the earlier windows it asked again, as the daily run counts them', async () => {
     // A window PostHog never answered the day before: owed a re-collection.
     await storeArchiveRun({
-      id: 'owed-events', asset: 'meals.example', integration: 'posthog', report: 'events', credential_ref: 'POSTHOG_KEYS',
-      property_ref: 'us:596607', report_date: '2026-09-21', finished_at: '2026-09-22T12:30:00.000Z', status: 'error',
+      id: 'owed-events', asset: 'meadow.example', integration: 'posthog', report: 'events', credential_ref: 'POSTHOG_KEYS',
+      property_ref: 'us:424242', report_date: '2026-09-21', finished_at: '2026-09-22T12:30:00.000Z', status: 'error',
       error_code: 'posthog_request_failed', error_message: 'fixture',
     });
     const log = vi.spyOn(console, 'log');
     try {
       const { fetchImpl, queries } = posthogProvider();
       const { status, body } = await collect(
-        { asset: 'meals.example', families: ['posthog-*'] },
+        { asset: 'meadow.example', families: ['posthog-*'] },
         { posthog: { fetchImpl, rawKeys: PH_KEYS, laneRegister: PH_REGISTER, nowMs: Date.parse('2026-09-23T12:30:00Z') } },
       );
       expect(status).toBe(200);
@@ -600,7 +598,7 @@ describe('POST /api/signal-collect — PostHog families', () => {
   it('says why an asset collected nothing instead of reporting an empty success', async () => {
     const { fetchImpl, queries } = posthogProvider();
     const { status, body } = await collect(
-      { asset: 'meals.example', families: ['posthog-*'] },
+      { asset: 'meadow.example', families: ['posthog-*'] },
       { posthog: { fetchImpl, rawKeys: '', laneRegister: PH_REGISTER } },
     );
     expect(status).toBe(422);

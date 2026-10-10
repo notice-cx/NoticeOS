@@ -102,7 +102,7 @@ function runConfig({ documents, sources }: CollectorConfigs): RunConfig {
  * by the cron and by `runCollectNow` so a collect-now press cannot drift from
  * the scheduled run. A collect-now only narrows it.
  */
-interface LaneNarrowing {
+export interface LaneNarrowing {
   fetchImpl?: typeof fetch;
   nowMs?: number;
 }
@@ -278,9 +278,6 @@ export async function runScheduledCron(cron: string, env: IngestEnv): Promise<Sc
 // function with its egress gate, lease, budget gate and retry budget. Narrower
 // than the job, never wider.
 
-/** The lanes' own transport and clock overrides (tests and the journey fixture). */
-export type CollectNowOptions = LaneNarrowing;
-
 /** Is `job` saved as paused? The same reading the runner makes. */
 function jobPaused(cfg: RunConfig, job: string): boolean {
   return schedulePaused(cfg.constants, job);
@@ -291,7 +288,7 @@ function jobPaused(cfg: RunConfig, job: string): boolean {
 export async function runCollectNow(
   env: IngestEnv,
   input: CollectNowInput,
-  options: CollectNowOptions = {},
+  options: LaneNarrowing = {},
 ): Promise<CollectNowResult> {
   const provider = String(input.provider);
   const plan = collectNowStep(provider);

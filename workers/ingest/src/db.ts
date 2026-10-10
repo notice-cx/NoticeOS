@@ -24,6 +24,7 @@ import { holdCondition, raiseAlertUnlessOpen, resolveOpen } from './alert-store.
 import { readCollectorConfigs } from './config-store.js';
 import { cronRunSuccessValue, latestJobRuns } from './job-runs.js';
 import { readOsAssetId } from './os-asset.js';
+import { shiftUtcDay, utcDay, utcDayStartMs } from './shared.js';
 
 /** The contract's rule id, so the Tower releases exactly the flag this Worker fires. */
 export const FRESHNESS_RULE_ID = REPORT_FRESHNESS_RULE_ID;
@@ -67,8 +68,7 @@ async function ruleConfigFor(env: Pick<IngestEnv, 'STORE'>, config?: RuleConfig)
 
 const iso = (ms: number): string => new Date(ms).toISOString();
 /** The pulse day (UTC) for a generatedAt timestamp — the `(asset,date)` grain. */
-export const pulseDay = (generatedAt: string): string =>
-  new Date(generatedAt).toISOString().slice(0, 10);
+export const pulseDay = (generatedAt: string): string => utcDay(generatedAt);
 
 export interface WritePulseResult {
   pulseId: number;
@@ -473,11 +473,9 @@ function mean(values: number[]): number {
 }
 
 /** One `YYYY-MM-DD` day moved by whole days, on the UTC grain the `pulses`
- * table is keyed on. */
+ * table is keyed on. A value that is not a day is returned unchanged. */
 export function shiftDate(value: string, days: number): string {
-  const parsed = Date.parse(`${value}T00:00:00.000Z`);
-  if (!Number.isFinite(parsed)) return value;
-  return new Date(parsed + days * 86_400_000).toISOString().slice(0, 10);
+  return Number.isFinite(utcDayStartMs(value)) ? shiftUtcDay(value, days) : value;
 }
 
 export interface FreshnessResult {

@@ -10,12 +10,12 @@ const NOW = Date.parse('2026-07-29T12:00:00.000Z');
  * and succeeds six — a site missing from this list would be a failure, not a
  * smaller run. */
 const PORTFOLIO_SITES = [
-  'https://meals.example/',
-  'https://nosh.example/',
-  'https://pacer.example/',
-  'https://pullups.example/',
-  'https://areas.example/',
-  'https://fees.example/',
+  'https://meadow.example/',
+  'https://northwind.example/',
+  'https://pebble.example/',
+  'https://puffin.example/',
+  'https://acorn.example/',
+  'https://ferns.example/',
 ];
 
 function bingDate(date: string): string {
@@ -137,54 +137,54 @@ describe('Bing Webmaster signal collector', () => {
     );
     expect(runs).toEqual([
       {
-        asset: 'areas.example',
+        asset: 'acorn.example',
         credentialRef: 'BING_WEBMASTER_API_KEY',
-        propertyRef: 'https://areas.example/',
+        propertyRef: 'https://acorn.example/',
         windowStart: '2026-05-15',
         windowEnd: '2026-07-27',
         dataState: 'final',
         provisionalFrom: null,
       },
       {
-        asset: 'fees.example',
+        asset: 'ferns.example',
         credentialRef: 'BING_WEBMASTER_API_KEY',
-        propertyRef: 'https://fees.example/',
+        propertyRef: 'https://ferns.example/',
         windowStart: '2026-05-15',
         windowEnd: '2026-07-27',
         dataState: 'final',
         provisionalFrom: null,
       },
       {
-        asset: 'meals.example',
+        asset: 'meadow.example',
         credentialRef: 'BING_WEBMASTER_API_KEY',
-        propertyRef: 'https://meals.example/',
+        propertyRef: 'https://meadow.example/',
         windowStart: '2026-05-15',
         windowEnd: '2026-07-27',
         dataState: 'final',
         provisionalFrom: null,
       },
       {
-        asset: 'nosh.example',
+        asset: 'northwind.example',
         credentialRef: 'BING_WEBMASTER_API_KEY',
-        propertyRef: 'https://nosh.example/',
+        propertyRef: 'https://northwind.example/',
         windowStart: '2026-05-15',
         windowEnd: '2026-07-27',
         dataState: 'final',
         provisionalFrom: null,
       },
       {
-        asset: 'pacer.example',
+        asset: 'pebble.example',
         credentialRef: 'BING_WEBMASTER_API_KEY',
-        propertyRef: 'https://pacer.example/',
+        propertyRef: 'https://pebble.example/',
         windowStart: '2026-05-15',
         windowEnd: '2026-07-27',
         dataState: 'final',
         provisionalFrom: null,
       },
       {
-        asset: 'pullups.example',
+        asset: 'puffin.example',
         credentialRef: 'BING_WEBMASTER_API_KEY',
-        propertyRef: 'https://pullups.example/',
+        propertyRef: 'https://puffin.example/',
         windowStart: '2026-05-15',
         windowEnd: '2026-07-27',
         dataState: 'final',
@@ -198,7 +198,7 @@ describe('Bing Webmaster signal collector', () => {
   });
 
   it('isolates one site failure and records it for header-state evidence', async () => {
-    const { fetchImpl } = bingFetch({ failingHost: 'nosh.example' });
+    const { fetchImpl } = bingFetch({ failingHost: 'northwind.example' });
     const result = await runBingSignals(env, { nowMs: NOW, fetchImpl });
 
     expect(result).toMatchObject({ attempted: 6, succeeded: 5, failed: 1 });
@@ -215,11 +215,33 @@ describe('Bing Webmaster signal collector', () => {
       ),
     );
     expect(failed).toEqual({
-      asset: 'nosh.example',
+      asset: 'northwind.example',
       status: 'error',
       errorCode: 'bwt_http_403',
       errorMessage: 'Site access denied',
     });
+  });
+
+  it('refuses a 200 whose body is Bing reporting an error', async () => {
+    const { fetchImpl: answering } = bingFetch();
+    const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
+      if (url.pathname.endsWith('/GetRankAndTrafficStats') && new URL(url.searchParams.get('siteUrl')!).hostname === 'northwind.example') {
+        return Response.json({ ErrorCode: 14, Message: 'NotAuthorized' });
+      }
+      return answering(input, init);
+    }) as typeof fetch;
+
+    const result = await runBingSignals(env, { nowMs: NOW, fetchImpl });
+
+    expect(result).toMatchObject({ attempted: 6, succeeded: 5, failed: 1 });
+    const failed = await env.STORE.read((tx) =>
+      tx.query<{ asset: string; errorCode: string; errorMessage: string }>(
+        `SELECT asset_id AS asset, error_code AS "errorCode", error_message AS "errorMessage"
+           FROM noticeos.signal_runs WHERE status = 'error'`,
+      ),
+    );
+    expect(failed).toEqual([{ asset: 'northwind.example', errorCode: 'bwt_http_200', errorMessage: 'NotAuthorized' }]);
   });
 
   describe('when the OS is what is down', () => {

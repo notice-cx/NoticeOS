@@ -5,6 +5,7 @@ import { CloudflareD1Error, d1Api, d1Bounded, listD1Databases } from './cloudfla
 import { tryHealthConnection, observeIntegration } from './integration-health-context.js';
 import { knownAssetIds } from './asset-registry.js';
 import type { Transaction } from '@noticeos/postgres';
+import { claimLease, releaseLease } from './integration-leases.js';
 
 export class D1BackupError extends Error { constructor(readonly code: D1Failure) { super(code); } }
 const EXPORT_MS = 180_000;
@@ -166,9 +167,7 @@ export async function exportD1Database(env: IngestEnv, accountId: string, databa
   const runId = crypto.randomUUID(), start = Date.now(), key = await prefix(env, accountId, databaseId);
   const lease = leaseKey(accountId, databaseId);
   const duration = Math.min(EXPORT_MS, options.deadlineMs ?? EXPORT_MS);
-  const claimed = await env.STORE.write(tx => tx.execute(`INSERT INTO noticeos.integration_leases AS l (workspace_id, lease_key, owner, expires_at)
-    VALUES ($1, $2, $3, $4::timestamptz) ON CONFLICT (workspace_id, lease_key) DO UPDATE SET owner = excluded.owner, expires_at = excluded.expires_at
-    WHERE l.expires_at <= $5::timestamptz`, [tx.workspaceId, lease, runId, new Date(start + duration + 30_000), new Date(start)]));
+  const claimed = await claimLease(env.STORE, { key: lease, owner: runId, nowMs: start, expiresAtMs: start + duration + 30_000 });
   if (!claimed) fail('already_running');
   let saved: Pointer | null = null; let initialized = false; let stored = false;
   const deadline = AbortSignal.timeout(duration);
@@ -203,7 +202,7 @@ export async function exportD1Database(env: IngestEnv, accountId: string, databa
     return failed;
   } finally {
     // Keep durable receipts while releasing only the owned run's active lease.
-    await env.STORE.write(tx => tx.execute('UPDATE noticeos.integration_leases SET expires_at = $1::timestamptz WHERE lease_key = $2 AND owner = $3', [new Date(0), lease, runId]));
+    await releaseLease(env.STORE, lease, runId);
   }
 }
 export async function d1Artifact(env: IngestEnv, accountId: string, databaseId: string, runId: string): Promise<Response> {

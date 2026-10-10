@@ -38,7 +38,9 @@ import { type ConfigSourceMap, configSourceLine } from './config-store.js';
 import type { CredentialSource } from '@noticeos/contract';
 import { credentialConnected, resolveCredential, sourcedCredentialRef } from './credentials.js';
 import {
+  boundedResponseJson,
   normalizeSignalError,
+  reportDateOffset,
   SignalError,
   type SignalTarget,
 } from './signal-store.js';
@@ -53,6 +55,7 @@ import {
 } from './egress.js';
 import { healthFailure } from './integration-health-store.js';
 import ga4CustomDimensionsJson from '../../../config/ga4-custom-dimensions.json';
+import { arrayField, asRecord, sha256Hex, stringField, wholeUtcDaysBetween } from './shared.js';
 
 const SCHEMA_VERSION = 1;
 const DEFAULT_REVISION_DAYS = 4;
@@ -881,20 +884,8 @@ async function dueBingReports(
     const latest = archived.get(spec.name) ?? null;
     // Never archived — including the day a property is seeded — is always due.
     if (latest === null) return true;
-    return wholeDaysBetween(latest, reportDate) >= cadenceDays;
+    return wholeUtcDaysBetween(latest, reportDate) >= cadenceDays;
   });
-}
-
-/** Whole UTC days from `from` to `to`. An unparseable stored date reads as
- * infinitely old, so a history the run cannot understand causes a collection
- * rather than a silent, permanent skip. */
-function wholeDaysBetween(from: string, to: string): number {
-  const start = Date.parse(`${from}T00:00:00.000Z`);
-  const end = Date.parse(`${to}T00:00:00.000Z`);
-  if (!Number.isFinite(start) || !Number.isFinite(end)) {
-    return Number.POSITIVE_INFINITY;
-  }
-  return Math.round((end - start) / 86_400_000);
 }
 
 async function collectAndArchive(
@@ -1331,7 +1322,7 @@ async function collectGscQuery(
       `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
       googlePost(accessToken, request),
     );
-    const body = await boundedResponseJson(response);
+    const body = await boundedResponseJson(response, 'Google', RESPONSE_BYTE_LIMIT);
     if (!response.ok) throw googleProviderError('gsc_dump', response.status, body);
     const rows = arrayField(asRecord(body), 'rows');
     pages.push({ request, response: body });
@@ -1375,7 +1366,7 @@ async function collectGa4Dump(
 
   while (providerRows < GA4_REPORT_ROWS) {
     const windowDays = spec.windowDays ?? 1;
-    const startDate = isoDateOffset(reportDate, -(windowDays - 1));
+    const startDate = reportDateOffset(reportDate, -(windowDays - 1));
     const request: Record<string, unknown> = {
       dateRanges: [{ startDate, endDate: reportDate }],
       dimensions: spec.dimensions.map((name) => ({ name })),
@@ -1392,7 +1383,7 @@ async function collectGa4Dump(
       `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`,
       googlePost(accessToken, request),
     );
-    const body = await boundedResponseJson(response);
+    const body = await boundedResponseJson(response, 'Google', RESPONSE_BYTE_LIMIT);
     if (!response.ok) {
       throw (
         unregisteredCustomDimensionError(spec, body) ??
@@ -1461,14 +1452,6 @@ function unregisteredCustomDimensionError(
   );
 }
 
-function isoDateOffset(date: string, days: number): string {
-  const time = Date.parse(`${date}T00:00:00.000Z`);
-  if (!Number.isFinite(time)) {
-    throw new SignalError('config_invalid', `Invalid report date "${date}".`);
-  }
-  return new Date(time + days * 86_400_000).toISOString().slice(0, 10);
-}
-
 function googlePost(accessToken: string, body: Record<string, unknown>): RequestInit {
   return {
     method: 'POST',
@@ -1479,47 +1462,6 @@ function googlePost(accessToken: string, body: Record<string, unknown>): Request
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   };
-}
-
-async function boundedResponseJson(response: Response): Promise<unknown> {
-  const declaredLength = Number(response.headers.get('content-length'));
-  if (Number.isFinite(declaredLength) && declaredLength > RESPONSE_BYTE_LIMIT) {
-    await response.body?.cancel();
-    throw new SignalError(
-      'response_too_large',
-      `Google response exceeded ${RESPONSE_BYTE_LIMIT} bytes.`,
-    );
-  }
-  if (!response.body) return {};
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let bytes = 0;
-  let text = '';
-  try {
-    while (true) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      bytes += chunk.value.byteLength;
-      if (bytes > RESPONSE_BYTE_LIMIT) {
-        await reader.cancel();
-        throw new SignalError(
-          'response_too_large',
-          `Google response exceeded ${RESPONSE_BYTE_LIMIT} bytes.`,
-        );
-      }
-      text += decoder.decode(chunk.value, { stream: true });
-    }
-    text += decoder.decode();
-  } finally {
-    reader.releaseLock();
-  }
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new SignalError('response_invalid_json', 'Google returned invalid JSON.');
-  }
 }
 
 /**
@@ -1757,11 +1699,6 @@ async function gzip(bytes: Uint8Array): Promise<ArrayBuffer> {
     .stream()
     .pipeThrough(new CompressionStream('gzip'));
   return new Response(compressed).arrayBuffer();
-}
-
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', ownedBytes(bytes)));
-  return [...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function ownedBytes(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
@@ -2016,22 +1953,6 @@ function googleProviderError(prefix: string, status: number, body: unknown): Sig
   const message =
     stringField(nested, 'message') ?? `Google request failed with HTTP ${status}.`;
   return new SignalError(`${prefix}_http_${status}`, message.slice(0, 500));
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function stringField(record: Record<string, unknown> | null, field: string): string | null {
-  const value = record?.[field];
-  return typeof value === 'string' && value.length > 0 ? value : null;
-}
-
-function arrayField(record: Record<string, unknown> | null, field: string): unknown[] {
-  const value = record?.[field];
-  return Array.isArray(value) ? value : [];
 }
 
 function finiteNonNegativeInteger(value: unknown): number | null {

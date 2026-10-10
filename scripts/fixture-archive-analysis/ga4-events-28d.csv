@@ -1,3 +1,3 @@
 asset,report_date,collected_at,data_state,provider_truncated,eventCount,eventName,totalUsers,window_end,window_start
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,revision-window,false,9800,calculation_complete,4100,2026-09-20,2026-08-24
-meals.example,2026-09-20,2026-09-21T12:15:00.000Z,revision-window,false,1300,plan_save_click,950,2026-09-20,2026-08-24
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,revision-window,false,9800,calculation_complete,4100,2026-09-20,2026-08-24
+meadow.example,2026-09-20,2026-09-21T12:15:00.000Z,revision-window,false,1300,plan_save_click,950,2026-09-20,2026-08-24

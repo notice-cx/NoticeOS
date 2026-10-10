@@ -77,7 +77,7 @@ function task(over: Partial<LiveTask> = {}): LiveTask {
     comments: 1,
     metadata: {
       reindex_source: "reindex-handoff",
-      reindex_asset: "meals.example",
+      reindex_asset: "meadow.example",
       reindex_kind: "finding",
       reindex_rule: "traffic-warning",
       reindex_key: "organic-clicks-fell",
@@ -520,8 +520,8 @@ describe("the task page", () => {
     ) as HTMLElement;
     expect(facts).not.toBeNull();
 
-    const back = within(facts).getByRole("link", { name: "the findings on meals.example" });
-    expect(back).toHaveAttribute("href", "/assets/meals.example#insights");
+    const back = within(facts).getByRole("link", { name: "the findings on meadow.example" });
+    expect(back).toHaveAttribute("href", "/assets/meadow.example#insights");
     expect(within(facts).getByText(/organic-clicks-fell/)).toBeInTheDocument();
     expect(container.textContent).toContain("traffic-warning");
   });
@@ -534,7 +534,7 @@ describe("the task page", () => {
       labels: ["noticeos-handoff"],
       metadata: {
         noticeos_source: "noticeos-handoff",
-        noticeos_asset: "meals.example",
+        noticeos_asset: "meadow.example",
         noticeos_kind: "query",
         noticeos_rule: "recover",
         noticeos_key: "meal plan, weekly",
@@ -542,8 +542,8 @@ describe("the task page", () => {
     }) }));
     const { container } = renderTask();
     const facts = (await screen.findByText("Came from")).closest("[data-task-facts]") as HTMLElement;
-    const back = within(facts).getByRole("link", { name: "the query decisions on meals.example" });
-    expect(back).toHaveAttribute("href", "/assets/meals.example#query-visibility");
+    const back = within(facts).getByRole("link", { name: "the query decisions on meadow.example" });
+    expect(back).toHaveAttribute("href", "/assets/meadow.example#query-visibility");
     expect(within(facts).getByText(/meal plan, weekly/)).toBeInTheDocument();
     expect(container.textContent).toContain("recover");
   });

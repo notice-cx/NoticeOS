@@ -78,7 +78,7 @@ funnel one at a time, and fails naming the row if the page grows wider than the
 viewport or a doc reference is clipped; a synthetic Google property list with
 long names stands in for the connected account.
 Four route-split journeys open `/`, `/wall`,
-`/work`, `/integrations` and `/assets/plate.example` and require each to fetch only
+`/work`, `/integrations` and `/assets/plume.example` and require each to fetch only
 its own screen module plus the desk shell (the TV fetches no shell); list every
 module `/wall` fetches and fail if rule tuning (`RuleTune`, `KnobEditor`), the
 config registers, `TaskComposer`, `useTasks`, or the desk `Timeline` and its
@@ -189,6 +189,12 @@ cache is a folder of its own in the OS temp dir, and its close, Vite's own on
 SIGTERM included, waits for the dependency optimizer. `fixture-server.mjs`
 fails the run unless a stopped server exits 0, and kills one that has not
 exited 90 s after its SIGTERM.
+
+Backup recovery is not a journey: `scripts/host-backup-postgres.test.mjs`
+seeds every operational table on a disposable Postgres, runs the real backup
+helper, restores into an empty independent cluster, compares records and
+schema, resolves the copied R2 objects, and proves the restored application
+reads and writes.
 
 ## Interactive reproduction
 

@@ -17,14 +17,14 @@ const spend = (period: string, token: string | null = OPERATOR_TOKEN) =>
 
 it('sums each site and lane by the month of the report day, exactly, and leaves out what cost nothing', async () => {
   await storeArchiveRuns([
-    { id: 'dfs-1', asset: 'nosh.example', integration: 'dataforseo', report: 'ranked-keywords', report_date: '2026-09-01', finished_at: '2026-09-01T12:45:00.000Z', provider_cost_usd: 0.1 },
-    { id: 'dfs-2', asset: 'nosh.example', integration: 'dataforseo', report: 'serp-panel', report_date: '2026-09-01', finished_at: '2026-09-01T12:50:00.000Z', provider_cost_usd: 0.2 },
-    { id: 'dfs-3', asset: 'meals.example', integration: 'dataforseo', report: 'ranked-keywords', report_date: '2026-09-30', finished_at: '2026-10-01T00:02:00.000Z', provider_cost_usd: 1.125 },
+    { id: 'dfs-1', asset: 'northwind.example', integration: 'dataforseo', report: 'ranked-keywords', report_date: '2026-09-01', finished_at: '2026-09-01T12:45:00.000Z', provider_cost_usd: 0.1 },
+    { id: 'dfs-2', asset: 'northwind.example', integration: 'dataforseo', report: 'serp-panel', report_date: '2026-09-01', finished_at: '2026-09-01T12:50:00.000Z', provider_cost_usd: 0.2 },
+    { id: 'dfs-3', asset: 'meadow.example', integration: 'dataforseo', report: 'ranked-keywords', report_date: '2026-09-30', finished_at: '2026-10-01T00:02:00.000Z', provider_cost_usd: 1.125 },
     // A price the collector could not read is no spend, and neither is a free lane.
-    { id: 'dfs-unknown', asset: 'meals.example', integration: 'dataforseo', report: 'backlinks-summary', report_date: '2026-09-02', finished_at: '2026-09-02T12:45:00.000Z', provider_cost_usd: 0 },
-    { id: 'ga4-free', asset: 'meals.example', integration: 'ga4', report: 'daily-traffic', report_date: '2026-09-02', finished_at: '2026-09-02T12:15:00.000Z' },
+    { id: 'dfs-unknown', asset: 'meadow.example', integration: 'dataforseo', report: 'backlinks-summary', report_date: '2026-09-02', finished_at: '2026-09-02T12:45:00.000Z', provider_cost_usd: 0 },
+    { id: 'ga4-free', asset: 'meadow.example', integration: 'ga4', report: 'daily-traffic', report_date: '2026-09-02', finished_at: '2026-09-02T12:15:00.000Z' },
     // Another month.
-    { id: 'dfs-aug', asset: 'meals.example', integration: 'dataforseo', report: 'ranked-keywords', report_date: '2026-08-31', finished_at: '2026-09-01T00:05:00.000Z', provider_cost_usd: 9 },
+    { id: 'dfs-aug', asset: 'meadow.example', integration: 'dataforseo', report: 'ranked-keywords', report_date: '2026-08-31', finished_at: '2026-09-01T00:05:00.000Z', provider_cost_usd: 9 },
   ]);
 
   const response = await spend('2026-09');
@@ -35,8 +35,8 @@ it('sums each site and lane by the month of the report day, exactly, and leaves 
     totalUsd: 1.43,
     unknownPrices: 1,
     byAsset: [
-      { asset: 'meals.example', integration: 'dataforseo', costUsd: 1.13, runs: 1, unknownPrices: 1 },
-      { asset: 'nosh.example', integration: 'dataforseo', costUsd: 0.3, runs: 2, unknownPrices: 0 },
+      { asset: 'meadow.example', integration: 'dataforseo', costUsd: 1.13, runs: 1, unknownPrices: 1 },
+      { asset: 'northwind.example', integration: 'dataforseo', costUsd: 0.3, runs: 2, unknownPrices: 0 },
     ],
   });
   expect(await (await spend('2026-07')).json()).toEqual({ period: '2026-07', totalUsd: 0, unknownPrices: 0, byAsset: [] });
@@ -56,7 +56,7 @@ it.each([
   [Number.POSITIVE_INFINITY, 'unknown', null],
 ] as const)('a known-zero marker never hides a supplied price %s', async (providerCostUsd, state, usd) => {
   await archiveDumpFailure(env.STORE, {
-    target: { asset: 'meals.example', integration: 'dataforseo', credentialRef: 'test', propertyRef: 'example.com' },
+    target: { asset: 'meadow.example', integration: 'dataforseo', credentialRef: 'test', propertyRef: 'example.com' },
     report: 'ranked-keywords', reportDate: '2026-09-01', requestedAt: '2026-09-01T12:00:00.000Z',
     dataState: 'provider-snapshot', error: new SignalError('test', 'Synthetic failure'),
     providerCostUsd, knownZeroCost: true,

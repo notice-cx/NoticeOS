@@ -44,6 +44,17 @@ export const BACKUP_CATCHUP = Object.freeze({
   maxAgeMs: 36 * HOUR_MS,
 });
 
+/** The managed runner's pieces these lanes reuse, loaded only once a lane runs. */
+async function managedRunner() {
+  const [{ CONFIG }, { bdBin, probeTcp }, { runBd }, { runBeadsPoll }] = await Promise.all([
+    import('./runner/config.mjs'),
+    import('./runner/host-tools.mjs'),
+    import('./runner/task-hub.mjs'),
+    import('./runner/task-snapshot.mjs'),
+  ]);
+  return { CONFIG, bdBin, probeTcp, runBd, runBeadsPoll };
+}
+
 /** The saved task projects' hub and whether any project is saved, from the
  * config documents the schedule reads. */
 export function savedTaskProjects(documents) {
@@ -72,7 +83,7 @@ export function createStartedHostLanes({
   fetchImpl = fetch,
   stopped = () => false,
   readBackupSetting = () => fs.readFile(path.join(installation, HOST_BACKUP_FILE), 'utf8'),
-  runner = () => import('./os-up.mjs'),
+  runner = managedRunner,
   backup = runBackup,
   taskRun = null,
 }) {

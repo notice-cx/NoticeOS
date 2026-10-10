@@ -17,10 +17,9 @@
 //
 // It reads product source, `scripts/` (a generated `.mjs` is judged as its
 // authored `.mts`), the product defaults in `config/`, the prose beside them,
-// the operator docs (dated records in `docs/reports/`, `docs/briefs/` and
-// `docs/artifacts/` keep their words and are not read), and the test code,
-// which is judged for names only: a time-zone test's data is a zone. The one
-// test that must spell the product's old slug is `OLD_NAME_TEST`.
+// the operator docs (dated records in `docs/reports/` and `docs/artifacts/`
+// keep their words and are not read), and the test code, which is judged
+// for names only: a time-zone test's data is a zone. The one test that must spell the product's old slug is `OLD_NAME_TEST`.
 //
 // A name matches case-insensitively, as a whole name: a domain anywhere,
 // including inside a URL, a subdomain or a file name; a dot-less id only where
@@ -37,11 +36,13 @@
 //   flags: --root <dir>  --json
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CONFIG_REGISTERS } from './config-registers.mjs';
+import { CONFIG_REGISTERS, escapeRegExp } from './config-registers.mjs';
 import { checkoutRelative, installationDir, installationPath, readablePath } from './installation.mjs';
+import { readJsonFileSync } from './json-file.mjs';
+import { invokedDirectly } from './os-runtime.mjs';
 
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -78,7 +79,7 @@ export const PRODUCT_DOCS = Object.freeze([
  * prose except the dated records below. */
 export const DOCS_DIR = 'docs';
 /** Dated records: they keep the words they were written in. */
-export const DATED_DOCS = Object.freeze(['docs/reports/', 'docs/briefs/', 'docs/artifacts/']);
+export const DATED_DOCS = Object.freeze(['docs/reports/', 'docs/artifacts/']);
 const DOCS_PROSE = /^docs\/.+\.md$/;
 /** The product's defaults: every config document and host file a fresh clone
  * ships, directly in this directory. */
@@ -121,30 +122,11 @@ export const OLD_NAME_TEST = 'scripts/product-name.test.mjs';
 export const PROVIDER_ZONE_FILE = 'packages/contract/src/integrations.ts';
 const PROVIDER_ZONE_KEY = /\breportingTimeZones\s*:/;
 
-/** Is the module at `url` the script node was asked to run? */
-export function invokedDirectly(url) {
-  if (!process.argv[1]) return false;
-  try {
-    return realpathSync(path.resolve(process.argv[1])) === realpathSync(fileURLToPath(url));
-  } catch {
-    return false;
-  }
-}
-
 const toPosix = (file) => file.split(path.sep).join('/');
 
 // ---------------------------------------------------------------------------
 // The installation's own names
 // ---------------------------------------------------------------------------
-
-function readJson(full) {
-  if (!existsSync(full)) return null;
-  try {
-    return JSON.parse(readFileSync(full, 'utf8'));
-  } catch {
-    return null;
-  }
-}
 
 /** RFC 6901, read only. `''` is the whole document. */
 function atPointer(doc, pointer) {
@@ -214,7 +196,7 @@ export function installationNames(root = REPO_ROOT) {
     // This installation's own copy (scripts/installation.mts); a clone with
     // none reads the defaults, which name nobody.
     const file = readablePath(register.file, { root });
-    const doc = readJson(file);
+    const doc = readJsonFileSync(file, null);
     if (doc === null) continue;
     const container = atPointer(doc, register.container);
     const kind = keyed === 'domain' ? 'domain' : 'asset';
@@ -233,7 +215,7 @@ export function installationNames(root = REPO_ROOT) {
   // The Google accounts its sources are routed through, and the secret name
   // each one's key is kept under.
   const integrationsFile = readablePath('config/integrations.json', { root });
-  const integrations = readJson(integrationsFile);
+  const integrations = readJsonFileSync(integrationsFile, null);
   if (integrations !== null) {
     const source = `${checkoutRelative(integrationsFile, { root })} ref`;
     for (const ref of refsUnder(integrations)) {
@@ -269,8 +251,6 @@ export function installationNames(root = REPO_ROOT) {
 // ---------------------------------------------------------------------------
 // Matching
 // ---------------------------------------------------------------------------
-
-const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** One regex per name. A display name: a whole word in its own capitals. The
  * OS asset's dot-less id: only where it is not the product's namespace (see
@@ -581,7 +561,7 @@ export function main(argv = process.argv.slice(2), { stdout = process.stdout, st
   return code;
 }
 
-if (invokedDirectly(import.meta.url)) {
+if (invokedDirectly(process.argv[1], import.meta.url)) {
   try {
     process.exitCode = main();
   } catch (error) {

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { RESOURCE_NAMES_FILE } from './installation.mjs';
 import { renderLaunchAgent } from './os-control.mjs';
 import { openedRawSignalsBucket } from './os-deploy.mjs';
-import { stripJsonc } from './os-runtime.mjs';
+import { stripJsonc } from './jsonc.mjs';
 import { NEW_INSTALL_NAMES, applyResourceNames, readResourceNames, serviceLabel } from './resource-names.mjs';
 import { workerConfig } from './start.mjs';
 

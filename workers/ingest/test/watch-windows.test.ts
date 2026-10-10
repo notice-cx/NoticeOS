@@ -88,7 +88,7 @@ async function observeClicks(baseline: number, post: number, end = '2026-07-08')
   for (const date of dateRange(BASELINE_START, end)) {
     values[date] = date <= '2026-07-01' ? baseline : post;
   }
-  await observe('meals.example', 'gsc', 'clicks', values);
+  await observe('meadow.example', 'gsc', 'clicks', values);
 }
 
 /** Archive one provider-final GSC query day through the real archive shape. */
@@ -101,9 +101,9 @@ async function archiveQueryDay(
     provider: 'google',
     integration: 'gsc',
     report: 'query',
-    asset: 'meals.example',
+    asset: 'meadow.example',
     credentialRef: 'test-account',
-    propertyRef: 'sc-domain:meals.example',
+    propertyRef: 'sc-domain:meadow.example',
     reportDate: date,
     collectedAt: `${date}T12:15:00.000Z`,
     dataState: 'provider-final',
@@ -133,13 +133,13 @@ async function archiveQueryDay(
   const compressed = await new Response(
     new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip')),
   ).arrayBuffer();
-  const objectKey = `raw/google/gsc/meals.example/query/${date}/test.json.gz`;
+  const objectKey = `raw/google/gsc/meadow.example/query/${date}/test.json.gz`;
   await env.RAW_SIGNALS.put(objectKey, compressed, {
     httpMetadata: { contentType: 'application/json', contentEncoding: 'gzip' },
   });
   await storeArchiveRun({
-    id: crypto.randomUUID(), asset: 'meals.example', integration: 'gsc', report: 'query', credential_ref: 'test-account',
-    property_ref: 'sc-domain:meals.example', report_date: date, finished_at: `${date}T12:15:00.000Z`,
+    id: crypto.randomUUID(), asset: 'meadow.example', integration: 'gsc', report: 'query', credential_ref: 'test-account',
+    property_ref: 'sc-domain:meadow.example', report_date: date, finished_at: `${date}T12:15:00.000Z`,
     data_state: 'provider-final', provider_rows: rows.length, request_count: 1, object_key: objectKey,
     content_sha256: 'a'.repeat(64), object_bytes: compressed.byteLength,
   });
@@ -155,9 +155,9 @@ async function archivePageDay(
     provider: 'google',
     integration: 'gsc',
     report: 'page',
-    asset: 'meals.example',
+    asset: 'meadow.example',
     credentialRef: 'test-account',
-    propertyRef: 'sc-domain:meals.example',
+    propertyRef: 'sc-domain:meadow.example',
     reportDate: date,
     collectedAt: `${date}T12:15:00.000Z`,
     dataState: 'provider-final',
@@ -182,13 +182,13 @@ async function archivePageDay(
   const compressed = await new Response(
     new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip')),
   ).arrayBuffer();
-  const objectKey = `raw/google/gsc/meals.example/page/${date}/test.json.gz`;
+  const objectKey = `raw/google/gsc/meadow.example/page/${date}/test.json.gz`;
   await env.RAW_SIGNALS.put(objectKey, compressed, {
     httpMetadata: { contentType: 'application/json', contentEncoding: 'gzip' },
   });
   await storeArchiveRun({
-    id: crypto.randomUUID(), asset: 'meals.example', integration: 'gsc', report: 'page', credential_ref: 'test-account',
-    property_ref: 'sc-domain:meals.example', report_date: date, finished_at: `${date}T12:15:00.000Z`,
+    id: crypto.randomUUID(), asset: 'meadow.example', integration: 'gsc', report: 'page', credential_ref: 'test-account',
+    property_ref: 'sc-domain:meadow.example', report_date: date, finished_at: `${date}T12:15:00.000Z`,
     data_state: 'provider-final', provider_rows: rows.length, request_count: 1, object_key: objectKey,
     content_sha256: 'b'.repeat(64), object_bytes: compressed.byteLength,
   });
@@ -202,18 +202,18 @@ async function archivePageDay(
 async function archivePageClicks(baseline: number, post: number): Promise<void> {
   const url = (date: string): string =>
     date === '2026-06-25'
-      ? 'https://www.meals.example/meal-plans/'
-      : 'https://meals.example/meal-plans';
+      ? 'https://www.meadow.example/meal-plans/'
+      : 'https://meadow.example/meal-plans';
   for (const date of dateRange(BASELINE_START, BASELINE_END)) {
     await archivePageDay(date, [
       { page: url(date), clicks: baseline },
-      { page: 'https://meals.example/recipes', clicks: 999 },
+      { page: 'https://meadow.example/recipes', clicks: 999 },
     ]);
   }
   for (const date of dateRange('2026-07-02', '2026-07-08')) {
     await archivePageDay(date, [
       { page: url(date), clicks: post },
-      { page: 'https://meals.example/recipes', clicks: 999 },
+      { page: 'https://meadow.example/recipes', clicks: 999 },
     ]);
   }
 }
@@ -253,7 +253,7 @@ function watchRequest(body: unknown, opts: { token?: string } = {}): Request {
 function registration(overrides: RegisterOverrides = {}): Record<string, unknown> {
   const { scope, ...rest } = overrides;
   return {
-    asset: 'meals.example',
+    asset: 'meadow.example',
     ref_kind: 'annotation',
     ref: '41',
     metric_integration: 'gsc',
@@ -342,13 +342,13 @@ async function refusingWindowFlagsOn<T>(asset: string, run: () => Promise<T>): P
   }
 }
 
-/** A second open window, on nosh.example, whose final check is due. */
+/** A second open window, on northwind.example, whose final check is due. */
 async function storeBrokenWindow(): Promise<void> {
   await inWorkspace(
     `INSERT INTO noticeos.watch_windows
        (workspace_id, window_id, asset_id, ref_kind, ref, metric_integration, metric, registered_at,
         baseline_start, baseline_end, check_offsets)
-     VALUES ($1::uuid, 'broken', 'nosh.example', 'manual', 'hand-edited',
+     VALUES ($1::uuid, 'broken', 'northwind.example', 'manual', 'hand-edited',
              'gsc', 'clicks', $2::timestamptz, $3::date, $4::date, '{7}')`,
     [REGISTERED_AT, BASELINE_START, BASELINE_END],
   );
@@ -384,7 +384,7 @@ describe('POST /api/watch-windows — registration', () => {
     };
     expect(body.created).toBe(true);
     expect(body.watch_window).toMatchObject({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       ref_kind: 'annotation',
       ref: '41',
       metric_integration: 'gsc',
@@ -471,13 +471,13 @@ describe('POST /api/watch-windows — registration', () => {
     // A spoke syncs its whole freeze register on every ship, so re-sending is
     // the normal case. The second POST answers 200 with the row it already had.
     const first = await call(
-      watchRequest(registration({ readback_bead: 'mp-f0g.35' }), { token: OPERATOR_TOKEN }),
+      watchRequest(registration({ readback_bead: 'md-w1n.2' }), { token: OPERATOR_TOKEN }),
     );
     expect(first.status).toBe(201);
     expect(await first.json()).toMatchObject({ created: true, duplicate: false });
 
     const again = await call(
-      watchRequest(registration({ readback_bead: 'mp-f0g.35' }), { token: OPERATOR_TOKEN }),
+      watchRequest(registration({ readback_bead: 'md-w1n.2' }), { token: OPERATOR_TOKEN }),
     );
     expect(again.status).toBe(200);
     expect(await again.json()).toMatchObject({ created: false, duplicate: true });
@@ -504,12 +504,12 @@ describe('POST /api/watch-windows — registration', () => {
   });
 
   it('carries the bead that is owed the reading', async () => {
-    const id = await register({ readback_bead: 'mp-f0g.35' });
+    const id = await register({ readback_bead: 'md-w1n.2' });
     const [row] = await pgRows<{ readback_bead: string; readback_posted_at: string | null }>(
       `SELECT readback_bead, readback_posted_at FROM noticeos.watch_windows WHERE window_id = $1`,
       [id],
     );
-    expect(row).toEqual({ readback_bead: 'mp-f0g.35', readback_posted_at: null });
+    expect(row).toEqual({ readback_bead: 'md-w1n.2', readback_posted_at: null });
   });
 
   it('refuses an average metric with no scope, and takes the same bet scoped', async () => {
@@ -606,7 +606,7 @@ describe('POST /api/watch-windows — registration', () => {
 describe('createWatchWindow() — the Tower Service Binding', () => {
   it('registers without a bearer, because the binding IS the capability', async () => {
     const result = await worker().createWatchWindow({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       ref_kind: 'annotation',
       ref: '41',
       metric_integration: 'gsc',
@@ -625,7 +625,7 @@ describe('createWatchWindow() — the Tower Service Binding', () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.watchWindow).toMatchObject({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       ref_kind: 'annotation',
       ref: '41',
       metric_integration: 'gsc',
@@ -771,7 +771,7 @@ describe('watch-window evaluation — outcomes', () => {
 
     const result = await runWatchWindows(env, FINAL_RUN_MS);
     expect(result.closed).toHaveLength(1);
-    expect(result.closed[0]).toMatchObject({ asset: 'meals.example', outcome: 'ship_confirmed' });
+    expect(result.closed[0]).toMatchObject({ asset: 'meadow.example', outcome: 'ship_confirmed' });
 
     const stored = await storedWindow(id);
     expect(stored).toMatchObject({ status: 'closed', outcome: 'ship_confirmed' });
@@ -802,7 +802,7 @@ describe('watch-window evaluation — outcomes', () => {
   it('files a verdict for a property that already has one on file', async () => {
     await observeClicks(10, 13);
     await insertFlag({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       firedAt: '2026-07-05T03:30:00.000Z',
       severity: 'info',
       kind: 'opportunity',
@@ -869,6 +869,64 @@ describe('watch-window evaluation — outcomes', () => {
     expect((await closedFlags())[0]).toMatchObject({ severity: 'info', kind: 'anomaly' });
   });
 
+  it('closes inconclusive when the ship and the kill predicate both match', async () => {
+    await observeClicks(10, 13);
+    await register({
+      thresholds: {
+        ship: { direction: 'up', min_delta_pct: 10 },
+        kill: { direction: 'up', min_delta_pct: 20 },
+      },
+    });
+
+    const result = await runWatchWindows(env, FINAL_RUN_MS);
+    expect(result.closed[0]).toMatchObject({ outcome: 'inconclusive' });
+    expect(result.closed[0]?.note).toContain('ship and kill thresholds both match');
+    expect((await closedFlags())[0]).toMatchObject({ severity: 'info', kind: 'anomaly' });
+  });
+
+  it('files one verdict when two sweeps close the same window', async () => {
+    await observeClicks(10, 13);
+    const id = await register();
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    let readOpen!: () => void;
+    const lateReadOpen = new Promise<void>((resolve) => { readOpen = resolve; });
+    // The late sweep reads the window open, then waits to write until the
+    // other sweep has closed it.
+    const slowStore = new Proxy(env.STORE, {
+      get(target, property) {
+        if (property === 'read') {
+          return async (work: Parameters<typeof target.read>[0]) => {
+            const rows = await target.read(work);
+            readOpen();
+            return rows;
+          };
+        }
+        if (property === 'write') {
+          return async (work: Parameters<typeof target.write>[0]) => {
+            await held;
+            return target.write(work);
+          };
+        }
+        const value = Reflect.get(target, property, target) as unknown;
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+
+    const late = runWatchWindows(Object.assign({}, env, { STORE: slowStore }), FINAL_RUN_MS);
+    await lateReadOpen;
+    const first = await runWatchWindows(env, FINAL_RUN_MS);
+    release();
+    const second = await late;
+
+    expect(first.closed.map((closed) => closed.id)).toEqual([id]);
+    expect(second.failed).toEqual([]);
+    const stored = await storedWindow(id);
+    expect(stored).toMatchObject({ status: 'closed', outcome: 'ship_confirmed' });
+    expect(readings(stored).map((reading) => reading.offset_days)).toEqual([3, 7]);
+    expect(await closedFlags()).toHaveLength(1);
+  });
+
   // The system may not invent a verdict it was never given.
   it('closes inconclusive with the numbers when no threshold was registered', async () => {
     await observeClicks(10, 13);
@@ -928,11 +986,11 @@ describe('watch-window evaluation — outcomes', () => {
 
   it('matches a route against the archive\'s absolute URLs, host and slash included', async () => {
     await archivePageClicks(10, 13);
-    // 2026-06-25 is archived as https://www.meals.example/meal-plans/ — one
+    // 2026-06-25 is archived as https://www.meadow.example/meal-plans/ — one
     // property, the hosts and trailing slashes a domain property really mixes.
     const aggregate = await aggregateScopedMetric(
       env,
-      'meals.example',
+      'meadow.example',
       'clicks',
       { kind: 'page', value: '/meal-plans' },
       BASELINE_START,
@@ -961,7 +1019,7 @@ describe('watch-window evaluation — outcomes', () => {
       { query: 'high protein meal plan', clicks: 13 },
     ]);
     await insertAnnotation({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       at: '2026-06-25T18:00:00.000Z',
       kind: 'deploy',
       ref: 'fixture',
@@ -969,7 +1027,7 @@ describe('watch-window evaluation — outcomes', () => {
     });
 
     const history = await readWatchQueryHistory(env, {
-      asset: 'meals.example',
+      asset: 'meadow.example',
       metric: 'clicks',
       query: 'High Protein Meal Plan',
       first_day: '2026-06-24',
@@ -992,7 +1050,7 @@ describe('watch-window evaluation — outcomes', () => {
 
     const aggregate = await aggregateScopedMetric(
       env,
-      'meals.example',
+      'meadow.example',
       'clicks',
       { kind: 'query', value: 'High Protein Meal Plan' },
       '2026-06-24',
@@ -1028,7 +1086,7 @@ describe('watch-window evaluation — outcomes', () => {
     for (const date of dateRange(BASELINE_START, '2026-07-01')) values[date] = 10;
     values['2026-07-07'] = 13;
     values['2026-07-08'] = 13;
-    await observe('meals.example', 'gsc', 'clicks', values);
+    await observe('meadow.example', 'gsc', 'clicks', values);
     await register();
 
     const result = await runWatchWindows(env, FINAL_RUN_MS);
@@ -1067,7 +1125,7 @@ describe('watch-window evaluation — outcomes', () => {
     // A later successful run revises the final post day downward hard enough to
     // pull the whole window under the ship threshold.
     await observe(
-      'meals.example',
+      'meadow.example',
       'gsc',
       'clicks',
       { '2026-07-08': 0 },
@@ -1089,7 +1147,7 @@ describe('watch-window evaluation — outcomes', () => {
     const healthy = await register();
     await storeBrokenWindow();
 
-    const result = await refusingWindowFlagsOn('nosh.example', () => runWatchWindows(env, FINAL_RUN_MS));
+    const result = await refusingWindowFlagsOn('northwind.example', () => runWatchWindows(env, FINAL_RUN_MS));
     expect(result.failed.map((entry) => entry.id)).toEqual(['broken']);
     expect(result.closed).toHaveLength(1);
     expect((await storedWindow(healthy)).outcome).toBe('ship_confirmed');
@@ -1101,15 +1159,15 @@ describe('watch-window evaluation — outcomes', () => {
     for (const date of dateRange(BASELINE_START, '2026-07-08')) {
       values[date] = date <= '2026-07-01' ? 20 : 12;
     }
-    await observe('nosh.example', 'gsc', 'clicks', values);
+    await observe('northwind.example', 'gsc', 'clicks', values);
     await register();
-    await register({ asset: 'nosh.example' });
+    await register({ asset: 'northwind.example' });
 
     const result = await runWatchWindows(env, FINAL_RUN_MS);
     expect(result.scanned).toBe(2);
     expect(
       Object.fromEntries(result.closed.map((entry) => [entry.asset, entry.outcome])),
-    ).toEqual({ 'meals.example': 'ship_confirmed', 'nosh.example': 'kill_confirmed' });
+    ).toEqual({ 'meadow.example': 'ship_confirmed', 'northwind.example': 'kill_confirmed' });
     expect(await closedFlags()).toHaveLength(2);
   });
 });
@@ -1118,8 +1176,8 @@ describe('watch-window evaluation — outcomes', () => {
 // repointed at another GSC site or GA4 property is measuring a different
 // resource, and the evaluator must refuse to subtract one from the other.
 describe('watch-window evaluation — one provider resource per comparison', () => {
-  const OLD_SITE = 'sc-domain:meals.example';
-  const NEW_SITE = 'https://meals.example/';
+  const OLD_SITE = 'sc-domain:meadow.example';
+  const NEW_SITE = 'https://meadow.example/';
 
   /** Clicks written through the real change-only writer, not a fixture insert. */
   async function collect(
@@ -1131,7 +1189,7 @@ describe('watch-window evaluation — one provider resource per comparison', () 
     const dates = dateRange(window.start, window.end);
     await recordSignalSuccess(
       env,
-      { asset: 'meals.example', integration: 'gsc', credentialRef, propertyRef },
+      { asset: 'meadow.example', integration: 'gsc', credentialRef, propertyRef },
       window,
       new Date().toISOString(),
       {
@@ -1165,11 +1223,11 @@ describe('watch-window evaluation — one provider resource per comparison', () 
   });
 
   it('closes unmeasurable when one window\'s own days span a property switch', async () => {
-    await observe('meals.example', 'gsc', 'clicks',
+    await observe('meadow.example', 'gsc', 'clicks',
       Object.fromEntries(dateRange(BASELINE_START, '2026-07-08').map((date) => [date, 10])),
       '2026-07-05T02:45:00.000Z', { propertyRef: OLD_SITE });
     // The new site only ever reported the last four post days.
-    await observe('meals.example', 'gsc', 'clicks',
+    await observe('meadow.example', 'gsc', 'clicks',
       Object.fromEntries(dateRange('2026-07-05', '2026-07-08').map((date) => [date, 13])),
       '2026-07-08T02:45:00.000Z', { propertyRef: NEW_SITE });
     await register();
@@ -1236,7 +1294,7 @@ describe("watch-window evaluation — the sweep's own report", () => {
     await storeBrokenWindow();
 
     const event = watchSweepEvent(
-      await refusingWindowFlagsOn('nosh.example', () => runWatchWindows(env, FINAL_RUN_MS)),
+      await refusingWindowFlagsOn('northwind.example', () => runWatchWindows(env, FINAL_RUN_MS)),
     );
     expect(event).toMatchObject({ event: 'watch_windows_complete', scanned: 2, evaluated: 2 });
     expect(event.errors.map((entry) => entry.id)).toEqual(['broken']);
@@ -1255,7 +1313,7 @@ describe("watch-window evaluation — the sweep's own report", () => {
       `INSERT INTO noticeos.watch_windows
          (workspace_id, window_id, asset_id, ref_kind, ref, metric_integration, metric, registered_at,
           baseline_start, baseline_end, check_offsets)
-       VALUES ($1::uuid, 'stalled', 'meals.example', 'annotation', '41',
+       VALUES ($1::uuid, 'stalled', 'meadow.example', 'annotation', '41',
                'gsc', 'clicks', $2::timestamptz, $3::date, $4::date, '{3,7}')`,
       [REGISTERED_AT, BASELINE_START, BASELINE_END],
     );

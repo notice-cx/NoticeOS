@@ -107,22 +107,28 @@ service-account credentials are stored once and tagged with the properties
 they support; one Bing user-level key covers all verified sites.
 
 The separate 12:15 UTC analysis lane archives the previous four completed
-Google dates plus one current BWT snapshot through operator-owned credentials.
-It preserves bounded provider responses in the private/local `RAW_SIGNALS` R2 bucket:
-ten GSC families (page×query, page/query/country/device, page×country,
-page×device, two-step search appearance, Image page×query, and Discover page)
-plus eight completed-day GA4 families (pages/screens, landing pages, traffic
-acquisition, source/campaign, events, page×event, `js_error`
-message×source×page, and landing-page acquisition)
-and one rolling 28-complete-day event-user aggregate collected once per run.
-The `js_error` family reads GA4 **event parameters**, which the Data API
-answers only for parameters an operator has registered as custom dimensions and
-which GA4 never backfills. `config/ga4-custom-dimensions.json` records where
-that registration has happened, and a property it does not cover is skipped
-without a manifest row; where the API does reject the field, the attempt is
-recorded as `ga4_custom_dimension_unregistered`, never as an empty success.
-It also retains six BWT families: rank traffic, top queries, top pages, crawl
-stats, crawl issues, and feeds.
+Google dates plus the current Bing Webmaster snapshots through operator-owned
+credentials. It preserves bounded provider responses in the private/local
+`RAW_SIGNALS` R2 bucket. The families are below; their request costs and
+ceilings are in [doc 11](11-integrations.md#daily-provider-analysis-archive)
+and the lane's mechanics in the
+[ingest README](../workers/ingest/README.md#analysis-grade-provider-signal-dumps).
+
+| Provider | Families |
+|---|---|
+| GSC (`dataState=final`) | web search `page-query`, `page`, `query`, `country`, `device`, `page-country`, `page-device`; `search-appearance-pages` (two-step: the appearance types, then the pages under each); `image-page-query`; `discover-page` |
+| GA4 (completed days) | `pages-screens`, `landing-pages`, `traffic-acquisition`, `traffic-sources` (source/medium × campaign), `events`, `page-events` (page × event), `js-errors` (message × source × page), `landing-page-acquisition` (landing page × source and channel, including `AI Assistant` referrals); plus `events-28d`, one rolling 28-complete-day event-user aggregate per run |
+| Bing Webmaster | `rank-traffic`, `crawl-stats`, `crawl-issues`, `feeds` daily; `queries` and `pages` weekly, because Microsoft rebuilds those top-result snapshots weekly |
+
+`js-errors` reads GA4 **event parameters**, which the Data API answers only for
+parameters an operator has registered as custom dimensions and which GA4 never
+backfills. `config/ga4-custom-dimensions.json` records where that registration
+has happened, and a property it does not cover is skipped without a manifest
+row; where the API does reject the field, the attempt is recorded as
+`ga4_custom_dimension_unregistered`, never as an empty success. The analyzer
+reads only the latest Bing query/page snapshot and never adds rows from
+repeated collection runs.
+
 The archive manifest (`archive_runs`) appends one row per report attempt;
 unchanged re-fetches point at the prior content-addressed object instead of
 duplicating bytes. This makes the deeper data available to offline scripts

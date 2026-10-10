@@ -12,16 +12,22 @@ import { readTaskProjectConfig } from '../task-project-config.mjs';
 import { CONFIG, HOME_ROOT, REPO_ROOT } from './config.mjs';
 import { gitBin } from './host-tools.mjs';
 import { isShuttingDown } from './lifecycle.mjs';
-import { log } from './log.mjs';
+import { laneSkips, log } from './log.mjs';
 import {
   BEADS_ERROR_MAX,
+  HUMAN_LABEL,
+  beadsCloseArgs,
+  beadsCreateArgs,
   beadsCreatedId,
   beadsFailure,
-  beadsSkipDecision,
+  beadsLabelListArgs,
+  beadsOpenRows,
   beadsText,
   checkBeadsHub,
-  parseBeadsProjects,
+  readBeadsList,
+  readBeadsProjects,
   runBd,
+  runBeadsStep,
 } from './task-hub.mjs';
 
 // Push-state filer — the second lane here that writes a bead, and the only
@@ -43,9 +49,8 @@ import {
  * bead a human filed by hand is adopted (and auto-closed) once it wears this
  * label. */
 export const PUSH_STATE_LABEL = 'push-state';
-/** Filed for the operator: only they can push, and `bd human list` is their
- * inbox. */
-export const PUSH_STATE_HUMAN_LABEL = 'human';
+/** Filed for the operator: only they can push. */
+export const PUSH_STATE_HUMAN_LABEL = HUMAN_LABEL;
 /** Who the audit trail names. Deliberately not a person: nobody chose to file
  * this, a divergence that outlasted the threshold did. */
 export const PUSH_STATE_ACTOR = 'os-up-push-filer';
@@ -183,36 +188,16 @@ export function oldestUnpushedAt(commits) {
 /**
  * Every push bead a spoke currently holds open, or null when we could not
  * ask. The null/empty distinction decides a write: an empty list licenses
- * filing, a null must not. Closed beads are excluded by the query and again
- * here, because a push bead legitimately recurs.
+ * filing, a null must not.
  */
 export function pushStateOpenBeads(rows) {
-  if (!Array.isArray(rows)) return null;
-  const beads = [];
-  for (const row of rows) {
-    const beadId = beadsText(row?.id);
-    if (beadId === '') continue;
-    if (beadsText(row?.status) === 'closed') continue;
-    beads.push({ beadId, title: beadsText(row?.title, beadId) });
-  }
-  return beads;
+  const open = beadsOpenRows(rows);
+  return open && open.map(({ beadId, row }) => ({ beadId, title: beadsText(row?.title, beadId) }));
 }
 
-/** What is open against this spoke. Closed is not asked for: a closed push
- * bead is a finished episode, not a claim on the current one. */
+/** What is open against this spoke. */
 export function pushStateListArgs(repoDir) {
-  return [
-    '-C',
-    repoDir,
-    'list',
-    '--label',
-    PUSH_STATE_LABEL,
-    '--status',
-    'open,in_progress,blocked,deferred',
-    '--json',
-    '--limit',
-    '0',
-  ];
+  return beadsLabelListArgs(repoDir, PUSH_STATE_LABEL);
 }
 
 /**
@@ -277,27 +262,16 @@ export const PUSH_STATE_ACCEPTANCE =
  * person who can actually push reads.
  */
 export function pushStateCreateArgs(repoDir, filing) {
-  return [
-    '-C',
-    repoDir,
-    '--actor',
-    PUSH_STATE_ACTOR,
-    'create',
-    pushStateTitle(filing.asset),
-    '--type',
-    'task',
-    '--priority',
-    '1',
-    '--labels',
-    `${PUSH_STATE_LABEL},${PUSH_STATE_HUMAN_LABEL}`,
-    '--metadata',
-    JSON.stringify({ [PUSH_STATE_ASSET_KEY]: filing.asset }),
-    '--description',
-    pushStateDescription(filing),
-    '--acceptance',
-    PUSH_STATE_ACCEPTANCE,
-    '--json',
-  ];
+  return beadsCreateArgs(repoDir, {
+    actor: PUSH_STATE_ACTOR,
+    title: pushStateTitle(filing.asset),
+    type: 'task',
+    priority: 1,
+    labels: [PUSH_STATE_LABEL, PUSH_STATE_HUMAN_LABEL],
+    metadata: { [PUSH_STATE_ASSET_KEY]: filing.asset },
+    description: pushStateDescription(filing),
+    acceptance: PUSH_STATE_ACCEPTANCE,
+  });
 }
 
 /** The evidence, in the close reason itself: a push bead closed by a machine
@@ -314,7 +288,7 @@ export function pushStateCloseReason({ asset, repoDir, behind, checkedAt }) {
 }
 
 export function pushStateCloseArgs(repoDir, beadId, reason) {
-  return ['-C', repoDir, '--actor', PUSH_STATE_ACTOR, 'close', beadId, '-r', reason];
+  return beadsCloseArgs(repoDir, PUSH_STATE_ACTOR, beadId, reason);
 }
 
 /**
@@ -374,7 +348,7 @@ export function pushStateDecision(
 
 /**
  * Whether a spoke's degraded state is news — the per-spoke twin of
- * `beadsSkipDecision`, so an archived sibling repo does not write an identical
+ * `laneSkips`, so an archived sibling repo does not write an identical
  * WARN line every hour. A new reason logs, a repeated reason is silent, and
  * `null` means recovered, which is itself worth a line.
  */
@@ -438,11 +412,7 @@ export async function runPushStateFiler(deps = {}) {
     repoRoot = HOME_ROOT,
   } = deps;
 
-  const skip = (reason) => {
-    if (beadsSkipDecision(state, reason)) {
-      emit('WARN', `push state filer skipped — ${reason} (silent until it changes)`);
-    }
-  };
+  const { skip, resume } = laneSkips('push state filer', state, emit);
   /** A spoke we cannot act on: one line when it starts, silence while it lasts. */
   const degrade = (asset, reason, text) => {
     if (pushStateSpokeDecision(state.degraded, asset, reason)) emit('WARN', text);
@@ -451,28 +421,11 @@ export async function runPushStateFiler(deps = {}) {
   if (stopped()) return null;
   // The hub, not the tower: every write below is a `bd` call, and filing against
   // a down hub would only produce seven identical failures.
-  if (!(await probe())) {
-    skip('the beads task hub is unreachable');
-    return null;
-  }
-
-  let raw;
-  try {
-    raw = await readConfig();
-  } catch (err) {
-    skip(`the task map is unreadable (${err.message})`);
-    return null;
-  }
-  const projects = parseBeadsProjects(raw);
-  if (projects.length === 0) {
-    skip('no beads spokes are configured');
-    return null;
-  }
-
-  if (state.skipping !== null) {
-    emit('INFO', `push state filer resumed (was skipped: ${state.skipping})`);
-    state.skipping = null;
-  }
+  if (!(await probe())) return skip('the beads task hub is unreachable');
+  const { projects, unreadable } = await readBeadsProjects(readConfig);
+  if (unreadable) return skip(unreadable);
+  if (projects.length === 0) return skip('no beads spokes are configured');
+  resume();
 
   const filed = [];
   const closed = [];
@@ -565,31 +518,17 @@ export async function runPushStateFiler(deps = {}) {
       commits = parseUnpushedCommits(logged.stdout);
     }
 
-    let listed;
-    try {
-      listed = await run(pushStateListArgs(repoDir));
-    } catch (err) {
-      degrade(
-        asset,
-        'bd-list-spawn',
-        `push state: ${asset} — bd list could not run: ${err.message} (silent until it changes)`,
-      );
+    const listed = await readBeadsList(run, pushStateListArgs(repoDir), 'push state list');
+    if (!listed.result) {
+      degrade(asset, 'bd-list-spawn', `push state: ${asset} — ${listed.failure} (silent until it changes)`);
       continue;
     }
-    let rows = null;
-    if (listed.code === 0) {
-      try {
-        rows = JSON.parse(listed.stdout);
-      } catch {
-        rows = null;
-      }
-    }
-    const openPushBeads = pushStateOpenBeads(rows);
+    const openPushBeads = pushStateOpenBeads(listed.rows);
     if (openPushBeads === null) {
       degrade(
         asset,
         'bd-list',
-        `push state: ${asset} — ${beadsFailure('push state list', listed)}; nothing filed or ` +
+        `push state: ${asset} — ${beadsFailure('push state list', listed.result)}; nothing filed or ` +
           `closed (silent until it changes)`,
       );
       continue;
@@ -628,15 +567,14 @@ export async function runPushStateFiler(deps = {}) {
     if (decision.action === 'close') {
       const reason = pushStateCloseReason({ asset, repoDir, behind: counts.behind, checkedAt });
       for (const bead of decision.beads) {
-        let done;
-        try {
-          done = await run(pushStateCloseArgs(repoDir, bead.beadId, reason));
-        } catch (err) {
-          emit('ERROR', `push state: ${asset} — bd close could not run: ${err.message}`);
-          continue;
-        }
-        if (done.code !== 0) {
-          emit('ERROR', `push state: ${asset} — ${beadsFailure('push state close', done)}`);
+        const done = await runBeadsStep(
+          run,
+          pushStateCloseArgs(repoDir, bead.beadId, reason),
+          'close',
+          'push state close',
+        );
+        if (done.failure) {
+          emit('ERROR', `push state: ${asset} — ${done.failure}`);
           continue;
         }
         closed.push({ asset, beadId: bead.beadId });
@@ -651,28 +589,25 @@ export async function runPushStateFiler(deps = {}) {
 
     if (decision.action !== 'file') continue;
 
-    let created;
-    try {
-      created = await run(
-        pushStateCreateArgs(repoDir, {
-          asset,
-          repoDir,
-          behind: counts.behind,
-          ahead: counts.ahead,
-          commits,
-          checkedAt,
-          staleHours,
-        }),
-      );
-    } catch (err) {
-      emit('ERROR', `push state: ${asset} — bd create could not run: ${err.message}`);
+    const created = await runBeadsStep(
+      run,
+      pushStateCreateArgs(repoDir, {
+        asset,
+        repoDir,
+        behind: counts.behind,
+        ahead: counts.ahead,
+        commits,
+        checkedAt,
+        staleHours,
+      }),
+      'create',
+      'push state create',
+    );
+    if (created.failure) {
+      emit('ERROR', `push state: ${asset} — ${created.failure}`);
       continue;
     }
-    if (created.code !== 0) {
-      emit('ERROR', `push state: ${asset} — ${beadsFailure('push state create', created)}`);
-      continue;
-    }
-    const beadId = beadsCreatedId(created.stdout);
+    const beadId = beadsCreatedId(created.result.stdout);
     filed.push({ asset, beadId, ahead: counts.ahead });
     emit(
       'INFO',

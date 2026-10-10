@@ -10,6 +10,7 @@
 
 import type { RuleConfig } from './rules.js';
 import type { FlagSeverity } from './schema.js';
+import type { ValidationIssue } from './validation-issue.js';
 
 /** Fixed rather than a caller parameter, so two surfaces can never quote two
  * different windows for the same rule. */
@@ -100,18 +101,10 @@ export interface RuleBacktest {
   firedInStore: number;
 }
 
-/** One rejected field, in the `{path, code, message}` shape every ingest lane
- * reports. */
-export interface RuleBacktestIssue {
-  path: string;
-  code: string;
-  message: string;
-}
-
 /** A refusal is a result, not a throw; only an infrastructure failure crosses
  * the binding as an exception. */
 export type RuleBacktestResult =
   | { ok: true; backtest: RuleBacktest }
   | { ok: false; error: 'unsupported_rule'; ruleId: string }
   | { ok: false; error: 'unknown_asset'; asset: string }
-  | { ok: false; error: 'validation'; issues: RuleBacktestIssue[] };
+  | { ok: false; error: 'validation'; issues: ValidationIssue[] };

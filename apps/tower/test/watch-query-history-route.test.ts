@@ -36,7 +36,7 @@ const HISTORY: WatchQueryHistory = {
 function request(query = "high protein meal plan", metric = "clicks") {
   const params = new URLSearchParams({ query, metric });
   return new Request(
-    `https://tower.local/api/assets/meals.example/watch-query-history?${params}`,
+    `https://tower.local/api/assets/meadow.example/watch-query-history?${params}`,
   );
 }
 
@@ -55,13 +55,13 @@ describe("GET /api/assets/:id/watch-query-history", () => {
       req,
       new URL(req.url),
       ingest,
-      "meals.example",
+      "meadow.example",
       NOW,
     );
 
     expect(res.status).toBe(200);
     expect(ingest.watchQueryHistory).toHaveBeenCalledWith({
-      asset: "meals.example",
+      asset: "meadow.example",
       metric: "clicks",
       query: "high protein meal plan",
       first_day: "2026-02-06",
@@ -77,7 +77,7 @@ describe("GET /api/assets/:id/watch-query-history", () => {
       req,
       new URL(req.url),
       ingest,
-      "meals.example",
+      "meadow.example",
       NOW,
     );
     expect(res.status).toBe(422);
@@ -93,7 +93,7 @@ describe("GET /api/assets/:id/watch-query-history", () => {
       req,
       new URL(req.url),
       ingest,
-      "meals.example",
+      "meadow.example",
       NOW,
     );
     expect(res.status).toBe(503);

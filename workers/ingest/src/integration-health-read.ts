@@ -60,8 +60,6 @@ const familyReport = (family: string): string | null => {
  */
 const CURRENT_STATE_ARCHIVES = new Set(['bing-webmaster', 'clarity', 'dataforseo']);
 const since = (now: number, hours: number) => new Date(now - hours * REPORT_STALE_MULTIPLIER * 3_600_000).toISOString();
-// The collectors' own skip rule, asked of a cell.
-const disabled = cellDeclined;
 
 /**
  * One daily lane's last 50 collection attempts on one property, newest first,
@@ -315,7 +313,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
         const google = await resolveGoogleCredential(env);
         const targets = googleTargets(google, google.source, googleCredentialResolver(env), register);
         for (const target of targets) {
-          const paused = disabled(register.assets[target.asset]?.[target.integration]);
+          const paused = cellDeclined(register.assets[target.asset]?.[target.integration]);
           if (target.integration === 'ga4') for (const capability of ['ga4-realtime', 'ga4-hourly']) await add({ connection, capability, asset: target.asset, target: target.propertyRef, paused });
           await daily(connection, `${target.integration}-daily`, target.asset, target.propertyRef, target.integration, INTEGRATION_CADENCE_HOURS.signals, paused);
           await archive(connection, `${target.integration}-archive`, target.asset, target.propertyRef, target.integration, await integrationArchivePlan(env.STORE, target, nowMs, custom), paused);
@@ -330,7 +328,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
             try { if (new URL(row.property_ref).hostname.replace(/^www\./, '') === target.domain.replace(/^www\./, '')) refs.add(row.property_ref); } catch { /* Invalid source identity is not inventory. */ }
           }
           if (!refs.size) refs.add(target.domain);
-          const paused = disabled(register.assets[target.asset]?.['bing-webmaster']);
+          const paused = cellDeclined(register.assets[target.asset]?.['bing-webmaster']);
           for (const ref of refs) {
             await daily(connection, 'bing-daily', target.asset, ref, 'bing-webmaster', INTEGRATION_CADENCE_HOURS.bingSignals, paused);
             await archive(connection, 'bing-archive', target.asset, ref, 'bing-webmaster', BING_ARCHIVE_FAMILIES, paused);
@@ -339,10 +337,10 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
       } else if (provider === 'dataforseo') {
         await add({ connection, capability: 'dataforseo-credit' });
         for (const target of await dataForSeoCandidates(env.STORE)) await archive(connection, 'dataforseo-research', target.asset, dataForSeoTarget(target, '', register).propertyRef, 'dataforseo',
-          dataForSeoFamiliesFor(target.asset, panel).map(report => ({ report, cadenceDays: DATAFORSEO_REPORT_CADENCE_DAYS[report] ?? 7 })), disabled(register.assets[target.asset]?.dataforseo));
+          dataForSeoFamiliesFor(target.asset, panel).map(report => ({ report, cadenceDays: DATAFORSEO_REPORT_CADENCE_DAYS[report] ?? 7 })), cellDeclined(register.assets[target.asset]?.dataforseo));
       } else if (provider === 'clarity') {
         const tokens = resolveClarityTokens(credential.fields.CLARITY_TOKENS, credential.legacySlots);
-        for (const target of await clarityCandidates(env.STORE)) if (tokens.has(target.asset)) await archive(connection, 'clarity-export', target.asset, target.domain, 'clarity', [{ report: CLARITY_REPORT, cadenceDays: 1 }], disabled(register.assets[target.asset]?.clarity));
+        for (const target of await clarityCandidates(env.STORE)) if (tokens.has(target.asset)) await archive(connection, 'clarity-export', target.asset, target.domain, 'clarity', [{ report: CLARITY_REPORT, cadenceDays: 1 }], cellDeclined(register.assets[target.asset]?.clarity));
       } else if (provider === 'posthog') {
         // One daily obligation per family an asset is actually due: a key AND a
         // saved region + project; funnels only where some are declared. The
@@ -355,7 +353,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
           if (!read.ok) continue;
           const plan = POSTHOG_FAMILIES.filter((family) => family !== 'funnels' || read.settings.funnels.length > 0)
             .map((report) => ({ report, cadenceDays: 1 }));
-          await archive(connection, 'posthog-archive', target.asset, `${read.settings.host}:${read.settings.projectId}`, 'posthog', plan, disabled(register.assets[target.asset]?.posthog));
+          await archive(connection, 'posthog-archive', target.asset, `${read.settings.host}:${read.settings.projectId}`, 'posthog', plan, cellDeclined(register.assets[target.asset]?.posthog));
         }
       } else if (provider === 'calendar') {
         const raw: unknown = JSON.parse(credential.fields.CALENDAR_FEEDS ?? '{}');
@@ -400,7 +398,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
   }
   for (const [asset, lanes] of Object.entries(register.assets)) for (const [lane, cell] of Object.entries(lanes ?? {})) {
     const gap = INTEGRATION_MONITORING_GAPS[lane];
-    if (!gap || disabled(cell) || cell.status === 'needs-setup') continue;
+    if (!gap || cellDeclined(cell) || cell.status === 'needs-setup') continue;
     payload.items.push({ id: await healthId([asset, lane]), provider: lane, capability: lane, label: String(register.catalog?.find(item => item.id === lane)?.label ?? lane), asset, detail: null, report: null, reportDate: null, state: 'unmonitored', lastAttemptAt: null, lastSuccessAt: null, nextAttemptAt: null, failure: null, code: gap, action: 'Review this source’s setup and monitoring coverage.', coverage: 'gap' });
   }
   for (const event of eventRows) {

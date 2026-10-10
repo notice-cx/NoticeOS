@@ -186,9 +186,9 @@ describe("PropertyFavicon source routing", () => {
 
 describe("QueryVisibilityRankings comparison labels", () => {
   const asset = {
-    id: "meals.example",
-    displayName: "Meal Planner",
-    domain: "meals.example",
+    id: "meadow.example",
+    displayName: "Meadow Board",
+    domain: "meadow.example",
   };
   const weeklyTrend = {
     provider: "bing" as const,
@@ -519,7 +519,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
         "# Query decision: jarra del buen beber",
       );
       expect(markdown).toContain(
-        "- **Site:** Meal Planner (`meals.example`)",
+        "- **Site:** Meadow Board (`meadow.example`)",
       );
       expect(markdown).toContain("- **Decision:** Recover visibility");
       expect(markdown).toContain(
@@ -671,7 +671,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
   const filedBead = (key: string, over: Partial<HandoffBead> = {}): HandoffBead => ({
     kind: "query",
     key,
-    beadId: "mp-1w2",
+    beadId: "md-1w2",
     status: "open",
     closedAt: null,
     ...over,
@@ -712,7 +712,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
 
       const marker = container.querySelector('[data-handoff-bead="open"]')!;
       expect(marker).toBeInTheDocument();
-      expect(marker.textContent).toContain("mp-1w2");
+      expect(marker.textContent).toContain("md-1w2");
       expect(marker.closest("[data-decision-kind]")?.textContent).toContain(
         "Alpha Query",
       );
@@ -740,7 +740,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
 
       const marker = container.querySelector('[data-handoff-bead="closed"]')!;
       expect(marker).toBeInTheDocument();
-      expect(marker.textContent).toContain("mp-1w2");
+      expect(marker.textContent).toContain("md-1w2");
       expect(marker.getAttribute("title")).toContain("not proof of shipment or outcome");
       expect(marker.className).not.toContain("text-ok");
       expect(rowFor(container, "Alpha Query")).toBeTruthy();
@@ -824,7 +824,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
           trends={dfsTrends([dfsRow("Alpha Query", 2000)])}
           asset={asset}
           handoffBeads={[
-            filedBead("alpha query", { kind: "finding", beadId: "mp-9zz" }),
+            filedBead("alpha query", { kind: "finding", beadId: "md-9zz" }),
           ]}
         />,
       );
@@ -871,7 +871,7 @@ describe("QueryVisibilityRankings comparison labels", () => {
         expect(
           rowFor(container, query)?.querySelector("[data-handoff-bead-id]")
             ?.textContent,
-        ).toContain("mp-1w2");
+        ).toContain("md-1w2");
 
         const slugged = render(
           <QueryVisibilityRankings
@@ -1370,13 +1370,13 @@ describe("ExecutiveInsightRow ranked interaction and Markdown handoff", () => {
   it("serializes the complete decision and evidence contract", () => {
     const markdown = executiveInsightMarkdown(
       insightFixture,
-      "meals.example",
+      "meadow.example",
     );
 
     expect(markdown).toContain(
       "# Recommendation: Expand pages already earning search demand",
     );
-    expect(markdown).toContain("- **Site:** `meals.example`");
+    expect(markdown).toContain("- **Site:** `meadow.example`");
     expect(markdown).toContain("## Meaning / next move");
     expect(markdown).toContain("## Why it matters");
     expect(markdown).toContain("- **Captured impressions:** 1,003");
@@ -1409,7 +1409,7 @@ describe("ExecutiveInsightRow ranked interaction and Markdown handoff", () => {
       const { getByRole, getByText } = render(
         <ExecutiveInsightRow
           insight={insightFixture}
-          asset="meals.example"
+          asset="meadow.example"
           rank={1}
         />,
       );
@@ -1418,7 +1418,7 @@ describe("ExecutiveInsightRow ranked interaction and Markdown handoff", () => {
 
       await act(async () => {});
       expect(writeText).toHaveBeenCalledWith(
-        executiveInsightMarkdown(insightFixture, "meals.example", recommendationValidity(findingBasis(insightFixture), null, Date.now())),
+        executiveInsightMarkdown(insightFixture, "meadow.example", recommendationValidity(findingBasis(insightFixture), null, Date.now())),
       );
       expect(getByRole("button", { name: "Copied" })).toBeTruthy();
       expect(
@@ -1440,7 +1440,7 @@ describe("ExecutiveInsightRow ranked interaction and Markdown handoff", () => {
 
   it("offers File task beside Copy Markdown, and none without an asset", () => {
     const withAsset = render(
-      <ExecutiveInsightRow insight={insightFixture} asset="meals.example" rank={1} />,
+      <ExecutiveInsightRow insight={insightFixture} asset="meadow.example" rank={1} />,
     ).container;
     fireEvent.click(withAsset.querySelector("summary")!);
     expect(
@@ -1464,7 +1464,7 @@ describe("ExecutiveInsightRow ranked interaction and Markdown handoff", () => {
     const { container } = rtlRender(
       <QueryClientProvider client={client}>
         <MemoryRouter>
-          <ExecutiveInsightRow insight={insightFixture} asset="meals.example" rank={1} />
+          <ExecutiveInsightRow insight={insightFixture} asset="meadow.example" rank={1} />
         </MemoryRouter>
       </QueryClientProvider>,
     );
@@ -1481,9 +1481,9 @@ describe("ExecutiveInsightRow ranked interaction and Markdown handoff", () => {
       <MemoryRouter>
         <ExecutiveInsightRow
           insight={insightFixture}
-          asset="meals.example"
+          asset="meadow.example"
           rank={1}
-          bead={{ beadId: "mp-9k1", status: "open", kind: "finding", key: "search-opportunity", closedAt: null }}
+          bead={{ beadId: "md-9k1", status: "open", kind: "finding", key: "search-opportunity", closedAt: null }}
         />
       </MemoryRouter>,
     ).container;
@@ -1524,9 +1524,9 @@ describe("ExecutiveInsightRow ranked interaction and Markdown handoff", () => {
  * a shell string: quoting is a correctness asset, not a style one. */
 describe("the task handoff command", () => {
   const asset = {
-    id: "meals.example",
-    displayName: "Meal Planner",
-    domain: "meals.example",
+    id: "meadow.example",
+    displayName: "Meadow Board",
+    domain: "meadow.example",
   };
   const bingTrend: NonNullable<SearchQueryTrends["bing"]> = {
     provider: "bing",
@@ -1585,26 +1585,26 @@ describe("the task handoff command", () => {
     const markdown = decisionMarkdown("jarra del buen beber");
 
     expect(markdown).toContain("## File this task");
-    expect(markdown).toContain("in the `meals.example` asset repo");
+    expect(markdown).toContain("in the `meadow.example` asset repo");
     expect(markdown).toContain("**File task** button");
     expect(markdown).toContain("bd create 'Act on “jarra del buen beber”'");
     expect(markdown).toContain("  -t task");
     expect(markdown).toContain("  -p 1");
     expect(markdown).toContain("  -l 'noticeos-handoff'");
-    expect(markdown).toContain("  -l 'asset:meals.example'");
+    expect(markdown).toContain("  -l 'asset:meadow.example'");
     expect(markdown).toContain("  -l 'rule:recover'");
     expect(markdown).toContain("  -l 'key:jarra-del-buen-beber'");
     expect(markdown).toContain(
       `--metadata '${JSON.stringify({
         noticeos_source: "noticeos-handoff",
-        noticeos_asset: "meals.example",
+        noticeos_asset: "meadow.example",
         noticeos_kind: "query",
         noticeos_rule: "recover",
         noticeos_key: "jarra del buen beber",
       })}'`,
     );
     expect(markdown).toContain(
-      "-d 'From the NoticeOS saved query decision for meals.example: Recover visibility. Original suggested step: Confirm the page still exists and is indexed.",
+      "-d 'From the NoticeOS saved query decision for meadow.example: Recover visibility. Original suggested step: Confirm the page still exists and is indexed.",
     );
     expect(markdown).toContain("**not proof of shipment or outcome**");
     expect(markdown.split("-d '")[1]).toContain("Recheck the latest reports, linked work and the site before acting.");
@@ -1716,7 +1716,7 @@ describe("the task handoff command", () => {
   });
 
   it("files a finding under its card key, which is also its rule id", () => {
-    const markdown = executiveInsightMarkdown(insightFixture, "meals.example");
+    const markdown = executiveInsightMarkdown(insightFixture, "meadow.example");
 
     expect(markdown).toContain("## File this task");
     expect(markdown).toContain(
@@ -1724,34 +1724,34 @@ describe("the task handoff command", () => {
     );
     expect(markdown).toContain("  -p 2");
     expect(markdown).toContain("  -l 'noticeos-handoff'");
-    expect(markdown).toContain("  -l 'asset:meals.example'");
+    expect(markdown).toContain("  -l 'asset:meadow.example'");
     expect(markdown).toContain("  -l 'rule:search-opportunity'");
     expect(markdown).toContain("  -l 'key:search-opportunity'");
     expect(markdown).toContain(
       `--metadata '${JSON.stringify({
         noticeos_source: "noticeos-handoff",
-        noticeos_asset: "meals.example",
+        noticeos_asset: "meadow.example",
         noticeos_kind: "finding",
         noticeos_rule: "search-opportunity",
         noticeos_key: "search-opportunity",
       })}'`,
     );
     expect(markdown).toContain(
-      "-d 'Recommendation on meals.example. Captured impressions: 1,003. High-impression pages: 12. Window: 2026-05-01 to 2026-07-29. Sources: gsc/search-analytics, bing-webmaster/query-stats. Original analysis confidence: high.",
+      "-d 'Recommendation on meadow.example. Captured impressions: 1,003. High-impression pages: 12. Window: 2026-05-01 to 2026-07-29. Sources: gsc/search-analytics, bing-webmaster/query-stats. Original analysis confidence: high.",
     );
     expect(markdown.split("## File this task")[1]).not.toContain("Several pages earn impressions");
   });
 
   it("carries the finding's page as an evidence link, kept whole beside the clipped summary", () => {
     const prefill = taskHandoffPrefill(
-      findingTaskHandoff(insightFixture, "meals.example", undefined, "http://tower.local:5173/assets/meals.example"),
+      findingTaskHandoff(insightFixture, "meadow.example", undefined, "http://tower.local:5173/assets/meadow.example"),
     )!;
     expect(prefill.title).toBe("Expand pages already earning search demand");
     expect(prefill.description).toContain(
-      "High-impression pages: 12. Evidence: http://tower.local:5173/assets/meals.example Window: 2026-05-01",
+      "High-impression pages: 12. Evidence: http://tower.local:5173/assets/meadow.example Window: 2026-05-01",
     );
     expect(
-      taskHandoffPrefill(findingTaskHandoff(insightFixture, "meals.example", undefined, "javascript:alert(1)"))!.description,
+      taskHandoffPrefill(findingTaskHandoff(insightFixture, "meadow.example", undefined, "javascript:alert(1)"))!.description,
     ).not.toContain("Evidence:");
   });
 
@@ -1759,20 +1759,20 @@ describe("the task handoff command", () => {
     expect(
       executiveInsightMarkdown(
         { ...insightFixture, kind: "warning" },
-        "meals.example",
+        "meadow.example",
       ),
     ).toContain("  -p 1");
     expect(
       executiveInsightMarkdown(
         { ...insightFixture, kind: "insight" },
-        "meals.example",
+        "meadow.example",
       ),
     ).toContain("  -p 3");
   });
 
   it("omits the section for a vintage finding or an unattributed one", () => {
     expect(
-      executiveInsightMarkdown({ ...insightFixture, key: "" }, "meals.example"),
+      executiveInsightMarkdown({ ...insightFixture, key: "" }, "meadow.example"),
     ).not.toContain("## File this task");
     expect(executiveInsightMarkdown(insightFixture)).not.toContain("bd create");
     expect(executiveInsightMarkdown(insightFixture)).toContain("## Limitation");
@@ -1788,7 +1788,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
   };
   const snapshot: ExecutiveSnapshot = {
     schemaVersion: 1,
-    asset: "meals.example",
+    asset: "meadow.example",
     generatedAt: "2026-07-29T06:00:00.000Z",
     windowStart: "2026-05-01",
     windowEnd: "2026-07-29",
@@ -1811,7 +1811,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
           {
             kind: "finding",
             key: "search-opportunity",
-            beadId: "mp-ux1",
+            beadId: "md-ux1",
             status: "open",
             closedAt: null,
           },
@@ -1829,10 +1829,10 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
     expect(disclosures[0]!.open).toBe(true);
     expect(disclosures[1]!.open).toBe(false);
     expect(disclosures[0]!.getAttribute("name")).toBe(
-      "current-findings-meals.example",
+      "current-findings-meadow.example",
     );
     expect(disclosures[1]!.getAttribute("name")).toBe(
-      "current-findings-meals.example",
+      "current-findings-meadow.example",
     );
 
     const groups = [...container.querySelectorAll<HTMLElement>("[data-finding-group]")];
@@ -1848,7 +1848,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
     );
     expect(closedSummary.textContent).toContain("1,003");
     expect(closedSummary.textContent).toContain("high confidence");
-    expect(closedSummary.textContent).toContain("mp-ux1");
+    expect(closedSummary.textContent).toContain("md-ux1");
 
     fireEvent.click(closedSummary);
     await waitFor(() => expect(disclosures[1]!.open).toBe(true));
@@ -1945,7 +1945,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
   it("lifts this browser's old preferences into the OS exactly once", async () => {
     const onDecide = vi.fn().mockResolvedValue(undefined);
     window.localStorage.setItem(
-      "noticeos:property-findings:meals.example",
+      "noticeos:property-findings:meadow.example",
       JSON.stringify({
         marked: ["search-opportunity"],
         dismissed: ["traffic-warning"],
@@ -1959,7 +1959,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
     expect(onDecide).toHaveBeenCalledWith("traffic-warning", "dismissed");
     await waitFor(() =>
       expect(
-        window.localStorage.getItem("noticeos:property-findings:meals.example"),
+        window.localStorage.getItem("noticeos:property-findings:meadow.example"),
       ).toBeNull(),
     );
   });
@@ -1967,7 +1967,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
   it("never re-lifts old preferences over decisions the OS already holds", async () => {
     const onDecide = vi.fn().mockResolvedValue(undefined);
     window.localStorage.setItem(
-      "noticeos:property-findings:meals.example",
+      "noticeos:property-findings:meadow.example",
       JSON.stringify({ marked: ["search-opportunity"], dismissed: [] }),
     );
 
@@ -1996,7 +1996,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
     const filed = (over: Partial<HandoffBead> = {}): HandoffBead => ({
       kind: "finding",
       key: "traffic-warning",
-      beadId: "mp-1w2",
+      beadId: "md-1w2",
       status: "open",
       closedAt: null,
       ...over,
@@ -2010,9 +2010,9 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
 
       const marker = container.querySelector('[data-handoff-bead="open"]')!;
       expect(marker).toBeInTheDocument();
-      expect(marker.textContent).toContain("mp-1w2");
+      expect(marker.textContent).toContain("md-1w2");
       expect(marker.tagName).toBe("A");
-      expect(marker).toHaveAttribute("href", "/tasks/mp-1w2");
+      expect(marker).toHaveAttribute("href", "/tasks/md-1w2");
       expect(marker.className).toContain("bg-muted");
       expect(marker.className).not.toMatch(/text-(error|warn|info|ok)/);
       const rows = [...container.querySelectorAll("article")];
@@ -2032,7 +2032,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
 
       const marker = container.querySelector('[data-handoff-bead="closed"]')!;
       expect(marker).toBeInTheDocument();
-      expect(marker.textContent).toContain("mp-1w2");
+      expect(marker.textContent).toContain("md-1w2");
       expect(marker.getAttribute("title")).toContain("not proof of shipment or outcome");
       expect(marker.className).not.toContain("text-ok");
       expect(container.querySelectorAll("article")).toHaveLength(2);
@@ -2071,7 +2071,7 @@ describe("ExecutiveFindingsList decisions live in the OS", () => {
       const { container } = render(
         <ExecutiveFindingsList
           snapshot={snapshot}
-          handoffBeads={[filed({ kind: "query", beadId: "mp-9zz" })]}
+          handoffBeads={[filed({ kind: "query", beadId: "md-9zz" })]}
         />,
       );
 
@@ -2088,7 +2088,7 @@ describe("ExecutiveFindingsList reaches what the eight-card cut dropped", () => 
   }));
   const capped: ExecutiveSnapshot = {
     schemaVersion: 1,
-    asset: "meals.example",
+    asset: "meadow.example",
     generatedAt: "2026-07-31T06:00:00.000Z",
     windowStart: "2026-07-25",
     windowEnd: "2026-07-28",
@@ -2202,8 +2202,8 @@ describe("like-for-like performance tones", () => {
 
 const signupsDrop: AttentionItem = {
   id: 1,
-  asset: "meals.example",
-  assetDisplayName: "Meal Planner",
+  asset: "meadow.example",
+  assetDisplayName: "Meadow Board",
   severity: "warn",
   kind: "anomaly",
   message: "22 in last24h (avg7d 39.3, P(<=22)~=0.0020)",
@@ -2232,7 +2232,7 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
   const PANEL_DAY = "2026-07-01";
 
   const openReview = (dueAt: string): PanelReview => ({
-    beadId: "mp-4a2",
+    beadId: "md-4a2",
     panelDate: PANEL_DAY,
     dueAt,
     status: "open",
@@ -2265,7 +2265,7 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
     expect(collectionLine.textContent).toContain("Signal collection");
     expect(collectionLine.textContent).not.toMatch(/SERP panel/);
     expect(collectionLine.textContent).toContain("Jul 1, 2026");
-    expect(collectionLine.textContent).toContain("mp-4a2");
+    expect(collectionLine.textContent).toContain("md-4a2");
   });
 
   it("names the panel day, the deadline, and the task to close", () => {
@@ -2274,7 +2274,7 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
     expect(line.getAttribute("data-panel-review-line")).toBe("pending");
     expect(line.textContent).toContain("Jul 1, 2026");
     expect(line.textContent).toContain("Jul 9, 2026");
-    expect(line.textContent).toContain("mp-4a2");
+    expect(line.textContent).toContain("md-4a2");
     expect(line.querySelector("[data-panel-review]")!.textContent).toBe("4d");
     expect(line.textContent).not.toMatch(/pending|overdue|reviewed/i);
   });
@@ -2297,7 +2297,7 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
     const line = container.querySelector("[data-panel-review-line]")!;
     expect(line.getAttribute("data-panel-review-line")).toBe("reviewed");
     expect(line.textContent).not.toContain("due");
-    expect(line.textContent).toContain("mp-4a2");
+    expect(line.textContent).toContain("md-4a2");
     expect(line.className).not.toContain("border-error");
   });
 
@@ -2323,7 +2323,7 @@ describe("PanelReviewLine — the card's marker, with the page's room", () => {
     const line = container.querySelector("[data-panel-review-line]")!;
     expect(line.getAttribute("data-panel-review-line")).toBe("pending");
     expect(line.textContent).toContain("SERP panel");
-    expect(line.textContent).toContain("mp-4a2");
+    expect(line.textContent).toContain("md-4a2");
     expect(line.textContent).not.toContain("due");
   });
 });
@@ -2335,12 +2335,12 @@ describe("lib/attention — one alert's handoff and grouping", () => {
     // The key is `flags.id`: one rule fires many times on one asset, and only
     // the flag id names the firing the operator was looking at.
     expect(alertTaskHandoff(signupsDrop)).toEqual({
-      asset: "meals.example",
+      asset: "meadow.example",
       kind: "alert",
       key: String(signupsDrop.id),
       rule: signupsDrop.ruleId,
       title: "Signups well below normal — 22 vs ~39/day",
-      summary: expect.stringContaining("From the NoticeOS alert for meals.example"),
+      summary: expect.stringContaining("From the NoticeOS alert for meadow.example"),
       priority: 2,
     });
     expect(alertTaskHandoff({ ...signupsDrop, severity: "error" }).priority).toBe(1);
@@ -2351,13 +2351,13 @@ describe("lib/attention — one alert's handoff and grouping", () => {
     const member = (id: number, asset: string, assetDisplayName: string) => ({ id, asset, assetDisplayName, firedAt: hoursAgo(24) });
     const group: AttentionItem = {
       ...signupsDrop,
-      members: [member(41, "fees.example", "Fee Codes"), member(42, "areas.info", "Area Lookup")],
+      members: [member(41, "ferns.example", "Fern Index"), member(42, "acorn.example.net", "Acorn Atlas")],
     };
     expect(isGrouped(group)).toBe(true);
-    expect(memberNames(group)).toBe("Fee Codes, Area Lookup");
+    expect(memberNames(group)).toBe("Fern Index, Acorn Atlas");
     expect(isGrouped(signupsDrop)).toBe(false);
     expect(memberNames(signupsDrop)).toBeUndefined();
-    expect(isGrouped({ ...signupsDrop, members: [member(41, "fees.example", "Fee Codes")] })).toBe(false);
+    expect(isGrouped({ ...signupsDrop, members: [member(41, "ferns.example", "Fern Index")] })).toBe(false);
   });
 });
 
@@ -2513,13 +2513,13 @@ describe("Timeline — a cut history says it was cut", () => {
   });
 
   const filed: AnnotationItem[] = [
-    { id: 9, at: hoursAgo(3), kind: "deploy", ref: "mp-1w2", note: "rewrote the opener" },
+    { id: 9, at: hoursAgo(3), kind: "deploy", ref: "md-1w2", note: "rewrote the opener" },
     { id: 8, at: hoursAgo(50), kind: "config", ref: "a1b2c3d", note: "raise alpha" },
   ];
   const bead = {
     kind: "query" as const,
-    key: "chipotle calories",
-    beadId: "mp-1w2",
+    key: "tornado kit specs",
+    beadId: "md-1w2",
     status: "open" as const,
     closedAt: null,
   };
@@ -2532,9 +2532,9 @@ describe("Timeline — a cut history says it was cut", () => {
     const rows = [...container.querySelectorAll("li")];
     expect(rows[0]!.querySelector("[data-handoff-bead-id]")).toHaveAttribute(
       "data-handoff-bead-id",
-      "mp-1w2",
+      "md-1w2",
     );
-    expect(rows[0]!.textContent?.match(/mp-1w2/g)).toHaveLength(1);
+    expect(rows[0]!.textContent?.match(/md-1w2/g)).toHaveLength(1);
     expect(rows[1]!.querySelector("[data-handoff-bead-id]")).toBeNull();
     expect(rows[1]!.querySelector(".font-mono")?.textContent).toBe("a1b2c3d");
   });
@@ -2549,7 +2549,7 @@ describe("Timeline — a cut history says it was cut", () => {
       { wrapper: MemoryRouter },
     );
     expect(
-      container.querySelector('[title*="mp-1w2"]')?.getAttribute("title"),
+      container.querySelector('[title*="md-1w2"]')?.getAttribute("title"),
     ).toContain("not proof of shipment or outcome");
     expect(container.textContent).not.toMatch(/it worked|confirmed|resolved/i);
   });
@@ -2559,7 +2559,7 @@ describe("Timeline — a cut history says it was cut", () => {
     expect(container.querySelector("[data-handoff-bead-id]")).toBeNull();
     expect(
       [...container.querySelectorAll(".font-mono")].map((el) => el.textContent),
-    ).toEqual(["mp-1w2", "a1b2c3d"]);
+    ).toEqual(["md-1w2", "a1b2c3d"]);
   });
 
   // A lifecycle move stores the two stages in its `ref` because that is the
@@ -2816,7 +2816,7 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
     device: "desktop",
     label: null,
     bestRank: 2,
-    bestUrl: "https://nosh.example/calories",
+    bestUrl: "https://northwind.example/calories",
     aioPresent: true,
     aioCitesUs: true,
     composition: null,
@@ -2957,8 +2957,8 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
       queries: [
         q({ query: "calorie calculator", label: "Calculator seam", bestRank: 2, aioPresent: true, aioCitesUs: true }),
         q({ query: "macro calculator", label: "Calculator seam", bestRank: 9, aioPresent: false, aioCitesUs: false }),
-        q({ query: "chipotle calories", label: "Item head", bestRank: 14, aioPresent: null, aioCitesUs: null }),
-        q({ query: "starbucks calories", label: "Item head", bestRank: null, bestUrl: null, aioPresent: true, aioCitesUs: false }),
+        q({ query: "tornado kit specs", label: "Item head", bestRank: 14, aioPresent: null, aioCitesUs: null }),
+        q({ query: "glue specs", label: "Item head", bestRank: null, bestUrl: null, aioPresent: true, aioCitesUs: false }),
       ],
     };
     const { container } = render(<SerpPanelBoard panel={labelled} />);
@@ -3072,9 +3072,9 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
           query: "macro calculator",
           device: "mobile",
           bestRank: 3,
-          bestUrl: "https://nosh.example/macros",
+          bestUrl: "https://northwind.example/macros",
           composition: {
-            top3Domains: ["calculator.net", "omnicalculator.com", "nosh.example"],
+            top3Domains: ["calc-hub.example", "calc-world.example", "northwind.example"],
             organicResults: 19,
             secondRank: null,
             secondUrl: null,
@@ -3085,12 +3085,12 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
           query: "macro calculator",
           device: "desktop",
           bestRank: 1,
-          bestUrl: "https://nosh.example/macros",
+          bestUrl: "https://northwind.example/macros",
           composition: {
-            top3Domains: ["nosh.example", "calculator.net", "healthline.com"],
+            top3Domains: ["northwind.example", "calc-hub.example", "rival-guide.example"],
             organicResults: 20,
             secondRank: 7,
-            secondUrl: "https://nosh.example/macros/protein",
+            secondUrl: "https://northwind.example/macros/protein",
             serpFeatures: ["images", "related_searches"],
           },
         }),
@@ -3103,7 +3103,7 @@ describe("SerpPanelBoard — how the panel is doing, before what each row is", (
 
     const phone = row.querySelector('[data-serp-composition-device="mobile"]')!;
     expect(phone.querySelector("[data-serp-top-three]")?.textContent).toMatch(
-      /1calculator\.net.*2omnicalculator\.com.*3nosh\.example/,
+      /1calc-hub\.example.*2calc-world\.example.*3northwind\.example/,
     );
     expect(phone.querySelector("[data-serp-our-slots]")?.textContent).toContain(
       "Our slots 1",
@@ -3439,9 +3439,9 @@ describe("kitchen sink covers the registry", () => {
 
 describe("PageDecisions", () => {
   const asset = {
-    id: "meals.example",
-    displayName: "Meal Planner",
-    domain: "meals.example",
+    id: "meadow.example",
+    displayName: "Meadow Board",
+    domain: "meadow.example",
   };
 
   const pageRow = (
@@ -3513,7 +3513,7 @@ describe("PageDecisions", () => {
   });
 
   const HARVEST = pageRow({
-    page: "https://meals.example/recipes",
+    page: "https://meadow.example/recipes",
     path: "/recipes",
     currentClicks: 5,
     previousClicks: 5,
@@ -3545,16 +3545,16 @@ describe("PageDecisions", () => {
   ): HandoffBead => ({
     kind: "page",
     key,
-    beadId: "mp-page",
+    beadId: "md-page",
     status: "open",
     closedAt: null,
     ...overrides,
   });
 
   it("shows each page's filed task and sinks filed rows below unfiled peers", () => {
-    const openPage = "https://meals.example/recipes";
-    const closedPage = "https://meals.example/guides";
-    const untouchedPage = "https://meals.example/plans";
+    const openPage = "https://meadow.example/recipes";
+    const closedPage = "https://meadow.example/guides";
+    const untouchedPage = "https://meadow.example/plans";
     const { container } = render(
       <PageDecisions
         pages={pageTrends([
@@ -3566,11 +3566,11 @@ describe("PageDecisions", () => {
         handoffBeads={[
           pageBead(openPage),
           pageBead(closedPage, {
-            beadId: "mp-shipped",
+            beadId: "md-shipped",
             status: "closed",
             closedAt: "2026-08-03T10:00:00.000Z",
           }),
-          pageBead(untouchedPage, { kind: "query", beadId: "mp-query" }),
+          pageBead(untouchedPage, { kind: "query", beadId: "md-query" }),
         ]}
       />,
       { wrapper: MemoryRouter },
@@ -3585,14 +3585,14 @@ describe("PageDecisions", () => {
     const open = rows.find((row) => row.textContent?.includes("/recipes"))!;
     expect(open.dataset.pageDecisionFiled).toBe("open");
     expect(open.querySelector('[data-handoff-bead="open"]')?.textContent).toContain(
-      "mp-page",
+      "md-page",
     );
 
     const closed = rows.find((row) => row.textContent?.includes("/guides"))!;
     expect(closed.dataset.pageDecisionFiled).toBe("closed");
     expect(
       closed.querySelector('[data-handoff-bead="closed"]')?.textContent,
-    ).toContain("mp-shipped");
+    ).toContain("md-shipped");
   });
 
   it("classifies each page into a lane with its own evidence and next step", () => {
@@ -3600,7 +3600,7 @@ describe("PageDecisions", () => {
       <PageDecisions
         pages={pageTrends([
           pageRow({
-            page: "https://meals.example/calculator",
+            page: "https://meadow.example/calculator",
             path: "/calculator",
             currentClicks: 21,
             previousClicks: 84,
@@ -3611,7 +3611,7 @@ describe("PageDecisions", () => {
           }),
           HARVEST,
           pageRow({
-            page: "https://meals.example/plan",
+            page: "https://meadow.example/plan",
             path: "/plan",
             currentClicks: 60,
             previousClicks: 20,
@@ -3619,7 +3619,7 @@ describe("PageDecisions", () => {
             clickDeltaPercent: 200,
             currentCtr: 0.06,
           }),
-          pageRow({ page: "https://meals.example/about", path: "/about" }),
+          pageRow({ page: "https://meadow.example/about", path: "/about" }),
         ])}
         asset={asset}
       />,
@@ -3658,10 +3658,10 @@ describe("PageDecisions", () => {
     const { container } = render(
       <PageDecisions
         pages={pageTrends([
-          pageRow({ page: "https://meals.example/a", path: "/a", ...loss, currentPosition: 8, previousPosition: 6, positionImprovement: -2 }),
-          pageRow({ page: "https://meals.example/b", path: "/b", ...loss, clickDelta: -39, currentImpressions: 600, impressionDeltaPercent: -40 }),
-          pageRow({ page: "https://meals.example/c", path: "/c", ...loss, clickDelta: -38 }),
-          pageRow({ page: "https://meals.example/d", path: "/d", currentClicks: 60, previousClicks: 20, clickDelta: 40, clickDeltaPercent: 200 }),
+          pageRow({ page: "https://meadow.example/a", path: "/a", ...loss, currentPosition: 8, previousPosition: 6, positionImprovement: -2 }),
+          pageRow({ page: "https://meadow.example/b", path: "/b", ...loss, clickDelta: -39, currentImpressions: 600, impressionDeltaPercent: -40 }),
+          pageRow({ page: "https://meadow.example/c", path: "/c", ...loss, clickDelta: -38 }),
+          pageRow({ page: "https://meadow.example/d", path: "/d", currentClicks: 60, previousClicks: 20, clickDelta: 40, clickDeltaPercent: 200 }),
         ])}
         asset={asset}
         annotations={{
@@ -3718,7 +3718,7 @@ describe("PageDecisions", () => {
     const citedPages = pageTrends([
       withAio(
         pageRow({
-          page: "https://meals.example/recipes",
+          page: "https://meadow.example/recipes",
           path: "/recipes",
           currentClicks: 5,
           previousClicks: 40,
@@ -3768,7 +3768,7 @@ describe("PageDecisions", () => {
   it("offers File task on every page row", () => {
     const { getAllByRole } = render(
       <PageDecisions
-        pages={pageTrends([HARVEST, pageRow({ page: "https://meals.example/", path: "/" })])}
+        pages={pageTrends([HARVEST, pageRow({ page: "https://meadow.example/", path: "/" })])}
         asset={asset}
       />,
     );
@@ -3787,7 +3787,7 @@ describe("PageDecisions", () => {
     expect(markdown).toContain("**Clicks:** 5 → 5");
     // The page URL is the key, because two assets can share a path.
     expect(markdown).toContain('"noticeos_kind":"page"');
-    expect(markdown).toContain('"noticeos_key":"https://meals.example/recipes"');
+    expect(markdown).toContain('"noticeos_key":"https://meadow.example/recipes"');
     expect(markdown).toContain(
       "**Grounding queries excluded from the leading-query join:** 0",
     );
@@ -3846,7 +3846,7 @@ describe("phone mode — a wide table reflows instead of hiding its right half",
       <Table stacked>
         <TableBody>
           <TableRow foldedWhenStacked>
-            <TableCell onlyWhenStacked>fees.example</TableCell>
+            <TableCell onlyWhenStacked>ferns.example</TableCell>
             <TableCell label="Paid (USD)" foldWhenStacked>
               36.32
             </TableCell>
@@ -4014,7 +4014,7 @@ describe("AlertRow — a decision-owed row names the verdict in plain words", ()
   function renderRow(flag: FlagRecord) {
     return render(
       <AlertList label="Alerts">
-        <AlertRow flag={flag} nowMs={ROW_NOW} assetId="nosh.example" />
+        <AlertRow flag={flag} nowMs={ROW_NOW} assetId="northwind.example" />
       </AlertList>,
       { wrapper: MemoryRouter },
     );

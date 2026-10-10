@@ -28,11 +28,11 @@ const KEYWORD_OVERVIEW = {
 function purchase(overrides: Record<string, unknown> = {}) {
   return {
     ...KEYWORD_OVERVIEW,
-    asset: 'meals.example',
+    asset: 'meadow.example',
     params: { keywords: ['dri calculator'], location_code: 2840 },
     question: 'keyword overview, 1 term, US/en',
     costUsd: 0.02,
-    objectKey: 'raw/dataforseo/meals.example/2026-09-15/keyword-overview.json.gz',
+    objectKey: 'raw/dataforseo/meadow.example/2026-09-15/keyword-overview.json.gz',
     actor: 'claude-opus-5',
     ...overrides,
   };
@@ -47,9 +47,9 @@ describe('the research log — never buy the same answer twice', () => {
       nowMs: NOW + 9 * MS_PER_DAY,
     });
     expect(prior).toMatchObject({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       objectKey:
-        'raw/dataforseo/meals.example/2026-09-15/keyword-overview.json.gz',
+        'raw/dataforseo/meadow.example/2026-09-15/keyword-overview.json.gz',
       actor: 'claude-opus-5',
       ageDays: 9,
     });
@@ -179,8 +179,8 @@ describe('the research log — never buy the same answer twice', () => {
     }
 
     it('counts BOTH halves of the account — collected reports and ad-hoc research', async () => {
-      await insertReport('dfs-mp', 'meals.example', '2026-09-01T12:45:00.000Z', 1.1);
-      await insertReport('dfs-nom', 'nosh.example', '2026-09-03T12:45:00.000Z', 0.4);
+      await insertReport('dfs-mp', 'meadow.example', '2026-09-01T12:45:00.000Z', 1.1);
+      await insertReport('dfs-nom', 'northwind.example', '2026-09-03T12:45:00.000Z', 0.4);
       await recordResearch(env.STORE, purchase({ costUsd: 0.24 }), NOW);
       // Portfolio-level research names no property; the store keeps that NULL
       // rather than inventing an asset id, so the money is stated separately.
@@ -195,8 +195,8 @@ describe('the research log — never buy the same answer twice', () => {
       expect(spend.byAsset).toEqual([
         // The collected report and the research about the same property are one
         // asset's bill, not two.
-        { asset: 'meals.example', spentUsd: 1.34, unknownPrices: 0 },
-        { asset: 'nosh.example', spentUsd: 0.4, unknownPrices: 0 },
+        { asset: 'meadow.example', spentUsd: 1.34, unknownPrices: 0 },
+        { asset: 'northwind.example', spentUsd: 0.4, unknownPrices: 0 },
       ]);
       expect(spend.unattributedUsd).toBeCloseTo(0.06, 10);
       // The headline is the split plus the unattributed, never a second sum.
@@ -207,7 +207,7 @@ describe('the research log — never buy the same answer twice', () => {
     });
 
     it('excludes the collector, whose spend its report runs already carry', async () => {
-      await insertReport('dfs-mp', 'meals.example', '2026-09-01T12:45:00.000Z', 0.24);
+      await insertReport('dfs-mp', 'meadow.example', '2026-09-01T12:45:00.000Z', 0.24);
       await recordResearch(
         env.STORE,
         purchase({ costUsd: 0.24, actor: 'collector' }),
@@ -218,7 +218,7 @@ describe('the research log — never buy the same answer twice', () => {
     });
 
     it('does not carry last month’s spend into this one', async () => {
-      await insertReport('dfs-aug', 'meals.example', '2026-08-20T12:45:00.000Z', 9);
+      await insertReport('dfs-aug', 'meadow.example', '2026-08-20T12:45:00.000Z', 9);
       await recordResearch(
         env.STORE,
         purchase({ costUsd: 0.5 }),

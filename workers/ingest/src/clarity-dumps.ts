@@ -21,11 +21,12 @@ import {
   resolveCredential,
   sourcedCredentialRef,
 } from './credentials.js';
-import { normalizeSignalError, SignalError } from './signal-store.js';
+import { boundedResponseJson, normalizeSignalError, SignalError } from './signal-store.js';
 import type { WorkspaceStore } from '@noticeos/postgres';
-import { SITE_ORDER } from './asset-registry.js';
+import { SITE_ORDER } from '@noticeos/contract';
 import { laneDeclined, type LaneRegister } from './lane-mapping.js';
 import { failureWords } from './integration-health-store.js';
+import { arrayField, asRecord, stringField } from './shared.js';
 
 /** Past this many, a verdict counts the failing sites instead of naming them. */
 const NAMED_SITES_MAX = 3;
@@ -274,7 +275,7 @@ async function collectProject(
       },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
-    const body = await boundedResponseJson(response);
+    const body = await boundedResponseJson(response, 'Clarity', RESPONSE_BYTE_LIMIT);
     if (!response.ok) throw clarityProviderError(response.status, body);
 
     const blocks = Array.isArray(body) ? body : [];
@@ -347,67 +348,4 @@ function clarityProviderError(status: number, body: unknown): SignalError {
     );
   }
   return new SignalError(`clarity_http_${status}`, message.slice(0, 500));
-}
-
-async function boundedResponseJson(response: Response): Promise<unknown> {
-  const declaredLength = Number(response.headers.get('content-length'));
-  if (Number.isFinite(declaredLength) && declaredLength > RESPONSE_BYTE_LIMIT) {
-    await response.body?.cancel();
-    throw new SignalError(
-      'response_too_large',
-      `Clarity response exceeded ${RESPONSE_BYTE_LIMIT} bytes.`,
-    );
-  }
-  if (!response.body) return {};
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let bytes = 0;
-  let text = '';
-  try {
-    while (true) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      bytes += chunk.value.byteLength;
-      if (bytes > RESPONSE_BYTE_LIMIT) {
-        await reader.cancel();
-        throw new SignalError(
-          'response_too_large',
-          `Clarity response exceeded ${RESPONSE_BYTE_LIMIT} bytes.`,
-        );
-      }
-      text += decoder.decode(chunk.value, { stream: true });
-    }
-    text += decoder.decode();
-  } finally {
-    reader.releaseLock();
-  }
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new SignalError('response_invalid_json', 'Clarity returned invalid JSON.');
-  }
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function stringField(
-  record: Record<string, unknown> | null,
-  field: string,
-): string | null {
-  const value = record?.[field];
-  return typeof value === 'string' && value.length > 0 ? value : null;
-}
-
-function arrayField(
-  record: Record<string, unknown> | null,
-  field: string,
-): unknown[] {
-  const value = record?.[field];
-  return Array.isArray(value) ? value : [];
 }

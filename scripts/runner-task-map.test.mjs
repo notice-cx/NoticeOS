@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import * as osUp from './os-up.mjs';
 import { HOME_ROOT } from './runner/config.mjs';
 import {
   TASK_MAP_LABEL,
@@ -94,10 +93,4 @@ test('a hub that will not answer, or no OS site to file into, decides nothing', 
   const missingSpoke = lane({ home: 'missing.example' });
   assert.equal(await runTaskMapCheck(missingSpoke.deps), null);
   assert.equal(missingSpoke.ran.length, 0, 'no hub read or write occurs without the linked OS project');
-});
-
-test('os-up.mjs still offers the same task-map names', () => {
-  assert.equal(osUp.runTaskMapCheck, runTaskMapCheck);
-  assert.equal(osUp.taskMapTitle, taskMapTitle);
-  assert.equal(osUp.beadsDatabaseDrift, beadsDatabaseDrift);
 });

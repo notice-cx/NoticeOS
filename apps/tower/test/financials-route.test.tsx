@@ -68,8 +68,8 @@ function payload(overrides: Partial<FinancialsPayload> = {}): FinancialsPayload 
     ],
     properties: [
       {
-        asset: "meals.example",
-        displayName: "Meal Planner",
+        asset: "meadow.example",
+        displayName: "Meadow Board",
         isOs: false,
         revenueReported: true,
         figure: { currency: 'USD', revenue: 440.94, cost: 3.05, net: 437.89 },
@@ -147,8 +147,8 @@ it('shows daily portfolio coverage before asset contributions and keeps monthly 
   const { container } = renderPage(payload({ dailyRevenue: {
     from: '2026-08-01', to: '2026-08-31', reportedThrough: '2026-08-31',
     days: [{ date: '2026-08-31', amountMinor: 1234 }],
-    sources: [{ asset: 'meals.example', displayName: 'Meal Planner', since: '2026-04-01' }, { asset: 'nosh.example', displayName: 'Nosh', since: '2026-08-10' }],
-    coverage: [{ date: '2026-08-31', reported: 1, missingAssets: ['nosh.example'] }],
+    sources: [{ asset: 'meadow.example', displayName: 'Meadow Board', since: '2026-04-01' }, { asset: 'northwind.example', displayName: 'Northwind', since: '2026-08-10' }],
+    coverage: [{ date: '2026-08-31', reported: 1, missingAssets: ['northwind.example'] }],
   } }));
   const daily = screen.getByRole('region', { name: 'Daily revenue' });
   expect(daily).toHaveTextContent('Aug 1, 2026 – Aug 31, 2026');
@@ -157,11 +157,11 @@ it('shows daily portfolio coverage before asset contributions and keeps monthly 
   expect(daily).not.toHaveTextContent('partial reports');
   expect(daily.querySelector('[data-hero-bar]')).toHaveAttribute('data-value', '12.34');
   expect(daily).not.toHaveTextContent('$200.00');
-  const nom = daily.querySelector('[data-source-coverage-asset="nosh.example"]')!;
-  expect(nom).toHaveTextContent(/Nosh\s*0\/1 days/);
+  const nom = daily.querySelector('[data-source-coverage-asset="northwind.example"]')!;
+  expect(nom).toHaveTextContent(/Northwind\s*0\/1 days/);
   expect(nom.querySelector('.text-warn')).toHaveTextContent('0/1 days');
-  expect(daily.querySelector('[data-source-coverage-asset="meals.example"] .text-warn')).toBeNull();
-  expect(within(daily).getByRole('link', { name: /Nosh/ })).toHaveAttribute('href', '/assets/nosh.example/financials');
+  expect(daily.querySelector('[data-source-coverage-asset="meadow.example"] .text-warn')).toBeNull();
+  expect(within(daily).getByRole('link', { name: /Northwind/ })).toHaveAttribute('href', '/assets/northwind.example/financials');
   expect(daily).not.toHaveTextContent('Only saved Mediavine estimates');
   expect(container.querySelector('[data-panel="months"] [data-hero-chart]')).toBeNull();
 });
@@ -172,16 +172,16 @@ it('counts each source against the days since it first reported', () => {
   renderPage(payload({ dailyRevenue: {
     from: '2026-09-01', to: '2026-09-03', reportedThrough: '2026-09-03',
     days: [{ date: '2026-09-01', amountMinor: 700 }, { date: '2026-09-02', amountMinor: 700 }, { date: '2026-09-03', amountMinor: 740 }],
-    sources: [{ asset: 'meals.example', displayName: 'Meal Planner', since: '2026-04-01' }, { asset: 'nosh.example', displayName: 'Nosh', since: '2026-09-02' }],
+    sources: [{ asset: 'meadow.example', displayName: 'Meadow Board', since: '2026-04-01' }, { asset: 'northwind.example', displayName: 'Northwind', since: '2026-09-02' }],
     coverage: [
       { date: '2026-09-01', reported: 1, missingAssets: [] },
-      { date: '2026-09-02', reported: 1, missingAssets: ['nosh.example'] },
+      { date: '2026-09-02', reported: 1, missingAssets: ['northwind.example'] },
       { date: '2026-09-03', reported: 2, missingAssets: [] },
     ],
   } }));
   const daily = screen.getByRole('region', { name: 'Daily revenue' });
-  expect(daily.querySelector('[data-source-coverage-asset="meals.example"]')).toHaveTextContent(/Meal Planner\s*3\/3 days/);
-  expect(daily.querySelector('[data-source-coverage-asset="nosh.example"]')).toHaveTextContent(/Nosh\s*1\/2 days/);
+  expect(daily.querySelector('[data-source-coverage-asset="meadow.example"]')).toHaveTextContent(/Meadow Board\s*3\/3 days/);
+  expect(daily.querySelector('[data-source-coverage-asset="northwind.example"]')).toHaveTextContent(/Northwind\s*1\/2 days/);
   expect(daily.querySelector('[data-legend-partial]')).toHaveTextContent('1 partial day');
 });
 
@@ -710,7 +710,7 @@ describe("/financials — each asset's slice of the month", () => {
     const bar = container.querySelector("[data-revenue-share]");
     expect(bar).not.toBeNull();
     expect(bar?.getAttribute("aria-label")).toBe(
-      "Meal Planner earned 100% of the period's revenue",
+      "Meadow Board earned 100% of the period's revenue",
     );
   });
 
@@ -720,8 +720,8 @@ describe("/financials — each asset's slice of the month", () => {
       payload({
         properties: [
           {
-            asset: "meals.example",
-            displayName: "Meal Planner",
+            asset: "meadow.example",
+            displayName: "Meadow Board",
             isOs: false,
             revenueReported: true,
             figure: { currency: 'USD', revenue: 0, cost: 3.05, net: -3.05 },
@@ -743,7 +743,7 @@ describe("/financials — each asset's slice of the month", () => {
     const { container } = renderPage(payload());
 
     const link = container.querySelector(
-      'a[href="/assets/meals.example/financials"]',
+      'a[href="/assets/meadow.example/financials"]',
     ) as HTMLElement;
     expect(link).not.toBeNull();
     expect(link.className).toContain("max-sm:min-h-11");
@@ -757,11 +757,11 @@ describe("/financials — each asset's slice of the month", () => {
   it("draws each asset's net month by month, muted and unsmoothed", () => {
     const { container } = renderPage(payload());
 
-    const cell = container.querySelector("[data-property-trend='meals.example']");
+    const cell = container.querySelector("[data-property-trend='meadow.example']");
     expect(cell).not.toBeNull();
     const spark = cell!.querySelector("svg")!;
     expect(spark.getAttribute("aria-label")).toBe(
-      "Meal Planner net by month, 2026-06 to 2026-08",
+      "Meadow Board net by month, 2026-06 to 2026-08",
     );
     // Net's movement carries no verdict, so the line is `text-muted-foreground`
     // and never the positive/negative scale.
@@ -795,8 +795,8 @@ describe("/financials — each asset's slice of the month", () => {
         ],
         properties: [
           {
-            asset: "meals.example",
-            displayName: "Meal Planner",
+            asset: "meadow.example",
+            displayName: "Meadow Board",
             isOs: false,
             revenueReported: true,
             figure: { currency: 'USD', revenue: 60, cost: 3.05, net: 56.95 },
@@ -822,8 +822,8 @@ describe("/financials — each asset's slice of the month", () => {
       payload({
         properties: [
           {
-            asset: "nosh.example",
-            displayName: "Nosh",
+            asset: "northwind.example",
+            displayName: "Northwind",
             isOs: false,
             revenueReported: true,
             figure: { currency: 'USD', revenue: 0, cost: 9.14, net: -9.14 },
@@ -848,8 +848,8 @@ describe("/financials — each asset's slice of the month", () => {
       payload({
         properties: [
           {
-            asset: "meals.example",
-            displayName: "Meal Planner",
+            asset: "meadow.example",
+            displayName: "Meadow Board",
             isOs: false,
             revenueReported: true,
             figure: { currency: 'USD', revenue: 440.94, cost: 3.05, net: 437.89 },
@@ -871,7 +871,7 @@ describe("/financials — each asset's slice of the month", () => {
     expect(path.match(/M/g)).toHaveLength(2);
     expect(
       container.querySelector("[data-property-trend] svg")!.getAttribute("aria-label"),
-    ).toBe("Meal Planner net by month, 2026-05 to 2026-08");
+    ).toBe("Meadow Board net by month, 2026-05 to 2026-08");
   });
 
   /** The floor counts readings, not positions. */
@@ -880,8 +880,8 @@ describe("/financials — each asset's slice of the month", () => {
       payload({
         properties: [
           {
-            asset: "meals.example",
-            displayName: "Meal Planner",
+            asset: "meadow.example",
+            displayName: "Meadow Board",
             isOs: false,
             revenueReported: true,
             figure: { currency: 'USD', revenue: 440.94, cost: 3.05, net: 437.89 },
@@ -917,8 +917,8 @@ describe("/financials — each asset's slice of the month", () => {
         ],
         properties: [
           {
-            asset: "meals.example",
-            displayName: "Meal Planner",
+            asset: "meadow.example",
+            displayName: "Meadow Board",
             isOs: false,
             revenueReported: true,
             figure: { currency: 'USD', revenue: 200, cost: 3.05, net: 196.95 },
@@ -936,7 +936,7 @@ describe("/financials — each asset's slice of the month", () => {
 
     expect(
       container.querySelector("[data-property-trend] svg")!.getAttribute("aria-label"),
-    ).toBe("Meal Planner net by month, 2026-05 to 2026-07");
+    ).toBe("Meadow Board net by month, 2026-05 to 2026-07");
   });
 });
 
@@ -986,7 +986,7 @@ const RECURRING: RecurringCost[] = [
   {
     id: "old-plan",
     label: "Retired plan",
-    asset: "meals.example",
+    asset: "meadow.example",
     family: "infra",
     amountUsdPerMonth: 99,
     from: "2026-01",
@@ -996,8 +996,8 @@ const RECURRING: RecurringCost[] = [
 
 const ORDERS: DomainOrder[] = [
   {
-    domain: "meals.example",
-    asset: "meals.example",
+    domain: "meadow.example",
+    asset: "meadow.example",
     kind: "registration",
     paidUsd: 4.63,
     paidOn: "2026-03-18",
@@ -1006,8 +1006,8 @@ const ORDERS: DomainOrder[] = [
 
 const SCHEDULE: DomainSchedule[] = [
   {
-    domain: "meals.example",
-    asset: "meals.example",
+    domain: "meadow.example",
+    asset: "meadow.example",
     paidUsd: 4.63,
     paidOn: "2026-03-18",
     perMonth: 0.39,
@@ -1096,8 +1096,8 @@ describe("/financials — the Costs section writes the files it reads", () => {
   it("refuses an asset id the OS does not have, and offers the ones it does", async () => {
     const calls = stubLane(undefined, undefined, [
       "root-os",
-      "meals.example",
-      "nosh.example",
+      "meadow.example",
+      "northwind.example",
     ]);
     renderPage(withCosts());
 
@@ -1108,15 +1108,15 @@ describe("/financials — the Costs section writes the files it reads", () => {
     });
     expect([...list.querySelectorAll("option")].map((o) => o.getAttribute("value"))).toEqual([
       "root-os",
-      "meals.example",
-      "nosh.example",
+      "meadow.example",
+      "northwind.example",
     ]);
 
-    const form = startAdd("recurring-costs", { ...NEW_COST, Site: "meals.fod" });
+    const form = startAdd("recurring-costs", { ...NEW_COST, Site: "meadow.exmple" });
     fireEvent.click(within(form).getByRole("button", { name: "Add" }));
 
     expect(await within(form).findByRole("alert")).toHaveTextContent(
-      'asset "meals.fod" is not one of root-os, meals.example, nosh.example',
+      'asset "meadow.exmple" is not one of root-os, meadow.example, northwind.example',
     );
     expect(calls).toHaveLength(0);
   });
@@ -1206,8 +1206,8 @@ describe("/financials — the Costs section writes the files it reads", () => {
     renderPage(withCosts());
 
     const table = editor("domain-costs");
-    fireEvent.click(within(table).getByRole("button", { name: "Remove meals.example…" }));
-    fireEvent.click(within(table).getByRole("button", { name: "Remove meals.example" }));
+    fireEvent.click(within(table).getByRole("button", { name: "Remove meadow.example…" }));
+    fireEvent.click(within(table).getByRole("button", { name: "Remove meadow.example" }));
 
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(onlyOp(calls)).toEqual({
@@ -1287,7 +1287,7 @@ describe("/financials — a row the schema refuses never becomes a request", () 
   it("refuses something that is not an asset id", async () => {
     await refuses(
       "recurring-costs",
-      { ...NEW_COST, Site: "Menu Plate" },
+      { ...NEW_COST, Site: "Mosaic Desk" },
       "Site must be a site id",
     );
   });
@@ -1357,10 +1357,10 @@ describe("/financials — what the two files declare, by asset", () => {
 
     const lines = [...container.querySelectorAll("[data-declared-asset]")];
     // Biggest first, and only what is live in the shown month: the retired
-    // plan closed in May, so meals.example's line is its amortizing domain alone.
+    // plan closed in May, so meadow.example's line is its amortizing domain alone.
     expect(lines.map((line) => line.getAttribute("data-declared-asset"))).toEqual([
       "root-os",
-      "meals.example",
+      "meadow.example",
     ]);
     expect(lines[0]).toHaveTextContent("$200.00");
     expect(lines[1]).toHaveTextContent("$0.39");
@@ -1368,10 +1368,10 @@ describe("/financials — what the two files declare, by asset", () => {
       lines.map((line) =>
         line.querySelector("[data-property-favicon]")?.getAttribute("data-property-favicon"),
       ),
-    ).toEqual(["root-os", "meals.example"]);
+    ).toEqual(["root-os", "meadow.example"]);
     expect(
       lines[1]?.querySelector("[data-segment-bar]")?.getAttribute("aria-label"),
-    ).toBe("Meal Planner is 0.2% of the declared monthly cost");
+    ).toBe("Meadow Board is 0.2% of the declared monthly cost");
   });
 
   /** The cash already spent, and how much of the list is still being spread
@@ -1408,16 +1408,16 @@ describe("/financials — what the page does not know, on the figure it qualifie
       payload({
         properties: [
           {
-            asset: "meals.example",
-            displayName: "Meal Planner",
+            asset: "meadow.example",
+            displayName: "Meadow Board",
             isOs: false,
             revenueReported: true,
             figure: { currency: 'USD', revenue: 440.94, cost: 3.05, net: 437.89 },
             months: [{ period: "2026-08", figure: { currency: 'USD', revenue: 440.94, cost: 3.05, net: 437.89 } }],
           },
           {
-            asset: "areas.example",
-            displayName: "areas.example",
+            asset: "acorn.example",
+            displayName: "acorn.example",
             isOs: false,
             revenueReported: false,
             figure: { currency: 'USD', revenue: 0, cost: 0.92, net: -0.92 },
@@ -1427,13 +1427,13 @@ describe("/financials — what the page does not know, on the figure it qualifie
       }),
     );
 
-    const dash = container.querySelector('[data-revenue-unreported="areas.example"]')!;
+    const dash = container.querySelector('[data-revenue-unreported="acorn.example"]')!;
     expect(dash).toHaveTextContent("—");
     expect(dash.querySelector("[title]")).toBeNull();
     fireEvent.focus(within(dash as HTMLElement).getByRole("button", { name: /no revenue reported$/ }));
     expect(screen.getByRole("tooltip")).toHaveTextContent("No revenue reported");
-    expect(container.querySelector('[data-revenue-share="areas.example"]')).toBeNull();
-    expect(container.querySelector('[data-revenue-unreported="meals.example"]')).toBeNull();
+    expect(container.querySelector('[data-revenue-share="acorn.example"]')).toBeNull();
+    expect(container.querySelector('[data-revenue-unreported="meadow.example"]')).toBeNull();
   });
 
   it("marks a domain term that runs out this month or next with its renewal month", () => {
@@ -1442,13 +1442,13 @@ describe("/financials — what the page does not know, on the figure it qualifie
       withCosts({
         domainOrders: [
           ...ORDERS,
-          { domain: "nosh.example", asset: "nosh.example", kind: "registration", paidUsd: 109.69, paidOn: "2025-10-09" },
+          { domain: "northwind.example", asset: "northwind.example", kind: "registration", paidUsd: 109.69, paidOn: "2025-10-09" },
         ],
         domains: [
           ...SCHEDULE,
           {
-            domain: "nosh.example",
-            asset: "nosh.example",
+            domain: "northwind.example",
+            asset: "northwind.example",
             paidUsd: 109.69,
             paidOn: "2025-10-09",
             perMonth: 9.14,
@@ -1460,12 +1460,12 @@ describe("/financials — what the page does not know, on the figure it qualifie
     );
     openPanel("costs");
 
-    // currentPeriod is 2026-09: nosh.example's term ends this month,
-    // meals.example's runs to 2027-02 and says nothing.
-    expect(container.querySelector('[data-domain-renews="nosh.example"]')).toHaveTextContent(
+    // currentPeriod is 2026-09: northwind.example's term ends this month,
+    // meadow.example's runs to 2027-02 and says nothing.
+    expect(container.querySelector('[data-domain-renews="northwind.example"]')).toHaveTextContent(
       "Renews Oct 2026",
     );
-    expect(container.querySelector('[data-domain-renews="meals.example"]')).toBeNull();
+    expect(container.querySelector('[data-domain-renews="meadow.example"]')).toBeNull();
   });
 });
 
@@ -1569,7 +1569,7 @@ describe('/financials — stated currency and unavailable mixed totals', () => {
     const data = payload({ months: [{ period: '2026-08', booked: unknown, estimated: unknown, total: unknown }],
       properties: [
         { ...base.properties[0]!, figure: figure(100, 0), months: [] },
-        { ...base.properties[0]!, asset: 'nosh.example', displayName: 'Nosh', figure: figure(200, 0, 'USD'), months: [] },
+        { ...base.properties[0]!, asset: 'northwind.example', displayName: 'Northwind', figure: figure(200, 0, 'USD'), months: [] },
       ], overhead: figure(0, 0, 'USD'), costLines: [],
     });
     const { container } = renderPage(data);

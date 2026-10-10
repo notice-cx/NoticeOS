@@ -22,6 +22,7 @@ import {
 } from './signal-archive.mjs';
 import { FIXTURE_ASSET, fixtureManifest, writeArchiveFixture } from './signal-archive-fixture.mjs';
 import { archiveFiles, readDownloadsManifest } from './signal-downloads.mjs';
+import { readJsonFile } from './json-file.mjs';
 import {
   DERIVATION_FILES,
   KEEP_GENERATIONS_DAYS,
@@ -70,10 +71,6 @@ function publish(input, output, deps) {
 
 function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
-}
-
-async function readJson(file) {
-  return JSON.parse(await fs.readFile(file, 'utf8'));
 }
 
 async function writeJson(file, value) {
@@ -307,7 +304,7 @@ test('a late correction rewrites only the period it falls in; the previous gener
   const first = await readCurrentGeneration(output);
   const firstRows = await datasetRows(output, first, 'gsc-query');
   const day = path.join(input, 'gsc', 'query', '2026-09-14.json');
-  const archive = await readJson(day);
+  const archive = await readJsonFile(day);
   archive.pages[0].response.rows[0].clicks += 1000;
   await writeJson(day, archive);
 
@@ -350,7 +347,7 @@ test('a later confirmation settles a provisional GA4 day with no new archive byt
   assert.deepEqual(await provisional(first), { '2026-09-18': 0, '2026-09-19': 0, '2026-09-20': 1, latest: null });
 
   const manifestFile = path.join(input, 'manifest.json');
-  const downloads = await readJson(manifestFile);
+  const downloads = await readJsonFile(manifestFile);
   downloads.objects.find((row) => row.report === 'traffic-acquisition' && row.reportDate === '2026-09-20').finishedAt = '2026-09-22T12:16:02.000Z';
   await writeJson(manifestFile, downloads);
 
@@ -392,7 +389,7 @@ test('an incremental build and a full rebuild of the same archive are the same, 
     }],
     ['a confirmation', async () => {
       const file = path.join(input, 'manifest.json');
-      const downloads = await readJson(file);
+      const downloads = await readJsonFile(file);
       downloads.objects.find((row) => row.report === 'traffic-acquisition' && row.reportDate === '2026-09-20').finishedAt = '2026-09-22T12:16:02.000Z';
       await writeJson(file, downloads);
     }],
@@ -402,13 +399,13 @@ test('an incremental build and a full rebuild of the same archive are the same, 
     }],
     ['a new column', async () => {
       const file = path.join(input, 'bing-webmaster', 'crawl-stats', '2026-09-21.json');
-      const archive = await readJson(file);
+      const archive = await readJsonFile(file);
       archive.pages[0].response.d[0].AllowedByRobotsTxt = 17;
       await writeJson(file, archive);
     }],
     ['a changed type', async () => {
       const file = path.join(input, 'gsc', 'query', '2026-10-01.json');
-      const archive = await readJson(file);
+      const archive = await readJsonFile(file);
       archive.pages[0].response.rows[0].position = 'n/a';
       await writeJson(file, archive);
     }],
@@ -455,7 +452,7 @@ test('a schema change is a new schema id on every file of the family; the old ge
   await publish(input, output);
   const first = await readCurrentGeneration(output);
   const file = path.join(input, 'bing-webmaster', 'crawl-stats', '2026-09-21.json');
-  const archive = await readJson(file);
+  const archive = await readJsonFile(file);
   archive.pages[0].response.d[0].AllowedByRobotsTxt = 17;
   await writeJson(file, archive);
   await publish(input, output);
@@ -485,11 +482,11 @@ test('an interrupted run changes nothing a reader sees, and the next run finishe
   await publish(input, output);
   const first = await readCurrentGeneration(output);
   for (const day of ['2026-09-22', '2026-09-23']) {
-    const next = await readJson(path.join(input, 'gsc', 'page', '2026-09-20.json'));
+    const next = await readJsonFile(path.join(input, 'gsc', 'page', '2026-09-20.json'));
     next.reportDate = day;
     await writeJson(path.join(input, 'gsc', 'page', `${day}.json`), next);
   }
-  const next = await readJson(path.join(input, 'bing-webmaster', 'feeds', '2026-09-21.json'));
+  const next = await readJsonFile(path.join(input, 'bing-webmaster', 'feeds', '2026-09-21.json'));
   next.reportDate = '2026-09-22';
   await writeJson(path.join(input, 'bing-webmaster', 'feeds', '2026-09-22.json'), next);
 
@@ -588,7 +585,7 @@ test('one run at a time writes a history: a second is refused and changes nothin
   await publish(input, output);
   const first = await readCurrentGeneration(output);
   const day = path.join(input, 'gsc', 'query', '2026-09-14.json');
-  const archive = await readJson(day);
+  const archive = await readJsonFile(day);
   archive.pages[0].response.rows[0].clicks += 1;
   await writeJson(day, archive);
   let raced = false;
@@ -623,7 +620,7 @@ const runDay = (days) => new Date(FIRST_RUN + days * DAY).toISOString();
 
 /** A new GSC query report day, so the next run publishes a new generation. */
 async function addQueryDay(input, reportDate) {
-  const archive = await readJson(path.join(input, 'gsc', 'query', '2026-09-20.json'));
+  const archive = await readJsonFile(path.join(input, 'gsc', 'query', '2026-09-20.json'));
   archive.reportDate = reportDate;
   archive.collectedAt = `${reportDate}T23:00:00.000Z`;
   for (const row of archive.pages[0].response.rows) row.clicks += 1;
@@ -860,7 +857,7 @@ test('the register keeps each archive’s own envelope, and the manifest names t
       assert.equal(row.envelope, null, row.path ?? row.family);
       continue;
     }
-    const archive = await readJson(path.join(input, row.path));
+    const archive = await readJsonFile(path.join(input, row.path));
     assert.equal(row.envelope, JSON.stringify({
       reportDate: archive.reportDate,
       ...(archive.integration === 'clarity' ? { collectedAt: archive.collectedAt } : {}),
@@ -914,7 +911,7 @@ test('it refuses what would mix or misplace a history', async (t) => {
   await assert.rejects(publishSignalHistory({ asset: 'Not A Site', input, output }), /site id/);
   await assert.rejects(publishSignalHistory({ asset: FIXTURE_ASSET, input: path.join(root, 'nowhere'), output }), /not a folder/);
   await publish(input, output);
-  await assert.rejects(publishSignalHistory({ asset: 'other.example', input, output }), /holds meals\.example's history/);
+  await assert.rejects(publishSignalHistory({ asset: 'other.example', input, output }), /holds meadow\.example's history/);
   assert.throws(() => parseArgs(['--asset', 'example.com', '--in', 'a']), /--in and --out are both required/);
   assert.throws(() => parseArgs(['--asset', 'example.com', '--in', 'a', '--out', 'b', '--bogus', 'x']), /Unknown option: --bogus/);
   assert.throws(() => parseArgs(['--asset', 'example.com', '--in']), /--in needs a value/);

@@ -27,7 +27,7 @@ test('an unsupported reclamation export refuses before reading settings or repla
   for (const value of [null, {}, 'targets', { results: [row] }, [{ results: [row], success: true }], [row, { results: [] }], [null], [[]]]) {
     await fs.writeFile(file, JSON.stringify(value));
     await assert.rejects(analyzeArchiveFixture({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       input: path.join(root, 'input'),
       output,
       reclamationTargets: file,
@@ -48,7 +48,7 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
       path.join(input, 'gsc.json'),
       JSON.stringify({
         schemaVersion: 1,
-        asset: 'meals.example',
+        asset: 'meadow.example',
         integration: 'gsc',
         report: 'query',
         reportDate: '2026-07-28',
@@ -90,7 +90,7 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
             response: {
               rows: [
                 {
-                  keys: ['https://meals.example/recipes/soup'],
+                  keys: ['https://meadow.example/recipes/soup'],
                   clicks: 4,
                   impressions: 50,
                   ctr: 4 / 50,
@@ -106,7 +106,7 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
       path.join(input, 'ga4.json'),
       JSON.stringify({
         schemaVersion: 1,
-        asset: 'meals.example',
+        asset: 'meadow.example',
         integration: 'ga4',
         report: 'pages-screens',
         reportDate: '2026-07-28',
@@ -136,7 +136,7 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
       JSON.stringify({
         schemaVersion: 1,
         provider: 'microsoft',
-        asset: 'meals.example',
+        asset: 'meadow.example',
         integration: 'bing-webmaster',
         report: 'crawl-issues',
         reportDate: '2026-07-28',
@@ -148,13 +148,13 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
           {
             request: {
               method: 'GetCrawlIssues',
-              siteUrl: 'https://meals.example/',
+              siteUrl: 'https://meadow.example/',
             },
             response: {
               d: [
                 {
                   __type: 'UrlWithCrawlIssues:#Microsoft.Bing.Webmaster.Api',
-                  Url: 'https://meals.example/old-page',
+                  Url: 'https://meadow.example/old-page',
                   HttpCode: 404,
                   Issues: 20,
                   InLinks: 3,
@@ -168,7 +168,7 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
     const dataForSeoArchive = (report, result, cost) => ({
       schemaVersion: 1,
       provider: 'dataforseo',
-      asset: 'meals.example',
+      asset: 'meadow.example',
       integration: 'dataforseo',
       report,
       reportDate: '2026-07-28',
@@ -224,7 +224,7 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
                       rank_group: 7,
                       rank_absolute: 8,
                       title: 'Meal plan',
-                      url: 'https://meals.example/meal-plan',
+                      url: 'https://meadow.example/meal-plan',
                       relative_url: '/meal-plan',
                       etv: 21.5,
                       estimated_paid_traffic_cost: 53.75,
@@ -251,7 +251,7 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
           dataForSeoArchive(
             'backlinks-summary',
             {
-              target: 'meals.example',
+              target: 'meadow.example',
               rank: 412,
               backlinks: 800,
               backlinks_spam_score: 2,
@@ -306,7 +306,7 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
                   ],
                   sources_domain: [
                     {
-                      key: 'meals.example',
+                      key: 'meadow.example',
                       mentions,
                       ai_search_volume: aiSearchVolume,
                     },
@@ -365,43 +365,43 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
       JSON.stringify({
         schemaVersion: 1,
         provider: 'dataforseo',
-        asset: 'meals.example',
+        asset: 'meadow.example',
         integration: 'dataforseo',
         report: 'serp-panel',
-        propertyRef: 'meals.example',
+        propertyRef: 'meadow.example',
         reportDate: '2026-07-28',
         collectedAt: '2026-07-29T12:45:00.000Z',
         dataState: 'provider-snapshot',
         providerRows: 4,
         providerTruncated: true,
         pages: [
-          serpPage('meals calculator', [
+          serpPage('meadow calculator', [
             {
               type: 'ai_overview',
               asynchronous_ai_overview: true,
-              items: [{ type: 'ai_overview_element', text: 'A plate is…' }],
+              items: [{ type: 'ai_overview_element', text: 'A plume is…' }],
               references: [
-                { domain: 'meals.gov' },
-                { url: 'https://blog.meals.example/portions' },
+                { domain: 'registry.example' },
+                { url: 'https://blog.meadow.example/portions' },
               ],
             },
-            { type: 'organic', rank_group: 1, domain: 'meals.gov' },
+            { type: 'organic', rank_group: 1, domain: 'registry.example' },
             {
               type: 'organic',
               rank_group: 2,
-              domain: 'www.meals.example',
-              url: 'https://meals.example/calculator',
+              domain: 'www.meadow.example',
+              url: 'https://meadow.example/calculator',
               // Read and carrying no sitelink block: an observation, so `false`.
               links: [],
             },
-            { type: 'organic', rank_group: 3, domain: 'wadairy.org' },
+            { type: 'organic', rank_group: 3, domain: 'council.example' },
             // The property's SECOND slot on the same result page: the double
             // listing GSC can only ever show as split impressions.
             {
               type: 'organic',
               rank_group: 5,
-              domain: 'meals.example',
-              url: 'https://meals.example/calculator/dri',
+              domain: 'meadow.example',
+              url: 'https://meadow.example/calculator/dri',
             },
           ]),
           serpPage(
@@ -409,10 +409,10 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
             [
               {
                 type: 'ai_overview',
-                references: [{ domain: 'nih.gov' }, { domain: 'wadairy.org' }],
+                references: [{ domain: 'institute.example' }, { domain: 'council.example' }],
                 items: [{ type: 'ai_overview_element', text: 'Five groups…' }],
               },
-              { type: 'organic', rank_group: 1, domain: 'nih.gov' },
+              { type: 'organic', rank_group: 1, domain: 'institute.example' },
             ],
             {},
             null,
@@ -422,20 +422,20 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
             { item_types: ['organic', 'ai_overview', 'people_also_ask'] },
           ),
           // No overview anywhere in a page that parsed: an observation, so false.
-          serpPage('meals worksheets', [
+          serpPage('meadow worksheets', [
             {
               type: 'organic',
               rank_group: 4,
-              domain: 'meals.example',
-              url: 'https://meals.example/worksheets',
+              domain: 'meadow.example',
+              url: 'https://meadow.example/worksheets',
               links: [
-                { type: 'link_element', title: 'Printables', url: 'https://meals.example/worksheets/print' },
+                { type: 'link_element', title: 'Printables', url: 'https://meadow.example/worksheets/print' },
               ],
             },
           ]),
           // The asynchronous overview never delivered content. Unknown, and the
           // header comment says why it must not read as false.
-          serpPage('canada food guide', [
+          serpPage('regional field guide', [
             { type: 'ai_overview', asynchronous_ai_overview: true },
             { type: 'organic', rank_group: 1, domain: 'canada.ca' },
           ]),
@@ -455,10 +455,10 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
             [
               {
                 type: 'ai_overview',
-                references: [{ domain: 'nih.gov' }],
+                references: [{ domain: 'institute.example' }],
                 items: [{ type: 'ai_overview_element', text: 'Plan ahead…' }],
               },
-              { type: 'organic', rank_group: 5, domain: 'nih.gov' },
+              { type: 'organic', rank_group: 5, domain: 'institute.example' },
             ],
             {},
             'mobile',
@@ -469,8 +469,8 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
               {
                 type: 'organic',
                 rank_group: 7,
-                domain: 'meals.example',
-                url: 'https://meals.example/meal-plan',
+                domain: 'meadow.example',
+                url: 'https://meadow.example/meal-plan',
               },
             ],
             {},
@@ -481,7 +481,7 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
     );
 
     const summary = await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents,
-      asset: 'meals.example',
+      asset: 'meadow.example',
       input,
       output,
     });
@@ -523,29 +523,29 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
     });
     const byQuery = new Map(panelRows.map((row) => [row.query, row]));
     // A subdomain result is still this property holding the position.
-    assert.equal(byQuery.get('meals calculator').best_rank, '2');
+    assert.equal(byQuery.get('meadow calculator').best_rank, '2');
     assert.equal(
-      byQuery.get('meals calculator').best_url,
-      'https://meals.example/calculator',
+      byQuery.get('meadow calculator').best_url,
+      'https://meadow.example/calculator',
     );
-    assert.equal(byQuery.get('meals calculator').aio_present, 'true');
-    assert.equal(byQuery.get('meals calculator').aio_cites_us, 'true');
+    assert.equal(byQuery.get('meadow calculator').aio_present, 'true');
+    assert.equal(byQuery.get('meadow calculator').aio_cites_us, 'true');
     assert.equal(
-      byQuery.get('meals calculator').top3_domains,
-      'meals.gov|meals.example|wadairy.org',
+      byQuery.get('meadow calculator').top3_domains,
+      'registry.example|meadow.example|council.example',
     );
-    assert.equal(byQuery.get('meals calculator').organic_results, '4');
+    assert.equal(byQuery.get('meadow calculator').organic_results, '4');
     // The property's second slot on the same page, bounded like the first:
     // rank and URL together, because a rank nobody can attribute to a page is a
     // fact with no next step.
-    assert.equal(byQuery.get('meals calculator').second_rank, '5');
+    assert.equal(byQuery.get('meadow calculator').second_rank, '5');
     assert.equal(
-      byQuery.get('meals calculator').second_url,
-      'https://meals.example/calculator/dri',
+      byQuery.get('meadow calculator').second_url,
+      'https://meadow.example/calculator/dri',
     );
     // Our result was read and carried no sitelink block: an OBSERVATION.
-    assert.equal(byQuery.get('meals calculator').sitelinks_us, 'false');
-    assert.equal(byQuery.get('meals calculator').serp_features, 'ai_overview');
+    assert.equal(byQuery.get('meadow calculator').sitelinks_us, 'false');
+    assert.equal(byQuery.get('meadow calculator').serp_features, 'ai_overview');
     // An overview that fires and cites other people.
     assert.equal(byQuery.get('food groups').aio_present, 'true');
     assert.equal(byQuery.get('food groups').aio_cites_us, 'false');
@@ -566,22 +566,22 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
       'ai_overview|people_also_ask',
     );
     // Read the page, found no overview: an observation.
-    assert.equal(byQuery.get('meals worksheets').aio_present, 'false');
-    assert.equal(byQuery.get('meals worksheets').aio_cites_us, 'false');
+    assert.equal(byQuery.get('meadow worksheets').aio_present, 'false');
+    assert.equal(byQuery.get('meadow worksheets').aio_cites_us, 'false');
     // Our result carries a sitelink block, and nothing but organic results were
     // on the page — an empty `serp_features` on a row that HAS a result is an
     // observation, and `provider_status` is what tells it from an unknown.
-    assert.equal(byQuery.get('meals worksheets').sitelinks_us, 'true');
-    assert.equal(byQuery.get('meals worksheets').serp_features, '');
-    assert.equal(byQuery.get('meals worksheets').provider_status, '');
+    assert.equal(byQuery.get('meadow worksheets').sitelinks_us, 'true');
+    assert.equal(byQuery.get('meadow worksheets').serp_features, '');
+    assert.equal(byQuery.get('meadow worksheets').provider_status, '');
     // The two unknown cases stay empty — this is the distinction the family
     // exists to preserve, so it is asserted separately from the `false` above.
-    assert.equal(byQuery.get('canada food guide').aio_present, '');
-    assert.equal(byQuery.get('canada food guide').aio_cites_us, '');
+    assert.equal(byQuery.get('regional field guide').aio_present, '');
+    assert.equal(byQuery.get('regional field guide').aio_cites_us, '');
     // The overview block was there to be seen even though it never loaded, so
     // the page's composition is still an observation.
-    assert.equal(byQuery.get('canada food guide').serp_features, 'ai_overview');
-    assert.equal(byQuery.get('canada food guide').sitelinks_us, '');
+    assert.equal(byQuery.get('regional field guide').serp_features, 'ai_overview');
+    assert.equal(byQuery.get('regional field guide').sitelinks_us, '');
     assert.equal(byQuery.get('dri calculator').aio_present, '');
     assert.equal(byQuery.get('dri calculator').aio_cites_us, '');
     assert.equal(byQuery.get('dri calculator').best_rank, '');
@@ -600,7 +600,7 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
     // request. A page written before the collector sent one is desktop — it
     // could not have been anything else — never blank.
     assert.ok(columns.includes('device'));
-    assert.equal(byQuery.get('meals calculator').device, 'desktop');
+    assert.equal(byQuery.get('meadow calculator').device, 'desktop');
     assert.equal(byQuery.get('dri calculator').device, 'desktop');
     // The pair: one query, two devices, two rows that never merge, each with
     // its own AI Overview verdict and its own metered call.
@@ -619,7 +619,7 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
     assert.match(gsc, /"high protein, ""easy"""/);
     assert.match(gsc, /searchAppearance/);
     assert.match(gsc, /RECIPE/);
-    assert.match(gsc, /https:\/\/meals\.example\/recipes\/soup/);
+    assert.match(gsc, /https:\/\/meadow\.example\/recipes\/soup/);
     assert.match(gsc, /row_grain/);
     assert.match(gsc, /query/);
     assert.match(gsc, /page/);
@@ -632,7 +632,7 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
       path.join(output, 'bing-webmaster-crawl-issues.csv'),
       'utf8',
     );
-    assert.match(bing, /https:\/\/meals\.example\/old-page/);
+    assert.match(bing, /https:\/\/meadow\.example\/old-page/);
     assert.match(bing, /http_code/);
     assert.match(bing, /issue_names/);
     assert.match(bing, /Code4xx\|BlockedByRobotsTxt/);
@@ -654,7 +654,7 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
     const executive = JSON.parse(
       await fs.readFile(path.join(output, 'executive.json'), 'utf8'),
     );
-    assert.equal(executive.asset, 'meals.example');
+    assert.equal(executive.asset, 'meadow.example');
     assert.ok(
       executive.methodology.some((line) => /remain unknown/.test(line)),
     );
@@ -707,7 +707,7 @@ test('flattens GA4, GSC, BWT, and DataForSEO archives without inventing missing 
     // unnamed surface: it could not have been anything else.
     assert.equal(
       executive.serpPanel.queries.find(
-        (row) => row.query === 'meals calculator',
+        (row) => row.query === 'meadow calculator',
       ).device,
       'desktop',
     );
@@ -720,14 +720,14 @@ test('an empty newest Clarity revision retains provenance rather than reviving o
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'noticeos-clarity-revision-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const input = path.join(root, 'input'); await fs.mkdir(input);
-  const archive = { schemaVersion: 1, provider: 'microsoft', asset: 'meals.example', integration: 'clarity', report: 'url-3d',
+  const archive = { schemaVersion: 1, provider: 'microsoft', asset: 'meadow.example', integration: 'clarity', report: 'url-3d',
     reportDate: '2026-07-31', dataState: 'provider-snapshot', providerTruncated: false };
   for (const [name, collectedAt, information] of [
-    ['a', '2026-07-31T04:30:00.000Z', [{ Url: 'https://meals.example/planner', sessionsCount: '114', subTotal: '19' }]],
+    ['a', '2026-07-31T04:30:00.000Z', [{ Url: 'https://meadow.example/planner', sessionsCount: '114', subTotal: '19' }]],
     ['b', '2026-07-31T05:30:00.000Z', []],
   ]) await fs.writeFile(path.join(input, `${name}.json`), JSON.stringify({ ...archive, collectedAt, providerRows: information.length,
     pages: [{ request: { numOfDays: 3, dimension1: 'URL' }, response: [{ metricName: 'ScriptErrorCount', information }] }] }));
-  const summary = await analyzeArchiveFixture({ asset: 'meals.example', input, output: path.join(root, 'output'), readValueEvents: fixtureValueEvents });
+  const summary = await analyzeArchiveFixture({ asset: 'meadow.example', input, output: path.join(root, 'output'), readValueEvents: fixtureValueEvents });
   assert.deepEqual(summary.executiveSnapshot.clarity, { source: 'clarity', reportDate: '2026-07-31',
     collectedAt: '2026-07-31T05:30:00.000Z', windowHours: 72, truncated: false, page: null, unattributedSessions: null });
 });
@@ -743,7 +743,7 @@ test('flattens Clarity metric blocks long, keeping each block its own schema', a
       JSON.stringify({
         schemaVersion: 1,
         provider: 'microsoft',
-        asset: 'meals.example',
+        asset: 'meadow.example',
         integration: 'clarity',
         report: 'url-3d',
         reportDate: '2026-07-31',
@@ -763,7 +763,7 @@ test('flattens Clarity metric blocks long, keeping each block its own schema', a
                     sessionsWithMetricPercentage: 11.4,
                     pagesViews: '14',
                     subTotal: '19',
-                    Url: 'https://meals.example/my',
+                    Url: 'https://meadow.example/my',
                   },
                 ],
               },
@@ -771,7 +771,7 @@ test('flattens Clarity metric blocks long, keeping each block its own schema', a
                 // A different block, a genuinely different schema.
                 metricName: 'ScrollDepth',
                 information: [
-                  { averageScrollDepth: 67.78, Url: 'https://meals.example/my' },
+                  { averageScrollDepth: 67.78, Url: 'https://meadow.example/my' },
                 ],
               },
               {
@@ -793,7 +793,7 @@ test('flattens Clarity metric blocks long, keeping each block its own schema', a
     );
 
     const summary = await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents,
-      asset: 'meals.example',
+      asset: 'meadow.example',
       input,
       output,
     });
@@ -822,7 +822,7 @@ test('flattens Clarity metric blocks long, keeping each block its own schema', a
         ];
       }),
     );
-    assert.equal(byMetric.get('DeadClickCount').url, 'https://meals.example/my');
+    assert.equal(byMetric.get('DeadClickCount').url, 'https://meadow.example/my');
     assert.equal(byMetric.get('DeadClickCount').sub_total, '19');
     assert.equal(byMetric.get('ScrollDepth').average_scroll_depth, '67.78');
     // A block that does not carry a field leaves it EMPTY rather than 0 — the
@@ -860,7 +860,7 @@ test('buckets js_error messages so recurring faults count, and keeps absences ab
       path.join(input, 'ga4-js-errors.json'),
       JSON.stringify({
         schemaVersion: 1,
-        asset: 'meals.example',
+        asset: 'meadow.example',
         integration: 'ga4',
         report: 'js-errors',
         reportDate: '2026-07-28',
@@ -894,15 +894,15 @@ test('buckets js_error messages so recurring faults count, and keeps absences ab
                 // The same fault twice. Only the URL and the line number differ,
                 // which is exactly what makes the raw column uncountable.
                 errorRow(
-                  "TypeError: Cannot read properties of null (reading 'value') at https://meals.example/calculator?step=2 line 42",
-                  'https://meals.example/assets/index-a1b2c3d4e5f6.js',
+                  "TypeError: Cannot read properties of null (reading 'value') at https://meadow.example/calculator?step=2 line 42",
+                  'https://meadow.example/assets/index-a1b2c3d4e5f6.js',
                   '/calculator',
                   125,
                   88,
                 ),
                 errorRow(
-                  "TypeError: Cannot read properties of null (reading 'value') at https://meals.example/recipes line 907",
-                  'https://meals.example/assets/index-a1b2c3d4e5f6.js',
+                  "TypeError: Cannot read properties of null (reading 'value') at https://meadow.example/recipes line 907",
+                  'https://meadow.example/assets/index-a1b2c3d4e5f6.js',
                   '/recipes',
                   31,
                   24,
@@ -917,7 +917,7 @@ test('buckets js_error messages so recurring faults count, and keeps absences ab
     );
 
     const summary = await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents,
-      asset: 'meals.example',
+      asset: 'meadow.example',
       input,
       output,
     });
@@ -971,7 +971,7 @@ function ga4ChannelArchive({ report = 'traffic-acquisition', reportDate, collect
   return JSON.stringify({
     schemaVersion: 1,
     provider: 'google',
-    asset: 'meals.example',
+    asset: 'meadow.example',
     integration: 'ga4',
     report,
     reportDate,
@@ -1027,7 +1027,7 @@ test('marks a GA4 attribution day provisional until it was collected two days af
       report: 'pages-screens', reportDate: '2026-09-21', collectedAt: '2026-09-22T12:15:00.000Z', sessions: 9,
     }));
     await fs.writeFile(path.join(input, 'manifest.json'), JSON.stringify({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       objects: [
         { integration: 'ga4', report: 'traffic-acquisition', reportDate: '2026-09-19', finishedAt: '2026-09-21T12:16:02.000Z' },
         { integration: 'ga4', report: 'traffic-acquisition', reportDate: '2026-09-20', finishedAt: '2026-09-22T12:16:02.000Z' },
@@ -1035,7 +1035,7 @@ test('marks a GA4 attribution day provisional until it was collected two days af
       ],
     }));
 
-    await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'meals.example', input, output });
+    await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'meadow.example', input, output });
 
     const lines = (await fs.readFile(path.join(output, 'ga4-traffic-acquisition.csv'), 'utf8'))
       .trim()
@@ -1065,7 +1065,7 @@ function bingAiArchive({ report, exportDate, rows, file = 'export.csv' }) {
   return JSON.stringify({
     schemaVersion: 1,
     provider: 'microsoft',
-    asset: 'meals.example',
+    asset: 'meadow.example',
     integration: 'bing-webmaster',
     report,
     reportDate: exportDate,
@@ -1134,11 +1134,11 @@ test('flattens the operator-dropped Bing AI Performance families', async () => {
       bingAiArchive({
         report: 'ai-pages',
         exportDate: '2026-08-04',
-        rows: [{ page: 'https://meals.example/protein-calculator', citations: 294996 }],
+        rows: [{ page: 'https://meadow.example/protein-calculator', citations: 294996 }],
       }),
     );
 
-    const summary = await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'meals.example', input, output });
+    const summary = await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'meadow.example', input, output });
     assert.deepEqual(
       summary.datasets.map(({ name, rows }) => ({ name, rows })),
       [
@@ -1188,7 +1188,7 @@ test('flattens the operator-dropped Bing AI Performance families', async () => {
       path.join(output, 'bing-webmaster-ai-pages.csv'),
       'utf8',
     );
-    assert.match(pages, /https:\/\/meals\.example\/protein-calculator/);
+    assert.match(pages, /https:\/\/meadow\.example\/protein-calculator/);
     assert.match(pages, /294996/);
 
     const caveats = JSON.parse(
@@ -1217,7 +1217,7 @@ test('two overlapping AI overview exports resolve to the newest, never to both',
       bingAiArchive({
         report: 'ai-overview',
         exportDate: '2026-07-12',
-        file: 'meals.example_AIPerformanceOverviewStats_7_12_2026.csv',
+        file: 'meadow.example_AIPerformanceOverviewStats_7_12_2026.csv',
         rows: [
           { date: '2026-07-10', citations: 9000, citedPages: 40 },
           { date: '2026-07-11', citations: 9100, citedPages: 41 },
@@ -1229,7 +1229,7 @@ test('two overlapping AI overview exports resolve to the newest, never to both',
       bingAiArchive({
         report: 'ai-overview',
         exportDate: '2026-08-04',
-        file: 'meals.example_AIPerformanceOverviewStats_8_4_2026.csv',
+        file: 'meadow.example_AIPerformanceOverviewStats_8_4_2026.csv',
         rows: [
           // The same two days, one revised upward by Bing, plus a new one.
           { date: '2026-07-10', citations: 9000, citedPages: 40 },
@@ -1239,7 +1239,7 @@ test('two overlapping AI overview exports resolve to the newest, never to both',
       }),
     );
 
-    const summary = await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'meals.example', input, output });
+    const summary = await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'meadow.example', input, output });
     assert.deepEqual(
       summary.datasets.map(({ name, rows }) => ({ name, rows })),
       [{ name: 'bing-webmaster-ai-overview', rows: 3 }],
@@ -1308,7 +1308,7 @@ test('a labelled panel carries its cluster into the CSV and leaves older rows em
               {
                 keyword,
                 items: [
-                  { type: 'organic', rank_group: 3, domain: 'nosh.example' },
+                  { type: 'organic', rank_group: 3, domain: 'northwind.example' },
                 ],
               },
             ],
@@ -1320,10 +1320,10 @@ test('a labelled panel carries its cluster into the CSV and leaves older rows em
       JSON.stringify({
         schemaVersion: 1,
         provider: 'dataforseo',
-        asset: 'nosh.example',
+        asset: 'northwind.example',
         integration: 'dataforseo',
         report: 'serp-panel',
-        propertyRef: 'nosh.example',
+        propertyRef: 'northwind.example',
         reportDate,
         collectedAt: `${reportDate}T12:45:00.000Z`,
         dataState: 'provider-snapshot',
@@ -1336,22 +1336,22 @@ test('a labelled panel carries its cluster into the CSV and leaves older rows em
       path.join(input, 'panel-2026-07-27.json'),
       // Collected before labels existed: the envelope has no `label` key at all.
       archive('2026-07-27', [
-        page('big mac calories'),
-        page('big mac vs whopper'),
+        page('anvil specs'),
+        page('anvil vs rocket skates'),
       ]),
     );
     await fs.writeFile(
       path.join(input, 'panel-2026-08-10.json'),
       archive('2026-08-10', [
-        page('big mac calories', 'Item head'),
+        page('anvil specs', 'Item head'),
         // A cluster no config names any more: the query was retired from the
         // panel after this collection. The CSV must still say what the
         // observation was made under.
-        page('big mac vs whopper', 'Comparisons'),
+        page('anvil vs rocket skates', 'Comparisons'),
       ]),
     );
 
-    const summary = await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'nosh.example', input, output });
+    const summary = await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'northwind.example', input, output });
     assert.deepEqual(
       summary.datasets.map(({ name, rows }) => ({ name, rows })),
       [{ name: 'dataforseo-serp-panel', rows: 4 }],
@@ -1373,12 +1373,12 @@ test('a labelled panel carries its cluster into the CSV and leaves older rows em
         .query_label;
 
     // The bet each observation was placed on, as that collection recorded it.
-    assert.equal(labelOn('2026-08-10', 'big mac calories'), 'Item head');
-    assert.equal(labelOn('2026-08-10', 'big mac vs whopper'), 'Comparisons');
+    assert.equal(labelOn('2026-08-10', 'anvil specs'), 'Item head');
+    assert.equal(labelOn('2026-08-10', 'anvil vs rocket skates'), 'Comparisons');
     // History is not backfilled: rows collected before the panel gained labels
     // say so by staying empty.
-    assert.equal(labelOn('2026-07-27', 'big mac calories'), '');
-    assert.equal(labelOn('2026-07-27', 'big mac vs whopper'), '');
+    assert.equal(labelOn('2026-07-27', 'anvil specs'), '');
+    assert.equal(labelOn('2026-07-27', 'anvil vs rocket skates'), '');
     // The device is the OPPOSITE call on the same fixture, and the contrast is
     // the point: none of these pages carries a `device` either, but every one of
     // them reads `desktop` rather than empty. A label was never sent, so an
@@ -1390,7 +1390,7 @@ test('a labelled panel carries its cluster into the CSV and leaves older rows em
     );
     // Nothing else about those rows changed.
     assert.equal(
-      rows.filter((row) => row.query === 'big mac calories').every(
+      rows.filter((row) => row.query === 'anvil specs').every(
         (row) => row.best_rank === '3' && row.row_grain === 'tracked-query-device',
       ),
       true,
@@ -1411,7 +1411,7 @@ function bingArchive({ report, reportDate, method, rows }) {
   return JSON.stringify({
     schemaVersion: 1,
     provider: 'microsoft',
-    asset: 'nosh.example',
+    asset: 'northwind.example',
     integration: 'bing-webmaster',
     report,
     reportDate,
@@ -1420,7 +1420,7 @@ function bingArchive({ report, reportDate, method, rows }) {
     providerRows: rows.length,
     providerTruncated: false,
     pages: [
-      { request: { method, siteUrl: 'https://nosh.example/' }, response: { d: rows } },
+      { request: { method, siteUrl: 'https://northwind.example/' }, response: { d: rows } },
     ],
   });
 }
@@ -1469,7 +1469,7 @@ test('promotes Bing’s own index count into a coverage family, costing no call'
         rows: [
           {
             __type: 'Feed:#Microsoft.Bing.Webmaster.Api',
-            Url: 'https://nosh.example/sitemap.xml',
+            Url: 'https://northwind.example/sitemap.xml',
             UrlCount: 2900,
             Status: 'Success',
             Type: 'Sitemap',
@@ -1488,7 +1488,7 @@ test('promotes Bing’s own index count into a coverage family, costing no call'
         rows: [
           {
             __type: 'Feed:#Microsoft.Bing.Webmaster.Api',
-            Url: 'https://nosh.example/sitemap.xml',
+            Url: 'https://northwind.example/sitemap.xml',
             UrlCount: 2970,
             Status: 'Success',
             Type: 'Sitemap',
@@ -1499,7 +1499,7 @@ test('promotes Bing’s own index count into a coverage family, costing no call'
       }),
     );
 
-    const summary = await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'nosh.example', input, output });
+    const summary = await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'northwind.example', input, output });
     // Derived, and listed after the families it reads.
     assert.deepEqual(summary.datasets.at(-1).name, 'index-coverage');
 
@@ -1586,7 +1586,7 @@ test('a property whose Bing lane collected nothing gets no coverage file at all'
       }),
     );
 
-    const summary = await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'nosh.example', input, output });
+    const summary = await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'northwind.example', input, output });
     assert.equal(
       summary.datasets.some((dataset) => dataset.name === 'index-coverage'),
       false,
@@ -1607,18 +1607,18 @@ test('a property whose Bing lane collected nothing gets no coverage file at all'
 test('reads each site’s saved search market from the stored settings, by the collector’s rule', () => {
   const snapshot = (assets) => new Map([['config/integrations.json', { file: 'config/integrations.json', version: 2, body: { assets } }]]);
   const assets = {
-    'meals.example': { dataforseo: { locationCode: 2826, languageCode: 'en' } },
-    'nosh.example': { dataforseo: { locationCode: 2276 } },
-    'fees.example': { dataforseo: { status: 'needs-setup' } },
+    'meadow.example': { dataforseo: { locationCode: 2826, languageCode: 'en' } },
+    'northwind.example': { dataforseo: { locationCode: 2276 } },
+    'ferns.example': { dataforseo: { status: 'needs-setup' } },
     'odd.example': { dataforseo: { locationCode: 'uk', languageCode: '' } },
   };
-  assert.deepEqual(storedSearchMarket(snapshot(assets), 'meals.example'), { locationCode: 2826, languageCode: 'en' });
+  assert.deepEqual(storedSearchMarket(snapshot(assets), 'meadow.example'), { locationCode: 2826, languageCode: 'en' });
   // A place saved without a language is that place in the default language.
-  assert.deepEqual(storedSearchMarket(snapshot(assets), 'nosh.example'), { locationCode: 2276, languageCode: 'en' });
-  for (const asset of ['fees.example', 'odd.example', 'absent.example']) {
+  assert.deepEqual(storedSearchMarket(snapshot(assets), 'northwind.example'), { locationCode: 2276, languageCode: 'en' });
+  for (const asset of ['ferns.example', 'odd.example', 'absent.example']) {
     assert.equal(storedSearchMarket(snapshot(assets), asset), null, asset);
   }
-  assert.equal(storedSearchMarket(new Map(), 'meals.example'), null, 'no stored integrations document');
+  assert.equal(storedSearchMarket(new Map(), 'meadow.example'), null, 'no stored integrations document');
 });
 
 test('the analysis summary names the site’s own panel market, never an assumed one', async () => {
@@ -1627,14 +1627,14 @@ test('the analysis summary names the site’s own panel market, never an assumed
     const input = path.join(root, 'input');
     await fs.mkdir(input);
     const german = await analyzeArchiveFixture({
-      readValueEvents: fixtureValueEvents, asset: 'meals.example', input, output: path.join(root, 'de'),
+      readValueEvents: fixtureValueEvents, asset: 'meadow.example', input, output: path.join(root, 'de'),
       market: { locationCode: 2276, languageCode: 'de' },
     });
     const written = JSON.stringify(german);
     assert.doesNotMatch(written, /US\/English|United States/);
     assert.ok(german.caveats.some((line) => line.startsWith('The tracked SERP panel is a top-20 read in the Germany · German market')));
     assert.ok(german.executiveSnapshot.methodology.some((line) => line.includes('in the Germany · German market')));
-    const unset = await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'meals.example', input, output: path.join(root, 'none') });
+    const unset = await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'meadow.example', input, output: path.join(root, 'none') });
     assert.ok(unset.caveats.some((line) => line.includes('top-20 read in the site’s default market')));
   } finally {
     await fs.rm(root, { recursive: true, force: true });
@@ -1646,11 +1646,11 @@ test('the analysis summary names the site’s own panel market, never an assumed
 test('an archive it cannot read stops the analysis before any output is replaced', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'noticeos-archive-refusals-'));
   const good = {
-    schemaVersion: 1, asset: 'meals.example', integration: 'gsc', report: 'query',
+    schemaVersion: 1, asset: 'meadow.example', integration: 'gsc', report: 'query',
     reportDate: '2026-09-20', collectedAt: '2026-09-21T12:15:00.000Z', pages: [],
   };
   const cases = [
-    ['wrong-site', { ...good, asset: 'nosh.example' }, 'Unsupported or wrong-property signal archive'],
+    ['wrong-site', { ...good, asset: 'northwind.example' }, 'Unsupported or wrong-property signal archive'],
     ['new-version', { ...good, schemaVersion: 2 }, 'Unsupported or wrong-property signal archive'],
     ['not-an-object', [good], 'Unsupported or wrong-property signal archive'],
     ['unknown-provider', { ...good, integration: 'matomo' }, 'Malformed signal archive'],
@@ -1663,12 +1663,12 @@ test('an archive it cannot read stops the analysis before any output is replaced
       const file = path.join(input, 'gsc', 'query', '2026-09-20.json');
       await fs.mkdir(path.dirname(file), { recursive: true });
       await fs.writeFile(file, JSON.stringify(good));
-      await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'meals.example', input, output });
+      await analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'meadow.example', input, output });
       const beforeLink = await fs.readlink(output);
       const before = await Promise.all((await fs.readdir(output)).sort().map(async (name) => [name, await fs.readFile(path.join(output, name), 'utf8')]));
       await fs.writeFile(file, JSON.stringify(archive));
       await assert.rejects(
-        analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'meals.example', input, output }),
+        analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'meadow.example', input, output }),
         (error) => {
           assert.match(error.message, /lists 1 archive it could not read/);
           assert.ok(error.message.includes(message), error.message);
@@ -1684,7 +1684,7 @@ test('an archive it cannot read stops the analysis before any output is replaced
     await fs.mkdir(input, { recursive: true });
     await fs.writeFile(path.join(input, 'gsc-query.json'), JSON.stringify(good).slice(0, 60));
     await assert.rejects(
-      analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'meals.example', input, output: path.join(root, 'truncated', 'output') }),
+      analyzeArchiveFixture({ readValueEvents: fixtureValueEvents, asset: 'meadow.example', input, output: path.join(root, 'truncated', 'output') }),
       /not JSON/,
     );
     await assert.rejects(fs.readdir(path.join(root, 'truncated', 'output')), /ENOENT/);

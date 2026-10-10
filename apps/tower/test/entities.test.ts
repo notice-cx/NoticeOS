@@ -24,7 +24,7 @@ const ROWS: EntityRow[] = [
     name: "Example Ventures LLC",
     form: "LLC",
     jurisdiction: "US-DE",
-    assets: ["meals.example", "nosh.example"],
+    assets: ["meadow.example", "northwind.example"],
   },
   // Declared and owning nothing: no `assets` key at all, which is a different
   // state from `[]` and decides whether a first asset is a first write.
@@ -34,14 +34,14 @@ const ROWS: EntityRow[] = [
 
 describe("reading who owns what", () => {
   it("finds the entity holding an asset, and answers null for one nobody claims", () => {
-    expect(entityOfAsset(ROWS, "nosh.example")?.slug).toBe("example-ventures");
-    expect(entityOfAsset(ROWS, "areas.example")).toBeNull();
+    expect(entityOfAsset(ROWS, "northwind.example")?.slug).toBe("example-ventures");
+    expect(entityOfAsset(ROWS, "acorn.example")).toBeNull();
     // Absence of the whole list is "nothing answered", not "nobody owns it".
-    expect(entityOfAsset(undefined, "nosh.example")).toBeNull();
+    expect(entityOfAsset(undefined, "northwind.example")).toBeNull();
   });
 
   it("reads an absent asset list as an empty one, however the file spells it", () => {
-    expect(entityAssets(ROWS[0])).toEqual(["meals.example", "nosh.example"]);
+    expect(entityAssets(ROWS[0])).toEqual(["meadow.example", "northwind.example"]);
     expect(entityAssets(ROWS[1])).toEqual([]);
     expect(entityAssets(ROWS[2])).toEqual([]);
     expect(entityAssets(null)).toEqual([]);
@@ -67,102 +67,102 @@ describe("moving one asset between entities", () => {
   }
 
   it("takes the asset off the old list and puts it on the new one, in one changeset", () => {
-    const ops = entityMoveOps(ROWS, "nosh.example", "third-co");
+    const ops = entityMoveOps(ROWS, "northwind.example", "third-co");
     expect(ops).toEqual([
       {
         kind: "file-json-set",
         file: "config/entities.json",
         pointer: "/entities/0/assets",
-        expect: ["meals.example", "nosh.example"],
-        value: ["meals.example"],
+        expect: ["meadow.example", "northwind.example"],
+        value: ["meadow.example"],
       },
       {
         kind: "file-json-set",
         file: "config/entities.json",
         pointer: "/entities/2/assets",
         expect: [],
-        value: ["nosh.example"],
+        value: ["northwind.example"],
       },
     ]);
     assertLegal(ops);
   });
 
   it("writes a FIRST write onto an entity that has never owned anything", () => {
-    const ops = entityMoveOps(ROWS, "nosh.example", "second-co");
+    const ops = entityMoveOps(ROWS, "northwind.example", "second-co");
     expect(ops[1]).toEqual({
       kind: "file-json-set",
       file: "config/entities.json",
       pointer: "/entities/1/assets",
       expectAbsent: true,
-      value: ["nosh.example"],
+      value: ["northwind.example"],
     });
     assertLegal(ops);
   });
 
   it("sends one op when the asset had no owner", () => {
-    const ops = entityMoveOps(ROWS, "areas.example", "example-ventures");
+    const ops = entityMoveOps(ROWS, "acorn.example", "example-ventures");
     expect(ops).toEqual([
       {
         kind: "file-json-set",
         file: "config/entities.json",
         pointer: "/entities/0/assets",
-        expect: ["meals.example", "nosh.example"],
-        value: ["meals.example", "nosh.example", "areas.example"],
+        expect: ["meadow.example", "northwind.example"],
+        value: ["meadow.example", "northwind.example", "acorn.example"],
       },
     ]);
     assertLegal(ops);
   });
 
   it("sends one op when the asset is going to nobody", () => {
-    const ops = entityMoveOps(ROWS, "meals.example", null);
+    const ops = entityMoveOps(ROWS, "meadow.example", null);
     expect(ops).toEqual([
       {
         kind: "file-json-set",
         file: "config/entities.json",
         pointer: "/entities/0/assets",
-        expect: ["meals.example", "nosh.example"],
-        value: ["nosh.example"],
+        expect: ["meadow.example", "northwind.example"],
+        value: ["northwind.example"],
       },
     ]);
     assertLegal(ops);
   });
 
   it("writes nothing when the entity picked is the one that already owns it", () => {
-    expect(entityMoveOps(ROWS, "nosh.example", "example-ventures")).toEqual([]);
-    expect(entityMoveOps(ROWS, "areas.example", null)).toEqual([]);
+    expect(entityMoveOps(ROWS, "northwind.example", "example-ventures")).toEqual([]);
+    expect(entityMoveOps(ROWS, "acorn.example", null)).toEqual([]);
   });
 
   it("writes nothing for an entity the list does not have", () => {
-    expect(entityMoveOps(ROWS, "areas.example", "no-such-entity")).toEqual([]);
+    expect(entityMoveOps(ROWS, "acorn.example", "no-such-entity")).toEqual([]);
   });
 
   // An asset that is going away is moving to nobody, and its id is a string
   // on another row's list, so the op is a guarded set, never a delete.
   describe("releasing an asset nothing owns any more", () => {
     it("writes the owner's list back without the asset, and nothing else", () => {
-      const op = entityReleaseOp(ROWS, "meals.example")!;
+      const op = entityReleaseOp(ROWS, "meadow.example")!;
       expect(op).toEqual({
         kind: "file-json-set",
         file: "config/entities.json",
         pointer: "/entities/0/assets",
-        expect: ["meals.example", "nosh.example"],
-        value: ["nosh.example"],
+        expect: ["meadow.example", "northwind.example"],
+        value: ["northwind.example"],
       });
       assertLegal([op]);
-      expect(entityMoveOps(ROWS, "meals.example", null)).toEqual([op]);
+      expect(entityMoveOps(ROWS, "meadow.example", null)).toEqual([op]);
     });
 
     it("answers null for an asset nobody has claimed", () => {
-      expect(entityReleaseOp(ROWS, "areas.example")).toBeNull();
-      expect(entityReleaseOp([], "meals.example")).toBeNull();
+      expect(entityReleaseOp(ROWS, "acorn.example")).toBeNull();
+      expect(entityReleaseOp([], "meadow.example")).toBeNull();
     });
 
     it("leaves the ownership map naming only what is left", () => {
       const after = ROWS.map((row) =>
-        row.slug === "example-ventures" ? { ...row, assets: ["nosh.example"] } : row,
+        row.slug === "example-ventures" ? { ...row, assets: ["northwind.example"] } : row,
       );
-      expect(entityOfAsset(after, "meals.example")).toBeNull();
-      expect(entityAssets(after[0])).toEqual(["nosh.example"]);
+      expect(entityOfAsset(after, "meadow.example")).toBeNull();
+      expect(entityAssets(after[0])).toEqual(["northwind.example"]);
     });
   });
 });

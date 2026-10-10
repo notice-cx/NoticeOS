@@ -16,18 +16,18 @@ import {
   decodeBase64,
   detectBingAiFormat,
   parseBingAiExport,
-  sha256Hex,
   type BingAiExportParse,
 } from '../bing-ai-exports.js';
 import { authenticateOperator } from '../auth.js';
 import { json } from '../responses.js';
+import { sha256Hex } from '../shared.js';
 import { SignalError } from '../signal-store.js';
 import {
   archiveCollectedDump,
   type DumpTarget,
   type SignalDumpOutcome,
 } from '../signal-dumps.js';
-import { Issues, SITE_ROW_FIELDS, asObject, declaredString, isoDate, requiredString } from './validate.js';
+import { Issues, SITE_ROW_FIELDS, declaredString, isoDate, readJsonObject, requiredString } from './validate.js';
 
 /** Base64 is 4 characters per 3 bytes; the slack covers padding and any
  * newlines a caller's encoder inserted. */
@@ -43,16 +43,8 @@ export async function handleBingAiExport(
     return json({ error: 'unauthorized' }, 401);
   }
 
-  let parsed: unknown;
-  try {
-    parsed = await request.json();
-  } catch (err) {
-    return json({ error: 'bad_request', detail: `could not parse body: ${String(err)}` }, 400);
-  }
-  const body = asObject(parsed);
-  if (!body) {
-    return json({ error: 'bad_request', detail: 'body must be a JSON object' }, 400);
-  }
+  const body = await readJsonObject(request);
+  if (body instanceof Response) return body;
 
   const issues = new Issues();
   const asset = declaredString(issues, body.asset, 'asset', SITE_ROW_FIELDS.id);

@@ -20,12 +20,12 @@ interface Row {
   supersedes_id?: bigint | number | null;
 }
 
-/** Book one entry; defaults describe a May ads estimate for meals.example. */
+/** Book one entry; defaults describe a May ads estimate for meadow.example. */
 function insert(row: Row = {}) {
   return bookEntry({
     ...(row.id === undefined ? {} : { entryId: row.id }),
     kind: row.kind ?? 'revenue',
-    asset: row.asset ?? 'meals.example',
+    asset: row.asset ?? 'meadow.example',
     period: row.period ?? '2026-05',
     family: row.family ?? 'ads',
     amountMinor: 100,
@@ -71,7 +71,7 @@ describe('ledger chain guards', () => {
   });
 
   it.each([
-    ['asset', { asset: 'nosh.example' }],
+    ['asset', { asset: 'northwind.example' }],
     ['period', { period: '2026-06' }],
     ['kind (and so family)', { kind: 'cost' as const, family: 'infra' }],
     ['family', { family: 'affiliate' }],
@@ -115,7 +115,7 @@ describe('ledger chain guards', () => {
     const first = await insert();
     const second = await insert({ supersedes_id: first.entryId });
     await expect(
-      asOwnerInWorkspace(`UPDATE noticeos.ledger_entries SET asset_id = 'nosh.example' WHERE entry_id = ${first.entryId};`),
+      asOwnerInWorkspace(`UPDATE noticeos.ledger_entries SET asset_id = 'northwind.example' WHERE entry_id = ${first.entryId};`),
     ).rejects.toThrow(/entries are immutable/);
     await expect(
       asOwnerInWorkspace(`UPDATE noticeos.ledger_entries SET period_month = '2026-06-01' WHERE entry_id = ${second.entryId};`),

@@ -14,6 +14,7 @@ import {
   nonNegativeInteger,
   pastInstant,
 } from './routes/validate.js';
+import { sha256Hex } from './shared.js';
 
 /** A future shape gets a new number and a migration, never a silent
  * reinterpretation of these columns. */
@@ -42,11 +43,6 @@ export type InsightSnapshotResult =
   | { ok: false; error: 'bad_request'; detail: string }
   | { ok: false; error: 'unknown_asset'; asset: string }
   | { ok: false; error: 'validation'; issues: { path: string; code: string; message: string }[] };
-
-export async function sha256Hex(payload: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload));
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
 
 /** One spelling of the id, in one place. */
 export function insightSnapshotId(asset: string, contentSha256: string): string {

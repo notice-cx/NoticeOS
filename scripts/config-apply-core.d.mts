@@ -56,18 +56,3 @@ export declare function nextArchiveNumber({ repoRoot }?: RepoOption): Promise<nu
 /** Write the applied changeset to its numbered archive; returns its path as a
  * commit names it, which is also what the caller commits. */
 export declare function archiveChangeset(cs: Changeset, { repoRoot }?: RepoOption): Promise<string>;
-/** `annotations.kind` for a stage move. `annotations.kind` is a CHECK
- * constraint, and `config` is the closest honest member. */
-export declare const LIFECYCLE_ANNOTATION_KIND: string;
-/** What a lifecycle-move `ref` starts with, so an operator-written ref can never
- * be mistaken for one. */
-export declare const LIFECYCLE_REF_PREFIX: string;
-/**
- * The `ref` one stage move is stored under (`lifecycle:baselining>retired`).
- * Part of the row's `(asset, at, kind, ref)` identity, so a retried write
- * collapses into one row and two moves in the same second stay two.
- */
-export declare function lifecycleMoveRef({ from, to }: {
-    from: string;
-    to: string;
-}): string;

@@ -8,7 +8,7 @@ an existing installation may keep a host-managed server,
 client in server mode holding no database of its own, only connection
 settings. This file maps the three names one project answers to — its
 **asset id**, its **bead prefix** and its **database** on the hub. Start with
-[Connect a project](../docs/project-setup.md) for the complete path.
+[Connect a task project](../docs/guides/connect-a-task-project.md) for the complete path.
 
 `config/beads.json` is the product default (the local hub, no projects) and
 `installation/beads.json` this installation's export. Settings, local
@@ -203,19 +203,33 @@ any spoke's copy drifts. Change it here first, then re-stamp the spokes
 
 `bd` is the only write path an agent uses: an agent claims and closes work in
 the repo where the work happens, because that is where it has the context to be
-honest about what it did. The operator also has a UI: the Tower's `os:up`
-dev server carries a local lane (`apps/tower/vite/task-lane.ts`, serving
-`/api/tasks/*` and `/api/gates/*`) that runs `bd` for the operator inside the
-spoke this file names. Twelve verbs (`ALLOWED_VERBS`) are checked before
-anything is spawned — reads `list`, `ready`, `show`, `comments`,
-`epic status`; writes `create`, `update`, `close -r`, `comments add`,
-`human respond`, `human dismiss`, `gate resolve` — and everything else
-(`delete`, `sql`, `dolt`, `import`, `export`, `federation`, `backup`) is
-refused by name. `--actor` is the operator on every write, the checkout's own
-`git user.name`, so the hub's audit trail keeps saying who touched what. A
-deployed Tower answers `{live: false}` and `501` and keeps the read-only
-snapshot board. The lane's File button replaces the pasted `bd create`
-command, not the judgment.
+honest about what it did. The operator also has a UI. The hub is a Dolt server
+on the local host that a Worker cannot reach, but the Tower's `os:up` dev
+server can: a local lane (`apps/tower/vite/task-lane.ts`, serving
+`/api/tasks/*` and `/api/gates/*`) runs `bd` for the operator inside the
+checkout `task-host.json` links to each saved project, the same projects the
+poller reads. Three guards, all load-bearing:
+
+- **Same origin** (`apps/tower/vite/lane.ts`, the guard the config lane uses),
+  for reads too, since every path spawns a process. The LAN Tower has no
+  authentication, so what must be impossible is another site steering the
+  browser into a write here.
+- **An allowlist of twelve verbs** (`ALLOWED_VERBS`), checked before anything
+  is spawned: reads `list`, `ready`, `show`, `comments`, `epic status`; writes
+  `create`, `update` (including `--claim` and `--defer`), `close -r`,
+  `comments add`, `human respond`, `human dismiss`, `gate resolve`. Anything
+  else (`delete`, `sql`, `dolt`, `import`, `export`, `federation`, `backup`,
+  `restore`, `config`, `hooks`, `compact`, …) is refused with the verb named.
+- **`--actor` on every write**, the checkout's own `git user.name`, so the
+  hub's audit trail keeps saying who touched what.
+
+`bd`'s stderr comes back verbatim in `detail`; a non-zero exit is a
+`502 bd_failed`, never a silent nothing. A deployed Tower compiles the lane out
+(`apply: "serve"`): its Worker answers `GET /api/tasks/capabilities` with
+`{live: false}` and every other task path with `501 read_only_deployment`
+(`apps/tower/worker/tasks-route.ts`), and keeps the read-only snapshot board.
+The lane's File button replaces the pasted `bd create` command, not the
+judgment.
 
 ## Conventions
 
@@ -291,14 +305,14 @@ describes (`taskHandoffPrefill`) and files it through the task lane in the
 asset's own spoke. Copy Markdown stays for agents and is the only path in a
 deployed build.
 
-The list of kinds is **stated in six places that ship separately** — the
-emitter's `TaskHandoffKind`, the poller's `HANDOFF_KINDS`
-(`scripts/runner/task-snapshot.mjs`), the ingest validator's
-`BEADS_HANDOFF_KINDS` (`workers/ingest/src/beads-snapshots.ts`), the Tower
-reader's `readHandoff` (`apps/tower/worker/beads-snapshot.ts`), the shared
-type `HandoffKind` (`apps/tower/shared/asset-detail.ts`), and **the table
-above** — so widen all six together; `scripts/handoff-kinds.test.mjs` reads
-all six and names the odd one out. At runtime an unknown kind costs its own
+The list of kinds is **stated in five places that ship separately** — the
+emitter's `TaskHandoffKind`, the contract's `BEADS_HANDOFF_KINDS`
+(`packages/contract/src/task-snapshot.mts`, which the poller and the ingest
+validator both import), the Tower reader's `readHandoff`
+(`apps/tower/worker/beads-snapshot.ts`), the shared type `HandoffKind`
+(`apps/tower/shared/asset-detail.ts`), and **the table above** — so widen all
+five together; `scripts/handoff-kinds.test.mjs` reads every one and names the
+odd one out. At runtime an unknown kind costs its own
 row, the rest of the project stores, and the Worker logs one
 `beads_handoff_kind_unknown` line per snapshot.
 

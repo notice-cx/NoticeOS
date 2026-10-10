@@ -140,7 +140,7 @@ export async function main(argv = process.argv.slice(2), { out = process.stdout,
     out.write(JSON.stringify(await prepareProjectContext(path.resolve(repo), { ...options, write: mode === '--write' }), null, 2) + '\n');
     return 0;
   } catch {
-    err.write('Project context refused. Use --repo <absolute checkout> and --check or --write; review docs/project-setup.md.\n');
+    err.write('Project context refused. Use --repo <absolute checkout> and --check or --write; review docs/guides/connect-a-task-project.md.\n');
     return 1;
   }
 }

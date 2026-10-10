@@ -38,7 +38,9 @@ import { fileURLToPath } from 'node:url';
 
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-/** True when this module is the script Node was started with. */
+/** True when this module is the script Node was started with. Not imported
+ * from os-runtime.mjs: the tests run this file copied alone into a scratch
+ * checkout. */
 export function invokedDirectly(url) {
   try {
     return realpathSync(path.resolve(process.argv[1])) === realpathSync(fileURLToPath(url));

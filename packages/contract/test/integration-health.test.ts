@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { INTEGRATION_PROVIDERS } from '../src/integrations.js';
 import { INTEGRATION_MONITORS, integrationCapabilityHealth, type IntegrationHealthScope, type IntegrationObservation } from '../src/integration-health.js';
 
-const scope: IntegrationHealthScope = { workspace: 'local', provider: 'google', connection: 'revision-1', capability: 'ga4-realtime', asset: 'meals.example', target: 'property-a', family: '' };
+const scope: IntegrationHealthScope = { workspace: 'local', provider: 'google', connection: 'revision-1', capability: 'ga4-realtime', asset: 'meadow.example', target: 'property-a', family: '' };
 const nowMs = Date.parse('2026-09-11T00:00:00Z');
 const observation = (outcome: 'failure' | 'success', startedAt = '2026-09-10T23:59:00Z'): IntegrationObservation => ({ scope, attemptId: `${outcome}:${startedAt}`, startedAt, finishedAt: startedAt, outcome, failure: outcome === 'failure' ? 'rate-limit' : null, code: outcome === 'failure' ? 'google-rate-limit' : null, nextAttemptAt: null });
 const derive = (observations: IntegrationObservation[], extra: Partial<Parameters<typeof integrationCapabilityHealth>[0]> = {}) => integrationCapabilityHealth({ scope, connection: 'connected', covered: true, observerAvailable: true, trigger: 'demand', observations, requiredSince: '2026-09-10T23:58:00Z', nowMs, ...extra });

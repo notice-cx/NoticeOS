@@ -1,4 +1,6 @@
 import { javascriptInstant, type WorkspaceStore } from '@noticeos/postgres';
+import { sha256Hex } from './shared.js';
+import { claimLease, releaseLease } from './integration-leases.js';
 
 export interface ProviderReadCache {
   /** The call's store, where the lease row lives (`noticeos.integration_leases`). */
@@ -32,8 +34,7 @@ export class ProviderReadCacheError extends Error {
 }
 
 export async function providerCacheScope(value: unknown): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(value)));
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+  return sha256Hex(JSON.stringify(value));
 }
 
 /** Completed values cross calls; request-owned I/O never does. Workspace rows
@@ -62,21 +63,14 @@ export async function cachedProviderRead<T, Failure extends ProviderReadFailure>
   if (prior && Date.parse(prior.refreshAt) > nowMs) return prior;
   const owner = crypto.randomUUID();
   // One owner at a time; a refusal's cooldown blocks everyone, a success's
-  // blocks only callers with something to show. The claim returns the cooldown
-  // it found (a claim never changes it; none yet is NULL), and a row only when
-  // it now owns the lease. Postgres locks the row, so of two claims at once the
-  // second waits for the first and then finds it held.
-  let claim: { cooldown_until: string | null } | undefined;
+  // blocks only callers with something to show. A claim never changes the
+  // cooldown it returns; none yet is NULL.
+  let claim: { cooldown_until: string | null } | null;
   try {
-    const takeNow = nowMs;
-    [claim] = await context.store.write((tx) => tx.query<{ cooldown_until: string | null }>(
-      `INSERT INTO noticeos.integration_leases AS l (workspace_id, lease_key, owner, expires_at)
-       VALUES ($1::uuid, $2, $3, $4::timestamptz)
-       ON CONFLICT (workspace_id, lease_key) DO UPDATE SET owner = excluded.owner, expires_at = excluded.expires_at
-        WHERE l.expires_at <= $5::timestamptz
-          AND (l.cooldown_until IS NULL OR l.cooldown_until <= $5::timestamptz OR ($6::boolean AND l.last_error IS NULL))
-       RETURNING l.cooldown_until`,
-      [tx.workspaceId, lease, owner, new Date(takeNow + policy.leaseMs), new Date(takeNow), policy.allowEarlyRead && !prior]));
+    claim = await claimLease(context.store, {
+      key: lease, owner, nowMs, expiresAtMs: nowMs + policy.leaseMs,
+      takeoverAlso: { sql: '(l.cooldown_until IS NULL OR l.cooldown_until <= $5::timestamptz OR ($6::boolean AND l.last_error IS NULL))', param: policy.allowEarlyRead && !prior },
+    });
   } catch {
     throw new ProviderReadCacheError('coordination_unavailable', at, new Date(nowMs + policy.failureRetryMs).toISOString());
   }
@@ -124,11 +118,8 @@ export async function cachedProviderRead<T, Failure extends ProviderReadFailure>
           WHERE lease_key = $4 AND owner = $5`,
         [new Date(early ? cooldown : 0), new Date(cooldown), written.ok ? null : JSON.stringify(written), lease, owner]));
     } else {
-      // Nothing was read: the cooldown stays as the claim found it. A lease
-      // given back ends at the epoch.
-      await context.store.write((tx) => tx.execute(
-        'UPDATE noticeos.integration_leases SET expires_at = $1::timestamptz WHERE lease_key = $2 AND owner = $3',
-        [new Date(0), lease, owner]));
+      // Nothing was read: the cooldown stays as the claim found it.
+      await releaseLease(context.store, lease, owner);
     }
   }
 }

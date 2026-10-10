@@ -19,13 +19,13 @@ describe("recommendation source read model against the real schema", () => {
   let fixture: TestStore;
   beforeEach(async () => {
     fixture = await createTestStore();
-    await addSites(fixture, ["nosh.example", "meals.example"].map((id) => ({ id, domain: null, displayName: id, status: "live", senseOnly: 1, createdAt: "2026-01-01" })));
+    await addSites(fixture, ["northwind.example", "meadow.example"].map((id) => ({ id, domain: null, displayName: id, status: "live", senseOnly: 1, createdAt: "2026-01-01" })));
   });
   afterEach(() => fixture.close());
 
   /** Search Console report runs, in the order given. */
   async function insert(...runs: [id: string, report: string, date: string, at: string, status?: TestArchiveRun["status"], asset?: string][]) {
-    await writeArchiveRuns(fixture.call, runs.map(([id, report, date, at, status = "success", asset = "nosh.example"]) => ({
+    await writeArchiveRuns(fixture.call, runs.map(([id, report, date, at, status = "success", asset = "northwind.example"]) => ({
       id, asset, integration: "gsc", report, credential_ref: "fixture-account-reference", property_ref: "fixture-property",
       report_date: date, finished_at: at, status, data_state: "provider-final", provider_rows: 3, request_count: 1,
       object_key: `fixture/${id}`, object_bytes: 3, error_code: "fixture-failure", error_message: "Test collection failed",
@@ -41,9 +41,9 @@ describe("recommendation source read model against the real schema", () => {
     await insert(
       ["query", "query", "2026-08-31", "2026-09-05T10:00:00.000Z"],
       ["page", "page", "2026-09-04", "2026-09-05T11:00:00.000Z"],
-      ["other", "page-query", "2026-09-04", "2026-09-05T11:00:00.000Z", "success", "meals.example"],
+      ["other", "page-query", "2026-09-04", "2026-09-05T11:00:00.000Z", "success", "meadow.example"],
     );
-    expect(await readRecommendationSources(fixture.call, "nosh.example", NOW)).toEqual({ available: true, truncated: false, since, reports: [
+    expect(await readRecommendationSources(fixture.call, "northwind.example", NOW)).toEqual({ available: true, truncated: false, since, reports: [
       { source: "gsc/page", reportDate: "2026-09-04", collectedAt: "2026-09-05T11:00:00.000Z", status: "success" },
       { source: "gsc/query", reportDate: "2026-08-31", collectedAt: "2026-09-05T10:00:00.000Z", status: "success" },
     ] });
@@ -53,7 +53,7 @@ describe("recommendation source read model against the real schema", () => {
       ["old", "query", "2026-09-03", "2026-09-04T10:00:00.000Z"],
       ["new", "query", "2026-09-04", "2026-09-05T10:00:00.000Z", "error"],
     );
-    const result = await readRecommendationSources(fixture.call, "nosh.example", NOW);
+    const result = await readRecommendationSources(fixture.call, "northwind.example", NOW);
     expect(result.reports).toHaveLength(1);
     expect(result.reports[0]?.status).toBe("error");
     expect(await storedRuns()).toBe(2);
@@ -63,29 +63,29 @@ describe("recommendation source read model against the real schema", () => {
       ["first", "query", "2026-09-03", "2026-09-05T10:00:00.000Z"],
       ["second", "query", "2026-09-04", "2026-09-05T10:00:00.000Z", "unchanged"],
     );
-    expect((await readRecommendationSources(fixture.call, "nosh.example", NOW)).reports[0]?.status).toBe("unchanged");
+    expect((await readRecommendationSources(fixture.call, "northwind.example", NOW)).reports[0]?.status).toBe("unchanged");
   });
   it("empty read is distinct from a failed read and does not leak DB details", async () => {
-    expect(await readRecommendationSources(fixture.call, "nosh.example", NOW)).toEqual({ available: true, truncated: false, reports: [], since });
-    expect(await readRecommendationSources(failingStore(), "nosh.example", NOW)).toEqual({ available: false, truncated: false, reports: [], since });
+    expect(await readRecommendationSources(fixture.call, "northwind.example", NOW)).toEqual({ available: true, truncated: false, reports: [], since });
+    expect(await readRecommendationSources(failingStore(), "northwind.example", NOW)).toEqual({ available: false, truncated: false, reports: [], since });
   });
   it("discloses the bounded family inventory", async () => {
     await insert(...Array.from({ length: 201 }, (_, n) => [`row-${n}`, `family-${n}`, "2026-09-04", "2026-09-05T10:00:00.000Z"] as [string, string, string, string]));
-    const result = await readRecommendationSources(fixture.call, "nosh.example", NOW);
+    const result = await readRecommendationSources(fixture.call, "northwind.example", NOW);
     expect(result.truncated).toBe(true);
     expect(result.reports).toHaveLength(200);
   });
   it("an invalid clock is unavailable before deriving a date or querying the store", async () => {
     for (const nowMs of [NaN, Infinity, -Infinity, 1e20]) {
       let reads = 0;
-      const result = await readRecommendationSources(failingStore(() => { reads++; }), "nosh.example", nowMs);
+      const result = await readRecommendationSources(failingStore(() => { reads++; }), "northwind.example", nowMs);
       expect(result).toEqual({ available: false, truncated: false, reports: [] });
       expect(reads).toBe(0);
     }
   });
   it("retains old history without presenting attempts outside the disclosed lookback", async () => {
     await insert(["old", "query", "2024-01-01", "2024-01-02T10:00:00.000Z"]);
-    expect(await readRecommendationSources(fixture.call, "nosh.example", NOW)).toEqual({ available: true, truncated: false, reports: [], since });
+    expect(await readRecommendationSources(fixture.call, "northwind.example", NOW)).toEqual({ available: true, truncated: false, reports: [], since });
     expect(await storedRuns()).toBe(1);
   });
 });

@@ -3,7 +3,6 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import * as osUp from './os-up.mjs';
 import { resolveHomeRoot, statePaths } from './os-runtime.mjs';
 import {
   BACKUPS_DIR,
@@ -53,12 +52,6 @@ test("the secret files are home's paths, never a runtime copy's", () => {
   const fromCopy = runnerPaths(copy, { NOTICEOS_HOME: HOME_ROOT });
   assert.equal(fromCopy.devSecrets, home.devSecrets);
   assert.equal(fromCopy.devVars, home.devVars);
-});
-
-test('os-up.mjs still offers the same CONFIG, runnerPaths and osCheckoutName', () => {
-  assert.equal(osUp.CONFIG, CONFIG);
-  assert.equal(osUp.runnerPaths, runnerPaths);
-  assert.equal(osUp.osCheckoutName, osCheckoutName);
 });
 
 test('the port map keeps the ingest door on loopback and off the Tower port', () => {

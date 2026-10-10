@@ -16,7 +16,7 @@ function stubDoor(body = {}) {
       status: 200,
       json: async () => ({
         collected: true,
-        asset: 'nosh.example',
+        asset: 'northwind.example',
         families: ['serp-panel'],
         attempted: 1,
         succeeded: 1,
@@ -30,7 +30,7 @@ function stubDoor(body = {}) {
             reportDate: '2026-08-04',
             status: 'success',
             providerRows: 20,
-            objectKey: 'raw/dataforseo/dataforseo/nosh.example/serp-panel/2026-08-04/x.json.gz',
+            objectKey: 'raw/dataforseo/dataforseo/northwind.example/serp-panel/2026-08-04/x.json.gz',
             costUsd: 0.08,
             retries: 0,
             errorCode: null,
@@ -44,21 +44,21 @@ function stubDoor(body = {}) {
 }
 
 test('parseArgs: one property, every due family, at the loopback door', () => {
-  const options = parseArgs(['--asset', 'nosh.example']);
-  assert.equal(options.asset, 'nosh.example');
+  const options = parseArgs(['--asset', 'northwind.example']);
+  assert.equal(options.asset, 'northwind.example');
   assert.equal(options.families, null);
   assert.equal(options.door, DEFAULT_DOOR);
 });
 
 test('parseArgs: --families is comma-separated and repeatable', () => {
   assert.deepEqual(
-    parseArgs(['--asset', 'nosh.example', '--families', 'serp-panel,ranked-keywords']).families,
+    parseArgs(['--asset', 'northwind.example', '--families', 'serp-panel,ranked-keywords']).families,
     ['serp-panel', 'ranked-keywords'],
   );
   assert.deepEqual(
     parseArgs([
       '--asset',
-      'nosh.example',
+      'northwind.example',
       '--families',
       'serp-panel',
       '--families',
@@ -72,9 +72,9 @@ test('parseArgs: --families is comma-separated and repeatable', () => {
 // the wrong thing.
 test('parseArgs: refuses a malformed asset, an unknown family, a repeated one', () => {
   assert.throws(() => parseArgs(['--asset', 'NOT VALID']), /property id/);
-  assert.throws(() => parseArgs(['--asset', 'nosh.example', '--families', 'serp']), /Unknown report/);
+  assert.throws(() => parseArgs(['--asset', 'northwind.example', '--families', 'serp']), /Unknown report/);
   assert.throws(
-    () => parseArgs(['--asset', 'nosh.example', '--families', 'serp-panel,serp-panel']),
+    () => parseArgs(['--asset', 'northwind.example', '--families', 'serp-panel,serp-panel']),
     /repeats serp-panel/,
   );
 });
@@ -82,7 +82,7 @@ test('parseArgs: refuses a malformed asset, an unknown family, a repeated one', 
 test('asks the operator-authed door for exactly the property and families named', async () => {
   const { post, calls } = stubDoor();
   const result = await collectSignals({
-    asset: 'nosh.example',
+    asset: 'northwind.example',
     families: ['serp-panel'],
     door: 'http://door.test',
     post,
@@ -94,7 +94,7 @@ test('asks the operator-authed door for exactly the property and families named'
   assert.equal(url, 'http://door.test/api/signal-collect');
   assert.equal(init.method, 'POST');
   assert.equal(init.headers.authorization, 'Bearer op');
-  assert.deepEqual(JSON.parse(init.body), { asset: 'nosh.example', families: ['serp-panel'] });
+  assert.deepEqual(JSON.parse(init.body), { asset: 'northwind.example', families: ['serp-panel'] });
   assert.equal(result.succeeded, 1);
   assert.equal(result.costUsd, 0.08);
 });
@@ -103,13 +103,13 @@ test('asks the operator-authed door for exactly the property and families named'
 // belongs to the collector — the body must not carry an invented list.
 test('omitting --families sends no families at all', async () => {
   const { post, calls } = stubDoor();
-  await collectSignals({ asset: 'nosh.example', door: 'http://door.test', post, token: 'op' });
-  assert.deepEqual(JSON.parse(calls[0].init.body), { asset: 'nosh.example' });
+  await collectSignals({ asset: 'northwind.example', door: 'http://door.test', post, token: 'op' });
+  assert.deepEqual(JSON.parse(calls[0].init.body), { asset: 'northwind.example' });
 });
 
 test('the summary states what was attempted and what it cost, to the manifest’s precision', () => {
   const summary = summarize({
-    asset: 'nosh.example',
+    asset: 'northwind.example',
     attempted: 2,
     succeeded: 1,
     unchanged: 0,
@@ -147,10 +147,10 @@ test('a refused request fails loudly and carries the ingest’s reason', async (
     ok: false,
     status: 422,
     text: async () =>
-      '{"error":"family_unavailable","detail":"areas.example has no serp-panel to collect."}',
+      '{"error":"family_unavailable","detail":"acorn.example has no serp-panel to collect."}',
   });
   await assert.rejects(
-    collectSignals({ asset: 'areas.example', families: ['serp-panel'], post, token: 'op' }),
+    collectSignals({ asset: 'acorn.example', families: ['serp-panel'], post, token: 'op' }),
     /HTTP 422.*family_unavailable/s,
   );
 });
@@ -159,7 +159,7 @@ test('a door that does not answer names os:up', async () => {
   const post = async () => {
     throw new Error('fetch failed');
   };
-  await assert.rejects(collectSignals({ asset: 'nosh.example', post, token: 'op' }), /os:up/);
+  await assert.rejects(collectSignals({ asset: 'northwind.example', post, token: 'op' }), /os:up/);
 });
 
 test('the long-running loopback transport waits for delayed headers and sends once', async () => {
@@ -170,7 +170,7 @@ test('the long-running loopback transport waits for delayed headers and sends on
       response.writeHead(200, { 'content-type': 'application/json' });
       response.end(
         JSON.stringify({
-          asset: 'meals.example',
+          asset: 'meadow.example',
           families: ['serp-panel'],
           attempted: 1,
           succeeded: 1,
@@ -189,7 +189,7 @@ test('the long-running loopback transport waits for delayed headers and sends on
     assert.equal(typeof address, 'object');
     const started = Date.now();
     const result = await collectSignals({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       families: ['serp-panel'],
       door: `http://127.0.0.1:${address.port}`,
       token: 'op',
@@ -211,16 +211,16 @@ test('the no-header-timeout transport cannot be aimed off the local machine', as
 
 // PostHog on demand.
 test('parseArgs: PostHog families, with an optional fixed window', () => {
-  assert.deepEqual(parseArgs(['--asset', 'meals.example', '--families', 'posthog-*']), {
-    asset: 'meals.example',
+  assert.deepEqual(parseArgs(['--asset', 'meadow.example', '--families', 'posthog-*']), {
+    asset: 'meadow.example',
     families: ['posthog-*'],
     door: DEFAULT_DOOR,
   });
   assert.deepEqual(
-    parseArgs(['--', '--asset', 'meals.example', '--families', 'posthog', '--start', '2026-09-08', '--end', '2026-09-22']),
-    { asset: 'meals.example', families: ['posthog'], door: DEFAULT_DOOR, start: '2026-09-08', end: '2026-09-22' },
+    parseArgs(['--', '--asset', 'meadow.example', '--families', 'posthog', '--start', '2026-09-08', '--end', '2026-09-22']),
+    { asset: 'meadow.example', families: ['posthog'], door: DEFAULT_DOOR, start: '2026-09-08', end: '2026-09-22' },
   );
-  assert.deepEqual(parseArgs(['--asset', 'meals.example', '--families', 'posthog-events,posthog-funnels']).families, [
+  assert.deepEqual(parseArgs(['--asset', 'meadow.example', '--families', 'posthog-events,posthog-funnels']).families, [
     'posthog-events',
     'posthog-funnels',
   ]);
@@ -230,28 +230,28 @@ test('parseArgs: PostHog families, with an optional fixed window', () => {
 // family the ingest collects is refused here first.
 test('parseArgs: accepts every contract PostHog family, all at once', () => {
   const tags = POSTHOG_FAMILIES.map((family) => `posthog-${family}`);
-  assert.deepEqual(parseArgs(['--asset', 'meals.example', '--families', tags.join(',')]).families, tags);
+  assert.deepEqual(parseArgs(['--asset', 'meadow.example', '--families', tags.join(',')]).families, tags);
 });
 
 test('parseArgs: refuses mixed providers and a window that is not PostHog’s or not whole', () => {
-  assert.throws(() => parseArgs(['--asset', 'meals.example', '--families', 'posthog-events,serp-panel']), /one provider per run/);
-  assert.throws(() => parseArgs(['--asset', 'meals.example', '--families', 'posthog-*,posthog-events']), /name it alone/);
-  assert.throws(() => parseArgs(['--asset', 'meals.example', '--families', 'posthog-nope']), /Unknown report/);
-  assert.throws(() => parseArgs(['--asset', 'meals.example', '--families', 'posthog-*', '--start', '2026-09-08']), /together/);
-  assert.throws(() => parseArgs(['--asset', 'nosh.example', '--start', '2026-09-08', '--end', '2026-09-22']), /PostHog families only/);
+  assert.throws(() => parseArgs(['--asset', 'meadow.example', '--families', 'posthog-events,serp-panel']), /one provider per run/);
+  assert.throws(() => parseArgs(['--asset', 'meadow.example', '--families', 'posthog-*,posthog-events']), /name it alone/);
+  assert.throws(() => parseArgs(['--asset', 'meadow.example', '--families', 'posthog-nope']), /Unknown report/);
+  assert.throws(() => parseArgs(['--asset', 'meadow.example', '--families', 'posthog-*', '--start', '2026-09-08']), /together/);
+  assert.throws(() => parseArgs(['--asset', 'northwind.example', '--start', '2026-09-08', '--end', '2026-09-22']), /PostHog families only/);
   assert.throws(
-    () => parseArgs(['--asset', 'meals.example', '--families', 'posthog-*', '--start', '2026-09-22', '--end', '2026-09-08']),
+    () => parseArgs(['--asset', 'meadow.example', '--families', 'posthog-*', '--start', '2026-09-22', '--end', '2026-09-08']),
     /not be after/,
   );
   assert.throws(
-    () => parseArgs(['--asset', 'meals.example', '--families', 'posthog-*', '--start', '09/08/2026', '--end', '2026-09-22']),
+    () => parseArgs(['--asset', 'meadow.example', '--families', 'posthog-*', '--start', '09/08/2026', '--end', '2026-09-22']),
     /YYYY-MM-DD/,
   );
 });
 
 test('a PostHog request carries its window, and the summary names what was skipped', async () => {
   const { post, calls } = stubDoor({
-    asset: 'meals.example',
+    asset: 'meadow.example',
     families: ['posthog-events', 'posthog-funnels'],
     attempted: 1,
     succeeded: 1,
@@ -263,7 +263,7 @@ test('a PostHog request carries its window, and the summary names what was skipp
     ],
   });
   const result = await collectSignals({
-    asset: 'meals.example',
+    asset: 'meadow.example',
     families: ['posthog-events', 'posthog-funnels'],
     start: '2026-09-08',
     end: '2026-09-22',
@@ -272,7 +272,7 @@ test('a PostHog request carries its window, and the summary names what was skipp
     token: 'op',
   });
   assert.deepEqual(JSON.parse(calls[0].init.body), {
-    asset: 'meals.example',
+    asset: 'meadow.example',
     families: ['posthog-events', 'posthog-funnels'],
     start: '2026-09-08',
     end: '2026-09-22',

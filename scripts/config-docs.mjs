@@ -103,7 +103,7 @@ export function withBlock(text, block) {
 }
 
 /** The documentation site's configuration page: every README's block under its file's heading. */
-export const DOCS_PAGE = 'apps/docs/reference/configuration.md';
+export const DOCS_PAGE = 'docs/reference/configuration.md';
 
 export function renderDocsPage(all = blocks()) {
   const lines = [

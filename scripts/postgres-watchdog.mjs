@@ -147,6 +147,8 @@ export async function stopOwnedServers(
   return { running: stillRunning, neverStarted: starting };
 }
 
+// Not imported from os-runtime.mjs: the watchdog runs detached with an empty
+// environment, and nothing it loads may fail once its owner is gone.
 function invokedDirectly() {
   try {
     return realpathSync(path.resolve(process.argv[1] ?? '')) === realpathSync(fileURLToPath(import.meta.url));

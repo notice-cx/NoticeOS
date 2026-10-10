@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { BING_AI_EXPORT_MAX_BYTES } from '../src/bing-ai-exports.js';
+import { BING_AI_REPORTS } from '@noticeos/contract/signal-families';
+import { BING_AI_EXPORT_MAX_BYTES, BING_AI_FORMATS } from '../src/bing-ai-exports.js';
 import { OPERATOR_TOKEN } from './fixtures.js';
 import { ARCHIVE_RUNS, call, pgAll, pgCount, pgFirst, reset } from './helpers.js';
 
@@ -18,7 +19,7 @@ function exportFile(lines: string[]): Uint8Array {
 const QUERIES = exportFile([
   '"Grounding Query","Intent","Topic","Citations","Citation Share"',
   '"how much protein should i eat daily","Learn and Solve","Protein & Muscle Building Nutrition","42488","27.24%"',
-  '"my plate food guide","Learn and Solve","Health","4299","44.06%"',
+  '"my plume food guide","Learn and Solve","Health","4299","44.06%"',
 ]);
 
 const OVERVIEW = exportFile([
@@ -29,7 +30,7 @@ const OVERVIEW = exportFile([
 
 const PAGES = exportFile([
   '"Page","Citations"',
-  '"https://meals.example/protein-calculator","294996"',
+  '"https://meadow.example/protein-calculator","294996"',
 ]);
 
 function base64(bytes: Uint8Array): string {
@@ -65,8 +66,8 @@ async function importExport(
       method: 'POST',
       headers,
       body: JSON.stringify({
-        asset: 'meals.example',
-        file: 'meals.example_AISearchQueriesReport_8_4_2026.csv',
+        asset: 'meadow.example',
+        file: 'meadow.example_AISearchQueriesReport_8_4_2026.csv',
         exportDate: '2026-08-04',
         contentBase64: base64(QUERIES),
         ...overrides,
@@ -84,6 +85,14 @@ async function archiveJson(objectKey: string): Promise<Record<string, any>> {
   ).text();
   return JSON.parse(text);
 }
+
+describe('the Bing AI export formats', () => {
+  /** The panel refresh measures these families on their own, from the
+   * contract's list, so the importer must read exactly that list. */
+  it('read exactly the report families the contract names', () => {
+    expect(BING_AI_FORMATS.map((format) => format.report)).toEqual([...BING_AI_REPORTS]);
+  });
+});
 
 describe('POST /api/bing-ai-export — the door', () => {
   it('rejects an unauthenticated import (401) and stores nothing', async () => {
@@ -147,6 +156,22 @@ describe('POST /api/bing-ai-export — what it refuses to guess', () => {
     expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS}`)).toBe(0);
   });
 
+  it('refuses a row with fewer fields than the header rather than padding it', async () => {
+    const { status, body } = await importExport({
+      contentBase64: base64(
+        exportFile([
+          '"Grounding Query","Intent","Topic","Citations","Citation Share"',
+          '"my plate food guide","Learn and Solve","Health","4299","44.06%"',
+          '"how much protein should i eat daily","Learn and Solve","42488"',
+        ]),
+      ),
+    });
+    expect(status).toBe(422);
+    expect(body.error).toBe('bing_ai_export_ragged_row');
+    expect(body.detail).toContain('Row 3 has 3 field(s); the header declares 5.');
+    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS}`)).toBe(0);
+  });
+
   it('refuses a header that merely gained a column', async () => {
     const { status, body } = await importExport({
       contentBase64: base64(
@@ -167,10 +192,10 @@ describe('POST /api/bing-ai-export — what it refuses to guess', () => {
       contentBase64: base64(
         exportFile([
           '"Page","Citations"',
-          '"https://meals.example/protein-calculator","294,996"',
+          '"https://meadow.example/protein-calculator","294,996"',
         ]),
       ),
-      file: 'meals.example_AIPageStatsReport_8_4_2026.csv',
+      file: 'meadow.example_AIPageStatsReport_8_4_2026.csv',
     });
     expect(status).toBe(422);
     expect(body.error).toBe('bing_ai_export_bad_count');
@@ -182,7 +207,7 @@ describe('POST /api/bing-ai-export — what it refuses to guess', () => {
       contentBase64: base64(
         exportFile(['"Date","Citations","Cited Pages"', '"2026-05-04","326","11"']),
       ),
-      file: 'meals.example_AIPerformanceOverviewStats_8_4_2026.csv',
+      file: 'meadow.example_AIPerformanceOverviewStats_8_4_2026.csv',
     });
     expect(status).toBe(422);
     expect(body.error).toBe('bing_ai_export_bad_date');
@@ -192,7 +217,7 @@ describe('POST /api/bing-ai-export — what it refuses to guess', () => {
   // the header would date the wrong report.
   it('refuses a filename that names a different export than the header (422)', async () => {
     const { status, body } = await importExport({
-      file: 'meals.example_AIPageStatsReport_8_4_2026.csv',
+      file: 'meadow.example_AIPageStatsReport_8_4_2026.csv',
     });
     expect(status).toBe(422);
     expect(body.error).toBe('bing_ai_export_filename_mismatch');
@@ -213,7 +238,7 @@ describe('POST /api/bing-ai-export — what it stores', () => {
     expect(status).toBe(201);
     expect(body).toMatchObject({
       imported: true,
-      asset: 'meals.example',
+      asset: 'meadow.example',
       report: 'ai-queries',
       exportName: 'AISearchQueriesReport',
       exportDate: '2026-08-04',
@@ -226,7 +251,7 @@ describe('POST /api/bing-ai-export — what it stores', () => {
               property_ref, object_key
          FROM ${ARCHIVE_RUNS}`);
     expect(row).toMatchObject({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       // These rows ARE Bing Webmaster Tools; the report name is what tells the
       // AI families apart from the API ones.
       integration: 'bing-webmaster',
@@ -248,7 +273,7 @@ describe('POST /api/bing-ai-export — what it stores', () => {
     // The original, byte for byte — the parse can always be redone.
     expect(archive.pages[0].response.csvBase64).toBe(base64(QUERIES));
     expect(archive.pages[0].request.file).toBe(
-      'meals.example_AISearchQueriesReport_8_4_2026.csv',
+      'meadow.example_AISearchQueriesReport_8_4_2026.csv',
     );
     expect(archive.pages[0].request.header).toEqual([
       'Grounding Query',
@@ -269,7 +294,7 @@ describe('POST /api/bing-ai-export — what it stores', () => {
 
   it('reads the daily overview series and the page report too', async () => {
     const overview = await importExport({
-      file: 'meals.example_AIPerformanceOverviewStats_8_4_2026.csv',
+      file: 'meadow.example_AIPerformanceOverviewStats_8_4_2026.csv',
       contentBase64: base64(OVERVIEW),
     });
     expect(overview.status).toBe(201);
@@ -282,14 +307,14 @@ describe('POST /api/bing-ai-export — what it stores', () => {
     ]);
 
     const pages = await importExport({
-      file: 'meals.example_AIPageStatsReport_8_4_2026.csv',
+      file: 'meadow.example_AIPageStatsReport_8_4_2026.csv',
       contentBase64: base64(PAGES),
     });
     expect(pages.status).toBe(201);
     expect(pages.body.report).toBe('ai-pages');
     const pagesArchive = await archiveJson(pages.body.objectKey!);
     expect(pagesArchive.pages[0].response.rows).toEqual([
-      { page: 'https://meals.example/protein-calculator', citations: 294996 },
+      { page: 'https://meadow.example/protein-calculator', citations: 294996 },
     ]);
   });
 
@@ -310,7 +335,7 @@ describe('POST /api/bing-ai-export — what it stores', () => {
 
   it('lands a later export beside the earlier one as the next dated snapshot', async () => {
     const july = await importExport({
-      file: 'meals.example_AISearchQueriesReport_7_12_2026.csv',
+      file: 'meadow.example_AISearchQueriesReport_7_12_2026.csv',
       exportDate: '2026-07-12',
       contentBase64: base64(
         exportFile([

@@ -136,7 +136,7 @@ function assetCard(id: string, displayName: string): AssetCard {
   };
 }
 
-const ASSETS = [assetCard("meals.example", "Meal Planner"), assetCard("nosh.example", "Nosh")];
+const ASSETS = [assetCard("meadow.example", "Meadow Board"), assetCard("northwind.example", "Northwind")];
 
 /** The payload both routes read. `wall` is what `config/tower.json` holds at
  * `/wall`, which is `null` in a clone nobody has rearranged, or the raw value
@@ -631,10 +631,10 @@ describe("the selected widget's settings", () => {
   it("filters the sites a per-site widget shows", () => {
     renderEditor();
     fireEvent.click(widget("sites"));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Nosh" }));
-    saveWith("Only Meal Planner on the TV");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Northwind" }));
+    saveWith("Only Meadow Board on the TV");
     const sites = wallLayoutWidgets(savedLayout()).find((w) => w.id === "sites");
-    expect(sites?.settings).toEqual({ assets: ["meals.example"] });
+    expect(sites?.settings).toEqual({ assets: ["meadow.example"] });
   });
 
   it("offers no site filter on a widget the renderer does not filter", () => {
@@ -646,27 +646,27 @@ describe("the selected widget's settings", () => {
   it("previews and saves per-site pulse choices while retaining the site filter", () => {
     renderEditor();
     fireEvent.click(widget("sites"));
-    const choices = document.querySelector('[data-wall-pulse-picker="meals.example"]') as HTMLElement;
+    const choices = document.querySelector('[data-wall-pulse-picker="meadow.example"]') as HTMLElement;
     expect(within(choices).getByRole("checkbox", { name: /Accounts/ })).toBeChecked();
     expect(within(choices).getByRole("checkbox", { name: /Leads/ })).not.toBeChecked();
     fireEvent.click(within(choices).getByRole("checkbox", { name: /Accounts/ }));
     fireEvent.click(within(choices).getByRole("checkbox", { name: /Leads/ }));
-    expect(widget("sites").querySelector('[data-site-row="meals.example"] [data-site-total="accounts"]')).toBeNull();
-    expect(widget("sites").querySelector('[data-site-row="meals.example"] [data-site-total="leads"] dd')?.textContent).toBe("0");
-    fireEvent.click(screen.getByRole("checkbox", { name: "Nosh" }));
+    expect(widget("sites").querySelector('[data-site-row="meadow.example"] [data-site-total="accounts"]')).toBeNull();
+    expect(widget("sites").querySelector('[data-site-row="meadow.example"] [data-site-total="leads"] dd')?.textContent).toBe("0");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Northwind" }));
     saveWith("Leads on the Wall");
     const saved = wallLayoutWidgets(savedLayout()).find((w) => w.id === "sites");
-    expect(saved?.settings).toEqual({ assets: ["meals.example"], pulseMetrics: { "meals.example": ["leads"] } });
+    expect(saved?.settings).toEqual({ assets: ["meadow.example"], pulseMetrics: { "meadow.example": ["leads"] } });
   });
 
   it("saves an explicit empty pulse selection without changing another site's defaults", () => {
     renderEditor();
     fireEvent.click(widget("sites"));
-    const choices = document.querySelector('[data-wall-pulse-picker="meals.example"]') as HTMLElement;
+    const choices = document.querySelector('[data-wall-pulse-picker="meadow.example"]') as HTMLElement;
     fireEvent.click(within(choices).getByRole("checkbox", { name: /Accounts/ }));
-    saveWith("Hide Meal Planner totals");
-    expect(wallLayoutWidgets(savedLayout()).find((w) => w.id === "sites")?.settings?.pulseMetrics).toEqual({ "meals.example": [] });
-    expect(widget("sites").querySelector('[data-site-row="nosh.example"] [data-site-total="accounts"]')).not.toBeNull();
+    saveWith("Hide Meadow Board totals");
+    expect(wallLayoutWidgets(savedLayout()).find((w) => w.id === "sites")?.settings?.pulseMetrics).toEqual({ "meadow.example": [] });
+    expect(widget("sites").querySelector('[data-site-row="northwind.example"] [data-site-total="accounts"]')).not.toBeNull();
   });
 
   it("shows the countdown's OWN form for the strip rather than a second one", () => {

@@ -121,15 +121,15 @@ describe("POST /api/assets — an asset is created", () => {
   // A taken id is an ordinary answer a wizard renders beside the id field:
   // a 409 with the id in it, never a 500.
   it("renders a duplicate id as 409 asset_exists", async () => {
-    const { ingest } = stubIngest({ ok: false, error: "asset_exists", asset: "meals.example", existingStatus: "retired" });
+    const { ingest } = stubIngest({ ok: false, error: "asset_exists", asset: "meadow.example", existingStatus: "retired" });
     const res = await handleCreateAssetRequest(
-      post({ id: "meals.example", displayName: "Again" }),
+      post({ id: "meadow.example", displayName: "Again" }),
       COLLECTION_URL,
       ingest,
     );
 
     expect(res.status).toBe(409);
-    await expect(res.json()).resolves.toEqual({ error: "asset_exists", id: "meals.example", existingStatus: "retired" });
+    await expect(res.json()).resolves.toEqual({ error: "asset_exists", id: "meadow.example", existingStatus: "retired" });
   });
 
   it("carries the store's own sentence about the field it refused (422)", async () => {

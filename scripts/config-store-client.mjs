@@ -4,7 +4,7 @@
 // the database nor starts another Worker
 // (`scripts/no-second-runtime.test.mjs`).
 
-import { DEFAULT_DOOR, doorUrl, operatorToken } from './ingest-door.mjs';
+import { DEFAULT_DOOR, doorFetch, doorUrl, operatorToken } from './ingest-door.mjs';
 
 export { DEFAULT_DOOR };
 
@@ -14,10 +14,8 @@ export const CONFIG_SEED_PATH = 'api/config-documents/seed';
 export const CONFIG_APPLY_PATH = 'api/config-documents/apply';
 
 /**
- * One request to the door, with the failure an operator can act on: a door
- * that answers nothing usually means the OS is not running, and every other
- * answer comes back with its body, because the store's own 409/422/503 bodies
- * name the actual problem.
+ * One request to the door, through `doorFetch`. Every answer comes back with
+ * its body, because the store's own 409/422/503 bodies name the actual problem.
  */
 export async function configStoreRequest(
   route,
@@ -25,24 +23,15 @@ export async function configStoreRequest(
 ) {
   const url = doorUrl(door, route, params);
   const bearer = token ?? (await operatorToken());
-  let response;
-  try {
-    response = await fetchImpl(url, {
-      method,
-      headers: {
-        authorization: `Bearer ${bearer}`,
-        accept: 'application/json',
-        ...(body === null ? {} : { 'content-type': 'application/json' }),
-      },
-      ...(body === null ? {} : { body: JSON.stringify(body) }),
-    });
-  } catch (error) {
-    throw new Error(
-      `the ingest door did not answer at ${new URL(url).origin} ` +
-        `(${error instanceof Error ? error.message : String(error)}). ` +
-        'Is `pnpm os:up` running?',
-    );
-  }
+  const response = await doorFetch(fetchImpl, url, {
+    method,
+    headers: {
+      authorization: `Bearer ${bearer}`,
+      accept: 'application/json',
+      ...(body === null ? {} : { 'content-type': 'application/json' }),
+    },
+    ...(body === null ? {} : { body: JSON.stringify(body) }),
+  });
   if (response.status === 401) {
     throw new Error(
       'the ingest refused the operator token — check OPERATOR_TOKEN matches the running Worker.',

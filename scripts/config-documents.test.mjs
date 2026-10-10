@@ -156,7 +156,7 @@ test('a pointer nothing holds resolves MISSING rather than throwing', async () =
 // one declared optional key, and it is still a guard.
 const LANE_FILE = 'config/integrations.json';
 const LANE_DOC = {
-  assets: { 'meals.example': { ga4: { status: 'live', note: 'proved', since: '2026-07-29' } } },
+  assets: { 'meadow.example': { ga4: { status: 'live', note: 'proved', since: '2026-07-29' } } },
 };
 const firstWrite = (pointer, value) => ({
   kind: 'file-json-set',
@@ -167,7 +167,7 @@ const firstWrite = (pointer, value) => ({
 });
 
 test('expectAbsent writes the first value into a declared optional field', async () => {
-  const cs = changeset([firstWrite('/assets/meals.example/ga4/propertyId', '313598867')]);
+  const cs = changeset([firstWrite('/assets/meadow.example/ga4/propertyId', '123456789')]);
   validateSchemaAndSafety(cs);
   const { resolved, mismatches, documents } = await resolveOps(cs, null, {
     readDocument: documentsFrom({ [LANE_FILE]: LANE_DOC }),
@@ -175,20 +175,20 @@ test('expectAbsent writes the first value into a declared optional field', async
   assert.deepEqual(mismatches, []);
   assert.equal(resolved[0].current, MISSING);
   applyDocumentOps(resolved, documents, { at: '2026-09-05T09:00:00.000Z' });
-  assert.deepEqual(documents.get(LANE_FILE).assets['meals.example'].ga4, {
+  assert.deepEqual(documents.get(LANE_FILE).assets['meadow.example'].ga4, {
     status: 'live',
     note: 'proved',
     since: '2026-07-29',
-    propertyId: '313598867',
+    propertyId: '123456789',
   });
 });
 
 test('expectAbsent is still a guard — a field already filled in is a mismatch', async () => {
-  const cs = changeset([firstWrite('/assets/meals.example/ga4/ref', 'mine')]);
+  const cs = changeset([firstWrite('/assets/meadow.example/ga4/ref', 'mine')]);
   const { mismatches } = await resolveOps(cs, null, {
     readDocument: documentsFrom({
       [LANE_FILE]: {
-        assets: { 'meals.example': { ga4: { status: 'live', ref: 'somebody else wrote this' } } },
+        assets: { 'meadow.example': { ga4: { status: 'live', ref: 'somebody else wrote this' } } },
       },
     }),
   });
@@ -201,9 +201,9 @@ test('expectAbsent creates that one key and refuses every other shape', async ()
   // A row, a required field, and a parent that is not there either — none of
   // them is a field awaiting its first value.
   for (const pointer of [
-    '/assets/meals.example/clarity',
-    '/assets/meals.example/ga4/status',
-    '/assets/meals.example/ga4/nested/propertyId',
+    '/assets/meadow.example/clarity',
+    '/assets/meadow.example/ga4/status',
+    '/assets/meadow.example/ga4/nested/propertyId',
   ]) {
     assert.throws(
       () => validateSchemaAndSafety(changeset([firstWrite(pointer, 'live')])),
@@ -219,7 +219,7 @@ test('expectAbsent creates that one key and refuses every other shape', async ()
           {
             kind: 'file-json-set',
             file: LANE_FILE,
-            pointer: '/assets/meals.example/ga4/propertyId',
+            pointer: '/assets/meadow.example/ga4/propertyId',
             expect: '',
             expectAbsent: true,
             value: '1',
@@ -235,7 +235,7 @@ test('expectAbsent creates that one key and refuses every other shape', async ()
           {
             kind: 'file-json-set',
             file: LANE_FILE,
-            pointer: '/assets/meals.example/ga4/propertyId',
+            pointer: '/assets/meadow.example/ga4/propertyId',
             expectAbsent: false,
             value: '1',
           },
@@ -259,14 +259,14 @@ const unset = (pointer, expect) => ({
 });
 
 test('a delete takes one declared optional field back off the row', async () => {
-  const cs = changeset([unset('/assets/meals.example/ga4/propertyId', '313598867')]);
+  const cs = changeset([unset('/assets/meadow.example/ga4/propertyId', '123456789')]);
   validateSchemaAndSafety(cs);
   const { resolved, mismatches, documents } = await resolveOps(cs, null, {
     readDocument: documentsFrom({
       [LANE_FILE]: {
         assets: {
-          'meals.example': {
-            ga4: { status: 'live', note: 'proved', since: '2026-07-29', propertyId: '313598867' },
+          'meadow.example': {
+            ga4: { status: 'live', note: 'proved', since: '2026-07-29', propertyId: '123456789' },
           },
         },
       },
@@ -276,7 +276,7 @@ test('a delete takes one declared optional field back off the row', async () => 
   applyDocumentOps(resolved, documents, { at: '2026-09-05T09:00:00.000Z' });
   // The key is GONE rather than blank — an absent field is what the collector
   // reads as "fall back", and `""` would be a value nobody meant.
-  assert.deepEqual(documents.get(LANE_FILE).assets['meals.example'].ga4, {
+  assert.deepEqual(documents.get(LANE_FILE).assets['meadow.example'].ga4, {
     status: 'live',
     note: 'proved',
     since: '2026-07-29',
@@ -284,11 +284,11 @@ test('a delete takes one declared optional field back off the row', async () => 
 });
 
 test('a delete is still a guard — a field that moved is a mismatch', async () => {
-  const cs = changeset([unset('/assets/meals.example/ga4/propertyId', '313598867')]);
+  const cs = changeset([unset('/assets/meadow.example/ga4/propertyId', '123456789')]);
   const { mismatches } = await resolveOps(cs, null, {
     readDocument: documentsFrom({
       [LANE_FILE]: {
-        assets: { 'meals.example': { ga4: { status: 'live', propertyId: '444555666' } } },
+        assets: { 'meadow.example': { ga4: { status: 'live', propertyId: '444555666' } } },
       },
     }),
   });
@@ -300,8 +300,8 @@ test('a delete removes only what a first write may create', () => {
   // A REQUIRED field, and a pointer two levels down — the same two shapes
   // `expectAbsent` refuses, because the licence is one predicate.
   for (const pointer of [
-    '/assets/meals.example/ga4/status',
-    '/assets/meals.example/ga4/nested/propertyId',
+    '/assets/meadow.example/ga4/status',
+    '/assets/meadow.example/ga4/nested/propertyId',
   ]) {
     assert.throws(
       () => validateSchemaAndSafety(changeset([unset(pointer, 'anything')])),
@@ -314,7 +314,7 @@ test('a delete removes only what a first write may create', () => {
     () =>
       validateSchemaAndSafety(
         changeset([
-          { kind: 'file-json-delete', file: LANE_FILE, pointer: '/assets/meals.example/ga4/propertyId' },
+          { kind: 'file-json-delete', file: LANE_FILE, pointer: '/assets/meadow.example/ga4/propertyId' },
         ]),
       ),
     (err) => err instanceof ChangesetError && /missing "expect"/.test(err.message),
@@ -322,7 +322,7 @@ test('a delete removes only what a first write may create', () => {
   assert.throws(
     () =>
       validateSchemaAndSafety(
-        changeset([{ ...unset('/assets/meals.example/ga4/propertyId', 'x'), value: 'y' }]),
+        changeset([{ ...unset('/assets/meadow.example/ga4/propertyId', 'x'), value: 'y' }]),
       ),
     (err) => err instanceof ChangesetError && /takes no "value"/.test(err.message),
   );
@@ -336,8 +336,8 @@ test('a delete removes only what a first write may create', () => {
           {
             kind: 'file-json-insert',
             file: LANE_FILE,
-            pointer: '/assets/meals.example/ga4/propertyId',
-            value: '313598867',
+            pointer: '/assets/meadow.example/ga4/propertyId',
+            value: '123456789',
           },
         ]),
       ),
@@ -347,13 +347,13 @@ test('a delete removes only what a first write may create', () => {
 
 test('the first write and the delete are one another exactly', async () => {
   const before = structuredClone(LANE_DOC);
-  const forward = changeset([firstWrite('/assets/meals.example/ga4/propertyId', '313598867')]);
+  const forward = changeset([firstWrite('/assets/meadow.example/ga4/propertyId', '123456789')]);
   validateSchemaAndSafety(forward);
   const first = await resolveOps(forward, null, { readDocument: documentsFrom({ [LANE_FILE]: before }) });
   applyDocumentOps(first.resolved, first.documents, { at: '2026-09-05T09:00:00.000Z' });
   const written = first.documents.get(LANE_FILE);
 
-  const back = changeset([unset('/assets/meals.example/ga4/propertyId', '313598867')]);
+  const back = changeset([unset('/assets/meadow.example/ga4/propertyId', '123456789')]);
   validateSchemaAndSafety(back);
   const second = await resolveOps(back, null, { readDocument: documentsFrom({ [LANE_FILE]: written }) });
   assert.deepEqual(second.mismatches, []);
@@ -485,16 +485,16 @@ const CONSTANTS_DOC = { flag_defaults: { alpha: 0.01 }, os_time_zone: 'UTC' };
 
 test('a first write creates the no-report list and its delete takes it back exactly', async () => {
   const forward = changeset([
-    { kind: 'file-json-set', file: CONSTANTS, pointer: NO_REPORT, expectAbsent: true, value: ['areas.example'] },
+    { kind: 'file-json-set', file: CONSTANTS, pointer: NO_REPORT, expectAbsent: true, value: ['acorn.example'] },
   ]);
   validateSchemaAndSafety(forward);
   const first = await resolveOps(forward, null, { readDocument: documentsFrom({ [CONSTANTS]: CONSTANTS_DOC }) });
   assert.deepEqual(first.mismatches, []);
   applyDocumentOps(first.resolved, first.documents, { at: '2026-09-23T09:00:00.000Z' });
   const written = first.documents.get(CONSTANTS);
-  assert.deepEqual(written.no_nightly_report, ['areas.example']);
+  assert.deepEqual(written.no_nightly_report, ['acorn.example']);
 
-  const back = changeset([{ kind: 'file-json-delete', file: CONSTANTS, pointer: NO_REPORT, expect: ['areas.example'] }]);
+  const back = changeset([{ kind: 'file-json-delete', file: CONSTANTS, pointer: NO_REPORT, expect: ['acorn.example'] }]);
   validateSchemaAndSafety(back);
   const second = await resolveOps(back, null, { readDocument: documentsFrom({ [CONSTANTS]: written }) });
   assert.deepEqual(second.mismatches, []);
@@ -504,25 +504,25 @@ test('a first write creates the no-report list and its delete takes it back exac
 
 test('the no-report first write is still a guard — a list already there is a mismatch', async () => {
   const cs = changeset([
-    { kind: 'file-json-set', file: CONSTANTS, pointer: NO_REPORT, expectAbsent: true, value: ['fees.example'] },
+    { kind: 'file-json-set', file: CONSTANTS, pointer: NO_REPORT, expectAbsent: true, value: ['ferns.example'] },
   ]);
   const { mismatches } = await resolveOps(cs, null, {
-    readDocument: documentsFrom({ [CONSTANTS]: { ...CONSTANTS_DOC, no_nightly_report: ['areas.example'] } }),
+    readDocument: documentsFrom({ [CONSTANTS]: { ...CONSTANTS_DOC, no_nightly_report: ['acorn.example'] } }),
   });
   assert.equal(mismatches.length, 1);
-  assert.deepEqual(mismatches[0].current, ['areas.example']);
+  assert.deepEqual(mismatches[0].current, ['acorn.example']);
 });
 
 test('the no-report list is written whole, and only as a list of asset ids', () => {
   const set = (pointer, value) =>
     changeset([{ kind: 'file-json-set', file: CONSTANTS, pointer, expect: [], value }]);
-  validateSchemaAndSafety(set(NO_REPORT, ['areas.example', 'fees.example']));
+  validateSchemaAndSafety(set(NO_REPORT, ['acorn.example', 'ferns.example']));
   validateSchemaAndSafety(set(NO_REPORT, []));
   for (const [pointer, value, reason] of [
-    [NO_REPORT, 'areas.example', /must be a list of asset ids/],
-    [NO_REPORT, ['Area Lookup!'], /is not an asset id/],
-    [NO_REPORT, ['fees.example', 'fees.example'], /listed twice/],
-    [`${NO_REPORT}/0`, 'fees.example', /as one list/],
+    [NO_REPORT, 'acorn.example', /must be a list of asset ids/],
+    [NO_REPORT, ['Acorn Atlas!'], /is not an asset id/],
+    [NO_REPORT, ['ferns.example', 'ferns.example'], /listed twice/],
+    [`${NO_REPORT}/0`, 'ferns.example', /as one list/],
   ]) {
     assert.throws(
       () => validateSchemaAndSafety(set(pointer, value)),
@@ -564,7 +564,7 @@ const DECLARED = [
   [TOWER, '/wall', { readme: 'config/tower.README.md' }, { layout: MOVED_WALL, history: [] }],
   [TOWER, '/countdown', { readme: 'config/tower.README.md' }, { emoji: '🚀', label: 'Launch', targetAt: '2026-10-01T09:00:00.000Z' }],
   [CONSTANTS, '/schedules', CONSTANTS_DOC, { [FIRST_JOB.id]: scheduleFor(FIRST_JOB) }],
-  [CONSTANTS, NO_REPORT, CONSTANTS_DOC, ['areas.example']],
+  [CONSTANTS, NO_REPORT, CONSTANTS_DOC, ['acorn.example']],
 ];
 const FIRST_SAVES = {
   'expect null': (file, pointer, value) => ({ kind: 'file-json-set', file, pointer, expect: null, value }),
@@ -765,7 +765,7 @@ test('an absent roster refuses nothing rather than everything', async () => {
       pointer: '/costs/-',
       value: {
         id: 'a-subscription',
-        asset: 'meals.example',
+        asset: 'meadow.example',
         label: 'A subscription',
         monthlyUsd: 12,
         startedOn: '2026-01-01',

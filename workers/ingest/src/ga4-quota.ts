@@ -7,6 +7,7 @@
 
 import type { Ga4PropertyQuota, Ga4QuotaStatus } from '@noticeos/contract';
 import { appendReadingToOpen, holdCondition, raiseAlertUnlessOpen, readOpenAlert, resolveOpen } from './alert-store.js';
+import { asRecord } from './shared.js';
 
 /**
  * The flag a quota crunch raises, on the property whose budget is thin, because
@@ -57,12 +58,6 @@ function parseQuotaStatus(value: unknown): Ga4QuotaStatus | null {
 function quotaCount(value: unknown): number | null {
   // The Data API serializes these int32 buckets as JSON numbers.
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
 }
 
 /** One bucket's headroom, as the flag and the log report it. */

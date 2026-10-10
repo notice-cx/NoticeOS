@@ -6,7 +6,7 @@ const T = Date.parse('2026-09-10T12:00:00Z');
 let workspaceId: string;
 function item(outcome: 'success' | 'failure', offset = 0, patch: Partial<RecordedObservation> = {}): RecordedObservation {
   const at = new Date(T + offset).toISOString();
-  return { scope: { workspace: workspaceId, provider: 'google', connection: 'revision1', capability: 'ga4-realtime', asset: 'meals.example', target: 'property1', family: '' }, attemptId: `${offset}-${outcome}`, startedAt: at, finishedAt: at, outcome, failure: outcome === 'failure' ? 'rate-limit' : null, code: outcome === 'failure' ? 'daily-tokens' : null, nextAttemptAt: null, evidenceSource: 'live', evidenceId: `${offset}`, ...patch };
+  return { scope: { workspace: workspaceId, provider: 'google', connection: 'revision1', capability: 'ga4-realtime', asset: 'meadow.example', target: 'property1', family: '' }, attemptId: `${offset}-${outcome}`, startedAt: at, finishedAt: at, outcome, failure: outcome === 'failure' ? 'rate-limit' : null, code: outcome === 'failure' ? 'daily-tokens' : null, nextAttemptAt: null, evidenceSource: 'live', evidenceId: `${offset}`, ...patch };
 }
 const rows = storedHealthStates;
 async function events() { return (await storedHealthEvents()).map(({ kind, safe_code }) => ({ kind, safe_code })); }
@@ -54,7 +54,7 @@ describe('durable integration history', () => {
   });
   it.each(['connection', 'capability', 'asset', 'target', 'family'] as const)('isolates %s', async (key) => {
     const failing = item('failure');
-    const other = { ...failing.scope, [key]: key === 'capability' ? 'ga4-hourly' : key === 'asset' ? 'nosh.example' : 'other' };
+    const other = { ...failing.scope, [key]: key === 'capability' ? 'ga4-hourly' : key === 'asset' ? 'northwind.example' : 'other' };
     await recordIntegrationObservation(env.STORE, failing);
     await recordIntegrationObservation(env.STORE, item('success', 1000, { scope: other }));
     expect(await rows()).toHaveLength(2);

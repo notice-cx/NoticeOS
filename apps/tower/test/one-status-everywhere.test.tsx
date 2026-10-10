@@ -27,7 +27,7 @@ import { everyTabPayload } from "./asset-detail-fixture";
 import { loadAssetTabs } from "./lazy-code";
 
 const NOW = Date.parse("2026-09-23T15:00:00.000Z");
-const ASSET = "meals.example";
+const ASSET = "meadow.example";
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
 const MIN = 60_000;
 const register = registerJson as unknown as IntegrationsConfig;
@@ -54,8 +54,8 @@ const HEALTH: IntegrationHealthPayload = {
     item("google", "gsc-daily", {}),
     item("google", "gsc-archive", { detail: "page · 2026-09-22", report: "page", reportDate: "2026-09-22" }),
     item("google", "gsc-archive", { detail: "query · 2026-09-22", report: "query", reportDate: "2026-09-22", ...refused }),
-    item("bing-webmaster", "bing-daily", { detail: "https://meals.example/", ...refused }),
-    item("bing-webmaster", "bing-daily", { asset: "nosh.example", detail: "https://nosh.example/" }),
+    item("bing-webmaster", "bing-daily", { detail: "https://meadow.example/", ...refused }),
+    item("bing-webmaster", "bing-daily", { asset: "northwind.example", detail: "https://northwind.example/" }),
     item("clarity", "clarity-export", { detail: "url-3d · 2026-09-22", report: "url-3d", reportDate: "2026-09-22" }),
     item("dataforseo", "dataforseo-research", { detail: "ranked-keywords · 2026-09-21", report: "ranked-keywords", reportDate: "2026-09-21" }),
   ],

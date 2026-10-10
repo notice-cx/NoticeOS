@@ -60,39 +60,39 @@ describe('saved daily earnings', () => {
     const raw = ctx;
     const at = '2026-09-22T19:30:00Z';
     try {
-      for (const [asset, name] of [['meals.example', 'Meal Planner'], ['nosh.example', 'Nosh']] as const) {
+      for (const [asset, name] of [['meadow.example', 'Meadow Board'], ['northwind.example', 'Northwind']] as const) {
         await addSites(raw, [{ id: asset, domain: null, displayName: name, status: 'live', senseOnly: 0, createdAt: at }]);
       }
       // Mapped, never reported: owes nothing yet.
-      await addSites(raw, [{ id: 'fees.example', domain: null, displayName: 'Fin', status: 'live', senseOnly: 0, createdAt: at }]);
+      await addSites(raw, [{ id: 'ferns.example', domain: null, displayName: 'Fin', status: 'live', senseOnly: 0, createdAt: at }]);
       const store = ctx.call;
       const shift = (date: string) => new Date(Date.parse(`${date}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
-      const meals: [string, number][] = [];
-      const nosh: [string, number][] = [];
+      const meadow: [string, number][] = [];
+      const northwind: [string, number][] = [];
       for (let date = '2026-06-01'; date <= '2026-09-21'; date = shift(date)) {
-        meals.push([date, 700]);
+        meadow.push([date, 700]);
         const nomOut = date >= '2026-09-14' && date <= '2026-09-16';
-        if (date >= '2026-08-10' && !nomOut) nosh.push([date, 40]);
+        if (date >= '2026-08-10' && !nomOut) northwind.push([date, 40]);
       }
       await writeMediavine(store, [
-        { id: 'run-meals.example', asset: 'meals.example', siteId: 'mv-meals.example', start: '2026-06-01', end: '2026-09-21', attemptedAt: at, days: meals },
-        { id: 'run-nosh.example', asset: 'nosh.example', siteId: 'mv-nosh.example', start: '2026-08-10', end: '2026-09-21', attemptedAt: at, days: nosh },
+        { id: 'run-meadow.example', asset: 'meadow.example', siteId: 'mv-meadow.example', start: '2026-06-01', end: '2026-09-21', attemptedAt: at, days: meadow },
+        { id: 'run-northwind.example', asset: 'northwind.example', siteId: 'mv-northwind.example', start: '2026-08-10', end: '2026-09-21', attemptedAt: at, days: northwind },
       ]);
-      await mapMediavineSite(store, 'mv-fin', 'fees.example');
+      await mapMediavineSite(store, 'mv-fin', 'ferns.example');
       const load = (period: string) => loadPortfolioDailyRevenue(store, period, new Date(at));
       const missingDays = (result: Awaited<ReturnType<typeof load>>) =>
         result.coverage.filter(day => day.missingAssets.length > 0).map(day => [day.date, day.missingAssets]);
 
-      // June: Nosh had not started, so it is not a source and no day is partial.
+      // June: Northwind had not started, so it is not a source and no day is partial.
       const june = await load('2026-06');
-      expect(june.sources.map(source => source.asset)).toEqual(['meals.example']);
+      expect(june.sources.map(source => source.asset)).toEqual(['meadow.example']);
       expect(missingDays(june)).toEqual([]);
 
-      // August: Nosh is owed from the 10th, which it reported every day.
+      // August: Northwind is owed from the 10th, which it reported every day.
       const august = await load('2026-08');
       expect(august.sources).toEqual([
-        { asset: 'meals.example', displayName: 'Meal Planner', since: '2026-06-01' },
-        { asset: 'nosh.example', displayName: 'Nosh', since: '2026-08-10' },
+        { asset: 'meadow.example', displayName: 'Meadow Board', since: '2026-06-01' },
+        { asset: 'northwind.example', displayName: 'Northwind', since: '2026-08-10' },
       ]);
       expect(missingDays(august)).toEqual([]);
       expect(august.coverage.find(day => day.date === '2026-08-09')).toEqual({ date: '2026-08-09', reported: 1, missingAssets: [] });
@@ -101,7 +101,7 @@ describe('saved daily earnings', () => {
       const september = await load('2026-09');
       expect(september.to).toBe('2026-09-21');
       expect(missingDays(september)).toEqual([
-        ['2026-09-14', ['nosh.example']], ['2026-09-15', ['nosh.example']], ['2026-09-16', ['nosh.example']],
+        ['2026-09-14', ['northwind.example']], ['2026-09-15', ['northwind.example']], ['2026-09-16', ['northwind.example']],
       ]);
     } finally { await raw.close(); }
   });

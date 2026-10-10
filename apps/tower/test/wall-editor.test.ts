@@ -297,10 +297,10 @@ describe("the site filter", () => {
     const filtered = run(start(), {
       type: "settings",
       widgetId: "sites",
-      settings: { assets: ["meals.example"] },
+      settings: { assets: ["meadow.example"] },
     });
     expect(wallWidgetAt(filtered.layout, "sites")?.widget.settings).toEqual({
-      assets: ["meals.example"],
+      assets: ["meadow.example"],
     });
     expect(drawable(filtered.layout)).toBe(true);
 

@@ -167,8 +167,8 @@ describe('GA4 realtime service read', () => {
     await asOwner(`INSERT INTO noticeos.workspaces (workspace_id, slug, display_name)
       VALUES ('${workspaceId}', 'realtime-fixture', 'Realtime fixture');
       INSERT INTO noticeos.assets (workspace_id, asset_id, domain, display_name, status, list_position)
-      VALUES ('${workspaceId}', 'meals.example', 'meals.example', 'Meals', 'live', 1),
-             ('${workspaceId}', 'nosh.example', 'nosh.example', 'Nosh', 'live', 2);`);
+      VALUES ('${workspaceId}', 'meadow.example', 'meadow.example', 'Meadow', 'live', 1),
+             ('${workspaceId}', 'northwind.example', 'northwind.example', 'Northwind', 'live', 2);`);
     const store = openWorkspaceStore(env.POSTGRES.connectionString, { workspaceId });
     const tokenCache = new Map();
     const responseCache = await caches.open(crypto.randomUUID());
@@ -247,7 +247,7 @@ describe('GA4 realtime service read', () => {
       return fixture.fetchImpl(input, init);
     };
     const tokenCache = new Map();
-    const rawConfig = JSON.stringify({ fixture: { properties: { 'meals.example': { ga4_property_id: '123456' } } } });
+    const rawConfig = JSON.stringify({ fixture: { properties: { 'meadow.example': { ga4_property_id: '123456' } } } });
     const run = () => runGa4Realtime(target, { nowMs: NOW, fetchImpl, tokenCache, rawConfig });
     await saveGrant(tokens[0]!);
     expect((await run()).assets[0]?.status).toBe('success');
@@ -354,11 +354,11 @@ describe('GA4 realtime service read', () => {
 
     // Both configured properties are read, on one minted token.
     expect(result.assets.map((asset) => asset.asset)).toEqual([
-      'meals.example',
-      'nosh.example',
+      'meadow.example',
+      'northwind.example',
     ]);
     expect(result.assets[0]).toMatchObject({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       status: 'success',
       activeUsers5m: 7,
       activeUsers30m: 26,
@@ -568,7 +568,7 @@ describe('GA4 realtime service read', () => {
     // PT→ET move last week's rows are PT-bucketed and today's are ET-bucketed
     // while `metadata.timeZone` says ET for both.
     await recordTimeZoneChange(env, {
-      asset: 'meals.example',
+      asset: 'meadow.example',
       integration: 'ga4',
       from: 'America/Los_Angeles',
       to: 'America/New_York',
@@ -643,7 +643,7 @@ describe('GA4 realtime service read', () => {
     // Guessing a zone would shift the whole chart silently, so the property
     // leaves only the hourly chart unavailable; working live counts survive.
     expect(result.assets[0]).toMatchObject({
-      asset: 'meals.example',
+      asset: 'meadow.example',
       status: 'success',
       activeUsers5m: 7,
       activeUsers30m: 26,
@@ -665,7 +665,7 @@ describe('GA4 realtime service read', () => {
     // A provider refusal is per property, and every property gets its own
     // honest null state rather than one blank standing in for the account.
     expect(result.assets).toEqual(
-      ['meals.example', 'nosh.example'].map((asset) => ({
+      ['meadow.example', 'northwind.example'].map((asset) => ({
         asset,
         status: 'error',
         activeUsers5m: null,
@@ -843,7 +843,7 @@ describe('GA4 realtime service read', () => {
       });
 
       expect(result.assets[0]).toEqual({
-        asset: 'meals.example',
+        asset: 'meadow.example',
         status: 'error',
         activeUsers5m: null,
         activeUsers30m: null,

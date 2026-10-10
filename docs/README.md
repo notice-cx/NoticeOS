@@ -1,8 +1,11 @@
-# Docs
+# Design library
 
-Start with [00](00-objective-and-roi.md) (what the product is for) and
-[01](01-architecture.md) (how it is built). Every numbered doc is listed here;
-`scripts/docs-index.test.mjs` fails when one is missing.
+This folder is the documentation site. The guides, screens and operations
+pages are for the person running NoticeOS; the numbered docs below are the
+design library: why the product works the way it does. Build the site with
+`pnpm --filter @noticeos/docs dev`. Start with [00](00-objective-and-roi.md)
+(what the product is for) and [01](01-architecture.md) (how it is built).
+`scripts/docs-index.test.mjs` fails when a numbered doc is missing here.
 
 | Doc | What it answers |
 |---|---|
@@ -20,7 +23,7 @@ Start with [00](00-objective-and-roi.md) (what the product is for) and
 | [11 — Integrations & economics](11-integrations.md) | Every data source: what it costs, its quotas, how it fails |
 | [13 — Opportunity scouting](13-opportunity-scouting.md) | The outer loop: scout lanes, the news radar, the playbook |
 | [14 — Design](14-design.md) | The Tower's stack, tokens, principles, surfaces, the Wall, operator flows, lexicon and components |
-| [16 — Replacing the chat workflow](16-replacing-the-chat-workflow.md) | Ask, investigations, commissions, idea capture |
+| [16 — Replacing the chat workflow](16-replacing-the-chat-workflow.md) | Which parts of an operator's week the Tower carries (File task, New task, the palette) and which are not built |
 | [20 — Signal panels](20-signal-panels.md) | The read contract a site's own repository uses |
 | [22 — Workflows](22-workflows-research-and-design.md) | Workflow operations, execution visibility, later LLM steps |
 | [23 — Configuration ownership](23-configuration-ownership.md) | Where each setting lives, and what accounts would need |
@@ -30,12 +33,7 @@ Start with [00](00-objective-and-roi.md) (what the product is for) and
 Numbers are stable, so a retired doc leaves a gap rather than renumbering the
 rest; git history holds what a gap used to say.
 
-| Folder or file | What it holds |
-|---|---|
-| [`brand/`](brand/README.md) | The Notice identity: logo, palette, type |
-| [`briefs/`](briefs/) | The two live build contracts: [remote panel reviews and task access](briefs/2026-10-05-remote-panel-review.md) and the [Home and Overview redesign](briefs/2026-10-08-home-overview-redesign.md) |
-| [`runbooks/`](runbooks/) | Step-by-step operations |
-| [`project-setup.md`](project-setup.md) | Connect an asset repository, task hub, agent context and data sources |
+The Notice identity (logo, palette, type) is in [brand](brand.md).
 
 ## The design, in eight principles
 
@@ -61,4 +59,4 @@ rest; git history holds what a gap used to say.
    ([05](05-execution-and-accountability.md)).
 
 The dated repository state is in [`AGENTS.md`](../AGENTS.md) § STATE; what
-is hosted, demoed or standalone is in the [release policy](release-policy.md).
+is hosted, demoed or standalone is in the [release policy](reference/release-policy.md).

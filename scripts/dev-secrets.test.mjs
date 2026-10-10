@@ -23,14 +23,14 @@ test('nested JSON values become the string bindings Workers receive', () => {
       GOOGLE_SIGNAL_ACCOUNTS: {
         portfolio: {
           service_account_b64: 'encoded-key',
-          properties: { 'nosh.example': { ga4_property_id: '123' } },
+          properties: { 'northwind.example': { ga4_property_id: '123' } },
         },
       },
     }),
     {
       OPERATOR_TOKEN: 'secret',
       GOOGLE_SIGNAL_ACCOUNTS:
-        '{"portfolio":{"service_account_b64":"encoded-key","properties":{"nosh.example":{"ga4_property_id":"123"}}}}',
+        '{"portfolio":{"service_account_b64":"encoded-key","properties":{"northwind.example":{"ga4_property_id":"123"}}}}',
     },
   );
 });
@@ -42,11 +42,11 @@ test('Google service-account payloads compile into bounded per-account bindings'
       GOOGLE_SIGNAL_ACCOUNTS: {
         'studio-signals': {
           service_account_b64: 'studio-key',
-          properties: { 'meals.example': { ga4_property_id: '123' } },
+          properties: { 'meadow.example': { ga4_property_id: '123' } },
         },
         'example-signals': {
           service_account_b64: 'example-key',
-          properties: { 'fees.example': { gsc_site_url: 'sc-domain:fees.example' } },
+          properties: { 'ferns.example': { gsc_site_url: 'sc-domain:ferns.example' } },
         },
       },
     }),
@@ -54,11 +54,11 @@ test('Google service-account payloads compile into bounded per-account bindings'
       OPERATOR_TOKEN: 'secret',
       GOOGLE_SIGNAL_ACCOUNTS: JSON.stringify({
         'studio-signals': {
-          properties: { 'meals.example': { ga4_property_id: '123' } },
+          properties: { 'meadow.example': { ga4_property_id: '123' } },
           service_account_binding: 'GOOGLE_SERVICE_ACCOUNT_STUDIO_SIGNALS',
         },
         'example-signals': {
-          properties: { 'fees.example': { gsc_site_url: 'sc-domain:fees.example' } },
+          properties: { 'ferns.example': { gsc_site_url: 'sc-domain:ferns.example' } },
           service_account_binding: 'GOOGLE_SERVICE_ACCOUNT_EXAMPLE_SIGNALS',
         },
       }),
@@ -101,7 +101,7 @@ test('migration structures legacy JSON maps and generated dotenv round-trips', a
     [
       '# comment',
       'OPERATOR_TOKEN=contains=equals',
-      'ASSET_TOKENS={"nosh.example":"nom-token"}',
+      'ASSET_TOKENS={"northwind.example":"nw-token"}',
       'QUOTED_TOKEN="hash#and\\nnewline"',
       '',
     ].join('\n'),
@@ -111,14 +111,14 @@ test('migration structures legacy JSON maps and generated dotenv round-trips', a
   assert.deepEqual(migrated.keys, ['OPERATOR_TOKEN', 'ASSET_TOKENS', 'QUOTED_TOKEN']);
   assert.deepEqual(JSON.parse(await fs.readFile(secretsFile, 'utf8')), {
     OPERATOR_TOKEN: 'contains=equals',
-    ASSET_TOKENS: { 'nosh.example': 'nom-token' },
+    ASSET_TOKENS: { 'northwind.example': 'nw-token' },
     QUOTED_TOKEN: 'hash#and\nnewline',
   });
 
   const generated = parseDevVars(await fs.readFile(varsFile, 'utf8'));
   assert.deepEqual(generated, {
     OPERATOR_TOKEN: 'contains=equals',
-    ASSET_TOKENS: '{"nosh.example":"nom-token"}',
+    ASSET_TOKENS: '{"northwind.example":"nw-token"}',
     QUOTED_TOKEN: 'hash#and\nnewline',
   });
 });
@@ -255,6 +255,39 @@ test('a blank binding counts as absent, not as a value worth storing', () => {
   );
   assert.deepEqual(planned, []);
   assert.equal(skipped.length, 2);
+});
+
+/** Clarity as the providers route sends it: the legacy binding carries the
+ * asset the register gives it. */
+const clarityProvider = (asset) => ({
+  provider: {
+    id: 'clarity',
+    fields: [{
+      name: 'CLARITY_TOKENS',
+      kind: 'asset-map',
+      required: true,
+      legacyAssetBinding: { name: 'CLARITY_PROJECT_API_TOKEN', lane: 'clarity', ...(asset ? { asset } : {}) },
+    }],
+  },
+});
+const clarityFields = (bindings, asset = 'shop.example.com') =>
+  credentialImportPlan(bindings, [clarityProvider(asset)]).planned[0]?.fields.CLARITY_TOKENS;
+
+test('a legacy single-project Clarity binding is imported as its asset entry in the map', () => {
+  assert.equal(clarityFields({ CLARITY_PROJECT_API_TOKEN: ' single ' }), '{"shop.example.com":"single"}');
+  assert.equal(
+    clarityFields({ CLARITY_TOKENS: '{"blog.example.com":"b"}', CLARITY_PROJECT_API_TOKEN: 'single' }),
+    '{"blog.example.com":"b","shop.example.com":"single"}',
+  );
+  // The map wins where both name the asset.
+  assert.equal(
+    clarityFields({ CLARITY_TOKENS: '{"shop.example.com":"mapped"}', CLARITY_PROJECT_API_TOKEN: 'single' }),
+    '{"shop.example.com":"mapped"}',
+  );
+  // A map that does not parse goes as written, for the route to refuse.
+  assert.equal(clarityFields({ CLARITY_TOKENS: '{nope', CLARITY_PROJECT_API_TOKEN: 'single' }), '{nope');
+  // No asset in the register, no fold.
+  assert.equal(clarityFields({ CLARITY_PROJECT_API_TOKEN: 'single' }, null), undefined);
 });
 
 test('import PUTs each complete provider once and reports by NAME', async () => {

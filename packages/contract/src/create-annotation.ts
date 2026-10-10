@@ -4,6 +4,7 @@
  * re-validated inside ingest.
  */
 import type { AnnotationKind } from './schema.js';
+import type { ValidationIssue } from './validation-issue.js';
 
 export interface CreateAnnotationInput {
   asset: string;
@@ -30,14 +31,6 @@ export interface AnnotationRow {
   created_at: string;
 }
 
-/** One rejected field, in the same `{path, code, message}` shape the operator
- * HTTP routes report. */
-export interface AnnotationIssue {
-  path: string;
-  code: string;
-  message: string;
-}
-
 /**
  * The outcome of one write attempt. A rejected field and an unknown asset are
  * results, not thrown errors; only an infrastructure failure throws.
@@ -46,5 +39,5 @@ export interface AnnotationIssue {
  */
 export type CreateAnnotationResult =
   | { ok: true; created: boolean; annotation: AnnotationRow }
-  | { ok: false; error: 'validation'; issues: AnnotationIssue[] }
+  | { ok: false; error: 'validation'; issues: ValidationIssue[] }
   | { ok: false; error: 'unknown_asset'; asset: string };

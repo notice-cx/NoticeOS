@@ -34,7 +34,7 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 /** The invented site every archive here belongs to (db/fixtures/invented-sites.json). */
-export const FIXTURE_ASSET = 'meals.example';
+export const FIXTURE_ASSET = 'meadow.example';
 
 /** The clock an analysis of the fixture reads. */
 export const FIXTURE_ANALYZED_AT = '2026-09-22T06:00:00.000Z';
@@ -80,10 +80,10 @@ const QUERIES = [
   'crème brûlée calories',
 ];
 const PAGES = [
-  'https://meals.example/',
-  'https://meals.example/planner',
-  'https://meals.example/recipes/soup',
-  'https://meals.example/guides/protein',
+  'https://meadow.example/',
+  'https://meadow.example/planner',
+  'https://meadow.example/recipes/soup',
+  'https://meadow.example/guides/protein',
 ];
 
 function gscRow(keys, day, key) {
@@ -174,7 +174,7 @@ function gscArchives() {
               // Not an equality: not a column.
               { dimension: 'country', operator: 'contains', expression: 'us' },
               // Already a dimension: the row's own key wins.
-              { dimension: 'page', operator: 'equals', expression: 'https://meals.example/elsewhere' },
+              { dimension: 'page', operator: 'equals', expression: 'https://meadow.example/elsewhere' },
             ],
           }],
         },
@@ -283,8 +283,8 @@ function ga4Archives() {
     ['customEvent:message', 'customEvent:source', 'unifiedPagePathScreen'],
     ['eventCount', 'totalUsers'],
     [
-      [["TypeError: x is null at https://meals.example/planner?step=2 line 42", 'https://meals.example/assets/index-a1b2c3d4e5f6.js', '/planner'], [125, 88]],
-      [["TypeError: x is null at https://meals.example/recipes line 907", 'https://meals.example/assets/index-a1b2c3d4e5f6.js', '/recipes/soup'], [31, 24]],
+      [["TypeError: x is null at https://meadow.example/planner?step=2 line 42", 'https://meadow.example/assets/index-a1b2c3d4e5f6.js', '/planner'], [125, 88]],
+      [["TypeError: x is null at https://meadow.example/recipes line 907", 'https://meadow.example/assets/index-a1b2c3d4e5f6.js', '/recipes/soup'], [31, 24]],
       [['Error: first line\nsecond line, "quoted"', '(not set)', '/planner'], [4, 4]],
       [['(not set)', '(not set)', '/plan'], [9, 7]],
     ],
@@ -331,7 +331,7 @@ function bingArchive(report, reportDate, method, rows, fields = {}) {
   return envelope('bing-webmaster', report, reportDate, {
     provider: 'microsoft',
     providerRows: rows.length,
-    pages: [{ request: { method, siteUrl: 'https://meals.example/' }, response: { d: rows } }],
+    pages: [{ request: { method, siteUrl: 'https://meadow.example/' }, response: { d: rows } }],
     ...fields,
   });
 }
@@ -394,10 +394,10 @@ function bingArchives() {
   )]);
   for (const [index, reportDate] of ['2026-09-20', '2026-09-21'].entries()) {
     files.push([`bing-webmaster/crawl-issues/${reportDate}.json`, bingArchive('crawl-issues', reportDate, 'GetCrawlIssues', [
-      { __type: 'UrlWithCrawlIssues:#Microsoft.Bing.Webmaster.Api', Url: 'https://meals.example/old-page', HttpCode: 404, Issues: 20, InLinks: 3 + index },
-      { __type: 'UrlWithCrawlIssues:#Microsoft.Bing.Webmaster.Api', Url: 'https://meals.example/moved', HttpCode: 301, Issues: 257, InLinks: 7 },
-      { __type: 'UrlWithCrawlIssues:#Microsoft.Bing.Webmaster.Api', Url: 'https://meals.example/fine', HttpCode: 200, Issues: 0, InLinks: 1 },
-      { __type: 'UrlWithCrawlIssues:#Microsoft.Bing.Webmaster.Api', Url: 'https://meals.example/odd', HttpCode: 200, Issues: 'x', InLinks: 0 },
+      { __type: 'UrlWithCrawlIssues:#Microsoft.Bing.Webmaster.Api', Url: 'https://meadow.example/old-page', HttpCode: 404, Issues: 20, InLinks: 3 + index },
+      { __type: 'UrlWithCrawlIssues:#Microsoft.Bing.Webmaster.Api', Url: 'https://meadow.example/moved', HttpCode: 301, Issues: 257, InLinks: 7 },
+      { __type: 'UrlWithCrawlIssues:#Microsoft.Bing.Webmaster.Api', Url: 'https://meadow.example/fine', HttpCode: 200, Issues: 0, InLinks: 1 },
+      { __type: 'UrlWithCrawlIssues:#Microsoft.Bing.Webmaster.Api', Url: 'https://meadow.example/odd', HttpCode: 200, Issues: 'x', InLinks: 0 },
       // Not a row.
       null,
     ])]);
@@ -422,7 +422,7 @@ function bingArchives() {
     crawlDay(legacyDate('2026-09-19'), 2641, 381),
     crawlDay(legacyDate('2026-09-20'), 2655, 377),
   ])]);
-  const feed = (urlCount, lastCrawled, submitted, url = 'https://meals.example/sitemap.xml') => ({
+  const feed = (urlCount, lastCrawled, submitted, url = 'https://meadow.example/sitemap.xml') => ({
     __type: 'Feed:#Microsoft.Bing.Webmaster.Api',
     Url: url,
     UrlCount: urlCount,
@@ -436,7 +436,7 @@ function bingArchives() {
   ])]);
   files.push(['bing-webmaster/feeds/2026-09-21.json', bingArchive('feeds', '2026-09-21', 'GetFeeds', [
     feed(2970, '2026-09-20T23:30:00-04:00', 1_783_796_353_525),
-    feed(40, 'not a date', null, 'https://meals.example/news-sitemap.xml'),
+    feed(40, 'not a date', null, 'https://meadow.example/news-sitemap.xml'),
   ])]);
   files.push(['bing-webmaster/ai-overview/2026-08-04.json', bingAiArchive('ai-overview', '2026-08-04', [
     { date: '2026-07-10', citations: 9000, citedPages: 40 },
@@ -456,7 +456,7 @@ function bingArchives() {
     { query: 'meal plan', intent: '', topic: '', citations: 2627, citationSharePercent: 24.25 },
   ])]);
   files.push(['bing-webmaster/ai-pages/2026-09-01.json', bingAiArchive('ai-pages', '2026-09-01', [
-    { page: 'https://meals.example/guides/protein', citations: 294996 },
+    { page: 'https://meadow.example/guides/protein', citations: 294996 },
   ])]);
   return files;
 }
@@ -474,11 +474,11 @@ function clarityArchives() {
           {
             metricName: 'ScriptErrorCount',
             information: [
-              { sessionsCount: String(114 + index), sessionsWithMetricPercentage: 11.4, pagesViews: '14', subTotal: '19', Url: 'https://meals.example/planner' },
-              { sessionsCount: '12', sessionsWithMetricPercentage: 2.5, pagesViews: '3', subTotal: '4', Url: 'https://meals.example/recipes/soup' },
+              { sessionsCount: String(114 + index), sessionsWithMetricPercentage: 11.4, pagesViews: '14', subTotal: '19', Url: 'https://meadow.example/planner' },
+              { sessionsCount: '12', sessionsWithMetricPercentage: 2.5, pagesViews: '3', subTotal: '4', Url: 'https://meadow.example/recipes/soup' },
             ],
           },
-          { metricName: 'ScrollDepth', information: [{ averageScrollDepth: 67.78, Url: 'https://meals.example/planner' }] },
+          { metricName: 'ScrollDepth', information: [{ averageScrollDepth: 67.78, Url: 'https://meadow.example/planner' }] },
           // The unattributed aggregate really comes back with Url: null.
           { metricName: 'Traffic', information: [{ totalSessionCount: '0', totalBotSessionCount: '1', distinctUserCount: '245', Url: null }, 'not a row'] },
           // A block with no metric name is not a block.
@@ -647,21 +647,21 @@ function dataForSeoArchives() {
   const files = [];
   files.push(['dataforseo/ranked-keywords/2026-09-07.json', dataForSeoArchive('ranked-keywords', '2026-09-07', {
     items: [
-      rankedItem('weekly meal plan', 2400, 14, 'https://meals.example/planner'),
-      rankedItem('meal prep ideas', 900, 9, 'https://meals.example/recipes/soup'),
+      rankedItem('weekly meal plan', 2400, 14, 'https://meadow.example/planner'),
+      rankedItem('meal prep ideas', 900, 9, 'https://meadow.example/recipes/soup'),
     ],
   }, 0.011)]);
   files.push(['dataforseo/ranked-keywords/2026-09-14.json', dataForSeoArchive('ranked-keywords', '2026-09-14', {
     items: [
-      rankedItem('weekly meal plan', 2400, 8, 'https://meals.example/planner', { previous_rank_absolute: 15, is_up: true }),
-      rankedItem('meal prep ideas', 900, 12, 'https://meals.example/recipes/soup', { previous_rank_absolute: 10, is_down: true }),
-      rankedItem('meal planner', 5400, 4, 'https://meals.example/', { is_new: true }),
+      rankedItem('weekly meal plan', 2400, 8, 'https://meadow.example/planner', { previous_rank_absolute: 15, is_up: true }),
+      rankedItem('meal prep ideas', 900, 12, 'https://meadow.example/recipes/soup', { previous_rank_absolute: 10, is_down: true }),
+      rankedItem('meal planner', 5400, 4, 'https://meadow.example/', { is_new: true }),
       // No keyword data: not a ranking.
       { ranked_serp_element: { serp_item: { type: 'organic', rank_group: 1 } } },
     ],
   }, 0.012)]);
   const summary = (backlinks, domains) => ({
-    target: 'meals.example', rank: 412, backlinks, backlinks_spam_score: 2, referring_domains: domains, referring_pages: 700, broken_backlinks: 4,
+    target: 'meadow.example', rank: 412, backlinks, backlinks_spam_score: 2, referring_domains: domains, referring_pages: 700, broken_backlinks: 4,
   });
   files.push(['dataforseo/backlinks-summary/2026-09-07.json', dataForSeoArchive('backlinks-summary', '2026-09-07', summary(780, 231), 0.02)]);
   files.push(['dataforseo/backlinks-summary/2026-09-14.json', dataForSeoArchive('backlinks-summary', '2026-09-14', summary(800, 240), 0.02)]);
@@ -695,7 +695,7 @@ function dataForSeoArchives() {
   files.push(['dataforseo/llm-mentions-google/2026-09-14.json', dataForSeoArchive('llm-mentions-google', '2026-09-14', {
     aggregated_metrics: {
       platform: [{ key: 'google', mentions: 7, ai_search_volume: 900 }],
-      sources_domain: [{ key: 'meals.example', mentions: 7, ai_search_volume: 900 }, null],
+      sources_domain: [{ key: 'meadow.example', mentions: 7, ai_search_volume: 900 }, null],
     },
   }, 0.1)]);
   // A platform answered with no figures at all: unknown, never zero.
@@ -709,7 +709,7 @@ function dataForSeoArchives() {
   // empty file is the honest output, and it is here to pin that fall-through.
   files.push(['dataforseo/on-page-summary/2026-09-14.json', dataForSeoArchive('on-page-summary', '2026-09-14', { pages: 40 }, 0.01)]);
   const panel = (reportDate, pages) => envelope('dataforseo', 'serp-panel', reportDate, {
-    propertyRef: 'meals.example',
+    propertyRef: 'meadow.example',
     collectedAt: `${nextDay(reportDate)}T12:45:00.000Z`,
     providerRows: pages.length,
     providerTruncated: true,
@@ -718,10 +718,10 @@ function dataForSeoArchives() {
   // Before labels and before devices: every page reads desktop, no label.
   files.push(['dataforseo/serp-panel/2026-09-07.json', panel('2026-09-07', [
     serpPage('meal planner', [
-      { type: 'organic', rank_group: 2, domain: 'www.meals.example', url: 'https://meals.example/', links: [] },
+      { type: 'organic', rank_group: 2, domain: 'www.meadow.example', url: 'https://meadow.example/', links: [] },
       { type: 'organic', rank_group: 1, domain: 'recipes.example' },
     ]),
-    serpPage('weekly meal plan', [{ type: 'organic', rank_group: 9, domain: 'meals.example', url: 'https://meals.example/planner' }]),
+    serpPage('weekly meal plan', [{ type: 'organic', rank_group: 9, domain: 'meadow.example', url: 'https://meadow.example/planner' }]),
   ])]);
   files.push(['dataforseo/serp-panel/2026-09-14.json', panel('2026-09-14', [
     serpPage('meal planner', [
@@ -729,15 +729,15 @@ function dataForSeoArchives() {
         type: 'ai_overview',
         asynchronous_ai_overview: true,
         items: [{ type: 'ai_overview_element', text: 'A plan is…' }],
-        references: [{ domain: 'reference.example' }, { url: 'https://blog.meals.example/portions' }],
+        references: [{ domain: 'reference.example' }, { url: 'https://blog.meadow.example/portions' }],
       },
       { type: 'organic', rank_group: 1, domain: 'reference.example' },
-      { type: 'organic', rank_group: 2, domain: 'www.meals.example', url: 'https://meals.example/', links: [] },
+      { type: 'organic', rank_group: 2, domain: 'www.meadow.example', url: 'https://meadow.example/', links: [] },
       { type: 'organic', rank_group: 3, domain: 'recipes.example' },
-      { type: 'organic', rank_group: 5, domain: 'meals.example', url: 'https://meals.example/planner' },
+      { type: 'organic', rank_group: 5, domain: 'meadow.example', url: 'https://meadow.example/planner' },
     ], { device: 'mobile', label: 'Head terms' }),
     serpPage('meal planner', [
-      { type: 'organic', rank_group: 3, domain: 'meals.example', url: 'https://meals.example/', links: [{ type: 'link_element', url: 'https://meals.example/planner' }] },
+      { type: 'organic', rank_group: 3, domain: 'meadow.example', url: 'https://meadow.example/', links: [{ type: 'link_element', url: 'https://meadow.example/planner' }] },
     ], { device: 'desktop', label: 'Head terms' }),
     serpPage('weekly meal plan', [
       { type: 'ai_overview', references: [{ domain: 'reference.example' }], items: [{ type: 'ai_overview_element', text: 'Plan ahead…' }] },
@@ -859,7 +859,7 @@ export async function writeGrowingArchive(dir, count, rows = 200) {
         request: { dimensions: ['page', 'query'] },
         response: {
           rows: Array.from({ length: rows }, (_, index) => gscRow(
-            [`https://meals.example/page-${index % 50}`, `query ${index}`],
+            [`https://meadow.example/page-${index % 50}`, `query ${index}`],
             dayIndex,
             index,
           )),

@@ -15,4 +15,4 @@ export interface OfflineProxy {
   close(): Promise<void>;
 }
 export declare function startOfflineProxy(origin: string): Promise<OfflineProxy>;
-export declare function installOfflineGuard(context: BrowserContext, origin: string, options?: { strict?: boolean; transport?: OfflineProxy }): Promise<OfflineGuard>;
+export declare function installOfflineGuard(context: BrowserContext, origin: string, options: { transport: OfflineProxy }): Promise<OfflineGuard>;

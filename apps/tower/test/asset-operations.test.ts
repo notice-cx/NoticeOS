@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 import { emptyDraft, planWrites } from '@shared/asset-wizard';
-import { lifecycleMoveRef } from '@shared/asset-detail';
+import { lifecycleMoveRef } from '@noticeos/contract/configuration';
 import { createAssetOperations, lifecycleSaveRequest } from '@/lib/asset-operations';
 import { ApiError, AssetExistsError, type CreatedAsset } from '@/lib/api';
 

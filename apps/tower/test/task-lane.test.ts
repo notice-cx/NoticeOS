@@ -14,8 +14,8 @@ import {
   readSpokes,
   resolveBdBin,
   taskLane,
-  toLiveTask,
 } from "../vite/task-lane";
+import { toLiveTask } from "../../../scripts/task-row.mjs";
 
 // The Tower's write path to the portfolio's task hub. It spawns a CLI with
 // the operator's own credentials, so what is asserted is the three guards, in
@@ -799,7 +799,7 @@ describe("the pieces underneath", () => {
 
   it("takes the prefix off an id, including a child task's", () => {
     expect(prefixOf("ro-l1ed.1")).toBe("ro");
-    expect(prefixOf("pft-abc")).toBe("pft");
+    expect(prefixOf("pb-abc")).toBe("pb");
     expect(prefixOf("nonsense")).toBe("");
   });
 
