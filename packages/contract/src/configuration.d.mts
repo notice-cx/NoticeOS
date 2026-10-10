@@ -19,6 +19,26 @@ export declare const TOWER_CONFIG_FILES: Readonly<{
 }>;
 export declare const ASSET_STATUSES: readonly ["pre-launch", "onboarding", "baselining", "live", "retired"];
 export type AssetStatus = (typeof ASSET_STATUSES)[number];
+/**
+ * A stage move is recorded as a timeline row because `assets.status` holds only
+ * where an asset is; Restore reads the previous stage from the timeline. The
+ * Tower and `pnpm config:apply` both write it, so both read these. The kind is
+ * `config` because `annotations.kind` is a CHECK constraint and a stage is a
+ * stored setting on the asset.
+ */
+export declare const LIFECYCLE_ANNOTATION_KIND = "config";
+/** What a lifecycle-move `ref` starts with, so an operator-written ref can never
+ * be mistaken for one. */
+export declare const LIFECYCLE_REF_PREFIX = "lifecycle:";
+/**
+ * The `ref` one stage move is stored under (`lifecycle:baselining>retired`).
+ * Part of the row's `(asset, at, kind, ref)` identity, so a retried write
+ * collapses into one row and two moves in the same second stay two.
+ */
+export declare function lifecycleMoveRef(move: {
+    from: AssetStatus;
+    to: AssetStatus;
+}): string;
 export declare const STORE_COLUMNS: readonly ["status", "sense_only", "display_name"];
 export type StoreColumn = (typeof STORE_COLUMNS)[number];
 export declare const DISPLAY_NAME_MAX = 80;

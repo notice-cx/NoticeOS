@@ -207,27 +207,3 @@ export async function archiveChangeset(cs: Changeset, { repoRoot = DEFAULT_REPO_
   await fs.writeFile(path.join(dir, name), JSON.stringify(cs, null, 2) + '\n', 'utf8');
   return checkoutRelative(path.join(dir, name), { root: repoRoot });
 }
-
-// A lifecycle stage move is an event on the annotation timeline, written by
-// every surface that moves the stage; Restore reads the most recent recorded
-// move into `retired` to decide which stage to bring an archived asset back
-// to. The three definitions below are duplicated on purpose from
-// `apps/tower/shared/asset-detail.ts`, because `pnpm test:scripts` has no TS
-// loader; `scripts/lifecycle-ref.test.mjs` keeps the two identical.
-
-/** `annotations.kind` for a stage move. `annotations.kind` is a CHECK
- * constraint, and `config` is the closest honest member. */
-export const LIFECYCLE_ANNOTATION_KIND: string = 'config';
-
-/** What a lifecycle-move `ref` starts with, so an operator-written ref can never
- * be mistaken for one. */
-export const LIFECYCLE_REF_PREFIX: string = 'lifecycle:';
-
-/**
- * The `ref` one stage move is stored under (`lifecycle:baselining>retired`).
- * Part of the row's `(asset, at, kind, ref)` identity, so a retried write
- * collapses into one row and two moves in the same second stay two.
- */
-export function lifecycleMoveRef({ from, to }: { from: string; to: string }): string {
-  return `${LIFECYCLE_REF_PREFIX}${from}>${to}`;
-}

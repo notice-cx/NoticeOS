@@ -15,17 +15,16 @@ import { fileURLToPath } from 'node:url';
 import {
   ChangesetError,
   DEFAULT_REPO_ROOT,
-  LIFECYCLE_ANNOTATION_KIND,
   MISSING,
   applyFileOps,
   archiveChangeset,
   builtInDocumentReader,
-  lifecycleMoveRef,
   resolve,
   resolveOps,
   writeDocumentFile,
   validateSchemaAndSafety,
 } from './config-apply-core.mjs';
+import { LIFECYCLE_ANNOTATION_KIND, lifecycleMoveRef } from '../packages/contract/src/configuration.mjs';
 import { DEFAULT_DOOR, doorRequest, doorUrl, operatorToken } from './ingest-door.mjs';
 import { CONFIG_APPLY_PATH, configStoreRequest, readConfigSnapshot } from './config-store-client.mjs';
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { lifecycleMoveRef } from './config-apply-core.mjs';
+import { lifecycleMoveRef } from '../packages/contract/src/configuration.mjs';
 import test from 'node:test';
 import {
   MISSING,
